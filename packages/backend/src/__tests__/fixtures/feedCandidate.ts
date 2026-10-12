@@ -3,7 +3,7 @@
  *
  * Every feed module — filter predicates, the engine merge, the discovery gate,
  * the offline eval harness — now receives a `PostRecord`, a declared shape
- * rather than the `Record<string, unknown>` bag the Mongo lean document was. A
+ * rather than the `Record<string, unknown>` bag the legacy-store lean document was. A
  * partial literal papered over with a cast is exactly what let the old fixtures
  * keep saying `_id` long after nothing read it, so the base here is whole and
  * overrides are a shallow merge on top of it.

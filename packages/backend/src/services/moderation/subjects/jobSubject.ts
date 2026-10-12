@@ -47,13 +47,19 @@ export function createJobSubjectProvider(): ModerationSubjectProvider {
      * (`published`, `paused`, `closed`, `expired`) already has, or once had, a
      * public canonical page, so it is fair material for a report either way.
      */
-    async snapshot(reportedId: string, reporterId?: string): Promise<ModerationSubjectSnapshot | null> {
+    async snapshot(
+      reportedId: string,
+      reporterId?: string,
+    ): Promise<ModerationSubjectSnapshot | null> {
       const row = await getJobById(reportedId);
       if (!row) return null;
       if (row.status === 'draft' && row.authorOxyUserId !== reporterId) return null;
 
       const job = toMentionJobPosting(row);
-      const body = [job.title, job.description].filter(Boolean).join('\n\n').slice(0, MAX_CONTEXT_TEXT_LENGTH);
+      const body = [job.title, job.description]
+        .filter(Boolean)
+        .join('\n\n')
+        .slice(0, MAX_CONTEXT_TEXT_LENGTH);
 
       return {
         subject: {

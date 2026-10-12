@@ -14,12 +14,7 @@ import {
   upsertOutboundAcceptedSubscription,
 } from '../../db/federation/followRepository';
 import { resolveOxyExternalUser } from '../identity';
-import {
-  ATPROTO_ENABLED,
-  isAtUri,
-  isAtprotoHandle,
-  isDid,
-} from './constants';
+import { ATPROTO_ENABLED, isAtUri, isAtprotoHandle, isDid } from './constants';
 import { resolveIdentity } from './identityResolver';
 import { fetchAndUpsertAtprotoProfile } from './profile.mapper';
 import { importAuthorFeed } from './post.mapper';
@@ -82,7 +77,10 @@ class AtprotoConnector implements NetworkConnector<PostContent> {
       logger.warn('[atproto] fetchPosts skipped backfill without a resolved Oxy user');
       return { posts: [] };
     }
-    const { posts, cursor } = await importAuthorFeed(actor, { limit: opts.limit, cursor: opts.cursor });
+    const { posts, cursor } = await importAuthorFeed(actor, {
+      limit: opts.limit,
+      cursor: opts.cursor,
+    });
     return { posts, cursor };
   }
 
@@ -142,7 +140,7 @@ class AtprotoConnector implements NetworkConnector<PostContent> {
     // Backfill the followed actor's recent posts in the background.
     if (actor?.oxyUserId) {
       void importAuthorFeed(actor, { limit: 20 }).catch((err) => {
-      logger.warn('[atproto] follow backfill failed', err);
+        logger.warn('[atproto] follow backfill failed', err);
       });
     }
   }

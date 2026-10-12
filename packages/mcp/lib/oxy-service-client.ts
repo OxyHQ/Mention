@@ -1,4 +1,4 @@
-import { OxyServer } from "@oxy.so/core/server";
+import { OxyServer } from '@oxy.so/core/server';
 
 /**
  * An Oxy client that authenticates as this service, however this process can.
@@ -23,7 +23,7 @@ export function oxyServiceClient(config: {
   // service token, not only `serviceRequest` ones (Mention#1173).
   return new OxyServer({
     baseURL: config.oxyApiUrl,
-    serviceIdentity: "when-anonymous",
+    serviceIdentity: 'when-anonymous',
     ...(config.oxyServiceApiKey && config.oxyServiceApiSecret
       ? { serviceAuth: { apiKey: config.oxyServiceApiKey, apiSecret: config.oxyServiceApiSecret } }
       : {}),

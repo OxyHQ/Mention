@@ -133,9 +133,7 @@ function cooldownFromRetryAfter(header: string | string[] | undefined): number {
   const raw = Array.isArray(header) ? header[0] : header;
   if (typeof raw === 'string' && raw.trim().length > 0) {
     const seconds = Number(raw.trim());
-    const ms = Number.isFinite(seconds)
-      ? seconds * 1000
-      : new Date(raw).getTime() - Date.now();
+    const ms = Number.isFinite(seconds) ? seconds * 1000 : new Date(raw).getTime() - Date.now();
     if (Number.isFinite(ms) && ms > 0) {
       return Math.min(Math.max(ms, MIN_COOLDOWN_MS), MAX_COOLDOWN_MS);
     }
@@ -522,7 +520,9 @@ export async function deleteCachedMedia(oxyFileId: string): Promise<void> {
 
   assertWriteBudget('delete');
 
-  const target = new URL(`${getOxyApiBaseUrl()}${OXY_ASSET_CACHE_PATH}/${encodeURIComponent(oxyFileId)}`);
+  const target = new URL(
+    `${getOxyApiBaseUrl()}${OXY_ASSET_CACHE_PATH}/${encodeURIComponent(oxyFileId)}`,
+  );
 
   // Token acquired inside the closure so a 401 retry mints a fresh bearer. The
   // delete carries no body, so the retry is a plain re-issue.
@@ -554,7 +554,12 @@ export async function deleteCachedMedia(oxyFileId: string): Promise<void> {
 /** Oxy's per-file answer to a federated-media delete. */
 export type FederatedMediaDeleteResult = 'deleted' | 'not_found' | 'forbidden' | 'in_use';
 
-const KNOWN_DELETE_RESULTS: ReadonlySet<string> = new Set(['deleted', 'not_found', 'forbidden', 'in_use']);
+const KNOWN_DELETE_RESULTS: ReadonlySet<string> = new Set([
+  'deleted',
+  'not_found',
+  'forbidden',
+  'in_use',
+]);
 
 /** The batch route's ceiling (oxy-api validates 1–20 ids). */
 export const FEDERATED_MEDIA_DELETE_BATCH_MAX = 20;
@@ -579,7 +584,9 @@ export async function deleteFederatedMedia(
 ): Promise<Array<{ id: string; result: FederatedMediaDeleteResult }>> {
   if (fileIds.length === 0) return [];
   if (fileIds.length > FEDERATED_MEDIA_DELETE_BATCH_MAX) {
-    throw new Error(`deleteFederatedMedia: at most ${FEDERATED_MEDIA_DELETE_BATCH_MAX} ids per call`);
+    throw new Error(
+      `deleteFederatedMedia: at most ${FEDERATED_MEDIA_DELETE_BATCH_MAX} ids per call`,
+    );
   }
   assertWriteBudget('delete');
 
@@ -587,12 +594,18 @@ export async function deleteFederatedMedia(
   const body = JSON.stringify({ ids: [...fileIds] });
   const response = await withServiceTokenRetry(async () => {
     const token = await getServiceBearerToken();
-    return streamRequest('POST', target, {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      'Content-Length': String(Buffer.byteLength(body)),
-    }, undefined, body);
+    return streamRequest(
+      'POST',
+      target,
+      {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'Content-Length': String(Buffer.byteLength(body)),
+      },
+      undefined,
+      body,
+    );
   });
   const status = response.statusCode ?? 0;
 
@@ -607,7 +620,8 @@ export async function deleteFederatedMedia(
 
   const parsed = (await readJsonResponse(response)) as { data?: { results?: unknown } } | undefined;
   const results = Array.isArray(parsed?.data?.results) ? parsed.data.results : null;
-  if (!results) throw new OxyMediaStoreRequestError('delete', status, 'response missing data.results');
+  if (!results)
+    throw new OxyMediaStoreRequestError('delete', status, 'response missing data.results');
   const asked = new Set(fileIds);
   const unknown: string[] = [];
   const answers = results.flatMap((entry) => {

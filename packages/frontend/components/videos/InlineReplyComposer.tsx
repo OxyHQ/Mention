@@ -28,7 +28,11 @@ interface InlineReplyComposerProps {
  * Deliberately narrower than the full `/compose` screen (no media, mentions,
  * or hashtags) — matches Reels' plain-text comment box.
  */
-export function InlineReplyComposer({ postId, onPosted, focusNonce = 0 }: InlineReplyComposerProps) {
+export function InlineReplyComposer({
+  postId,
+  onPosted,
+  focusNonce = 0,
+}: InlineReplyComposerProps) {
   const { t } = useTranslation();
   const theme = useTheme();
   // This composer is pinned under a scrolling reply list on TWO different

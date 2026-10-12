@@ -1,7 +1,12 @@
 import { authenticatedClient } from '../utils/api';
 import type { PollDetail, PollResults } from '@mention/shared-types';
 
-export type { PollDetail, PollDetailOption, PollResults, PollResultOption } from '@mention/shared-types';
+export type {
+  PollDetail,
+  PollDetailOption,
+  PollResults,
+  PollResultOption,
+} from '@mention/shared-types';
 
 export interface CreatePollRequest {
   question: string;
@@ -19,12 +24,7 @@ interface Envelope<T> {
 }
 
 function isEnvelope(value: unknown): value is Envelope<unknown> {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'success' in value &&
-    'data' in value
-  );
+  return typeof value === 'object' && value !== null && 'success' in value && 'data' in value;
 }
 
 /** Thrown when a `/polls/*` response does not match the shape this client expects. */
@@ -101,11 +101,18 @@ export const pollService = {
     return unwrapPollDetail(authenticatedClient.post<unknown>('/polls', req));
   },
 
-  async updatePollPostId(pollId: string, postId: string): Promise<{ success: boolean; data: PollDetail }> {
-    return unwrapPollDetail(authenticatedClient.post<unknown>(`/polls/${pollId}/update-post`, { postId }));
+  async updatePollPostId(
+    pollId: string,
+    postId: string,
+  ): Promise<{ success: boolean; data: PollDetail }> {
+    return unwrapPollDetail(
+      authenticatedClient.post<unknown>(`/polls/${pollId}/update-post`, { postId }),
+    );
   },
 
   async vote(pollId: string, optionId: string): Promise<{ success: boolean; data: PollDetail }> {
-    return unwrapPollDetail(authenticatedClient.post<unknown>(`/polls/${pollId}/vote`, { optionId }));
+    return unwrapPollDetail(
+      authenticatedClient.post<unknown>(`/polls/${pollId}/vote`, { optionId }),
+    );
   },
 };

@@ -82,7 +82,10 @@ export function postSearchWindows(newest: Date): PostSearchWindow[] {
   ];
 }
 
-function withinWindow(column: typeof posts.createdAt | typeof postContentVariants.postCreatedAt, window: PostSearchWindow): SQL[] {
+function withinWindow(
+  column: typeof posts.createdAt | typeof postContentVariants.postCreatedAt,
+  window: PostSearchWindow,
+): SQL[] {
   return [
     ...(window.from ? [gte(column, window.from)] : []),
     ...(window.until ? [lt(column, window.until)] : []),
@@ -103,11 +106,13 @@ export function postTextMatchSql(textQuery: string, window: PostSearchWindow = {
     getDb()
       .select({ one: sql`1` })
       .from(postContentVariants)
-      .where(and(
-        eq(postContentVariants.postId, posts.id),
-        sql`${postContentVariants.searchVector} @@ websearch_to_tsquery('english', ${textQuery})`,
-        ...withinWindow(postContentVariants.postCreatedAt, window),
-      )),
+      .where(
+        and(
+          eq(postContentVariants.postId, posts.id),
+          sql`${postContentVariants.searchVector} @@ websearch_to_tsquery('english', ${textQuery})`,
+          ...withinWindow(postContentVariants.postCreatedAt, window),
+        ),
+      ),
   ) as SQL;
 }
 
@@ -135,7 +140,9 @@ export function postSearchWindowQuery(
   return db
     .select({ id: posts.id })
     .from(posts)
-    .where(and(where, ...withinWindow(posts.createdAt, window), postTextMatchSql(textQuery, window)))
+    .where(
+      and(where, ...withinWindow(posts.createdAt, window), postTextMatchSql(textQuery, window)),
+    )
     .orderBy(...chronoOrderBy())
     .limit(limit);
 }

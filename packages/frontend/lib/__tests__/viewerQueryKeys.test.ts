@@ -150,11 +150,9 @@ describe('viewer-scoped private cache', () => {
     expect(viewerQueryKeys.profileLists('viewer-a', undefined, true)).toContain('');
     expect(viewerQueryKeys.postActivity('viewer-a', undefined)).toContain('');
     expect(viewerQueryKeys.lanesForOwner('viewer-a', undefined)).toContain('');
-    expect(viewerQueryKeys.feedInterstitial(
-      'viewer-a',
-      'suggested-starter-packs',
-      'subject-1',
-    )).toContain('subject-1');
+    expect(
+      viewerQueryKeys.feedInterstitial('viewer-a', 'suggested-starter-packs', 'subject-1'),
+    ).toContain('subject-1');
   });
 
   it('keeps truly anonymous catalogs in a separate public namespace', () => {
@@ -203,36 +201,49 @@ describe('viewer-scoped private cache', () => {
     expect(viewerQueryKeys.isFamily(publicQueryKeys.feedModules(), 'feed-modules')).toBe(false);
     expect(viewerQueryKeys.isAppearanceForUser(appearanceKey, 'user-1')).toBe(true);
     expect(viewerQueryKeys.isAppearanceForUser(appearanceKey, 'user-2')).toBe(false);
-    expect(viewerQueryKeys.isAppearanceForUser(
-      viewerQueryKeys.notifications('viewer-a'),
-      'user-1',
-    )).toBe(false);
+    expect(
+      viewerQueryKeys.isAppearanceForUser(viewerQueryKeys.notifications('viewer-a'), 'user-1'),
+    ).toBe(false);
   });
 
   it('keys a feed on its viewer, type, profile and filters, normalised like its scroll key', () => {
-    const thread = viewerQueryKeys.feed('viewer-a', 'replies', undefined, { postId: 'p1', parentPostId: 'p1' });
+    const thread = viewerQueryKeys.feed('viewer-a', 'replies', undefined, {
+      postId: 'p1',
+      parentPostId: 'p1',
+    });
     // The same filters in another order, or rebuilt, are the same feed.
-    expect(viewerQueryKeys.feed('viewer-a', 'replies', undefined, { parentPostId: 'p1', postId: 'p1' })).toEqual(thread);
+    expect(
+      viewerQueryKeys.feed('viewer-a', 'replies', undefined, { parentPostId: 'p1', postId: 'p1' }),
+    ).toEqual(thread);
     // An absent value reads as '' (as `buildFeedScrollKey` serialises it), and
     // no filters at all is the same feed as an empty bag of them.
-    expect(viewerQueryKeys.feed('viewer-a', 'hashtag', undefined, { hashtag: undefined }))
-      .toEqual(viewerQueryKeys.feed('viewer-a', 'hashtag', undefined, { hashtag: '' }));
-    expect(viewerQueryKeys.feed('viewer-a', 'for_you', undefined, {}))
-      .toEqual(viewerQueryKeys.feed('viewer-a', 'for_you'));
+    expect(viewerQueryKeys.feed('viewer-a', 'hashtag', undefined, { hashtag: undefined })).toEqual(
+      viewerQueryKeys.feed('viewer-a', 'hashtag', undefined, { hashtag: '' }),
+    );
+    expect(viewerQueryKeys.feed('viewer-a', 'for_you', undefined, {})).toEqual(
+      viewerQueryKeys.feed('viewer-a', 'for_you'),
+    );
     // Each dimension separates two feeds.
-    expect(viewerQueryKeys.feed('viewer-b', 'replies', undefined, { postId: 'p1', parentPostId: 'p1' })).not.toEqual(thread);
-    expect(viewerQueryKeys.feed('viewer-a', 'posts', 'author-1'))
-      .not.toEqual(viewerQueryKeys.feed('viewer-a', 'posts', 'author-2'));
-    expect(viewerQueryKeys.feed('viewer-a', 'posts', 'author-1'))
-      .not.toEqual(viewerQueryKeys.feed('viewer-a', 'likes', 'author-1'));
+    expect(
+      viewerQueryKeys.feed('viewer-b', 'replies', undefined, { postId: 'p1', parentPostId: 'p1' }),
+    ).not.toEqual(thread);
+    expect(viewerQueryKeys.feed('viewer-a', 'posts', 'author-1')).not.toEqual(
+      viewerQueryKeys.feed('viewer-a', 'posts', 'author-2'),
+    );
+    expect(viewerQueryKeys.feed('viewer-a', 'posts', 'author-1')).not.toEqual(
+      viewerQueryKeys.feed('viewer-a', 'likes', 'author-1'),
+    );
   });
 
   it('reads back the feed a feed key names, and nothing else', () => {
-    expect(viewerQueryKeys.feedIdentity(
-      viewerQueryKeys.feed('viewer-a', 'replies', undefined, { postId: 'p1' }),
-    )).toEqual({ type: 'replies', userId: undefined, filters: { postId: 'p1' } });
-    expect(viewerQueryKeys.feedIdentity(viewerQueryKeys.feed(undefined, 'posts', 'author-1')))
-      .toEqual({ type: 'posts', userId: 'author-1', filters: undefined });
+    expect(
+      viewerQueryKeys.feedIdentity(
+        viewerQueryKeys.feed('viewer-a', 'replies', undefined, { postId: 'p1' }),
+      ),
+    ).toEqual({ type: 'replies', userId: undefined, filters: { postId: 'p1' } });
+    expect(
+      viewerQueryKeys.feedIdentity(viewerQueryKeys.feed(undefined, 'posts', 'author-1')),
+    ).toEqual({ type: 'posts', userId: 'author-1', filters: undefined });
     expect(viewerQueryKeys.feedIdentity(viewerQueryKeys.feedsRoot('viewer-a'))).toBeNull();
     expect(viewerQueryKeys.feedIdentity(viewerQueryKeys.notifications('viewer-a'))).toBeNull();
   });
@@ -241,20 +252,20 @@ describe('viewer-scoped private cache', () => {
     // An identity write invalidates the accounts LIST (the composer's publish-as
     // picker reads it) and must leave the Mention-owned per-channel settings row
     // alone — both live in the `accounts` family, so the family alone is too wide.
-    expect(
-      viewerQueryKeys.isOperatedAccounts(viewerQueryKeys.operatedAccounts('viewer-a')),
-    ).toBe(true);
+    expect(viewerQueryKeys.isOperatedAccounts(viewerQueryKeys.operatedAccounts('viewer-a'))).toBe(
+      true,
+    );
     expect(
       viewerQueryKeys.isOperatedAccounts(
         viewerQueryKeys.channelAccountSettings('viewer-a', 'acct-1'),
       ),
     ).toBe(false);
-    expect(
-      viewerQueryKeys.isOperatedAccounts(viewerQueryKeys.notifications('viewer-a')),
-    ).toBe(false);
+    expect(viewerQueryKeys.isOperatedAccounts(viewerQueryKeys.notifications('viewer-a'))).toBe(
+      false,
+    );
   });
 
-  it('matches ONE channel\'s writers list, not the whole family', () => {
+  it("matches ONE channel's writers list, not the whole family", () => {
     // A byline write names one channel. A reader holding several channels' writer
     // lists must not have the others refetched — on a channel that does not
     // disclose, that request spends itself re-deriving a 404.
@@ -309,7 +320,7 @@ describe('viewer-scoped private cache', () => {
    * cache entry rather than each holding a private copy of an answer the server
    * gives everybody.
    */
-  it('keys a post\'s corrections on the post alone, with no viewer in it', () => {
+  it("keys a post's corrections on the post alone, with no viewer in it", () => {
     const key = publicQueryKeys.postCorrections('post-1');
 
     expect(key).toEqual([...key.slice(0, -2), 'post-corrections', 'post-1']);
@@ -342,7 +353,9 @@ describe('viewer-scoped private cache', () => {
       'places',
       'barc',
     ]);
-    expect(viewerQueryKeys.jobPlaces('viewer-a', 'barc')).not.toEqual(viewerQueryKeys.jobPlaces('viewer-a', 'madr'));
+    expect(viewerQueryKeys.jobPlaces('viewer-a', 'barc')).not.toEqual(
+      viewerQueryKeys.jobPlaces('viewer-a', 'madr'),
+    );
 
     expect(viewerQueryKeys.jobDetail('viewer-a', 'job-1')).not.toEqual(
       viewerQueryKeys.jobDetail('viewer-a', 'job-2'),
@@ -402,8 +415,22 @@ describe('viewer-scoped private cache', () => {
 
 describe('Mention personalization key', () => {
   it('separates sessions and private-API availability, and keys a missing session as null', () => {
-    expect(viewerQueryKeys.mentionPersonalization('a', 'session-a', true)).toEqual(['viewer', 'a', 'mention-personalization', 'session-a', true]);
-    expect(viewerQueryKeys.mentionPersonalization('a', undefined, false)).toEqual(['viewer', 'a', 'mention-personalization', null, false]);
-    expect(viewerQueryKeys.mentionPersonalization('a', 'session-b', true)).not.toEqual(viewerQueryKeys.mentionPersonalization('a', 'session-a', true));
+    expect(viewerQueryKeys.mentionPersonalization('a', 'session-a', true)).toEqual([
+      'viewer',
+      'a',
+      'mention-personalization',
+      'session-a',
+      true,
+    ]);
+    expect(viewerQueryKeys.mentionPersonalization('a', undefined, false)).toEqual([
+      'viewer',
+      'a',
+      'mention-personalization',
+      null,
+      false,
+    ]);
+    expect(viewerQueryKeys.mentionPersonalization('a', 'session-b', true)).not.toEqual(
+      viewerQueryKeys.mentionPersonalization('a', 'session-a', true),
+    );
   });
 });

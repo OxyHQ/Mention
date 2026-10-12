@@ -1,11 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { closePostgres, connectPostgres } from '../../../db/postgres';
-import {
-  clearFederationScope,
-  federationScope,
-  seedActor,
-} from '../../helpers/federationFixtures';
+import { clearFederationScope, federationScope, seedActor } from '../../helpers/federationFixtures';
 
 const scope = federationScope('ap-mentions-bridgy');
 
@@ -93,7 +89,13 @@ describe('inbound brid.gy @mention resolution', () => {
     mocks.getOrFetchActor.mockResolvedValue({ oxyUserId: 'oxy_bob' });
     const object = {
       content: '<p><a href="https://mastodon.social/@bob" class="u-url mention">@bob</a></p>',
-      tag: [{ type: 'Mention', href: 'https://mastodon.social/users/bob', name: '@bob@mastodon.social' }],
+      tag: [
+        {
+          type: 'Mention',
+          href: 'https://mastodon.social/users/bob',
+          name: '@bob@mastodon.social',
+        },
+      ],
     };
 
     const resolved = await resolveInboundMentions(object);

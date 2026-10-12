@@ -79,7 +79,7 @@ describe('preset definitions include Phase 2b signals', () => {
    * prefix invariant `FeedEngine.finalizeRanked`'s score cursor pages on, and
    * could drop landscape videos from every page.
    */
-  it('videosDefinition signals are forYou\'s, plus portraitBoost', () => {
+  it("videosDefinition signals are forYou's, plus portraitBoost", () => {
     const forYouIds = forYouDefinition.signals.map((ref) => ref.module);
     const videoIds = videosDefinition.signals.map((ref) => ref.module);
     expect(videoIds).toEqual([...forYouIds, 'portraitBoost']);

@@ -9,10 +9,7 @@ import {
   StarterPackCardSkeleton,
   type StarterPackCardData,
 } from '@/components/StarterPackCard';
-import {
-  starterPacksService,
-  type StarterPackSummary,
-} from '@/services/starterPacksService';
+import { starterPacksService, type StarterPackSummary } from '@/services/starterPacksService';
 import { logger } from '@oxy.so/core/logger';
 import { DismissButton } from './DismissButton';
 import { InterstitialShell } from './InterstitialShell';
@@ -59,10 +56,7 @@ export function SuggestedStarterPacksInterstitial({
   const query = useQuery({
     // `excludeUsed` makes the list viewer-specific — never share it across an
     // account switch.
-    queryKey: viewerQueryKeys.feedInterstitial(
-      user?.id,
-      'suggested-starter-packs',
-    ),
+    queryKey: viewerQueryKeys.feedInterstitial(user?.id, 'suggested-starter-packs'),
     queryFn: () => starterPacksService.list({ excludeUsed: true }),
     enabled: canUsePrivateApi,
     staleTime: INTERSTITIAL_STALE_TIME_MS,
@@ -80,13 +74,7 @@ export function SuggestedStarterPacksInterstitial({
 
   const packs = useMemo(
     () =>
-      selectInterstitialWindow(
-        query.data?.items ?? [],
-        ordinal,
-        limits,
-        starterPackId,
-        dismissed,
-      ),
+      selectInterstitialWindow(query.data?.items ?? [], ordinal, limits, starterPackId, dismissed),
     [query.data, ordinal, limits, dismissed],
   );
 

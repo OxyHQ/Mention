@@ -7,7 +7,7 @@ export const EmojiIcon = ({
   color = 'currentColor',
   size = 26,
   style,
-  className
+  className,
 }: {
   color?: string;
   size?: number;
@@ -15,13 +15,7 @@ export const EmojiIcon = ({
   className?: string;
 }) => {
   return (
-    <IconSvg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      style={style}
-      className={className}
-    >
+    <IconSvg width={size} height={size} viewBox="0 0 24 24" style={style} className={className}>
       <Path
         fill={color}
         fillRule="evenodd"

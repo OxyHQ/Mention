@@ -1,8 +1,5 @@
 import { Storage } from '@/utils/storage';
-import {
-  viewerStorageKey,
-  type ViewerId,
-} from '@/lib/viewerQueryKeys';
+import { viewerStorageKey, type ViewerId } from '@/lib/viewerQueryKeys';
 import { createKeyedAsyncQueue } from '@/lib/keyedAsyncQueue';
 
 const LEGACY_RECOMMENDATION_FILTERS_KEY = '@mention/recommendation_filters';
@@ -50,23 +47,18 @@ export async function getRecommendationFilters(
 
   removeLegacyRecommendationFilters();
   const operationEpoch = currentEpoch(normalizedViewerId);
-  const stored = await enqueueRecommendationStorage(
-    normalizedViewerId,
-    async () => {
-      if (operationEpoch !== currentEpoch(normalizedViewerId)) {
-        return null;
-      }
-      return Storage.get<Partial<RecommendationFilters>>(
-        getRecommendationFiltersStorageKey(normalizedViewerId),
-      );
-    },
-  );
+  const stored = await enqueueRecommendationStorage(normalizedViewerId, async () => {
+    if (operationEpoch !== currentEpoch(normalizedViewerId)) {
+      return null;
+    }
+    return Storage.get<Partial<RecommendationFilters>>(
+      getRecommendationFiltersStorageKey(normalizedViewerId),
+    );
+  });
   if (operationEpoch !== currentEpoch(normalizedViewerId)) {
     return DEFAULT_RECOMMENDATION_FILTERS;
   }
-  return stored
-    ? { ...DEFAULT_RECOMMENDATION_FILTERS, ...stored }
-    : DEFAULT_RECOMMENDATION_FILTERS;
+  return stored ? { ...DEFAULT_RECOMMENDATION_FILTERS, ...stored } : DEFAULT_RECOMMENDATION_FILTERS;
 }
 
 export async function saveRecommendationFilters(
@@ -90,16 +82,9 @@ export function resetRecommendationFiltersViewer(viewerId: ViewerId): void {
   const normalizedViewerId = normalizePrivateViewerId(viewerId);
   if (!normalizedViewerId) return;
 
-  viewerEpochs.set(
-    normalizedViewerId,
-    currentEpoch(normalizedViewerId) + 1,
-  );
+  viewerEpochs.set(normalizedViewerId, currentEpoch(normalizedViewerId) + 1);
   removeLegacyRecommendationFilters();
-  void enqueueRecommendationStorage(
-    normalizedViewerId,
-    () => Storage.remove(
-      getRecommendationFiltersStorageKey(normalizedViewerId),
-    ),
-  )
-    .catch(() => {});
+  void enqueueRecommendationStorage(normalizedViewerId, () =>
+    Storage.remove(getRecommendationFiltersStorageKey(normalizedViewerId)),
+  ).catch(() => {});
 }

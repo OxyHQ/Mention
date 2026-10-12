@@ -10,7 +10,7 @@ import { PageHeader } from '@oxy.so/bloom/page-header';
 
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { EmptyState } from '@/components/common/EmptyState';
-import { InsightsView } from '@/components/insights/InsightsView';
+import LazyInsightsView from '@/components/insights/LazyInsightsView';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**
@@ -48,8 +48,14 @@ export default function ChannelInsightsScreen() {
   const routeHandle = String(username ?? '');
   const { t } = useTranslation();
   const safeBack = useSafeBack();
-  const { user, oxyServices, canUsePrivateApi, isAuthenticated, isAuthResolved, isPrivateApiPending } =
-    useAuth();
+  const {
+    user,
+    oxyServices,
+    canUsePrivateApi,
+    isAuthenticated,
+    isAuthResolved,
+    isPrivateApiPending,
+  } = useAuth();
   const viewerId = user?.id;
 
   // Waits for the cold boot to settle rather than firing while the session is
@@ -93,7 +99,8 @@ export default function ChannelInsightsScreen() {
         <OxyAuthPrompt
           label={t('channels.signInRequired', { defaultValue: 'Sign in to manage your channels' })}
           description={t('channels.signInRequiredDesc', {
-            defaultValue: 'A channel is an account people follow without following the people who write for it.',
+            defaultValue:
+              'A channel is an account people follow without following the people who write for it.',
           })}
         />
       </View>
@@ -128,7 +135,7 @@ export default function ChannelInsightsScreen() {
   return (
     <View className="flex-1">
       {header}
-      <InsightsView accountId={channel.accountId} />
+      <LazyInsightsView accountId={channel.accountId} />
     </View>
   );
 }

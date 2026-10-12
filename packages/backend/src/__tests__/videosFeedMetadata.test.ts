@@ -52,7 +52,9 @@ const rankPosts = vi.fn(async (candidates: Array<Record<string, unknown>>) => {
   return candidates;
 });
 vi.mock('../services/FeedRankingService', () => ({
-  feedRankingService: { rankPosts: (...args: unknown[]) => rankPosts(...(args as Parameters<typeof rankPosts>)) },
+  feedRankingService: {
+    rankPosts: (...args: unknown[]) => rankPosts(...(args as Parameters<typeof rankPosts>)),
+  },
 }));
 
 vi.mock('../services/ThreadSlicingService', () => ({
@@ -148,12 +150,26 @@ describe('the orientation option', () => {
    */
   async function orientationFixtures() {
     return {
-      portrait: await create([video({ id: 'm-portrait', orientation: 'portrait', durationSec: 30 })]),
+      portrait: await create([
+        video({ id: 'm-portrait', orientation: 'portrait', durationSec: 30 }),
+      ]),
       landscape: await create([
-        video({ id: 'm-landscape', width: 1920, height: 1080, orientation: 'landscape', durationSec: 30 }),
+        video({
+          id: 'm-landscape',
+          width: 1920,
+          height: 1080,
+          orientation: 'landscape',
+          durationSec: 30,
+        }),
       ]),
       square: await create([
-        video({ id: 'm-square', width: 1080, height: 1080, orientation: 'square', durationSec: 30 }),
+        video({
+          id: 'm-square',
+          width: 1080,
+          height: 1080,
+          orientation: 'square',
+          durationSec: 30,
+        }),
       ]),
       unset: await create([video({ id: 'm-unset', durationSec: 30 })]),
     };
@@ -187,7 +203,9 @@ describe('the orientation option', () => {
   });
 
   it("still requires real dimensions under 'all', which the player needs for layout", async () => {
-    const sized = await create([video({ id: 'm-sized', orientation: 'landscape', width: 1920, height: 1080 })]);
+    const sized = await create([
+      video({ id: 'm-sized', orientation: 'landscape', width: 1920, height: 1080 }),
+    ]);
     await create([{ id: 'm-no-width', type: 'video', height: 1080, orientation: 'landscape' }]);
     await create([{ id: 'm-no-height', type: 'video', width: 1920, orientation: 'landscape' }]);
     await create([{ id: 'm-no-dimensions', type: 'video', orientation: 'landscape' }]);
@@ -198,8 +216,12 @@ describe('the orientation option', () => {
 
 describe('the minimum-duration option', () => {
   it('carries the configured minimum through rather than a hardcoded one', async () => {
-    const tenSeconds = await create([video({ id: 'm-10s', orientation: 'portrait', durationSec: 10 })]);
-    const thirtySeconds = await create([video({ id: 'm-30s', orientation: 'portrait', durationSec: 30 })]);
+    const tenSeconds = await create([
+      video({ id: 'm-10s', orientation: 'portrait', durationSec: 10 }),
+    ]);
+    const thirtySeconds = await create([
+      video({ id: 'm-30s', orientation: 'portrait', durationSec: 30 }),
+    ]);
 
     expect(await admitted({ minDurationSec: 7 })).toEqual([tenSeconds, thirtySeconds].sort());
     expect(await admitted({ minDurationSec: 20 })).toEqual([thirtySeconds]);
@@ -208,7 +230,11 @@ describe('the minimum-duration option', () => {
 
   it('treats the minimum as inclusive at the boundary', async () => {
     const exactly = await create([
-      video({ id: 'm-exact', orientation: 'portrait', durationSec: MtnConfig.videosFeed.minDurationSec }),
+      video({
+        id: 'm-exact',
+        orientation: 'portrait',
+        durationSec: MtnConfig.videosFeed.minDurationSec,
+      }),
     ]);
     const justUnder = await create([
       video({
@@ -226,7 +252,9 @@ describe('the minimum-duration option', () => {
   it('keeps the public / published / non-boost base match under any override', async () => {
     // The options widen the CONTENT predicate; they must never relax the base.
     const visible = await create([video({ id: 'm-ok', durationSec: 30 })]);
-    await create([video({ id: 'm-private', durationSec: 30 })], { visibility: PostVisibility.PRIVATE });
+    await create([video({ id: 'm-private', durationSec: 30 })], {
+      visibility: PostVisibility.PRIVATE,
+    });
     await create([video({ id: 'm-draft', durationSec: 30 })], { status: 'draft' });
     const original = await create([video({ id: 'm-original', durationSec: 30 })]);
     await create([video({ id: 'm-boost', durationSec: 30 })], {
@@ -295,11 +323,22 @@ describe('portrait-first ordering on the served page', () => {
    */
   it('emits a portrait clip before a landscape one when ranking ties', async () => {
     const [portraitId, landscapeId] = sameMillisecondIds(2);
-    const portrait = await create([video({ id: 'm-port', orientation: 'portrait', durationSec: 30 })], {
-      id: portraitId,
-    });
+    const portrait = await create(
+      [video({ id: 'm-port', orientation: 'portrait', durationSec: 30 })],
+      {
+        id: portraitId,
+      },
+    );
     const landscape = await create(
-      [video({ id: 'm-land', width: 1920, height: 1080, orientation: 'landscape', durationSec: 30 })],
+      [
+        video({
+          id: 'm-land',
+          width: 1920,
+          height: 1080,
+          orientation: 'landscape',
+          durationSec: 30,
+        }),
+      ],
       {
         id: landscapeId,
         oxyUserId: OTHER_AUTHOR,
@@ -329,7 +368,13 @@ describe('portrait-first ordering on the served page', () => {
     );
     const imagePlusLandscape = await create(
       [
-        video({ id: 'm-wide', width: 1920, height: 1080, orientation: 'landscape', durationSec: 30 }),
+        video({
+          id: 'm-wide',
+          width: 1920,
+          height: 1080,
+          orientation: 'landscape',
+          durationSec: 30,
+        }),
         { id: 'm-tall-photo', type: 'image', width: 1080, height: 1920, orientation: 'portrait' },
       ],
       {
@@ -354,12 +399,17 @@ describe('the videos source composes the predicate with the discovery safety gat
     // is whether THIS source wired the gate up, which a safety-module test cannot
     // answer.
     const safe = await create([video({ id: 'm-safe', orientation: 'portrait', durationSec: 30 })]);
-    const sensitive = await create([video({ id: 'm-nsfw', orientation: 'portrait', durationSec: 30 })], {
-      metadata: { isSensitive: true },
-    });
+    const sensitive = await create(
+      [video({ id: 'm-nsfw', orientation: 'portrait', durationSec: 30 })],
+      {
+        metadata: { isSensitive: true },
+      },
+    );
 
     const pool = await videosSource.gather({} as FeedEngineContext, {}, 500);
-    const mine = pool.map((candidate) => candidate.id).filter((id) => [safe, sensitive].includes(id));
+    const mine = pool
+      .map((candidate) => candidate.id)
+      .filter((id) => [safe, sensitive].includes(id));
     expect(mine).toEqual([safe]);
   });
 });

@@ -31,7 +31,10 @@ import { randomUUID } from 'node:crypto';
 import { inArray } from 'drizzle-orm';
 
 vi.mock('../../utils/socket', () => ({ emitTrendsUpdated: vi.fn() }));
-vi.mock('../../utils/oxyInference', () => ({ inferenceChat: vi.fn(), isInferenceEnabled: () => false }));
+vi.mock('../../utils/oxyInference', () => ({
+  inferenceChat: vi.fn(),
+  isInferenceEnabled: () => false,
+}));
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
@@ -69,11 +72,13 @@ async function seedPost(termName: string, body: string, seed: Seed = {}): Promis
   const column = seed.column ?? 'trendTerms';
   const record = await insertPostRecord({
     oxyUserId: `author-${RUN}-${createdPostIds.length}`,
-    authorship: [{
-      oxyUserId: `author-${RUN}-${createdPostIds.length}`,
-      role: 'owner',
-      status: 'accepted',
-    }],
+    authorship: [
+      {
+        oxyUserId: `author-${RUN}-${createdPostIds.length}`,
+        role: 'owner',
+        status: 'accepted',
+      },
+    ],
     status: seed.status ?? 'published',
     visibility: seed.visibility ?? 'public',
     createdAt: new Date(Date.now() - (seed.minutesAgo ?? 10) * 60 * 1000),
@@ -116,7 +121,10 @@ describe('loadExcerptsByTerm — the batch must be the per-term queries, exactly
     const crosspost = term('crosspost');
     await seedPost(crosspost, 'preferred caption', { minutesAgo: 20 });
     const sibling = await seedPost(crosspost, 'collapsed source caption', { minutesAgo: 10 });
-    await db.update(posts).set({ crosspostCollapsed: true }).where(inArray(posts.id, [sibling]));
+    await db
+      .update(posts)
+      .set({ crosspostCollapsed: true })
+      .where(inArray(posts.id, [sibling]));
     expect((await loadExcerptsByTerm([crosspost])).get(crosspost)).toEqual(['preferred caption']);
   });
 

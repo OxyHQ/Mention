@@ -3,7 +3,7 @@
  *
  * Three things are asserted here, and the suite this replaces could only ever
  * see the first of them — it stubbed `EntityFollow.find` and `AccountList.find`
- * and asserted the PROJECTION object the service passed to Mongo.
+ * and asserted the PROJECTION object the service passed to the legacy store.
  *
  * **Visibility at the point of USE.** `POST /entity-follows` refuses to
  * subscribe a stranger to a private list, but that gate alone is not enough: a
@@ -15,7 +15,7 @@
  * their feed.
  *
  * **The counter guard that is gone.** Both counter methods used to begin with
- * `mongoose.Types.ObjectId.isValid(listId)` and return early. Every list created
+ * an `ObjectId.isValid(listId)` check and return early. Every list created
  * after the cutover has a uuid v7 id, so that guard would have skipped the
  * maintenance for all of them — `subscriberCount` frozen at 0 forever, with
  * nothing logged and no error anywhere. The counter block below fails the moment
@@ -68,9 +68,9 @@ async function makeList(options: {
 
   const members = options.members ?? [];
   if (members.length > 0) {
-    await db.insert(accountListMembers).values(
-      members.map((oxyUserId, position) => ({ listId: list.id, oxyUserId, position })),
-    );
+    await db
+      .insert(accountListMembers)
+      .values(members.map((oxyUserId, position) => ({ listId: list.id, oxyUserId, position })));
   }
   return list.id;
 }
@@ -82,24 +82,23 @@ async function makeList(options: {
  * — a property of the seeding, not of the cap being asserted, and it failed as
  * "expected 5000, got 18" rather than as the timeout it was.
  */
-async function makeLists(
-  count: number,
-  memberFor: (index: number) => string,
-): Promise<string[]> {
+async function makeLists(count: number, memberFor: (index: number) => string): Promise<string[]> {
   const lists = await db
     .insert(accountLists)
-    .values(Array.from({ length: count }, () => ({
-      ownerOxyUserId: OWNER_ID,
-      title: `List ${randomUUID()}`,
-      isPublic: true,
-    })))
+    .values(
+      Array.from({ length: count }, () => ({
+        ownerOxyUserId: OWNER_ID,
+        title: `List ${randomUUID()}`,
+        isPublic: true,
+      })),
+    )
     .returning({ id: accountLists.id });
 
   const listIds = lists.map((list) => list.id);
   createdListIds.push(...listIds);
-  await db.insert(accountListMembers).values(
-    listIds.map((listId, index) => ({ listId, oxyUserId: memberFor(index), position: 0 })),
-  );
+  await db
+    .insert(accountListMembers)
+    .values(listIds.map((listId, index) => ({ listId, oxyUserId: memberFor(index), position: 0 })));
   return listIds;
 }
 
@@ -223,7 +222,7 @@ describe('subscriberCount maintenance — no id-shape guard stands in front of i
     /**
      * `account_lists_subscriber_count_check` refuses a negative value, so an
      * unguarded decrement on a zeroed counter would be a constraint violation
-     * rather than a no-op. Mongo filtered on `subscriberCount > 0`; so does this,
+     * rather than a no-op. The legacy store filtered on `subscriberCount > 0`; so does this,
      * which also means `updated_at` — a sort key for `GET /lists` — does not move.
      */
     const listId = await makeList({ isPublic: true });
@@ -252,9 +251,11 @@ describe('the feed caps warn rather than truncating silently', () => {
       overCap,
       (index) => `capped-member-${String(index).padStart(4, '0')}`,
     );
-    await db.insert(entityFollows).values(
-      listIds.map((entityId) => ({ userId: VIEWER_ID, entityType: LIST_ENTITY_TYPE, entityId })),
-    );
+    await db
+      .insert(entityFollows)
+      .values(
+        listIds.map((entityId) => ({ userId: VIEWER_ID, entityType: LIST_ENTITY_TYPE, entityId })),
+      );
 
     const memberIds = await service.getSubscribedListMemberIds(VIEWER_ID);
 

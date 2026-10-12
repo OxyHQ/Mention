@@ -37,14 +37,17 @@ const OLD = new Date(Date.now() - GATE.freshnessGraceMs - 60_000);
 const FRESH = new Date(Date.now() - 60_000);
 
 /** Trusted-provenance classification scores (baseline stamped at the current version). */
-function classified(scores: {
-  spam: number;
-  quality: number;
-  toxicity?: number;
-  constructiveness?: number;
-  controversy?: number;
-  negativity?: number;
-}, languages?: string[]) {
+function classified(
+  scores: {
+    spam: number;
+    quality: number;
+    toxicity?: number;
+    constructiveness?: number;
+    controversy?: number;
+    negativity?: number;
+  },
+  languages?: string[],
+) {
   return {
     status: 'baseline' as const,
     version: BASELINE_CLASSIFIER_VERSION,
@@ -80,7 +83,9 @@ const EMPTY_CTX: FeedEngineContext = {};
 describe('discovery gate — the 5 reported junk shapes are rejected', () => {
   it('#1 @neobrown9_m@misskey.io — custom-emoji SHORTCODE-only (ja): rejected by lowEffortGate', () => {
     const junk = post({
-      content: { variants: [{ source: 'author', text: ':oyaki::oyaki: :blobcat_thinking: :ablobcatwave:' }] },
+      content: {
+        variants: [{ source: 'author', text: ':oyaki::oyaki: :blobcat_thinking: :ablobcatwave:' }],
+      },
       stats: { likesCount: 0, commentsCount: 0, boostsCount: 1, federatedBoostsCount: 1 },
       postClassification: { languages: ['ja'] },
     });
@@ -90,7 +95,11 @@ describe('discovery gate — the 5 reported junk shapes are rejected', () => {
 
   it('#2 @denfaminicogamer@rss-mstdn — RSS news bot (ja): rejected by lowEffortGate (spam) AND engagement', () => {
     const junk = post({
-      content: { variants: [{ source: 'author', text: 'https://news.example/article-123 #ゲーム #news #ニュース' }] },
+      content: {
+        variants: [
+          { source: 'author', text: 'https://news.example/article-123 #ゲーム #news #ニュース' },
+        ],
+      },
       stats: { likesCount: 0, commentsCount: 0, boostsCount: 1, federatedBoostsCount: 1 },
       // F6's bot detector raises the deterministic spam score for an RSS/link mirror.
       postClassification: classified({ spam: 0.9, quality: 0.15 }, ['ja']),
@@ -103,7 +112,12 @@ describe('discovery gate — the 5 reported junk shapes are rejected', () => {
   it('#3 @honkhase@chaos.social — legitimate GERMAN prose (de): PASSES lowEffort, fails engagement', () => {
     const german = post({
       content: {
-        variants: [{ source: 'author', text: 'Guten Morgen zusammen! Heute wird ein wunderbarer Tag, die Sonne scheint über der ganzen Stadt.' }],
+        variants: [
+          {
+            source: 'author',
+            text: 'Guten Morgen zusammen! Heute wird ein wunderbarer Tag, die Sonne scheint über der ganzen Stadt.',
+          },
+        ],
       },
       stats: { likesCount: 0, commentsCount: 0, boostsCount: 3, federatedBoostsCount: 3 },
       postClassification: classified({ spam: 0.05, quality: 0.6 }, ['de']),
@@ -116,7 +130,14 @@ describe('discovery gate — the 5 reported junk shapes are rejected', () => {
 
   it('#4 @isurandil@mastodon.online — GERMAN (de): passes lowEffort, fails engagement', () => {
     const german = post({
-      content: { variants: [{ source: 'author', text: 'Ich habe gerade ein interessantes Buch über die Geschichte Europas gelesen.' }] },
+      content: {
+        variants: [
+          {
+            source: 'author',
+            text: 'Ich habe gerade ein interessantes Buch über die Geschichte Europas gelesen.',
+          },
+        ],
+      },
       stats: { likesCount: 0, commentsCount: 0, boostsCount: 3, federatedBoostsCount: 3 },
       postClassification: classified({ spam: 0.05, quality: 0.55 }, ['de']),
     });
@@ -144,17 +165,34 @@ describe('discovery gate — the 5 reported junk shapes are rejected', () => {
 
 describe('lowEffortGate predicate', () => {
   it('rejects an emoji-only post with no media', () => {
-    expect(passesLowEffortGate(post({ content: { variants: [{ source: 'author', text: '🔥🔥🚀✨' }] } }), LOW_EFFORT_CFG)).toBe(false);
+    expect(
+      passesLowEffortGate(
+        post({ content: { variants: [{ source: 'author', text: '🔥🔥🚀✨' }] } }),
+        LOW_EFFORT_CFG,
+      ),
+    ).toBe(false);
   });
 
   it('KEEPS an emoji-only post that carries media (media rescues it)', () => {
-    const withMedia = post({ content: { variants: [{ source: 'author', text: '🔥🔥' }], media: [{ id: 'm', type: 'image' }] } });
+    const withMedia = post({
+      content: {
+        variants: [{ source: 'author', text: '🔥🔥' }],
+        media: [{ id: 'm', type: 'image' }],
+      },
+    });
     expect(passesLowEffortGate(withMedia, LOW_EFFORT_CFG)).toBe(true);
   });
 
   it('rejects a trusted HIGH-SPAM post', () => {
     const spammy = post({
-      content: { variants: [{ source: 'author', text: 'Buy cheap followers now at spam-site dot com, best deal ever, limited time!!!' }] },
+      content: {
+        variants: [
+          {
+            source: 'author',
+            text: 'Buy cheap followers now at spam-site dot com, best deal ever, limited time!!!',
+          },
+        ],
+      },
       postClassification: classified({ spam: 0.85, quality: 0.5 }),
     });
     expect(passesLowEffortGate(spammy, LOW_EFFORT_CFG)).toBe(false);
@@ -162,7 +200,14 @@ describe('lowEffortGate predicate', () => {
 
   it('rejects a trusted VERY-LOW-QUALITY post', () => {
     const lowQ = post({
-      content: { variants: [{ source: 'author', text: 'this is some generic filler text that carries no real value at all here' }] },
+      content: {
+        variants: [
+          {
+            source: 'author',
+            text: 'this is some generic filler text that carries no real value at all here',
+          },
+        ],
+      },
       postClassification: classified({ spam: 0.1, quality: 0.1 }),
     });
     expect(passesLowEffortGate(lowQ, LOW_EFFORT_CFG)).toBe(false);
@@ -171,23 +216,56 @@ describe('lowEffortGate predicate', () => {
   it('KEEPS an UNSCORED post with real prose (never empties on absent provenance)', () => {
     // Default all-zeros scores with no provenance marker → readTrustedScores null → kept.
     const unscored = post({
-      content: { variants: [{ source: 'author', text: 'A perfectly ordinary sentence with actual words and meaning behind it.' }] },
-      postClassification: { scores: { spam: 0, toxicity: 0, quality: 0, constructiveness: 0, controversy: 0, negativity: 0 } },
+      content: {
+        variants: [
+          {
+            source: 'author',
+            text: 'A perfectly ordinary sentence with actual words and meaning behind it.',
+          },
+        ],
+      },
+      postClassification: {
+        scores: {
+          spam: 0,
+          toxicity: 0,
+          quality: 0,
+          constructiveness: 0,
+          controversy: 0,
+          negativity: 0,
+        },
+      },
     });
     expect(passesLowEffortGate(unscored, LOW_EFFORT_CFG)).toBe(true);
   });
 
   it('KEEPS normal prose with good trusted scores', () => {
     const good = post({
-      content: { variants: [{ source: 'author', text: 'Really enjoyed the new documentary about deep-sea exploration last night.' }] },
+      content: {
+        variants: [
+          {
+            source: 'author',
+            text: 'Really enjoyed the new documentary about deep-sea exploration last night.',
+          },
+        ],
+      },
       postClassification: classified({ spam: 0.05, quality: 0.8 }),
     });
     expect(passesLowEffortGate(good, LOW_EFFORT_CFG)).toBe(true);
   });
 
   it('keeps brief real prose in Latin and CJK scripts', () => {
-    expect(passesLowEffortGate(post({ content: { variants: [{ source: 'author', text: 'Sí' }] } }), LOW_EFFORT_CFG)).toBe(true);
-    expect(passesLowEffortGate(post({ content: { variants: [{ source: 'author', text: '猫' }] } }), LOW_EFFORT_CFG)).toBe(true);
+    expect(
+      passesLowEffortGate(
+        post({ content: { variants: [{ source: 'author', text: 'Sí' }] } }),
+        LOW_EFFORT_CFG,
+      ),
+    ).toBe(true);
+    expect(
+      passesLowEffortGate(
+        post({ content: { variants: [{ source: 'author', text: '猫' }] } }),
+        LOW_EFFORT_CFG,
+      ),
+    ).toBe(true);
   });
 });
 
@@ -239,7 +317,9 @@ describe('nativeEngagementOrMatch predicate', () => {
   });
 
   it('passes a FRESH zero-engagement post (cold-start supply)', () => {
-    expect(passesNativeEngagementOrMatch(post({ createdAt: FRESH }), EMPTY_CTX, NATIVE_CFG)).toBe(true);
+    expect(passesNativeEngagementOrMatch(post({ createdAt: FRESH }), EMPTY_CTX, NATIVE_CFG)).toBe(
+      true,
+    );
   });
 
   it('rejects a stale zero-engagement off-interest post', () => {
@@ -253,10 +333,20 @@ describe('matchesViewerInterests', () => {
   });
 
   it('matches on a strong topic, a preferred author, OR freshness', () => {
-    const topicCtx: FeedEngineContext = { userBehavior: { preferredTopics: [{ topic: 'space', weight: 0.9 }] } };
-    expect(matchesViewerInterests(post({ postClassification: { topics: ['space'] } }), topicCtx, NATIVE_CFG)).toBe(true);
+    const topicCtx: FeedEngineContext = {
+      userBehavior: { preferredTopics: [{ topic: 'space', weight: 0.9 }] },
+    };
+    expect(
+      matchesViewerInterests(
+        post({ postClassification: { topics: ['space'] } }),
+        topicCtx,
+        NATIVE_CFG,
+      ),
+    ).toBe(true);
 
-    const authorCtx: FeedEngineContext = { userBehavior: { preferredAuthors: [{ authorId: 'author', weight: 0.9 }] } };
+    const authorCtx: FeedEngineContext = {
+      userBehavior: { preferredAuthors: [{ authorId: 'author', weight: 0.9 }] },
+    };
     expect(matchesViewerInterests(post(), authorCtx, NATIVE_CFG)).toBe(true);
 
     expect(matchesViewerInterests(post({ createdAt: FRESH }), EMPTY_CTX, NATIVE_CFG)).toBe(true);
@@ -271,7 +361,14 @@ describe('a personalized/legitimate post survives the full gate', () => {
       userBehavior: { preferredTopics: [{ topic: 'photography', weight: 0.7 }] },
     };
     const good = post({
-      content: { variants: [{ source: 'author', text: 'Shot this at golden hour with a 50mm lens — really happy with the bokeh.' }] },
+      content: {
+        variants: [
+          {
+            source: 'author',
+            text: 'Shot this at golden hour with a 50mm lens — really happy with the bokeh.',
+          },
+        ],
+      },
       postClassification: classified({ spam: 0.05, quality: 0.75 }, ['en']),
       // enrich with a matching topic
     });

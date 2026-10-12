@@ -4,7 +4,7 @@ import { withRedisFallback } from '../utils/redisHelpers';
 /**
  * FeedSeenPostsService - Tracks seen post IDs per user session in Redis
  * Industry-standard approach used by Twitter/X, Instagram, Facebook
- * 
+ *
  * Strategy:
  * - Store seen post IDs in Redis SET for O(1) lookups
  * - Session-based TTL (30 minutes)
@@ -18,7 +18,7 @@ export class FeedSeenPostsService {
   private readonly KEY_PREFIX = 'user:';
   private readonly KEY_SUFFIX = ':feed:for_you:seen';
   private redis: ReturnType<typeof getRedisClient>;
-  
+
   // In-memory fallback when Redis is unavailable
   // Structure: Map<userId, { posts: Set<postId>, lastUpdated: timestamp }>
   private memoryCache: Map<string, { posts: Set<string>; lastUpdated: number }> = new Map();
@@ -35,14 +35,17 @@ export class FeedSeenPostsService {
    */
   private startMemoryCacheCleanup(): void {
     // Clean up every 5 minutes
-    this.memoryCacheCleanupInterval = setInterval(() => {
-      const now = Date.now();
-      for (const [userId, data] of this.memoryCache.entries()) {
-        if (now - data.lastUpdated > this.TTL_MS) {
-          this.memoryCache.delete(userId);
+    this.memoryCacheCleanupInterval = setInterval(
+      () => {
+        const now = Date.now();
+        for (const [userId, data] of this.memoryCache.entries()) {
+          if (now - data.lastUpdated > this.TTL_MS) {
+            this.memoryCache.delete(userId);
+          }
         }
-      }
-    }, 5 * 60 * 1000);
+      },
+      5 * 60 * 1000,
+    );
     // Never keep the event loop (or a test run) alive solely for this timer.
     this.memoryCacheCleanupInterval.unref?.();
   }
@@ -91,7 +94,7 @@ export class FeedSeenPostsService {
       },
       // Fallback to in-memory cache if Redis throws
       Array.from(this.getMemoryEntry(userId)),
-      'getSeenPostIds'
+      'getSeenPostIds',
     );
   }
 
@@ -108,7 +111,7 @@ export class FeedSeenPostsService {
         return score !== null;
       },
       false, // Fallback: assume not seen if Redis unavailable
-      'isPostSeen'
+      'isPostSeen',
     );
   }
 
@@ -149,9 +152,9 @@ export class FeedSeenPostsService {
         // Batch add all post IDs to Sorted Set with timestamp scores (LRU ordering)
         if (postIds.length > 0) {
           const now = Date.now();
-          const members = postIds.map(postId => ({
+          const members = postIds.map((postId) => ({
             score: now,
-            value: postId
+            value: postId,
           }));
           await this.redis.zAdd(key, members);
         }
@@ -168,7 +171,7 @@ export class FeedSeenPostsService {
         }
       },
       undefined, // Fallback: in-memory cache already updated
-      'markPostsAsSeen'
+      'markPostsAsSeen',
     );
   }
 
@@ -187,7 +190,7 @@ export class FeedSeenPostsService {
         await this.redis.del(key);
       },
       undefined,
-      'clearSeenPosts'
+      'clearSeenPosts',
     );
   }
 
@@ -203,7 +206,7 @@ export class FeedSeenPostsService {
         return count || 0;
       },
       this.getMemoryEntry(userId).size,
-      'getSeenPostsCount'
+      'getSeenPostsCount',
     );
   }
 }

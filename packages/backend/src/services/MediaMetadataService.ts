@@ -17,18 +17,16 @@ import type { ApAttachment } from '../connectors/activitypub/apMedia';
  *
  * ## Why it asks about the URL and not about the id
  *
- * It used to be `/^[a-f0-9]{24}$/` — the Mongo ObjectId shape, correct for as
- * long as oxy-api minted ObjectIds. oxy-api's `files` table moved to Postgres on
- * 2026-07-31 and its ids are `generatedId()`, i.e. **uuid v7**; pre-cutover ids
- * were carried over verbatim, so BOTH shapes are live. The hex test therefore
- * answered `false` for every asset uploaded since, and the consequences were
- * silent by construction: {@link MediaMetadataService.enrichFromOxy} returned
- * early with nothing to ask about, {@link MediaMetadataService.needsOxyRetry}
- * said "nothing pending", and the BullMQ retry that exists precisely for the
- * ffprobe race never fired. Every such video kept NULL `width`/`height`/
- * `orientation` — and the Videos lane requires `width > 0 AND height > 0` and an
- * orientation match (`utils/feedQueryBuilder.ts`), so the videos were not slow
- * or badly laid out, they were ABSENT from the lane.
+ * Oxy file ids are 24-char ObjectId hex for older files and `generatedId()`,
+ * i.e. **uuid v7**, for newer ones, so BOTH shapes are live. A 24-char hex test
+ * would answer `false` for every uuid asset, and the consequences would be
+ * silent by construction: {@link MediaMetadataService.enrichFromOxy} would
+ * return early with nothing to ask about, {@link MediaMetadataService.needsOxyRetry}
+ * would say "nothing pending", and the BullMQ retry that exists precisely for
+ * the ffprobe race would never fire. Every such video would keep NULL
+ * `width`/`height`/`orientation` — and the Videos lane requires
+ * `width > 0 AND height > 0` and an orientation match
+ * (`utils/feedQueryBuilder.ts`), so the videos would be ABSENT from the lane.
  *
  * A widened id pattern would fix today and break at the next id migration. The
  * column holds exactly two things, and the OTHER one is self-describing: an
@@ -82,7 +80,7 @@ export function normalizeAlt(value: unknown): string | undefined {
 }
 
 /**
- * Copy persisted intrinsic fields from a raw Mongo/hydration object.
+ * Copy persisted intrinsic fields from a raw stored/hydration object.
  *
  * The {@link normalizeAlt} call below is a READ BACKSTOP for legacy rows written
  * before the write boundary enforced the rule — NOT where the invariant lives.
@@ -102,14 +100,26 @@ export function readPersistedMediaFields(raw: Record<string, unknown>): Partial<
   if (aspectRatio !== undefined) out.aspectRatio = aspectRatio;
   if (sizeBytes) out.sizeBytes = sizeBytes;
 
-  if (raw.orientation === 'portrait' || raw.orientation === 'landscape' || raw.orientation === 'square') {
+  if (
+    raw.orientation === 'portrait' ||
+    raw.orientation === 'landscape' ||
+    raw.orientation === 'square'
+  ) {
     out.orientation = raw.orientation;
   }
   const alt = normalizeAlt(raw.alt);
   if (alt) out.alt = alt;
   if (typeof raw.mime === 'string' && raw.mime.trim().length > 0) out.mime = raw.mime.trim();
-  if (typeof raw.remoteUrl === 'string' && raw.remoteUrl.trim().length > 0) out.remoteUrl = raw.remoteUrl.trim();
+  if (typeof raw.remoteUrl === 'string' && raw.remoteUrl.trim().length > 0)
+    out.remoteUrl = raw.remoteUrl.trim();
   if (raw.cachedFromFederation === true) out.cachedFromFederation = true;
+  // Oxy's stamp on the finished H.264 ladder: the resolver emits `hlsUrl` only
+  // when it is here. Left off this list, every hydrated post lost it between
+  // the row and the DTO, and every player was handed the uploaded original —
+  // which an iPhone cannot decode when it is VP9.
+  if (typeof raw.hlsReadyAt === 'string' && !Number.isNaN(Date.parse(raw.hlsReadyAt))) {
+    out.hlsReadyAt = raw.hlsReadyAt;
+  }
 
   return out;
 }
@@ -123,8 +133,10 @@ export function mergeMediaItem(existing: MediaItem, patch: Partial<MediaItem>): 
   if (patch.aspectRatio !== undefined) merged.aspectRatio = patch.aspectRatio;
   if (patch.sizeBytes !== undefined) merged.sizeBytes = patch.sizeBytes;
   if (patch.mime !== undefined) merged.mime = patch.mime;
+  if (patch.hlsReadyAt !== undefined) merged.hlsReadyAt = patch.hlsReadyAt;
   if (patch.remoteUrl !== undefined) merged.remoteUrl = patch.remoteUrl;
-  if (patch.cachedFromFederation !== undefined) merged.cachedFromFederation = patch.cachedFromFederation;
+  if (patch.cachedFromFederation !== undefined)
+    merged.cachedFromFederation = patch.cachedFromFederation;
   const alt = normalizeAlt(patch.alt);
   if (alt) merged.alt = alt;
   return merged;
@@ -138,7 +150,34 @@ function copyFromOxyAsset(item: MediaItem, asset: ServiceAssetMetadata): MediaIt
   if (asset.orientation !== undefined) patch.orientation = asset.orientation;
   if (asset.aspectRatio !== undefined) patch.aspectRatio = asset.aspectRatio;
   if (asset.size !== undefined) patch.sizeBytes = asset.size;
+  // Oxy's own record of the finished H.264 ladder. Without it the resolver emits
+  // no `hlsUrl` and every player falls back to the uploaded original, whatever
+  // its codec — a VP9 or AV1 original plays nowhere on an iPhone.
+  if (asset.hlsReadyAt !== undefined) patch.hlsReadyAt = asset.hlsReadyAt;
   return mergeMediaItem(item, patch);
+}
+
+/**
+ * True when enrichment changed anything this service writes: the intrinsic
+ * fields and the ladder stamp. The ONE comparison the retry job and the
+ * backfill both persist by, so a field added here is persisted by both.
+ */
+export function mediaMetadataChanged(
+  previous: readonly MediaItem[],
+  next: readonly MediaItem[],
+): boolean {
+  return next.some((item, index) => {
+    const prev = previous[index];
+    return (
+      item.width !== prev.width ||
+      item.height !== prev.height ||
+      item.durationSec !== prev.durationSec ||
+      item.orientation !== prev.orientation ||
+      item.aspectRatio !== prev.aspectRatio ||
+      item.sizeBytes !== prev.sizeBytes ||
+      item.hlsReadyAt !== prev.hlsReadyAt
+    );
+  });
 }
 
 /** AP Note attachment → intrinsic fields (pre-cache; Oxy wins on later enrich). */
@@ -227,14 +266,20 @@ export class MediaMetadataService {
    * no dimensions for good — every image of National Geographic's Graph import
    * (2026-09-27) was stored without width/height, and the feed could reserve no
    * space for any of them.
+   *
+   * A video also waits for its HLS ladder: Oxy transcodes after the upload
+   * returns, and the stamp is what lets players leave the uploaded original for
+   * the H.264 ladder every browser decodes. A ladder that never finishes runs
+   * out the job's attempts — the bounded give-up described on the job.
    */
   needsOxyRetry(items: MediaItem[]): boolean {
     return items.some(
       (item) =>
-        isOxyFileId(item.id)
-        && (item.width === undefined
-          || item.height === undefined
-          || (item.type === 'video' && item.durationSec === undefined)),
+        isOxyFileId(item.id) &&
+        (item.width === undefined ||
+          item.height === undefined ||
+          (item.type === 'video' &&
+            (item.durationSec === undefined || item.hlsReadyAt === undefined))),
     );
   }
 }

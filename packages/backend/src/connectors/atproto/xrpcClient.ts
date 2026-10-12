@@ -57,11 +57,7 @@ export function buildXrpcUrl(host: string, nsid: string, params: XrpcParams = {}
 }
 
 /** Common bounded GET used for both JSON and text reads. */
-async function safeGet(
-  url: string,
-  accept: string,
-  maxBytes: number,
-): Promise<Buffer> {
+async function safeGet(url: string, accept: string, maxBytes: number): Promise<Buffer> {
   const deadline = AbortSignal.timeout(XRPC_TIMEOUT_MS);
   const { response, status } = await fetchUpstreamSingleHop(url, {
     headers: { 'User-Agent': USER_AGENT, Accept: accept },
@@ -99,6 +95,10 @@ export async function safeGetText(url: string): Promise<string> {
  * JSON response. Throws {@link XrpcError} on any non-2xx / transport / parse
  * failure so callers can fail soft.
  */
-export function xrpcGet<T = unknown>(host: string, nsid: string, params: XrpcParams = {}): Promise<T> {
+export function xrpcGet<T = unknown>(
+  host: string,
+  nsid: string,
+  params: XrpcParams = {},
+): Promise<T> {
   return safeGetJson<T>(buildXrpcUrl(host, nsid, params));
 }

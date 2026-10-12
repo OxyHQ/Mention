@@ -25,7 +25,9 @@ jest.mock('react-i18next', () => ({
 
 // `profileRoute` imports `@oxy.so/core` (ESM) for helpers this path never calls.
 jest.mock('@oxy.so/core', () => ({ getNormalizedUserHandle: () => undefined }));
-jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: { textSecondary: '#666' } }) }));
+jest.mock('@oxy.so/bloom/theme', () => ({
+  useTheme: () => ({ colors: { textSecondary: '#666' } }),
+}));
 jest.mock('@oxy.so/bloom/icons/RiArrowRightLine', () => ({ RiArrowRightLine: () => null }));
 
 const MOVE = { handle: 'alice@new.example', actorUri: 'https://new.example/users/alice' };
@@ -42,14 +44,20 @@ beforeEach(() => mockPush.mockClear());
 
 it('names the new account', () => {
   const tree = render();
-  expect(tree.root.findByType(Text).props.children).toBe('This account has moved to @alice@new.example');
+  expect(tree.root.findByType(Text).props.children).toBe(
+    'This account has moved to @alice@new.example',
+  );
 });
 
 it('opens the new account on the person route', () => {
   const tree = render();
   act(() => {
     // By role, not by type: NativeWind's interop wraps a className'd Pressable.
-    tree.root.findAll((node) => node.props.accessibilityRole === 'link' && typeof node.props.onPress === 'function')[0]
+    tree.root
+      .findAll(
+        (node) =>
+          node.props.accessibilityRole === 'link' && typeof node.props.onPress === 'function',
+      )[0]
       .props.onPress();
   });
   expect(mockPush).toHaveBeenCalledWith('/@alice@new.example');

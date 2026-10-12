@@ -34,7 +34,11 @@ describe('gate composition across presets', () => {
   it('For You and Discover run the full discovery gate', async () => {
     for (const descriptor of ['for_you', 'explore'] as const) {
       expect(await gateOf(descriptor)).toEqual([
-        'minLength', 'lowEffortGate', 'nativeEngagement', 'minQuality', 'noContentWarning',
+        'minLength',
+        'lowEffortGate',
+        'nativeEngagement',
+        'minQuality',
+        'noContentWarning',
       ]);
     }
   });
@@ -69,10 +73,7 @@ describe('gate composition across presets', () => {
     // `config/index.ts`, which validates the env var. The config list is the one
     // that fails LOUDLY — naming a module it lacks stops the process booting — so
     // assert it covers everything the presets actually build.
-    const built = new Set([
-      ...(await gateOf('for_you')),
-      ...(await gateOf('trending')),
-    ]);
+    const built = new Set([...(await gateOf('for_you')), ...(await gateOf('trending'))]);
     const nameable = new Set(discoveryGateModuleIds);
     for (const id of built) expect(nameable.has(id)).toBe(true);
   });

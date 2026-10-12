@@ -20,7 +20,15 @@ const FOLLOW_UP_WAIT_MS = 3_000;
  */
 export async function loadPendingPostDocuments(
   ids: readonly string[],
-  viewer: Pick<HydrationOptions, 'viewerId' | 'oxyClient' | 'viewerPrivacy' | 'viewerGraph' | 'requestLanguages' | 'operatedAccountReader'>,
+  viewer: Pick<
+    HydrationOptions,
+    | 'viewerId'
+    | 'oxyClient'
+    | 'viewerPrivacy'
+    | 'viewerGraph'
+    | 'requestLanguages'
+    | 'operatedAccountReader'
+  >,
 ): Promise<PostDocumentsResponse> {
   const records = await loadPostRecords(ids);
   if (records.length === 0) return { posts: {} };
@@ -40,10 +48,13 @@ export async function loadPendingPostDocuments(
     posts: Object.fromEntries(
       hydrated
         .filter((post) => requested.has(post.id))
-        .map((post) => [post.id, {
-          documents: post.documents ?? [],
-          ...(post.documentsPending ? { documentsPending: true } : {}),
-        }]),
+        .map((post) => [
+          post.id,
+          {
+            documents: post.documents ?? [],
+            ...(post.documentsPending ? { documentsPending: true } : {}),
+          },
+        ]),
     ),
   };
 }

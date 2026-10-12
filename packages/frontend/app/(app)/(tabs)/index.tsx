@@ -25,9 +25,9 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
  * backend's homepage carries the same; this head replaces it once it loads.
  */
 const SITE_STRUCTURED_DATA = siteStructuredData({
-    origin: WEB_BASE_URL.replace(/\/$/, ''),
-    name: INSTANCE_NAME,
-    logoUrl: INSTANCE_LOGO_URL || undefined,
+  origin: WEB_BASE_URL.replace(/\/$/, ''),
+  name: INSTANCE_NAME,
+  logoUrl: INSTANCE_LOGO_URL || undefined,
 });
 
 type HomeTab = string;
@@ -43,158 +43,188 @@ type HomeTab = string;
  * by a FILTER, so it takes its own shape.
  */
 type HomeTabModel =
-    | { key: string; label: string; kind: 'descriptor'; type: FeedType }
-    | { key: string; label: string; kind: 'custom'; feedId: string };
+  | { key: string; label: string; kind: 'descriptor'; type: FeedType }
+  | { key: string; label: string; kind: 'custom'; feedId: string };
 
 const HomeScreen: React.FC = () => {
-    const { t } = useTranslation();
-    const { isAuthResolved, canUsePrivateApi, user } = useAuth();
-    const theme = useTheme();
-    const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
-    const refreshKey = useReselectReloadKey();
-    // The home tabs ARE the viewer's server-persisted pinned feeds (server order),
-    // so pinning in the feeds screen updates the tab bar cross-device. Anonymous
-    // viewers get the read-only default (For You).
-    const { pinnedFeeds } = useFeedPreferences();
+  const { t } = useTranslation();
+  const { isAuthResolved, canUsePrivateApi, user } = useAuth();
+  const theme = useTheme();
+  const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
+  const refreshKey = useReselectReloadKey();
+  // The home tabs ARE the viewer's server-persisted pinned feeds (server order),
+  // so pinning in the feeds screen updates the tab bar cross-device. Anonymous
+  // viewers get the read-only default (For You).
+  const { pinnedFeeds } = useFeedPreferences();
 
-    const presetById = useMemo(() => new Map(PRESET_FEEDS.map((p) => [p.id, p])), []);
+  const presetById = useMemo(() => new Map(PRESET_FEEDS.map((p) => [p.id, p])), []);
 
-    // Whether any pinned feed is a custom feed — gates the (title-only) custom-feed
-    // fetch so users with no custom pins never trigger it.
-    const hasPinnedCustom = useMemo(
-        () => pinnedFeeds.some((sf) => parseFeedDescriptor(sf.descriptor).source === 'custom'),
-        [pinnedFeeds],
-    );
+  // Whether any pinned feed is a custom feed — gates the (title-only) custom-feed
+  // fetch so users with no custom pins never trigger it.
+  const hasPinnedCustom = useMemo(
+    () => pinnedFeeds.some((sf) => parseFeedDescriptor(sf.descriptor).source === 'custom'),
+    [pinnedFeeds],
+  );
 
-    // Resolve custom-feed ids → titles for the tab labels (pinned custom feeds
-    // carry only a descriptor). Keyed on the auth identity; cached + deduped.
-    const customTitlesQuery = useQuery<Map<string, string>>({
-        queryKey: viewerQueryKeys.customFeedTitles(user?.id),
-        enabled: canUsePrivateApi && hasPinnedCustom,
-        staleTime: 5 * 60 * 1000,
-        queryFn: async () => {
-            const map = new Map<string, string>();
-            try {
-                const [mine, pub] = await Promise.all([
-                    customFeedsService.list({ mine: true }),
-                    customFeedsService.list({ publicOnly: true }),
-                ]);
-                [...(mine.items || []), ...(pub.items || [])].forEach((feed) => {
-                    const feedId = String(feed._id || feed.id);
-                    if (!map.has(feedId)) map.set(feedId, feed.title || t('feeds.untitled', { defaultValue: 'Feed' }));
-                });
-            } catch (error) {
-                logger.warn('Failed to load custom feed titles', { error });
-            }
-            return map;
-        },
-    });
+  // Resolve custom-feed ids → titles for the tab labels (pinned custom feeds
+  // carry only a descriptor). Keyed on the auth identity; cached + deduped.
+  const customTitlesQuery = useQuery<Map<string, string>>({
+    queryKey: viewerQueryKeys.customFeedTitles(user?.id),
+    enabled: canUsePrivateApi && hasPinnedCustom,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const map = new Map<string, string>();
+      try {
+        const [mine, pub] = await Promise.all([
+          customFeedsService.list({ mine: true }),
+          customFeedsService.list({ publicOnly: true }),
+        ]);
+        [...(mine.items || []), ...(pub.items || [])].forEach((feed) => {
+          const feedId = String(feed._id || feed.id);
+          if (!map.has(feedId))
+            map.set(feedId, feed.title || t('feeds.untitled', { defaultValue: 'Feed' }));
+        });
+      } catch (error) {
+        logger.warn('Failed to load custom feed titles', { error });
+      }
+      return map;
+    },
+  });
 
-    const customTitles = customTitlesQuery.data;
+  const customTitles = customTitlesQuery.data;
 
-    const homeTabs = useMemo<HomeTabModel[]>(() => {
-        return pinnedFeeds
-            .filter((sf) => {
-                // Belt-and-suspenders: hide viewer-relative presets + custom feeds
-                // for anonymous viewers (the hook's anon default already excludes them).
-                if (canUsePrivateApi) return true;
-                const preset = presetById.get(sf.key);
-                return preset ? !preset.requiresAuth : false;
-            })
-            .map((sf): HomeTabModel => {
-                const { source, params } = parseFeedDescriptor(sf.descriptor);
-                if (source === 'custom') {
-                    const feedId = params[0] ?? '';
-                    return {
-                        key: sf.key,
-                        kind: 'custom',
-                        feedId,
-                        label: customTitles?.get(feedId) ?? t('feeds.untitled', { defaultValue: 'Feed' }),
-                    };
-                }
-                const preset = presetById.get(sf.key);
-                return {
-                    key: sf.key,
-                    kind: 'descriptor',
-                    type: source as FeedType,
-                    label: preset ? t(preset.labelKey) : sf.descriptor,
-                };
-            });
-    }, [pinnedFeeds, canUsePrivateApi, presetById, customTitles, t]);
-
-    useEffect(() => {
-        // Keep the active tab valid as the pinned set changes (e.g. logout removes
-        // Following / custom tabs → fall back to the first tab, For You). Only act
-        // once auth is RESOLVED so the cold-boot window doesn't fight a session
-        // that is about to restore.
-        if (!isAuthResolved) return;
-        if (homeTabs.length > 0 && !homeTabs.some((tab) => tab.key === activeTab)) {
-            setActiveTab(homeTabs[0].key);
+  const homeTabs = useMemo<HomeTabModel[]>(() => {
+    return pinnedFeeds
+      .filter((sf) => {
+        // Belt-and-suspenders: hide viewer-relative presets + custom feeds
+        // for anonymous viewers (the hook's anon default already excludes them).
+        if (canUsePrivateApi) return true;
+        const preset = presetById.get(sf.key);
+        return preset ? !preset.requiresAuth : false;
+      })
+      .map((sf): HomeTabModel => {
+        const { source, params } = parseFeedDescriptor(sf.descriptor);
+        if (source === 'custom') {
+          const feedId = params[0] ?? '';
+          return {
+            key: sf.key,
+            kind: 'custom',
+            feedId,
+            label: customTitles?.get(feedId) ?? t('feeds.untitled', { defaultValue: 'Feed' }),
+          };
         }
-    }, [isAuthResolved, homeTabs, activeTab]);
+        const preset = presetById.get(sf.key);
+        return {
+          key: sf.key,
+          kind: 'descriptor',
+          type: source as FeedType,
+          label: preset ? t(preset.labelKey) : sf.descriptor,
+        };
+      });
+  }, [pinnedFeeds, canUsePrivateApi, presetById, customTitles, t]);
 
-    const handleTabPress = useTabSelect(activeTab, setActiveTab);
+  useEffect(() => {
+    // Keep the active tab valid as the pinned set changes (e.g. logout removes
+    // Following / custom tabs → fall back to the first tab, For You). Only act
+    // once auth is RESOLVED so the cold-boot window doesn't fight a session
+    // that is about to restore.
+    if (!isAuthResolved) return;
+    if (homeTabs.length > 0 && !homeTabs.some((tab) => tab.key === activeTab)) {
+      setActiveTab(homeTabs[0].key);
+    }
+  }, [isAuthResolved, homeTabs, activeTab]);
 
-    const renderContent = () => {
-        // Feeds that render in both the anon and authed branches (for_you, …) must
-        // remount when the auth identity flips so their mount-time fetch re-runs
-        // against the now-ready token. Without an identity-scoped key, React
-        // reconciles the same element across the anon→authed transition and the feed
-        // stays stuck on anonymous (or empty) content. This is the belt-and-suspenders
-        // guarantee alongside the auth-keyed initial-fetch effect inside useFeedState.
-        const feedIdentity = canUsePrivateApi && user?.id ? user.id : 'anon';
+  const handleTabPress = useTabSelect(activeTab, setActiveTab);
 
-        // Resolve the active tab; fall back to the first tab (For You) if the active
-        // key is momentarily stale (the reset effect converges it next render).
-        const tab = homeTabs.find((x) => x.key === activeTab) ?? homeTabs[0];
-        const composeProps = canUsePrivateApi
-            ? { showComposeButton: true, onComposePress: () => router.push('/compose') }
-            : {};
+  const renderContent = () => {
+    // Feeds that render in both the anon and authed branches (for_you, …) must
+    // remount when the auth identity flips so their mount-time fetch re-runs
+    // against the now-ready token. Without an identity-scoped key, React
+    // reconciles the same element across the anon→authed transition and the feed
+    // stays stuck on anonymous (or empty) content. This is the belt-and-suspenders
+    // guarantee alongside the auth-keyed initial-fetch effect inside useFeedState.
+    const feedIdentity = canUsePrivateApi && user?.id ? user.id : 'anon';
 
-        if (!tab) {
-            return <Feed key={`for_you-${feedIdentity}`} type="for_you" reloadKey={refreshKey} {...composeProps} />;
-        }
+    // Resolve the active tab; fall back to the first tab (For You) if the active
+    // key is momentarily stale (the reset effect converges it next render).
+    const tab = homeTabs.find((x) => x.key === activeTab) ?? homeTabs[0];
+    const composeProps = canUsePrivateApi
+      ? { showComposeButton: true, onComposePress: () => router.push('/compose') }
+      : {};
 
-        if (tab.kind === 'custom') {
-            return (
-                <Feed
-                    key={`custom-${tab.feedId}-${feedIdentity}`}
-                    type="custom"
-                    filters={{ customFeedId: tab.feedId }}
-                    reloadKey={refreshKey}
-                    {...composeProps}
-                />
-            );
-        }
+    if (!tab) {
+      return (
+        <Feed
+          key={`for_you-${feedIdentity}`}
+          type="for_you"
+          reloadKey={refreshKey}
+          {...composeProps}
+        />
+      );
+    }
 
-        return (
-            <Feed
-                key={`${tab.type}-${feedIdentity}`}
-                type={tab.type}
-                reloadKey={refreshKey}
-                {...composeProps}
-            />
-        );
-    };
+    if (tab.kind === 'custom') {
+      return (
+        <Feed
+          key={`custom-${tab.feedId}-${feedIdentity}`}
+          type="custom"
+          filters={{ customFeedId: tab.feedId }}
+          reloadKey={refreshKey}
+          {...composeProps}
+        />
+      );
+    }
 
     return (
-        <>
-            <SEO
-                title={t('seo.home.title')}
-                description={t('seo.home.description')}
-                jsonLd={SITE_STRUCTURED_DATA}
-            />
-            <View className="flex-1">
-                <StatusBar style={theme.isDark ? "light" : "dark"} />
-                <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline" style={{ height: 38 }}>
-                    {homeTabs.map(tab => <TabsTrigger key={tab.key} value={tab.key} label={tab.label}
-                        style={{ height: 38, minWidth: 76, paddingLeft: 12, paddingRight: 12, paddingTop: 0, paddingBottom: 0 }}
-                        textStyle={{ fontSize: 15, lineHeight: 18, fontWeight: activeTab === tab.key ? '700' : '500' }} />)}
-                </Tabs>
-                {renderContent()}
-            </View>
-        </>
+      <Feed
+        key={`${tab.type}-${feedIdentity}`}
+        type={tab.type}
+        reloadKey={refreshKey}
+        {...composeProps}
+      />
     );
+  };
+
+  return (
+    <>
+      <SEO
+        title={t('seo.home.title')}
+        description={t('seo.home.description')}
+        jsonLd={SITE_STRUCTURED_DATA}
+      />
+      <View className="flex-1">
+        <StatusBar style={theme.isDark ? 'light' : 'dark'} />
+        <Tabs
+          value={activeTab}
+          onValueChange={handleTabPress}
+          variant="underline"
+          style={{ height: 38 }}
+        >
+          {homeTabs.map((tab) => (
+            <TabsTrigger
+              key={tab.key}
+              value={tab.key}
+              label={tab.label}
+              style={{
+                height: 38,
+                minWidth: 76,
+                paddingLeft: 12,
+                paddingRight: 12,
+                paddingTop: 0,
+                paddingBottom: 0,
+              }}
+              textStyle={{
+                fontSize: 15,
+                lineHeight: 18,
+                fontWeight: activeTab === tab.key ? '700' : '500',
+              }}
+            />
+          ))}
+        </Tabs>
+        {renderContent()}
+      </View>
+    </>
+  );
 };
 
 export default HomeScreen;

@@ -1,15 +1,11 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import {
-  ProfileGridList,
-  type ProfileGridEntry,
-} from '../ProfileGridList.web';
+import { ProfileGridList, type ProfileGridEntry } from '../ProfileGridList.web';
 
 const mockUseWindowVirtualizer = jest.fn();
 
 jest.mock('@tanstack/react-virtual', () => ({
-  useWindowVirtualizer: (options: unknown) =>
-    mockUseWindowVirtualizer(options),
+  useWindowVirtualizer: (options: unknown) => mockUseWindowVirtualizer(options),
 }));
 
 describe('ProfileGridList web document virtualization', () => {
@@ -32,22 +28,15 @@ describe('ProfileGridList web document virtualization', () => {
   });
 
   it('virtualizes 500 cells as rows against window and mounts only visible rows', () => {
-    const data: ProfileGridEntry[] = Array.from(
-      { length: 500 },
-      (_, index) => ({
-        postId: `post-${index}`,
-        mediaIndex: 0,
-      }),
-    );
-    const renderCell = jest.fn((item: ProfileGridEntry) => (
-      <span>{item.postId}</span>
-    ));
+    const data: ProfileGridEntry[] = Array.from({ length: 500 }, (_, index) => ({
+      postId: `post-${index}`,
+      mediaIndex: 0,
+    }));
+    const renderCell = jest.fn((item: ProfileGridEntry) => <span>{item.postId}</span>);
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
-      renderer = TestRenderer.create(
-        <ProfileGridList data={data} renderCell={renderCell} />,
-      );
+      renderer = TestRenderer.create(<ProfileGridList data={data} renderCell={renderCell} />);
     });
 
     expect(mockUseWindowVirtualizer).toHaveBeenCalledWith(

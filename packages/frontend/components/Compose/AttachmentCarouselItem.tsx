@@ -31,7 +31,10 @@ const AttachmentCarouselItem: React.FC<AttachmentCarouselItemProps> = ({
   return (
     <View style={wrapperStyle}>
       {total > 1 ? (
-        <View className="absolute left-2 right-2 bottom-2 flex-row justify-between items-center z-[2]" style={{ pointerEvents: 'box-none' }}>
+        <View
+          className="absolute left-2 right-2 bottom-2 flex-row justify-between items-center z-[2]"
+          style={{ pointerEvents: 'box-none' }}
+        >
           <TouchableOpacity
             onPress={() => onMove(attachmentKey, 'left')}
             disabled={!canMoveLeft}

@@ -64,9 +64,7 @@ function ProfileHoverCardLive({
   return (
     <HoverCard open={open} onOpenChange={onOpenChange}>
       <HoverCardTrigger style={style}>{children}</HoverCardTrigger>
-      {armed ? (
-        <ProfilePreview username={username} onNavigate={close} />
-      ) : null}
+      {armed ? <ProfilePreview username={username} onNavigate={close} /> : null}
     </HoverCard>
   );
 }
@@ -133,7 +131,11 @@ function ProfilePreview({ username, onNavigate }: { username: string; onNavigate
                 ]
               : undefined
           }
-          action={profile?.id ? <FollowButton userId={profile.id} username={profile.username || username} size="sm" /> : undefined}
+          action={
+            profile?.id ? (
+              <FollowButton userId={profile.id} username={profile.username || username} size="sm" />
+            ) : undefined
+          }
           onPressProfile={handlePressProfile}
           footer={
             activity.length > 0 ? (

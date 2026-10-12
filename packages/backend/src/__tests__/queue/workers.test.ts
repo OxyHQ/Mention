@@ -128,7 +128,12 @@ describe('processDeliveryJob for an erased sender', () => {
     await processDeliveryJob(deliveryJob(activity, 'https://remote/inbox', 'oxy_gone'));
 
     expect(mocks.findErasedAccountUsernames).toHaveBeenCalledWith(['oxy_gone']);
-    expect(mocks.deliverActivity).toHaveBeenCalledWith(activity, 'https://remote/inbox', 'oxy_gone', 'gone');
+    expect(mocks.deliverActivity).toHaveBeenCalledWith(
+      activity,
+      'https://remote/inbox',
+      'oxy_gone',
+      'gone',
+    );
   });
 
   it('rethrows the Oxy error (retry) for a sender the ledger does not know', async () => {

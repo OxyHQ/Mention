@@ -41,7 +41,9 @@ jest.mock('@/stores/themeSourceStore', () => ({
     select({ source: mockSource, setSource: mockSetSource, hydrated: true, hydrate: mockHydrate }),
 }));
 
-jest.mock('../useMentionColorViewer', () => ({ useMentionColorViewer: () => ({ mentionMono: mockEntitled }) }));
+jest.mock('../useMentionColorViewer', () => ({
+  useMentionColorViewer: () => ({ mentionMono: mockEntitled }),
+}));
 
 jest.mock('@/lib/colorEntitlement', () => ({
   APP_DEFAULT_COLOR_PRESET: 'teal',
@@ -103,7 +105,9 @@ describe('useThemeControls', () => {
   it('refuses a colour the viewer is not entitled to, without applying or persisting it', async () => {
     mockEntitled = false;
     mount();
-    await expect(controls.changeColorPreset('mono')).rejects.toThrow('Color is not available for this account');
+    await expect(controls.changeColorPreset('mono')).rejects.toThrow(
+      'Color is not available for this account',
+    );
     expect(mockSetColorPreset).not.toHaveBeenCalled();
     expect(mockUpdateMe).not.toHaveBeenCalled();
   });
@@ -112,7 +116,9 @@ describe('useThemeControls', () => {
     mockAuth = { canUsePrivateApi: true, user: { username: 'ada' } };
     mount();
     await act(() => controls.changeThemeMode('adaptive'));
-    expect(mockUpdateMe).toHaveBeenCalledWith({ themePreference: { mode: 'system', colorPreset: 'teal' } });
+    expect(mockUpdateMe).toHaveBeenCalledWith({
+      themePreference: { mode: 'system', colorPreset: 'teal' },
+    });
   });
 
   it('stays local on the app source even when signed in', async () => {
@@ -128,7 +134,9 @@ describe('useThemeControls', () => {
     mockAuth = { canUsePrivateApi: true, user: { username: 'ada' } };
     mockUpdateMe.mockRejectedValueOnce(error);
     mount();
-    await act(async () => { controls.changeThemeSource('account'); });
+    await act(async () => {
+      controls.changeThemeSource('account');
+    });
     expect(mockSetSource).toHaveBeenCalledWith('account');
     expect(logger.error).toHaveBeenCalledWith('Failed to seed account theme preference', error);
   });
@@ -138,7 +146,9 @@ describe('useThemeControls', () => {
     mount();
     act(() => controls.changeThemeSource('account'));
     expect(mockSetSource).toHaveBeenCalledWith('account');
-    expect(mockUpdateMe).toHaveBeenCalledWith({ themePreference: { mode: 'light', colorPreset: 'teal' } });
+    expect(mockUpdateMe).toHaveBeenCalledWith({
+      themePreference: { mode: 'light', colorPreset: 'teal' },
+    });
   });
 });
 
@@ -194,45 +204,67 @@ describe('useAccountThemeSync', () => {
 
   describe('while the permission read is pending', () => {
     let renderer: TestRenderer.ReactTestRenderer;
-    function render() { act(() => { renderer = TestRenderer.create(<SyncProbe />); }); }
-    function rerender() { act(() => { renderer.update(<SyncProbe />); }); }
+    function render() {
+      act(() => {
+        renderer = TestRenderer.create(<SyncProbe />);
+      });
+    }
+    function rerender() {
+      act(() => {
+        renderer.update(<SyncProbe />);
+      });
+    }
     beforeEach(() => {
       mockSource = 'app';
       mockColorPreset = 'oxy';
       mockEntitled = false;
-      mockAuth = { canUsePrivateApi: true, isAuthenticated: true, user: { id: 'ada-id', username: 'ada' } };
+      mockAuth = {
+        canUsePrivateApi: true,
+        isAuthenticated: true,
+        user: { id: 'ada-id', username: 'ada' },
+      };
     });
 
     it('withholds the saved preset, then restores it once the permission arrives', () => {
       render();
       expect(mockSetColorPreset).toHaveBeenLastCalledWith('teal');
-      mockColorPreset = 'teal'; rerender();
-      mockEntitled = true; rerender();
+      mockColorPreset = 'teal';
+      rerender();
+      mockEntitled = true;
+      rerender();
       expect(mockSetColorPreset).toHaveBeenLastCalledWith('oxy');
     });
 
     it('keeps the free preset when the permission is denied', () => {
       render();
-      mockColorPreset = 'teal'; rerender(); rerender();
+      mockColorPreset = 'teal';
+      rerender();
+      rerender();
       expect(mockSetColorPreset.mock.calls).toEqual([['teal']]);
     });
 
     it('never restores over a newer selection', async () => {
       render();
-      mockColorPreset = 'teal'; rerender();
+      mockColorPreset = 'teal';
+      rerender();
       mount();
       await act(() => controls.changeColorPreset('teal'));
-      mockEntitled = true; rerender();
+      mockEntitled = true;
+      rerender();
       expect(mockSetColorPreset).not.toHaveBeenCalledWith('oxy');
     });
 
     it("never restores one account's preset for another account", () => {
       render();
       mockColorPreset = 'teal';
-      mockAuth = { canUsePrivateApi: true, isAuthenticated: true, user: { id: 'bob-id', username: 'bob' } };
-      mockEntitled = true; rerender();
+      mockAuth = {
+        canUsePrivateApi: true,
+        isAuthenticated: true,
+        user: { id: 'bob-id', username: 'bob' },
+      };
+      mockEntitled = true;
+      rerender();
       expect(mockSetColorPreset).not.toHaveBeenCalledWith('oxy');
     });
   });
 });
-

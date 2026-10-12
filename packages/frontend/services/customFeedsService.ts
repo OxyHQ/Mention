@@ -145,7 +145,9 @@ async function run<T>(operation: string, request: () => Promise<T>): Promise<T> 
 class CustomFeedsService {
   async list(params?: CustomFeedListParams): Promise<CustomFeedListResponse> {
     return run('list', async () => {
-      const res = await authenticatedClient.get<CustomFeedListResponse>('/feeds', { params: { ...params } });
+      const res = await authenticatedClient.get<CustomFeedListResponse>('/feeds', {
+        params: { ...params },
+      });
       return res.data;
     });
   }
@@ -163,9 +165,14 @@ class CustomFeedsService {
    * profile's mirrored feeds surface on its Feeds tab alongside native custom feeds.
    * Each carries a `descriptor` (`feedgen|<uri>`) to open it through the MTN engine.
    */
-  async listGenerators(params?: { userId?: string; mine?: boolean }): Promise<FeedGeneratorListResponse> {
+  async listGenerators(params?: {
+    userId?: string;
+    mine?: boolean;
+  }): Promise<FeedGeneratorListResponse> {
     return run('listGenerators', async () => {
-      const res = await authenticatedClient.get<FeedGeneratorListResponse>('/feeds/generators', { params: { ...params } });
+      const res = await authenticatedClient.get<FeedGeneratorListResponse>('/feeds/generators', {
+        params: { ...params },
+      });
       return res.data;
     });
   }
@@ -200,12 +207,17 @@ class CustomFeedsService {
 
   async removeMembers(id: string, userIds: string[]): Promise<CustomFeed> {
     return run('removeMembers', async () => {
-      const res = await authenticatedClient.delete<CustomFeed>(`/feeds/${id}/members`, { data: { userIds } });
+      const res = await authenticatedClient.delete<CustomFeed>(`/feeds/${id}/members`, {
+        data: { userIds },
+      });
       return res.data;
     });
   }
 
-  async getTimeline(id: string, params?: { cursor?: string; limit?: number }): Promise<FeedResponse> {
+  async getTimeline(
+    id: string,
+    params?: { cursor?: string; limit?: number },
+  ): Promise<FeedResponse> {
     return run('getTimeline', async () => {
       const res = await authenticatedClient.get<FeedResponse>(`/feeds/${id}/timeline`, { params });
       return res.data;
@@ -228,26 +240,38 @@ class CustomFeedsService {
 
   async getMarketplace(params?: MarketplaceParams): Promise<MarketplaceListResponse> {
     return run('getMarketplace', async () => {
-      const res = await authenticatedClient.get<MarketplaceListResponse>('/feeds/marketplace', { params });
+      const res = await authenticatedClient.get<MarketplaceListResponse>('/feeds/marketplace', {
+        params,
+      });
       return res.data;
     });
   }
 
   async getMarketplaceCategories(): Promise<{ categories: FeedCategoryCount[] }> {
     return run('getMarketplaceCategories', async () => {
-      const res = await authenticatedClient.get<{ categories: FeedCategoryCount[] }>('/feeds/marketplace/categories');
+      const res = await authenticatedClient.get<{ categories: FeedCategoryCount[] }>(
+        '/feeds/marketplace/categories',
+      );
       return res.data;
     });
   }
 
-  async getReviews(feedId: string, params?: { page?: number; limit?: number }): Promise<FeedReviewsResponse> {
+  async getReviews(
+    feedId: string,
+    params?: { page?: number; limit?: number },
+  ): Promise<FeedReviewsResponse> {
     return run('getReviews', async () => {
-      const res = await authenticatedClient.get<FeedReviewsResponse>(`/feeds/${feedId}/reviews`, { params });
+      const res = await authenticatedClient.get<FeedReviewsResponse>(`/feeds/${feedId}/reviews`, {
+        params,
+      });
       return res.data;
     });
   }
 
-  async submitReview(feedId: string, data: { rating: number; reviewText?: string }): Promise<unknown> {
+  async submitReview(
+    feedId: string,
+    data: { rating: number; reviewText?: string },
+  ): Promise<unknown> {
     return run('submitReview', async () => {
       const res = await authenticatedClient.post<unknown>(`/feeds/${feedId}/reviews`, data);
       return res.data;

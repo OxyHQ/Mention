@@ -24,7 +24,9 @@ export function RateNoteSheet({ rating, onSubmit, onClose }: RateNoteSheetProps)
   const { t } = useTranslation();
   const [selected, setSelected] = useState<string[]>([]);
   const helpful = rating === 'helpful';
-  const reasons: readonly string[] = helpful ? COMMUNITY_NOTE_HELPFUL_REASONS : COMMUNITY_NOTE_NOT_HELPFUL_REASONS;
+  const reasons: readonly string[] = helpful
+    ? COMMUNITY_NOTE_HELPFUL_REASONS
+    : COMMUNITY_NOTE_NOT_HELPFUL_REASONS;
 
   const labelFor = (reason: string) =>
     t(`communityNotes.rate.reason.${reason}`, {
@@ -37,30 +39,47 @@ export function RateNoteSheet({ rating, onSubmit, onClose }: RateNoteSheetProps)
       <View className="gap-5 px-5">
         <Text className="text-foreground text-[24px] font-bold">
           {helpful
-            ? t('communityNotes.rate.helpfulTitle', { defaultValue: 'Why is the community note helpful?' })
-            : t('communityNotes.rate.notHelpfulTitle', { defaultValue: 'Why is the community note not helpful?' })}
+            ? t('communityNotes.rate.helpfulTitle', {
+                defaultValue: 'Why is the community note helpful?',
+              })
+            : t('communityNotes.rate.notHelpfulTitle', {
+                defaultValue: 'Why is the community note not helpful?',
+              })}
         </Text>
         <View className="border-border overflow-hidden rounded-2xl border">
           {reasons.map((reason, index) => {
             const checked = selected.includes(reason);
             return (
-              <View key={reason} className={index > 0 ? 'border-border border-t px-4 py-3.5' : 'px-4 py-3.5'}>
+              <View
+                key={reason}
+                className={index > 0 ? 'border-border border-t px-4 py-3.5' : 'px-4 py-3.5'}
+              >
                 <Checkbox
                   label={labelFor(reason)}
                   checked={checked}
                   onCheckedChange={(next) =>
-                    setSelected((current) => (next ? [...current, reason] : current.filter((r) => r !== reason)))
+                    setSelected((current) =>
+                      next ? [...current, reason] : current.filter((r) => r !== reason),
+                    )
                   }
                 />
               </View>
             );
           })}
         </View>
-        <Button appearance="solid" tone="accent" size="lg" disabled={selected.length === 0} onPress={() => onSubmit(selected)}>
+        <Button
+          appearance="solid"
+          tone="accent"
+          size="lg"
+          disabled={selected.length === 0}
+          onPress={() => onSubmit(selected)}
+        >
           {t('communityNotes.rate.submit', { defaultValue: 'Rate' })}
         </Button>
         <Text className="text-muted-foreground text-center text-[13px]">
-          {t('communityNotes.rate.final', { defaultValue: "You won't be able to change or delete your rating." })}
+          {t('communityNotes.rate.final', {
+            defaultValue: "You won't be able to change or delete your rating.",
+          })}
         </Text>
       </View>
     </View>

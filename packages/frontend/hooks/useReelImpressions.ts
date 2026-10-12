@@ -77,9 +77,8 @@ export function useReelImpressions({
   // not dwell on that video. A viewer PAUSE deliberately does not gate — dwell is
   // the time the post occupied the viewport, which is exactly what the web feed's
   // IntersectionObserver measures for a text post that plays nothing.
-  const impressedPostId = pipOwnerId !== null
-    ? pipPlayingId
-    : (screenFocused ? activePostId : undefined);
+  const impressedPostId =
+    pipOwnerId !== null ? pipPlayingId : screenFocused ? activePostId : undefined;
 
   // Visible while it is the watched video, hidden when the watch moves on or the
   // screen goes away — the same visible/hidden contract every feed reports, so

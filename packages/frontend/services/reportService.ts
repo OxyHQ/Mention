@@ -1,6 +1,6 @@
 import { logger } from '@oxy.so/core/logger';
-import { authenticatedClient } from "@/utils/api";
-import { normalizeApiError } from "@/utils/apiError";
+import { authenticatedClient } from '@/utils/api';
+import { normalizeApiError } from '@/utils/apiError';
 
 export const REPORT_CATEGORIES = [
   { id: 'spam', label: 'Spam' },
@@ -14,58 +14,58 @@ export const REPORT_CATEGORIES = [
 class ReportService {
   async reportPost(postId: string, categories: string[], details?: string): Promise<boolean> {
     try {
-      await authenticatedClient.post("/reports", {
+      await authenticatedClient.post('/reports', {
         reportedType: 'post',
         reportedId: postId,
         categories,
-        details
+        details,
       });
       return true;
     } catch (error: unknown) {
       if (normalizeApiError(error).status === 409) {
         // Already reported — treat as success
-        logger.warn("Already reported this content");
+        logger.warn('Already reported this content');
         return true;
       }
-      logger.warn("Failed to report post", { error });
+      logger.warn('Failed to report post', { error });
       return false;
     }
   }
 
   async reportUser(userId: string, categories: string[], details?: string): Promise<boolean> {
     try {
-      await authenticatedClient.post("/reports", {
+      await authenticatedClient.post('/reports', {
         reportedType: 'user',
         reportedId: userId,
         categories,
-        details
+        details,
       });
       return true;
     } catch (error: unknown) {
       if (normalizeApiError(error).status === 409) {
-        logger.warn("Already reported this user");
+        logger.warn('Already reported this user');
         return true;
       }
-      logger.warn("Failed to report user", { error });
+      logger.warn('Failed to report user', { error });
       return false;
     }
   }
 
   async reportRoom(roomId: string, categories: string[], details?: string): Promise<boolean> {
     try {
-      await authenticatedClient.post("/reports", {
+      await authenticatedClient.post('/reports', {
         reportedType: 'room',
         reportedId: roomId,
         categories,
-        details
+        details,
       });
       return true;
     } catch (error: unknown) {
       if (normalizeApiError(error).status === 409) {
-        logger.warn("Already reported this room");
+        logger.warn('Already reported this room');
         return true;
       }
-      logger.warn("Failed to report room", { error });
+      logger.warn('Failed to report room', { error });
       return false;
     }
   }
@@ -82,19 +82,19 @@ class ReportService {
    */
   async reportJob(jobId: string, categories: string[], details?: string): Promise<boolean> {
     try {
-      await authenticatedClient.post("/reports", {
+      await authenticatedClient.post('/reports', {
         reportedType: 'job',
         reportedId: jobId,
         categories,
-        details
+        details,
       });
       return true;
     } catch (error: unknown) {
       if (normalizeApiError(error).status === 409) {
-        logger.warn("Already reported this job");
+        logger.warn('Already reported this job');
         return true;
       }
-      logger.warn("Failed to report job", { error });
+      logger.warn('Failed to report job', { error });
       return false;
     }
   }

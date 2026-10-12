@@ -35,7 +35,7 @@ export interface GroupedNotification {
      * It used to be the string `'unknown'` in that case, and a sentinel in an id
      * field is not free: every consumer then has to decide whether the id it is
      * holding is real, and the only way left to ask is the SHAPE. Three sites
-     * did exactly that with a Mongo ObjectId regex, so when Oxy's ids became
+     * did exactly that with a 24-hex ObjectId regex, so when Oxy's ids became
      * uuid v7 they answered "not real" for every account created since — the
      * notification row stopped resolving its actor's name and avatar entirely.
      * Absence is the honest encoding, and it cannot go stale.
@@ -174,14 +174,14 @@ function stringValue(value: unknown): string | undefined {
 }
 
 function objectValue(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : undefined;
+  return typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
 }
 
 function objectId(value: unknown): string | undefined {
   const object = objectValue(value);
-  return object
-    ? stringValue(object._id) || stringValue(object.id)
-    : stringValue(value);
+  return object ? stringValue(object._id) || stringValue(object.id) : stringValue(value);
 }
 
 function extractActor(n: TRawNotification): GroupedActor {
@@ -231,7 +231,12 @@ function toSingle(n: TRawNotification): GroupedNotification {
  * the notifications screen de-dupes rows by `key` — so the ordinal is what keeps
  * the later windows from being dropped on render.
  */
-function toGroup(n: TRawNotification, groupKey: string, entityId: string, ordinal: number): GroupedNotification {
+function toGroup(
+  n: TRawNotification,
+  groupKey: string,
+  entityId: string,
+  ordinal: number,
+): GroupedNotification {
   const actor = extractActor(n);
   return {
     key: `group:${groupKey}#${ordinal}`,
@@ -253,7 +258,7 @@ function mergeIntoGroup(group: GroupedNotification, n: TRawNotification): void {
   const actor = extractActor(n);
 
   // Keep track of unique actors (by id)
-  const existingIds = new Set(group.actors.map(a => a.id));
+  const existingIds = new Set(group.actors.map((a) => a.id));
   if (!existingIds.has(actor.id)) {
     if (group.actors.length < MAX_GROUP_ACTORS) {
       group.actors.push(actor);

@@ -17,7 +17,6 @@ jest.mock('@oxy.so/core/logger', () => ({
 }));
 
 // Jest must install the transport mock before the module under test loads it.
-// eslint-disable-next-line import/first
 import { refreshPrivacyLists } from '../privacyService';
 
 describe('refreshPrivacyLists', () => {

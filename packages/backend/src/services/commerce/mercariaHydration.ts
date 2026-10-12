@@ -77,7 +77,11 @@ type EntityKind = 'product' | 'store' | 'collection';
 const INVALID = Object.freeze({ state: 'invalid' as const });
 
 /** Map a failed SDK read onto a state. Never throws. */
-function unresolved<TRef>(kind: EntityKind, ref: TRef, error: unknown): MercariaUnresolvedState<TRef> {
+function unresolved<TRef>(
+  kind: EntityKind,
+  ref: TRef,
+  error: unknown,
+): MercariaUnresolvedState<TRef> {
   if (error instanceof MercariaGoneError) return { state: 'gone', ref };
   if (error instanceof MercariaNotFoundError) return { state: 'not_found', ref };
   // `status: null` means the SDK refused the ref BEFORE sending anything (an id
@@ -102,7 +106,10 @@ function unresolved<TRef>(kind: EntityKind, ref: TRef, error: unknown): Mercaria
   return { state: 'unavailable', ref, retryable: false };
 }
 
-async function resolveProduct(client: MercariaClient, ref: MercariaProductRef): Promise<MercariaProductHydration> {
+async function resolveProduct(
+  client: MercariaClient,
+  ref: MercariaProductRef,
+): Promise<MercariaProductHydration> {
   try {
     const product = await client.products.resolveRef(ref);
     return { state: 'available', ref, product, url: client.links.product(product) };
@@ -120,7 +127,9 @@ async function resolveProduct(client: MercariaClient, ref: MercariaProductRef): 
  * read once and share one result, and at most
  * `config.mercaria.hydrationConcurrency` reads are in flight at a time.
  */
-export async function hydrateMercariaProductRefs(refs: readonly unknown[]): Promise<MercariaProductHydration[]> {
+export async function hydrateMercariaProductRefs(
+  refs: readonly unknown[],
+): Promise<MercariaProductHydration[]> {
   const parsed = refs.map((value) => {
     const ref = parseMercariaRef(value);
     return ref?.kind === 'product' ? ref : null;
@@ -136,8 +145,10 @@ export async function hydrateMercariaProductRefs(refs: readonly unknown[]): Prom
 
   const client = getMercariaClient();
   const entries = [...unique.entries()];
-  const settled = await mapWithConcurrency(entries, config.mercaria.hydrationConcurrency, ([, ref]) =>
-    resolveProduct(client, ref),
+  const settled = await mapWithConcurrency(
+    entries,
+    config.mercaria.hydrationConcurrency,
+    ([, ref]) => resolveProduct(client, ref),
   );
 
   const byKey = new Map<string, MercariaProductHydration>();
@@ -145,10 +156,15 @@ export async function hydrateMercariaProductRefs(refs: readonly unknown[]): Prom
     const outcome = settled[index];
     // `resolveProduct` converts every failure into a state, so a rejected slot
     // is unreachable today; it is mapped rather than trusted.
-    byKey.set(key, outcome.status === 'fulfilled' ? outcome.value : unresolved('product', ref, outcome.reason));
+    byKey.set(
+      key,
+      outcome.status === 'fulfilled' ? outcome.value : unresolved('product', ref, outcome.reason),
+    );
   });
 
-  return parsed.map((ref) => (ref === null ? INVALID : (byKey.get(formatMercariaRef(ref)) ?? INVALID)));
+  return parsed.map((ref) =>
+    ref === null ? INVALID : (byKey.get(formatMercariaRef(ref)) ?? INVALID),
+  );
 }
 
 /** Hydrate one persisted store ref (e.g. an account's connected storefront). */
@@ -172,7 +188,9 @@ export async function resolveMercariaStore(value: unknown): Promise<MercariaStor
  * current handle, which a collection does not carry, so using it here would cost
  * a second read of the store for an identical string.
  */
-export async function resolveMercariaCollection(value: unknown): Promise<MercariaCollectionHydration> {
+export async function resolveMercariaCollection(
+  value: unknown,
+): Promise<MercariaCollectionHydration> {
   const ref = parseMercariaRef(value);
   if (ref?.kind !== 'collection') return INVALID;
   const client = getMercariaClient();

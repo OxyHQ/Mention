@@ -47,7 +47,8 @@ jest.mock('@/lib/oxyServices', () => ({
 }));
 
 jest.mock('@/stores/postsStore', () => ({
-  usePostsStore: (selector: (state: unknown) => unknown) => selector({ createPost: mockCreatePost }),
+  usePostsStore: (selector: (state: unknown) => unknown) =>
+    selector({ createPost: mockCreatePost }),
 }));
 
 jest.mock('@/context/TabPagerContext', () => ({

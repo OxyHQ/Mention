@@ -64,7 +64,9 @@ afterAll(async () => {
 
 afterEach(async () => {
   if (created.length > 0) {
-    await getDb().delete(posts).where(inArray(posts.id, [...created]));
+    await getDb()
+      .delete(posts)
+      .where(inArray(posts.id, [...created]));
     created.length = 0;
   }
 });

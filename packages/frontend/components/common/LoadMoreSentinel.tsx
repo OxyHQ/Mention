@@ -20,7 +20,11 @@ const SENTINEL_STYLE = { height: 1 } as const;
  * lists paginate via `onEndReached` instead — so a list wires BOTH (this for
  * web, `onEndReached` for native) and each platform uses the one that applies.
  */
-export function LoadMoreSentinel({ onLoadMore, enabled, rootMargin = '600px' }: LoadMoreSentinelProps) {
+export function LoadMoreSentinel({
+  onLoadMore,
+  enabled,
+  rootMargin = '600px',
+}: LoadMoreSentinelProps) {
   const viewRef = useRef<View>(null);
 
   // The observer closes over `onLoadMore` and re-subscribes when its identity
@@ -35,7 +39,11 @@ export function LoadMoreSentinel({ onLoadMore, enabled, rootMargin = '600px' }: 
   // transition, and each handler already guards on its own in-flight flag — which
   // absorbs the single extra callback a fresh observer delivers on subscribe.
   useEffect(() => {
-    if (Platform.OS !== 'web' || typeof window === 'undefined' || !('IntersectionObserver' in window)) {
+    if (
+      Platform.OS !== 'web' ||
+      typeof window === 'undefined' ||
+      !('IntersectionObserver' in window)
+    ) {
       return;
     }
     if (!enabled) return;

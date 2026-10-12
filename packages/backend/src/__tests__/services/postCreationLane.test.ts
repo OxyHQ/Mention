@@ -15,13 +15,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
  */
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import {
-  clearPostScope,
-  postScope,
-  readPostRow,
-  seedLane,
-  track,
-} from '../helpers/postFixtures';
+import { clearPostScope, postScope, readPostRow, seedLane, track } from '../helpers/postFixtures';
 
 vi.mock('../../services/PostRecentReplierService', () => ({
   recordRecentReplierForPost: vi.fn(async () => undefined),
@@ -83,7 +77,7 @@ describe('PostCreationService.create — laneId', () => {
   it('stores NULL when there is no lane, which the partial index excludes', async () => {
     const id = await create({ content: { text: 'no lane' } });
 
-    // Mongo had to leave the field ABSENT: `post_lane_chrono_v1` was partial on
+    // The legacy store had to leave the field ABSENT: `post_lane_chrono_v1` was partial on
     // `{ laneId: { $exists: true } }`, which a stored `null` SATISFIED, so a null
     // would have indexed the whole collection. The Postgres filter is `lane_id is
     // not null`, so null is the state that stays out of it — absent and null are
@@ -135,7 +129,7 @@ describe('PostCreationService.create — laneId', () => {
     ).rejects.toMatchObject({ status: 400 });
   });
 
-  it('scopes the ownership lookup to the author, so a CHANNEL account\'s lane is a 404', async () => {
+  it("scopes the ownership lookup to the author, so a CHANNEL account's lane is a 404", async () => {
     // A channel is an Oxy account and authors its own posts, so its lanes are
     // scoped by the same single `ownerId` comparison — and a post this person
     // authored is measured against THEIR lanes, never the channel's. Publishing

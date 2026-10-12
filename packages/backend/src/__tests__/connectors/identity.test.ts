@@ -50,7 +50,9 @@ beforeEach(() => {
 
 afterEach(async () => {
   await getDb().delete(userSettings).where(inArray(userSettings.oxyUserId, settingsOwners));
-  await getDb().delete(federatedBannerMirrors).where(inArray(federatedBannerMirrors.oxyUserId, settingsOwners));
+  await getDb()
+    .delete(federatedBannerMirrors)
+    .where(inArray(federatedBannerMirrors.oxyUserId, settingsOwners));
 });
 
 afterAll(async () => {
@@ -58,47 +60,92 @@ afterAll(async () => {
 });
 
 describe('resolveOxyExternalUser', () => {
-  it.each(['activitypub', 'atproto'] as const)('asks Oxy to verify %s transport without app identity claims', async (protocol) => {
-    const actorUri = protocol === 'atproto' ? 'did:plc:ewvi7nxzyoun6zhxrhs64oiz' : 'https://bird.makeup/users/alice';
-    const transportAcct = protocol === 'atproto' ? 'alice.bsky.social' : 'alice@bird.makeup';
-    mocks.serviceRequest.mockResolvedValue(oxyIdentityFixture({
-      actorUri, transportAcct, protocol, canonicalAcct: 'alice@x.com', network: 'x.com',
-    }));
-    expect(await resolveOxyExternalUser({
-      network: protocol, externalId: actorUri, handle: transportAcct,
-      federatedUsername: 'untrusted@app.test', instanceDomain: 'app.test', bio: 'raw transport bio',
-    })).toBe('oxy-resolved');
-    expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
-      actorUri, transportAcct, protocol,
-    });
-    expect(mocks.persistRemoteMedia).not.toHaveBeenCalled();
-  });
+  it.each(['activitypub', 'atproto'] as const)(
+    'asks Oxy to verify %s transport without app identity claims',
+    async (protocol) => {
+      const actorUri =
+        protocol === 'atproto'
+          ? 'did:plc:ewvi7nxzyoun6zhxrhs64oiz'
+          : 'https://bird.makeup/users/alice';
+      const transportAcct = protocol === 'atproto' ? 'alice.bsky.social' : 'alice@bird.makeup';
+      mocks.serviceRequest.mockResolvedValue(
+        oxyIdentityFixture({
+          actorUri,
+          transportAcct,
+          protocol,
+          canonicalAcct: 'alice@x.com',
+          network: 'x.com',
+        }),
+      );
+      expect(
+        await resolveOxyExternalUser({
+          network: protocol,
+          externalId: actorUri,
+          handle: transportAcct,
+          federatedUsername: 'untrusted@app.test',
+          instanceDomain: 'app.test',
+          bio: 'raw transport bio',
+        }),
+      ).toBe('oxy-resolved');
+      expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
+        actorUri,
+        transportAcct,
+        protocol,
+      });
+      expect(mocks.persistRemoteMedia).not.toHaveBeenCalled();
+    },
+  );
 
   it('records the banner the source advertises, so the banner sweep mirrors it (the resolve itself uploads nothing)', async () => {
     const actorUri = 'https://mastodon.example/users/alice';
-    mocks.serviceRequest.mockResolvedValue(oxyIdentityFixture({
-      actorUri, transportAcct: 'alice@mastodon.example', protocol: 'activitypub', canonicalAcct: 'alice@mastodon.example', network: 'mastodon.example',
-    }));
+    mocks.serviceRequest.mockResolvedValue(
+      oxyIdentityFixture({
+        actorUri,
+        transportAcct: 'alice@mastodon.example',
+        protocol: 'activitypub',
+        canonicalAcct: 'alice@mastodon.example',
+        network: 'mastodon.example',
+      }),
+    );
 
-    expect(await resolveOxyExternalUser({
-      network: 'activitypub', externalId: actorUri, handle: 'alice@mastodon.example',
-      federatedUsername: 'alice@mastodon.example', instanceDomain: 'mastodon.example',
-      bannerUrl: 'https://files.mastodon.example/header.png',
-    })).toBe('oxy-resolved');
+    expect(
+      await resolveOxyExternalUser({
+        network: 'activitypub',
+        externalId: actorUri,
+        handle: 'alice@mastodon.example',
+        federatedUsername: 'alice@mastodon.example',
+        instanceDomain: 'mastodon.example',
+        bannerUrl: 'https://files.mastodon.example/header.png',
+      }),
+    ).toBe('oxy-resolved');
 
     await vi.waitFor(async () => {
-      const rows = await getDb().select().from(federatedBannerMirrors).where(inArray(federatedBannerMirrors.oxyUserId, ['oxy-resolved']));
-      expect(rows).toEqual([expect.objectContaining({ actorUri, sourceUrl: 'https://files.mastodon.example/header.png', state: 'pending' })]);
+      const rows = await getDb()
+        .select()
+        .from(federatedBannerMirrors)
+        .where(inArray(federatedBannerMirrors.oxyUserId, ['oxy-resolved']));
+      expect(rows).toEqual([
+        expect.objectContaining({
+          actorUri,
+          sourceUrl: 'https://files.mastodon.example/header.png',
+          state: 'pending',
+        }),
+      ]);
     });
     expect(mocks.persistRemoteMedia).not.toHaveBeenCalled();
   });
 
   it('returns null when Oxy returns no authoritative identity', async () => {
     mocks.serviceRequest.mockResolvedValue({ id: 'legacy-only-id' });
-    expect(await resolveOxyExternalUser({
-      network: 'activitypub', externalId: 'https://bird.makeup/users/alice',
-      handle: 'alice@bird.makeup', federatedUsername: 'alice@x.com', instanceDomain: 'x.com',
-    })).toBeNull();
+    expect(
+      await resolveOxyExternalUser({
+        network: 'activitypub',
+        externalId: 'https://bird.makeup/users/alice',
+        handle: 'alice@bird.makeup',
+        federatedUsername: 'alice@x.com',
+        instanceDomain: 'x.com',
+      }),
+    ).toBeNull();
   });
 });
 
@@ -201,10 +248,13 @@ describe('deleteFederatedActorIdentity', () => {
     },
   );
 
-  it.each([500, 502, 503])('surfaces the transient %i as "failed" (retryable — keep the anchor)', async (status) => {
-    mocks.serviceRequest.mockRejectedValue(httpError(status));
-    expect(await deleteFederatedActorIdentity('6981c9178fcdefaf81988ffb')).toBe('failed');
-  });
+  it.each([500, 502, 503])(
+    'surfaces the transient %i as "failed" (retryable — keep the anchor)',
+    async (status) => {
+      mocks.serviceRequest.mockRejectedValue(httpError(status));
+      expect(await deleteFederatedActorIdentity('6981c9178fcdefaf81988ffb')).toBe('failed');
+    },
+  );
 
   it.each([408, 429])('treats the retryable 4xx %i as "failed", not permanent', async (status) => {
     mocks.serviceRequest.mockRejectedValue(httpError(status));

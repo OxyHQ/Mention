@@ -6,4 +6,3 @@ const router = Router();
 router.get('/:id', getArticle);
 
 export default router;
-

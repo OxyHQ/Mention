@@ -16,11 +16,7 @@ import { logger } from '../../utils/logger';
  */
 export async function closeAdminScriptResources(): Promise<void> {
   await closeQueues();
-  await Promise.all([
-    closeQueueConnection(),
-    closeRedisConnection(),
-    closePostgres(),
-  ]);
+  await Promise.all([closeQueueConnection(), closeRedisConnection(), closePostgres()]);
 }
 
 /**

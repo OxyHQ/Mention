@@ -29,10 +29,21 @@ jest.mock('@oxy.so/core/logger', () => ({
   logger: { error: jest.fn(), warn: jest.fn(), debug: jest.fn(), info: jest.fn() },
 }));
 
-import { registerPendingDocuments, requestPendingDocuments, resetPendingDocuments } from '../pendingDocuments';
+import {
+  registerPendingDocuments,
+  requestPendingDocuments,
+  resetPendingDocuments,
+} from '../pendingDocuments';
 import { notifyPostsStored } from '@/db/postObservers';
 
-const CARD = { id: 'doc-1', canonicalUrl: 'https://example.com/a', type: 'page', status: 'indexed', authors: [], evidence: {} };
+const CARD = {
+  id: 'doc-1',
+  canonicalUrl: 'https://example.com/a',
+  type: 'page',
+  status: 'indexed',
+  authors: [],
+  evidence: {},
+};
 
 function seed(id: string): void {
   mockPosts.set(id, { id, documents: [], documentsPending: true } as unknown as FeedItem);
@@ -56,7 +67,9 @@ afterEach(() => {
 it('batches every pending post on screen into one call and writes the cards back', async () => {
   seed('a');
   seed('b');
-  mockGetPostDocuments.mockResolvedValue({ posts: { a: { documents: [CARD] }, b: { documents: [CARD] } } });
+  mockGetPostDocuments.mockResolvedValue({
+    posts: { a: { documents: [CARD] }, b: { documents: [CARD] } },
+  });
 
   requestPendingDocuments('a');
   requestPendingDocuments('b');
@@ -75,7 +88,9 @@ it('batches every pending post on screen into one call and writes the cards back
 
 it('asks again for a post that is still pending, then stops', async () => {
   seed('a');
-  mockGetPostDocuments.mockResolvedValue({ posts: { a: { documents: [], documentsPending: true } } });
+  mockGetPostDocuments.mockResolvedValue({
+    posts: { a: { documents: [], documentsPending: true } },
+  });
 
   requestPendingDocuments('a');
   await advance(1_500);
@@ -119,7 +134,9 @@ it('retries after a failed call without touching the post', async () => {
 it('asks for the pending posts the cache stores, including an embedded one, once registered', async () => {
   seed('a');
   seed('quoted');
-  mockGetPostDocuments.mockResolvedValue({ posts: { a: { documents: [CARD] }, quoted: { documents: [CARD] } } });
+  mockGetPostDocuments.mockResolvedValue({
+    posts: { a: { documents: [CARD] }, quoted: { documents: [CARD] } },
+  });
   const unregister = registerPendingDocuments();
 
   notifyPostsStored([
@@ -139,7 +156,7 @@ it('asks for the pending posts the cache stores, including an embedded one, once
   expect(mockGetPostDocuments).toHaveBeenCalledTimes(1);
 });
 
-it('asks for a new post on its own schedule, not behind a retry\'s longer wait', async () => {
+it("asks for a new post on its own schedule, not behind a retry's longer wait", async () => {
   seed('a');
   seed('b');
   mockGetPostDocuments
@@ -157,7 +174,9 @@ it('asks for a new post on its own schedule, not behind a retry\'s longer wait',
 
 it('gives an edited post a fresh budget', async () => {
   seed('a');
-  mockGetPostDocuments.mockResolvedValue({ posts: { a: { documents: [], documentsPending: true } } });
+  mockGetPostDocuments.mockResolvedValue({
+    posts: { a: { documents: [], documentsPending: true } },
+  });
 
   requestPendingDocuments('a', 'v1');
   await advance(1_500);
@@ -179,7 +198,12 @@ it('gives an edited post a fresh budget', async () => {
 it('drops an answer that lands after the viewer changed', async () => {
   seed('a');
   let answer: (value: unknown) => void = () => {};
-  mockGetPostDocuments.mockImplementationOnce(() => new Promise((resolve) => { answer = resolve; }));
+  mockGetPostDocuments.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+  );
 
   requestPendingDocuments('a');
   await advance(1_500);
@@ -191,16 +215,24 @@ it('drops an answer that lands after the viewer changed', async () => {
   expect(mockPosts.get('a')?.documentsPending).toBe(true);
 });
 
-it('reads each stored post\'s version, embedded ones included', async () => {
+it("reads each stored post's version, embedded ones included", async () => {
   const unregister = registerPendingDocuments();
-  mockGetPostDocuments.mockResolvedValue({ posts: { a: { documents: [], documentsPending: true }, q: { documents: [], documentsPending: true } } });
+  mockGetPostDocuments.mockResolvedValue({
+    posts: {
+      a: { documents: [], documentsPending: true },
+      q: { documents: [], documentsPending: true },
+    },
+  });
   seed('a');
   seed('q');
-  const store = (version: string) => notifyPostsStored([{
-    ...mockPosts.get('a'),
-    metadata: { updatedAt: version },
-    quotedPost: { ...mockPosts.get('q'), metadata: { updatedAt: version } },
-  } as unknown as FeedItem]);
+  const store = (version: string) =>
+    notifyPostsStored([
+      {
+        ...mockPosts.get('a'),
+        metadata: { updatedAt: version },
+        quotedPost: { ...mockPosts.get('q'), metadata: { updatedAt: version } },
+      } as unknown as FeedItem,
+    ]);
 
   store('v1');
   await advance(1_500);
@@ -222,7 +254,9 @@ it('reads each stored post\'s version, embedded ones included', async () => {
 it('keeps the sooner deadline when a later one is added', async () => {
   seed('a');
   seed('b');
-  mockGetPostDocuments.mockResolvedValue({ posts: { a: { documents: [CARD] }, b: { documents: [CARD] } } });
+  mockGetPostDocuments.mockResolvedValue({
+    posts: { a: { documents: [CARD] }, b: { documents: [CARD] } },
+  });
 
   requestPendingDocuments('a');
   await advance(1_000);

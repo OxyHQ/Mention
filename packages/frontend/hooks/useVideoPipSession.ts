@@ -87,29 +87,38 @@ export function useVideoPipSession<T extends VideoPipSessionItem>({
   // A session opens where its owner already is: the surface that can enter PiP
   // is the one the viewer is watching, so its own position in the list is the
   // cursor's origin. An item that is not in the list cannot anchor a session.
-  const start = useCallback((itemId: string) => {
-    const index = items.findIndex((item) => item.id === itemId);
-    if (index < 0) return;
-    setSession({ ownerId: itemId, cursor: index });
-  }, [items]);
+  const start = useCallback(
+    (itemId: string) => {
+      const index = items.findIndex((item) => item.id === itemId);
+      if (index < 0) return;
+      setSession({ ownerId: itemId, cursor: index });
+    },
+    [items],
+  );
 
-  const end = useCallback((itemId: string) => {
-    if (session === null || session.ownerId !== itemId) return;
-    setSession(null);
-    onEnded(session.cursor);
-  }, [session, onEnded]);
+  const end = useCallback(
+    (itemId: string) => {
+      if (session === null || session.ownerId !== itemId) return;
+      setSession(null);
+      onEnded(session.cursor);
+    },
+    [session, onEnded],
+  );
 
   // Written through the updater rather than from the closure: the OS transport
   // buttons can fire twice before React has re-rendered — more easily than on
   // screen, since a background tab's renders are throttled — and a second press
   // reading the first press's cursor would be swallowed.
-  const move = useCallback((delta: number) => {
-    setSession((previous) => {
-      if (previous === null) return previous;
-      const cursor = Math.min(Math.max(previous.cursor + delta, 0), items.length - 1);
-      return cursor === previous.cursor ? previous : { ...previous, cursor };
-    });
-  }, [items.length]);
+  const move = useCallback(
+    (delta: number) => {
+      setSession((previous) => {
+        if (previous === null) return previous;
+        const cursor = Math.min(Math.max(previous.cursor + delta, 0), items.length - 1);
+        return cursor === previous.cursor ? previous : { ...previous, cursor };
+      });
+    },
+    [items.length],
+  );
 
   const goToNext = useCallback(() => move(1), [move]);
   const goToPrevious = useCallback(() => move(-1), [move]);
@@ -124,7 +133,7 @@ export function useVideoPipSession<T extends VideoPipSessionItem>({
     if (needsTopUp) loadMore();
   }, [needsTopUp, loadMore]);
 
-  const playing = session === null ? null : items.at(session.cursor) ?? null;
+  const playing = session === null ? null : (items.at(session.cursor) ?? null);
 
   return {
     ownerId: session?.ownerId ?? null,

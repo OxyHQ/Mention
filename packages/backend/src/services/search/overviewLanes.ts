@@ -41,7 +41,12 @@
 import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
 
 import { getDb, type DatabaseOrTransaction } from '../../db/postgres';
-import { accountListMembers, accountLists, starterPackMembers, starterPacks } from '../../db/schema/lists';
+import {
+  accountListMembers,
+  accountLists,
+  starterPackMembers,
+  starterPacks,
+} from '../../db/schema/lists';
 import { customFeeds } from '../../db/schema/feeds';
 import {
   accountListSearchPredicate,
@@ -123,9 +128,16 @@ async function countMembers(
  * leaves the cards without an owner line rather than failing the lane, because
  * a search result missing its author byline is still a usable result.
  */
-export async function resolveLaneOwners(rows: readonly OwnedRow[][]): Promise<Map<string, LaneOwner>> {
+export async function resolveLaneOwners(
+  rows: readonly OwnedRow[][],
+): Promise<Map<string, LaneOwner>> {
   const ids = Array.from(
-    new Set(rows.flat().map((row) => row.ownerOxyUserId).filter((id) => typeof id === 'string' && id.length > 0)),
+    new Set(
+      rows
+        .flat()
+        .map((row) => row.ownerOxyUserId)
+        .filter((id) => typeof id === 'string' && id.length > 0),
+    ),
   );
   const owners = new Map<string, LaneOwner>();
   if (ids.length === 0) return owners;

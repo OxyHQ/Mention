@@ -41,20 +41,26 @@ export class FeedJobScheduler {
     this.isRunning = true;
 
     // Update user preferences every hour
-    const updatePreferencesTimer = setInterval(() => {
-      this.updateUserPreferences().catch(err => {
-        logger.error('Error in update preferences job:', err);
-      });
-    }, 60 * 60 * 1000) as unknown as NodeJS.Timeout; // 1 hour
+    const updatePreferencesTimer = setInterval(
+      () => {
+        this.updateUserPreferences().catch((err) => {
+          logger.error('Error in update preferences job:', err);
+        });
+      },
+      60 * 60 * 1000,
+    ) as unknown as NodeJS.Timeout; // 1 hour
     updatePreferencesTimer.unref?.();
     this.intervals.set('updatePreferences', updatePreferencesTimer);
 
     // Clean up old active user records every hour
-    const cleanActiveUsersTimer = setInterval(() => {
-      this.cleanupActiveUsers().catch(err => {
-        logger.error('Error in cleanup active users job:', err);
-      });
-    }, 60 * 60 * 1000) as unknown as NodeJS.Timeout; // 1 hour
+    const cleanActiveUsersTimer = setInterval(
+      () => {
+        this.cleanupActiveUsers().catch((err) => {
+          logger.error('Error in cleanup active users job:', err);
+        });
+      },
+      60 * 60 * 1000,
+    ) as unknown as NodeJS.Timeout; // 1 hour
     cleanActiveUsersTimer.unref?.();
     this.intervals.set('cleanActiveUsers', cleanActiveUsersTimer);
 
@@ -62,7 +68,7 @@ export class FeedJobScheduler {
     // elected leader (see server.ts startSchedulers), so the sweep runs on
     // exactly one task; the publisher additionally guards against overlap.
     const publishScheduledTimer = setInterval(() => {
-      scheduledPostPublisher.publishDuePosts().catch(err => {
+      scheduledPostPublisher.publishDuePosts().catch((err) => {
         logger.error('Error in scheduled post publish job:', err);
       });
     }, 60 * 1000) as unknown as NodeJS.Timeout; // 60 seconds
@@ -76,7 +82,7 @@ export class FeedJobScheduler {
    * Stop background jobs
    */
   stop(): void {
-    this.intervals.forEach(interval => clearInterval(interval));
+    this.intervals.forEach((interval) => clearInterval(interval));
     this.intervals.clear();
     this.isRunning = false;
 
@@ -111,7 +117,7 @@ export class FeedJobScheduler {
       this.fallbackActiveUsers.set(userId, {
         userId,
         lastActivity: new Date(now),
-        activityCount: 1
+        activityCount: 1,
       });
     }
   }
@@ -127,11 +133,7 @@ export class FeedJobScheduler {
       const client = getRedisClient();
       if (client.isReady) {
         // Get all users active within TTL window
-        const members = await client.zRangeByScore(
-          REDIS_ACTIVE_USERS_ZSET,
-          cutoff,
-          now
-        );
+        const members = await client.zRangeByScore(REDIS_ACTIVE_USERS_ZSET, cutoff, now);
 
         if (members.length === 0) {
           return [];
@@ -144,7 +146,7 @@ export class FeedJobScheduler {
           (userId, i) => ({
             userId,
             activityCount: parseInt(counts[i] || '0', 10),
-          })
+          }),
         );
 
         // Sort by activity count descending
@@ -181,11 +183,7 @@ export class FeedJobScheduler {
       const client = getRedisClient();
       if (client.isReady) {
         // Get the members being removed so we can delete their counts too
-        const expiredMembers = await client.zRangeByScore(
-          REDIS_ACTIVE_USERS_ZSET,
-          '-inf',
-          cutoff
-        );
+        const expiredMembers = await client.zRangeByScore(REDIS_ACTIVE_USERS_ZSET, '-inf', cutoff);
 
         if (expiredMembers.length > 0) {
           await client.zRemRangeByScore(REDIS_ACTIVE_USERS_ZSET, '-inf', cutoff);
@@ -222,10 +220,9 @@ export class FeedJobScheduler {
 
       // Batch update preferences for active users
       const updatePromises = activeUsers.slice(0, 50).map(({ userId }) =>
-        userPreferenceService.batchUpdatePreferences(userId)
-          .catch(error => {
-            logger.warn('Failed to update user preferences', error);
-          })
+        userPreferenceService.batchUpdatePreferences(userId).catch((error) => {
+          logger.warn('Failed to update user preferences', error);
+        }),
       );
 
       await Promise.allSettled(updatePromises);
@@ -250,12 +247,17 @@ export class FeedJobScheduler {
   /**
    * Get statistics about active users
    */
-  async getActiveUserStats(): Promise<{ total: number; topUsers: Array<{ userId: string; activityCount: number }> }> {
+  async getActiveUserStats(): Promise<{
+    total: number;
+    topUsers: Array<{ userId: string; activityCount: number }>;
+  }> {
     const activeUsers = await this.getActiveUsers();
-    const topUsers = activeUsers.slice(0, 10).map(({ userId, activityCount }) => ({ userId, activityCount }));
+    const topUsers = activeUsers
+      .slice(0, 10)
+      .map(({ userId, activityCount }) => ({ userId, activityCount }));
     return {
       total: activeUsers.length,
-      topUsers
+      topUsers,
     };
   }
 }

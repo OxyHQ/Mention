@@ -239,17 +239,21 @@ export function usePersonProfileView({
   // A federated account's Oxy graph holds only the follows made through this
   // server, so its stats are the origin's own totals instead — `undefined`, and
   // hidden, when the origin did not report one (see `profileAccountFacts`).
-  const followerCount = profileData?.isFederated ? profileData.followersCount : (rawFollowerCount ?? 0);
-  const followingCount = profileData?.isFederated ? profileData.followingCount : (rawFollowingCount ?? 0);
+  const followerCount = profileData?.isFederated
+    ? profileData.followersCount
+    : (rawFollowerCount ?? 0);
+  const followingCount = profileData?.isFederated
+    ? profileData.followingCount
+    : (rawFollowingCount ?? 0);
 
   // Show suggestions only on the follow ACTION, never on a revisit.
   const justFollowed = useJustFollowed(stableUserId, isFollowingProfileUser);
 
-  const { subscribed, loading: subLoading, toggle: toggleSubscription } = useSubscription(
-    profileData?.id,
-    currentUser?.id,
-    currentUser?.id === profileData?.id,
-  );
+  const {
+    subscribed,
+    loading: subLoading,
+    toggle: toggleSubscription,
+  } = useSubscription(profileData?.id, currentUser?.id, currentUser?.id === profileData?.id);
 
   const design = profileData?.design;
   const avatarUri = design?.avatar;
@@ -279,9 +283,7 @@ export function usePersonProfileView({
     await Promise.all([
       refreshAccount(),
       ...(profileData?.id && !isFederated ? [refetchLaneTabs()] : []),
-      ...(profileData?.id && (!isPrivate || isOwnProfile)
-        ? [refetchReputation()]
-        : []),
+      ...(profileData?.id && (!isPrivate || isOwnProfile) ? [refetchReputation()] : []),
       ...(stableUserId && refreshFollowStatus && refreshFollowCounts
         ? [refreshFollowStatus(), refreshFollowCounts()]
         : []),
@@ -512,7 +514,8 @@ export function usePersonProfileView({
           only fail with a 401 — the same rule as the "…" menu (#1126). */}
       {!isOwnProfile && canUsePrivateApi && (
         <Button
-          appearance="subtle" tone="neutral"
+          appearance="subtle"
+          tone="neutral"
           iconOnly
           leadingIcon={subscribed ? RiNotification3Fill : RiNotification3Line}
           onPress={toggleSubscription}
@@ -532,7 +535,8 @@ export function usePersonProfileView({
       )}
       {!isOwnProfile && !isFederated && canUsePrivateApi && (
         <Button
-          appearance="subtle" tone="neutral"
+          appearance="subtle"
+          tone="neutral"
           iconOnly
           leadingIcon={RiMailLine}
           onPress={handleDM}
@@ -544,7 +548,8 @@ export function usePersonProfileView({
       )}
       {isFederated && (
         <Button
-          appearance="subtle" tone="neutral"
+          appearance="subtle"
+          tone="neutral"
           iconOnly
           leadingIcon={RiExternalLinkLine}
           onPress={handleOpenOnInstance}
@@ -555,7 +560,8 @@ export function usePersonProfileView({
         />
       )}
       <Button
-        appearance="subtle" tone="neutral"
+        appearance="subtle"
+        tone="neutral"
         iconOnly
         leadingIcon={RiUpload2Line}
         onPress={handleShare}
@@ -566,7 +572,8 @@ export function usePersonProfileView({
       />
       {!isOwnProfile && handleMoreOptions && (
         <Button
-          appearance="subtle" tone="neutral"
+          appearance="subtle"
+          tone="neutral"
           iconOnly
           leadingIcon={RiMoreFill}
           onPress={handleMoreOptions}
@@ -579,7 +586,10 @@ export function usePersonProfileView({
     </>
   );
 
-  const seoPolicy = useProfileSEOPolicy(profileData?.privacy?.profileVisibility, profileData?.privacy?.searchEngineIndexing);
+  const seoPolicy = useProfileSEOPolicy(
+    profileData?.privacy?.profileVisibility,
+    profileData?.privacy?.searchEngineIndexing,
+  );
   // The address this profile is canonically known by — the same `/@user@instance`
   // spelling the server's canonical uses, whatever case or alias the reader typed.
   const profileUrl = profileData?.username
@@ -587,13 +597,17 @@ export function usePersonProfileView({
     : undefined;
   const seo = profileData ? (
     <SEO
-      title={seoPolicy.server?.title || t('seo.profile.title', {
-        name: profileData.design.displayName,
-        username: profileData.username,
-        defaultValue: `${profileData.design.displayName} (@${profileData.username}) on Mention`,
-      })}
-      description={seoPolicy.server?.description || (
-        seoPolicy.detailsAllowed && profileData.bio
+      title={
+        seoPolicy.server?.title ||
+        t('seo.profile.title', {
+          name: profileData.design.displayName,
+          username: profileData.username,
+          defaultValue: `${profileData.design.displayName} (@${profileData.username}) on Mention`,
+        })
+      }
+      description={
+        seoPolicy.server?.description ||
+        (seoPolicy.detailsAllowed && profileData.bio
           ? t('seo.profile.description', {
               name: profileData.design.displayName,
               bio: profileData.bio,
@@ -603,28 +617,43 @@ export function usePersonProfileView({
               name: profileData.design.displayName,
               bio: '',
               defaultValue: `View ${profileData.design.displayName}'s profile on Mention.`,
-            })
-      )}
-      image={seoPolicy.server?.image || (seoPolicy.detailsAllowed ? avatarUri || bannerUri : undefined)}
+            }))
+      }
+      image={
+        seoPolicy.server?.image || (seoPolicy.detailsAllowed ? avatarUri || bannerUri : undefined)
+      }
       type="profile"
       url={seoPolicy.server?.url || profileUrl}
       ready={!loading && canonicalHref === null}
-      robots={seoPolicy.robots === 'index,follow' && activeKey !== 'posts' ? 'noindex,follow' : seoPolicy.robots}
-      jsonLd={seoPolicy.server?.jsonLd || (seoPolicy.detailsAllowed ? {
-        '@context': 'https://schema.org',
-        '@type': 'ProfilePage',
-        mainEntity: {
-          '@type': 'Person',
-          name: profileData.design.displayName,
-          alternateName: `@${handle}`,
-          description: profileData.bio || undefined,
-          url: profileUrl,
-          image: avatarUri || undefined,
-        },
-      } : undefined)}
+      robots={
+        seoPolicy.robots === 'index,follow' && activeKey !== 'posts'
+          ? 'noindex,follow'
+          : seoPolicy.robots
+      }
+      jsonLd={
+        seoPolicy.server?.jsonLd ||
+        (seoPolicy.detailsAllowed
+          ? {
+              '@context': 'https://schema.org',
+              '@type': 'ProfilePage',
+              mainEntity: {
+                '@type': 'Person',
+                name: profileData.design.displayName,
+                alternateName: `@${handle}`,
+                description: profileData.bio || undefined,
+                url: profileUrl,
+                image: avatarUri || undefined,
+              },
+            }
+          : undefined)
+      }
     />
   ) : active && !loading ? (
-    <SEO title="Profile unavailable" description="This profile could not be loaded." robots="noindex,nofollow" />
+    <SEO
+      title="Profile unavailable"
+      description="This profile could not be loaded."
+      robots="noindex,nofollow"
+    />
   ) : null;
 
   return {

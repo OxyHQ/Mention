@@ -11,9 +11,13 @@ import ContentWarning from '../ContentWarning';
  */
 
 jest.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key }),
+  useTranslation: () => ({
+    t: (_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key,
+  }),
 }));
-jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: { textSecondary: '#666' } }) }));
+jest.mock('@oxy.so/bloom/theme', () => ({
+  useTheme: () => ({ colors: { textSecondary: '#666' } }),
+}));
 jest.mock('@oxy.so/bloom/icons', () => ({ RiAlertLine: () => null }));
 
 const texts = (tree: TestRenderer.ReactTestRenderer) =>
@@ -22,7 +26,9 @@ const texts = (tree: TestRenderer.ReactTestRenderer) =>
 function render(revealed: boolean, onToggle = jest.fn()) {
   let tree!: TestRenderer.ReactTestRenderer;
   act(() => {
-    tree = TestRenderer.create(<ContentWarning text="Spoilers" revealed={revealed} onToggle={onToggle} />);
+    tree = TestRenderer.create(
+      <ContentWarning text="Spoilers" revealed={revealed} onToggle={onToggle} />,
+    );
   });
   return tree;
 }

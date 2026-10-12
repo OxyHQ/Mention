@@ -6,7 +6,10 @@ import { activityPubConnector } from './activitypub/ActivityPubConnector';
 import { FEDERATION_ENABLED } from './activitypub/constants';
 import { atprotoConnector } from './atproto/AtprotoConnector';
 import { ATPROTO_ENABLED } from './atproto/constants';
-import { instagramGraphConnector, isInstagramGraphEnabled } from './instagram/InstagramGraphConnector';
+import {
+  instagramGraphConnector,
+  isInstagramGraphEnabled,
+} from './instagram/InstagramGraphConnector';
 
 /**
  * Network-connector bootstrap.

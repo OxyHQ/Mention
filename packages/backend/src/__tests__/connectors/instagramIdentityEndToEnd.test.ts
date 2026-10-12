@@ -96,7 +96,9 @@ vi.mock('../../services/fediverseSharing', () => ({
   isFediverseSharingEnabled: vi.fn(async () => true),
   invalidateFediverseSharing: vi.fn(),
 }));
-vi.mock('../../services/ActorIdentityProjectionService', () => ({ reconcileActorIdentityProjection: mocks.reconcileProjection }));
+vi.mock('../../services/ActorIdentityProjectionService', () => ({
+  reconcileActorIdentityProjection: mocks.reconcileProjection,
+}));
 vi.mock('../../services/userSummaryCache', () => ({ invalidate: vi.fn() }));
 vi.mock('../../services/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: vi.fn(async () => ({ ok: false, permanent: true })),
@@ -116,8 +118,8 @@ const LIVE_ACTOR = {
   preferredUsername: 'zuck',
   name: 'Mark Zuckerberg',
   summary:
-    "I build stuff<br>This account is a replica from Instagram. Its author can't see your replies. "
-    + 'If you find this service useful, please consider supporting us via our Patreon. <br>',
+    "I build stuff<br>This account is a replica from Instagram. Its author can't see your replies. " +
+    'If you find this service useful, please consider supporting us via our Patreon. <br>',
   url: ACTOR_URI,
   inbox: 'https://kilogram.makeup/users/zuck/inbox',
   outbox: 'https://kilogram.makeup/users/zuck/outbox',
@@ -131,30 +133,30 @@ const LIVE_ACTOR = {
       type: 'PropertyValue',
       name: '🔗',
       value:
-        '<a href="http://meta.com/thefutureisforeveryone" rel="nofollow noopener noreferrer" target="_blank">'
-        + '<span class="invisible">http://</span><span class="ellipsis">meta.com/thefutureisforeveryon</span>'
-        + '<span class="invisible">e</span></a>',
+        '<a href="http://meta.com/thefutureisforeveryone" rel="nofollow noopener noreferrer" target="_blank">' +
+        '<span class="invisible">http://</span><span class="ellipsis">meta.com/thefutureisforeveryon</span>' +
+        '<span class="invisible">e</span></a>',
     },
     {
       type: 'PropertyValue',
       name: 'Official',
       value:
-        '<a href="https://www.instagram.com/zuck" rel="me nofollow noopener noreferrer" target="_blank">'
-        + '<span class="invisible">https://</span><span class="ellipsis">www.instagram.com/zuck</span></a>',
+        '<a href="https://www.instagram.com/zuck" rel="me nofollow noopener noreferrer" target="_blank">' +
+        '<span class="invisible">https://</span><span class="ellipsis">www.instagram.com/zuck</span></a>',
     },
     {
       type: 'PropertyValue',
       name: 'Support this service',
       value:
-        '<a href="https://www.patreon.com/birddotmakeup" rel="me nofollow noopener noreferrer" target="_blank">'
-        + '<span class="invisible">https://</span><span class="ellipsis">www.patreon.com/birddotmakeup</span></a>',
+        '<a href="https://www.patreon.com/birddotmakeup" rel="me nofollow noopener noreferrer" target="_blank">' +
+        '<span class="invisible">https://</span><span class="ellipsis">www.patreon.com/birddotmakeup</span></a>',
     },
     {
       type: 'PropertyValue',
       name: 'Twitter',
       value:
-        '<span class="h-card" translate="no"><a href="https://bird.makeup/users/finkd" class="u-url mention">'
-        + '@<span>finkd@bird.makeup</span></a></span>',
+        '<span class="h-card" translate="no"><a href="https://bird.makeup/users/finkd" class="u-url mention">' +
+        '@<span>finkd@bird.makeup</span></a></span>',
     },
   ],
 };
@@ -195,7 +197,8 @@ function serveActor(document: Record<string, unknown>): void {
           status: 200,
           headers: { 'content-type': 'application/activity+json' },
         })
-      : new Response('', { status: 404 }));
+      : new Response('', { status: 404 }),
+  );
 }
 
 beforeEach(() => {
@@ -206,20 +209,32 @@ beforeEach(() => {
     storedRow = { uri, ...columns };
     return Promise.resolve({ ...storedRow, id: 'row-1' });
   });
-  mocks.serviceRequest.mockResolvedValue(oxyIdentityFixture({
-    actorUri: ACTOR_URI, transportAcct: 'zuck@kilogram.makeup', canonicalAcct: 'zuck@instagram.com',
-    network: 'instagram.com', userId: 'oxy-zuck', displayName: 'Mark Zuckerberg', bio: 'I build stuff', avatar: AVATAR,
-  }));
+  mocks.serviceRequest.mockResolvedValue(
+    oxyIdentityFixture({
+      actorUri: ACTOR_URI,
+      transportAcct: 'zuck@kilogram.makeup',
+      canonicalAcct: 'zuck@instagram.com',
+      network: 'instagram.com',
+      userId: 'oxy-zuck',
+      displayName: 'Mark Zuckerberg',
+      bio: 'I build stuff',
+      avatar: AVATAR,
+    }),
+  );
   serveActor(LIVE_ACTOR);
 });
 
 describe('resolving @zuck@kilogram.makeup', () => {
   it('refuses discovery if source-scoped identity projection cannot complete', async () => {
     mocks.reconcileProjection.mockResolvedValueOnce({ refusal: 'actor_not_cached' });
-    const res = await request(app).get('/federation/resolve').query({ handle: '@zuck@kilogram.makeup' });
+    const res = await request(app)
+      .get('/federation/resolve')
+      .query({ handle: '@zuck@kilogram.makeup' });
     expect(res.body.actor).toBeNull();
     expect(mocks.reconcileProjection).toHaveBeenCalledWith({
-      actorUri: 'https://kilogram.makeup/users/zuck', oxyUserId: 'oxy-zuck', networkAcct: 'zuck@instagram.com',
+      actorUri: 'https://kilogram.makeup/users/zuck',
+      oxyUserId: 'oxy-zuck',
+      networkAcct: 'zuck@instagram.com',
     });
   });
 
@@ -247,9 +262,13 @@ describe('resolving @zuck@kilogram.makeup', () => {
       handle: '@zuck@kilogram.makeup',
     });
     expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
-      actorUri: ACTOR_URI, transportAcct: 'zuck@kilogram.makeup', protocol: 'activitypub',
+      actorUri: ACTOR_URI,
+      transportAcct: 'zuck@kilogram.makeup',
+      protocol: 'activitypub',
     });
-    expect(mocks.serviceRequest.mock.calls.some(([, path]) => path === '/users/resolve')).toBe(false);
+    expect(mocks.serviceRequest.mock.calls.some(([, path]) => path === '/users/resolve')).toBe(
+      false,
+    );
   });
 
   it('keeps the bridge address on the row it holds for reaching the actor', async () => {
@@ -289,7 +308,9 @@ describe('the three addresses that must converge on one account', () => {
   });
 
   it('never fetches instagram.com itself — the pasted URL is a claim, not a destination', async () => {
-    await request(app).get('/federation/resolve').query({ handle: 'https://www.instagram.com/zuck' });
+    await request(app)
+      .get('/federation/resolve')
+      .query({ handle: 'https://www.instagram.com/zuck' });
 
     for (const [url] of mocks.signedFetch.mock.calls) {
       expect(String(url)).not.toContain('instagram.com');
@@ -300,39 +321,67 @@ describe('the three addresses that must converge on one account', () => {
 describe('what the bridge lane deliberately leaves alone', () => {
   it('uses Oxy canonical identity and bio on the first discovery of an unknown bird.makeup actor', async () => {
     const actorUri = 'https://bird.makeup/users/jordievole';
-    serveActor({ ...LIVE_ACTOR, id: actorUri, preferredUsername: 'jordievole',
-      inbox: `${actorUri}/inbox`, outbox: `${actorUri}/outbox`,
-      summary: "Uno @delbarriotv y de @lodeevole<br>This account is a replica from Twitter. Patreon.",
+    serveActor({
+      ...LIVE_ACTOR,
+      id: actorUri,
+      preferredUsername: 'jordievole',
+      inbox: `${actorUri}/inbox`,
+      outbox: `${actorUri}/outbox`,
+      summary:
+        'Uno @delbarriotv y de @lodeevole<br>This account is a replica from Twitter. Patreon.',
     });
-    mocks.serviceRequest.mockResolvedValue(oxyIdentityFixture({
-      actorUri, transportAcct: 'jordievole@bird.makeup', canonicalAcct: 'jordievole@x.com',
-      network: 'x.com', userId: 'oxy-jordievole', bio: 'Uno @delbarriotv@x.com y de @lodeevole@x.com',
-    }));
+    mocks.serviceRequest.mockResolvedValue(
+      oxyIdentityFixture({
+        actorUri,
+        transportAcct: 'jordievole@bird.makeup',
+        canonicalAcct: 'jordievole@x.com',
+        network: 'x.com',
+        userId: 'oxy-jordievole',
+        bio: 'Uno @delbarriotv@x.com y de @lodeevole@x.com',
+      }),
+    );
 
     expect(storedRow).toEqual({});
-    const first = await request(app).get('/federation/resolve').query({ handle: 'jordievole@bird.makeup' });
-    expect(first.body.actor).toMatchObject({ handle: 'jordievole@x.com', oxyUserId: 'oxy-jordievole', externalId: actorUri });
-    expect(storedRow).toMatchObject({ networkAcct: 'jordievole@x.com',
-      summary: 'Uno @delbarriotv@x.com y de @lodeevole@x.com', acct: 'jordievole@bird.makeup',
+    const first = await request(app)
+      .get('/federation/resolve')
+      .query({ handle: 'jordievole@bird.makeup' });
+    expect(first.body.actor).toMatchObject({
+      handle: 'jordievole@x.com',
+      oxyUserId: 'oxy-jordievole',
+      externalId: actorUri,
     });
-    const repeated = await request(app).get('/federation/resolve').query({ handle: 'jordievole@bird.makeup' });
+    expect(storedRow).toMatchObject({
+      networkAcct: 'jordievole@x.com',
+      summary: 'Uno @delbarriotv@x.com y de @lodeevole@x.com',
+      acct: 'jordievole@bird.makeup',
+    });
+    const repeated = await request(app)
+      .get('/federation/resolve')
+      .query({ handle: 'jordievole@bird.makeup' });
     expect(repeated.body.actor).toEqual(first.body.actor);
   });
 
   it('does not mint a transport identity when Oxy is unavailable', async () => {
     mocks.serviceRequest.mockRejectedValue(new Error('Oxy unavailable'));
-    const response = await request(app).get('/federation/resolve').query({ handle: 'zuck@kilogram.makeup' });
+    const response = await request(app)
+      .get('/federation/resolve')
+      .query({ handle: 'zuck@kilogram.makeup' });
     expect(response.status).toBe(500);
     expect(mocks.upsertActor).not.toHaveBeenCalled();
   });
 
   it("does not re-attribute the operator's own account to a person on Instagram", async () => {
     serveActor(OPERATOR_ACTOR);
-    mocks.serviceRequest.mockResolvedValue(oxyIdentityFixture({
-      actorUri: OPERATOR_ACTOR.id, transportAcct: 'kilogram.makeup@kilogram.makeup',
-      canonicalAcct: 'kilogram.makeup@kilogram.makeup', network: 'kilogram.makeup',
-      userId: 'oxy-operator', bio: OPERATOR_ACTOR.summary,
-    }));
+    mocks.serviceRequest.mockResolvedValue(
+      oxyIdentityFixture({
+        actorUri: OPERATOR_ACTOR.id,
+        transportAcct: 'kilogram.makeup@kilogram.makeup',
+        canonicalAcct: 'kilogram.makeup@kilogram.makeup',
+        network: 'kilogram.makeup',
+        userId: 'oxy-operator',
+        bio: OPERATOR_ACTOR.summary,
+      }),
+    );
 
     const res = await request(app)
       .get('/federation/resolve')

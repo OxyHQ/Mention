@@ -33,10 +33,7 @@ const WEB_SCHEMES = new Set(['http:', 'https:']);
  * so the browser chrome matches the surrounding surface. Purely optional — the
  * defaults render a clean system browser.
  */
-export type OpenExternalLinkOptions = Pick<
-  WebBrowserOpenOptions,
-  'toolbarColor' | 'controlsColor'
->;
+export type OpenExternalLinkOptions = Pick<WebBrowserOpenOptions, 'toolbarColor' | 'controlsColor'>;
 
 function parseScheme(url: string): string | null {
   try {

@@ -47,7 +47,7 @@ describe('loadViewerLanguages', () => {
     resolveUserSummaries.mockReset();
   });
 
-  it('returns the viewer\'s account locales, primary first', async () => {
+  it("returns the viewer's account locales, primary first", async () => {
     resolveUserSummaries.mockResolvedValue(
       new Map([[viewerId, summaryWith(viewerId, ['es-ES', 'en-US'])]]),
     );
@@ -126,7 +126,11 @@ describe('resolveViewerBaseLanguages', () => {
    * set.
    */
   it('caps the set at three', () => {
-    expect(resolveViewerBaseLanguages([], ['es', 'en', 'de', 'fr', 'ja'])).toEqual(['es', 'en', 'de']);
+    expect(resolveViewerBaseLanguages([], ['es', 'en', 'de', 'fr', 'ja'])).toEqual([
+      'es',
+      'en',
+      'de',
+    ]);
   });
 
   /**
@@ -160,7 +164,11 @@ describe('resolveDiscoveryGate', () => {
     // `noContentWarning` is the recommendation-hygiene rule, ON by default and
     // scoped by its own followed-author exemption rather than by this list.
     expect(ids(resolveDiscoveryGate())).toEqual([
-      'minLength', 'lowEffortGate', 'nativeEngagement', 'minQuality', 'noContentWarning',
+      'minLength',
+      'lowEffortGate',
+      'nativeEngagement',
+      'minQuality',
+      'noContentWarning',
     ]);
   });
 

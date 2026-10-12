@@ -17,7 +17,8 @@ export const mentionCapabilityRateLimiter = rateLimit({
   }),
   windowMs: CAPABILITY_AUTH_WINDOW_MS,
   max: 120,
-  skip: (request: Request) => !request.header('authorization')?.toLowerCase().startsWith('capability '),
+  skip: (request: Request) =>
+    !request.header('authorization')?.toLowerCase().startsWith('capability '),
   keyGenerator: (request: Request) => hashedIpKey(request),
   standardHeaders: true,
   legacyHeaders: false,

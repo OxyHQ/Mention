@@ -4,10 +4,9 @@ import { SYRA_API_URL } from '@/config';
 import { createLogger } from '@oxy.so/core/logger';
 
 /** Lightweight authenticated Syra HTTP client; no LiveKit or UI imports. */
-export const syraLinkedClient: LinkedHttpClient['client'] =
-  oxyServices.createLinkedClient({
-    baseURL: SYRA_API_URL,
-  }).client;
+export const syraLinkedClient: LinkedHttpClient['client'] = oxyServices.createLinkedClient({
+  baseURL: SYRA_API_URL,
+}).client;
 
 const logger = createLogger('SyraApi');
 
@@ -43,9 +42,7 @@ export interface LiveUserEntry {
 export type LiveVisibility = 'active' | 'speaking';
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === 'object'
-    ? value as Record<string, unknown>
-    : undefined;
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined;
 }
 
 function parseRoom(value: unknown): Room | null {
@@ -55,17 +52,14 @@ function parseRoom(value: unknown): Room | null {
     typeof room._id !== 'string' ||
     typeof room.title !== 'string' ||
     typeof room.host !== 'string' ||
-    (room.status !== 'scheduled' &&
-      room.status !== 'live' &&
-      room.status !== 'ended')
+    (room.status !== 'scheduled' && room.status !== 'live' && room.status !== 'ended')
   ) {
     return null;
   }
 
   return {
     ...(room as unknown as Room),
-    type:
-      room.type === 'stage' || room.type === 'broadcast' ? room.type : 'talk',
+    type: room.type === 'stage' || room.type === 'broadcast' ? room.type : 'talk',
     participants: Array.isArray(room.participants)
       ? room.participants.filter((id): id is string => typeof id === 'string')
       : [],
@@ -103,10 +97,7 @@ async function getRoom(id: string): Promise<Room | null> {
   }
 }
 
-async function runRoomCommand(
-  id: string,
-  command: 'start' | 'end' | 'leave',
-): Promise<boolean> {
+async function runRoomCommand(id: string, command: 'start' | 'end' | 'leave'): Promise<boolean> {
   if (!id) return false;
   try {
     await syraLinkedClient.post(`/rooms/${id}/${command}`);
@@ -130,9 +121,7 @@ export async function getLiveRooms(status = 'live'): Promise<Room[]> {
 }
 
 export async function getLiveUsers(): Promise<LiveUserEntry[]> {
-  const data = await syraLinkedClient.get<{ liveUsers?: LiveUserEntry[] }>(
-    '/rooms/live-users',
-  );
+  const data = await syraLinkedClient.get<{ liveUsers?: LiveUserEntry[] }>('/rooms/live-users');
   return Array.isArray(data.liveUsers) ? data.liveUsers : [];
 }
 

@@ -78,90 +78,90 @@ const BottomBarVisibilityContext = createContext<SharedValue<number> | null>(nul
  * top inset — so hiding the chrome never reflows the scrollable content.
  */
 export function BottomBarVisibilityProvider({ children }: { children: React.ReactNode }) {
-    const { scrollPosition } = useLayoutScroll();
-    const pathname = usePathname();
-    // Bloom's shared minimize progress for the floating tab bar. Read here — the
-    // one place that already integrates scroll direction — so the bar shrinks off
-    // the SAME driver as the rest of the chrome instead of a second scroll handler.
-    // Requires <TabBarMinimizeProvider> ABOVE this provider — it comes from the
-    // root <BloomProvider> in app/_layout.tsx. Without one, `useMinimizeState()`
-    // silently returns a private fallback and the bar never minimizes.
-    const minimizeState = useMinimizeState();
+  const { scrollPosition } = useLayoutScroll();
+  const pathname = usePathname();
+  // Bloom's shared minimize progress for the floating tab bar. Read here — the
+  // one place that already integrates scroll direction — so the bar shrinks off
+  // the SAME driver as the rest of the chrome instead of a second scroll handler.
+  // Requires <TabBarMinimizeProvider> ABOVE this provider — it comes from the
+  // root <BloomProvider> in app/_layout.tsx. Without one, `useMinimizeState()`
+  // silently returns a private fallback and the bar never minimizes.
+  const minimizeState = useMinimizeState();
 
-    // The shared auto-hide signal consumers read (0 = shown, 1 = hidden).
-    const hidden = useSharedValue(0);
-    // Clamped running sum of scroll delta in [0, HIDE_SCROLL_RANGE]. `hidden` is
-    // this normalized. Kept as its own value (NOT derived from a direction flag)
-    // is the whole point: it is continuous, so it can never flip-flop.
-    const hideAmount = useSharedValue(0);
+  // The shared auto-hide signal consumers read (0 = shown, 1 = hidden).
+  const hidden = useSharedValue(0);
+  // Clamped running sum of scroll delta in [0, HIDE_SCROLL_RANGE]. `hidden` is
+  // this normalized. Kept as its own value (NOT derived from a direction flag)
+  // is the whole point: it is continuous, so it can never flip-flop.
+  const hideAmount = useSharedValue(0);
 
-    // Pin the chrome visible on the no-auto-hide routes; elsewhere the reaction
-    // drives `hidden` from scroll.
-    const autoHideDisabled = NO_AUTO_HIDE_ROUTES.has(pathname);
+  // Pin the chrome visible on the no-auto-hide routes; elsewhere the reaction
+  // drives `hidden` from scroll.
+  const autoHideDisabled = NO_AUTO_HIDE_ROUTES.has(pathname);
 
-    // Reset to fully shown on every route change (and when entering/leaving a
-    // pinned route). Each screen should start with the chrome visible; the
-    // reaction then drives it from that screen's own scrolling. Because the reaction
-    // only fires on a scroll change, this also guarantees the pinned routes show
-    // the chrome even without any scroll.
-    useEffect(() => {
+  // Reset to fully shown on every route change (and when entering/leaving a
+  // pinned route). Each screen should start with the chrome visible; the
+  // reaction then drives it from that screen's own scrolling. Because the reaction
+  // only fires on a scroll change, this also guarantees the pinned routes show
+  // the chrome even without any scroll.
+  useEffect(() => {
+    hideAmount.value = 0;
+    hidden.value = 0;
+    // The bar must also come back to its EXPANDED size on a route change —
+    // without this, navigating away from a scrolled screen opens the next one
+    // with a shrunken pill.
+    setMinimized(minimizeState, 0);
+  }, [pathname, hidden, hideAmount, minimizeState]);
+
+  // THE DRIVER. A UI-thread worklet that integrates a clamped hide amount from
+  // the shared scroll position. `useAnimatedReaction` hands us (current,
+  // previous), so the delta is always measured against the last reacted frame —
+  // robust to reanimated coalescing rapid updates, and immune to a stale
+  // manually-tracked `lastY` desyncing.
+  useAnimatedReaction(
+    () => scrollPosition.value,
+    (y, prevY) => {
+      'worklet';
+      if (autoHideDisabled) {
         hideAmount.value = 0;
         hidden.value = 0;
-        // The bar must also come back to its EXPANDED size on a route change —
-        // without this, navigating away from a scrolled screen opens the next one
-        // with a shrunken pill.
         setMinimized(minimizeState, 0);
-    }, [pathname, hidden, hideAmount, minimizeState]);
+        return;
+      }
+      const previous = prevY ?? y;
+      const dy = y - previous;
+      // Ignore non-gesture jumps (restoration / focused-scroller switch on
+      // navigation): leave the hide amount untouched and re-baseline, so a
+      // programmatic offset change never hides (or half-hides) the chrome.
+      if (dy > PROGRAMMATIC_JUMP_THRESHOLD || dy < -PROGRAMMATIC_JUMP_THRESHOLD) {
+        return;
+      }
+      let next: number;
+      if (y <= HIDE_ACTIVATION_OFFSET) {
+        // Near the top: always fully shown.
+        next = 0;
+      } else {
+        next = hideAmount.value + dy;
+        if (next < 0) next = 0;
+        else if (next > HIDE_SCROLL_RANGE) next = HIDE_SCROLL_RANGE;
+      }
+      hideAmount.value = next;
+      hidden.value = next / HIDE_SCROLL_RANGE;
+      // Bloom's tab bar minimizes (58 → 44, labels collapsing) instead of
+      // sliding away. `setMinimized` is itself a worklet and no-ops when the
+      // target is unchanged, so this costs nothing on the frames between the
+      // two states. Deliberately driven from THIS reaction rather than a
+      // second one — the direction/threshold integration lives here.
+      setMinimized(minimizeState, next > HIDE_SCROLL_RANGE / 2 ? 1 : 0);
+    },
+    [autoHideDisabled, minimizeState],
+  );
 
-    // THE DRIVER. A UI-thread worklet that integrates a clamped hide amount from
-    // the shared scroll position. `useAnimatedReaction` hands us (current,
-    // previous), so the delta is always measured against the last reacted frame —
-    // robust to reanimated coalescing rapid updates, and immune to a stale
-    // manually-tracked `lastY` desyncing.
-    useAnimatedReaction(
-        () => scrollPosition.value,
-        (y, prevY) => {
-            'worklet';
-            if (autoHideDisabled) {
-                hideAmount.value = 0;
-                hidden.value = 0;
-                setMinimized(minimizeState, 0);
-                return;
-            }
-            const previous = prevY ?? y;
-            const dy = y - previous;
-            // Ignore non-gesture jumps (restoration / focused-scroller switch on
-            // navigation): leave the hide amount untouched and re-baseline, so a
-            // programmatic offset change never hides (or half-hides) the chrome.
-            if (dy > PROGRAMMATIC_JUMP_THRESHOLD || dy < -PROGRAMMATIC_JUMP_THRESHOLD) {
-                return;
-            }
-            let next: number;
-            if (y <= HIDE_ACTIVATION_OFFSET) {
-                // Near the top: always fully shown.
-                next = 0;
-            } else {
-                next = hideAmount.value + dy;
-                if (next < 0) next = 0;
-                else if (next > HIDE_SCROLL_RANGE) next = HIDE_SCROLL_RANGE;
-            }
-            hideAmount.value = next;
-            hidden.value = next / HIDE_SCROLL_RANGE;
-            // Bloom's tab bar minimizes (58 → 44, labels collapsing) instead of
-            // sliding away. `setMinimized` is itself a worklet and no-ops when the
-            // target is unchanged, so this costs nothing on the frames between the
-            // two states. Deliberately driven from THIS reaction rather than a
-            // second one — the direction/threshold integration lives here.
-            setMinimized(minimizeState, next > HIDE_SCROLL_RANGE / 2 ? 1 : 0);
-        },
-        [autoHideDisabled, minimizeState],
-    );
-
-    return (
-        <BottomBarVisibilityContext.Provider value={hidden}>
-            {children}
-        </BottomBarVisibilityContext.Provider>
-    );
+  return (
+    <BottomBarVisibilityContext.Provider value={hidden}>
+      {children}
+    </BottomBarVisibilityContext.Provider>
+  );
 }
 
 /**
@@ -171,9 +171,9 @@ export function BottomBarVisibilityProvider({ children }: { children: React.Reac
  * with the tab bar's minimize, which this provider drives from the same reaction.
  */
 export function useBottomBarHidden(): SharedValue<number> {
-    const ctx = useContext(BottomBarVisibilityContext);
-    if (!ctx) {
-        throw new Error('useBottomBarHidden must be used within a BottomBarVisibilityProvider');
-    }
-    return ctx;
+  const ctx = useContext(BottomBarVisibilityContext);
+  if (!ctx) {
+    throw new Error('useBottomBarHidden must be used within a BottomBarVisibilityProvider');
+  }
+  return ctx;
 }

@@ -59,25 +59,29 @@ const SEARCH_INDEXES: ReadonlyArray<{
   {
     name: 'account_lists_search_trgm_gin',
     table: 'account_lists',
-    serves: "GET /lists?search= — title/description substring match; without it, a sequential scan of account_lists, twice (the page and its count)",
+    serves:
+      'GET /lists?search= — title/description substring match; without it, a sequential scan of account_lists, twice (the page and its count)',
     definitionContains: ['USING gin', 'gin_trgm_ops', 'lower(', 'title', 'description'],
   },
   {
     name: 'starter_packs_search_trgm_gin',
     table: 'starter_packs',
-    serves: 'GET /starter-packs?search= — name/description substring match; without it, a sequential scan of starter_packs',
+    serves:
+      'GET /starter-packs?search= — name/description substring match; without it, a sequential scan of starter_packs',
     definitionContains: ['USING gin', 'gin_trgm_ops', 'lower(', 'name', 'description'],
   },
   {
     name: 'custom_feeds_search_trgm_gin',
     table: 'custom_feeds',
-    serves: 'GET /feeds?search= — title/description/keywords substring match; without it, a sequential scan of custom_feeds, which the HOME TAB also reads on mount',
+    serves:
+      'GET /feeds?search= — title/description/keywords substring match; without it, a sequential scan of custom_feeds, which the HOME TAB also reads on mount',
     definitionContains: ['USING gin', 'gin_trgm_ops', 'custom_feeds_search_text'],
   },
   {
     name: 'posts_hashtags_trgm_gin',
     table: 'posts',
-    serves: 'GET /hashtags/search — the coarse filter that narrows candidate posts before the per-element unnest recheck',
+    serves:
+      'GET /hashtags/search — the coarse filter that narrows candidate posts before the per-element unnest recheck',
     definitionContains: ['USING gin', 'gin_trgm_ops', 'posts_hashtags_search_text'],
   },
 ];
@@ -105,7 +109,7 @@ afterAll(async () => {
 
 async function indexDefinition(name: string): Promise<string | null> {
   const rows = await db.execute<{ indexdef: string }>(
-    sql`select indexdef from pg_indexes where schemaname = 'public' and indexname = ${name}`
+    sql`select indexdef from pg_indexes where schemaname = 'public' and indexname = ${name}`,
   );
   return rows[0]?.indexdef ?? null;
 }
@@ -140,7 +144,7 @@ describe('the IMMUTABLE promise an index expression rests on', () => {
   for (const name of INDEX_EXPRESSION_FUNCTIONS) {
     it(`${name} exists and is still IMMUTABLE`, async () => {
       const rows = await db.execute<{ provolatile: string; prosrc: string }>(
-        sql`select provolatile, prosrc from pg_proc where proname = ${name}`
+        sql`select provolatile, prosrc from pg_proc where proname = ${name}`,
       );
 
       expect(rows, `missing function ${name}; the index built on it cannot exist`).toHaveLength(1);
@@ -149,7 +153,7 @@ describe('the IMMUTABLE promise an index expression rests on', () => {
       // leaves the index built on it silently wrong rather than erroring.
       expect(
         rows[0].provolatile,
-        `${name} is no longer IMMUTABLE; every index built on it is now unsound`
+        `${name} is no longer IMMUTABLE; every index built on it is now unsound`,
       ).toBe('i');
     });
   }
@@ -182,22 +186,30 @@ describe('the coarse trigram filter is actually reachable', () => {
    * file supplies.
    */
   async function explainAndRollBack(
-    prepare: (tx: Parameters<Parameters<Database['transaction']>[0]>[0]) => Promise<{ sql: string; params: unknown[] }>,
+    prepare: (
+      tx: Parameters<Parameters<Database['transaction']>[0]>[0],
+    ) => Promise<{ sql: string; params: unknown[] }>,
   ): Promise<string> {
     const rollback = new Error('roll back the plan fixture');
     let plan = '';
-    await db.transaction(async (tx) => {
-      const { sql: text, params } = await prepare(tx);
-      const inlined = text.replace(/\$(\d+)/g, (_match, index: string) => {
-        const value = params[Number(index) - 1];
-        return typeof value === 'number' ? String(value) : `'${String(value).replace(/'/g, "''")}'`;
+    await db
+      .transaction(async (tx) => {
+        const { sql: text, params } = await prepare(tx);
+        const inlined = text.replace(/\$(\d+)/g, (_match, index: string) => {
+          const value = params[Number(index) - 1];
+          return typeof value === 'number'
+            ? String(value)
+            : `'${String(value).replace(/'/g, "''")}'`;
+        });
+        const rows = await tx.execute<Record<string, string>>(
+          sql.raw(`explain (costs off) ${inlined}`),
+        );
+        plan = rows.map((row) => Object.values(row)[0]).join('\n');
+        throw rollback;
+      })
+      .catch((error: unknown) => {
+        if (error !== rollback) throw error;
       });
-      const rows = await tx.execute<Record<string, string>>(sql.raw(`explain (costs off) ${inlined}`));
-      plan = rows.map((row) => Object.values(row)[0]).join('\n');
-      throw rollback;
-    }).catch((error: unknown) => {
-      if (error !== rollback) throw error;
-    });
     return plan;
   }
 

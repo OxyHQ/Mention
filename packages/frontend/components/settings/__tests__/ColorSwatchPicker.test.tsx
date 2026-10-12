@@ -41,7 +41,13 @@ jest.mock('@oxy.so/bloom/theme', () => ({
       description: 'Aquatic identities.',
       presets: [
         { name: 'teal', displayName: 'Teal', family: 'ocean', hex: '#005c67' },
-        { name: 'blue', displayName: 'Blue + Signal', family: 'ocean', hex: '#0085fe', tertiaryHex: '#ffd000' },
+        {
+          name: 'blue',
+          displayName: 'Blue + Signal',
+          family: 'ocean',
+          hex: '#0085fe',
+          tertiaryHex: '#ffd000',
+        },
       ],
     },
     sunset: {
@@ -54,7 +60,15 @@ jest.mock('@oxy.so/bloom/theme', () => ({
       name: 'neutral',
       displayName: 'Neutral',
       description: 'Colorless identities.',
-      presets: [{ name: 'mono', displayName: 'Monochrome', family: 'neutral', hex: '#000000', variant: 'monochrome' }],
+      presets: [
+        {
+          name: 'mono',
+          displayName: 'Monochrome',
+          family: 'neutral',
+          hex: '#000000',
+          variant: 'monochrome',
+        },
+      ],
     },
   },
 }));
@@ -88,11 +102,7 @@ function swatchColors(colors: readonly Name[]): string[] {
   let created: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     created = TestRenderer.create(
-      <ColorSwatchPicker
-        value="teal"
-        onChange={() => undefined}
-        colors={colors as never}
-      />,
+      <ColorSwatchPicker value="teal" onChange={() => undefined} colors={colors as never} />,
     );
   });
   const tree = created as TestRenderer.ReactTestRenderer;

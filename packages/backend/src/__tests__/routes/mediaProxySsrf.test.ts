@@ -61,7 +61,8 @@ vi.mock('../../utils/safeUpstreamFetch', async () => {
   );
   return {
     ...actual,
-    fetchUpstreamFollowingRedirects: (...args: unknown[]) => fetchUpstreamFollowingRedirects(...args),
+    fetchUpstreamFollowingRedirects: (...args: unknown[]) =>
+      fetchUpstreamFollowingRedirects(...args),
   };
 });
 

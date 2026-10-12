@@ -136,8 +136,9 @@ describe('the engine, the transparency page and the purge reach one verdict', ()
     for (const committed of spellings) {
       for (const host of hosts) {
         const { engine, purge } = verdicts(committed, host);
-        expect(purge && !engine, `purge would delete ${host} that the engine does not block`)
-          .toBe(false);
+        expect(purge && !engine, `purge would delete ${host} that the engine does not block`).toBe(
+          false,
+        );
         if (engine) blockedPairs += 1;
       }
     }

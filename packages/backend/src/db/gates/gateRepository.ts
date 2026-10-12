@@ -12,9 +12,8 @@
  *
  * ## `allow[]` is a child table, and the invariant it made expressible
  *
- * Mongo embedded `{ type, list? }` objects and validated neither side of the
- * pairing, so a `listOnly` rule with no list (matches nobody, silently) and a
- * `followingOnly` rule carrying a stray list were both storable.
+ * A `listOnly` rule with no list (matches nobody, silently) and a
+ * `followingOnly` rule carrying a stray list are both invalid;
  * `threadgate_allow_rules_list_id_check` refuses both. Since the payload comes
  * straight from a client, {@link parseThreadgateAllowRules} rejects it BEFORE
  * the insert so the route can answer `400` — a CHECK violation surfacing as a
@@ -113,7 +112,9 @@ async function loadAllowRules(
     .from(threadgateAllowRules)
     .where(eq(threadgateAllowRules.threadgateId, threadgateId))
     .orderBy(asc(threadgateAllowRules.position));
-  return rows.map((row) => (row.listId === null ? { type: row.type } : { type: row.type, list: row.listId }));
+  return rows.map((row) =>
+    row.listId === null ? { type: row.type } : { type: row.type, list: row.listId },
+  );
 }
 
 /**
@@ -122,9 +123,12 @@ async function loadAllowRules(
  * Upserts on `post_uri`, matching the `{ upsert: true, new: true }` the route
  * used, and REPLACES the rule list — the client always sends it complete.
  */
-export async function upsertThreadgate(
-  gate: { postUri: string; postId: string; createdBy: string; allow: readonly ThreadgateAllowRule[] },
-): Promise<ThreadgateRecord> {
+export async function upsertThreadgate(gate: {
+  postUri: string;
+  postId: string;
+  createdBy: string;
+  allow: readonly ThreadgateAllowRule[];
+}): Promise<ThreadgateRecord> {
   return getDb().transaction(async (tx) => {
     const [row] = await tx
       .insert(threadgates)
@@ -178,7 +182,7 @@ export async function upsertThreadgate(
  *
  * `post_id` is INDEXED but not unique — the gate's identity is `post_uri`, which
  * embeds the id of whoever wrote the gate, so one post can carry more than one
- * row. Mongo's `findOne` returned an arbitrary one; this returns the oldest, so
+ * row. This returns the oldest, so
  * the same request twice cannot answer differently.
  */
 export async function loadThreadgateByPostId(postId: string): Promise<ThreadgateRecord | null> {
@@ -207,15 +211,13 @@ export async function deleteThreadgate(id: string): Promise<void> {
 }
 
 /** Create or replace the quote-control gate for `postUri`. */
-export async function upsertPostgate(
-  gate: {
-    postUri: string;
-    postId: string;
-    createdBy: string;
-    disableQuotes: boolean;
-    detachedQuoteUris: readonly string[];
-  },
-): Promise<PostgateRecord> {
+export async function upsertPostgate(gate: {
+  postUri: string;
+  postId: string;
+  createdBy: string;
+  disableQuotes: boolean;
+  detachedQuoteUris: readonly string[];
+}): Promise<PostgateRecord> {
   const values = {
     postUri: gate.postUri,
     postId: gate.postId,

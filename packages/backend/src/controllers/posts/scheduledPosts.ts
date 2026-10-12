@@ -44,10 +44,7 @@ export const getDrafts = async (req: AuthRequest, res: Response) => {
 
     const operatedChannelIds = await listOperatedChannelIds(createUserScopedOxyServices(req));
 
-    // Sorted on `created_at`, which is what the Mongoose call MEANT: it passed
-    // the snake_case column name, which Mongo treats as an absent field and
-    // therefore as no sort at all. The column exists here, so the intended order
-    // is finally the one served.
+    // Sorted on `created_at`, newest first.
     const drafts = await findPostRecords(
       and(
         inArray(postsTable.oxyUserId, [userId, ...operatedChannelIds]),
@@ -191,10 +188,7 @@ export const publishScheduledPostNow = async (req: AuthRequest, res: Response) =
       const [own] = await getDb()
         .select({ status: postsTable.status })
         .from(postsTable)
-        .where(and(
-          eq(postsTable.id, targetId),
-          eq(postsTable.oxyUserId, ownerId),
-        ))
+        .where(and(eq(postsTable.id, targetId), eq(postsTable.oxyUserId, ownerId)))
         .limit(1);
       if (own && own.status === 'published') {
         return res.status(409).json({ message: 'This post has already been published' });

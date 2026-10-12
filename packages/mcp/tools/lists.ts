@@ -1,13 +1,13 @@
-import { z } from "zod/v4";
-import { api, formatApiError } from "../lib/api-client.js";
-import { withAuthGuard } from "../lib/auth-guard.js";
-import { formatList, formatFeed } from "../lib/formatters.js";
-import type { MentionToolRegistrar } from "../lib/tool-registry.js";
+import { z } from 'zod/v4';
+import { api, formatApiError } from '../lib/api-client.js';
+import { withAuthGuard } from '../lib/auth-guard.js';
+import { formatList, formatFeed } from '../lib/formatters.js';
+import type { MentionToolRegistrar } from '../lib/tool-registry.js';
 
 export function registerListsTools(server: MentionToolRegistrar): void {
   server.tool(
-    "create-list",
-    "Create a user list (requires authorization).",
+    'create-list',
+    'Create a user list (requires authorization).',
     {
       title: z.string(),
       description: z.string().optional(),
@@ -21,17 +21,24 @@ export function registerListsTools(server: MentionToolRegistrar): void {
         if (isPublic !== undefined) body.isPublic = isPublic;
         if (memberUserIds) body.memberOxyUserIds = memberUserIds;
 
-        const result = await api.post("/lists", body);
-        return { content: [{ type: "text" as const, text: `List created.\n\n${formatList(result as Record<string, unknown>)}` }] };
+        const result = await api.post('/lists', body);
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `List created.\n\n${formatList(result as Record<string, unknown>)}`,
+            },
+          ],
+        };
       } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
     }),
   );
 
   server.tool(
-    "get-lists",
-    "Get your lists (requires authorization).",
+    'get-lists',
+    'Get your lists (requires authorization).',
     {
       mine: z.boolean().optional(),
       publicOnly: z.boolean().optional(),
@@ -42,24 +49,26 @@ export function registerListsTools(server: MentionToolRegistrar): void {
         if (mine) query.mine = true;
         if (publicOnly) query.publicOnly = true;
 
-        const result = await api.get("/lists", query);
+        const result = await api.get('/lists', query);
         const items = Array.isArray((result as Record<string, unknown>).items)
-          ? (result as Record<string, unknown>).items as Record<string, unknown>[]
+          ? ((result as Record<string, unknown>).items as Record<string, unknown>[])
           : [];
         if (items.length === 0) {
-          return { content: [{ type: "text" as const, text: "No lists found." }] };
+          return { content: [{ type: 'text' as const, text: 'No lists found.' }] };
         }
-        const formatted = items.map((l) => formatList(l)).join("\n\n");
-        return { content: [{ type: "text" as const, text: `Lists (${items.length}):\n\n${formatted}` }] };
+        const formatted = items.map((l) => formatList(l)).join('\n\n');
+        return {
+          content: [{ type: 'text' as const, text: `Lists (${items.length}):\n\n${formatted}` }],
+        };
       } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
     }),
   );
 
   server.tool(
-    "update-list",
-    "Update a list (requires authorization).",
+    'update-list',
+    'Update a list (requires authorization).',
     {
       id: z.string(),
       title: z.string().optional(),
@@ -76,64 +85,85 @@ export function registerListsTools(server: MentionToolRegistrar): void {
         if (memberUserIds) body.memberOxyUserIds = memberUserIds;
 
         const result = await api.put(`/lists/${encodeURIComponent(id)}`, body);
-        return { content: [{ type: "text" as const, text: `List updated.\n\n${formatList(result as Record<string, unknown>)}` }] };
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `List updated.\n\n${formatList(result as Record<string, unknown>)}`,
+            },
+          ],
+        };
       } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
     }),
   );
 
   server.tool(
-    "delete-list",
-    "Delete a list (requires authorization).",
+    'delete-list',
+    'Delete a list (requires authorization).',
     { id: z.string() },
     withAuthGuard(async ({ id }) => {
       try {
         await api.delete(`/lists/${encodeURIComponent(id)}`);
-        return { content: [{ type: "text" as const, text: `List ${id} deleted.` }] };
+        return { content: [{ type: 'text' as const, text: `List ${id} deleted.` }] };
       } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
     }),
   );
 
   server.tool(
-    "add-list-members",
-    "Add people to one of your lists, keeping everyone already on it (requires authorization). Undo with remove-list-members.",
+    'add-list-members',
+    'Add people to one of your lists, keeping everyone already on it (requires authorization). Undo with remove-list-members.',
     {
-      id: z.string().describe("List ID"),
-      userIds: z.array(z.string()).min(1).describe("Oxy user IDs to add"),
+      id: z.string().describe('List ID'),
+      userIds: z.array(z.string()).min(1).describe('Oxy user IDs to add'),
     },
     withAuthGuard(async ({ id, userIds }) => {
       try {
         const result = await api.post(`/lists/${encodeURIComponent(id)}/members`, { userIds });
-        return { content: [{ type: "text" as const, text: `Members added.\n\n${formatList(result as Record<string, unknown>)}` }] };
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Members added.\n\n${formatList(result as Record<string, unknown>)}`,
+            },
+          ],
+        };
       } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
     }),
   );
 
   server.tool(
-    "remove-list-members",
-    "Remove people from one of your lists (requires authorization).",
+    'remove-list-members',
+    'Remove people from one of your lists (requires authorization).',
     {
-      id: z.string().describe("List ID"),
-      userIds: z.array(z.string()).min(1).describe("Oxy user IDs to remove"),
+      id: z.string().describe('List ID'),
+      userIds: z.array(z.string()).min(1).describe('Oxy user IDs to remove'),
     },
     withAuthGuard(async ({ id, userIds }) => {
       try {
         const result = await api.delete(`/lists/${encodeURIComponent(id)}/members`, { userIds });
-        return { content: [{ type: "text" as const, text: `Members removed.\n\n${formatList(result as Record<string, unknown>)}` }] };
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Members removed.\n\n${formatList(result as Record<string, unknown>)}`,
+            },
+          ],
+        };
       } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
     }),
   );
 
   server.tool(
-    "get-list-timeline",
-    "Get posts from list members (requires authorization).",
+    'get-list-timeline',
+    'Get posts from list members (requires authorization).',
     {
       id: z.string(),
       limit: z.number().optional(),
@@ -146,9 +176,11 @@ export function registerListsTools(server: MentionToolRegistrar): void {
         if (cursor) query.cursor = cursor;
 
         const result = await api.get(`/lists/${encodeURIComponent(id)}/timeline`, query);
-        return { content: [{ type: "text" as const, text: formatFeed(result as Record<string, unknown>) }] };
+        return {
+          content: [{ type: 'text' as const, text: formatFeed(result as Record<string, unknown>) }],
+        };
       } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
     }),
   );

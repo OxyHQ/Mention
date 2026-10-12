@@ -83,7 +83,9 @@ export const mentionJobs = pgTable(
     /** Maintained alongside `mention_job_applications`; the rows are the authority. */
     applicationCount: integer().notNull().default(0),
     /** Retry/idempotency bookkeeping for the one-way Clarity indexing mirror. */
-    claritySyncStatus: text({ enum: MENTION_JOB_CLARITY_SYNC_STATUSES }).notNull().default('pending'),
+    claritySyncStatus: text({ enum: MENTION_JOB_CLARITY_SYNC_STATUSES })
+      .notNull()
+      .default('pending'),
     clarityDocumentId: text(),
     claritySyncedAt: timestamptz(),
     claritySyncError: text(),
@@ -98,11 +100,11 @@ export const mentionJobs = pgTable(
     check('mention_jobs_clarity_sync_attempts_check', sql`${t.claritySyncAttempts} >= 0`),
     check(
       'mention_jobs_status_check',
-      sql`${t.status} in (${sql.raw(inList(MENTION_JOB_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(MENTION_JOB_STATUSES))})`,
     ),
     check(
       'mention_jobs_clarity_sync_status_check',
-      sql`${t.claritySyncStatus} in (${sql.raw(inList(MENTION_JOB_CLARITY_SYNC_STATUSES))})`
+      sql`${t.claritySyncStatus} in (${sql.raw(inList(MENTION_JOB_CLARITY_SYNC_STATUSES))})`,
     ),
     // Salary is all-or-nothing on its required half: an amount with no currency
     // or interval is not a fact Clarity (or a reader) can act on. min/max stay
@@ -110,37 +112,37 @@ export const mentionJobs = pgTable(
     check(
       'mention_jobs_salary_complete_check',
       sql`(${t.salaryMin} is null and ${t.salaryMax} is null and ${t.salaryCurrency} is null and ${t.salaryInterval} is null)
-        or (${t.salaryCurrency} is not null and ${t.salaryInterval} is not null)`
+        or (${t.salaryCurrency} is not null and ${t.salaryInterval} is not null)`,
     ),
     check(
       'mention_jobs_salary_currency_check',
-      sql`${t.salaryCurrency} is null or ${t.salaryCurrency} ~ '^[A-Z]{3}$'`
+      sql`${t.salaryCurrency} is null or ${t.salaryCurrency} ~ '^[A-Z]{3}$'`,
     ),
     check(
       'mention_jobs_salary_interval_check',
-      sql`${t.salaryInterval} is null or ${t.salaryInterval} in (${sql.raw(inList(MENTION_JOB_SALARY_INTERVALS))})`
+      sql`${t.salaryInterval} is null or ${t.salaryInterval} in (${sql.raw(inList(MENTION_JOB_SALARY_INTERVALS))})`,
     ),
     check(
       'mention_jobs_salary_amount_check',
-      sql`(${t.salaryMin} is null or ${t.salaryMin} >= 0) and (${t.salaryMax} is null or ${t.salaryMax} >= 0)`
+      sql`(${t.salaryMin} is null or ${t.salaryMin} >= 0) and (${t.salaryMax} is null or ${t.salaryMax} >= 0)`,
     ),
     // A place always knows its country; region/city exist only as facts
     // derived FROM a place, so neither may appear without one.
     check(
       'mention_jobs_location_country_code_check',
-      sql`${t.locationCountryCode} is null or ${t.locationCountryCode} ~ '^[A-Z]{2}$'`
+      sql`${t.locationCountryCode} is null or ${t.locationCountryCode} ~ '^[A-Z]{2}$'`,
     ),
     check(
       'mention_jobs_location_place_check',
-      sql`${t.locationPlaceId} is null or (${t.locationPlaceId} ~ '^[1-9][0-9]*$' and ${t.locationCountryCode} is not null)`
+      sql`${t.locationPlaceId} is null or (${t.locationPlaceId} ~ '^[1-9][0-9]*$' and ${t.locationCountryCode} is not null)`,
     ),
     check(
       'mention_jobs_location_derived_check',
-      sql`${t.locationPlaceId} is not null or (${t.locationRegion} is null and ${t.locationCity} is null)`
+      sql`${t.locationPlaceId} is not null or (${t.locationRegion} is null and ${t.locationCity} is null)`,
     ),
     check(
       'mention_jobs_salary_range_check',
-      sql`${t.salaryMin} is null or ${t.salaryMax} is null or ${t.salaryMin} <= ${t.salaryMax}`
+      sql`${t.salaryMin} is null or ${t.salaryMax} is null or ${t.salaryMin} <= ${t.salaryMax}`,
     ),
     // `applicationMode: 'external'` needs a URL to send an applicant to; `'mention'`
     // must NOT carry one, so a paused external listing can never silently start
@@ -148,19 +150,17 @@ export const mentionJobs = pgTable(
     check(
       'mention_jobs_application_mode_check',
       sql`(${t.applicationMode} = 'external' and ${t.externalApplyUrl} is not null)
-        or (${t.applicationMode} = 'mention' and ${t.externalApplyUrl} is null)`
+        or (${t.applicationMode} = 'mention' and ${t.externalApplyUrl} is null)`,
     ),
     uniqueIndex('mention_jobs_slug_key').on(t.slug),
     index('mention_jobs_employer_chrono_idx').on(t.employerOxyUserId, t.createdAt.desc()),
     index('mention_jobs_status_idx').on(t.status),
     // The `closesAt` expiry sweep's range scan.
-    index('mention_jobs_closes_at_idx')
-      .on(t.closesAt)
-      .where(sql`${t.status} = 'published'`),
+    index('mention_jobs_closes_at_idx').on(t.closesAt).where(sql`${t.status} = 'published'`),
     index('mention_jobs_clarity_sync_status_idx')
       .on(t.claritySyncStatus)
       .where(sql`${t.claritySyncStatus} = 'failed'`),
-  ]
+  ],
 );
 
 /**
@@ -195,14 +195,14 @@ export const mentionJobApplications = pgTable(
   (t) => [
     check(
       'mention_job_applications_status_check',
-      sql`${t.status} in ('new','reviewing','interview','rejected','hired','withdrawn')`
+      sql`${t.status} in ('new','reviewing','interview','rejected','hired','withdrawn')`,
     ),
     // One application per applicant per job — resubmitting withdraws and reapplies,
     // it does not duplicate.
     unique('mention_job_applications_job_id_applicant_key').on(t.jobId, t.applicantOxyUserId),
     index('mention_job_applications_job_chrono_idx').on(t.jobId, t.createdAt.desc()),
     index('mention_job_applications_applicant_idx').on(t.applicantOxyUserId),
-  ]
+  ],
 );
 
 /**
@@ -225,9 +225,12 @@ export const mentionJobApplicationAnswers = pgTable(
   },
   (t) => [
     check('mention_job_application_answers_position_check', sql`${t.position} >= 0`),
-    unique('mention_job_application_answers_application_id_position_key').on(t.applicationId, t.position),
+    unique('mention_job_application_answers_application_id_position_key').on(
+      t.applicationId,
+      t.position,
+    ),
     index('mention_job_application_answers_application_idx').on(t.applicationId),
-  ]
+  ],
 );
 
 /** `mention_job_application_notes` — an employer operator's internal note on an application. */
@@ -243,7 +246,12 @@ export const mentionJobApplicationNotes = pgTable(
     note: text().notNull(),
     createdAt: createdAt(),
   },
-  (t) => [index('mention_job_application_notes_application_chrono_idx').on(t.applicationId, t.createdAt.desc())]
+  (t) => [
+    index('mention_job_application_notes_application_chrono_idx').on(
+      t.applicationId,
+      t.createdAt.desc(),
+    ),
+  ],
 );
 
 /**
@@ -270,8 +278,11 @@ export const mentionJobDailyMetrics = pgTable(
     check('mention_job_daily_metrics_views_check', sql`${t.views} >= 0`),
     check('mention_job_daily_metrics_apply_starts_check', sql`${t.applyStarts} >= 0`),
     check('mention_job_daily_metrics_external_clicks_check', sql`${t.externalApplyClicks} >= 0`),
-    check('mention_job_daily_metrics_completed_applications_check', sql`${t.completedApplications} >= 0`),
+    check(
+      'mention_job_daily_metrics_completed_applications_check',
+      sql`${t.completedApplications} >= 0`,
+    ),
     unique('mention_job_daily_metrics_job_id_day_key').on(t.jobId, t.day),
     index('mention_job_daily_metrics_job_chrono_idx').on(t.jobId, t.day.desc()),
-  ]
+  ],
 );

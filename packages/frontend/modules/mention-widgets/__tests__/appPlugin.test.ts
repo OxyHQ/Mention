@@ -35,7 +35,6 @@ jest.mock('expo/config-plugins', () => ({
 // A config plugin is a CommonJS module by contract: `app.config.js` `require`s
 // it by path at prebuild time, so it cannot be an ES module the test could
 // `import`.
-// eslint-disable-next-line @typescript-eslint/no-require-imports -- see above
 const withMentionWidgets = require('../app.plugin') as ((
   config: PluginConfig,
   options?: { apiBaseUrl?: unknown; webBaseUrl?: unknown },
@@ -83,10 +82,17 @@ describe('withMentionWidgets', () => {
   });
 
   it('writes only the endpoint that was overridden', () => {
-    const result = withMentionWidgets({ name: 'Mention' }, { webBaseUrl: 'http://192.168.1.5:3001' });
+    const result = withMentionWidgets(
+      { name: 'Mention' },
+      { webBaseUrl: 'http://192.168.1.5:3001' },
+    );
 
     expect(result.modResults?.resources.string).toEqual([
-      { name: 'mention_widget_web_base_url', value: 'http://192.168.1.5:3001', translatable: false },
+      {
+        name: 'mention_widget_web_base_url',
+        value: 'http://192.168.1.5:3001',
+        translatable: false,
+      },
     ]);
   });
 });

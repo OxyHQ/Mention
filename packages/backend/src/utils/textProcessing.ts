@@ -124,7 +124,9 @@ export function normalizeHashtag(raw: string): string {
  * Returns a deduplicated array of lowercase tag names.
  */
 export function mergeHashtags(text: string, userProvided?: string[]): string[] {
-  const extracted = extractHashtags(text).map(normalizeHashtag).filter((tag) => tag.length > 0);
+  const extracted = extractHashtags(text)
+    .map(normalizeHashtag)
+    .filter((tag) => tag.length > 0);
   const normalizedUserProvided = (userProvided || [])
     .map(normalizeHashtag)
     .filter((tag) => tag.length > 0);
@@ -187,32 +189,36 @@ export interface NormalizedPostHashtags {
  *   4. Hashtags used naturally inside sentence text (not part of a 4+ block)
  *      stay in `content` untouched.
  *
- * Pure and side-effect free so it is unit-testable in isolation. The Mongoose
- * `pre('validate')` hook that used to invoke it for every document write is
- * gone with the model; its callers are now named individually — the federated
+ * Pure and side-effect free so it is unit-testable in isolation. Its callers are
+ * named individually — the federated
  * ingest (`connectors/activitypub/apPostContent.ts`) reads both halves, and the
  * native write paths read the cleaned `content` through
  * `services/postVariants.ts`'s `stripSpamHashtagBlocks` while deriving the
  * `hashtags` column with `mergeHashtags` over the RAW body.
  */
-export function normalizePostHashtags(text: string | undefined | null, userProvided?: string[]): NormalizedPostHashtags {
+export function normalizePostHashtags(
+  text: string | undefined | null,
+  userProvided?: string[],
+): NormalizedPostHashtags {
   const source = typeof text === 'string' ? text : '';
   const hashtags = mergeHashtags(source, userProvided);
 
-  const content = source.replace(
-    CONSECUTIVE_HASHTAG_BLOCK,
-    (_match, leadingWhitespace: string, block: string, offset: number) => {
-      const hasPrecedingText = source.slice(0, offset).trim().length > 0;
-      if (!hasPrecedingText) {
-        // Block sits at the very start (only whitespace before it): drop it whole.
-        return '';
-      }
-      // Preserve the first hashtag so it can complete the preceding sentence,
-      // keeping the original leading whitespace; drop the rest of the block.
-      const firstTag = block.match(new RegExp(HASHTAG_TOKEN, 'u'))?.[0] ?? '';
-      return `${leadingWhitespace}${firstTag}`;
-    },
-  ).replace(/[ \t]+$/g, '');
+  const content = source
+    .replace(
+      CONSECUTIVE_HASHTAG_BLOCK,
+      (_match, leadingWhitespace: string, block: string, offset: number) => {
+        const hasPrecedingText = source.slice(0, offset).trim().length > 0;
+        if (!hasPrecedingText) {
+          // Block sits at the very start (only whitespace before it): drop it whole.
+          return '';
+        }
+        // Preserve the first hashtag so it can complete the preceding sentence,
+        // keeping the original leading whitespace; drop the rest of the block.
+        const firstTag = block.match(new RegExp(HASHTAG_TOKEN, 'u'))?.[0] ?? '';
+        return `${leadingWhitespace}${firstTag}`;
+      },
+    )
+    .replace(/[ \t]+$/g, '');
 
   return { content, hashtags };
 }

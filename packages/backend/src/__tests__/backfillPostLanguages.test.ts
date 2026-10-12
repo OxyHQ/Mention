@@ -7,7 +7,7 @@
  * the filter agreed with itself, and the real one could have matched nothing.
  * That filter is the whole script: four disjuncts, one of which
  * (`classification_version IS NULL`) is exactly the arm a literal translation of
- * the Mongo predicate drops, because `version < N` is NULL for an unstamped row
+ * the legacy-store predicate drops, because `version < N` is NULL for an unstamped row
  * and a NULL predicate excludes it — silently skipping the posts that were never
  * classified at all, which is most of the corpus this exists for.
  *
@@ -184,9 +184,11 @@ describe('backfillPostLanguages', () => {
     // both are invisible at a batch size that fits everything in one page.
     const ids: string[] = [];
     for (let i = 0; i < 3; i += 1) {
-      ids.push(await seedUnclassified({
-        content: { variants: [{ source: 'author', text: `${ENGLISH} Number ${i}.`, tag: 'en' }] },
-      }));
+      ids.push(
+        await seedUnclassified({
+          content: { variants: [{ source: 'author', text: `${ENGLISH} Number ${i}.`, tag: 'en' }] },
+        }),
+      );
     }
 
     await backfillPostLanguages({ batchSize: 1 });

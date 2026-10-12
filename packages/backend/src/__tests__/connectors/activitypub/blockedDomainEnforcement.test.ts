@@ -13,7 +13,7 @@ import { randomUUID } from 'node:crypto';
  *   - inbound PUSH: the inbox verifies the HTTP signature against the CACHED
  *     public key and dispatches the activity; no handler consults the policy.
  *   - outbox PULL: the scheduler and the profile-view refresh load the actor
- *     straight from Mongo and hand it to `syncOutboxPostsDetailed`.
+ *     straight from the legacy store and hand it to `syncOutboxPostsDetailed`.
  *
  * So the load-bearing case here is deliberately the CACHED one — a test that
  * only covered an unknown actor would have passed before the fix and proved
@@ -261,7 +261,10 @@ beforeEach(() => {
   });
   mocks.signViaOxy.mockResolvedValue('signature');
   mocks.signRequest.mockResolvedValue({ Signature: 'signature' });
-  mocks.findOneAndUpdate.mockImplementation(async (_query, update) => ({ _id: 'actor_1', ...update?.$set }));
+  mocks.findOneAndUpdate.mockImplementation(async (_query, update) => ({
+    _id: 'actor_1',
+    ...update?.$set,
+  }));
   mocks.followFindOneAndUpdate.mockResolvedValue({ _id: 'follow_1' });
   mocks.actorFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
   mocks.actorFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
@@ -326,7 +329,12 @@ describe('inbound PUSH from a blocked domain', () => {
     await cacheActor(BLOCKED_ACTOR, 'oxy_mallory');
 
     await activityPubConnector.processInboxActivity(
-      { id: `${BLOCKED_ACTOR}/follows/1`, type: 'Follow', actor: BLOCKED_ACTOR, object: LOCAL_ACTOR },
+      {
+        id: `${BLOCKED_ACTOR}/follows/1`,
+        type: 'Follow',
+        actor: BLOCKED_ACTOR,
+        object: LOCAL_ACTOR,
+      },
       BLOCKED_ACTOR,
     );
 
@@ -339,7 +347,12 @@ describe('inbound PUSH from a blocked domain', () => {
     await cacheActor(ALLOWED_ACTOR, 'oxy_bob');
 
     await activityPubConnector.processInboxActivity(
-      { id: `${ALLOWED_ACTOR}/follows/1`, type: 'Follow', actor: ALLOWED_ACTOR, object: LOCAL_ACTOR },
+      {
+        id: `${ALLOWED_ACTOR}/follows/1`,
+        type: 'Follow',
+        actor: ALLOWED_ACTOR,
+        object: LOCAL_ACTOR,
+      },
       ALLOWED_ACTOR,
     );
 

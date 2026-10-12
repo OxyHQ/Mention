@@ -89,7 +89,12 @@ const PostDetailStats = memo<Props>(function PostDetailStats({
   const pushStat = (key: string, count: StatCount, onPress?: () => void) => {
     if (count === null) return; // author hides this counter
     const value = count ?? 0;
-    statsEntries.push({ key, label: t(`post.stats.${key}`, { count: value }), count: value, onPress });
+    statsEntries.push({
+      key,
+      label: t(`post.stats.${key}`, { count: value }),
+      count: value,
+      onPress,
+    });
   };
   pushStat('likes', likes, onLikesPress);
   pushStat('boosts', boosts, onBoostsPress);
@@ -155,7 +160,10 @@ const PostDetailStats = memo<Props>(function PostDetailStats({
 
       {statsEntries.length > 0 && (
         // No bottom padding: the post container's own `VPAD` closes the block.
-        <View className="flex-row items-center flex-wrap border-border" style={[rowStyle, { gap: 16 }]}>
+        <View
+          className="flex-row items-center flex-wrap border-border"
+          style={[rowStyle, { gap: 16 }]}
+        >
           {statsEntries.map((stat) => (
             <PressableScale
               key={stat.key}
@@ -164,7 +172,9 @@ const PostDetailStats = memo<Props>(function PostDetailStats({
               onPress={stat.onPress}
               disabled={!stat.onPress}
             >
-              <Text className="text-foreground text-[14px] font-bold">{formatCompactNumber(stat.count)}</Text>
+              <Text className="text-foreground text-[14px] font-bold">
+                {formatCompactNumber(stat.count)}
+              </Text>
               <Text className="text-muted-foreground text-[14px]">{stat.label}</Text>
             </PressableScale>
           ))}

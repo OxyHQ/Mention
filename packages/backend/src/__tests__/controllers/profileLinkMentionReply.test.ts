@@ -38,7 +38,11 @@ const hoisted = vi.hoisted(() => ({
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (rows: unknown[]) => rows) },
   resolveUserSummaries: vi.fn(async () => new Map()),
-  degradedActorSummary: (id: string) => ({ id, username: '', name: { displayName: 'Unknown user' } }),
+  degradedActorSummary: (id: string) => ({
+    id,
+    username: '',
+    name: { displayName: 'Unknown user' },
+  }),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -112,7 +116,13 @@ vi.mock('../../db/federation/actorRepository', async (importOriginal) => ({
 }));
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import { clearServiceScope, readPost, readScopePosts, seedPost, serviceScope } from '../helpers/serviceFixtures';
+import {
+  clearServiceScope,
+  readPost,
+  readScopePosts,
+  seedPost,
+  serviceScope,
+} from '../helpers/serviceFixtures';
 import { feedController } from '../../controllers/feed.controller';
 
 const scope = serviceScope('profile-link-mention-reply');
@@ -242,7 +252,10 @@ describe('createBoost — the comment on a boost is a body like any other', () =
 
     await feedController.createBoost(
       {
-        body: { originalPostId: original.id, content: { text: `look, https://${OWN_HOST}/@alice` } },
+        body: {
+          originalPostId: original.id,
+          content: { text: `look, https://${OWN_HOST}/@alice` },
+        },
         user: { id: USER_ID },
       } as never,
       res as never,

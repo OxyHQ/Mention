@@ -55,7 +55,15 @@ async function requestedPreviewUrls(text: string): Promise<string[]> {
 function preview(url: string) {
   return {
     url,
-    document: { id: url, canonicalUrl: url, title: 'a title', type: 'page', status: 'indexed', authors: [], evidence: {} },
+    document: {
+      id: url,
+      canonicalUrl: url,
+      title: 'a title',
+      type: 'page',
+      status: 'indexed',
+      authors: [],
+      evidence: {},
+    },
   };
 }
 
@@ -64,7 +72,10 @@ beforeEach(() => {
   mockResolve.mockReset();
   mockGetCached.mockReset();
   mockUpsertLink.mockReset();
-  mockResolve.mockImplementation(async (urls: string[]) => ({ previews: urls.map(preview), pending: [] }));
+  mockResolve.mockImplementation(async (urls: string[]) => ({
+    previews: urls.map(preview),
+    pending: [],
+  }));
 });
 
 it('asks for every uncached link in one backend call', async () => {
@@ -75,20 +86,28 @@ it('asks for every uncached link in one backend call', async () => {
 });
 
 it('uses cached metadata without another request', async () => {
-  mockGetCached.mockReturnValue({ url: 'https://example.com/cached', title: 'Cached', fetchedAt: 1 });
+  mockGetCached.mockReturnValue({
+    url: 'https://example.com/cached',
+    title: 'Cached',
+    fetchedAt: 1,
+  });
   expect(await requestedPreviewUrls('https://example.com/cached')).toEqual([]);
   expect(mockResolve).not.toHaveBeenCalled();
 });
 
 it('does not cache a link the backend reports still pending', async () => {
   mockResolve.mockResolvedValue({ previews: [], pending: ['https://example.com/pending'] });
-  expect(await requestedPreviewUrls('https://example.com/pending')).toEqual(['https://example.com/pending']);
+  expect(await requestedPreviewUrls('https://example.com/pending')).toEqual([
+    'https://example.com/pending',
+  ]);
   expect(mockUpsertLink).not.toHaveBeenCalled();
 });
 
 it('treats a resolution failure as no preview', async () => {
   mockResolve.mockRejectedValue(new Error('unavailable'));
-  expect(await requestedPreviewUrls('https://example.com/failure')).toEqual(['https://example.com/failure']);
+  expect(await requestedPreviewUrls('https://example.com/failure')).toEqual([
+    'https://example.com/failure',
+  ]);
   expect(mockUpsertLink).not.toHaveBeenCalled();
 });
 
@@ -133,9 +152,7 @@ it('renders one card fewer rather than promoting a link past the cap', async () 
     { length: MAX_POST_DOCUMENTS },
     (_, index) => `https://example.com/${index}`,
   );
-  const urls = await requestedPreviewUrls(
-    `https://mention.earth/@alice ${others.join(' ')}`,
-  );
+  const urls = await requestedPreviewUrls(`https://mention.earth/@alice ${others.join(' ')}`);
 
   expect(urls).toEqual(others.slice(0, MAX_POST_DOCUMENTS - 1));
 });
@@ -151,7 +168,9 @@ describe('the composer resolves only what it does not already have', () => {
     }
 
     await act(async () => {
-      TestRenderer.create(<Reader text="https://example.org/fresh then https://example.com/cached" />);
+      TestRenderer.create(
+        <Reader text="https://example.org/fresh then https://example.com/cached" />,
+      );
     });
     await act(async () => {
       await jest.advanceTimersByTimeAsync(600);
@@ -166,13 +185,18 @@ describe('the composer resolves only what it does not already have', () => {
 });
 
 describe('an answer that arrives after the draft changed', () => {
-  async function typeThenRetype(settle: (resolve: (value: unknown) => void, reject: (error: unknown) => void) => void) {
+  async function typeThenRetype(
+    settle: (resolve: (value: unknown) => void, reject: (error: unknown) => void) => void,
+  ) {
     let settleFirst: ((value: unknown) => void) | undefined;
     let failFirst: ((error: unknown) => void) | undefined;
-    mockResolve.mockImplementationOnce(() => new Promise((resolve, reject) => {
-      settleFirst = resolve;
-      failFirst = reject;
-    }));
+    mockResolve.mockImplementationOnce(
+      () =>
+        new Promise((resolve, reject) => {
+          settleFirst = resolve;
+          failFirst = reject;
+        }),
+    );
     let renderer: TestRenderer.ReactTestRenderer | undefined;
     await act(async () => {
       renderer = TestRenderer.create(<Probe text="https://example.com/first" />);
@@ -191,7 +215,9 @@ describe('an answer that arrives after the draft changed', () => {
   }
 
   it('is dropped rather than cached', async () => {
-    await typeThenRetype((resolve) => resolve({ previews: [preview('https://example.com/first')], pending: [] }));
+    await typeThenRetype((resolve) =>
+      resolve({ previews: [preview('https://example.com/first')], pending: [] }),
+    );
     expect(mockUpsertLink).not.toHaveBeenCalled();
   });
 

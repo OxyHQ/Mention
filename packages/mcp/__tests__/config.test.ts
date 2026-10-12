@@ -1,51 +1,51 @@
-import { describe, expect, test } from "bun:test";
-import { loadApiClientConfig, loadMcpHttpConfig } from "../lib/config.js";
+import { describe, expect, test } from 'bun:test';
+import { loadApiClientConfig, loadMcpHttpConfig } from '../lib/config.js';
 
-describe("MCP configuration", () => {
-  test("applies bounded defaults and normalizes URLs", () => {
+describe('MCP configuration', () => {
+  test('applies bounded defaults and normalizes URLs', () => {
     expect(
       loadApiClientConfig({
-        MENTION_API_URL: "https://api.mention.test/",
+        MENTION_API_URL: 'https://api.mention.test/',
       }),
     ).toEqual({
-      baseUrl: "https://api.mention.test",
+      baseUrl: 'https://api.mention.test',
       requestTimeoutMs: 10_000,
     });
 
     const config = loadMcpHttpConfig({
-      MENTION_MCP_PUBLIC_URL: "https://mcp.mention.test/",
-      OXY_API_URL: "https://api.oxy.test/",
-      OXY_SERVICE_API_KEY: "service-key",
-      OXY_SERVICE_API_SECRET: "service-secret",
+      MENTION_MCP_PUBLIC_URL: 'https://mcp.mention.test/',
+      OXY_API_URL: 'https://api.oxy.test/',
+      OXY_SERVICE_API_KEY: 'service-key',
+      OXY_SERVICE_API_SECRET: 'service-secret',
     });
 
     expect(config.port).toBe(3_100);
-    expect(config.publicUrl).toBe("https://mcp.mention.test");
-    expect(config.oxyApiUrl).toBe("https://api.oxy.test");
-    expect(config.allowedOrigins.has("https://claude.ai")).toBe(true);
+    expect(config.publicUrl).toBe('https://mcp.mention.test');
+    expect(config.oxyApiUrl).toBe('https://api.oxy.test');
+    expect(config.allowedOrigins.has('https://claude.ai')).toBe(true);
   });
 
-  test("rejects invalid numeric configuration instead of silently falling back", () => {
+  test('rejects invalid numeric configuration instead of silently falling back', () => {
     expect(() =>
       loadMcpHttpConfig({
-        MCP_MAX_SESSIONS: "unbounded",
-          OXY_SERVICE_API_KEY: "service-key",
-        OXY_SERVICE_API_SECRET: "service-secret",
+        MCP_MAX_SESSIONS: 'unbounded',
+        OXY_SERVICE_API_KEY: 'service-key',
+        OXY_SERVICE_API_SECRET: 'service-secret',
       }),
-    ).toThrow("MCP_MAX_SESSIONS");
+    ).toThrow('MCP_MAX_SESSIONS');
   });
 
-  test("rejects CORS entries that are not exact HTTP origins", () => {
+  test('rejects CORS entries that are not exact HTTP origins', () => {
     expect(() =>
       loadMcpHttpConfig({
-        MCP_ALLOWED_ORIGINS: "https://example.com/path",
-          OXY_SERVICE_API_KEY: "service-key",
-        OXY_SERVICE_API_SECRET: "service-secret",
+        MCP_ALLOWED_ORIGINS: 'https://example.com/path',
+        OXY_SERVICE_API_KEY: 'service-key',
+        OXY_SERVICE_API_SECRET: 'service-secret',
       }),
-    ).toThrow("expected an HTTP(S) origin without a path");
+    ).toThrow('expected an HTTP(S) origin without a path');
   });
 
-  test("boots without a secret, and reads a service credential where one is given", () => {
+  test('boots without a secret, and reads a service credential where one is given', () => {
     /**
      * The pair used to be required. A deployed task proves what it is by
      * attesting its ECS task role and gets the same service token with no
@@ -60,25 +60,29 @@ describe("MCP configuration", () => {
     // And where a pair IS given — a laptop, which can attest nothing — it is
     // still read and still used.
     const withCredential = loadMcpHttpConfig({
-      OXY_SERVICE_API_KEY: "service-key",
-      OXY_SERVICE_API_SECRET: "service-secret",
+      OXY_SERVICE_API_KEY: 'service-key',
+      OXY_SERVICE_API_SECRET: 'service-secret',
     });
-    expect(withCredential.oxyServiceApiKey).toBe("service-key");
+    expect(withCredential.oxyServiceApiKey).toBe('service-key');
   });
 });
 
 describe('managed MCP configuration', () => {
   test('derives API, resource and catalog audience from one deployment', async () => {
-    const { default: example } = await import('../../shared-types/__tests__/fixtures/managed-deployment.json');
+    const { default: example } = await import(
+      '../../shared-types/__tests__/fixtures/managed-deployment.json'
+    );
     const environment = {
       MENTION_DEPLOYMENT_CONFIG: JSON.stringify(example),
-      OXY_SERVICE_API_KEY: 'tenant-service-key', OXY_SERVICE_API_SECRET: 'tenant-service-secret',
+      OXY_SERVICE_API_KEY: 'tenant-service-key',
+      OXY_SERVICE_API_SECRET: 'tenant-service-secret',
     };
     const http = loadMcpHttpConfig(environment);
     expect(loadApiClientConfig(environment).baseUrl).toBe(example.apiBaseUrl);
     expect(http.publicUrl).toBe(example.mcpBaseUrl);
     expect(http.deploymentIdentity?.audience).toBe(`mention-${example.tenantId}-api`);
-    expect(() => loadMcpHttpConfig({ ...environment, MENTION_MCP_PUBLIC_URL: 'https://mcp.mention.earth' }))
-      .toThrow('MENTION_MCP_PUBLIC_URL conflicts');
+    expect(() =>
+      loadMcpHttpConfig({ ...environment, MENTION_MCP_PUBLIC_URL: 'https://mcp.mention.earth' }),
+    ).toThrow('MENTION_MCP_PUBLIC_URL conflicts');
   });
 });

@@ -59,9 +59,7 @@ describe('the vocabulary this build was compiled against', () => {
     // asserted here is the containment that makes the distinction hold WHEN one
     // is retired — a retired id leaves the selectable set and stays in the
     // vocabulary, so it keeps its label.
-    expect(SELECTABLE_ACCOUNT_CATEGORY_IDS.length).toBeLessThanOrEqual(
-      ACCOUNT_CATEGORY_IDS.length,
-    );
+    expect(SELECTABLE_ACCOUNT_CATEGORY_IDS.length).toBeLessThanOrEqual(ACCOUNT_CATEGORY_IDS.length);
     for (const id of SELECTABLE_ACCOUNT_CATEGORY_IDS) {
       expect(ACCOUNT_CATEGORY_IDS).toContain(id);
     }
@@ -169,11 +167,7 @@ describe('promoteAccountCategoryToPrimary', () => {
   it('leaves the others in their relative order rather than reshuffling them', () => {
     // 'music' and 'news' were 1st and 2nd and stay in that sequence behind 'art'
     // — a swap-with-index-0 implementation would answer ['art','news','music'].
-    expect(promoteAccountCategoryToPrimary(STORED, 'art')).not.toEqual([
-      'art',
-      'news',
-      'music',
-    ]);
+    expect(promoteAccountCategoryToPrimary(STORED, 'art')).not.toEqual(['art', 'news', 'music']);
   });
 
   it('is a no-op for an id that is already primary', () => {

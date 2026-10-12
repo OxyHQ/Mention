@@ -1,6 +1,10 @@
 import { logger } from '../utils/logger';
 import { getDb } from '../db/postgres';
-import { assertFederatedMediaUsable, enqueueFederatedMediaDeletions, FederatedMediaGoneError } from '../db/federation/mediaDeletionRepository';
+import {
+  assertFederatedMediaUsable,
+  enqueueFederatedMediaDeletions,
+  FederatedMediaGoneError,
+} from '../db/federation/mediaDeletionRepository';
 import { userSettings } from '../db/schema/userProfile';
 import { eq } from 'drizzle-orm';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
@@ -10,15 +14,22 @@ import { persistRemoteMediaForFederatedOwnerDetailed } from '../services/mediaCa
 import { FEDERATED_BANNER_DOWNLOAD_POLICY } from '../services/mediaCache/policy';
 import { isAbsoluteHttpUrl, getRemoteHost } from './shared/url';
 import type { NormalizedExternalActor } from '@oxy.so/federation';
-import { createIdentityBridge, type ServiceRequest, type ServiceRequestMethod } from '@oxy.so/federation/node';
+import {
+  createIdentityBridge,
+  type ServiceRequest,
+  type ServiceRequestMethod,
+} from '@oxy.so/federation/node';
 import { resolveOxyIdentity } from './oxyIdentity';
 import { recordFederatedBannerInBackground } from '../db/federation/bannerMirrorRepository';
 
 /** Oxy owns discovery and profiles; this module exposes Mention's transport adapter. */
 
 /** Service-scoped oxy-api request, resolved at call time (the client is per-request). */
-const callOxyService: ServiceRequest = <T>(method: ServiceRequestMethod, path: string, body?: unknown): Promise<T> =>
-  getServiceOxyClient().serviceRequest<T>(method, path, body);
+const callOxyService: ServiceRequest = <T>(
+  method: ServiceRequestMethod,
+  path: string,
+  body?: unknown,
+): Promise<T> => getServiceOxyClient().serviceRequest<T>(method, path, body);
 
 const identityBridge = createIdentityBridge({
   makeServiceRequest: callOxyService,
@@ -29,7 +40,9 @@ const identityBridge = createIdentityBridge({
 });
 
 /** Resolve only transport coordinates; Oxy independently verifies identity and profile fields. */
-export async function resolveOxyExternalUser(actor: NormalizedExternalActor): Promise<string | null> {
+export async function resolveOxyExternalUser(
+  actor: NormalizedExternalActor,
+): Promise<string | null> {
   try {
     const resolved = await resolveOxyIdentity({
       actorUri: actor.externalId,
@@ -153,7 +166,8 @@ export async function mirrorFederatedBanner(
           }
         });
       } catch (err) {
-        if (err instanceof FederatedMediaGoneError) return { ok: false, permanent: false, reason: 'file-being-deleted' };
+        if (err instanceof FederatedMediaGoneError)
+          return { ok: false, permanent: false, reason: 'file-being-deleted' };
         throw err;
       }
       return { ok: true, permanent: false };

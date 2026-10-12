@@ -78,8 +78,7 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 jest.mock('@mention/shared-types/post', () => ({ MEDIA_VARIANT_BANNER: 'banner' }));
 
 jest.mock('@/utils/imageUrlCache', () => ({
-  getCachedFileDownloadUrlSync: (_services: unknown, ref: string) =>
-    `https://cloud.oxy.so/${ref}`,
+  getCachedFileDownloadUrlSync: (_services: unknown, ref: string) => `https://cloud.oxy.so/${ref}`,
 }));
 
 import { useProfileData } from '@/hooks/useProfileData';
@@ -267,30 +266,49 @@ describe('useProfileData — the viewer’s own profile', () => {
   });
 });
 
-
 describe('useProfileData — Oxy-proven public aliases', () => {
   beforeEach(() => {
     mockViewer.current = null;
     mockResolveProfile.mockReset();
     mockLoadAppearance.mockResolvedValue(null);
   });
-  const canonical = { ...user('fresh-person', 'freshperson@instagram.com', 'Fresh Person'), externalIdentities: [
-    { canonicalAcct: 'freshperson@threads.net', network: 'threads.net', protocol: 'activitypub', actorUri: 'https://threads.net/ap/users/freshperson', transportAcct: 'freshperson@threads.net', sourceUserId: 'threads-source' },
-    { canonicalAcct: 'freshperson@instagram.com', network: 'instagram.com', protocol: 'activitypub', actorUri: 'https://bridge.example/users/freshperson', transportAcct: 'freshperson@bridge.example', sourceUserId: 'instagram-source' },
-  ] };
+  const canonical = {
+    ...user('fresh-person', 'freshperson@instagram.com', 'Fresh Person'),
+    externalIdentities: [
+      {
+        canonicalAcct: 'freshperson@threads.net',
+        network: 'threads.net',
+        protocol: 'activitypub',
+        actorUri: 'https://threads.net/ap/users/freshperson',
+        transportAcct: 'freshperson@threads.net',
+        sourceUserId: 'threads-source',
+      },
+      {
+        canonicalAcct: 'freshperson@instagram.com',
+        network: 'instagram.com',
+        protocol: 'activitypub',
+        actorUri: 'https://bridge.example/users/freshperson',
+        transportAcct: 'freshperson@bridge.example',
+        sourceUserId: 'instagram-source',
+      },
+    ],
+  };
   it.each([
     ['freshperson@threads.net', canonical, 'Fresh Person'],
     ['freshperson@bridge.example', canonical, null],
     ['freshperson@threads.net', { ...canonical, externalIdentities: [] }, null],
-  ])('gates first uncached route %s by the resolved Oxy aliases', async (handle, response, displayName) => {
-    mockResolveProfile.mockResolvedValue(response);
-    const sink: Snapshot[] = [];
-    const renderer = mountProbe(handle, sink);
-    await settle();
-    expect(mockResolveProfile).toHaveBeenCalledWith(handle);
-    expect(sink.at(-1)).toMatchObject({ loading: false, displayName });
-    act(() => renderer.unmount());
-  });
+  ])(
+    'gates first uncached route %s by the resolved Oxy aliases',
+    async (handle, response, displayName) => {
+      mockResolveProfile.mockResolvedValue(response);
+      const sink: Snapshot[] = [];
+      const renderer = mountProbe(handle, sink);
+      await settle();
+      expect(mockResolveProfile).toHaveBeenCalledWith(handle);
+      expect(sink.at(-1)).toMatchObject({ loading: false, displayName });
+      act(() => renderer.unmount());
+    },
+  );
 });
 
 /**
@@ -299,7 +317,11 @@ describe('useProfileData — Oxy-proven public aliases', () => {
  * connections screen needs to tell them apart, and could not).
  */
 describe('useProfileData — a profile that cannot be shown', () => {
-  interface Outcome { loading: boolean; error: boolean; notFound: boolean }
+  interface Outcome {
+    loading: boolean;
+    error: boolean;
+    notFound: boolean;
+  }
 
   function OutcomeProbe({ handle, sink }: { handle: string; sink: Outcome[] }) {
     const { loading, error, notFound } = useProfileData(handle);
@@ -355,9 +377,15 @@ describe('useProfileData — the profile the document was served for', () => {
   });
 
   it('paints it on the first render and starts the design read before Oxy answers', async () => {
-    mockDocumentProfile.mockImplementation((handle) => (handle === 'ada' ? user('ada-1', 'ada', 'Ada') : null));
+    mockDocumentProfile.mockImplementation((handle) =>
+      handle === 'ada' ? user('ada-1', 'ada', 'Ada') : null,
+    );
     let answer: (value: User) => void = () => undefined;
-    mockFetchProfile.mockReturnValue(new Promise<User>((resolve) => { answer = resolve; }));
+    mockFetchProfile.mockReturnValue(
+      new Promise<User>((resolve) => {
+        answer = resolve;
+      }),
+    );
 
     const sink: Snapshot[] = [];
     const renderer = mountProbe('ada', sink);
@@ -383,7 +411,9 @@ describe('useProfileData — the profile the document was served for', () => {
   });
 
   it('is never used for another handle', () => {
-    mockDocumentProfile.mockImplementation((handle) => (handle === 'ada' ? user('ada-1', 'ada', 'Ada') : null));
+    mockDocumentProfile.mockImplementation((handle) =>
+      handle === 'ada' ? user('ada-1', 'ada', 'Ada') : null,
+    );
     mockFetchProfile.mockResolvedValue(user('bob-1', 'bob', 'Bob'));
 
     const sink: Snapshot[] = [];

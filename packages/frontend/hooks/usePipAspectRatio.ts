@@ -113,8 +113,8 @@ export function usePipAspectRatio({
   // Seeded from the player rather than from nothing: a surface promoted from
   // preloading neighbour to watched already has its track, and waiting for the
   // next event would leave the first window of that video on the wrong shape.
-  const [trackSize, setTrackSize] = useState<MediaPixelSize | undefined>(
-    () => trackPixelSize(player.videoTrack),
+  const [trackSize, setTrackSize] = useState<MediaPixelSize | undefined>(() =>
+    trackPixelSize(player.videoTrack),
   );
 
   // `useEventListener` (expo) subscribes once per player and always invokes the

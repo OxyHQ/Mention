@@ -6,7 +6,11 @@ import { CoverHeader } from '@oxy.so/bloom/cover-header';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { CHANNEL_AVATAR_SIZE } from './ChannelHeader';
-import { PROFILE_AVATAR_OVERLAP, PROFILE_AVATAR_RING, PROFILE_BANNER_HEIGHT } from './ProfilePageHeader';
+import {
+  PROFILE_AVATAR_OVERLAP,
+  PROFILE_AVATAR_RING,
+  PROFILE_BANNER_HEIGHT,
+} from './ProfilePageHeader';
 import { LAYOUT } from './types';
 
 /**
@@ -177,7 +181,10 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
         overlap={PROFILE_AVATAR_OVERLAP}
         cover={<Skeleton.Box blend width="100%" height={PROFILE_BANNER_HEIGHT} borderRadius={0} />}
         style={{ backgroundColor: surfaceFill }}
-        contentStyle={{ paddingHorizontal: LAYOUT.DEFAULT_PADDING, paddingBottom: LAYOUT.DEFAULT_PADDING }}
+        contentStyle={{
+          paddingHorizontal: LAYOUT.DEFAULT_PADDING,
+          paddingBottom: LAYOUT.DEFAULT_PADDING,
+        }}
       >
         {/* Header row: avatar rising into the banner + action placeholders. */}
         <View className="flex-row justify-between items-end mb-2.5">

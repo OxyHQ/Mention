@@ -16,9 +16,7 @@ import { inArray } from 'drizzle-orm';
  *
  * ## Real rows, not a fake collection
  *
- * `main` ran this against an in-memory `AccountList` double (`./fakeMongo`) and
- * asserted the SORT SPEC the route handed Mongo. Neither survives the port: the
- * route builds a drizzle query against `account_lists`, so a model double
+ * The route builds a drizzle query against `account_lists`, so a model double
  * intercepts nothing and there is no spec object to inspect. Every case below is
  * therefore a real query against real rows — which is also what lets the
  * tie-break case be a behavioural one rather than a claim about a literal.
@@ -39,8 +37,10 @@ vi.mock('../../services/EndorsementSignalService', () => ({
   },
 }));
 vi.mock('../../middleware/security', () => ({
-  feedIPRateLimiter: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
-  feedRateLimiter: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
+  feedIPRateLimiter: (_req: express.Request, _res: express.Response, next: express.NextFunction) =>
+    next(),
+  feedRateLimiter: (_req: express.Request, _res: express.Response, next: express.NextFunction) =>
+    next(),
 }));
 
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
@@ -116,13 +116,49 @@ afterAll(async () => {
 describe('GET /lists — search filter + visibility gate', () => {
   beforeEach(async () => {
     await seed([
-      { ownerOxyUserId: VIEWER, isPublic: true, title: 'Sports fans', description: 'athletes', updatedAt: 6 },
-      { ownerOxyUserId: VIEWER, isPublic: false, title: 'My sport picks', description: '', updatedAt: 5 },
-      { ownerOxyUserId: OTHER, isPublic: true, title: 'Sporting goods', description: '', updatedAt: 4 },
+      {
+        ownerOxyUserId: VIEWER,
+        isPublic: true,
+        title: 'Sports fans',
+        description: 'athletes',
+        updatedAt: 6,
+      },
+      {
+        ownerOxyUserId: VIEWER,
+        isPublic: false,
+        title: 'My sport picks',
+        description: '',
+        updatedAt: 5,
+      },
+      {
+        ownerOxyUserId: OTHER,
+        isPublic: true,
+        title: 'Sporting goods',
+        description: '',
+        updatedAt: 4,
+      },
       // Matches "sport" but is PRIVATE and owned by someone else → must stay hidden.
-      { ownerOxyUserId: OTHER, isPublic: false, title: 'Secret sports', description: '', updatedAt: 3 },
-      { ownerOxyUserId: VIEWER, isPublic: true, title: 'Cooking', description: 'recipes', updatedAt: 2 },
-      { ownerOxyUserId: OTHER, isPublic: true, title: 'Gardening', description: 'plants', updatedAt: 1 },
+      {
+        ownerOxyUserId: OTHER,
+        isPublic: false,
+        title: 'Secret sports',
+        description: '',
+        updatedAt: 3,
+      },
+      {
+        ownerOxyUserId: VIEWER,
+        isPublic: true,
+        title: 'Cooking',
+        description: 'recipes',
+        updatedAt: 2,
+      },
+      {
+        ownerOxyUserId: OTHER,
+        isPublic: true,
+        title: 'Gardening',
+        description: 'plants',
+        updatedAt: 1,
+      },
     ]);
   });
 
@@ -196,7 +232,10 @@ describe("GET /lists — ?userId, ONE account's lists", () => {
   });
 
   it('still narrows within the owner when a search term is given', async () => {
-    const res = await request(app).get('/lists').query({ userId: OTHER, search: 'public' }).expect(200);
+    const res = await request(app)
+      .get('/lists')
+      .query({ userId: OTHER, search: 'public' })
+      .expect(200);
     expect(titlesOf(res.body)).toEqual(['Other public']);
   });
 });
@@ -261,7 +300,7 @@ describe('GET /lists — offset pagination', () => {
 /**
  * The TIE-BREAK, which is the one case the paging assertions above cannot reach.
  *
- * `main` pinned it by asserting the literal sort spec the route handed Mongo
+ * `main` pinned it by asserting the literal sort spec the route handed the legacy store
  * (`{ updatedAt: -1, _id: -1 }`), and said so: `updated_at` ties reshuffle only
  * under concurrent writes or a plan change, neither of which a seeded run
  * reproduces, so removing `_id` from the sort left every paging test green.

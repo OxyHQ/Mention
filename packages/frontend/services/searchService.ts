@@ -1,9 +1,9 @@
 import { createLogger } from '@oxy.so/core/logger';
-import { authenticatedClient, isUnauthorizedError, publicClient } from "@/utils/api";
-import { oxyServices } from "@/lib/oxyServices";
-import { feedService } from "./feedService";
-import { Storage } from "@/utils/storage";
-import { viewerStorageKey, type ViewerId } from "@/lib/viewerQueryKeys";
+import { authenticatedClient, isUnauthorizedError, publicClient } from '@/utils/api';
+import { oxyServices } from '@/lib/oxyServices';
+import { feedService } from './feedService';
+import { Storage } from '@/utils/storage';
+import { viewerStorageKey, type ViewerId } from '@/lib/viewerQueryKeys';
 import type { User } from '@oxy.so/core';
 import type { HydratedPost } from '@mention/shared-types';
 import type { StarterPackSummary } from './starterPacksService';
@@ -221,16 +221,56 @@ export interface SearchOperatorHint {
  * business rewriting a query it doesn't own the identity for.
  */
 export const SEARCH_OPERATORS: readonly SearchOperatorHint[] = [
-  { operator: 'from:username', insert: 'from:', labelKey: 'from', description: 'Posts by a specific user' },
+  {
+    operator: 'from:username',
+    insert: 'from:',
+    labelKey: 'from',
+    description: 'Posts by a specific user',
+  },
   { operator: 'from:me', insert: 'from:me', labelKey: 'fromMe', description: 'Your own posts' },
-  { operator: 'to:username', insert: 'to:', labelKey: 'to', description: 'Posts mentioning a specific user' },
+  {
+    operator: 'to:username',
+    insert: 'to:',
+    labelKey: 'to',
+    description: 'Posts mentioning a specific user',
+  },
   { operator: 'to:me', insert: 'to:me', labelKey: 'toMe', description: 'Posts mentioning you' },
-  { operator: 'since:YYYY-MM-DD', insert: 'since:', labelKey: 'since', description: 'Posts after a date' },
-  { operator: 'until:YYYY-MM-DD', insert: 'until:', labelKey: 'until', description: 'Posts before a date' },
-  { operator: 'has:media', insert: 'has:media', labelKey: 'hasMedia', description: 'Posts with media' },
-  { operator: 'has:links', insert: 'has:links', labelKey: 'hasLinks', description: 'Posts with links' },
-  { operator: 'min_likes:N', insert: 'min_likes:', labelKey: 'min_likes', description: 'Minimum likes' },
-  { operator: 'min_boosts:N', insert: 'min_boosts:', labelKey: 'min_boosts', description: 'Minimum boosts' },
+  {
+    operator: 'since:YYYY-MM-DD',
+    insert: 'since:',
+    labelKey: 'since',
+    description: 'Posts after a date',
+  },
+  {
+    operator: 'until:YYYY-MM-DD',
+    insert: 'until:',
+    labelKey: 'until',
+    description: 'Posts before a date',
+  },
+  {
+    operator: 'has:media',
+    insert: 'has:media',
+    labelKey: 'hasMedia',
+    description: 'Posts with media',
+  },
+  {
+    operator: 'has:links',
+    insert: 'has:links',
+    labelKey: 'hasLinks',
+    description: 'Posts with links',
+  },
+  {
+    operator: 'min_likes:N',
+    insert: 'min_likes:',
+    labelKey: 'min_likes',
+    description: 'Minimum likes',
+  },
+  {
+    operator: 'min_boosts:N',
+    insert: 'min_boosts:',
+    labelKey: 'min_boosts',
+    description: 'Minimum boosts',
+  },
 ];
 
 /**
@@ -242,7 +282,7 @@ export const SEARCH_OPERATORS: readonly SearchOperatorHint[] = [
  */
 function emptyIfSignedOut<T>(error: unknown, source: string): T[] {
   if (isUnauthorizedError(error)) {
-    logger.info("Skipping auth-gated search source for signed-out viewer", { source });
+    logger.info('Skipping auth-gated search source for signed-out viewer', { source });
     return [];
   }
   throw error;
@@ -258,10 +298,7 @@ function emptyIfSignedOut<T>(error: unknown, source: string): T[] {
  * is what distinguishes them from a real HTTP failure.
  */
 export function isAbortError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    (error.name === 'AbortError' || error.name === 'CanceledError')
-  );
+  return error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError');
 }
 
 /**
@@ -293,7 +330,10 @@ async function searchProfilesCancellable(
   query: string,
   pagination: { limit: number; offset?: number },
   signal?: AbortSignal,
-): Promise<{ data: SearchUserResult[]; pagination?: { total?: number; limit?: number; offset?: number; hasMore?: boolean } }> {
+): Promise<{
+  data: SearchUserResult[];
+  pagination?: { total?: number; limit?: number; offset?: number; hasMore?: boolean };
+}> {
   const params: Record<string, unknown> = { query, limit: pagination.limit };
   if (pagination.offset !== undefined) params.offset = pagination.offset;
 
@@ -328,7 +368,13 @@ export function searchAllSources(canUsePrivateApi: boolean): readonly SearchAllS
 /** Every section present, each the concatenation of what the parts carried. */
 export function mergeSearchResults(parts: readonly SearchResults[]): Required<SearchResults> {
   const merged: Required<SearchResults> = {
-    posts: [], users: [], feeds: [], hashtags: [], lists: [], saved: [], starterPacks: [],
+    posts: [],
+    users: [],
+    feeds: [],
+    hashtags: [],
+    lists: [],
+    saved: [],
+    starterPacks: [],
   };
   for (const part of parts) {
     for (const key of Object.keys(merged) as (keyof SearchResults)[]) {
@@ -341,18 +387,15 @@ export function mergeSearchResults(parts: readonly SearchResults[]): Required<Se
 
 class SearchService {
   // Search posts - query is passed raw to backend which parses operators
-  async searchPosts(
-    query: string,
-    signal?: AbortSignal,
-  ): Promise<SearchPostResult[]> {
+  async searchPosts(query: string, signal?: AbortSignal): Promise<SearchPostResult[]> {
     try {
-      const res = await authenticatedClient.get<{ posts?: SearchPostResult[] }>("/search", {
-        params: { query, type: "posts" },
+      const res = await authenticatedClient.get<{ posts?: SearchPostResult[] }>('/search', {
+        params: { query, type: 'posts' },
         signal,
       });
       return res.data.posts || [];
     } catch (error) {
-      return emptyIfSignedOut<SearchPostResult>(error, "posts");
+      return emptyIfSignedOut<SearchPostResult>(error, 'posts');
     }
   }
 
@@ -366,19 +409,20 @@ class SearchService {
     signal?: AbortSignal,
   ): Promise<SearchPostsPage> {
     try {
-      const params: Record<string, string> = { query, type: "posts" };
+      const params: Record<string, string> = { query, type: 'posts' };
       if (cursor) params.cursor = cursor;
-      const res = await authenticatedClient.get<{ posts?: SearchPostResult[]; hasMore?: boolean; nextCursor?: string }>(
-        "/search",
-        { params, signal },
-      );
+      const res = await authenticatedClient.get<{
+        posts?: SearchPostResult[];
+        hasMore?: boolean;
+        nextCursor?: string;
+      }>('/search', { params, signal });
       return {
         posts: res.data.posts ?? [],
         hasMore: res.data.hasMore ?? false,
         nextCursor: res.data.nextCursor,
       };
     } catch (error) {
-      return { posts: emptyIfSignedOut<SearchPostResult>(error, "posts"), hasMore: false };
+      return { posts: emptyIfSignedOut<SearchPostResult>(error, 'posts'), hasMore: false };
     }
   }
 
@@ -389,7 +433,7 @@ class SearchService {
       return Array.isArray(data) ? data : [];
     } catch (error) {
       if (isAbortError(error)) throw error;
-      logger.warn("Profile search failed, falling back to exact username lookup", { error });
+      logger.warn('Profile search failed, falling back to exact username lookup', { error });
 
       // Fallback: an exact username match still gives the viewer something useful.
       // A miss on the fallback is a real failure — let it propagate.
@@ -419,9 +463,13 @@ class SearchService {
       // The exact-username fallback only makes sense for the FIRST page — a deeper
       // page has no single match to fall back to, so its failure is real.
       if (offset > 0) throw error;
-      logger.warn("Profile search failed, falling back to exact username lookup", { error });
+      logger.warn('Profile search failed, falling back to exact username lookup', { error });
       const exactMatch = await oxyServices.users.byUsername(query);
-      return { users: exactMatch ? [exactMatch] : [], hasMore: false, nextOffset: SEARCH_PAGE_LIMIT };
+      return {
+        users: exactMatch ? [exactMatch] : [],
+        hasMore: false,
+        nextOffset: SEARCH_PAGE_LIMIT,
+      };
     }
   }
 
@@ -429,12 +477,11 @@ class SearchService {
   // supplied (`{ items, pagination: { offset, limit, hasMore } }`) on a stable
   // `{ updatedAt desc, _id desc }` sort, so offset paging never repeats a row.
   // Drives the infinite Feeds tab.
-  async searchFeedsPage(
-    query: string,
-    offset = 0,
-    signal?: AbortSignal,
-  ): Promise<SearchFeedsPage> {
-    const res = await publicClient.get<{ items?: SearchFeedResult[]; pagination?: SearchOffsetPagination }>("/feeds", {
+  async searchFeedsPage(query: string, offset = 0, signal?: AbortSignal): Promise<SearchFeedsPage> {
+    const res = await publicClient.get<{
+      items?: SearchFeedResult[];
+      pagination?: SearchOffsetPagination;
+    }>('/feeds', {
       params: { publicOnly: true, search: query, limit: SEARCH_PAGE_LIMIT, offset },
       signal,
     });
@@ -451,13 +498,12 @@ class SearchService {
   // stable `{ updatedAt desc, _id desc }` sort. Auth-gated: a signed-out viewer
   // 401s → empty (this source has nothing), which is not a search failure. Drives
   // the infinite Lists tab.
-  async searchListsPage(
-    query: string,
-    offset = 0,
-    signal?: AbortSignal,
-  ): Promise<SearchListsPage> {
+  async searchListsPage(query: string, offset = 0, signal?: AbortSignal): Promise<SearchListsPage> {
     try {
-      const res = await authenticatedClient.get<{ items?: SearchListResult[]; pagination?: SearchOffsetPagination }>("/lists", {
+      const res = await authenticatedClient.get<{
+        items?: SearchListResult[];
+        pagination?: SearchOffsetPagination;
+      }>('/lists', {
         params: { search: query, limit: SEARCH_PAGE_LIMIT, offset },
         signal,
       });
@@ -469,7 +515,7 @@ class SearchService {
       };
     } catch (error) {
       return {
-        lists: emptyIfSignedOut<SearchListResult>(error, "lists"),
+        lists: emptyIfSignedOut<SearchListResult>(error, 'lists'),
         hasMore: false,
         nextOffset: offset + SEARCH_PAGE_LIMIT,
       };
@@ -485,7 +531,10 @@ class SearchService {
     offset = 0,
     signal?: AbortSignal,
   ): Promise<SearchHashtagsPage> {
-    const res = await authenticatedClient.get<{ hashtags?: SearchHashtagResult[]; pagination?: SearchOffsetPagination }>("/hashtags/search", {
+    const res = await authenticatedClient.get<{
+      hashtags?: SearchHashtagResult[];
+      pagination?: SearchOffsetPagination;
+    }>('/hashtags/search', {
       params: { query, limit: SEARCH_PAGE_LIMIT, offset },
       signal,
     });
@@ -506,7 +555,7 @@ class SearchService {
     page = 1,
     signal?: AbortSignal,
   ): Promise<SearchStarterPacksPage> {
-    const res = await publicClient.get<StarterPackListResponse>("/starter-packs", {
+    const res = await publicClient.get<StarterPackListResponse>('/starter-packs', {
       params: { search: query, limit: SEARCH_PAGE_LIMIT, page },
       signal,
     });
@@ -524,10 +573,7 @@ class SearchService {
   }
 
   // Search saved posts
-  async searchSaved(
-    query: string,
-    signal?: AbortSignal,
-  ): Promise<SearchPostResult[]> {
+  async searchSaved(query: string, signal?: AbortSignal): Promise<SearchPostResult[]> {
     try {
       const response = await feedService.getSavedPosts({
         page: 1,
@@ -536,21 +582,15 @@ class SearchService {
         signal,
       });
       const data = response.data;
-      return isRecord(data) && Array.isArray(data.posts)
-        ? data.posts.filter(isHydratedPost)
-        : [];
+      return isRecord(data) && Array.isArray(data.posts) ? data.posts.filter(isHydratedPost) : [];
     } catch (error) {
-      return emptyIfSignedOut<SearchPostResult>(error, "saved");
+      return emptyIfSignedOut<SearchPostResult>(error, 'saved');
     }
   }
 
   // Paginated saved-posts search — `GET /posts/saved` page-paginates
   // (`{ page, limit }` → `{ posts, hasMore }`). Drives the infinite Saved tab.
-  async searchSavedPage(
-    query: string,
-    page = 1,
-    signal?: AbortSignal,
-  ): Promise<SearchSavedPage> {
+  async searchSavedPage(query: string, page = 1, signal?: AbortSignal): Promise<SearchSavedPage> {
     try {
       const response = await feedService.getSavedPosts({
         page,
@@ -559,10 +599,15 @@ class SearchService {
         signal,
       });
       const data = response.data;
-      const posts = isRecord(data) && Array.isArray(data.posts) ? data.posts.filter(isHydratedPost) : [];
+      const posts =
+        isRecord(data) && Array.isArray(data.posts) ? data.posts.filter(isHydratedPost) : [];
       return { posts, hasMore: isRecord(data) ? Boolean(data.hasMore) : false, nextPage: page + 1 };
     } catch (error) {
-      return { posts: emptyIfSignedOut<SearchPostResult>(error, "saved"), hasMore: false, nextPage: page + 1 };
+      return {
+        posts: emptyIfSignedOut<SearchPostResult>(error, 'saved'),
+        hasMore: false,
+        nextPage: page + 1,
+      };
     }
   }
 
@@ -590,18 +635,18 @@ class SearchService {
     query: string,
     signal?: AbortSignal,
   ): Promise<Pick<SearchResults, 'feeds' | 'hashtags' | 'lists' | 'starterPacks'>> {
-    const res = await publicClient.get<SearchOverviewResponse>("/search/overview", {
+    const res = await publicClient.get<SearchOverviewResponse>('/search/overview', {
       params: { q: query },
       signal,
     });
     const lanes = res.data?.lanes;
-    if (!lanes) throw new Error("Unexpected search overview response");
+    if (!lanes) throw new Error('Unexpected search overview response');
 
     const laneItems = <T>(name: keyof SearchOverviewResponse['lanes']): T[] => {
       const lane = lanes[name];
       if (!lane) return [];
       if (lane.status === 'error' || lane.status === 'timeout') {
-        logger.warn("A search lane did not complete", { lane: name, status: lane.status });
+        logger.warn('A search lane did not complete', { lane: name, status: lane.status });
         return [];
       }
       return (lane.items ?? []) as T[];
@@ -638,7 +683,7 @@ class SearchService {
       (result): result is PromiseRejectedResult => result.status === 'rejected',
     );
     for (const rejection of rejections) {
-      logger.warn("A search source failed", { error: rejection.reason });
+      logger.warn('A search source failed', { error: rejection.reason });
     }
     // One flaky source degrades to its sections being empty; only a TOTAL
     // failure of the sources that actually ran is an error.
@@ -690,7 +735,7 @@ class SearchService {
 
     let history = await this.getSearchHistory(viewerId);
     // Remove duplicate if exists
-    history = history.filter(item => item !== trimmed);
+    history = history.filter((item) => item !== trimmed);
     // Add to front
     history.unshift(trimmed);
     // Keep only last N
@@ -701,7 +746,7 @@ class SearchService {
 
   async removeFromSearchHistory(query: string, viewerId?: ViewerId): Promise<string[]> {
     let history = await this.getSearchHistory(viewerId);
-    history = history.filter(item => item !== query);
+    history = history.filter((item) => item !== query);
     await Storage.set(getSearchHistoryStorageKey(viewerId), history);
     return history;
   }

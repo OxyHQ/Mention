@@ -51,9 +51,9 @@ function render(element: React.ReactElement) {
 function links(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance[] {
   return renderer.root.findAll(
     (node) =>
-      typeof node.type === 'string'
-      && node.props?.accessibilityRole === 'link'
-      && typeof node.props?.onPress === 'function',
+      typeof node.type === 'string' &&
+      node.props?.accessibilityRole === 'link' &&
+      typeof node.props?.onPress === 'function',
   );
 }
 

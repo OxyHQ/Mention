@@ -41,7 +41,10 @@ const createStarterPackSchema = z.object({
 
 /** The same fields, all optional: an absent one leaves the stored value alone. */
 const updateStarterPackSchema = z.object({
-  name: z.string('name must be a non-empty string').min(1, 'name must be a non-empty string').optional(),
+  name: z
+    .string('name must be a non-empty string')
+    .min(1, 'name must be a non-empty string')
+    .optional(),
   description: z.string('description must be a string').nullish(),
   memberOxyUserIds: z.unknown().optional(),
 });
@@ -135,7 +138,6 @@ function isFederatedPack(pack: Pick<typeof starterPacks.$inferSelect, 'sourceNet
 /** Number of member avatars surfaced per pack in the list response. */
 const LIST_AVATAR_LIMIT = 8;
 
-
 /** Provenance for a pack mirrored from an external network. */
 interface SerializedPackSource {
   network: string;
@@ -173,16 +175,15 @@ interface StarterPackListItem extends SerializedStarterPack {
 type StarterPackMember = PostUser;
 
 /**
- * Re-assemble the response body a Mongoose document produced.
+ * Assemble the starter pack response body.
  *
  * `_id` alongside `id`, because the client reads `pack._id || pack.id`
  * (`services/starterPacksService.ts`). An absent `description` is OMITTED rather
- * than sent as `null` — Mongoose's `undefined` disappeared from the JSON and
- * drizzle's `null` would not — and the three flattened source columns are folded
+ * than sent as `null` (drizzle's `null` would serialize) — and the three flattened source columns are folded
  * back into the `source` subdocument the guard above is named after.
  *
- * ONE field of the Mongo document does NOT come back: `usedByOxyUserIds`. It is
- * now `starter_pack_uses`, a junction whose whole point is that it never has to
+ * ONE field does NOT come back: `usedByOxyUserIds`. It is
+ * `starter_pack_uses`, a junction whose whole point is that it never has to
  * be read in full, and shipping it would mean loading every user who has ever
  * used every pack on the page. Nothing consumes it — `StarterPackSummary` in
  * `packages/frontend/services/starterPacksService.ts` does not declare it and no
@@ -213,8 +214,7 @@ function serializePack(
  * The member ids a client sent, in the order they sent them: non-empty strings
  * only, deduplicated.
  *
- * Mongo stored the raw array, so a repeated id simply sat there twice. The
- * junction's `(pack_id, oxy_user_id)` unique constraint refuses that outright,
+ * The junction's `(pack_id, oxy_user_id)` unique constraint refuses that outright,
  * so the duplicate is collapsed HERE — keeping the first occurrence, which is
  * what preserves the arrangement the owner chose.
  */
@@ -265,9 +265,9 @@ async function loadMembersByPack(
 async function replaceMembers(tx: Transaction, packId: string, memberIds: string[]): Promise<void> {
   await tx.delete(starterPackMembers).where(eq(starterPackMembers.packId, packId));
   if (memberIds.length === 0) return;
-  await tx.insert(starterPackMembers).values(
-    memberIds.map((oxyUserId, position) => ({ packId, oxyUserId, position })),
-  );
+  await tx
+    .insert(starterPackMembers)
+    .values(memberIds.map((oxyUserId, position) => ({ packId, oxyUserId, position })));
 }
 
 /**
@@ -417,7 +417,9 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 
     const parsed = createStarterPackSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.issues.map((issue) => issue.message).join('; ') });
+      return res
+        .status(400)
+        .json({ error: parsed.error.issues.map((issue) => issue.message).join('; ') });
     }
     const { name, description, memberOxyUserIds } = parsed.data;
 
@@ -471,7 +473,10 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     const ownerId = queryString(req.query.userId)?.trim() ?? '';
 
     const page = Math.max(1, queryInt(req.query.page) || 1);
-    const limit = Math.min(Math.max(1, queryInt(req.query.limit) || DEFAULT_PACK_PAGE_SIZE), MAX_PACK_PAGE_SIZE);
+    const limit = Math.min(
+      Math.max(1, queryInt(req.query.limit) || DEFAULT_PACK_PAGE_SIZE),
+      MAX_PACK_PAGE_SIZE,
+    );
     const offset = (page - 1) * limit;
 
     const conditions: Array<SQL | undefined> = [];
@@ -490,8 +495,8 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       // suggest a pack the viewer already owns or has already used. Anonymous
       // viewers have used nothing, so the param is ignored for them.
       //
-      // `notExists` over the junction is the port of Mongo's
-      // `usedByOxyUserIds: { $ne: viewerId }` on the member ARRAY. The subquery
+      // `notExists` over the junction: \"the viewer has not used this pack\".
+      // The subquery
       // correlates on `starter_packs.id`, which is the shape that returns an
       // empty result with NO error when the outer column renders unqualified —
       // drizzle's query builder qualifies every column it emits, and the suite
@@ -541,7 +546,13 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     // It also runs in the same `Promise.all` as the page, so it costs wall
     // clock only when it is slower than the page query itself.
     const [fetched, [counted]] = await Promise.all([
-      db.select().from(starterPacks).where(where).orderBy(...orderBy).limit(limit + 1).offset(offset),
+      db
+        .select()
+        .from(starterPacks)
+        .where(where)
+        .orderBy(...orderBy)
+        .limit(limit + 1)
+        .offset(offset),
       // `::int` so postgres.js hands back a NUMBER: a bare `count(*)` is a
       // bigint, which the driver returns as a STRING, and `total` would
       // silently change type on the wire.
@@ -555,7 +566,10 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     const rows = hasMore ? fetched.slice(0, limit) : fetched;
     const total = counted.total;
 
-    const membersByPack = await loadMembersByPack(db, rows.map((row) => row.id));
+    const membersByPack = await loadMembersByPack(
+      db,
+      rows.map((row) => row.id),
+    );
     const enriched = await enrichWithMemberAvatars(
       rows.map((row) => serializePack(row, membersByPack.get(row.id) ?? [])),
     );
@@ -588,7 +602,10 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
     const members = await hydratePackMembers(memberIds);
     res.json({ ...serializePack(pack, memberIds), members, memberCount: memberIds.length });
   } catch (error) {
-    logger.error('[StarterPacks] Failed to get starter pack', { packId: String(req.params.id), error });
+    logger.error('[StarterPacks] Failed to get starter pack', {
+      packId: String(req.params.id),
+      error,
+    });
     res.status(500).json({ error: 'Failed to get starter pack' });
   }
 });
@@ -600,7 +617,9 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
     const parsed = updateStarterPackSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.issues.map((issue) => issue.message).join('; ') });
+      return res
+        .status(400)
+        .json({ error: parsed.error.issues.map((issue) => issue.message).join('; ') });
     }
     const { name, description, memberOxyUserIds } = parsed.data;
     const replacesMembers = Array.isArray(memberOxyUserIds);
@@ -629,8 +648,8 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
         .set({
           ...(name === undefined ? {} : { name }),
           ...(description === undefined ? {} : { description: description ? description : null }),
-          // Always stamped, matching Mongoose's `save()`: the previous route
-          // bumped `updatedAt` on every PUT whether or not a field changed, and
+          // Always stamped: `updatedAt` moves on every PUT whether or not a
+          // field changed, and
           // `updated_at` is the sort key the owner-scoped listing pages on.
           updatedAt: new Date(),
         })
@@ -663,7 +682,11 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     }
     res.json(serializePack(outcome.pack, outcome.memberIds));
   } catch (error) {
-    logger.error('[StarterPacks] Failed to update starter pack', { userId: req.user?.id, packId: String(req.params.id), error });
+    logger.error('[StarterPacks] Failed to update starter pack', {
+      userId: req.user?.id,
+      packId: String(req.params.id),
+      error,
+    });
     res.status(500).json({ error: 'Failed to update starter pack' });
   }
 });
@@ -695,12 +718,21 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
     if (respondToRefusal(res, outcome)) return;
 
     void endorsementSignalService
-      .syncScopeRemoval('starterPack', outcome.pack.id, outcome.pack.ownerOxyUserId, outcome.memberIds)
+      .syncScopeRemoval(
+        'starterPack',
+        outcome.pack.id,
+        outcome.pack.ownerOxyUserId,
+        outcome.memberIds,
+      )
       .catch((error) => logger.warn('[StarterPacks] endorsement retraction failed', error));
     invalidateCurationScores(outcome.memberIds);
     res.json({ success: true });
   } catch (error) {
-    logger.error('[StarterPacks] Failed to delete starter pack', { userId: req.user?.id, packId: String(req.params.id), error });
+    logger.error('[StarterPacks] Failed to delete starter pack', {
+      userId: req.user?.id,
+      packId: String(req.params.id),
+      error,
+    });
     res.status(500).json({ error: 'Failed to delete starter pack' });
   }
 });
@@ -738,7 +770,11 @@ router.post('/:id/members', async (req: AuthRequest, res: Response) => {
     invalidateCurationScores(outcome.previousMemberIds, outcome.memberIds);
     res.json(serializePack(outcome.pack, outcome.memberIds));
   } catch (error) {
-    logger.error('[StarterPacks] Failed to add members', { userId: req.user?.id, packId: String(req.params.id), error });
+    logger.error('[StarterPacks] Failed to add members', {
+      userId: req.user?.id,
+      packId: String(req.params.id),
+      error,
+    });
     res.status(500).json({ error: 'Failed to add members' });
   }
 });
@@ -779,7 +815,11 @@ router.delete('/:id/members', async (req: AuthRequest, res: Response) => {
     invalidateCurationScores(outcome.previousMemberIds, outcome.memberIds);
     res.json(serializePack(outcome.pack, outcome.memberIds));
   } catch (error) {
-    logger.error('[StarterPacks] Failed to remove members', { userId: req.user?.id, packId: String(req.params.id), error });
+    logger.error('[StarterPacks] Failed to remove members', {
+      userId: req.user?.id,
+      packId: String(req.params.id),
+      error,
+    });
     res.status(500).json({ error: 'Failed to remove members' });
   }
 });
@@ -801,8 +841,7 @@ router.post('/:id/use', async (req: AuthRequest, res: Response) => {
 
       // The junction row IS the idempotency key: `starter_pack_uses_pack_id_oxy_user_id_key`
       // rejects a second use by the same viewer, so `onConflictDoNothing` returning
-      // nothing is exactly Mongo's `usedByOxyUserIds: { $ne: userId }` filter failing
-      // to match — and the counter moves only when a row was really inserted.
+      // nothing means the viewer had already used it — and the counter moves only when a row was really inserted.
       const inserted = await tx
         .insert(starterPackUses)
         .values({ packId: pack.id, oxyUserId: userId })
@@ -838,7 +877,11 @@ router.post('/:id/use', async (req: AuthRequest, res: Response) => {
     invalidateCurationScores(outcome.memberOxyUserIds);
     res.json({ memberOxyUserIds: outcome.memberOxyUserIds, useCount: outcome.useCount });
   } catch (error) {
-    logger.error('[StarterPacks] Failed to use starter pack', { userId: req.user?.id, packId: String(req.params.id), error });
+    logger.error('[StarterPacks] Failed to use starter pack', {
+      userId: req.user?.id,
+      packId: String(req.params.id),
+      error,
+    });
     res.status(500).json({ error: 'Failed to use starter pack' });
   }
 });

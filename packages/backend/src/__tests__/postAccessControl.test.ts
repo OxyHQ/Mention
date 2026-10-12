@@ -40,7 +40,11 @@ describe('validatePublicShareTarget', () => {
       { status: 'published', visibility: PostVisibility.PUBLIC, quotesDisabled: true },
       { action: 'quote' },
     );
-    expect(result).toEqual({ ok: false, status: 403, message: 'Quotes are disabled for this post' });
+    expect(result).toEqual({
+      ok: false,
+      status: 403,
+      message: 'Quotes are disabled for this post',
+    });
   });
 
   it('allows published public targets', () => {

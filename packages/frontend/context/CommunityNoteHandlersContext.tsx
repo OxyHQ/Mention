@@ -34,6 +34,8 @@ export function CommunityNoteHandlersContextProvider({
   children: ReactNode;
 }) {
   return (
-    <CommunityNoteHandlersContext.Provider value={handlers}>{children}</CommunityNoteHandlersContext.Provider>
+    <CommunityNoteHandlersContext.Provider value={handlers}>
+      {children}
+    </CommunityNoteHandlersContext.Provider>
   );
 }

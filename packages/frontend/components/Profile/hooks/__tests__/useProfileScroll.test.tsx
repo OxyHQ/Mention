@@ -101,8 +101,9 @@ async function mount(profileId: string | undefined, currentTab: ProfileTab) {
 }
 
 beforeAll(() => {
-  (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
-    true;
+  (
+    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true;
 });
 
 beforeEach(() => {
@@ -160,7 +161,7 @@ describe('useProfileScroll load-more targeting', () => {
     act(() => renderer.unmount());
   });
 
-  it('reads the slice for the current tab, so hasMore is the right feed\'s', async () => {
+  it("reads the slice for the current tab, so hasMore is the right feed's", async () => {
     const renderer = await mount('user-1', 'posts');
 
     scrollToBottom();

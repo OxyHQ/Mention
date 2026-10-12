@@ -1,22 +1,13 @@
 import type { Response } from 'express';
 import { eq } from 'drizzle-orm';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import type {
-  PostContent,
-  PostEditSource,
-  PostUser,
-} from '@mention/shared-types/post';
-import {
-  mentionTextsFromContent,
-} from '@mention/shared-types/mentions';
+import type { PostContent, PostEditSource, PostUser } from '@mention/shared-types/post';
+import { mentionTextsFromContent } from '@mention/shared-types/mentions';
 import { reconcileMentionIdsForPost } from '../utils/textProcessing';
 import { posts } from '../db/schema/posts';
 import { findPostRecords, CHRONO_DESC } from '../db/posts/postRepository';
 import { authorVariants } from '../services/postVariants';
-import {
-  isFallbackUserSummary,
-  resolveUserSummaries,
-} from '../services/PostHydrationService';
+import { isFallbackUserSummary, resolveUserSummaries } from '../services/PostHydrationService';
 import { logger } from '../utils/logger';
 import { createUserScopedOxyServices } from '../utils/oxyHelpers';
 import { postManagementRefusal } from '../services/postManagementAccess';
@@ -32,8 +23,7 @@ import { resolveAccountKind } from '../services/publishAsAccount';
  *
  * ## Two things the Postgres port removed
  *
- * **The `ObjectId.isValid` guard is gone.** It existed only to dodge a Mongoose
- * `CastError`, and the id column is `text` now: a uuid v7 matches its row, a
+ * **There is no id-shape guard.** The id column is `text`: a uuid v7 matches its row, a
  * pre-cutover ObjectId hex matches its row, and an id that is neither matches
  * nothing — which is already the 404 the guard was standing in for. Keeping it
  * would 404 every post created after the cutover.
@@ -88,19 +78,14 @@ export const getPostEditSource = async (
       ...(variants.length > 0 ? { variants } : {}),
       ...(post.content.media ? { media: post.content.media } : {}),
     };
-    const mentions = reconcileMentionIdsForPost(
-      mentionTextsFromContent(content),
-      post.mentions,
-    );
+    const mentions = reconcileMentionIdsForPost(mentionTextsFromContent(content), post.mentions);
 
     let mentionUsers: PostUser[] = [];
     try {
       const resolved = await resolveUserSummaries(mentions);
       mentionUsers = mentions.flatMap((id) => {
         const summary = resolved.get(id);
-        return summary && !isFallbackUserSummary(summary.user)
-          ? [summary.user]
-          : [];
+        return summary && !isFallbackUserSummary(summary.user) ? [summary.user] : [];
       });
     } catch (error) {
       // The stable ids and placeholders are sufficient to preserve the edit.

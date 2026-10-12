@@ -5,7 +5,7 @@ import { PostType, PostVisibility } from '@mention/shared-types';
 /**
  * The topic-page and hashtag-page predicates, against REAL ROWS.
  *
- * These used to assert the Mongo filter OBJECT each builder returned, which
+ * These used to assert the legacy-store filter OBJECT each builder returned, which
  * proved only that the builder produced the literal someone typed into the test.
  * Both are now correlated `EXISTS` / array-containment SQL — the exact shapes
  * that render a bare column and silently match NOTHING (see `@oxy.so/db`) —
@@ -28,10 +28,18 @@ vi.mock('../../runtime/socketServer', () => ({
 }));
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import { CHRONO_DESC, deletePostRecord, findPostRecords, insertPostRecord } from '../../db/posts/postRepository';
+import {
+  CHRONO_DESC,
+  deletePostRecord,
+  findPostRecords,
+  insertPostRecord,
+} from '../../db/posts/postRepository';
 import type { PostRecordInput } from '../../db/posts/postRecord';
 import { chronoCursorSql } from '../../mtn/feed/CursorBuilder';
-import { buildPostsByHashtagFilter, buildPostsByTopicFilter } from '../../controllers/posts/readPosts';
+import {
+  buildPostsByHashtagFilter,
+  buildPostsByTopicFilter,
+} from '../../controllers/posts/readPosts';
 
 const AUTHOR = 'oxy-topic-author';
 const created: string[] = [];

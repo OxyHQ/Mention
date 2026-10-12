@@ -25,19 +25,14 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  * hand-written object.
  */
 
-const {
-  enqueueDelivery,
-  isFediverseSharingEnabled,
-  getUserById,
-  insertMany,
-  fallbackCreate,
-} = vi.hoisted(() => ({
-  enqueueDelivery: vi.fn(),
-  isFediverseSharingEnabled: vi.fn(),
-  getUserById: vi.fn(),
-  insertMany: vi.fn(),
-  fallbackCreate: vi.fn(),
-}));
+const { enqueueDelivery, isFediverseSharingEnabled, getUserById, insertMany, fallbackCreate } =
+  vi.hoisted(() => ({
+    enqueueDelivery: vi.fn(),
+    isFediverseSharingEnabled: vi.fn(),
+    getUserById: vi.fn(),
+    insertMany: vi.fn(),
+    fallbackCreate: vi.fn(),
+  }));
 
 vi.mock('../../../connectors/activitypub/constants', async () => {
   const actual = await vi.importActual<typeof import('../../../connectors/activitypub/constants')>(
@@ -46,7 +41,10 @@ vi.mock('../../../connectors/activitypub/constants', async () => {
   return { ...actual, FEDERATION_ENABLED: true };
 });
 vi.mock('../../../connectors/activitypub/actor.service', () => ({ actorService: {} }));
-vi.mock('../../../connectors/activitypub/crypto', () => ({ getPublicKey: vi.fn(), signRequest: vi.fn() }));
+vi.mock('../../../connectors/activitypub/crypto', () => ({
+  getPublicKey: vi.fn(),
+  signRequest: vi.fn(),
+}));
 vi.mock('../../../queue/producers', () => ({ enqueueDelivery, enqueueInboxActivity: vi.fn() }));
 // The durable fallback queue is a FAILURE-INJECTION seam (the suites below
 // simulate it rejecting), so it keeps its double — now on the repository the
@@ -130,7 +128,8 @@ function deliveredInboxes(): string[] {
 
 /** The activity enqueued. */
 function deliveredActivity(): Record<string, unknown> {
-  return (enqueueDelivery.mock.calls[0]?.[0] as { activityJson: Record<string, unknown> }).activityJson;
+  return (enqueueDelivery.mock.calls[0]?.[0] as { activityJson: Record<string, unknown> })
+    .activityJson;
 }
 
 const USER_LIKER_OXY = scope.user('liker-oxy');

@@ -48,9 +48,10 @@ function requestInput(
   request: Request,
   limitKeys: readonly MentionLimitKey[],
 ): Record<string, unknown> {
-  const body = typeof request.body === 'object' && request.body !== null && !Array.isArray(request.body)
-    ? request.body as Record<string, unknown>
-    : {};
+  const body =
+    typeof request.body === 'object' && request.body !== null && !Array.isArray(request.body)
+      ? (request.body as Record<string, unknown>)
+      : {};
   const input: Record<string, unknown> = { ...request.query, ...body };
   for (const limitKey of limitKeys) {
     normalizeLimitValueAtPath(input, limitKey.key.split('.'), limitKey.kind);
@@ -92,10 +93,12 @@ function accountResourceMatches(
   claims: CapabilityTicketClaims,
   resourceTypes: readonly string[],
 ): boolean {
-  return claims.resource.appId === config.deploymentMcp.appId
-    && claims.resource.resourceType === 'mention_account'
-    && claims.resource.resourceId === claims.resource.effectiveAccountId
-    && resourceTypes.includes(claims.resource.resourceType);
+  return (
+    claims.resource.appId === config.deploymentMcp.appId &&
+    claims.resource.resourceType === 'mention_account' &&
+    claims.resource.resourceId === claims.resource.effectiveAccountId &&
+    resourceTypes.includes(claims.resource.resourceType)
+  );
 }
 
 /**
@@ -134,20 +137,27 @@ export function createOptionalMentionCapabilityAuth(
     const toolName = request.header('X-Oxy-Capability-Tool')?.trim();
     const policy = toolName ? MENTION_TOOL_POLICIES[toolName] : undefined;
     const routeRequirements = mentionCapabilityRequirementsForRequest(request.method, request.path);
-    const scopeMatches = policy !== undefined
-      && toolName !== undefined
-      && claims.tool === toolName
-      && routeRequirements.some((requirement) => requirement.toolName === toolName)
-      && policy.requiredCapabilities.every((capability: string) => claims.capabilities.includes(capability))
-      && accountResourceMatches(claims, policy.resourceTypes)
-      && inputSatisfiesCapabilityLimits(toolName, requestInput(request, policy.limitKeys), claims.limits);
+    const scopeMatches =
+      policy !== undefined &&
+      toolName !== undefined &&
+      claims.tool === toolName &&
+      routeRequirements.some((requirement) => requirement.toolName === toolName) &&
+      policy.requiredCapabilities.every((capability: string) =>
+        claims.capabilities.includes(capability),
+      ) &&
+      accountResourceMatches(claims, policy.resourceTypes) &&
+      inputSatisfiesCapabilityLimits(
+        toolName,
+        requestInput(request, policy.limitKeys),
+        claims.limits,
+      );
     if (!scopeMatches) {
       response.status(403).json({ error: 'capability_scope_mismatch' });
       return;
     }
 
     try {
-      if (!await dependencies.introspect(ticket, claims)) {
+      if (!(await dependencies.introspect(ticket, claims))) {
         response.status(403).json({ error: 'capability_revoked_or_denied' });
         return;
       }

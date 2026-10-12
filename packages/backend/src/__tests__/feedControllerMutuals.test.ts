@@ -67,7 +67,10 @@ vi.mock('../services/ListSubscriptionService', () => ({
   listSubscriptionService: { getSubscribedListMemberIds: vi.fn(async () => []) },
 }));
 vi.mock('../services/UserPreferenceService', () => ({
-  userPreferenceService: { getUserBehavior: vi.fn(async () => undefined), getTopRegion: vi.fn(() => undefined) },
+  userPreferenceService: {
+    getUserBehavior: vi.fn(async () => undefined),
+    getTopRegion: vi.fn(() => undefined),
+  },
 }));
 
 import { mtnFeedController } from '../mtn/controllers/feed.controller';
@@ -76,8 +79,14 @@ function makeRes() {
   const res = {
     statusCode: 200,
     body: undefined as unknown,
-    status(c: number) { this.statusCode = c; return this; },
-    json(b: unknown) { this.body = b; return this; },
+    status(c: number) {
+      this.statusCode = c;
+      return this;
+    },
+    json(b: unknown) {
+      this.body = b;
+      return this;
+    },
   };
   return res;
 }
@@ -98,8 +107,16 @@ beforeEach(async () => {
   // A MUTUAL federated edge: the viewer follows the actor and is followed back.
   // Both rows are required — one direction alone must not produce a mutual.
   await seedActor(scope, { username: 'mutual', uri: MUTUAL_ACTOR, oxyUserId: 'fedmutual' });
-  await seedFollow(scope, { remoteActorUri: MUTUAL_ACTOR, direction: 'outbound', status: 'accepted' });
-  await seedFollow(scope, { remoteActorUri: MUTUAL_ACTOR, direction: 'inbound', status: 'accepted' });
+  await seedFollow(scope, {
+    remoteActorUri: MUTUAL_ACTOR,
+    direction: 'outbound',
+    status: 'accepted',
+  });
+  await seedFollow(scope, {
+    remoteActorUri: MUTUAL_ACTOR,
+    direction: 'inbound',
+    status: 'accepted',
+  });
   capturedContext = undefined;
   vi.clearAllMocks();
 });

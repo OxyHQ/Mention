@@ -38,7 +38,12 @@
 import { and, ilike, or, sql, type SQL } from 'drizzle-orm';
 import { qualified } from '@oxy.so/db';
 
-import { ACCOUNT_LISTS_SEARCH_TEXT, accountLists, starterPacks, STARTER_PACKS_SEARCH_TEXT } from '../db/schema/lists';
+import {
+  ACCOUNT_LISTS_SEARCH_TEXT,
+  accountLists,
+  starterPacks,
+  STARTER_PACKS_SEARCH_TEXT,
+} from '../db/schema/lists';
 import { customFeeds } from '../db/schema/feeds';
 import { likeContains } from '@oxy.so/utils/sql';
 

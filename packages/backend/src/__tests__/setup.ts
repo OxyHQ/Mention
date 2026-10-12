@@ -72,9 +72,9 @@ if (testPath && needsIsolatedDatabase(testPath)) {
     if (setupError === undefined) return;
     throw new Error(
       `Could not create the isolated test database this file requires ` +
-      `(${testPath}). It invokes an unscoped background job, so running it ` +
-      `against the shared database would corrupt other files' rows: ` +
-      `${setupError instanceof Error ? setupError.message : String(setupError)}`,
+        `(${testPath}). It invokes an unscoped background job, so running it ` +
+        `against the shared database would corrupt other files' rows: ` +
+        `${setupError instanceof Error ? setupError.message : String(setupError)}`,
       { cause: setupError },
     );
   });

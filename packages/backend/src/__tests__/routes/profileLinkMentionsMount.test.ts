@@ -30,7 +30,9 @@ function appFor(router: 'publicApi' | 'authenticatedApi') {
   const routes = createAppRoutes({
     // Only the shapes `createAppRoutes` itself reads; the routers it composes
     // are the real ones.
-    oxy: { middleware: { auth: () => noop } } as unknown as Parameters<typeof createAppRoutes>[0]['oxy'],
+    oxy: { middleware: { auth: () => noop } } as unknown as Parameters<
+      typeof createAppRoutes
+    >[0]['oxy'],
     optionalAuth: noop,
   });
   const app = express();

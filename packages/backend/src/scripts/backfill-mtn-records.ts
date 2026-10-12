@@ -53,10 +53,7 @@ import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import { isMentionRecordSigningEnabled } from '../services/mtn/mentionRecordEnv';
 import { emitPostCreated } from '../services/mtn/MentionRecordEmitter';
 import type { ReplyContext } from '../services/mtn/mentionRecordBuilders';
-import {
-  assertAdminRunComplete,
-  closeAdminScriptResources,
-} from './lib/adminScriptLifecycle';
+import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
 
 /** Posts scanned per page (stable `createdAt`/`_id` cursor pagination). */
 const PAGE_SIZE = 500;
@@ -132,10 +129,9 @@ async function backfillMtnRecords(): Promise<void> {
   // `app.mention.feed.repost` records, out of scope). The filter is immutable for
   // this run (we never mutate the columns it selects on), so the cursor is stable.
   //
-  // Every arm is `IS NULL` / `IS NOT NULL` rather than `<> null`: Mongo's
-  // `$exists: false` and `$ne: null` both matched an ABSENT field, while SQL's
-  // `<>` against NULL evaluates to NULL and matches nothing — the literal
-  // translation would select zero candidates and report a clean no-op run.
+  // Every arm is `IS NULL` / `IS NOT NULL` rather than `<> null`: SQL's `<>`
+  // against NULL evaluates to NULL and matches nothing — that spelling would
+  // select zero candidates and report a clean no-op run.
   const candidateFilter = and(
     isNull(posts.federationActivityId),
     isNotNull(posts.oxyUserId),
@@ -144,10 +140,7 @@ async function backfillMtnRecords(): Promise<void> {
     isNull(posts.boostOf),
   ) as SQL;
 
-  const [totals] = await getDb()
-    .select({ count: count() })
-    .from(posts)
-    .where(candidateFilter);
+  const [totals] = await getDb().select({ count: count() }).from(posts).where(candidateFilter);
   const totalCount = totals?.count ?? 0;
   logger.info(`[backfill-mtn-records] ${totalCount} local non-boost posts to scan`);
 
@@ -172,12 +165,12 @@ async function backfillMtnRecords(): Promise<void> {
     const page = await findPostRecords(
       cursor
         ? and(
-          candidateFilter,
-          or(
-            gt(posts.createdAt, cursor.createdAt),
-            and(eq(posts.createdAt, cursor.createdAt), gt(posts.id, cursor.id)),
-          ),
-        )
+            candidateFilter,
+            or(
+              gt(posts.createdAt, cursor.createdAt),
+              and(eq(posts.createdAt, cursor.createdAt), gt(posts.id, cursor.id)),
+            ),
+          )
         : candidateFilter,
       { orderBy: [asc(posts.createdAt), asc(posts.id)], limit: PAGE_SIZE },
     );

@@ -72,16 +72,14 @@ describe('curatorAuthority', () => {
 
 describe('computeStarterPackScores — anti-gaming rules', () => {
   it('RULE 1: excludes SELF-OWNED packs (an author cannot curate themselves)', async () => {
-    const deps = mockDeps([
-      { authorId: 'author-1', curatorId: 'author-1', useCount: 500 },
-    ]);
+    const deps = mockDeps([{ authorId: 'author-1', curatorId: 'author-1', useCount: 500 }]);
 
     const scores = await computeStarterPackScores(['author-1'], deps);
 
     expect(scores.has('author-1')).toBe(false);
   });
 
-  it('RULE 1: a self-owned pack does not inflate a genuine curator\'s contribution', async () => {
+  it("RULE 1: a self-owned pack does not inflate a genuine curator's contribution", async () => {
     const selfOnly = await computeStarterPackScores(
       ['author-1'],
       mockDeps([
@@ -193,7 +191,9 @@ describe('computeStarterPackScores — anti-gaming rules', () => {
     expect(whale.get('author-1') ?? 0).toBeGreaterThan(nobody.get('author-1') ?? 0);
     // …but only by the BOUNDED authority spread — never unbounded amplification.
     const ratio = (whale.get('author-1') ?? 0) / (nobody.get('author-1') ?? 1);
-    expect(ratio).toBeLessThanOrEqual(CURATION.curatorAuthority.max / CURATION.curatorAuthority.min);
+    expect(ratio).toBeLessThanOrEqual(
+      CURATION.curatorAuthority.max / CURATION.curatorAuthority.min,
+    );
   });
 
   it('a low-follower CURATION RING scores far below a single genuine curator', async () => {
@@ -267,7 +267,7 @@ describe('computeStarterPackScores — batching + fail-softness', () => {
 
   it('is FAIL-SOFT: an aggregation failure degrades to NO scores (neutral), never throws', async () => {
     const deps: StarterPackCurationDeps = {
-      loadCurationEdges: vi.fn().mockRejectedValue(new Error('mongo unreachable')),
+      loadCurationEdges: vi.fn().mockRejectedValue(new Error('database unreachable')),
       loadCuratorFollowerCounts: vi.fn(),
     };
 
@@ -298,7 +298,7 @@ describe('computeStarterPackScores — batching + fail-softness', () => {
 /**
  * The ACCESSOR, against real rows.
  *
- * The suite this replaces asserted that a Mongo pipeline was BUILT — six
+ * The suite this replaces asserted that a legacy-store pipeline was BUILT — six
  * `toContainEqual` checks over stage objects, none of which could tell a correct
  * query from one that returns nothing. What actually has to hold is a property of
  * the ROWS: the statement is a WORK BOUND, so it may never hand the policy more
@@ -332,9 +332,9 @@ describe('starterPackCurationDeps.loadCurationEdges — against real rows', () =
       .returning({ id: starterPacks.id });
     createdPackIds.push(pack.id);
     if (members.length > 0) {
-      await db.insert(starterPackMembers).values(
-        members.map((oxyUserId, position) => ({ packId: pack.id, oxyUserId, position })),
-      );
+      await db
+        .insert(starterPackMembers)
+        .values(members.map((oxyUserId, position) => ({ packId: pack.id, oxyUserId, position })));
     }
     return pack.id;
   }
@@ -432,7 +432,7 @@ describe('starterPackCurationDeps.loadCurationEdges — against real rows', () =
     /**
      * Every curator here has the SAME `use_count`, so the only thing SPECIFYING
      * which `maxCuratorsPerAuthor` of them survive is the window's secondary sort
-     * key — and this assertion names the exact subset the Mongo `$topN`'s
+     * key — and this assertion names the exact subset the legacy-store `$topN`'s
      * `'_id.curatorId': 1` produced.
      *
      * Be clear about what it can and cannot catch: it is a PIN, not a mutation

@@ -30,7 +30,11 @@ vi.mock('../../utils/oxyHelpers', () => ({
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: hoisted.hydratePosts },
   resolveUserSummaries: vi.fn(async () => new Map()),
-  degradedActorSummary: (id: string) => ({ id, username: '', name: { displayName: 'Unknown user' } }),
+  degradedActorSummary: (id: string) => ({
+    id,
+    username: '',
+    name: { displayName: 'Unknown user' },
+  }),
 }));
 
 vi.mock('../../services/PostCollaborationService', () => ({

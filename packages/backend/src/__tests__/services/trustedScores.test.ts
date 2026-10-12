@@ -22,13 +22,19 @@ const VALID: PostClassificationScores = {
 
 describe('readTrustedScores — provenance', () => {
   it('trusts an AI-classified post (no version needed)', () => {
-    expect(readTrustedScores({ postClassification: { status: 'classified', scores: VALID } })).toEqual(VALID);
+    expect(
+      readTrustedScores({ postClassification: { status: 'classified', scores: VALID } }),
+    ).toEqual(VALID);
   });
 
   it('trusts a baseline stamped at the CURRENT ruleset version', () => {
     expect(
       readTrustedScores({
-        postClassification: { status: 'pending', version: BASELINE_CLASSIFIER_VERSION, scores: VALID },
+        postClassification: {
+          status: 'pending',
+          version: BASELINE_CLASSIFIER_VERSION,
+          scores: VALID,
+        },
       }),
     ).toEqual(VALID);
   });
@@ -36,7 +42,11 @@ describe('readTrustedScores — provenance', () => {
   it('returns null for a baseline stamped at an OLDER version (stale after the v5 bump)', () => {
     expect(
       readTrustedScores({
-        postClassification: { status: 'pending', version: BASELINE_CLASSIFIER_VERSION - 1, scores: VALID },
+        postClassification: {
+          status: 'pending',
+          version: BASELINE_CLASSIFIER_VERSION - 1,
+          scores: VALID,
+        },
       }),
     ).toBeNull();
   });
@@ -46,7 +56,14 @@ describe('readTrustedScores — provenance', () => {
       readTrustedScores({
         postClassification: {
           status: 'pending',
-          scores: { spam: 0, toxicity: 0, quality: 0, constructiveness: 0, controversy: 0, negativity: 0 },
+          scores: {
+            spam: 0,
+            toxicity: 0,
+            quality: 0,
+            constructiveness: 0,
+            controversy: 0,
+            negativity: 0,
+          },
         },
       }),
     ).toBeNull();
@@ -66,13 +83,19 @@ describe('readTrustedScores — validation', () => {
 
   it('returns null for a malformed (out-of-range / non-finite) score field', () => {
     expect(
-      readTrustedScores({ postClassification: { status: 'classified', scores: { ...VALID, spam: 1.5 } } }),
+      readTrustedScores({
+        postClassification: { status: 'classified', scores: { ...VALID, spam: 1.5 } },
+      }),
     ).toBeNull();
     expect(
-      readTrustedScores({ postClassification: { status: 'classified', scores: { ...VALID, quality: Number.NaN } } }),
+      readTrustedScores({
+        postClassification: { status: 'classified', scores: { ...VALID, quality: Number.NaN } },
+      }),
     ).toBeNull();
     expect(
-      readTrustedScores({ postClassification: { status: 'classified', scores: { ...VALID, toxicity: -0.1 } } }),
+      readTrustedScores({
+        postClassification: { status: 'classified', scores: { ...VALID, toxicity: -0.1 } },
+      }),
     ).toBeNull();
   });
 });

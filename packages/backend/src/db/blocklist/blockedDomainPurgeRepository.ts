@@ -23,7 +23,7 @@
  * ## Batched, because this runs on every deploy
  *
  * The policy read and both writes are constant-round-trip regardless of how many
- * domains the blocklist holds. Measured before the Mongo version was batched:
+ * domains the blocklist holds. Measured unbatched:
  * 2.0ms per domain, dead linear from 118 to 944 domains. Keeping it constant is
  * not an optimisation so much as removing a reason for the policy to ever be
  * kept small.
@@ -41,8 +41,7 @@ import { blockedDomainPurges, blockedDomainPurgeRuns } from '../schema/blocklist
  * the numbers that answer "what was lost" rather than every internal tally.
  * Widening the script's counters must not silently change a persisted shape.
  *
- * Declared here rather than on the deleted Mongoose model, for the reason it was
- * declared there: both the script and the reconciler satisfy {@link PurgeTallies}
+ * Declared here because both the script and the reconciler satisfy {@link PurgeTallies}
  * BY SHAPE, so the persisted record can be written from either without this
  * module depending on a script or the script depending on the reconciler.
  */
@@ -97,12 +96,7 @@ export function toLedgerCounts(totals: PurgeTallies): BlockedDomainPurgeCounts {
 }
 
 /** `BlockedDomainPurgeState`. */
-export type BlockedDomainPurgeState =
-  | 'pending'
-  | 'in_progress'
-  | 'purged'
-  | 'held'
-  | 'failed';
+export type BlockedDomainPurgeState = 'pending' | 'in_progress' | 'purged' | 'held' | 'failed';
 
 /** What the reconciler needs to know about a domain it already has a row for. */
 export interface ObservedPurgeRow {
@@ -141,10 +135,7 @@ export async function reArmStaleClaims(cutoff: Date): Promise<number> {
     .update(blockedDomainPurges)
     .set({ state: 'pending', claimedAt: null, runId: null })
     .where(
-      and(
-        eq(blockedDomainPurges.state, 'in_progress'),
-        lt(blockedDomainPurges.claimedAt, cutoff)
-      )
+      and(eq(blockedDomainPurges.state, 'in_progress'), lt(blockedDomainPurges.claimedAt, cutoff)),
     )
     .returning({ domain: blockedDomainPurges.domain });
   return rows.length;
@@ -173,14 +164,13 @@ export interface PolicyObservation {
  * Record that every named domain is in the policy, at the state the caller
  * computed. ONE write.
  *
- * `first_observed_at` is supplied only in the INSERT branch — Mongo's
- * `$setOnInsert` — so a domain observed again keeps the moment it was first
+ * `first_observed_at` is supplied only in the INSERT branch, so a domain observed again keeps the moment it was first
  * seen. `state` comes from `excluded`, which is what lets one statement carry a
  * different state per domain.
  */
 export async function observePolicyDomains(
   observations: readonly PolicyObservation[],
-  now: Date
+  now: Date,
 ): Promise<void> {
   if (observations.length === 0) return;
   await getDb()
@@ -192,7 +182,7 @@ export async function observePolicyDomains(
         state: observation.state,
         firstObservedAt: now,
         lastObservedAt: now,
-      }))
+      })),
     )
     .onConflictDoUpdate({
       target: blockedDomainPurges.domain,
@@ -213,17 +203,15 @@ export async function observePolicyDomains(
  * blocked again, because content can have arrived while it was allowed.
  *
  * An EMPTY `wanted` means the policy is empty and every in-policy domain has
- * departed. That is a real case (Mongo's `$nin: []` matches everything) and it
+ * departed. That is a real case and it
  * is handled explicitly, because SQL `not in ()` is a syntax error rather than a
- * predicate — a naive port would crash on exactly the input that matters.
+ * predicate — a naive query would crash on exactly the input that matters.
  *
  * @returns The domains that departed.
  */
 export async function flagDepartedDomains(wanted: readonly string[]): Promise<string[]> {
   const stillWanted =
-    wanted.length === 0
-      ? undefined
-      : notInArray(blockedDomainPurges.domain, [...wanted]);
+    wanted.length === 0 ? undefined : notInArray(blockedDomainPurges.domain, [...wanted]);
 
   const rows = await getDb()
     .update(blockedDomainPurges)
@@ -231,7 +219,7 @@ export async function flagDepartedDomains(wanted: readonly string[]): Promise<st
     .where(
       stillWanted
         ? and(eq(blockedDomainPurges.inPolicy, true), stillWanted)
-        : eq(blockedDomainPurges.inPolicy, true)
+        : eq(blockedDomainPurges.inPolicy, true),
     )
     .returning({ domain: blockedDomainPurges.domain });
   return rows.map((row) => row.domain);
@@ -249,7 +237,7 @@ export async function flagDepartedDomains(wanted: readonly string[]): Promise<st
 export async function claimPendingDomains(
   eligible: readonly string[],
   runId: string,
-  now: Date
+  now: Date,
 ): Promise<string[]> {
   if (eligible.length === 0) return [];
   const rows = await getDb()
@@ -258,8 +246,8 @@ export async function claimPendingDomains(
     .where(
       and(
         inArray(blockedDomainPurges.domain, [...eligible]),
-        eq(blockedDomainPurges.state, 'pending')
-      )
+        eq(blockedDomainPurges.state, 'pending'),
+      ),
     )
     .returning({ domain: blockedDomainPurges.domain });
   return rows.map((row) => row.domain);
@@ -270,9 +258,7 @@ export async function failClaimedDomains(runId: string, failureReason: string): 
   await getDb()
     .update(blockedDomainPurges)
     .set({ state: 'failed', failureReason })
-    .where(
-      and(eq(blockedDomainPurges.runId, runId), eq(blockedDomainPurges.state, 'in_progress'))
-    );
+    .where(and(eq(blockedDomainPurges.runId, runId), eq(blockedDomainPurges.state, 'in_progress')));
 }
 
 /** One domain's outcome, as the ledger records it. */
@@ -293,7 +279,7 @@ export interface PurgeOutcome {
  */
 export async function recordPurgeOutcomes(
   outcomes: readonly PurgeOutcome[],
-  context: { state: 'purged' | 'held'; runId: string; heldReason?: string; now: Date }
+  context: { state: 'purged' | 'held'; runId: string; heldReason?: string; now: Date },
 ): Promise<void> {
   if (outcomes.length === 0) return;
   await getDb()
@@ -311,7 +297,7 @@ export async function recordPurgeOutcomes(
               heldReason: context.heldReason ?? null,
               ...(outcome.measured ? measuredColumns(outcome.measured) : {}),
             }),
-      }))
+      })),
     )
     .onConflictDoUpdate({
       target: blockedDomainPurges.domain,
@@ -360,7 +346,7 @@ export interface PurgeRunRecord {
  */
 export async function recordPurgeRun(
   records: readonly PurgeRunRecord[],
-  context: { runId: string; runAt: Date; trigger: 'policy_added' | 'manual' }
+  context: { runId: string; runAt: Date; trigger: 'policy_added' | 'manual' },
 ): Promise<void> {
   if (records.length === 0) return;
   await getDb()
@@ -381,10 +367,8 @@ export async function recordPurgeRun(
         removedLocalFollowsRemoved: record.removed.localFollowsRemoved,
         reason: record.reason ?? null,
         category: record.category ?? null,
-        corroboratingSources: record.corroboratingSources
-          ? [...record.corroboratingSources]
-          : null,
-      }))
+        corroboratingSources: record.corroboratingSources ? [...record.corroboratingSources] : null,
+      })),
     )
     .onConflictDoUpdate({
       target: [blockedDomainPurgeRuns.domain, blockedDomainPurgeRuns.runId],

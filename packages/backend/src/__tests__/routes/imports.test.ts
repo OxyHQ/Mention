@@ -28,9 +28,18 @@ const OTHER_APP_ID = 'app-some-other-internal';
 const SERVICE_KEY_ID = 'imports-test-key';
 const serviceKeys = generateKeyPairSync('ed25519');
 /** The key set the middleware verifies against, as Oxy publishes it. */
-const SERVICE_JWKS_URL = `data:application/json,${encodeURIComponent(JSON.stringify({
-  keys: [{ ...serviceKeys.publicKey.export({ format: 'jwk' }), use: 'sig', alg: 'EdDSA', kid: SERVICE_KEY_ID }],
-}))}`;
+const SERVICE_JWKS_URL = `data:application/json,${encodeURIComponent(
+  JSON.stringify({
+    keys: [
+      {
+        ...serviceKeys.publicKey.export({ format: 'jwk' }),
+        use: 'sig',
+        alg: 'EdDSA',
+        kid: SERVICE_KEY_ID,
+      },
+    ],
+  }),
+)}`;
 
 const mocks = vi.hoisted(() => ({
   federateNewPost: vi.fn(),
@@ -69,7 +78,9 @@ vi.mock('../../utils/oxyHelpers', () => ({
 }));
 
 vi.mock('../../utils/clarityClient', () => ({
-  getClarityClient: async () => ({ indexing: { resolve: vi.fn().mockResolvedValue({ documents: [] }) } }),
+  getClarityClient: async () => ({
+    indexing: { resolve: vi.fn().mockResolvedValue({ documents: [] }) },
+  }),
 }));
 
 vi.mock('../../connectors/outboundFederation', () => ({
@@ -105,7 +116,13 @@ import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { notifications } from '../../db/schema/discovery';
 import { postImports } from '../../db/schema/imports';
 import { posts } from '../../db/schema/posts';
-import { clearServiceScope, readPost, seedPost, serviceScope, trackPost } from '../helpers/serviceFixtures';
+import {
+  clearServiceScope,
+  readPost,
+  seedPost,
+  serviceScope,
+  trackPost,
+} from '../helpers/serviceFixtures';
 import importsRouter from '../../routes/imports';
 
 const scope = serviceScope('content-imports');
@@ -168,7 +185,9 @@ const fixtureGrantPairs = new Set([
 ]);
 
 function asMove(req: request.Test, userId: string = ALICE): request.Test {
-  return req.set('Authorization', `Bearer ${serviceToken(MOVE_APP_ID)}`).set('X-Oxy-User-Id', userId);
+  return req
+    .set('Authorization', `Bearer ${serviceToken(MOVE_APP_ID)}`)
+    .set('X-Oxy-User-Id', userId);
 }
 
 let batchCounter = 0;
@@ -249,10 +268,15 @@ describe('who may call the import API', () => {
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('SERVICE_ACTING_AS_UNAUTHORIZED');
     expect(verifyActingAs).toHaveBeenCalledOnce();
-    expect(await getDb().select({ postId: postImports.postId }).from(postImports)
-      .where(eq(postImports.importBatchId, batch.batchId))).toEqual([]);
-    expect(await getDb().select({ id: posts.id }).from(posts)
-      .where(eq(posts.oxyUserId, ALICE))).toEqual([]);
+    expect(
+      await getDb()
+        .select({ postId: postImports.postId })
+        .from(postImports)
+        .where(eq(postImports.importBatchId, batch.batchId)),
+    ).toEqual([]);
+    expect(
+      await getDb().select({ id: posts.id }).from(posts).where(eq(posts.oxyUserId, ALICE)),
+    ).toEqual([]);
   });
 
   it('refuses a user session, even for the user it would import for', async () => {
@@ -356,9 +380,20 @@ describe('POST /imports/v1/posts:batch', () => {
   });
 
   it('keys idempotency by platform and by user, not by source id alone', async () => {
-    const onMastodon = await postBatch({ platform: 'mastodon', batchId: newBatchId(), items: [item('same')] });
-    const onBluesky = await postBatch({ platform: 'bluesky', batchId: newBatchId(), items: [item('same')] });
-    const forBob = await postBatch({ platform: 'mastodon', batchId: newBatchId(), items: [item('same')] }, BOB);
+    const onMastodon = await postBatch({
+      platform: 'mastodon',
+      batchId: newBatchId(),
+      items: [item('same')],
+    });
+    const onBluesky = await postBatch({
+      platform: 'bluesky',
+      batchId: newBatchId(),
+      items: [item('same')],
+    });
+    const forBob = await postBatch(
+      { platform: 'mastodon', batchId: newBatchId(), items: [item('same')] },
+      BOB,
+    );
     const ids = [onMastodon, onBluesky, forBob].map((res) => res.body.results[0]);
     expect(ids.map((result) => result.status)).toEqual(['created', 'created', 'created']);
     expect(new Set(ids.map((result) => result.postId)).size).toBe(3);
@@ -408,12 +443,18 @@ describe('POST /imports/v1/posts:batch', () => {
       { sourceId: 'orphan-reply', status: 'deferred', error: 'parent_not_imported' },
       { sourceId: 'orphan-quote', status: 'deferred', error: 'quote_not_imported' },
     ]);
-    const rows = await getDb().select({ id: posts.id }).from(posts).where(eq(posts.oxyUserId, ALICE));
+    const rows = await getDb()
+      .select({ id: posts.id })
+      .from(posts)
+      .where(eq(posts.oxyUserId, ALICE));
     expect(rows).toEqual([]);
   });
 
   it('never resolves a parent imported by ANOTHER user', async () => {
-    await postBatch({ platform: 'mastodon', batchId: newBatchId(), items: [item('bobs-root')] }, BOB);
+    await postBatch(
+      { platform: 'mastodon', batchId: newBatchId(), items: [item('bobs-root')] },
+      BOB,
+    );
     const res = await postBatch({
       platform: 'mastodon',
       batchId: newBatchId(),
@@ -424,8 +465,24 @@ describe('POST /imports/v1/posts:batch', () => {
 
   it('attaches media Oxy knows, typed from its MIME, and refuses media it does not', async () => {
     mocks.getServiceAssetMetadataByIds.mockResolvedValue([
-      { id: 'asset-image', sha256: 'a', mime: 'image/jpeg', size: 10, status: 'active', width: 640, height: 480, ownerUserId: ALICE },
-      { id: 'asset-trashed', sha256: 'b', mime: 'image/png', size: 10, status: 'trash', ownerUserId: ALICE },
+      {
+        id: 'asset-image',
+        sha256: 'a',
+        mime: 'image/jpeg',
+        size: 10,
+        status: 'active',
+        width: 640,
+        height: 480,
+        ownerUserId: ALICE,
+      },
+      {
+        id: 'asset-trashed',
+        sha256: 'b',
+        mime: 'image/png',
+        size: 10,
+        status: 'trash',
+        ownerUserId: ALICE,
+      },
     ]);
     const res = await postBatch({
       platform: 'mastodon',
@@ -438,19 +495,54 @@ describe('POST /imports/v1/posts:batch', () => {
     });
     const [ok, missing, trashed] = res.body.results;
     expect(ok.status).toBe('created');
-    expect(missing).toEqual({ sourceId: 'missing-media', status: 'failed', error: 'media_not_found' });
-    expect(trashed).toEqual({ sourceId: 'trashed-media', status: 'failed', error: 'media_not_found' });
+    expect(missing).toEqual({
+      sourceId: 'missing-media',
+      status: 'failed',
+      error: 'media_not_found',
+    });
+    expect(trashed).toEqual({
+      sourceId: 'trashed-media',
+      status: 'failed',
+      error: 'media_not_found',
+    });
     const stored = await readPost(ok.postId);
     expect(stored?.content.media).toEqual([
-      expect.objectContaining({ id: 'asset-image', type: 'image', alt: 'a cat', width: 640, height: 480 }),
+      expect.objectContaining({
+        id: 'asset-image',
+        type: 'image',
+        alt: 'a cat',
+        width: 640,
+        height: 480,
+      }),
     ]);
   });
 
   it("refuses an asset that is not the acting user's, and one whose owner Oxy did not report", async () => {
     mocks.getServiceAssetMetadataByIds.mockResolvedValue([
-      { id: 'asset-own', sha256: 'a', mime: 'image/jpeg', size: 10, status: 'active', ownerUserId: ALICE },
-      { id: 'asset-bobs', sha256: 'b', mime: 'image/jpeg', size: 10, status: 'active', ownerUserId: BOB },
-      { id: 'asset-system', sha256: 'c', mime: 'image/jpeg', size: 10, status: 'active', ownerUserId: null },
+      {
+        id: 'asset-own',
+        sha256: 'a',
+        mime: 'image/jpeg',
+        size: 10,
+        status: 'active',
+        ownerUserId: ALICE,
+      },
+      {
+        id: 'asset-bobs',
+        sha256: 'b',
+        mime: 'image/jpeg',
+        size: 10,
+        status: 'active',
+        ownerUserId: BOB,
+      },
+      {
+        id: 'asset-system',
+        sha256: 'c',
+        mime: 'image/jpeg',
+        size: 10,
+        status: 'active',
+        ownerUserId: null,
+      },
       { id: 'asset-unreported', sha256: 'd', mime: 'image/jpeg', size: 10, status: 'active' },
     ]);
     const batchId = newBatchId();
@@ -519,14 +611,23 @@ describe('DELETE /imports/v1/batches/:batchId', () => {
     });
     // The SAME batch id under another account, and another batch of Alice's.
     const bob = await postBatch({ platform: 'mastodon', batchId, items: [item('bob-kept')] }, BOB);
-    const otherBatch = await postBatch({ platform: 'mastodon', batchId: newBatchId(), items: [item('alice-kept')] });
+    const otherBatch = await postBatch({
+      platform: 'mastodon',
+      batchId: newBatchId(),
+      items: [item('alice-kept')],
+    });
 
-    const res = await asMove(request(app).delete(`/imports/v1/batches/${encodeURIComponent(batchId)}`));
+    const res = await asMove(
+      request(app).delete(`/imports/v1/batches/${encodeURIComponent(batchId)}`),
+    );
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ deleted: 2, failed: 0 });
 
     const aliceIds = alice.body.results.map((result: { postId: string }) => result.postId);
-    const gone = await getDb().select({ id: posts.id }).from(posts).where(inArray(posts.id, aliceIds));
+    const gone = await getDb()
+      .select({ id: posts.id })
+      .from(posts)
+      .where(inArray(posts.id, aliceIds));
     expect(gone).toEqual([]);
     expect(await readPost(bob.body.results[0].postId)).not.toBeNull();
     expect(await readPost(otherBatch.body.results[0].postId)).not.toBeNull();
@@ -547,12 +648,20 @@ describe('DELETE /imports/v1/batches/:batchId', () => {
 
 describe('GET /imports/v1/lookup', () => {
   it("maps this user's imported source ids, and finds public federated copies by AS2 id", async () => {
-    const imported = await postBatch({ platform: 'mastodon', batchId: newBatchId(), items: [item('looked-up')] });
+    const imported = await postBatch({
+      platform: 'mastodon',
+      batchId: newBatchId(),
+      items: [item('looked-up')],
+    });
     const noteId = `https://mastodon.example/users/alice/statuses/${Date.now()}`;
     const copy = await seedPost(scope, {
       oxyUserId: null,
       authorship: [],
-      federation: { activityId: noteId, actorUri: 'https://mastodon.example/users/alice', url: `${noteId}/web` },
+      federation: {
+        activityId: noteId,
+        actorUri: 'https://mastodon.example/users/alice',
+        url: `${noteId}/web`,
+      },
     });
     // Not the caller's until a Move, so only what any reader could see is reported.
     const privateNoteId = `${noteId}-followers`;
@@ -560,13 +669,21 @@ describe('GET /imports/v1/lookup', () => {
       oxyUserId: null,
       authorship: [],
       visibility: PostVisibility.FOLLOWERS_ONLY,
-      federation: { activityId: privateNoteId, actorUri: 'https://mastodon.example/users/alice', url: `${privateNoteId}/web` },
+      federation: {
+        activityId: privateNoteId,
+        actorUri: 'https://mastodon.example/users/alice',
+        url: `${privateNoteId}/web`,
+      },
     });
 
     const res = await asMove(
       request(app)
         .get('/imports/v1/lookup')
-        .query({ platform: 'mastodon', sourceIds: ['looked-up', 'not-imported'], federatedIds: [noteId, privateNoteId, 'https://nowhere.example/x'] }),
+        .query({
+          platform: 'mastodon',
+          sourceIds: ['looked-up', 'not-imported'],
+          federatedIds: [noteId, privateNoteId, 'https://nowhere.example/x'],
+        }),
     );
     expect(res.status).toBe(200);
     expect(res.body.imported).toEqual({ 'looked-up': imported.body.results[0].postId });
@@ -582,15 +699,25 @@ describe('GET /imports/v1/lookup', () => {
 
   it('keeps an id that contains a comma whole', async () => {
     const sourceId = 'https://blog.example/posts/a,b';
-    const imported = await postBatch({ platform: 'mastodon', batchId: newBatchId(), items: [item(sourceId)] });
-    const res = await asMove(request(app).get('/imports/v1/lookup').query({ platform: 'mastodon', sourceIds: [sourceId] }));
+    const imported = await postBatch({
+      platform: 'mastodon',
+      batchId: newBatchId(),
+      items: [item(sourceId)],
+    });
+    const res = await asMove(
+      request(app)
+        .get('/imports/v1/lookup')
+        .query({ platform: 'mastodon', sourceIds: [sourceId] }),
+    );
     expect(res.status).toBe(200);
     expect(res.body.imported).toEqual({ [sourceId]: imported.body.results[0].postId });
   });
 
   it("never reports another user's imports", async () => {
     await postBatch({ platform: 'mastodon', batchId: newBatchId(), items: [item('bobs')] }, BOB);
-    const res = await asMove(request(app).get('/imports/v1/lookup').query({ platform: 'mastodon', sourceIds: 'bobs' }));
+    const res = await asMove(
+      request(app).get('/imports/v1/lookup').query({ platform: 'mastodon', sourceIds: 'bobs' }),
+    );
     expect(res.body.imported).toEqual({});
   });
 });

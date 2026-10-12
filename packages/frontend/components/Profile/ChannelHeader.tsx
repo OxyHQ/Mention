@@ -165,7 +165,11 @@ export const ChannelActions = memo(function ChannelActions({
   if (!profileId) return null;
   return (
     <View className="flex-row items-center justify-center gap-3">
-      <FollowButtonComponent userId={profileId} initiallyFollowing={isFollowing} username={username} />
+      <FollowButtonComponent
+        userId={profileId}
+        initiallyFollowing={isFollowing}
+        username={username}
+      />
     </View>
   );
 });

@@ -1,4 +1,4 @@
-import { confirm } from "@oxy.so/bloom/surfaces";
+import { confirm } from '@oxy.so/bloom/surfaces';
 
 export interface ConfirmOptions {
   title: string;
@@ -36,7 +36,7 @@ export function confirmDialog(options: ConfirmOptions): Promise<boolean> {
  * caller's `await` never hangs.
  */
 export async function alertDialog(options: AlertOptions): Promise<void> {
-  const { title, message, okText = "OK" } = options;
+  const { title, message, okText = 'OK' } = options;
   await confirm({
     title,
     description: message || undefined,
@@ -46,6 +46,11 @@ export async function alertDialog(options: AlertOptions): Promise<void> {
 }
 
 // Convenience specialized confirm for destructive actions
-export function confirmDestructive(title: string, message?: string, okText = "Delete", cancelText = "Cancel") {
+export function confirmDestructive(
+  title: string,
+  message?: string,
+  okText = 'Delete',
+  cancelText = 'Cancel',
+) {
   return confirmDialog({ title, message, okText, cancelText, destructive: true });
 }

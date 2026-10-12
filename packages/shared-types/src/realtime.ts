@@ -141,8 +141,17 @@ export interface PostEngagementCountsPayload {
  * see {@link FEED_ROOM_PREFIX}.
  */
 export const SOCKET_FEED_TYPES = [
-  'posts', 'media', 'replies', 'likes', 'boosts', 'mixed',
-  'for_you', 'following', 'saved', 'explore', 'custom',
+  'posts',
+  'media',
+  'replies',
+  'likes',
+  'boosts',
+  'mixed',
+  'for_you',
+  'following',
+  'saved',
+  'explore',
+  'custom',
 ] as const;
 
 export type SocketFeedType = (typeof SOCKET_FEED_TYPES)[number];
@@ -157,14 +166,12 @@ export type SocketFeedType = (typeof SOCKET_FEED_TYPES)[number];
  */
 export const FEED_ROOM_PREFIX = 'feed:';
 
-export const feedRoom = (feedType: SocketFeedType): string =>
-  `${FEED_ROOM_PREFIX}${feedType}`;
+export const feedRoom = (feedType: SocketFeedType): string => `${FEED_ROOM_PREFIX}${feedType}`;
 
 /** The room a client joins to watch one user's presence (`subscribePresence`/`unsubscribePresence`). */
 export const PRESENCE_ROOM_PREFIX = 'presence:';
 
-export const presenceRoom = (userId: string): string =>
-  `${PRESENCE_ROOM_PREFIX}${userId}`;
+export const presenceRoom = (userId: string): string => `${PRESENCE_ROOM_PREFIX}${userId}`;
 
 /**
  * Shape a user id must have to be trusted as a Socket.IO room key or a

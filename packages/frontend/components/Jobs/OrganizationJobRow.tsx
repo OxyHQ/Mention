@@ -25,7 +25,10 @@ const EMPLOYMENT_LABELS: Record<string, string> = {
   other: 'Other',
 };
 
-const STATUS_TONE: Record<MentionJobStatus, 'default' | 'primary' | 'success' | 'warning' | 'error' | 'info'> = {
+const STATUS_TONE: Record<
+  MentionJobStatus,
+  'default' | 'primary' | 'success' | 'warning' | 'error' | 'info'
+> = {
   draft: 'default',
   published: 'success',
   paused: 'warning',
@@ -85,8 +88,14 @@ const OrganizationJobRow = memo(function OrganizationJobRow({ job }: Organizatio
   ].filter((value): value is string => Boolean(value));
   const salaryLabel = formatSalary(job.salary);
   const dateLabel = job.publishedAt
-    ? t('jobs.mine.publishedAgo', { defaultValue: 'Published {{time}}', time: formatTimeAgo(job.publishedAt) })
-    : t('jobs.mine.createdAgo', { defaultValue: 'Created {{time}}', time: formatTimeAgo(job.createdAt) });
+    ? t('jobs.mine.publishedAgo', {
+        defaultValue: 'Published {{time}}',
+        time: formatTimeAgo(job.publishedAt),
+      })
+    : t('jobs.mine.createdAgo', {
+        defaultValue: 'Created {{time}}',
+        time: formatTimeAgo(job.createdAt),
+      });
 
   return (
     <Card
@@ -94,14 +103,20 @@ const OrganizationJobRow = memo(function OrganizationJobRow({ job }: Organizatio
       onPress={open}
       className="p-4"
       accessibilityRole="button"
-      accessibilityLabel={job.title} appearance="outline"
+      accessibilityLabel={job.title}
+      appearance="outline"
     >
       <View className="flex-row items-start justify-between gap-2">
         <BloomText variant="headline-bold" style={{ flex: 1 }} numberOfLines={2}>
           {job.title}
         </BloomText>
         {!isPublished ? (
-          <Badge content={job.status} color={STATUS_TONE[job.status]} variant="subtle" size="small" />
+          <Badge
+            content={job.status}
+            color={STATUS_TONE[job.status]}
+            variant="subtle"
+            size="small"
+          />
         ) : null}
       </View>
 
@@ -114,7 +129,9 @@ const OrganizationJobRow = memo(function OrganizationJobRow({ job }: Organizatio
       ) : null}
 
       {salaryLabel ? (
-        <BloomText variant="body-semibold" style={{ marginTop: 8 }}>{salaryLabel}</BloomText>
+        <BloomText variant="body-semibold" style={{ marginTop: 8 }}>
+          {salaryLabel}
+        </BloomText>
       ) : null}
 
       <Text className="text-muted-foreground text-xs mt-2">{dateLabel}</Text>

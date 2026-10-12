@@ -49,12 +49,14 @@ function reviveDates(record: PostRecord): PostRecord {
     createdAt: new Date(record.createdAt),
     updatedAt: new Date(record.updatedAt),
     scheduledFor: record.scheduledFor ? new Date(record.scheduledFor) : record.scheduledFor,
-    lastCorrectedAt: record.lastCorrectedAt ? new Date(record.lastCorrectedAt) : record.lastCorrectedAt,
+    lastCorrectedAt: record.lastCorrectedAt
+      ? new Date(record.lastCorrectedAt)
+      : record.lastCorrectedAt,
     postClassification: record.postClassification?.classifiedAt
       ? {
-        ...record.postClassification,
-        classifiedAt: new Date(record.postClassification.classifiedAt),
-      }
+          ...record.postClassification,
+          classifiedAt: new Date(record.postClassification.classifiedAt),
+        }
       : record.postClassification,
   };
 }

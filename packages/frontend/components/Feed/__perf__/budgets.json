@@ -1,7 +1,7 @@
 {
-  "$comment": "Structural budgets for the feed row-cost harness (issue #1103). Exact counts, not timings: they are deterministic, so they can gate CI. Lower a ceiling when an optimization lands; raising one is a decision to write down in the PR.",
+  "$comment": "Structural budgets for the feed row-cost harness (issue #1103). Exact counts, not timings: they are deterministic, so they can gate CI. Lower a ceiling when an optimization lands; raising one is a decision to write down in the PR. Bloom 7.31 + react-native-css 3.1.0-rc.0 (inline video on iPhone Safari): text hostNodes 52.125 -> 53.125 because Bloom 7.9.2 gives the avatar placeholder image its own positioned wrapper so it paints above the absolute shape fill on web; linkPreview contextReads 53 -> 55 because react-native-css 3.1.0-rc.0 re-runs an interop component's rule effect after commit (its StrictMode-safe subscription), so the link card's interop Pressable reads its two CSS contexts twice on mount.",
   "hostNodesPerRow": {
-    "text": 52.125,
+    "text": 53.125,
     "textAvatar": 51,
     "image": 59,
     "multiImage": 74,
@@ -42,7 +42,7 @@
     "image": 42,
     "multiImage": 48,
     "video": 43,
-    "linkPreview": 53,
+    "linkPreview": 55,
     "quote": 57,
     "repost": 43,
     "poll": 40,

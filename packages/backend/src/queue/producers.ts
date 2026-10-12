@@ -32,7 +32,7 @@ import type {
  * Producer helpers — the single place that enqueues federation jobs with the
  * correct dedupe `jobId`s. Callers must already hold a usable queue (these
  * return a boolean indicating whether the job was enqueued; `false` means the
- * queue is unavailable and the caller should use its inline/Mongo fallback).
+ * queue is unavailable and the caller should use its inline/table-backed fallback).
  */
 
 /**
@@ -46,7 +46,7 @@ const JOB_ID_HASH_LENGTH = 40;
  * is lowercase hex, so a `<prefix>-<hash>` jobId never contains a `:` — BullMQ
  * rejects any custom jobId containing a colon (unless it splits into exactly 3
  * parts, a deprecated repeatable-job compat path we must not rely on), which
- * previously made every enqueue throw and silently fall back to the Mongo queue.
+ * would make every enqueue throw and silently fall back to the table-backed queue.
  */
 function shortHash(input: string): string {
   return createHash('sha256').update(input).digest('hex').slice(0, JOB_ID_HASH_LENGTH);
@@ -85,14 +85,13 @@ export async function enqueueInboxActivity(data: InboxJobData): Promise<boolean>
 /**
  * Enqueue a single outbound delivery. Dedupes on (targetInbox + activity id) so
  * the same activity to the same inbox is not double-queued. Returns false when
- * no queue is available (caller should fall back to the Mongo delivery queue).
+ * no queue is available (caller should fall back to `federation_delivery_queue`).
  */
 export async function enqueueDelivery(data: DeliveryJobData): Promise<boolean> {
   const queue = getDeliveryQueue();
   if (!queue) return false;
 
-  const activityId =
-    typeof data.activityJson.id === 'string' ? data.activityJson.id : undefined;
+  const activityId = typeof data.activityJson.id === 'string' ? data.activityJson.id : undefined;
   // Without a stable activity id we cannot safely dedupe; fall back to letting
   // BullMQ assign a fresh id (every enqueue is a distinct delivery attempt).
   const jobId = activityId
@@ -109,8 +108,8 @@ export async function enqueueDelivery(data: DeliveryJobData): Promise<boolean> {
 
 /**
  * Enqueue a delivery with an explicit jobId. Used by the startup drain of the
- * Mongo `FederationDeliveryQueue` so re-running the drain is idempotent (the
- * same Mongo row maps to the same BullMQ jobId and won't double-deliver).
+ * `federation_delivery_queue` table so re-running the drain is idempotent (the
+ * same row maps to the same BullMQ jobId and won't double-deliver).
  */
 export async function enqueueDeliveryWithJobId(
   data: DeliveryJobData,
@@ -147,7 +146,9 @@ export async function enqueueSharingCleanup(data: SharingCleanupJobData): Promis
 }
 
 /** Enqueue a post media-metadata enrich retry. Dedupes on postId. */
-export async function enqueueMediaMetadataEnrich(data: MediaMetadataEnrichJobData): Promise<boolean> {
+export async function enqueueMediaMetadataEnrich(
+  data: MediaMetadataEnrichJobData,
+): Promise<boolean> {
   const queue = getMediaMetadataEnrichQueue();
   if (!queue) return false;
 

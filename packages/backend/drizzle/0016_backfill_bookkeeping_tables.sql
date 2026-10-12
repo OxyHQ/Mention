@@ -24,7 +24,7 @@
 --
 -- They are deliberately NOT in the drizzle schema barrel. `tablesWithoutAPlan()`
 -- refuses to start a copy while any barrel table has no plan feeding it, and
--- these two have no Mongo source by construction — they are bookkeeping ABOUT
+-- these two have no source collection by construction — they are bookkeeping ABOUT
 -- the copy, not data it carries. Hand-written SQL plus a snapshot identical to
 -- 0015 is what keeps `drizzle-kit generate` reporting "No schema changes" while
 -- the migrator still applies this file.
@@ -38,7 +38,7 @@ CREATE TABLE "mention_backfill_checkpoints" (
 	-- The `_id` a resume continues after, stored as TEXT with its BSON KIND
 	-- alongside and never inferred from the value. Both kinds can spell 24 hex
 	-- characters, and `{$gt: ObjectId(...)}` against a string `_id` matches
-	-- NOTHING in Mongo — silently — so a resumed run would report "0 documents
+	-- NOTHING in the source — silently — so a resumed run would report "0 documents
 	-- remaining" and be believed.
 	"checkpoint_value" text,
 	"checkpoint_kind" text,

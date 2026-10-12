@@ -63,7 +63,10 @@ function app() {
 }
 
 function post(body: string, contentType = 'application/secevent+jwt') {
-  return request(app()).post('/webhooks/oxy/account-events').set('Content-Type', contentType).send(body);
+  return request(app())
+    .post('/webhooks/oxy/account-events')
+    .set('Content-Type', contentType)
+    .send(body);
 }
 
 async function ledgerRows() {
@@ -87,11 +90,15 @@ beforeEach(async () => {
   vi.clearAllMocks();
   clientShape.supportsEvents = true;
   enqueueAccountErasure.mockResolvedValue(true);
-  await getDb().delete(accountErasures).where(like(accountErasures.oxyUserId, `${PREFIX}%`));
+  await getDb()
+    .delete(accountErasures)
+    .where(like(accountErasures.oxyUserId, `${PREFIX}%`));
 });
 
 afterAll(async () => {
-  await getDb().delete(accountErasures).where(like(accountErasures.oxyUserId, `${PREFIX}%`));
+  await getDb()
+    .delete(accountErasures)
+    .where(like(accountErasures.oxyUserId, `${PREFIX}%`));
   await closePostgres();
 });
 
@@ -105,7 +112,11 @@ describe('POST /webhooks/oxy/account-events', () => {
     expect(verifyAccountEvent).toHaveBeenCalledWith(TOKEN);
     const rows = await ledgerRows();
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ eventId: `${PREFIX}evt-1`, source: 'webhook', username: 'gone' });
+    expect(rows[0]).toMatchObject({
+      eventId: `${PREFIX}evt-1`,
+      source: 'webhook',
+      username: 'gone',
+    });
     expect(rows[0].occurredAt?.toISOString()).toBe('2026-09-26T09:14:00.000Z');
     expect(enqueueAccountErasure).toHaveBeenCalledWith({ eventId: `${PREFIX}evt-1` }, 0);
   });

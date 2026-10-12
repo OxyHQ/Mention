@@ -170,8 +170,8 @@ describe('POST /mentions/profile-links', () => {
   });
 
   it('never asks Oxy to resolve a MODERATION-blocked host’s handle as one of ours', async () => {
-    mocks.isBlockedDomain.mockImplementation(
-      (host: string) => ['poa.st', OWN_HOST].includes(host.toLowerCase().replace(/^www\./, '')),
+    mocks.isBlockedDomain.mockImplementation((host: string) =>
+      ['poa.st', OWN_HOST].includes(host.toLowerCase().replace(/^www\./, '')),
     );
 
     const response = await request(app)

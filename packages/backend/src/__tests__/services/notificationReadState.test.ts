@@ -2,7 +2,7 @@
  * Marking notifications read, against real rows.
  *
  * This exists because of a live bug: `server.ts`'s socket handlers wrote the
- * Mongoose model while `routes/notifications.ts` read and wrote Postgres, so a
+ * legacy-ODM model while `routes/notifications.ts` read and wrote Postgres, so a
  * notification marked read over the socket came back UNREAD on the next load,
  * for every user, with nothing in any log. Neither half was wrong on its own —
  * they simply disagreed about where the state lived, which is why no test
@@ -70,7 +70,9 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
-  await getDb().delete(notifications).where(like(notifications.recipientId, `${OWNER_PREFIX}%`));
+  await getDb()
+    .delete(notifications)
+    .where(like(notifications.recipientId, `${OWNER_PREFIX}%`));
 });
 
 afterAll(async () => {
@@ -82,7 +84,7 @@ describe('marking one notification read', () => {
    * The round trip — the exact shape the split store broke.
    *
    * Asserting only that the call resolved would have passed throughout the bug:
-   * the Mongoose write succeeded, it just landed somewhere nothing reads.
+   * the legacy-ODM write succeeded, it just landed somewhere nothing reads.
    */
   it('persists, so a later read sees it', async () => {
     const id = await seedNotification(RECIPIENT);
@@ -113,7 +115,9 @@ describe('marking one notification read', () => {
    * did nothing. Both callers turn it into a 404 / a skipped emit.
    */
   it('answers undefined for an id that names no notification', async () => {
-    await expect(markNotificationRead([RECIPIENT], 'no-such-notification')).resolves.toBeUndefined();
+    await expect(
+      markNotificationRead([RECIPIENT], 'no-such-notification'),
+    ).resolves.toBeUndefined();
   });
 
   /** An actor Oxy cannot resolve must not block the read-state write. */
@@ -174,7 +178,7 @@ describe('marking one notification read', () => {
 });
 
 describe('marking every notification read', () => {
-  it('marks all of the recipient\'s own, and none of anyone else\'s', async () => {
+  it("marks all of the recipient's own, and none of anyone else's", async () => {
     const mine = [await seedNotification(RECIPIENT), await seedNotification(RECIPIENT)];
     const theirs = await seedNotification(OTHER);
 
@@ -190,7 +194,7 @@ describe('marking every notification read', () => {
    * leaving them out would leave the badge permanently non-zero with no control
    * that clears it.
    */
-  it('clears the operated channel\'s rows as well as the person\'s own', async () => {
+  it("clears the operated channel's rows as well as the person's own", async () => {
     const mine = await seedNotification(RECIPIENT);
     const channels = await seedNotification(CHANNEL);
     const theirs = await seedNotification(OTHER);

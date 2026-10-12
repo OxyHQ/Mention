@@ -45,11 +45,13 @@ const LiveAvatar: ComponentType<LiveAvatarProps> = ({ shape, ...rest }) => {
  * and primes the cache via `fetchQuery`.
  */
 const ensureUserById: LiveConfig['ensureUserById'] = (id, loader) =>
-  queryClient.fetchQuery<UserEntity | null | undefined>({
-    queryKey: queryKeys.users.detail(id),
-    queryFn: () => loader(id),
-    staleTime: 5 * 60 * 1000,
-  }).then((user) => user ?? undefined);
+  queryClient
+    .fetchQuery<UserEntity | null | undefined>({
+      queryKey: queryKeys.users.detail(id),
+      queryFn: () => loader(id),
+      staleTime: 5 * 60 * 1000,
+    })
+    .then((user) => user ?? undefined);
 
 /**
  * Localize the shared live-room UI via Mention's i18n instance. `i18n.t` is
@@ -126,13 +128,10 @@ export const liveConfig: LiveConfig = {
   getCachedFileDownloadUrl: resolveLiveFileUrlAsync,
   getCachedFileDownloadUrlSync: resolveLiveFileUrl,
   AvatarComponent: LiveAvatar,
-  toast: Object.assign(
-    (message: string) => toast(message),
-    {
-      success: (message: string) => toast(message, { type: 'success' }),
-      error: (message: string) => toast(message, { type: 'error' }),
-    }
-  ),
+  toast: Object.assign((message: string) => toast(message), {
+    success: (message: string) => toast(message, { type: 'success' }),
+    error: (message: string) => toast(message, { type: 'error' }),
+  }),
   isDesktop: false, // Will be overridden at runtime if needed
   // Mention's web shell uses a DOCUMENT-scroll model (global.css forces
   // html/body/#root to height:auto + overflow:visible, so the window is the

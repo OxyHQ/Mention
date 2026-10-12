@@ -17,10 +17,7 @@
  * and can hand the author the name of the one person their post will NOT mention.
  */
 
-import {
-  MAX_MENTIONS_PER_POST,
-  MAX_PROFILE_LINKS_PER_BODY,
-} from '@mention/shared-types/mentions';
+import { MAX_MENTIONS_PER_POST, MAX_PROFILE_LINKS_PER_BODY } from '@mention/shared-types/mentions';
 import { composerProfileLinks } from '../composerProfileLinks';
 import { ownProfileLinkHandle } from '../ownProfileLinks';
 
@@ -187,10 +184,7 @@ describe('the composer spends the same budget the write boundary has', () => {
         ['https://mention.earth/@alice https://mention.earth/ap/users/alice'],
         NO_MENTIONS,
       ),
-    ).toEqual([
-      'https://mention.earth/@alice',
-      'https://mention.earth/ap/users/alice',
-    ]);
+    ).toEqual(['https://mention.earth/@alice', 'https://mention.earth/ap/users/alice']);
   });
 
   it('does not spend a slot twice on the same URL written twice', () => {

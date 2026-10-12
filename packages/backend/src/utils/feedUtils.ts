@@ -64,7 +64,7 @@ export async function fetchWithRecencyFallback<T>(
  */
 export function validateAndNormalizeLimit(
   requestedLimit: unknown,
-  defaultLimit: number = FEED_CONSTANTS.DEFAULT_LIMIT
+  defaultLimit: number = FEED_CONSTANTS.DEFAULT_LIMIT,
 ): number {
   // Handle Express ParsedQs and other types
   let limitValue: string | number | undefined;
@@ -75,28 +75,21 @@ export function validateAndNormalizeLimit(
   } else {
     limitValue = undefined;
   }
-  
+
   const parsedLimit = Number.isNaN(limitValue) ? defaultLimit : (limitValue ?? defaultLimit);
-  
+
   if (Number.isNaN(parsedLimit) || parsedLimit === undefined) {
     return defaultLimit;
   }
-  
-  return Math.min(
-    Math.max(parsedLimit, FEED_CONSTANTS.MIN_LIMIT),
-    FEED_CONSTANTS.MAX_LIMIT
-  );
+
+  return Math.min(Math.max(parsedLimit, FEED_CONSTANTS.MIN_LIMIT), FEED_CONSTANTS.MAX_LIMIT);
 }
 
 /**
  * Build cursor from post ID.
  *
- * `String(...)` rather than an `instanceof mongoose.Types.ObjectId` branch: the
- * two were always equivalent — `String(obj)` invokes `obj.toString()`, which for
- * an ObjectId is the same 24-hex — so the branch cost a runtime Mongoose import
- * to express what the coercion already did. Post ids are `posts.id`, a `text`
- * column holding ObjectId hex before the cutover and uuid v7 after; neither is
- * an ObjectId instance by the time it reaches here.
+ * `String(...)` is the whole coercion. Post ids are `posts.id`, a `text` column
+ * holding either 24-hex legacy ids or uuid v7.
  */
 export function buildFeedCursor(post: { _id?: string; id?: string }): string | undefined {
   const rawId = post._id || post.id;
@@ -116,7 +109,7 @@ export function buildFeedCursor(post: { _id?: string; id?: string }): string | u
  */
 export function validateCursorAdvanced(
   newCursor: string | undefined,
-  previousCursor: string | undefined
+  previousCursor: string | undefined,
 ): boolean {
   if (!newCursor || !previousCursor) return true; // First page or no cursor
   return newCursor !== previousCursor;
@@ -126,17 +119,15 @@ export function validateCursorAdvanced(
  * Deduplicate posts by ID
  * Uses Map for O(1) lookups, handles both _id and id fields
  */
-export function deduplicatePosts<T extends { _id?: string; id?: string }>(
-  posts: T[]
-): T[] {
+export function deduplicatePosts<T extends { _id?: string; id?: string }>(posts: T[]): T[] {
   if (posts.length === 0) return [];
 
   const seen = new Map<string, T>();
-  
+
   for (const post of posts) {
     let id: string | undefined;
-    
-    // Try _id first (MongoDB format)
+
+    // Try _id first (legacy response shape)
     if (post._id) {
       id = String(post._id);
     }
@@ -144,7 +135,7 @@ export function deduplicatePosts<T extends { _id?: string; id?: string }>(
     else if (post.id) {
       id = String(post.id);
     }
-    
+
     if (id && id !== 'undefined' && id !== 'null' && !seen.has(id)) {
       seen.set(id, post);
     }
@@ -158,7 +149,7 @@ export function deduplicatePosts<T extends { _id?: string; id?: string }>(
  */
 export function validateResultSize<T>(
   results: T[],
-  maxSize: number = FEED_CONSTANTS.MAX_QUERY_RESULT_SIZE
+  maxSize: number = FEED_CONSTANTS.MAX_QUERY_RESULT_SIZE,
 ): void {
   if (results.length > maxSize) {
     logger.error(`Query result size ${results.length} exceeds maximum ${maxSize}`);

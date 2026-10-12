@@ -19,10 +19,7 @@
 
 import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
-import {
-  FEDERATED_MEDIA_CACHE_STATES,
-  federatedMediaCache,
-} from '../schema/federation';
+import { FEDERATED_MEDIA_CACHE_STATES, federatedMediaCache } from '../schema/federation';
 
 /** Lifecycle state of one remote media URL. See `db/schema/federation.ts`. */
 export type FederatedMediaCacheState = (typeof FEDERATED_MEDIA_CACHE_STATES)[number];
@@ -230,8 +227,7 @@ export async function scheduleMediaCacheRetry(
  * The `pending` URLs whose backoff has elapsed, most recently accessed first.
  *
  * A row that has never been attempted has a `null` `next_attempt_at` and is due
- * immediately — in Mongo that was three alternatives (`<= now`, explicit null,
- * field absent); Postgres has no absent column, so it is two.
+ * immediately, so the predicate is two alternatives (`<= now`, null).
  */
 export async function findDueMediaCacheEntries(
   limit: number,
@@ -268,10 +264,7 @@ export async function findEvictableMediaCacheEntries(
     })
     .from(federatedMediaCache)
     .where(
-      and(
-        eq(federatedMediaCache.state, 'cached'),
-        lt(federatedMediaCache.lastAccessedAt, cutoff),
-      ),
+      and(eq(federatedMediaCache.state, 'cached'), lt(federatedMediaCache.lastAccessedAt, cutoff)),
     )
     .orderBy(asc(federatedMediaCache.lastAccessedAt))
     .limit(limit);
@@ -304,10 +297,7 @@ export async function markMediaCacheEvicted(
       sizeBytes: null,
     })
     .where(
-      and(
-        eq(federatedMediaCache.remoteUrl, remoteUrl),
-        eq(federatedMediaCache.state, 'cached'),
-      ),
+      and(eq(federatedMediaCache.remoteUrl, remoteUrl), eq(federatedMediaCache.state, 'cached')),
     );
 }
 

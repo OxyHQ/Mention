@@ -21,12 +21,14 @@ describe('federationInfoOf', () => {
   });
 
   it('links a fediverse account to its actor URL', () => {
-    expect(federationInfoOf({
-      isFederated: true,
-      username: 'alice@mastodon.social',
-      instance: 'mastodon.social',
-      actorUri: 'https://mastodon.social/users/alice',
-    })).toMatchObject({
+    expect(
+      federationInfoOf({
+        isFederated: true,
+        username: 'alice@mastodon.social',
+        instance: 'mastodon.social',
+        actorUri: 'https://mastodon.social/users/alice',
+      }),
+    ).toMatchObject({
       network: 'activitypub',
       instance: 'mastodon.social',
       originalProfileUrl: 'https://mastodon.social/users/alice',
@@ -37,13 +39,24 @@ describe('federationInfoOf', () => {
     ['did:plc:abc123', 'https://bsky.app/profile/did:plc:abc123'],
     ['at://did:plc:abc123/app.bsky.feed.post/1', 'https://bsky.app/profile/did:plc:abc123'],
   ])('links a Bluesky account (%s) to bsky.app', (actorUri, url) => {
-    expect(federationInfoOf({ isFederated: true, username: 'alice@bsky.social', instance: 'bsky.social', actorUri }))
-      .toMatchObject({ network: 'atproto', originalProfileUrl: url });
+    expect(
+      federationInfoOf({
+        isFederated: true,
+        username: 'alice@bsky.social',
+        instance: 'bsky.social',
+        actorUri,
+      }),
+    ).toMatchObject({ network: 'atproto', originalProfileUrl: url });
   });
 
   it('recognises Bluesky by its network domain alone', () => {
-    expect(federationInfoOf({ isFederated: true, username: 'alice@bsky.social', instance: 'bsky.social' }))
-      .toMatchObject({ network: 'atproto', originalProfileUrl: null });
+    expect(
+      federationInfoOf({
+        isFederated: true,
+        username: 'alice@bsky.social',
+        instance: 'bsky.social',
+      }),
+    ).toMatchObject({ network: 'atproto', originalProfileUrl: null });
   });
 
   it('links a kilogram-bridged Instagram account to instagram.com, never the bridge', () => {
@@ -53,19 +66,32 @@ describe('federationInfoOf', () => {
       instance: 'instagram.com',
       actorUri: 'https://kilogram.makeup/users/zuck',
     });
-    expect(info).toMatchObject({ network: 'instagram-graph', originalProfileUrl: 'https://www.instagram.com/zuck/' });
+    expect(info).toMatchObject({
+      network: 'instagram-graph',
+      originalProfileUrl: 'https://www.instagram.com/zuck/',
+    });
   });
 
   it('links a Graph API Instagram account (no web actor URL) to instagram.com', () => {
-    expect(federationInfoOf({
-      isFederated: true,
-      username: 'plex@instagram.com',
-      actorUri: 'instagram-graph:17841408799798652',
-    })).toMatchObject({ network: 'instagram-graph', originalProfileUrl: 'https://www.instagram.com/plex/' });
+    expect(
+      federationInfoOf({
+        isFederated: true,
+        username: 'plex@instagram.com',
+        actorUri: 'instagram-graph:17841408799798652',
+      }),
+    ).toMatchObject({
+      network: 'instagram-graph',
+      originalProfileUrl: 'https://www.instagram.com/plex/',
+    });
   });
 
   it('refuses to build an Instagram link from a handle that is not an Instagram username', () => {
-    expect(federationInfoOf({ isFederated: true, username: 'bad/name@instagram.com', instance: 'instagram.com' }))
-      .toMatchObject({ network: 'instagram-graph', originalProfileUrl: null });
+    expect(
+      federationInfoOf({
+        isFederated: true,
+        username: 'bad/name@instagram.com',
+        instance: 'instagram.com',
+      }),
+    ).toMatchObject({ network: 'instagram-graph', originalProfileUrl: null });
   });
 });

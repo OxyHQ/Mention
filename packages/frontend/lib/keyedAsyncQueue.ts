@@ -7,14 +7,9 @@
 export function createKeyedAsyncQueue() {
   const tails = new Map<string, Promise<void>>();
 
-  return function enqueue<T>(
-    key: string,
-    operation: () => Promise<T> | T,
-  ): Promise<T> {
+  return function enqueue<T>(key: string, operation: () => Promise<T> | T): Promise<T> {
     const previous = tails.get(key) ?? Promise.resolve();
-    const result = previous
-      .catch(() => undefined)
-      .then(operation);
+    const result = previous.catch(() => undefined).then(operation);
     const tail = result.then(
       () => undefined,
       () => undefined,

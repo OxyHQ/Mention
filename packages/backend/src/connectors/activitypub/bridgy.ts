@@ -28,7 +28,9 @@ const BRIDGY_FED_BSKY_HOST = 'bsky.brid.gy';
  * atproto DID — a non-brid.gy URL, or one with no `at://<did>`, is left for the
  * caller to degrade gracefully. Pure and synchronous.
  */
-export function deriveBridgyActorUri(...candidateUrls: Array<string | undefined>): string | undefined {
+export function deriveBridgyActorUri(
+  ...candidateUrls: Array<string | undefined>
+): string | undefined {
   for (const candidate of candidateUrls) {
     if (!candidate) continue;
     let host: string;

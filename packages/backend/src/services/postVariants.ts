@@ -101,7 +101,10 @@ export function getPrimaryVariant(content: StoredPostContent): PostContentVarian
  * untagged variant (no resolvable language) declares nothing.
  */
 export function declaredBaseLanguages(content: StoredPostContent): string[] {
-  return toBaseLanguages(authorVariants(content).map((variant) => variant.tag)).slice(0, MAX_AUTHOR_VARIANTS);
+  return toBaseLanguages(authorVariants(content).map((variant) => variant.tag)).slice(
+    0,
+    MAX_AUTHOR_VARIANTS,
+  );
 }
 
 /**
@@ -153,23 +156,18 @@ export function applyDetectedPrimaryTag(
 /**
  * Remove a spammy 4+ consecutive-hashtag block from every AUTHOR rendition.
  *
- * This is the surviving half of the Mongoose `pre('validate')` hook that the
- * Postgres cutover retired. The hook ran on `.save()`, which is how BOTH native
- * write paths persisted a post (`new Post(...).save()` in `PostCreationService`,
- * `post.save()` in `updatePost`), so it fired on every native create and every
- * native edit right up to the cutover — it is a behaviour that was lost, not a
- * validator that never ran. The federated ingest path never depended on it
- * (`connectors/activitypub/apPostContent.ts` calls `normalizePostHashtags`
- * directly), which is why the gap presented as Mention cleaning other instances'
- * bodies while storing its own users' verbatim.
+ * It runs on every native create and every native edit. The federated ingest
+ * path does not depend on it (`connectors/activitypub/apPostContent.ts` calls
+ * `normalizePostHashtags` directly); without it Mention would clean other
+ * instances' bodies while storing its own users' verbatim.
  *
  * MACHINE renditions are deliberately untouched: a translation is produced FROM
  * the already-cleaned primary, so only the author's own words can carry a block
- * of their own — the same predicate the hook used.
+ * of their own.
  *
  * The `hashtags` COLUMN is not this function's business and never loses a tag to
  * the strip: both writers derive it with `mergeHashtags` over the RAW body before
- * the clean, which is exactly what the hook did (`normalizePostHashtags` returns
+ * the clean (`normalizePostHashtags` returns
  * the full tag set alongside the cleaned text, from the same call).
  *
  * Idempotent — a cleaned block leaves at most one hashtag behind, which is no
@@ -188,9 +186,8 @@ export function stripSpamHashtagBlocks(variants: PostContentVariant[]): PostCont
  * The API's content shape → the STORED one: renditions only.
  *
  * The single conversion, shared by every write path (`PostCreationService`, the
- * `POST /feed/reply` and `POST /feed/boost` paths). Two of those wrote
- * `content.text` straight to storage while Mongo tolerated an undeclared field;
- * `posts` has no text column at all, so a second spelling of this would not be a
+ * `POST /feed/reply` and `POST /feed/boost` paths). `posts` has no text column
+ * at all, so a second spelling of this would not be a
  * duplicate — it would be a post stored with no body.
  *
  * When the author declared variants, those ARE the renditions (the primary
@@ -218,7 +215,9 @@ export function toStoredContent(
   const variants = stripSpamHashtagBlocks(
     declared.length > 0
       ? applyDetectedPrimaryTag(declared, primaryLanguage)
-      : (primary ? [primary] : []),
+      : primary
+        ? [primary]
+        : [],
   );
 
   return {
@@ -264,8 +263,10 @@ function selectVariantForTag(
   const byPrecedence: Array<(variant: PostContentVariant) => boolean> = [
     (variant) => variant.source === 'author' && variant.tag === canonical,
     (variant) => variant.source === 'machine' && variant.tag === canonical,
-    (variant) => variant.source === 'author' && base !== null && toBaseLanguage(variant.tag) === base,
-    (variant) => variant.source === 'machine' && base !== null && toBaseLanguage(variant.tag) === base,
+    (variant) =>
+      variant.source === 'author' && base !== null && toBaseLanguage(variant.tag) === base,
+    (variant) =>
+      variant.source === 'machine' && base !== null && toBaseLanguage(variant.tag) === base,
   ];
 
   for (const matches of byPrecedence) {
@@ -276,11 +277,16 @@ function selectVariantForTag(
 }
 
 /** Apply the localized `alt` map to the SHARED media set (never mutates it). */
-function localizeAlt(media: MediaItem[] | undefined, alt: Record<string, string> | undefined): MediaItem[] | undefined {
+function localizeAlt(
+  media: MediaItem[] | undefined,
+  alt: Record<string, string> | undefined,
+): MediaItem[] | undefined {
   if (!media || !alt) return media;
   return media.map((item) => {
     const localized = alt[item.id];
-    return typeof localized === 'string' && localized.length > 0 ? { ...item, alt: localized } : item;
+    return typeof localized === 'string' && localized.length > 0
+      ? { ...item, alt: localized }
+      : item;
   });
 }
 
@@ -290,7 +296,10 @@ function localizeAlt(media: MediaItem[] | undefined, alt: Record<string, string>
  * the viewer's Oxy account locales); an empty list — an anonymous reader, a
  * crawler, the OG renderer, MCP — resolves to the primary.
  */
-export function resolveViewerTag(candidates: readonly string[], content: StoredPostContent): string | undefined {
+export function resolveViewerTag(
+  candidates: readonly string[],
+  content: StoredPostContent,
+): string | undefined {
   const variants = variantsOf(content);
   for (const candidate of candidates) {
     const match = selectVariantForTag(variants, candidate);
@@ -307,8 +316,8 @@ export function resolveViewerTag(candidates: readonly string[], content: StoredP
 export function resolveVariant(content: StoredPostContent, requestedTag?: string): ResolvedVariant {
   const variants = variantsOf(content);
   const chosen =
-    (requestedTag !== undefined ? selectVariantForTag(variants, requestedTag) : undefined)
-    ?? getPrimaryVariant(content);
+    (requestedTag !== undefined ? selectVariantForTag(variants, requestedTag) : undefined) ??
+    getPrimaryVariant(content);
 
   if (!chosen) {
     return { text: '', media: content.media, article: content.article };
@@ -339,7 +348,11 @@ export function translationSourceFingerprint(content: StoredPostContent): string
   const source = {
     text: primary.text,
     media: (primary.media ?? []).map((item) => [item.id, item.alt ?? null]),
-    article: [primary.article?.title ?? null, primary.article?.body ?? null, primary.article?.excerpt ?? null],
+    article: [
+      primary.article?.title ?? null,
+      primary.article?.body ?? null,
+      primary.article?.excerpt ?? null,
+    ],
   };
   return createHash('sha256').update(JSON.stringify(source)).digest('hex');
 }
@@ -361,7 +374,8 @@ export function readerVariants(
   const variants = variantsOf(content);
   const authors = variants.filter((variant) => variant.source === 'author');
   const servedMachine = variants.find(
-    (variant) => variant.source === 'machine' && variant.tag !== undefined && variant.tag === servedTag,
+    (variant) =>
+      variant.source === 'machine' && variant.tag !== undefined && variant.tag === servedTag,
   );
   return servedMachine ? [...authors, servedMachine] : authors;
 }
@@ -389,7 +403,10 @@ export function readerVariants(
  * only localize media that actually exists on the post, which both rejects
  * nonsense keys and bounds the map's size.
  */
-export function validateAuthorVariants(raw: unknown, sharedMediaIds: readonly string[]): AuthorVariantValidation {
+export function validateAuthorVariants(
+  raw: unknown,
+  sharedMediaIds: readonly string[],
+): AuthorVariantValidation {
   if (raw === undefined || raw === null) {
     return { ok: true, variants: [] };
   }
@@ -498,7 +515,10 @@ function normalizeAltMap(
   const alt: Record<string, string> = {};
   for (const [mediaId, value] of Object.entries(raw as Record<string, unknown>)) {
     if (!mediaIds.has(mediaId)) {
-      return { ok: false, error: `Language variant ${tag} localizes alt text for unknown media ${mediaId}` };
+      return {
+        ok: false,
+        error: `Language variant ${tag} localizes alt text for unknown media ${mediaId}`,
+      };
     }
     if (typeof value !== 'string') {
       return { ok: false, error: `Language variant ${tag} has a non-text alt description` };
@@ -516,7 +536,9 @@ function normalizeAltMap(
 function normalizeVariantArticle(
   raw: unknown,
   tag: string,
-): { ok: true; article: NonNullable<PostContentVariant['article']> } | { ok: false; error: string } {
+):
+  | { ok: true; article: NonNullable<PostContentVariant['article']> }
+  | { ok: false; error: string } {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     return { ok: false, error: `Language variant ${tag} has an invalid article` };
   }

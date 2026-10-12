@@ -21,8 +21,16 @@ export function NoteTipList({ tips }: { tips: NoteTip[] }) {
             <tip.icon width={20} height={20} fill={colors.text} />
           </View>
           <View className="flex-1 gap-0.5">
-            {tip.title ? <Text className="text-foreground text-[15px] font-semibold">{tip.title}</Text> : null}
-            <Text className={tip.title ? 'text-muted-foreground text-[14px] leading-5' : 'text-foreground text-[15px] leading-5'}>
+            {tip.title ? (
+              <Text className="text-foreground text-[15px] font-semibold">{tip.title}</Text>
+            ) : null}
+            <Text
+              className={
+                tip.title
+                  ? 'text-muted-foreground text-[14px] leading-5'
+                  : 'text-foreground text-[15px] leading-5'
+              }
+            >
               {tip.body}
             </Text>
           </View>

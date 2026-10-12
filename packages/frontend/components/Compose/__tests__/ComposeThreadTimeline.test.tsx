@@ -219,14 +219,17 @@ function connectorCount(tree: TestRenderer.ReactTestRenderer, marker: object): n
 function inlineBackgroundColors(style: unknown): unknown[] {
   const entries = Array.isArray(style) ? style : [style];
   return entries
-    .filter((entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null)
+    .filter(
+      (entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null,
+    )
     .flatMap((entry) => ('backgroundColor' in entry ? [entry.backgroundColor] : []));
 }
 
 describe('ComposeThreadItem — the timeline between avatars', () => {
   beforeAll(() => {
-    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
-      .IS_REACT_ACT_ENVIRONMENT = true;
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
   });
 
   it('draws the connector above and below in THREAD mode', () => {

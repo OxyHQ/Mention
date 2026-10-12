@@ -59,10 +59,7 @@ import {
 } from '../services/federation/BlocklistProposalService';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
-import {
-  assertAdminRunComplete,
-  closeAdminScriptResources,
-} from './lib/adminScriptLifecycle';
+import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
 
 const SCRIPT_NAME = 'reviewFederationBlocklistProposals';
 
@@ -81,8 +78,8 @@ function parseAction(value: string | undefined): ReviewAction {
   const action = Object.values(ACTIONS).find((candidate) => candidate === requested);
   if (action) return action;
   throw new Error(
-    `[${SCRIPT_NAME}] unknown BLOCKLIST_PROPOSAL_ACTION "${requested}";`
-    + ` expected one of ${Object.values(ACTIONS).join(', ')}`,
+    `[${SCRIPT_NAME}] unknown BLOCKLIST_PROPOSAL_ACTION "${requested}";` +
+      ` expected one of ${Object.values(ACTIONS).join(', ')}`,
   );
 }
 
@@ -128,10 +125,8 @@ async function main(): Promise<void> {
     // Everything else writes the queue and asks for the script name first.
     assertAdminMutationAllowed({ scriptName: SCRIPT_NAME, dryRun: action === 'list' });
 
-    // Postgres only. The review queue, the run history and the footprint census
-    // all moved, so there is no Mongo read left to open a connection for — and a
-    // live connection to a store nothing reads is how the next reader concludes
-    // that reading from it would still be valid.
+    // Postgres only: the review queue, the run history and the footprint census
+    // all live there.
     //
     // It has to be opened HERE: `closeAdminScriptResources` closes Postgres
     // unconditionally, so this script has been closing a pool it never opened.

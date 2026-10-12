@@ -31,7 +31,10 @@ const { getUsersByIds, getUserFollowing, getUserFollowers } = vi.hoisted(() => (
 // caller supplies no per-request client. We pass an explicit spy client below, so
 // this is just here to keep the import side-effect-free.
 vi.mock('../../runtime/oxyClient', () => ({
-  getRuntimeOxyClient: () => ({ follows: { following: getUserFollowing, followers: getUserFollowers }, users: { get: vi.fn() } }),
+  getRuntimeOxyClient: () => ({
+    follows: { following: getUserFollowing, followers: getUserFollowers },
+    users: { get: vi.fn() },
+  }),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -51,7 +54,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
  * a fail-open cache, so keeping it real costs nothing and cannot drift again.
  */
 vi.mock('../../utils/privacyHelpers', async (importOriginal) => ({
-  ...await importOriginal<typeof import('../../utils/privacyHelpers')>(),
+  ...(await importOriginal<typeof import('../../utils/privacyHelpers')>()),
   getBlockedUserIds: vi.fn(async () => []),
   getRestrictedUserIds: vi.fn(async () => []),
 }));
@@ -112,7 +115,13 @@ describe('PostHydrationService — viewer-graph threading', () => {
     cacheStore.clear();
     getUsersByIds.mockReset();
     getUsersByIds.mockResolvedValue([
-      { id: AUTHOR_OXY_ID, username: 'author', name: { displayName: 'Author' }, badges: [], verified: false },
+      {
+        id: AUTHOR_OXY_ID,
+        username: 'author',
+        name: { displayName: 'Author' },
+        badges: [],
+        verified: false,
+      },
     ]);
     getUserFollowing.mockClear();
     getUserFollowers.mockClear();

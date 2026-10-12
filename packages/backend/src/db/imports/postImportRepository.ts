@@ -53,11 +53,13 @@ export async function findImportsBySourceIds(
       importedAt: postImports.importedAt,
     })
     .from(postImports)
-    .where(and(
-      eq(postImports.oxyUserId, oxyUserId),
-      eq(postImports.platform, platform),
-      inArray(postImports.sourceId, unique),
-    ));
+    .where(
+      and(
+        eq(postImports.oxyUserId, oxyUserId),
+        eq(postImports.platform, platform),
+        inArray(postImports.sourceId, unique),
+      ),
+    );
   return new Map(rows.map((row) => [row.sourceId, row]));
 }
 
@@ -101,10 +103,7 @@ export async function findBatchPostIds(
     .select({ postId: postImports.postId })
     .from(postImports)
     .innerJoin(posts, eq(posts.id, postImports.postId))
-    .where(and(
-      eq(postImports.importBatchId, importBatchId),
-      eq(postImports.oxyUserId, oxyUserId),
-    ))
+    .where(and(eq(postImports.importBatchId, importBatchId), eq(postImports.oxyUserId, oxyUserId)))
     .orderBy(desc(posts.createdAt), desc(posts.id));
   return rows.map((row) => row.postId);
 }
@@ -128,11 +127,16 @@ export async function loadImportProvenance(
     })
     .from(postImports)
     .where(inArray(postImports.postId, unique));
-  return new Map(rows.map((row) => [row.postId, {
-    platform: row.platform,
-    sourceUrl: row.sourceUrl,
-    ...(row.contentWarning ? { contentWarning: row.contentWarning } : {}),
-  }]));
+  return new Map(
+    rows.map((row) => [
+      row.postId,
+      {
+        platform: row.platform,
+        sourceUrl: row.sourceUrl,
+        ...(row.contentWarning ? { contentWarning: row.contentWarning } : {}),
+      },
+    ]),
+  );
 }
 
 /** A federated post Mention already holds, as the import lookup reports it. */
@@ -166,11 +170,13 @@ export async function findFederatedCopies(
       oxyUserId: posts.oxyUserId,
     })
     .from(posts)
-    .where(and(
-      inArray(posts.federationActivityId, unique),
-      eq(posts.status, 'published'),
-      eq(posts.visibility, 'public'),
-    ));
+    .where(
+      and(
+        inArray(posts.federationActivityId, unique),
+        eq(posts.status, 'published'),
+        eq(posts.visibility, 'public'),
+      ),
+    );
   return rows.flatMap((row) => (row.activityId ? [{ ...row, activityId: row.activityId }] : []));
 }
 
@@ -204,7 +210,10 @@ export async function findImportedCopyPairs(
       select f.id, k.key
       from posts f
       cross join lateral (values (f.federation_activity_id), (f.federation_url)) k(key)
-      where f.federation_actor_uri in (${sql.join(actorUris.map((uri) => sql`${uri}`), sql`, `)})
+      where f.federation_actor_uri in (${sql.join(
+        actorUris.map((uri) => sql`${uri}`),
+        sql`, `,
+      )})
         and f.oxy_user_id = ${params.oxyUserId}
         and f.status = 'published'
         and f.boost_of is null
@@ -217,7 +226,14 @@ export async function findImportedCopyPairs(
       where pi.oxy_user_id = ${params.oxyUserId}
         and ip.oxy_user_id = ${params.oxyUserId}
         and ip.status = 'published'
-        ${params.importedPostIds ? sql`and pi.post_id in (${sql.join(params.importedPostIds.map((id) => sql`${id}`), sql`, `)})` : sql``}
+        ${
+          params.importedPostIds
+            ? sql`and pi.post_id in (${sql.join(
+                params.importedPostIds.map((id) => sql`${id}`),
+                sql`, `,
+              )})`
+            : sql``
+        }
     )
     select distinct i.post_id as imported_post_id, c.id as federated_post_id
     from copy_keys c
@@ -225,7 +241,10 @@ export async function findImportedCopyPairs(
     where not exists (select 1 from post_equivalence_members m where m.post_id = c.id or m.post_id = i.post_id)
     order by c.id, i.post_id
   `);
-  return rows.map((row) => ({ importedPostId: row.imported_post_id, federatedPostId: row.federated_post_id }));
+  return rows.map((row) => ({
+    importedPostId: row.imported_post_id,
+    federatedPostId: row.federated_post_id,
+  }));
 }
 
 /** The source actors whose Oxy projection is `oxyUserId` — after a Move, the user's old accounts. */

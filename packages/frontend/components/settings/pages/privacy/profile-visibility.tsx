@@ -1,25 +1,25 @@
-import type { BloomIcon } from "@/components/settings/RowIcon";
-import { SettingsSelect } from "@/components/settings/SettingsSelect";
-import { useSettingsBack as useSafeBack } from "@/context/MentionSettingsContext";
+import type { BloomIcon } from '@/components/settings/RowIcon';
+import { SettingsSelect } from '@/components/settings/SettingsSelect';
+import { useSettingsBack as useSafeBack } from '@/context/MentionSettingsContext';
 import {
   createPrivacySettingsCacheLease,
   updatePrivacySettingsCache,
   type UserSettingsResponse,
-} from "@/hooks/usePrivacySettings";
-import { alertDialog } from "@/utils/alerts";
-import { authenticatedClient } from "@/utils/api";
+} from '@/hooks/usePrivacySettings';
+import { alertDialog } from '@/utils/alerts';
+import { authenticatedClient } from '@/utils/api';
 import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
-import { Loading } from "@oxy.so/bloom/loading";
-import { SettingsGeneralPage } from "@oxy.so/bloom/settings-modal";
-import { logger } from "@oxy.so/core/logger";
-import { OxyAuthPrompt, useAuth } from "@oxy.so/services/ui/client";
-import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { View } from "react-native";
+import { Loading } from '@oxy.so/bloom/loading';
+import { SettingsGeneralPage } from '@oxy.so/bloom/settings-modal';
+import { logger } from '@oxy.so/core/logger';
+import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
+import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { View } from 'react-native';
 
-type VisibilityOption = "public" | "private" | "followers_only";
+type VisibilityOption = 'public' | 'private' | 'followers_only';
 
 interface VisibilityOptionConfig {
   value: VisibilityOption;
@@ -31,16 +31,10 @@ interface VisibilityOptionConfig {
 export default function ProfileVisibilityScreen() {
   const { t } = useTranslation();
   const safeBack = useSafeBack();
-  const {
-    isAuthenticated,
-    isAuthResolved,
-    canUsePrivateApi,
-    isPrivateApiPending,
-    user,
-  } = useAuth();
+  const { isAuthenticated, isAuthResolved, canUsePrivateApi, isPrivateApiPending, user } =
+    useAuth();
 
-  const [profileVisibility, setProfileVisibility] =
-    useState<VisibilityOption>("public");
+  const [profileVisibility, setProfileVisibility] = useState<VisibilityOption>('public');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -57,14 +51,12 @@ export default function ProfileVisibilityScreen() {
 
   const loadSettings = async () => {
     try {
-      const response = await authenticatedClient.get<UserSettingsResponse>(
-        "/profile/settings/me",
-      );
+      const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
       const settings = response.data;
-      setProfileVisibility(settings.privacy?.profileVisibility || "public");
+      setProfileVisibility(settings.privacy?.profileVisibility || 'public');
       setLoading(false);
     } catch (error) {
-      logger.error("Error loading settings", error);
+      logger.error('Error loading settings', error);
       setLoading(false);
     }
   };
@@ -81,19 +73,17 @@ export default function ProfileVisibilityScreen() {
       let currentPrivacy = {};
       try {
         const currentResponse =
-          await authenticatedClient.get<UserSettingsResponse>(
-            "/profile/settings/me",
-          );
+          await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
         currentPrivacy = currentResponse.data?.privacy || {};
       } catch (e) {
-        logger.debug("Could not load current privacy settings", { error: e });
+        logger.debug('Could not load current privacy settings', { error: e });
       }
 
       const updatedPrivacy = {
         ...currentPrivacy,
         profileVisibility: newVisibility,
       };
-      await authenticatedClient.put("/profile/settings", {
+      await authenticatedClient.put('/profile/settings', {
         privacy: updatedPrivacy,
       });
 
@@ -101,19 +91,18 @@ export default function ProfileVisibilityScreen() {
 
       setProfileVisibility(newVisibility);
       await alertDialog({
-        title: t("common.success"),
-        message: t("settings.privacy.profileVisibilityUpdated"),
+        title: t('common.success'),
+        message: t('settings.privacy.profileVisibilityUpdated'),
       });
       setTimeout(() => {
         safeBack();
       }, 300);
     } catch (error) {
       const err = error as { response?: { data?: { error?: string } } };
-      logger.error("Error updating profile visibility", error);
+      logger.error('Error updating profile visibility', error);
       await alertDialog({
-        title: t("common.error"),
-        message:
-          err?.response?.data?.error || t("settings.privacy.updateError"),
+        title: t('common.error'),
+        message: err?.response?.data?.error || t('settings.privacy.updateError'),
       });
     } finally {
       setSaving(false);
@@ -134,13 +123,12 @@ export default function ProfileVisibilityScreen() {
     return (
       <View className="gap-4">
         <OxyAuthPrompt
-          label={t("settings.privacy.profileVisibility.signInRequired", {
-            defaultValue: "Sign in to set profile visibility",
+          label={t('settings.privacy.profileVisibility.signInRequired', {
+            defaultValue: 'Sign in to set profile visibility',
           })}
-          description={t(
-            "settings.privacy.profileVisibility.signInRequiredDesc",
-            { defaultValue: "Choose who can see your profile and posts." },
-          )}
+          description={t('settings.privacy.profileVisibility.signInRequiredDesc', {
+            defaultValue: 'Choose who can see your profile and posts.',
+          })}
         />
       </View>
     );
@@ -158,21 +146,21 @@ export default function ProfileVisibilityScreen() {
 
   const options: VisibilityOptionConfig[] = [
     {
-      value: "public",
-      label: t("settings.privacy.public"),
-      description: t("settings.privacy.publicDescription"),
+      value: 'public',
+      label: t('settings.privacy.public'),
+      description: t('settings.privacy.publicDescription'),
       icon: RiEarthLine,
     },
     {
-      value: "followers_only",
-      label: t("settings.privacy.followersOnly"),
-      description: t("settings.privacy.followersOnlyDescription"),
+      value: 'followers_only',
+      label: t('settings.privacy.followersOnly'),
+      description: t('settings.privacy.followersOnlyDescription'),
       icon: RiGroupLine,
     },
     {
-      value: "private",
-      label: t("settings.privacy.private"),
-      description: t("settings.privacy.privateDescription"),
+      value: 'private',
+      label: t('settings.privacy.private'),
+      description: t('settings.privacy.privateDescription'),
       icon: RiLockLine,
     },
   ];
@@ -181,17 +169,16 @@ export default function ProfileVisibilityScreen() {
     <SettingsGeneralPage
       sections={[
         {
-          key: "privacy",
+          key: 'privacy',
           rows: [
             {
-              key: "visibility",
-              label: t("settings.privacy.privateProfile"),
-              description: options.find(
-                (option) => option.value === profileVisibility,
-              )?.description,
+              key: 'visibility',
+              label: t('settings.privacy.privateProfile'),
+              description: options.find((option) => option.value === profileVisibility)
+                ?.description,
               control: (
                 <SettingsSelect
-                  label={t("settings.privacy.privateProfile")}
+                  label={t('settings.privacy.privateProfile')}
                   value={profileVisibility}
                   onChange={(value) => {
                     if (!saving) void handleSave(value);

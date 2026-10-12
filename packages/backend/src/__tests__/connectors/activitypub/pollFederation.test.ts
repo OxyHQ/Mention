@@ -21,8 +21,14 @@ import { inArray } from 'drizzle-orm';
  */
 
 vi.mock('../../../connectors/activitypub/actor.service', () => ({ actorService: {} }));
-vi.mock('../../../connectors/activitypub/crypto', () => ({ getPublicKey: vi.fn(), signRequest: vi.fn() }));
-vi.mock('../../../queue/producers', () => ({ enqueueDelivery: vi.fn(), enqueueInboxActivity: vi.fn() }));
+vi.mock('../../../connectors/activitypub/crypto', () => ({
+  getPublicKey: vi.fn(),
+  signRequest: vi.fn(),
+}));
+vi.mock('../../../queue/producers', () => ({
+  enqueueDelivery: vi.fn(),
+  enqueueInboxActivity: vi.fn(),
+}));
 vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
 vi.mock('@oxy.so/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
@@ -35,7 +41,10 @@ vi.mock('../../../utils/mediaResolver', () => ({
 import type { PostContent } from '@mention/shared-types';
 import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
 import { pollOptions, pollVotes, polls } from '../../../db/schema/polls';
-import { followService, type NotePollContext } from '../../../connectors/activitypub/follow.service';
+import {
+  followService,
+  type NotePollContext,
+} from '../../../connectors/activitypub/follow.service';
 
 const ISO = '2024-01-02T03:04:05.000Z';
 const FUTURE = new Date('2099-01-01T00:00:00.000Z');
@@ -61,7 +70,7 @@ function questionFor(poll: NotePollContext, content: PostContent = body('vote no
  * A REAL poll: one `polls` row, its options as ordered `poll_options` rows, and
  * each ballot as a `poll_votes` row.
  *
- * The resolver used to read the Mongoose `Poll` model, which nothing has written
+ * The resolver used to read the legacy-ODM `Poll` model, which nothing has written
  * since polls moved to Postgres — so it resolved null for every poll and every
  * poll post federated as a plain Note. That is invisible from the outside: null
  * is also how "this post has no poll" is spelled.

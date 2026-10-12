@@ -3,7 +3,7 @@
  *
  * Four of this service's reads crossed the store boundary in this batch: the
  * viewer's likes (batch 2 made `likes` a Postgres table but every reader stayed
- * on Mongo), the viewer's reply/boost targets, post-author resolution, and the
+ * on the legacy store), the viewer's reply/boost targets, post-author resolution, and the
  * two coverage AGGREGATIONS.
  *
  * The aggregations are why this file exists rather than a probe. Both are a
@@ -13,9 +13,9 @@
  *
  *  - `count(*)` instead of `count(distinct id)` scores a post covering three
  *    preferred topics as THREE posts, because `unnest` emits one row per
- *    (post, topic) pair. Mongo's `$sum: 1` counted documents.
+ *    (post, topic) pair. The legacy store's `$sum: 1` counted documents.
  *  - capping AFTER the grouping instead of before turns a bounded scan into a
- *    full-corpus one. Mongo's `$limit` sat between `$sort` and `$group`.
+ *    full-corpus one. The legacy store's `$limit` sat between `$sort` and `$group`.
  *
  * Neither shows up as an error, so both are asserted on values here.
  */
@@ -30,6 +30,7 @@ import { likes } from '../../db/schema/engagement';
 import { deletePostRecord, insertPostRecord } from '../../db/posts/postRepository';
 import type { PostRecordInput } from '../../db/posts/postRecord';
 import { ContentAffinityService } from '../../services/ContentAffinityService';
+import { refreshTopicAffinityPosts } from '../../services/TopicAffinityRefreshJob';
 
 let db: Database;
 const created: string[] = [];
@@ -128,6 +129,8 @@ describe('the topic-coverage aggregation', () => {
   it('runs end to end and scores an author who covers the viewer preferences', async () => {
     await create({ postClassification: { topics: ['tech'] } });
     await create({ postClassification: { topics: ['tech', 'music'] } });
+    // Topic affinity reads `topic_affinity_posts`; the leader refreshes it.
+    await refreshTopicAffinityPosts(db);
 
     const scores = await internals(service).computeTopicAffinity(VIEWER, since(), [
       { topic: 'tech', weight: 1 },
@@ -147,17 +150,48 @@ describe('the topic-coverage aggregation', () => {
       authorship: [{ oxyUserId: VIEWER, role: 'owner', status: 'accepted' }],
       postClassification: { topics: ['tech'] },
     });
+    // Another author on the same topic, so an empty result cannot pass this.
+    await create({ postClassification: { topics: ['tech'] } });
+    await refreshTopicAffinityPosts(db);
 
     const scores = await internals(service).computeTopicAffinity(VIEWER, since(), [
       { topic: 'tech', weight: 1 },
     ]);
 
+    expect(scores.has(AUTHOR)).toBe(true);
     expect(scores.has(VIEWER)).toBe(false);
+  });
+
+  it('reads only what topic_affinity_posts holds, and follows it on the next refresh', async () => {
+    const OTHER = 'oxy-affinity-other';
+    const eligible = await create({ postClassification: { topics: ['rare-topic'] } });
+    // Not eligible: private, a boost, and a post with no topics.
+    await create({
+      oxyUserId: OTHER,
+      authorship: [{ oxyUserId: OTHER, role: 'owner', status: 'accepted' }],
+      visibility: PostVisibility.PRIVATE,
+      postClassification: { topics: ['rare-topic'] },
+    });
+    await refreshTopicAffinityPosts(db);
+    const preferred = [{ topic: 'rare-topic', weight: 1 }];
+
+    const before = await internals(service).computeTopicAffinity(VIEWER, since(), preferred);
+    expect([...before.keys()]).toEqual([AUTHOR]);
+
+    // A post that stops being public leaves the view at the next refresh.
+    await db
+      .update(posts)
+      .set({ visibility: PostVisibility.PRIVATE })
+      .where(eq(posts.id, eligible.id));
+    await refreshTopicAffinityPosts(db);
+
+    const after = await internals(service).computeTopicAffinity(VIEWER, since(), preferred);
+    expect(after.size).toBe(0);
   });
 });
 
 describe('the hashtag-coverage aggregation', () => {
-  it('runs end to end without touching Mongo', async () => {
+  it('runs end to end against Postgres', async () => {
     await create({ hashtags: ['tech'] });
     // No followed hashtags for this viewer, so the result is empty — the point
     // is that the query PATH executes rather than throwing.
@@ -229,7 +263,7 @@ describe('the reads batch 2 left split across two stores', () => {
   it('resolves post authors and skips a malformed id instead of losing the batch', async () => {
     const record = await create();
 
-    // Under Mongoose ONE malformed id threw a CastError and the catch discarded
+    // Under the legacy ODM ONE malformed id threw a CastError and the catch discarded
     // every author in the batch. A `text` id simply matches no row.
     const authors = await internals(service).resolvePostAuthors([record.id, 'not-an-id-at-all']);
 

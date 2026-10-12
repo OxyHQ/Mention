@@ -55,9 +55,7 @@ const result = spawnSync(resolveTscBin(), ['--noEmit'], {
 });
 
 const output = `${result.stdout || ''}${result.stderr || ''}`;
-const errorLines = output
-  .split('\n')
-  .filter((line) => /error TS\d+:/.test(line));
+const errorLines = output.split('\n').filter((line) => /error TS\d+:/.test(line));
 
 const unexpected = errorLines.filter(
   (line) => !ALLOWED_EXTERNAL.some((allowed) => line.includes(allowed)),

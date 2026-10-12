@@ -82,7 +82,9 @@ afterAll(async () => {
 
 describe('delivery worker — the undeliverable cases', () => {
   beforeEach(async () => {
-    await getDb().delete(reports).where(like(reports.reporter, `${PREFIX}%`));
+    await getDb()
+      .delete(reports)
+      .where(like(reports.reporter, `${PREFIX}%`));
     const [row] = await getDb()
       .insert(reports)
       .values({
@@ -104,7 +106,9 @@ describe('delivery worker — the undeliverable cases', () => {
 
   afterEach(async () => {
     vi.restoreAllMocks();
-    await getDb().delete(reports).where(like(reports.reporter, `${PREFIX}%`));
+    await getDb()
+      .delete(reports)
+      .where(like(reports.reporter, `${PREFIX}%`));
   });
 
   it('closes a report whose content is gone instead of retrying for days', async () => {
@@ -148,9 +152,7 @@ describe('delivery worker — the undeliverable cases', () => {
       subject: { externalId: 'p1', type: 'social.post' },
       content: 'text',
     });
-    const { getCrowdSourceClient } = await import(
-      '../../../services/moderation/crowdSourceClient'
-    );
+    const { getCrowdSourceClient } = await import('../../../services/moderation/crowdSourceClient');
     vi.mocked(getCrowdSourceClient).mockReturnValue(undefined);
 
     const before = await findReportById(reportId);

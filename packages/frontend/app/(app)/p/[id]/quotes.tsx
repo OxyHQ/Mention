@@ -13,27 +13,27 @@ import { useSafeBack } from '@/hooks/useSafeBack';
  * than the user-list sheet that likes and boosts open.
  */
 export default function PostQuotesScreen() {
-    const { id } = useLocalSearchParams<{ id: string }>();
-    const safeBack = useSafeBack();
-    const { t } = useTranslation();
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const safeBack = useSafeBack();
+  const { t } = useTranslation();
 
-    const filters = useMemo(() => ({ postId: String(id) }), [id]);
-    const title = t('post.quotes.title', { defaultValue: 'Quotes' });
+  const filters = useMemo(() => ({ postId: String(id) }), [id]);
+  const title = t('post.quotes.title', { defaultValue: 'Quotes' });
 
-    return (
-        <View className="flex-1">
-            <SEO
-                title={title}
-                description={t('post.quotes.description', {
-                    defaultValue: 'Posts quoting this post on Mention',
-                })}
-            />
-            <PageHeader
-                title={title}
-                onBack={() => safeBack()}
-                backLabel={t('common.back', { defaultValue: 'Back' })}
-            />
-            <Feed type="quotes" filters={filters} />
-        </View>
-    );
+  return (
+    <View className="flex-1">
+      <SEO
+        title={title}
+        description={t('post.quotes.description', {
+          defaultValue: 'Posts quoting this post on Mention',
+        })}
+      />
+      <PageHeader
+        title={title}
+        onBack={() => safeBack()}
+        backLabel={t('common.back', { defaultValue: 'Back' })}
+      />
+      <Feed type="quotes" filters={filters} />
+    </View>
+  );
 }

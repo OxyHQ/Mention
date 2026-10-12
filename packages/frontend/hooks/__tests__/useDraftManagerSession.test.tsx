@@ -101,7 +101,9 @@ const threadItem = (overrides: Partial<ThreadItem> = {}): ThreadItem => ({
 });
 
 beforeAll(() => {
-  (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  (
+    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true;
 });
 
 beforeEach(() => {
@@ -135,12 +137,14 @@ describe('a draft keeps what the author attached', () => {
   it('keeps the event beside text and media in the order the author set', async () => {
     const media = [{ id: 'file-1', type: 'image' as const }];
     await act(async () => {
-      await manager().saveNow(refs({
-        postContent: 'with an event',
-        event: EVENT,
-        mediaIds: media,
-        attachmentOrder: ['media:file-1', 'event'],
-      }));
+      await manager().saveNow(
+        refs({
+          postContent: 'with an event',
+          event: EVENT,
+          mediaIds: media,
+          attachmentOrder: ['media:file-1', 'event'],
+        }),
+      );
     });
 
     act(() => {
@@ -153,7 +157,12 @@ describe('a draft keeps what the author attached', () => {
   });
 
   it('round-trips a room and every attachment of a thread box', async () => {
-    const room = { roomId: 'room-1', title: 'Live Q&A', status: 'scheduled' as const, type: 'stage' as const };
+    const room = {
+      roomId: 'room-1',
+      title: 'Live Q&A',
+      status: 'scheduled' as const,
+      type: 'stage' as const,
+    };
     const box = threadItem({
       text: 'second post',
       sources: [{ id: 's1', title: 'Source', url: 'https://example.com' }],
@@ -199,12 +208,23 @@ describe('a draft keeps what the author attached', () => {
 
   it('opens a draft saved before events were kept', () => {
     act(() => {
-      manager().loadDraft({ id: 'draft-legacy', postContent: 'old', threadItems: [{ id: 't', text: 'x' }] });
+      manager().loadDraft({
+        id: 'draft-legacy',
+        postContent: 'old',
+        threadItems: [{ id: 't', text: 'x' }],
+      });
     });
     const restored = onDraftLoad.mock.calls[0][0];
     expect(restored.event).toBeNull();
     expect(restored.room).toBeNull();
-    expect(restored.threadItems[0]).toMatchObject({ sources: [], article: null, event: null, room: null, podcast: null, attachmentOrder: [] });
+    expect(restored.threadItems[0]).toMatchObject({
+      sources: [],
+      article: null,
+      event: null,
+      room: null,
+      podcast: null,
+      attachmentOrder: [],
+    });
   });
 });
 
@@ -225,7 +245,9 @@ describe('"Save draft" updates the session draft', () => {
   it('waits for an autosave still in flight and then updates the draft it creates', async () => {
     let releaseFirst!: () => void;
     saveDraft.mockImplementationOnce(async (draft: DraftInput) => {
-      await new Promise<void>((resolve) => { releaseFirst = resolve; });
+      await new Promise<void>((resolve) => {
+        releaseFirst = resolve;
+      });
       const id = draft.id ?? `draft-${nextId++}`;
       stored.set(id, { ...draft, id });
       return id;
@@ -247,7 +269,9 @@ describe('"Save draft" updates the session draft', () => {
   });
 
   it('cancels the pending debounce so it cannot write after the save', async () => {
-    manager().autoSaveTimeoutRef.current = setTimeout(jest.fn(), 60_000) as unknown as ReturnType<typeof setTimeout>;
+    manager().autoSaveTimeoutRef.current = setTimeout(jest.fn(), 60_000) as unknown as ReturnType<
+      typeof setTimeout
+    >;
     await act(async () => {
       await manager().saveNow(refs({ postContent: 'saved' }));
     });
@@ -287,7 +311,9 @@ describe('"Discard" removes the session draft', () => {
   it('lets an autosave in flight at the debounce boundary land, then deletes it', async () => {
     let releaseSave!: () => void;
     saveDraft.mockImplementationOnce(async (draft: DraftInput) => {
-      await new Promise<void>((resolve) => { releaseSave = resolve; });
+      await new Promise<void>((resolve) => {
+        releaseSave = resolve;
+      });
       const id = draft.id ?? `draft-${nextId++}`;
       stored.set(id, { ...draft, id });
       return id;
@@ -308,7 +334,9 @@ describe('"Discard" removes the session draft', () => {
   });
 
   it('cancels the pending debounce and never autosaves again', async () => {
-    manager().autoSaveTimeoutRef.current = setTimeout(jest.fn(), 60_000) as unknown as ReturnType<typeof setTimeout>;
+    manager().autoSaveTimeoutRef.current = setTimeout(jest.fn(), 60_000) as unknown as ReturnType<
+      typeof setTimeout
+    >;
     await act(async () => {
       await manager().discard();
     });
@@ -333,25 +361,35 @@ describe('a draft round-trips every field it keeps', () => {
       status: 'published' as const,
       location: { countryCode: 'ES', city: 'Barcelona' },
     };
-    const podcast = { syraPodcastId: 'pod-1', title: 'Show', author: 'Host', artworkUrl: 'https://x.test/a.png' };
+    const podcast = {
+      syraPodcastId: 'pod-1',
+      title: 'Show',
+      author: 'Host',
+      artworkUrl: 'https://x.test/a.png',
+    };
     const scheduledAt = new Date('2026-12-01T10:00:00.000Z');
     await act(async () => {
-      await manager().saveNow(refs({
-        postContent: 'hiring',
-        job: job as ComposeDraftRefs['job'],
-        podcast,
-        scheduledAt,
-        postingMode: 'beast',
-        pollOptions: ['yes', ''],
-        pollTitle: 'Apply?',
-      }));
+      await manager().saveNow(
+        refs({
+          postContent: 'hiring',
+          job: job as ComposeDraftRefs['job'],
+          podcast,
+          scheduledAt,
+          postingMode: 'beast',
+          pollOptions: ['yes', ''],
+          pollTitle: 'Apply?',
+        }),
+      );
     });
 
     act(() => {
       manager().loadDraft([...stored.values()][0]);
     });
     const restored = onDraftLoad.mock.calls[0][0];
-    expect(restored.job).toMatchObject({ mentionJobId: 'job-1', location: { countryCode: 'ES', city: 'Barcelona' } });
+    expect(restored.job).toMatchObject({
+      mentionJobId: 'job-1',
+      location: { countryCode: 'ES', city: 'Barcelona' },
+    });
     expect(restored.podcast).toEqual(podcast);
     expect(restored.scheduledAt).toEqual(scheduledAt);
     expect(restored.postingMode).toBe('beast');
@@ -379,7 +417,14 @@ describe('a draft round-trips every field it keeps', () => {
     expect(restored.scheduledAt).toBeNull();
     expect(restored.job).toBeNull();
     expect(restored.podcast).toBeNull();
-    expect(restored.room).toEqual({ roomId: 'r', title: 'Room', status: undefined, type: undefined, topic: undefined, host: undefined });
+    expect(restored.room).toEqual({
+      roomId: 'r',
+      title: 'Room',
+      status: undefined,
+      type: undefined,
+      topic: undefined,
+      host: undefined,
+    });
     expect(restored.location).toEqual({ latitude: 0, longitude: 2, address: undefined });
   });
 });

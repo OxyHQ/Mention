@@ -25,7 +25,9 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 import { useJobVocabulary } from '@/utils/jobVocabulary';
 
-const ReportModal = lazy(() => import('@/components/report/ReportModal').then((m) => ({ default: m.ReportModal })));
+const ReportModal = lazy(() =>
+  import('@/components/report/ReportModal').then((m) => ({ default: m.ReportModal })),
+);
 
 const WORKPLACE_LABELS: Record<string, string> = {
   onsite: 'On-site',
@@ -42,7 +44,10 @@ const EMPLOYMENT_LABELS: Record<string, string> = {
   other: 'Other',
 };
 
-const STATUS_TONE: Record<MentionJobStatus, 'default' | 'primary' | 'success' | 'warning' | 'error' | 'info'> = {
+const STATUS_TONE: Record<
+  MentionJobStatus,
+  'default' | 'primary' | 'success' | 'warning' | 'error' | 'info'
+> = {
   draft: 'default',
   published: 'success',
   paused: 'warning',
@@ -147,7 +152,9 @@ export default function JobDetailScreen() {
             const success = await reportService.reportJob(job.id, categories, details);
             toast(
               success
-                ? t('jobs.detail.reportSubmitted', { defaultValue: 'Thanks — this listing has been reported' })
+                ? t('jobs.detail.reportSubmitted', {
+                    defaultValue: 'Thanks — this listing has been reported',
+                  })
                 : t('jobs.detail.reportFailed', { defaultValue: 'Could not submit this report' }),
               { type: success ? 'success' : 'error' },
             );
@@ -208,7 +215,12 @@ export default function JobDetailScreen() {
       <ScrollView contentContainerClassName="px-4 pb-16 pt-2">
         {!isPublished ? (
           <View className="flex-row items-center">
-            <Badge content={job.status} color={STATUS_TONE[job.status]} variant="subtle" size="small" />
+            <Badge
+              content={job.status}
+              color={STATUS_TONE[job.status]}
+              variant="subtle"
+              size="small"
+            />
           </View>
         ) : null}
 
@@ -250,12 +262,20 @@ export default function JobDetailScreen() {
 
         <View className="flex-row gap-3 mt-6">
           {job.applicationMode === 'external' ? (
-            <Button appearance="solid" tone="accent" size="lg" style={{ flex: 1 }} onPress={applyExternally} disabled={!job.externalApplyUrl}>
+            <Button
+              appearance="solid"
+              tone="accent"
+              size="lg"
+              style={{ flex: 1 }}
+              onPress={applyExternally}
+              disabled={!job.externalApplyUrl}
+            >
               {t('jobs.detail.apply', { defaultValue: 'Apply' })}
             </Button>
           ) : (
             <Button
-              appearance="solid" tone="accent"
+              appearance="solid"
+              tone="accent"
               size="lg"
               style={{ flex: 1 }}
               disabled={!isPublished}

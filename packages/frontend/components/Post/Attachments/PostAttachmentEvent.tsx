@@ -35,11 +35,13 @@ const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({
   const day = eventDate ? eventDate.getDate() : null;
   const month = eventDate ? eventDate.toLocaleString('default', { month: 'short' }) : null;
   const year = eventDate ? eventDate.getFullYear() : null;
-  const time = eventDate ? eventDate.toLocaleTimeString('default', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true
-  }) : null;
+  const time = eventDate
+    ? eventDate.toLocaleTimeString('default', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      })
+    : null;
 
   return (
     // Bloom's `Card` owns the surface (border, card fill, corner, clip) and,
@@ -48,26 +50,30 @@ const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({
       radius="radius-16"
       className={cn('w-[200px] min-h-[140px] flex-row', className)}
       style={style}
-      onPress={onPress} appearance="outline"
+      onPress={onPress}
+      appearance="outline"
     >
       <View className="w-[60px] py-3 px-2 items-center justify-center bg-primary">
         {day !== null && (
           <>
             <Text className="text-[28px] font-bold text-white leading-[32px]">{day}</Text>
-            {month && <Text className="text-[11px] font-semibold text-white uppercase mt-0.5">{month}</Text>}
-            {year && <Text className="text-[10px] font-medium text-white opacity-90 mt-0.5">{year}</Text>}
+            {month && (
+              <Text className="text-[11px] font-semibold text-white uppercase mt-0.5">{month}</Text>
+            )}
+            {year && (
+              <Text className="text-[10px] font-medium text-white opacity-90 mt-0.5">{year}</Text>
+            )}
           </>
         )}
       </View>
       <View className="flex-1 p-3 justify-center">
-        <Text className="text-foreground text-[15px] font-semibold mb-1 leading-5" numberOfLines={2}>
+        <Text
+          className="text-foreground text-[15px] font-semibold mb-1 leading-5"
+          numberOfLines={2}
+        >
           {name}
         </Text>
-        {time && (
-          <Text className="text-muted-foreground text-xs mb-1">
-            {time}
-          </Text>
-        )}
+        {time && <Text className="text-muted-foreground text-xs mb-1">{time}</Text>}
         {location && (
           <Text className="text-muted-foreground text-[11px] mt-0.5" numberOfLines={1}>
             <Text>{'\uD83D\uDCCD'} </Text>

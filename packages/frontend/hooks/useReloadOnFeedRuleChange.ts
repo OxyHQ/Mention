@@ -18,16 +18,16 @@ import { subscribeToBylineChanges } from '@/stores/bylineInvalidation';
  * its own. `reload` should be stable: a new identity re-subscribes.
  */
 export function useReloadOnFeedRuleChange(enabled: boolean, reload: () => unknown): void {
-    useEffect(() => {
-        if (!enabled) return;
-        const onChange = () => {
-            void reload();
-        };
-        const unsubscribeSafety = subscribeToSafetyFilterChanges(onChange);
-        const unsubscribeByline = subscribeToBylineChanges(onChange);
-        return () => {
-            unsubscribeSafety();
-            unsubscribeByline();
-        };
-    }, [enabled, reload]);
+  useEffect(() => {
+    if (!enabled) return;
+    const onChange = () => {
+      void reload();
+    };
+    const unsubscribeSafety = subscribeToSafetyFilterChanges(onChange);
+    const unsubscribeByline = subscribeToBylineChanges(onChange);
+    return () => {
+      unsubscribeSafety();
+      unsubscribeByline();
+    };
+  }, [enabled, reload]);
 }

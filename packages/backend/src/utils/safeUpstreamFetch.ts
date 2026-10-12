@@ -3,7 +3,12 @@ import https from 'node:https';
 import type { LookupAddress, LookupAllOptions, LookupOneOptions } from 'node:dns';
 import type { LookupFunction } from 'node:net';
 import { URL } from 'node:url';
-import { assertSafePublicUrl, SsrfRejection, UpstreamError, type SsrfCheckOk } from '@oxy.so/core/server';
+import {
+  assertSafePublicUrl,
+  SsrfRejection,
+  UpstreamError,
+  type SsrfCheckOk,
+} from '@oxy.so/core/server';
 
 /**
  * Shared SSRF-safe upstream HTTP fetch primitives.
@@ -183,7 +188,13 @@ export async function fetchUpstreamFollowingRedirects(
     }
 
     const target = new URL(currentUrl);
-    const options = buildRequestOptions(target, guard.ip, guard.family, buildMediaProxyHeaders(extras), signal);
+    const options = buildRequestOptions(
+      target,
+      guard.ip,
+      guard.family,
+      buildMediaProxyHeaders(extras),
+      signal,
+    );
     const response = await fetchOnce(options, target.protocol === 'https:');
 
     const status = response.statusCode ?? 0;
@@ -268,7 +279,12 @@ export async function fetchUpstreamSingleHop(
     options.signal,
     options.method ?? 'GET',
   );
-  const response = await fetchOnce(requestOptions, target.protocol === 'https:', options.headersTimeoutMs, options.body);
+  const response = await fetchOnce(
+    requestOptions,
+    target.protocol === 'https:',
+    options.headersTimeoutMs,
+    options.body,
+  );
   return {
     response,
     status: response.statusCode ?? 0,

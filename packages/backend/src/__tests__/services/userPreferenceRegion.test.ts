@@ -26,10 +26,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  */
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import {
-  deleteUserBehavior,
-  loadUserBehavior,
-} from '../../db/userProfile/userBehaviorRepository';
+import { deleteUserBehavior, loadUserBehavior } from '../../db/userProfile/userBehaviorRepository';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { userPreferenceService } from '../../services/UserPreferenceService';
 

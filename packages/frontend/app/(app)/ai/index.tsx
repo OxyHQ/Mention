@@ -1,12 +1,12 @@
-import { AliaChatScreen } from "@alia.onl/sdk";
-import { VoiceSession } from "@alia.onl/sdk/voice";
-import { Button } from "@oxy.so/bloom/button";
-import { RiArrowLeftLine } from "@oxy.so/bloom/icons/RiArrowLeftLine";
-import { useAuth } from "@oxy.so/services/ui/client";
-import React from "react";
-import { useTranslation } from "react-i18next";
+import { AliaChatScreen } from '@alia.onl/sdk';
+import { VoiceSession } from '@alia.onl/sdk/voice';
+import { Button } from '@oxy.so/bloom/button';
+import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
+import { useAuth } from '@oxy.so/services/ui/client';
+import React from 'react';
+import { useTranslation } from 'react-i18next';
 
-import { useSafeBack } from "@/hooks/useSafeBack";
+import { useSafeBack } from '@/hooks/useSafeBack';
 
 /**
  * The Alia chat, full screen. The shell draws no bottom bar here
@@ -27,22 +27,22 @@ export default function AiScreen() {
           tone="neutral"
           size="md"
           icon={RiArrowLeftLine}
-          accessibilityLabel={t("common.back", { defaultValue: "Back" })}
+          accessibilityLabel={t('common.back', { defaultValue: 'Back' })}
           onPress={() => safeBack()}
         />
       }
-      welcomeGreeting={`${t("Hello")}, ${user?.username || "there"}.`}
-      welcomeSubtitle={t("How can I help you today?")}
+      welcomeGreeting={`${t('Hello')}, ${user?.username || 'there'}.`}
+      welcomeSubtitle={t('How can I help you today?')}
       welcomeSuggestions={[
         {
-          id: "latest-news",
-          title: t("Latest news"),
-          description: t("What are the latest news?"),
+          id: 'latest-news',
+          title: t('Latest news'),
+          description: t('What are the latest news?'),
         },
         {
-          id: "edit-image",
-          title: t("Edit image"),
-          description: t("Help me edit an image"),
+          id: 'edit-image',
+          title: t('Edit image'),
+          description: t('Help me edit an image'),
         },
       ]}
     />

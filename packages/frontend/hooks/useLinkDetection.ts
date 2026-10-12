@@ -26,7 +26,7 @@ export const useLinkDetection = (text: string) => {
   const [detectedLinks, setDetectedLinks] = useState<LinkMetadata[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const { getCached, upsertLink } = useLinksStore();
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -37,44 +37,47 @@ export const useLinkDetection = (text: string) => {
    * yet (still being indexed, or unresolvable) simply has none; the next pass
    * asks again.
    */
-  const fetchLinkMetadata = useCallback(async (urls: string[], signal?: AbortSignal): Promise<LinkMetadata[]> => {
-    const byUrl = new Map<string, LinkMetadata>();
-    const missing: string[] = [];
-    for (const url of urls) {
-      const cached = getCached(url);
-      if (cached) byUrl.set(url, cached);
-      else missing.push(url);
-    }
-
-    if (missing.length > 0) {
-      try {
-        const { previews } = await feedService.resolveLinkPreviews(missing, signal);
-        if (signal?.aborted) return [];
-        for (const { url, document } of previews) {
-          const metadata: LinkMetadata = {
-            url: document.canonicalUrl,
-            title: document.title,
-            description: document.description,
-            image: document.imageUrl,
-            siteName: document.publisher,
-            favicon: document.faviconUrl,
-            fetchedAt: Date.now(),
-          };
-          upsertLink(metadata);
-          byUrl.set(url, metadata);
-        }
-      } catch (err) {
-        if (signal?.aborted) return [];
-        // A failed unfurl is non-actionable for the composer — show no preview.
-        logger.debug('Link preview resolution failed', { count: missing.length, error: err });
+  const fetchLinkMetadata = useCallback(
+    async (urls: string[], signal?: AbortSignal): Promise<LinkMetadata[]> => {
+      const byUrl = new Map<string, LinkMetadata>();
+      const missing: string[] = [];
+      for (const url of urls) {
+        const cached = getCached(url);
+        if (cached) byUrl.set(url, cached);
+        else missing.push(url);
       }
-    }
 
-    return urls.flatMap((url) => {
-      const metadata = byUrl.get(url);
-      return metadata ? [metadata] : [];
-    });
-  }, [getCached, upsertLink]);
+      if (missing.length > 0) {
+        try {
+          const { previews } = await feedService.resolveLinkPreviews(missing, signal);
+          if (signal?.aborted) return [];
+          for (const { url, document } of previews) {
+            const metadata: LinkMetadata = {
+              url: document.canonicalUrl,
+              title: document.title,
+              description: document.description,
+              image: document.imageUrl,
+              siteName: document.publisher,
+              favicon: document.faviconUrl,
+              fetchedAt: Date.now(),
+            };
+            upsertLink(metadata);
+            byUrl.set(url, metadata);
+          }
+        } catch (err) {
+          if (signal?.aborted) return [];
+          // A failed unfurl is non-actionable for the composer — show no preview.
+          logger.debug('Link preview resolution failed', { count: missing.length, error: err });
+        }
+      }
+
+      return urls.flatMap((url) => {
+        const metadata = byUrl.get(url);
+        return metadata ? [metadata] : [];
+      });
+    },
+    [getCached, upsertLink],
+  );
 
   /**
    * Process text and fetch metadata for all detected links
@@ -114,12 +117,12 @@ export const useLinkDetection = (text: string) => {
 
       try {
         const results = await fetchLinkMetadata(urls, abortControllerRef.current?.signal);
-        
+
         // Check if request was aborted
         if (abortControllerRef.current?.signal.aborted) {
           return;
         }
-        
+
         // Filter out null results and errors
         const validLinks = results.filter((meta) => !meta.error);
 

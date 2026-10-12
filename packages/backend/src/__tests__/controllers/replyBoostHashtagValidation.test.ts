@@ -28,7 +28,11 @@ vi.mock('../../services/PostHydrationService', () => ({
     canViewerReadPostId: vi.fn(async () => true),
   },
   resolveUserSummaries: vi.fn(async () => new Map()),
-  degradedActorSummary: (id: string) => ({ id, username: '', name: { displayName: 'Unknown user' } }),
+  degradedActorSummary: (id: string) => ({
+    id,
+    username: '',
+    name: { displayName: 'Unknown user' },
+  }),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -43,7 +47,12 @@ vi.mock('../../utils/clarityDocumentWarm', () => ({
 }));
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import { clearServiceScope, readScopePosts, seedPost, serviceScope } from '../helpers/serviceFixtures';
+import {
+  clearServiceScope,
+  readScopePosts,
+  seedPost,
+  serviceScope,
+} from '../helpers/serviceFixtures';
 import { feedController } from '../../controllers/feed.controller';
 
 const scope = serviceScope('reply-boost-hashtags');
@@ -114,7 +123,11 @@ afterEach(async () => {
 
 describe('createReply', () => {
   it('refuses a truthy non-array with a 400 and writes nothing', async () => {
-    const captured = await createReply({ postId: TARGET_ID, content: { text: 'a reply' }, hashtags: 'cat' });
+    const captured = await createReply({
+      postId: TARGET_ID,
+      content: { text: 'a reply' },
+      hashtags: 'cat',
+    });
 
     expect(captured.status).toBe(400);
     expect(captured.body?.error).toContain('Invalid hashtag');
@@ -157,7 +170,11 @@ describe('createReply', () => {
 
 describe('createBoost', () => {
   it('refuses a truthy non-array with a 400 and writes nothing', async () => {
-    const captured = await createBoost({ originalPostId: TARGET_ID, content: { text: 'a boost' }, hashtags: 'cat' });
+    const captured = await createBoost({
+      originalPostId: TARGET_ID,
+      content: { text: 'a boost' },
+      hashtags: 'cat',
+    });
 
     expect(captured.status).toBe(400);
     expect(captured.body?.error).toContain('Invalid hashtag');

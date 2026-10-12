@@ -28,11 +28,7 @@ const PostAttachmentNested: React.FC<PostAttachmentNestedProps> = ({
   return (
     <View style={styles.nestedContainer}>
       <Suspense fallback={null}>
-        <PostItem
-          post={nestedPost}
-          isNested={true}
-          nestingDepth={nestingDepth + 1}
-        />
+        <PostItem post={nestedPost} isNested={true} nestingDepth={nestingDepth + 1} />
       </Suspense>
     </View>
   );

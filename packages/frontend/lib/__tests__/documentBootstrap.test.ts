@@ -5,7 +5,9 @@ import { __documentBootstrapForTests, bootstrapProfileFor } from '@/lib/document
 
 // The real identity normalizer, through core's CommonJS build (Jest cannot load
 // the ESM entry the app resolves). `jest.mock` is hoisted above the import.
-jest.mock('@oxy.so/core', () => jest.requireActual('../../../../node_modules/@oxy.so/core/dist/cjs/utils/userIdentity.js'));
+jest.mock('@oxy.so/core', () =>
+  jest.requireActual('../../../../node_modules/@oxy.so/core/dist/cjs/utils/userIdentity.js'),
+);
 
 function serve(json: string | null): void {
   document.getElementById('mention-bootstrap')?.remove();
@@ -26,7 +28,9 @@ describe('bootstrapProfileFor', () => {
 
   it('returns the served profile for the handle the document was served for', () => {
     serve(JSON.stringify({ profile: { handle: 'Nate', data: nate } }));
-    expect(bootstrapProfileFor('@nate')).toEqual(expect.objectContaining({ id: 'oxy-nate', username: 'nate' }));
+    expect(bootstrapProfileFor('@nate')).toEqual(
+      expect.objectContaining({ id: 'oxy-nate', username: 'nate' }),
+    );
   });
 
   it('returns nothing for any other handle', () => {
@@ -35,7 +39,9 @@ describe('bootstrapProfileFor', () => {
   });
 
   it('refuses a payload whose username the route does not own and no proven alias names', () => {
-    serve(JSON.stringify({ profile: { handle: 'nate', data: { ...nate, username: 'someone-else' } } }));
+    serve(
+      JSON.stringify({ profile: { handle: 'nate', data: { ...nate, username: 'someone-else' } } }),
+    );
     expect(bootstrapProfileFor('nate')).toBeNull();
   });
 
@@ -52,7 +58,8 @@ describe('bootstrapProfileFor', () => {
 describe('bootstrapProfileFor on native', () => {
   it('has no document, so never a profile', () => {
     // The explicit file: the platform default Metro serves native builds.
-    const native = jest.requireActual<typeof import('@/lib/documentBootstrap')>('../documentBootstrap.ts');
+    const native =
+      jest.requireActual<typeof import('@/lib/documentBootstrap')>('../documentBootstrap.ts');
     expect(native.bootstrapProfileFor('nate')).toBeNull();
   });
 });

@@ -116,8 +116,9 @@ const SERVER_SETTINGS = {
 
 describe('useFeedSettings — instant save', () => {
   beforeAll(() => {
-    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
-      .IS_REACT_ACT_ENVIRONMENT = true;
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
   });
 
   beforeEach(() => {
@@ -142,8 +143,12 @@ describe('useFeedSettings — instant save', () => {
 
   it('shows the new value immediately, before the server has answered', async () => {
     const next = { ...SERVER_SETTINGS, quality: { boostHighQuality: false } };
-    let resolvePut: ((value: unknown) => void) = () => {};
-    mockPut.mockReturnValue(new Promise((resolve) => { resolvePut = resolve; }));
+    let resolvePut: (value: unknown) => void = () => {};
+    mockPut.mockReturnValue(
+      new Promise((resolve) => {
+        resolvePut = resolve;
+      }),
+    );
 
     const client = renderProbe();
     await settle();
@@ -192,10 +197,9 @@ describe('useFeedSettings — instant save', () => {
     // Back to what the server actually holds — not left showing the refused value.
     expect(latest!.settings.quality.boostHighQuality).toBe(true);
     // And the user was told. A silent revert is the failure this guards.
-    expect(mockToast).toHaveBeenCalledWith(
-      expect.stringContaining("Couldn't save"),
-      { type: 'error' },
-    );
+    expect(mockToast).toHaveBeenCalledWith(expect.stringContaining("Couldn't save"), {
+      type: 'error',
+    });
   });
 
   it('previews without writing, so a slider drag makes no requests', async () => {

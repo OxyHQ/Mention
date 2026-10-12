@@ -10,9 +10,31 @@ import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { z } from 'zod';
 
 const KNOWN_CATEGORIES = [
-  'animals', 'art', 'books', 'comedy', 'comics', 'culture', 'dev', 'education',
-  'finance', 'food', 'gaming', 'journalism', 'movies', 'music', 'nature', 'news',
-  'pets', 'photography', 'politics', 'science', 'sports', 'tech', 'tv', 'writers', 'none',
+  'animals',
+  'art',
+  'books',
+  'comedy',
+  'comics',
+  'culture',
+  'dev',
+  'education',
+  'finance',
+  'food',
+  'gaming',
+  'journalism',
+  'movies',
+  'music',
+  'nature',
+  'news',
+  'pets',
+  'photography',
+  'politics',
+  'science',
+  'sports',
+  'tech',
+  'tv',
+  'writers',
+  'none',
 ] as const;
 
 /** Local post count a topic needs before AI enrichment considers it worth the tokens. */
@@ -28,14 +50,14 @@ class TopicService {
     // (e.g. when leadership is lost before the initial run fires).
     this.initialRunTimeout = setTimeout(() => {
       this.initialRunTimeout = null;
-      this.enrichTopics().catch(err => {
+      this.enrichTopics().catch((err) => {
         logger.warn('[TopicService] Enrichment failed:', err);
       });
     }, 60_000);
     this.initialRunTimeout.unref?.();
 
     this.enrichmentInterval = setInterval(() => {
-      this.enrichTopics().catch(err => {
+      this.enrichTopics().catch((err) => {
         logger.warn('[TopicService] Enrichment failed:', err);
       });
     }, this.ENRICHMENT_INTERVAL_MS);
@@ -66,7 +88,7 @@ class TopicService {
     try {
       const oxy = getServiceOxyClient();
       const topics = await oxy.topics.resolveNames(names);
-      return new Map(topics.map(t => [t.name, t]));
+      return new Map(topics.map((t) => [t.name, t]));
     } catch (error) {
       logger.error('[TopicService] Failed to resolve topic names via Oxy API:', error);
       return new Map();
@@ -100,10 +122,10 @@ class TopicService {
       t === 'entity' ? TopicType.ENTITY : TopicType.TOPIC;
 
     const topicMap = await this.resolveNames(
-      topics.map(t => ({ name: t.name, type: resolveType(t.type) })),
+      topics.map((t) => ({ name: t.name, type: resolveType(t.type) })),
     );
 
-    return topics.map(t => {
+    return topics.map((t) => {
       const topicId = topicMap.get(t.name)?._id?.toString();
       return {
         name: t.name,
@@ -171,17 +193,15 @@ class TopicService {
   /**
    * Add `delta` to each topic's popularity, creating the row when absent.
    *
-   * Mongo's `bulkWrite` of `$inc` upserts becomes ONE multi-row
-   * `insert … on conflict do update`: on insert the column takes the delta
-   * (which is what `$inc` on an upsert did), on conflict it takes
-   * `existing + excluded`. Duplicate topic ids are summed BEFORE the statement,
-   * as they were before — and now they have to be, because a single statement
+   * ONE multi-row `insert … on conflict do update`: on insert the column takes
+   * the delta, on conflict it takes `existing + excluded`. Duplicate topic ids
+   * are summed BEFORE the statement, because a single statement
    * may not touch one row twice (`ON CONFLICT DO UPDATE command cannot affect
    * row a second time`).
    *
    * `updated_at` is written explicitly: the column's `$onUpdate` fires on
    * `db.update()` only, never on a conflict branch, so leaving it out would
-   * silently freeze the timestamp Mongoose's `timestamps: true` maintained.
+   * silently freeze the timestamp.
    */
   async batchIncrementPopularity(
     updates: Array<{ topicId: string; delta: number }>,
@@ -234,10 +254,10 @@ class TopicService {
    * duplicate topic ids cannot be folded into one row by summing. They do occur:
    * a name that trends as BOTH a hashtag and a classified topic resolves through
    * `resolveNames` (keyed on the name alone) to the SAME registry id, so one
-   * batch can carry two updates for it, and Mongo's `bulkWrite` applied both in
-   * sequence. A single Postgres statement may not touch one row twice, so the
-   * updates are split into ROUNDS of distinct ids and applied in order — which
-   * reproduces the sequence exactly. In practice there is one round.
+   * batch can carry two updates for it, which must apply in sequence. A single
+   * Postgres statement may not touch one row twice, so the updates are split
+   * into ROUNDS of distinct ids and applied in order — which preserves the
+   * sequence exactly. In practice there is one round.
    */
   async updatePopularityFromTrending(
     updates: Array<{ topicId: string; trendingScore: number }>,
@@ -272,7 +292,8 @@ class TopicService {
 
   // --- AI Topic Enrichment ---
 
-  private readonly ENRICHMENT_PROMPT = `You are a topic classifier for a multilingual social media platform. For each topic name, generate metadata.
+  private readonly ENRICHMENT_PROMPT =
+    `You are a topic classifier for a multilingual social media platform. For each topic name, generate metadata.
 
 For each topic, provide:
 - displayName: properly capitalized human-readable name in English
@@ -287,17 +308,25 @@ Return a JSON array of objects:
 For entities, set translations to null or omit it.
 Return ONLY valid JSON.`;
 
-  private readonly EnrichmentSchema = z.array(z.object({
-    name: z.string(),
-    displayName: z.string().max(100),
-    description: z.string().min(10).max(300),
-    type: z.enum(['category', 'topic', 'entity']),
-    parentCategory: z.enum(KNOWN_CATEGORIES),
-    translations: z.record(z.string(), z.object({
-      displayName: z.string(),
-      description: z.string().optional(),
-    })).nullable().optional(),
-  }));
+  private readonly EnrichmentSchema = z.array(
+    z.object({
+      name: z.string(),
+      displayName: z.string().max(100),
+      description: z.string().min(10).max(300),
+      type: z.enum(['category', 'topic', 'entity']),
+      parentCategory: z.enum(KNOWN_CATEGORIES),
+      translations: z
+        .record(
+          z.string(),
+          z.object({
+            displayName: z.string(),
+            description: z.string().optional(),
+          }),
+        )
+        .nullable()
+        .optional(),
+    }),
+  );
 
   /**
    * Enrich topics that lack descriptions by using AI.
@@ -322,15 +351,18 @@ Return ONLY valid JSON.`;
 
       const oxy = getServiceOxyClient();
       const { topics: allTopics } = await oxy.topics.list({ limit: 100 });
-      const unenriched = allTopics.filter(
-        t => topStats.some(s => s.topicId === t._id)
-          && (!t.description || t.description === '')
-          && t.type !== TopicType.CATEGORY,
-      ).slice(0, limit);
+      const unenriched = allTopics
+        .filter(
+          (t) =>
+            topStats.some((s) => s.topicId === t._id) &&
+            (!t.description || t.description === '') &&
+            t.type !== TopicType.CATEGORY,
+        )
+        .slice(0, limit);
 
       if (unenriched.length === 0) return 0;
 
-      const names = unenriched.map(t => t.name);
+      const names = unenriched.map((t) => t.name);
 
       const rawResult = await inferenceJSON<unknown>(
         [
@@ -342,7 +374,10 @@ Return ONLY valid JSON.`;
 
       const parseResult = this.EnrichmentSchema.safeParse(rawResult);
       if (!parseResult.success) {
-        logger.warn('[TopicService] AI enrichment response failed validation:', parseResult.error.message);
+        logger.warn(
+          '[TopicService] AI enrichment response failed validation:',
+          parseResult.error.message,
+        );
         return 0;
       }
 
@@ -351,7 +386,10 @@ Return ONLY valid JSON.`;
 
       for (const enrichment of enrichments) {
         try {
-          const updateData: { description?: string; translations?: Record<string, TopicTranslation> } = {
+          const updateData: {
+            description?: string;
+            translations?: Record<string, TopicTranslation>;
+          } = {
             description: enrichment.description,
           };
           if (enrichment.translations) {

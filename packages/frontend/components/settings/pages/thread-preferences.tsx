@@ -1,21 +1,14 @@
-import { type BloomIcon } from "@/components/settings/RowIcon";
-import { ThreadSortGroup } from "@/components/settings/ThreadSortGroup";
-import {
-  useThreadPreferencesStore,
-  type VoteStyle,
-} from "@/hooks/useThreadPreferences";
-import { Button } from "@oxy.so/bloom/button";
+import { type BloomIcon } from '@/components/settings/RowIcon';
+import { ThreadSortGroup } from '@/components/settings/ThreadSortGroup';
+import { useThreadPreferencesStore, type VoteStyle } from '@/hooks/useThreadPreferences';
+import { Button } from '@oxy.so/bloom/button';
 import { RiArrowUpSLine } from '@oxy.so/bloom/icons/RiArrowUpSLine';
 import { RiHeartLine } from '@oxy.so/bloom/icons/RiHeartLine';
-import { RadioIndicator } from "@oxy.so/bloom/radio-indicator";
-import {
-  SettingsCard,
-  SettingsRow,
-  SettingsSection,
-} from "@oxy.so/bloom/settings-modal";
-import { Switch } from "@oxy.so/bloom/switch";
-import { useTranslation } from "react-i18next";
-import { View } from "react-native";
+import { RadioIndicator } from '@oxy.so/bloom/radio-indicator';
+import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { Switch } from '@oxy.so/bloom/switch';
+import { useTranslation } from 'react-i18next';
+import { View } from 'react-native';
 
 const VOTE_STYLE_OPTIONS: {
   value: VoteStyle;
@@ -24,16 +17,16 @@ const VOTE_STYLE_OPTIONS: {
   defaultLabel: string;
 }[] = [
   {
-    value: "heart",
+    value: 'heart',
     icon: RiHeartLine,
-    labelKey: "settings.threadPreferences.voteStyleHeart",
-    defaultLabel: "Heart",
+    labelKey: 'settings.threadPreferences.voteStyleHeart',
+    defaultLabel: 'Heart',
   },
   {
-    value: "pill",
+    value: 'pill',
     icon: RiArrowUpSLine,
-    labelKey: "settings.threadPreferences.voteStylePill",
-    defaultLabel: "Up/down vote",
+    labelKey: 'settings.threadPreferences.voteStylePill',
+    defaultLabel: 'Up/down vote',
   },
 ];
 
@@ -42,21 +35,20 @@ export default function ThreadPreferencesScreen() {
 
   // All three preferences live in the one store, which owns persistence — so
   // every row reads and writes the same value, with no local copy to sync.
-  const { treeView, voteStyle, setTreeView, setVoteStyle } =
-    useThreadPreferencesStore();
+  const { treeView, voteStyle, setTreeView, setVoteStyle } = useThreadPreferencesStore();
 
   return (
     <View className="gap-4">
       <View className="gap-4">
         <ThreadSortGroup
-          title={t("settings.threadPreferences.sortReplies", {
-            defaultValue: "Sort replies",
+          title={t('settings.threadPreferences.sortReplies', {
+            defaultValue: 'Sort replies',
           })}
         />
 
         <SettingsSection
-          label={t("settings.threadPreferences.likeStyle", {
-            defaultValue: "Like style",
+          label={t('settings.threadPreferences.likeStyle', {
+            defaultValue: 'Like style',
           })}
         >
           <SettingsCard>
@@ -84,25 +76,25 @@ export default function ThreadPreferencesScreen() {
         </SettingsSection>
 
         <SettingsSection
-          label={t("settings.threadPreferences.display", {
-            defaultValue: "Display",
+          label={t('settings.threadPreferences.display', {
+            defaultValue: 'Display',
           })}
         >
           <SettingsCard>
             <SettingsRow
-              label={t("settings.threadPreferences.treeView", {
-                defaultValue: "Threaded tree view",
+              label={t('settings.threadPreferences.treeView', {
+                defaultValue: 'Threaded tree view',
               })}
-              description={t("settings.threadPreferences.treeViewDesc", {
-                defaultValue: "Show replies in a threaded tree structure",
+              description={t('settings.threadPreferences.treeViewDesc', {
+                defaultValue: 'Show replies in a threaded tree structure',
               })}
             >
               {
                 <Switch
                   checked={treeView}
                   onCheckedChange={setTreeView}
-                  accessibilityLabel={t("settings.threadPreferences.treeView", {
-                    defaultValue: "Threaded tree view",
+                  accessibilityLabel={t('settings.threadPreferences.treeView', {
+                    defaultValue: 'Threaded tree view',
                   })}
                 />
               }

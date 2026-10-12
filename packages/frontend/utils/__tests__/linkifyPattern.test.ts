@@ -16,9 +16,7 @@ describe('LinkifiedText scan — hashtags', () => {
   it('links #BundesländerTurnier WHOLE, not just #Bundesl', () => {
     // The reported bug, on https://mention.earth/p/6a6faff7a2a3bead331e02b5:
     // `#[A-Za-z][A-Za-z0-9_]*` ended the match at the `ä`.
-    expect(entitiesIn('Das #BundesländerTurnier war toll')).toEqual([
-      '#BundesländerTurnier',
-    ]);
+    expect(entitiesIn('Das #BundesländerTurnier war toll')).toEqual(['#BundesländerTurnier']);
   });
 
   it.each([

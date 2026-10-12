@@ -213,7 +213,10 @@ describe('POST/PUT /lists isPublic', () => {
   it('omitting isPublic on PUT preserves the stored value', async () => {
     const created = await createList({ title: 'Untouched', isPublic: false });
 
-    await request(app).put(`/lists/${created.body.id}`).send({ title: 'Untouched renamed' }).expect(200);
+    await request(app)
+      .put(`/lists/${created.body.id}`)
+      .send({ title: 'Untouched renamed' })
+      .expect(200);
 
     const [row] = await db.select().from(accountLists).where(eq(accountLists.id, created.body.id));
     expect(row.isPublic).toBe(false);
@@ -299,7 +302,10 @@ describe('POST/PUT /starter-packs name and description', () => {
  */
 describe('POST/PUT /lists member bounds', () => {
   it(`refuses to create a list with more than ${ACCOUNT_LIST_MAX_MEMBERS} members`, async () => {
-    const memberOxyUserIds = Array.from({ length: ACCOUNT_LIST_MAX_MEMBERS + 1 }, (_, i) => `member-${i}`);
+    const memberOxyUserIds = Array.from(
+      { length: ACCOUNT_LIST_MAX_MEMBERS + 1 },
+      (_, i) => `member-${i}`,
+    );
 
     const res = await createList({ title: 'Too big', memberOxyUserIds });
 
@@ -313,7 +319,10 @@ describe('POST/PUT /lists member bounds', () => {
 
   it(`refuses a PUT that would grow a list past ${ACCOUNT_LIST_MAX_MEMBERS} members`, async () => {
     const created = await createList({ title: 'Grows too big', memberOxyUserIds: ['seed'] });
-    const memberOxyUserIds = Array.from({ length: ACCOUNT_LIST_MAX_MEMBERS + 1 }, (_, i) => `member-${i}`);
+    const memberOxyUserIds = Array.from(
+      { length: ACCOUNT_LIST_MAX_MEMBERS + 1 },
+      (_, i) => `member-${i}`,
+    );
 
     const res = await request(app).put(`/lists/${created.body.id}`).send({ memberOxyUserIds });
 

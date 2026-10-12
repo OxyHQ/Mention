@@ -60,41 +60,41 @@ const pendingInteractions: FeedInteractionInput[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
 function sendPendingBatch(): void {
-    if (pendingInteractions.length === 0) return;
-    // Drain at most one batch per request; anything beyond the cap stays queued
-    // and goes out on the next flush rather than as one unbounded body.
-    const batch = pendingInteractions.splice(0, FEED_INTERACTION_BATCH_LIMIT);
-    feedService
-        .sendFeedInteractions(batch)
-        // The response is not an acknowledgement to discard: it carries the view
-        // totals this batch actually moved. Only the server knows whether an
-        // impression counted (dedupe window, self-view guard, eligibility), so
-        // this is the one moment the viewer's own screens can learn about the
-        // view they just caused — otherwise the number stays stale until the
-        // next feed fetch, which is what made a watched video look uncounted.
-        .then(applyServerViewCounts)
-        .catch((error) => {
-            // `sendFeedInteractions` already swallows + debug-logs network
-            // failures; this guards against any synchronous throw — including one
-            // from applying the counts — so telemetry can't bubble into a render.
-            logger.debug('Interaction batch failed', { error });
-        });
+  if (pendingInteractions.length === 0) return;
+  // Drain at most one batch per request; anything beyond the cap stays queued
+  // and goes out on the next flush rather than as one unbounded body.
+  const batch = pendingInteractions.splice(0, FEED_INTERACTION_BATCH_LIMIT);
+  feedService
+    .sendFeedInteractions(batch)
+    // The response is not an acknowledgement to discard: it carries the view
+    // totals this batch actually moved. Only the server knows whether an
+    // impression counted (dedupe window, self-view guard, eligibility), so
+    // this is the one moment the viewer's own screens can learn about the
+    // view they just caused — otherwise the number stays stale until the
+    // next feed fetch, which is what made a watched video look uncounted.
+    .then(applyServerViewCounts)
+    .catch((error) => {
+      // `sendFeedInteractions` already swallows + debug-logs network
+      // failures; this guards against any synchronous throw — including one
+      // from applying the counts — so telemetry can't bubble into a render.
+      logger.debug('Interaction batch failed', { error });
+    });
 }
 
 function scheduleFlush(): void {
-    if (flushTimer !== null) return;
-    flushTimer = setTimeout(() => {
-        flushTimer = null;
-        sendPendingBatch();
-        // A drain that hit the cap leaves a remainder; keep flushing until empty.
-        if (pendingInteractions.length > 0) scheduleFlush();
-    }, FLUSH_INTERVAL_MS);
+  if (flushTimer !== null) return;
+  flushTimer = setTimeout(() => {
+    flushTimer = null;
+    sendPendingBatch();
+    // A drain that hit the cap leaves a remainder; keep flushing until empty.
+    if (pendingInteractions.length > 0) scheduleFlush();
+  }, FLUSH_INTERVAL_MS);
 }
 
 /** Queue one interaction for the next batched write. */
 function enqueueInteraction(interaction: FeedInteractionInput): void {
-    pendingInteractions.push(interaction);
-    scheduleFlush();
+  pendingInteractions.push(interaction);
+  scheduleFlush();
 }
 
 /**
@@ -104,13 +104,13 @@ function enqueueInteraction(interaction: FeedInteractionInput): void {
  * WHOLE queue (not just one batch) because there is no later flush to rely on.
  */
 export function flushFeedInteractions(): void {
-    if (flushTimer !== null) {
-        clearTimeout(flushTimer);
-        flushTimer = null;
-    }
-    while (pendingInteractions.length > 0) {
-        sendPendingBatch();
-    }
+  if (flushTimer !== null) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
+  while (pendingInteractions.length > 0) {
+    sendPendingBatch();
+  }
 }
 
 /**
@@ -130,16 +130,16 @@ export function flushFeedInteractions(): void {
  * feed of that account and `author|<id>` is the correct attribution.
  */
 export function resolveFeedDescriptor(
-    type: FeedType,
-    userId?: string,
-    filters?: FeedFilters,
+  type: FeedType,
+  userId?: string,
+  filters?: FeedFilters,
 ): string {
-    if (filters?.laneId) return `lane|${filters.laneId}`;
-    if (userId) return `author|${userId}`;
-    if (filters?.hashtag) return `hashtag|${filters.hashtag}`;
-    if (filters?.topic) return `topic|${filters.topic}`;
-    if (filters?.customFeedId) return `custom|${filters.customFeedId}`;
-    return type;
+  if (filters?.laneId) return `lane|${filters.laneId}`;
+  if (userId) return `author|${userId}`;
+  if (filters?.hashtag) return `hashtag|${filters.hashtag}`;
+  if (filters?.topic) return `topic|${filters.topic}`;
+  if (filters?.customFeedId) return `custom|${filters.customFeedId}`;
+  return type;
 }
 
 // A post must be ≥50% visible for at least this long before it counts as seen.
@@ -160,16 +160,16 @@ const SAFETY_FLUSH_INTERVAL_MS = 5000;
 const MAX_SAFETY_FLUSHES = 6;
 
 interface PendingImpression {
-    postUri: string;
-    // Total accumulated visible time, summed across visible→hidden cycles.
-    durationMs: number;
-    // Wall-clock ms at which the post became (and is still) visible, or null
-    // when it is currently hidden. Used to accrue the in-progress visible span.
-    visibleSince: number | null;
-    // Whether the post has crossed MIN_VISIBLE_MS and is eligible to report.
-    qualified: boolean;
-    // Whether the (single) impression has already been sent for this session.
-    sent: boolean;
+  postUri: string;
+  // Total accumulated visible time, summed across visible→hidden cycles.
+  durationMs: number;
+  // Wall-clock ms at which the post became (and is still) visible, or null
+  // when it is currently hidden. Used to accrue the in-progress visible span.
+  visibleSince: number | null;
+  // Whether the post has crossed MIN_VISIBLE_MS and is eligible to report.
+  qualified: boolean;
+  // Whether the (single) impression has already been sent for this session.
+  sent: boolean;
 }
 
 /**
@@ -186,177 +186,177 @@ interface PendingImpression {
  * visible ≥1s — so no post is double-counted and the dwell value is complete.
  */
 export class FeedImpressionTracker {
-    private readonly descriptor: string;
-    // Live predicate gating whether an impression may be POSTed. Read at report
-    // time (never cached) so a session that becomes reportable mid-flight — auth
-    // landing via SSO restore — starts sending without recreating the tracker.
-    // Defaults to always-report so non-auth-aware callers (and unit tests) behave
-    // exactly as before.
-    private readonly canReport: () => boolean;
-    private readonly pending = new Map<string, PendingImpression>();
-    private safetyTimer: ReturnType<typeof setInterval> | null = null;
-    // Flushes elapsed since the timer was last (re)armed. Reset on every re-arm
-    // so a real scroll/visibility change always grants a fresh safety budget.
-    private safetyFlushesSinceArm = 0;
-    private disposed = false;
+  private readonly descriptor: string;
+  // Live predicate gating whether an impression may be POSTed. Read at report
+  // time (never cached) so a session that becomes reportable mid-flight — auth
+  // landing via SSO restore — starts sending without recreating the tracker.
+  // Defaults to always-report so non-auth-aware callers (and unit tests) behave
+  // exactly as before.
+  private readonly canReport: () => boolean;
+  private readonly pending = new Map<string, PendingImpression>();
+  private safetyTimer: ReturnType<typeof setInterval> | null = null;
+  // Flushes elapsed since the timer was last (re)armed. Reset on every re-arm
+  // so a real scroll/visibility change always grants a fresh safety budget.
+  private safetyFlushesSinceArm = 0;
+  private disposed = false;
 
-    constructor(descriptor: string, canReport: () => boolean = () => true) {
-        this.descriptor = descriptor;
-        this.canReport = canReport;
+  constructor(descriptor: string, canReport: () => boolean = () => true) {
+    this.descriptor = descriptor;
+    this.canReport = canReport;
+  }
+
+  /** Mark a post as ≥50% visible (idempotent while it stays visible). */
+  setVisible(postUri: string): void {
+    if (this.disposed || !postUri) return;
+    const entry = this.pending.get(postUri);
+    const now = Date.now();
+    if (!entry) {
+      this.pending.set(postUri, {
+        postUri,
+        durationMs: 0,
+        visibleSince: now,
+        qualified: false,
+        sent: false,
+      });
+      this.ensureSafetyTimer();
+      return;
     }
-
-    /** Mark a post as ≥50% visible (idempotent while it stays visible). */
-    setVisible(postUri: string): void {
-        if (this.disposed || !postUri) return;
-        const entry = this.pending.get(postUri);
-        const now = Date.now();
-        if (!entry) {
-            this.pending.set(postUri, {
-                postUri,
-                durationMs: 0,
-                visibleSince: now,
-                qualified: false,
-                sent: false,
-            });
-            this.ensureSafetyTimer();
-            return;
-        }
-        // Already tracked; only (re)start the visible span if it was hidden.
-        if (entry.visibleSince === null && !entry.sent) {
-            entry.visibleSince = now;
-            this.ensureSafetyTimer();
-        }
+    // Already tracked; only (re)start the visible span if it was hidden.
+    if (entry.visibleSince === null && !entry.sent) {
+      entry.visibleSince = now;
+      this.ensureSafetyTimer();
     }
+  }
 
-    /**
-     * Mark a post as no longer ≥50% visible: accrue its visible span and, if it
-     * qualifies, report the FULL accumulated dwell once.
-     */
-    setHidden(postUri: string): void {
-        if (this.disposed || !postUri) return;
-        const entry = this.pending.get(postUri);
-        if (!entry || entry.visibleSince === null) return;
-        this.accrue(entry, Date.now());
-        this.report(entry);
+  /**
+   * Mark a post as no longer ≥50% visible: accrue its visible span and, if it
+   * qualifies, report the FULL accumulated dwell once.
+   */
+  setHidden(postUri: string): void {
+    if (this.disposed || !postUri) return;
+    const entry = this.pending.get(postUri);
+    if (!entry || entry.visibleSince === null) return;
+    this.accrue(entry, Date.now());
+    this.report(entry);
+  }
+
+  /**
+   * Reconcile the full set of currently-visible posts in one call (native:
+   * `onViewableItemsChanged` gives the whole viewable set each change).
+   * Posts newly visible are marked visible; previously-visible posts no longer
+   * in the set are marked hidden.
+   */
+  syncVisible(visibleUris: string[]): void {
+    if (this.disposed) return;
+    const visibleSet = new Set(visibleUris);
+    // Hide entries that dropped out of the viewable set.
+    for (const entry of this.pending.values()) {
+      if (entry.visibleSince !== null && !visibleSet.has(entry.postUri)) {
+        this.setHidden(entry.postUri);
+      }
     }
-
-    /**
-     * Reconcile the full set of currently-visible posts in one call (native:
-     * `onViewableItemsChanged` gives the whole viewable set each change).
-     * Posts newly visible are marked visible; previously-visible posts no longer
-     * in the set are marked hidden.
-     */
-    syncVisible(visibleUris: string[]): void {
-        if (this.disposed) return;
-        const visibleSet = new Set(visibleUris);
-        // Hide entries that dropped out of the viewable set.
-        for (const entry of this.pending.values()) {
-            if (entry.visibleSince !== null && !visibleSet.has(entry.postUri)) {
-                this.setHidden(entry.postUri);
-            }
-        }
-        // Show entries newly in the viewable set.
-        for (const uri of visibleSet) {
-            this.setVisible(uri);
-        }
+    // Show entries newly in the viewable set.
+    for (const uri of visibleSet) {
+      this.setVisible(uri);
     }
+  }
 
-    dispose(): void {
-        if (this.disposed) return;
-        this.disposed = true;
-        this.stopSafetyTimer();
-        // Final report: accrue any still-visible spans and emit what qualifies.
-        const now = Date.now();
-        for (const entry of this.pending.values()) {
-            if (entry.visibleSince !== null) this.accrue(entry, now);
-            this.report(entry);
-        }
-        this.pending.clear();
-        // The feed is going away, so there is no later flush to ride on — send
-        // what is queued now rather than stranding this session's impressions.
-        flushFeedInteractions();
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.stopSafetyTimer();
+    // Final report: accrue any still-visible spans and emit what qualifies.
+    const now = Date.now();
+    for (const entry of this.pending.values()) {
+      if (entry.visibleSince !== null) this.accrue(entry, now);
+      this.report(entry);
     }
+    this.pending.clear();
+    // The feed is going away, so there is no later flush to ride on — send
+    // what is queued now rather than stranding this session's impressions.
+    flushFeedInteractions();
+  }
 
-    // (Re)arm the bounded safety timer. Called on every real visibility change so
-    // a fresh scroll always grants a new flush budget: if a timer is already
-    // running we just reset the budget, otherwise we start one. The timer stops
-    // itself once the budget is spent (see `safetyFlush`); the next visibility
-    // change starts it again.
-    private ensureSafetyTimer(): void {
-        if (this.disposed) return;
-        this.safetyFlushesSinceArm = 0;
-        if (this.safetyTimer) return;
-        this.safetyTimer = setInterval(() => this.safetyFlush(), SAFETY_FLUSH_INTERVAL_MS);
+  // (Re)arm the bounded safety timer. Called on every real visibility change so
+  // a fresh scroll always grants a new flush budget: if a timer is already
+  // running we just reset the budget, otherwise we start one. The timer stops
+  // itself once the budget is spent (see `safetyFlush`); the next visibility
+  // change starts it again.
+  private ensureSafetyTimer(): void {
+    if (this.disposed) return;
+    this.safetyFlushesSinceArm = 0;
+    if (this.safetyTimer) return;
+    this.safetyTimer = setInterval(() => this.safetyFlush(), SAFETY_FLUSH_INTERVAL_MS);
+  }
+
+  private stopSafetyTimer(): void {
+    if (this.safetyTimer) {
+      clearInterval(this.safetyTimer);
+      this.safetyTimer = null;
     }
+  }
 
-    private stopSafetyTimer(): void {
-        if (this.safetyTimer) {
-            clearInterval(this.safetyTimer);
-            this.safetyTimer = null;
-        }
+  // Fold the in-progress visible span (visibleSince → `now`) into the total,
+  // end the span, and re-evaluate the MIN_VISIBLE_MS qualification gate.
+  private accrue(entry: PendingImpression, now: number): void {
+    if (entry.visibleSince !== null) {
+      entry.durationMs += Math.max(0, now - entry.visibleSince);
+      entry.visibleSince = null;
     }
+    if (entry.durationMs >= MIN_VISIBLE_MS) entry.qualified = true;
+  }
 
-    // Fold the in-progress visible span (visibleSince → `now`) into the total,
-    // end the span, and re-evaluate the MIN_VISIBLE_MS qualification gate.
-    private accrue(entry: PendingImpression, now: number): void {
-        if (entry.visibleSince !== null) {
-            entry.durationMs += Math.max(0, now - entry.visibleSince);
-            entry.visibleSince = null;
-        }
+  // Safety net for posts the user parks on without ever scrolling away: snapshot
+  // their running dwell and report once they qualify. Keeps the span open so a
+  // later scroll-away is a no-op (already sent).
+  //
+  // The timer has a BOUNDED lifetime: it stops once every tracked post has been
+  // reported, OR after MAX_SAFETY_FLUSHES with no new visibility change — so an
+  // idle feed the user parks on never runs the interval forever. Both stop paths
+  // run a flush first, so no qualified impression is lost. A subsequent scroll /
+  // visibility change re-arms the timer (and resets the budget) via setVisible.
+  private safetyFlush(): void {
+    if (this.disposed) return;
+    this.safetyFlushesSinceArm += 1;
+    const now = Date.now();
+    let anyUnsent = false;
+    for (const entry of this.pending.values()) {
+      if (entry.sent) continue;
+      anyUnsent = true;
+      if (entry.visibleSince !== null) {
+        entry.durationMs += Math.max(0, now - entry.visibleSince);
+        entry.visibleSince = now; // keep visible; re-anchor for next tick
         if (entry.durationMs >= MIN_VISIBLE_MS) entry.qualified = true;
+        this.report(entry);
+      }
     }
+    // Everything reported, or the bounded budget is spent: stop until the next
+    // real visibility change re-arms us. The flush above already emitted any
+    // qualified impressions, so stopping here loses nothing.
+    if (!anyUnsent || this.safetyFlushesSinceArm >= MAX_SAFETY_FLUSHES) {
+      this.stopSafetyTimer();
+    }
+  }
 
-    // Safety net for posts the user parks on without ever scrolling away: snapshot
-    // their running dwell and report once they qualify. Keeps the span open so a
-    // later scroll-away is a no-op (already sent).
-    //
-    // The timer has a BOUNDED lifetime: it stops once every tracked post has been
-    // reported, OR after MAX_SAFETY_FLUSHES with no new visibility change — so an
-    // idle feed the user parks on never runs the interval forever. Both stop paths
-    // run a flush first, so no qualified impression is lost. A subsequent scroll /
-    // visibility change re-arms the timer (and resets the budget) via setVisible.
-    private safetyFlush(): void {
-        if (this.disposed) return;
-        this.safetyFlushesSinceArm += 1;
-        const now = Date.now();
-        let anyUnsent = false;
-        for (const entry of this.pending.values()) {
-            if (entry.sent) continue;
-            anyUnsent = true;
-            if (entry.visibleSince !== null) {
-                entry.durationMs += Math.max(0, now - entry.visibleSince);
-                entry.visibleSince = now; // keep visible; re-anchor for next tick
-                if (entry.durationMs >= MIN_VISIBLE_MS) entry.qualified = true;
-                this.report(entry);
-            }
-        }
-        // Everything reported, or the bounded budget is spent: stop until the next
-        // real visibility change re-arms us. The flush above already emitted any
-        // qualified impressions, so stopping here loses nothing.
-        if (!anyUnsent || this.safetyFlushesSinceArm >= MAX_SAFETY_FLUSHES) {
-            this.stopSafetyTimer();
-        }
-    }
-
-    // Emit the impression exactly once per post (with the accumulated dwell).
-    // Queued, not sent: the batch goes out on the shared flush window, so a
-    // screenful qualifying at once costs ONE request instead of one per row.
-    private report(entry: PendingImpression): void {
-        if (!entry.qualified || entry.sent) return;
-        // Never POST telemetry for a viewer who cannot use the private API
-        // (anonymous public browse, or auth still resolving): the endpoint would
-        // 401 and an anonymous feed would loop failed requests + console errors.
-        // Leave `sent` false so the impression is still emitted if the session
-        // becomes reportable (auth lands mid-session) before this post disposes.
-        if (!this.canReport()) return;
-        entry.sent = true;
-        enqueueInteraction({
-            feedDescriptor: this.descriptor,
-            postUri: entry.postUri,
-            event: 'impression',
-            durationMs: entry.durationMs,
-        });
-    }
+  // Emit the impression exactly once per post (with the accumulated dwell).
+  // Queued, not sent: the batch goes out on the shared flush window, so a
+  // screenful qualifying at once costs ONE request instead of one per row.
+  private report(entry: PendingImpression): void {
+    if (!entry.qualified || entry.sent) return;
+    // Never POST telemetry for a viewer who cannot use the private API
+    // (anonymous public browse, or auth still resolving): the endpoint would
+    // 401 and an anonymous feed would loop failed requests + console errors.
+    // Leave `sent` false so the impression is still emitted if the session
+    // becomes reportable (auth lands mid-session) before this post disposes.
+    if (!this.canReport()) return;
+    entry.sent = true;
+    enqueueInteraction({
+      feedDescriptor: this.descriptor,
+      postUri: entry.postUri,
+      event: 'impression',
+      durationMs: entry.durationMs,
+    });
+  }
 }
 
 /**
@@ -369,50 +369,53 @@ export class FeedImpressionTracker {
  * code can read it without re-subscribing.
  */
 export function useFeedImpressionTracker(
-    descriptor: string,
-    resetKey?: string | number,
-    canReport = true,
+  descriptor: string,
+  resetKey?: string | number,
+  canReport = true,
 ): { current: FeedImpressionTracker } {
-    const trackerRef = useRef<FeedImpressionTracker | null>(null);
-    // The session identity the current tracker was built for. A change in either
-    // the descriptor or the reset key starts a new session.
-    const sessionKeyRef = useRef<string>(`${descriptor}::${resetKey ?? ''}`);
+  const trackerRef = useRef<FeedImpressionTracker | null>(null);
+  // The session identity the current tracker was built for. A change in either
+  // the descriptor or the reset key starts a new session.
+  const sessionKeyRef = useRef<string>(`${descriptor}::${resetKey ?? ''}`);
 
-    // Mirror the latest "may report" state into a ref and hand the tracker a
-    // STABLE getter that reads it live. This keeps the tracker instance-stable
-    // across auth-cold-boot flips (anon → authed): the same tracker simply starts
-    // reporting once `canReport` becomes true, without a session reset that would
-    // drop in-progress dwell.
-    const canReportRef = useRef(canReport);
-    canReportRef.current = canReport;
-    const canReportGetterRef = useRef<() => boolean>(() => canReportRef.current);
+  // Mirror the latest "may report" state into a ref and hand the tracker a
+  // STABLE getter that reads it live. This keeps the tracker instance-stable
+  // across auth-cold-boot flips (anon → authed): the same tracker simply starts
+  // reporting once `canReport` becomes true, without a session reset that would
+  // drop in-progress dwell.
+  const canReportRef = useRef(canReport);
+  canReportRef.current = canReport;
+  const canReportGetterRef = useRef<() => boolean>(() => canReportRef.current);
 
-    // Lazily create on first render so the very first viewable rows are tracked
-    // even before any effect runs.
-    if (trackerRef.current === null) {
-        trackerRef.current = new FeedImpressionTracker(descriptor, canReportGetterRef.current);
-    }
+  // Lazily create on first render so the very first viewable rows are tracked
+  // even before any effect runs.
+  if (trackerRef.current === null) {
+    trackerRef.current = new FeedImpressionTracker(descriptor, canReportGetterRef.current);
+  }
 
-    // Recreate the tracker when the session identity changes (different feed
-    // source or a refresh/reload). Disposing the old one flushes its outstanding
-    // impressions before the new session begins. Done during render — guarded by
-    // the session-key ref so it runs at most once per real change — so the new
-    // tracker is live for this render's viewability callbacks (no missed first
-    // page after a refresh).
-    const sessionKey = `${descriptor}::${resetKey ?? ''}`;
-    if (sessionKeyRef.current !== sessionKey) {
-        sessionKeyRef.current = sessionKey;
-        trackerRef.current.dispose();
-        trackerRef.current = new FeedImpressionTracker(descriptor, canReportGetterRef.current);
-    }
+  // Recreate the tracker when the session identity changes (different feed
+  // source or a refresh/reload). Disposing the old one flushes its outstanding
+  // impressions before the new session begins. Done during render — guarded by
+  // the session-key ref so it runs at most once per real change — so the new
+  // tracker is live for this render's viewability callbacks (no missed first
+  // page after a refresh).
+  const sessionKey = `${descriptor}::${resetKey ?? ''}`;
+  if (sessionKeyRef.current !== sessionKey) {
+    sessionKeyRef.current = sessionKey;
+    trackerRef.current.dispose();
+    trackerRef.current = new FeedImpressionTracker(descriptor, canReportGetterRef.current);
+  }
 
-    // Dispose on unmount so a navigated-away feed flushes and stops its timer.
-    useEffect(() => () => {
-        trackerRef.current?.dispose();
-        trackerRef.current = null;
-    }, []);
+  // Dispose on unmount so a navigated-away feed flushes and stops its timer.
+  useEffect(
+    () => () => {
+      trackerRef.current?.dispose();
+      trackerRef.current = null;
+    },
+    [],
+  );
 
-    return trackerRef as { current: FeedImpressionTracker };
+  return trackerRef as { current: FeedImpressionTracker };
 }
 
 /**
@@ -425,12 +428,12 @@ export function useFeedImpressionTracker(
  * one flush window later changes nothing; a feed teardown flushes early.
  */
 export function reportFeedInteraction(
-    feedDescriptor: string,
-    postUri: string,
-    event: Exclude<FeedInteractionEventName, 'impression'>,
+  feedDescriptor: string,
+  postUri: string,
+  event: Exclude<FeedInteractionEventName, 'impression'>,
 ): void {
-    if (!feedDescriptor || !postUri) return;
-    enqueueInteraction({ feedDescriptor, postUri, event });
+  if (!feedDescriptor || !postUri) return;
+  enqueueInteraction({ feedDescriptor, postUri, event });
 }
 
 /**
@@ -451,23 +454,23 @@ export function reportFeedInteraction(
  * blind spot in the card metrics stays diagnosable.
  */
 export function reportInterstitialEvent(input: FeedInterstitialEventInput): void {
-    // No descriptor (a card rendered outside a real feed) or no slot key: the
-    // event could not be attributed to anything, so there is nothing to report.
-    if (!input.feedDescriptor || !input.slotKey) return;
+  // No descriptor (a card rendered outside a real feed) or no slot key: the
+  // event could not be attributed to anything, so there is nothing to report.
+  if (!input.feedDescriptor || !input.slotKey) return;
 
-    const swallow = (error: unknown): void => {
-        logger.debug('Interstitial event report failed', {
-            event: input.event,
-            kind: input.kind,
-            error,
-        });
-    };
+  const swallow = (error: unknown): void => {
+    logger.debug('Interstitial event report failed', {
+      event: input.event,
+      kind: input.kind,
+      error,
+    });
+  };
 
-    try {
-        feedService.sendInterstitialEvent(input).catch(swallow);
-    } catch (error) {
-        swallow(error);
-    }
+  try {
+    feedService.sendInterstitialEvent(input).catch(swallow);
+  } catch (error) {
+    swallow(error);
+  }
 }
 
 /**
@@ -494,17 +497,17 @@ export function reportInterstitialEvent(input: FeedInterstitialEventInput): void
  * any promise exists, which `.catch()` cannot see.
  */
 export function reportTrendEvent(input: TrendEventInput): void {
-    const swallow = (error: unknown): void => {
-        logger.debug('Trend event report failed', {
-            event: input.event,
-            surface: input.surface,
-            error,
-        });
-    };
+  const swallow = (error: unknown): void => {
+    logger.debug('Trend event report failed', {
+      event: input.event,
+      surface: input.surface,
+      error,
+    });
+  };
 
-    try {
-        trendingService.sendTrendEvent(input).catch(swallow);
-    } catch (error) {
-        swallow(error);
-    }
+  try {
+    trendingService.sendTrendEvent(input).catch(swallow);
+  } catch (error) {
+    swallow(error);
+  }
 }

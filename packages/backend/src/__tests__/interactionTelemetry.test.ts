@@ -23,7 +23,11 @@ describe('parseFeedInteractionBatch', () => {
   });
 
   it('accepts an interaction without durationMs', () => {
-    const click: FeedInteractionInput = { feedDescriptor: 'for_you', postUri: 'p1', event: 'click' };
+    const click: FeedInteractionInput = {
+      feedDescriptor: 'for_you',
+      postUri: 'p1',
+      event: 'click',
+    };
     expect(parseFeedInteractionBatch({ interactions: [click] })).toEqual({
       ok: true,
       interactions: [click],
@@ -37,7 +41,9 @@ describe('parseFeedInteractionBatch', () => {
   });
 
   it('accepts a full batch at the cap', () => {
-    const parsed = parseFeedInteractionBatch({ interactions: batchOf(FEED_INTERACTION_BATCH_LIMIT) });
+    const parsed = parseFeedInteractionBatch({
+      interactions: batchOf(FEED_INTERACTION_BATCH_LIMIT),
+    });
     expect(parsed.ok).toBe(true);
   });
 
@@ -58,7 +64,10 @@ describe('parseFeedInteractionBatch', () => {
   });
 
   it('rejects a missing or non-array interactions field', () => {
-    expect(parseFeedInteractionBatch({})).toEqual({ ok: false, error: 'Missing interactions array' });
+    expect(parseFeedInteractionBatch({})).toEqual({
+      ok: false,
+      error: 'Missing interactions array',
+    });
     expect(parseFeedInteractionBatch({ interactions: VALID })).toEqual({
       ok: false,
       error: 'Missing interactions array',

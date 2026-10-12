@@ -65,7 +65,10 @@ const httpUrl = (label: string) =>
       }
     }, `${label} must be an http(s) URL`);
 
-const platformSchema = z.enum(IMPORT_PLATFORMS, `platform must be one of: ${IMPORT_PLATFORMS.join(', ')}`);
+const platformSchema = z.enum(
+  IMPORT_PLATFORMS,
+  `platform must be one of: ${IMPORT_PLATFORMS.join(', ')}`,
+);
 
 const itemSchema = z.object({
   sourceId: opaqueId('sourceId'),
@@ -80,15 +83,18 @@ const itemSchema = z.object({
   replyToSourceId: opaqueId('replyToSourceId').optional(),
   quoteSourceId: opaqueId('quoteSourceId').optional(),
   media: z
-    .array(z.object({
-      assetId: opaqueId('media.assetId'),
-      alt: z.string().max(config.posts.maxAltTextLength * 2).optional(),
-    }))
+    .array(
+      z.object({
+        assetId: opaqueId('media.assetId'),
+        alt: z
+          .string()
+          .max(config.posts.maxAltTextLength * 2)
+          .optional(),
+      }),
+    )
     .max(MAX_IMPORT_MEDIA_PER_ITEM)
     .default([]),
-  article: z
-    .object({ title: z.string().optional(), body: z.string().optional() })
-    .optional(),
+  article: z.object({ title: z.string().optional(), body: z.string().optional() }).optional(),
   links: z.array(httpUrl('links[]')).max(MAX_IMPORT_LINKS_PER_ITEM).optional(),
 });
 
@@ -162,7 +168,9 @@ router.use(requireMoveServiceCaller);
 router.post('/v1/posts\\:batch', async (req: Request, res: Response) => {
   const parsed = batchSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: 'INVALID_IMPORT_BATCH', message: firstIssue(parsed.error) });
+    return res
+      .status(400)
+      .json({ error: 'INVALID_IMPORT_BATCH', message: firstIssue(parsed.error) });
   }
   const { platform, batchId, items } = parsed.data;
   try {
@@ -179,7 +187,9 @@ router.post('/v1/posts\\:batch', async (req: Request, res: Response) => {
     return res.status(200).json({ results });
   } catch (error) {
     logger.error('[Imports] batch failed', error);
-    return res.status(500).json({ error: 'IMPORT_FAILED', message: 'The batch could not be imported' });
+    return res
+      .status(500)
+      .json({ error: 'IMPORT_FAILED', message: 'The batch could not be imported' });
   }
 });
 
@@ -197,7 +207,9 @@ router.delete('/v1/batches/:batchId', async (req: Request, res: Response) => {
     return res.status(200).json({ deleted, failed });
   } catch (error) {
     logger.error('[Imports] undo failed', error);
-    return res.status(500).json({ error: 'IMPORT_UNDO_FAILED', message: 'The batch could not be undone' });
+    return res
+      .status(500)
+      .json({ error: 'IMPORT_UNDO_FAILED', message: 'The batch could not be undone' });
   }
 });
 
@@ -209,7 +221,9 @@ router.get('/v1/lookup', async (req: Request, res: Response) => {
     federatedIds: queryList(req.query.federatedIds),
   });
   if (!parsed.success) {
-    return res.status(400).json({ error: 'INVALID_IMPORT_LOOKUP', message: firstIssue(parsed.error) });
+    return res
+      .status(400)
+      .json({ error: 'INVALID_IMPORT_LOOKUP', message: firstIssue(parsed.error) });
   }
   try {
     const result = await postImportService.lookup({
@@ -221,7 +235,9 @@ router.get('/v1/lookup', async (req: Request, res: Response) => {
     return res.status(200).json(result);
   } catch (error) {
     logger.error('[Imports] lookup failed', error);
-    return res.status(500).json({ error: 'IMPORT_LOOKUP_FAILED', message: 'The lookup could not be completed' });
+    return res
+      .status(500)
+      .json({ error: 'IMPORT_LOOKUP_FAILED', message: 'The lookup could not be completed' });
   }
 });
 

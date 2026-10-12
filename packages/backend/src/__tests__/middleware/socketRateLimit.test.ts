@@ -37,9 +37,13 @@ describe('socketRateLimit wrap() error containment', () => {
     // The real trigger: an async handler destructuring a missing payload
     // throws during argument binding, which async-function semantics turn
     // into an already-rejected promise rather than a synchronous throw.
-    const handler = wrap(socket, 'markNotificationRead', async ({ notificationId }: { notificationId?: string }) => {
-      void notificationId;
-    });
+    const handler = wrap(
+      socket,
+      'markNotificationRead',
+      async ({ notificationId }: { notificationId?: string }) => {
+        void notificationId;
+      },
+    );
 
     const unhandled = vi.fn();
     process.once('unhandledRejection', unhandled);

@@ -51,7 +51,10 @@ import { postMedia } from '../db/schema/postContent';
 import { posts } from '../db/schema/posts';
 import { loadPostRecord, replacePostContent } from '../db/posts/postRepository';
 import { fetchBusinessDiscovery, type GraphMedia } from '../connectors/instagram/graphClient';
-import { mapGraphMediaToNormalizedPost, type InstagramMappedPost } from '../connectors/instagram/media.mapper';
+import {
+  mapGraphMediaToNormalizedPost,
+  type InstagramMappedPost,
+} from '../connectors/instagram/media.mapper';
 import { igUserIdFromActorUri, instagramUsernameOfActor } from '../connectors/instagram/constants';
 import { persistOne } from '../connectors/instagram/importer';
 import { enqueueMediaMetadataEnrich } from '../services/mediaMetadataEnrichJob';
@@ -87,15 +90,21 @@ export interface ReelPosterRepairResult {
 }
 
 /** The stored-vs-listed comparison, pure: which slots are a poster standing in for a listed video. */
-export function degradedVideoSlots(entry: InstagramMappedPost, stored: ReadonlyArray<{ type: string }>): number[] {
+export function degradedVideoSlots(
+  entry: InstagramMappedPost,
+  stored: ReadonlyArray<{ type: string }>,
+): number[] {
   const plans = entry.mediaPlans;
   // A dropped slot shifts positions: compare only posts whose shape still lines up.
   if (plans.length === 0 || plans.length !== stored.length) return [];
   return plans.flatMap((plan, index) =>
-    plan.primary.type === 'video' && stored[index].type === 'image' ? [index] : []);
+    plan.primary.type === 'video' && stored[index].type === 'image' ? [index] : [],
+  );
 }
 
-async function storedMediaByPost(postIds: readonly string[]): Promise<Map<string, Array<{ type: string }>>> {
+async function storedMediaByPost(
+  postIds: readonly string[],
+): Promise<Map<string, Array<{ type: string }>>> {
   const byPost = new Map<string, Array<{ type: string }>>();
   if (postIds.length === 0) return byPost;
   const rows = await getDb()
@@ -123,7 +132,10 @@ async function repairPost(
   const media = [...(record.content.media ?? [])] as MediaItem[];
   const replacements = new Map<string, MediaItem>();
   for (const slot of candidate.slots) {
-    const outcome = await persistOne(entry.mediaPlans[slot].primary, owner, { activityId: candidate.sourceKey, actorUri });
+    const outcome = await persistOne(entry.mediaPlans[slot].primary, owner, {
+      activityId: candidate.sourceKey,
+      actorUri,
+    });
     if (outcome.kind !== 'stored') return outcome.kind === 'retry' ? 'waiting' : 'gone';
     const previous = media[slot];
     if (previous?.id) replacements.set(previous.id, outcome.media);
@@ -134,7 +146,11 @@ async function repairPost(
     const next = attachment.id ? replacements.get(attachment.id) : undefined;
     return next ? { ...attachment, id: next.id, mediaType: next.type } : attachment;
   });
-  await replacePostContent(candidate.postId, { ...record.content, media, attachments }, record.mentions);
+  await replacePostContent(
+    candidate.postId,
+    { ...record.content, media, attachments },
+    record.mentions,
+  );
   await enqueueMediaMetadataEnrich(candidate.postId).catch(() => false);
   return 'repaired';
 }
@@ -144,14 +160,28 @@ export async function repairInstagramReelPosters(options: {
   depth?: number;
 }): Promise<ReelPosterRepairResult> {
   const depth = options.depth ?? DEFAULT_DEPTH;
-  const result: ReelPosterRepairResult = { actors: 0, checked: 0, candidates: [], repaired: 0, waiting: 0, gone: 0, stopped: 0 };
+  const result: ReelPosterRepairResult = {
+    actors: 0,
+    checked: 0,
+    candidates: [],
+    repaired: 0,
+    waiting: 0,
+    gone: 0,
+    stopped: 0,
+  };
 
   let after = '';
   for (;;) {
     const actors = await getDb()
       .select()
       .from(federatedActors)
-      .where(and(isNotNull(federatedActors.instagramGraphSyncedAt), isNotNull(federatedActors.oxyUserId), gt(federatedActors.id, after)))
+      .where(
+        and(
+          isNotNull(federatedActors.instagramGraphSyncedAt),
+          isNotNull(federatedActors.oxyUserId),
+          gt(federatedActors.id, after),
+        ),
+      )
       .orderBy(asc(federatedActors.id))
       .limit(ACTOR_BATCH);
     if (actors.length === 0) break;
@@ -162,8 +192,9 @@ export async function repairInstagramReelPosters(options: {
       const owner = actor.oxyUserId;
       if (!username || !owner) continue;
       result.actors += 1;
-      const expectedIgUserId = actor.instagramGraphUserId
-        ?? (actor.protocol === 'instagram-graph' ? igUserIdFromActorUri(actor.uri) : undefined);
+      const expectedIgUserId =
+        actor.instagramGraphUserId ??
+        (actor.protocol === 'instagram-graph' ? igUserIdFromActorUri(actor.uri) : undefined);
 
       let seen = 0;
       let cursor: string | undefined;
@@ -182,7 +213,10 @@ export async function repairInstagramReelPosters(options: {
           cursor = page.media?.after;
         } catch (err) {
           result.stopped += 1;
-          logger.warn(`[${SCRIPT_NAME}] walk stopped`, { actor: actor.id, reason: err instanceof Error ? err.message : String(err) });
+          logger.warn(`[${SCRIPT_NAME}] walk stopped`, {
+            actor: actor.id,
+            reason: err instanceof Error ? err.message : String(err),
+          });
           break;
         }
         seen += items.length;
@@ -191,10 +225,13 @@ export async function repairInstagramReelPosters(options: {
           .map((item) => mapGraphMediaToNormalizedPost(item, actor.uri))
           .filter((entry): entry is InstagramMappedPost => entry !== null);
         const keys = mapped.map((entry) => entry.post.activityId);
-        const imported = keys.length === 0 ? [] : await getDb()
-          .select({ id: posts.id, key: posts.federationActivityId })
-          .from(posts)
-          .where(inArray(posts.federationActivityId, keys));
+        const imported =
+          keys.length === 0
+            ? []
+            : await getDb()
+                .select({ id: posts.id, key: posts.federationActivityId })
+                .from(posts)
+                .where(inArray(posts.federationActivityId, keys));
         const postIdByKey = new Map(imported.map((row) => [row.key as string, row.id]));
         const stored = await storedMediaByPost(imported.map((row) => row.id));
 
@@ -234,7 +271,9 @@ export const EXIT_INCOMPLETE = 75;
  * video could not be stored yet — the one-shot workflow reports that as
  * "re-run", not as a failure.
  */
-export function reelPosterRepairExitCode(result: Pick<ReelPosterRepairResult, 'stopped' | 'waiting'>): number {
+export function reelPosterRepairExitCode(
+  result: Pick<ReelPosterRepairResult, 'stopped' | 'waiting'>,
+): number {
   return result.stopped > 0 || result.waiting > 0 ? EXIT_INCOMPLETE : 0;
 }
 
@@ -244,7 +283,10 @@ async function main(): Promise<void> {
   assertAdminMutationAllowed({ scriptName: SCRIPT_NAME, dryRun });
   await connectPostgres();
   logger.info(`[${SCRIPT_NAME}] starting`, { dryRun, depth });
-  const result = await repairInstagramReelPosters({ dryRun, depth: Number.isFinite(depth) && depth > 0 ? depth : DEFAULT_DEPTH });
+  const result = await repairInstagramReelPosters({
+    dryRun,
+    depth: Number.isFinite(depth) && depth > 0 ? depth : DEFAULT_DEPTH,
+  });
   process.exitCode = reelPosterRepairExitCode(result);
 }
 
@@ -255,7 +297,9 @@ if (require.main === module) {
       process.exit(process.exitCode ?? 0);
     })
     .catch(async (error) => {
-      logger.error(`[${SCRIPT_NAME}] failed`, { reason: error instanceof Error ? error.message : 'unknown' });
+      logger.error(`[${SCRIPT_NAME}] failed`, {
+        reason: error instanceof Error ? error.message : 'unknown',
+      });
       await closeAdminScriptResources().catch(() => undefined);
       process.exit(1);
     });

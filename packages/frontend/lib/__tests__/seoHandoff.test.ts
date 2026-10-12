@@ -1,12 +1,23 @@
 /** @jest-environment jsdom */
 import { URL as NodeURL } from 'node:url';
-import { initialSEODocumentPath, matchesServerSEOPath, matchesSEOPath, profileSEOPolicy, readServerSEO, releaseServerSEO, releaseServerSEOForNavigation } from '../seoHandoff';
+import {
+  initialSEODocumentPath,
+  matchesServerSEOPath,
+  matchesSEOPath,
+  profileSEOPolicy,
+  readServerSEO,
+  releaseServerSEO,
+  releaseServerSEOForNavigation,
+} from '../seoHandoff';
 
 let document: Document;
 
 beforeEach(() => {
   document = window.document.implementation.createHTMLDocument();
-  Object.defineProperty(document, 'URL', { configurable: true, value: 'https://mention.earth/@nate' });
+  Object.defineProperty(document, 'URL', {
+    configurable: true,
+    value: 'https://mention.earth/@nate',
+  });
   Object.defineProperty(globalThis, 'URL', { configurable: true, writable: true, value: NodeURL });
   document.head.innerHTML = `<title data-mention-seo="true">Nate on Mention</title>
     <link data-mention-seo="true" rel="canonical" href="https://mention.earth/@nate">
@@ -61,7 +72,6 @@ test('post adoption retains server noindex and sanitized metadata, never guessin
   expect(readServerSEO(document, '/p/456')).toBeUndefined();
 });
 
-
 test('a route without SEO receives the instance title instead of the stale profile title', () => {
   releaseServerSEOForNavigation(document, '/settings', document.title, 'Managed Mention');
   expect(document.title).toBe('Managed Mention');
@@ -79,7 +89,6 @@ test('malformed route escapes cannot crash the root handoff effect', () => {
   expect(document.querySelector('link[data-mention-seo]')).toBeNull();
 });
 
-
 test('federated encoded handles and trailing slashes retain the matching initial document', () => {
   const canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]')!;
   canonical.href = 'https://mention.earth/@aida_quilcue%40x.com';
@@ -89,24 +98,58 @@ test('federated encoded handles and trailing slashes retain the matching initial
 });
 
 test('pending or failed appearance privacy cannot authorize public bio, image or schema', () => {
-  expect(profileSEOPolicy(undefined)).toMatchObject({ detailsAllowed: false, robots: 'noindex,nofollow' });
-  expect(profileSEOPolicy('public')).toMatchObject({ detailsAllowed: true, robots: 'index,follow' });
-  const restricted = { documentPath: '/@nate', url: 'https://mention.earth/@nate', title: 'Profile', robots: 'noindex,nofollow', description: undefined, image: undefined, jsonLd: undefined };
-  expect(profileSEOPolicy(undefined, restricted)).toMatchObject({ detailsAllowed: false, robots: 'noindex,nofollow' });
-  expect(profileSEOPolicy('public', restricted)).toMatchObject({ detailsAllowed: false, robots: 'noindex,nofollow' });
-  expect(profileSEOPolicy('private', { ...restricted, robots: 'index,follow' })).toMatchObject({ detailsAllowed: false, robots: 'noindex,nofollow', server: undefined });
+  expect(profileSEOPolicy(undefined)).toMatchObject({
+    detailsAllowed: false,
+    robots: 'noindex,nofollow',
+  });
+  expect(profileSEOPolicy('public')).toMatchObject({
+    detailsAllowed: true,
+    robots: 'index,follow',
+  });
+  const restricted = {
+    documentPath: '/@nate',
+    url: 'https://mention.earth/@nate',
+    title: 'Profile',
+    robots: 'noindex,nofollow',
+    description: undefined,
+    image: undefined,
+    jsonLd: undefined,
+  };
+  expect(profileSEOPolicy(undefined, restricted)).toMatchObject({
+    detailsAllowed: false,
+    robots: 'noindex,nofollow',
+  });
+  expect(profileSEOPolicy('public', restricted)).toMatchObject({
+    detailsAllowed: false,
+    robots: 'noindex,nofollow',
+  });
+  expect(profileSEOPolicy('private', { ...restricted, robots: 'index,follow' })).toMatchObject({
+    detailsAllowed: false,
+    robots: 'noindex,nofollow',
+    server: undefined,
+  });
 });
 
 test('an account that opted out of search engines keeps its details, without being indexed', () => {
-  expect(profileSEOPolicy('public', undefined, false)).toMatchObject({ detailsAllowed: true, robots: 'noindex,follow' });
-  expect(profileSEOPolicy('public', undefined, true)).toMatchObject({ detailsAllowed: true, robots: 'index,follow' });
+  expect(profileSEOPolicy('public', undefined, false)).toMatchObject({
+    detailsAllowed: true,
+    robots: 'noindex,follow',
+  });
+  expect(profileSEOPolicy('public', undefined, true)).toMatchObject({
+    detailsAllowed: true,
+    robots: 'index,follow',
+  });
   // A private profile stays private whatever the indexing choice.
-  expect(profileSEOPolicy('private', undefined, true)).toMatchObject({ robots: 'noindex,nofollow' });
+  expect(profileSEOPolicy('private', undefined, true)).toMatchObject({
+    robots: 'noindex,nofollow',
+  });
 });
 
-
 test('a verified alias retains its document and canonical proof until ready or genuine navigation', () => {
-  Object.defineProperty(document, 'URL', { configurable: true, value: 'https://mention.earth/@nate-alias' });
+  Object.defineProperty(document, 'URL', {
+    configurable: true,
+    value: 'https://mention.earth/@nate-alias',
+  });
   initialSEODocumentPath(document);
   releaseServerSEOForNavigation(document, '/@nate-alias');
   expect(document.querySelector('link[data-mention-seo]')).not.toBeNull();
@@ -118,12 +161,14 @@ test('a verified alias retains its document and canonical proof until ready or g
   releaseServerSEOForNavigation(document, '/@nate');
   expect(document.querySelector('link[data-mention-seo]')).not.toBeNull();
   // document.URL changes with history; the initial document identity must not.
-  Object.defineProperty(document, 'URL', { configurable: true, value: 'https://mention.earth/explore' });
+  Object.defineProperty(document, 'URL', {
+    configurable: true,
+    value: 'https://mention.earth/explore',
+  });
   releaseServerSEOForNavigation(document, '/explore');
   expect(document.querySelector('link[data-mention-seo]')).toBeNull();
   expect(document.querySelector('script[type="application/ld+json"]')).toBeNull();
 });
-
 
 test('invalid structured data is omitted while the restrictive metadata remains usable', () => {
   document.querySelector('script')!.textContent = 'invalid JSON';

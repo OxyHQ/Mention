@@ -2,10 +2,10 @@ import { getServiceOxyClient } from '../../utils/oxyHelpers';
 /**
  * `/mute` and `/mute-words` against real rows.
  *
- * The interesting half is `mute_words`. Mongoose applied `maxlength: 100` and
+ * The interesting half is `mute_words`. The legacy ODM applied `maxlength: 100` and
  * nothing else — no `trim`, no `lowercase` — so ALL of the normalization that
  * makes `(user_id, value)` a meaningful unique key has always lived at the call
- * site, in `normalizeMuteValue`. Postgres has no counterpart to a Mongoose
+ * site, in `normalizeMuteValue`. Postgres has no counterpart to a legacy-ODM
  * setter, so if that normalization ever drifts out of the route, a padded or
  * mixed-case duplicate stops colliding and the viewer silently accumulates two
  * rules that mean the same thing. Every "still collides" case below is that.
@@ -91,7 +91,7 @@ describe('POST /mute', () => {
     expect(await db.select().from(mutes).where(eq(mutes.userId, viewer))).toEqual([]);
   });
 
-  it('emits _id on the wire, the key a Mongoose document serialized to', async () => {
+  it('emits _id on the wire, the key clients read', async () => {
     const viewer = userId('muter');
     const target = userId('muted');
     const res = await request(makeApp(viewer)).post('/mute').send({ mutedId: target }).expect(201);
@@ -151,13 +151,16 @@ describe('DELETE /mute/:mutedId and GET /mute', () => {
 
 describe('POST /mute-words normalization', () => {
   it('trims the value, so a padded duplicate still collides', async () => {
-    // Mongoose never trimmed this field either — the zod transform and
+    // The legacy ODM never trimmed this field either — the zod transform and
     // `normalizeMuteValue` did, and they are what the unique key depends on.
     const viewer = userId('muter');
     const app = makeApp(viewer);
 
     const created = await request(app).post('/mute-words').send({ value: 'spoilers' }).expect(201);
-    const padded = await request(app).post('/mute-words').send({ value: '   spoilers  ' }).expect(200);
+    const padded = await request(app)
+      .post('/mute-words')
+      .send({ value: '   spoilers  ' })
+      .expect(200);
 
     expect(padded.body.data.id).toBe(created.body.data.id);
     expect(created.body.data.value).toBe('spoilers');
@@ -243,7 +246,10 @@ describe('POST /mute-words normalization', () => {
     await request(makeApp(second)).post('/mute-words').send({ value: 'spoilers' }).expect(201);
 
     expect(
-      await db.select().from(muteWords).where(inArray(muteWords.userId, [first, second])),
+      await db
+        .select()
+        .from(muteWords)
+        .where(inArray(muteWords.userId, [first, second])),
     ).toHaveLength(2);
   });
 });
@@ -261,7 +267,9 @@ describe('the mute_words constraints themselves', () => {
   it('refuses a targets element outside the allowed set', async () => {
     const viewer = userId('muter');
     await expect(
-      db.insert(muteWords).values({ userId: viewer, value: 'x', targets: ['content', 'elsewhere'] }),
+      db
+        .insert(muteWords)
+        .values({ userId: viewer, value: 'x', targets: ['content', 'elsewhere'] }),
     ).rejects.toThrow();
   });
 
@@ -323,7 +331,10 @@ describe('GET/PATCH/DELETE /mute-words', () => {
       .returning();
 
     const app = makeApp(stranger);
-    await request(app).patch(`/mute-words/${row.id}`).send({ targets: ['tag'] }).expect(404);
+    await request(app)
+      .patch(`/mute-words/${row.id}`)
+      .send({ targets: ['tag'] })
+      .expect(404);
     await request(app).delete(`/mute-words/${row.id}`).expect(404);
 
     // Refused, and still intact — a rejection that had also written would pass
@@ -341,7 +352,10 @@ describe('GET/PATCH/DELETE /mute-words', () => {
       .returning();
 
     await request(app).patch(`/mute-words/${row.id}`).send({}).expect(400);
-    await request(app).patch(`/mute-words/${uuidv7()}`).send({ targets: ['tag'] }).expect(404);
+    await request(app)
+      .patch(`/mute-words/${uuidv7()}`)
+      .send({ targets: ['tag'] })
+      .expect(404);
     await request(app).delete(`/mute-words/${uuidv7()}`).expect(404);
   });
 

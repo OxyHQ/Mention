@@ -186,7 +186,13 @@ describe('postsStore refreshes the profile counters a write changes', () => {
     documents: [],
     authors: [],
     engagement: { likes: 0, replies: 0, boosts: 0, saves: 0, downvotes: 0 },
-    viewerState: { isOwner: true, isLiked: false, isBoosted: false, isSaved: false, isDownvoted: false },
+    viewerState: {
+      isOwner: true,
+      isLiked: false,
+      isBoosted: false,
+      isSaved: false,
+      isDownvoted: false,
+    },
     permissions: {},
     metadata: { createdAt: '2026-09-25T10:00:00.000Z', status: 'published' },
   });
@@ -198,7 +204,10 @@ describe('postsStore refreshes the profile counters a write changes', () => {
   });
 
   it('a published post or reply refreshes its author', async () => {
-    mockFeedService.createPost.mockResolvedValue({ success: true, post: published('new-post', 'author-1') });
+    mockFeedService.createPost.mockResolvedValue({
+      success: true,
+      post: published('new-post', 'author-1'),
+    });
     await usePostsStore.getState().createPost({ content: { text: 'hi' } } as never);
     expect(mockInvalidateCounts).toHaveBeenCalledWith(expect.anything(), 'author-1');
   });
@@ -212,10 +221,13 @@ describe('postsStore refreshes the profile counters a write changes', () => {
     expect(mockInvalidateCounts).toHaveBeenCalledWith(expect.anything(), 'author-1');
   });
 
-  it("a scheduled post changes no counter", async () => {
+  it('a scheduled post changes no counter', async () => {
     mockFeedService.createPost.mockResolvedValue({
       success: true,
-      post: { ...published('later', 'author-1'), metadata: { createdAt: '2026-09-25T10:00:00.000Z', status: 'scheduled' } },
+      post: {
+        ...published('later', 'author-1'),
+        metadata: { createdAt: '2026-09-25T10:00:00.000Z', status: 'scheduled' },
+      },
     });
     await usePostsStore.getState().createPost({ content: { text: 'later' } } as never);
     expect(mockInvalidateCounts).not.toHaveBeenCalled();

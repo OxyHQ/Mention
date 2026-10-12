@@ -45,7 +45,9 @@ export async function loadSigningChannelIds(
 ): Promise<Set<string>> {
   const ids = [
     ...new Set(
-      [...candidateChannelIds].filter((id): id is string => typeof id === 'string' && id.length > 0),
+      [...candidateChannelIds].filter(
+        (id): id is string => typeof id === 'string' && id.length > 0,
+      ),
     ),
   ];
   if (ids.length === 0) {

@@ -15,7 +15,9 @@ describe('Oxy runtime compatibility unit', () => {
     const sdkRequire = createRequire(sdkPackage);
 
     expect(sdkRequire.resolve('@oxy.so/services/package.json')).toBe(SERVICES_PACKAGE);
-    expect(existsSync(join(sdkRoot, 'node_modules', '@oxyhq', 'services', 'package.json'))).toBe(false);
+    expect(existsSync(join(sdkRoot, 'node_modules', '@oxyhq', 'services', 'package.json'))).toBe(
+      false,
+    );
 
     const servicesTypes = readFileSync(
       join(SERVICES_ROOT, 'lib', 'typescript', 'commonjs', 'index.d.ts'),

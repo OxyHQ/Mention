@@ -5,12 +5,12 @@
  *  - Resolve the viewer's exclusion set (blocked + muted + restricted + self).
  *  - Serve a per-viewer Redis cache (never shared between anon and authed).
  *  - Rank via {@link OxyRankingClient}, forwarding the viewer for personalization.
- *  - Fail soft: any Oxy/transport error yields an empty, valid response shape
- *    (logged, never thrown) so the discovery surface never errors the client.
+ *  - Fail loudly: a ranking failure is logged with the round trip that failed
+ *    and thrown, so the client retries instead of caching an empty page.
  *
  * Hydration: the ranking client already maps each item to Mention's frontend
  * DTO (final avatar URL, canonical `name.displayName`), so this service does not
- * re-resolve users. It only enforces the exclusion set, caching, and soft-fail.
+ * re-resolve users. It only enforces the exclusion set and caching.
  */
 
 import { getRedisClient } from '../utils/redis';
@@ -28,6 +28,7 @@ import {
   type ContentCandidate,
 } from './ContentAffinityService';
 import { getMentionOxyClientId } from '../utils/oxyHelpers';
+import { ForegroundRankingError } from './ForegroundOxyProfileClient';
 import { UserPrivacyManager } from '../mtn/UserPrivacyManager';
 import type { OxyClient } from '../utils/privacyHelpers';
 
@@ -71,7 +72,7 @@ export interface GetRecommendationsInput {
 }
 
 /**
- * Response payload — always this shape, even on soft-failure. The pagination
+ * Response payload of a successful page. The pagination
  * fields drive the frontend's infinite scroll: `hasMore` gates the next fetch
  * and `nextCursor`/`nextOffset` address the next page. Both `nextCursor` and
  * `nextOffset` are `null` whenever `hasMore` is `false`.
@@ -86,13 +87,17 @@ export interface RecommendationsResult {
   hasMore: boolean;
 }
 
-/** The soft-fail / empty page payload (no results, no next page). */
-const EMPTY_RESULT: RecommendationsResult = {
-  recommendations: [],
-  nextCursor: null,
-  nextOffset: null,
-  hasMore: false,
-};
+/**
+ * Oxy could not rank this page. Surfaced as a failure rather than an empty
+ * page: an empty 200 reads as "nobody to suggest", the client caches it for
+ * the query's stale time, and the surface stays blank long after Oxy recovered.
+ */
+export class RecommendationsUnavailableError extends Error {
+  constructor() {
+    super('RECOMMENDATIONS_UNAVAILABLE');
+    this.name = 'RecommendationsUnavailableError';
+  }
+}
 
 /**
  * Encode a numeric offset into the opaque cursor the frontend echoes back. The
@@ -197,7 +202,9 @@ const MAX_BOOST_TIER_WEIGHT = 3;
  * candidates get the highest tier) and emits one boost entry per non-empty tier.
  * Returns `[]` for an empty candidate list.
  */
-export function buildBoostsFromCandidates(candidates: ContentCandidate[]): RecommendationBoostInput[] {
+export function buildBoostsFromCandidates(
+  candidates: ContentCandidate[],
+): RecommendationBoostInput[] {
   if (candidates.length === 0) return [];
 
   // Candidates arrive sorted by descending weight. The strongest weight defines
@@ -309,9 +316,10 @@ export class RecommendationService {
   }
 
   /**
-   * Produce a ranked recommendation page for the viewer. Always resolves to a
-   * valid {@link RecommendationsResult}; an Oxy/transport error logs and returns
-   * an empty list rather than throwing.
+   * Produce a ranked recommendation page for the viewer. A ranking failure logs
+   * which foreground round trip failed and throws
+   * {@link RecommendationsUnavailableError}; a privacy read that fails closed
+   * throws its own error.
    */
   async getRecommendations(input: GetRecommendationsInput): Promise<RecommendationsResult> {
     const limit = clampLimit(input.limit);
@@ -382,8 +390,11 @@ export class RecommendationService {
       if (!viewerId) await this.writeCache(cacheKey, result);
       return result;
     } catch (error) {
-      logger.error('[RecommendationService] ranking failed; returning empty result:', error);
-      return { ...EMPTY_RESULT };
+      logger.error('[RecommendationService] ranking failed', {
+        reason: error instanceof Error ? error.message : 'unknown',
+        ...(error instanceof ForegroundRankingError ? error.failure : {}),
+      });
+      throw new RecommendationsUnavailableError();
     }
   }
 }

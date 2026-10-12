@@ -8,7 +8,9 @@ vi.mock('../utils/redis', () => ({
   getRedisClient: vi.fn().mockReturnValue({
     isReady: false,
     isOpen: false,
-    connect: vi.fn().mockRejectedValue(Object.assign(new Error('ECONNREFUSED'), { code: 'ECONNREFUSED' })),
+    connect: vi
+      .fn()
+      .mockRejectedValue(Object.assign(new Error('ECONNREFUSED'), { code: 'ECONNREFUSED' })),
     ping: vi.fn().mockRejectedValue(new Error('not connected')),
     get: vi.fn(),
     set: vi.fn(),
@@ -87,7 +89,9 @@ describe('positivity scorer', () => {
   });
 
   it('boosts a classified positive post', () => {
-    const positive = makePost({ postClassification: { status: 'classified', topics: [], sentiment: 'positive' } });
+    const positive = makePost({
+      postClassification: { status: 'classified', topics: [], sentiment: 'positive' },
+    });
     expect(service.calculatePositivityBoost(positive)).toBe(R.positivity.boost);
   });
 
@@ -109,7 +113,14 @@ describe('conversational scorer', () => {
       postClassification: {
         status: 'classified',
         topics: [],
-        scores: { toxicity: 0, constructiveness: 1, spam: 0, quality: 0.5, controversy: 0, negativity: 0 },
+        scores: {
+          toxicity: 0,
+          constructiveness: 1,
+          spam: 0,
+          quality: 0.5,
+          controversy: 0,
+          negativity: 0,
+        },
       },
     });
     expect(service.calculateConversationalBoost(high)).toBeCloseTo(R.conversational.maxBoost, 5);
@@ -118,20 +129,40 @@ describe('conversational scorer', () => {
       postClassification: {
         status: 'classified',
         topics: [],
-        scores: { toxicity: 0, constructiveness: 0.5, spam: 0, quality: 0.5, controversy: 0, negativity: 0 },
+        scores: {
+          toxicity: 0,
+          constructiveness: 0.5,
+          spam: 0,
+          quality: 0.5,
+          controversy: 0,
+          negativity: 0,
+        },
       },
     });
-    expect(service.calculateConversationalBoost(half)).toBeCloseTo(1 + 0.5 * (R.conversational.maxBoost - 1), 5);
+    expect(service.calculateConversationalBoost(half)).toBeCloseTo(
+      1 + 0.5 * (R.conversational.maxBoost - 1),
+      5,
+    );
   });
 
   it('falls back to the reply ratio from stats when unclassified', () => {
     // 3 comments, 0 likes/boosts → reply ratio 1 → max boost.
-    const replyHeavy = makePost({ stats: { likesCount: 0, boostsCount: 0, commentsCount: 3, viewsCount: 0 } });
-    expect(service.calculateConversationalBoost(replyHeavy)).toBeCloseTo(R.conversational.maxBoost, 5);
+    const replyHeavy = makePost({
+      stats: { likesCount: 0, boostsCount: 0, commentsCount: 3, viewsCount: 0 },
+    });
+    expect(service.calculateConversationalBoost(replyHeavy)).toBeCloseTo(
+      R.conversational.maxBoost,
+      5,
+    );
 
     // Equal comments and likes → ratio 0.5.
-    const mixed = makePost({ stats: { likesCount: 3, boostsCount: 0, commentsCount: 3, viewsCount: 0 } });
-    expect(service.calculateConversationalBoost(mixed)).toBeCloseTo(1 + 0.5 * (R.conversational.maxBoost - 1), 5);
+    const mixed = makePost({
+      stats: { likesCount: 3, boostsCount: 0, commentsCount: 3, viewsCount: 0 },
+    });
+    expect(service.calculateConversationalBoost(mixed)).toBeCloseTo(
+      1 + 0.5 * (R.conversational.maxBoost - 1),
+      5,
+    );
   });
 });
 
@@ -182,13 +213,15 @@ describe('verifiedBoost scorer', () => {
 
   it('is neutral when the author is not present / not verified', () => {
     expect(service.calculateVerifiedBoost(makePost({ oxyUserId: 'a1' }), new Map())).toBe(1.0);
-    expect(service.calculateVerifiedBoost(makePost({ oxyUserId: 'a1' }), new Map([['a1', false]]))).toBe(1.0);
+    expect(
+      service.calculateVerifiedBoost(makePost({ oxyUserId: 'a1' }), new Map([['a1', false]])),
+    ).toBe(1.0);
   });
 
   it('boosts a verified author', () => {
-    expect(service.calculateVerifiedBoost(makePost({ oxyUserId: 'a1' }), new Map([['a1', true]]))).toBe(
-      R.verifiedBoost.boost,
-    );
+    expect(
+      service.calculateVerifiedBoost(makePost({ oxyUserId: 'a1' }), new Map([['a1', true]])),
+    ).toBe(R.verifiedBoost.boost);
   });
 });
 
@@ -233,17 +266,25 @@ describe('dwellTime scorer', () => {
 
   it('is neutral for a post whose average dwell is below the threshold', () => {
     const below = R.dwellTime.thresholdMs - 1;
-    expect(service.calculateDwellTimeBoost(makePost({ id: 'p1' }), new Map([['p1', below]]))).toBe(1.0);
+    expect(service.calculateDwellTimeBoost(makePost({ id: 'p1' }), new Map([['p1', below]]))).toBe(
+      1.0,
+    );
   });
 
   it('boosts a high-dwell post, scaled and capped at maxBoost', () => {
     // At the threshold → base boost.
     expect(
-      service.calculateDwellTimeBoost(makePost({ id: 'p1' }), new Map([['p1', R.dwellTime.thresholdMs]])),
+      service.calculateDwellTimeBoost(
+        makePost({ id: 'p1' }),
+        new Map([['p1', R.dwellTime.thresholdMs]]),
+      ),
     ).toBeCloseTo(R.dwellTime.boost, 5);
     // Far above the threshold → clamped to maxBoost.
     expect(
-      service.calculateDwellTimeBoost(makePost({ id: 'p1' }), new Map([['p1', R.dwellTime.thresholdMs * 100]])),
+      service.calculateDwellTimeBoost(
+        makePost({ id: 'p1' }),
+        new Map([['p1', R.dwellTime.thresholdMs * 100]]),
+      ),
     ).toBeCloseTo(R.dwellTime.maxBoost, 5);
   });
 });
@@ -252,19 +293,19 @@ describe('socialProof scorer', () => {
   it('is neutral (1.0) when there is no network-engager data', () => {
     expect(service.calculateSocialProofBoost(makePost({ id: 'p1' }), undefined)).toBe(1.0);
     expect(service.calculateSocialProofBoost(makePost({ id: 'p1' }), new Map())).toBe(1.0);
-    expect(service.calculateSocialProofBoost(makePost({ id: 'p1' }), new Map([['p1', 0]]))).toBe(1.0);
+    expect(service.calculateSocialProofBoost(makePost({ id: 'p1' }), new Map([['p1', 0]]))).toBe(
+      1.0,
+    );
   });
 
   it('boosts by the number of network engagers, capped at maxBoost', () => {
     const { perEngager, maxBoost } = R.socialProof;
-    expect(service.calculateSocialProofBoost(makePost({ id: 'p1' }), new Map([['p1', 2]]))).toBeCloseTo(
-      1 + 2 * perEngager,
-      5,
-    );
-    expect(service.calculateSocialProofBoost(makePost({ id: 'p1' }), new Map([['p1', 1000]]))).toBeCloseTo(
-      maxBoost,
-      5,
-    );
+    expect(
+      service.calculateSocialProofBoost(makePost({ id: 'p1' }), new Map([['p1', 2]])),
+    ).toBeCloseTo(1 + 2 * perEngager, 5);
+    expect(
+      service.calculateSocialProofBoost(makePost({ id: 'p1' }), new Map([['p1', 1000]])),
+    ).toBeCloseTo(maxBoost, 5);
   });
 });
 
@@ -272,31 +313,55 @@ describe('reciprocityBoost scorer', () => {
   const behavior = { preferredAuthors: [{ authorId: 'a1', weight: 0.9 }] };
 
   it('is neutral (1.0) when there are no mutuals or no behavior', () => {
-    expect(service.calculateReciprocityBoost(makePost({ oxyUserId: 'a1' }), behavior, undefined)).toBe(1.0);
-    expect(service.calculateReciprocityBoost(makePost({ oxyUserId: 'a1' }), undefined, new Set(['a1']))).toBe(1.0);
+    expect(
+      service.calculateReciprocityBoost(makePost({ oxyUserId: 'a1' }), behavior, undefined),
+    ).toBe(1.0);
+    expect(
+      service.calculateReciprocityBoost(makePost({ oxyUserId: 'a1' }), undefined, new Set(['a1'])),
+    ).toBe(1.0);
   });
 
   it('is neutral when the author is a mutual but NOT a preferred author (or below the weight floor)', () => {
-    expect(service.calculateReciprocityBoost(makePost({ oxyUserId: 'a1' }), { preferredAuthors: [] }, new Set(['a1']))).toBe(1.0);
-    const lowWeight = { preferredAuthors: [{ authorId: 'a1', weight: R.reciprocityBoost.minAuthorWeight - 0.01 }] };
-    expect(service.calculateReciprocityBoost(makePost({ oxyUserId: 'a1' }), lowWeight, new Set(['a1']))).toBe(1.0);
+    expect(
+      service.calculateReciprocityBoost(
+        makePost({ oxyUserId: 'a1' }),
+        { preferredAuthors: [] },
+        new Set(['a1']),
+      ),
+    ).toBe(1.0);
+    const lowWeight = {
+      preferredAuthors: [{ authorId: 'a1', weight: R.reciprocityBoost.minAuthorWeight - 0.01 }],
+    };
+    expect(
+      service.calculateReciprocityBoost(makePost({ oxyUserId: 'a1' }), lowWeight, new Set(['a1'])),
+    ).toBe(1.0);
   });
 
   it('is neutral when the preferred author is NOT a mutual', () => {
-    expect(service.calculateReciprocityBoost(makePost({ oxyUserId: 'a1' }), behavior, new Set(['other']))).toBe(1.0);
+    expect(
+      service.calculateReciprocityBoost(
+        makePost({ oxyUserId: 'a1' }),
+        behavior,
+        new Set(['other']),
+      ),
+    ).toBe(1.0);
   });
 
   it('boosts an author who is BOTH a mutual AND a preferred author', () => {
-    expect(service.calculateReciprocityBoost(makePost({ oxyUserId: 'a1' }), behavior, new Set(['a1']))).toBe(
-      R.reciprocityBoost.boost,
-    );
+    expect(
+      service.calculateReciprocityBoost(makePost({ oxyUserId: 'a1' }), behavior, new Set(['a1'])),
+    ).toBe(R.reciprocityBoost.boost);
   });
 });
 
 describe('noveltyBoost scorer', () => {
   function withTopics(names: string[]): Record<string, unknown> {
     return makePost({
-      postClassification: { status: 'baseline', topics: names, topicRefs: names.map((name) => ({ name })) },
+      postClassification: {
+        status: 'baseline',
+        topics: names,
+        topicRefs: names.map((name) => ({ name })),
+      },
     });
   }
 
@@ -310,7 +375,9 @@ describe('noveltyBoost scorer', () => {
   });
 
   it('is neutral when a post topic was recently seen', () => {
-    expect(service.calculateNoveltyBoost(withTopics(['space', 'cooking']), new Set(['cooking']))).toBe(1.0);
+    expect(
+      service.calculateNoveltyBoost(withTopics(['space', 'cooking']), new Set(['cooking'])),
+    ).toBe(1.0);
   });
 
   it('boosts a post whose topics are ALL novel to the viewer', () => {
@@ -324,7 +391,9 @@ describe('opt-in signals are OFF unless the definition enables them (no regressi
   it('a media post scores identically with and without enabledSignals (mediaBoost off)', async () => {
     const media = makePost({ content: { media: [{ id: 'm1' }] } });
     const off = await scoreWith(media, {});
-    const emptyEnabled = await scoreWith(media, { enabledSignals: new Set(['engagement', 'recency']) });
+    const emptyEnabled = await scoreWith(media, {
+      enabledSignals: new Set(['engagement', 'recency']),
+    });
     expect(emptyEnabled).toBeCloseTo(off, 10);
   });
 
@@ -336,7 +405,9 @@ describe('opt-in signals are OFF unless the definition enables them (no regressi
   });
 
   it('enabling positivity lifts a classified positive post', async () => {
-    const positive = makePost({ postClassification: { status: 'classified', topics: [], sentiment: 'positive' } });
+    const positive = makePost({
+      postClassification: { status: 'classified', topics: [], sentiment: 'positive' },
+    });
     const off = await scoreWith(positive, {});
     const on = await scoreWith(positive, { enabledSignals: new Set(['positivity']) });
     expect(on / off).toBeCloseTo(R.positivity.boost, 5);
@@ -366,7 +437,10 @@ describe('opt-in signals are OFF unless the definition enables them (no regressi
     const post = makePost({ oxyUserId: 'a1' });
     const verified = new Map([['a1', true]]);
     const off = await scoreWith(post, { authorVerified: verified });
-    const on = await scoreWith(post, { enabledSignals: new Set(['verifiedBoost']), authorVerified: verified });
+    const on = await scoreWith(post, {
+      enabledSignals: new Set(['verifiedBoost']),
+      authorVerified: verified,
+    });
     expect(on / off).toBeCloseTo(R.verifiedBoost.boost, 5);
   });
 
@@ -374,7 +448,10 @@ describe('opt-in signals are OFF unless the definition enables them (no regressi
     const post = makePost({ id: 'p1' });
     const dwell = new Map([['p1', R.dwellTime.thresholdMs]]);
     const off = await scoreWith(post, { dwellAverages: dwell });
-    const on = await scoreWith(post, { enabledSignals: new Set(['dwellTime']), dwellAverages: dwell });
+    const on = await scoreWith(post, {
+      enabledSignals: new Set(['dwellTime']),
+      dwellAverages: dwell,
+    });
     expect(on / off).toBeCloseTo(R.dwellTime.boost, 5);
   });
 
@@ -382,7 +459,10 @@ describe('opt-in signals are OFF unless the definition enables them (no regressi
     const post = makePost({ id: 'p1' });
     const network = new Map([['p1', 2]]);
     const off = await scoreWith(post, { networkEngagerCounts: network });
-    const on = await scoreWith(post, { enabledSignals: new Set(['socialProof']), networkEngagerCounts: network });
+    const on = await scoreWith(post, {
+      enabledSignals: new Set(['socialProof']),
+      networkEngagerCounts: network,
+    });
     expect(on / off).toBeCloseTo(1 + 2 * R.socialProof.perEngager, 5);
   });
 
@@ -405,7 +485,10 @@ describe('opt-in signals are OFF unless the definition enables them (no regressi
     });
     const viewerRecentTopics = new Set(['cooking']);
     const off = await scoreWith(post, { viewerRecentTopics });
-    const on = await scoreWith(post, { enabledSignals: new Set(['noveltyBoost']), viewerRecentTopics });
+    const on = await scoreWith(post, {
+      enabledSignals: new Set(['noveltyBoost']),
+      viewerRecentTopics,
+    });
     expect(on / off).toBeCloseTo(R.noveltyBoost.boost, 5);
   });
 });

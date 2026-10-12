@@ -39,8 +39,10 @@ import type { ComposerMediaItem } from '@/utils/composeUtils';
 const ES = 'es-ES';
 const EN = 'en';
 
-const run = (state: ComposeVariantsState, ...actions: ComposeVariantsAction[]): ComposeVariantsState =>
-  actions.reduce(variantsReducer, state);
+const run = (
+  state: ComposeVariantsState,
+  ...actions: ComposeVariantsAction[]
+): ComposeVariantsState => actions.reduce(variantsReducer, state);
 
 const threadItem = (overrides: Partial<ThreadItem> & { id: string }): ThreadItem => ({
   text: '',
@@ -181,7 +183,13 @@ describe('alt text and media on one variant', () => {
       createVariantsState(ES),
       { type: 'add-language', tag: EN },
       { type: 'set-text', tag: EN, itemId: MAIN_ITEM_ID, text: 'Hello' },
-      { type: 'set-media-alt', tag: EN, itemId: MAIN_ITEM_ID, mediaId: 'img-1', alt: 'A chart in English' },
+      {
+        type: 'set-media-alt',
+        tag: EN,
+        itemId: MAIN_ITEM_ID,
+        mediaId: 'img-1',
+        alt: 'A chart in English',
+      },
     );
 
     const inherited = getVariantItem(state, EN, MAIN_ITEM_ID).media;
@@ -236,7 +244,13 @@ describe('alt text and media on one variant', () => {
       { type: 'add-language', tag: EN },
       { type: 'set-text', tag: EN, itemId: MAIN_ITEM_ID, text: 'Hello' },
       { type: 'set-media-alt', tag: EN, itemId: MAIN_ITEM_ID, mediaId: 'img-1', alt: 'Still here' },
-      { type: 'set-media-alt', tag: EN, itemId: MAIN_ITEM_ID, mediaId: 'img-2', alt: 'Deleted image' },
+      {
+        type: 'set-media-alt',
+        tag: EN,
+        itemId: MAIN_ITEM_ID,
+        mediaId: 'img-2',
+        alt: 'Deleted image',
+      },
     );
 
     const payload = buildVariantContent(state, MAIN_ITEM_ID, 'Hola', ['img-1']);
@@ -304,12 +318,7 @@ describe('the payload', () => {
         { userId: 'alice-id', username: 'alice', displayName: 'Alice' },
       ],
       mediaIds: [],
-      variantContent: buildVariantContent(
-        state,
-        MAIN_ITEM_ID,
-        'Hola [mention:alice-id]',
-        [],
-      ),
+      variantContent: buildVariantContent(state, MAIN_ITEM_ID, 'Hola [mention:alice-id]', []),
     });
 
     expect(post.mentions).toEqual(['alice-id', 'bob-id']);
@@ -358,7 +367,12 @@ describe('the payload', () => {
     const state = run(
       createVariantsState(ES),
       { type: 'add-language', tag: EN },
-      { type: 'set-text', tag: EN, itemId: MAIN_ITEM_ID, text: 'Only the first post is translated' },
+      {
+        type: 'set-text',
+        tag: EN,
+        itemId: MAIN_ITEM_ID,
+        text: 'Only the first post is translated',
+      },
     );
 
     const payload = buildVariantContent(state, 'thread-1', 'Segundo', []);
@@ -388,13 +402,26 @@ describe('drafts', () => {
       { type: 'add-language', tag: EN },
       { type: 'set-text', tag: EN, itemId: MAIN_ITEM_ID, text: 'Hello' },
       { type: 'set-media-alt', tag: EN, itemId: MAIN_ITEM_ID, mediaId: 'img-1', alt: 'A chart' },
-      { type: 'set-article', tag: EN, itemId: MAIN_ITEM_ID, article: { title: 'Title', body: 'Body' } },
+      {
+        type: 'set-article',
+        tag: EN,
+        itemId: MAIN_ITEM_ID,
+        article: { title: 'Title', body: 'Body' },
+      },
       { type: 'set-text', tag: EN, itemId: 'thread-1', text: 'Second' },
-      { type: 'append-media', tag: EN, itemId: 'thread-1', media: [image('img-en', 'English chart')] },
+      {
+        type: 'append-media',
+        tag: EN,
+        itemId: 'thread-1',
+        media: [image('img-en', 'English chart')],
+      },
     );
 
     // Through JSON, because that is what AsyncStorage actually does to it.
-    const restored = deserializeVariants(JSON.parse(JSON.stringify(serializeVariants(state))), 'en');
+    const restored = deserializeVariants(
+      JSON.parse(JSON.stringify(serializeVariants(state))),
+      'en',
+    );
 
     expect(restored.primaryTag).toBe(ES);
     expect(restored.primaryChosen).toBe(true);
@@ -421,10 +448,7 @@ describe('drafts', () => {
       postingMode: 'thread',
     };
 
-    const restored = deserializeVariants(
-      (oldDraft as Record<string, unknown>).languages,
-      'en',
-    );
+    const restored = deserializeVariants((oldDraft as Record<string, unknown>).languages, 'en');
     expect(restored).toEqual(createVariantsState('en'));
     expect(hasVariantWork(restored)).toBe(false);
   });
@@ -434,7 +458,10 @@ describe('drafts', () => {
       primaryTag: 'not a language',
       languages: [
         { tag: 'zz-not-real', items: [{ itemId: MAIN_ITEM_ID, text: 'dropped' }] },
-        { tag: EN, items: ['nonsense', { itemId: MAIN_ITEM_ID, text: 'kept', alt: { 'img-1': 42 } }] },
+        {
+          tag: EN,
+          items: ['nonsense', { itemId: MAIN_ITEM_ID, text: 'kept', alt: { 'img-1': 42 } }],
+        },
       ],
     };
 
@@ -450,7 +477,11 @@ describe('drafts', () => {
 });
 
 describe('promoting a secondary language to primary', () => {
-  const primary = (text: string, media: ComposerMediaItem[] = [], article: PromotablePrimary['article'] = null): PromotablePrimary => ({
+  const primary = (
+    text: string,
+    media: ComposerMediaItem[] = [],
+    article: PromotablePrimary['article'] = null,
+  ): PromotablePrimary => ({
     text,
     media,
     article,
@@ -470,10 +501,19 @@ describe('promoting a secondary language to primary', () => {
     expect(outcome.state.primaryChosen).toBe(true);
     expect(outcome.state.activeTag).toBe(EN);
     // The promoted rendition is what the composer writes back as its primary state.
-    expect(outcome.primaryByItem[MAIN_ITEM_ID]).toEqual({ text: 'Hello world', media: [], article: null });
+    expect(outcome.primaryByItem[MAIN_ITEM_ID]).toEqual({
+      text: 'Hello world',
+      media: [],
+      article: null,
+    });
 
     // `variants[0]` is now the promoted language; the old primary survives as a variant.
-    const payload = buildVariantContent(outcome.state, MAIN_ITEM_ID, outcome.primaryByItem[MAIN_ITEM_ID].text, []);
+    const payload = buildVariantContent(
+      outcome.state,
+      MAIN_ITEM_ID,
+      outcome.primaryByItem[MAIN_ITEM_ID].text,
+      [],
+    );
     expect(payload).toEqual([
       { tag: EN, source: 'author', text: 'Hello world' },
       { tag: ES, source: 'author', text: 'Hola mundo' },
@@ -485,7 +525,11 @@ describe('promoting a secondary language to primary', () => {
       createVariantsState(ES),
       { type: 'add-language', tag: EN },
       { type: 'set-text', tag: EN, itemId: MAIN_ITEM_ID, text: 'Hello' },
-      { type: 'promote-to-primary', tag: EN, oldPrimaryByItem: { [MAIN_ITEM_ID]: primary('Hola') } },
+      {
+        type: 'promote-to-primary',
+        tag: EN,
+        oldPrimaryByItem: { [MAIN_ITEM_ID]: primary('Hola') },
+      },
     );
 
     expect(state.primaryTag).toBe(EN);
@@ -498,9 +542,20 @@ describe('promoting a secondary language to primary', () => {
       createVariantsState(ES),
       { type: 'add-language', tag: EN },
       { type: 'set-text', tag: EN, itemId: MAIN_ITEM_ID, text: 'Hello' },
-      { type: 'append-media', tag: EN, itemId: MAIN_ITEM_ID, media: [image('img-en', 'English chart')] },
+      {
+        type: 'append-media',
+        tag: EN,
+        itemId: MAIN_ITEM_ID,
+        media: [image('img-en', 'English chart')],
+      },
       { type: 'add-language', tag: 'fr' },
-      { type: 'set-media-alt', tag: 'fr', itemId: MAIN_ITEM_ID, mediaId: 'img-1', alt: 'Un graphique' },
+      {
+        type: 'set-media-alt',
+        tag: 'fr',
+        itemId: MAIN_ITEM_ID,
+        mediaId: 'img-1',
+        alt: 'Un graphique',
+      },
     );
 
     const outcome = promoteVariantToPrimary(state, EN, {
@@ -526,7 +581,13 @@ describe('promoting a secondary language to primary', () => {
       createVariantsState(ES),
       { type: 'add-language', tag: EN },
       { type: 'set-text', tag: EN, itemId: MAIN_ITEM_ID, text: 'Hello' },
-      { type: 'set-media-alt', tag: EN, itemId: MAIN_ITEM_ID, mediaId: 'img-1', alt: 'The English chart' },
+      {
+        type: 'set-media-alt',
+        tag: EN,
+        itemId: MAIN_ITEM_ID,
+        mediaId: 'img-1',
+        alt: 'The English chart',
+      },
     );
 
     const outcome = promoteVariantToPrimary(state, EN, {
@@ -534,7 +595,9 @@ describe('promoting a secondary language to primary', () => {
     });
 
     // The new primary keeps the shared image but now carries the promoted language's alt.
-    expect(outcome.primaryByItem[MAIN_ITEM_ID].media).toEqual([image('img-1', 'The English chart')]);
+    expect(outcome.primaryByItem[MAIN_ITEM_ID].media).toEqual([
+      image('img-1', 'The English chart'),
+    ]);
     // The old primary's alt is preserved as its localized inherit map.
     expect(getVariantItem(outcome.state, ES, MAIN_ITEM_ID).media).toEqual({
       mode: 'inherit',
@@ -543,10 +606,7 @@ describe('promoting a secondary language to primary', () => {
   });
 
   it('is a no-op — same state reference — when the tag is not a current author variant', () => {
-    const state = run(
-      createVariantsState(ES),
-      { type: 'add-language', tag: EN },
-    );
+    const state = run(createVariantsState(ES), { type: 'add-language', tag: EN });
 
     expect(promoteVariantToPrimary(state, 'de', {}).state).toBe(state);
     // The current primary is not a promotable variant either.

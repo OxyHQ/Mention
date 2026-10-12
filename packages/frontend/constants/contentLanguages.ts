@@ -94,7 +94,9 @@ export function contentLanguageForLocale(locale: string | undefined): string {
   const base = canonical.split('-')[0].toLowerCase();
   if (BY_TAG.has(base)) return base;
 
-  const sameBase = CONTENT_LANGUAGES.find((language) => language.tag.split('-')[0].toLowerCase() === base);
+  const sameBase = CONTENT_LANGUAGES.find(
+    (language) => language.tag.split('-')[0].toLowerCase() === base,
+  );
   if (sameBase) return sameBase.tag;
 
   return canonical;

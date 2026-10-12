@@ -16,7 +16,11 @@ import { ProfileWriters } from './ProfileWriters';
 import MediaGrid from './MediaGrid';
 import VideosGrid from './VideosGrid';
 import { FeedCard } from '@/components/FeedCard';
-import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } from '@/components/StarterPackCard';
+import {
+  StarterPackCard,
+  StarterPackCardSkeleton,
+  type StarterPackCardData,
+} from '@/components/StarterPackCard';
 import { feedService } from '@/services/feedService';
 import { customFeedsService } from '@/services/customFeedsService';
 import { ListCard, type ListCardData } from '@/components/ListCard';
@@ -85,7 +89,8 @@ export const ProfileTabs = memo(function ProfileTabs({
   // A lane tab is `tab === 'posts'` too, but it shows ONE lane — a pinned post
   // that lives on another lane (or on none) has no business heading it, so the
   // query is gated off there as well.
-  const canLoadPinnedPost = tab === 'posts' && !laneId && Boolean(profileId) && !(isPrivate && !isOwnProfile);
+  const canLoadPinnedPost =
+    tab === 'posts' && !laneId && Boolean(profileId) && !(isPrivate && !isOwnProfile);
   const pinnedPostQuery = useQuery<HydratedPost | null>({
     queryKey: viewerQueryKeys.pinnedPost(user?.id, profileId ?? ''),
     queryFn: () => feedService.getPinnedPost(profileId as string),
@@ -94,10 +99,7 @@ export const ProfileTabs = memo(function ProfileTabs({
   const pinnedPost = pinnedPostQuery.data ?? null;
   const refetchPinnedPost = pinnedPostQuery.refetch;
   const refreshProfileSurface = React.useCallback(async () => {
-    await Promise.all([
-      onProfileRefresh?.(),
-      ...(canLoadPinnedPost ? [refetchPinnedPost()] : []),
-    ]);
+    await Promise.all([onProfileRefresh?.(), ...(canLoadPinnedPost ? [refetchPinnedPost()] : [])]);
   }, [canLoadPinnedPost, onProfileRefresh, refetchPinnedPost]);
   // Reselecting the profile at its top reloads the whole surface: the account,
   // the pinned post and the tab's feed.
@@ -126,11 +128,7 @@ export const ProfileTabs = memo(function ProfileTabs({
   // Starter Packs tab
   if (tab === 'starter_packs') {
     return (
-      <ProfileStarterPacks
-        profileId={profileId}
-        isOwnProfile={isOwnProfile}
-        viewerId={user?.id}
-      />
+      <ProfileStarterPacks profileId={profileId} isOwnProfile={isOwnProfile} viewerId={user?.id} />
     );
   }
 
@@ -138,29 +136,19 @@ export const ProfileTabs = memo(function ProfileTabs({
   // `ORGANIZATION_ONLY_TAB_NAMES` for why reaching this branch already means
   // the account is eligible.
   if (tab === 'jobs') {
-    return <ProfileJobs employerOxyUserId={profileId} isOwnProfile={isOwnProfile} viewerId={user?.id} />;
+    return (
+      <ProfileJobs employerOxyUserId={profileId} isOwnProfile={isOwnProfile} viewerId={user?.id} />
+    );
   }
 
   // Lists tab
   if (tab === 'lists') {
-    return (
-      <ProfileLists
-        profileId={profileId}
-        isOwnProfile={isOwnProfile}
-        viewerId={user?.id}
-      />
-    );
+    return <ProfileLists profileId={profileId} isOwnProfile={isOwnProfile} viewerId={user?.id} />;
   }
 
   // Feeds tab
   if (tab === 'feeds') {
-    return (
-      <ProfileFeeds
-        profileId={profileId}
-        isOwnProfile={isOwnProfile}
-        viewerId={user?.id}
-      />
-    );
+    return <ProfileFeeds profileId={profileId} isOwnProfile={isOwnProfile} viewerId={user?.id} />;
   }
 
   // Writers tab — a channel's masthead. The strip only carries it for a channel
@@ -212,9 +200,8 @@ export const ProfileTabs = memo(function ProfileTabs({
   // header, so FlashList is the single vertical scroll owner and its mounted row
   // count remains bounded. The legacy non-scrolling Feed fallback stays only for
   // callers that have not opted into feed ownership.
-  const pinnedPostElement = tab === 'posts' && pinnedPost ? (
-    <PinnedPostItem post={pinnedPost} showPinned />
-  ) : null;
+  const pinnedPostElement =
+    tab === 'posts' && pinnedPost ? <PinnedPostItem post={pinnedPost} showPinned /> : null;
 
   // A lane tab is served by the lane's OWN descriptor (`lane|<id>`), which
   // already knows its publisher — so it goes out as a filter with NO `userId`.
@@ -234,10 +221,7 @@ export const ProfileTabs = memo(function ProfileTabs({
         listContentHeaderComponent={listContentHeaderComponent}
         listStickyHeaderComponent={listStickyHeaderComponent}
         listLeadingComponent={pinnedPostElement}
-        contentContainerStyle={[
-          listContentContainerStyle,
-          { paddingBottom: 100 },
-        ]}
+        contentContainerStyle={[listContentContainerStyle, { paddingBottom: 100 }]}
         onRefresh={refreshProfileSurface}
         reloadKey={feedReloadKey}
       />
@@ -332,9 +316,14 @@ const ProfileFeeds = memo(function ProfileFeeds({
         likeCount: gen.likeCount,
         // Only attach a creator byline when the owner resolved to a real handle
         // (the ghost-handle rule — an unresolved owner shows no @handle line).
-        owner: gen.owner && gen.owner.username
-          ? { username: gen.owner.username, displayName: gen.owner.name?.displayName, avatar: gen.owner.avatar ?? undefined }
-          : undefined,
+        owner:
+          gen.owner && gen.owner.username
+            ? {
+                username: gen.owner.username,
+                displayName: gen.owner.name?.displayName,
+                avatar: gen.owner.avatar ?? undefined,
+              }
+            : undefined,
       }));
       return [...(custom.items || []), ...generatorItems];
     },
@@ -369,7 +358,11 @@ const ProfileFeeds = memo(function ProfileFeeds({
             key={feed.id || feed._id}
             onPress={
               descriptor
-                ? () => router.push({ pathname: '/feeds/view', params: { descriptor, title: feed.title ?? '' } })
+                ? () =>
+                    router.push({
+                      pathname: '/feeds/view',
+                      params: { descriptor, title: feed.title ?? '' },
+                    })
                 : undefined
             }
             feed={{
@@ -448,7 +441,8 @@ const ProfileJobs = memo(function ProfileJobs({
     <View className="p-4 gap-3">
       {(isOwnProfile || viewerOperatesAccount) && (
         <Button
-          appearance="subtle" tone="neutral"
+          appearance="subtle"
+          tone="neutral"
           size="sm"
           style={{ alignSelf: 'flex-start' }}
           onPress={() => router.push('/jobs/mine')}
@@ -485,11 +479,7 @@ const ProfileStarterPacks = memo(function ProfileStarterPacks({
   // useEffect+useState fetch, so revisiting the tab/profile reads cache instead of
   // refetching. Mirrors the pinnedPostQuery above.
   const { data: packs = [], isPending: loading } = useQuery<StarterPackCardData[]>({
-    queryKey: viewerQueryKeys.profileStarterPacks(
-      viewerId,
-      profileId,
-      isOwnProfile,
-    ),
+    queryKey: viewerQueryKeys.profileStarterPacks(viewerId, profileId, isOwnProfile),
     enabled: Boolean(profileId),
     queryFn: async () => {
       try {
@@ -616,11 +606,7 @@ const ProfileLists = memo(function ProfileLists({
   return (
     <View className="p-4 gap-3">
       {lists.map((list) => (
-        <ListCard
-          key={list.id}
-          list={list}
-          onPress={() => router.push(`/lists/${list.id}`)}
-        />
+        <ListCard key={list.id} list={list} onPress={() => router.push(`/lists/${list.id}`)} />
       ))}
     </View>
   );

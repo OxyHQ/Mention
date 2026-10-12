@@ -151,7 +151,7 @@ async function collectPackMemberDids(listUri: string): Promise<string[]> {
         cursor,
       });
     } catch (err) {
-    logger.debug('[atproto] getList failed', err);
+      logger.debug('[atproto] getList failed', err);
       break;
     }
 
@@ -204,12 +204,9 @@ async function upsertMirroredPack(
   memberOxyUserIds: string[],
 ): Promise<boolean> {
   try {
-    // Postgres, through the shared writer. This upserted the Mongo model until
-    // now, while every reader had already moved: `routes/starterPacks.ts` serves
-    // the API from `starter_packs` and `starterPackCuration` ranks from
-    // `starter_pack_members`. A mirrored pack was therefore written to a store
-    // nothing reads — invisible in the API, curating nothing, and re-syncing
-    // cleanly forever because the write itself always succeeded.
+    // Postgres, through the shared writer — the store every reader uses:
+    // `routes/starterPacks.ts` serves the API from `starter_packs` and
+    // `starterPackCuration` ranks from `starter_pack_members`.
     await upsertMirroredStarterPack({
       sourceNetwork: 'atproto',
       sourceUri: ref.uri,
@@ -279,13 +276,10 @@ export async function syncActorStarterPacks(did: string, ownerOxyUserId: string)
   }
   let didsToResolve = uniqueDids;
   if (uniqueDids.length > MAX_MEMBERS_RESOLVED_PER_ACTOR) {
-    logger.warn(
-      '[atproto] starter-pack members exceed the per-actor resolve cap',
-      {
-        memberCount: uniqueDids.length,
-        maxMembers: MAX_MEMBERS_RESOLVED_PER_ACTOR,
-      },
-    );
+    logger.warn('[atproto] starter-pack members exceed the per-actor resolve cap', {
+      memberCount: uniqueDids.length,
+      maxMembers: MAX_MEMBERS_RESOLVED_PER_ACTOR,
+    });
     didsToResolve = uniqueDids.slice(0, MAX_MEMBERS_RESOLVED_PER_ACTOR);
   }
   const oxyIdByDid = await resolveMemberOxyIds(didsToResolve);

@@ -95,11 +95,15 @@ const ScheduledPostPreview: React.FC<ScheduledPostPreviewProps> = ({
     setIsPublishing(true);
     try {
       await onPublishNow(post.id);
-      toast(t('compose.scheduled.published', { defaultValue: 'Post published' }), { type: 'success' });
+      toast(t('compose.scheduled.published', { defaultValue: 'Post published' }), {
+        type: 'success',
+      });
       onCancelled();
     } catch (error) {
       logger.error('Error publishing a scheduled post early', error);
-      toast(t('compose.scheduled.publishError', { defaultValue: 'Could not publish the post' }), { type: 'error' });
+      toast(t('compose.scheduled.publishError', { defaultValue: 'Could not publish the post' }), {
+        type: 'error',
+      });
     } finally {
       setIsPublishing(false);
     }
@@ -109,7 +113,7 @@ const ScheduledPostPreview: React.FC<ScheduledPostPreviewProps> = ({
     <PostPreviewSurface
       post={post}
       title={t('compose.scheduled.previewTitle', { defaultValue: 'Preview' })}
-      subtitle={(
+      subtitle={
         <View className="flex-row items-center gap-1.5 mt-0.5">
           <RiCalendarLine size="xs" fill={theme.colors.textSecondary} />
           <Text className="text-xs text-muted-foreground">
@@ -123,16 +127,19 @@ const ScheduledPostPreview: React.FC<ScheduledPostPreviewProps> = ({
                   })}
           </Text>
         </View>
-      )}
-      notice={pastDue ? (
-        <View className="px-4 py-2 bg-muted border-b border-border">
-          <Text className="text-xs text-muted-foreground">
-            {t('compose.scheduled.pastDueNotice', {
-              defaultValue: 'Its time has passed — it may already be live. Reopen this list to refresh.',
-            })}
-          </Text>
-        </View>
-      ) : undefined}
+      }
+      notice={
+        pastDue ? (
+          <View className="px-4 py-2 bg-muted border-b border-border">
+            <Text className="text-xs text-muted-foreground">
+              {t('compose.scheduled.pastDueNotice', {
+                defaultValue:
+                  'Its time has passed — it may already be live. Reopen this list to refresh.',
+              })}
+            </Text>
+          </View>
+        ) : undefined
+      }
       onBack={onBack}
     >
       <View className="px-4 pt-3 border-t border-border">
@@ -151,7 +158,8 @@ const ScheduledPostPreview: React.FC<ScheduledPostPreviewProps> = ({
       <View className="flex-row items-center gap-2 px-4 py-3">
         <Button
           className="flex-1"
-          appearance="subtle" tone="neutral"
+          appearance="subtle"
+          tone="neutral"
           size="lg"
           leadingIcon={RiEditLine}
           onPress={onEdit}
@@ -162,13 +170,16 @@ const ScheduledPostPreview: React.FC<ScheduledPostPreviewProps> = ({
         </Button>
         <Button
           className="flex-1"
-          appearance="solid" tone="danger"
+          appearance="solid"
+          tone="danger"
           size="lg"
           leadingIcon={RiDeleteBinLine}
           onPress={handleCancel}
           disabled={busy}
           loading={isCancelling}
-          accessibilityLabel={t('compose.scheduled.cancelTitle', { defaultValue: 'Cancel scheduled post' })}
+          accessibilityLabel={t('compose.scheduled.cancelTitle', {
+            defaultValue: 'Cancel scheduled post',
+          })}
         >
           {t('common.cancel')}
         </Button>

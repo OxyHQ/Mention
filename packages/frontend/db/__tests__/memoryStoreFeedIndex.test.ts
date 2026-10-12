@@ -8,7 +8,7 @@ import {
   memSetFeedItems,
 } from '../memoryStore';
 
-const makePost = (id: string) => ({ id } as FeedItem);
+const makePost = (id: string) => ({ id }) as FeedItem;
 
 describe('memoryStore feed membership index view', () => {
   beforeEach(() => {
@@ -28,10 +28,7 @@ describe('memoryStore feed membership index view', () => {
     memSetFeedItems('memory:following', [target], meta);
     memSetFeedItems('memory:saved', [retained], meta);
 
-    expect(memGetFeedKeysForPost(target.id).sort()).toEqual([
-      'memory:following',
-      'memory:posts',
-    ]);
+    expect(memGetFeedKeysForPost(target.id).sort()).toEqual(['memory:following', 'memory:posts']);
 
     memRemovePostFromAllFeeds(target.id);
 

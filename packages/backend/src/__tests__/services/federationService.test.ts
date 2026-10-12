@@ -113,7 +113,9 @@ vi.mock('../../services/serviceRegistry', () => ({
     return mocks.creator;
   },
   getPostFederator: () => ({ federateNewPost: mocks.federateNewPost }),
-  registerPostCreator: (instance: { create: (params: Record<string, unknown>) => Promise<unknown> }) => {
+  registerPostCreator: (instance: {
+    create: (params: Record<string, unknown>) => Promise<unknown>;
+  }) => {
     mocks.creator = instance;
   },
   registerPostFederator: vi.fn(),
@@ -160,13 +162,23 @@ async function clearScopePosts(): Promise<void> {
   const db = getDb();
   // `oxy_user_1` is the id the mocked Oxy resolution hands back, so the settings
   // rows the appearance-preservation fixtures seed are outside this suite's prefix.
-  await db.delete(userSettings).where(inArray(userSettings.oxyUserId, ['oxy_user_1', 'oxy_source_1']));
+  await db
+    .delete(userSettings)
+    .where(inArray(userSettings.oxyUserId, ['oxy_user_1', 'oxy_source_1']));
   const owned = ownedPosts();
   const rows = await db.select({ id: posts.id }).from(posts).where(owned);
   if (rows.length > 0) {
-    await db.delete(likes).where(inArray(likes.postId, rows.map((row) => row.id)));
+    await db.delete(likes).where(
+      inArray(
+        likes.postId,
+        rows.map((row) => row.id),
+      ),
+    );
   }
-  await db.update(posts).set({ boostOf: null, quoteOf: null, parentPostId: null, threadId: null }).where(owned);
+  await db
+    .update(posts)
+    .set({ boostOf: null, quoteOf: null, parentPostId: null, threadId: null })
+    .where(owned);
   await db.delete(posts).where(owned);
 }
 
@@ -183,7 +195,9 @@ async function seedFederatedPost(input: {
     type: PostType.TEXT,
     visibility: PostVisibility.PUBLIC,
     status: 'published',
-    content: { variants: [{ source: 'author', text: input.text ?? 'a federated post', tag: 'en' }] },
+    content: {
+      variants: [{ source: 'author', text: input.text ?? 'a federated post', tag: 'en' }],
+    },
     federation: { activityId: input.activityId, actorUri: input.actorUri },
   });
 }
@@ -287,43 +301,48 @@ beforeEach(async () => {
   mocks.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
   mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
   mocks.recordAccess.mockResolvedValue(undefined);
-  mocks.serviceRequest.mockImplementation(async (
-    method: string,
-    path: string,
-    input: { actorUri: string; transportAcct: string; protocol: 'activitypub' },
-  ) => {
-    if (method !== 'POST' || path !== '/federation/identities/resolve') {
-      throw new Error(`Unexpected Oxy request: ${method} ${path}`);
-    }
-    const identity = {
-      actorUri: input.actorUri,
-      transportAcct: input.transportAcct,
-      canonicalAcct: input.transportAcct,
-      protocol: input.protocol,
-      network: input.transportAcct.slice(input.transportAcct.lastIndexOf('@') + 1),
-      sourceUserId: 'oxy_source_1',
-    };
-    return {
-      user: {
-        id: 'oxy_user_1',
-        username: identity.canonicalAcct,
-        name: { displayName: 'Oxy verified name' },
-        bio: 'Oxy verified bio\n\n@friend@remote.example',
+  mocks.serviceRequest.mockImplementation(
+    async (
+      method: string,
+      path: string,
+      input: { actorUri: string; transportAcct: string; protocol: 'activitypub' },
+    ) => {
+      if (method !== 'POST' || path !== '/federation/identities/resolve') {
+        throw new Error(`Unexpected Oxy request: ${method} ${path}`);
+      }
+      const identity = {
+        actorUri: input.actorUri,
+        transportAcct: input.transportAcct,
+        canonicalAcct: input.transportAcct,
+        protocol: input.protocol,
+        network: input.transportAcct.slice(input.transportAcct.lastIndexOf('@') + 1),
+        sourceUserId: 'oxy_source_1',
+      };
+      return {
+        user: {
+          id: 'oxy_user_1',
+          username: identity.canonicalAcct,
+          name: { displayName: 'Oxy verified name' },
+          bio: 'Oxy verified bio\n\n@friend@remote.example',
+          externalIdentities: [identity],
+          redirectedUserIds: [],
+        },
+        externalIdentity: { ...identity, userId: 'oxy_user_1' },
         externalIdentities: [identity],
         redirectedUserIds: [],
-      },
-      externalIdentity: { ...identity, userId: 'oxy_user_1' },
-      externalIdentities: [identity],
-      redirectedUserIds: [],
-    } satisfies ResolveExternalIdentityResponse;
-  });
+      } satisfies ResolveExternalIdentityResponse;
+    },
+  );
   mocks.fetchUpstreamFollowingRedirects.mockReset();
   // `signedFetch` is built on `fetchUpstreamSingleHop` (IP-pinned, no global
   // `fetch`). Adapt it to the per-test stubbed global `fetch` so existing tests
   // that assert on the `fetch(url, { headers })` shape keep exercising the real
   // signing/redirect logic — the only thing that changed is the transport.
   mocks.fetchUpstreamSingleHop.mockImplementation(
-    async (url: string, options: { headers: Record<string, string>; method?: string; body?: BodyInit }) => {
+    async (
+      url: string,
+      options: { headers: Record<string, string>; method?: string; body?: BodyInit },
+    ) => {
       const res: Response = await (globalThis.fetch as typeof fetch)(url, {
         headers: options.headers,
         method: options.method,
@@ -601,10 +620,12 @@ describe('federationService.fetchRemoteActor', () => {
   });
 
   it('preserves canonical and linked-source appearance when a transport advertises a banner', async () => {
-    await getDb().insert(userSettings).values([
-      { oxyUserId: 'oxy_user_1', profileHeaderImage: 'custom_canonical_banner' },
-      { oxyUserId: 'oxy_source_1', profileHeaderImage: 'custom_source_banner' },
-    ]);
+    await getDb()
+      .insert(userSettings)
+      .values([
+        { oxyUserId: 'oxy_user_1', profileHeaderImage: 'custom_canonical_banner' },
+        { oxyUserId: 'oxy_source_1', profileHeaderImage: 'custom_source_banner' },
+      ]);
     const fetchMock = vi.fn(async (url: string) => {
       if (url === 'https://remote.example/users/bob') {
         return jsonResponse({
@@ -638,13 +659,18 @@ describe('federationService.fetchRemoteActor', () => {
 
   it('does not mirror a banner or cache an actor when Oxy rejects its identity', async () => {
     const actorUri = `${scope.origin}/users/rejected`;
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({
-      id: actorUri,
-      type: 'Person',
-      preferredUsername: 'rejected',
-      inbox: `${actorUri}/inbox`,
-      image: { url: `${scope.origin}/banner.jpg` },
-    })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse({
+          id: actorUri,
+          type: 'Person',
+          preferredUsername: 'rejected',
+          inbox: `${actorUri}/inbox`,
+          image: { url: `${scope.origin}/banner.jpg` },
+        }),
+      ),
+    );
     mocks.serviceRequest.mockRejectedValueOnce(new Error('Unverified source identity'));
     mocks.persistRemoteMedia.mockResolvedValue({
       ok: true,
@@ -670,8 +696,16 @@ describe('federationService.fetchRemoteActor', () => {
           summary: '<p>\n      Primera línea\n    </p>\n    <p>\n      Segunda línea\n    </p>',
           inbox: 'https://remote.example/users/carol/inbox',
           attachment: [
-            { type: 'PropertyValue', name: '  Sitio\n  web  ', value: '  <a href="https://carol.example">carol.example</a>\n  ' },
-            { type: 'PropertyValue', name: '   \n ', value: 'dropped: the label is only whitespace' },
+            {
+              type: 'PropertyValue',
+              name: '  Sitio\n  web  ',
+              value: '  <a href="https://carol.example">carol.example</a>\n  ',
+            },
+            {
+              type: 'PropertyValue',
+              name: '   \n ',
+              value: 'dropped: the label is only whitespace',
+            },
           ],
         });
       }
@@ -692,18 +726,18 @@ describe('federationService.fetchRemoteActor', () => {
     // The verified-links table is a SECOND table now, so it is read back rather
     // than compared inside the upsert payload.
     expect(await loadActorFields(stored!.id)).toEqual([
-      { name: 'Sitio web', value: '<a href="https://carol.example">carol.example</a>', verifiedAt: undefined },
+      {
+        name: 'Sitio web',
+        value: '<a href="https://carol.example">carol.example</a>',
+        verifiedAt: undefined,
+      },
     ]);
     // Mention sends source coordinates only; Oxy verifies the public profile.
-    expect(mocks.serviceRequest).toHaveBeenCalledWith(
-      'POST',
-      '/federation/identities/resolve',
-      {
-        actorUri: 'https://remote.example/users/carol',
-        transportAcct: 'carol@remote.example',
-        protocol: 'activitypub',
-      },
-    );
+    expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
+      actorUri: 'https://remote.example/users/carol',
+      transportAcct: 'carol@remote.example',
+      protocol: 'activitypub',
+    });
   });
 
   it('skips actors on the Oxy identity apex without fetching, creating a FederatedActor, or resolving an Oxy user', async () => {
@@ -777,11 +811,7 @@ describe('federationService.syncOutboxPostsDetailed', () => {
           type: 'OrderedCollectionPage',
           id: firstPageUrl,
           next: `${ALICE_URI}/outbox?max_id=3&page=true`,
-          orderedItems: [
-            createNoteActivity('1'),
-            createNoteActivity('2'),
-            createNoteActivity('3'),
-          ],
+          orderedItems: [createNoteActivity('1'), createNoteActivity('2'), createNoteActivity('3')],
         });
       }
       throw new Error(`unexpected fetch ${url}`);
@@ -841,20 +871,14 @@ describe('federationService.syncOutboxPostsDetailed', () => {
           type: 'OrderedCollectionPage',
           id: firstPageUrl,
           next: secondPageUrl,
-          orderedItems: [
-            createNoteActivity('1'),
-            createNoteActivity('2'),
-            createNoteActivity('3'),
-          ],
+          orderedItems: [createNoteActivity('1'), createNoteActivity('2'), createNoteActivity('3')],
         });
       }
       if (url === secondPageUrl) {
         return jsonResponse({
           type: 'OrderedCollectionPage',
           id: secondPageUrl,
-          orderedItems: [
-            createNoteActivity('4'),
-          ],
+          orderedItems: [createNoteActivity('4')],
         });
       }
       throw new Error(`unexpected fetch ${url}`);
@@ -995,7 +1019,10 @@ describe('federationService.processInboxActivity → handleLike', () => {
       actorUri,
     );
 
-    const [row] = await getDb().select({ n: likes.userId }).from(likes).where(eq(likes.userId, scope.user('bob')));
+    const [row] = await getDb()
+      .select({ n: likes.userId })
+      .from(likes)
+      .where(eq(likes.userId, scope.user('bob')));
     expect(row).toBeUndefined();
   });
 });
@@ -1124,11 +1151,11 @@ describe('federationService.processInboxActivity → handleAnnounce', () => {
   it('blocks unsafe boosted object fetches before contacting the network', async () => {
     const unsafeUri = 'http://127.0.0.1/latest/meta-data';
     await seedResolvedActor(scope.user('bob'));
-    mocks.assertSafePublicUrl.mockImplementation(async (url: string) => (
+    mocks.assertSafePublicUrl.mockImplementation(async (url: string) =>
       url === unsafeUri
         ? { ok: false, reason: 'literal ip in blocked range' }
-        : { ok: true, ip: '93.184.216.34', family: 4 }
-    ));
+        : { ok: true, ip: '93.184.216.34', family: 4 },
+    );
     const fetchMock = vi.fn(async () => jsonResponse({ type: 'Note' }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -1177,7 +1204,11 @@ describe('federationService.processInboxActivity → handleUndoAnnounce', () => 
     const { postId } = await importBoost();
 
     await federationService.processInboxActivity(
-      { type: 'Undo', actor: actorUri, object: { type: 'Announce', id: announceId, object: announcedUri } },
+      {
+        type: 'Undo',
+        actor: actorUri,
+        object: { type: 'Announce', id: announceId, object: announcedUri },
+      },
       actorUri,
     );
 
@@ -1192,7 +1223,11 @@ describe('federationService.processInboxActivity → handleUndoAnnounce', () => 
     const postId = await seedResolvableTarget(announcedUri);
 
     await federationService.processInboxActivity(
-      { type: 'Undo', actor: actorUri, object: { type: 'Announce', id: announceId, object: announcedUri } },
+      {
+        type: 'Undo',
+        actor: actorUri,
+        object: { type: 'Announce', id: announceId, object: announcedUri },
+      },
       actorUri,
     );
 
@@ -1290,7 +1325,12 @@ describe('federationService.processInboxActivity → handleCreate', () => {
       to: ['https://www.w3.org/ns/activitystreams#Public'],
     };
     if (notePublished) object.published = notePublished;
-    const activity: Record<string, unknown> = { type: 'Create', id: activityId, actor: actorUri, object };
+    const activity: Record<string, unknown> = {
+      type: 'Create',
+      id: activityId,
+      actor: actorUri,
+      object,
+    };
     if (activityPublished) activity.published = activityPublished;
     return activity;
   }
@@ -1317,7 +1357,9 @@ describe('federationService.processInboxActivity → handleCreate', () => {
       actorUri,
     );
 
-    expect((await rowByActivityId(noteId))?.createdAt.toISOString()).toBe('2021-12-01T00:00:00.000Z');
+    expect((await rowByActivityId(noteId))?.createdAt.toISOString()).toBe(
+      '2021-12-01T00:00:00.000Z',
+    );
   });
 
   it('defaults createdAt to now when no valid published date is present', async () => {
@@ -1363,7 +1405,11 @@ describe('federationService media-cache fallback during outbox backfill', () => 
         return jsonResponse({ type: 'OrderedCollection', totalItems: 1, first: firstPageUrl });
       }
       if (url === firstPageUrl) {
-        return jsonResponse({ type: 'OrderedCollectionPage', id: firstPageUrl, orderedItems: [note] });
+        return jsonResponse({
+          type: 'OrderedCollectionPage',
+          id: firstPageUrl,
+          orderedItems: [note],
+        });
       }
       throw new Error(`unexpected fetch ${url}`);
     });
@@ -1542,7 +1588,12 @@ describe('Stage-A baseline classification on federated outbox backfill', () => {
     );
 
     await federationService.syncOutboxPostsDetailed(
-      { uri: DE_ACTOR_URI, acct: 'dieter@social.example.de', outboxUrl: deOutboxUrl, oxyUserId: DIETER_OXY },
+      {
+        uri: DE_ACTOR_URI,
+        acct: 'dieter@social.example.de',
+        outboxUrl: deOutboxUrl,
+        oxyUserId: DIETER_OXY,
+      },
       { limit: 5, maxPages: 1 },
     );
 

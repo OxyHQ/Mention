@@ -85,9 +85,22 @@ describe('useThreadManager draft restore', () => {
     // A vacuity floor: catches a future field added to `ThreadItem` that the
     // restore path forgets, which is exactly how this bug arose.
     const keys: (keyof ThreadItem)[] = [
-      'id', 'text', 'mediaIds', 'pollOptions', 'pollTitle', 'showPollCreator',
-      'location', 'mentions', 'sources', 'article', 'event', 'room',
-      'attachmentOrder', 'replyPermission', 'reviewReplies', 'quotesDisabled',
+      'id',
+      'text',
+      'mediaIds',
+      'pollOptions',
+      'pollTitle',
+      'showPollCreator',
+      'location',
+      'mentions',
+      'sources',
+      'article',
+      'event',
+      'room',
+      'attachmentOrder',
+      'replyPermission',
+      'reviewReplies',
+      'quotesDisabled',
       'isSensitive',
     ];
     for (const key of keys) {

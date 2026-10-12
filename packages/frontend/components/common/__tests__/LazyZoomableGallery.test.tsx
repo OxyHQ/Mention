@@ -13,7 +13,6 @@ const mockOpen = jest.fn();
 const mockMounts = jest.fn();
 
 jest.mock('@oxy.so/bloom/zoomable-media-gallery', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { forwardRef: fwd, useImperativeHandle: useHandle, useEffect } = require('react');
   return {
     ZoomableMediaGallery: fwd((_props: object, ref: React.Ref<ZoomableMediaGalleryHandle>) => {

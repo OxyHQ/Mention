@@ -29,33 +29,33 @@ import { WEB_BASE_URL } from '@/config';
 
 // Profile primitives
 import {
-    ChannelActions,
-    ChannelHeader,
-    ProfileContent,
-    ProfileShell,
-    useSubscription,
-    useProfileAccount,
-    useProfileCanonicalHref,
-    useRoutedProfileUsername,
-    useProfileChrome,
-    useProfileMoreMenu,
-    useOperatesAccount,
-    useJustFollowed,
-    useChannelWriters,
-    buildProfileTabDescriptors,
-    profileTabIndex,
-    type LaneTabInput,
-    type ProfileTab,
+  ChannelActions,
+  ChannelHeader,
+  ProfileContent,
+  ProfileShell,
+  useSubscription,
+  useProfileAccount,
+  useProfileCanonicalHref,
+  useRoutedProfileUsername,
+  useProfileChrome,
+  useProfileMoreMenu,
+  useOperatesAccount,
+  useJustFollowed,
+  useChannelWriters,
+  buildProfileTabDescriptors,
+  profileTabIndex,
+  type LaneTabInput,
+  type ProfileTab,
 } from './Profile';
 import { SuggestedUsers } from './suggestions/SuggestedUsers';
 
 interface ChannelProfileProps {
-    username: string;
-    handle: string;
-    profileData: ProfileData | null;
-    loading: boolean;
-    notFound: boolean;
-    onRetry: () => Promise<void>;
+  username: string;
+  handle: string;
+  profileData: ProfileData | null;
+  loading: boolean;
+  notFound: boolean;
+  onRetry: () => Promise<void>;
 }
 
 /**
@@ -96,449 +96,486 @@ interface ChannelProfileProps {
  * channel names the people who write for it (see below).
  */
 const ChannelProfile: React.FC<ChannelProfileProps> = ({
-    username,
-    handle,
-    profileData,
-    loading,
-    notFound,
-    onRetry,
+  username,
+  handle,
+  profileData,
+  loading,
+  notFound,
+  onRetry,
 }) => {
-    const { user: currentUser } = useAuth();
-    const { t } = useTranslation();
-    const { colors } = useTheme();
-    // The tab row pins over the scrolling channel feed, so it paints the colour
-    // of the column it is in rather than naming `card`.
-    const surfaceFill = useSurfaceFill();
+  const { user: currentUser } = useAuth();
+  const { t } = useTranslation();
+  const { colors } = useTheme();
+  // The tab row pins over the scrolling channel feed, so it paints the colour
+  // of the column it is in rather than naming `card`.
+  const surfaceFill = useSurfaceFill();
 
-    const seoPolicy = useProfileSEOPolicy(profileData?.privacy?.profileVisibility, profileData?.privacy?.searchEngineIndexing);
-    const [activeTabKey, setActiveTabKey] = useState<string>('posts');
+  const seoPolicy = useProfileSEOPolicy(
+    profileData?.privacy?.profileVisibility,
+    profileData?.privacy?.searchEngineIndexing,
+  );
+  const [activeTabKey, setActiveTabKey] = useState<string>('posts');
 
-    // A lane's owner is an `oxyUserId` and a channel account is one, so a channel
-    // has lanes like any other publisher.
-    const { data: laneTabs = [] } = useQuery<LaneTabInput[]>({
-        queryKey: viewerQueryKeys.lanesForOwner(currentUser?.id, profileData?.id),
-        enabled: Boolean(profileData?.id),
-        queryFn: async () => {
-            const lanes = await lanesService.listForOwner(profileData?.id ?? '');
-            return lanes.map((lane) => ({ id: lane.id, name: lane.name }));
+  // A lane's owner is an `oxyUserId` and a channel account is one, so a channel
+  // has lanes like any other publisher.
+  const { data: laneTabs = [] } = useQuery<LaneTabInput[]>({
+    queryKey: viewerQueryKeys.lanesForOwner(currentUser?.id, profileData?.id),
+    enabled: Boolean(profileData?.id),
+    queryFn: async () => {
+      const lanes = await lanesService.listForOwner(profileData?.id ?? '');
+      return lanes.map((lane) => ({ id: lane.id, name: lane.name }));
+    },
+  });
+
+  // Whether this channel NAMES the people who write for it, which is the whole
+  // rule for the writers tab. It is not on the profile DTO — the disclosure is
+  // a Mention-owned setting on the channel account, and the writers endpoint
+  // reports it only by REFUSING (one 404 for "not a channel", "does not sign"
+  // and "you may not see this channel" alike). So the tab is keyed on the
+  // query having succeeded, never on the list being non-empty: a channel that
+  // discloses and has published nothing signed keeps its tab and says so.
+  //
+  // The tab's own content reads this same hook, so the two share one cached
+  // answer and opening the tab costs no second request.
+  const { disclosed: disclosesWriters } = useChannelWriters(profileData?.id);
+
+  const tabDescriptors = useMemo(
+    () =>
+      buildProfileTabDescriptors(
+        {
+          posts: t('profile.tabs.posts'),
+          replies: t('profile.tabs.replies'),
+          media: t('profile.tabs.media'),
+          videos: t('profile.tabs.videos'),
+          likes: t('profile.tabs.likes'),
+          boosts: t('profile.tabs.boosts'),
+          mentions: t('profile.tabs.mentions'),
+          feeds: t('profile.tabs.feeds', { defaultValue: 'Feeds' }),
+          starter_packs: t('profile.tabs.starter_packs', { defaultValue: 'Starter Packs' }),
+          lists: t('profile.tabs.lists', { defaultValue: 'Lists' }),
+          writers: t('profile.tabs.writers', { defaultValue: 'Writers' }),
+          // A channel never gets this tab either (`profileTabsForAccountKind`
+          // grants it only to `organization`/`project`) — same
+          // every-`ProfileTab`-covered contract as `writers` above.
+          jobs: t('profile.tabs.jobs', { defaultValue: 'Jobs' }),
         },
-    });
+        laneTabs,
+        'channel',
+        disclosesWriters,
+      ),
+    [t, laneTabs, disclosesWriters],
+  );
 
-    // Whether this channel NAMES the people who write for it, which is the whole
-    // rule for the writers tab. It is not on the profile DTO — the disclosure is
-    // a Mention-owned setting on the channel account, and the writers endpoint
-    // reports it only by REFUSING (one 404 for "not a channel", "does not sign"
-    // and "you may not see this channel" alike). So the tab is keyed on the
-    // query having succeeded, never on the list being non-empty: a channel that
-    // discloses and has published nothing signed keeps its tab and says so.
-    //
-    // The tab's own content reads this same hook, so the two share one cached
-    // answer and opening the tab costs no second request.
-    const { disclosed: disclosesWriters } = useChannelWriters(profileData?.id);
+  const activeTab = profileTabIndex(tabDescriptors, activeTabKey);
+  const activeDescriptor = tabDescriptors[activeTab];
+  const activeProfileTab: ProfileTab = activeDescriptor?.tab ?? 'posts';
+  const activeLaneId = activeDescriptor?.laneId;
 
-    const tabDescriptors = useMemo(
-        () =>
-            buildProfileTabDescriptors(
-                {
-                    posts: t('profile.tabs.posts'),
-                    replies: t('profile.tabs.replies'),
-                    media: t('profile.tabs.media'),
-                    videos: t('profile.tabs.videos'),
-                    likes: t('profile.tabs.likes'),
-                    boosts: t('profile.tabs.boosts'),
-                    mentions: t('profile.tabs.mentions'),
-                    feeds: t('profile.tabs.feeds', { defaultValue: 'Feeds' }),
-                    starter_packs: t('profile.tabs.starter_packs', { defaultValue: 'Starter Packs' }),
-                    lists: t('profile.tabs.lists', { defaultValue: 'Lists' }),
-                    writers: t('profile.tabs.writers', { defaultValue: 'Writers' }),
-                    // A channel never gets this tab either (`profileTabsForAccountKind`
-                    // grants it only to `organization`/`project`) — same
-                    // every-`ProfileTab`-covered contract as `writers` above.
-                    jobs: t('profile.tabs.jobs', { defaultValue: 'Jobs' }),
-                },
-                laneTabs,
-                'channel',
-                disclosesWriters,
-            ),
-        [t, laneTabs, disclosesWriters],
-    );
+  const stableUserId = profileData?.id || '';
+  const {
+    followerCount: rawFollowerCount,
+    followingCount: rawFollowingCount,
+    isFollowing: isFollowingChannel = false,
+  } = useFollow(stableUserId);
 
-    const activeTab = profileTabIndex(tabDescriptors, activeTabKey);
-    const activeDescriptor = tabDescriptors[activeTab];
-    const activeProfileTab: ProfileTab = activeDescriptor?.tab ?? 'posts';
-    const activeLaneId = activeDescriptor?.laneId;
+  // Following a channel is as good a moment to suggest similar accounts as
+  // following a person — the card is about the account just followed, and a
+  // channel is one.
+  const justFollowed = useJustFollowed(stableUserId, isFollowingChannel);
 
-    const stableUserId = profileData?.id || '';
-    const {
-        followerCount: rawFollowerCount,
-        followingCount: rawFollowingCount,
-        isFollowing: isFollowingChannel = false,
-    } = useFollow(stableUserId);
+  const {
+    subscribed,
+    loading: subLoading,
+    toggle: toggleSubscription,
+  } = useSubscription(profileData?.id, currentUser?.id, false);
 
-    // Following a channel is as good a moment to suggest similar accounts as
-    // following a person — the card is about the account just followed, and a
-    // channel is one.
-    const justFollowed = useJustFollowed(stableUserId, isFollowingChannel);
+  // Whether the viewer OPERATES this channel — what puts its settings in reach,
+  // and what keeps mute / block / report out of a menu where they would be
+  // addressed at an account the viewer publishes as. A channel account has no
+  // login of its own, so there is no other signal on the profile itself.
+  //
+  // The check is shared with the person screen rather than local to this one:
+  // only `channel` routes to `/c/<handle>`, so an organization, project or bot
+  // renders over there and needs the identical answer.
+  const operatesThisChannel = useOperatesAccount({
+    accountId: profileData?.id,
+    accountKind: profileData?.kind,
+  });
 
-    const { subscribed, loading: subLoading, toggle: toggleSubscription } = useSubscription(
-        profileData?.id,
-        currentUser?.id,
-        false,
-    );
+  // The chrome's compact-header offsets and the scrolled-name overlay both need
+  // to know how wide the icon cluster is: subscribe + share + more.
+  const chrome = useProfileChrome({
+    profileId: profileData?.id,
+    currentTab: activeProfileTab,
+    currentLaneId: activeLaneId,
+  });
 
-    // Whether the viewer OPERATES this channel — what puts its settings in reach,
-    // and what keeps mute / block / report out of a menu where they would be
-    // addressed at an account the viewer publishes as. A channel account has no
-    // login of its own, so there is no other signal on the profile itself.
-    //
-    // The check is shared with the person screen rather than local to this one:
-    // only `channel` routes to `/c/<handle>`, so an organization, project or bot
-    // renders over there and needs the identical answer.
-    const operatesThisChannel = useOperatesAccount({
-        accountId: profileData?.id,
-        accountKind: profileData?.kind,
-    });
+  const onTabPress = useCallback(
+    (index: number) => {
+      const descriptor = tabDescriptors[index];
+      if (!descriptor) return;
+      setActiveTabKey(descriptor.key);
+    },
+    [tabDescriptors],
+  );
 
-    // The chrome's compact-header offsets and the scrolled-name overlay both need
-    // to know how wide the icon cluster is: subscribe + share + more.
-    const chrome = useProfileChrome({
-        profileId: profileData?.id,
-        currentTab: activeProfileTab,
-        currentLaneId: activeLaneId,
-    });
+  const scrollOrSwitch = useCallback(
+    (key: string) => {
+      const index = profileTabIndex(tabDescriptors, key);
+      if (index === activeTab) {
+        chrome.scrollToContent(chrome.contentHeight);
+      } else {
+        onTabPress(index);
+      }
+    },
+    [activeTab, chrome, onTabPress, tabDescriptors],
+  );
 
-    const onTabPress = useCallback(
-        (index: number) => {
-            const descriptor = tabDescriptors[index];
-            if (!descriptor) return;
-            setActiveTabKey(descriptor.key);
-        },
-        [tabDescriptors],
-    );
+  const handlePostsPress = useCallback(() => scrollOrSwitch('posts'), [scrollOrSwitch]);
+  const handleBoostsPress = useCallback(() => scrollOrSwitch('boosts'), [scrollOrSwitch]);
+  // A channel has no replies tab, so the replies stat is never rendered and
+  // this can never fire — `ProfileContent` still requires the handler, so it
+  // jumps to `posts` rather than to a tab that is not there.
+  const handleRepliesPress = handlePostsPress;
 
-    const scrollOrSwitch = useCallback(
-        (key: string) => {
-            const index = profileTabIndex(tabDescriptors, key);
-            if (index === activeTab) {
-                chrome.scrollToContent(chrome.contentHeight);
-            } else {
-                onTabPress(index);
-            }
-        },
-        [activeTab, chrome, onTabPress, tabDescriptors],
-    );
+  const handleShare = useCallback(async () => {
+    if (!profileData) return;
+    try {
+      const shareUrl = `https://mention.earth/c/${handle}`;
+      const shareMessage = t('profile.share.message', {
+        name: profileData.design.displayName,
+        defaultValue: `Check out ${profileData.design.displayName}'s profile on Mention!`,
+      });
+      await Share.share({
+        message: `${shareMessage}\n\n${shareUrl}`,
+        url: shareUrl,
+        title: t('profile.share.title', {
+          name: profileData.design.displayName,
+          defaultValue: `${profileData.design.displayName} on Mention`,
+        }),
+      });
+    } catch {
+      logger.error('Error sharing channel');
+    }
+  }, [profileData, handle, t]);
 
-    const handlePostsPress = useCallback(() => scrollOrSwitch('posts'), [scrollOrSwitch]);
-    const handleBoostsPress = useCallback(() => scrollOrSwitch('boosts'), [scrollOrSwitch]);
-    // A channel has no replies tab, so the replies stat is never rendered and
-    // this can never fire — `ProfileContent` still requires the handler, so it
-    // jumps to `posts` rather than to a tab that is not there.
-    const handleRepliesPress = handlePostsPress;
+  // Operators only, and first: these are the actions about RUNNING this account
+  // rather than about the viewer's relationship to it. Everyone else never sees
+  // a row that would refuse them.
+  //
+  // Insights leads because reading how the channel is doing is the frequent
+  // visit and changing how it is configured is the rare one. It is the channel's
+  // answer to the [Analytics] button a person gets on their own profile header —
+  // a channel has no such header, because it is never anybody's "own profile":
+  // no session's subject can be a channel, so the menu is where its operators'
+  // actions live.
+  const leadingActions = useMemo(
+    () =>
+      operatesThisChannel
+        ? [
+            {
+              icon: <AnalyticsIcon size={22} className="text-foreground" />,
+              label: t('insights.title', { defaultValue: 'Insights' }),
+              onPress: () => router.push(`/c/${handle}/insights`),
+            },
+            {
+              icon: <RiSettings3Line width={22} height={22} fill={colors.text} />,
+              label: t('channels.settings.title', { defaultValue: 'Channel settings' }),
+              onPress: () => router.push(`/c/${handle}/settings`),
+            },
+          ]
+        : undefined,
+    [operatesThisChannel, handle, t, colors.text],
+  );
 
-    const handleShare = useCallback(async () => {
-        if (!profileData) return;
-        try {
-            const shareUrl = `https://mention.earth/c/${handle}`;
-            const shareMessage = t('profile.share.message', {
-                name: profileData.design.displayName,
-                defaultValue: `Check out ${profileData.design.displayName}'s profile on Mention!`,
-            });
-            await Share.share({
-                message: `${shareMessage}\n\n${shareUrl}`,
-                url: shareUrl,
-                title: t('profile.share.title', {
-                    name: profileData.design.displayName,
-                    defaultValue: `${profileData.design.displayName} on Mention`,
-                }),
-            });
-        } catch {
-            logger.error('Error sharing channel');
-        }
-    }, [profileData, handle, t]);
+  // `viewerOperatesAccount`, never `isOwnProfile: false` as this read before.
+  // That literal was true of the LOGIN identity — a channel can never be signed
+  // in as, so it is never "your own profile" — and it silently answered a
+  // different question from the one the menu asks, which is how an operator came
+  // to be offered Block and Report against their own channel.
+  const handleMoreOptions = useProfileMoreMenu({
+    profileData,
+    viewerOperatesAccount: operatesThisChannel,
+    leadingActions,
+  });
 
-    // Operators only, and first: these are the actions about RUNNING this account
-    // rather than about the viewer's relationship to it. Everyone else never sees
-    // a row that would refuse them.
-    //
-    // Insights leads because reading how the channel is doing is the frequent
-    // visit and changing how it is configured is the rare one. It is the channel's
-    // answer to the [Analytics] button a person gets on their own profile header —
-    // a channel has no such header, because it is never anybody's "own profile":
-    // no session's subject can be a channel, so the menu is where its operators'
-    // actions live.
-    const leadingActions = useMemo(
-        () =>
-            operatesThisChannel
-                ? [
-                    {
-                        icon: <AnalyticsIcon size={22} className="text-foreground" />,
-                        label: t('insights.title', { defaultValue: 'Insights' }),
-                        onPress: () => router.push(`/c/${handle}/insights`),
-                    },
-                    {
-                        icon: <RiSettings3Line width={22} height={22} fill={colors.text} />,
-                        label: t('channels.settings.title', { defaultValue: 'Channel settings' }),
-                        onPress: () => router.push(`/c/${handle}/settings`),
-                    },
-                ]
-                : undefined,
-        [operatesThisChannel, handle, t, colors.text],
-    );
+  // A channel is an Oxy account like any other, so its visibility setting is
+  // readable even though the channel-settings screen does not offer one today.
+  // Read rather than assumed: hardcoding "public" would silently expose a
+  // channel somebody had restricted through another surface.
+  const isPrivate = Boolean(
+    profileData?.privacy?.profileVisibility === 'private' ||
+      profileData?.privacy?.profileVisibility === 'followers_only',
+  );
 
-    // `viewerOperatesAccount`, never `isOwnProfile: false` as this read before.
-    // That literal was true of the LOGIN identity — a channel can never be signed
-    // in as, so it is never "your own profile" — and it silently answered a
-    // different question from the one the menu asks, which is how an operator came
-    // to be offered Block and Report against their own channel.
-    const handleMoreOptions = useProfileMoreMenu({
-        profileData,
-        viewerOperatesAccount: operatesThisChannel,
-        leadingActions,
-    });
-
-    // A channel is an Oxy account like any other, so its visibility setting is
-    // readable even though the channel-settings screen does not offer one today.
-    // Read rather than assumed: hardcoding "public" would silently expose a
-    // channel somebody had restricted through another surface.
-    const isPrivate = Boolean(
-        profileData?.privacy?.profileVisibility === 'private' ||
-        profileData?.privacy?.profileVisibility === 'followers_only',
-    );
-
-    const identity = useMemo(() => {
-        if (!profileData) return null;
-        return (
-            <>
-                <ChannelHeader
-                    displayName={profileData.design.displayName}
-                    username={profileData.username}
-                    avatarUri={profileData.design.avatar}
-                    verified={profileData.verified}
-                    isPrivate={isPrivate}
-                    privacySettings={profileData.privacy}
-                    accountCategories={profileData.accountCategories}
-                    UserNameComponent={UserName}
-                />
-                {/* The last element of the centred masthead, and the boundary
+  const identity = useMemo(() => {
+    if (!profileData) return null;
+    return (
+      <>
+        <ChannelHeader
+          displayName={profileData.design.displayName}
+          username={profileData.username}
+          avatarUri={profileData.design.avatar}
+          verified={profileData.verified}
+          isPrivate={isPrivate}
+          privacySettings={profileData.privacy}
+          accountCategories={profileData.accountCategories}
+          UserNameComponent={UserName}
+        />
+        {/* The last element of the centred masthead, and the boundary
                     the left-aligned body starts after — so it gets an equal
                     gap on both sides rather than the tighter `mb` a control
                     tucked under a left-aligned name row wanted. */}
-                <View className="mt-4 mb-4">
-                    <ChannelActions
-                        profileId={profileData.id}
-                        isFollowing={profileData.isFollowing}
-                        username={profileData.username}
-                        FollowButtonComponent={OxyFollowButton}
-                    />
-                </View>
-            </>
-        );
-    }, [profileData, isPrivate]);
-
-    const summary = useMemo(() => {
-        if (!profileData) return null;
-        return (
-            <View>
-                <ProfileContent
-                    profileData={profileData}
-                    isOwnProfile={false}
-                    isPrivate={isPrivate}
-                    followingCount={rawFollowingCount ?? 0}
-                    followerCount={rawFollowerCount ?? 0}
-                    profileHandle={handle}
-                    identity={identity}
-                    showReplies={false}
-                    // The channel's OWN about page. `/@<handle>/about` renders
-                    // fine for a channel, which is exactly why this was wrong
-                    // and silent: it is the person family's route, and an
-                    // account should never be sat on a URL it does not own.
-                    aboutHref={`/c/${handle}/about`}
-                    // STILL the person family, and deliberately so pending a
-                    // decision. These two are not a second `about`: both render
-                    // `connections.tsx`, whose tab strip navigates with a
-                    // hardcoded `/@` and whose four tabs include `who-may-know`
-                    // — a list of accounts the VIEWER might know, which is not
-                    // about this profile at all and makes no sense hanging off a
-                    // channel. Moving them under `/c/` means making that screen
-                    // family-aware AND deciding its tab set per account kind, so
-                    // it is its own change rather than a line here.
-                    followingHref={`/@${handle}/following`}
-                    followersHref={`/@${handle}/followers`}
-                    onPostsPress={handlePostsPress}
-                    onBoostsPress={handleBoostsPress}
-                    onRepliesPress={handleRepliesPress}
-                    onLayout={chrome.setContentHeight}
-                />
-                <SuggestedUsers visible={justFollowed} sourceUserId={profileData.id} />
-            </View>
-        );
-    }, [
-        chrome.setContentHeight,
-        justFollowed,
-        handle,
-        handleBoostsPress,
-        handlePostsPress,
-        handleRepliesPress,
-        identity,
-        isPrivate,
-        profileData,
-        rawFollowerCount,
-        rawFollowingCount,
-    ]);
-
-    const tabBar = useMemo(
-        () => (
-            <View className="flex-row items-center border-b border-border" style={{ backgroundColor: surfaceFill }}>
-                <View className="flex-1" style={{ minWidth: 0 }}>
-                    <Tabs value={activeDescriptor?.key ?? 'posts'} onValueChange={(id) => onTabPress(profileTabIndex(tabDescriptors, id))} variant="underline">{(tabDescriptors.map((descriptor) => ({
-                            id: descriptor.key,
-                            label: descriptor.label,
-                        }))).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
-                </View>
-            </View>
-        ),
-        [activeDescriptor?.key, onTabPress, surfaceFill, tabDescriptors, username],
+        <View className="mt-4 mb-4">
+          <ChannelActions
+            profileId={profileData.id}
+            isFollowing={profileData.isFollowing}
+            username={profileData.username}
+            FollowButtonComponent={OxyFollowButton}
+          />
+        </View>
+      </>
     );
+  }, [profileData, isPrivate]);
 
-    const headerActions = (
-        <>
-            {/* The bell is a toggle rendered as two different glyphs, so its
-                label has to carry the state a sighted user reads from the icon. */}
-            <Button
-                appearance="subtle" tone="neutral"
-                iconOnly
-                icon={
-                    subscribed ? (
-                        <RiNotification3Fill width={20} height={20} fill={colors.primary} />
-                    ) : (
-                        RiNotification3Line
-                    )
-                }
-                onPress={toggleSubscription}
-                disabled={subLoading}
-                accessibilityLabel={
-                    subscribed
-                        ? t('profile.actions.unsubscribe', {
-                            handle,
-                            defaultValue: 'Stop notifying me about new posts from @{{handle}}',
-                        })
-                        : t('profile.actions.subscribe', {
-                            handle,
-                            defaultValue: 'Notify me about new posts from @{{handle}}',
-                        })
-                }
-            />
-            <Button
-                appearance="subtle" tone="neutral"
-                iconOnly
-                leadingIcon={RiUpload2Line}
-                onPress={handleShare}
-                accessibilityLabel={t('profile.actions.share', {
-                    handle,
-                    defaultValue: "Share @{{handle}}'s profile",
-                })}
-            />
-            {handleMoreOptions && (
-                <Button
-                    appearance="subtle" tone="neutral"
-                    iconOnly
-                    leadingIcon={RiMoreFill}
-                    onPress={handleMoreOptions}
-                    accessibilityLabel={t('profile.actions.more', {
-                        handle,
-                        defaultValue: 'More options for @{{handle}}',
-                    })}
-                />
-            )}
-        </>
-    );
-
+  const summary = useMemo(() => {
+    if (!profileData) return null;
     return (
-        <>
-            {profileData ? (
-                <SEO
-                    title={seoPolicy.server?.title || t('seo.profile.title', {
-                        name: profileData.design.displayName,
-                        username,
-                        defaultValue: `${profileData.design.displayName} (@${username}) on Mention`,
-                    })}
-                    description={seoPolicy.server?.description || t('seo.profile.description', {
-                        name: profileData.design.displayName,
-                        bio: seoPolicy.detailsAllowed ? profileData.bio ?? '' : '',
-                        defaultValue: `View ${profileData.design.displayName}'s profile on Mention.`,
-                    })}
-                    image={seoPolicy.server?.image || (seoPolicy.detailsAllowed ? profileData.design.avatar : undefined)}
-                    type="profile"
-                    url={seoPolicy.server?.url}
-                    ready={!loading}
-                    jsonLd={seoPolicy.server?.jsonLd || (seoPolicy.detailsAllowed ? {
-                        '@context': 'https://schema.org',
-                        '@type': 'ProfilePage',
-                        mainEntity: {
-                            '@type': 'Organization',
-                            name: profileData.design.displayName,
-                            alternateName: `@${handle}`,
-                            url: `${WEB_BASE_URL}/c/${encodeURIComponent(handle)}`,
-                        },
-                    } : undefined)}
-                    robots={seoPolicy.robots}
-                />
-            ) : !loading ? (
-                <SEO title="Profile unavailable" description="This profile could not be loaded." robots="noindex,nofollow" />
-            ) : null}
-            <ProfileShell
-                chrome={chrome}
-                loading={loading}
-                profileData={profileData}
-                notFound={notFound}
-                onRetry={onRetry}
-                banner={null}
-                skeletonVariant="channel"
-                headerActions={headerActions}
-                summary={summary}
-                tabBar={tabBar}
-                tabs={{
-                    tab: activeProfileTab,
-                    laneId: activeLaneId,
-                    profileId: profileData?.id,
-                    isPrivate,
-                    isOwnProfile: false,
-                    isFederated: false,
-                }}
-            />
-        </>
+      <View>
+        <ProfileContent
+          profileData={profileData}
+          isOwnProfile={false}
+          isPrivate={isPrivate}
+          followingCount={rawFollowingCount ?? 0}
+          followerCount={rawFollowerCount ?? 0}
+          profileHandle={handle}
+          identity={identity}
+          showReplies={false}
+          // The channel's OWN about page. `/@<handle>/about` renders
+          // fine for a channel, which is exactly why this was wrong
+          // and silent: it is the person family's route, and an
+          // account should never be sat on a URL it does not own.
+          aboutHref={`/c/${handle}/about`}
+          // STILL the person family, and deliberately so pending a
+          // decision. These two are not a second `about`: both render
+          // `connections.tsx`, whose tab strip navigates with a
+          // hardcoded `/@` and whose four tabs include `who-may-know`
+          // — a list of accounts the VIEWER might know, which is not
+          // about this profile at all and makes no sense hanging off a
+          // channel. Moving them under `/c/` means making that screen
+          // family-aware AND deciding its tab set per account kind, so
+          // it is its own change rather than a line here.
+          followingHref={`/@${handle}/following`}
+          followersHref={`/@${handle}/followers`}
+          onPostsPress={handlePostsPress}
+          onBoostsPress={handleBoostsPress}
+          onRepliesPress={handleRepliesPress}
+          onLayout={chrome.setContentHeight}
+        />
+        <SuggestedUsers visible={justFollowed} sourceUserId={profileData.id} />
+      </View>
     );
+  }, [
+    chrome.setContentHeight,
+    justFollowed,
+    handle,
+    handleBoostsPress,
+    handlePostsPress,
+    handleRepliesPress,
+    identity,
+    isPrivate,
+    profileData,
+    rawFollowerCount,
+    rawFollowingCount,
+  ]);
+
+  const tabBar = useMemo(
+    () => (
+      <View
+        className="flex-row items-center border-b border-border"
+        style={{ backgroundColor: surfaceFill }}
+      >
+        <View className="flex-1" style={{ minWidth: 0 }}>
+          <Tabs
+            value={activeDescriptor?.key ?? 'posts'}
+            onValueChange={(id) => onTabPress(profileTabIndex(tabDescriptors, id))}
+            variant="underline"
+          >
+            {tabDescriptors
+              .map((descriptor) => ({
+                id: descriptor.key,
+                label: descriptor.label,
+              }))
+              .map((tab: { id: string; label: string; count?: number }) => (
+                <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
+              ))}
+          </Tabs>
+        </View>
+      </View>
+    ),
+    [activeDescriptor?.key, onTabPress, surfaceFill, tabDescriptors, username],
+  );
+
+  const headerActions = (
+    <>
+      {/* The bell is a toggle rendered as two different glyphs, so its
+                label has to carry the state a sighted user reads from the icon. */}
+      <Button
+        appearance="subtle"
+        tone="neutral"
+        iconOnly
+        icon={
+          subscribed ? (
+            <RiNotification3Fill width={20} height={20} fill={colors.primary} />
+          ) : (
+            RiNotification3Line
+          )
+        }
+        onPress={toggleSubscription}
+        disabled={subLoading}
+        accessibilityLabel={
+          subscribed
+            ? t('profile.actions.unsubscribe', {
+                handle,
+                defaultValue: 'Stop notifying me about new posts from @{{handle}}',
+              })
+            : t('profile.actions.subscribe', {
+                handle,
+                defaultValue: 'Notify me about new posts from @{{handle}}',
+              })
+        }
+      />
+      <Button
+        appearance="subtle"
+        tone="neutral"
+        iconOnly
+        leadingIcon={RiUpload2Line}
+        onPress={handleShare}
+        accessibilityLabel={t('profile.actions.share', {
+          handle,
+          defaultValue: "Share @{{handle}}'s profile",
+        })}
+      />
+      {handleMoreOptions && (
+        <Button
+          appearance="subtle"
+          tone="neutral"
+          iconOnly
+          leadingIcon={RiMoreFill}
+          onPress={handleMoreOptions}
+          accessibilityLabel={t('profile.actions.more', {
+            handle,
+            defaultValue: 'More options for @{{handle}}',
+          })}
+        />
+      )}
+    </>
+  );
+
+  return (
+    <>
+      {profileData ? (
+        <SEO
+          title={
+            seoPolicy.server?.title ||
+            t('seo.profile.title', {
+              name: profileData.design.displayName,
+              username,
+              defaultValue: `${profileData.design.displayName} (@${username}) on Mention`,
+            })
+          }
+          description={
+            seoPolicy.server?.description ||
+            t('seo.profile.description', {
+              name: profileData.design.displayName,
+              bio: seoPolicy.detailsAllowed ? (profileData.bio ?? '') : '',
+              defaultValue: `View ${profileData.design.displayName}'s profile on Mention.`,
+            })
+          }
+          image={
+            seoPolicy.server?.image ||
+            (seoPolicy.detailsAllowed ? profileData.design.avatar : undefined)
+          }
+          type="profile"
+          url={seoPolicy.server?.url}
+          ready={!loading}
+          jsonLd={
+            seoPolicy.server?.jsonLd ||
+            (seoPolicy.detailsAllowed
+              ? {
+                  '@context': 'https://schema.org',
+                  '@type': 'ProfilePage',
+                  mainEntity: {
+                    '@type': 'Organization',
+                    name: profileData.design.displayName,
+                    alternateName: `@${handle}`,
+                    url: `${WEB_BASE_URL}/c/${encodeURIComponent(handle)}`,
+                  },
+                }
+              : undefined)
+          }
+          robots={seoPolicy.robots}
+        />
+      ) : !loading ? (
+        <SEO
+          title="Profile unavailable"
+          description="This profile could not be loaded."
+          robots="noindex,nofollow"
+        />
+      ) : null}
+      <ProfileShell
+        chrome={chrome}
+        loading={loading}
+        profileData={profileData}
+        notFound={notFound}
+        onRetry={onRetry}
+        banner={null}
+        skeletonVariant="channel"
+        headerActions={headerActions}
+        summary={summary}
+        tabBar={tabBar}
+        tabs={{
+          tab: activeProfileTab,
+          laneId: activeLaneId,
+          profileId: profileData?.id,
+          isPrivate,
+          isOwnProfile: false,
+          isFederated: false,
+        }}
+      />
+    </>
+  );
 };
 
 const ChannelScreen: React.FC = () => {
-    const account = useProfileAccount(useRoutedProfileUsername());
-    const { username, handle, profileData, loading, notFound, refresh } = account;
-    const canonicalHref = useProfileCanonicalHref({ routedFamily: 'channel', account });
+  const account = useProfileAccount(useRoutedProfileUsername());
+  const { username, handle, profileData, loading, notFound, refresh } = account;
+  const canonicalHref = useProfileCanonicalHref({ routedFamily: 'channel', account });
 
-    // A `/c/<handle>` that names a person is a URL nobody should keep. The rule
-    // itself lives in `profileRoute.ts`, shared with the person screen, so the
-    // two can never send a reader back and forth between them.
-    if (canonicalHref) {
-        return <Redirect href={canonicalHref} />;
-    }
+  // A `/c/<handle>` that names a person is a URL nobody should keep. The rule
+  // itself lives in `profileRoute.ts`, shared with the person screen, so the
+  // two can never send a reader back and forth between them.
+  if (canonicalHref) {
+    return <Redirect href={canonicalHref} />;
+  }
 
-    return (
-        <>
-            {/* `web:z-auto` so this wrapper does not become its own stacking
+  return (
+    <>
+      {/* `web:z-auto` so this wrapper does not become its own stacking
                 context and trap the sticky header chrome below the panel's
                 bleed-mask/border overlays (see ProfileShell's root). */}
-            <View className="flex-1 web:z-auto">
-                <ChannelProfile
-                    username={username}
-                    handle={handle}
-                    profileData={profileData}
-                    loading={loading}
-                    notFound={notFound}
-                    onRetry={refresh}
-                />
-            </View>
-        </>
-    );
+      <View className="flex-1 web:z-auto">
+        <ChannelProfile
+          username={username}
+          handle={handle}
+          profileData={profileData}
+          loading={loading}
+          notFound={notFound}
+          onRetry={refresh}
+        />
+      </View>
+    </>
+  );
 };
 
 export default ChannelScreen;

@@ -75,7 +75,9 @@ jest.mock('@oxy.so/bloom/button', () => {
   return { Button: TouchableOpacity };
 });
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
-jest.mock('@/utils/alerts', () => ({ confirmDialog: (...args: unknown[]) => mockConfirm(...args) }));
+jest.mock('@/utils/alerts', () => ({
+  confirmDialog: (...args: unknown[]) => mockConfirm(...args),
+}));
 jest.mock('@/assets/icons/drafts', () => ({ DraftsIcon: () => null }));
 jest.mock('@oxy.so/core/logger', () => ({
   createLogger: () => ({ error: jest.fn(), warn: jest.fn(), debug: jest.fn(), info: jest.fn() }),
@@ -84,7 +86,7 @@ jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user?: { username?: string }) => user?.username,
 }));
 jest.mock('@/utils/postLanguages', () => ({
-  languageLabel: (tag: string) => ({ es: 'Español', fr: 'Français' }[tag] ?? tag),
+  languageLabel: (tag: string) => ({ es: 'Español', fr: 'Français' })[tag] ?? tag,
 }));
 
 const NOW = Date.now();
@@ -146,8 +148,9 @@ function textContent(tree: TestRenderer.ReactTestRenderer): string {
   return tree.root
     .findAllByType(Text)
     .flatMap((node) => node.props.children)
-    .filter((child): child is string | number =>
-      typeof child === 'string' || typeof child === 'number')
+    .filter(
+      (child): child is string | number => typeof child === 'string' || typeof child === 'number',
+    )
     .map(String)
     .join(' | ');
 }
@@ -167,13 +170,16 @@ function press(tree: TestRenderer.ReactTestRenderer, label: string, index = 0) {
 }
 
 async function flush() {
-  await act(async () => { await Promise.resolve(); });
+  await act(async () => {
+    await Promise.resolve();
+  });
 }
 
 describe('DraftsList', () => {
   beforeAll(() => {
-    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
-      .IS_REACT_ACT_ENVIRONMENT = true;
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
   });
 
   beforeEach(() => {
@@ -192,11 +198,15 @@ describe('DraftsList', () => {
     const tree = renderList();
     const rendered = textContent(tree);
 
-    expect(rendered.indexOf('Release notes for 4.2')).toBeLessThan(rendered.indexOf('Half a thought'));
+    expect(rendered.indexOf('Release notes for 4.2')).toBeLessThan(
+      rendered.indexOf('Half a thought'),
+    );
     // Exactly one hint, and it belongs to the device row: it follows the server
     // row's text and precedes the device row's.
     expect(rendered.split('On this device')).toHaveLength(2);
-    expect(rendered.indexOf('On this device')).toBeGreaterThan(rendered.indexOf('Release notes for 4.2'));
+    expect(rendered.indexOf('On this device')).toBeGreaterThan(
+      rendered.indexOf('Release notes for 4.2'),
+    );
     // Only the author's other language, not the machine translation.
     expect(rendered).toContain('Also in Español');
     expect(rendered).not.toContain('Français');

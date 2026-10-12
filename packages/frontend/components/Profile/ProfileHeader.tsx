@@ -1,7 +1,12 @@
 import React, { memo, useCallback } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
-import Animated, { useDerivedValue, useAnimatedStyle, interpolate, Extrapolation } from 'react-native-reanimated';
+import Animated, {
+  useDerivedValue,
+  useAnimatedStyle,
+  interpolate,
+  Extrapolation,
+} from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import { ZoomableAvatar } from '@/components/ZoomableAvatar';
 import { LiveAvatar } from '@/components/ui/LiveAvatar';
@@ -62,7 +67,11 @@ export const ProfileHeader = memo(function ProfileHeader({
   // is not painted in.
   const surfaceFill = useSurfaceFill();
   const canPoke = !isFederated;
-  const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile || Boolean(isFederated));
+  const {
+    poked,
+    loading: pokeLoading,
+    toggle: togglePoke,
+  } = usePoke(profileId, isOwnProfile || Boolean(isFederated));
   useFederatedFollowSync(profileId, isFederated, actorUri);
 
   // Normalized 0 → 1 collapse driver for the avatar shrink, derived on the UI
@@ -86,8 +95,22 @@ export const ProfileHeader = memo(function ProfileHeader({
   const { isLive: isProfileLive } = useLiveUser(profileId);
   const liveAvatarCollapseStyle = useAnimatedStyle(() => ({
     transform: [
-      { scale: interpolate(avatarCollapseProgress.value, [0, 1], [1, PROFILE_AVATAR_COLLAPSE_MIN_SCALE], Extrapolation.CLAMP) },
-      { translateY: interpolate(avatarCollapseProgress.value, [0, 1], [0, PROFILE_AVATAR_COLLAPSE_TRANSLATE_Y], Extrapolation.CLAMP) },
+      {
+        scale: interpolate(
+          avatarCollapseProgress.value,
+          [0, 1],
+          [1, PROFILE_AVATAR_COLLAPSE_MIN_SCALE],
+          Extrapolation.CLAMP,
+        ),
+      },
+      {
+        translateY: interpolate(
+          avatarCollapseProgress.value,
+          [0, 1],
+          [0, PROFILE_AVATAR_COLLAPSE_TRANSLATE_Y],
+          Extrapolation.CLAMP,
+        ),
+      },
     ],
   }));
 
@@ -106,16 +129,30 @@ export const ProfileHeader = memo(function ProfileHeader({
         {isProfileLive ? (
           <Animated.View
             className="bg-muted rounded-full"
-            style={[{ borderWidth: PROFILE_AVATAR_RING, borderColor: surfaceFill }, liveAvatarCollapseStyle]}
+            style={[
+              { borderWidth: PROFILE_AVATAR_RING, borderColor: surfaceFill },
+              liveAvatarCollapseStyle,
+            ]}
           >
-            <LiveAvatar userId={profileId} source={avatarUri ?? undefined} size={90} variant={MEDIA_VARIANT_AVATAR_LG} />
+            <LiveAvatar
+              userId={profileId}
+              source={avatarUri ?? undefined}
+              size={90}
+              variant={MEDIA_VARIANT_AVATAR_LG}
+            />
           </Animated.View>
         ) : (
           <ZoomableAvatar
             source={avatarUri}
             size={90}
             className="bg-muted"
-            style={{ width: 90, height: 90, borderRadius: 45, borderWidth: PROFILE_AVATAR_RING, borderColor: surfaceFill }}
+            style={{
+              width: 90,
+              height: 90,
+              borderRadius: 45,
+              borderWidth: PROFILE_AVATAR_RING,
+              borderColor: surfaceFill,
+            }}
             imageStyle={{}}
             collapseProgress={avatarCollapseProgress}
             collapseMinScale={PROFILE_AVATAR_COLLAPSE_MIN_SCALE}

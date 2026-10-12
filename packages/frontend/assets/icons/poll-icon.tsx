@@ -2,23 +2,23 @@ import React from 'react';
 import { Rect } from 'react-native-svg';
 import { IconSvg } from '@/assets/icons/IconSvg';
 interface PollIconProps {
-    size?: number;
-    color?: string;
-    className?: string;
+  size?: number;
+  color?: string;
+  className?: string;
 }
 
 export const PollIcon: React.FC<PollIconProps> = ({
-    size = 20,
-    color = 'currentColor',
-    className
+  size = 20,
+  color = 'currentColor',
+  className,
 }) => {
-    return (
-        <IconSvg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
-            <Rect fill={color} height="1.5" rx="0.75" width="8" x="4" y="5.5" />
-            <Rect fill={color} height="1.5" rx="0.75" width="16" x="4" y="11.25" />
-            <Rect fill={color} height="1.5" rx="0.75" width="11" x="4" y="17" />
-        </IconSvg>
-    );
+  return (
+    <IconSvg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      <Rect fill={color} height="1.5" rx="0.75" width="8" x="4" y="5.5" />
+      <Rect fill={color} height="1.5" rx="0.75" width="16" x="4" y="11.25" />
+      <Rect fill={color} height="1.5" rx="0.75" width="11" x="4" y="17" />
+    </IconSvg>
+  );
 };
 
 export default PollIcon;

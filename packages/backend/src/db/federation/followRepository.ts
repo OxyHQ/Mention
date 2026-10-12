@@ -8,17 +8,16 @@
  *
  * ## `updateOne` is not `UPDATE`
  *
- * Mongo's `updateOne` writes AT MOST ONE document; a bare SQL `UPDATE` writes
+ * A follow transition must write AT MOST ONE row; a bare SQL `UPDATE` writes
  * every matching row. Three of the follow transitions are matched by
  * `(remote_actor_uri, direction, status)` WITHOUT a local user — an `Accept` that
  * arrives with no resolvable Follow id has to guess which pending row it answers
  * — so on any instance where two local users follow the same remote actor, the
- * direct translation accepts BOTH from one Accept. Each of those three goes
+ * bare `UPDATE` accepts BOTH from one Accept. Each of those three goes
  * through {@link oneRowMatching}, which pins the update to a single id chosen by
  * the same predicate.
  *
- * The arbitrariness is inherited, not introduced: Mongo picked whichever row its
- * index scan reached first. Preserving "exactly one" is the point — widening it
+ * Which row is chosen is arbitrary; "exactly one" is the point — widening it
  * would mean a remote server could accept a follow it was never asked about.
  */
 
@@ -99,7 +98,8 @@ export interface FollowFilter {
 
 function followClauses(filter: FollowFilter): SQL[] | null {
   const clauses: SQL[] = [];
-  if (filter.localUserId !== undefined) clauses.push(eq(federatedFollows.localUserId, filter.localUserId));
+  if (filter.localUserId !== undefined)
+    clauses.push(eq(federatedFollows.localUserId, filter.localUserId));
   if (filter.localUserIds !== undefined) {
     if (filter.localUserIds.length === 0) return null;
     clauses.push(inArray(federatedFollows.localUserId, [...filter.localUserIds]));
@@ -107,7 +107,8 @@ function followClauses(filter: FollowFilter): SQL[] | null {
   if (filter.remoteActorUri !== undefined) {
     clauses.push(eq(federatedFollows.remoteActorUri, filter.remoteActorUri));
   }
-  if (filter.direction !== undefined) clauses.push(eq(federatedFollows.direction, filter.direction));
+  if (filter.direction !== undefined)
+    clauses.push(eq(federatedFollows.direction, filter.direction));
   if (filter.statuses !== undefined) {
     // An empty status list means "no status can match", not "any status" — the
     // opposite of what dropping the clause would mean. `null` says so to the
@@ -223,7 +224,7 @@ export async function findFollow(
  *
  * An `Undo(Follow)` may or may not name the local target, so the engine asks for
  * "the inbound follow from this actor" and takes whichever row answers when it
- * cannot narrow further — the shape Mongo's `findOne` had.
+ * cannot narrow further.
  */
 export async function findInboundFollow(
   remoteActorUri: string,
@@ -269,7 +270,11 @@ export async function upsertInboundAccepted(
       activityId: activityId ?? null,
     })
     .onConflictDoUpdate({
-      target: [federatedFollows.localUserId, federatedFollows.remoteActorUri, federatedFollows.direction],
+      target: [
+        federatedFollows.localUserId,
+        federatedFollows.remoteActorUri,
+        federatedFollows.direction,
+      ],
       set: { status: 'accepted', activityId: activityId ?? null, updatedAt: new Date() },
     });
 }
@@ -291,7 +296,11 @@ export async function upsertOutboundPending(
       activityId: activityId ?? null,
     })
     .onConflictDoUpdate({
-      target: [federatedFollows.localUserId, federatedFollows.remoteActorUri, federatedFollows.direction],
+      target: [
+        federatedFollows.localUserId,
+        federatedFollows.remoteActorUri,
+        federatedFollows.direction,
+      ],
       set: { status: 'pending', activityId: activityId ?? null, updatedAt: new Date() },
     });
 }
@@ -318,7 +327,11 @@ export async function upsertOutboundAcceptedSubscription(
       network,
     })
     .onConflictDoUpdate({
-      target: [federatedFollows.localUserId, federatedFollows.remoteActorUri, federatedFollows.direction],
+      target: [
+        federatedFollows.localUserId,
+        federatedFollows.remoteActorUri,
+        federatedFollows.direction,
+      ],
       set: { status: 'accepted', network, updatedAt: new Date() },
     });
 }
@@ -444,7 +457,8 @@ export async function deleteFollowsFor(
   db: DatabaseOrTransaction = getDb(),
 ): Promise<number> {
   const clauses: SQL[] = [];
-  if (filter.localUserId !== undefined) clauses.push(eq(federatedFollows.localUserId, filter.localUserId));
+  if (filter.localUserId !== undefined)
+    clauses.push(eq(federatedFollows.localUserId, filter.localUserId));
   if (filter.remoteActorUri !== undefined) {
     clauses.push(eq(federatedFollows.remoteActorUri, filter.remoteActorUri));
   }

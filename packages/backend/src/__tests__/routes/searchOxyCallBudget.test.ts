@@ -123,7 +123,9 @@ describe('GET /search Oxy call budget', () => {
   it('resolves each viewer-graph read exactly ONCE per request', async () => {
     await seedPost(scope, {
       oxyUserId: scope.user('author'),
-      content: { variants: [{ source: 'author', tag: 'en', text: 'a budget probe about gardening' }] },
+      content: {
+        variants: [{ source: 'author', tag: 'en', text: 'a budget probe about gardening' }],
+      },
     });
 
     await request(app).get('/search').query({ query: 'gardening', type: 'posts' }).expect(200);
@@ -150,17 +152,21 @@ describe('GET /search Oxy call budget', () => {
     // to own the viewer-context resolution so it can hand the list in, and that
     // is the combined-endpoint change. When that lands, this expectation
     // becomes 1 — and this test is what will require someone to notice.
-    await getDb().insert(muteWords).values({
-      userId: VIEWER,
-      value: 'gardening',
-      targets: ['content'],
-      actorTarget: 'exclude-following',
-    });
+    await getDb()
+      .insert(muteWords)
+      .values({
+        userId: VIEWER,
+        value: 'gardening',
+        targets: ['content'],
+        actorTarget: 'exclude-following',
+      });
 
     try {
       await seedPost(scope, {
         oxyUserId: scope.user('author2'),
-        content: { variants: [{ source: 'author', tag: 'en', text: 'another budget probe about gardening' }] },
+        content: {
+          variants: [{ source: 'author', tag: 'en', text: 'another budget probe about gardening' }],
+        },
       });
 
       await request(app).get('/search').query({ query: 'gardening', type: 'posts' }).expect(200);
@@ -206,7 +212,10 @@ describe('GET /search Oxy call budget', () => {
     anonymous.use(express.json());
     anonymous.use('/search', (await import('../../routes/search')).default);
 
-    await request(anonymous).get('/search').query({ query: 'gardening', type: 'posts' }).expect(200);
+    await request(anonymous)
+      .get('/search')
+      .query({ query: 'gardening', type: 'posts' })
+      .expect(200);
 
     expect(calls.getUserFollowing).toHaveBeenCalledTimes(0);
     expect(calls.getUserFollowers).toHaveBeenCalledTimes(0);

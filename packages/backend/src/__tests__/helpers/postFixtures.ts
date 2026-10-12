@@ -141,15 +141,23 @@ export async function seedCrosspostCluster(
 ): Promise<string> {
   const [preferredNetwork, collapsedNetwork] = options.networks ?? ['instagram.com', 'threads.net'];
   return createCluster(options.confidence ?? 'declared', [
-    { postId: preferredId, networkDomain: preferredNetwork, preferred: true, evidence: 'declared original' },
-    { postId: collapsedId, networkDomain: collapsedNetwork, preferred: false, evidence: 'declared crosspost' },
+    {
+      postId: preferredId,
+      networkDomain: preferredNetwork,
+      preferred: true,
+      evidence: 'declared original',
+    },
+    {
+      postId: collapsedId,
+      networkDomain: collapsedNetwork,
+      preferred: false,
+      evidence: 'declared crosspost',
+    },
   ]);
 }
 
 /** The stored row, for asserting what a write path actually persisted. */
-export async function readPostRow(
-  id: string,
-): Promise<typeof posts.$inferSelect | undefined> {
+export async function readPostRow(id: string): Promise<typeof posts.$inferSelect | undefined> {
   const [row] = await getDb().select().from(posts).where(eq(posts.id, id));
   return row;
 }
@@ -168,6 +176,8 @@ export async function clearPostScope(scope: PostScope): Promise<void> {
   // After the posts — see `seededLaneIds`.
   const laneIds = seededLaneIds.get(scope.name) ?? [];
   if (laneIds.length > 0) {
-    await getDb().delete(lanes).where(inArray(lanes.id, laneIds.splice(0)));
+    await getDb()
+      .delete(lanes)
+      .where(inArray(lanes.id, laneIds.splice(0)));
   }
 }

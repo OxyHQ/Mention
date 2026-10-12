@@ -1,15 +1,15 @@
-import { useEffect } from "react";
-import { useTranslation } from "react-i18next";
-import type { DialogControlProps } from "@oxy.so/bloom/dialog";
-import { SettingsModal } from "@oxy.so/bloom/settings-modal";
-import { useMentionSettingsPages } from "./settingsPages";
+import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { DialogControlProps } from '@oxy.so/bloom/dialog';
+import { SettingsModal } from '@oxy.so/bloom/settings-modal';
+import { useMentionSettingsPages } from './settingsPages';
 
 export interface MentionSettingsModalProps {
   control: DialogControlProps;
   /** Bumped by every `open()`; each new value opens the dialog. */
   openRequest: number;
   page: string;
-  initialView: "navigation" | "page";
+  initialView: 'navigation' | 'page';
   onPageChange: (page: string) => void;
   onClose: () => void;
 }
@@ -49,9 +49,9 @@ export default function MentionSettingsModal({
       groups={groups}
       pages={pages}
       labels={{
-        dialog: t("settings.title", { defaultValue: "Settings" }),
-        close: t("common.close", { defaultValue: "Close settings" }),
-        back: t("common.back", { defaultValue: "Back" }),
+        dialog: t('settings.title', { defaultValue: 'Settings' }),
+        close: t('common.close', { defaultValue: 'Close settings' }),
+        back: t('common.back', { defaultValue: 'Back' }),
       }}
     />
   );

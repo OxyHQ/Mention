@@ -351,7 +351,10 @@ function findDefiningPhrase(
     }
   }
 
-  const minPosts = Math.max(PHRASE_MIN_POSTS, Math.ceil(phrasesByPost.length * PHRASE_MIN_COVERAGE));
+  const minPosts = Math.max(
+    PHRASE_MIN_POSTS,
+    Math.ceil(phrasesByPost.length * PHRASE_MIN_COVERAGE),
+  );
 
   let best: string | null = null;
   let bestCount = 0;
@@ -501,9 +504,9 @@ function deriveCategory(term: string, excerpts: readonly string[]): TrendCategor
   const ranked = [...support.entries()]
     .filter(([, count]) => count >= required)
     .sort(
-    // Ties break by slug so two batches over identical posts agree.
-    ([leftSlug, left], [rightSlug, right]) => right - left || leftSlug.localeCompare(rightSlug),
-  );
+      // Ties break by slug so two batches over identical posts agree.
+      ([leftSlug, left], [rightSlug, right]) => right - left || leftSlug.localeCompare(rightSlug),
+    );
   for (const [slug] of ranked) {
     const category = TOPIC_SLUG_TO_CATEGORY[slug];
     if (category) return normalizeTrendCategory(category);

@@ -4,10 +4,7 @@ import {
   policyDecisionSchema,
   type CapabilityTicketClaims,
 } from '@oxy.so/contracts';
-import {
-  CapabilityTicketError,
-  verifyCapabilityTicket,
-} from '@oxy.so/core/server';
+import { CapabilityTicketError, verifyCapabilityTicket } from '@oxy.so/core/server';
 import { z } from 'zod';
 import { config } from '../config';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
@@ -35,10 +32,9 @@ let keysExpireAt = 0;
 
 async function loadPublicKeys(force = false): Promise<void> {
   if (!force && cachedKeys.size > 0 && Date.now() < keysExpireAt) return;
-  const response = await fetch(
-    `${config.oxyApiUrl}/capabilities/.well-known/jwks.json`,
-    { signal: AbortSignal.timeout(5_000) },
-  );
+  const response = await fetch(`${config.oxyApiUrl}/capabilities/.well-known/jwks.json`, {
+    signal: AbortSignal.timeout(5_000),
+  });
   if (!response.ok) throw new Error(`Oxy capability JWKS returned ${response.status}`);
   const body = jwksSchema.parse(await response.json());
   const keys = new Map<string, KeyObject>();
@@ -81,7 +77,8 @@ async function introspectAtOxy(token: string): Promise<unknown> {
         },
         body: JSON.stringify({ ticket: token }),
         signal: AbortSignal.timeout(10_000),
-      }));
+      }),
+    );
     if (response.status === 401 && attempt === 0) {
       oxy.invalidateServiceToken();
       continue;
@@ -100,16 +97,16 @@ export async function introspectMentionCapabilityTicket(
   localClaims: CapabilityTicketClaims,
 ): Promise<boolean> {
   const envelope = introspectionEnvelopeSchema.parse(await introspectAtOxy(token));
-  const claims = envelope.claims === undefined
-    ? undefined
-    : capabilityTicketClaimsSchema.parse(envelope.claims);
-  const decision = envelope.decision === undefined
-    ? undefined
-    : policyDecisionSchema.parse(envelope.decision);
-  return envelope.active === true
-    && decision?.allowed === true
-    && claims?.jti === localClaims.jti
-    && claims.aud === localClaims.aud
-    && claims.tool === localClaims.tool
-    && claims.resource.effectiveAccountId === localClaims.resource.effectiveAccountId;
+  const claims =
+    envelope.claims === undefined ? undefined : capabilityTicketClaimsSchema.parse(envelope.claims);
+  const decision =
+    envelope.decision === undefined ? undefined : policyDecisionSchema.parse(envelope.decision);
+  return (
+    envelope.active === true &&
+    decision?.allowed === true &&
+    claims?.jti === localClaims.jti &&
+    claims.aud === localClaims.aud &&
+    claims.tool === localClaims.tool &&
+    claims.resource.effectiveAccountId === localClaims.resource.effectiveAccountId
+  );
 }

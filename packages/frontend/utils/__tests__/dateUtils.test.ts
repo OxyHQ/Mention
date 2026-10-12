@@ -8,7 +8,13 @@
  * fixtures aged into different units.
  */
 
-import { dateDiff, formatDateDiff, formatFullTimestamp, formatRelativeTimeLocalized, formatTimeAgo } from '../dateUtils';
+import {
+  dateDiff,
+  formatDateDiff,
+  formatFullTimestamp,
+  formatRelativeTimeLocalized,
+  formatTimeAgo,
+} from '../dateUtils';
 
 const LATER = new Date('2026-06-11T21:20:00Z');
 const SECOND = 1000;
@@ -34,7 +40,10 @@ describe('dateDiff', () => {
 
   it('rounds up when asked', () => {
     expect(dateDiff(before(90 * SECOND), LATER, 'up')).toMatchObject({ unit: 'minute', value: 2 });
-    expect(dateDiff(before(5 * HOUR + MINUTE), LATER, 'up')).toMatchObject({ unit: 'hour', value: 6 });
+    expect(dateDiff(before(5 * HOUR + MINUTE), LATER, 'up')).toMatchObject({
+      unit: 'hour',
+      value: 6,
+    });
     expect(dateDiff(before(3 * DAY + HOUR), LATER, 'up')).toMatchObject({ unit: 'day', value: 4 });
     expect(dateDiff(before(65 * DAY), LATER, 'up')).toMatchObject({ unit: 'month', value: 3 });
   });
@@ -101,7 +110,9 @@ describe('formatFullTimestamp', () => {
   });
 
   it('writes midnight as 12 AM', () => {
-    expect(formatFullTimestamp(new Date(2026, 0, 2, 0, 30).getTime())).toBe('12:30 AM · Jan 2, 2026');
+    expect(formatFullTimestamp(new Date(2026, 0, 2, 0, 30).getTime())).toBe(
+      '12:30 AM · Jan 2, 2026',
+    );
   });
 
   it('returns an empty string for an unparseable date', () => {
@@ -132,6 +143,8 @@ describe('formatRelativeTimeLocalized', () => {
 
   it('falls back to an absolute date after a week', () => {
     const earlier = before(10 * DAY);
-    expect(formatRelativeTimeLocalized(earlier.toISOString(), t)).toBe(earlier.toLocaleDateString());
+    expect(formatRelativeTimeLocalized(earlier.toISOString(), t)).toBe(
+      earlier.toLocaleDateString(),
+    );
   });
 });

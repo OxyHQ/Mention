@@ -1,9 +1,4 @@
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-} from 'react';
+import { lazy, Suspense, useCallback, useEffect } from 'react';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import type { CreateRoomSheetProps } from '@/components/rooms/createRoomTypes';
 import type { Room } from '@syra.fm/sdk';
@@ -12,7 +7,7 @@ const DeferredLiveFeatureHost = lazy(() => import('./LiveFeatureRuntime'));
 const DeferredCreateRoomSheet = lazy(() =>
   import('./LiveFeatureRuntime').then((module) => ({
     default: module.LiveCreateRoomRuntime,
-  }))
+  })),
 );
 
 /**
@@ -58,16 +53,12 @@ export function LiveCreateRoomSheet(props: CreateRoomSheetProps) {
       }
       onRoomCreated?.(room);
     },
-    [joinLiveRoom, mode, onRoomCreated]
+    [joinLiveRoom, mode, onRoomCreated],
   );
 
   return (
     <Suspense fallback={null}>
-      <DeferredCreateRoomSheet
-        {...props}
-        mode={mode}
-        onRoomCreated={handleRoomCreated}
-      />
+      <DeferredCreateRoomSheet {...props} mode={mode} onRoomCreated={handleRoomCreated} />
     </Suspense>
   );
 }

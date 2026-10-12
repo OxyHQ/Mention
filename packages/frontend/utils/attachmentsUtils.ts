@@ -1,5 +1,5 @@
-import type { PostAttachmentDescriptor } from "@mention/shared-types/post";
-import { ComposerMediaItem } from "./composeUtils";
+import type { PostAttachmentDescriptor } from '@mention/shared-types/post';
+import { ComposerMediaItem } from './composeUtils';
 
 export const buildAttachmentsPayload = (
   order: string[],
@@ -15,7 +15,7 @@ export const buildAttachmentsPayload = (
     podcastId?: string;
     /** When set, a `{ type: 'job', id }` descriptor is emitted at the job slot (OxyHQ/Mention#952). */
     jobId?: string;
-  }
+  },
 ): PostAttachmentDescriptor[] => {
   const descriptors: PostAttachmentDescriptor[] = [];
   const mediaMap = new Map<string, ComposerMediaItem>();
@@ -25,7 +25,7 @@ export const buildAttachmentsPayload = (
     mediaMap.set(item.id, item);
   });
 
-  const addNonMedia = (type: "poll" | "article" | "event" | "location" | "sources" | "room") => {
+  const addNonMedia = (type: 'poll' | 'article' | 'event' | 'location' | 'sources' | 'room') => {
     if (!descriptors.some((d) => d.type === type)) {
       descriptors.push({ type });
     }
@@ -38,7 +38,7 @@ export const buildAttachmentsPayload = (
     if (!mediaItem) return;
     usedMedia.add(id);
     descriptors.push({
-      type: "media",
+      type: 'media',
       id,
       mediaType: mediaItem.type,
     });
@@ -46,51 +46,51 @@ export const buildAttachmentsPayload = (
 
   const addPodcast = () => {
     if (!options.podcastId) return;
-    if (descriptors.some((d) => d.type === "podcast")) return;
-    descriptors.push({ type: "podcast", id: options.podcastId });
+    if (descriptors.some((d) => d.type === 'podcast')) return;
+    descriptors.push({ type: 'podcast', id: options.podcastId });
   };
 
   const addJob = () => {
     if (!options.jobId) return;
-    if (descriptors.some((d) => d.type === "job")) return;
-    descriptors.push({ type: "job", id: options.jobId });
+    if (descriptors.some((d) => d.type === 'job')) return;
+    descriptors.push({ type: 'job', id: options.jobId });
   };
 
-  const POLL_ATTACHMENT_KEY = "poll";
-  const ARTICLE_ATTACHMENT_KEY = "article";
-  const EVENT_ATTACHMENT_KEY = "event";
-  const LOCATION_ATTACHMENT_KEY = "location";
-  const SOURCES_ATTACHMENT_KEY = "sources";
-  const ROOM_ATTACHMENT_KEY = "room";
-  const PODCAST_ATTACHMENT_KEY = "podcast";
-  const JOB_ATTACHMENT_KEY = "job";
-  const MEDIA_ATTACHMENT_PREFIX = "media:";
+  const POLL_ATTACHMENT_KEY = 'poll';
+  const ARTICLE_ATTACHMENT_KEY = 'article';
+  const EVENT_ATTACHMENT_KEY = 'event';
+  const LOCATION_ATTACHMENT_KEY = 'location';
+  const SOURCES_ATTACHMENT_KEY = 'sources';
+  const ROOM_ATTACHMENT_KEY = 'room';
+  const PODCAST_ATTACHMENT_KEY = 'podcast';
+  const JOB_ATTACHMENT_KEY = 'job';
+  const MEDIA_ATTACHMENT_PREFIX = 'media:';
   const isMediaAttachmentKey = (key: string) => key.startsWith(MEDIA_ATTACHMENT_PREFIX);
   const getMediaIdFromAttachmentKey = (key: string) => key.slice(MEDIA_ATTACHMENT_PREFIX.length);
 
   order.forEach((key) => {
     if (key === POLL_ATTACHMENT_KEY) {
-      if (options.includePoll) addNonMedia("poll");
+      if (options.includePoll) addNonMedia('poll');
       return;
     }
     if (key === ARTICLE_ATTACHMENT_KEY) {
-      if (options.includeArticle) addNonMedia("article");
+      if (options.includeArticle) addNonMedia('article');
       return;
     }
     if (key === EVENT_ATTACHMENT_KEY) {
-      if (options.includeEvent) addNonMedia("event");
+      if (options.includeEvent) addNonMedia('event');
       return;
     }
     if (key === LOCATION_ATTACHMENT_KEY) {
-      if (options.includeLocation) addNonMedia("location");
+      if (options.includeLocation) addNonMedia('location');
       return;
     }
     if (key === SOURCES_ATTACHMENT_KEY) {
-      if (options.includeSources) addNonMedia("sources");
+      if (options.includeSources) addNonMedia('sources');
       return;
     }
     if (key === ROOM_ATTACHMENT_KEY) {
-      if (options.includeRoom) addNonMedia("room");
+      if (options.includeRoom) addNonMedia('room');
       return;
     }
     if (key === PODCAST_ATTACHMENT_KEY) {
@@ -107,12 +107,12 @@ export const buildAttachmentsPayload = (
     }
   });
 
-  if (options.includePoll) addNonMedia("poll");
-  if (options.includeArticle) addNonMedia("article");
-  if (options.includeEvent) addNonMedia("event");
-  if (options.includeLocation) addNonMedia("location");
-  if (options.includeSources) addNonMedia("sources");
-  if (options.includeRoom) addNonMedia("room");
+  if (options.includePoll) addNonMedia('poll');
+  if (options.includeArticle) addNonMedia('article');
+  if (options.includeEvent) addNonMedia('event');
+  if (options.includeLocation) addNonMedia('location');
+  if (options.includeSources) addNonMedia('sources');
+  if (options.includeRoom) addNonMedia('room');
   addPodcast();
   addJob();
 

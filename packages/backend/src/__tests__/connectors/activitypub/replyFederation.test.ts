@@ -28,12 +28,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  * `enqueueDelivery` calls.
  */
 
-const {
-  enqueueDelivery,
-  isFediverseSharingEnabled,
-  getUserById,
-  insertMany,
-} = vi.hoisted(() => ({
+const { enqueueDelivery, isFediverseSharingEnabled, getUserById, insertMany } = vi.hoisted(() => ({
   enqueueDelivery: vi.fn(),
   isFediverseSharingEnabled: vi.fn(),
   getUserById: vi.fn(),
@@ -47,7 +42,10 @@ vi.mock('../../../connectors/activitypub/constants', async () => {
   return { ...actual, FEDERATION_ENABLED: true };
 });
 vi.mock('../../../connectors/activitypub/actor.service', () => ({ actorService: {} }));
-vi.mock('../../../connectors/activitypub/crypto', () => ({ getPublicKey: vi.fn(), signRequest: vi.fn() }));
+vi.mock('../../../connectors/activitypub/crypto', () => ({
+  getPublicKey: vi.fn(),
+  signRequest: vi.fn(),
+}));
 vi.mock('../../../queue/producers', () => ({ enqueueDelivery, enqueueInboxActivity: vi.fn() }));
 vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
 vi.mock('@oxy.so/core/server', async (importOriginal) => ({
@@ -58,7 +56,9 @@ vi.mock('../../../utils/mediaResolver', () => ({
   resolveMediaRef: (ref: string) => ({ url: `https://cloud.oxy.so/${ref}` }),
 }));
 vi.mock('../../../services/fediverseSharing', () => ({ isFediverseSharingEnabled }));
-vi.mock('../../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ users: { get: getUserById } }) }));
+vi.mock('../../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ users: { get: getUserById } }),
+}));
 
 import { closePostgres, connectPostgres } from '../../../db/postgres';
 import {
@@ -100,7 +100,8 @@ function deliveredInboxes(): string[] {
 
 /** The activity enqueued (identical across all inboxes in one fan-out). */
 function deliveredActivity(): Record<string, unknown> {
-  return (enqueueDelivery.mock.calls[0]?.[0] as { activityJson: Record<string, unknown> }).activityJson;
+  return (enqueueDelivery.mock.calls[0]?.[0] as { activityJson: Record<string, unknown> })
+    .activityJson;
 }
 
 /** The embedded Note object of the enqueued Create activity. */

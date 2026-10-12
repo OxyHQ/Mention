@@ -20,14 +20,26 @@ import {
 const CORPUS = { federatedPosts: 120_000, federatedActors: 40_000 };
 
 function measurement(
-  perDomain: Record<string, Partial<{
-    posts: number; actors: number; localFollows: number; localContent: number;
-  }>>,
+  perDomain: Record<
+    string,
+    Partial<{
+      posts: number;
+      actors: number;
+      localFollows: number;
+      localContent: number;
+    }>
+  >,
   corpus = CORPUS,
 ): PurgeMeasurement {
-  const entries = new Map<string, {
-    posts: number; actors: number; localFollows: number; localContent: number;
-  }>();
+  const entries = new Map<
+    string,
+    {
+      posts: number;
+      actors: number;
+      localFollows: number;
+      localContent: number;
+    }
+  >();
   let posts = 0;
   let actors = 0;
   for (const [domain, counts] of Object.entries(perDomain)) {
@@ -48,9 +60,11 @@ describe('the automatic purge circuit breaker', () => {
   it('lets an ordinary blocklist domain through', () => {
     // The real shape: a spam host with a few hundred posts, a handful of actors,
     // nobody here following it and nobody replying to it.
-    const breaches = evaluatePurgeCeilings(measurement({
-      'spam.example': { posts: 340, actors: 12 },
-    }));
+    const breaches = evaluatePurgeCeilings(
+      measurement({
+        'spam.example': { posts: 340, actors: 12 },
+      }),
+    );
 
     expect(breaches).toEqual([]);
   });
@@ -74,9 +88,11 @@ describe('the automatic purge circuit breaker', () => {
   it('REFUSES a domain a local user follows, however small it is', () => {
     // The sharpest discriminator: zero across all 196 real blocklist domains, so
     // any non-zero value is the shape of a mistake.
-    const breaches = evaluatePurgeCeilings(measurement({
-      'typo.example': { posts: 3, actors: 1, localFollows: 1 },
-    }));
+    const breaches = evaluatePurgeCeilings(
+      measurement({
+        'typo.example': { posts: 3, actors: 1, localFollows: 1 },
+      }),
+    );
 
     expect(breaches).toHaveLength(1);
     expect(breaches[0].ceiling).toBe('localFollowsPerDomain');
@@ -86,9 +102,11 @@ describe('the automatic purge circuit breaker', () => {
   it('REFUSES a mistyped large instance', () => {
     // The scenario the breaker exists for: a lookalike of a major instance,
     // pasted into the policy file, deploying unattended.
-    const breaches = evaluatePurgeCeilings(measurement({
-      'mastodon.social': { posts: 46_000, actors: 9_000, localFollows: 210, localContent: 1_800 },
-    }));
+    const breaches = evaluatePurgeCeilings(
+      measurement({
+        'mastodon.social': { posts: 46_000, actors: 9_000, localFollows: 210, localContent: 1_800 },
+      }),
+    );
 
     const tripped = breaches.map((breach) => breach.ceiling).sort();
     expect(tripped).toContain('localFollowsPerDomain');
@@ -103,9 +121,7 @@ describe('the automatic purge circuit breaker', () => {
   it('REFUSES a batch of individually-ordinary domains that together take a fifth of the corpus', () => {
     const corpus = { federatedPosts: 100_000, federatedActors: 40_000 };
     const batchOf = (count: number, posts: number): Record<string, { posts: number }> =>
-      Object.fromEntries(
-        Array.from({ length: count }, (_, i) => [`d${i}.example`, { posts }]),
-      );
+      Object.fromEntries(Array.from({ length: count }, (_, i) => [`d${i}.example`, { posts }]));
 
     // 20 × 700 = 14,000, i.e. 14% of the corpus. Every domain is individually
     // far under its own ceiling AND the batch is under the batch ceiling.
@@ -120,35 +136,43 @@ describe('the automatic purge circuit breaker', () => {
   it('REFUSES rather than dividing by zero when the corpus is empty', () => {
     // A positive count against an empty corpus is not "a small fraction" — and an
     // empty corpus is itself a sign the measurement is wrong.
-    const breaches = evaluatePurgeCeilings(measurement(
-      { 'spam.example': { posts: 5_000, actors: 900 } },
-      { federatedPosts: 0, federatedActors: 0 },
-    ));
+    const breaches = evaluatePurgeCeilings(
+      measurement(
+        { 'spam.example': { posts: 5_000, actors: 900 } },
+        { federatedPosts: 0, federatedActors: 0 },
+      ),
+    );
 
     expect(breaches.map((breach) => breach.ceiling)).toContain('postsPerDomain');
   });
 
-  it('scales with the corpus instead of staying pinned to today\'s numbers', () => {
+  it("scales with the corpus instead of staying pinned to today's numbers", () => {
     // The same absolute count is fine in a large corpus and a breach in a small
     // one. An absolute-only ceiling could not tell these apart.
-    const small = evaluatePurgeCeilings(measurement(
-      { 'spam.example': { posts: 3_000 } },
-      { federatedPosts: 10_000, federatedActors: 4_000 },
-    ));
-    const large = evaluatePurgeCeilings(measurement(
-      { 'spam.example': { posts: 3_000 } },
-      { federatedPosts: 500_000, federatedActors: 40_000 },
-    ));
+    const small = evaluatePurgeCeilings(
+      measurement(
+        { 'spam.example': { posts: 3_000 } },
+        { federatedPosts: 10_000, federatedActors: 4_000 },
+      ),
+    );
+    const large = evaluatePurgeCeilings(
+      measurement(
+        { 'spam.example': { posts: 3_000 } },
+        { federatedPosts: 500_000, federatedActors: 40_000 },
+      ),
+    );
 
     expect(small.map((breach) => breach.ceiling)).toContain('postsPerDomain');
     expect(large).toEqual([]);
   });
 
   it('never trips on a handful of documents, whatever the corpus', () => {
-    const breaches = evaluatePurgeCeilings(measurement(
-      { 'spam.example': { posts: 4, actors: 1, localContent: 2 } },
-      { federatedPosts: 12, federatedActors: 3 },
-    ));
+    const breaches = evaluatePurgeCeilings(
+      measurement(
+        { 'spam.example': { posts: 4, actors: 1, localContent: 2 } },
+        { federatedPosts: 12, federatedActors: 3 },
+      ),
+    );
 
     expect(breaches).toEqual([]);
   });
@@ -162,9 +186,11 @@ describe('the automatic purge circuit breaker', () => {
   });
 
   it('describes a breach with the number AND the limit it was measured against', () => {
-    const breaches = evaluatePurgeCeilings(measurement({
-      'typo.example': { posts: 3, localFollows: 4 },
-    }));
+    const breaches = evaluatePurgeCeilings(
+      measurement({
+        'typo.example': { posts: 3, localFollows: 4 },
+      }),
+    );
 
     expect(describeBreaches(breaches)).toContain('localFollowsPerDomain(typo.example)=4');
   });

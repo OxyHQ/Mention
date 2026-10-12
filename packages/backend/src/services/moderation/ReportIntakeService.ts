@@ -176,9 +176,7 @@ export async function createReport(input: CreateReportInput): Promise<CreateRepo
   }
   const provider = subjectProviderFor(reportedType);
   const deliverable = provider !== undefined;
-  const urgency = provider
-    ? await snapshotUrgency(provider, reportedId, reporter)
-    : undefined;
+  const urgency = provider ? await snapshotUrgency(provider, reportedId, reporter) : undefined;
 
   try {
     return await getDb().transaction(async (tx) => {
@@ -235,21 +233,13 @@ export async function createReport(input: CreateReportInput): Promise<CreateRepo
      * route answers `500 Error creating report` — telling somebody their report
      * failed when it is already filed, and inviting the retry that cannot succeed.
      *
-     * Mongo declared no such index, so this state is one the Postgres schema made
-     * REACHABLE rather than one that was always here: there, the double-tap stored
-     * two reports and delivered both.
-     *
      * The winner's row is exactly what the loser should have found, so read it and
      * give the answer the sequential path gives. Read OUTSIDE the transaction —
      * `tx` is aborted by the time the violation surfaces, and any query on it would
      * fail with 25P02.
      */
     if (!isUniqueViolation(error, 'reports_reporter_reported_key')) throw error;
-    const existing = await findDuplicateReport(
-      reporter,
-      reportedId,
-      reportedType as ReportedType,
-    );
+    const existing = await findDuplicateReport(reporter, reportedId, reportedType as ReportedType);
     // No winner to point at means the constraint fired for something this function
     // did not do. Reporting it as a duplicate would be inventing a cause.
     if (!existing) throw error;

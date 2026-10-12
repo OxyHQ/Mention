@@ -58,7 +58,9 @@ describe('canManagePostWithoutLookup — the READ path predicate', () => {
   it('does not admit a viewer just because the post has no writer recorded', () => {
     // An absent `writtenByOxyUserId` must not read as "matches everybody".
     expect(canManagePostWithoutLookup({ oxyUserId: OWNER }, STRANGER)).toBe(false);
-    expect(canManagePostWithoutLookup({ oxyUserId: OWNER, writtenByOxyUserId: '' }, '')).toBe(false);
+    expect(canManagePostWithoutLookup({ oxyUserId: OWNER, writtenByOxyUserId: '' }, '')).toBe(
+      false,
+    );
   });
 });
 
@@ -100,7 +102,9 @@ describe('postManagementRefusal — the WRITE path gate', () => {
     // alone, delete the channel's queued story, rewrite it under the channel's
     // byline, pin it, move it between the channel's lanes and read its private
     // engagement figures, with nothing asked of Oxy anywhere.
-    const reader = memberReaderReturning([{ memberUserId: 'somebody-still-here', status: 'active' }]);
+    const reader = memberReaderReturning([
+      { memberUserId: 'somebody-still-here', status: 'active' },
+    ]);
 
     const refusal = await postManagementRefusal({
       post: { oxyUserId: CHANNEL, writtenByOxyUserId: WRITER },
@@ -165,7 +169,9 @@ describe('postManagementRefusal — the WRITE path gate', () => {
   });
 
   it('refuses a non-member with the SAME 404 a missing post answers', async () => {
-    const reader = memberReaderReturning([{ memberUserId: 'someone-entirely-else', status: 'active' }]);
+    const reader = memberReaderReturning([
+      { memberUserId: 'someone-entirely-else', status: 'active' },
+    ]);
 
     const refusal = await postManagementRefusal({
       post: { oxyUserId: CHANNEL, writtenByOxyUserId: WRITER },
@@ -306,7 +312,9 @@ describe('affordance vs permission', () => {
     const refusal = await postManagementRefusal({
       post,
       callerId: WRITER,
-      memberReader: memberReaderReturning([{ memberUserId: 'somebody-still-here', status: 'active' }]),
+      memberReader: memberReaderReturning([
+        { memberUserId: 'somebody-still-here', status: 'active' },
+      ]),
     });
     expect(refusal?.status).toBe(404);
 

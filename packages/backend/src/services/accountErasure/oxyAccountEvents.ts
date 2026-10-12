@@ -13,7 +13,11 @@
  * handle and names the SDK's refusal.
  */
 
-import type { OxyAccountEvent, OxyAccountEventFeedItem, OxyAccountEventFeedPage } from '@oxy.so/core/server';
+import type {
+  OxyAccountEvent,
+  OxyAccountEventFeedItem,
+  OxyAccountEventFeedPage,
+} from '@oxy.so/core/server';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 
 export type { OxyAccountEvent, OxyAccountEventFeedItem, OxyAccountEventFeedPage };

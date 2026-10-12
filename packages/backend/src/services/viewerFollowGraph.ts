@@ -32,17 +32,17 @@ export async function mergeFederatedFollowIds(
   followingIds: string[],
   acceptedOutboundUris?: Promise<string[]>,
 ): Promise<void> {
-  const fedFollowUris = await (acceptedOutboundUris ?? distinctRemoteActorUris({
-    localUserId,
-    direction: 'outbound',
-    statuses: ['accepted'],
-  }));
+  const fedFollowUris = await (acceptedOutboundUris ??
+    distinctRemoteActorUris({
+      localUserId,
+      direction: 'outbound',
+      statuses: ['accepted'],
+    }));
   if (fedFollowUris.length === 0) return;
 
-  // The Mongo filter also carried `{ oxyUserId: { $ne: null } }`. It is dropped
-  // rather than translated: the loop below already skips an actor with no
-  // `oxyUserId`, and `<> null` in SQL is NULL — not true — so the literal
-  // translation would have matched nothing and quietly emptied the follow graph.
+  // No `oxyUserId <> null` filter: the loop below already skips an actor with
+  // no `oxyUserId`, and `<> null` in SQL is NULL — not true — so it would match
+  // nothing and quietly empty the follow graph.
   const fedActors = await findActorsByUris(fedFollowUris);
 
   const existing = new Set(followingIds);
@@ -76,7 +76,7 @@ export async function loadFollowedAuthorIds(
   const ids: string[] = [];
   if (oxyClient) {
     try {
-      ids.push(...await getFollowingIds(userId, oxyClient));
+      ids.push(...(await getFollowingIds(userId, oxyClient)));
     } catch (error) {
       logger.warn('[viewerFollowGraph] Failed to load following list', error);
     }

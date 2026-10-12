@@ -1,47 +1,42 @@
-import { EmptyState } from "@/components/common/EmptyState";
-import { queryClient } from "@/lib/queryClient";
-import { refreshPrivacyLists } from "@/services/privacyService";
-import { searchService } from "@/services/searchService";
-import { usePrivacyStore } from "@/stores/privacyStore";
-import { Button } from "@oxy.so/bloom/button";
+import { EmptyState } from '@/components/common/EmptyState';
+import { queryClient } from '@/lib/queryClient';
+import { refreshPrivacyLists } from '@/services/privacyService';
+import { searchService } from '@/services/searchService';
+import { usePrivacyStore } from '@/stores/privacyStore';
+import { Button } from '@oxy.so/bloom/button';
 import { RiAddCircleLine } from '@oxy.so/bloom/icons/RiAddCircleLine';
 import { RiInformationFill } from '@oxy.so/bloom/icons/RiInformationFill';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
-import { Loading } from "@oxy.so/bloom/loading";
-import { Search } from "@oxy.so/bloom/search";
-import {
-  SettingsCard,
-  SettingsRow,
-  SettingsSection,
-} from "@oxy.so/bloom/settings-modal";
+import { Loading } from '@oxy.so/bloom/loading';
+import { Search } from '@oxy.so/bloom/search';
+import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
 import {
   confirm as confirmSettingsAction,
   alert as showSettingsAlert,
-} from "@oxy.so/bloom/surfaces";
-import { useTheme } from "@oxy.so/bloom/theme";
-import type { User } from "@oxy.so/core";
-import { createLogger } from "@oxy.so/core/logger";
-import { queryKeys } from "@oxy.so/services/ui/client";
-import { OxyAuthPrompt, useAuth } from "@oxy.so/services/ui/client";
+} from '@oxy.so/bloom/surfaces';
+import { useTheme } from '@oxy.so/bloom/theme';
+import type { User } from '@oxy.so/core';
+import { createLogger } from '@oxy.so/core/logger';
+import { queryKeys } from '@oxy.so/services/ui/client';
+import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Text, View } from 'react-native';
 
-const restrictedLogger = createLogger("RestrictedUsers");
+const restrictedLogger = createLogger('RestrictedUsers');
 
 interface RestrictedUser {
   id?: string;
   _id?: string;
-  name?: User["name"];
+  name?: User['name'];
   username?: string;
   handle?: string;
   // Populated from the SDK `User`/`SearchUserResult` (avatar is `string | null`).
   avatar?: string | null;
 }
 
-const getUserId = (user: RestrictedUser): string | undefined =>
-  user.id || user._id;
+const getUserId = (user: RestrictedUser): string | undefined => user.id || user._id;
 
 export default function RestrictedUsersScreen() {
   const { t } = useTranslation();
@@ -63,42 +58,34 @@ export default function RestrictedUsersScreen() {
   const [restrictedUserIds, setRestrictedUserIds] = useState<string[]>([]);
   const [restrictedUsers, setRestrictedUsers] = useState<RestrictedUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<RestrictedUser[]>([]);
   const [searching, setSearching] = useState(false);
   const [restricting, setRestricting] = useState<string | null>(null);
 
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchAbortControllerRef = useRef<AbortController | null>(null);
-  const restrictedUserIdsSet = useMemo(
-    () => new Set(restrictedUserIds),
-    [restrictedUserIds],
-  );
+  const restrictedUserIdsSet = useMemo(() => new Set(restrictedUserIds), [restrictedUserIds]);
 
   const loadRestrictedUsers = useCallback(async () => {
     if (!canUsePrivateApi) {
-      restrictedLogger.debug("Not authenticated, skipping load");
+      restrictedLogger.debug('Not authenticated, skipping load');
       setLoading(false);
       return;
     }
 
     try {
       setLoading(true);
-      restrictedLogger.debug("Loading restricted users...");
+      restrictedLogger.debug('Loading restricted users...');
       const restrictedUsersList = await oxyServices.privacy.restricted();
-      restrictedLogger.debug("Oxy response", {
+      restrictedLogger.debug('Oxy response', {
         count: restrictedUsersList?.length,
       });
-      let userIds = (
-        restrictedUsersList as unknown as Record<string, unknown>[]
-      )
+      let userIds = (restrictedUsersList as unknown as Record<string, unknown>[])
         .map((user) => {
-          const restrictedId = user.restrictedId as
-            string | { _id?: string } | undefined;
+          const restrictedId = user.restrictedId as string | { _id?: string } | undefined;
           if (restrictedId) {
-            return typeof restrictedId === "string"
-              ? restrictedId
-              : restrictedId._id;
+            return typeof restrictedId === 'string' ? restrictedId : restrictedId._id;
           }
           return (user.id || user._id || user.userId) as string | undefined;
         })
@@ -109,7 +96,7 @@ export default function RestrictedUsersScreen() {
         userIds = userIds.filter((id: string) => id !== currentUserId);
       }
 
-      restrictedLogger.debug("Restricted user IDs filtered", {
+      restrictedLogger.debug('Restricted user IDs filtered', {
         count: userIds.length,
       });
       setRestrictedUserIds(userIds);
@@ -131,20 +118,15 @@ export default function RestrictedUsersScreen() {
       }
       // Preserve order; drop ids the bulk fetch couldn't resolve.
       const byId = new Map(fetched.map((user) => [user.id, user]));
-      const users = userIds
-        .map((id) => byId.get(id))
-        .filter((user): user is User => Boolean(user));
+      const users = userIds.map((id) => byId.get(id)).filter((user): user is User => Boolean(user));
       restrictedLogger.debug(`Loaded ${users.length} users`);
       setRestrictedUsers(users);
     } catch (error) {
       const err = error as { response?: { data?: unknown } };
-      restrictedLogger.error("Error loading restricted users", error, {
+      restrictedLogger.error('Error loading restricted users', error, {
         responseData: err.response?.data,
       });
-      void showSettingsAlert(
-        t("common.error"),
-        t("settings.privacy.failedToLoadRestrictedUsers"),
-      );
+      void showSettingsAlert(t('common.error'), t('settings.privacy.failedToLoadRestrictedUsers'));
     } finally {
       setLoading(false);
     }
@@ -181,10 +163,9 @@ export default function RestrictedUsersScreen() {
             });
             results = Array.isArray(data) ? data : [];
           } catch (oxyError) {
-            restrictedLogger.warn(
-              "oxyServices.users.search failed, falling back",
-              { error: oxyError },
-            );
+            restrictedLogger.warn('oxyServices.users.search failed, falling back', {
+              error: oxyError,
+            });
             const fallbackResults = await searchService.searchUsers(query);
             results = fallbackResults.filter((user) => Boolean(user.name));
           }
@@ -199,17 +180,13 @@ export default function RestrictedUsersScreen() {
 
         const filtered = results.filter((user) => {
           const userId = getUserId(user);
-          return (
-            userId &&
-            !restrictedUserIdsSet.has(userId) &&
-            userId !== currentUser?.id
-          );
+          return userId && !restrictedUserIdsSet.has(userId) && userId !== currentUser?.id;
         });
         setSearchResults(filtered);
       } catch (error) {
         const err = error as { name?: string };
-        if (err.name !== "AbortError") {
-          restrictedLogger.error("Error searching users", error);
+        if (err.name !== 'AbortError') {
+          restrictedLogger.error('Error searching users', error);
         }
       } finally {
         if (!abortController.signal.aborted) {
@@ -257,10 +234,7 @@ export default function RestrictedUsersScreen() {
     if (!userId) return;
 
     if (currentUser?.id === userId) {
-      void showSettingsAlert(
-        t("common.error"),
-        t("settings.privacy.cannotRestrictYourself"),
-      );
+      void showSettingsAlert(t('common.error'), t('settings.privacy.cannotRestrictYourself'));
       return;
     }
 
@@ -272,7 +246,7 @@ export default function RestrictedUsersScreen() {
 
       setSearchResults((prev) => prev.filter((u) => getUserId(u) !== userId));
       await oxyServices.privacy.restrict(userId);
-      restrictedLogger.debug("User restricted successfully");
+      restrictedLogger.debug('User restricted successfully');
 
       // Same as a block: Mention caches the viewer's restricted list per
       // request window, so it has to be told. Best-effort.
@@ -282,19 +256,15 @@ export default function RestrictedUsersScreen() {
 
       await loadRestrictedUsers();
 
-      setSearchQuery("");
-      void showSettingsAlert(
-        t("common.success"),
-        t("settings.privacy.userRestricted"),
-      );
+      setSearchQuery('');
+      void showSettingsAlert(t('common.success'), t('settings.privacy.userRestricted'));
     } catch (error) {
       const err = error as { response?: { data?: { error?: string } } };
-      restrictedLogger.error("Error restricting user", error);
+      restrictedLogger.error('Error restricting user', error);
       setRestrictedUserIds((prev) => prev.filter((id) => id !== userId));
       setRestrictedUsers((prev) => prev.filter((u) => getUserId(u) !== userId));
-      const errorMessage =
-        err.response?.data?.error || t("settings.privacy.failedToRestrictUser");
-      void showSettingsAlert(t("common.error"), errorMessage);
+      const errorMessage = err.response?.data?.error || t('settings.privacy.failedToRestrictUser');
+      void showSettingsAlert(t('common.error'), errorMessage);
     } finally {
       setRestricting(null);
     }
@@ -308,12 +278,10 @@ export default function RestrictedUsersScreen() {
         restrictedLogger.debug(`Unrestricting user: ${userId}`);
 
         setRestrictedUserIds((prev) => prev.filter((id) => id !== userId));
-        setRestrictedUsers((prev) =>
-          prev.filter((u) => getUserId(u) !== userId),
-        );
+        setRestrictedUsers((prev) => prev.filter((u) => getUserId(u) !== userId));
 
         await oxyServices.privacy.unrestrict(userId);
-        restrictedLogger.debug("User unrestricted successfully");
+        restrictedLogger.debug('User unrestricted successfully');
 
         await refreshPrivacyLists();
 
@@ -321,13 +289,10 @@ export default function RestrictedUsersScreen() {
 
         await loadRestrictedUsers();
 
-        void showSettingsAlert(
-          t("common.success"),
-          t("settings.privacy.userUnrestricted"),
-        );
+        void showSettingsAlert(t('common.success'), t('settings.privacy.userUnrestricted'));
       } catch (error) {
         const err = error as { response?: { data?: { error?: string } } };
-        restrictedLogger.error("Error unrestricting user", error, {
+        restrictedLogger.error('Error unrestricting user', error, {
           responseData: err.response?.data,
         });
         if (userToRemove) {
@@ -335,17 +300,16 @@ export default function RestrictedUsersScreen() {
           setRestrictedUsers((prev) => [...prev, userToRemove]);
         }
         const errorMessage =
-          err.response?.data?.error ||
-          t("settings.privacy.failedToUnrestrictUser");
-        void showSettingsAlert(t("common.error"), errorMessage);
+          err.response?.data?.error || t('settings.privacy.failedToUnrestrictUser');
+        void showSettingsAlert(t('common.error'), errorMessage);
       }
     };
 
     void confirmSettingsAction({
-      title: t("settings.privacy.unrestrictUser"),
-      description: t("settings.privacy.unrestrictUserConfirm"),
-      confirmLabel: t("settings.privacy.unrestrict"),
-      cancelLabel: t("common.cancel"),
+      title: t('settings.privacy.unrestrictUser'),
+      description: t('settings.privacy.unrestrictUserConfirm'),
+      confirmLabel: t('settings.privacy.unrestrict'),
+      cancelLabel: t('common.cancel'),
       destructive: true,
     }).then((confirmed) => {
       if (confirmed) void performUnrestrict();
@@ -366,12 +330,12 @@ export default function RestrictedUsersScreen() {
     return (
       <View className="gap-4">
         <OxyAuthPrompt
-          label={t("settings.privacy.restricted.signInRequired", {
-            defaultValue: "Sign in to manage restricted accounts",
+          label={t('settings.privacy.restricted.signInRequired', {
+            defaultValue: 'Sign in to manage restricted accounts',
           })}
-          description={t("settings.privacy.restricted.signInRequiredDesc", {
+          description={t('settings.privacy.restricted.signInRequiredDesc', {
             defaultValue:
-              "Restricted accounts can interact with you but their replies are hidden by default.",
+              'Restricted accounts can interact with you but their replies are hidden by default.',
           })}
         />
       </View>
@@ -386,35 +350,27 @@ export default function RestrictedUsersScreen() {
             <View className="px-4 py-3.5 flex-row items-center gap-3">
               <RiInformationFill width={20} height={20} fill={colors.primary} />
               <Text className="flex-1 text-[13px] text-foreground">
-                {t("settings.privacy.restrictedUsersDescription")}
+                {t('settings.privacy.restrictedUsersDescription')}
               </Text>
             </View>
           </SettingsCard>
         </SettingsSection>
 
-        <SettingsSection label={t("settings.privacy.searchUsersToRestrict")}>
+        <SettingsSection label={t('settings.privacy.searchUsersToRestrict')}>
           <SettingsCard>
             <View className="px-4 py-3 flex-row items-center gap-3">
-              <RiSearchLine
-                width={20}
-                height={20}
-                fill={colors.textSecondary}
-              />
+              <RiSearchLine width={20} height={20} fill={colors.textSecondary} />
               <Search
                 value={searchQuery}
                 onValueChange={handleSearch}
                 autoCapitalize="none"
                 autoCorrect={false}
-                placeholder={t("settings.privacy.searchUsersToRestrict")}
-                label={t("settings.privacy.searchUsersToRestrict")}
-                onClearText={() => handleSearch("")}
+                placeholder={t('settings.privacy.searchUsersToRestrict')}
+                label={t('settings.privacy.searchUsersToRestrict')}
+                onClearText={() => handleSearch('')}
               />
               {searching && (
-                <Loading
-                  className="text-primary"
-                  size="sm"
-                  style={{ flex: undefined }}
-                />
+                <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
               )}
             </View>
           </SettingsCard>
@@ -425,7 +381,7 @@ export default function RestrictedUsersScreen() {
             <SettingsCard>
               {searchResults.map((user) => {
                 const userId = getUserId(user);
-                const handle = user.username || user.handle || "";
+                const handle = user.username || user.handle || '';
                 const isRestricting = restricting === userId;
                 if (!userId || !user.name?.displayName) return null;
 
@@ -451,11 +407,7 @@ export default function RestrictedUsersScreen() {
                           style={{ flex: undefined }}
                         />
                       ) : (
-                        <RiAddCircleLine
-                          width={22}
-                          height={22}
-                          fill={colors.primary}
-                        />
+                        <RiAddCircleLine width={22} height={22} fill={colors.primary} />
                       )}
                     </Button>
                   </SettingsRow>
@@ -468,32 +420,28 @@ export default function RestrictedUsersScreen() {
         {searchQuery.length > 0 && !searching && searchResults.length === 0 && (
           <View className="py-4 items-center">
             <Text className="text-sm text-muted-foreground">
-              {t("settings.privacy.noUsersFound")}
+              {t('settings.privacy.noUsersFound')}
             </Text>
           </View>
         )}
 
-        <SettingsSection label={t("settings.privacy.restrictedUsers")}>
+        <SettingsSection label={t('settings.privacy.restrictedUsers')}>
           <SettingsCard>
             {loading ? (
               <View className="py-10 items-center">
-                <Loading
-                  className="text-primary"
-                  size="lg"
-                  style={{ flex: undefined }}
-                />
+                <Loading className="text-primary" size="lg" style={{ flex: undefined }} />
               </View>
             ) : restrictedUsers.length === 0 ? (
               <View className="py-4">
                 <EmptyState
-                  title={t("settings.privacy.noRestrictedUsers")}
+                  title={t('settings.privacy.noRestrictedUsers')}
                   sticker="restrictedAccounts"
                 />
               </View>
             ) : (
               restrictedUsers.map((user) => {
                 const userId = getUserId(user);
-                const handle = user.username || user.handle || "";
+                const handle = user.username || user.handle || '';
                 if (!userId || !user.name?.displayName) return null;
 
                 return (
@@ -511,19 +459,12 @@ export default function RestrictedUsersScreen() {
                           if (userId) {
                             handleUnrestrict(userId);
                           } else {
-                            restrictedLogger.error(
-                              "No userId found for user",
-                              undefined,
-                              { user },
-                            );
-                            void showSettingsAlert(
-                              t("common.error"),
-                              "Invalid user ID",
-                            );
+                            restrictedLogger.error('No userId found for user', undefined, { user });
+                            void showSettingsAlert(t('common.error'), 'Invalid user ID');
                           }
                         }}
                       >
-                        {t("settings.privacy.unrestrict")}
+                        {t('settings.privacy.unrestrict')}
                       </Button>
                     }
                   </SettingsRow>

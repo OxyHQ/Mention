@@ -2,7 +2,7 @@
  * `topic_stats` — the app-local counters `TopicService` maintains, against real
  * rows.
  *
- * Mongo did all three of these with `bulkWrite` upserts, and each one has a trap
+ * The legacy store did all three of these with `bulkWrite` upserts, and each one has a trap
  * the Postgres form has to answer explicitly:
  *
  *  - `$inc` on an upsert SETS the field to the delta when the row is new and adds
@@ -15,7 +15,7 @@
  *    recurrence is not associative, and applies them in rounds instead.
  *  - `updated_at` has to be written by hand: the column's `$onUpdate` fires on
  *    `db.update()` and never on a conflict branch, so leaving it out silently
- *    freezes the timestamp Mongoose's `timestamps: true` maintained.
+ *    freezes the timestamp the legacy ODM's `timestamps: true` maintained.
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -23,7 +23,10 @@ import { randomUUID } from 'node:crypto';
 import { inArray } from 'drizzle-orm';
 
 vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({}) }));
-vi.mock('../../utils/oxyInference', () => ({ inferenceJSON: vi.fn(), isInferenceEnabled: () => false }));
+vi.mock('../../utils/oxyInference', () => ({
+  inferenceJSON: vi.fn(),
+  isInferenceEnabled: () => false,
+}));
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { topicStats } from '../../db/schema/discovery';
@@ -39,7 +42,10 @@ function topicId(label: string): string {
 }
 
 async function read(id: string) {
-  const [row] = await db.select().from(topicStats).where(inArray(topicStats.topicId, [id]));
+  const [row] = await db
+    .select()
+    .from(topicStats)
+    .where(inArray(topicStats.topicId, [id]));
   return row;
 }
 
@@ -72,7 +78,7 @@ describe('batchIncrementPopularity', () => {
 
   it('sums duplicate ids in ONE call rather than failing the statement', async () => {
     // Postgres refuses to touch one row twice in a single statement, so the fold
-    // has to happen before the insert. Mongo folded them too (by applying both).
+    // has to happen before the insert. The legacy store folded them too (by applying both).
     const id = topicId('duplicate');
 
     await topicService.batchIncrementPopularity([
@@ -141,7 +147,7 @@ describe('updatePopularityFromTrending', () => {
     /**
      * Duplicates really do occur: a name that trends as both a hashtag and a
      * classified topic resolves through `resolveNames` — keyed on the name alone
-     * — to the SAME registry id, so one batch carries two updates for it. Mongo's
+     * — to the SAME registry id, so one batch carries two updates for it. The legacy store's
      * `bulkWrite` applied both in order. Summing them (as the two counters above
      * do) would give a different, wrong number, and a single statement cannot
      * touch the row twice, so the updates go out in rounds.
@@ -151,11 +157,14 @@ describe('updatePopularityFromTrending', () => {
     const weight = 1 - decay;
 
     await topicService.updatePopularityFromTrending(
-      [{ topicId: id, trendingScore: 100 }, { topicId: id, trendingScore: 20 }],
+      [
+        { topicId: id, trendingScore: 100 },
+        { topicId: id, trendingScore: 20 },
+      ],
       decay,
     );
 
-    const expected = (100 * weight) * decay + 20 * weight;
+    const expected = 100 * weight * decay + 20 * weight;
     expect((await read(id)).popularity).toBeCloseTo(expected, 10);
     // Summing first would give (120 * weight) = 60; the sequence gives 35.
     expect((await read(id)).popularity).not.toBeCloseTo(120 * weight, 10);
@@ -167,7 +176,10 @@ describe('updatePopularityFromTrending', () => {
     const decay = 0.7;
 
     await topicService.updatePopularityFromTrending(
-      [{ topicId: first, trendingScore: 10 }, { topicId: second, trendingScore: 40 }],
+      [
+        { topicId: first, trendingScore: 10 },
+        { topicId: second, trendingScore: 40 },
+      ],
       decay,
     );
 

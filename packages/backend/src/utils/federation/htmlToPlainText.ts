@@ -128,7 +128,10 @@ function collapseAnchors(html: string, preserveMentionLinks: boolean): string {
  * lines, which is exactly what that case needs — the author's own paragraph
  * breaks survive, the markup's indentation does not.
  */
-export function htmlToPlainText(html: string, options: { preserveMentionLinks?: boolean } = {}): string {
+export function htmlToPlainText(
+  html: string,
+  options: { preserveMentionLinks?: boolean } = {},
+): string {
   if (!html) return '';
 
   let text = html;

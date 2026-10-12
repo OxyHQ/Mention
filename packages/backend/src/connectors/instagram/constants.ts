@@ -48,7 +48,8 @@ export function isValidInstagramUsername(value: string | undefined | null): valu
 
 /** The IG user id inside an `instagram-graph:<id>` URI, or undefined. */
 export function igUserIdFromActorUri(uri: string | undefined | null): string | undefined {
-  if (typeof uri !== 'string' || !uri.startsWith(INSTAGRAM_GRAPH_ACTOR_URI_PREFIX)) return undefined;
+  if (typeof uri !== 'string' || !uri.startsWith(INSTAGRAM_GRAPH_ACTOR_URI_PREFIX))
+    return undefined;
   const id = uri.slice(INSTAGRAM_GRAPH_ACTOR_URI_PREFIX.length);
   return IG_USER_ID_RE.test(id) ? id : undefined;
 }

@@ -2,11 +2,11 @@
  * `engagement_outbox` and `endorsement_outbox` — the two durable work queues
  * that are not federation delivery.
  *
- * Both keep the lease-based claim shape Mongo used: a worker CLAIMS a row by
+ * Both use a lease-based claim shape: a worker CLAIMS a row by
  * setting `lease_owner` + `lease_until`, and an expired lease is reclaimable, so
  * every consumer must be idempotent on the row's id. That is stated in
  * `EngagementOutbox`'s own docblock ("consumers must therefore use `_id` as
- * their idempotency key") and it survives the port unchanged.
+ * their idempotency key").
  */
 
 import { sql } from 'drizzle-orm';
@@ -57,14 +57,12 @@ export const ENDORSEMENT_OUTBOX_STATUSES = ['pending', 'sent'] as const;
  *
  * ## The payload is COLUMNS, not jsonb
  *
- * Mongo declared `payload` as a nested object with eight named leaves — a known
- * shape, so it becomes columns. The one exception is `postAuthorship`, which
- * Mongo typed `[Schema.Types.Mixed]`: it is a SNAPSHOT of the post's authorship
+ * `payload` is a nested object with eight named leaves — a known
+ * shape, so it is columns. The one exception is `postAuthorship`, an untyped
+ * array: it is a SNAPSHOT of the post's authorship
  * at emit time, carried so a downstream consumer does not have to re-read a post
  * that may have changed. It is reconstructible from `post_authorships`, so it is
- * DROPPED rather than ported as jsonb — the consumer reads the rows. That is a
- * deliberate removal of Mongo baggage and it needs the query phase to make the
- * corresponding read; it is called out in the migration report.
+ * NOT stored as jsonb — the consumer reads the rows.
  */
 export const engagementOutbox = pgTable(
   'engagement_outbox',
@@ -78,8 +76,8 @@ export const engagementOutbox = pgTable(
     /** An Oxy account id — no foreign key. */
     payloadActorOxyUserId: text().notNull(),
     /**
-     * CASCADE: an event about a deleted post has nothing left to do. Mongo left
-     * these behind and the dispatcher discovered the missing post at claim time.
+     * CASCADE: an event about a deleted post has nothing left to do, and the
+     * dispatcher never discovers a missing post at claim time.
      */
     payloadPostId: text()
       .notNull()
@@ -119,18 +117,18 @@ export const engagementOutbox = pgTable(
   (t) => [
     check(
       'engagement_outbox_kind_check',
-      sql`${t.kind} in (${sql.raw(inList(ENGAGEMENT_OUTBOX_KINDS))})`
+      sql`${t.kind} in (${sql.raw(inList(ENGAGEMENT_OUTBOX_KINDS))})`,
     ),
     check(
       'engagement_outbox_status_check',
-      sql`${t.status} in (${sql.raw(inList(ENGAGEMENT_OUTBOX_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(ENGAGEMENT_OUTBOX_STATUSES))})`,
     ),
     check('engagement_outbox_revision_check', sql`${t.revision} >= 1`),
     check('engagement_outbox_attempts_check', sql`${t.attempts} >= 0`),
     check(
       'engagement_outbox_values_check',
       sql`(${t.payloadPreviousValue} is null or ${t.payloadPreviousValue} in (1, -1))
-        and (${t.payloadValue} is null or ${t.payloadValue} in (1, -1))`
+        and (${t.payloadValue} is null or ${t.payloadValue} in (1, -1))`,
     ),
     // Pending work and expired claims are separate bounded scans.
     index('engagement_outbox_due_idx').on(t.status, t.availableAt, t.createdAt),
@@ -140,11 +138,11 @@ export const engagementOutbox = pgTable(
     index('engagement_outbox_relationship_order_idx').on(
       t.payloadRelationshipId,
       t.revision,
-      t.status
+      t.status,
     ),
     // Required by the expiry sweep.
     index('engagement_outbox_expires_at_idx').on(t.expiresAt),
-  ]
+  ],
 );
 
 /**
@@ -181,16 +179,16 @@ export const endorsementOutbox = pgTable(
   (t) => [
     check(
       'endorsement_outbox_source_check',
-      sql`${t.source} in (${sql.raw(inList(ENDORSEMENT_SOURCES))})`
+      sql`${t.source} in (${sql.raw(inList(ENDORSEMENT_SOURCES))})`,
     ),
     check(
       'endorsement_outbox_status_check',
-      sql`${t.status} in (${sql.raw(inList(ENDORSEMENT_OUTBOX_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(ENDORSEMENT_OUTBOX_STATUSES))})`,
     ),
     check('endorsement_outbox_attempts_check', sql`${t.attempts} >= 0`),
     // One row per scope — the upsert target.
     unique('endorsement_outbox_source_source_id_key').on(t.source, t.sourceId),
     // The drain query: pending rows due for an attempt, oldest first.
     index('endorsement_outbox_drain_idx').on(t.status, t.nextAttemptAt),
-  ]
+  ],
 );

@@ -163,10 +163,11 @@ export function extractDeclaredCustomEmojiNames(object: Record<string, unknown>)
     if (primaryApType(tag.type) !== 'Emoji') continue;
     const name = tag.name;
     if (
-      typeof name !== 'string'
-      || name.length > MAX_CUSTOM_EMOJI_NAME_LENGTH
-      || !CUSTOM_EMOJI_NAME.test(name)
-    ) continue;
+      typeof name !== 'string' ||
+      name.length > MAX_CUSTOM_EMOJI_NAME_LENGTH ||
+      !CUSTOM_EMOJI_NAME.test(name)
+    )
+      continue;
     names.add(name);
   }
   // Longest first makes overlapping, origin-declared names deterministic.
@@ -339,7 +340,10 @@ function normalizeRemoteBody(
   hasMedia: boolean,
   customEmojiNames: readonly string[],
 ): string {
-  const rawText = removeDeclaredCustomEmoji(htmlToPlainText(html, { preserveMentionLinks: true }), customEmojiNames);
+  const rawText = removeDeclaredCustomEmoji(
+    htmlToPlainText(html, { preserveMentionLinks: true }),
+    customEmojiNames,
+  );
   const { content } = normalizePostHashtags(rawText);
   const text = normalizeMultilineText(content);
   if (text.length === 0 && rawText.length > 0 && !hasMedia) return rawText;
@@ -424,7 +428,9 @@ function buildApAuthorVariants(
  * Returns `undefined` for a missing / non-string / whitespace-only summary,
  * which is what the empty-note guard and the `Update` unset path both key on.
  */
-export function extractApSummary(object: Record<string, unknown> | null | undefined): string | undefined {
+export function extractApSummary(
+  object: Record<string, unknown> | null | undefined,
+): string | undefined {
   return htmlToInlineLabel(object?.summary);
 }
 
@@ -463,27 +469,33 @@ async function assembleFederatedNoteContent(
   });
 
   const primaryHtml = extractApContentHtml(source);
-  const rawText = removeDeclaredCustomEmoji(htmlToPlainText(primaryHtml, { preserveMentionLinks: true }), customEmojiNames);
+  const rawText = removeDeclaredCustomEmoji(
+    htmlToPlainText(primaryHtml, { preserveMentionLinks: true }),
+    customEmojiNames,
+  );
 
   // Run the centralized hashtag normalizer on every path so an all-hashtag post
   // is stored identically regardless of how it was ingested. `extractApHashtags`
   // supplies the AP `tag` array so non-inline federated tags survive.
-  const { content: normalizedText, hashtags } = normalizePostHashtags(rawText, extractApHashtags(object));
+  const { content: normalizedText, hashtags } = normalizePostHashtags(
+    rawText,
+    extractApHashtags(object),
+  );
 
   const extracted = extractApMedia(object);
-  const { media, attachments } = ctx.materializeMedia === false
-    ? extracted
-    : await materializeFederatedMedia(
-      extracted.media,
-      extracted.attachments,
-      ownerOxyUserId,
-      { activityId: ctx.activityId, actorUri: ctx.actorUri },
-    );
+  const { media, attachments } =
+    ctx.materializeMedia === false
+      ? extracted
+      : await materializeFederatedMedia(extracted.media, extracted.attachments, ownerOxyUserId, {
+          activityId: ctx.activityId,
+          actorUri: ctx.actorUri,
+        });
 
   const rawSummary = extractApSummary(object);
-  const cleanedSummary = rawSummary === undefined
-    ? undefined
-    : normalizeInlineText(removeDeclaredCustomEmoji(rawSummary, customEmojiNames));
+  const cleanedSummary =
+    rawSummary === undefined
+      ? undefined
+      : normalizeInlineText(removeDeclaredCustomEmoji(rawSummary, customEmojiNames));
   const summary = cleanedSummary && cleanedSummary.length > 0 ? cleanedSummary : undefined;
   const sensitive = object.sensitive === true;
 
@@ -575,7 +587,12 @@ export async function buildFederatedNoteContent(
   }
 
   const hasText = built.variants.some((variant) => variant.text.trim().length > 0);
-  if (!hasText && built.media.length === 0 && built.attachments.length === 0 && built.summary === undefined) {
+  if (
+    !hasText &&
+    built.media.length === 0 &&
+    built.attachments.length === 0 &&
+    built.summary === undefined
+  ) {
     const reason = built.customEmojiRemoved
       ? 'empty-after-custom-emoji-removal'
       : 'empty-federated-note';
@@ -669,15 +686,18 @@ export async function buildFederatedNoteContentForEdit(
   ctx: BuildFederatedNoteContentContext = {},
 ): Promise<BuiltFederatedNoteContent> {
   const built = await assembleFederatedNoteContent(object, ownerOxyUserId, ctx);
-  const hasContent = built.variants.some((variant) => variant.text.trim().length > 0)
-    || built.media.length > 0
-    || built.attachments.length > 0
-    || built.summary !== undefined;
+  const hasContent =
+    built.variants.some((variant) => variant.text.trim().length > 0) ||
+    built.media.length > 0 ||
+    built.attachments.length > 0 ||
+    built.summary !== undefined;
   recordContentDecision(
     ctx.ingestPath,
     !hasContent && built.customEmojiRemoved
       ? 'empty-after-custom-emoji-removal'
-      : (built.customEmojiRemoved ? 'custom-emoji-removed' : 'unchanged'),
+      : built.customEmojiRemoved
+        ? 'custom-emoji-removed'
+        : 'unchanged',
   );
   return built;
 }
@@ -706,7 +726,10 @@ export function buildFederatedNoteVariants(
   const source = rewriteHashtagAnchorsInObject(object);
   const customEmojiNames = extractDeclaredCustomEmojiNames(source);
   const primaryHtml = extractApContentHtml(source);
-  const rawText = removeDeclaredCustomEmoji(htmlToPlainText(primaryHtml, { preserveMentionLinks: true }), customEmojiNames);
+  const rawText = removeDeclaredCustomEmoji(
+    htmlToPlainText(primaryHtml, { preserveMentionLinks: true }),
+    customEmojiNames,
+  );
   const { content: normalizedText } = normalizePostHashtags(rawText, extractApHashtags(object));
   let text = normalizeMultilineText(normalizedText);
   if (text.length === 0 && rawText.length > 0 && !hasMedia) {

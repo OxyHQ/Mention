@@ -54,74 +54,78 @@ async function planAfterRepeatedExecutions(withPlanner: boolean): Promise<PlanOu
   const rollback = new Error('roll back the plan fixture');
   let outcome: PlanOutcome = { plan: '', genericPlans: -1 };
 
-  await getDb().transaction(async (tx: Transaction) => {
-    await tx.execute(sql`
+  await getDb()
+    .transaction(async (tx: Transaction) => {
+      await tx.execute(sql`
       insert into posts (id, oxy_user_id, visibility, status, created_at)
       select 'post-search-plan-' || g, 'post-search-plan-author', 'public', 'published',
              date_trunc('milliseconds', now() - g * interval '1 minute')
       from generate_series(1, ${SEEDED_POSTS}) g
     `);
-    await tx.execute(sql`
+      await tx.execute(sql`
       insert into post_content_variants (id, post_id, position, source, body)
       select 'post-search-plan-v' || g, 'post-search-plan-' || g, 0, 'author',
              'common chatter about everyday things number ' || (g % 97)
                || case when g > ${SEEDED_POSTS - 3} then ${` ${RARE_WORD}`} else '' end
       from generate_series(1, ${SEEDED_POSTS}) g
     `);
-    await tx.execute(sql`analyze posts`);
-    await tx.execute(sql`analyze post_content_variants`);
+      await tx.execute(sql`analyze posts`);
+      await tx.execute(sql`analyze post_content_variants`);
 
-    // The worst case, made deterministic: a connection whose cached plan has
-    // already gone generic. Whether Postgres's own heuristic flips it after
-    // five executions depends on table size and the words searched (it did on
-    // 1M seeded posts, it does not on this fixture), so the test does not wait
-    // for the heuristic — it starts from its outcome, which the service's
-    // settings must override.
-    await tx.execute(sql`set local plan_cache_mode = force_generic_plan`);
-    if (withPlanner) await applyPostSearchPlanner(tx);
+      // The worst case, made deterministic: a connection whose cached plan has
+      // already gone generic. Whether Postgres's own heuristic flips it after
+      // five executions depends on table size and the words searched (it did on
+      // 1M seeded posts, it does not on this fixture), so the test does not wait
+      // for the heuristic — it starts from its outcome, which the service's
+      // settings must override.
+      await tx.execute(sql`set local plan_cache_mode = force_generic_plan`);
+      if (withPlanner) await applyPostSearchPlanner(tx);
 
-    // The service's own predicate and order; the word is a bind parameter, as
-    // it is in production.
-    const { sql: text, params } = tx
-      .select({ id: posts.id })
-      .from(posts)
-      .where(and(
-        eq(posts.visibility, 'public'),
-        eq(posts.status, 'published'),
-        postTextMatchSql('placeholder'),
-      ))
-      .orderBy(...chronoOrderBy())
-      .limit(21)
-      .toSQL();
-    const wordIndex = params.indexOf('placeholder');
-    const literal = (value: unknown): string =>
-      typeof value === 'number' ? String(value) : `'${String(value).replace(/'/g, "''")}'`;
-    const argsFor = (word: string): string =>
-      params.map((value, index) => literal(index === wordIndex ? word : value)).join(', ');
+      // The service's own predicate and order; the word is a bind parameter, as
+      // it is in production.
+      const { sql: text, params } = tx
+        .select({ id: posts.id })
+        .from(posts)
+        .where(
+          and(
+            eq(posts.visibility, 'public'),
+            eq(posts.status, 'published'),
+            postTextMatchSql('placeholder'),
+          ),
+        )
+        .orderBy(...chronoOrderBy())
+        .limit(21)
+        .toSQL();
+      const wordIndex = params.indexOf('placeholder');
+      const literal = (value: unknown): string =>
+        typeof value === 'number' ? String(value) : `'${String(value).replace(/'/g, "''")}'`;
+      const argsFor = (word: string): string =>
+        params.map((value, index) => literal(index === wordIndex ? word : value)).join(', ');
 
-    await tx.execute(sql.raw(`prepare ${PREPARED} as ${text}`));
-    try {
-      // Past the five custom plans after which Postgres considers a generic one,
-      // with the mix a live connection sees: common words and rare ones.
-      for (const word of ['common', RARE_WORD, 'chatter', RARE_WORD, 'everyday', RARE_WORD]) {
-        await tx.execute(sql.raw(`execute ${PREPARED}(${argsFor(word)})`));
+      await tx.execute(sql.raw(`prepare ${PREPARED} as ${text}`));
+      try {
+        // Past the five custom plans after which Postgres considers a generic one,
+        // with the mix a live connection sees: common words and rare ones.
+        for (const word of ['common', RARE_WORD, 'chatter', RARE_WORD, 'everyday', RARE_WORD]) {
+          await tx.execute(sql.raw(`execute ${PREPARED}(${argsFor(word)})`));
+        }
+        const rows = await tx.execute<Record<string, string>>(
+          sql.raw(`explain execute ${PREPARED}(${argsFor(RARE_WORD)})`),
+        );
+        const [{ generic_plans: genericPlans }] = await tx.execute<{ generic_plans: number }>(
+          sql`select generic_plans::int from pg_prepared_statements where name = ${PREPARED}`,
+        );
+        outcome = { plan: rows.map((row) => Object.values(row)[0]).join('\n'), genericPlans };
+      } finally {
+        // Session-scoped, so a rollback does not remove it; the pooled connection
+        // must not carry it into another suite.
+        await tx.execute(sql.raw(`deallocate ${PREPARED}`));
       }
-      const rows = await tx.execute<Record<string, string>>(
-        sql.raw(`explain execute ${PREPARED}(${argsFor(RARE_WORD)})`),
-      );
-      const [{ generic_plans: genericPlans }] = await tx.execute<{ generic_plans: number }>(
-        sql`select generic_plans::int from pg_prepared_statements where name = ${PREPARED}`,
-      );
-      outcome = { plan: rows.map((row) => Object.values(row)[0]).join('\n'), genericPlans };
-    } finally {
-      // Session-scoped, so a rollback does not remove it; the pooled connection
-      // must not carry it into another suite.
-      await tx.execute(sql.raw(`deallocate ${PREPARED}`));
-    }
-    throw rollback;
-  }).catch((error: unknown) => {
-    if (error !== rollback) throw error;
-  });
+      throw rollback;
+    })
+    .catch((error: unknown) => {
+      if (error !== rollback) throw error;
+    });
 
   return outcome;
 }

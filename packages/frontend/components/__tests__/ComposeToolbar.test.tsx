@@ -67,7 +67,14 @@ jest.mock('@oxy.so/bloom/hooks', () => ({ useHaptics: () => jest.fn() }));
 jest.mock('@oxy.so/bloom/button', () => {
   const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
-    GlyphButton: ({ children, accessibilityLabel, disabled = false, busy = false, onPress, color }: {
+    GlyphButton: ({
+      children,
+      accessibilityLabel,
+      disabled = false,
+      busy = false,
+      onPress,
+      color,
+    }: {
       children: (foreground: string) => React.ReactNode;
       accessibilityLabel: string;
       disabled?: boolean;
@@ -132,7 +139,9 @@ function render(props: Partial<React.ComponentProps<typeof ComposeToolbar>> = {}
 }
 
 function iconNames(tree: TestRenderer.ReactTestRenderer): string[] {
-  return tree.root.findAll((node) => iconName(node) !== undefined).map((node) => String(iconName(node)));
+  return tree.root
+    .findAll((node) => iconName(node) !== undefined)
+    .map((node) => String(iconName(node)));
 }
 
 /** Ionicons by glyph name, Bloom icons by export name; `undefined` for anything else. */
@@ -167,8 +176,9 @@ function a11yLabels(tree: TestRenderer.ReactTestRenderer): string[] {
 }
 
 beforeAll(() => {
-  (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
-    .IS_REACT_ACT_ENVIRONMENT = true;
+  (
+    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true;
 });
 
 describe('ComposeToolbar — the batch-level controls that were moved out', () => {
@@ -177,7 +187,9 @@ describe('ComposeToolbar — the batch-level controls that were moved out', () =
 
     // Both states of the glyph the control used to draw, so putting it back
     // under any prop name fails here.
-    expect(iconNames(tree).filter((name) => /^(language(-outline)?|RiGlobalLine)$/.test(name))).toEqual([]);
+    expect(
+      iconNames(tree).filter((name) => /^(language(-outline)?|RiGlobalLine)$/.test(name)),
+    ).toEqual([]);
     expect(a11yLabels(tree)).not.toContain('Add a language');
 
     act(() => tree.unmount());
@@ -282,8 +294,7 @@ describe('ComposeToolbar — the collaborators control', () => {
 
   it('tints itself once the post actually names a collaborator', () => {
     const peopleColor = (tree: TestRenderer.ReactTestRenderer) =>
-      tree.root
-        .findAll((node) => /^RiGroup(Line|Fill)$/.test(iconName(node) ?? ''))[0]?.props.fill;
+      tree.root.findAll((node) => /^RiGroup(Line|Fill)$/.test(iconName(node) ?? ''))[0]?.props.fill;
 
     const plain = render({ onCollaboratorsPress: noop });
     const plainColor = peopleColor(plain);
@@ -370,7 +381,9 @@ describe('ComposeToolbar — fitting the screen', () => {
 
   it('keeps the last icon off the screen edge', () => {
     const tree = render({ ...EVERY_HANDLER, contentPaddingLeft: 68 });
-    const content = StyleSheet.flatten(tree.root.findByType(ScrollView).props.contentContainerStyle);
+    const content = StyleSheet.flatten(
+      tree.root.findByType(ScrollView).props.contentContainerStyle,
+    );
 
     expect(content.paddingLeft).toBe(68);
     expect(content.paddingRight).toBeGreaterThan(0);
@@ -386,31 +399,48 @@ describe('ComposeToolbar — fitting the screen', () => {
  */
 describe('ComposeToolbar — what assistive technology is told', () => {
   const pressables = (tree: TestRenderer.ReactTestRenderer) =>
-    tree.root.findAll((node) => typeof node.props.onPress === 'function' && typeof node.type !== 'string'
-      && node.props.accessibilityRole !== undefined);
+    tree.root.findAll(
+      (node) =>
+        typeof node.props.onPress === 'function' &&
+        typeof node.type !== 'string' &&
+        node.props.accessibilityRole !== undefined,
+    );
 
   it('names every control and gives each the button role', () => {
     const tree = render(EVERY_HANDLER);
     const controls = pressables(tree);
 
     // One distinct name per handler handed in: none missing, none shared.
-    expect(new Set(controls.map((node) => node.props.accessibilityLabel)).size)
-      .toBe(Object.keys(EVERY_HANDLER).length);
+    expect(new Set(controls.map((node) => node.props.accessibilityLabel)).size).toBe(
+      Object.keys(EVERY_HANDLER).length,
+    );
     for (const control of controls) {
       expect(control.props.accessibilityRole).toBe('button');
       expect(String(control.props.accessibilityLabel ?? '').trim()).not.toBe('');
     }
-    expect(a11yLabels(tree)).toEqual(expect.arrayContaining([
-      'Add photos or videos', 'Add a GIF', 'Add an emoji', 'Add a poll', 'Add sources',
-      'Write an article', 'Add an event', 'Attach a live room', 'Add a podcast', 'Add your location',
-    ]));
+    expect(a11yLabels(tree)).toEqual(
+      expect.arrayContaining([
+        'Add photos or videos',
+        'Add a GIF',
+        'Add an emoji',
+        'Add a poll',
+        'Add sources',
+        'Write an article',
+        'Add an event',
+        'Attach a live room',
+        'Add a podcast',
+        'Add your location',
+      ]),
+    );
 
     act(() => tree.unmount());
   });
 
   it('reports a control that cannot be used right now as disabled', () => {
     const tree = render({ ...EVERY_HANDLER, hasPoll: true });
-    const media = pressables(tree).find((node) => node.props.accessibilityLabel === 'Add photos or videos');
+    const media = pressables(tree).find(
+      (node) => node.props.accessibilityLabel === 'Add photos or videos',
+    );
 
     expect(media?.props.accessibilityState).toEqual(expect.objectContaining({ disabled: true }));
 
@@ -419,7 +449,9 @@ describe('ComposeToolbar — what assistive technology is told', () => {
 
   it('reports the location control as busy while it locates', () => {
     const tree = render({ onLocationPress: jest.fn(), isGettingLocation: true });
-    const location = pressables(tree).find((node) => node.props.accessibilityLabel === 'Add your location');
+    const location = pressables(tree).find(
+      (node) => node.props.accessibilityLabel === 'Add your location',
+    );
 
     expect(location?.props.accessibilityState).toEqual({ disabled: false, busy: true });
     expect(location?.props.disabled).toBe(true);
@@ -429,26 +461,39 @@ describe('ComposeToolbar — what assistive technology is told', () => {
 });
 
 describe('ComposeToolbar — what the tint says', () => {
-  const eventColor = (tree: TestRenderer.ReactTestRenderer) => tree.root.findByType(CalendarIcon).props.color;
+  const eventColor = (tree: TestRenderer.ReactTestRenderer) =>
+    tree.root.findByType(CalendarIcon).props.color;
 
   it('tints an attachment the post carries, and flags sources that need a title', () => {
     const plain = render({ onEventPress: noop, onSourcesPress: noop });
     expect(eventColor(plain)).toBe('#666');
     act(() => plain.unmount());
 
-    const attached = render({ onEventPress: noop, hasEvent: true, onSourcesPress: noop, hasSources: true });
+    const attached = render({
+      onEventPress: noop,
+      hasEvent: true,
+      onSourcesPress: noop,
+      hasSources: true,
+    });
     expect(eventColor(attached)).toBe('#7c3aed');
     act(() => attached.unmount());
 
     const invalid = render({ onSourcesPress: noop, hasSources: true, hasSourceErrors: true });
-    const sources = invalid.root.find((node) => node.props.accessibilityLabel === 'Add sources' && typeof node.type !== 'string');
+    const sources = invalid.root.find(
+      (node) => node.props.accessibilityLabel === 'Add sources' && typeof node.type !== 'string',
+    );
     expect(sources.findAll((node) => node.props.color === '#e11d48').length).toBeGreaterThan(0);
     act(() => invalid.unmount());
   });
 
   it('shows a spinner in place of the location glyph while it locates', () => {
     const tree = render({ onLocationPress: noop, isGettingLocation: true, hasLocation: true });
-    expect(tree.root.findAll((node) => node.props.accessibilityLabel === 'Add your location' && typeof node.type !== 'string').length).toBeGreaterThan(0);
+    expect(
+      tree.root.findAll(
+        (node) =>
+          node.props.accessibilityLabel === 'Add your location' && typeof node.type !== 'string',
+      ).length,
+    ).toBeGreaterThan(0);
     act(() => tree.unmount());
   });
 });

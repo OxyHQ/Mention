@@ -1,10 +1,7 @@
-import {
-SORT_OPTIONS,
-useThreadPreferencesStore,
-} from "@/hooks/useThreadPreferences";
-import { SettingsCard, SettingsRow } from "@oxy.so/bloom/settings-modal/rows";
-import { useTranslation } from "react-i18next";
-import { SettingsSelect } from "./SettingsSelect";
+import { SORT_OPTIONS, useThreadPreferencesStore } from '@/hooks/useThreadPreferences';
+import { SettingsCard, SettingsRow } from '@oxy.so/bloom/settings-modal/rows';
+import { useTranslation } from 'react-i18next';
+import { SettingsSelect } from './SettingsSelect';
 
 /** One reply-sorting model and Bloom row for both settings and reply preferences. */
 export function ThreadSortGroup({ title }: { title: string }) {

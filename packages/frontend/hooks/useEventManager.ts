@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback } from 'react';
 
 export interface EventData {
   name: string;
@@ -10,16 +10,16 @@ export interface EventData {
 export const useEventManager = () => {
   const [event, setEvent] = useState<EventData | null>(null);
   const [isEventEditorVisible, setIsEventEditorVisible] = useState(false);
-  const [eventDraftName, setEventDraftName] = useState("");
-  const [eventDraftDate, setEventDraftDate] = useState("");
-  const [eventDraftLocation, setEventDraftLocation] = useState("");
-  const [eventDraftDescription, setEventDraftDescription] = useState("");
+  const [eventDraftName, setEventDraftName] = useState('');
+  const [eventDraftDate, setEventDraftDate] = useState('');
+  const [eventDraftLocation, setEventDraftLocation] = useState('');
+  const [eventDraftDescription, setEventDraftDescription] = useState('');
 
   const openEventEditor = useCallback(() => {
-    setEventDraftName(event?.name || "");
+    setEventDraftName(event?.name || '');
     setEventDraftDate(event?.date || new Date().toISOString());
-    setEventDraftLocation(event?.location || "");
-    setEventDraftDescription(event?.description || "");
+    setEventDraftLocation(event?.location || '');
+    setEventDraftDescription(event?.description || '');
     setIsEventEditorVisible(true);
   }, [event]);
 
@@ -33,8 +33,8 @@ export const useEventManager = () => {
     if (!name || !date) {
       setEvent(null);
     } else {
-      setEvent({ 
-        name, 
+      setEvent({
+        name,
         date,
         location: eventDraftLocation.trim() || undefined,
         description: eventDraftDescription.trim() || undefined,
@@ -45,10 +45,10 @@ export const useEventManager = () => {
 
   const removeEvent = useCallback(() => {
     setEvent(null);
-    setEventDraftName("");
-    setEventDraftDate("");
-    setEventDraftLocation("");
-    setEventDraftDescription("");
+    setEventDraftName('');
+    setEventDraftDate('');
+    setEventDraftLocation('');
+    setEventDraftDescription('');
   }, []);
 
   const loadEventFromDraft = useCallback((draftEvent: EventData | null) => {
@@ -57,10 +57,10 @@ export const useEventManager = () => {
 
   const clearEvent = useCallback(() => {
     setEvent(null);
-    setEventDraftName("");
-    setEventDraftDate("");
-    setEventDraftLocation("");
-    setEventDraftDescription("");
+    setEventDraftName('');
+    setEventDraftDate('');
+    setEventDraftLocation('');
+    setEventDraftDescription('');
     setIsEventEditorVisible(false);
   }, []);
 
@@ -84,4 +84,3 @@ export const useEventManager = () => {
     clearEvent,
   };
 };
-

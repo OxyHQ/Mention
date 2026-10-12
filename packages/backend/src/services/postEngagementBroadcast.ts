@@ -119,9 +119,7 @@ function buildPayload(
  * settings read that fails, or a room nobody is in can never turn a successful
  * like into a failed request.
  */
-export async function broadcastPostEngagement(
-  input: BroadcastPostEngagementInput,
-): Promise<void> {
+export async function broadcastPostEngagement(input: BroadcastPostEngagementInput): Promise<void> {
   const io = getRuntimeSocketServer();
   if (!io || !input.postId) return;
 

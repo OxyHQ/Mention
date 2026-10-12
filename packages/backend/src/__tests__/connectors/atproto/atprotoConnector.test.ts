@@ -121,7 +121,12 @@ describe('AtprotoConnector.deliver', () => {
     await expect(
       atprotoConnector.deliver({
         kind: 'post.create',
-        post: { _id: 'p1', content: { text: 'hi' }, visibility: 'public', createdAt: '2024-01-01T00:00:00.000Z' },
+        post: {
+          _id: 'p1',
+          content: { text: 'hi' },
+          visibility: 'public',
+          createdAt: '2024-01-01T00:00:00.000Z',
+        },
         actorOxyUserId: 'viewer-1',
         actorUsername: 'viewer',
       }),

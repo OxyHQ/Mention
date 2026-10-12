@@ -48,11 +48,11 @@ vi.mock('../../utils/notificationUtils', async (importOriginal) => ({
 import { uuidv7 } from '@oxy.so/db';
 
 /**
- * A PLAIN record, not a Mongoose document.
+ * A PLAIN record, not a legacy-ODM document.
  *
  * `PostCreationService.create` returns a `PostRecord` now, and the controller
  * SPREADS what it gets back (`{ ...post, threadId: post.id }`) to anchor a
- * self-thread root. Spreading a Mongoose document copies the wrapper's own
+ * self-thread root. Spreading a legacy-ODM document copies the wrapper's own
  * enumerable properties and NOT the schema fields, so a document double loses
  * `content` at exactly that line — a 500 the controller logs and discards.
  */
@@ -264,7 +264,9 @@ describe('createThread — a scheduled batch stays invisible until it publishes'
   it('DOES notify for an unscheduled batch, so the suppression is about scheduling', async () => {
     const { res } = buildResponse();
     await createThread(
-      buildRequest(beastBody({ posts: [{ content: { text: 'Hi @someone' }, mentions: ['user_2'] }] })) as never,
+      buildRequest(
+        beastBody({ posts: [{ content: { text: 'Hi @someone' }, mentions: ['user_2'] }] }),
+      ) as never,
       res as never,
     );
 

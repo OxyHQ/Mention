@@ -142,7 +142,10 @@ export class BlocklistProposalScheduler {
     // happening, which is precisely what the run history exists to make visible.
     const latestStartedAt = await latestProposalRunStartedAt();
 
-    if (latestStartedAt && Date.now() - latestStartedAt.getTime() < BLOCKLIST_PROPOSAL_INTERVAL_MS) {
+    if (
+      latestStartedAt &&
+      Date.now() - latestStartedAt.getTime() < BLOCKLIST_PROPOSAL_INTERVAL_MS
+    ) {
       return;
     }
 

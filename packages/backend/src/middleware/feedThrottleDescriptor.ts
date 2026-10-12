@@ -6,10 +6,7 @@ import {
 import type { Request } from 'express';
 import { queryString } from '../utils/queryParams';
 
-const EXPENSIVE_FEED_SOURCES: ReadonlySet<FeedDescriptorSource> = new Set([
-  'for_you',
-  'explore',
-]);
+const EXPENSIVE_FEED_SOURCES: ReadonlySet<FeedDescriptorSource> = new Set(['for_you', 'explore']);
 
 /**
  * Resolve the canonical source used by the MTN feed controller.
@@ -18,7 +15,9 @@ const EXPENSIVE_FEED_SOURCES: ReadonlySet<FeedDescriptorSource> = new Set([
  * that same validated contract. A separate query parameter must never influence
  * rate classification for a request the controller itself will reject.
  */
-export function getValidatedFeedSource(req: Pick<Request, 'query'>): FeedDescriptorSource | undefined {
+export function getValidatedFeedSource(
+  req: Pick<Request, 'query'>,
+): FeedDescriptorSource | undefined {
   const descriptor = queryString(req.query.descriptor);
   return descriptor && isValidFeedDescriptor(descriptor)
     ? parseFeedDescriptor(descriptor).source

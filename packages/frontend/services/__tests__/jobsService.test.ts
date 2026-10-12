@@ -45,10 +45,14 @@ describe('jobsService', () => {
     expect(mockAuthenticated.get).toHaveBeenCalledWith('/jobs', { params: { q: 'engineer' } });
 
     await jobsService.getMine({ status: 'published' });
-    expect(mockAuthenticated.get).toHaveBeenCalledWith('/jobs/mine', { params: { status: 'published' } });
+    expect(mockAuthenticated.get).toHaveBeenCalledWith('/jobs/mine', {
+      params: { status: 'published' },
+    });
 
     await jobsService.getOrganizationJobs('employer-1', { limit: 10 });
-    expect(mockAuthenticated.get).toHaveBeenCalledWith('/jobs/organization/employer-1', { params: { limit: 10 } });
+    expect(mockAuthenticated.get).toHaveBeenCalledWith('/jobs/organization/employer-1', {
+      params: { limit: 10 },
+    });
 
     await jobsService.get('job-1');
     expect(mockAuthenticated.get).toHaveBeenCalledWith('/jobs/job-1');
@@ -74,10 +78,15 @@ describe('jobsService', () => {
       applicationMode: 'external',
       externalApplyUrl: 'https://example.com',
     });
-    expect(mockAuthenticated.post).toHaveBeenCalledWith('/jobs', expect.objectContaining({ title: 'Widget Engineer' }));
+    expect(mockAuthenticated.post).toHaveBeenCalledWith(
+      '/jobs',
+      expect.objectContaining({ title: 'Widget Engineer' }),
+    );
 
     await jobsService.update('job-1', { title: 'Senior Widget Engineer' });
-    expect(mockAuthenticated.put).toHaveBeenCalledWith('/jobs/job-1', { title: 'Senior Widget Engineer' });
+    expect(mockAuthenticated.put).toHaveBeenCalledWith('/jobs/job-1', {
+      title: 'Senior Widget Engineer',
+    });
 
     await jobsService.publish('job-1');
     expect(mockAuthenticated.post).toHaveBeenCalledWith('/jobs/job-1/publish');

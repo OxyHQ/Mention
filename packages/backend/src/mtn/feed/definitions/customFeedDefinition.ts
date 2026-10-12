@@ -42,7 +42,9 @@ export type CustomFeedSource = {
 
 /** Whether the definition excludes boosts (so boost hydration depth is unneeded). */
 function excludesBoosts(def: StoredFeedDefinition): boolean {
-  return (def.filters ?? []).some((f) => f.enabled && (f.module === 'noBoosts' || f.module === 'originalOnly'));
+  return (def.filters ?? []).some(
+    (f) => f.enabled && (f.module === 'noBoosts' || f.module === 'originalOnly'),
+  );
 }
 
 /**
@@ -91,8 +93,7 @@ export async function loadCustomFeedDefinition(
   // — and the symptom was a feed the user built loading as "not found".
   if (!feedId) return null;
 
-  // Postgres, through the shared reassembly. This read the Mongo `CustomFeed`
-  // model, which nothing writes any more: every write goes through
+  // Postgres, through the shared reassembly: every write goes through
   // `routes/customFeeds.routes.ts` into `custom_feeds`.
   const feed = await loadCustomFeedSource(feedId);
   if (!feed) return null;

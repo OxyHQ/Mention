@@ -13,7 +13,10 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { displayNameOrHandle } from '@/utils/displayName';
 import type { JobAttachmentData } from '@/hooks/useJobAttachmentManager';
 
-const STATUS_TONE: Record<MentionJobStatus, 'default' | 'primary' | 'success' | 'warning' | 'error' | 'info'> = {
+const STATUS_TONE: Record<
+  MentionJobStatus,
+  'default' | 'primary' | 'success' | 'warning' | 'error' | 'info'
+> = {
   draft: 'default',
   published: 'success',
   paused: 'warning',
@@ -49,7 +52,11 @@ interface JobPickerSheetProps {
  * — an account's own job list is small enough to show in full, unlike the
  * external Syra podcast catalog.
  */
-const JobPickerSheet = memo(function JobPickerSheet({ employer, onSelect, onClose }: JobPickerSheetProps) {
+const JobPickerSheet = memo(function JobPickerSheet({
+  employer,
+  onSelect,
+  onClose,
+}: JobPickerSheetProps) {
   const { t } = useTranslation();
   const { user, canUsePrivateApi } = useAuth();
 
@@ -61,7 +68,10 @@ const JobPickerSheet = memo(function JobPickerSheet({ employer, onSelect, onClos
     enabled: canUsePrivateApi,
   });
 
-  const employerName = displayNameOrHandle(employer.account.name?.displayName, `@${employer.account.username}`);
+  const employerName = displayNameOrHandle(
+    employer.account.name?.displayName,
+    `@${employer.account.username}`,
+  );
   const jobs = (data?.jobs ?? []).filter((job) => job.employerOxyUserId === employer.accountId);
 
   const handleSelect = useCallback(
@@ -90,7 +100,8 @@ const JobPickerSheet = memo(function JobPickerSheet({ employer, onSelect, onClos
         ) : jobs.length === 0 ? (
           <Text className="text-muted-foreground text-[15px] text-center py-10 px-4">
             {t('compose.job.empty', {
-              defaultValue: '{{employer}} has no job listings yet. Create one from your Jobs dashboard first.',
+              defaultValue:
+                '{{employer}} has no job listings yet. Create one from your Jobs dashboard first.',
               employer: employerName,
             })}
           </Text>
@@ -102,7 +113,14 @@ const JobPickerSheet = memo(function JobPickerSheet({ employer, onSelect, onClos
               <Item
                 onPress={() => handleSelect(item)}
                 title={item.title}
-                trailing={<Badge content={item.status} color={STATUS_TONE[item.status]} variant="subtle" size="small" />}
+                trailing={
+                  <Badge
+                    content={item.status}
+                    color={STATUS_TONE[item.status]}
+                    variant="subtle"
+                    size="small"
+                  />
+                }
               />
             )}
             className="max-h-[340px]"

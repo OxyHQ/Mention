@@ -20,7 +20,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 const mockGet = jest.fn();
 const mockPost = jest.fn();
 
-const mockAuth: { user: { id: string } | null; isAuthenticated: boolean; canUsePrivateApi: boolean } = {
+const mockAuth: {
+  user: { id: string } | null;
+  isAuthenticated: boolean;
+  canUsePrivateApi: boolean;
+} = {
   user: { id: 'viewer-1' },
   isAuthenticated: true,
   canUsePrivateApi: true,
@@ -104,7 +108,10 @@ async function settle() {
  */
 async function readyHandlers(): Promise<Required<Pick<Handlers, 'submitNote' | 'rateNote'>>> {
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (typeof latestHandlers?.submitNote === 'function' && typeof latestHandlers?.rateNote === 'function') {
+    if (
+      typeof latestHandlers?.submitNote === 'function' &&
+      typeof latestHandlers?.rateNote === 'function'
+    ) {
       return latestHandlers as Required<Pick<Handlers, 'submitNote' | 'rateNote'>>;
     }
     await settle();
@@ -122,7 +129,9 @@ function availability(enabled: boolean) {
 }
 
 beforeAll(() => {
-  (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  (
+    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true;
 });
 
 beforeEach(() => {
@@ -180,7 +189,10 @@ describe('the write handlers', () => {
     mockPost.mockResolvedValue({ data: { note: { id: 'n1' } } });
 
     await act(async () => {
-      await handlers.submitNote('p1', { text: '  context  ', sourceUrl: ' https://example.org/s ' });
+      await handlers.submitNote('p1', {
+        text: '  context  ',
+        sourceUrl: ' https://example.org/s ',
+      });
     });
 
     expect(mockPost).toHaveBeenCalledWith('/community-notes', {
@@ -235,7 +247,8 @@ describe('the hub', () => {
     mockPost.mockResolvedValue({ data: { entries: [{ note: { id: 'n1' }, post: { id: 'p1' } }] } });
     mockGet.mockImplementation(async (path: string) => {
       if (path === '/community-notes/availability') return { data: { enabled: true } };
-      if (path === '/community-notes/mine') return { data: { entries: [{ note: { id: 'n2' }, post: { id: 'p2' } }] } };
+      if (path === '/community-notes/mine')
+        return { data: { entries: [{ note: { id: 'n2' }, post: { id: 'p2' } }] } };
       return { data: { entries: [] } };
     });
 
@@ -243,11 +256,17 @@ describe('the hub', () => {
     // Same reason as `readyHandlers`: two fixed macrotasks were enough on an
     // idle machine and not on a loaded CI runner (failed there 2026-09-24).
     // Settle until the hub has drawn, bounded, then assert what it drew.
-    for (let attempt = 0; attempt < 20 && !(latestHub?.toRate?.length && latestHub?.written?.length); attempt += 1) {
+    for (
+      let attempt = 0;
+      attempt < 20 && !(latestHub?.toRate?.length && latestHub?.written?.length);
+      attempt += 1
+    ) {
       await settle();
     }
 
-    expect(mockPost.mock.calls.filter(([path]) => path === '/community-notes/to-rate')).toHaveLength(1);
+    expect(
+      mockPost.mock.calls.filter(([path]) => path === '/community-notes/to-rate'),
+    ).toHaveLength(1);
     expect(latestHub?.toRate).toHaveLength(1);
     expect(latestHub?.written).toHaveLength(1);
     expect(latestHub?.rated).toEqual([]);

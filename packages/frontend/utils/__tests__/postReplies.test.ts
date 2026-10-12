@@ -90,8 +90,10 @@ describe('postAcceptsReplies', () => {
  * only that is a decision somebody made.
  */
 describe('reportableReplyPermission', () => {
-  it('passes the author\'s own restriction through', () => {
-    expect(reportableReplyPermission(makePost({ replyPermission: ['nobody'] }))).toEqual(['nobody']);
+  it("passes the author's own restriction through", () => {
+    expect(reportableReplyPermission(makePost({ replyPermission: ['nobody'] }))).toEqual([
+      'nobody',
+    ]);
     expect(reportableReplyPermission(makePost({ replyPermission: ['following'] }))).toEqual([
       'following',
     ]);

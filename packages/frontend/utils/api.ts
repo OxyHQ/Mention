@@ -21,9 +21,7 @@ interface DataResponse<T> {
  */
 function readerLanguageHeaders(): Record<string, string> {
   const language = i18n.language;
-  return typeof language === 'string' && language.length > 0
-    ? { 'Accept-Language': language }
-    : {};
+  return typeof language === 'string' && language.length > 0 ? { 'Accept-Language': language } : {};
 }
 
 function withReaderLanguage<C extends { headers?: Record<string, string> }>(config?: C): C {
@@ -83,22 +81,37 @@ const authenticatedClient = {
     return { data };
   },
 
-  async post<T = unknown>(endpoint: string, body?: unknown, config?: LinkedRequestConfig): Promise<DataResponse<T>> {
+  async post<T = unknown>(
+    endpoint: string,
+    body?: unknown,
+    config?: LinkedRequestConfig,
+  ): Promise<DataResponse<T>> {
     const data = await linkedClient.post<T>(endpoint, body, withReaderLanguage(config));
     return { data };
   },
 
-  async put<T = unknown>(endpoint: string, body?: unknown, config?: LinkedRequestConfig): Promise<DataResponse<T>> {
+  async put<T = unknown>(
+    endpoint: string,
+    body?: unknown,
+    config?: LinkedRequestConfig,
+  ): Promise<DataResponse<T>> {
     const data = await linkedClient.put<T>(endpoint, body, withReaderLanguage(config));
     return { data };
   },
 
-  async delete<T = unknown>(endpoint: string, config?: LinkedDeleteConfig): Promise<DataResponse<T>> {
+  async delete<T = unknown>(
+    endpoint: string,
+    config?: LinkedDeleteConfig,
+  ): Promise<DataResponse<T>> {
     const data = await linkedClient.delete<T>(endpoint, withReaderLanguage(config));
     return { data };
   },
 
-  async patch<T = unknown>(endpoint: string, body?: unknown, config?: LinkedRequestConfig): Promise<DataResponse<T>> {
+  async patch<T = unknown>(
+    endpoint: string,
+    body?: unknown,
+    config?: LinkedRequestConfig,
+  ): Promise<DataResponse<T>> {
     const data = await linkedClient.patch<T>(endpoint, body, withReaderLanguage(config));
     return { data };
   },

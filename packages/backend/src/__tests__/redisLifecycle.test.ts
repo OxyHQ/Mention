@@ -228,11 +228,7 @@ describe('Redis singleton supervisor', () => {
 
     const blockedOperation = vi.fn().mockResolvedValue('must-not-run');
     await expect(
-      withRedisFallback(
-        client as unknown as RedisClientType,
-        blockedOperation,
-        'fallback',
-      ),
+      withRedisFallback(client as unknown as RedisClientType, blockedOperation, 'fallback'),
     ).resolves.toBe('fallback');
     expect(blockedOperation).not.toHaveBeenCalled();
 
@@ -242,11 +238,7 @@ describe('Redis singleton supervisor', () => {
 
     const recoveredOperation = vi.fn().mockResolvedValue('recovered');
     await expect(
-      withRedisFallback(
-        client as unknown as RedisClientType,
-        recoveredOperation,
-        'fallback',
-      ),
+      withRedisFallback(client as unknown as RedisClientType, recoveredOperation, 'fallback'),
     ).resolves.toBe('recovered');
     expect(recoveredOperation).toHaveBeenCalledOnce();
     expect(redis.getRedisStats().status).toBe('ready');

@@ -1,8 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import {
-    View,
-    TouchableOpacity,
-} from 'react-native';
+import { View, TouchableOpacity } from 'react-native';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
@@ -23,15 +20,19 @@ import { notificationService } from '@/services/notificationService';
 import { useTranslation } from 'react-i18next';
 import { normalizeApiError } from '@/utils/apiError';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { groupNotifications, GroupedNotification, NotificationListItem } from '@/utils/groupNotifications';
+import {
+  groupNotifications,
+  GroupedNotification,
+  NotificationListItem,
+} from '@/utils/groupNotifications';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
 import {
-    findNotification,
-    markNotificationsRead,
-    markAllNotificationsRead,
-    removeNotification,
-    bumpUnread,
-    type NotificationsInfiniteData,
+  findNotification,
+  markNotificationsRead,
+  markAllNotificationsRead,
+  removeNotification,
+  bumpUnread,
+  type NotificationsInfiniteData,
 } from '@/utils/notificationCache';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { NotificationsList } from '@/components/NotificationsList';
@@ -68,12 +69,12 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
  *                timestamp sinks to the bottom section instead of throwing.
  */
 function timeBucketOf(createdAt: string, now: Date): TimeBucket {
-    const time = new Date(createdAt).getTime();
-    if (Number.isNaN(time)) return 'earlier';
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    if (time >= startOfToday) return 'today';
-    if (time >= startOfToday - WEEK_MS) return 'this_week';
-    return 'earlier';
+  const time = new Date(createdAt).getTime();
+  if (Number.isNaN(time)) return 'earlier';
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  if (time >= startOfToday) return 'today';
+  if (time >= startOfToday - WEEK_MS) return 'this_week';
+  return 'earlier';
 }
 
 /**
@@ -84,532 +85,621 @@ function timeBucketOf(createdAt: string, now: Date): TimeBucket {
 type FilterableTab = Exclude<NotificationTab, 'all'>;
 
 const TAB_TYPES: Record<FilterableTab, readonly string[]> = {
-    mentions: ['mention', 'reply'],
-    follows: ['follow'],
-    likes: ['like', 'boost', 'quote'],
-    posts: ['post'],
-    pokes: ['poke'],
+  mentions: ['mention', 'reply'],
+  follows: ['follow'],
+  likes: ['like', 'boost', 'quote'],
+  posts: ['post'],
+  pokes: ['poke'],
 };
 
 /** Per-tab unread tallies. The `all` tab uses the authoritative server total. */
 type TabUnreadCounts = Record<FilterableTab, number>;
 
 const NotificationsScreen: React.FC = () => {
-    const { user, oxyServices, isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
-    const queryClient = useQueryClient();
-    const router = useRouter();
-    const [refreshing, setRefreshing] = useState(false);
-    const { t } = useTranslation();
-    const theme = useTheme();
-    const [activeTab, setActiveTab] = useState<NotificationTab>('all');
+  const { user, oxyServices, isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  const [refreshing, setRefreshing] = useState(false);
+  const { t } = useTranslation();
+  const theme = useTheme();
+  const [activeTab, setActiveTab] = useState<NotificationTab>('all');
 
-    // The realtime socket is mounted app-wide via <RealtimeNotificationsBridge/>
-    // (a module singleton). This screen must NOT also call
-    // useRealtimeNotifications() — a second mount would double every listener.
+  // The realtime socket is mounted app-wide via <RealtimeNotificationsBridge/>
+  // (a module singleton). This screen must NOT also call
+  // useRealtimeNotifications() — a second mount would double every listener.
 
-    // Fetch notifications — cursor-paginated. Gated on `canUsePrivateApi` (not
-    // just `isAuthenticated`) so the private `/notifications` read never fires
-    // while the SSO cold-boot is still resolving (which would 401-loop).
-    const {
-        data: notificationsData,
-        isLoading,
-        error,
-        refetch,
-        fetchNextPage,
-        hasNextPage,
-        isFetchingNextPage,
-    } = useInfiniteQuery({
-        queryKey: viewerQueryKeys.notifications(user?.id),
-        queryFn: ({ pageParam }) => notificationService.getNotifications(pageParam),
-        initialPageParam: undefined as string | undefined,
-        getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
-        enabled: canUsePrivateApi && !!user?.id,
+  // Fetch notifications — cursor-paginated. Gated on `canUsePrivateApi` (not
+  // just `isAuthenticated`) so the private `/notifications` read never fires
+  // while the SSO cold-boot is still resolving (which would 401-loop).
+  const {
+    data: notificationsData,
+    isLoading,
+    error,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: viewerQueryKeys.notifications(user?.id),
+    queryFn: ({ pageParam }) => notificationService.getNotifications(pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
+    enabled: canUsePrivateApi && !!user?.id,
+  });
+
+  const allNotifications = useMemo(
+    () => notificationsData?.pages.flatMap((page) => page.notifications) ?? [],
+    [notificationsData],
+  );
+
+  const handleLoadMore = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  // Live unread count (drives both the header "mark all" affordance and the
+  // bell badges elsewhere) — the single source of truth, kept in lockstep with
+  // the list via the shared cache reducers below.
+  const unreadCount = useUnreadCount();
+  const notificationsQueryKey = useMemo(() => viewerQueryKeys.notifications(user?.id), [user?.id]);
+
+  // Optimistically patch the cached list + badge in place (no invalidate/
+  // refetch flicker). The server echo to `user:<id>` reconciles idempotently.
+  const applyReadPatch = useCallback(
+    (ids: string[]) => {
+      const prev = queryClient.getQueryData<NotificationsInfiniteData>(notificationsQueryKey);
+      let delta = 0;
+      if (prev) {
+        for (const id of ids) {
+          const found = findNotification(prev, id);
+          if (found && !found.read) delta -= 1;
+        }
+      }
+      queryClient.setQueryData<NotificationsInfiniteData>(notificationsQueryKey, (data) =>
+        data ? markNotificationsRead(data, ids) : data,
+      );
+      if (delta !== 0) bumpUnread(queryClient, user?.id, delta);
+    },
+    [queryClient, notificationsQueryKey, user?.id],
+  );
+
+  // Mark notification(s) as read — group rows pass every id in the group.
+  const markAsReadMutation = useMutation({
+    mutationFn: (ids: string[]) => Promise.all(ids.map((id) => notificationService.markAsRead(id))),
+    onMutate: (ids: string[]) => applyReadPatch(ids),
+    onError: (error: unknown) => {
+      notificationLogger.error('Error marking notification as read', error);
+      toast(t('notification.mark_read_error') || 'Failed to mark notification as read', {
+        type: 'error',
+      });
+      // Resync from the server on failure to undo the optimistic patch.
+      queryClient.invalidateQueries({
+        queryKey: viewerQueryKeys.notificationsRoot(user?.id),
+      });
+    },
+  });
+
+  // Optimistically drop the given ids from the cached list + decrement the
+  // badge for any that were unread (mirrors `applyReadPatch`). The server echo
+  // to `user:<id>` reconciles idempotently; `onError` resyncs.
+  const applyRemovePatch = useCallback(
+    (ids: string[]) => {
+      const prev = queryClient.getQueryData<NotificationsInfiniteData>(notificationsQueryKey);
+      let delta = 0;
+      if (prev) {
+        for (const id of ids) {
+          const found = findNotification(prev, id);
+          if (found && !found.read) delta -= 1;
+        }
+      }
+      queryClient.setQueryData<NotificationsInfiniteData>(notificationsQueryKey, (data) => {
+        if (!data) return data;
+        let next = data;
+        for (const id of ids) next = removeNotification(next, id);
+        return next;
+      });
+      if (delta !== 0) bumpUnread(queryClient, user?.id, delta);
+    },
+    [queryClient, notificationsQueryKey, user?.id],
+  );
+
+  // Delete notification(s) — group rows pass every id in the group.
+  const deleteMutation = useMutation({
+    mutationFn: (ids: string[]) =>
+      Promise.all(ids.map((id) => notificationService.deleteNotification(id))),
+    onMutate: (ids: string[]) => applyRemovePatch(ids),
+    onSuccess: () => {
+      toast(t('notification.deleted', { defaultValue: 'Notification deleted' }), {
+        type: 'success',
+      });
+    },
+    onError: (error: unknown) => {
+      notificationLogger.error('Error deleting notification', error);
+      toast(t('notification.delete_error', { defaultValue: 'Failed to delete notification' }), {
+        type: 'error',
+      });
+      // Resync from the server on failure to undo the optimistic patch.
+      queryClient.invalidateQueries({
+        queryKey: viewerQueryKeys.notificationsRoot(user?.id),
+      });
+    },
+  });
+
+  // Mark all as read mutation
+  const markAllAsReadMutation = useMutation({
+    mutationFn: () => notificationService.markAllAsRead(),
+    onMutate: () => {
+      queryClient.setQueryData<NotificationsInfiniteData>(notificationsQueryKey, (data) =>
+        data ? markAllNotificationsRead(data) : data,
+      );
+      queryClient.setQueryData<number>(viewerQueryKeys.unreadNotifications(user?.id), 0);
+    },
+    onSuccess: () => {
+      toast(t('notification.mark_all_read_success') || 'All notifications marked as read', {
+        type: 'success',
+      });
+    },
+    onError: (error: unknown) => {
+      const { status: statusCode, message: errorMessage } = normalizeApiError(error);
+      notificationLogger.error('Error marking all notifications as read', error, { statusCode });
+      toast(
+        t('notification.mark_all_read_error') ||
+          `Failed to mark all notifications as read${statusCode ? ` (${statusCode})` : ''}: ${errorMessage}`,
+        { type: 'error' },
+      );
+      queryClient.invalidateQueries({
+        queryKey: viewerQueryKeys.notificationsRoot(user?.id),
+      });
+    },
+  });
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
+  useScreenReselect({ refresh: handleRefresh });
+
+  const handleMarkAsRead = useCallback(
+    (ids: string[]) => {
+      markAsReadMutation.mutate(ids);
+    },
+    [markAsReadMutation],
+  );
+
+  const handleDelete = useCallback(
+    (ids: string[]) => {
+      deleteMutation.mutate(ids);
+    },
+    [deleteMutation],
+  );
+
+  const handleMarkAllAsRead = useCallback(async () => {
+    if (unreadCount === 0) {
+      toast(t('notification.all_already_read') || 'All notifications are already read', {
+        type: 'info',
+      });
+      return;
+    }
+
+    const confirmed = await confirmDialog({
+      title: t('notification.mark_all_read'),
+      message:
+        t('notification.mark_all_read_confirm') ||
+        'Are you sure you want to mark all notifications as read?',
+      okText: t('notification.mark_all_read') || 'Mark All as Read',
+      cancelText: t('cancel') || 'Cancel',
     });
 
-    const allNotifications = useMemo(
-        () => notificationsData?.pages.flatMap((page) => page.notifications) ?? [],
-        [notificationsData],
-    );
+    if (confirmed) {
+      markAllAsReadMutation.mutate();
+    }
+  }, [markAllAsReadMutation, t, unreadCount]);
 
-    const handleLoadMore = useCallback(() => {
-        if (hasNextPage && !isFetchingNextPage) {
-            fetchNextPage();
-        }
-    }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  const selectTab = useTabSelect(activeTab, setActiveTab);
+  const handleTabPress = useCallback(
+    (tabId: string) => selectTab(tabId as NotificationTab),
+    [selectTab],
+  );
 
-    // Live unread count (drives both the header "mark all" affordance and the
-    // bell badges elsewhere) — the single source of truth, kept in lockstep with
-    // the list via the shared cache reducers below.
-    const unreadCount = useUnreadCount();
-    const notificationsQueryKey = useMemo(
-        () => viewerQueryKeys.notifications(user?.id),
-        [user?.id],
-    );
+  // Notifications whose actor the backend did NOT populate would each fire their
+  // own `getProfileById` from inside NotificationItem — an N+1 across the page.
+  // Collect those distinct actor ids and warm the React Query user cache with ONE
+  // bulk `getUsersByIds`, so every per-row read hits the warm cache instead.
+  const unpopulatedActorIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const n of allNotifications) {
+      if (n.actorId_populated) continue;
+      const actorId = n.actorId;
+      const id =
+        typeof actorId === 'string'
+          ? actorId
+          : actorId && typeof actorId === 'object'
+            ? String(
+                (actorId as { _id?: unknown; id?: unknown })._id ??
+                  (actorId as { id?: unknown }).id ??
+                  '',
+              )
+            : '';
+      // Every non-empty `actorId` is an Oxy account id — the column is
+      // `text NOT NULL` and holds one. The id-SHAPE test that stood here
+      // is what dropped every account created after Oxy's ids became uuid
+      // v7 out of this batch, leaving those rows to per-row resolution.
+      if (id) ids.add(id);
+    }
+    return Array.from(ids);
+  }, [allNotifications]);
 
-    // Optimistically patch the cached list + badge in place (no invalidate/
-    // refetch flicker). The server echo to `user:<id>` reconciles idempotently.
-    const applyReadPatch = useCallback((ids: string[]) => {
-        const prev = queryClient.getQueryData<NotificationsInfiniteData>(notificationsQueryKey);
-        let delta = 0;
-        if (prev) {
-            for (const id of ids) {
-                const found = findNotification(prev, id);
-                if (found && !found.read) delta -= 1;
-            }
-        }
-        queryClient.setQueryData<NotificationsInfiniteData>(notificationsQueryKey, (data) =>
-            data ? markNotificationsRead(data, ids) : data,
-        );
-        if (delta !== 0) bumpUnread(queryClient, user?.id, delta);
-    }, [queryClient, notificationsQueryKey, user?.id]);
+  useQuery({
+    queryKey: viewerQueryKeys.notificationActors(user?.id, unpopulatedActorIds),
+    queryFn: () => prewarmUsersByIds(unpopulatedActorIds, (ids) => oxyServices.users.getMany(ids)),
+    enabled: canUsePrivateApi && !!oxyServices && unpopulatedActorIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
 
-    // Mark notification(s) as read — group rows pass every id in the group.
-    const markAsReadMutation = useMutation({
-        mutationFn: (ids: string[]) => Promise.all(ids.map((id) => notificationService.markAsRead(id))),
-        onMutate: (ids: string[]) => applyReadPatch(ids),
-        onError: (error: unknown) => {
-            notificationLogger.error('Error marking notification as read', error);
-            toast(t('notification.mark_read_error') || 'Failed to mark notification as read', { type: 'error' });
-            // Resync from the server on failure to undo the optimistic patch.
-            queryClient.invalidateQueries({
-                queryKey: viewerQueryKeys.notificationsRoot(user?.id),
-            });
-        },
-    });
+  const filteredNotifications = useMemo(() => {
+    if (activeTab === 'all') return allNotifications;
+    const types = TAB_TYPES[activeTab];
+    return allNotifications.filter((n) => types.includes(n.type));
+  }, [allNotifications, activeTab]);
 
-    // Optimistically drop the given ids from the cached list + decrement the
-    // badge for any that were unread (mirrors `applyReadPatch`). The server echo
-    // to `user:<id>` reconciles idempotently; `onError` resyncs.
-    const applyRemovePatch = useCallback((ids: string[]) => {
-        const prev = queryClient.getQueryData<NotificationsInfiniteData>(notificationsQueryKey);
-        let delta = 0;
-        if (prev) {
-            for (const id of ids) {
-                const found = findNotification(prev, id);
-                if (found && !found.read) delta -= 1;
-            }
-        }
-        queryClient.setQueryData<NotificationsInfiniteData>(notificationsQueryKey, (data) => {
-            if (!data) return data;
-            let next = data;
-            for (const id of ids) next = removeNotification(next, id);
-            return next;
-        });
-        if (delta !== 0) bumpUnread(queryClient, user?.id, delta);
-    }, [queryClient, notificationsQueryKey, user?.id]);
+  // Per-tab unread tallies, derived from the notifications already loaded (the
+  // only per-type data the client has — the server exposes a single aggregate
+  // unread total, which the `all` tab uses verbatim).
+  const tabUnreadCounts = useMemo<TabUnreadCounts>(() => {
+    const counts: TabUnreadCounts = { mentions: 0, follows: 0, likes: 0, posts: 0, pokes: 0 };
+    for (const n of allNotifications) {
+      if (n.read) continue;
+      for (const tab of Object.keys(TAB_TYPES) as FilterableTab[]) {
+        if (TAB_TYPES[tab].includes(n.type)) counts[tab] += 1;
+      }
+    }
+    return counts;
+  }, [allNotifications]);
 
-    // Delete notification(s) — group rows pass every id in the group.
-    const deleteMutation = useMutation({
-        mutationFn: (ids: string[]) => Promise.all(ids.map((id) => notificationService.deleteNotification(id))),
-        onMutate: (ids: string[]) => applyRemovePatch(ids),
-        onSuccess: () => {
-            toast(t('notification.deleted', { defaultValue: 'Notification deleted' }), { type: 'success' });
-        },
-        onError: (error: unknown) => {
-            notificationLogger.error('Error deleting notification', error);
-            toast(t('notification.delete_error', { defaultValue: 'Failed to delete notification' }), { type: 'error' });
-            // Resync from the server on failure to undo the optimistic patch.
-            queryClient.invalidateQueries({
-                queryKey: viewerQueryKeys.notificationsRoot(user?.id),
-            });
-        },
-    });
+  const groupedNotifications = useMemo(() => {
+    return groupNotifications(filteredNotifications);
+  }, [filteredNotifications]);
 
-    // Mark all as read mutation
-    const markAllAsReadMutation = useMutation({
-        mutationFn: () => notificationService.markAllAsRead(),
-        onMutate: () => {
-            queryClient.setQueryData<NotificationsInfiniteData>(notificationsQueryKey, (data) =>
-                data ? markAllNotificationsRead(data) : data,
-            );
-            queryClient.setQueryData<number>(
-                viewerQueryKeys.unreadNotifications(user?.id),
-                0,
-            );
-        },
-        onSuccess: () => {
-            toast(t('notification.mark_all_read_success') || 'All notifications marked as read', { type: 'success' });
-        },
-        onError: (error: unknown) => {
-            const { status: statusCode, message: errorMessage } = normalizeApiError(error);
-            notificationLogger.error('Error marking all notifications as read', error, { statusCode });
-            toast(
-                t('notification.mark_all_read_error') ||
-                `Failed to mark all notifications as read${statusCode ? ` (${statusCode})` : ''}: ${errorMessage}`,
-                { type: 'error' }
-            );
-            queryClient.invalidateQueries({
-                queryKey: viewerQueryKeys.notificationsRoot(user?.id),
-            });
-        },
-    });
+  const listItems = useMemo(() => {
+    const seen = new Set<string>();
+    const out: GroupedNotification[] = [];
+    for (const it of groupedNotifications) {
+      const k = it.key;
+      if (!seen.has(k)) {
+        seen.add(k);
+        out.push(it);
+      }
+    }
+    return out;
+  }, [groupedNotifications]);
 
-    const handleRefresh = useCallback(async () => {
-        setRefreshing(true);
-        await refetch();
-        setRefreshing(false);
-    }, [refetch]);
-    useScreenReselect({ refresh: handleRefresh });
-
-    const handleMarkAsRead = useCallback((ids: string[]) => {
-        markAsReadMutation.mutate(ids);
-    }, [markAsReadMutation]);
-
-    const handleDelete = useCallback((ids: string[]) => {
-        deleteMutation.mutate(ids);
-    }, [deleteMutation]);
-
-    const handleMarkAllAsRead = useCallback(async () => {
-        if (unreadCount === 0) {
-            toast(t('notification.all_already_read') || 'All notifications are already read', { type: 'info' });
-            return;
-        }
-
-        const confirmed = await confirmDialog({
-            title: t('notification.mark_all_read'),
-            message: t('notification.mark_all_read_confirm') || 'Are you sure you want to mark all notifications as read?',
-            okText: t('notification.mark_all_read') || 'Mark All as Read',
-            cancelText: t('cancel') || 'Cancel',
-        });
-
-        if (confirmed) {
-            markAllAsReadMutation.mutate();
-        }
-    }, [markAllAsReadMutation, t, unreadCount]);
-
-    const selectTab = useTabSelect(activeTab, setActiveTab);
-    const handleTabPress = useCallback((tabId: string) => selectTab(tabId as NotificationTab), [selectTab]);
-
-
-    // Notifications whose actor the backend did NOT populate would each fire their
-    // own `getProfileById` from inside NotificationItem — an N+1 across the page.
-    // Collect those distinct actor ids and warm the React Query user cache with ONE
-    // bulk `getUsersByIds`, so every per-row read hits the warm cache instead.
-    const unpopulatedActorIds = useMemo(() => {
-        const ids = new Set<string>();
-        for (const n of allNotifications) {
-            if (n.actorId_populated) continue;
-            const actorId = n.actorId;
-            const id = typeof actorId === 'string'
-                ? actorId
-                : (actorId && typeof actorId === 'object'
-                    ? String((actorId as { _id?: unknown; id?: unknown })._id ?? (actorId as { id?: unknown }).id ?? '')
-                    : '');
-            // Every non-empty `actorId` is an Oxy account id — the column is
-            // `text NOT NULL` and holds one. The id-SHAPE test that stood here
-            // is what dropped every account created after Oxy's ids became uuid
-            // v7 out of this batch, leaving those rows to per-row resolution.
-            if (id) ids.add(id);
-        }
-        return Array.from(ids);
-    }, [allNotifications]);
-
-    useQuery({
-        queryKey: viewerQueryKeys.notificationActors(user?.id, unpopulatedActorIds),
-        queryFn: () => prewarmUsersByIds(unpopulatedActorIds, (ids) => oxyServices.users.getMany(ids)),
-        enabled: canUsePrivateApi && !!oxyServices && unpopulatedActorIds.length > 0,
-        staleTime: 5 * 60 * 1000,
-    });
-
-    const filteredNotifications = useMemo(() => {
-        if (activeTab === 'all') return allNotifications;
-        const types = TAB_TYPES[activeTab];
-        return allNotifications.filter((n) => types.includes(n.type));
-    }, [allNotifications, activeTab]);
-
-    // Per-tab unread tallies, derived from the notifications already loaded (the
-    // only per-type data the client has — the server exposes a single aggregate
-    // unread total, which the `all` tab uses verbatim).
-    const tabUnreadCounts = useMemo<TabUnreadCounts>(() => {
-        const counts: TabUnreadCounts = { mentions: 0, follows: 0, likes: 0, posts: 0, pokes: 0 };
-        for (const n of allNotifications) {
-            if (n.read) continue;
-            for (const tab of Object.keys(TAB_TYPES) as FilterableTab[]) {
-                if (TAB_TYPES[tab].includes(n.type)) counts[tab] += 1;
-            }
-        }
-        return counts;
-    }, [allNotifications]);
-
-    const groupedNotifications = useMemo(() => {
-        return groupNotifications(filteredNotifications);
-    }, [filteredNotifications]);
-
-    const listItems = useMemo(() => {
-        const seen = new Set<string>();
-        const out: GroupedNotification[] = [];
-        for (const it of groupedNotifications) {
-            const k = it.key;
-            if (!seen.has(k)) {
-                seen.add(k);
-                out.push(it);
-            }
-        }
-        return out;
-    }, [groupedNotifications]);
-
-    // Section the (already newest-first) rows into Today / This week / Earlier by
-    // inserting a header item at each bucket boundary. A header is only emitted
-    // when its bucket actually has a row, so an empty bucket leaves no orphan
-    // heading. Grouping/dedup above is untouched — this is a presentation layer.
-    const sectionedItems = useMemo<NotificationListItem[]>(() => {
-        const sectionLabels: Record<TimeBucket, string> = {
-            today: t('notification.section.today', { defaultValue: 'Today' }),
-            this_week: t('notification.section.this_week', { defaultValue: 'This week' }),
-            earlier: t('notification.section.earlier', { defaultValue: 'Earlier' }),
-        };
-        const now = new Date();
-        const out: NotificationListItem[] = [];
-        let currentBucket: TimeBucket | null = null;
-        for (const item of listItems) {
-            const bucket = timeBucketOf(item.createdAt, now);
-            if (bucket !== currentBucket) {
-                currentBucket = bucket;
-                out.push({ kind: 'header', key: `section:${bucket}`, label: sectionLabels[bucket] });
-            }
-            out.push({ kind: 'row', ...item });
-        }
-        return out;
-    }, [listItems, t]);
-
-    const handleBoundaryError = useCallback((error: Error, errorInfo: React.ErrorInfo) => {
-        notificationLogger.error('Error caught by boundary', error, { errorInfo });
-    }, []);
-
-    const renderNotification = useCallback((item: NotificationListItem) => {
-        if (item.kind === 'header') {
-            return (
-                <View className="px-3 pb-1 pt-3">
-                    <Text className="text-muted-foreground text-[13px] font-semibold uppercase leading-6">
-                        {item.label}
-                    </Text>
-                </View>
-            );
-        }
-        return (
-            <ErrorBoundary
-                title={t("error.boundary.title")}
-                message={t("error.boundary.message")}
-                retryLabel={t("error.boundary.retry")}
-                onError={handleBoundaryError}
-            >
-                <NotificationItem item={item} onMarkAsRead={handleMarkAsRead} onDelete={handleDelete} />
-            </ErrorBoundary>
-        );
-    }, [t, handleBoundaryError, handleMarkAsRead, handleDelete]);
-
-    const emptyStateConfig = useMemo((): { title: string; subtitle: string; sticker: EmptyStateStickerName } => {
-        switch (activeTab) {
-            case 'mentions':
-                return {
-                    title: t('notification.empty.mentions.title', { defaultValue: 'No mentions yet' }),
-                    subtitle: t('notification.empty.mentions.subtitle', { defaultValue: 'When someone mentions you, it will appear here.' }),
-                    sticker: 'notificationsMentions',
-                };
-            case 'follows':
-                return {
-                    title: t('notification.empty.follows.title', { defaultValue: 'No new followers' }),
-                    subtitle: t('notification.empty.follows.subtitle', { defaultValue: 'When someone follows you, it will appear here.' }),
-                    sticker: 'notificationsFollows',
-                };
-            case 'likes':
-                return {
-                    title: t('notification.empty.likes.title', { defaultValue: 'No likes yet' }),
-                    subtitle: t('notification.empty.likes.subtitle', { defaultValue: 'When someone likes or boosts your content, it will appear here.' }),
-                    sticker: 'notificationsLikes',
-                };
-            case 'posts':
-                return {
-                    title: t('notification.empty.posts.title', { defaultValue: 'No post updates' }),
-                    subtitle: t('notification.empty.posts.subtitle', { defaultValue: 'When people you follow post something new, it will appear here.' }),
-                    sticker: 'notificationsPosts',
-                };
-            case 'pokes':
-                return {
-                    title: t('notification.empty.pokes.title', { defaultValue: 'No pokes yet' }),
-                    subtitle: t('notification.empty.pokes.subtitle', { defaultValue: 'When someone pokes you, it will appear here. Poke your followers to get started!' }),
-                    sticker: 'notificationsPokes',
-                };
-            default:
-                return {
-                    title: t('notification.empty.title', { defaultValue: "You're all caught up" }),
-                    subtitle: t('notification.empty.subtitle', { defaultValue: 'We will let you know when something new happens.' }),
-                    sticker: 'notificationsAll',
-                };
-        }
-    }, [activeTab, t]);
-
-    const renderEmptyState = useCallback(() => (
-        <EmptyState
-            title={emptyStateConfig.title}
-            subtitle={emptyStateConfig.subtitle}
-            sticker={emptyStateConfig.sticker}
-        />
-    ), [emptyStateConfig]);
-
-    const renderErrorState = () => (
-        <Error
-            title={t('notification.error.load', { defaultValue: 'Failed to load notifications' })}
-            message={t('notification.error.message', { defaultValue: 'Unable to fetch your notifications. Please try again.' })}
-            onRetry={() => {
-                refetch();
-            }}
-            hideBackButton={true}
-            style={{ flex: 1 }}
-        />
-    );
-
-    const renderContent = () => {
-        // Auth cold-boot: the SSO restore can take several seconds. Show a
-        // spinner until auth is resolved, then either prompt to sign in or
-        // render the list — gated on `canUsePrivateApi`, never bare
-        // `isAuthenticated` (pattern from settings/fediverse/index.tsx).
-        if (!isAuthResolved || isPrivateApiPending) {
-            return (
-                <View className="flex-1 justify-center items-center">
-                    <Loading className="text-primary" size="lg" />
-                </View>
-            );
-        }
-
-        if (!canUsePrivateApi) {
-            return (
-                <OxyAuthPrompt
-                    label={t('notification.signInRequired', { defaultValue: 'Sign in to see your notifications' })}
-                    description={t('notification.signInRequiredDesc', { defaultValue: 'Mentions, follows, likes, and more will appear here once you sign in.' })}
-                />
-            );
-        }
-
-        if (isLoading && !refreshing) {
-            return (
-                <View className="flex-1">
-                    <NotificationSkeleton />
-                </View>
-            );
-        }
-
-        if (error) {
-            return renderErrorState();
-        }
-
-        const pokesHeader = activeTab === 'pokes' ? (
-            <TouchableOpacity
-                style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    paddingHorizontal: 16,
-                    paddingVertical: 14,
-                    borderBottomWidth: 1,
-                    borderBottomColor: theme.colors.border,
-                    gap: 12,
-                }}
-                onPress={() => router.push('/notifications/pokes')}
-                activeOpacity={0.7}
-            >
-                <View
-                    style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 20,
-                        backgroundColor: theme.colors.primary,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                    }}
-                >
-                    <RiHand width={18} height={18} fill="#fff" />
-                </View>
-                <View style={{ flex: 1 }}>
-                    <Text className="leading-6 text-foreground" style={{ fontSize: 15, fontWeight: '600' }}>
-                        {t('pokes.seeAllPokes', { defaultValue: 'Poke back & discover people' })}
-                    </Text>
-                    <Text className="leading-6 text-muted-foreground" style={{ fontSize: 13, marginTop: 1 }}>
-                        {t('pokes.seeAllPokesSubtitle', { defaultValue: 'Suggested follows, poke history & more' })}
-                    </Text>
-                </View>
-                <RiArrowRightSLine size="md" fill={theme.colors.textSecondary} />
-            </TouchableOpacity>
-        ) : null;
-
-        return (
-            <NotificationsList
-                items={sectionedItems}
-                renderRow={renderNotification}
-                header={pokesHeader}
-                emptyState={renderEmptyState()}
-                tabKey={activeTab}
-                refreshing={refreshing}
-                onRefresh={handleRefresh}
-                onEndReached={handleLoadMore}
-                hasMore={!!hasNextPage}
-                isFetchingMore={isFetchingNextPage}
-            />
-        );
+  // Section the (already newest-first) rows into Today / This week / Earlier by
+  // inserting a header item at each bucket boundary. A header is only emitted
+  // when its bucket actually has a row, so an empty bucket leaves no orphan
+  // heading. Grouping/dedup above is untouched — this is a presentation layer.
+  const sectionedItems = useMemo<NotificationListItem[]>(() => {
+    const sectionLabels: Record<TimeBucket, string> = {
+      today: t('notification.section.today', { defaultValue: 'Today' }),
+      this_week: t('notification.section.this_week', { defaultValue: 'This week' }),
+      earlier: t('notification.section.earlier', { defaultValue: 'Earlier' }),
     };
+    const now = new Date();
+    const out: NotificationListItem[] = [];
+    let currentBucket: TimeBucket | null = null;
+    for (const item of listItems) {
+      const bucket = timeBucketOf(item.createdAt, now);
+      if (bucket !== currentBucket) {
+        currentBucket = bucket;
+        out.push({ kind: 'header', key: `section:${bucket}`, label: sectionLabels[bucket] });
+      }
+      out.push({ kind: 'row', ...item });
+    }
+    return out;
+  }, [listItems, t]);
+
+  const handleBoundaryError = useCallback((error: Error, errorInfo: React.ErrorInfo) => {
+    notificationLogger.error('Error caught by boundary', error, { errorInfo });
+  }, []);
+
+  const renderNotification = useCallback(
+    (item: NotificationListItem) => {
+      if (item.kind === 'header') {
+        return (
+          <View className="px-3 pb-1 pt-3">
+            <Text className="text-muted-foreground text-[13px] font-semibold uppercase leading-6">
+              {item.label}
+            </Text>
+          </View>
+        );
+      }
+      return (
+        <ErrorBoundary
+          title={t('error.boundary.title')}
+          message={t('error.boundary.message')}
+          retryLabel={t('error.boundary.retry')}
+          onError={handleBoundaryError}
+        >
+          <NotificationItem item={item} onMarkAsRead={handleMarkAsRead} onDelete={handleDelete} />
+        </ErrorBoundary>
+      );
+    },
+    [t, handleBoundaryError, handleMarkAsRead, handleDelete],
+  );
+
+  const emptyStateConfig = useMemo((): {
+    title: string;
+    subtitle: string;
+    sticker: EmptyStateStickerName;
+  } => {
+    switch (activeTab) {
+      case 'mentions':
+        return {
+          title: t('notification.empty.mentions.title', { defaultValue: 'No mentions yet' }),
+          subtitle: t('notification.empty.mentions.subtitle', {
+            defaultValue: 'When someone mentions you, it will appear here.',
+          }),
+          sticker: 'notificationsMentions',
+        };
+      case 'follows':
+        return {
+          title: t('notification.empty.follows.title', { defaultValue: 'No new followers' }),
+          subtitle: t('notification.empty.follows.subtitle', {
+            defaultValue: 'When someone follows you, it will appear here.',
+          }),
+          sticker: 'notificationsFollows',
+        };
+      case 'likes':
+        return {
+          title: t('notification.empty.likes.title', { defaultValue: 'No likes yet' }),
+          subtitle: t('notification.empty.likes.subtitle', {
+            defaultValue: 'When someone likes or boosts your content, it will appear here.',
+          }),
+          sticker: 'notificationsLikes',
+        };
+      case 'posts':
+        return {
+          title: t('notification.empty.posts.title', { defaultValue: 'No post updates' }),
+          subtitle: t('notification.empty.posts.subtitle', {
+            defaultValue: 'When people you follow post something new, it will appear here.',
+          }),
+          sticker: 'notificationsPosts',
+        };
+      case 'pokes':
+        return {
+          title: t('notification.empty.pokes.title', { defaultValue: 'No pokes yet' }),
+          subtitle: t('notification.empty.pokes.subtitle', {
+            defaultValue:
+              'When someone pokes you, it will appear here. Poke your followers to get started!',
+          }),
+          sticker: 'notificationsPokes',
+        };
+      default:
+        return {
+          title: t('notification.empty.title', { defaultValue: "You're all caught up" }),
+          subtitle: t('notification.empty.subtitle', {
+            defaultValue: 'We will let you know when something new happens.',
+          }),
+          sticker: 'notificationsAll',
+        };
+    }
+  }, [activeTab, t]);
+
+  const renderEmptyState = useCallback(
+    () => (
+      <EmptyState
+        title={emptyStateConfig.title}
+        subtitle={emptyStateConfig.subtitle}
+        sticker={emptyStateConfig.sticker}
+      />
+    ),
+    [emptyStateConfig],
+  );
+
+  const renderErrorState = () => (
+    <Error
+      title={t('notification.error.load', { defaultValue: 'Failed to load notifications' })}
+      message={t('notification.error.message', {
+        defaultValue: 'Unable to fetch your notifications. Please try again.',
+      })}
+      onRetry={() => {
+        refetch();
+      }}
+      hideBackButton={true}
+      style={{ flex: 1 }}
+    />
+  );
+
+  const renderContent = () => {
+    // Auth cold-boot: the SSO restore can take several seconds. Show a
+    // spinner until auth is resolved, then either prompt to sign in or
+    // render the list — gated on `canUsePrivateApi`, never bare
+    // `isAuthenticated` (pattern from settings/fediverse/index.tsx).
+    if (!isAuthResolved || isPrivateApiPending) {
+      return (
+        <View className="flex-1 justify-center items-center">
+          <Loading className="text-primary" size="lg" />
+        </View>
+      );
+    }
+
+    if (!canUsePrivateApi) {
+      return (
+        <OxyAuthPrompt
+          label={t('notification.signInRequired', {
+            defaultValue: 'Sign in to see your notifications',
+          })}
+          description={t('notification.signInRequiredDesc', {
+            defaultValue: 'Mentions, follows, likes, and more will appear here once you sign in.',
+          })}
+        />
+      );
+    }
+
+    if (isLoading && !refreshing) {
+      return (
+        <View className="flex-1">
+          <NotificationSkeleton />
+        </View>
+      );
+    }
+
+    if (error) {
+      return renderErrorState();
+    }
+
+    const pokesHeader =
+      activeTab === 'pokes' ? (
+        <TouchableOpacity
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: 16,
+            paddingVertical: 14,
+            borderBottomWidth: 1,
+            borderBottomColor: theme.colors.border,
+            gap: 12,
+          }}
+          onPress={() => router.push('/notifications/pokes')}
+          activeOpacity={0.7}
+        >
+          <View
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              backgroundColor: theme.colors.primary,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <RiHand width={18} height={18} fill="#fff" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text className="leading-6 text-foreground" style={{ fontSize: 15, fontWeight: '600' }}>
+              {t('pokes.seeAllPokes', { defaultValue: 'Poke back & discover people' })}
+            </Text>
+            <Text
+              className="leading-6 text-muted-foreground"
+              style={{ fontSize: 13, marginTop: 1 }}
+            >
+              {t('pokes.seeAllPokesSubtitle', {
+                defaultValue: 'Suggested follows, poke history & more',
+              })}
+            </Text>
+          </View>
+          <RiArrowRightSLine size="md" fill={theme.colors.textSecondary} />
+        </TouchableOpacity>
+      ) : null;
 
     return (
-        <>
-            <SEO
-                title={t('seo.notifications.title')}
-                description={t('seo.notifications.description')}
-            />
-            <View className="flex-1 web:z-auto">
-                <View className="flex-1">
-                    <StatusBar style={theme.isDark ? "light" : "dark"} />
-
-                    <>
-                        <PageHeader
-                            title={t('Notifications')}
-                            presentation="floating"
-                            actions={
-                                <>
-                                    {unreadCount > 0 ? (
-                                        <Button
-                                            appearance="subtle" tone="neutral"
-                                            iconOnly
-                                            icon={<DoneAllIcon size={20} color={theme.colors.primary} />}
-                                            onPress={handleMarkAllAsRead}
-                                            disabled={markAllAsReadMutation.isPending}
-                                            accessibilityLabel={t('notification.mark_all_read')}
-                                        />
-                                    ) : null}
-                                    <Button
-                                        appearance="subtle" tone="neutral"
-                                        iconOnly
-                                        icon={<BellActive size={20} color={theme.colors.text} />}
-                                        onPress={() => requestSettings('/settings/notifications/subscriptions')}
-                                        accessibilityLabel={t('subscription.list.title', { defaultValue: 'Activity notifications' })}
-                                    />
-                                    <Button
-                                        appearance="subtle" tone="neutral"
-                                        iconOnly
-                                        icon={<Gear size={20} color={theme.colors.text} />}
-                                        onPress={() => requestSettings('/settings/notifications')}
-                                        accessibilityLabel={t('notification.settings', { defaultValue: 'Notification settings' })}
-                                    />
-                                </>
-                            }
-                        />
-                    </>
-
-                    {canUsePrivateApi && (
-                        <>
-                            <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">{([
-                                    { id: 'all', label: t('notifications.tabs.all'), count: unreadCount },
-                                    { id: 'mentions', label: t('notifications.tabs.mentions'), count: tabUnreadCounts.mentions },
-                                    { id: 'follows', label: t('notifications.tabs.follows'), count: tabUnreadCounts.follows },
-                                    { id: 'likes', label: t('notifications.tabs.likes'), count: tabUnreadCounts.likes },
-                                    { id: 'posts', label: t('notifications.tabs.posts'), count: tabUnreadCounts.posts },
-                                    { id: 'pokes', label: t('notifications.tabs.pokes', { defaultValue: 'Pokes' }), count: tabUnreadCounts.pokes },
-                                ]).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
-                        </>
-                    )}
-
-                    {renderContent()}
-                </View>
-            </View>
-        </>
+      <NotificationsList
+        items={sectionedItems}
+        renderRow={renderNotification}
+        header={pokesHeader}
+        emptyState={renderEmptyState()}
+        tabKey={activeTab}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        onEndReached={handleLoadMore}
+        hasMore={!!hasNextPage}
+        isFetchingMore={isFetchingNextPage}
+      />
     );
+  };
+
+  return (
+    <>
+      <SEO title={t('seo.notifications.title')} description={t('seo.notifications.description')} />
+      <View className="flex-1 web:z-auto">
+        <View className="flex-1">
+          <StatusBar style={theme.isDark ? 'light' : 'dark'} />
+
+          <>
+            <PageHeader
+              title={t('Notifications')}
+              presentation="floating"
+              actions={
+                <>
+                  {unreadCount > 0 ? (
+                    <Button
+                      appearance="subtle"
+                      tone="neutral"
+                      iconOnly
+                      icon={<DoneAllIcon size={20} color={theme.colors.primary} />}
+                      onPress={handleMarkAllAsRead}
+                      disabled={markAllAsReadMutation.isPending}
+                      accessibilityLabel={t('notification.mark_all_read')}
+                    />
+                  ) : null}
+                  <Button
+                    appearance="subtle"
+                    tone="neutral"
+                    iconOnly
+                    icon={<BellActive size={20} color={theme.colors.text} />}
+                    onPress={() => requestSettings('/settings/notifications/subscriptions')}
+                    accessibilityLabel={t('subscription.list.title', {
+                      defaultValue: 'Activity notifications',
+                    })}
+                  />
+                  <Button
+                    appearance="subtle"
+                    tone="neutral"
+                    iconOnly
+                    icon={<Gear size={20} color={theme.colors.text} />}
+                    onPress={() => requestSettings('/settings/notifications')}
+                    accessibilityLabel={t('notification.settings', {
+                      defaultValue: 'Notification settings',
+                    })}
+                  />
+                </>
+              }
+            />
+          </>
+
+          {canUsePrivateApi && (
+            <>
+              <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
+                {[
+                  { id: 'all', label: t('notifications.tabs.all'), count: unreadCount },
+                  {
+                    id: 'mentions',
+                    label: t('notifications.tabs.mentions'),
+                    count: tabUnreadCounts.mentions,
+                  },
+                  {
+                    id: 'follows',
+                    label: t('notifications.tabs.follows'),
+                    count: tabUnreadCounts.follows,
+                  },
+                  {
+                    id: 'likes',
+                    label: t('notifications.tabs.likes'),
+                    count: tabUnreadCounts.likes,
+                  },
+                  {
+                    id: 'posts',
+                    label: t('notifications.tabs.posts'),
+                    count: tabUnreadCounts.posts,
+                  },
+                  {
+                    id: 'pokes',
+                    label: t('notifications.tabs.pokes', { defaultValue: 'Pokes' }),
+                    count: tabUnreadCounts.pokes,
+                  },
+                ].map((tab: { id: string; label: string; count?: number }) => (
+                  <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
+                ))}
+              </Tabs>
+            </>
+          )}
+
+          {renderContent()}
+        </View>
+      </View>
+    </>
+  );
 };
 
 export default NotificationsScreen;

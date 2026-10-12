@@ -20,11 +20,9 @@
  *
  * ## `status <> 'declined'` is the load-bearing predicate
  *
- * A person's decision is never moved by the sweep. Mongo expressed that as
- * `{status: {$ne: 'declined'}}` on the upsert's filter, so a decline landing
- * between the classification read and the write could not be undone by it — and
- * the duplicate-key error that followed WAS the signal that a person decided
- * first. Postgres says it directly: the row is locked for the duration
+ * A person's decision is never moved by the sweep: a decline landing
+ * between the classification read and the write cannot be undone by it. The row
+ * is locked for the duration
  * (`for update`), and the `on conflict do update ... where` refuses the write
  * outright. A refused write is a DECLINE HELD, not an error, so it returns a
  * verdict rather than throwing.
@@ -98,7 +96,7 @@ export interface UpsertProposalResult {
 /** Assemble a row plus its ordered observations into the read shape. */
 function toStoredProposal(
   row: typeof blocklistProposals.$inferSelect,
-  observations: readonly (typeof blocklistProposalObservations.$inferSelect)[]
+  observations: readonly (typeof blocklistProposalObservations.$inferSelect)[],
 ): StoredProposal {
   return {
     domain: row.domain,
@@ -110,7 +108,7 @@ function toStoredProposal(
       instance: observation.instance,
       operator: observation.operator,
       severity: observation.severity,
-      // The Mongo field was OPTIONAL, so a missing comment must stay missing
+      // The field is OPTIONAL, so a missing comment must stay missing
       // rather than becoming an empty string a renderer would print as `""`.
       ...(observation.comment === null ? {} : { comment: observation.comment }),
       resolvedFromDigest: observation.resolvedFromDigest,
@@ -132,7 +130,7 @@ function toStoredProposal(
 async function replaceObservations(
   tx: Transaction,
   proposalId: string,
-  observations: readonly ProposalObservation[]
+  observations: readonly ProposalObservation[],
 ): Promise<void> {
   await tx
     .delete(blocklistProposalObservations)
@@ -147,7 +145,7 @@ async function replaceObservations(
       comment: observation.comment ?? null,
       resolvedFromDigest: observation.resolvedFromDigest,
       position,
-    }))
+    })),
   );
 }
 
@@ -160,7 +158,7 @@ async function replaceObservations(
  * covers the case where no row existed to lock and one appeared.
  */
 export async function upsertOpenProposal(
-  input: UpsertProposalInput
+  input: UpsertProposalInput,
 ): Promise<UpsertProposalResult> {
   return getDb().transaction(async (tx) => {
     const [before] = await tx
@@ -214,7 +212,7 @@ export async function upsertOpenProposal(
 
 /** The current status of each named domain that has a proposal row. */
 export async function statusByDomain(
-  domains: readonly string[]
+  domains: readonly string[],
 ): Promise<Map<string, StoredProposal['status']>> {
   if (domains.length === 0) return new Map();
   const rows = await getDb()
@@ -242,7 +240,7 @@ export async function listOpenProposalDomains(): Promise<string[]> {
  */
 export async function closeOpenProposal(
   domain: string,
-  status: 'adopted' | 'lapsed'
+  status: 'adopted' | 'lapsed',
 ): Promise<void> {
   await getDb()
     .update(blocklistProposals)
@@ -266,8 +264,8 @@ export async function listOpenProposals(): Promise<StoredProposal[]> {
     .where(
       inArray(
         blocklistProposalObservations.proposalId,
-        rows.map((row) => row.id)
-      )
+        rows.map((row) => row.id),
+      ),
     )
     .orderBy(asc(blocklistProposalObservations.position));
 
@@ -308,7 +306,7 @@ export async function findProposalByDomain(domain: string): Promise<StoredPropos
 export async function declineProposalRow(
   domain: string,
   decidedBy: string,
-  reason: string
+  reason: string,
 ): Promise<StoredProposal | null> {
   const [row] = await getDb()
     .update(blocklistProposals)
@@ -321,8 +319,8 @@ export async function declineProposalRow(
     .where(
       and(
         eq(blocklistProposals.domain, domain),
-        inArray(blocklistProposals.status, ['open', 'lapsed'])
-      )
+        inArray(blocklistProposals.status, ['open', 'lapsed']),
+      ),
     )
     .returning();
   if (!row) return null;
@@ -333,16 +331,14 @@ export async function declineProposalRow(
  * Put a declined proposal back in the queue.
  *
  * The three decision fields are set back to NULL rather than left in place:
- * Mongo `$unset` them, and a row reading `open` while still naming who declined
+ * a row reading `open` while still naming who declined
  * it would describe two decisions at once.
  */
 export async function reopenProposalRow(domain: string): Promise<StoredProposal | null> {
   const [row] = await getDb()
     .update(blocklistProposals)
     .set({ status: 'open', decidedAt: null, decidedBy: null, decisionReason: null })
-    .where(
-      and(eq(blocklistProposals.domain, domain), eq(blocklistProposals.status, 'declined'))
-    )
+    .where(and(eq(blocklistProposals.domain, domain), eq(blocklistProposals.status, 'declined')))
     .returning();
   if (!row) return null;
   return findProposalByDomain(row.domain);
@@ -443,7 +439,7 @@ export async function recordProposalRun(input: ProposalRunInput): Promise<void> 
         entries: source.entries,
         detail: source.detail ?? null,
         position,
-      }))
+      })),
     );
   });
 }

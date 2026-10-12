@@ -371,13 +371,10 @@ export function parseEmbedPlayerFromUrl(url: string): EmbedPlayerParams | undefi
   return undefined;
 }
 
-export function getPlayerAspect({
-  type,
-  hasThumb,
-}: {
-  type: EmbedPlayerType;
-  hasThumb: boolean;
-}): { aspectRatio?: number; height?: number } {
+export function getPlayerAspect({ type, hasThumb }: { type: EmbedPlayerType; hasThumb: boolean }): {
+  aspectRatio?: number;
+  height?: number;
+} {
   if (!hasThumb) return { aspectRatio: 16 / 9 };
 
   switch (type) {

@@ -1,35 +1,31 @@
-import { EmptyState } from "@/components/common/EmptyState";
-import { viewerQueryKeys } from "@/lib/viewerQueryKeys";
+import { EmptyState } from '@/components/common/EmptyState';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import {
   isHashtagMuteWord,
   muteWordDisplayValue,
   muteWordsService,
   type SerializedMuteWord,
-} from "@/services/muteWordsService";
-import { invalidateSafetyFilters } from "@/stores/safetyInvalidation";
-import { getErrorMessage } from "@/utils/apiError";
-import { Admonition } from "@oxy.so/bloom/admonition";
-import { Button } from "@oxy.so/bloom/button";
+} from '@/services/muteWordsService';
+import { invalidateSafetyFilters } from '@/stores/safetyInvalidation';
+import { getErrorMessage } from '@/utils/apiError';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { Button } from '@oxy.so/bloom/button';
 import { RiAddCircleLine } from '@oxy.so/bloom/icons/RiAddCircleLine';
 import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
-import { Loading } from "@oxy.so/bloom/loading";
-import {
-  SettingsCard,
-  SettingsRow,
-  SettingsSection,
-} from "@oxy.so/bloom/settings-modal";
-import { confirm as confirmSettingsAction } from "@oxy.so/bloom/surfaces";
-import { TextFieldInput } from "@oxy.so/bloom/text-field";
-import { useTheme } from "@oxy.so/bloom/theme";
-import { toast } from "@oxy.so/bloom/toast";
-import { createLogger } from "@oxy.so/core/logger";
-import { OxyAuthPrompt, useAuth } from "@oxy.so/services/ui/client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { useTranslation } from "react-i18next";
-import { View } from "react-native";
+import { Loading } from '@oxy.so/bloom/loading';
+import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { confirm as confirmSettingsAction } from '@oxy.so/bloom/surfaces';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { toast } from '@oxy.so/bloom/toast';
+import { createLogger } from '@oxy.so/core/logger';
+import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { View } from 'react-native';
 
-const hiddenWordsLogger = createLogger("HiddenWords");
+const hiddenWordsLogger = createLogger('HiddenWords');
 
 export default function HiddenWordsScreen() {
   const { t } = useTranslation();
@@ -38,7 +34,7 @@ export default function HiddenWordsScreen() {
   const { isAuthenticated, user, canUsePrivateApi } = useAuth();
 
   const queryClient = useQueryClient();
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState('');
 
   const {
     data: mutedWords = [],
@@ -54,7 +50,7 @@ export default function HiddenWordsScreen() {
   const addMutation = useMutation<SerializedMuteWord, unknown, string>({
     mutationFn: (rawInput: string) => muteWordsService.create(rawInput),
     onSuccess: () => {
-      setInput("");
+      setInput('');
       queryClient.invalidateQueries({
         queryKey: viewerQueryKeys.muteWords(user?.id),
       });
@@ -62,21 +58,21 @@ export default function HiddenWordsScreen() {
       // content fetched under the old rules is now wrong. One authority
       // tells both read caches: `stores/safetyInvalidation`.
       invalidateSafetyFilters();
-      toast(t("settings.privacy.wordMuted", { defaultValue: "Word muted" }), {
-        type: "success",
+      toast(t('settings.privacy.wordMuted', { defaultValue: 'Word muted' }), {
+        type: 'success',
       });
     },
     onError: (error) => {
-      hiddenWordsLogger.error("Failed to add muted word", error);
+      hiddenWordsLogger.error('Failed to add muted word', error);
       toast(
         getErrorMessage(
           error,
-          t("settings.privacy.failedToMuteWord", {
-            defaultValue: "Failed to mute word",
+          t('settings.privacy.failedToMuteWord', {
+            defaultValue: 'Failed to mute word',
           }),
         ),
         {
-          type: "error",
+          type: 'error',
         },
       );
     },
@@ -91,21 +87,20 @@ export default function HiddenWordsScreen() {
       // Unmuting can only be honoured by asking again: the posts it lets
       // back in were never sent to this device.
       invalidateSafetyFilters();
-      toast(
-        t("settings.privacy.wordUnmuted", { defaultValue: "Word unmuted" }),
-        { type: "success" },
-      );
+      toast(t('settings.privacy.wordUnmuted', { defaultValue: 'Word unmuted' }), {
+        type: 'success',
+      });
     },
     onError: (error) => {
-      hiddenWordsLogger.error("Failed to remove muted word", error);
+      hiddenWordsLogger.error('Failed to remove muted word', error);
       toast(
         getErrorMessage(
           error,
-          t("settings.privacy.failedToUnmuteWord", {
-            defaultValue: "Failed to unmute word",
+          t('settings.privacy.failedToUnmuteWord', {
+            defaultValue: 'Failed to unmute word',
           }),
         ),
-        { type: "error" },
+        { type: 'error' },
       );
     },
   });
@@ -118,15 +113,15 @@ export default function HiddenWordsScreen() {
 
   const handleRemove = (word: SerializedMuteWord) => {
     void confirmSettingsAction({
-      title: t("settings.privacy.removeMutedWord", {
-        defaultValue: "Remove muted word",
+      title: t('settings.privacy.removeMutedWord', {
+        defaultValue: 'Remove muted word',
       }),
-      description: t("settings.privacy.removeMutedWordConfirm", {
+      description: t('settings.privacy.removeMutedWordConfirm', {
         defaultValue: 'Stop hiding posts containing "{{value}}"?',
         value: muteWordDisplayValue(word),
       }),
-      confirmLabel: t("common.remove", { defaultValue: "Remove" }),
-      cancelLabel: t("common.cancel"),
+      confirmLabel: t('common.remove', { defaultValue: 'Remove' }),
+      cancelLabel: t('common.cancel'),
       destructive: true,
     }).then((confirmed) => {
       if (confirmed) void (() => removeMutation.mutate(word.id))();
@@ -137,12 +132,11 @@ export default function HiddenWordsScreen() {
     return (
       <View className="gap-4">
         <OxyAuthPrompt
-          label={t("settings.privacy.hiddenWordsSignInRequired", {
-            defaultValue: "Sign in to manage muted words",
+          label={t('settings.privacy.hiddenWordsSignInRequired', {
+            defaultValue: 'Sign in to manage muted words',
           })}
-          description={t("settings.privacy.hiddenWordsSignInRequiredDesc", {
-            defaultValue:
-              "Muted words and hashtags hide matching posts from your feeds.",
+          description={t('settings.privacy.hiddenWordsSignInRequiredDesc', {
+            defaultValue: 'Muted words and hashtags hide matching posts from your feeds.',
           })}
         />
       </View>
@@ -154,16 +148,16 @@ export default function HiddenWordsScreen() {
       <View className="gap-4">
         <View className="mb-4">
           <Admonition type="info">
-            {t("settings.privacy.hiddenWordsDescription", {
+            {t('settings.privacy.hiddenWordsDescription', {
               defaultValue:
-                "Posts containing these words or hashtags are hidden from your feeds. Start an entry with # to mute a hashtag.",
+                'Posts containing these words or hashtags are hidden from your feeds. Start an entry with # to mute a hashtag.',
             })}
           </Admonition>
         </View>
 
         <SettingsSection
-          label={t("settings.privacy.addMutedWord", {
-            defaultValue: "Add a word or hashtag",
+          label={t('settings.privacy.addMutedWord', {
+            defaultValue: 'Add a word or hashtag',
           })}
         >
           <SettingsCard>
@@ -174,14 +168,14 @@ export default function HiddenWordsScreen() {
                 onValueChange={setInput}
                 autoCapitalize="none"
                 autoCorrect={false}
-                placeholder={t("settings.privacy.addWordPlaceholder", {
-                  defaultValue: "Word or #hashtag",
+                placeholder={t('settings.privacy.addWordPlaceholder', {
+                  defaultValue: 'Word or #hashtag',
                 })}
                 editable={!addMutation.isPending}
                 onSubmitEditing={handleAdd}
                 returnKeyType="done"
-                label={t("settings.privacy.addWordPlaceholder", {
-                  defaultValue: "Word or #hashtag",
+                label={t('settings.privacy.addWordPlaceholder', {
+                  defaultValue: 'Word or #hashtag',
                 })}
               />
               {addMutation.isPending ? (
@@ -198,18 +192,14 @@ export default function HiddenWordsScreen() {
                   tone="neutral"
                   onPress={handleAdd}
                   disabled={input.trim().length === 0}
-                  accessibilityLabel={t("settings.privacy.addMutedWord", {
-                    defaultValue: "Add a word or hashtag",
+                  accessibilityLabel={t('settings.privacy.addMutedWord', {
+                    defaultValue: 'Add a word or hashtag',
                   })}
                 >
                   <RiAddCircleLine
                     width={26}
                     height={26}
-                    fill={
-                      input.trim().length === 0
-                        ? colors.textSecondary
-                        : colors.primary
-                    }
+                    fill={input.trim().length === 0 ? colors.textSecondary : colors.primary}
                   />
                 </Button>
               )}
@@ -218,32 +208,28 @@ export default function HiddenWordsScreen() {
         </SettingsSection>
 
         <SettingsSection
-          label={t("settings.privacy.mutedWords", {
-            defaultValue: "Muted words and hashtags",
+          label={t('settings.privacy.mutedWords', {
+            defaultValue: 'Muted words and hashtags',
           })}
         >
           <SettingsCard>
             {isLoading ? (
               <View className="py-10 items-center">
-                <Loading
-                  className="text-primary"
-                  size="lg"
-                  style={{ flex: undefined }}
-                />
+                <Loading className="text-primary" size="lg" style={{ flex: undefined }} />
               </View>
             ) : isError ? (
               <View className="py-4">
                 <EmptyState
-                  title={t("settings.privacy.failedToLoadMutedWords", {
-                    defaultValue: "Failed to load muted words",
+                  title={t('settings.privacy.failedToLoadMutedWords', {
+                    defaultValue: 'Failed to load muted words',
                   })}
-                  icon={{ name: "alert-circle-outline", size: 48 }}
+                  icon={{ name: 'alert-circle-outline', size: 48 }}
                   error={{
-                    title: t("settings.privacy.failedToLoadMutedWords", {
-                      defaultValue: "Failed to load muted words",
+                    title: t('settings.privacy.failedToLoadMutedWords', {
+                      defaultValue: 'Failed to load muted words',
                     }),
-                    message: t("common.tryAgain", {
-                      defaultValue: "Try again",
+                    message: t('common.tryAgain', {
+                      defaultValue: 'Try again',
                     }),
                     onRetry: async () => {
                       await refetch();
@@ -254,8 +240,8 @@ export default function HiddenWordsScreen() {
             ) : mutedWords.length === 0 ? (
               <View className="py-4">
                 <EmptyState
-                  title={t("settings.privacy.mutedWordsEmpty", {
-                    defaultValue: "No muted words yet",
+                  title={t('settings.privacy.mutedWordsEmpty', {
+                    defaultValue: 'No muted words yet',
                   })}
                   sticker="mutedWords"
                 />
@@ -268,11 +254,11 @@ export default function HiddenWordsScreen() {
                     label={muteWordDisplayValue(word)}
                     description={
                       isHashtag
-                        ? t("settings.privacy.mutedWordTypeHashtag", {
-                            defaultValue: "Hashtag",
+                        ? t('settings.privacy.mutedWordTypeHashtag', {
+                            defaultValue: 'Hashtag',
                           })
-                        : t("settings.privacy.mutedWordTypeWord", {
-                            defaultValue: "Word",
+                        : t('settings.privacy.mutedWordTypeWord', {
+                            defaultValue: 'Word',
                           })
                     }
                     key={word.id}
@@ -283,14 +269,11 @@ export default function HiddenWordsScreen() {
                         appearance="subtle"
                         tone="danger"
                         onPress={() => handleRemove(word)}
-                        accessibilityLabel={t(
-                          "settings.privacy.removeMutedWord",
-                          {
-                            defaultValue: "Remove muted word",
-                          },
-                        )}
+                        accessibilityLabel={t('settings.privacy.removeMutedWord', {
+                          defaultValue: 'Remove muted word',
+                        })}
                       >
-                        {t("common.remove", { defaultValue: "Remove" })}
+                        {t('common.remove', { defaultValue: 'Remove' })}
                       </Button>
                     }
                   </SettingsRow>

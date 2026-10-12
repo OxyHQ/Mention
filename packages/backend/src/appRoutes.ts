@@ -58,10 +58,7 @@ import {
 } from './middleware/apexFrontendProxy';
 import { createMcpOAuthRoutes } from './mcp/routes/mcpOAuth.routes';
 import mcpBundlesRoutes from './mcp/routes/mcpBundles.routes';
-import {
-  createOptionalMcpAuth,
-  createRequireMcpOrOxyAuth,
-} from './mcp/middleware/mcpAuth';
+import { createOptionalMcpAuth, createRequireMcpOrOxyAuth } from './mcp/middleware/mcpAuth';
 import { createMcpEffectIdempotency } from './mcp/middleware/mcpEffectIdempotency';
 import { createOptionalMentionCapabilityAuth } from './capabilities/capabilityAuth.middleware';
 import { mentionCapabilityRateLimiter } from './capabilities/capabilityRateLimiter';
@@ -116,10 +113,7 @@ export interface CreateAppRoutesDependencies {
 }
 
 /** Compose route groups without creating an HTTP or Socket.IO server. */
-export function createAppRoutes({
-  oxy,
-  optionalAuth,
-}: CreateAppRoutesDependencies): AppRoutes {
+export function createAppRoutes({ oxy, optionalAuth }: CreateAppRoutesDependencies): AppRoutes {
   const publicApi = express.Router();
   publicApi.use(mentionCapabilityRateLimiter);
   publicApi.use(createOptionalMentionCapabilityAuth());

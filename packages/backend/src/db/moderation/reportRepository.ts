@@ -8,11 +8,11 @@
  *
  * ## The reporter's list is a keyset on `(created_at, id)`, and it used to be broken
  *
- * The Mongo route sorted by `createdAt` and paged on `_id`, which are two
+ * The old route sorted by `createdAt` and paged on `_id`, which are two
  * different axes — correct only while `_id` order WAS creation order. It also
- * gated the cursor on `mongoose.Types.ObjectId.isValid`, and that guard's FALSE
- * branch means "no cursor", i.e. **serve page one**. Every id minted after the
- * cutover is a uuid v7, so the guard would answer false for all of them and the
+ * gated the cursor on an ObjectId-shape check, and that guard's FALSE
+ * branch means "no cursor", i.e. **serve page one**. Every new id
+ * is a uuid v7, so the guard would answer false for all of them and the
  * list would hand back the first page forever, with no error — one of the
  * "empty/false answer consumed as a benign one" shapes.
  *
@@ -324,9 +324,7 @@ export async function countReportsAwaitingDecision(
 }
 
 /** How many reports were stored with no route to review at all. */
-export async function countLocalOnlyReports(
-  db: DatabaseOrTransaction = getDb(),
-): Promise<number> {
+export async function countLocalOnlyReports(db: DatabaseOrTransaction = getDb()): Promise<number> {
   const [row] = await db
     .select({ total: count() })
     .from(reports)

@@ -225,7 +225,11 @@ function resolveNativeVisibility(
   return { visible: keyRank !== undefined, order: keyRank ?? 0 };
 }
 
-export function VideoPlaybackProvider({ children }: { children: React.ReactNode }): React.ReactElement {
+export function VideoPlaybackProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}): React.ReactElement {
   const [active] = useState(() => createStore<string | null>(null));
   const foreground = useSyncExternalStore(
     subscribeForeground,
@@ -331,11 +335,7 @@ export function VideoPlaybackProvider({ children }: { children: React.ReactNode 
     [active, foreground, publish, unpublish, claimActive],
   );
 
-  return (
-    <VideoPlaybackContext.Provider value={value}>
-      {children}
-    </VideoPlaybackContext.Provider>
-  );
+  return <VideoPlaybackContext.Provider value={value}>{children}</VideoPlaybackContext.Provider>;
 }
 
 function rankKeys(keys: ReadonlySet<string>): ReadonlyMap<string, number> {
@@ -374,9 +374,7 @@ export function VideoViewabilityProvider({
   }, [source, ranks]);
 
   return (
-    <VideoViewabilityContext.Provider value={source}>
-      {children}
-    </VideoViewabilityContext.Provider>
+    <VideoViewabilityContext.Provider value={source}>{children}</VideoViewabilityContext.Provider>
   );
 }
 
@@ -409,9 +407,7 @@ export function VideoViewabilityScope({
   );
 
   return (
-    <VideoViewabilityContext.Provider value={scope}>
-      {children}
-    </VideoViewabilityContext.Provider>
+    <VideoViewabilityContext.Provider value={scope}>{children}</VideoViewabilityContext.Provider>
   );
 }
 
@@ -508,8 +504,7 @@ export function useVideoPlayback({
 
   const claimActive = useCallback(() => claimActiveById(id), [claimActiveById, id]);
 
-  const shouldPlay =
-    eligible && (foreground || ownsSession) && (silent || isActive);
+  const shouldPlay = eligible && (foreground || ownsSession) && (silent || isActive);
 
   return { shouldPlay, claimActive, reportVisibility };
 }

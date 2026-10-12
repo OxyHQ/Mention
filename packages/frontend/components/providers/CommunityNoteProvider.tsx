@@ -12,5 +12,9 @@ import { useCommunityNoteHandlers } from '@/hooks/useCommunityNotes';
  */
 export function CommunityNoteProvider({ children }: { children: ReactNode }) {
   const handlers = useCommunityNoteHandlers();
-  return <CommunityNoteHandlersContextProvider handlers={handlers}>{children}</CommunityNoteHandlersContextProvider>;
+  return (
+    <CommunityNoteHandlersContextProvider handlers={handlers}>
+      {children}
+    </CommunityNoteHandlersContextProvider>
+  );
 }

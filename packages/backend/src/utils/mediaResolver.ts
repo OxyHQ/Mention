@@ -163,7 +163,7 @@ export function attachCdnVariant(url: string, variant: string): string {
  * Exported because it is the WHOLE of the media-reference dichotomy: a
  * `MediaItem.id` is either one of these or an Oxy file id, so
  * `MediaMetadataService.isOxyFileId` is its negation rather than a second,
- * independently-drifting id pattern. (It was one — a Mongo ObjectId regex that
+ * independently-drifting id pattern. (It was one — a 24-hex id regex that
  * silently stopped matching when oxy-api's file ids became uuid v7.)
  */
 export function isAbsoluteHttpUrl(ref: string): boolean {
@@ -288,7 +288,10 @@ export function resolveAvatarUrl(ref?: string | null): string | undefined {
     // Oxy file id → square avatar crop.
     return oxyCdnUrlClient.assets.publicUrl(ref, MEDIA_VARIANT_AVATAR) || undefined;
   } catch (error) {
-    logger.warn('[mediaResolver] Failed to resolve avatar ref; falling back to passthrough:', error);
+    logger.warn(
+      '[mediaResolver] Failed to resolve avatar ref; falling back to passthrough:',
+      error,
+    );
     return ref;
   }
 }
@@ -333,7 +336,10 @@ export function resolveBannerUrl(ref?: string | null): string | undefined {
     // Oxy file id → banner-width variant.
     return oxyCdnUrlClient.assets.publicUrl(ref, MEDIA_VARIANT_BANNER) || undefined;
   } catch (error) {
-    logger.warn('[mediaResolver] Failed to resolve banner ref; falling back to passthrough:', error);
+    logger.warn(
+      '[mediaResolver] Failed to resolve banner ref; falling back to passthrough:',
+      error,
+    );
     return ref;
   }
 }
@@ -389,7 +395,10 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
     return [];
   }
   return items
-    .filter((item): item is MediaItem => Boolean(item) && typeof item.id === 'string' && item.id.length > 0)
+    .filter(
+      (item): item is MediaItem =>
+        Boolean(item) && typeof item.id === 'string' && item.id.length > 0,
+    )
     .map((item) => {
       const resolved = resolveMediaRef(item.id);
       // Accessibility description — passthrough only (never a URL). Omitted when
@@ -451,7 +460,10 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
             ...(hlsUrl ? { hlsUrl } : {}),
           };
         } catch (error) {
-          logger.warn('[mediaResolver] Failed to resolve video poster; falling back to media ref:', error);
+          logger.warn(
+            '[mediaResolver] Failed to resolve video poster; falling back to media ref:',
+            error,
+          );
         }
       }
 

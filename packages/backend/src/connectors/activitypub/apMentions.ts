@@ -1,7 +1,4 @@
-import {
-  MAX_MENTIONS_PER_POST,
-  MAX_PROFILE_LINKS_PER_BODY,
-} from '@mention/shared-types/mentions';
+import { MAX_MENTIONS_PER_POST, MAX_PROFILE_LINKS_PER_BODY } from '@mention/shared-types/mentions';
 import { logger } from '../../utils/logger';
 import { findActorByUri } from '../../db/federation/actorRepository';
 import {
@@ -315,9 +312,10 @@ type MentionTagResolver = (tag: InboundMentionTag) => Promise<MentionActorResolu
  * link, and never a stored id with no placeholder behind it. `total` is returned so
  * the caller can log the truncation rather than lose mentions quietly.
  */
-function cappedDistinctMentionTags(
-  object: Record<string, unknown>,
-): { kept: InboundMentionTag[]; total: number } {
+function cappedDistinctMentionTags(object: Record<string, unknown>): {
+  kept: InboundMentionTag[];
+  total: number;
+} {
   const byHref = new Map<string, InboundMentionTag>();
   for (const tag of extractMentionTags(object)) {
     if (!byHref.has(tag.href)) byHref.set(tag.href, tag);
@@ -559,7 +557,8 @@ export function applyMentionPlaceholders(
   if (contentMap) {
     const rewrittenMap: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(contentMap)) {
-      rewrittenMap[key] = typeof value === 'string' ? rewriteMentionAnchors(value, anchorMap) : value;
+      rewrittenMap[key] =
+        typeof value === 'string' ? rewriteMentionAnchors(value, anchorMap) : value;
     }
     rewritten.contentMap = rewrittenMap;
   }

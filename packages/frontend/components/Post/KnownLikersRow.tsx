@@ -25,9 +25,7 @@ const MAX_NAMES = 2;
 const MAX_NAME_LENGTH = 20;
 
 function capName(name: string): string {
-  return name.length > MAX_NAME_LENGTH
-    ? `${name.slice(0, MAX_NAME_LENGTH).trimEnd()}…`
-    : name;
+  return name.length > MAX_NAME_LENGTH ? `${name.slice(0, MAX_NAME_LENGTH).trimEnd()}…` : name;
 }
 
 interface KnownLikersRowProps {

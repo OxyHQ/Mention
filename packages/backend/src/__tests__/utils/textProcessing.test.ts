@@ -171,9 +171,7 @@ describe('extractHashtags', () => {
   // sanitizer beside it already kept any unicode letter, so a tag was stored
   // whole but detected truncated. Both now compile the same shared definition.
   it('extracts a non-ASCII tag WHOLE, not truncated at the first accent', () => {
-    expect(extractHashtags('Das #BundesländerTurnier war toll')).toEqual([
-      'bundesländerturnier',
-    ]);
+    expect(extractHashtags('Das #BundesländerTurnier war toll')).toEqual(['bundesländerturnier']);
   });
 
   it('extracts tags across scripts', () => {
@@ -224,19 +222,27 @@ describe('normalizePostHashtags', () => {
   });
 
   it('leaves multiple contextual hashtags used in sentences in content', () => {
-    const r = normalizePostHashtags('Testing #Mention today. I think #social products need better discovery.');
-    expect(r.content).toBe('Testing #Mention today. I think #social products need better discovery.');
+    const r = normalizePostHashtags(
+      'Testing #Mention today. I think #social products need better discovery.',
+    );
+    expect(r.content).toBe(
+      'Testing #Mention today. I think #social products need better discovery.',
+    );
     expect(r.hashtags).toEqual(['mention', 'social']);
   });
 
   it('cleans a trailing 6-tag block, keeping the first after preceding text', () => {
-    const r = normalizePostHashtags('New post about digital communities #startup #social #tech #ai #growth #builders');
+    const r = normalizePostHashtags(
+      'New post about digital communities #startup #social #tech #ai #growth #builders',
+    );
     expect(r.content).toBe('New post about digital communities #startup');
     expect(r.hashtags).toEqual(['startup', 'social', 'tech', 'ai', 'growth', 'builders']);
   });
 
   it('keeps an inline natural hashtag AND the first of a trailing block', () => {
-    const r = normalizePostHashtags('I like how #Mention is evolving for public conversations. #social #network #startup #tech #ai #growth');
+    const r = normalizePostHashtags(
+      'I like how #Mention is evolving for public conversations. #social #network #startup #tech #ai #growth',
+    );
     expect(r.content).toBe('I like how #Mention is evolving for public conversations. #social');
     expect(r.hashtags).toEqual(['mention', 'social', 'network', 'startup', 'tech', 'ai', 'growth']);
   });
@@ -311,7 +317,9 @@ describe('normalizePostHashtags', () => {
   });
 
   it('is idempotent — re-normalizing cleaned content is a no-op', () => {
-    const once = normalizePostHashtags('New post about digital communities #startup #social #tech #ai #growth #builders');
+    const once = normalizePostHashtags(
+      'New post about digital communities #startup #social #tech #ai #growth #builders',
+    );
     const twice = normalizePostHashtags(once.content);
     expect(twice.content).toBe(once.content);
   });

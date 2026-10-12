@@ -72,15 +72,10 @@ async function fetchChrono(
 async function fetchPostsByIds(ids: string[]): Promise<CandidatePost[]> {
   if (ids.length === 0) return [];
   const db = getDb();
-  const rows = await db
-    .select()
-    .from(posts)
-    .where(inArray(posts.id, ids));
+  const rows = await db.select().from(posts).where(inArray(posts.id, ids));
   const loaded: CandidatePost[] = await assemblePostRecords(rows, db);
   const order = new Map(ids.map((id, i) => [id, i]));
-  return loaded.sort(
-    (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0),
-  );
+  return loaded.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
 }
 
 /**
@@ -148,7 +143,8 @@ export const friendsEngagedSource: SourceModule = {
     const conditions: SQL[] = [
       inArray(posts.id, Array.from(friendCountByPost.keys())),
       eq(posts.visibility, PostVisibility.PUBLIC),
-      eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+      eq(posts.status, 'published'),
+      notCollapsedCrosspostSql(),
       notABoostSql(),
     ];
     if (ctx.currentUserId) {
@@ -159,7 +155,10 @@ export const friendsEngagedSource: SourceModule = {
       );
     }
 
-    const rows = await db.select().from(posts).where(and(...conditions));
+    const rows = await db
+      .select()
+      .from(posts)
+      .where(and(...conditions));
     const candidates: CandidatePost[] = await assemblePostRecords(rows, db);
 
     return candidates
@@ -200,7 +199,8 @@ export const quotesSource: SourceModule = {
     return fetchChrono(
       [
         eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+        eq(posts.status, 'published'),
+        notCollapsedCrosspostSql(),
         or(...alternatives) as SQL,
       ],
       ctx.cursor,
@@ -222,7 +222,8 @@ export const repliesFromFollowsSource: SourceModule = {
       [
         inArray(posts.oxyUserId, followingIds),
         eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+        eq(posts.status, 'published'),
+        notCollapsedCrosspostSql(),
         eq(posts.isReply, true),
       ],
       ctx.cursor,
@@ -249,7 +250,8 @@ export const boostsFromFollowsSource: SourceModule = {
       [
         eq(posts.type, PostType.BOOST),
         inArray(posts.oxyUserId, followingIds),
-        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+        eq(posts.status, 'published'),
+        notCollapsedCrosspostSql(),
       ],
       ctx.cursor,
       cap,
@@ -266,8 +268,8 @@ export const mentionsOfMeSource: SourceModule = {
     const viewerId = ctx.currentUserId;
     if (!viewerId) return [];
 
-    // `mentions` became a junction table, so Mongo's `{ mentions: viewerId }`
-    // array-element match becomes a correlated EXISTS. Built through the query
+    // `mentions` is a junction table, so "the viewer is mentioned" is a
+    // correlated EXISTS. Built through the query
     // builder so `post_mentions.post_id = posts.id` renders qualified.
     const mentioned = sql`exists ${getDb()
       .select({ one: sql`1` })
@@ -278,7 +280,8 @@ export const mentionsOfMeSource: SourceModule = {
       [
         mentioned,
         inArray(posts.visibility, [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY]),
-        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+        eq(posts.status, 'published'),
+        notCollapsedCrosspostSql(),
       ],
       ctx.cursor,
       cap,
@@ -308,10 +311,7 @@ export const hashtagFollowsSource: SourceModule = {
         .selectDistinct({ entityId: entityFollows.entityId })
         .from(entityFollows)
         .where(
-          and(
-            eq(entityFollows.userId, ctx.currentUserId),
-            eq(entityFollows.entityType, 'hashtag'),
-          ),
+          and(eq(entityFollows.userId, ctx.currentUserId), eq(entityFollows.entityType, 'hashtag')),
         );
       tags = rows.map((row) => row.entityId);
     } catch (error) {
@@ -323,7 +323,7 @@ export const hashtagFollowsSource: SourceModule = {
 
     return fetchChrono(
       [
-        // Array OVERLAP — the analogue of Mongo's `$in` against a multikey field.
+        // Array OVERLAP — any of the tags appears in the post's array.
         //
         // Through `arrayOverlaps`, never a raw `${tags}::text[]`: a JS array
         // interpolated into a `sql` template binds as a ROW CONSTRUCTOR
@@ -332,7 +332,8 @@ export const hashtagFollowsSource: SourceModule = {
         // because `hashtags` is nullable and `NULL && ARRAY[…]` is NULL.
         sql`coalesce(${arrayOverlaps(posts.hashtags, tags)}, false)`,
         eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+        eq(posts.status, 'published'),
+        notCollapsedCrosspostSql(),
       ],
       ctx.cursor,
       cap,
@@ -349,7 +350,7 @@ export const starterPackSource: SourceModule = {
     const packId = typeof params.packId === 'string' ? params.packId : '';
     if (!packId) return [];
 
-    // Members are a junction TABLE here, not the embedded id array Mongo held —
+    // Members are a junction TABLE here, not an embedded id array —
     // `CONVENTIONS.md` makes an array of ids a real table so it can be joined,
     // constrained and indexed. So this is a member query, not a pack lookup:
     // reading the pack row would return no members at all.
@@ -371,7 +372,8 @@ export const starterPackSource: SourceModule = {
       [
         inArray(posts.oxyUserId, memberIds),
         eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+        eq(posts.status, 'published'),
+        notCollapsedCrosspostSql(),
       ],
       ctx.cursor,
       cap,
@@ -383,11 +385,10 @@ export const starterPackSource: SourceModule = {
  * `onThisDay`: nostalgia — the viewer's own posts (or the viewer + their follows
  * when `params.scope === 'follows'`) from earlier years on today's month/day.
  *
- * `extract(... from created_at)` is the port of Mongo's `$month`/`$dayOfMonth`
- * `$expr`, and like it, it is evaluated per row — so the query is bounded by the
- * author-id filter exactly as before. The timestamps are `timestamptz`, so the
- * extraction runs in the session time zone; `at time zone 'utc'` pins it to the
- * same UTC calendar day the original operators used, which is also what the JS
+ * `extract(... from created_at)` matches month and day, and it is evaluated per
+ * row — so the query is bounded by the author-id filter. The timestamps are
+ * `timestamptz`, so the extraction runs in the session time zone;
+ * `at time zone 'utc'` pins it to the UTC calendar day, which is also what the JS
  * side computes with `getUTCMonth`/`getUTCDate`.
  */
 export const onThisDaySource: SourceModule = {
@@ -409,7 +410,8 @@ export const onThisDaySource: SourceModule = {
     return fetchChrono(
       [
         inArray(posts.oxyUserId, authorIds),
-        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+        eq(posts.status, 'published'),
+        notCollapsedCrosspostSql(),
         sql`extract(month from ${utc}) = ${now.getUTCMonth() + 1}`,
         sql`extract(day from ${utc}) = ${now.getUTCDate()}`,
         sql`extract(year from ${utc}) < ${now.getUTCFullYear()}`,
@@ -430,7 +432,8 @@ export const questionsSource: SourceModule = {
       [
         eq(posts.classificationIntent, 'question'),
         eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+        eq(posts.status, 'published'),
+        notCollapsedCrosspostSql(),
       ],
       ctx.cursor,
       cap,
@@ -446,7 +449,8 @@ export const newsSource: SourceModule = {
     fetchChrono(
       [
         eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+        eq(posts.status, 'published'),
+        notCollapsedCrosspostSql(),
         or(
           eq(posts.classificationIntent, 'news'),
           sql`coalesce(${posts.classificationTopics} @> array['news']::text[], false)`,
@@ -466,10 +470,9 @@ export const newsSource: SourceModule = {
  * host-prefix match — correct but not index-served. The fix is to persist and
  * index the domain at ingest.
  *
- * `local` keys off `federation_actor_uri IS NULL`. In Mongo the whole
- * `federation` subdocument was absent for a local post; here the columns are
- * individually null, and the actor URI is the one every federated ingest path
- * writes.
+ * `local` keys off `federation_actor_uri IS NULL`. The federation columns are
+ * individually null for a local post, and the actor URI is the one every
+ * federated ingest path writes.
  */
 export const instanceSource: SourceModule = {
   id: 'instance',
@@ -481,7 +484,8 @@ export const instanceSource: SourceModule = {
 
     const conditions: SQL[] = [
       eq(posts.visibility, PostVisibility.PUBLIC),
-      eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+      eq(posts.status, 'published'),
+      notCollapsedCrosspostSql(),
     ];
 
     if (domain === 'local') {
@@ -527,13 +531,17 @@ export const linksSource: SourceModule = {
       .select({ one: sql`1` })
       .from(postContentVariants)
       .where(
-        and(eq(postContentVariants.postId, posts.id), sql`${postContentVariants.body} ~* ${pattern}`),
+        and(
+          eq(postContentVariants.postId, posts.id),
+          sql`${postContentVariants.body} ~* ${pattern}`,
+        ),
       )}`;
 
     return fetchChrono(
       [
         eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+        eq(posts.status, 'published'),
+        notCollapsedCrosspostSql(),
         or(inSources, inBody) as SQL,
       ],
       ctx.cursor,
@@ -550,10 +558,9 @@ export const linksSource: SourceModule = {
  * LOW-VOLUME authors active in the recency window, earliest-arriving first, and
  * fetches each qualifying author's latest post. Always SFW.
  *
- * `max(id)` picked the latest post in Mongo because an ObjectId encodes its
- * creation time. It does not here (see `chronoOrderBy`), so "latest" is resolved
- * with `DISTINCT ON` over the real `(created_at DESC, id DESC)` order — which is
- * also strictly more correct for federated posts, whose import-time id bears no
+ * `max(id)` would not pick the latest post: id order is not time order (see
+ * `chronoOrderBy`), so "latest" is resolved with `DISTINCT ON` over the real
+ * `(created_at DESC, id DESC)` order — which is also strictly more correct for federated posts, whose import-time id bears no
  * relation to when they were written.
  *
  * "Earliest-arriving first" is the `ORDER BY min(created_at) DESC` below and
@@ -586,7 +593,8 @@ export const newVoicesSource: SourceModule = {
       .where(
         and(
           eq(posts.visibility, PostVisibility.PUBLIC),
-          eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+          eq(posts.status, 'published'),
+          notCollapsedCrosspostSql(),
           gte(posts.createdAt, windowStart),
           discoverySafeSql(),
           eq(posts.isReply, false),
@@ -641,7 +649,8 @@ export const topRepliesSource: SourceModule = {
       .where(
         and(
           eq(posts.visibility, PostVisibility.PUBLIC),
-          eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+          eq(posts.status, 'published'),
+          notCollapsedCrosspostSql(),
           gte(posts.createdAt, windowStart),
           discoverySafeSql(),
           eq(posts.isReply, true),
@@ -673,7 +682,8 @@ export const friendsOfFriendsSource: SourceModule = {
       [
         inArray(posts.oxyUserId, fofIds),
         eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+        eq(posts.status, 'published'),
+        notCollapsedCrosspostSql(),
       ],
       ctx.cursor,
       cap,
@@ -695,7 +705,8 @@ export const curatedSource: SourceModule = {
       [
         eq(posts.curated, true),
         eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+        eq(posts.status, 'published'),
+        notCollapsedCrosspostSql(),
       ],
       ctx.cursor,
       cap,

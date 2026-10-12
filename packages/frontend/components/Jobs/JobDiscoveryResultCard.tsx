@@ -17,7 +17,12 @@ import { Item } from '@oxy.so/bloom/item';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { Text as BloomText } from '@oxy.so/bloom/typography';
-import type { JobEmploymentType, JobReportReason, JobSearchResult, JobWorkplaceType } from '@mention/shared-types/job';
+import type {
+  JobEmploymentType,
+  JobReportReason,
+  JobSearchResult,
+  JobWorkplaceType,
+} from '@mention/shared-types/job';
 import { logger } from '@oxy.so/core/logger';
 import { WEB_BASE_URL } from '@/config';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
@@ -121,10 +126,17 @@ const ExternalJobReportSheet = memo(function ExternalJobReportSheet({
       setSubmitting(reason);
       try {
         await jobApplicationsService.reportExternalJob(clarityJobId, reason);
-        toast(t('jobs.discovery.reportSubmitted', { defaultValue: 'Thanks — this listing has been reported' }), { type: 'success' });
+        toast(
+          t('jobs.discovery.reportSubmitted', {
+            defaultValue: 'Thanks — this listing has been reported',
+          }),
+          { type: 'success' },
+        );
       } catch (error) {
         logger.warn('Failed to report external job', { error, clarityJobId });
-        toast(t('jobs.discovery.reportFailed', { defaultValue: 'Could not submit this report' }), { type: 'error' });
+        toast(t('jobs.discovery.reportFailed', { defaultValue: 'Could not submit this report' }), {
+          type: 'error',
+        });
       } finally {
         setSubmitting(null);
         onClose();
@@ -140,7 +152,8 @@ const ExternalJobReportSheet = memo(function ExternalJobReportSheet({
       </Text>
       <Text className="text-muted-foreground text-sm mb-3">
         {t('jobs.discovery.reportSubtitle', {
-          defaultValue: 'This job is indexed from another site. Your report goes to its source, via Clarity.',
+          defaultValue:
+            'This job is indexed from another site. Your report goes to its source, via Clarity.',
         })}
       </Text>
       {EXTERNAL_REPORT_REASONS.map((reason) => (
@@ -194,7 +207,9 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
       router.push(appPath as Href);
       return;
     }
-    void openExternalLink(job.source.applyUrl || job.applyUrl || job.source.canonicalUrl || job.canonicalUrl);
+    void openExternalLink(
+      job.source.applyUrl || job.applyUrl || job.source.canonicalUrl || job.canonicalUrl,
+    );
   }, [appPath, job]);
 
   const share = useCallback(() => {
@@ -222,7 +237,8 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
       onPress={open}
       className="mx-4 mb-3 p-4"
       accessibilityRole="button"
-      accessibilityLabel={job.title} appearance="outline"
+      accessibilityLabel={job.title}
+      appearance="outline"
     >
       <View className="flex-row items-start justify-between gap-2">
         <View className="flex-1">
@@ -258,13 +274,21 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
       {badges.length > 0 ? (
         <View className="flex-row flex-wrap gap-1.5 mt-2.5">
           {badges.map((label, index) => (
-            <Badge key={`${label}-${index}`} content={label} color="default" variant="outlined" size="small" />
+            <Badge
+              key={`${label}-${index}`}
+              content={label}
+              color="default"
+              variant="outlined"
+              size="small"
+            />
           ))}
         </View>
       ) : null}
 
       {salaryLabel ? (
-        <BloomText variant="body-semibold" style={{ marginTop: 8 }}>{salaryLabel}</BloomText>
+        <BloomText variant="body-semibold" style={{ marginTop: 8 }}>
+          {salaryLabel}
+        </BloomText>
       ) : null}
 
       {job.snippet ? (
@@ -303,7 +327,12 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
           </BloomText>
         </View>
         <View className="flex-row items-center gap-3">
-          <TouchableOpacity onPress={share} hitSlop={HIT_SLOP_MD} accessibilityRole="button" accessibilityLabel={t('jobs.detail.share', { defaultValue: 'Share' })}>
+          <TouchableOpacity
+            onPress={share}
+            hitSlop={HIT_SLOP_MD}
+            accessibilityRole="button"
+            accessibilityLabel={t('jobs.detail.share', { defaultValue: 'Share' })}
+          >
             <RiShareForwardLine width={16} height={16} fill={theme.colors.textSecondary} />
           </TouchableOpacity>
           {!appPath ? (

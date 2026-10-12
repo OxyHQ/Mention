@@ -32,7 +32,9 @@ const ACTOR_UPSERT_FAILED_METRIC = 'federated_actor_upsert_failed_total';
  * `instagram-graph` row claiming the same username (a released and re-registered
  * handle) does, and the upsert fails closed exactly like the atproto one.
  */
-export async function fetchAndUpsertInstagramGraphActor(actorUri: string): Promise<NormalizedExternalActor | null> {
+export async function fetchAndUpsertInstagramGraphActor(
+  actorUri: string,
+): Promise<NormalizedExternalActor | null> {
   if (!igUserIdFromActorUri(actorUri)) return null;
 
   let resolved: Awaited<ReturnType<typeof resolveOxyIdentity>>;
@@ -78,8 +80,11 @@ export async function fetchAndUpsertInstagramGraphActor(actorUri: string): Promi
   } catch (err) {
     // Never the raw error: postgres.js attaches the statement and its parameters.
     const failure = describeDriverError(err);
-    const reason = isUniqueViolation(err) ? failure.constraint ?? 'unique_violation' : 'other';
-    metrics.incrementCounter(ACTOR_UPSERT_FAILED_METRIC, 1, { protocol: INSTAGRAM_GRAPH_NETWORK_ID, reason });
+    const reason = isUniqueViolation(err) ? (failure.constraint ?? 'unique_violation') : 'other';
+    metrics.incrementCounter(ACTOR_UPSERT_FAILED_METRIC, 1, {
+      protocol: INSTAGRAM_GRAPH_NETWORK_ID,
+      reason,
+    });
     logger.warn('[instagram] failed to upsert instagram-graph actor', { ...failure });
     return null;
   }

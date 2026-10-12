@@ -5,12 +5,8 @@ import {
 } from '../usePrivacySettings';
 
 const mockGetItem = jest.fn();
-const mockSetItem = jest.fn(
-  (_key: string, _value: string) => Promise.resolve(),
-);
-const mockRemoveItem = jest.fn(
-  (_key: string) => Promise.resolve(),
-);
+const mockSetItem = jest.fn((_key: string, _value: string) => Promise.resolve());
+const mockRemoveItem = jest.fn((_key: string) => Promise.resolve());
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -67,10 +63,7 @@ describe('current-user privacy cache viewer isolation', () => {
     const oldLease = createPrivacySettingsCacheLease(viewerId);
 
     resetCurrentUserPrivacySettingsCache(viewerId);
-    await updatePrivacySettingsCache(
-      { hideLikeCounts: true },
-      oldLease,
-    );
+    await updatePrivacySettingsCache({ hideLikeCounts: true }, oldLease);
 
     expect(mockSetItem).not.toHaveBeenCalled();
   });
@@ -79,9 +72,7 @@ describe('current-user privacy cache viewer isolation', () => {
     const viewerId = 'privacy-viewer-returning-a';
     const storageKey = '@mention_privacy_settings:v2:privacy-viewer-returning-a';
     const oldWriteGate = deferred<void>();
-    mockSetItem
-      .mockReturnValueOnce(oldWriteGate.promise)
-      .mockResolvedValueOnce(undefined);
+    mockSetItem.mockReturnValueOnce(oldWriteGate.promise).mockResolvedValueOnce(undefined);
     const firstSessionLease = createPrivacySettingsCacheLease(viewerId);
 
     const firstWrite = updatePrivacySettingsCache(
@@ -105,13 +96,10 @@ describe('current-user privacy cache viewer isolation', () => {
     await flushQueue();
 
     expect(mockSetItem).toHaveBeenCalledTimes(2);
-    const scopedRemoveIndex = mockRemoveItem.mock.calls.findIndex(
-      ([key]) => key === storageKey,
-    );
+    const scopedRemoveIndex = mockRemoveItem.mock.calls.findIndex(([key]) => key === storageKey);
     expect(scopedRemoveIndex).toBeGreaterThanOrEqual(0);
     const firstSetOrder = mockSetItem.mock.invocationCallOrder[0];
-    const resetRemoveOrder =
-      mockRemoveItem.mock.invocationCallOrder[scopedRemoveIndex];
+    const resetRemoveOrder = mockRemoveItem.mock.invocationCallOrder[scopedRemoveIndex];
     const secondSetOrder = mockSetItem.mock.invocationCallOrder[1];
     expect(firstSetOrder).toBeLessThan(resetRemoveOrder);
     expect(resetRemoveOrder).toBeLessThan(secondSetOrder);

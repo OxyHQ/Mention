@@ -40,7 +40,8 @@ function readBootstrap(): DocumentBootstrap | null {
 export function bootstrapProfileFor(handle: string): User | null {
   const profile = readBootstrap()?.profile;
   if (!profile || typeof profile.handle !== 'string') return null;
-  if (profile.handle.trim().toLowerCase() !== handle.trim().replace(/^@+/, '').toLowerCase()) return null;
+  if (profile.handle.trim().toLowerCase() !== handle.trim().replace(/^@+/, '').toLowerCase())
+    return null;
   const data = profile.data;
   if (!data || typeof data !== 'object' || !getNormalizedUserId(data as User)) return null;
   const user = normalizeUserIdentity(data as User);

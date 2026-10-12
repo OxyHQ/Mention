@@ -100,7 +100,7 @@ describe('fediverseSharing', () => {
       expect(mocks.redisSetEx).toHaveBeenCalledWith('fedisharing:v1:u1', 600, '0');
     });
 
-    it('bypasses the SDK\'s own in-process cache on every Oxy call ({ cache: false })', async () => {
+    it("bypasses the SDK's own in-process cache on every Oxy call ({ cache: false })", async () => {
       mocks.getUserById.mockResolvedValue({ id: 'u1', fediverseSharing: true });
       await isFediverseSharingEnabled('u1');
       expect(mocks.getUserById).toHaveBeenCalledWith('u1', { cache: false });

@@ -111,11 +111,7 @@ vi.mock('../../../services/publishAsAccount', () => ({
 import { like } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
 import { posts } from '../../../db/schema/posts';
-import {
-  clearFederationScope,
-  federationScope,
-  seedPost,
-} from '../../helpers/federationFixtures';
+import { clearFederationScope, federationScope, seedPost } from '../../helpers/federationFixtures';
 import * as channelReplyGate from '../../../utils/channelReplyGate';
 import { outboxSyncService } from '../../../connectors/activitypub/outbox.service';
 
@@ -173,7 +169,11 @@ function stubOutbox(orderedItems: unknown[]): void {
     'fetch',
     vi.fn(async (url: string) => {
       if (url === OUTBOX_URL) {
-        return jsonResponse({ type: 'OrderedCollection', totalItems: orderedItems.length, orderedItems });
+        return jsonResponse({
+          type: 'OrderedCollection',
+          totalItems: orderedItems.length,
+          orderedItems,
+        });
       }
       throw new Error(`unexpected fetch ${url}`);
     }),
@@ -182,7 +182,12 @@ function stubOutbox(orderedItems: unknown[]): void {
 
 function runOutboxSync() {
   return outboxSyncService.syncOutboxPostsDetailed(
-    { uri: ACTOR_URI, acct: `alice@${scope.domain}`, outboxUrl: OUTBOX_URL, oxyUserId: ALICE_OXY_ID },
+    {
+      uri: ACTOR_URI,
+      acct: `alice@${scope.domain}`,
+      outboxUrl: OUTBOX_URL,
+      oxyUserId: ALICE_OXY_ID,
+    },
     { limit: 10, maxPages: 1 },
   );
 }
@@ -217,7 +222,9 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
-  await getDb().delete(posts).where(like(posts.federationActivityId, `${ACTOR_URI}%`));
+  await getDb()
+    .delete(posts)
+    .where(like(posts.federationActivityId, `${ACTOR_URI}%`));
   await clearFederationScope(scope);
 });
 
@@ -246,7 +253,9 @@ beforeEach(() => {
   mocks.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
   mocks.fetchUpstreamSingleHop.mockImplementation(
     async (url: string, options: { headers: Record<string, string> }) => {
-      const res: Response = await (globalThis.fetch as typeof fetch)(url, { headers: options.headers });
+      const res: Response = await (globalThis.fetch as typeof fetch)(url, {
+        headers: options.headers,
+      });
       const bodyBuffer = Buffer.from(await res.arrayBuffer());
       const headers: Record<string, string> = {};
       res.headers.forEach((value, key) => {
@@ -257,16 +266,17 @@ beforeEach(() => {
       return { response: stream, status: res.status, headers };
     },
   );
-  mocks.getOrFetchActor.mockResolvedValue({ uri: ACTOR_URI, oxyUserId: ALICE_OXY_ID, type: 'Person' });
+  mocks.getOrFetchActor.mockResolvedValue({
+    uri: ACTOR_URI,
+    oxyUserId: ALICE_OXY_ID,
+    type: 'Person',
+  });
 });
 
 describe('outbox backfill — a reply to a channel post is never stored', () => {
   it('skips the channel reply and still imports the rest of the page', async () => {
     const channelPost = await seedPost(scope, { oxyUserId: CHANNEL_ACCOUNT });
-    stubOutbox([
-      createNote('to-channel', localUri(channelPost.id)),
-      createNote('ordinary'),
-    ]);
+    stubOutbox([createNote('to-channel', localUri(channelPost.id)), createNote('ordinary')]);
 
     const result = await runOutboxSync();
 

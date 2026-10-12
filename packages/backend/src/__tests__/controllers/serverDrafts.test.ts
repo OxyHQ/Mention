@@ -39,7 +39,11 @@ vi.mock('../../services/PostHydrationService', () => ({
   // Resolves no account kinds, so a stranger's post reads as an account nothing
   // can be published as — the refusal `postManagementRefusal` answers 404 to.
   resolveUserSummaries: vi.fn(async () => new Map()),
-  degradedActorSummary: (id: string) => ({ id, username: '', name: { displayName: 'Unknown user' } }),
+  degradedActorSummary: (id: string) => ({
+    id,
+    username: '',
+    name: { displayName: 'Unknown user' },
+  }),
 }));
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
@@ -106,7 +110,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   hoisted.listAccounts.mockResolvedValue([]);
   hoisted.hydratePosts.mockImplementation(async (posts: PostRecord[]) =>
-    posts.map((post) => ({ id: post.id })));
+    posts.map((post) => ({ id: post.id })),
+  );
   publishSpy.mockImplementation(async (post: PostRecord) => post);
 });
 
@@ -126,7 +131,11 @@ describe('GET /posts/drafts', () => {
     // None of these may appear: somebody else's draft, and the caller's own
     // scheduled and published posts.
     await seedDraft(STRANGER);
-    await seedPost(scope, { oxyUserId: VIEWER, status: 'scheduled', scheduledFor: new Date(Date.now() + 3_600_000) });
+    await seedPost(scope, {
+      oxyUserId: VIEWER,
+      status: 'scheduled',
+      scheduledFor: new Date(Date.now() + 3_600_000),
+    });
     await seedPost(scope, { oxyUserId: VIEWER });
     const { res } = buildResponse();
 
@@ -176,7 +185,10 @@ describe('POST /posts/:id/publish on a draft', () => {
 
   it('answers 409 to a second publish, and does not run the pipeline again', async () => {
     const postId = await seedDraft();
-    await publishScheduledPostNow(buildRequest(VIEWER, { id: postId }) as never, buildResponse().res as never);
+    await publishScheduledPostNow(
+      buildRequest(VIEWER, { id: postId }) as never,
+      buildResponse().res as never,
+    );
     const { res, captured } = buildResponse();
 
     await publishScheduledPostNow(buildRequest(VIEWER, { id: postId }) as never, res as never);

@@ -22,15 +22,14 @@ vi.mock('../../utils/oxyHelpers', () => ({
   }),
 }));
 
-import {
-  bearerLooksLikeMcpToken,
-  createOptionalMcpAuth,
-} from '../../mcp/middleware/mcpAuth';
+import { bearerLooksLikeMcpToken, createOptionalMcpAuth } from '../../mcp/middleware/mcpAuth';
 import { config } from '../../config';
 
 /** A central (Oxy-issued) MCP token for `mcp-user-1`, live until `centralTokens` forgets it. */
 function centralToken(scopes: string[]): string {
-  const value = jwt.sign({ aud: config.deploymentMcp.audience }, 'routing-only-test-secret', { algorithm: 'HS256' });
+  const value = jwt.sign({ aud: config.deploymentMcp.audience }, 'routing-only-test-secret', {
+    algorithm: 'HS256',
+  });
   centralTokens.set(value, {
     iss: config.oxyApiUrl.replace(/\/+$/, ''),
     sub: 'mcp-user-1',

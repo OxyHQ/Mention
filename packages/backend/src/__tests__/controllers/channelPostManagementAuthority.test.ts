@@ -66,11 +66,16 @@ vi.mock('../../services/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn(async (ids: string[]) => {
     const summaries = new Map();
     for (const id of ids) {
-      if (id === CHANNEL) summaries.set(id, { user: { id, username: 'thechannel', kind: 'channel' } });
+      if (id === CHANNEL)
+        summaries.set(id, { user: { id, username: 'thechannel', kind: 'channel' } });
     }
     return summaries;
   }),
-  degradedActorSummary: (id: string) => ({ id, username: '', name: { displayName: 'Unknown user' } }),
+  degradedActorSummary: (id: string) => ({
+    id,
+    username: '',
+    name: { displayName: 'Unknown user' },
+  }),
   isFallbackUserSummary: (user: { username?: string }) => !user.username,
 }));
 

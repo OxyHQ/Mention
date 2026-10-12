@@ -8,7 +8,10 @@ import { readMediaPixelSize } from '../mediaTypes';
  */
 describe('readMediaPixelSize', () => {
   it('reads a portrait size', () => {
-    expect(readMediaPixelSize({ width: 1080, height: 1920 })).toEqual({ width: 1080, height: 1920 });
+    expect(readMediaPixelSize({ width: 1080, height: 1920 })).toEqual({
+      width: 1080,
+      height: 1920,
+    });
   });
 
   it('needs BOTH axes — one alone says nothing about shape', () => {

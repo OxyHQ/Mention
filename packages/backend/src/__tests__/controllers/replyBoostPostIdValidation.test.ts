@@ -7,7 +7,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
  *
  * `postId` / `originalPostId` come out of `req.body` as parsed JSON, so they can
  * be objects, and both handlers passed them to `Post.findById` behind nothing
- * but a truthiness test. Measured against a real mongod on mongoose 8.24.1:
+ * but a truthiness test. Measured against the previous document store:
  *
  *   findById({ $ne: null })          -> MATCHED an arbitrary post
  *   findByIdAndUpdate({ $ne: null }) -> MUTATED an arbitrary post
@@ -144,7 +144,10 @@ describe('createReply / createBoost reject a post id that is not one', () => {
     const { res, captured } = buildResponse();
 
     await feedController.createReply(
-      { body: { postId: parent.id, content: 'hello' }, user: { id: scope.user('author') } } as never,
+      {
+        body: { postId: parent.id, content: 'hello' },
+        user: { id: scope.user('author') },
+      } as never,
       res as never,
     );
 

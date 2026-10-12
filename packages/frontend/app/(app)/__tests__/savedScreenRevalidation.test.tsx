@@ -30,7 +30,13 @@ import {
  * and the query client's defaults are all real.
  */
 
-type MessageNode = string | number | boolean | null | MessageNode[] | { [key: string]: MessageNode };
+type MessageNode =
+  | string
+  | number
+  | boolean
+  | null
+  | MessageNode[]
+  | { [key: string]: MessageNode };
 const messages: { [key: string]: MessageNode } = enMessages;
 
 function mockTranslate(key: string, fallback?: string): string {
@@ -38,9 +44,7 @@ function mockTranslate(key: string, fallback?: string): string {
     .split('.')
     .reduce<MessageNode | undefined>(
       (node, part) =>
-        typeof node === 'object' && node !== null && !Array.isArray(node)
-          ? node[part]
-          : undefined,
+        typeof node === 'object' && node !== null && !Array.isArray(node) ? node[part] : undefined,
       messages,
     );
   return typeof value === 'string' ? value : (fallback ?? key);
@@ -137,9 +141,13 @@ jest.mock('@oxy.so/bloom/text-field', () => {
   const Passthrough = ({ children }: { children?: React.ReactNode }) => <View>{children}</View>;
   return {
     TextField: Passthrough,
-    TextFieldInput: ({ value, onChangeText }: { value?: string; onChangeText?: (text: string) => void }) => (
-      <TextInput testID="text-input" value={value} onChangeText={onChangeText} />
-    ),
+    TextFieldInput: ({
+      value,
+      onChangeText,
+    }: {
+      value?: string;
+      onChangeText?: (text: string) => void;
+    }) => <TextInput testID="text-input" value={value} onChangeText={onChangeText} />,
   };
 });
 
@@ -150,11 +158,20 @@ jest.mock('@oxy.so/bloom/tabs', () => {
   const RN = jest.requireActual<typeof import('react-native')>('react-native');
   const Context = R.createContext<(mockValue: string) => void>(() => {});
   return {
-    Tabs: ({ children, onValueChange }: { children: React.ReactNode; onValueChange: (mockValue: string) => void }) =>
-      R.createElement(Context.Provider, { value: onValueChange }, children),
+    Tabs: ({
+      children,
+      onValueChange,
+    }: {
+      children: React.ReactNode;
+      onValueChange: (mockValue: string) => void;
+    }) => R.createElement(Context.Provider, { value: onValueChange }, children),
     TabsTrigger: ({ value, label }: { value: string; label: string }) => {
       const change = R.useContext(Context);
-      return R.createElement(RN.Pressable, { testID: `tab-${value}`, onPress: () => change(value) }, R.createElement(RN.Text, null, label));
+      return R.createElement(
+        RN.Pressable,
+        { testID: `tab-${value}`, onPress: () => change(value) },
+        R.createElement(RN.Text, null, label),
+      );
     },
   };
 });
@@ -176,13 +193,7 @@ jest.mock('@/components/saved/SavedPostsList', () => {
   const { Text, View } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
     __esModule: true,
-    default: ({
-      posts,
-      empty,
-    }: {
-      posts: { id: string }[];
-      empty: React.ReactNode;
-    }) => (
+    default: ({ posts, empty }: { posts: { id: string }[]; empty: React.ReactNode }) => (
       <View testID="saved-list">
         {posts.length === 0 ? empty : null}
         {posts.map((post) => (
@@ -209,7 +220,9 @@ const mockGetSavedPosts = jest.fn(
   async ({ page = 1, limit = 30 }: { page?: number; limit?: number }) => ({
     success: true,
     data: {
-      posts: mockServerSaved.map((id) => ({ id, content: { text: id } }) as unknown as HydratedPost),
+      posts: mockServerSaved.map(
+        (id) => ({ id, content: { text: id } }) as unknown as HydratedPost,
+      ),
       hasMore: false,
       page,
       limit,
@@ -465,7 +478,10 @@ describe('creating an empty folder', () => {
       firstVisit.root.findByProps({ testID: 'text-input' }).props.onChangeText('QA-empty-20260925');
     });
     const create = firstVisit.root
-      .findAll((node) => node.props.accessibilityRole === 'button' && typeof node.props.onPress === 'function')
+      .findAll(
+        (node) =>
+          node.props.accessibilityRole === 'button' && typeof node.props.onPress === 'function',
+      )
       .find((node) => collectText(node.children as unknown as JsonNode[]).includes('Create'));
     await act(async () => {
       create?.props.onPress();

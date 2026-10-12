@@ -97,9 +97,7 @@ async function popularScanPlan(): Promise<string> {
   const { sql: text, params } = query.toSQL();
   const inlined = text.replace(/\$(\d+)/g, (_match, index: string) => {
     const value = params[Number(index) - 1];
-    return typeof value === 'number'
-      ? String(value)
-      : `'${String(value).replace(/'/g, "''")}'`;
+    return typeof value === 'number' ? String(value) : `'${String(value).replace(/'/g, "''")}'`;
   });
   // `SET LOCAL` inside a transaction, so the setting cannot outlive this plan and
   // reach another suite through the pooled connection.

@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { MediaItem, PostContentVariant, PostUser, StoredPostContent } from '@mention/shared-types';
+import type {
+  MediaItem,
+  PostContentVariant,
+  PostUser,
+  StoredPostContent,
+} from '@mention/shared-types';
 
 /**
  * The DTO contract that makes multilingual posts cheap: hydration resolves the
@@ -62,7 +67,13 @@ async function hydrateContent(
   const builder = asBuilder(service);
   const resolved = resolveVariant(content, resolveViewerTag(candidates, content));
   const inline = await builder.buildInlineVariants(content, resolved.tag, [], new Map(), true);
-  return builder.buildContent({ content }, new Map(), { includeFullArticleBody: true }, resolved, inline);
+  return builder.buildContent(
+    { content },
+    new Map(),
+    { includeFullArticleBody: true },
+    resolved,
+    inline,
+  );
 }
 
 const media: MediaItem[] = [{ id: 'img-1', type: 'image', alt: 'A cat' }];

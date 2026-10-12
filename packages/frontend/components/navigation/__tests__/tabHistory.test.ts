@@ -65,7 +65,11 @@ describe('stateLeavingTab', () => {
       { type: 'JUMP_TO', payload: { name: 'index' } },
       { ...routerOptions },
     );
-    const back = router.getStateForAction(switched as typeof state, { type: 'GO_BACK' }, { ...routerOptions });
+    const back = router.getStateForAction(
+      switched as typeof state,
+      { type: 'GO_BACK' },
+      { ...routerOptions },
+    );
     expect(back && focusedName(back as typeof state)).toBe('write');
   });
 
@@ -82,7 +86,11 @@ describe('stateLeavingTab', () => {
     expect(focusedName(left)).toBe('index');
 
     // Back walks the tabs the reader visited — and the composer is not one.
-    const back = router.getStateForAction(left, { type: 'GO_BACK' }, { ...routerOptions }) as typeof state;
+    const back = router.getStateForAction(
+      left,
+      { type: 'GO_BACK' },
+      { ...routerOptions },
+    ) as typeof state;
     expect(focusedName(back)).toBe('videos');
     const keys = (left.history ?? []).map((entry) => (entry as { key: string }).key);
     const writeKey = left.routes.find((route) => route.name === 'write')?.key;

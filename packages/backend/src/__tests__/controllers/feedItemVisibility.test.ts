@@ -21,15 +21,30 @@ import { feedController } from '../../controllers/feed.controller';
 import { postHydrationService } from '../../services/PostHydrationService';
 
 function request(id: string) {
-  return { params: { id }, user: undefined, query: {}, headers: {}, acceptsLanguages: () => [] as string[] };
+  return {
+    params: { id },
+    user: undefined,
+    query: {},
+    headers: {},
+    acceptsLanguages: () => [] as string[],
+  };
 }
 
 function response() {
   const res = { statusCode: 200, body: undefined as unknown, headersSent: false } as {
-    statusCode: number; body: unknown; status: (c: number) => typeof res; json: (b: unknown) => typeof res;
+    statusCode: number;
+    body: unknown;
+    status: (c: number) => typeof res;
+    json: (b: unknown) => typeof res;
   };
-  res.status = (c: number) => { res.statusCode = c; return res; };
-  res.json = (b: unknown) => { res.body = b; return res; };
+  res.status = (c: number) => {
+    res.statusCode = c;
+    return res;
+  };
+  res.json = (b: unknown) => {
+    res.body = b;
+    return res;
+  };
   return res;
 }
 
@@ -57,7 +72,9 @@ describe('GET /feed/item/:id visibility', () => {
 
   it('still answers the hydrated post when the viewer may read it', async () => {
     hoisted.loadPost.mockResolvedValue({ id: 'p-1', status: 'published' });
-    vi.spyOn(feedController, 'transformPostsWithProfiles' as never).mockResolvedValue([{ id: 'p-1' }] as never);
+    vi.spyOn(feedController, 'transformPostsWithProfiles' as never).mockResolvedValue([
+      { id: 'p-1' },
+    ] as never);
     const res = response();
     await feedController.getFeedItemById(request('p-1') as never, res as never);
     expect(res.statusCode).toBe(200);
@@ -67,7 +84,9 @@ describe('GET /feed/item/:id visibility', () => {
   it('answers 500, not 404, when hydrating a readable post fails', async () => {
     hoisted.loadPost.mockResolvedValue({ id: 'p-2', status: 'published' });
     vi.restoreAllMocks();
-    vi.spyOn(postHydrationService, 'hydratePosts').mockRejectedValue(new Error('quote count query failed'));
+    vi.spyOn(postHydrationService, 'hydratePosts').mockRejectedValue(
+      new Error('quote count query failed'),
+    );
     const res = response();
     await feedController.getFeedItemById(request('p-2') as never, res as never);
     expect(res.statusCode).toBe(500);

@@ -17,7 +17,10 @@ import { eq } from 'drizzle-orm';
 
 const engineRun = vi.fn();
 vi.mock('../mtn/feed/engine/FeedEngine', () => ({
-  feedEngine: { run: (...args: unknown[]) => engineRun(...args), peekLatest: vi.fn(async () => undefined) },
+  feedEngine: {
+    run: (...args: unknown[]) => engineRun(...args),
+    peekLatest: vi.fn(async () => undefined),
+  },
 }));
 
 vi.mock('../runtime/oxyClient', () => ({
@@ -48,7 +51,10 @@ vi.mock('../services/laneVisibility', () => ({
   ownerHasProfileAffectingLane: vi.fn(async () => false),
 }));
 vi.mock('../services/UserPreferenceService', () => ({
-  userPreferenceService: { getUserBehavior: vi.fn(async () => undefined), getTopRegion: vi.fn(() => undefined) },
+  userPreferenceService: {
+    getUserBehavior: vi.fn(async () => undefined),
+    getTopRegion: vi.fn(() => undefined),
+  },
 }));
 vi.mock('../services/anonFeedCache', () => ({
   anonFeedCache: {
@@ -77,8 +83,14 @@ function makeRes(): MockRes {
   const res: MockRes = {
     statusCode: 200,
     body: undefined,
-    status(c) { this.statusCode = c; return this; },
-    json(b) { this.body = b; return this; },
+    status(c) {
+      this.statusCode = c;
+      return this;
+    },
+    json(b) {
+      this.body = b;
+      return this;
+    },
   };
   return res;
 }
@@ -89,22 +101,26 @@ function sensitiveAndCleanResponse(): unknown {
     slices: [
       {
         _sliceKey: 'sensitive-1',
-        items: [{
-          post: { id: 'sensitive-1', user: { id: 'author1' }, metadata: { isSensitive: true } },
-          isThreadParent: false,
-          isThreadChild: false,
-          isThreadLastChild: false,
-        }],
+        items: [
+          {
+            post: { id: 'sensitive-1', user: { id: 'author1' }, metadata: { isSensitive: true } },
+            isThreadParent: false,
+            isThreadChild: false,
+            isThreadLastChild: false,
+          },
+        ],
         isIncompleteThread: false,
       },
       {
         _sliceKey: 'clean-1',
-        items: [{
-          post: { id: 'clean-1', user: { id: 'author1' }, metadata: { isSensitive: false } },
-          isThreadParent: false,
-          isThreadChild: false,
-          isThreadLastChild: false,
-        }],
+        items: [
+          {
+            post: { id: 'clean-1', user: { id: 'author1' }, metadata: { isSensitive: false } },
+            isThreadParent: false,
+            isThreadChild: false,
+            isThreadLastChild: false,
+          },
+        ],
         isIncompleteThread: false,
       },
     ],

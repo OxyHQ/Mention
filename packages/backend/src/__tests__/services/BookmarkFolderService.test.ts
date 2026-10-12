@@ -1,7 +1,7 @@
 /**
  * Moving a bookmark into a folder, against real rows.
  *
- * This suite used to mock `models/Bookmark` and assert the SHAPE of the Mongo
+ * This suite used to mock `models/Bookmark` and assert the SHAPE of the legacy-store
  * filter it was handed — that `userId` was present, that `_id` was not. That
  * checks the query the code MEANT to send, which is a different question from
  * whether the right row moves: a filter can name `userId` and still be wrong,
@@ -10,7 +10,7 @@
  * "scoped to the viewer" is answered by reading both rows back.
  *
  * That distinction stopped being academic when the service moved to Postgres:
- * nothing had created a Mongo bookmark since engagement moved, so the update ran
+ * nothing had created a legacy-store bookmark since engagement moved, so the update ran
  * against a collection holding only pre-cutover rows and silently matched
  * nothing for any bookmark made since — and every assertion in the old suite
  * still passed, because none of them touched a database.
@@ -112,11 +112,13 @@ describe('BookmarkFolderService', () => {
   it('keeps the bookmarkId contract scoped to the viewer', async () => {
     const { postId, bookmarkA } = await seedSharedBookmark();
 
-    expect(await updateBookmarkFolderForViewer({
-      viewerId: VIEWER_B,
-      target: { kind: 'bookmarkId', id: bookmarkA },
-      folder: 'stolen',
-    })).toBeNull();
+    expect(
+      await updateBookmarkFolderForViewer({
+        viewerId: VIEWER_B,
+        target: { kind: 'bookmarkId', id: bookmarkA },
+        folder: 'stolen',
+      }),
+    ).toBeNull();
     expect(await folderOf(VIEWER_A, postId)).toBeNull();
 
     await updateBookmarkFolderForViewer({
@@ -146,20 +148,20 @@ describe('BookmarkFolderService', () => {
   });
 
   it('rejects an empty identifier without touching the database', async () => {
-    await expect(updateBookmarkFolderForViewer({
-      viewerId: VIEWER_A,
-      target: { kind: 'postId', id: '   ' },
-      folder: 'Reading',
-    })).rejects.toBeInstanceOf(BookmarkFolderInputError);
+    await expect(
+      updateBookmarkFolderForViewer({
+        viewerId: VIEWER_A,
+        target: { kind: 'postId', id: '   ' },
+        folder: 'Reading',
+      }),
+    ).rejects.toBeInstanceOf(BookmarkFolderInputError);
   });
 
   it('normalizes empty folders and rejects unbounded or non-string values', () => {
     expect(normalizeBookmarkFolder('   ')).toBeNull();
     expect(normalizeBookmarkFolder(undefined)).toBeNull();
-    expect(() => normalizeBookmarkFolder({ name: 'private' }))
-      .toThrow(BookmarkFolderInputError);
-    expect(() => normalizeBookmarkFolder('x'.repeat(101)))
-      .toThrow(BookmarkFolderInputError);
+    expect(() => normalizeBookmarkFolder({ name: 'private' })).toThrow(BookmarkFolderInputError);
+    expect(() => normalizeBookmarkFolder('x'.repeat(101))).toThrow(BookmarkFolderInputError);
   });
 
   it('files a bookmark into a new folder by name, creating the folder with it', async () => {
@@ -188,7 +190,9 @@ describe('BookmarkFolderService', () => {
  */
 describe('creating an empty folder', () => {
   it('persists it, empty, as a folder the viewer lists', async () => {
-    expect(await createBookmarkFolderForViewer({ viewerId: VIEWER_A, name: '  QA-empty  ' })).toBe('QA-empty');
+    expect(await createBookmarkFolderForViewer({ viewerId: VIEWER_A, name: '  QA-empty  ' })).toBe(
+      'QA-empty',
+    );
 
     expect(await listBookmarkFoldersForViewer(VIEWER_A)).toEqual(['QA-empty']);
     const filed = await getDb().select().from(bookmarks).where(eq(bookmarks.userId, VIEWER_A));
@@ -223,21 +227,31 @@ describe('creating an empty folder', () => {
   });
 
   it('refuses a blank or oversized name', async () => {
-    await expect(createBookmarkFolderForViewer({ viewerId: VIEWER_A, name: '   ' }))
-      .rejects.toBeInstanceOf(BookmarkFolderInputError);
-    await expect(createBookmarkFolderForViewer({ viewerId: VIEWER_A, name: 'x'.repeat(101) }))
-      .rejects.toBeInstanceOf(BookmarkFolderInputError);
+    await expect(
+      createBookmarkFolderForViewer({ viewerId: VIEWER_A, name: '   ' }),
+    ).rejects.toBeInstanceOf(BookmarkFolderInputError);
+    await expect(
+      createBookmarkFolderForViewer({ viewerId: VIEWER_A, name: 'x'.repeat(101) }),
+    ).rejects.toBeInstanceOf(BookmarkFolderInputError);
     expect(await listBookmarkFoldersForViewer(VIEWER_A)).toEqual([]);
   });
 
   it('stops at the per-account folder limit', async () => {
-    await getDb().insert(bookmarkFolders).values(
-      Array.from({ length: MAX_BOOKMARK_FOLDERS_PER_VIEWER }, (_, i) => ({ userId: VIEWER_A, name: `f${i}` })),
-    );
+    await getDb()
+      .insert(bookmarkFolders)
+      .values(
+        Array.from({ length: MAX_BOOKMARK_FOLDERS_PER_VIEWER }, (_, i) => ({
+          userId: VIEWER_A,
+          name: `f${i}`,
+        })),
+      );
 
-    await expect(createBookmarkFolderForViewer({ viewerId: VIEWER_A, name: 'one too many' }))
-      .rejects.toBeInstanceOf(BookmarkFolderInputError);
+    await expect(
+      createBookmarkFolderForViewer({ viewerId: VIEWER_A, name: 'one too many' }),
+    ).rejects.toBeInstanceOf(BookmarkFolderInputError);
     // An existing folder is not "a new one", so naming it still works.
-    await expect(createBookmarkFolderForViewer({ viewerId: VIEWER_A, name: 'f0' })).resolves.toBe('f0');
+    await expect(createBookmarkFolderForViewer({ viewerId: VIEWER_A, name: 'f0' })).resolves.toBe(
+      'f0',
+    );
   });
 });

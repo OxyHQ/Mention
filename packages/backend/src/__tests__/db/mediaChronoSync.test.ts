@@ -38,7 +38,15 @@ const CREATED_AT = new Date('2024-03-04T05:06:07.008Z');
 function mediaContent(mediaId: string) {
   return {
     variants: [{ source: 'author' as const, tag: 'en', text: 'a video post' }],
-    media: [{ id: mediaId, type: 'video' as const, width: 720, height: 1280, orientation: 'portrait' as const }],
+    media: [
+      {
+        id: mediaId,
+        type: 'video' as const,
+        width: 720,
+        height: 1280,
+        orientation: 'portrait' as const,
+      },
+    ],
   };
 }
 

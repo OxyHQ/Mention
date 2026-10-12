@@ -2,10 +2,8 @@
  * The shape one viewer's learned behaviour has once it is assembled out of
  * `user_behaviors` and its three preference child tables.
  *
- * This replaces the Mongoose `IUserBehavior` document interface outright. It is
- * a PLAIN object: no `Document`, no `markModified`, no `save`. Everything that
- * used to be expressed by marking a nested path modified is now expressed by the
- * repository diffing the record it handed out against the rows it loaded, so a
+ * It is a PLAIN object: no `Document`, no `markModified`, no `save`. A change
+ * is detected by the repository diffing the record it handed out against the rows it loaded, so a
  * mutation that forgets a bookkeeping call cannot be silently dropped.
  *
  * The four negative-signal lists stay flat arrays because they ARE columns

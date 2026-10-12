@@ -121,7 +121,11 @@ export function ExternalEmbedPlayer({
   );
 
   return (
-    <Animated.View ref={viewRef} collapsable={false} style={[{ width: '100%' }, aspect, styles.surface]}>
+    <Animated.View
+      ref={viewRef}
+      collapsable={false}
+      style={[{ width: '100%' }, aspect, styles.surface]}
+    >
       {active ? (
         <WebView
           source={webViewSource}
@@ -137,7 +141,12 @@ export function ExternalEmbedPlayer({
           style={styles.webview}
         />
       ) : null}
-      <ExternalEmbedPoster thumb={thumb} active={active} loading={loading} onPressPlay={onPressPlay} />
+      <ExternalEmbedPoster
+        thumb={thumb}
+        active={active}
+        loading={loading}
+        onPressPlay={onPressPlay}
+      />
     </Animated.View>
   );
 }

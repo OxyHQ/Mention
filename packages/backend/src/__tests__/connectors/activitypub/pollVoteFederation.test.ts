@@ -94,12 +94,18 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
 }));
 
 vi.mock('../../../services/PollVoteService', () => ({
-  pollVoteService: { recordVoteByOptionText: (...args: unknown[]) => mocks.recordVoteByOptionText(...args) },
+  pollVoteService: {
+    recordVoteByOptionText: (...args: unknown[]) => mocks.recordVoteByOptionText(...args),
+  },
 }));
 
 vi.mock('../../../utils/oxyHelpers', () => ({ getServiceOxyClient: vi.fn() }));
-vi.mock('../../../services/mediaCache/cacheWorker', () => ({ persistRemoteMediaForFederatedOwnerDetailed: vi.fn() }));
-vi.mock('../../../services/mediaCache/cacheStore', () => ({ recordAccessAndMaybeEnqueue: vi.fn() }));
+vi.mock('../../../services/mediaCache/cacheWorker', () => ({
+  persistRemoteMediaForFederatedOwnerDetailed: vi.fn(),
+}));
+vi.mock('../../../services/mediaCache/cacheStore', () => ({
+  recordAccessAndMaybeEnqueue: vi.fn(),
+}));
 
 vi.mock('../../../services/serviceRegistry', () => ({
   getPostCreator: () => ({ create: mocks.postCreatorCreate }),
@@ -172,7 +178,10 @@ beforeEach(async () => {
   mocks.recordVoteByOptionText.mockResolvedValue({ ok: true, poll: { _id: POLL_ID } });
   mocks.isFediverseSharingEnabled.mockResolvedValue(true);
   mocks.postCreatorCreate.mockResolvedValue({ _id: 'created_post_1' });
-  mocks.ensureFederatedReplyLink.mockResolvedValue({ parentPostId: TARGET_POST_ID, threadId: TARGET_POST_ID });
+  mocks.ensureFederatedReplyLink.mockResolvedValue({
+    parentPostId: TARGET_POST_ID,
+    threadId: TARGET_POST_ID,
+  });
 });
 
 describe('handlePollVote — recording a remote vote on a local poll', () => {
@@ -258,7 +267,11 @@ describe('handlePollVote — non-vote Creates fall through unchanged', () => {
       oxyUserId: VOTER_OXY_ID,
       lastFetchedAt: new Date(),
     });
-    await seedFollow(scope, { remoteActorUri: ACTOR_URI, direction: 'outbound', status: 'accepted' });
+    await seedFollow(scope, {
+      remoteActorUri: ACTOR_URI,
+      direction: 'outbound',
+      status: 'accepted',
+    });
     // The actor RESOLVER is stubbed in this suite (it is not what is under test),
     // so the ingest path's mandatory-Oxy-link lookup goes through it too.
     mocks.getOrFetchActor.mockResolvedValue({ uri: ACTOR_URI, oxyUserId: VOTER_OXY_ID });

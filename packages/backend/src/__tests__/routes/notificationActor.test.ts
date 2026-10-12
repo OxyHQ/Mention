@@ -51,10 +51,7 @@ describe('notifications: toPopulatedActor embedded-actor DTO', () => {
   });
 
   it('uses the fallback id when the actor has no id at all', () => {
-    const dto = toPopulatedActor(
-      { username: 'sys', name: { displayName: 'System' } },
-      'system',
-    );
+    const dto = toPopulatedActor({ username: 'sys', name: { displayName: 'System' } }, 'system');
     expect(dto._id).toBe('system');
     expect(dto.name.displayName).toBe('System');
   });

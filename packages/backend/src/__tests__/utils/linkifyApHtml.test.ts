@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { linkifyApHtml, type ApMentionLink, type LinkifyApHtmlOptions } from '../../utils/federation/linkifyApHtml';
+import {
+  linkifyApHtml,
+  type ApMentionLink,
+  type LinkifyApHtmlOptions,
+} from '../../utils/federation/linkifyApHtml';
 
 /**
  * The outbound plain-text → ActivityPub `content` HTML LINKIFIER: it turns
@@ -20,7 +24,8 @@ const MENTIONS: ReadonlyMap<string, ApMentionLink> = new Map([
 
 // A hashtag href builder mirroring the real one (normalize → lowercase → encode)
 // so the anchor href matches the Note's `Hashtag` tag shape.
-const hashtagHref = (tag: string): string => `https://mention.earth/hashtag/${encodeURIComponent(tag.toLowerCase())}`;
+const hashtagHref = (tag: string): string =>
+  `https://mention.earth/hashtag/${encodeURIComponent(tag.toLowerCase())}`;
 
 const opts: LinkifyApHtmlOptions = { mentions: MENTIONS, hashtagHref };
 
@@ -158,9 +163,7 @@ describe('linkifyApHtml — shared entity definitions', () => {
   });
 
   it('linkifies a non-ASCII hashtag whole, matching what is stored', () => {
-    expect(linkifyApHtml('das #BundesländerTurnier', opts)).toContain(
-      '>#BundesländerTurnier</a>',
-    );
+    expect(linkifyApHtml('das #BundesländerTurnier', opts)).toContain('>#BundesländerTurnier</a>');
   });
 
   it('leaves a digit-leading #2026 as plain text, as the extractor does', () => {
@@ -183,8 +186,6 @@ describe('linkifyApHtml — shared entity definitions', () => {
 
   it('keeps a balanced closing paren inside the URL', () => {
     const url = 'https://en.wikipedia.org/wiki/Foo_(bar)';
-    expect(linkifyApHtml(`see ${url}`, opts)).toBe(
-      `<p>see <a href="${url}">${url}</a></p>`,
-    );
+    expect(linkifyApHtml(`see ${url}`, opts)).toBe(`<p>see <a href="${url}">${url}</a></p>`);
   });
 });

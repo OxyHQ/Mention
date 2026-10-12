@@ -63,7 +63,11 @@ function readServerError(error: unknown): string | undefined {
  * React Query cache that is updated optimistically and revalidated on success.
  * Mirrors `AddToListSheet`'s UX (toggle rows, optimistic state, toasts).
  */
-export function AddToStarterPackSheet({ targetUserId, targetLabel, onClose }: AddToStarterPackSheetProps) {
+export function AddToStarterPackSheet({
+  targetUserId,
+  targetLabel,
+  onClose,
+}: AddToStarterPackSheetProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -73,10 +77,7 @@ export function AddToStarterPackSheet({ targetUserId, targetLabel, onClose }: Ad
   // Account-scoped cache key: prevents the previous account's packs from leaking
   // after a switch. The create screen uses this same central factory entry, so
   // a new pack invalidates the exact viewer-owned collection.
-  const packsQueryKey = useMemo(
-    () => viewerQueryKeys.starterPacksMine(user?.id),
-    [user?.id],
-  );
+  const packsQueryKey = useMemo(() => viewerQueryKeys.starterPacksMine(user?.id), [user?.id]);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: packsQueryKey,
@@ -86,7 +87,7 @@ export function AddToStarterPackSheet({ targetUserId, targetLabel, onClose }: Ad
 
   const label = useMemo(
     () => targetLabel || t('starterPacks.addTo.thisUser', { defaultValue: 'this user' }),
-    [targetLabel, t]
+    [targetLabel, t],
   );
 
   const rows = useMemo<PackRow[]>(() => {
@@ -97,9 +98,10 @@ export function AddToStarterPackSheet({ targetUserId, targetLabel, onClose }: Ad
         const members = Array.isArray(p.memberOxyUserIds) ? p.memberOxyUserIds.map(String) : [];
         return {
           id,
-          name: typeof p.name === 'string' && p.name
-            ? p.name
-            : t('starterPacks.addTo.untitled', { defaultValue: 'Untitled Pack' }),
+          name:
+            typeof p.name === 'string' && p.name
+              ? p.name
+              : t('starterPacks.addTo.untitled', { defaultValue: 'Untitled Pack' }),
           hasUser: members.includes(String(targetUserId)),
           pending: pendingIds.has(id),
         };
@@ -107,62 +109,71 @@ export function AddToStarterPackSheet({ targetUserId, targetLabel, onClose }: Ad
       .filter((r) => r.id.length > 0);
   }, [data, pendingIds, targetUserId, t]);
 
-  const toggle = useCallback(async (row: PackRow) => {
-    if (row.pending) return;
-    const willAdd = !row.hasUser;
-    const previous = queryClient.getQueryData<StarterPackCollection>(packsQueryKey);
+  const toggle = useCallback(
+    async (row: PackRow) => {
+      if (row.pending) return;
+      const willAdd = !row.hasUser;
+      const previous = queryClient.getQueryData<StarterPackCollection>(packsQueryKey);
 
-    // Optimistic: flip membership in the cache and disable the row.
-    setPendingIds((prev) => new Set(prev).add(row.id));
-    queryClient.setQueryData<StarterPackCollection>(packsQueryKey, (prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        items: prev.items.map((it) => {
-          if (String(it._id ?? it.id ?? '') !== row.id) return it;
-          const members = (Array.isArray(it.memberOxyUserIds) ? it.memberOxyUserIds : []).map(String);
-          return {
-            ...it,
-            memberOxyUserIds: willAdd
-              ? Array.from(new Set([...members, String(targetUserId)]))
-              : members.filter((m) => m !== String(targetUserId)),
-          };
-        }),
-      };
-    });
-
-    try {
-      if (willAdd) {
-        await starterPacksService.addMembers(row.id, [String(targetUserId)]);
-        toast(
-          t('starterPacks.addTo.added', { pack: row.name, defaultValue: `Added to ${row.name}` }),
-          { type: 'success' }
-        );
-      } else {
-        await starterPacksService.removeMembers(row.id, [String(targetUserId)]);
-        toast(
-          t('starterPacks.addTo.removed', { pack: row.name, defaultValue: `Removed from ${row.name}` }),
-          { type: 'success' }
-        );
-      }
-      // Revalidate against server truth after a successful membership change.
-      queryClient.invalidateQueries({ queryKey: packsQueryKey });
-    } catch (e) {
-      logger.error('Starter pack membership toggle failed', e);
-      // Revert optimistic cache state.
-      if (previous) queryClient.setQueryData(packsQueryKey, previous);
-      toast(
-        readServerError(e) ?? t('starterPacks.addTo.toggleFailed', { defaultValue: 'Something went wrong' }),
-        { type: 'error' }
-      );
-    } finally {
-      setPendingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(row.id);
-        return next;
+      // Optimistic: flip membership in the cache and disable the row.
+      setPendingIds((prev) => new Set(prev).add(row.id));
+      queryClient.setQueryData<StarterPackCollection>(packsQueryKey, (prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          items: prev.items.map((it) => {
+            if (String(it._id ?? it.id ?? '') !== row.id) return it;
+            const members = (Array.isArray(it.memberOxyUserIds) ? it.memberOxyUserIds : []).map(
+              String,
+            );
+            return {
+              ...it,
+              memberOxyUserIds: willAdd
+                ? Array.from(new Set([...members, String(targetUserId)]))
+                : members.filter((m) => m !== String(targetUserId)),
+            };
+          }),
+        };
       });
-    }
-  }, [queryClient, targetUserId, t, packsQueryKey]);
+
+      try {
+        if (willAdd) {
+          await starterPacksService.addMembers(row.id, [String(targetUserId)]);
+          toast(
+            t('starterPacks.addTo.added', { pack: row.name, defaultValue: `Added to ${row.name}` }),
+            { type: 'success' },
+          );
+        } else {
+          await starterPacksService.removeMembers(row.id, [String(targetUserId)]);
+          toast(
+            t('starterPacks.addTo.removed', {
+              pack: row.name,
+              defaultValue: `Removed from ${row.name}`,
+            }),
+            { type: 'success' },
+          );
+        }
+        // Revalidate against server truth after a successful membership change.
+        queryClient.invalidateQueries({ queryKey: packsQueryKey });
+      } catch (e) {
+        logger.error('Starter pack membership toggle failed', e);
+        // Revert optimistic cache state.
+        if (previous) queryClient.setQueryData(packsQueryKey, previous);
+        toast(
+          readServerError(e) ??
+            t('starterPacks.addTo.toggleFailed', { defaultValue: 'Something went wrong' }),
+          { type: 'error' },
+        );
+      } finally {
+        setPendingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(row.id);
+          return next;
+        });
+      }
+    },
+    [queryClient, targetUserId, t, packsQueryKey],
+  );
 
   const goCreate = useCallback(() => {
     onClose();
@@ -173,9 +184,17 @@ export function AddToStarterPackSheet({ targetUserId, targetLabel, onClose }: Ad
     <View className="bg-background px-4 pt-3 pb-2">
       <View className="flex-row items-center justify-between mb-1">
         <Text className="text-foreground text-lg font-bold">
-          {t('starterPacks.addTo.title', { user: label, defaultValue: `Add ${label} to starter pack` })}
+          {t('starterPacks.addTo.title', {
+            user: label,
+            defaultValue: `Add ${label} to starter pack`,
+          })}
         </Text>
-        <TouchableOpacity onPress={onClose} hitSlop={HIT_SLOP_MD} accessibilityRole="button" accessibilityLabel={t('common.close', { defaultValue: 'Close' })}>
+        <TouchableOpacity
+          onPress={onClose}
+          hitSlop={HIT_SLOP_MD}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+        >
           <RiCloseLine width={22} height={22} fill={theme.colors.textSecondary} />
         </TouchableOpacity>
       </View>
@@ -187,10 +206,14 @@ export function AddToStarterPackSheet({ targetUserId, targetLabel, onClose }: Ad
       ) : isError ? (
         <View className="items-center justify-center py-8 gap-3">
           <Text className="text-muted-foreground text-sm text-center">
-            {t('starterPacks.addTo.loadError', { defaultValue: 'Could not load your starter packs' })}
+            {t('starterPacks.addTo.loadError', {
+              defaultValue: 'Could not load your starter packs',
+            })}
           </Text>
           <TouchableOpacity onPress={() => refetch()}>
-            <Text className="text-primary text-sm font-semibold">{t('common.retry', { defaultValue: 'Try again' })}</Text>
+            <Text className="text-primary text-sm font-semibold">
+              {t('common.retry', { defaultValue: 'Try again' })}
+            </Text>
           </TouchableOpacity>
         </View>
       ) : rows.length === 0 ? (

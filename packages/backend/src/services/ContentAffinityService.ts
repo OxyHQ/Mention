@@ -51,11 +51,23 @@
  */
 
 import { PostType, MtnConfig, isVideoSurface } from '@mention/shared-types';
-import { and, arrayOverlaps, desc, eq, gte, inArray, isNotNull, ne, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  arrayOverlaps,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  ne,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { entityFollows, likes } from '../db/schema/engagement';
 import { userSettings } from '../db/schema/userProfile';
 import { posts } from '../db/schema/posts';
+import { topicAffinityPosts } from '../db/schema/discovery';
 import type { UserBehaviorRecord } from '../db/userProfile/userBehaviorRecord';
 import { loadUserBehavior } from '../db/userProfile/userBehaviorRepository';
 import { getRedisClient } from '../utils/redis';
@@ -253,7 +265,7 @@ export class ContentAffinityService {
         reasons: Array.from(acc.reasons).sort(),
       }))
       // Highest affinity first; tie-break on id for deterministic output.
-      .sort((a, b) => (b.weight - a.weight) || (a.userId < b.userId ? -1 : 1))
+      .sort((a, b) => b.weight - a.weight || (a.userId < b.userId ? -1 : 1))
       .slice(0, limit);
 
     await this.writeCache(cacheKey, candidates);
@@ -315,16 +327,21 @@ export class ContentAffinityService {
     hiddenTopics: Set<string>,
   ): Array<{ topic: string; weight: number }> {
     const prefs = behavior?.preferredTopics ?? [];
-    return prefs
-      .map((p) => ({
-        topic: typeof p.topic === 'string' ? p.topic.trim().toLowerCase() : '',
-        weight: typeof p.weight === 'number' && Number.isFinite(p.weight) ? Math.max(0, Math.min(1, p.weight)) : 0,
-      }))
-      .filter((p) => p.topic.length > 0 && p.weight > 0 && !hiddenTopics.has(p.topic))
-      // The model already keeps preferredTopics sorted by weight desc, but sort
-      // defensively so the cap takes the genuinely strongest topics.
-      .sort((a, b) => b.weight - a.weight)
-      .slice(0, MAX_PREFERRED_TOPICS);
+    return (
+      prefs
+        .map((p) => ({
+          topic: typeof p.topic === 'string' ? p.topic.trim().toLowerCase() : '',
+          weight:
+            typeof p.weight === 'number' && Number.isFinite(p.weight)
+              ? Math.max(0, Math.min(1, p.weight))
+              : 0,
+        }))
+        .filter((p) => p.topic.length > 0 && p.weight > 0 && !hiddenTopics.has(p.topic))
+        // The model already keeps preferredTopics sorted by weight desc, but sort
+        // defensively so the cap takes the genuinely strongest topics.
+        .sort((a, b) => b.weight - a.weight)
+        .slice(0, MAX_PREFERRED_TOPICS)
+    );
   }
 
   /**
@@ -336,11 +353,14 @@ export class ContentAffinityService {
    * engagement. Zero/invalid weights contribute nothing. Pure in-memory — the
    * behavior doc was already fetched.
    */
-  private computePreferredAuthorAffinity(behavior: UserBehaviorRecord | null): Map<string, AuthorAccumulator> {
+  private computePreferredAuthorAffinity(
+    behavior: UserBehaviorRecord | null,
+  ): Map<string, AuthorAccumulator> {
     const result = new Map<string, AuthorAccumulator>();
     for (const pref of behavior?.preferredAuthors ?? []) {
       const authorId = typeof pref.authorId === 'string' ? pref.authorId : '';
-      const weight = typeof pref.weight === 'number' && Number.isFinite(pref.weight) ? pref.weight : 0;
+      const weight =
+        typeof pref.weight === 'number' && Number.isFinite(pref.weight) ? pref.weight : 0;
       if (authorId.length === 0 || weight <= 0) continue;
       result.set(authorId, {
         weight: Math.max(0, Math.min(1, weight)) * PREFERRED_AUTHOR_WEIGHT,
@@ -373,35 +393,42 @@ export class ContentAffinityService {
     try {
       // One aggregation: recent public posts whose classified topics intersect the
       // viewer's preferred topics, grouped by author, tracking which preferred
-      // topics they covered and their post volume. Index-served by
-      // {postClassification.topics, visibility, status, createdAt}.
-      // Mongo ran `$match → $sort → $limit → $group`; this is the same shape.
+      // topics they covered and their post volume.
+      //
+      // The posts come from `topic_affinity_posts`, a narrow materialized view of
+      // exactly the eligible rows (public, published, authored, non-boost, with
+      // topics, last 30 days) that `TopicAffinityRefreshJob` refreshes on the
+      // leader. Reading `posts` itself cost up to ~17k heap pages per call —
+      // pages the engagement counters keep rewriting, so never all-visible and
+      // rarely cached: slow-query median 18 s in a normal week (2026-10-03..09).
+      // The view's eligibility filter replaces the one this query used to carry;
+      // the `since` window still applies here, so a view that missed a refresh
+      // can lag new posts but never widen the window.
+      //
       // The bounded scan is an inner subquery so the row cap applies BEFORE the
-      // grouping, exactly as the `$limit` stage did — grouping the whole corpus
+      // grouping — grouping the whole corpus
       // and capping afterwards would be a different (and unbounded) query.
       //
       // `count(distinct id)` and NOT `count(*)`: the lateral `unnest` emits one
       // row per (post, topic) pair, so `count(*)` would score a post covering
-      // three preferred topics as three posts. Mongo's `$sum: 1` counted
-      // documents in the group.
+      // three preferred topics as three posts; the unit is posts.
       const scanned = getDb()
         .select({
-          id: posts.id,
-          oxyUserId: posts.oxyUserId,
-          classificationTopics: posts.classificationTopics,
+          id: topicAffinityPosts.postId,
+          oxyUserId: topicAffinityPosts.oxyUserId,
+          classificationTopics: topicAffinityPosts.topics,
         })
-        .from(posts)
+        .from(topicAffinityPosts)
         .where(
           and(
-            arrayOverlaps(posts.classificationTopics, topics),
-            eq(posts.visibility, 'public'),
-            eq(posts.status, 'published'),
-            ne(posts.type, PostType.BOOST),
-            isNotNull(posts.oxyUserId),
-            gte(posts.createdAt, since),
+            arrayOverlaps(topicAffinityPosts.topics, topics),
+            gte(topicAffinityPosts.createdAt, since),
           ),
         )
-        .orderBy(desc(posts.createdAt), desc(posts.id))
+        .orderBy(
+          sql`${topicAffinityPosts.createdAt} desc nulls last`,
+          sql`${topicAffinityPosts.postId} desc nulls last`,
+        )
         .limit(MAX_AUTHORS_PER_TOPIC * topics.length)
         .as('scanned');
 
@@ -439,9 +466,7 @@ export class ContentAffinityService {
           continue;
         }
         // `array_agg(distinct topic)` already returns the flat distinct set of
-        // preferred topics this author covered — Mongo's `$addToSet` over a
-        // `$setIntersection` produced an array-of-arrays that had to be
-        // flattened here. Each is scored by the viewer's per-topic weight.
+        // preferred topics this author covered. Each is scored by the viewer's per-topic weight.
         const distinctTopics = new Set<string>(row.matchedTopics ?? []);
         if (distinctTopics.size === 0) continue;
 
@@ -502,7 +527,10 @@ export class ContentAffinityService {
         if (!followingIds.has(authorId)) merged.delete(authorId);
       }
     } catch (error) {
-      logger.warn('[ContentAffinity] candidate profile ACL filter failed; dropping candidates:', error);
+      logger.warn(
+        '[ContentAffinity] candidate profile ACL filter failed; dropping candidates:',
+        error,
+      );
       merged.clear();
     }
   }
@@ -547,10 +575,7 @@ export class ContentAffinityService {
    * Resolve the viewer's exclusion set (self + Oxy blocks/restrictions + local
    * mutes) as a Set for O(1) membership tests during the merge.
    */
-  private async resolveExcludeIds(
-    viewerId: string,
-    oxyClient?: OxyClient,
-  ): Promise<Set<string>> {
+  private async resolveExcludeIds(viewerId: string, oxyClient?: OxyClient): Promise<Set<string>> {
     const privacyState = await UserPrivacyManager.loadPrivacyState(viewerId, {
       oxyClient,
       includeRestricted: true,
@@ -711,7 +736,8 @@ export class ContentAffinityService {
     // normal like weight toward this author becoming a FOLLOW candidate. Non-video
     // likes contribute the full weight (prior behavior). The popularity-floor
     // factor (~0.25) is the same shared constant used in UserBehavior attribution.
-    const videoLikeFactor = MtnConfig.preferences.engagementContext.videoSurfaceAuthorAffinityFactor;
+    const videoLikeFactor =
+      MtnConfig.preferences.engagementContext.videoSurfaceAuthorAffinityFactor;
     for (const like of likedPosts) {
       const authorId = postAuthor.get(like.postId);
       if (!authorId || authorId === viewerId) continue;
@@ -742,13 +768,7 @@ export class ContentAffinityService {
       const rows = await getDb()
         .select({ postId: likes.postId, source: likes.source })
         .from(likes)
-        .where(
-          and(
-            eq(likes.userId, viewerId),
-            eq(likes.value, 1),
-            gte(likes.createdAt, since),
-          ),
-        )
+        .where(and(eq(likes.userId, viewerId), eq(likes.value, 1), gte(likes.createdAt, since)))
         .orderBy(desc(likes.createdAt), desc(likes.id))
         .limit(MAX_LIKES_SCANNED);
       return rows
@@ -812,12 +832,8 @@ export class ContentAffinityService {
    * that is absent, unpublished, non-public or has no author is simply not in
    * the returned map.
    *
-   * A malformed id is simply not found — which is what an earlier version of
-   * this comment CLAIMED ("ignores ids that are not valid ObjectIds") without
-   * any such check existing. Under Mongoose the real behaviour was worse than
-   * the claim: ONE malformed id made the whole `$in` throw a `CastError` and the
-   * `catch` below discarded every author in the batch. Against `text` ids that
-   * is now true for free, so the promise and the code finally agree.
+   * A malformed id is simply not found: ids are `text`, so one malformed id
+   * cannot fail the batch.
    */
   private async resolvePostAuthors(postIds: string[]): Promise<Map<string, string>> {
     const map = new Map<string, string>();

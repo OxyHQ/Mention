@@ -21,14 +21,18 @@ const PostSourcesSheet: React.FC<PostSourcesSheetProps> = ({ sources, onClose })
     <View className="flex-1 pb-6 bg-background">
       <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border">
         <Button
-          appearance="subtle" tone="neutral"
+          appearance="subtle"
+          tone="neutral"
           iconOnly
           leadingIcon={RiCloseLine}
           accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
           onPress={onClose}
           style={styles.closeButton}
         />
-        <Text className="absolute left-0 right-0 text-center text-lg font-bold text-foreground" style={{ pointerEvents: 'none' }}>
+        <Text
+          className="absolute left-0 right-0 text-center text-lg font-bold text-foreground"
+          style={{ pointerEvents: 'none' }}
+        >
           {t('post.sourcesSheet.title', { defaultValue: 'Sources' })}
         </Text>
         <View style={styles.headerRight} />
@@ -39,7 +43,9 @@ const PostSourcesSheet: React.FC<PostSourcesSheetProps> = ({ sources, onClose })
           <PostSources sources={sources} />
         ) : (
           <EmptyState
-            title={t('post.sourcesSheet.empty', { defaultValue: 'No sources available for this post.' })}
+            title={t('post.sourcesSheet.empty', {
+              defaultValue: 'No sources available for this post.',
+            })}
             icon={{
               name: 'link-outline',
               size: 48,

@@ -10,7 +10,10 @@ import {
   NOT_AN_ACCOUNT_COLUMN,
   erasureKey,
 } from '../../services/accountErasure/erasureMap';
-import { ERASURE_STEPS, STEPS_PERFORMED_ELSEWHERE } from '../../services/accountErasure/erasureSteps';
+import {
+  ERASURE_STEPS,
+  STEPS_PERFORMED_ELSEWHERE,
+} from '../../services/accountErasure/erasureSteps';
 
 /**
  * THE ERASURE GATE (OxyHQ/Mention#1169): a new table carrying an Oxy account id
@@ -52,7 +55,9 @@ function census(tables: readonly PgTable[]): CensusTable[] {
     .sort((left, right) => left.name.localeCompare(right.name));
 }
 
-const schemaTables: PgTable[] = Object.values(schema).filter((value): value is PgTable => is(value, PgTable));
+const schemaTables: PgTable[] = Object.values(schema).filter((value): value is PgTable =>
+  is(value, PgTable),
+);
 const tables = census(schemaTables);
 const allKeys = new Set(tables.flatMap((table) => table.columns.map((column) => column.key)));
 const mapKeys = new Set(ACCOUNT_ERASURE_MAP.map(erasureKey));
@@ -69,14 +74,18 @@ function requiredKeys(input: readonly CensusTable[]): string[] {
 /** Columns the heuristic flags. */
 function flaggedKeys(input: readonly CensusTable[]): string[] {
   return input.flatMap((table) =>
-    table.columns.filter((column) => ACCOUNT_SHAPED.test(column.sqlName)).map((column) => column.key),
+    table.columns
+      .filter((column) => ACCOUNT_SHAPED.test(column.sqlName))
+      .map((column) => column.key),
   );
 }
 
 /** Everything that fails the gate for a set of tables. */
 function uncovered(input: readonly CensusTable[]): string[] {
   const missing = requiredKeys(input).filter((key) => !mapKeys.has(key));
-  const unexplained = flaggedKeys(input).filter((key) => !mapKeys.has(key) && !NOT_AN_ACCOUNT_COLUMN.has(key));
+  const unexplained = flaggedKeys(input).filter(
+    (key) => !mapKeys.has(key) && !NOT_AN_ACCOUNT_COLUMN.has(key),
+  );
   return [...new Set([...missing, ...unexplained])].sort();
 }
 

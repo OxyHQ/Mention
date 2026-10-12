@@ -11,9 +11,8 @@
  *
  * ## The saves repair is one statement, not an aggregate plus a bulk write
  *
- * Mongo had to `$group` bookmarks in the application and then send back a
- * `bulkWrite` of per-post `$set`s, because it could not join. Here the count IS
- * the assignment. The correlated reference is written with `qualified()` on BOTH
+ * The count IS the assignment: one correlated UPDATE, no aggregate in the
+ * application and no per-post write batch. The correlated reference is written with `qualified()` on BOTH
  * sides, which is not decoration: a drizzle column interpolated into `sql`
  * renders BARE when its table is not in that statement's `FROM`, so
  * `where ${bookmarks.postId} = ${posts.id}` would render `where "post_id" = "id"`,
@@ -24,8 +23,8 @@
  * ## The replier repair delegates rather than re-deriving
  *
  * `PostRecentReplierService.recomputeRecentRepliers` is the single definition of
- * "the authoritative ≤3". Mongo carried a second copy of that aggregation here,
- * which is how a repair drifts from the thing it repairs.
+ * "the authoritative ≤3". A second copy of that aggregation here is how a
+ * repair would drift from the thing it repairs.
  *
  * ## Candidates are paged by keyset, never collected
  *
@@ -50,10 +49,7 @@ import {
 import { bookmarks } from '../db/schema/engagement';
 import { postRecentRepliers } from '../db/schema/postContent';
 import { posts } from '../db/schema/posts';
-import {
-  ELIGIBLE_REPLY_MATCH,
-  recomputeRecentRepliers,
-} from './PostRecentReplierService';
+import { ELIGIBLE_REPLY_MATCH, recomputeRecentRepliers } from './PostRecentReplierService';
 import { logger } from '../utils/logger';
 
 /** Posts repaired per transaction. Bounded so one sweep cannot hold a long transaction open. */
@@ -103,9 +99,7 @@ export function isRetryableTransactionError(error: unknown): boolean {
   return sqlState === SERIALIZATION_FAILURE || sqlState === DEADLOCK_DETECTED;
 }
 
-async function runTransactionWithRetry(
-  work: (tx: Transaction) => Promise<void>,
-): Promise<void> {
+async function runTransactionWithRetry(work: (tx: Transaction) => Promise<void>): Promise<void> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_TRANSACTION_ATTEMPTS; attempt += 1) {
     try {
@@ -113,10 +107,7 @@ async function runTransactionWithRetry(
       return;
     } catch (error) {
       lastError = error;
-      if (
-        attempt === MAX_TRANSACTION_ATTEMPTS ||
-        !isRetryableTransactionError(error)
-      ) {
+      if (attempt === MAX_TRANSACTION_ATTEMPTS || !isRetryableTransactionError(error)) {
         throw error;
       }
     }
@@ -181,12 +172,7 @@ const staleSaveCountPage: CandidatePage = async (afterId) => {
   const rows = await getDb()
     .select({ id: posts.id })
     .from(posts)
-    .where(
-      and(
-        gt(posts.statsSavesCount, 0),
-        afterId === null ? undefined : gt(posts.id, afterId),
-      ),
-    )
+    .where(and(gt(posts.statsSavesCount, 0), afterId === null ? undefined : gt(posts.id, afterId)))
     .orderBy(asc(posts.id))
     .limit(RECONCILIATION_BATCH_SIZE);
   return rows.map((row) => row.id);

@@ -122,15 +122,15 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
   backfillMediaMetadata: {
     scope: 'whole-table',
     reason:
-      'Every post carrying a media row that still lacks intrinsic metadata — dimensions for an '
-      + 'Oxy-backed item, orientation/duration for a remote-URL video.',
+      'Every post carrying a media row that still lacks intrinsic metadata — dimensions for an ' +
+      'Oxy-backed item, orientation/duration for a remote-URL video.',
   },
   reconcileMetaIdentityAndCrossposts: {
     scope: 'whole-table',
     reason:
-      'Pages every federated actor against Oxy authority and every '
-      + 'federated post, including previously collapsed rows. It takes no scope, because a reconciliation that only fixed the '
-      + "caller's rows would reconcile nothing in production.",
+      'Pages every federated actor against Oxy authority and every ' +
+      'federated post, including previously collapsed rows. It takes no scope, because a reconciliation that only fixed the ' +
+      "caller's rows would reconcile nothing in production.",
   },
   backfillPostHasLinks: {
     scope: 'whole-table',
@@ -140,26 +140,26 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
   repairInstagramReelPosters: {
     scope: 'whole-table',
     reason:
-      'Pages every federated actor with instagram_graph_synced_at set, by primary key, and '
-      + 'rewrites the media of its Graph-imported posts whose video slot holds the poster.',
+      'Pages every federated actor with instagram_graph_synced_at set, by primary key, and ' +
+      'rewrites the media of its Graph-imported posts whose video slot holds the poster.',
   },
   queueFederatedBannerMirrors: {
     scope: 'whole-table',
     reason:
-      'Pages every federated actor with a header_url and an oxy_user_id, by primary key, '
-      + 'and records a banner mirror for each (and, with retryFailed, re-arms every failed row).',
+      'Pages every federated actor with a header_url and an oxy_user_id, by primary key, ' +
+      'and records a banner mirror for each (and, with retryFailed, re-arms every failed row).',
   },
   backfillInstagramSourceKeys: {
     scope: 'whole-table',
     reason:
-      'Walks every kilogram.makeup actor by primary key and keys each one\'s bridge posts, then '
-      + 'validates the CHECKs migration 0054 added NOT VALID.',
+      "Walks every kilogram.makeup actor by primary key and keys each one's bridge posts, then " +
+      'validates the CHECKs migration 0054 added NOT VALID.',
   },
   backfillVariantPostCreatedAt: {
     scope: 'whole-table',
     reason:
-      'Walks every rendition by primary key and rewrites post_created_at wherever it disagrees '
-      + 'with the post, then builds an index concurrently.',
+      'Walks every rendition by primary key and rewrites post_created_at wherever it disagrees ' +
+      'with the post, then builds an index concurrently.',
   },
   backfillPostLanguages: {
     scope: 'whole-table',
@@ -174,10 +174,10 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
   importOxyCareersJobs: {
     scope: 'caller-scoped',
     reason:
-      'listJobsByEmployer(employerOxyUserId) IS the driving select — an import that looked at '
-      + 'any other employer could not answer "have I already published this listing". The suite '
-      + 'passes a fresh employerOxyUserId per test, so its creates and its skips both stay inside '
-      + 'an account no other file has heard of.',
+      'listJobsByEmployer(employerOxyUserId) IS the driving select — an import that looked at ' +
+      'any other employer could not answer "have I already published this listing". The suite ' +
+      'passes a fresh employerOxyUserId per test, so its creates and its skips both stay inside ' +
+      'an account no other file has heard of.',
   },
   assertPostgresPopulated: {
     scope: 'caller-scoped',
@@ -192,7 +192,7 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     scope: 'caller-scoped',
     reason:
       'Every select and write is keyed on the one account id the caller passes (ERASE_OXY_USER_ID); ' +
-      "the rows it updates on other accounts are the ones whose arrays or pointers name that id.",
+      'the rows it updates on other accounts are the ones whose arrays or pointers name that id.',
   },
   backfillFederatedBoostCounts: {
     scope: 'caller-scoped',
@@ -229,11 +229,12 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     scope: 'caller-scoped',
     reason:
       'The suite imports only the pure planHistoricalEmojiCleanup decision helper and never ' +
-      'calls the module\'s table-wide run entry point.',
+      "calls the module's table-wide run entry point.",
   },
-  'inspectFederatedIdentityCache': {
+  inspectFederatedIdentityCache: {
     scope: 'caller-scoped',
-    reason: 'Read-only counts restricted to the exact actor URI and accounts supplied by the caller.',
+    reason:
+      'Read-only counts restricted to the exact actor URI and accounts supplied by the caller.',
   },
   'fixtures/feedQualityLabels': {
     scope: 'caller-scoped',
@@ -259,7 +260,7 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
   },
   'lib/repairFetchFailureLog': {
     scope: 'caller-scoped',
-    reason: 'Appends to the caller\'s own failure log rows, keyed by the ids it was given.',
+    reason: "Appends to the caller's own failure log rows, keyed by the ids it was given.",
   },
   // The repo-ROOT scripts/lib, not src/scripts: the import regex matches any
   // `../`-depth, so the root helper lands here under the same key shape.
@@ -267,7 +268,7 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     scope: 'caller-scoped',
     reason:
       'The owned-cluster guards behind scripts/test-jev-owned-pg.sh: identity, url and path ' +
-      'validation, injected filesystem/process probes, and a check of postgres-js\'s lazy ' +
+      "validation, injected filesystem/process probes, and a check of postgres-js's lazy " +
       'options before any query. No driving select over user data and no write; its only ' +
       'server contact is the SHOW data_directory/listen_addresses identity proof its caller runs.',
   },

@@ -33,7 +33,9 @@ jest.mock('../Attachments', () => ({
   PostAttachmentRoom: () => null,
 }));
 
-jest.mock('@/components/Podcast/PostPodcastAttachment', () => ({ PostPodcastAttachment: () => null }));
+jest.mock('@/components/Podcast/PostPodcastAttachment', () => ({
+  PostPodcastAttachment: () => null,
+}));
 jest.mock('@/components/Post/JobCard', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/lib/oxyServices', () => ({ oxyServices: {} }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
@@ -86,7 +88,10 @@ describe('a media cell is the hero form only when it is alone in the row', () =>
     ['a room', { room: { roomId: 'room-1' } }],
     ['a podcast', { podcast: { syraPodcastId: 'pod-1' } }],
     // And a second media item.
-    ['another image', { media: [...video, { id: 'm2', type: 'image', url: 'https://cdn/m2.jpg' }] }],
+    [
+      'another image',
+      { media: [...video, { id: 'm2', type: 'image', url: 'https://cdn/m2.jpg' }] },
+    ],
   ])('yields the row form beside %s', (_label, props) => {
     expect(formOfVideo(props)).toBe(false);
   });

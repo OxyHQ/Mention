@@ -1,7 +1,11 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { useMentionSearchResults, type MentionSearchResults } from '../useMentionSearchResults';
-import { createMentionSearchCache, type MentionSearchCache, type MentionUser } from '@/utils/mentionSearch';
+import {
+  createMentionSearchCache,
+  type MentionSearchCache,
+  type MentionUser,
+} from '@/utils/mentionSearch';
 
 const alice: MentionUser = { id: 'alice-id', username: 'alice' };
 
@@ -12,7 +16,9 @@ function Probe({ query, cache }: { query: string; cache: MentionSearchCache }) {
 }
 
 beforeAll(() => {
-  (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  (
+    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true;
 });
 
 afterEach(() => {
@@ -33,7 +39,7 @@ describe('useMentionSearchResults', () => {
     expect(fetchUsers).toHaveBeenCalledTimes(1);
   });
 
-  it('searches after the debounce, and never offers the previous query\'s accounts meanwhile', async () => {
+  it("searches after the debounce, and never offers the previous query's accounts meanwhile", async () => {
     jest.useFakeTimers();
     const fetchUsers = jest.fn(async (query: string) => (query === 'ali' ? [alice] : []));
     const cache = createMentionSearchCache(fetchUsers);

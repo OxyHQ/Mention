@@ -44,7 +44,9 @@ const PostLanguageSheet: React.FC<Props> = ({ options, activeTag, onSelect }) =>
           onPress={() => onSelect(option.tag)}
         >
           <View>
-            <Text className="text-foreground text-base font-medium">{languageLabel(option.tag)}</Text>
+            <Text className="text-foreground text-base font-medium">
+              {languageLabel(option.tag)}
+            </Text>
             {option.source === 'machine' ? (
               <Text className="text-muted-foreground text-[13px]">
                 {t('post.language.machine', { defaultValue: 'Translated' })}

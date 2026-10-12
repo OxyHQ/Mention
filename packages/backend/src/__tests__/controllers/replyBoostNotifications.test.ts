@@ -27,7 +27,11 @@ const hoisted = vi.hoisted(() => ({
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (rows: unknown[]) => rows) },
   resolveUserSummaries: vi.fn(async () => new Map()),
-  degradedActorSummary: (id: string) => ({ id, username: '', name: { displayName: 'Unknown user' } }),
+  degradedActorSummary: (id: string) => ({
+    id,
+    username: '',
+    name: { displayName: 'Unknown user' },
+  }),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -101,7 +105,12 @@ vi.mock('../../db/federation/actorRepository', async (importOriginal) => ({
 }));
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import { clearServiceScope, readScopePosts, seedPost, serviceScope } from '../helpers/serviceFixtures';
+import {
+  clearServiceScope,
+  readScopePosts,
+  seedPost,
+  serviceScope,
+} from '../helpers/serviceFixtures';
 import { feedController } from '../../controllers/feed.controller';
 import { drainBackgroundWork, resetBackgroundWorkForTests } from '../../runtime/backgroundWork';
 import {
@@ -170,7 +179,10 @@ describe('POST /feed/reply', () => {
     const { res, captured } = buildResponse();
 
     await feedController.createReply(
-      { body: { postId: parent.id, content: { text: 'nice post' } }, user: { id: USER_ID } } as never,
+      {
+        body: { postId: parent.id, content: { text: 'nice post' } },
+        user: { id: USER_ID },
+      } as never,
       res as never,
     );
     expect(captured.status).toBe(201);

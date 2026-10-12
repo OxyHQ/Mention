@@ -10,7 +10,11 @@ import { VirtualList } from '@oxy.so/bloom/list';
 import { Text } from '@oxy.so/bloom/typography';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
-import { ProfileCard, ProfileCardSkeletonList, type ProfileCardData } from '@/components/ProfileCard';
+import {
+  ProfileCard,
+  ProfileCardSkeletonList,
+  type ProfileCardData,
+} from '@/components/ProfileCard';
 import { Error as ErrorDisplay } from '@/components/Error';
 import { EmptyState } from '@/components/common/EmptyState';
 import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';

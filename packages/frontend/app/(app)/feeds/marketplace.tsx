@@ -169,11 +169,12 @@ export default function FeedMarketplaceScreen() {
   // (subscribed) flags refetch when a slow SSO cold-boot session lands, rather
   // than sticking to the anonymous snapshot for the whole staleTime window.
   const marketplaceKey = useMemo(
-    () => viewerQueryKeys.customFeedMarketplace(user?.id, {
-      sortBy,
-      category: activeCategory,
-      search: debouncedSearch,
-    }),
+    () =>
+      viewerQueryKeys.customFeedMarketplace(user?.id, {
+        sortBy,
+        category: activeCategory,
+        search: debouncedSearch,
+      }),
     [sortBy, activeCategory, debouncedSearch, user?.id],
   );
 
@@ -242,10 +243,7 @@ export default function FeedMarketplaceScreen() {
     staleTime: 10 * 60 * 1000,
   });
 
-  const categories = useMemo(
-    () => categoriesQuery.data?.categories ?? [],
-    [categoriesQuery.data],
-  );
+  const categories = useMemo(() => categoriesQuery.data?.categories ?? [], [categoriesQuery.data]);
 
   const handleSubscribeToggle = useCallback(
     async (feedId: string, isSubscribed: boolean) => {
@@ -283,7 +281,9 @@ export default function FeedMarketplaceScreen() {
         }
       } catch {
         applyToggle(isSubscribed, isSubscribed ? 1 : -1);
-        toast(t('marketplace.subscribeError', { defaultValue: 'Action failed' }), { type: 'error' });
+        toast(t('marketplace.subscribeError', { defaultValue: 'Action failed' }), {
+          type: 'error',
+        });
       } finally {
         setSubscribingId(null);
       }
@@ -307,10 +307,7 @@ export default function FeedMarketplaceScreen() {
     [handleSubscribeToggle, subscribingId],
   );
 
-  const keyExtractor = useCallback(
-    (item: MarketplaceFeed) => String(item._id || item.id),
-    [],
-  );
+  const keyExtractor = useCallback((item: MarketplaceFeed) => String(item._id || item.id), []);
 
   const ListHeader = useMemo(
     () => (
@@ -331,7 +328,8 @@ export default function FeedMarketplaceScreen() {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.pillsContent}
-          className="mt-3">
+          className="mt-3"
+        >
           {categoryPills.map((cat) => {
             const active = cat === activeCategory;
             return (
@@ -344,12 +342,11 @@ export default function FeedMarketplaceScreen() {
                     : { borderWidth: 1, borderColor: theme.colors.border },
                 ]}
                 onPress={() => handleCategoryPress(cat)}
-                activeOpacity={0.7}>
+                activeOpacity={0.7}
+              >
                 <Text
-                  className={cn(
-                    'text-sm font-medium',
-                    active ? 'text-white' : 'text-foreground',
-                  )}>
+                  className={cn('text-sm font-medium', active ? 'text-white' : 'text-foreground')}
+                >
                   {cat}
                 </Text>
               </TouchableOpacity>
@@ -365,12 +362,14 @@ export default function FeedMarketplaceScreen() {
                 key={opt.id}
                 className="flex-1 items-center py-2.5 relative"
                 onPress={() => handleSortPress(opt.id)}
-                activeOpacity={0.7}>
+                activeOpacity={0.7}
+              >
                 <Text
                   className={cn(
                     'text-sm',
                     active ? 'font-bold text-primary' : 'font-medium text-muted-foreground',
-                  )}>
+                  )}
+                >
                   {t(opt.labelKey)}
                 </Text>
                 {active && <View style={styles.sortIndicator} className="bg-primary" />}
@@ -401,8 +400,12 @@ export default function FeedMarketplaceScreen() {
         title={t('marketplace.emptyTitle', { defaultValue: 'No feeds found' })}
         subtitle={
           debouncedSearch
-            ? t('marketplace.emptySearchSubtitle', { defaultValue: 'Try a different search term or category' })
-            : t('marketplace.emptySubtitle', { defaultValue: 'Be the first to create a feed in this category' })
+            ? t('marketplace.emptySearchSubtitle', {
+                defaultValue: 'Try a different search term or category',
+              })
+            : t('marketplace.emptySubtitle', {
+                defaultValue: 'Be the first to create a feed in this category',
+              })
         }
         sticker="feedStore"
       />
@@ -437,16 +440,19 @@ export default function FeedMarketplaceScreen() {
         backLabel={t('common.back', { defaultValue: 'Back' })}
         actions={
           <Button
-            appearance="subtle" tone="neutral"
+            appearance="subtle"
+            tone="neutral"
             iconOnly
             leadingIcon={searchVisible ? RiCloseLine : RiSearchLine}
             onPress={() => {
               setSearchVisible((v) => !v);
               if (searchVisible) handleSearchChange('');
             }}
-            accessibilityLabel={searchVisible
-              ? t('common.close', { defaultValue: 'Close' })
-              : t('search.title', { defaultValue: 'Search' })}
+            accessibilityLabel={
+              searchVisible
+                ? t('common.close', { defaultValue: 'Close' })
+                : t('search.title', { defaultValue: 'Search' })
+            }
           />
         }
       />

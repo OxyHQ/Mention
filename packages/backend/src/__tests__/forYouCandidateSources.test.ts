@@ -193,7 +193,7 @@ describe('the union of lanes', () => {
     expect(suiteIdsOf(pool).filter((id) => id === shared.id)).toEqual([shared.id]);
   });
 
-  it('admits a subscribed-list author\'s PUBLIC posts and nothing more private', async () => {
+  it("admits a subscribed-list author's PUBLIC posts and nothing more private", async () => {
     // Subscribing to a list is feed-inclusion, never a follow relationship, so
     // it grants no access a stranger does not already have.
     const listPublic = await create({ oxyUserId: LIST_ONLY, createdAt: at(0) });
@@ -251,9 +251,12 @@ describe('the discovery language predicate', () => {
    * reason at all would pass it just as well. Same fixtures, same lane, viewer
    * languages removed — every post must come back.
    */
-  it('filters NOTHING when the viewer\'s languages are unknown', async () => {
+  it("filters NOTHING when the viewer's languages are unknown", async () => {
     const en = await create({ createdAt: at(0), postClassification: { languages: ['fyc-en'] } });
-    const fr = await create({ createdAt: at(-1_000), postClassification: { languages: ['fyc-fr'] } });
+    const fr = await create({
+      createdAt: at(-1_000),
+      postClassification: { languages: ['fyc-fr'] },
+    });
 
     const gathered = await gatherGlobalLane({
       viewerId: VIEWER,
@@ -327,8 +330,16 @@ describe('the discovery language predicate', () => {
    * would also be satisfied by an affinity lane that returned nothing at all.
    */
   it('affinity filters NOTHING when the reader declared no languages', async () => {
-    const es = await create({ oxyUserId: AFFINITY, createdAt: at(0), postClassification: { languages: ['fyc-es'] } });
-    const ja = await create({ oxyUserId: AFFINITY, createdAt: at(-1_000), postClassification: { languages: ['fyc-ja'] } });
+    const es = await create({
+      oxyUserId: AFFINITY,
+      createdAt: at(0),
+      postClassification: { languages: ['fyc-es'] },
+    });
+    const ja = await create({
+      oxyUserId: AFFINITY,
+      createdAt: at(-1_000),
+      postClassification: { languages: ['fyc-ja'] },
+    });
 
     const gathered = await gatherAffinityLane({
       viewerId: VIEWER,
@@ -405,7 +416,7 @@ describe('safety — For You is uniformly SFW', () => {
    * everywhere, not just in For You — so this asserts the lane RETURNS it, and
    * the case below asserts the merged pool then drops it.
    */
-  it('leaves a followed author\'s flagged post in the trusted lane', async () => {
+  it("leaves a followed author's flagged post in the trusted lane", async () => {
     const flagged = await create({
       oxyUserId: FOLLOW,
       createdAt: at(0),
@@ -528,14 +539,19 @@ describe('bounds and exclusions', () => {
   it('no-ops every signal-driven lane for a viewer with no signals', async () => {
     // Each lane must return NOTHING rather than degenerate into an unbounded
     // scan — an empty id set is not "match everything".
-    await create({ oxyUserId: FOLLOW, postClassification: { topics: ['fyc-tech'], languages: ['fyc-es'], region: 'fyc-ES' } });
+    await create({
+      oxyUserId: FOLLOW,
+      postClassification: { topics: ['fyc-tech'], languages: ['fyc-es'], region: 'fyc-ES' },
+    });
     const noSignals = { viewerId: VIEWER, followingIds: [], seenPostIds: [] };
 
     expect(await gatherFollowingLane(noSignals)).toEqual([]);
     expect(await gatherSubscribedListsLane(noSignals)).toEqual([]);
     expect(await gatherTopicsLane(noSignals)).toEqual([]);
     expect(await gatherRegionLane(noSignals)).toEqual([]);
-    expect(await gatherAffinityLane({ ...noSignals, contentAffinityService: affinityStub([]) })).toEqual([]);
+    expect(
+      await gatherAffinityLane({ ...noSignals, contentAffinityService: affinityStub([]) }),
+    ).toEqual([]);
   });
 
   it('fires the region lane only for a non-empty region', async () => {
@@ -543,21 +559,28 @@ describe('bounds and exclusions', () => {
     await create({ postClassification: { region: 'fyc-DE' } });
 
     expect(
-      idsOf(await gatherRegionLane({
-        viewerId: VIEWER,
-        followingIds: [],
-        viewerRegion: 'fyc-ES',
-        seenPostIds: [],
-      })),
+      idsOf(
+        await gatherRegionLane({
+          viewerId: VIEWER,
+          followingIds: [],
+          viewerRegion: 'fyc-ES',
+          seenPostIds: [],
+        }),
+      ),
     ).toEqual([inRegion.id]);
     // Region is SPARSE and usually absent; an empty string is absent too, and
     // neither may become a `region = ''` scan.
     expect(
-      await gatherRegionLane({ viewerId: VIEWER, followingIds: [], viewerRegion: '', seenPostIds: [] }),
+      await gatherRegionLane({
+        viewerId: VIEWER,
+        followingIds: [],
+        viewerRegion: '',
+        seenPostIds: [],
+      }),
     ).toEqual([]);
-    expect(
-      await gatherRegionLane({ viewerId: VIEWER, followingIds: [], seenPostIds: [] }),
-    ).toEqual([]);
+    expect(await gatherRegionLane({ viewerId: VIEWER, followingIds: [], seenPostIds: [] })).toEqual(
+      [],
+    );
   });
 
   it('orders the trending lane by engagement, and leaves replies out of it', async () => {
@@ -569,9 +592,16 @@ describe('bounds and exclusions', () => {
       .update(posts)
       .set({ statsLikesCount: 9_000 })
       .where(inArray(posts.id, [hot.id, reply.id]));
-    await db.update(posts).set({ statsLikesCount: 500 }).where(inArray(posts.id, [warm.id]));
+    await db
+      .update(posts)
+      .set({ statsLikesCount: 500 })
+      .where(inArray(posts.id, [warm.id]));
 
-    const gathered = await gatherTrendingLane({ viewerId: VIEWER, followingIds: [], seenPostIds: [] });
+    const gathered = await gatherTrendingLane({
+      viewerId: VIEWER,
+      followingIds: [],
+      seenPostIds: [],
+    });
     const mine = suiteIdsOf(gathered);
     // `warm` is NEWER than `hot`, so a chronological fallback would invert this.
     expect(mine.indexOf(hot.id)).toBeLessThan(mine.indexOf(warm.id));
@@ -621,9 +651,22 @@ describe('bounds and exclusions', () => {
     }> = [
       { author: FOLLOW, count: cfg.perSource.following, classification: {} },
       { author: AFFINITY, count: cfg.perSource.affinity, classification: {} },
-      { author: 'fyc-topic-author', count: cfg.perSource.topics, classification: { classificationTopics: ['fyc-tech'] } },
-      { author: 'fyc-region-author', count: cfg.perSource.region, classification: { classificationRegion: 'fyc-ES' } },
-      { author: 'fyc-overflow-author', count: cfg.perSource.global, classification: {}, newest: true },
+      {
+        author: 'fyc-topic-author',
+        count: cfg.perSource.topics,
+        classification: { classificationTopics: ['fyc-tech'] },
+      },
+      {
+        author: 'fyc-region-author',
+        count: cfg.perSource.region,
+        classification: { classificationRegion: 'fyc-ES' },
+      },
+      {
+        author: 'fyc-overflow-author',
+        count: cfg.perSource.global,
+        classification: {},
+        newest: true,
+      },
     ];
     // The overflow rows must beat EVERY row in the table on the trending lane's
     // sort — not just this suite's. Sibling suites share the database and write

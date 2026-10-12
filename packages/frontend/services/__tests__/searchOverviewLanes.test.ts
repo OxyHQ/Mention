@@ -87,12 +87,14 @@ beforeEach(() => {
 
 describe('the search overview lane contract', () => {
   it('asks the public overview once and spreads its four lanes', async () => {
-    mockPublicGet.mockResolvedValue(overview({
-      hashtags: lane('ok', [{ tag: 'climate', count: 3 }]),
-      lists: lane('ok', [{ id: 'list-1', title: 'Reporters' }]),
-      feeds: lane('ok', [{ id: 'feed-1', title: 'Science' }]),
-      starterPacks: lane('ok', [{ id: 'pack-1', name: 'Newsroom' }]),
-    }));
+    mockPublicGet.mockResolvedValue(
+      overview({
+        hashtags: lane('ok', [{ tag: 'climate', count: 3 }]),
+        lists: lane('ok', [{ id: 'list-1', title: 'Reporters' }]),
+        feeds: lane('ok', [{ id: 'feed-1', title: 'Science' }]),
+        starterPacks: lane('ok', [{ id: 'pack-1', name: 'Newsroom' }]),
+      }),
+    );
 
     const results = await searchService.searchAll('climate', false);
 
@@ -111,21 +113,26 @@ describe('the search overview lane contract', () => {
    * "unavailable" UI can never be built on top of it — and until then, the
    * operator has no signal at all that a lane is down.
    */
-  it.each(['error', 'timeout'])('logs a %s lane instead of passing it off as no results', async (status) => {
-    mockPublicGet.mockResolvedValue(overview({
-      lists: lane(status),
-      hashtags: lane('ok', [{ tag: 'climate', count: 3 }]),
-    }));
+  it.each(['error', 'timeout'])(
+    'logs a %s lane instead of passing it off as no results',
+    async (status) => {
+      mockPublicGet.mockResolvedValue(
+        overview({
+          lists: lane(status),
+          hashtags: lane('ok', [{ tag: 'climate', count: 3 }]),
+        }),
+      );
 
-    const results = await searchService.searchAll('climate', false);
+      const results = await searchService.searchAll('climate', false);
 
-    expect(results.lists).toEqual([]);
-    expect(results.hashtags).toHaveLength(1);
-    expect(mockWarn).toHaveBeenCalledWith(
-      'A search lane did not complete',
-      expect.objectContaining({ lane: 'lists', status }),
-    );
-  });
+      expect(results.lists).toEqual([]);
+      expect(results.hashtags).toHaveLength(1);
+      expect(mockWarn).toHaveBeenCalledWith(
+        'A search lane did not complete',
+        expect.objectContaining({ lane: 'lists', status }),
+      );
+    },
+  );
 
   it('says nothing about a lane that is simply empty', async () => {
     mockPublicGet.mockResolvedValue(overview({ lists: lane('ok', []) }));
@@ -133,10 +140,7 @@ describe('the search overview lane contract', () => {
     const results = await searchService.searchAll('climate', false);
 
     expect(results.lists).toEqual([]);
-    expect(mockWarn).not.toHaveBeenCalledWith(
-      'A search lane did not complete',
-      expect.anything(),
-    );
+    expect(mockWarn).not.toHaveBeenCalledWith('A search lane did not complete', expect.anything());
   });
 
   /**
@@ -145,9 +149,11 @@ describe('the search overview lane contract', () => {
    * lane. The auth-gated sources stay quiet rather than 401.
    */
   it('serves a signed-out viewer without touching the authenticated api', async () => {
-    mockPublicGet.mockResolvedValue(overview({
-      feeds: lane('ok', [{ id: 'feed-1', title: 'Science' }]),
-    }));
+    mockPublicGet.mockResolvedValue(
+      overview({
+        feeds: lane('ok', [{ id: 'feed-1', title: 'Science' }]),
+      }),
+    );
 
     const results = await searchService.searchAll('climate', false);
 
@@ -191,7 +197,7 @@ describe('the search overview lane contract', () => {
     await expect(searchService.searchAll('climate', false)).rejects.toThrow();
   });
 
-  it('passes the caller\'s abort signal to the overview request', async () => {
+  it("passes the caller's abort signal to the overview request", async () => {
     mockPublicGet.mockResolvedValue(overview({}));
     const controller = new AbortController();
 

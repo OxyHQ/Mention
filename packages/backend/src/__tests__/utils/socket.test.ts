@@ -1,12 +1,6 @@
-import {
-  PUBLIC_REALTIME_EVENTS,
-  PUBLIC_REALTIME_NAMESPACE,
-} from '@mention/shared-types';
+import { PUBLIC_REALTIME_EVENTS, PUBLIC_REALTIME_NAMESPACE } from '@mention/shared-types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  clearRuntimeSocketServer,
-  setRuntimeSocketServer,
-} from '../../runtime/socketServer';
+import { clearRuntimeSocketServer, setRuntimeSocketServer } from '../../runtime/socketServer';
 import { emitTrendsUpdated } from '../../utils/socket';
 
 describe('socket event helpers', () => {
@@ -20,9 +14,7 @@ describe('socket event helpers', () => {
     // the slow safety-net poll.
     const emit = vi.fn();
     const of = vi.fn().mockReturnValue({ emit });
-    const server = { of } as unknown as Parameters<
-      typeof setRuntimeSocketServer
-    >[0];
+    const server = { of } as unknown as Parameters<typeof setRuntimeSocketServer>[0];
     setRuntimeSocketServer(server);
 
     emitTrendsUpdated('2026-07-26T12:00:00.000Z');

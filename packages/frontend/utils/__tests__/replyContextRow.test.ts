@@ -9,8 +9,8 @@ import { resolveReplyContextRow } from '../replyContextRow';
  * so declaring it here still applies to the import above.)
  */
 jest.mock('@oxy.so/core', () => ({
-    getNormalizedUserHandle: (user?: { username?: string }) =>
-        user?.username && user.username.length > 0 ? user.username : null,
+  getNormalizedUserHandle: (user?: { username?: string }) =>
+    user?.username && user.username.length > 0 ? user.username : null,
 }));
 
 /**
@@ -34,10 +34,7 @@ const PARENT_AUTHOR: PostUser = {
   avatar: null,
 };
 
-function post(
-  replyContext?: HydratedPost['replyContext'],
-  parentPostId?: string,
-): HydratedPost {
+function post(replyContext?: HydratedPost['replyContext'], parentPostId?: string): HydratedPost {
   // Only `replyContext` and `parentPostId` are read; a full DTO would be noise.
   return { id: 'p1', replyContext, parentPostId } as unknown as HydratedPost;
 }
@@ -45,87 +42,92 @@ function post(
 const PLAIN = { isNested: false };
 
 describe('resolveReplyContextRow', () => {
-    it('renders nothing for a post that is not a reply', () => {
-        expect(resolveReplyContextRow({ post: post(undefined), ...PLAIN })).toBeNull();
+  it('renders nothing for a post that is not a reply', () => {
+    expect(resolveReplyContextRow({ post: post(undefined), ...PLAIN })).toBeNull();
+  });
+
+  it('names the parent author when the server resolved one', () => {
+    const row = resolveReplyContextRow({
+      post: post({ parentAuthor: PARENT_AUTHOR }),
+      ...PLAIN,
     });
 
-    it('names the parent author when the server resolved one', () => {
-        const row = resolveReplyContextRow({
-            post: post({ parentAuthor: PARENT_AUTHOR }),
-            ...PLAIN,
-        });
+    expect(row).toEqual({ authorHandle: 'parenthandle', label: 'parenthandle' });
+  });
 
-        expect(row).toEqual({ authorHandle: 'parenthandle', label: 'parenthandle' });
+  it('still renders a row when the parent could not be named', () => {
+    // An unlinked federated reply: marked as a reply, with nobody to name.
+    // Rendering nothing here is exactly what made "@someone thank you!" read
+    // as an ordinary top-level post.
+    const row = resolveReplyContextRow({ post: post({}), ...PLAIN });
+
+    expect(row).not.toBeNull();
+    expect(row?.label).toBeUndefined();
+    expect(row?.authorHandle).toBeUndefined();
+  });
+
+  it('never offers a display name as a hover-card handle', () => {
+    // A parent author with no usable handle: the LABEL may fall back to the
+    // display name so the row still reads as a reply to someone, but
+    // `authorHandle` must stay empty — the hover card fetches it as a handle.
+    const row = resolveReplyContextRow({
+      post: post({
+        parentAuthor: {
+          id: 'oxy-ghost',
+          username: '',
+          name: { displayName: 'Ghost' },
+          avatar: null,
+        },
+      }),
+      ...PLAIN,
     });
 
-    it('still renders a row when the parent could not be named', () => {
-        // An unlinked federated reply: marked as a reply, with nobody to name.
-        // Rendering nothing here is exactly what made "@someone thank you!" read
-        // as an ordinary top-level post.
-        const row = resolveReplyContextRow({ post: post({}), ...PLAIN });
+    expect(row?.label).toBe('Ghost');
+    expect(row?.authorHandle).toBeUndefined();
+  });
 
-        expect(row).not.toBeNull();
-        expect(row?.label).toBeUndefined();
-        expect(row?.authorHandle).toBeUndefined();
+  it('still names the parent when it is prepended directly above', () => {
+    // A feed `replyContext` slice renders [parent, reply]. The header is NOT
+    // suppressed there: it names a DIFFERENT author, which is the informative
+    // case and the whole substance of the bug. Redundant context is cheap;
+    // missing context is what was broken.
+    const row = resolveReplyContextRow({
+      post: post({ parentAuthor: PARENT_AUTHOR }),
+      isNested: false,
     });
 
-    it('never offers a display name as a hover-card handle', () => {
-        // A parent author with no usable handle: the LABEL may fall back to the
-        // display name so the row still reads as a reply to someone, but
-        // `authorHandle` must stay empty — the hover card fetches it as a handle.
-        const row = resolveReplyContextRow({
-            post: post({
-                parentAuthor: { id: 'oxy-ghost', username: '', name: { displayName: 'Ghost' }, avatar: null },
-            }),
-            ...PLAIN,
-        });
+    expect(row).toEqual({ authorHandle: 'parenthandle', label: 'parenthandle' });
+  });
 
-        expect(row?.label).toBe('Ghost');
-        expect(row?.authorHandle).toBeUndefined();
+  it('renders nothing for a self-thread continuation, on a FLAT surface', () => {
+    // The exact hole a position-based rule leaves. A self-thread continuation
+    // IS a reply — it carries `parentPostId` — and the server omits
+    // `replyContext` for it. On a flat surface (search, saved, insights, the
+    // scheduled preview, any feed the server returned without slices) there is
+    // no thread grouping to lean on, so the client must honour that omission
+    // rather than reconstructing a header from `parentPostId`.
+    //
+    // Deliberately NOT `post(undefined)`: that would be the "not a reply" case
+    // above wearing a different name, and would pass no matter what this
+    // function did with a parent link.
+    const row = resolveReplyContextRow({
+      post: post(undefined, 'the-authors-own-previous-post'),
+      ...PLAIN,
     });
 
-    it('still names the parent when it is prepended directly above', () => {
-        // A feed `replyContext` slice renders [parent, reply]. The header is NOT
-        // suppressed there: it names a DIFFERENT author, which is the informative
-        // case and the whole substance of the bug. Redundant context is cheap;
-        // missing context is what was broken.
-        const row = resolveReplyContextRow({
-            post: post({ parentAuthor: PARENT_AUTHOR }),
-            isNested: false,
-        });
+    expect(row).toBeNull();
+  });
 
-        expect(row).toEqual({ authorHandle: 'parenthandle', label: 'parenthandle' });
+  it('stays silent inside a quote card', () => {
+    const row = resolveReplyContextRow({
+      post: post({ parentAuthor: PARENT_AUTHOR }),
+      isNested: true,
     });
 
-    it('renders nothing for a self-thread continuation, on a FLAT surface', () => {
-        // The exact hole a position-based rule leaves. A self-thread continuation
-        // IS a reply — it carries `parentPostId` — and the server omits
-        // `replyContext` for it. On a flat surface (search, saved, insights, the
-        // scheduled preview, any feed the server returned without slices) there is
-        // no thread grouping to lean on, so the client must honour that omission
-        // rather than reconstructing a header from `parentPostId`.
-        //
-        // Deliberately NOT `post(undefined)`: that would be the "not a reply" case
-        // above wearing a different name, and would pass no matter what this
-        // function did with a parent link.
-        const row = resolveReplyContextRow({
-            post: post(undefined, 'the-authors-own-previous-post'),
-            ...PLAIN,
-        });
+    expect(row).toBeNull();
+  });
 
-        expect(row).toBeNull();
-    });
-
-    it('stays silent inside a quote card', () => {
-        const row = resolveReplyContextRow({
-            post: post({ parentAuthor: PARENT_AUTHOR }),
-            isNested: true,
-        });
-
-        expect(row).toBeNull();
-    });
-
-    it('tolerates a missing post', () => {
-        expect(resolveReplyContextRow({ post: undefined, ...PLAIN })).toBeNull();
-    });
+  it('tolerates a missing post', () => {
+    expect(resolveReplyContextRow({ post: undefined, ...PLAIN })).toBeNull();
+  });
 });

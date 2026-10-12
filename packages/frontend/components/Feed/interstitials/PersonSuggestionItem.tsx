@@ -39,8 +39,7 @@ export function PersonSuggestionItem({
   const profileHref = profileHrefForUser(profile);
   const dismissLabel = t(dismissLabelKey, {
     name:
-      profile.name?.displayName?.trim() ||
-      (handle.length > 0 ? `@${handle}` : t('user.unknown')),
+      profile.name?.displayName?.trim() || (handle.length > 0 ? `@${handle}` : t('user.unknown')),
   });
 
   return (

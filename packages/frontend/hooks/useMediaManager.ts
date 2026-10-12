@@ -1,10 +1,10 @@
-import { useState, useCallback } from "react";
-import { useTranslation } from "react-i18next";
+import { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 import { moveItem } from '@oxy.so/bloom/hooks';
 import type { FileMetadata } from '@oxy.so/core';
-import { ComposerMediaItem, toComposerMediaType } from "@/utils/composeUtils";
-import { normalizeApiError } from "@/utils/apiError";
+import { ComposerMediaItem, toComposerMediaType } from '@/utils/composeUtils';
+import { normalizeApiError } from '@/utils/apiError';
 
 export const useMediaManager = () => {
   const { t } = useTranslation();
@@ -12,47 +12,44 @@ export const useMediaManager = () => {
 
   const addMedia = useCallback(
     (file: FileMetadata) => {
-      const isImage = file?.contentType?.startsWith?.("image/");
-      const isVideo = file?.contentType?.startsWith?.("video/");
+      const isImage = file?.contentType?.startsWith?.('image/');
+      const isVideo = file?.contentType?.startsWith?.('video/');
 
       if (!isImage && !isVideo) {
-        toast(t("Please select an image or video file"), { type: 'error' });
+        toast(t('Please select an image or video file'), { type: 'error' });
         return false;
       }
 
       try {
-        const resolvedType = toComposerMediaType(
-          isImage ? "image" : "video",
-          file?.contentType
-        );
+        const resolvedType = toComposerMediaType(isImage ? 'image' : 'video', file?.contentType);
         const mediaItem: ComposerMediaItem = { id: file.id, type: resolvedType };
         setMediaIds((prev) => (prev.some((m) => m.id === file.id) ? prev : [...prev, mediaItem]));
-        toast(t(isImage ? "Image attached" : "Video attached"), { type: 'success' });
+        toast(t(isImage ? 'Image attached' : 'Video attached'), { type: 'success' });
         return true;
       } catch (e: unknown) {
-        toast(normalizeApiError(e).message || t("Failed to attach media"), { type: 'error' });
+        toast(normalizeApiError(e).message || t('Failed to attach media'), { type: 'error' });
         return false;
       }
     },
-    [t]
+    [t],
   );
 
   const addMultipleMedia = useCallback(
     (files: FileMetadata[]) => {
       const validFiles = (files || []).filter((f) => {
-        const contentType = f?.contentType || "";
-        return contentType.startsWith("image/") || contentType.startsWith("video/");
+        const contentType = f?.contentType || '';
+        return contentType.startsWith('image/') || contentType.startsWith('video/');
       });
 
       if (validFiles.length !== (files || []).length) {
-        toast(t("Please select only image or video files"), { type: 'error' });
+        toast(t('Please select only image or video files'), { type: 'error' });
       }
 
       const mediaItems = validFiles.map((f) => ({
         id: f.id,
         type: toComposerMediaType(
-          f.contentType?.startsWith("image/") ? "image" : "video",
-          f.contentType
+          f.contentType?.startsWith('image/') ? 'image' : 'video',
+          f.contentType,
         ),
       }));
 
@@ -64,22 +61,22 @@ export const useMediaManager = () => {
 
       return mediaItems.length;
     },
-    [t]
+    [t],
   );
 
   const removeMedia = useCallback(
     (mediaId: string) => {
       setMediaIds((prev) => prev.filter((m) => m.id !== mediaId));
-      toast(t("Media removed"), { type: 'success' });
+      toast(t('Media removed'), { type: 'success' });
     },
-    [t]
+    [t],
   );
 
-  const moveMedia = useCallback((mediaId: string, direction: "left" | "right") => {
+  const moveMedia = useCallback((mediaId: string, direction: 'left' | 'right') => {
     setMediaIds((prev) => {
       const index = prev.findIndex((m) => m.id === mediaId);
       if (index === -1) return prev;
-      const targetIndex = direction === "left" ? index - 1 : index + 1;
+      const targetIndex = direction === 'left' ? index - 1 : index + 1;
       if (targetIndex < 0 || targetIndex >= prev.length) return prev;
       return moveItem(prev, index, targetIndex);
     });
@@ -88,8 +85,8 @@ export const useMediaManager = () => {
   const setMediaAlt = useCallback((mediaId: string, alt: string) => {
     setMediaIds((prev) =>
       prev.map((m) =>
-        m.id === mediaId ? { ...m, alt: alt.trim().length > 0 ? alt : undefined } : m
-      )
+        m.id === mediaId ? { ...m, alt: alt.trim().length > 0 ? alt : undefined } : m,
+      ),
     );
   }, []);
 

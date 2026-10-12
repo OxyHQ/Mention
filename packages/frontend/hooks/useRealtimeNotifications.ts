@@ -4,7 +4,10 @@ import { createLogger } from '@oxy.so/core/logger';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { io, Socket } from 'socket.io-client';
 import { API_URL_SOCKET } from '../config';
-import { loadNotificationValidation, type NotificationValidation } from '@/lib/notificationValidation';
+import {
+  loadNotificationValidation,
+  type NotificationValidation,
+} from '@/lib/notificationValidation';
 import {
   containsNotification,
   findNotification,
@@ -67,91 +70,100 @@ export const useRealtimeNotifications = () => {
       // insert it removes. A patch still queued when this socket is replaced
       // (sign-out, account switch) is dropped: it belongs to the previous viewer.
       let pending: Promise<void> = Promise.resolve();
-      const inOrder = <A extends unknown[]>(
-        apply: (validation: NotificationValidation, ...args: A) => void,
-      ) => (...args: A): void => {
-        pending = pending
-          .then(loadNotificationValidation)
-          .then((validation) => {
-            if (socket === current) apply(validation, ...args);
-          })
-          .catch((error: unknown) => {
-            logger.warn('Dropped a realtime notification event', { error });
-          });
-      };
+      const inOrder =
+        <A extends unknown[]>(apply: (validation: NotificationValidation, ...args: A) => void) =>
+        (...args: A): void => {
+          pending = pending
+            .then(loadNotificationValidation)
+            .then((validation) => {
+              if (socket === current) apply(validation, ...args);
+            })
+            .catch((error: unknown) => {
+              logger.warn('Dropped a realtime notification event', { error });
+            });
+        };
 
       current.on('connect', () => {
         logger.info('Connected to notifications socket');
       });
 
-      current.on('notification', inOrder(({ ZRawNotification }, notification: unknown) => {
-        const parsed = ZRawNotification.safeParse(notification);
-        if (!parsed.success) {
-          logger.warn('Dropped invalid socket notification');
-          return;
-        }
-        const incoming = parsed.data;
+      current.on(
+        'notification',
+        inOrder(({ ZRawNotification }, notification: unknown) => {
+          const parsed = ZRawNotification.safeParse(notification);
+          if (!parsed.success) {
+            logger.warn('Dropped invalid socket notification');
+            return;
+          }
+          const incoming = parsed.data;
 
-        const prev = queryClient.getQueryData<NotificationsInfiniteData>(listKey);
-        const alreadyPresent = prev ? containsNotification(prev, incoming._id) : false;
+          const prev = queryClient.getQueryData<NotificationsInfiniteData>(listKey);
+          const alreadyPresent = prev ? containsNotification(prev, incoming._id) : false;
 
-        queryClient.setQueryData<NotificationsInfiniteData>(listKey, (data) =>
-          data ? prependNotification(data, incoming) : data,
-        );
+          queryClient.setQueryData<NotificationsInfiniteData>(listKey, (data) =>
+            data ? prependNotification(data, incoming) : data,
+          );
 
-        // Bump the badge only for a genuinely new, unread notification — the
-        // server echoes to the acting device too, so dedupe guards the count.
-        if (!alreadyPresent && !incoming.read) {
-          bumpUnread(queryClient, userId, 1);
-        }
-      }));
+          // Bump the badge only for a genuinely new, unread notification — the
+          // server echoes to the acting device too, so dedupe guards the count.
+          if (!alreadyPresent && !incoming.read) {
+            bumpUnread(queryClient, userId, 1);
+          }
+        }),
+      );
 
-      current.on('notificationUpdated', inOrder(({ ZRawNotification }, notification: unknown) => {
-        const parsed = ZRawNotification.safeParse(notification);
-        if (!parsed.success) {
-          logger.warn('Dropped invalid socket notificationUpdated');
-          return;
-        }
-        const incoming = parsed.data;
+      current.on(
+        'notificationUpdated',
+        inOrder(({ ZRawNotification }, notification: unknown) => {
+          const parsed = ZRawNotification.safeParse(notification);
+          if (!parsed.success) {
+            logger.warn('Dropped invalid socket notificationUpdated');
+            return;
+          }
+          const incoming = parsed.data;
 
-        const prev = queryClient.getQueryData<NotificationsInfiniteData>(listKey);
-        const previous = prev ? findNotification(prev, incoming._id) : undefined;
+          const prev = queryClient.getQueryData<NotificationsInfiniteData>(listKey);
+          const previous = prev ? findNotification(prev, incoming._id) : undefined;
 
-        queryClient.setQueryData<NotificationsInfiniteData>(listKey, (data) =>
-          data ? patchNotificationRead(data, incoming._id, incoming.read) : data,
-        );
+          queryClient.setQueryData<NotificationsInfiniteData>(listKey, (data) =>
+            data ? patchNotificationRead(data, incoming._id, incoming.read) : data,
+          );
 
-        if (previous) {
-          if (!previous.read && incoming.read) bumpUnread(queryClient, userId, -1);
-          else if (previous.read && !incoming.read) bumpUnread(queryClient, userId, 1);
-        }
-      }));
+          if (previous) {
+            if (!previous.read && incoming.read) bumpUnread(queryClient, userId, -1);
+            else if (previous.read && !incoming.read) bumpUnread(queryClient, userId, 1);
+          }
+        }),
+      );
 
-      current.on('notificationDeleted', inOrder((_validation, notificationId: unknown) => {
-        if (typeof notificationId !== 'string') {
-          logger.warn('Dropped invalid socket notificationDeleted');
-          return;
-        }
+      current.on(
+        'notificationDeleted',
+        inOrder((_validation, notificationId: unknown) => {
+          if (typeof notificationId !== 'string') {
+            logger.warn('Dropped invalid socket notificationDeleted');
+            return;
+          }
 
-        const prev = queryClient.getQueryData<NotificationsInfiniteData>(listKey);
-        const previous = prev ? findNotification(prev, notificationId) : undefined;
+          const prev = queryClient.getQueryData<NotificationsInfiniteData>(listKey);
+          const previous = prev ? findNotification(prev, notificationId) : undefined;
 
-        queryClient.setQueryData<NotificationsInfiniteData>(listKey, (data) =>
-          data ? removeNotification(data, notificationId) : data,
-        );
+          queryClient.setQueryData<NotificationsInfiniteData>(listKey, (data) =>
+            data ? removeNotification(data, notificationId) : data,
+          );
 
-        if (previous && !previous.read) bumpUnread(queryClient, userId, -1);
-      }));
+          if (previous && !previous.read) bumpUnread(queryClient, userId, -1);
+        }),
+      );
 
-      current.on('allNotificationsRead', inOrder(() => {
-        queryClient.setQueryData<NotificationsInfiniteData>(listKey, (data) =>
-          data ? markAllNotificationsRead(data) : data,
-        );
-        queryClient.setQueryData<number>(
-          viewerQueryKeys.unreadNotifications(userId),
-          0,
-        );
-      }));
+      current.on(
+        'allNotificationsRead',
+        inOrder(() => {
+          queryClient.setQueryData<NotificationsInfiniteData>(listKey, (data) =>
+            data ? markAllNotificationsRead(data) : data,
+          );
+          queryClient.setQueryData<number>(viewerQueryKeys.unreadNotifications(userId), 0);
+        }),
+      );
 
       current.on('disconnect', () => {
         logger.info('Disconnected from notifications socket');

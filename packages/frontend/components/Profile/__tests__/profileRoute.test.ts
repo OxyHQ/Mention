@@ -8,11 +8,16 @@ import type { AccountKind } from '@oxy.so/core';
  * qualified with its instance unless it already carries one.
  */
 jest.mock('@oxy.so/core', () => ({
-  getNormalizedUserHandle: (user: {
-    username?: string | null;
-    instance?: string | null;
-    isFederated?: boolean | null;
-  } | null | undefined) => {
+  getNormalizedUserHandle: (
+    user:
+      | {
+          username?: string | null;
+          instance?: string | null;
+          isFederated?: boolean | null;
+        }
+      | null
+      | undefined,
+  ) => {
     const username = user?.username?.trim().replace(/^@+/, '');
     if (!username) return null;
     return user?.isFederated && user.instance && !username.includes('@')
@@ -21,7 +26,7 @@ jest.mock('@oxy.so/core', () => ({
   },
 }));
 
-// eslint-disable-next-line import/first -- the mock above must be installed first.
+// The mock above must be installed first.
 import {
   canonicalProfileHref,
   profileBasePath,
@@ -296,13 +301,21 @@ describe('profileHrefForUser', () => {
 
   it('qualifies a federated author with their instance', () => {
     expect(
-      profileHrefForUser({ username: 'r74n', isFederated: true, instance: 'mastodon.gamedev.place' }),
+      profileHrefForUser({
+        username: 'r74n',
+        isFederated: true,
+        instance: 'mastodon.gamedev.place',
+      }),
     ).toBe('/@r74n@mastodon.gamedev.place');
   });
 
   it('leaves an already-qualified federated handle alone', () => {
     expect(
-      profileHrefForUser({ username: 'r74n@mastodon.gamedev.place', isFederated: true, instance: 'mastodon.gamedev.place' }),
+      profileHrefForUser({
+        username: 'r74n@mastodon.gamedev.place',
+        isFederated: true,
+        instance: 'mastodon.gamedev.place',
+      }),
     ).toBe('/@r74n@mastodon.gamedev.place');
   });
 
@@ -315,7 +328,9 @@ describe('profileHrefForUser', () => {
 
   it('carries a sub-surface under whichever family the account owns', () => {
     expect(profileHrefForUser({ username: 'nate' }, 'videos')).toBe('/@nate/videos');
-    expect(profileHrefForUser({ username: 'notas', kind: 'channel' }, 'about')).toBe('/c/notas/about');
+    expect(profileHrefForUser({ username: 'notas', kind: 'channel' }, 'about')).toBe(
+      '/c/notas/about',
+    );
   });
 
   it('answers null for an account that names no handle', () => {

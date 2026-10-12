@@ -13,7 +13,7 @@ import { and, eq } from 'drizzle-orm';
  * read/write/clear contract every sweep depends on to be resumable at all.
  *
  * Against REAL `admin_script_cursors` rows. The mocked model that used to stand
- * in for them asserted the SHAPE of a Mongo update document, which after the
+ * in for them asserted the SHAPE of a legacy-store update document, which after the
  * port describes nothing that runs — and could not have caught the one property
  * that actually matters here (a completion stamp being CLEARED when the scope
  * gains work) because a mock cannot forget a value it was never storing.
@@ -101,7 +101,7 @@ describe('readAdminScriptCursor', () => {
 });
 
 describe('recordAdminScriptCursor', () => {
-  it('upserts the scope\'s progress and reports that the write landed', async () => {
+  it("upserts the scope's progress and reports that the write landed", async () => {
     await expect(
       recordAdminScriptCursor(SCRIPT, SCOPE, { cursor: CURSOR, scanned: 500 }),
     ).resolves.toBe(true);
@@ -173,7 +173,7 @@ describe('recordAdminScriptCursor', () => {
 });
 
 describe('clearAdminScriptCursor', () => {
-  it('forgets the scope\'s progress', async () => {
+  it("forgets the scope's progress", async () => {
     await recordAdminScriptCursor(SCRIPT, SCOPE, { cursor: CURSOR, scanned: 5 });
 
     await clearAdminScriptCursor(SCRIPT, SCOPE);

@@ -24,10 +24,10 @@ import { PostVisibility } from '@mention/shared-types';
  *
  * `fetchParentPosts` and `fetchThreadChildren` are real SQL now, and the suite
  * no longer stubs `models/Post`. That matters for more than tidiness: the old
- * self-thread test asserted the shape of the Mongo filter the slicer BUILT
+ * self-thread test asserted the shape of the legacy-store filter the slicer BUILT
  * (`parentPostId: { $ne: null, $exists: true }`), which cannot distinguish a
  * correct query from one that matches nothing — and this particular clause is
- * the one that does NOT translate literally, because Mongo's `$ne: null` also
+ * the one that does NOT translate literally, because the legacy store's `$ne: null` also
  * matches a missing field while SQL's `<> NULL` is NULL and matches no row at
  * all. The rewrite seeds real children and asserts WHICH ones came back.
  *
@@ -306,7 +306,7 @@ describe('ThreadSlicingService thread children visibility', () => {
      * `fetchThreadChildren` predicate stated as data rather than as the shape of
      * a query object.
      *
-     * The `parent_post_id IS NOT NULL` clause is the one worth the seed: Mongo's
+     * The `parent_post_id IS NOT NULL` clause is the one worth the seed: the legacy store's
      * `$ne: null` ALSO matched a missing field, and the literal SQL translation
      * (`<> NULL`) is NULL for every row and returns nothing at all — so a suite
      * that only asserted the filter was built could not tell the correct query
@@ -344,7 +344,9 @@ describe('ThreadSlicingService thread children visibility', () => {
       oxyUserId: scope.user('someone-else'),
       parentPostId: root.id,
       threadId: root.id,
-      content: { variants: [{ source: 'author', text: 'another author in the thread', tag: 'en' }] },
+      content: {
+        variants: [{ source: 'author', text: 'another author in the thread', tag: 'en' }],
+      },
     });
     // Same thread, same author, NO parent link — a sibling root, not a
     // continuation. This is the row the `$ne: null` translation gets wrong.
@@ -367,8 +369,9 @@ describe('ThreadSlicingService thread children visibility', () => {
     expect(slices).toHaveLength(1);
     expect(
       slices[0].items.map(
-        (item) => (item.post as unknown as { content: { variants?: Array<{ text: string }> } })
-          .content.variants?.[0]?.text,
+        (item) =>
+          (item.post as unknown as { content: { variants?: Array<{ text: string }> } }).content
+            .variants?.[0]?.text,
       ),
     ).toEqual(['public root', 'the one real continuation']);
     expect(slices[0]._sliceKey).toBe(`${root.id}+${child.id}`);

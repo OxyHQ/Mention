@@ -38,12 +38,24 @@ export function WriteNoteSheet({ post, onSubmit, onClose }: WriteNoteSheetProps)
 
   return (
     <View className="bg-background flex-1">
-      <NoteSheetHeader title={t('communityNotes.write.title', { defaultValue: 'Write community note' })} onClose={onClose} />
-      <ScrollView className="flex-1" contentContainerClassName="gap-4 px-4 pb-4" keyboardShouldPersistTaps="handled">
+      <NoteSheetHeader
+        title={t('communityNotes.write.title', { defaultValue: 'Write community note' })}
+        onClose={onClose}
+      />
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="gap-4 px-4 pb-4"
+        keyboardShouldPersistTaps="handled"
+      >
         <Textarea
           label={t('communityNotes.write.noteLabel', { defaultValue: 'Note' })}
-          placeholder={t('communityNotes.write.notePlaceholder', { defaultValue: 'Add helpful context' })}
-          hint={t('communityNotes.write.noteHint', { defaultValue: 'Background, a clarification or a fact that helps people understand the post.' })}
+          placeholder={t('communityNotes.write.notePlaceholder', {
+            defaultValue: 'Add helpful context',
+          })}
+          hint={t('communityNotes.write.noteHint', {
+            defaultValue:
+              'Background, a clarification or a fact that helps people understand the post.',
+          })}
           value={text}
           onChangeText={setText}
           rows={4}
@@ -67,8 +79,12 @@ export function WriteNoteSheet({ post, onSubmit, onClose }: WriteNoteSheetProps)
           </TextField>
           <TextFieldHint isInvalid={sourceInvalid}>
             {sourceInvalid
-              ? t('communityNotes.write.sourceInvalid', { defaultValue: 'Enter a full link, starting with https://' })
-              : t('communityNotes.write.sourceHint', { defaultValue: 'A link to a specific page makes a helpful rating more likely.' })}
+              ? t('communityNotes.write.sourceInvalid', {
+                  defaultValue: 'Enter a full link, starting with https://',
+                })
+              : t('communityNotes.write.sourceHint', {
+                  defaultValue: 'A link to a specific page makes a helpful rating more likely.',
+                })}
           </TextFieldHint>
         </View>
         <View pointerEvents="none">
@@ -76,11 +92,20 @@ export function WriteNoteSheet({ post, onSubmit, onClose }: WriteNoteSheetProps)
         </View>
       </ScrollView>
       <View className="border-border gap-2 border-t px-4 pb-6 pt-3">
-        <Button appearance="solid" tone="accent" size="lg" disabled={!canSubmit} onPress={() => onSubmit({ text: text.trim(), sourceUrl: sourceUrl.trim() })}>
+        <Button
+          appearance="solid"
+          tone="accent"
+          size="lg"
+          disabled={!canSubmit}
+          onPress={() => onSubmit({ text: text.trim(), sourceUrl: sourceUrl.trim() })}
+        >
           {t('communityNotes.write.submit', { defaultValue: 'Submit' })}
         </Button>
         <Text className="text-muted-foreground text-center text-[12px]">
-          {t('communityNotes.write.footer', { defaultValue: "Community notes are anonymous. You can't edit a note after you submit it." })}
+          {t('communityNotes.write.footer', {
+            defaultValue:
+              "Community notes are anonymous. You can't edit a note after you submit it.",
+          })}
         </Text>
       </View>
     </View>

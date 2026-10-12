@@ -54,36 +54,35 @@ export interface PlannedEnforcementAction {
 }
 
 /** What a recommended action becomes in Mention. */
-const RECOMMENDATION_TO_ACTION: Readonly<
-  Record<RecommendedAction, ModerationEnforcementAction>
-> = Object.freeze({
-  remove: 'restrict',
-  remove_or_restrict: 'restrict',
-  hide: 'restrict',
+const RECOMMENDATION_TO_ACTION: Readonly<Record<RecommendedAction, ModerationEnforcementAction>> =
+  Object.freeze({
+    remove: 'restrict',
+    remove_or_restrict: 'restrict',
+    hide: 'restrict',
 
-  label: 'label_sensitive',
-  allow_with_label: 'label_sensitive',
-  age_gate: 'label_sensitive',
-  reduce_distribution: 'label_sensitive',
+    label: 'label_sensitive',
+    allow_with_label: 'label_sensitive',
+    age_gate: 'label_sensitive',
+    reduce_distribution: 'label_sensitive',
 
-  allow: 'none',
-  no_action: 'none',
-  no_global_effect: 'none',
-  restore: 'restore',
+    allow: 'none',
+    no_action: 'none',
+    no_global_effect: 'none',
+    restore: 'restore',
 
-  // Mention holds none of the levers these ask for. Recorded, queued for a human.
-  suspend_user: 'manual_review',
-  freeze_transaction: 'manual_review',
-  request_changes: 'manual_review',
-  request_more_context: 'manual_review',
-  hold: 'manual_review',
-  local_manual_review: 'manual_review',
-  keep_restricted_temporarily: 'manual_review',
-  escalate: 'manual_review',
-  specialist_queue: 'manual_review',
-  legal_queue: 'manual_review',
-  safety_queue: 'manual_review',
-});
+    // Mention holds none of the levers these ask for. Recorded, queued for a human.
+    suspend_user: 'manual_review',
+    freeze_transaction: 'manual_review',
+    request_changes: 'manual_review',
+    request_more_context: 'manual_review',
+    hold: 'manual_review',
+    local_manual_review: 'manual_review',
+    keep_restricted_temporarily: 'manual_review',
+    escalate: 'manual_review',
+    specialist_queue: 'manual_review',
+    legal_queue: 'manual_review',
+    safety_queue: 'manual_review',
+  });
 
 /**
  * The action a violation gets when the decision recommended nothing.
@@ -94,13 +93,12 @@ const RECOMMENDATION_TO_ACTION: Readonly<
  * "reduce distribution … possible removal", where "possible" is a judgement, not an
  * automation.
  */
-const SEVERITY_FALLBACK: Readonly<Record<Severity, ModerationEnforcementAction>> =
-  Object.freeze({
-    critical: 'manual_review',
-    high: 'restrict',
-    medium: 'label_sensitive',
-    low: 'manual_review',
-  });
+const SEVERITY_FALLBACK: Readonly<Record<Severity, ModerationEnforcementAction>> = Object.freeze({
+  critical: 'manual_review',
+  high: 'restrict',
+  medium: 'label_sensitive',
+  low: 'manual_review',
+});
 
 /**
  * `critical` goes to a human rather than straight to removal.
@@ -167,9 +165,7 @@ function withRestoreForNoViolation(
  * human, and dropping it because something else was also done is how a
  * `suspend_user` recommendation gets lost.
  */
-function collapse(
-  actions: readonly PlannedEnforcementAction[],
-): PlannedEnforcementAction[] {
+function collapse(actions: readonly PlannedEnforcementAction[]): PlannedEnforcementAction[] {
   const byAction = new Map<ModerationEnforcementAction, PlannedEnforcementAction>();
   for (const planned of actions) {
     if (!byAction.has(planned.action)) byAction.set(planned.action, planned);
@@ -238,9 +234,7 @@ export function planEnforcement(decision: Decision): PlannedEnforcementAction[] 
        * records it as not applied with the reason, which is how "we checked and there
        * was nothing to undo" is distinguishable from "we never looked".
        */
-      return [
-        { action: 'restore', reason: 'No violation: undo any earlier restriction' },
-      ];
+      return [{ action: 'restore', reason: 'No violation: undo any earlier restriction' }];
 
     case 'insufficient_context':
     case 'inconclusive':
@@ -260,9 +254,7 @@ export function planEnforcement(decision: Decision): PlannedEnforcementAction[] 
 
     case 'content_unavailable':
     case 'duplicate':
-      return [
-        { action: 'none', reason: `Outcome ${decision.outcome}: nothing to enforce` },
-      ];
+      return [{ action: 'none', reason: `Outcome ${decision.outcome}: nothing to enforce` }];
 
     default:
       /**

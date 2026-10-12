@@ -32,9 +32,7 @@ jest.mock('@oxy.so/core/logger', () => ({
 jest.mock('@/modules/pip-transport', () => ({
   setPipAspectRatio: (width: number, height: number) => {
     mockNative.calls.push({ width, height });
-    return mockNative.rejection
-      ? Promise.reject(mockNative.rejection)
-      : Promise.resolve();
+    return mockNative.rejection ? Promise.reject(mockNative.rejection) : Promise.resolve();
   },
 }));
 
@@ -55,7 +53,10 @@ jest.mock('expo', () => ({
 
 interface FakePlayer {
   videoTrack: { size: { width: number; height: number } } | null;
-  listeners: Record<string, ((payload: { videoTrack: FakePlayer['videoTrack'] }) => void) | undefined>;
+  listeners: Record<
+    string,
+    ((payload: { videoTrack: FakePlayer['videoTrack'] }) => void) | undefined
+  >;
 }
 
 function makePlayer(track: FakePlayer['videoTrack'] = null): FakePlayer {
@@ -71,7 +72,13 @@ interface HarnessProps {
   postId?: string;
 }
 
-function Harness({ player, active, persistedSize, sessionOwner = false, postId = 'post-1' }: HarnessProps) {
+function Harness({
+  player,
+  active,
+  persistedSize,
+  sessionOwner = false,
+  postId = 'post-1',
+}: HarnessProps) {
   usePipAspectRatio({
     // The fake stands in for the parts of `VideoPlayer` this hook touches.
     player: player as unknown as Parameters<typeof usePipAspectRatio>[0]['player'],
@@ -103,15 +110,18 @@ describe('resolvePipAspectSize', () => {
   it('prefers the playing track over what the feed persisted', () => {
     // The track is the truth about the decoded stream; the persisted value can be
     // stale or describe a different rendition.
-    expect(resolvePipAspectSize({ width: 720, height: 1280 }, { width: 1080, height: 1920 }))
-      .toEqual({ width: 720, height: 1280 });
+    expect(
+      resolvePipAspectSize({ width: 720, height: 1280 }, { width: 1080, height: 1920 }),
+    ).toEqual({ width: 720, height: 1280 });
   });
 
   it('falls back to the persisted size, which is what makes the FIRST window right', () => {
     // Before playback there is no track, and that is exactly the moment expo-video
     // has nothing either — so this is the case the bug lives in.
-    expect(resolvePipAspectSize(undefined, { width: 1080, height: 1920 }))
-      .toEqual({ width: 1080, height: 1920 });
+    expect(resolvePipAspectSize(undefined, { width: 1080, height: 1920 })).toEqual({
+      width: 1080,
+      height: 1920,
+    });
   });
 
   it('yields null when neither is known, so nothing is published', () => {

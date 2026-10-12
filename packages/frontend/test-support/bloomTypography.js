@@ -22,7 +22,11 @@ function textComponent(displayName) {
 }
 
 function Blockquote({ children, style, textStyle, testID }) {
-  return React.createElement(View, { style, testID }, React.createElement(RNText, { style: textStyle }, children));
+  return React.createElement(
+    View,
+    { style, testID },
+    React.createElement(RNText, { style: textStyle }, children),
+  );
 }
 Blockquote.displayName = 'Blockquote';
 

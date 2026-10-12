@@ -216,25 +216,31 @@ export default function ExploreTrendingScreen() {
   // The relation graph explains this list, so its way in belongs ON the list.
   // Rendered unconditionally: an entry point that appears only when there
   // happens to be a summary is an entry point most readers never see.
-  const renderHeader = useCallback(() => (
-    <View className="px-4 pt-3 pb-1 gap-2">
-      {summary ? (
-        <Text className="text-muted-foreground" style={{ fontSize: FONT_SIZES.sm, lineHeight: 18 }}>
-          {summary}
-        </Text>
-      ) : null}
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => router.push('/trend-graph')}
-        className="flex-row items-center gap-1 self-start"
-      >
-        <RiNodeTree width={14} height={14} fill={theme.colors.primary} />
-        <Text className="text-primary" style={{ fontSize: FONT_SIZES.sm }}>
-          {t('trendGraph.openLink')}
-        </Text>
-      </Pressable>
-    </View>
-  ), [summary, router, theme, t]);
+  const renderHeader = useCallback(
+    () => (
+      <View className="px-4 pt-3 pb-1 gap-2">
+        {summary ? (
+          <Text
+            className="text-muted-foreground"
+            style={{ fontSize: FONT_SIZES.sm, lineHeight: 18 }}
+          >
+            {summary}
+          </Text>
+        ) : null}
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/trend-graph')}
+          className="flex-row items-center gap-1 self-start"
+        >
+          <RiNodeTree width={14} height={14} fill={theme.colors.primary} />
+          <Text className="text-primary" style={{ fontSize: FONT_SIZES.sm }}>
+            {t('trendGraph.openLink')}
+          </Text>
+        </Pressable>
+      </View>
+    ),
+    [summary, router, theme, t],
+  );
 
   const renderFooter = useCallback(() => {
     if (!historyQuery.isFetchingNextPage) return null;
@@ -245,8 +251,7 @@ export default function ExploreTrendingScreen() {
     );
   }, [historyQuery.isFetchingNextPage]);
 
-  const isInitialLoading =
-    historyQuery.isPending && visibleTrends.length === 0 && trendsLoading;
+  const isInitialLoading = historyQuery.isPending && visibleTrends.length === 0 && trendsLoading;
 
   if (isInitialLoading) {
     return (
@@ -269,12 +274,7 @@ export default function ExploreTrendingScreen() {
       onRefresh={handleRefresh}
       refreshing={trendsLoading || historyQuery.isRefetching}
       stickySectionHeadersEnabled
-      ListEmptyComponent={
-        <EmptyState
-          sticker="trending"
-          title="No trending topics available"
-        />
-      }
+      ListEmptyComponent={<EmptyState sticker="trending" title="No trending topics available" />}
     />
   );
 }

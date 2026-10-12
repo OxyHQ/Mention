@@ -69,7 +69,8 @@ export function usePodcastSave(syraPodcastId: string | undefined): {
       );
     },
     onSuccess: (_data, { save }) => {
-      if (save) toast.success(t('podcast.card.saved', { defaultValue: 'Saved to your Syra library' }));
+      if (save)
+        toast.success(t('podcast.card.saved', { defaultValue: 'Saved to your Syra library' }));
     },
   });
 

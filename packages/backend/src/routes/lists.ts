@@ -85,12 +85,14 @@ const createListSchema = z.object({
 
 /** The same fields, all optional: an absent one leaves the stored value alone. */
 const updateListSchema = z.object({
-  title: z.string('title must be a non-empty string').min(1, 'title must be a non-empty string').optional(),
+  title: z
+    .string('title must be a non-empty string')
+    .min(1, 'title must be a non-empty string')
+    .optional(),
   description: z.string('description must be a string').nullish(),
   isPublic: z.boolean('isPublic must be a boolean').optional(),
   memberOxyUserIds: z.unknown().optional(),
 });
-
 
 /**
  * Fire-and-forget endorsement re-sync for a list whose membership changed.
@@ -130,13 +132,12 @@ interface SerializedList {
 }
 
 /**
- * Re-assemble the response body a Mongoose document produced.
+ * Assemble the list response body.
  *
  * `_id` is still emitted alongside `id` because the client reads
- * `created?._id || created?.id` (`services/listsService.ts`), and a port changes
- * no response body. An absent `description` is OMITTED rather than sent as
- * `null`: Mongoose left it `undefined`, which `JSON.stringify` drops, and
- * drizzle's `null` would serialize as `"description": null` — a different body
+ * `created?._id || created?.id` (`services/listsService.ts`). An absent
+ * `description` is OMITTED rather than sent as `null`: drizzle's `null` would
+ * serialize as `"description": null` — a different body
  * for the same absent value, and exactly what an `if (list.description)` check
  * on the client would start rendering as an empty field.
  */
@@ -162,12 +163,11 @@ function serializeList(
  * The member ids a client sent, in the order they sent them: non-empty
  * strings within a real id's length, deduplicated.
  *
- * Mongo stored the raw array, so a repeated id simply sat there twice. The
- * junction's `(list_id, oxy_user_id)` unique constraint refuses that outright,
+ * The junction's `(list_id, oxy_user_id)` unique constraint refuses that outright,
  * so the duplicate is collapsed HERE — keeping the first occurrence, which is
  * what preserves the arrangement the owner chose. A non-string could never name
- * an Oxy account, and Mongoose's cast would have turned an object into
- * `"[object Object]"` rather than rejecting it, so those are dropped too.
+ * an Oxy account (a cast would turn an object into `"[object Object]"`), so
+ * those are dropped too.
  *
  * The length bound is the same kind of drop, not a new category of rejection:
  * nothing this table has ever held is anywhere near
@@ -179,7 +179,11 @@ function normalizeMemberIds(input: unknown): string[] {
   if (!Array.isArray(input)) return [];
   const seen = new Set<string>();
   for (const value of input) {
-    if (typeof value === 'string' && value.length > 0 && value.length <= ACCOUNT_LIST_MAX_MEMBER_ID_LENGTH) {
+    if (
+      typeof value === 'string' &&
+      value.length > 0 &&
+      value.length <= ACCOUNT_LIST_MAX_MEMBER_ID_LENGTH
+    ) {
       seen.add(value);
     }
   }
@@ -227,9 +231,9 @@ async function loadMembersByList(
 async function replaceMembers(tx: Transaction, listId: string, memberIds: string[]): Promise<void> {
   await tx.delete(accountListMembers).where(eq(accountListMembers.listId, listId));
   if (memberIds.length === 0) return;
-  await tx.insert(accountListMembers).values(
-    memberIds.map((oxyUserId, position) => ({ listId, oxyUserId, position })),
-  );
+  await tx
+    .insert(accountListMembers)
+    .values(memberIds.map((oxyUserId, position) => ({ listId, oxyUserId, position })));
 }
 
 /**
@@ -258,7 +262,9 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 
     const parsed = createListSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.issues.map((issue) => issue.message).join('; ') });
+      return res
+        .status(400)
+        .json({ error: parsed.error.issues.map((issue) => issue.message).join('; ') });
     }
     const { title, description, isPublic = true, memberOxyUserIds } = parsed.data;
 
@@ -274,7 +280,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
           title,
           // NULL, never `''` — an empty string is a VALUE, and the client's
           // `if (list.description)` would then render an empty field instead of
-          // none. Mongoose stored `undefined` for exactly this.
+          // none.
           description: description ? description : null,
           isPublic,
         })
@@ -319,9 +325,8 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     // widens it.
     //
     // Every clause is ANDed, which is what lets the owner filter stand on its
-    // own here: Mongo needed the non-owner's `isPublic` written beside a
-    // top-level `$or` that would otherwise have re-admitted everybody's public
-    // lists, and there is no such disjunction to escape from.
+    // own here: there is no top-level disjunction that could re-admit
+    // everybody's public lists.
     const conditions: Array<SQL | undefined> = [
       or(eq(accountLists.ownerOxyUserId, userId), eq(accountLists.isPublic, true)),
     ];
@@ -390,7 +395,10 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 
     const hasMore = fetched.length > pageLimit;
     const page = hasMore ? fetched.slice(0, pageLimit) : fetched;
-    const membersByList = await loadMembersByList(db, page.map((row) => row.id));
+    const membersByList = await loadMembersByList(
+      db,
+      page.map((row) => row.id),
+    );
     const serialized = page.map((row) => serializeList(row, membersByList.get(row.id) ?? []));
 
     res.json({
@@ -419,7 +427,11 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
     const members = await loadMembersByList(db, [list.id]);
     res.json(serializeList(list, members.get(list.id) ?? []));
   } catch (error) {
-    logger.error('[Lists] Failed to get list', { userId: req.user?.id, listId: String(req.params.id), error });
+    logger.error('[Lists] Failed to get list', {
+      userId: req.user?.id,
+      listId: String(req.params.id),
+      error,
+    });
     res.status(500).json({ error: 'Failed to get list' });
   }
 });
@@ -435,7 +447,12 @@ type ListWriteOutcome =
   | { kind: 'notFound' }
   | { kind: 'forbidden' }
   | { kind: 'tooManyMembers' }
-  | { kind: 'ok'; list: typeof accountLists.$inferSelect; previousMemberIds: string[]; memberIds: string[] };
+  | {
+      kind: 'ok';
+      list: typeof accountLists.$inferSelect;
+      previousMemberIds: string[];
+      memberIds: string[];
+    };
 
 /**
  * The three non-`ok` outcomes every write handler below answers the same way.
@@ -468,7 +485,9 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     const parsed = updateListSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.issues.map((issue) => issue.message).join('; ') });
+      return res
+        .status(400)
+        .json({ error: parsed.error.issues.map((issue) => issue.message).join('; ') });
     }
     const { title, description, isPublic, memberOxyUserIds } = parsed.data;
     const replacesMembers = Array.isArray(memberOxyUserIds);
@@ -505,8 +524,8 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
           ...(title === undefined ? {} : { title }),
           ...(description === undefined ? {} : { description: description ? description : null }),
           ...(isPublic === undefined ? {} : { isPublic }),
-          // Always stamped, matching Mongoose's `save()`: the previous route
-          // bumped `updatedAt` on every PUT whether or not a field changed, and
+          // Always stamped: `updatedAt` moves on every PUT whether or not a
+          // field changed, and
           // `updated_at` is the sort key `GET /lists` pages on.
           updatedAt: new Date(),
         })
@@ -538,7 +557,11 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     }
     res.json(serializeList(outcome.list, outcome.memberIds));
   } catch (error) {
-    logger.error('[Lists] Failed to update list', { userId: req.user?.id, listId: String(req.params.id), error });
+    logger.error('[Lists] Failed to update list', {
+      userId: req.user?.id,
+      listId: String(req.params.id),
+      error,
+    });
     res.status(500).json({ error: 'Failed to update list' });
   }
 });
@@ -572,11 +595,20 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
     if (respondToFailure(res, outcome)) return;
 
     void endorsementSignalService
-      .syncScopeRemoval('accountList', outcome.list.id, outcome.list.ownerOxyUserId, outcome.memberIds)
+      .syncScopeRemoval(
+        'accountList',
+        outcome.list.id,
+        outcome.list.ownerOxyUserId,
+        outcome.memberIds,
+      )
       .catch((error) => logger.warn('[Lists] endorsement retraction failed', error));
     res.json({ success: true });
   } catch (error) {
-    logger.error('[Lists] Failed to delete list', { userId: req.user?.id, listId: String(req.params.id), error });
+    logger.error('[Lists] Failed to delete list', {
+      userId: req.user?.id,
+      listId: String(req.params.id),
+      error,
+    });
     res.status(500).json({ error: 'Failed to delete list' });
   }
 });
@@ -610,7 +642,11 @@ router.post('/:id/members', async (req: AuthRequest, res: Response) => {
       if (toAdd.length > 0) {
         const startPosition = await nextMemberPosition(tx, existing.id);
         await tx.insert(accountListMembers).values(
-          toAdd.map((oxyUserId, i) => ({ listId: existing.id, oxyUserId, position: startPosition + i })),
+          toAdd.map((oxyUserId, i) => ({
+            listId: existing.id,
+            oxyUserId,
+            position: startPosition + i,
+          })),
         );
       }
       return { kind: 'ok', list: existing, previousMemberIds, memberIds };
@@ -621,7 +657,11 @@ router.post('/:id/members', async (req: AuthRequest, res: Response) => {
     syncListEndorsements(outcome.list.id);
     res.json(serializeList(outcome.list, outcome.memberIds));
   } catch (error) {
-    logger.error('[Lists] Failed to add members', { userId: req.user?.id, listId: String(req.params.id), error });
+    logger.error('[Lists] Failed to add members', {
+      userId: req.user?.id,
+      listId: String(req.params.id),
+      error,
+    });
     res.status(500).json({ error: 'Failed to add members' });
   }
 });
@@ -656,7 +696,10 @@ router.delete('/:id/members', async (req: AuthRequest, res: Response) => {
         await tx
           .delete(accountListMembers)
           .where(
-            and(eq(accountListMembers.listId, existing.id), inArray(accountListMembers.oxyUserId, [...toRemove])),
+            and(
+              eq(accountListMembers.listId, existing.id),
+              inArray(accountListMembers.oxyUserId, [...toRemove]),
+            ),
           );
       }
       return { kind: 'ok', list: existing, previousMemberIds, memberIds };
@@ -672,7 +715,11 @@ router.delete('/:id/members', async (req: AuthRequest, res: Response) => {
     );
     res.json(serializeList(outcome.list, outcome.memberIds));
   } catch (error) {
-    logger.error('[Lists] Failed to remove members', { userId: req.user?.id, listId: String(req.params.id), error });
+    logger.error('[Lists] Failed to remove members', {
+      userId: req.user?.id,
+      listId: String(req.params.id),
+      error,
+    });
     res.status(500).json({ error: 'Failed to remove members' });
   }
 });
@@ -689,7 +736,10 @@ router.get('/:id/timeline', ...timelineRateLimiters, async (req: AuthRequest, re
     const cursor = queryString(req.query.cursor);
     // Bounded positive integer: the page's last row is read by index below, so a
     // NaN / zero / negative limit would index outside the page.
-    const limit = Math.min(Math.max(queryInt(req.query.limit) || DEFAULT_TIMELINE_PAGE_SIZE, 1), MAX_TIMELINE_PAGE_SIZE);
+    const limit = Math.min(
+      Math.max(queryInt(req.query.limit) || DEFAULT_TIMELINE_PAGE_SIZE, 1),
+      MAX_TIMELINE_PAGE_SIZE,
+    );
     const listId = String(req.params.id);
     const db = getDb();
     const [list] = await db
@@ -712,12 +762,13 @@ router.get('/:id/timeline', ...timelineRateLimiters, async (req: AuthRequest, re
       eq(posts.visibility, 'public'),
       notCollapsedCrosspostSql(),
     ) as SQL;
-    const docs = memberIds.length === 0
-      ? []
-      : await findPostRecords(keyset ? and(scope, keyset) : scope, {
-        orderBy: chronoOrderBy(),
-        limit: limit + 1,
-      });
+    const docs =
+      memberIds.length === 0
+        ? []
+        : await findPostRecords(keyset ? and(scope, keyset) : scope, {
+            orderBy: chronoOrderBy(),
+            limit: limit + 1,
+          });
     const hasMore = docs.length > limit;
     const toReturn = hasMore ? docs.slice(0, limit) : docs;
     const anchor = hasMore ? toReturn[limit - 1] : undefined;
@@ -725,9 +776,24 @@ router.get('/:id/timeline', ...timelineRateLimiters, async (req: AuthRequest, re
     const transformed = await feedController.transformPostsWithProfiles(toReturn, userId);
     // Date lives on the hydrated post's `metadata` (HydratedPost has no top-level
     // `date`); the previous `p.date` read was always undefined under the loose cast.
-    res.json({ items: transformed.map((p) => ({ id: p.id, type: 'post', data: p, createdAt: p.metadata?.createdAt, updatedAt: p.metadata?.updatedAt })), hasMore, nextCursor, totalCount: transformed.length });
+    res.json({
+      items: transformed.map((p) => ({
+        id: p.id,
+        type: 'post',
+        data: p,
+        createdAt: p.metadata?.createdAt,
+        updatedAt: p.metadata?.updatedAt,
+      })),
+      hasMore,
+      nextCursor,
+      totalCount: transformed.length,
+    });
   } catch (error) {
-    logger.error('[Lists] Failed to load list timeline', { userId: req.user?.id, listId: String(req.params.id), error });
+    logger.error('[Lists] Failed to load list timeline', {
+      userId: req.user?.id,
+      listId: String(req.params.id),
+      error,
+    });
     res.status(500).json({ error: 'Failed to load list timeline' });
   }
 });

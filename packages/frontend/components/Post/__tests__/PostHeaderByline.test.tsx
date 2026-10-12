@@ -69,12 +69,17 @@ function mockHandlePart(value?: string | null): string | null {
   if (!trimmed || /[/?#]/.test(trimmed)) return null;
   return trimmed;
 }
-function mockNormalizedHandle(user: {
-  username?: string | null;
-  instance?: string | null;
-  isFederated?: boolean | null;
-  federation?: { domain?: string | null } | null;
-} | null | undefined): string | null {
+function mockNormalizedHandle(
+  user:
+    | {
+        username?: string | null;
+        instance?: string | null;
+        isFederated?: boolean | null;
+        federation?: { domain?: string | null } | null;
+      }
+    | null
+    | undefined,
+): string | null {
   const username = mockHandlePart(user?.username);
   if (!username) return null;
   const instance = mockHandlePart(user?.instance ?? user?.federation?.domain);
@@ -229,7 +234,10 @@ describe('PostHeader byline names', () => {
 
   it('prefers the structured `name.first` for a person', () => {
     const authors: HydratedAuthor[] = [
-      { ...collaborator('acct-ana', 'ana', 'Ana Torres'), name: { displayName: 'Ana Torres', first: 'Anabel' } },
+      {
+        ...collaborator('acct-ana', 'ana', 'Ana Torres'),
+        name: { displayName: 'Ana Torres', first: 'Anabel' },
+      },
       collaborator('acct-luis', 'luis', 'Luis Prado'),
     ];
     expect(bylineText(render({ authors }))).toBe('Anabel and Luis');
@@ -373,10 +381,7 @@ describe('PostHeader ordinary repost', () => {
       collaborator('acct-ana', 'ana', 'Ana Torres'),
       collaborator('acct-luis', 'luis', 'Luis Prado'),
     ];
-    expect(clusterIds(render({ authors, boostedBy: booster }))).toEqual([
-      'acct-ana',
-      'acct-luis',
-    ]);
+    expect(clusterIds(render({ authors, boostedBy: booster }))).toEqual(['acct-ana', 'acct-luis']);
   });
 
   it('keeps the solo avatar when there are no authors to pair the booster with', () => {

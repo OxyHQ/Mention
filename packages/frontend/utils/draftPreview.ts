@@ -81,7 +81,13 @@ export function draftToPreviewPost(params: {
       ...(media.length > 0 ? { media } : {}),
       ...(poll ? { poll } : {}),
       ...(hasArticle
-        ? { article: { title: articleTitle, body: articleBody, excerpt: articleBody?.slice(0, 280) } }
+        ? {
+            article: {
+              title: articleTitle,
+              body: articleBody,
+              excerpt: articleBody?.slice(0, 280),
+            },
+          }
         : {}),
       ...(draft.location
         ? {

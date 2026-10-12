@@ -17,7 +17,12 @@ import { PROFILE_HANDLE } from '../environment';
 import { expect, test } from '../fixtures';
 
 /** Chunk names (Metro names an async chunk after its entry module). */
-const DEFERRED = ['ComposeScreen', 'MentionSettingsModal', 'LiveFeatureRuntime', 'VideoReplies'] as const;
+const DEFERRED = [
+  'ComposeScreen',
+  'MentionSettingsModal',
+  'LiveFeatureRuntime',
+  'VideoReplies',
+] as const;
 
 function recordScripts(page: Page): Set<string> {
   const loaded = new Set<string>();
@@ -40,7 +45,10 @@ test('home and a profile fetch no optional runtime', async ({ page, candidate })
   expect(candidate.scriptErrors).toEqual([]);
 });
 
-test('settings and live rooms fetch their chunk when opened, and work', async ({ page, candidate }) => {
+test('settings and live rooms fetch their chunk when opened, and work', async ({
+  page,
+  candidate,
+}) => {
   const loaded = recordScripts(page);
   await page.goto('/');
   await expect(page.locator('[data-post-uri]').first()).toBeVisible();

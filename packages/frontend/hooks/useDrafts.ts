@@ -117,25 +117,25 @@ export const useDrafts = () => {
   }, [viewerId]);
 
   // Save drafts to storage
-  const saveDrafts = useCallback(async (newDrafts: Draft[]) => {
-    const operationViewerId = viewerId;
-    if (!operationViewerId) {
-      throw new Error('An authenticated viewer is required to save drafts');
-    }
-    try {
-      await Storage.set(
-        getDraftsStorageKey(operationViewerId),
-        newDrafts,
-      );
-      if (viewerIdRef.current === operationViewerId) {
-        setDrafts(newDrafts);
+  const saveDrafts = useCallback(
+    async (newDrafts: Draft[]) => {
+      const operationViewerId = viewerId;
+      if (!operationViewerId) {
+        throw new Error('An authenticated viewer is required to save drafts');
       }
-    } catch (error) {
-      logger.error('Error saving drafts', error);
-      if (viewerIdRef.current !== operationViewerId) return;
-      throw error;
-    }
-  }, [viewerId]);
+      try {
+        await Storage.set(getDraftsStorageKey(operationViewerId), newDrafts);
+        if (viewerIdRef.current === operationViewerId) {
+          setDrafts(newDrafts);
+        }
+      } catch (error) {
+        logger.error('Error saving drafts', error);
+        if (viewerIdRef.current !== operationViewerId) return;
+        throw error;
+      }
+    },
+    [viewerId],
+  );
 
   // Create or update a draft. Reads the stored list rather than this hook's
   // state, for the same reason `deleteDraft` does: every screen that shows or
@@ -143,61 +143,72 @@ export const useDrafts = () => {
   // another instance (or this one's previous render) made — and a list built
   // from it would silently drop that write, or add a second copy of a draft it
   // did not know was already there.
-  const saveDraft = useCallback(async (draft: DraftInput) => {
-    const operationViewerId = viewerId;
-    if (!operationViewerId) {
-      throw new Error('An authenticated viewer is required to save drafts');
-    }
-    try {
-      const currentDrafts = await readStoredDrafts(operationViewerId);
-      const now = Date.now();
-      const draftId = draft.id || `draft_${now}_${Math.random().toString(36).slice(2, 11)}`;
-      const existing = currentDrafts.find(d => d.id === draftId);
+  const saveDraft = useCallback(
+    async (draft: DraftInput) => {
+      const operationViewerId = viewerId;
+      if (!operationViewerId) {
+        throw new Error('An authenticated viewer is required to save drafts');
+      }
+      try {
+        const currentDrafts = await readStoredDrafts(operationViewerId);
+        const now = Date.now();
+        const draftId = draft.id || `draft_${now}_${Math.random().toString(36).slice(2, 11)}`;
+        const existing = currentDrafts.find((d) => d.id === draftId);
 
-      const draftToSave: Draft = {
-        ...draft,
-        id: draftId,
-        createdAt: existing ? existing.createdAt : now,
-        updatedAt: now,
-      };
+        const draftToSave: Draft = {
+          ...draft,
+          id: draftId,
+          createdAt: existing ? existing.createdAt : now,
+          updatedAt: now,
+        };
 
-      // Newest first, as the list is kept: the saved draft is the newest.
-      await saveDrafts([draftToSave, ...currentDrafts.filter(d => d.id !== draftId)]);
-      return draftId;
-    } catch (error) {
-      logger.error('Error saving draft', error);
-      throw error;
-    }
-  }, [saveDrafts, viewerId]);
+        // Newest first, as the list is kept: the saved draft is the newest.
+        await saveDrafts([draftToSave, ...currentDrafts.filter((d) => d.id !== draftId)]);
+        return draftId;
+      } catch (error) {
+        logger.error('Error saving draft', error);
+        throw error;
+      }
+    },
+    [saveDrafts, viewerId],
+  );
 
   // Delete a draft
-  const deleteDraft = useCallback(async (draftId: string) => {
-    const operationViewerId = viewerId;
-    if (!operationViewerId) {
-      throw new Error('An authenticated viewer is required to delete drafts');
-    }
-    try {
-      logger.debug(`deleteDraft called with draftId: ${draftId}`);
-      const currentDrafts = await readStoredDrafts(operationViewerId);
-      if (viewerIdRef.current !== operationViewerId) return;
+  const deleteDraft = useCallback(
+    async (draftId: string) => {
+      const operationViewerId = viewerId;
+      if (!operationViewerId) {
+        throw new Error('An authenticated viewer is required to delete drafts');
+      }
+      try {
+        logger.debug(`deleteDraft called with draftId: ${draftId}`);
+        const currentDrafts = await readStoredDrafts(operationViewerId);
+        if (viewerIdRef.current !== operationViewerId) return;
 
-      // Filter out the draft to delete
-      const newDrafts = currentDrafts.filter(d => d.id !== draftId);
-      logger.debug(`Drafts after filtering: ${newDrafts.length}, removed: ${currentDrafts.length - newDrafts.length}`);
+        // Filter out the draft to delete
+        const newDrafts = currentDrafts.filter((d) => d.id !== draftId);
+        logger.debug(
+          `Drafts after filtering: ${newDrafts.length}, removed: ${currentDrafts.length - newDrafts.length}`,
+        );
 
-      // Save the updated drafts list
-      await saveDrafts(newDrafts);
-      logger.debug('Drafts saved to storage');
-    } catch (error) {
-      logger.error('Error deleting draft', error);
-      throw error;
-    }
-  }, [saveDrafts, viewerId]);
+        // Save the updated drafts list
+        await saveDrafts(newDrafts);
+        logger.debug('Drafts saved to storage');
+      } catch (error) {
+        logger.error('Error deleting draft', error);
+        throw error;
+      }
+    },
+    [saveDrafts, viewerId],
+  );
 
   // Get a draft by ID
-  const getDraft = useCallback((draftId: string): Draft | undefined => {
-    return drafts.find(d => d.id === draftId);
-  }, [drafts]);
+  const getDraft = useCallback(
+    (draftId: string): Draft | undefined => {
+      return drafts.find((d) => d.id === draftId);
+    },
+    [drafts],
+  );
 
   // Clear all drafts
   const clearAllDrafts = useCallback(async () => {

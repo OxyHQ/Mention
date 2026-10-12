@@ -13,8 +13,7 @@ import { mergeBioAndProfileLinks } from '../mergeBioAndProfileLinks';
  */
 jest.mock('@oxy.so/core', () => {
   const path = jest.requireActual<typeof import('node:path')>('node:path');
-  const { createRequire } =
-    jest.requireActual<typeof import('node:module')>('node:module');
+  const { createRequire } = jest.requireActual<typeof import('node:module')>('node:module');
   const localRequire = createRequire(__filename);
   const pkgRoot = path.resolve(path.dirname(localRequire.resolve('@oxy.so/core')), '../..');
   return localRequire(path.join(pkgRoot, 'dist/cjs/utils/profileLinks.js'));
@@ -43,9 +42,7 @@ describe('mergeBioAndProfileLinks', () => {
   });
 
   it('falls back to the legacy links array, then appends bio URLs', () => {
-    expect(
-      mergeBioAndProfileLinks(undefined, ['https://a.com'], 'plus https://b.com'),
-    ).toEqual([
+    expect(mergeBioAndProfileLinks(undefined, ['https://a.com'], 'plus https://b.com')).toEqual([
       { id: '0', url: 'https://a.com' },
       { id: 'bio-0', url: 'https://b.com' },
     ]);

@@ -7,7 +7,11 @@ import { Dialog } from '@oxy.so/bloom/dialog';
 import { Item } from '@oxy.so/bloom/item';
 import { Loading } from '@oxy.so/bloom/loading';
 import { Search } from '@oxy.so/bloom/search';
-import { SegmentedControl, SegmentedControlItem, SegmentedControlItemText } from '@oxy.so/bloom/segmented-control';
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+  SegmentedControlItemText,
+} from '@oxy.so/bloom/segmented-control';
 import type {
   CountryCode,
   MentionJobLocation,
@@ -107,13 +111,17 @@ const PlaceSearchDialog = memo(function PlaceSearchDialog({
   if (!enabled) {
     body = (
       <Text className="text-center text-sm text-muted-foreground py-6">
-        {t('jobs.create.placeSearchHint', { defaultValue: 'Type at least 2 letters of a city or region' })}
+        {t('jobs.create.placeSearchHint', {
+          defaultValue: 'Type at least 2 letters of a city or region',
+        })}
       </Text>
     );
   } else if (isError) {
     body = (
       <Text className="text-center text-sm text-muted-foreground py-6">
-        {t('jobs.create.placeSearchFailed', { defaultValue: 'Place search is unavailable right now' })}
+        {t('jobs.create.placeSearchFailed', {
+          defaultValue: 'Place search is unavailable right now',
+        })}
       </Text>
     );
   } else if (isFetching && places.length === 0) {
@@ -141,7 +149,9 @@ const PlaceSearchDialog = memo(function PlaceSearchDialog({
         subtitle={[
           place.region,
           vocabulary.countryName(place.countryCode),
-          place.kind === 'region' ? t('jobs.create.placeKindRegion', { defaultValue: 'Region' }) : undefined,
+          place.kind === 'region'
+            ? t('jobs.create.placeKindRegion', { defaultValue: 'Region' })
+            : undefined,
         ]
           .filter(Boolean)
           .join(' · ')}
@@ -177,7 +187,10 @@ interface JobLocationFieldProps {
  * server derives a place's country/region/city itself, so the form only ever
  * sends the place id.
  */
-const JobLocationField = memo(function JobLocationField({ value, onChange }: JobLocationFieldProps) {
+const JobLocationField = memo(function JobLocationField({
+  value,
+  onChange,
+}: JobLocationFieldProps) {
   const { t } = useTranslation();
   const vocabulary = useJobVocabulary();
   const [placeDialogOpen, setPlaceDialogOpen] = useState(false);
@@ -214,13 +227,19 @@ const JobLocationField = memo(function JobLocationField({ value, onChange }: Job
         }}
       >
         <SegmentedControlItem value="none">
-          <SegmentedControlItemText>{t('jobs.create.locationNone', { defaultValue: 'None' })}</SegmentedControlItemText>
+          <SegmentedControlItemText>
+            {t('jobs.create.locationNone', { defaultValue: 'None' })}
+          </SegmentedControlItemText>
         </SegmentedControlItem>
         <SegmentedControlItem value="place">
-          <SegmentedControlItemText>{t('jobs.create.locationPlace', { defaultValue: 'City or region' })}</SegmentedControlItemText>
+          <SegmentedControlItemText>
+            {t('jobs.create.locationPlace', { defaultValue: 'City or region' })}
+          </SegmentedControlItemText>
         </SegmentedControlItem>
         <SegmentedControlItem value="country">
-          <SegmentedControlItemText>{t('jobs.create.locationCountry', { defaultValue: 'Country only' })}</SegmentedControlItemText>
+          <SegmentedControlItemText>
+            {t('jobs.create.locationCountry', { defaultValue: 'Country only' })}
+          </SegmentedControlItemText>
         </SegmentedControlItem>
       </SegmentedControl>
 
@@ -228,10 +247,16 @@ const JobLocationField = memo(function JobLocationField({ value, onChange }: Job
         <View className="border border-border rounded-[14px] overflow-hidden bg-card mt-2">
           <Item
             onPress={() => setPlaceDialogOpen(true)}
-            title={value.place ? value.place.name : t('jobs.create.selectPlace', { defaultValue: 'Choose a city or region' })}
+            title={
+              value.place
+                ? value.place.name
+                : t('jobs.create.selectPlace', { defaultValue: 'Choose a city or region' })
+            }
             subtitle={
               value.place
-                ? [value.place.region, vocabulary.countryName(value.place.countryCode)].filter(Boolean).join(', ')
+                ? [value.place.region, vocabulary.countryName(value.place.countryCode)]
+                    .filter(Boolean)
+                    .join(', ')
                 : undefined
             }
           />
@@ -247,7 +272,11 @@ const JobLocationField = memo(function JobLocationField({ value, onChange }: Job
                 ? vocabulary.countryName(value.countryCode)
                 : t('jobs.create.selectCountry', { defaultValue: 'Choose a country' })
             }
-            subtitle={value.countryCode && vocabulary.countryName(value.countryCode) !== value.countryCode ? value.countryCode : undefined}
+            subtitle={
+              value.countryCode && vocabulary.countryName(value.countryCode) !== value.countryCode
+                ? value.countryCode
+                : undefined
+            }
           />
         </View>
       ) : null}

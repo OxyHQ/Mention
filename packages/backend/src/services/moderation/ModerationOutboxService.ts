@@ -83,7 +83,7 @@ function nextAttemptAt(attempts: number, now: Date): Date {
  *
  * Every error `@crowdsource.you/core` throws carries `retryable`, which is the only
  * thing a delivery worker needs from it. Anything else — a bug in this code, a
- * Mongo error — is treated as retryable, because assuming a defect is permanent
+ * database error — is treated as retryable, because assuming a defect is permanent
  * is how a recoverable outage becomes lost moderation work.
  */
 export function isRetryableDeliveryError(error: unknown): boolean {
@@ -136,15 +136,10 @@ interface LeaseHeartbeatResult {
   error?: unknown;
 }
 
-function startLeaseHeartbeat(options: {
-  eventId: string;
-  leaseOwner: string;
-  leaseMs: number;
-}): { stop: () => Promise<LeaseHeartbeatResult> } {
-  const renewIntervalMs = Math.max(
-    MIN_LEASE_RENEW_INTERVAL_MS,
-    Math.floor(options.leaseMs / 3),
-  );
+function startLeaseHeartbeat(options: { eventId: string; leaseOwner: string; leaseMs: number }): {
+  stop: () => Promise<LeaseHeartbeatResult>;
+} {
+  const renewIntervalMs = Math.max(MIN_LEASE_RENEW_INTERVAL_MS, Math.floor(options.leaseMs / 3));
   let stopped = false;
   let lost = false;
   let renewalError: unknown;
@@ -152,11 +147,7 @@ function startLeaseHeartbeat(options: {
 
   const renew = (): void => {
     if (stopped || lost || renewalInFlight) return;
-    const renewal = renewModerationOutboxEvent(
-      options.eventId,
-      options.leaseOwner,
-      options.leaseMs,
-    )
+    const renewal = renewModerationOutboxEvent(options.eventId, options.leaseOwner, options.leaseMs)
       .then((stillOwner) => {
         if (!stillOwner) lost = true;
       })

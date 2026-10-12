@@ -21,7 +21,9 @@ function initFirebase() {
   if (firebaseInitialized) return;
   const firebase = getFirebaseConfig();
   if (!firebase) {
-    logger.warn('[Push] Push disabled: missing FIREBASE_SERVICE_ACCOUNT_BASE64 or FIREBASE_PROJECT_ID');
+    logger.warn(
+      '[Push] Push disabled: missing FIREBASE_SERVICE_ACCOUNT_BASE64 or FIREBASE_PROJECT_ID',
+    );
     return;
   }
   try {
@@ -96,11 +98,16 @@ export async function sendPushToTokens(fcmTokens: readonly string[], payload: Pu
       if (resp.responses) {
         resp.responses.forEach((r, idx) => {
           if (!r.success) {
-            const errorInfo = r.error && 'errorInfo' in r.error
-              ? (r.error as { errorInfo?: { code?: string } }).errorInfo
-              : undefined;
+            const errorInfo =
+              r.error && 'errorInfo' in r.error
+                ? (r.error as { errorInfo?: { code?: string } }).errorInfo
+                : undefined;
             const code = errorInfo?.code || r.error?.code;
-            if (code && (code.includes('registration-token-not-registered') || code.includes('invalid-argument'))) {
+            if (
+              code &&
+              (code.includes('registration-token-not-registered') ||
+                code.includes('invalid-argument'))
+            ) {
               const bad = tkChunk[idx];
               if (bad) toDisable.push(bad);
             }
@@ -183,9 +190,10 @@ export async function loadPushTargets(
   const targets = new Map<string, string[]>();
   if (userIds.length === 0 || !isPushAvailable()) return targets;
 
-  const typeColumn = type in PUSH_PREFERENCE_COLUMN
-    ? PUSH_PREFERENCE_COLUMN[type as keyof typeof PUSH_PREFERENCE_COLUMN]
-    : null;
+  const typeColumn =
+    type in PUSH_PREFERENCE_COLUMN
+      ? PUSH_PREFERENCE_COLUMN[type as keyof typeof PUSH_PREFERENCE_COLUMN]
+      : null;
   const rows = await getDb()
     .select({
       userId: pushTokens.userId,
@@ -220,9 +228,8 @@ export async function loadPushTargets(
  *
  * Structural rather than `typeof notifications.$inferSelect`: this is the whole
  * read surface, so the compiler rejects a caller that has not actually resolved
- * the row, and the function stays callable from a test with a literal. `id`
- * replaces Mongoose's `_id` — the value it carries is the same one, since the
- * backfill copies `_id` verbatim into the `text` primary key.
+ * the row, and the function stays callable from a test with a literal. `id` is
+ * the row's `text` primary key.
  */
 export interface PushNotificationSource {
   id: string;

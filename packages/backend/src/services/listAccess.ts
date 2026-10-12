@@ -44,10 +44,8 @@ export function canViewList(list: ListVisibility, viewerId: string | undefined):
  * Load just the fields `canViewList` needs.
  *
  * Returns null for a list that does not exist — including one named by an id of
- * any shape at all. The Mongoose version needed an `ObjectId.isValid` guard in
- * front of `findById` to keep a malformed id from throwing a `CastError`; a
- * `text` primary key simply matches no row, so the guard is deleted rather than
- * widened (see `db/schema/CONVENTIONS.md`).
+ * any shape at all: a `text` primary key simply matches no row, so there is no
+ * id-shape guard (see `db/schema/CONVENTIONS.md`).
  */
 export async function loadListVisibility(listId: string): Promise<ListVisibility | null> {
   const [row] = await getDb()

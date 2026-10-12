@@ -66,7 +66,9 @@ function avatars(count: number) {
 }
 
 function liveUsersQuery(client: QueryClient, viewerId: string | undefined) {
-  return client.getQueryCache().find({ queryKey: viewerQueryKeys.liveUsers(viewerId), exact: true });
+  return client
+    .getQueryCache()
+    .find({ queryKey: viewerQueryKeys.liveUsers(viewerId), exact: true });
 }
 
 async function flush() {
@@ -162,7 +164,7 @@ describe('live presence: one poll, keyed reads', () => {
     expect(mockGetLiveUsers).toHaveBeenCalledTimes(1);
   });
 
-  it('keys the poll by viewer and drops the previous viewer\'s live set on switch', async () => {
+  it("keys the poll by viewer and drops the previous viewer's live set on switch", async () => {
     mockGetLiveUsers.mockResolvedValue([{ userId: 'u1', roomId: 'room-for-a' }]);
     act(() => {
       renderer = TestRenderer.create(tree(client, avatars(3)));
@@ -171,7 +173,11 @@ describe('live presence: one poll, keyed reads', () => {
     expect(getLiveRoomId('u1')).toBe('room-for-a');
 
     let resolveB: (value: unknown) => void = () => undefined;
-    mockGetLiveUsers.mockReturnValue(new Promise((resolve) => { resolveB = resolve; }));
+    mockGetLiveUsers.mockReturnValue(
+      new Promise((resolve) => {
+        resolveB = resolve;
+      }),
+    );
     mockUser = { id: 'viewer-b' };
     act(() => {
       renderer!.update(tree(client, avatars(3)));
@@ -232,12 +238,13 @@ describe('LiveAvatar badge and join behaviour', () => {
     const onPress = jest.fn();
     act(() => {
       renderer = TestRenderer.create(
-        tree(client, (
+        tree(
+          client,
           <>
             <LiveAvatar userId="quiet" testID="quiet" onPress={onPress} />
             <LiveAvatar userId="plain" testID="plain" />
-          </>
-        )),
+          </>,
+        ),
       );
     });
     await flush();
@@ -253,12 +260,13 @@ describe('LiveAvatar badge and join behaviour', () => {
     mockGetLiveUsers.mockResolvedValue([{ userId: 'host', roomId: 'room-1' }]);
     act(() => {
       renderer = TestRenderer.create(
-        tree(client, (
+        tree(
+          client,
           <>
             <LiveAvatar userId="host" testID="forced-off" live={false} />
             <LiveAvatar testID="forced-on" live liveLabel="EN VIVO" />
-          </>
-        )),
+          </>,
+        ),
       );
     });
     await flush();

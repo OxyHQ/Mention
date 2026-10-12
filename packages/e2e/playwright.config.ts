@@ -28,9 +28,7 @@ export default defineConfig({
   // real regression fails both attempts, and Playwright still reports anything
   // that only passed on the retry as flaky, which is a signal worth reading.
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI
-    ? [['github'], ['list'], ['html', { open: 'never' }]]
-    : [['list']],
+  reporter: process.env.CI ? [['github'], ['list'], ['html', { open: 'never' }]] : [['list']],
   // Generous, because AGENTS.md documents cold-boot session restore taking
   // 5-25s on web. Every wait below is still on a real condition; this only
   // bounds how long a real condition is allowed to take.

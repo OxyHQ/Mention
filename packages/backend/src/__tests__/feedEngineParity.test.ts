@@ -4,7 +4,7 @@
  * This began as a differential parity test (old FeedAPI classes vs the engine)
  * and became a snapshot of GOLDEN IDS once the bespoke classes were removed.
  * Those golden ids were the SAME five for all eight presets, which was only ever
- * a property of the fake: the Mongoose model was stubbed to answer every query
+ * a property of the fake: the legacy-ODM model was stubbed to answer every query
  * with the same documents, so the snapshot proved the engine forwarded a list —
  * not that each preset SELECTS the right posts.
  *
@@ -80,8 +80,8 @@ vi.mock('../services/PostHydrationService', () => ({
 }));
 
 // The affinity lane reaches `ContentAffinityService`, which still loads
-// `UserBehavior` from Mongo (its Postgres form needs child-table assembly and
-// belongs to the preferences batch). Under the suite's wholesale mongoose mock
+// `UserBehavior` from the legacy store (its Postgres form needs child-table assembly and
+// belongs to the preferences batch). Under the suite's wholesale ODM mock
 // that read never settles, so the whole for_you page times out. This suite is
 // about ENGINE orchestration — affinity has its own suite — so the lane is
 // stubbed to contribute nothing, exactly as ranking and hydration are.
@@ -228,14 +228,16 @@ beforeEach(async () => {
       // The videos lane is the Reels surface: portrait, long enough to be worth
       // auto-advancing to, and with real dimensions. A media row missing any of
       // those is deliberately NOT a candidate.
-      media: [{
-        id: 'parity-video-1',
-        type: 'video',
-        orientation: MtnConfig.videosFeed.defaultOrientation,
-        durationSec: MtnConfig.videosFeed.minDurationSec,
-        width: 720,
-        height: 1280,
-      }],
+      media: [
+        {
+          id: 'parity-video-1',
+          type: 'video',
+          orientation: MtnConfig.videosFeed.defaultOrientation,
+          durationSec: MtnConfig.videosFeed.minDurationSec,
+          width: 720,
+          height: 1280,
+        },
+      ],
     },
   });
   await seed('profile-image', PROFILE, 2, {
@@ -248,7 +250,6 @@ beforeEach(async () => {
   });
   const saved = await seed('stranger-saved', STRANGER, 1, { createdAt: at(5) });
   await db.insert(bookmarks).values({ userId: VIEWER, postId: saved });
-
 });
 
 afterEach(async () => {

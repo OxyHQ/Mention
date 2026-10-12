@@ -15,34 +15,25 @@
  *   MCP_MAX_SESSIONS             — Max open legacy SSE sessions per task (default: 1000)
  */
 import { startPlatformActivity } from './lib/platform-activity.js';
-import { randomUUID } from "node:crypto";
-import type { IncomingMessage, ServerResponse } from "node:http";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
-import {
-  buildProtectedResourceMetadata,
-  extractBearerToken,
-} from "@oxy.so/mcp";
-import { MENTION_MCP_CAPABILITIES } from "@mention/shared-types/mcpCapabilities";
-import {
-  loadMcpHttpConfig,
-  type McpHttpConfig,
-} from "./lib/config.js";
-import { createMcpServer } from "./lib/create-server.js";
-import { requestContext } from "./lib/context.js";
-import {
-  fingerprintMcpPrincipal,
-  type AuthenticatedMcpToken,
-} from "./lib/http-security.js";
-import { logError, logInfo, logWarn } from "./lib/logger.js";
-import { resolveMcpSession } from "./lib/mcp-session.js";
-import { McpSessionRegistry } from "./lib/session-registry.js";
+import { randomUUID } from 'node:crypto';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { buildProtectedResourceMetadata, extractBearerToken } from '@oxy.so/mcp';
+import { MENTION_MCP_CAPABILITIES } from '@mention/shared-types/mcpCapabilities';
+import { loadMcpHttpConfig, type McpHttpConfig } from './lib/config.js';
+import { createMcpServer } from './lib/create-server.js';
+import { requestContext } from './lib/context.js';
+import { fingerprintMcpPrincipal, type AuthenticatedMcpToken } from './lib/http-security.js';
+import { logError, logInfo, logWarn } from './lib/logger.js';
+import { resolveMcpSession } from './lib/mcp-session.js';
+import { McpSessionRegistry } from './lib/session-registry.js';
 import {
   authenticateMcpAccessToken,
   createCentralTokenIntrospector,
-} from "./lib/token-authenticator.js";
-import { createMentionCapabilityAuthority } from "./lib/capability-authority.js";
-import { handleMentionCapabilityRequest } from "./lib/capability-http.js";
+} from './lib/token-authenticator.js';
+import { createMentionCapabilityAuthority } from './lib/capability-authority.js';
+import { handleMentionCapabilityRequest } from './lib/capability-http.js';
 
 import { createMentionInternalMcp } from './lib/internal-capability-mcp.js';
 
@@ -71,7 +62,7 @@ function loadConfiguration(): McpHttpConfig {
   try {
     return loadMcpHttpConfig();
   } catch (error) {
-    logError("Invalid MCP HTTP configuration", error);
+    logError('Invalid MCP HTTP configuration', error);
     process.exit(1);
   }
 }
@@ -81,7 +72,7 @@ function readBody(req: IncomingMessage): Promise<unknown> {
     const chunks: Buffer[] = [];
     let size = 0;
     let tooLarge = false;
-    req.on("data", (chunk: Buffer) => {
+    req.on('data', (chunk: Buffer) => {
       if (tooLarge) return;
       size += chunk.byteLength;
       if (size > MAX_REQUEST_BODY_BYTES) {
@@ -92,7 +83,7 @@ function readBody(req: IncomingMessage): Promise<unknown> {
       }
       chunks.push(chunk);
     });
-    req.on("end", () => {
+    req.on('end', () => {
       if (tooLarge) return;
       try {
         const raw = Buffer.concat(chunks).toString();
@@ -101,26 +92,33 @@ function readBody(req: IncomingMessage): Promise<unknown> {
         reject(e);
       }
     });
-    req.on("error", reject);
+    req.on('error', reject);
   });
 }
 
 class BodyTooLargeError extends Error {
   constructor() {
     super(`Request body exceeds ${MAX_REQUEST_BODY_BYTES} bytes`);
-    this.name = "BodyTooLargeError";
+    this.name = 'BodyTooLargeError';
   }
 }
 
-function sendJsonRpcError(res: ServerResponse, httpStatus: number, code: number, message: string): void {
-  res.setHeader("Cache-Control", "no-store");
-  res.setHeader("Content-Type", "application/json");
+function sendJsonRpcError(
+  res: ServerResponse,
+  httpStatus: number,
+  code: number,
+  message: string,
+): void {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Content-Type', 'application/json');
   res.writeHead(httpStatus);
-  res.end(JSON.stringify({
-    jsonrpc: "2.0",
-    error: { code, message },
-    id: null,
-  }));
+  res.end(
+    JSON.stringify({
+      jsonrpc: '2.0',
+      error: { code, message },
+      id: null,
+    }),
+  );
 }
 
 /**
@@ -132,17 +130,19 @@ function sendJsonRpcError(res: ServerResponse, httpStatus: number, code: number,
  */
 function sendUnauthorized(res: ServerResponse): void {
   res.setHeader(
-    "WWW-Authenticate",
+    'WWW-Authenticate',
     `Bearer realm="mention-mcp", resource_metadata="${RESOURCE_METADATA_URL}"`,
   );
-  res.setHeader("Cache-Control", "no-store");
-  res.setHeader("Content-Type", "application/json");
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Content-Type', 'application/json');
   res.writeHead(401);
-  res.end(JSON.stringify({
-    jsonrpc: "2.0",
-    error: { code: -32001, message: "Authentication required." },
-    id: null,
-  }));
+  res.end(
+    JSON.stringify({
+      jsonrpc: '2.0',
+      error: { code: -32001, message: 'Authentication required.' },
+      id: null,
+    }),
+  );
 }
 
 /**
@@ -151,23 +151,23 @@ function sendUnauthorized(res: ServerResponse): void {
  * down, the network failed), which says nothing about the caller's token.
  */
 type TokenCheck =
-  | { readonly status: "valid"; readonly token: AuthenticatedMcpToken }
-  | { readonly status: "invalid" }
-  | { readonly status: "unavailable" };
+  | { readonly status: 'valid'; readonly token: AuthenticatedMcpToken }
+  | { readonly status: 'invalid' }
+  | { readonly status: 'unavailable' };
 
 async function checkUserToken(userToken: string | undefined): Promise<TokenCheck> {
-  if (!userToken) return { status: "invalid" };
+  if (!userToken) return { status: 'invalid' };
   try {
     const token = await authenticateMcpAccessToken(userToken, {
       config,
       introspectCentral: introspectCentralToken,
     });
-    return token ? { status: "valid", token } : { status: "invalid" };
+    return token ? { status: 'valid', token } : { status: 'invalid' };
   } catch (error) {
-    logWarn("MCP token validation unavailable", {
-      reason: error instanceof Error ? error.message : "unknown",
+    logWarn('MCP token validation unavailable', {
+      reason: error instanceof Error ? error.message : 'unknown',
     });
-    return { status: "unavailable" };
+    return { status: 'unavailable' };
   }
 }
 
@@ -181,23 +181,23 @@ async function checkUserToken(userToken: string | undefined): Promise<TokenCheck
  * that was entirely on this side. `Retry-After` tells them to simply try again.
  */
 function sendValidationUnavailable(res: ServerResponse): void {
-  res.setHeader("Retry-After", "30");
-  res.setHeader("Cache-Control", "no-store");
-  sendJsonRpcError(res, 503, -32000, "Token validation is temporarily unavailable. Retry shortly.");
+  res.setHeader('Retry-After', '30');
+  res.setHeader('Cache-Control', 'no-store');
+  sendJsonRpcError(res, 503, -32000, 'Token validation is temporarily unavailable. Retry shortly.');
 }
 
 /** Answers the request itself unless the token checked out; returns the token when it did. */
-function requireValidToken(check: TokenCheck, res: ServerResponse): AuthenticatedMcpToken | undefined {
-  if (check.status === "valid") return check.token;
-  if (check.status === "unavailable") sendValidationUnavailable(res);
+function requireValidToken(
+  check: TokenCheck,
+  res: ServerResponse,
+): AuthenticatedMcpToken | undefined {
+  if (check.status === 'valid') return check.token;
+  if (check.status === 'unavailable') sendValidationUnavailable(res);
   else sendUnauthorized(res);
   return undefined;
 }
 
-function requestAuthContext(
-  userToken: string,
-  token: AuthenticatedMcpToken,
-) {
+function requestAuthContext(userToken: string, token: AuthenticatedMcpToken) {
   return {
     userToken,
     authMode: token.authMode,
@@ -212,24 +212,21 @@ function setCorsHeaders(req: IncomingMessage, res: ServerResponse): void {
   const origin = req.headers.origin;
   const requestOrigin = Array.isArray(origin) ? origin[0] : origin;
   if (requestOrigin && config.allowedOrigins.has(requestOrigin)) {
-    res.setHeader("Access-Control-Allow-Origin", requestOrigin);
-    res.setHeader("Vary", "Origin");
+    res.setHeader('Access-Control-Allow-Origin', requestOrigin);
+    res.setHeader('Vary', 'Origin');
   }
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, Idempotency-Key, Mcp-Session-Id",
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, Idempotency-Key, Mcp-Session-Id',
   );
   // The client reads the session id assigned on `initialize` from the response;
   // it is invisible to browser fetch() unless explicitly exposed.
-  res.setHeader(
-    "Access-Control-Expose-Headers",
-    "Mcp-Session-Id, WWW-Authenticate, X-Request-Id",
-  );
+  res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id, WWW-Authenticate, X-Request-Id');
 }
 
 function isMcpPath(pathname: string): boolean {
-  return pathname === "/" || pathname === "/mcp";
+  return pathname === '/' || pathname === '/mcp';
 }
 
 /**
@@ -255,29 +252,29 @@ async function handleStreamableMcp(
   req: IncomingMessage,
   res: ServerResponse,
   headers: Record<string, string | string[] | undefined>,
-  method: "POST" | "GET" | "DELETE",
+  method: 'POST' | 'GET' | 'DELETE',
 ): Promise<void> {
   const userToken = extractBearerToken(headers);
   const tokenClaims = requireValidToken(await checkUserToken(userToken), res);
   if (!userToken || !tokenClaims) return;
 
-  if (method !== "POST") {
+  if (method !== 'POST') {
     // GET would open a stream for server-initiated messages and DELETE would end
     // a session; a stateless server has neither. The spec's answer for both is
     // 405, which MCP clients treat as "not offered", never as a lost session.
-    res.setHeader("Allow", "POST, OPTIONS");
+    res.setHeader('Allow', 'POST, OPTIONS');
     sendJsonRpcError(
       res,
       405,
       -32000,
-      "Method not allowed. This MCP server is stateless: POST JSON-RPC messages to /mcp.",
+      'Method not allowed. This MCP server is stateless: POST JSON-RPC messages to /mcp.',
     );
     return;
   }
 
   try {
     const body = await readBody(req);
-    const session = resolveMcpSession(body, req.headers["mcp-session-id"]);
+    const session = resolveMcpSession(body, req.headers['mcp-session-id']);
     if (!session.ok) {
       sendJsonRpcError(res, 400, -32000, session.message);
       return;
@@ -290,15 +287,15 @@ async function handleStreamableMcp(
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
     });
-    res.once("close", () => {
+    res.once('close', () => {
       void transport.close().catch(() => {});
       void server.close().catch(() => {});
     });
     await server.connect(transport);
 
     if (session.issued) {
-      res.setHeader("Mcp-Session-Id", session.id);
-      logInfo("Issued MCP session id");
+      res.setHeader('Mcp-Session-Id', session.id);
+      logInfo('Issued MCP session id');
     }
     await requestContext.run(
       { ...requestAuthContext(userToken, tokenClaims), sessionId: session.id },
@@ -309,205 +306,219 @@ async function handleStreamableMcp(
       if (error instanceof BodyTooLargeError) {
         sendJsonRpcError(res, 413, -32000, error.message);
       } else if (error instanceof SyntaxError) {
-        sendJsonRpcError(res, 400, -32700, "Invalid JSON request body.");
+        sendJsonRpcError(res, 400, -32700, 'Invalid JSON request body.');
       } else {
-        logError("MCP request failed", error);
-        sendJsonRpcError(res, 500, -32603, "Internal server error.");
+        logError('MCP request failed', error);
+        sendJsonRpcError(res, 500, -32603, 'Internal server error.');
       }
     }
   }
 }
 
 async function main() {
-  const { createServer } = await import("node:http");
+  const { createServer } = await import('node:http');
 
   let listening = false;
   const activity = startPlatformActivity(() => listening);
   const httpServer = createServer((req, res) => {
     activity?.observeHttp(req, res, () => {});
     void (async () => {
-    const url = new URL(req.url || "/", `http://localhost:${PORT}`);
-    const pathname = url.pathname;
-    const requestId = randomUUID();
-    const requestStartedAt = performance.now();
-    res.setHeader("X-Request-Id", requestId);
-    res.once("finish", () => {
-      logInfo("HTTP request completed", {
-        requestId,
-        method: req.method ?? "UNKNOWN",
-        route: normalizedRoute(pathname),
-        statusCode: res.statusCode,
-        durationMs: Math.round((performance.now() - requestStartedAt) * 100) / 100,
+      const url = new URL(req.url || '/', `http://localhost:${PORT}`);
+      const pathname = url.pathname;
+      const requestId = randomUUID();
+      const requestStartedAt = performance.now();
+      res.setHeader('X-Request-Id', requestId);
+      res.once('finish', () => {
+        logInfo('HTTP request completed', {
+          requestId,
+          method: req.method ?? 'UNKNOWN',
+          route: normalizedRoute(pathname),
+          statusCode: res.statusCode,
+          durationMs: Math.round((performance.now() - requestStartedAt) * 100) / 100,
+        });
       });
-    });
 
-    const query: Record<string, string | undefined> = {};
-    url.searchParams.forEach((value, key) => {
-      query[key] = value;
-    });
-
-    const headers = req.headers as Record<string, string | string[] | undefined>;
-
-    setCorsHeaders(req, res);
-    if (req.method === "OPTIONS") {
-      res.writeHead(204);
-      res.end();
-      return;
-    }
-
-    if (pathname === "/health" && req.method === "GET") {
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({
-        status: "ok",
-        server: "mention-mcp",
-        url: MCP_PUBLIC_URL,
-        transport: ["streamable-http", "sse"],
-      }));
-      return;
-    }
-
-    if (pathname === "/.well-known/oauth-protected-resource" && req.method === "GET") {
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify(buildProtectedResourceMetadata({
-        resource: MCP_PUBLIC_URL,
-        authorizationServer: OAUTH_AS_URL,
-        scopes: MENTION_MCP_CAPABILITIES,
-      })));
-      return;
-    }
-
-    if (pathname === "/_oxy/mcp") {
-      if (!internalMcp) { sendJsonRpcError(res, 503, -32000, "Internal MCP catalogue binding is not configured."); return; }
-      await internalMcp.handleMcp(req, res);
-      return;
-    }
-
-    if (pathname.startsWith("/_oxy/capabilities/")) {
-      let body: unknown;
-      try {
-        body = await readBody(req);
-      } catch (error) {
-        const status = error instanceof BodyTooLargeError ? 413 : 400;
-        res.setHeader("Content-Type", "application/json");
-        res.writeHead(status);
-        res.end(JSON.stringify({
-          error: error instanceof BodyTooLargeError
-            ? "capability_request_too_large"
-            : "invalid_capability_json",
-        }));
-        return;
-      }
-      const result = await handleMentionCapabilityRequest({
-        method: req.method ?? "",
-        pathname,
-        authorization: typeof req.headers.authorization === "string"
-          ? req.headers.authorization
-          : undefined,
-        idempotencyKey: typeof req.headers["idempotency-key"] === "string"
-          ? req.headers["idempotency-key"]
-          : undefined,
-        body,
-      }, capabilityAuthority);
-      res.setHeader("Content-Type", "application/json");
-      res.setHeader("Cache-Control", "no-store");
-      res.writeHead(result.status);
-      res.end(JSON.stringify(result.body));
-      return;
-    }
-
-    if (isMcpPath(pathname)) {
-      const method = req.method;
-      if (method === "POST" || method === "GET" || method === "DELETE") {
-        await handleStreamableMcp(req, res, headers, method);
-        return;
-      }
-    }
-
-    if (pathname === "/sse" && req.method === "GET") {
-      const userToken = extractBearerToken(headers);
-      const tokenClaims = requireValidToken(await checkUserToken(userToken), res);
-      if (!userToken || !tokenClaims) return;
-      if (legacySseSessions.size >= MAX_SESSIONS) {
-        sendJsonRpcError(res, 503, -32000, "MCP server is at its session capacity.");
-        return;
-      }
-      const server = createMcpServer();
-      const transport = new SSEServerTransport("/messages", res);
-      setLegacyTransportHeaders(res);
-      legacySseSessions.register(
-        transport.sessionId,
-        transport,
-        fingerprintMcpPrincipal(tokenClaims),
-      );
-      logWarn("Legacy SSE session created", {
-        activeSessions: legacySseSessions.size,
+      const query: Record<string, string | undefined> = {};
+      url.searchParams.forEach((value, key) => {
+        query[key] = value;
       });
-      res.on("close", () => {
-        legacySseSessions.delete(transport.sessionId);
-      });
-      await server.connect(transport);
-      return;
-    }
 
-    if (pathname === "/messages" && req.method === "POST") {
-      setLegacyTransportHeaders(res);
-      const userToken = extractBearerToken(headers);
-      const tokenClaims = requireValidToken(await checkUserToken(userToken), res);
-      if (!userToken || !tokenClaims) return;
-      const sessionId = query.sessionId;
-      const transport = sessionId ? legacySseSessions.get(sessionId) : undefined;
+      const headers = req.headers as Record<string, string | string[] | undefined>;
 
-      if (!sessionId || !transport) {
-        sendJsonRpcError(res, 400, -32000, "No active SSE session. Connect via GET /sse first.");
-        return;
-      }
-      if (!legacySseSessions.isAuthorized(sessionId, tokenClaims)) {
-        sendUnauthorized(res);
+      setCorsHeaders(req, res);
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204);
+        res.end();
         return;
       }
 
-      try {
-        const body = await readBody(req);
-        await requestContext.run(
-          { ...requestAuthContext(userToken, tokenClaims), sessionId },
-          () => transport.handlePostMessage(req, res, body),
+      if (pathname === '/health' && req.method === 'GET') {
+        res.setHeader('Content-Type', 'application/json');
+        res.end(
+          JSON.stringify({
+            status: 'ok',
+            server: 'mention-mcp',
+            url: MCP_PUBLIC_URL,
+            transport: ['streamable-http', 'sse'],
+          }),
         );
-      } catch (error) {
-        if (!res.headersSent) {
-          if (error instanceof BodyTooLargeError) {
-            sendJsonRpcError(res, 413, -32000, error.message);
-          } else if (error instanceof SyntaxError) {
-            sendJsonRpcError(res, 400, -32700, "Invalid JSON request body.");
-          } else {
-            logError("Legacy SSE request failed", error, { requestId });
-            sendJsonRpcError(res, 500, -32603, "Internal server error.");
-          }
+        return;
+      }
+
+      if (pathname === '/.well-known/oauth-protected-resource' && req.method === 'GET') {
+        res.setHeader('Content-Type', 'application/json');
+        res.end(
+          JSON.stringify(
+            buildProtectedResourceMetadata({
+              resource: MCP_PUBLIC_URL,
+              authorizationServer: OAUTH_AS_URL,
+              scopes: MENTION_MCP_CAPABILITIES,
+            }),
+          ),
+        );
+        return;
+      }
+
+      if (pathname === '/_oxy/mcp') {
+        if (!internalMcp) {
+          sendJsonRpcError(res, 503, -32000, 'Internal MCP catalogue binding is not configured.');
+          return;
+        }
+        await internalMcp.handleMcp(req, res);
+        return;
+      }
+
+      if (pathname.startsWith('/_oxy/capabilities/')) {
+        let body: unknown;
+        try {
+          body = await readBody(req);
+        } catch (error) {
+          const status = error instanceof BodyTooLargeError ? 413 : 400;
+          res.setHeader('Content-Type', 'application/json');
+          res.writeHead(status);
+          res.end(
+            JSON.stringify({
+              error:
+                error instanceof BodyTooLargeError
+                  ? 'capability_request_too_large'
+                  : 'invalid_capability_json',
+            }),
+          );
+          return;
+        }
+        const result = await handleMentionCapabilityRequest(
+          {
+            method: req.method ?? '',
+            pathname,
+            authorization:
+              typeof req.headers.authorization === 'string' ? req.headers.authorization : undefined,
+            idempotencyKey:
+              typeof req.headers['idempotency-key'] === 'string'
+                ? req.headers['idempotency-key']
+                : undefined,
+            body,
+          },
+          capabilityAuthority,
+        );
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Cache-Control', 'no-store');
+        res.writeHead(result.status);
+        res.end(JSON.stringify(result.body));
+        return;
+      }
+
+      if (isMcpPath(pathname)) {
+        const method = req.method;
+        if (method === 'POST' || method === 'GET' || method === 'DELETE') {
+          await handleStreamableMcp(req, res, headers, method);
+          return;
         }
       }
-      return;
-    }
 
-    res.setHeader("Content-Type", "application/json");
-    res.writeHead(404);
-      res.end(JSON.stringify({ error: "Not found" }));
+      if (pathname === '/sse' && req.method === 'GET') {
+        const userToken = extractBearerToken(headers);
+        const tokenClaims = requireValidToken(await checkUserToken(userToken), res);
+        if (!userToken || !tokenClaims) return;
+        if (legacySseSessions.size >= MAX_SESSIONS) {
+          sendJsonRpcError(res, 503, -32000, 'MCP server is at its session capacity.');
+          return;
+        }
+        const server = createMcpServer();
+        const transport = new SSEServerTransport('/messages', res);
+        setLegacyTransportHeaders(res);
+        legacySseSessions.register(
+          transport.sessionId,
+          transport,
+          fingerprintMcpPrincipal(tokenClaims),
+        );
+        logWarn('Legacy SSE session created', {
+          activeSessions: legacySseSessions.size,
+        });
+        res.on('close', () => {
+          legacySseSessions.delete(transport.sessionId);
+        });
+        await server.connect(transport);
+        return;
+      }
+
+      if (pathname === '/messages' && req.method === 'POST') {
+        setLegacyTransportHeaders(res);
+        const userToken = extractBearerToken(headers);
+        const tokenClaims = requireValidToken(await checkUserToken(userToken), res);
+        if (!userToken || !tokenClaims) return;
+        const sessionId = query.sessionId;
+        const transport = sessionId ? legacySseSessions.get(sessionId) : undefined;
+
+        if (!sessionId || !transport) {
+          sendJsonRpcError(res, 400, -32000, 'No active SSE session. Connect via GET /sse first.');
+          return;
+        }
+        if (!legacySseSessions.isAuthorized(sessionId, tokenClaims)) {
+          sendUnauthorized(res);
+          return;
+        }
+
+        try {
+          const body = await readBody(req);
+          await requestContext.run(
+            { ...requestAuthContext(userToken, tokenClaims), sessionId },
+            () => transport.handlePostMessage(req, res, body),
+          );
+        } catch (error) {
+          if (!res.headersSent) {
+            if (error instanceof BodyTooLargeError) {
+              sendJsonRpcError(res, 413, -32000, error.message);
+            } else if (error instanceof SyntaxError) {
+              sendJsonRpcError(res, 400, -32700, 'Invalid JSON request body.');
+            } else {
+              logError('Legacy SSE request failed', error, { requestId });
+              sendJsonRpcError(res, 500, -32603, 'Internal server error.');
+            }
+          }
+        }
+        return;
+      }
+
+      res.setHeader('Content-Type', 'application/json');
+      res.writeHead(404);
+      res.end(JSON.stringify({ error: 'Not found' }));
     })().catch((error) => {
-      logError("Unhandled HTTP request failure", error);
+      logError('Unhandled HTTP request failure', error);
       if (!res.headersSent) {
-        sendJsonRpcError(res, 500, -32603, "Internal server error.");
+        sendJsonRpcError(res, 500, -32603, 'Internal server error.');
       } else {
         res.destroy();
       }
     });
   });
 
-  httpServer.listen(PORT, "0.0.0.0", () => {
+  httpServer.listen(PORT, '0.0.0.0', () => {
     listening = true;
     const address = httpServer.address();
-    const listeningPort =
-      typeof address === "object" && address !== null ? address.port : PORT;
+    const listeningPort = typeof address === 'object' && address !== null ? address.port : PORT;
     logInfo(`Listening on :${listeningPort}`, {
       publicUrl: MCP_PUBLIC_URL,
-      transport: ["streamable-http", "sse"],
+      transport: ['streamable-http', 'sse'],
     });
   });
 
@@ -516,13 +527,13 @@ async function main() {
     if (shutdownStarted) return;
     shutdownStarted = true;
     listening = false;
-    logInfo("Shutdown started", {
+    logInfo('Shutdown started', {
       signal,
       activeLegacySseSessions: legacySseSessions.size,
     });
 
     const forceExit = setTimeout(() => {
-      logError("Graceful shutdown timed out");
+      logError('Graceful shutdown timed out');
       httpServer.closeAllConnections?.();
       process.exit(1);
     }, 10_000);
@@ -535,35 +546,35 @@ async function main() {
     await serverClosed;
     await activity?.stop();
     clearTimeout(forceExit);
-    logInfo("Shutdown complete");
+    logInfo('Shutdown complete');
     process.exit(0);
   };
 
-  process.once("SIGINT", () => void shutdown("SIGINT"));
-  process.once("SIGTERM", () => void shutdown("SIGTERM"));
+  process.once('SIGINT', () => void shutdown('SIGINT'));
+  process.once('SIGTERM', () => void shutdown('SIGTERM'));
 }
 
 main().catch((error) => {
-  logError("Fatal startup error", error);
+  logError('Fatal startup error', error);
   process.exit(1);
 });
 
 function normalizedRoute(pathname: string): string {
-  if (pathname === "/" || pathname === "/mcp") return "/mcp";
-  if (pathname === "/sse" || pathname === "/messages") return "/legacy-sse";
-  if (pathname === "/health") return "/health";
-  if (pathname === "/.well-known/oauth-protected-resource") {
-    return "/.well-known/oauth-protected-resource";
+  if (pathname === '/' || pathname === '/mcp') return '/mcp';
+  if (pathname === '/sse' || pathname === '/messages') return '/legacy-sse';
+  if (pathname === '/health') return '/health';
+  if (pathname === '/.well-known/oauth-protected-resource') {
+    return '/.well-known/oauth-protected-resource';
   }
-  if (pathname === "/_oxy/mcp") return "/_oxy/mcp";
-  if (pathname.startsWith("/_oxy/capabilities/")) return "/_oxy/capabilities/:tool";
-  return "unmatched";
+  if (pathname === '/_oxy/mcp') return '/_oxy/mcp';
+  if (pathname.startsWith('/_oxy/capabilities/')) return '/_oxy/capabilities/:tool';
+  return 'unmatched';
 }
 
 function setLegacyTransportHeaders(res: ServerResponse): void {
-  res.setHeader("Deprecation", "true");
+  res.setHeader('Deprecation', 'true');
   res.setHeader(
-    "Warning",
+    'Warning',
     '299 Mention "Legacy SSE transport is deprecated; use Streamable HTTP at /mcp"',
   );
 }

@@ -24,15 +24,15 @@
  * Usage: bun scripts/validate-license.mjs
  */
 
-import { readFile } from "node:fs/promises";
-import { spawnSync } from "node:child_process";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** The one value every package.json in this repo must declare. */
-const EXPECTED_LICENSE = "UNLICENSED";
+const EXPECTED_LICENSE = 'UNLICENSED';
 
 /**
  * Phrases that assert "this repository is MIT licensed" — the specific wrong
@@ -54,30 +54,36 @@ const findings = [];
 const failures = [];
 
 function trackedFiles() {
-  const listed = spawnSync("git", ["ls-files", "-z"], {
+  const listed = spawnSync('git', ['ls-files', '-z'], {
     cwd: repositoryRoot,
-    encoding: "utf8",
+    encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
   });
   if (listed.status !== 0) {
     throw new Error(`git ls-files failed in ${repositoryRoot}: ${listed.stderr ?? listed.error}`);
   }
-  return listed.stdout.split("\0").filter(Boolean);
+  return listed.stdout.split('\0').filter(Boolean);
 }
 
 const tracked = trackedFiles();
-const manifests = tracked.filter((path) => MANIFEST_FILE.test(path) && !path.includes("/node_modules/"));
-const markdown = tracked.filter((path) => MARKDOWN_FILE.test(path) && !path.includes("/node_modules/"));
+const manifests = tracked.filter(
+  (path) => MANIFEST_FILE.test(path) && !path.includes('/node_modules/'),
+);
+const markdown = tracked.filter(
+  (path) => MARKDOWN_FILE.test(path) && !path.includes('/node_modules/'),
+);
 
 // ---------------------------------------------------------- 1. manifests ---
 
 for (const path of manifests) {
-  const text = await readFile(resolve(repositoryRoot, path), "utf8");
+  const text = await readFile(resolve(repositoryRoot, path), 'utf8');
   let manifest;
   try {
     manifest = JSON.parse(text);
   } catch (error) {
-    failures.push(`${path}: not parseable as JSON, so its license field could not be checked — ${error.message}`);
+    failures.push(
+      `${path}: not parseable as JSON, so its license field could not be checked — ${error.message}`,
+    );
     continue;
   }
   if (manifest.private !== true) {
@@ -102,7 +108,7 @@ for (const path of manifests) {
 // ---------------------------------------------------------- 2. markdown ---
 
 for (const path of markdown) {
-  const text = await readFile(resolve(repositoryRoot, path), "utf8");
+  const text = await readFile(resolve(repositoryRoot, path), 'utf8');
   for (const pattern of MIT_CLAIM_PATTERNS) {
     if (pattern.test(text)) {
       findings.push({ file: path, rule: `claims an MIT license (matched ${pattern})` });
@@ -117,34 +123,34 @@ const MINIMUM_MARKDOWN = 5;
 
 if (manifests.length < MINIMUM_MANIFESTS) {
   failures.push(
-    `${manifests.length} package.json files scanned is below the ${MINIMUM_MANIFESTS} floor — `
-    + "the file listing is probably broken, and a broken listing reports a clean tree",
+    `${manifests.length} package.json files scanned is below the ${MINIMUM_MANIFESTS} floor — ` +
+      'the file listing is probably broken, and a broken listing reports a clean tree',
   );
 }
 if (markdown.length < MINIMUM_MARKDOWN) {
   failures.push(
-    `${markdown.length} Markdown files scanned is below the ${MINIMUM_MARKDOWN} floor — `
-    + "the file listing is probably broken, and a broken listing reports a clean tree",
+    `${markdown.length} Markdown files scanned is below the ${MINIMUM_MARKDOWN} floor — ` +
+      'the file listing is probably broken, and a broken listing reports a clean tree',
   );
 }
 
 // ------------------------------------------------------------------ verdict ---
 
 if (findings.length > 0 || failures.length > 0) {
-  console.error("License consistency guard failed:\n");
+  console.error('License consistency guard failed:\n');
   for (const finding of findings) {
     console.error(`  ${finding.file}: ${finding.rule}`);
   }
   for (const failure of failures) console.error(`  ${failure}`);
   console.error(
-    `\n  Mention is licensed under the Breathe License 1.0 (LICENSE) and every workspace\n`
-    + `  package is private. Every package.json "license" field must read\n`
-    + `  ${JSON.stringify(EXPECTED_LICENSE)}, and no first-party doc may claim MIT.\n`,
+    `\n  Mention is licensed under the Breathe License 1.0 (LICENSE) and every workspace\n` +
+      `  package is private. Every package.json "license" field must read\n` +
+      `  ${JSON.stringify(EXPECTED_LICENSE)}, and no first-party doc may claim MIT.\n`,
   );
   process.exit(1);
 }
 
 console.log(
-  `License consistency guard passed — ${manifests.length} package.json files and ${markdown.length} `
-  + "Markdown files scanned.",
+  `License consistency guard passed — ${manifests.length} package.json files and ${markdown.length} ` +
+    'Markdown files scanned.',
 );

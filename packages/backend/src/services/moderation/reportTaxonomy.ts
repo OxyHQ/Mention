@@ -73,9 +73,7 @@ const CATEGORY_TO_ALLEGATION: Readonly<Record<ReportCategory, TaxonomyCode>> = O
  * a permanent 409 — days later, as a report silently stuck in a queue. Sorting
  * makes the same report produce the same bytes every time.
  */
-export function allegationsForCategories(
-  categories: readonly ReportCategory[],
-): TaxonomyCode[] {
+export function allegationsForCategories(categories: readonly ReportCategory[]): TaxonomyCode[] {
   const codes = new Set<TaxonomyCode>();
   for (const category of categories) {
     const code = CATEGORY_TO_ALLEGATION[category];

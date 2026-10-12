@@ -20,7 +20,7 @@ import type { UseSubscriptionReturn } from '../types';
 export function useSubscription(
   profileId: string | undefined,
   currentUserId: string | undefined,
-  isOwnProfile: boolean
+  isOwnProfile: boolean,
 ): UseSubscriptionReturn {
   const { t } = useTranslation();
   const queryClient = useQueryClient();

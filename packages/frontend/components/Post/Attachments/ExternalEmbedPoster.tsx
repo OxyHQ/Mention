@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { Image } from 'expo-image';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { proxyExternalUrl } from '@/utils/imageUrlCache';
+import { linkPreviewImageSources } from '@/utils/linkPreviewImage';
 
 interface ExternalEmbedPosterProps {
   /** Thumbnail (link-preview image) shown behind the play button. */
@@ -23,7 +24,12 @@ interface ExternalEmbedPosterProps {
  * the platform-specific player surface (iframe / WebView). Platform-neutral —
  * used by both `ExternalEmbedPlayer.web.tsx` and `.native.tsx`.
  */
-export function ExternalEmbedPoster({ thumb, active, loading, onPressPlay }: ExternalEmbedPosterProps) {
+export function ExternalEmbedPoster({
+  thumb,
+  active,
+  loading,
+  onPressPlay,
+}: ExternalEmbedPosterProps) {
   // A remote link-preview thumbnail can 404 or fail to load even through the
   // proxy — fall back to the plain dim scrim + play button rather than showing a
   // broken image. Reset the error state when the thumb URL changes.
@@ -36,13 +42,24 @@ export function ExternalEmbedPoster({ thumb, active, loading, onPressPlay }: Ext
     setThumbErrored(false);
   }
 
+  // Every rendition goes through the proxy, so expo-image still picks the one
+  // the poster's size needs.
+  const thumbSources = useMemo(
+    () =>
+      linkPreviewImageSources(thumb)?.map((source) => ({
+        ...source,
+        uri: proxyExternalUrl(source.uri),
+      })),
+    [thumb],
+  );
+
   if (active && !loading) return null;
 
   return (
     <View className="absolute inset-0" pointerEvents="box-none">
       {thumb && !thumbErrored ? (
         <Image
-          source={{ uri: proxyExternalUrl(thumb) }}
+          source={thumbSources}
           style={StyleSheet.absoluteFill}
           contentFit="cover"
           onError={() => setThumbErrored(true)}

@@ -167,7 +167,6 @@ class SocketService {
     return '';
   }
 
-
   /**
    * Connect to the backend socket server
    */
@@ -381,7 +380,7 @@ class SocketService {
     this.appStateSubscription?.remove();
     this.appStateSubscription = null;
   }
-  
+
   /**
    * Join feed room for real-time updates (room-based subscription)
    */
@@ -541,11 +540,11 @@ class SocketService {
         // around a back/forward-cache restore, and reopening the socket there
         // would undo the release the freeze depends on.
         if (
-          !this.isConnected
-          && !this.frozenForPageCache
-          && this.socket
-          && !this.socket.connected
-          && !this.socket.active
+          !this.isConnected &&
+          !this.frozenForPageCache &&
+          this.socket &&
+          !this.socket.connected &&
+          !this.socket.active
         ) {
           logger.info('App resumed, reconnecting...');
           this.socket.connect();
@@ -564,7 +563,7 @@ class SocketService {
     const { type, posts, post } = data || {};
 
     // Handle both single post and array of posts
-    const postsArray = Array.isArray(posts) ? posts : (post ? [post] : []);
+    const postsArray = Array.isArray(posts) ? posts : post ? [post] : [];
 
     // Type-safe feed type check
     if (!type || postsArray.length === 0) {
@@ -585,12 +584,12 @@ class SocketService {
       this.feedUpdateQueue.set(feedType, queue);
     }
     queue.push(...postsArray);
-    
+
     // Clear existing timer
     if (this.feedUpdateTimer) {
       clearTimeout(this.feedUpdateTimer);
     }
-    
+
     // Debounce updates - batch process after a short delay
     this.feedUpdateTimer = setTimeout(() => {
       this.processFeedUpdateQueue();
@@ -632,7 +631,7 @@ class SocketService {
         }
         return;
       }
-      
+
       // Deduplicate posts in queue before adding
       const seen = new Map<string, FeedItem>();
       const uniquePosts: FeedItem[] = [];
@@ -651,11 +650,11 @@ class SocketService {
         // Batch add all posts at once
         store.addPostsToFeed(uniquePosts, feedType as FeedType);
       }
-      
+
       // Clear queue for this feed type
       this.feedUpdateQueue.delete(feedType);
     });
-    
+
     // Clear timer
     this.feedUpdateTimer = null;
   }
@@ -729,10 +728,7 @@ class SocketService {
           await AsyncStorage.removeItem(storageKey);
           return;
         }
-        await AsyncStorage.setItem(
-          storageKey,
-          serializeEngagementQueue(viewerId, serializable),
-        );
+        await AsyncStorage.setItem(storageKey, serializeEngagementQueue(viewerId, serializable));
       } catch (e) {
         logger.debug('Failed to persist engagement queue', { error: e });
       }
@@ -855,7 +851,7 @@ class SocketService {
 
     const listeners = this.presenceListeners.get(userId);
     if (listeners) {
-      listeners.forEach(callback => callback(online));
+      listeners.forEach((callback) => callback(online));
     }
   }
 
@@ -868,7 +864,7 @@ class SocketService {
     Object.entries(data).forEach(([userId, online]) => {
       const listeners = this.presenceListeners.get(userId);
       if (listeners) {
-        listeners.forEach(callback => callback(online));
+        listeners.forEach((callback) => callback(online));
       }
     });
   }
@@ -885,7 +881,10 @@ class SocketService {
     }
     // If still over limit, remove oldest entries (first inserted)
     if (map.size > SocketService.MAX_LISTENER_MAP_SIZE) {
-      const keysToRemove = Array.from(map.keys()).slice(0, map.size - SocketService.MAX_LISTENER_MAP_SIZE);
+      const keysToRemove = Array.from(map.keys()).slice(
+        0,
+        map.size - SocketService.MAX_LISTENER_MAP_SIZE,
+      );
       for (const key of keysToRemove) {
         map.delete(key);
       }
@@ -948,7 +947,7 @@ class SocketService {
     return {
       isConnected: this.isConnected,
       reconnectAttempts: this.reconnectAttempts,
-      maxReconnectAttempts: this.maxReconnectAttempts
+      maxReconnectAttempts: this.maxReconnectAttempts,
     };
   }
 

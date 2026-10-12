@@ -151,12 +151,18 @@ function createSchema(db: SQLite.SQLiteDatabase): void {
 
   // Indices.
   db.execSync('CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts(user_id)');
-  db.execSync('CREATE INDEX IF NOT EXISTS idx_posts_parent ON posts(parent_post_id) WHERE parent_post_id IS NOT NULL');
-  db.execSync('CREATE INDEX IF NOT EXISTS idx_posts_original ON posts(original_post_id) WHERE original_post_id IS NOT NULL');
+  db.execSync(
+    'CREATE INDEX IF NOT EXISTS idx_posts_parent ON posts(parent_post_id) WHERE parent_post_id IS NOT NULL',
+  );
+  db.execSync(
+    'CREATE INDEX IF NOT EXISTS idx_posts_original ON posts(original_post_id) WHERE original_post_id IS NOT NULL',
+  );
   db.execSync('CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC)');
   db.execSync('CREATE INDEX IF NOT EXISTS idx_posts_saved ON posts(is_saved) WHERE is_saved = 1');
   db.execSync('CREATE INDEX IF NOT EXISTS idx_posts_fetched ON posts(fetched_at)');
-  db.execSync('CREATE INDEX IF NOT EXISTS idx_feed_items_position ON feed_items(feed_key, position)');
+  db.execSync(
+    'CREATE INDEX IF NOT EXISTS idx_feed_items_position ON feed_items(feed_key, position)',
+  );
   db.execSync('CREATE INDEX IF NOT EXISTS idx_feed_items_post_id ON feed_items(post_id)');
   db.execSync('CREATE INDEX IF NOT EXISTS idx_link_previews_expiry ON link_previews(fetched_at)');
 }

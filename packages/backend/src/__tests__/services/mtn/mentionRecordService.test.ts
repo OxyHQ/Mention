@@ -14,7 +14,7 @@ import type { SignedRecordEnvelope } from '@oxy.so/contracts';
  * Exercises the REAL `@oxy.so/protocol` engine (custodial `signEnvelope` +
  * `verifyAndAppend`) against an in-memory `RecordStore` and a resolver whose
  * subject VMs come from a mocked `oxyServices.identity.resolveDid`, so the whole chain
- * (sign → verify → append → re-verify) runs without Mongo. Covers:
+ * (sign → verify → append → re-verify) runs without the legacy store. Covers:
  *  - a local post create writes a verifiable `app.mention.feed.post` record with
  *    the right chain coordinates (genesis seq 0, then seq 1 / prev = head),
  *  - a like writes an `app.mention.feed.like` record,
@@ -24,13 +24,13 @@ import type { SignedRecordEnvelope } from '@oxy.so/contracts';
  * ## What changed with the Postgres port
  *
  * The chain STORE is still in-memory here on purpose — `MentionRecordStore` is
- * Mongo and is not part of this port, and an in-memory `RecordStore` is what
+ * the legacy store and is not part of this port, and an in-memory `RecordStore` is what
  * lets the real `@oxy.so/protocol` engine run end to end.
  *
  * What did change is the emitter's INPUT. `emitPostCreated` takes a `PostRecord`
  * and reads `post.id` for the record's `rkey`, `post.content.variants` for the
  * body, and the stored `status`/`visibility`/`federation` for its three gates.
- * The old suite hand-built objects carrying a Mongo-shaped `_id`, so the record
+ * The old suite hand-built objects carrying a legacy-store-shaped `_id`, so the record
  * key it asserted on came from the literal the test wrote — and a post whose id
  * never survived a round trip would have looked identical. Every post the
  * emitter block hands over is now a real row, read back through
@@ -68,7 +68,13 @@ interface MemoryStore extends RecordStore {
   reconcileCalls: number;
   reconcileHead(subject: string): Promise<
     | { kind: 'consistent' }
-    | { kind: 'repaired'; fromSeq: number | null; toSeq: number | null; fastForwarded: number; archived: number }
+    | {
+        kind: 'repaired';
+        fromSeq: number | null;
+        toSeq: number | null;
+        fastForwarded: number;
+        archived: number;
+      }
   >;
   append(
     subject: string,
@@ -127,11 +133,7 @@ const { memoryStore, resolveDid } = vi.hoisted(() => {
       }
       if (
         idempotencyKey &&
-        rows.some(
-          (row) =>
-            row.env.subject === subject &&
-            row.idempotencyKey === idempotencyKey,
-        )
+        rows.some((row) => row.env.subject === subject && row.idempotencyKey === idempotencyKey)
       ) {
         return { ok: false, reason: 'chain_conflict' };
       }
@@ -150,23 +152,18 @@ const { memoryStore, resolveDid } = vi.hoisted(() => {
     withIdempotencyKey(idempotencyKey) {
       return {
         getHead: (subject) => store.getHead(subject),
-        append: (subject, env, recordId) =>
-          store.append(subject, env, recordId, idempotencyKey),
-        getLogSince: (subject, sinceSeq, limit) =>
-          store.getLogSince(subject, sinceSeq, limit),
-        resolveCursorSeq: (subject, recordId) =>
-          store.resolveCursorSeq(subject, recordId),
+        append: (subject, env, recordId) => store.append(subject, env, recordId, idempotencyKey),
+        getLogSince: (subject, sinceSeq, limit) => store.getLogSince(subject, sinceSeq, limit),
+        resolveCursorSeq: (subject, recordId) => store.resolveCursorSeq(subject, recordId),
         materializeCurrent: (subject, collection, rkey) =>
           store.materializeCurrent(subject, collection, rkey),
-        latestIssuedAtForKey: (subject, env) =>
-          store.latestIssuedAtForKey(subject, env),
+        latestIssuedAtForKey: (subject, env) => store.latestIssuedAtForKey(subject, env),
       };
     },
     async findByIdempotencyKey(subject, idempotencyKey) {
       const row = rows.find(
         (candidate) =>
-          candidate.env.subject === subject &&
-          candidate.idempotencyKey === idempotencyKey,
+          candidate.env.subject === subject && candidate.idempotencyKey === idempotencyKey,
       );
       return row
         ? {
@@ -194,11 +191,17 @@ const { memoryStore, resolveDid } = vi.hoisted(() => {
       return matches.length ? matches[matches.length - 1].env : null;
     },
     async latestIssuedAtForKey(subject, env) {
-      if (env.version === 2 && (typeof env.collection !== 'string' || typeof env.rkey !== 'string')) {
+      if (
+        env.version === 2 &&
+        (typeof env.collection !== 'string' || typeof env.rkey !== 'string')
+      ) {
         return null;
       }
       const matches = rows.filter(
-        (r) => r.env.subject === subject && r.env.collection === env.collection && r.env.rkey === env.rkey,
+        (r) =>
+          r.env.subject === subject &&
+          r.env.collection === env.collection &&
+          r.env.rkey === env.rkey,
       );
       const latest = matches[matches.length - 1];
       return typeof latest?.env.issuedAt === 'number' ? latest.env.issuedAt : null;
@@ -206,7 +209,9 @@ const { memoryStore, resolveDid } = vi.hoisted(() => {
   };
   // The resolver resolves subject VMs via oxyServices.identity.resolveDid; the subject has
   // NO Oxy keys by default, so only the custodial branch authorizes.
-  const resolveDidMock = vi.fn(async () => ({ verificationMethod: [] as Array<{ publicKeyHex: string }> }));
+  const resolveDidMock = vi.fn(async () => ({
+    verificationMethod: [] as Array<{ publicKeyHex: string }>,
+  }));
   return { memoryStore: store, resolveDid: resolveDidMock };
 });
 
@@ -228,10 +233,7 @@ import {
   mentionVerificationResolver,
   clearVerificationMethodCache,
 } from '../../../services/mtn/mentionVerificationResolver';
-import {
-  emitLikeCreatedStrict,
-  emitPostCreated,
-} from '../../../services/mtn/MentionRecordEmitter';
+import { emitLikeCreatedStrict, emitPostCreated } from '../../../services/mtn/MentionRecordEmitter';
 import {
   MENTION_POST_COLLECTION,
   MENTION_LIKE_COLLECTION,
@@ -540,15 +542,19 @@ describe('MentionRecordService.signAndAppend', () => {
   it('never authorizes a self-issued record through the custodial resolver', async () => {
     const resolved = await mentionCustodialVerificationResolver.resolve(SUBJECT_DID);
     expect(resolved?.currentPublicKeys).toEqual([]);
-    expect(isAuthorizedKey(resolved, {
-      issuer: SUBJECT_DID,
-      subject: SUBJECT_DID,
-      publicKey: CUSTODIAL_PUBLIC,
-    } as Parameters<typeof isAuthorizedKey>[1]).ok).toBe(false);
+    expect(
+      isAuthorizedKey(resolved, {
+        issuer: SUBJECT_DID,
+        subject: SUBJECT_DID,
+        publicKey: CUSTODIAL_PUBLIC,
+      } as Parameters<typeof isAuthorizedKey>[1]).ok,
+    ).toBe(false);
   });
 
   it('shares concurrent DID lookups and remembers a failed one instead of retrying Oxy', async () => {
-    resolveDid.mockRejectedValueOnce(Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 }));
+    resolveDid.mockRejectedValueOnce(
+      Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 }),
+    );
 
     const [first, second] = await Promise.all([
       mentionVerificationResolver.resolve(SUBJECT_DID),

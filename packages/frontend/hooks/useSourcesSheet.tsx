@@ -38,18 +38,21 @@ export const useSourcesSheet = ({
     });
   }, [bottomSheet]);
 
-  const sourcesSheetElement = useMemo(() => (
-    <Suspense fallback={null}>
-      <SourcesSheet
-        sources={sources}
-        onAdd={addSource}
-        onUpdate={updateSourceField}
-        onRemove={removeSourceEntry}
-        onClose={closeSourcesSheet}
-        validateUrl={isValidSourceUrl}
-      />
-    </Suspense>
-  ), [sources, addSource, updateSourceField, removeSourceEntry, closeSourcesSheet, isValidSourceUrl]);
+  const sourcesSheetElement = useMemo(
+    () => (
+      <Suspense fallback={null}>
+        <SourcesSheet
+          sources={sources}
+          onAdd={addSource}
+          onUpdate={updateSourceField}
+          onRemove={removeSourceEntry}
+          onClose={closeSourcesSheet}
+          validateUrl={isValidSourceUrl}
+        />
+      </Suspense>
+    ),
+    [sources, addSource, updateSourceField, removeSourceEntry, closeSourcesSheet, isValidSourceUrl],
+  );
 
   const openSourcesSheet = useCallback(() => {
     bottomSheet.setBottomSheetContent(sourcesSheetElement);

@@ -11,7 +11,7 @@ jest.mock('expo-router', () => ({
 }));
 jest.mock('@/context/ScreenReselectContext', () => ({ useReselect: () => mockReselect }));
 
-// eslint-disable-next-line import/first -- the mocks above must be installed first.
+// The mocks above must be installed first.
 import { isCurrentRoute, useNavigateOrReselect } from '../useNavigateOrReselect';
 
 describe('isCurrentRoute', () => {
@@ -37,7 +37,9 @@ describe('useNavigateOrReselect', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    act(() => { TestRenderer.create(<Probe />); });
+    act(() => {
+      TestRenderer.create(<Probe />);
+    });
   });
 
   it('reselects the current page instead of navigating to it', () => {

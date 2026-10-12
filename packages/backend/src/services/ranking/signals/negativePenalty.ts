@@ -105,7 +105,7 @@ export function negativePenalty(
   // falling back to `postClassification.topics`.
   if (sets.hiddenTopics.size > 0) {
     const hasHiddenHashtag = post.hashtags?.some((tag: string) =>
-      sets.hiddenTopics.has(tag.toLowerCase())
+      sets.hiddenTopics.has(tag.toLowerCase()),
     );
 
     const hasHiddenClassifiedTopic = getCanonicalTopics(post).some(

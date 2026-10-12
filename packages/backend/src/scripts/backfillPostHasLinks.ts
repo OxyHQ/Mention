@@ -93,10 +93,12 @@ function bodyHasLink() {
     getDb()
       .select({ one: sql`1` })
       .from(postContentVariants)
-      .where(and(
-        eq(postContentVariants.postId, posts.id),
-        sql`${postContentVariants.body} ~* 'https?://'`,
-      )),
+      .where(
+        and(
+          eq(postContentVariants.postId, posts.id),
+          sql`${postContentVariants.body} ~* 'https?://'`,
+        ),
+      ),
   );
 }
 
@@ -171,12 +173,17 @@ async function repairDirection(
     const updated = await getDb()
       .update(posts)
       .set({ hasLinks: target })
-      .where(and(
-        inArray(posts.id, batch.map((row) => row.id)),
-        // The predicate again, so a row somebody else already fixed is not
-        // counted as this run's work.
-        disagreement(direction),
-      ))
+      .where(
+        and(
+          inArray(
+            posts.id,
+            batch.map((row) => row.id),
+          ),
+          // The predicate again, so a row somebody else already fixed is not
+          // counted as this run's work.
+          disagreement(direction),
+        ),
+      )
       .returning({ id: posts.id });
     counts.written += updated.length;
 

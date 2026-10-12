@@ -89,9 +89,7 @@ describe('signViaOxy error legibility', () => {
   });
 
   it('uses .message for a real Error instance', async () => {
-    mocks.serviceRequest.mockRejectedValueOnce(
-      new Error('Service credentials not provided'),
-    );
+    mocks.serviceRequest.mockRejectedValueOnce(new Error('Service credentials not provided'));
 
     await expect(signViaOxy('key#main', 'signing-string')).rejects.toThrow(
       /Service credentials not provided/,

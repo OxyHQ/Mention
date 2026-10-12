@@ -151,8 +151,9 @@ describe('inbound federated post provenance', () => {
   it('scans enough federation blocks to be worth believing', () => {
     const blocks = findProvenanceBlocks();
     expect(blocks.length).toBeGreaterThanOrEqual(MINIMUM_BLOCKS);
-    expect(blocks.filter((block) => block.keys.includes('activityId')).length)
-      .toBeGreaterThanOrEqual(MINIMUM_IDENTIFIED_BLOCKS);
+    expect(
+      blocks.filter((block) => block.keys.includes('activityId')).length,
+    ).toBeGreaterThanOrEqual(MINIMUM_IDENTIFIED_BLOCKS);
   });
 
   it('names an actorUri wherever it names an activityId', () => {

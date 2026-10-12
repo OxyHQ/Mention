@@ -1,11 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  FlatList,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
@@ -32,8 +26,8 @@ interface GifItem {
   klipyId: string;
   slug: string;
   title: string;
-  mp4Url: string;      // full-size mp4 — attached to the post via /gifs/use
-  previewUrl: string;  // small looping muted mp4 for the grid tile
+  mp4Url: string; // full-size mp4 — attached to the post via /gifs/use
+  previewUrl: string; // small looping muted mp4 for the grid tile
   width: number;
   height: number;
 }
@@ -43,7 +37,6 @@ interface GifSearchResponse {
   hasNext: boolean;
   page: number;
 }
-
 
 const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif }) => {
   const theme = useTheme();
@@ -56,27 +49,30 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
 
   const numColumns = 3;
 
-  const fetchGifs = useCallback(async (query: string = '') => {
-    try {
-      setLoading(true);
+  const fetchGifs = useCallback(
+    async (query: string = '') => {
+      try {
+        setLoading(true);
 
-      // Call backend API instead of KLIPY directly
-      const endpoint = query.trim() ? '/gifs/search' : '/gifs/trending';
-      const params = query.trim()
-        ? { q: query.trim(), page: '1', per_page: '20' }
-        : { page: '1', per_page: '20' };
+        // Call backend API instead of KLIPY directly
+        const endpoint = query.trim() ? '/gifs/search' : '/gifs/trending';
+        const params = query.trim()
+          ? { q: query.trim(), page: '1', per_page: '20' }
+          : { page: '1', per_page: '20' };
 
-      const response = await api.get<GifSearchResponse>(endpoint, params);
-      const items = response.data?.gifs;
-      setGifs(Array.isArray(items) ? items : []);
-    } catch (error: unknown) {
-      logger.error('Error fetching GIFs', error);
-      toast(normalizeApiError(error).message || t('Failed to load GIFs'), { type: 'error' });
-      setGifs([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
+        const response = await api.get<GifSearchResponse>(endpoint, params);
+        const items = response.data?.gifs;
+        setGifs(Array.isArray(items) ? items : []);
+      } catch (error: unknown) {
+        logger.error('Error fetching GIFs', error);
+        toast(normalizeApiError(error).message || t('Failed to load GIFs'), { type: 'error' });
+        setGifs([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [t],
+  );
 
   useEffect(() => {
     // Fetch trending GIFs on initial load (empty query = trending)
@@ -168,7 +164,8 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         safeArea={false}
         actions={
           <Button
-            appearance="subtle" tone="neutral"
+            appearance="subtle"
+            tone="neutral"
             iconOnly
             leadingIcon={RiCloseLine}
             onPress={onClose}
@@ -191,16 +188,12 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
       {loading && gifs.length === 0 ? (
         <View className="flex-1 justify-center items-center py-12">
           <Loading className="text-primary" size="lg" />
-          <Text className="mt-3 text-sm text-muted-foreground">
-            {t('Loading GIFs...')}
-          </Text>
+          <Text className="mt-3 text-sm text-muted-foreground">{t('Loading GIFs...')}</Text>
         </View>
       ) : gifs.length === 0 ? (
         <View className="flex-1 justify-center items-center py-12">
           <RiImageLine width={64} height={64} fill={theme.colors.textSecondary} />
-          <Text className="mt-4 text-base text-muted-foreground">
-            {t('No GIFs found')}
-          </Text>
+          <Text className="mt-4 text-base text-muted-foreground">{t('No GIFs found')}</Text>
         </View>
       ) : (
         <FlatList

@@ -95,7 +95,8 @@ export function InterstitialShell<TItem>({
           hitSlop={HIT_SLOP_MD}
           style={styles.webCursor}
           accessibilityRole="link"
-          accessibilityLabel={seeMoreLabel}>
+          accessibilityLabel={seeMoreLabel}
+        >
           <Text className="text-primary text-sm leading-6 font-medium">{seeMoreLabel}</Text>
         </TouchableOpacity>
       )}
@@ -116,7 +117,8 @@ export function InterstitialShell<TItem>({
         inset={INTERSTITIAL_EDGE_PADDING}
         previousLabel={t('feed.interstitial.previous')}
         nextLabel={t('feed.interstitial.next')}
-        style={styles.carousel}>
+        style={styles.carousel}
+      >
         {showSkeleton && renderSkeleton
           ? Array.from(
               { length: INTERSTITIAL_SKELETON_ITEMS[isDesktop ? 'desktop' : 'mobile'] },
@@ -135,7 +137,8 @@ export function InterstitialShell<TItem>({
               <CarouselItem
                 key="see-more"
                 width={INTERSTITIAL_SEE_MORE_CARD_WIDTH}
-                accessibilityLabel={seeMoreLabel}>
+                accessibilityLabel={seeMoreLabel}
+              >
                 <SeeMoreCard label={seeMoreLabel} onPress={handleSeeMore} />
               </CarouselItem>,
             ]}
@@ -157,7 +160,8 @@ function SeeMoreCard({ label, onPress }: { label: string; onPress: () => void })
       onPress={onPress}
       className="bg-surface border-border flex-1 items-center justify-center gap-2 rounded-xl border"
       accessibilityRole="button"
-      accessibilityLabel={label}>
+      accessibilityLabel={label}
+    >
       <View className="bg-primary/10 h-9 w-9 items-center justify-center rounded-full">
         <RiArrowRightLine width={18} height={18} fill={theme.colors.primary} />
       </View>

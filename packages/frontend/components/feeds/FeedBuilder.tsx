@@ -1,4 +1,12 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { Button } from '@oxy.so/bloom/button';
@@ -82,19 +90,27 @@ function mergeChipDrafts(
 ): ModuleStates {
   let next = states;
   for (const entry of entries) {
-    const paramKeys = new Set([...entry.params.map((param) => param.key), ...Object.keys(entry.paramsSchema.properties)]);
+    const paramKeys = new Set([
+      ...entry.params.map((param) => param.key),
+      ...Object.keys(entry.paramsSchema.properties),
+    ]);
     for (const param of paramKeys) {
       const draft = drafts[chipDraftKey(kind, entry.id, param)];
       if (!draft) continue;
       const current = next[entry.id]?.params?.[param];
-      const list = Array.isArray(current) ? current.filter((x): x is string => typeof x === 'string') : [];
+      const list = Array.isArray(current)
+        ? current.filter((x): x is string => typeof x === 'string')
+        : [];
       const max = entry.params.find((descriptor) => descriptor.key === param)?.maxItems;
       const { next: merged } = commitTag(list, draft, { max });
       if (!merged) continue;
       const prev = next[entry.id];
       next = {
         ...next,
-        [entry.id]: { enabled: prev?.enabled ?? true, params: { ...(prev?.params ?? {}), [param]: [...merged] } },
+        [entry.id]: {
+          enabled: prev?.enabled ?? true,
+          params: { ...(prev?.params ?? {}), [param]: [...merged] },
+        },
       };
     }
   }
@@ -231,7 +247,12 @@ const AccountPicker = ({
   const [results, setResults] = useState<MinimalUser[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
 
   const doSearch = useCallback(
     (q: string) => {
@@ -261,14 +282,20 @@ const AccountPicker = ({
 
   return (
     <View className="gap-2">
-      <Text className="text-[13px] font-semibold text-foreground">{t('feeds.builder.addAccounts')}</Text>
+      <Text className="text-[13px] font-semibold text-foreground">
+        {t('feeds.builder.addAccounts')}
+      </Text>
 
       {selected.map((u) => (
         <View key={u.id} className="flex-row items-center gap-3">
           <Avatar source={u.avatar ?? undefined} size={36} variant={MEDIA_VARIANT_AVATAR} />
           <View className="flex-1">
-            <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>{accountName(u)}</Text>
-            <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>@{u.username}</Text>
+            <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
+              {accountName(u)}
+            </Text>
+            <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>
+              @{u.username}
+            </Text>
           </View>
           <TouchableOpacity
             onPress={() => onChange(selected.filter((s) => s.id !== u.id))}
@@ -287,14 +314,25 @@ const AccountPicker = ({
       />
 
       {results.map((u) => (
-        <TouchableOpacity key={u.id} className="flex-row items-center gap-3 py-1.5" onPress={() => add(u)} activeOpacity={0.7}>
+        <TouchableOpacity
+          key={u.id}
+          className="flex-row items-center gap-3 py-1.5"
+          onPress={() => add(u)}
+          activeOpacity={0.7}
+        >
           <Avatar source={u.avatar ?? undefined} size={36} variant={MEDIA_VARIANT_AVATAR} />
           <View className="flex-1">
-            <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>{accountName(u)}</Text>
-            <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>@{u.username}</Text>
+            <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
+              {accountName(u)}
+            </Text>
+            <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>
+              @{u.username}
+            </Text>
           </View>
           <View className="border border-border rounded-[10px] px-3 py-1">
-            <Text className="text-[13px] font-semibold text-foreground">{t('feeds.builder.add')}</Text>
+            <Text className="text-[13px] font-semibold text-foreground">
+              {t('feeds.builder.add')}
+            </Text>
           </View>
         </TouchableOpacity>
       ))}
@@ -378,7 +416,9 @@ const ParamControl = ({
                   <Text className="text-[14px] text-foreground">
                     {t(option.labelKey, { defaultValue: option.label })}
                   </Text>
-                  {active ? <RiCheckLine width={18} height={18} fill={theme.colors.primary} /> : null}
+                  {active ? (
+                    <RiCheckLine width={18} height={18} fill={theme.colors.primary} />
+                  ) : null}
                 </TouchableOpacity>
               );
             })}
@@ -388,7 +428,9 @@ const ParamControl = ({
     }
 
     case 'multiselect': {
-      const arr = Array.isArray(value) ? value.filter((x): x is string => typeof x === 'string') : [];
+      const arr = Array.isArray(value)
+        ? value.filter((x): x is string => typeof x === 'string')
+        : [];
       const cap = descriptor.maxItems;
 
       if (descriptor.options && descriptor.options.length > 0) {
@@ -416,7 +458,9 @@ const ParamControl = ({
                         : 'rounded-full px-3 py-1 bg-background border border-border'
                     }
                   >
-                    <Text className={active ? 'text-[13px] text-white' : 'text-[13px] text-foreground'}>
+                    <Text
+                      className={active ? 'text-[13px] text-white' : 'text-[13px] text-foreground'}
+                    >
                       {t(option.labelKey, { defaultValue: option.label })}
                     </Text>
                   </TouchableOpacity>
@@ -468,7 +512,14 @@ const SchemaParamField = ({
 
   if (prop.type === 'array') {
     const arr = Array.isArray(value) ? value.filter((x): x is string => typeof x === 'string') : [];
-    return <ChipInput label={label} values={arr} draftKey={draftKey} onChange={(next) => onChange(next)} />;
+    return (
+      <ChipInput
+        label={label}
+        values={arr}
+        draftKey={draftKey}
+        onChange={(next) => onChange(next)}
+      />
+    );
   }
 
   if (prop.type === 'boolean') {
@@ -532,7 +583,9 @@ const ModuleCard = ({
   // descriptor falls back to a type-driven editor. The union of both keeps the
   // builder data-driven while never dropping an editor for an existing module.
   const descriptorKeys = new Set(entry.params.map((param) => param.key));
-  const schemaOnlyKeys = Object.keys(entry.paramsSchema.properties).filter((key) => !descriptorKeys.has(key));
+  const schemaOnlyKeys = Object.keys(entry.paramsSchema.properties).filter(
+    (key) => !descriptorKeys.has(key),
+  );
   const hasParams = entry.params.length > 0 || schemaOnlyKeys.length > 0;
   const hasBody = enabled && (isAccounts || hasParams);
 
@@ -611,8 +664,13 @@ function groupEntriesByCategory(entries: ModuleCatalogEntry[]): ModuleCategoryGr
     byCategory.set(entry.category, list);
   }
   const ordered: ModuleCategory[] = CATEGORY_ORDER.filter((category) => byCategory.has(category));
-  const extras: ModuleCategory[] = [...byCategory.keys()].filter((category) => !CATEGORY_ORDER.includes(category));
-  return [...ordered, ...extras].map((category) => ({ category, entries: byCategory.get(category) ?? [] }));
+  const extras: ModuleCategory[] = [...byCategory.keys()].filter(
+    (category) => !CATEGORY_ORDER.includes(category),
+  );
+  return [...ordered, ...extras].map((category) => ({
+    category,
+    entries: byCategory.get(category) ?? [],
+  }));
 }
 
 /**
@@ -671,7 +729,13 @@ const CategorizedModules = ({
  * via POST/PUT /feeds; once saved, previews the result through the engine
  * timeline (`/feeds/:id/timeline`) in an embedded, non-scroll-owning feed.
  */
-export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialFeed?: CustomFeed }) {
+export function FeedBuilder({
+  feedId,
+  initialFeed,
+}: {
+  feedId?: string;
+  initialFeed?: CustomFeed;
+}) {
   const { t } = useTranslation();
   const safeBack = useSafeBack();
   const { oxyServices, user, canUsePrivateApi } = useAuth();
@@ -684,9 +748,15 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
   const [description, setDescription] = useState(initialFeed?.description ?? '');
   const [isPublic, setIsPublic] = useState(initialFeed?.isPublic ?? true);
   const [mode, setMode] = useState<FeedDefinitionMode>(def?.mode ?? 'chronological');
-  const [sourceStates, setSourceStates] = useState<ModuleStates>(() => statesFromRefs(def?.sources));
-  const [filterStates, setFilterStates] = useState<ModuleStates>(() => statesFromRefs(def?.filters));
-  const [signalStates, setSignalStates] = useState<ModuleStates>(() => statesFromRefs(def?.signals));
+  const [sourceStates, setSourceStates] = useState<ModuleStates>(() =>
+    statesFromRefs(def?.sources),
+  );
+  const [filterStates, setFilterStates] = useState<ModuleStates>(() =>
+    statesFromRefs(def?.filters),
+  );
+  const [signalStates, setSignalStates] = useState<ModuleStates>(() =>
+    statesFromRefs(def?.signals),
+  );
   const [selectedAccounts, setSelectedAccounts] = useState<MinimalUser[]>([]);
   const [savedFeedId, setSavedFeedId] = useState<string | undefined>(feedId);
   const [previewKey, setPreviewKey] = useState(0);
@@ -717,25 +787,65 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
   useEffect(() => {
     if (initialAuthorIds.length === 0) return;
     let cancelled = false;
-    oxyServices
-      .users.getMany(initialAuthorIds)
-      .then((users) => { if (!cancelled) setSelectedAccounts(users.map(toMinimal)); })
+    oxyServices.users
+      .getMany(initialAuthorIds)
+      .then((users) => {
+        if (!cancelled) setSelectedAccounts(users.map(toMinimal));
+      })
       .catch((error) => logger.warn('Failed to resolve builder accounts', { error }));
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [initialAuthorIds, oxyServices]);
 
-  const toggleSource = useCallback((id: string, enabled: boolean) =>
-    setSourceStates((p) => ({ ...p, [id]: { enabled, params: p[id]?.params ?? {} } })), []);
-  const paramSource = useCallback((id: string, key: string, value: unknown) =>
-    setSourceStates((p) => ({ ...p, [id]: { enabled: p[id]?.enabled ?? true, params: { ...(p[id]?.params ?? {}), [key]: value } } })), []);
-  const toggleFilter = useCallback((id: string, enabled: boolean) =>
-    setFilterStates((p) => ({ ...p, [id]: { enabled, params: p[id]?.params ?? {} } })), []);
-  const paramFilter = useCallback((id: string, key: string, value: unknown) =>
-    setFilterStates((p) => ({ ...p, [id]: { enabled: p[id]?.enabled ?? true, params: { ...(p[id]?.params ?? {}), [key]: value } } })), []);
-  const toggleSignal = useCallback((id: string, enabled: boolean) =>
-    setSignalStates((p) => ({ ...p, [id]: { enabled, params: p[id]?.params ?? {} } })), []);
-  const paramSignal = useCallback((id: string, key: string, value: unknown) =>
-    setSignalStates((p) => ({ ...p, [id]: { enabled: p[id]?.enabled ?? true, params: { ...(p[id]?.params ?? {}), [key]: value } } })), []);
+  const toggleSource = useCallback(
+    (id: string, enabled: boolean) =>
+      setSourceStates((p) => ({ ...p, [id]: { enabled, params: p[id]?.params ?? {} } })),
+    [],
+  );
+  const paramSource = useCallback(
+    (id: string, key: string, value: unknown) =>
+      setSourceStates((p) => ({
+        ...p,
+        [id]: {
+          enabled: p[id]?.enabled ?? true,
+          params: { ...(p[id]?.params ?? {}), [key]: value },
+        },
+      })),
+    [],
+  );
+  const toggleFilter = useCallback(
+    (id: string, enabled: boolean) =>
+      setFilterStates((p) => ({ ...p, [id]: { enabled, params: p[id]?.params ?? {} } })),
+    [],
+  );
+  const paramFilter = useCallback(
+    (id: string, key: string, value: unknown) =>
+      setFilterStates((p) => ({
+        ...p,
+        [id]: {
+          enabled: p[id]?.enabled ?? true,
+          params: { ...(p[id]?.params ?? {}), [key]: value },
+        },
+      })),
+    [],
+  );
+  const toggleSignal = useCallback(
+    (id: string, enabled: boolean) =>
+      setSignalStates((p) => ({ ...p, [id]: { enabled, params: p[id]?.params ?? {} } })),
+    [],
+  );
+  const paramSignal = useCallback(
+    (id: string, key: string, value: unknown) =>
+      setSignalStates((p) => ({
+        ...p,
+        [id]: {
+          enabled: p[id]?.enabled ?? true,
+          params: { ...(p[id]?.params ?? {}), [key]: value },
+        },
+      })),
+    [],
+  );
 
   const handleSave = useCallback(async () => {
     if (!catalog) return;
@@ -761,7 +871,8 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
         const st = states[entry.id];
         if (!st?.enabled) continue;
         let params = cleanParams(st.params ?? {});
-        if (entry.id === 'accounts') params = { ...params, authorIds: selectedAccounts.map((u) => u.id) };
+        if (entry.id === 'accounts')
+          params = { ...params, authorIds: selectedAccounts.map((u) => u.id) };
         const ref: FeedModuleRef = { module: entry.id, enabled: true };
         if (Object.keys(params).length > 0) ref.params = params;
         refs.push(ref);
@@ -811,7 +922,22 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
     } finally {
       setSaving(false);
     }
-  }, [catalog, title, description, isPublic, mode, sourceStates, filterStates, signalStates, chipDrafts, selectedAccounts, savedFeedId, queryClient, t, user?.id]);
+  }, [
+    catalog,
+    title,
+    description,
+    isPublic,
+    mode,
+    sourceStates,
+    filterStates,
+    signalStates,
+    chipDrafts,
+    selectedAccounts,
+    savedFeedId,
+    queryClient,
+    t,
+    user?.id,
+  ]);
 
   const canSave = title.trim().length > 0 && Boolean(catalog);
 
@@ -873,7 +999,10 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
               </View>
 
               {/* Visibility */}
-              <SettingsListGroup title={t('feeds.builder.visibility')} footer={t('feeds.builder.publicDescription')}>
+              <SettingsListGroup
+                title={t('feeds.builder.visibility')}
+                footer={t('feeds.builder.publicDescription')}
+              >
                 <SettingsListItem
                   title={t('feeds.builder.public')}
                   showChevron={false}
@@ -888,7 +1017,10 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
               </SettingsListGroup>
 
               {/* Mode */}
-              <SettingsListGroup title={t('feeds.builder.mode')} footer={t('feeds.builder.modeDescription')}>
+              <SettingsListGroup
+                title={t('feeds.builder.mode')}
+                footer={t('feeds.builder.modeDescription')}
+              >
                 <SettingsListItem
                   title={t('feeds.builder.ranked')}
                   onPress={() => setMode('ranked')}
@@ -904,8 +1036,12 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
               </SettingsListGroup>
 
               {/* Sources */}
-              <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">{t('feeds.builder.sources')}</Text>
-              <Text className="text-[13px] text-muted-foreground mb-2">{t('feeds.builder.sourcesDescription')}</Text>
+              <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">
+                {t('feeds.builder.sources')}
+              </Text>
+              <Text className="text-[13px] text-muted-foreground mb-2">
+                {t('feeds.builder.sourcesDescription')}
+              </Text>
               <CategorizedModules
                 kind="sources"
                 entries={catalog.sources}
@@ -913,15 +1049,19 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
                 onToggle={toggleSource}
                 onParam={paramSource}
                 renderAccountsSlot={(entry) =>
-                  entry.id === 'accounts'
-                    ? <AccountPicker selected={selectedAccounts} onChange={setSelectedAccounts} />
-                    : undefined
+                  entry.id === 'accounts' ? (
+                    <AccountPicker selected={selectedAccounts} onChange={setSelectedAccounts} />
+                  ) : undefined
                 }
               />
 
               {/* Filters */}
-              <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">{t('feeds.builder.filters')}</Text>
-              <Text className="text-[13px] text-muted-foreground mb-2">{t('feeds.builder.filtersDescription')}</Text>
+              <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">
+                {t('feeds.builder.filters')}
+              </Text>
+              <Text className="text-[13px] text-muted-foreground mb-2">
+                {t('feeds.builder.filtersDescription')}
+              </Text>
               <CategorizedModules
                 kind="filters"
                 entries={catalog.filters}
@@ -933,8 +1073,12 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
               {/* Ranking signals (ranked mode only) */}
               {mode === 'ranked' && catalog.signals.length > 0 ? (
                 <>
-                  <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">{t('feeds.builder.signals')}</Text>
-                  <Text className="text-[13px] text-muted-foreground mb-2">{t('feeds.builder.signalsDescription')}</Text>
+                  <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">
+                    {t('feeds.builder.signals')}
+                  </Text>
+                  <Text className="text-[13px] text-muted-foreground mb-2">
+                    {t('feeds.builder.signalsDescription')}
+                  </Text>
                   <CategorizedModules
                     kind="signals"
                     entries={catalog.signals}
@@ -946,7 +1090,9 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
               ) : null}
 
               {/* Live preview (available once the feed is saved) */}
-              <Text className="text-[15px] font-bold text-foreground mt-4 mb-2">{t('feeds.builder.preview')}</Text>
+              <Text className="text-[15px] font-bold text-foreground mt-4 mb-2">
+                {t('feeds.builder.preview')}
+              </Text>
               {savedFeedId ? (
                 <View className="rounded-2xl overflow-hidden border border-border">
                   {/* Non-scrolling inside the builder's ScrollView, so it is not
@@ -962,7 +1108,9 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
                   />
                 </View>
               ) : (
-                <Text className="text-[13px] text-muted-foreground">{t('feeds.builder.saveToPreview')}</Text>
+                <Text className="text-[13px] text-muted-foreground">
+                  {t('feeds.builder.saveToPreview')}
+                </Text>
               )}
 
               <View className="h-10" />
@@ -976,7 +1124,11 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
 
 const ModeCheck = ({ active }: { active: boolean }) => {
   const theme = useTheme();
-  return active ? <RiCheckLine size="md" fill={theme.colors.primary} /> : <View className="w-5 h-5" />;
+  return active ? (
+    <RiCheckLine size="md" fill={theme.colors.primary} />
+  ) : (
+    <View className="w-5 h-5" />
+  );
 };
 
 const styles = StyleSheet.create({

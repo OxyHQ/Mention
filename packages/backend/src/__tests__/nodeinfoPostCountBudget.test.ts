@@ -90,9 +90,7 @@ describe('nodeinfo localPosts — scan budget', () => {
   it('collapses a burst of concurrent pollers onto one computation', async () => {
     // Twelve simultaneous crawlers, which before any cache meant twelve
     // concurrent sequential scans of `posts`.
-    const answers = await Promise.all(
-      Array.from({ length: 12 }, () => countLocalPostsCached()),
-    );
+    const answers = await Promise.all(Array.from({ length: 12 }, () => countLocalPostsCached()));
 
     // Every caller must have been served, and served the SAME answer — a
     // single-flight that handed different callers different values would meet

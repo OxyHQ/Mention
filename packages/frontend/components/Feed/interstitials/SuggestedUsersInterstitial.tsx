@@ -12,10 +12,7 @@ import {
   selectInterstitialWindow,
   shouldRenderInterstitial,
 } from './interstitialLayout';
-import {
-  useInterstitialReporter,
-  type InterstitialCardProps,
-} from './interstitialTelemetry';
+import { useInterstitialReporter, type InterstitialCardProps } from './interstitialTelemetry';
 
 /**
  * "Who to follow", inline in the feed.

@@ -44,7 +44,7 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
   articleId,
   title,
   body,
-  onClose
+  onClose,
 }) => {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -64,7 +64,8 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
     let isMounted = true;
     setIsLoading(true);
     setLoadError(null);
-    articleService.getArticle(articleId)
+    articleService
+      .getArticle(articleId)
       .then((article) => {
         if (!isMounted) return;
         setFetchedTitle(article.title || title);
@@ -73,7 +74,9 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
       .catch(() => {
         logger.error('Failed to load article content');
         if (isMounted) {
-          setLoadError(t('post.articleSheet.loadError', { defaultValue: 'Failed to load article.' }));
+          setLoadError(
+            t('post.articleSheet.loadError', { defaultValue: 'Failed to load article.' }),
+          );
         }
       })
       .finally(() => {
@@ -96,17 +99,14 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
   const trimmedBody = useMemo(() => articleBody?.trim(), [articleBody]);
 
   // Memoize translation strings
-  const titleText = useMemo(
-    () => t('post.articleSheet.title', { defaultValue: 'Article' }),
-    [t]
-  );
+  const titleText = useMemo(() => t('post.articleSheet.title', { defaultValue: 'Article' }), [t]);
   const untitledText = useMemo(
     () => t('post.articleSheet.untitled', { defaultValue: 'Untitled article' }),
-    [t]
+    [t],
   );
   const emptyBodyText = useMemo(
     () => t('post.articleSheet.emptyBody', { defaultValue: 'No content provided.' }),
-    [t]
+    [t],
   );
 
   // Memoize handlers
@@ -119,10 +119,7 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
   }, []);
 
   // Memoize style objects to prevent recreation
-  const headerStyle = useMemo(
-    () => styles.header,
-    []
-  );
+  const headerStyle = useMemo(() => styles.header, []);
 
   const contentContainerStyle = useMemo(
     () => [
@@ -131,7 +128,7 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
         paddingTop: insets.top,
       },
     ],
-    [insets.top]
+    [insets.top],
   );
 
   // Memoize blur tint
@@ -161,13 +158,11 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
         className="bg-background"
         style={[contentContainerStyle, { pointerEvents: 'box-none' }]}
       >
-        <Pressable
-          onPress={handleContentPress}
-          style={styles.pressableContent}
-        >
+        <Pressable onPress={handleContentPress} style={styles.pressableContent}>
           <View style={headerStyle} className="border-b border-border">
             <Button
-              appearance="subtle" tone="neutral"
+              appearance="subtle"
+              tone="neutral"
               iconOnly
               leadingIcon={RiCloseLine}
               accessibilityLabel={t('common.close', { defaultValue: 'Close' })}

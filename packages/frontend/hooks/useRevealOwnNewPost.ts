@@ -1,8 +1,5 @@
 import { useEffect, useSyncExternalStore } from 'react';
-import {
-    getLocalPostRevision,
-    subscribeToLocalPostRevision,
-} from '@/stores/feedScrollStore';
+import { getLocalPostRevision, subscribeToLocalPostRevision } from '@/stores/feedScrollStore';
 
 /**
  * After the viewer publishes, the feed their post lands in scrolls to the top so
@@ -24,36 +21,36 @@ import {
 const answeredRevisionByFeed = new Map<string, number>();
 
 export function useRevealOwnNewPost({
-    feedKey,
-    enabled,
-    scrollToTop,
+  feedKey,
+  enabled,
+  scrollToTop,
 }: {
-    /** The feed's identity (`feedState.feedScrollKey`). */
-    feedKey: string;
-    /** In front, scroll-owning, done restoring, and a feed the post lands in. */
-    enabled: boolean;
-    scrollToTop: () => void;
+  /** The feed's identity (`feedState.feedScrollKey`). */
+  feedKey: string;
+  /** In front, scroll-owning, done restoring, and a feed the post lands in. */
+  enabled: boolean;
+  scrollToTop: () => void;
 }): void {
-    const revision = useSyncExternalStore(
-        subscribeToLocalPostRevision,
-        getLocalPostRevision,
-        getLocalPostRevision,
-    );
+  const revision = useSyncExternalStore(
+    subscribeToLocalPostRevision,
+    getLocalPostRevision,
+    getLocalPostRevision,
+  );
 
-    useEffect(() => {
-        if (!enabled || revision === 0) return;
-        if ((answeredRevisionByFeed.get(feedKey) ?? 0) >= revision) return;
-        // A frame later: the inserted row has to be laid out before the top of
-        // the list is the top of the post.
-        const frame = requestAnimationFrame(() => {
-            answeredRevisionByFeed.set(feedKey, revision);
-            scrollToTop();
-        });
-        return () => cancelAnimationFrame(frame);
-    }, [enabled, revision, feedKey, scrollToTop]);
+  useEffect(() => {
+    if (!enabled || revision === 0) return;
+    if ((answeredRevisionByFeed.get(feedKey) ?? 0) >= revision) return;
+    // A frame later: the inserted row has to be laid out before the top of
+    // the list is the top of the post.
+    const frame = requestAnimationFrame(() => {
+      answeredRevisionByFeed.set(feedKey, revision);
+      scrollToTop();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [enabled, revision, feedKey, scrollToTop]);
 }
 
 /** For tests. */
 export function resetRevealOwnNewPost(): void {
-    answeredRevisionByFeed.clear();
+  answeredRevisionByFeed.clear();
 }

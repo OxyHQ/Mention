@@ -37,7 +37,10 @@ describe('OxySignalsClient.pushEndorsements', () => {
   it('chunks large batches at 500 edges per request', async () => {
     const client = new OxySignalsClient();
     const edges = Array.from({ length: 1100 }, (_, i) => ({
-      ownerId: 'o', memberId: `m${i}`, op: 'add' as const, sourceId: 's',
+      ownerId: 'o',
+      memberId: `m${i}`,
+      op: 'add' as const,
+      sourceId: 's',
     }));
     await client.pushEndorsements(edges);
 
@@ -95,7 +98,9 @@ describe('OxySignalsClient.pushEvents', () => {
   it('chunks large batches at 1000 events per request', async () => {
     const client = new OxySignalsClient();
     const events = Array.from({ length: 2300 }, (_, i) => ({
-      fromUserId: 'a', toUserId: `b${i}`, type: 'like' as const,
+      fromUserId: 'a',
+      toUserId: `b${i}`,
+      type: 'like' as const,
     }));
     await client.pushEvents(events);
 

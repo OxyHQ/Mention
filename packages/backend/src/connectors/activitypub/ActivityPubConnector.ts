@@ -15,7 +15,14 @@ import { resolveOxyExternalUser } from '../identity';
 import { isAbsoluteHttpUrl } from '../shared/url';
 import { actorService } from './actor.service';
 import { deliveryService } from './delivery.service';
-import { followService, type NoteSourcePost, type NoteReplyContext, type NoteMentionContext, type NotePollContext, type NoteQuoteContext } from './follow.service';
+import {
+  followService,
+  type NoteSourcePost,
+  type NoteReplyContext,
+  type NoteMentionContext,
+  type NotePollContext,
+  type NoteQuoteContext,
+} from './follow.service';
 import { outboxSyncService } from './outbox.service';
 import { inboxProcessingService } from './inbox.service';
 import { FEDERATION_ENABLED, isBlockedDomain } from './constants';
@@ -42,9 +49,8 @@ export {
 /**
  * The app↔SDK id translation, in the ONE place the seam is crossed inbound.
  *
- * `@oxy.so/federation`'s event payloads still spell a post's id `_id` (they were
- * written against Mongo documents and the package is shared with apps that have
- * not been ported). Mention's post id is `posts.id`, a uuid v7 string, so every
+ * `@oxy.so/federation`'s event payloads spell a post's id `_id` (the package is
+ * shared with other apps and keeps that spelling). Mention's post id is `posts.id`, a uuid v7 string, so every
  * Mention-owned shape below this line — `NoteSourcePost` included — says `id`.
  * Translating here rather than at each `followService` call keeps the foreign
  * spelling from leaking into the Note builders, and leaves exactly one line to
@@ -152,7 +158,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
 
   /**
    * Backfill a remote actor's outbox. ActivityPub outbox sync is a side-effecting
-   * DB backfill (it inserts/dedupes posts into Mongo, read back via the
+   * DB backfill (it inserts/dedupes posts into Postgres, read back via the
    * `/federation/actor/posts` route), so this advances the opaque outbox cursor
    * and returns it; the imported posts are not echoed back in-band.
    */
@@ -174,7 +180,11 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
   async deliver(event: LocalNetworkEvent<PostContent>): Promise<void> {
     switch (event.kind) {
       case 'post.create':
-        await followService.federateNewPost(toNoteSource(event.post), event.actorOxyUserId, event.actorUsername);
+        await followService.federateNewPost(
+          toNoteSource(event.post),
+          event.actorOxyUserId,
+          event.actorUsername,
+        );
         break;
       case 'post.boost':
         // A boost federates as an Announce of the original's canonical AP id,
@@ -182,17 +192,29 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
         await followService.federateBoost(event.boost, event.actorOxyUserId, event.actorUsername);
         break;
       case 'post.unboost':
-        await followService.federateUndoBoost(event.boost, event.actorOxyUserId, event.actorUsername);
+        await followService.federateUndoBoost(
+          event.boost,
+          event.actorOxyUserId,
+          event.actorUsername,
+        );
         break;
       case 'post.update':
         // An edit re-federates the Note as an Update (with an `updated` stamp),
         // preserving the reply enrichment via the shared Note builder.
-        await followService.federateUpdate(toNoteSource(event.post), event.actorOxyUserId, event.actorUsername);
+        await followService.federateUpdate(
+          toNoteSource(event.post),
+          event.actorOxyUserId,
+          event.actorUsername,
+        );
         break;
       case 'post.delete':
         // A deletion broadcasts a Delete(Tombstone) of the post's canonical AP id
         // to the deleter's followers.
-        await followService.federateDelete({ id: String(event.post._id) }, event.actorOxyUserId, event.actorUsername);
+        await followService.federateDelete(
+          { id: String(event.post._id) },
+          event.actorOxyUserId,
+          event.actorUsername,
+        );
         break;
       case 'post.like':
         // A like of a FEDERATED post sends a Like to the origin author's inbox
@@ -212,7 +234,11 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
         // `pending` it returns is surfaced by the route via the actor's
         // `manuallyApprovesFollowers` flag (route reads it post-deliver).
         const actorUri = await this.followTargetUri(event.targetActorUri);
-        const { success } = await deliveryService.sendFollow(event.localOxyUserId, event.localUsername, actorUri);
+        const { success } = await deliveryService.sendFollow(
+          event.localOxyUserId,
+          event.localUsername,
+          actorUri,
+        );
         // A refused Follow sent nothing; answering the caller "followed" would
         // leave them believing in a follow the remote server never heard of.
         if (!success) throw new Error('ActivityPub Follow was not sent');
@@ -227,7 +253,9 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
         break;
       default: {
         const exhaustive: never = event;
-        throw new Error(`ActivityPubConnector: unhandled local event ${JSON.stringify(exhaustive)}`);
+        throw new Error(
+          `ActivityPubConnector: unhandled local event ${JSON.stringify(exhaustive)}`,
+        );
       }
     }
   }
@@ -272,7 +300,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
   /**
    * Delivery boundary for durable callers. Existing outbound callers retain
    * the best-effort {@link deliver} semantics; engagement events use strict
-   * FollowService variants so a queue failure reaches the Mongo outbox.
+   * FollowService variants so a queue failure reaches the engagement outbox.
    */
   async deliverDurably(event: LocalNetworkEvent<PostContent>): Promise<void> {
     switch (event.kind) {
@@ -351,7 +379,11 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     return actorService.resolveWebFinger(acct);
   }
 
-  fetchRemoteActor(actorUri: string, forceAvatarRefresh = false, acctHint?: string): Promise<FederatedActorRecord | null> {
+  fetchRemoteActor(
+    actorUri: string,
+    forceAvatarRefresh = false,
+    acctHint?: string,
+  ): Promise<FederatedActorRecord | null> {
     return actorService.fetchRemoteActor(actorUri, forceAvatarRefresh, acctHint);
   }
 
@@ -378,14 +410,20 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
   // ============================================================
 
   syncOutboxPosts(
-    actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string; type?: string },
+    actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri'> & {
+      oxyUserId?: string;
+      type?: string;
+    },
     limit = 20,
   ): Promise<number> {
     return outboxSyncService.syncOutboxPosts(actor, limit);
   }
 
   syncOutboxPostsDetailed(
-    actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string; type?: string },
+    actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri'> & {
+      oxyUserId?: string;
+      type?: string;
+    },
     limitOrOptions: number | OutboxSyncOptions = 20,
   ): Promise<OutboxSyncResult> {
     return outboxSyncService.syncOutboxPostsDetailed(actor, limitOrOptions);
@@ -522,7 +560,12 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     followActivityId: string,
     remoteActorUri: string,
   ): Promise<void> {
-    return deliveryService.sendAccept(localOxyUserId, localUsername, followActivityId, remoteActorUri);
+    return deliveryService.sendAccept(
+      localOxyUserId,
+      localUsername,
+      followActivityId,
+      remoteActorUri,
+    );
   }
 
   // ============================================================
@@ -530,10 +573,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
   // (delegated to InboxProcessingService)
   // ============================================================
 
-  processInboxActivity(
-    activity: Record<string, unknown>,
-    verifiedActorUri: string,
-  ): Promise<void> {
+  processInboxActivity(activity: Record<string, unknown>, verifiedActorUri: string): Promise<void> {
     return inboxProcessingService.processInboxActivity(activity, verifiedActorUri);
   }
 }

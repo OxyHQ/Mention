@@ -36,10 +36,7 @@ import { and, asc, count, eq, gt, inArray, isNotNull, type SQL } from 'drizzle-o
 import { connectPostgres, getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { logger } from '../utils/logger';
-import {
-  assertAdminRunComplete,
-  closeAdminScriptResources,
-} from './lib/adminScriptLifecycle';
+import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 
 /** Posts scanned per page (stable ascending `id` cursor pagination). */
@@ -91,9 +88,9 @@ export async function backfillFederatedBoostCounts(
 
     if (page.length === 0) break;
 
-    // ONE grouped aggregate for the whole page, not one COUNT per post: the
-    // Mongo version issued `pageSize` round trips per page, which on a corpus
-    // this sweep is designed to walk end to end is the dominant cost.
+    // ONE grouped aggregate for the whole page, not one COUNT per post:
+    // `pageSize` round trips per page, on a corpus this sweep is designed to
+    // walk end to end, would be the dominant cost.
     //
     // A federated Announce boost is a boost row that references the post AND
     // carries a federation activity id — a native repost has `boost_of` +
@@ -102,11 +99,13 @@ export async function backfillFederatedBoostCounts(
     const boostRows = await db
       .select({ boostOf: posts.boostOf, count: count() })
       .from(posts)
-      .where(and(
-        inArray(posts.boostOf, pageIds),
-        eq(posts.type, 'boost'),
-        isNotNull(posts.federationActivityId),
-      ))
+      .where(
+        and(
+          inArray(posts.boostOf, pageIds),
+          eq(posts.type, 'boost'),
+          isNotNull(posts.federationActivityId),
+        ),
+      )
       .groupBy(posts.boostOf);
     const federatedBoostsById = new Map(
       boostRows.flatMap((row) => (row.boostOf ? [[row.boostOf, row.count] as const] : [])),

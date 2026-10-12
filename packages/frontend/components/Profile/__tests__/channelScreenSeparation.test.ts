@@ -147,7 +147,7 @@ describe('channel and person profiles are separate screens', () => {
  * simply sitting on a URL it does not own.
  */
 describe('a channel has its own about page', () => {
-  it('routes the channel profile at its own about, not the person family\'s', () => {
+  it("routes the channel profile at its own about, not the person family's", () => {
     const source = code(read('components', 'ChannelScreen.tsx'));
     expect(source).toMatch(/aboutHref=\{`\/c\/\$\{handle\}\/about`\}/);
     expect(source).not.toMatch(/aboutHref=\{`\/@/);
@@ -172,10 +172,12 @@ describe('a channel has its own about page', () => {
       expect(source).toMatch(/from '@\/components\/AccountInfoScreen'/);
     }
     // And each declares which family it is, rather than sniffing the pathname.
-    expect(readFileSync(join(FRONTEND, 'app', '(app)', 'c', '[username]', 'about.tsx'), 'utf8'))
-      .toMatch(/routedFamily="channel"/);
-    expect(readFileSync(join(FRONTEND, 'app', '(app)', '[username]', 'about.tsx'), 'utf8'))
-      .toMatch(/routedFamily="person"/);
+    expect(
+      readFileSync(join(FRONTEND, 'app', '(app)', 'c', '[username]', 'about.tsx'), 'utf8'),
+    ).toMatch(/routedFamily="channel"/);
+    expect(readFileSync(join(FRONTEND, 'app', '(app)', '[username]', 'about.tsx'), 'utf8')).toMatch(
+      /routedFamily="person"/,
+    );
   });
 
   it('canonicalizes the about page through the SAME shared rule as the profiles', () => {

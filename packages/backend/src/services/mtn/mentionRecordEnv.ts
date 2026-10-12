@@ -1,7 +1,4 @@
-import {
-  getMentionSigningConfig,
-  getMentionSigningValues,
-} from '../../config';
+import { getMentionSigningConfig, getMentionSigningValues } from '../../config';
 
 /**
  * MTN custodial-signing environment.

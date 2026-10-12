@@ -88,7 +88,9 @@ export interface MentionJobResponse {
 class JobsService {
   /** `GET /jobs` — public Clarity-backed discovery. See {@link MentionJobDiscoveryResponse}. */
   async list(filters?: MentionJobDiscoveryFilters): Promise<MentionJobDiscoveryResponse> {
-    const res = await authenticatedClient.get<MentionJobDiscoveryResponse>(JOBS_BASE, { params: filters });
+    const res = await authenticatedClient.get<MentionJobDiscoveryResponse>(JOBS_BASE, {
+      params: filters,
+    });
     return res.data;
   }
 
@@ -97,7 +99,9 @@ class JobsService {
    * every organization/project account they operate.
    */
   async getMine(filters?: MentionJobOwnedFilters): Promise<MentionJobCollectionResponse> {
-    const res = await authenticatedClient.get<MentionJobCollectionResponse>(`${JOBS_BASE}/mine`, { params: filters });
+    const res = await authenticatedClient.get<MentionJobCollectionResponse>(`${JOBS_BASE}/mine`, {
+      params: filters,
+    });
     return res.data;
   }
 
@@ -123,8 +127,14 @@ class JobsService {
    * `GET /jobs/places/search` — the job form's location autocomplete, proxied
    * to Clarity's gazetteer. A job's `location.placeId` must be one of these ids.
    */
-  async searchPlaces(params: MentionJobPlaceSearchParams, signal?: AbortSignal): Promise<MentionJobPlaceSearchResponse> {
-    const res = await authenticatedClient.get<MentionJobPlaceSearchResponse>(`${JOBS_BASE}/places/search`, { params, signal });
+  async searchPlaces(
+    params: MentionJobPlaceSearchParams,
+    signal?: AbortSignal,
+  ): Promise<MentionJobPlaceSearchResponse> {
+    const res = await authenticatedClient.get<MentionJobPlaceSearchResponse>(
+      `${JOBS_BASE}/places/search`,
+      { params, signal },
+    );
     return res.data;
   }
 
@@ -173,7 +183,9 @@ class JobsService {
 
   /** `GET /jobs/:id/metrics` — employer-only aggregate summary for the job's own dashboard. */
   async getMetrics(id: string): Promise<{ metrics: MentionJobMetricsSummary }> {
-    const res = await authenticatedClient.get<{ metrics: MentionJobMetricsSummary }>(`${JOBS_BASE}/${id}/metrics`);
+    const res = await authenticatedClient.get<{ metrics: MentionJobMetricsSummary }>(
+      `${JOBS_BASE}/${id}/metrics`,
+    );
     return res.data;
   }
 }

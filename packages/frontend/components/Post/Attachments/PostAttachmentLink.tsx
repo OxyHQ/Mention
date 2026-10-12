@@ -1,6 +1,8 @@
-import React from 'react';
-import { ViewStyle, Platform } from 'react-native';
+import type React from 'react';
+import { useMemo } from 'react';
+import { type ViewStyle, Platform } from 'react-native';
 import { LinkPreviewCard } from '@oxy.so/bloom/link-preview';
+import { linkPreviewImageSources } from '@/utils/linkPreviewImage';
 import { openExternalLink } from '@/utils/openExternalLink';
 
 interface PostAttachmentLinkProps {
@@ -21,9 +23,8 @@ interface PostAttachmentLinkProps {
   style?: ViewStyle;
 }
 
-const webGrabCursorStyle: ViewStyle | null = Platform.OS === 'web'
-  ? ({ cursor: 'grab' } as unknown as ViewStyle)
-  : null;
+const webGrabCursorStyle: ViewStyle | null =
+  Platform.OS === 'web' ? ({ cursor: 'grab' } as unknown as ViewStyle) : null;
 
 const PostAttachmentLink: React.FC<PostAttachmentLinkProps> = ({
   url,
@@ -35,12 +36,13 @@ const PostAttachmentLink: React.FC<PostAttachmentLinkProps> = ({
   className = 'w-[280px]',
   style,
 }) => {
+  const imageSources = useMemo(() => linkPreviewImageSources(image), [image]);
   return (
     <LinkPreviewCard
       url={url}
       title={title}
       description={description}
-      image={image}
+      image={imageSources}
       siteName={siteName}
       onPress={() => openExternalLink(url)}
       coverFill={coverFill}

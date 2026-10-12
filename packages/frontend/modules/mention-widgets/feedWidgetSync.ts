@@ -1,6 +1,7 @@
 import type { FeedDescriptor, HydratedPost } from '@mention/shared-types';
 
 import { logger } from '@oxy.so/core/logger';
+import { withImageVariant } from '@oxy.so/utils/image';
 
 import {
   followingWidgetNeedsFeed,
@@ -83,9 +84,7 @@ export interface WidgetFeedPost {
  * because the account is not optional on the following widget — it is the thing
  * that decides whether the page may be stored at all.
  */
-export type FeedWidgetHandoff =
-  | { widget: 'trending' }
-  | { widget: 'following'; accountId: string };
+export type FeedWidgetHandoff = { widget: 'trending' } | { widget: 'following'; accountId: string };
 
 export interface FeedWidgetHandoffDecision {
   /** The descriptor that was requested. */
@@ -189,7 +188,9 @@ export function toWidgetFeedPosts(
       thumbUrl: media?.thumbUrl ?? '',
       url: media?.url ?? '',
       alt: media?.alt ?? '',
-      image: preview?.imageUrl ?? '',
+      // The widget's background is at most 60k pixels (FeedCardBitmaps.kt), so
+      // the link image is fetched at the same rung as a media thumbnail.
+      image: preview?.imageUrl ? withImageVariant(preview.imageUrl, 'w320') : '',
       name: post.user.name.displayName ?? '',
       username: post.user.username ?? '',
       avatar: post.user.avatar ?? '',

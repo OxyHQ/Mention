@@ -65,10 +65,7 @@ vi.mock('../../utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-import {
-  MAX_MENTIONS_PER_POST,
-  MAX_PROFILE_LINKS_PER_BODY,
-} from '@mention/shared-types/mentions';
+import { MAX_MENTIONS_PER_POST, MAX_PROFILE_LINKS_PER_BODY } from '@mention/shared-types/mentions';
 import { foldProfileLinkMentions } from '../../services/profileLinkMentions';
 
 /** This instance's own web host, as the federation domain policy sees it. */
@@ -85,15 +82,19 @@ const BOB_OXY_ID = 'oxy_bob_federated';
  * keeps that observable, which is what the `not.toHaveBeenCalled()` cases below
  * assert on.
  */
-function stubStoredActors(rows: { uri?: Record<string, string>; acct?: Record<string, string> }): void {
+function stubStoredActors(rows: {
+  uri?: Record<string, string>;
+  acct?: Record<string, string>;
+}): void {
   mocks.findActorByUri.mockImplementation(async (uri: string) =>
     rows.uri?.[uri] ? { oxyUserId: rows.uri[uri] } : null,
   );
   mocks.findActorByAcct.mockImplementation(async (acct: string) =>
     rows.acct?.[acct] ? { oxyUserId: rows.acct[acct] } : null,
   );
-  mocks.findActorOxyUserIdsByAccts.mockImplementation(async (accts: string[]) =>
-    new Map(accts.filter((acct) => rows.acct?.[acct]).map((acct) => [acct, rows.acct![acct]])),
+  mocks.findActorOxyUserIdsByAccts.mockImplementation(
+    async (accts: string[]) =>
+      new Map(accts.filter((acct) => rows.acct?.[acct]).map((acct) => [acct, rows.acct![acct]])),
   );
 }
 
@@ -160,8 +161,8 @@ describe('a profile link on OUR OWN host', () => {
     // the shared `beforeEach` only reports our own host, under which `poa.st` is
     // an ordinary remote instance and the old resolver reached the (correct)
     // remote arm. Blocked is the input that separates the two.
-    mocks.isBlockedDomain.mockImplementation(
-      (host: string) => ['poa.st', OWN_HOST].includes(host.toLowerCase().replace(/^www\./, '')),
+    mocks.isBlockedDomain.mockImplementation((host: string) =>
+      ['poa.st', OWN_HOST].includes(host.toLowerCase().replace(/^www\./, '')),
     );
     const content = body(`see https://poa.st/@alice here`);
 
@@ -465,8 +466,8 @@ describe('a handle typed by hand', () => {
   });
 
   it('names nobody on a moderation-blocked host', async () => {
-    mocks.isBlockedDomain.mockImplementation(
-      (host: string) => ['poa.st', OWN_HOST].includes(host.toLowerCase()),
+    mocks.isBlockedDomain.mockImplementation((host: string) =>
+      ['poa.st', OWN_HOST].includes(host.toLowerCase()),
     );
     stubStoredActors({ acct: { 'alice@poa.st': BOB_OXY_ID } });
     const content = body('hey @alice@poa.st');

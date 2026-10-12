@@ -1,15 +1,9 @@
 import { useState, useCallback, useRef } from 'react';
-import {
-  reconcileMentionData,
-  type MentionData,
-} from '@/utils/mentions';
+import { reconcileMentionData, type MentionData } from '@/utils/mentions';
 import { logger } from '@oxy.so/core/logger';
 import type { MentionJobLocation } from '@mention/shared-types';
 import { isCountryCode } from '@mention/shared-types/job';
-import {
-  ComposerMediaItem,
-  toComposerMediaType,
-} from '@/utils/composeUtils';
+import { ComposerMediaItem, toComposerMediaType } from '@/utils/composeUtils';
 import {
   attachmentKeysOf,
   hasArticleContent,
@@ -192,24 +186,33 @@ const writeBox = (box: LiveBox, variants: ComposeVariantsState): DraftBox => ({
   pollTitle: box.pollTitle,
   showPollCreator: box.showPollCreator || hasPollOption(box.pollOptions),
   location: box.location
-    ? { latitude: box.location.latitude, longitude: box.location.longitude, address: box.location.address }
+    ? {
+        latitude: box.location.latitude,
+        longitude: box.location.longitude,
+        address: box.location.address,
+      }
     : null,
   // Only the mentions the text (in any language) still names.
-  mentions: reconcileMentionData([box.text, ...variantTextsForItem(variants, box.itemId)], box.mentions)
-    .map(toStoredMention),
+  mentions: reconcileMentionData(
+    [box.text, ...variantTextsForItem(variants, box.itemId)],
+    box.mentions,
+  ).map(toStoredMention),
   sources: box.sources.map((source) => ({ id: source.id, title: source.title, url: source.url })),
   article: box.article
-    ? { ...(box.article.title ? { title: box.article.title } : {}), ...(box.article.body ? { body: box.article.body } : {}) }
+    ? {
+        ...(box.article.title ? { title: box.article.title } : {}),
+        ...(box.article.body ? { body: box.article.body } : {}),
+      }
     : null,
   event: box.event ? { ...box.event } : null,
   room: box.room ? { ...box.room } : null,
   podcast: box.podcast
     ? {
-      syraPodcastId: box.podcast.syraPodcastId,
-      title: box.podcast.title,
-      ...(box.podcast.author ? { author: box.podcast.author } : {}),
-      ...(box.podcast.artworkUrl ? { artworkUrl: box.podcast.artworkUrl } : {}),
-    }
+        syraPodcastId: box.podcast.syraPodcastId,
+        title: box.podcast.title,
+        ...(box.podcast.author ? { author: box.podcast.author } : {}),
+        ...(box.podcast.artworkUrl ? { artworkUrl: box.podcast.artworkUrl } : {}),
+      }
     : null,
   attachmentOrder: box.attachmentOrder,
 });
@@ -252,7 +255,17 @@ const readBox = (
     podcast,
     attachmentOrder: reconcileAttachmentOrder(
       readArray(stored.attachmentOrder).filter(isString),
-      attachmentKeysOf({ showPollCreator, article, event, room, podcast, job, location, sources, mediaIds }),
+      attachmentKeysOf({
+        showPollCreator,
+        article,
+        event,
+        room,
+        podcast,
+        job,
+        location,
+        sources,
+        mediaIds,
+      }),
     ),
   };
 };
@@ -276,26 +289,24 @@ export interface ComposeDraftRefs extends ComposeContent {
 interface DraftManagerProps {
   saveDraft: (draft: DraftInput) => Promise<string>;
   deleteDraft: (draftId: string) => Promise<void>;
-  onDraftLoad: (draft: DraftBoxContent & {
-    postContent: string;
-    job: JobAttachmentData | null;
-    scheduledAt: Date | null;
-    postingMode: 'thread' | 'beast';
-    threadItems: DraftThreadItem[];
-    /**
-     * The draft's persisted variant buffer, exactly as it came out of storage.
-     * Unknown by design — an old draft has none, and the composer's tolerant
-     * reader is the single place that decides what a stored blob means.
-     */
-    languages: unknown;
-  }) => void;
+  onDraftLoad: (
+    draft: DraftBoxContent & {
+      postContent: string;
+      job: JobAttachmentData | null;
+      scheduledAt: Date | null;
+      postingMode: 'thread' | 'beast';
+      threadItems: DraftThreadItem[];
+      /**
+       * The draft's persisted variant buffer, exactly as it came out of storage.
+       * Unknown by design — an old draft has none, and the composer's tolerant
+       * reader is the single place that decides what a stored blob means.
+       */
+      languages: unknown;
+    },
+  ) => void;
 }
 
-export const useDraftManager = ({
-  saveDraft,
-  deleteDraft,
-  onDraftLoad,
-}: DraftManagerProps) => {
+export const useDraftManager = ({ saveDraft, deleteDraft, onDraftLoad }: DraftManagerProps) => {
   const [currentDraftId, setCurrentDraftIdState] = useState<string | null>(null);
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /**
@@ -327,20 +338,23 @@ export const useDraftManager = ({
     }
   }, []);
 
-  const buildDraftData = useCallback((refs: ComposeDraftRefs): DraftInput => ({
-    id: refs.currentDraftId || undefined,
-    postContent: refs.postContent,
-    languages: serializeVariants(refs.variants),
-    ...writeBox({ ...refs, itemId: MAIN_ITEM_ID, text: refs.postContent }, refs.variants),
-    job: refs.job ? { ...refs.job } : null,
-    threadItems: refs.threadItems.map((item) => ({
-      id: item.id,
-      text: item.text,
-      ...writeBox({ ...item, itemId: item.id }, refs.variants),
-    })),
-    postingMode: refs.postingMode,
-    scheduledAt: refs.scheduledAt ? refs.scheduledAt.toISOString() : null,
-  }), []);
+  const buildDraftData = useCallback(
+    (refs: ComposeDraftRefs): DraftInput => ({
+      id: refs.currentDraftId || undefined,
+      postContent: refs.postContent,
+      languages: serializeVariants(refs.variants),
+      ...writeBox({ ...refs, itemId: MAIN_ITEM_ID, text: refs.postContent }, refs.variants),
+      job: refs.job ? { ...refs.job } : null,
+      threadItems: refs.threadItems.map((item) => ({
+        id: item.id,
+        text: item.text,
+        ...writeBox({ ...item, itemId: item.id }, refs.variants),
+      })),
+      postingMode: refs.postingMode,
+      scheduledAt: refs.scheduledAt ? refs.scheduledAt.toISOString() : null,
+    }),
+    [],
+  );
 
   /**
    * Write the composer's content to THE draft of this editing session — the one
@@ -350,51 +364,60 @@ export const useDraftManager = ({
    * then, so a second write always updates the draft the first one created
    * instead of starting another (OxyHQ/Mention#1124).
    */
-  const writeDraft = useCallback(async (refs: ComposeDraftRefs) => {
-    const write = async () => {
-      const draftId = draftIdRef.current;
-      if (!hasDraftContent(refs)) {
-        if (draftId) {
-          await deleteDraft(draftId);
-          setCurrentDraftId(null);
+  const writeDraft = useCallback(
+    async (refs: ComposeDraftRefs) => {
+      const write = async () => {
+        const draftId = draftIdRef.current;
+        if (!hasDraftContent(refs)) {
+          if (draftId) {
+            await deleteDraft(draftId);
+            setCurrentDraftId(null);
+          }
+          return;
         }
-        return;
+        const savedId = await saveDraft(buildDraftData({ ...refs, currentDraftId: draftId }));
+        setCurrentDraftId(savedId);
+      };
+      // With nothing in flight the write starts NOW, not a microtask later.
+      const run = pendingSaveRef.current ? pendingSaveRef.current.then(write) : write();
+      const settled = run.catch(() => undefined);
+      pendingSaveRef.current = settled;
+      try {
+        await run;
+      } finally {
+        if (pendingSaveRef.current === settled) pendingSaveRef.current = null;
       }
-      const savedId = await saveDraft(buildDraftData({ ...refs, currentDraftId: draftId }));
-      setCurrentDraftId(savedId);
-    };
-    // With nothing in flight the write starts NOW, not a microtask later.
-    const run = pendingSaveRef.current ? pendingSaveRef.current.then(write) : write();
-    const settled = run.catch(() => undefined);
-    pendingSaveRef.current = settled;
-    try {
-      await run;
-    } finally {
-      if (pendingSaveRef.current === settled) pendingSaveRef.current = null;
-    }
-  }, [buildDraftData, saveDraft, deleteDraft, setCurrentDraftId]);
+    },
+    [buildDraftData, saveDraft, deleteDraft, setCurrentDraftId],
+  );
 
   /** The debounced background save. A failure is logged; the next change retries it. */
-  const autoSave = useCallback(async (refs: ComposeDraftRefs) => {
-    // A post being published is not a draft. Saving it now would persist the
-    // very text the publish is about to put in the feed.
-    if (suspendedRef.current) return;
-    try {
-      await writeDraft(refs);
-    } catch (error) {
-      logger.error('Error auto-saving draft', error);
-    }
-  }, [writeDraft]);
+  const autoSave = useCallback(
+    async (refs: ComposeDraftRefs) => {
+      // A post being published is not a draft. Saving it now would persist the
+      // very text the publish is about to put in the feed.
+      if (suspendedRef.current) return;
+      try {
+        await writeDraft(refs);
+      } catch (error) {
+        logger.error('Error auto-saving draft', error);
+      }
+    },
+    [writeDraft],
+  );
 
   /**
    * "Save draft": write NOW, into the same draft the autosave has been keeping,
    * and throw if the write fails — the author asked for it, so a failure is
    * theirs to see, not a log line.
    */
-  const saveNow = useCallback(async (refs: ComposeDraftRefs) => {
-    cancelScheduledAutoSave();
-    await writeDraft(refs);
-  }, [cancelScheduledAutoSave, writeDraft]);
+  const saveNow = useCallback(
+    async (refs: ComposeDraftRefs) => {
+      cancelScheduledAutoSave();
+      await writeDraft(refs);
+    },
+    [cancelScheduledAutoSave, writeDraft],
+  );
 
   /**
    * The session's draft is spent — a publish took it, or the author threw it
@@ -452,59 +475,69 @@ export const useDraftManager = ({
    * that would otherwise have saved it, and nothing about a failed request
    * changes the composer's content to re-arm it.
    */
-  const publishFailed = useCallback(async (refs: ComposeDraftRefs) => {
-    suspendedRef.current = false;
-    await autoSave(refs);
-  }, [autoSave]);
+  const publishFailed = useCallback(
+    async (refs: ComposeDraftRefs) => {
+      suspendedRef.current = false;
+      await autoSave(refs);
+    },
+    [autoSave],
+  );
 
   /** The composer has been emptied after a publish; autosave may resume. */
   const endPublish = useCallback(() => {
     suspendedRef.current = false;
   }, []);
 
-  const loadDraft = useCallback((draft: StoredDraft) => {
-    const storedJob = isRecord(draft.job) ? draft.job : null;
-    const mentionJobId = storedJob ? readString(storedJob.mentionJobId) : undefined;
-    const jobEmployerOxyUserId = storedJob ? readString(storedJob.employerOxyUserId) : undefined;
-    const jobCanonicalUrl = storedJob ? readString(storedJob.canonicalUrl) : undefined;
-    const jobStatus = storedJob ? readString(storedJob.status) : undefined;
-    const job: JobAttachmentData | null =
-      storedJob && mentionJobId && jobEmployerOxyUserId && jobCanonicalUrl && jobStatus
-        ? {
-          mentionJobId,
-          title: readString(storedJob.title) ?? '',
-          employerName: readString(storedJob.employerName) ?? '',
-          employerOxyUserId: jobEmployerOxyUserId,
-          canonicalUrl: jobCanonicalUrl,
-          status: jobStatus as JobAttachmentData['status'],
-          location: readJobLocation(storedJob.location),
-          workplaceType: readString(storedJob.workplaceType) as JobAttachmentData['workplaceType'],
-          employmentType: readString(storedJob.employmentType) as JobAttachmentData['employmentType'],
-        }
-        : null;
+  const loadDraft = useCallback(
+    (draft: StoredDraft) => {
+      const storedJob = isRecord(draft.job) ? draft.job : null;
+      const mentionJobId = storedJob ? readString(storedJob.mentionJobId) : undefined;
+      const jobEmployerOxyUserId = storedJob ? readString(storedJob.employerOxyUserId) : undefined;
+      const jobCanonicalUrl = storedJob ? readString(storedJob.canonicalUrl) : undefined;
+      const jobStatus = storedJob ? readString(storedJob.status) : undefined;
+      const job: JobAttachmentData | null =
+        storedJob && mentionJobId && jobEmployerOxyUserId && jobCanonicalUrl && jobStatus
+          ? {
+              mentionJobId,
+              title: readString(storedJob.title) ?? '',
+              employerName: readString(storedJob.employerName) ?? '',
+              employerOxyUserId: jobEmployerOxyUserId,
+              canonicalUrl: jobCanonicalUrl,
+              status: jobStatus as JobAttachmentData['status'],
+              location: readJobLocation(storedJob.location),
+              workplaceType: readString(
+                storedJob.workplaceType,
+              ) as JobAttachmentData['workplaceType'],
+              employmentType: readString(
+                storedJob.employmentType,
+              ) as JobAttachmentData['employmentType'],
+            }
+          : null;
 
-    const storedScheduledAt = readString(draft.scheduledAt);
-    const scheduledAt = storedScheduledAt ? new Date(storedScheduledAt) : null;
+      const storedScheduledAt = readString(draft.scheduledAt);
+      const scheduledAt = storedScheduledAt ? new Date(storedScheduledAt) : null;
 
-    const postContent = readString(draft.postContent) ?? '';
-    onDraftLoad({
-      postContent,
-      ...readBox(draft, postContent, MAIN_ITEM_ID, draft.languages, job),
-      job,
-      scheduledAt: scheduledAt && !Number.isNaN(scheduledAt.getTime()) ? scheduledAt : null,
-      postingMode: draft.postingMode === 'beast' ? 'beast' : 'thread',
-      threadItems: readArray(draft.threadItems)
-        .filter(isRecord)
-        .map((item) => {
-          const id = readString(item.id) ?? '';
-          const text = readString(item.text) ?? '';
-          return { id, text, ...readBox(item, text, id, draft.languages) };
-        }),
-      languages: draft.languages,
-    });
+      const postContent = readString(draft.postContent) ?? '';
+      onDraftLoad({
+        postContent,
+        ...readBox(draft, postContent, MAIN_ITEM_ID, draft.languages, job),
+        job,
+        scheduledAt: scheduledAt && !Number.isNaN(scheduledAt.getTime()) ? scheduledAt : null,
+        postingMode: draft.postingMode === 'beast' ? 'beast' : 'thread',
+        threadItems: readArray(draft.threadItems)
+          .filter(isRecord)
+          .map((item) => {
+            const id = readString(item.id) ?? '';
+            const text = readString(item.text) ?? '';
+            return { id, text, ...readBox(item, text, id, draft.languages) };
+          }),
+        languages: draft.languages,
+      });
 
-    setCurrentDraftId(readString(draft.id) ?? null);
-  }, [onDraftLoad, setCurrentDraftId]);
+      setCurrentDraftId(readString(draft.id) ?? null);
+    },
+    [onDraftLoad, setCurrentDraftId],
+  );
 
   return {
     currentDraftId,

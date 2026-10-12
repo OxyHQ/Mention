@@ -83,8 +83,7 @@ primary key through `OXY_INFERENCE_ROUTING_PROFILE_ID`; a slug, display name,
 list order or "first profile" fallback is never a routing input.
 `updatePostRecord` takes a PARTIAL patch of only the AI-owned fields — the
 Stage-A deterministic fields (languages, region, hashtagsNorm, version,
-sensitive) survive by the patch TYPE, the guarantee a dotted Mongo `$set`
-used to give by convention. Never a whole-subdoc overwrite (would wipe Stage
+sensitive) survive by the patch TYPE, not by convention. Never a whole-subdoc overwrite (would wipe Stage
 A fields). Topics via `postClassification.topicRefs` resolved through
 `TopicService.resolveTopicRefs`. Readers prefer `topicRefs`, fall back to
 the Stage-A slug-only `postClassification.topics`, then neutral (`[]`).
@@ -144,7 +143,7 @@ media/poll. It does not impose a language-biased minimum prose length: brief
 text such as “Sí” or “猫” survives and the spam, trusted-quality, engagement,
 freshness and personalization branches make the remaining decision.
 
-**Search is Postgres full-text, not a MongoDB text index.**
+**Search is Postgres full-text.**
 `postContentVariants.searchVector` is a generated `tsvector` column,
 `to_tsvector('english', coalesce(body, ''))`, queried with
 `websearch_to_tsquery('english', ...)` in `routes/search.ts`. It is

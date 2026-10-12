@@ -107,7 +107,10 @@ function getTrendLabel(trend: Trend, t: TFunction): string {
  * no `startedAt` (written before onset tracking) gets NO badge rather than a
  * guessed one.
  */
-function getTrendBadge(trend: Trend, t: TFunction): { text: string; tone: 'hot' | 'new' | 'age' } | null {
+function getTrendBadge(
+  trend: Trend,
+  t: TFunction,
+): { text: string; tone: 'hot' | 'new' | 'age' } | null {
   if (trend.status === 'hot') {
     return { text: t('trend.badge.hot', { defaultValue: 'Hot' }), tone: 'hot' };
   }
@@ -124,7 +127,10 @@ function getTrendBadge(trend: Trend, t: TFunction): { text: string; tone: 'hot' 
 
   const hours = Math.floor(ageMs / MS_PER_HOUR);
   if (hours < HOURS_PER_DAY) {
-    return { text: t('trend.badge.hoursAgo', { count: hours, defaultValue: `${hours}h` }), tone: 'age' };
+    return {
+      text: t('trend.badge.hoursAgo', { count: hours, defaultValue: `${hours}h` }),
+      tone: 'age',
+    };
   }
   const days = Math.floor(hours / HOURS_PER_DAY);
   return { text: t('trend.badge.daysAgo', { count: days, defaultValue: `${days}d` }), tone: 'age' };
@@ -178,11 +184,8 @@ export const TrendItemRow = memo(function TrendItemRow({
 
   return (
     <TouchableOpacity
-      className={`flex-row items-center justify-between ${isLarge ? 'py-3' : 'py-1.5'} ${showBorder ? "border-border" : ""}`}
-      style={[
-        styles.webCursor,
-        showBorder && styles.itemBorder,
-      ]}
+      className={`flex-row items-center justify-between ${isLarge ? 'py-3' : 'py-1.5'} ${showBorder ? 'border-border' : ''}`}
+      style={[styles.webCursor, showBorder && styles.itemBorder]}
       onPress={() => onPress(trend)}
       activeOpacity={0.7}
     >
@@ -258,7 +261,13 @@ export const TrendItemRow = memo(function TrendItemRow({
         </View>
         {series ? (
           <View className="items-end">
-            <Sparkline data={series} width={50} height={24} shape="sharp" color={theme.colors.primary} />
+            <Sparkline
+              data={series}
+              width={50}
+              height={24}
+              shape="sharp"
+              color={theme.colors.primary}
+            />
           </View>
         ) : DirectionIcon ? (
           <View className="items-end">

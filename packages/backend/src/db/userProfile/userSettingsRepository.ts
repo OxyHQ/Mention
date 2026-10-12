@@ -1,29 +1,27 @@
 /**
  * The ONE read/write path for `user_settings`.
  *
- * ## What this exists to close
+ * ## Why every writer and reader goes through here
  *
- * `user_settings` was SPLIT across two stores. Four writers
- * (`ensureUserSettings`, the settings PUT, the feed-tuning PUT, the federated
- * banner import) wrote the Mongoose model, while six readers — `viewerSafety`,
+ * Four writers (`ensureUserSettings`, the settings PUT, the feed-tuning PUT, the
+ * federated banner import) and six readers — `viewerSafety`,
  * `PostHydrationService`, `actorObject`, `ContentAffinityService`,
- * `statistics.controller` and `userSources` — already read the Postgres table.
- * Two self-consistent halves: the Mongo writers agreed with the Mongo readers,
- * and the Postgres readers observed an empty table. A user's sensitive-content
- * opt-in was written where nothing that enforces it could see it.
+ * `statistics.controller` and `userSources` — must agree on one table. A
+ * writer that misses it means a user's sensitive-content opt-in is written where
+ * nothing that enforces it can see it.
  *
- * The failure mode is why this is a repository rather than eleven ported call
+ * The failure mode is why this is a repository rather than eleven separate call
  * sites: nothing errors. A preference silently does not take effect, and the
  * only thing that catches that is a read-after-write test — which is what
  * `__tests__/db/userSettingsRepository.test.ts` and the reader suites do.
  *
  * ## The dotted-path map is the dangerous part, and it FAILS LOUD
  *
- * The settings PUT builds a Mongo `$set`/`$unset` map of DOTTED paths
+ * The settings PUT builds a `set`/`unset` map of DOTTED paths
  * (`privacy.showSensitiveContent`, `feedSettings.diversity.enabled`). A dot path
  * handed to drizzle's `set()` is an unknown property that drizzle **silently
  * ignores** — the write does nothing and throws nothing, which is the exact
- * failure this port is meant to end, reintroduced one layer down.
+ * silent failure this module exists to prevent.
  *
  * So {@link SETTINGS_COLUMN_BY_PATH} is an explicit, total map and an unknown
  * path THROWS. A new setting that forgets to register its path fails on its
@@ -31,14 +29,14 @@
  */
 
 import { eq, inArray, sql } from 'drizzle-orm';
-import { EXTERNAL_EMBED_SOURCES, type ExternalEmbedsSettings, type FeedTuning } from '@mention/shared-types';
+import {
+  EXTERNAL_EMBED_SOURCES,
+  type ExternalEmbedsSettings,
+  type FeedTuning,
+} from '@mention/shared-types';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import { userSettings, userSettingsLabelActions } from '../schema/userProfile';
-import type {
-  LabelAction,
-  ProfileMedia,
-  UserSettingsRecord,
-} from './userSettingsRecord';
+import type { LabelAction, ProfileMedia, UserSettingsRecord } from './userSettingsRecord';
 
 type SettingsRow = typeof userSettings.$inferSelect;
 type SettingsInsert = typeof userSettings.$inferInsert;
@@ -46,7 +44,7 @@ type SettingsInsert = typeof userSettings.$inferInsert;
 type WritableColumn = Exclude<keyof SettingsInsert, 'id' | 'oxyUserId' | 'createdAt' | 'updatedAt'>;
 
 /**
- * Mongo dot path → column, for every path any writer can produce.
+ * Dot path → column, for every path any writer can produce.
  *
  * Deliberately explicit rather than derived from a naming convention: the
  * prefixes do not follow one (`privacy.*` → `privacy*`, but
@@ -121,13 +119,11 @@ export const SETTINGS_COLUMN_BY_PATH: Readonly<Record<string, WritableColumn>> =
 });
 
 /**
- * What a column becomes when its path is `$unset`.
+ * What a column becomes when its path is unset.
  *
- * `NULL` is what "absent" means for a NULLABLE column, and it is what the Mongo
- * `$unset` produced. A column that is `NOT NULL` with a default cannot express
+ * `NULL` is what "absent" means for a NULLABLE column. A column that is `NOT NULL` with a default cannot express
  * absence at all, so unsetting it restores the DEFAULT — which is the value a
- * document that never carried the field read back as under Mongoose's own
- * schema defaults. Anything else would make "clear this setting" mean something
+ * user who never set the field reads back. Anything else would make "clear this setting" mean something
  * the user never asked for.
  */
 const UNSET_VALUE: Readonly<Partial<Record<WritableColumn, unknown>>> = Object.freeze({
@@ -263,8 +259,8 @@ function expandObjectPath(path: string, value: unknown): Partial<SettingsInsert>
 export class UnknownSettingsPathError extends Error {
   constructor(path: string) {
     super(
-      `[userSettings] no column registered for "${path}". Register it in `
-      + 'SETTINGS_COLUMN_BY_PATH — an unregistered path would be dropped silently.',
+      `[userSettings] no column registered for "${path}". Register it in ` +
+        'SETTINGS_COLUMN_BY_PATH — an unregistered path would be dropped silently.',
     );
     this.name = 'UnknownSettingsPathError';
   }
@@ -317,39 +313,53 @@ function assembleRecord(row: SettingsRow, labelActions: LabelAction[]): UserSett
   }
 
   const forYou = {
-    ...(row.tuningMinLengthEnabled == null && row.tuningMinLength == null ? {} : {
-      minLength: {
-        ...(row.tuningMinLengthEnabled == null ? {} : { enabled: row.tuningMinLengthEnabled }),
-        ...(row.tuningMinLength == null ? {} : { minLength: row.tuningMinLength }),
-      },
-    }),
-    ...(row.tuningLowEffortGateEnabled == null && row.tuningMinMeaningfulTextLength == null ? {} : {
-      lowEffortGate: {
-        ...(row.tuningLowEffortGateEnabled == null ? {} : { enabled: row.tuningLowEffortGateEnabled }),
-        ...(row.tuningMinMeaningfulTextLength == null
-          ? {}
-          : { minMeaningfulTextLength: row.tuningMinMeaningfulTextLength }),
-      },
-    }),
-    ...(row.tuningNativeEngagementEnabled == null && row.tuningMinNativeEngagement == null ? {} : {
-      nativeEngagement: {
-        ...(row.tuningNativeEngagementEnabled == null
-          ? {}
-          : { enabled: row.tuningNativeEngagementEnabled }),
-        ...(row.tuningMinNativeEngagement == null
-          ? {}
-          : { minNativeEngagement: row.tuningMinNativeEngagement }),
-      },
-    }),
-    ...(row.tuningMinQualityEnabled == null && row.tuningMinQuality == null ? {} : {
-      minQuality: {
-        ...(row.tuningMinQualityEnabled == null ? {} : { enabled: row.tuningMinQualityEnabled }),
-        ...(row.tuningMinQuality == null ? {} : { minQuality: row.tuningMinQuality }),
-      },
-    }),
-    ...(row.tuningNoContentWarningEnabled == null ? {} : {
-      noContentWarning: { enabled: row.tuningNoContentWarningEnabled },
-    }),
+    ...(row.tuningMinLengthEnabled == null && row.tuningMinLength == null
+      ? {}
+      : {
+          minLength: {
+            ...(row.tuningMinLengthEnabled == null ? {} : { enabled: row.tuningMinLengthEnabled }),
+            ...(row.tuningMinLength == null ? {} : { minLength: row.tuningMinLength }),
+          },
+        }),
+    ...(row.tuningLowEffortGateEnabled == null && row.tuningMinMeaningfulTextLength == null
+      ? {}
+      : {
+          lowEffortGate: {
+            ...(row.tuningLowEffortGateEnabled == null
+              ? {}
+              : { enabled: row.tuningLowEffortGateEnabled }),
+            ...(row.tuningMinMeaningfulTextLength == null
+              ? {}
+              : { minMeaningfulTextLength: row.tuningMinMeaningfulTextLength }),
+          },
+        }),
+    ...(row.tuningNativeEngagementEnabled == null && row.tuningMinNativeEngagement == null
+      ? {}
+      : {
+          nativeEngagement: {
+            ...(row.tuningNativeEngagementEnabled == null
+              ? {}
+              : { enabled: row.tuningNativeEngagementEnabled }),
+            ...(row.tuningMinNativeEngagement == null
+              ? {}
+              : { minNativeEngagement: row.tuningMinNativeEngagement }),
+          },
+        }),
+    ...(row.tuningMinQualityEnabled == null && row.tuningMinQuality == null
+      ? {}
+      : {
+          minQuality: {
+            ...(row.tuningMinQualityEnabled == null
+              ? {}
+              : { enabled: row.tuningMinQualityEnabled }),
+            ...(row.tuningMinQuality == null ? {} : { minQuality: row.tuningMinQuality }),
+          },
+        }),
+    ...(row.tuningNoContentWarningEnabled == null
+      ? {}
+      : {
+          noContentWarning: { enabled: row.tuningNoContentWarningEnabled },
+        }),
   };
 
   return {
@@ -491,12 +501,14 @@ export async function lockProfileVisibility(
   mode: 'write' | 'read',
 ): Promise<void> {
   const key = `profile-visibility:${oxyUserId}`;
-  await tx.execute(mode === 'write'
-    ? sql`select pg_advisory_xact_lock(hashtext(${key}))`
-    : sql`select pg_advisory_xact_lock_shared(hashtext(${key}))`);
+  await tx.execute(
+    mode === 'write'
+      ? sql`select pg_advisory_xact_lock(hashtext(${key}))`
+      : sql`select pg_advisory_xact_lock_shared(hashtext(${key}))`,
+  );
 }
 
-/** A Mongo-shaped update, as the settings routes already build one. */
+/** A dotted-path set/unset update, as the settings routes build one. */
 export interface UserSettingsUpdate {
   set?: Record<string, unknown>;
   unset?: Record<string, unknown>;
@@ -560,9 +572,9 @@ export async function replaceLabelActions(
   if (!row) return;
   await db.delete(userSettingsLabelActions).where(eq(userSettingsLabelActions.settingsId, row.id));
   if (actions.length === 0) return;
-  await db.insert(userSettingsLabelActions).values(
-    actions.map((action) => ({ settingsId: row.id, ...action })),
-  );
+  await db
+    .insert(userSettingsLabelActions)
+    .values(actions.map((action) => ({ settingsId: row.id, ...action })));
 }
 
 /**
@@ -615,7 +627,12 @@ export async function loadUserSettingsByIds(
       action: userSettingsLabelActions.action,
     })
     .from(userSettingsLabelActions)
-    .where(inArray(userSettingsLabelActions.settingsId, rows.map((row) => row.id)));
+    .where(
+      inArray(
+        userSettingsLabelActions.settingsId,
+        rows.map((row) => row.id),
+      ),
+    );
 
   const bySettingsId = new Map<string, LabelAction[]>();
   for (const entry of actions) {

@@ -15,66 +15,55 @@ interface InteractionSettingsPillsProps {
   onSensitiveToggle: () => void;
 }
 
-const InteractionSettingsPills = memo<InteractionSettingsPillsProps>(({
-  replyPermission,
-  quotesDisabled,
-  isSensitive,
-  onReplySettingsPress,
-  onSensitiveToggle,
-}) => {
-  const theme = useTheme();
-  const { t } = useTranslation();
+const InteractionSettingsPills = memo<InteractionSettingsPillsProps>(
+  ({ replyPermission, quotesDisabled, isSensitive, onReplySettingsPress, onSensitiveToggle }) => {
+    const theme = useTheme();
+    const { t } = useTranslation();
 
-  const anyoneCanInteract = replyPermission.includes('anyone') && !quotesDisabled;
-  const AudienceIcon = anyoneCanInteract ? RiEarthLine : RiGroupLine;
-  const SensitiveIcon = isSensitive ? RiAlertFill : RiAlertLine;
+    const anyoneCanInteract = replyPermission.includes('anyone') && !quotesDisabled;
+    const AudienceIcon = anyoneCanInteract ? RiEarthLine : RiGroupLine;
+    const SensitiveIcon = isSensitive ? RiAlertFill : RiAlertLine;
 
-  const replyPillStyle = useMemo(
-    () => [styles.pill, { backgroundColor: theme.colors.backgroundSecondary }],
-    [theme.colors.backgroundSecondary],
-  );
+    const replyPillStyle = useMemo(
+      () => [styles.pill, { backgroundColor: theme.colors.backgroundSecondary }],
+      [theme.colors.backgroundSecondary],
+    );
 
-  const replyTextStyle = useMemo(
-    () => [styles.pillText, { color: theme.colors.textSecondary }],
-    [theme.colors.textSecondary],
-  );
+    const replyTextStyle = useMemo(
+      () => [styles.pillText, { color: theme.colors.textSecondary }],
+      [theme.colors.textSecondary],
+    );
 
-  const sensitiveTextStyle = useMemo(
-    () => [styles.pillText, { color: isSensitive ? theme.colors.error : theme.colors.textSecondary }],
-    [isSensitive, theme.colors.error, theme.colors.textSecondary],
-  );
+    const sensitiveTextStyle = useMemo(
+      () => [
+        styles.pillText,
+        { color: isSensitive ? theme.colors.error : theme.colors.textSecondary },
+      ],
+      [isSensitive, theme.colors.error, theme.colors.textSecondary],
+    );
 
-  return (
-    <View style={styles.container}>
-      <TouchableOpacity
-        onPress={onReplySettingsPress}
-        activeOpacity={0.7}
-        style={replyPillStyle}
-      >
-        <AudienceIcon width={14} height={14} fill={theme.colors.textSecondary} />
-        <Text numberOfLines={1} style={replyTextStyle}>
-          {anyoneCanInteract
-            ? t('Anyone can interact')
-            : t('Interaction limited')}
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        onPress={onSensitiveToggle}
-        activeOpacity={0.7}
-        style={styles.pill}
-      >
-        <SensitiveIcon
-          width={14}
-          height={14}
-          fill={isSensitive ? theme.colors.error : theme.colors.textSecondary}
-        />
-        <Text style={sensitiveTextStyle}>
-          {isSensitive ? t('compose.sensitive.on', 'CW: On') : t('compose.sensitive.off', 'CW')}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
-});
+    return (
+      <View style={styles.container}>
+        <TouchableOpacity onPress={onReplySettingsPress} activeOpacity={0.7} style={replyPillStyle}>
+          <AudienceIcon width={14} height={14} fill={theme.colors.textSecondary} />
+          <Text numberOfLines={1} style={replyTextStyle}>
+            {anyoneCanInteract ? t('Anyone can interact') : t('Interaction limited')}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onSensitiveToggle} activeOpacity={0.7} style={styles.pill}>
+          <SensitiveIcon
+            width={14}
+            height={14}
+            fill={isSensitive ? theme.colors.error : theme.colors.textSecondary}
+          />
+          <Text style={sensitiveTextStyle}>
+            {isSensitive ? t('compose.sensitive.on', 'CW: On') : t('compose.sensitive.off', 'CW')}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  },
+);
 
 InteractionSettingsPills.displayName = 'InteractionSettingsPills';
 

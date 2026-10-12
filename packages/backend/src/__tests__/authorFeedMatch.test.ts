@@ -91,11 +91,11 @@ afterAll(async () => {
   await closePostgres();
 });
 
-describe('authorFeedSql — which posts count as an author\'s own', () => {
+describe("authorFeedSql — which posts count as an author's own", () => {
   /**
    * The ordinary shape, and the two DRIFT shapes that only the `EXISTS` can
    * answer. Both drift rows are states the schema permits: `oxy_user_id` is
-   * nullable (the raw federated insert path may omit it) and Mongo's owner-mirror
+   * nullable (the raw federated insert path may omit it) and the legacy store's owner-mirror
    * hook was bypassed by bulk writes, so backfilled rows can carry a stale one.
    *
    * Mutation: narrow the `EXISTS` to `role = 'collaborator'` — the shape that

@@ -3,11 +3,12 @@ import BuiltVideoPlayer from 'expo-video/build/VideoPlayer.web';
 // Load the real Metro source with the package's published web declaration.
 // Importing its raw TypeScript types pulls upstream DOM/Node timer conflicts
 // into Mention's type check; the runtime module still passes through Jest.
-const SourceVideoPlayer = jest.requireActual<
-  typeof import('expo-video/build/VideoPlayer.web')
->('expo-video/src/VideoPlayer.web').default;
+const SourceVideoPlayer = jest.requireActual<typeof import('expo-video/build/VideoPlayer.web')>(
+  'expo-video/src/VideoPlayer.web',
+).default;
 
-type Player = Pick<BuiltVideoPlayer,
+type Player = Pick<
+  BuiltVideoPlayer,
   'play' | 'replay' | 'replace' | 'replaceAsync' | 'mountVideoView' | 'unmountVideoView'
 >;
 type PlaybackOperation = (player: Player, video: HTMLVideoElement) => void | Promise<void>;
@@ -34,19 +35,25 @@ const operations: [string, PlaybackOperation][] = [
   ['replay', (player) => player.replay()],
   ['replace', (player) => player.replace('/replacement.mp4')],
   ['replaceAsync', (player) => player.replaceAsync('/replacement.mp4')],
-  ['mount synchronization', (player, video) => {
-    player.unmountVideoView(video);
-    const first = videoElement();
-    player.mountVideoView(first);
-    Object.defineProperty(first, 'paused', { value: false });
-    player.mountVideoView(video);
-  }],
-  ['play event synchronization', (player) => {
-    const first = videoElement();
-    player.mountVideoView(first);
-    const event = { target: first } as unknown as Event;
-    first.onplay?.call(first, event);
-  }],
+  [
+    'mount synchronization',
+    (player, video) => {
+      player.unmountVideoView(video);
+      const first = videoElement();
+      player.mountVideoView(first);
+      Object.defineProperty(first, 'paused', { value: false });
+      player.mountVideoView(video);
+    },
+  ],
+  [
+    'play event synchronization',
+    (player) => {
+      const first = videoElement();
+      player.mountVideoView(first);
+      const event = { target: first } as unknown as Event;
+      first.onplay?.call(first, event);
+    },
+  ],
 ];
 
 // Metro consumes src while consumers resolving the compiled entrypoint consume
@@ -78,7 +85,10 @@ describe.each([
   it.each([
     ['autoplay rejection', () => new DOMException('Autoplay is forbidden', 'NotAllowedError')],
     ['ordinary error', () => new Error('Playback implementation failed')],
-    ['non-DOM AbortError', () => Object.assign(new Error('Unrelated error'), { name: 'AbortError' })],
+    [
+      'non-DOM AbortError',
+      () => Object.assign(new Error('Unrelated error'), { name: 'AbortError' }),
+    ],
   ] as const)('keeps %s observable', async (_name, makeFailure) => {
     const failure = makeFailure();
     const player = new VideoPlayer('/original.mp4');

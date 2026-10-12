@@ -1,5 +1,11 @@
 import type { Href } from 'expo-router';
-import { ORGANIZATION_ONLY_TAB_NAMES, TAB_NAMES, laneTabKey, type ProfileTab, type ProfileTabDescriptor } from './types';
+import {
+  ORGANIZATION_ONLY_TAB_NAMES,
+  TAB_NAMES,
+  laneTabKey,
+  type ProfileTab,
+  type ProfileTabDescriptor,
+} from './types';
 
 /**
  * Segments the layout will actually recognize as a tab from a pathname —

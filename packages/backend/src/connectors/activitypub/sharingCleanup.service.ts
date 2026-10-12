@@ -1,9 +1,6 @@
 import { logger } from '../../utils/logger';
 import { findActorsByUris } from '../../db/federation/actorRepository';
-import {
-  deleteFollowsByIds,
-  findFollows,
-} from '../../db/federation/followRepository';
+import { deleteFollowsByIds, findFollows } from '../../db/federation/followRepository';
 import { deliveryService } from './delivery.service';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { AP_CONTEXT } from '@oxy.so/federation';
@@ -60,7 +57,7 @@ export interface SharingCleanupResult {
  *  2. A row is DELETABLE once its bridge-unfollow has succeeded, or it never
  *     had anything to bridge (no resolvable `FederatedActor.oxyUserId`) — this
  *     mirrors `inbox.service.ts`'s `handleIncomingFollow`/`handleUndo`, which
- *     both run their own bridge call BEFORE the matching local Mongo mutation
+ *     both run their own bridge call BEFORE the matching local database mutation
  *     for the same reason: a bridge failure must leave the row in place so a
  *     retry re-attempts it, never delete-then-hope.
  *  3. Only deletable rows are removed, ID-scoped (`id IN (...)`) so a
@@ -78,9 +75,7 @@ export async function runSharingCleanup(
 ): Promise<SharingCleanupResult> {
   const sharingState = await getFediverseSharingStateById(oxyUserId);
   if (sharingState === 'enabled') {
-    logger.info(
-      '[SharingCleanup] sharing is enabled; skipping stale cleanup job',
-    );
+    logger.info('[SharingCleanup] sharing is enabled; skipping stale cleanup job');
     return { deletesSent: 0, followersRemoved: 0 };
   }
   if (sharingState === 'unavailable') {
@@ -145,10 +140,7 @@ export async function runSharingCleanup(
       deletableIds.push(follow.id);
     } catch (err) {
       bridgeFailures += 1;
-    logger.warn(
-      '[SharingCleanup] bridge-unfollow failed',
-      err,
-      );
+      logger.warn('[SharingCleanup] bridge-unfollow failed', err);
     }
   }
 

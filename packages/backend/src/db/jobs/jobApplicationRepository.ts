@@ -44,7 +44,9 @@ export class MalformedCursorError extends Error {
   }
 }
 
-function toAnswer(row: Pick<MentionJobApplicationAnswerRow, 'question' | 'answer'>): MentionJobApplicationAnswer {
+function toAnswer(
+  row: Pick<MentionJobApplicationAnswerRow, 'question' | 'answer'>,
+): MentionJobApplicationAnswer {
   return { question: row.question, answer: row.answer };
 }
 
@@ -79,7 +81,9 @@ function toMentionJobApplicationNote(row: MentionJobApplicationNoteRow): Mention
   };
 }
 
-async function answersForApplication(applicationId: string): Promise<MentionJobApplicationAnswerRow[]> {
+async function answersForApplication(
+  applicationId: string,
+): Promise<MentionJobApplicationAnswerRow[]> {
   return getDb()
     .select()
     .from(mentionJobApplicationAnswers)
@@ -151,7 +155,9 @@ export interface SubmitApplicationResult {
  * than one statement silently clobbering the other's write in a way neither
  * request sees.
  */
-export async function submitApplication(params: SubmitApplicationParams): Promise<SubmitApplicationResult> {
+export async function submitApplication(
+  params: SubmitApplicationParams,
+): Promise<SubmitApplicationResult> {
   const db = getDb();
   return db.transaction(async (tx) => {
     const [existing] = await tx
@@ -201,7 +207,9 @@ export async function submitApplication(params: SubmitApplicationParams): Promis
     // Delete-then-insert, same reasoning as `upsertMirroredStarterPack`: the
     // answers a reapply carries fully replace the previous set rather than
     // merging with it.
-    await tx.delete(mentionJobApplicationAnswers).where(eq(mentionJobApplicationAnswers.applicationId, row.id));
+    await tx
+      .delete(mentionJobApplicationAnswers)
+      .where(eq(mentionJobApplicationAnswers.applicationId, row.id));
     const answers = params.answers ?? [];
     if (answers.length > 0) {
       await tx.insert(mentionJobApplicationAnswers).values(
@@ -219,8 +227,14 @@ export async function submitApplication(params: SubmitApplicationParams): Promis
 }
 
 /** The raw row (never sent on the wire directly) — callers that need `jobId`/`applicantOxyUserId` for an authority check without paying for the answers join. */
-export async function getApplicationRowById(id: string): Promise<MentionJobApplicationRow | undefined> {
-  const [row] = await getDb().select().from(mentionJobApplications).where(eq(mentionJobApplications.id, id)).limit(1);
+export async function getApplicationRowById(
+  id: string,
+): Promise<MentionJobApplicationRow | undefined> {
+  const [row] = await getDb()
+    .select()
+    .from(mentionJobApplications)
+    .where(eq(mentionJobApplications.id, id))
+    .limit(1);
   return row;
 }
 
@@ -285,7 +299,9 @@ export async function listApplicationsByJob(
   const hasMore = rows.length > limit;
   const page = hasMore ? rows.slice(0, limit) : rows;
   const answersById = await answersByApplicationId(page.map((row) => row.id));
-  const applications = page.map((row) => toMentionJobApplication(row, answersById.get(row.id) ?? []));
+  const applications = page.map((row) =>
+    toMentionJobApplication(row, answersById.get(row.id) ?? []),
+  );
   const last = page[page.length - 1];
   return {
     applications,
@@ -336,7 +352,9 @@ export async function addApplicationNote(params: {
 }
 
 /** Newest first — same convention as every other chronological list in this schema. */
-export async function listApplicationNotes(applicationId: string): Promise<MentionJobApplicationNote[]> {
+export async function listApplicationNotes(
+  applicationId: string,
+): Promise<MentionJobApplicationNote[]> {
   const rows = await getDb()
     .select()
     .from(mentionJobApplicationNotes)

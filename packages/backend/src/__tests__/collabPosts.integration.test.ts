@@ -5,7 +5,12 @@ import { buildAuthorship, authorFeedSql, isProfileVisible } from '../utils/postA
 import { postCollaborationService } from '../services/PostCollaborationService';
 import { closePostgres, connectPostgres } from '../db/postgres';
 import { posts } from '../db/schema/posts';
-import { CHRONO_DESC, deletePostRecord, findPostRecords, insertPostRecord } from '../db/posts/postRepository';
+import {
+  CHRONO_DESC,
+  deletePostRecord,
+  findPostRecords,
+  insertPostRecord,
+} from '../db/posts/postRepository';
 
 vi.mock('../utils/oxyHelpers', () => ({
   getServiceOxyClient: vi.fn(() => ({
@@ -51,7 +56,7 @@ describe('collaborative posts integration', () => {
   /**
    * The author-feed predicate, against REAL ROWS.
    *
-   * This used to assert the Mongo `$elemMatch` object literal, which proved only
+   * This used to assert the legacy-store `$elemMatch` object literal, which proved only
    * that the helper returned the shape someone typed into the test. The
    * predicate is now a correlated `EXISTS` over `post_authorships` — the exact
    * construct that renders a bare column name and silently matches NOTHING (see
@@ -85,13 +90,19 @@ describe('collaborative posts integration', () => {
 
     const mine = inArray(posts.id, created);
 
-    const byOwner = await findPostRecords(and(mine, authorFeedSql(owner)), { orderBy: CHRONO_DESC });
+    const byOwner = await findPostRecords(and(mine, authorFeedSql(owner)), {
+      orderBy: CHRONO_DESC,
+    });
     expect(byOwner.map((post) => post.id)).toEqual([record.id]);
 
-    const byAccepted = await findPostRecords(and(mine, authorFeedSql(accepted)), { orderBy: CHRONO_DESC });
+    const byAccepted = await findPostRecords(and(mine, authorFeedSql(accepted)), {
+      orderBy: CHRONO_DESC,
+    });
     expect(byAccepted.map((post) => post.id)).toEqual([record.id]);
 
-    const byPending = await findPostRecords(and(mine, authorFeedSql(pending)), { orderBy: CHRONO_DESC });
+    const byPending = await findPostRecords(and(mine, authorFeedSql(pending)), {
+      orderBy: CHRONO_DESC,
+    });
     expect(byPending).toEqual([]);
 
     // A stranger matches nothing — the predicate is not vacuously true.

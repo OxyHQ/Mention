@@ -42,7 +42,7 @@
     },
     {
       "path": "packages/backend/src/__tests__/services/postClassification.test.ts",
-      "sha256": "d303c9fe03d5eedd98f3984dc54d2cfee7718ce14eb6f3eacdd2c053bbacdd73",
+      "sha256": "868dcdcc2768760870da447846991fd85ff95e513f851e554800e52c4c53ca13",
       "gitBlob": "96e391181e119e82fad804ad82261699bcb2436f"
     }
   ],

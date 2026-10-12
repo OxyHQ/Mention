@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { enqueueFederatedMediaDeletions, FederatedMediaGoneError } from '../../db/federation/mediaDeletionRepository';
+import {
+  enqueueFederatedMediaDeletions,
+  FederatedMediaGoneError,
+} from '../../db/federation/mediaDeletionRepository';
 import { PostVisibility, type MediaItem } from '@mention/shared-types';
 import type { NormalizedExternalMedia, NormalizedExternalPost } from '@oxy.so/federation';
 import { isUniqueViolation } from '@oxy.so/db';
@@ -7,7 +10,11 @@ import { and, eq, gt, inArray, isNotNull, isNull, like, lte } from 'drizzle-orm'
 import { getDb } from '../../db/postgres';
 import { postSourceKeys } from '../../db/schema/postContent';
 import { posts } from '../../db/schema/posts';
-import { claimSourceKey, findFilledSourceKeys, releaseSourceKeyClaim } from '../../db/posts/postSourceKeyRepository';
+import {
+  claimSourceKey,
+  findFilledSourceKeys,
+  releaseSourceKeyClaim,
+} from '../../db/posts/postSourceKeyRepository';
 import { mediaMetadataService } from '../../services/MediaMetadataService';
 import { deleteFederatedPostSubtree } from '../../services/FederatedPostDeletionService';
 import { persistRemoteMediaForFederatedOwnerDetailed } from '../../services/mediaCache/cacheWorker';
@@ -33,7 +40,11 @@ import {
   type GraphBusinessProfile,
   type GraphMedia,
 } from './graphClient';
-import { mapGraphMediaToNormalizedPost, type InstagramMappedPost, type InstagramMediaPlan } from './media.mapper';
+import {
+  mapGraphMediaToNormalizedPost,
+  type InstagramMappedPost,
+  type InstagramMediaPlan,
+} from './media.mapper';
 import type { GraphCallKind } from './usageBudget';
 
 /**
@@ -157,7 +168,8 @@ export async function persistOne(
     // remote URL the proxy can keep streaming — keeping this URL would leave a
     // signed link that expires. The generic classifier deliberately keeps these
     // retryable for ActivityPub, so the Instagram rule lives here.
-    const final = result.permanent || result.reason === 'too-large' || result.reason === 'not-media';
+    const final =
+      result.permanent || result.reason === 'too-large' || result.reason === 'not-media';
     return final ? { kind: 'gone' } : { kind: 'retry' };
   }
   const oxyFileId = result.media.oxyFileId;
@@ -191,7 +203,10 @@ export async function materializeInstagramMedia(
   plans: readonly InstagramMediaPlan[],
   ownerOxyUserId: string,
   context: { activityId: string; actorUri: string },
-): Promise<{ media: MediaItem[]; attachments: ExtractedMediaAttachment[] } | { waitFor: 'retry'; uploaded: string[] }> {
+): Promise<
+  | { media: MediaItem[]; attachments: ExtractedMediaAttachment[] }
+  | { waitFor: 'retry'; uploaded: string[] }
+> {
   const media: MediaItem[] = [];
   const attachments: ExtractedMediaAttachment[] = [];
   for (const plan of plans) {
@@ -203,7 +218,8 @@ export async function materializeInstagramMedia(
     }
     // The slots already re-hosted are handed back so the caller can queue them
     // for deletion: the post waits, and nothing may reference them meanwhile.
-    if (outcome.kind === 'retry') return { waitFor: 'retry', uploaded: media.map((item) => item.id) };
+    if (outcome.kind === 'retry')
+      return { waitFor: 'retry', uploaded: media.map((item) => item.id) };
     if (outcome.kind === 'stored') {
       media.push(outcome.media);
       attachments.push(outcome.attachment);
@@ -224,7 +240,9 @@ async function findAlreadyImported(
 
   const byKilogramId = new Map<string, string>();
   for (const entry of mapped) {
-    const noteId = kilogramActorUri ? kilogramNoteIdFor(kilogramActorUri, entry.shortcode) : undefined;
+    const noteId = kilogramActorUri
+      ? kilogramNoteIdFor(kilogramActorUri, entry.shortcode)
+      : undefined;
     if (noteId) byKilogramId.set(noteId, entry.post.activityId);
   }
   // Graph-imported rows carry the key as their activity id too; bridge rows
@@ -255,10 +273,19 @@ async function queueUnused(fileIds: readonly string[]): Promise<void> {
 }
 
 /** Claim, re-host, insert. */
-async function createInstagramPost(entry: InstagramMappedPost, target: InstagramImportTarget): Promise<CreateOutcome> {
+async function createInstagramPost(
+  entry: InstagramMappedPost,
+  target: InstagramImportTarget,
+): Promise<CreateOutcome> {
   const { post } = entry;
   const claimToken = randomUUID();
-  if (!(await claimSourceKey(post.activityId, claimToken, new Date(Date.now() + SOURCE_KEY_CLAIM_TTL_MS)))) {
+  if (
+    !(await claimSourceKey(
+      post.activityId,
+      claimToken,
+      new Date(Date.now() + SOURCE_KEY_CLAIM_TTL_MS),
+    ))
+  ) {
     // Filled (the other road got here) or being imported right now.
     return 'exists';
   }
@@ -271,7 +298,9 @@ async function createInstagramPost(entry: InstagramMappedPost, target: Instagram
     });
   } catch (err) {
     await releaseSourceKeyClaim(post.activityId, claimToken).catch(() => undefined);
-    logger.warn('[instagram] media re-hosting failed', { error: err instanceof Error ? err.message : String(err) });
+    logger.warn('[instagram] media re-hosting failed', {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return 'deferred';
   }
   if ('waitFor' in materialized) {
@@ -326,7 +355,9 @@ async function createInstagramPost(entry: InstagramMappedPost, target: Instagram
     // upload gets a fresh id.
     if (err instanceof FederatedMediaGoneError) return 'deferred';
     if (isUniqueViolation(err)) return 'exists';
-    logger.warn('[instagram] failed to import post', { error: err instanceof Error ? err.message : String(err) });
+    logger.warn('[instagram] failed to import post', {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return 'failed';
   }
 }
@@ -355,7 +386,12 @@ async function reconcileDeletions(
     await getDb()
       .update(postSourceKeys)
       .set({ missingSince: null })
-      .where(and(inArray(postSourceKeys.sourceKey, [...listedKeys]), isNotNull(postSourceKeys.missingSince)));
+      .where(
+        and(
+          inArray(postSourceKeys.sourceKey, [...listedKeys]),
+          isNotNull(postSourceKeys.missingSince),
+        ),
+      );
   }
 
   // Pinned posts can head the listing out of order; the TAIL is the oldest
@@ -367,20 +403,28 @@ async function reconcileDeletions(
   const to = new Date(Math.max(...times));
 
   const stored = await getDb()
-    .select({ id: posts.id, sourceKey: postSourceKeys.sourceKey, missingSince: postSourceKeys.missingSince })
+    .select({
+      id: posts.id,
+      sourceKey: postSourceKeys.sourceKey,
+      missingSince: postSourceKeys.missingSince,
+    })
     .from(posts)
     .innerJoin(postSourceKeys, eq(postSourceKeys.postId, posts.id))
-    .where(and(
-      eq(posts.federationActorUri, target.actorUri),
-      eq(posts.oxyUserId, target.ownerOxyUserId),
-      like(postSourceKeys.sourceKey, `${INSTAGRAM_SOURCE_KEY_PREFIX}%`),
-      gt(posts.createdAt, from),
-      lte(posts.createdAt, to),
-    ));
+    .where(
+      and(
+        eq(posts.federationActorUri, target.actorUri),
+        eq(posts.oxyUserId, target.ownerOxyUserId),
+        like(postSourceKeys.sourceKey, `${INSTAGRAM_SOURCE_KEY_PREFIX}%`),
+        gt(posts.createdAt, from),
+        lte(posts.createdAt, to),
+      ),
+    );
   const missing = stored.filter((row) => !listedKeys.has(row.sourceKey));
   if (missing.length === 0) return none;
   if (missing.length > MAX_RECONCILE_DELETIONS) {
-    logger.warn('[instagram] refused to reconcile an implausible number of missing posts', { missing: missing.length });
+    logger.warn('[instagram] refused to reconcile an implausible number of missing posts', {
+      missing: missing.length,
+    });
     return none;
   }
 
@@ -389,7 +433,9 @@ async function reconcileDeletions(
     await getDb()
       .update(postSourceKeys)
       .set({ missingSince: new Date() })
-      .where(and(inArray(postSourceKeys.sourceKey, firstSeen), isNull(postSourceKeys.missingSince)));
+      .where(
+        and(inArray(postSourceKeys.sourceKey, firstSeen), isNull(postSourceKeys.missingSince)),
+      );
   }
 
   let deleted = 0;
@@ -398,7 +444,10 @@ async function reconcileDeletions(
     if ((await deleteFederatedPostSubtree(row.id, target.actorUri)) === 'deleted') deleted += 1;
   }
   if (deleted > 0 || firstSeen.length > 0) {
-    logger.info('[instagram] reconciled posts missing on Instagram', { deleted, marked: firstSeen.length });
+    logger.info('[instagram] reconciled posts missing on Instagram', {
+      deleted,
+      marked: firstSeen.length,
+    });
   }
   return { deleted, marked: firstSeen.length };
 }
@@ -431,7 +480,9 @@ export async function importInstagramMedia(
     seen,
     deleted: reconciled.deleted,
     markedMissing: reconciled.marked,
-    historyWalked: options.stopAtKnown ? { items: 0, exhausted: false } : { items: seen, exhausted },
+    historyWalked: options.stopAtKnown
+      ? { items: 0, exhausted: false }
+      : { items: seen, exhausted },
     profile,
   });
   const pastDeadline = () => options.deadline !== undefined && Date.now() >= options.deadline;
@@ -499,7 +550,9 @@ export async function importInstagramMedia(
   }
 
   const reconciled = await reconcileDeletions(target, listed, listedKeys).catch((err: unknown) => {
-    logger.warn('[instagram] deletion reconcile failed', { error: err instanceof Error ? err.message : String(err) });
+    logger.warn('[instagram] deletion reconcile failed', {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return { deleted: 0, marked: 0 };
   });
   return result(deferred > 0 ? 'partial' : 'ok', reconciled);

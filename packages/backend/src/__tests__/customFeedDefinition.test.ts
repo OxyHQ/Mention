@@ -17,7 +17,10 @@ import { eq } from 'drizzle-orm';
 
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
 import { customFeedDefinitionModules, customFeeds } from '../db/schema/feeds';
-import { buildCustomFeedDefinition, loadCustomFeedDefinition } from '../mtn/feed/definitions/customFeedDefinition';
+import {
+  buildCustomFeedDefinition,
+  loadCustomFeedDefinition,
+} from '../mtn/feed/definitions/customFeedDefinition';
 
 /** Scoped to this file: `custom_feeds` is shared by every parallel suite. */
 const OWNER = 'oxy-cfd-owner';
@@ -34,14 +37,16 @@ async function seedFeed(options: { owner: string; isPublic: boolean }): Promise<
       definitionMode: 'chronological',
     })
     .returning({ id: customFeeds.id });
-  await getDb().insert(customFeedDefinitionModules).values({
-    feedId: row.id,
-    kind: 'source',
-    position: 0,
-    module: 'keywords',
-    enabled: true,
-    params: { hashtags: ['comics'] },
-  });
+  await getDb()
+    .insert(customFeedDefinitionModules)
+    .values({
+      feedId: row.id,
+      kind: 'source',
+      position: 0,
+      module: 'keywords',
+      enabled: true,
+      params: { hashtags: ['comics'] },
+    });
   return row.id;
 }
 
@@ -114,7 +119,12 @@ describe('buildCustomFeedDefinition', () => {
   });
 
   it('uses the stored definition, attaches id/title, and hydrates boosts (depth 1)', () => {
-    const def = buildCustomFeedDefinition({ _id: 'feed-1', title: 'Comics', isPublic: true, definition: storedDefinition });
+    const def = buildCustomFeedDefinition({
+      _id: 'feed-1',
+      title: 'Comics',
+      isPublic: true,
+      definition: storedDefinition,
+    });
     expect(def.id).toBe('custom|feed-1');
     expect(def.title).toBe('Comics');
     expect(def.mode).toBe('chronological');
@@ -138,7 +148,12 @@ describe('buildCustomFeedDefinition', () => {
       _id: 'feed-1',
       title: 'Ranked',
       isPublic: true,
-      definition: { mode: 'ranked', sources: [{ module: 'trending', enabled: true }], signals: [], filters: [] },
+      definition: {
+        mode: 'ranked',
+        sources: [{ module: 'trending', enabled: true }],
+        signals: [],
+        filters: [],
+      },
     });
     expect(def.execution?.maxPool).toBeGreaterThan(0);
   });

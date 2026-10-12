@@ -4,14 +4,14 @@ import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 
 // The bridge using this hook is the sole owner of the posts socket lease.
 export default function useRealtimePosts() {
-	const { canUsePrivateApi, user, oxyServices } = useAuth();
-	const { activeSessionId } = useOxy();
+  const { canUsePrivateApi, user, oxyServices } = useAuth();
+  const { activeSessionId } = useOxy();
 
-	useEffect(() => {
-		if (!canUsePrivateApi || !user?.id) return;
-		const token = oxyServices?.session.accessToken ?? undefined;
-		if (!token) return;
-		socketService.connect(user.id, token);
-		return () => socketService.disconnect();
-	}, [activeSessionId, canUsePrivateApi, user?.id, oxyServices]);
+  useEffect(() => {
+    if (!canUsePrivateApi || !user?.id) return;
+    const token = oxyServices?.session.accessToken ?? undefined;
+    if (!token) return;
+    socketService.connect(user.id, token);
+    return () => socketService.disconnect();
+  }, [activeSessionId, canUsePrivateApi, user?.id, oxyServices]);
 }

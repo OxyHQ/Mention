@@ -6,7 +6,7 @@
 
 **Architecture:** Same engine module pattern (SourceModule + registry + catalog). Two need new infra: `risingCreators` (a periodic follower-count snapshot + delta) and `friendsOfFriends` (an Oxy follows-of-follows endpoint, upstream-first like mutuals). `nearby` uses the existing sparse post `location`. `moreLikeThis` uses existing classification/tag/author data — no new infra.
 
-**Tech Stack:** TS, Mongoose, Redis, vitest; `@oxy.so/core`/oxy-api for FoF (upstream); builds on merged engine.
+**Tech Stack:** TS, Redis, vitest; `@oxy.so/core`/oxy-api for FoF (upstream); builds on merged engine.
 
 ## Global Constraints
 

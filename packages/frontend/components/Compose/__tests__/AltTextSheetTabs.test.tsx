@@ -75,16 +75,14 @@ function renderSheet() {
 
 /** Outermost node per tab — the role propagates down the nested tree. */
 function tabControls(tree: TestRenderer.ReactTestRenderer) {
-  return tree.root.findAll(
-    (node) => node.props.accessibilityRole === 'tab',
-    { deep: false },
-  );
+  return tree.root.findAll((node) => node.props.accessibilityRole === 'tab', { deep: false });
 }
 
 describe('AltTextSheet language tabs', () => {
   beforeAll(() => {
-    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
-      .IS_REACT_ACT_ENVIRONMENT = true;
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
   });
 
   it('tints the ACTIVE tab with a class, never a hand-built alpha colour', () => {

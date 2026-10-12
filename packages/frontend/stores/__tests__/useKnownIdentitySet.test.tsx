@@ -57,7 +57,9 @@ function mount(element: React.ReactElement): TestRenderer.ReactTestRenderer {
 }
 
 function text(name: string): string {
-  const node = renderer!.root.find((n) => (n.type as unknown) === 'row' && n.props.rowName === name);
+  const node = renderer!.root.find(
+    (n) => (n.type as unknown) === 'row' && n.props.rowName === name,
+  );
   return node.children.join('');
 }
 

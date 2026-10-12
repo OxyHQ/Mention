@@ -54,26 +54,22 @@
  * happens in ONE transaction for that reason: a partially materialized post is
  * worse than an absent one, because the ingest is idempotent and would skip it.
  *
- * **The owner scope is now a read, a comparison and a branch.** Mongo relied on
- * the `_id` unique index to reject an upsert that missed the owner filter, and
- * read the duplicate-key error as "someone else owns this rkey". Here the row is
+ * **The owner scope is a read, a comparison and a branch.** The row is
  * loaded first and its owner compared before anything is written; the
- * duplicate-key path survives only as the race handler, where a concurrent
+ * duplicate-key path is only the race handler, where a concurrent
  * projection took the id between the read and the insert and the owner is
  * re-checked on the re-read.
  *
  * **A reply whose parent is not here yet links to nothing rather than to a
  * dangling id.** `posts.parent_post_id` / `thread_id` are real foreign keys, so
- * the Mongo behaviour (store the id, let it resolve later if the parent ever
- * arrives) is not representable. The ids are resolved against real rows first and
+ * storing an id to resolve later if the parent ever arrives is not
+ * representable. The ids are resolved against real rows first and
  * dropped when absent; a later re-projection links the reply once its parent
  * lands. See the migration report — the same escalation as `ON DELETE SET NULL`.
  *
- * **The `ObjectId.isValid` guards on like/bookmark/tombstone subjects are gone.**
- * They existed to dodge a Mongoose `CastError` and answered `invalid_*_post_id`
- * for anything that was not 24-char hex — which is every id minted after the
- * cutover. A `text` id that names no row already produces the "no such thing"
- * answer the caller was written for.
+ * **There is no id-shape guard on like/bookmark/tombstone subjects.** Ids are
+ * 24-char hex OR uuid v7, and a `text` id that names no row already produces
+ * the "no such thing" answer the caller was written for.
  */
 
 import { eq, inArray } from 'drizzle-orm';
@@ -235,10 +231,13 @@ async function resolveRecordFileIds(record: MentionPostRecord): Promise<Map<stri
     return fileIdBySha256;
   } catch (error) {
     // Best-effort: a failed reverse lookup must never abort projection.
-    logger.warn('PostMaterializer: content-address lookup failed; projecting without record media', {
-      sha256Count: sha256s.size,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    logger.warn(
+      'PostMaterializer: content-address lookup failed; projecting without record media',
+      {
+        sha256Count: sha256s.size,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    );
     return new Map();
   }
 }
@@ -430,7 +429,10 @@ function buildBaselineClassification(record: MentionPostRecord): BaselineClassif
     return result;
   } catch (error) {
     // Never fail projection on classification — leave the column defaults.
-    logger.warn('PostMaterializer: baseline classification failed; projecting without Stage-A signals', error);
+    logger.warn(
+      'PostMaterializer: baseline classification failed; projecting without Stage-A signals',
+      error,
+    );
     return null;
   }
 }
@@ -447,7 +449,9 @@ async function existingPostIds(
   ids: readonly (string | null)[],
   db: DatabaseOrTransaction = getDb(),
 ): Promise<Set<string>> {
-  const unique = [...new Set(ids.filter((id): id is string => typeof id === 'string' && id.length > 0))];
+  const unique = [
+    ...new Set(ids.filter((id): id is string => typeof id === 'string' && id.length > 0)),
+  ];
   if (unique.length === 0) return new Set();
   const rows = await db.select({ id: posts.id }).from(posts).where(inArray(posts.id, unique));
   return new Set(rows.map((row) => row.id));
@@ -459,9 +463,8 @@ async function existingPostIds(
  * The record owns the body, the shared media set, the source links and the
  * shared location — and NOTHING else. `replacePostContent` writes the whole
  * graph, so an existing post's poll, article, event, room and podcast have to be
- * carried across explicitly or a re-projection would clear them; the Mongo
- * version got that for free from a dotted `$set` and it is the single easiest
- * thing to lose in this port.
+ * carried across explicitly or a re-projection would clear them, and it is the
+ * single easiest thing to lose here.
  *
  * `media` is overridden ONLY when the record's content-addressed embed resolved
  * to ≥1 live item — the zero-regression guard. An empty resolution (no embed, or
@@ -504,9 +507,8 @@ function mergeRecordContent(
  * `type`, `parent_post_id`, `is_reply`, `boost_of` and `created_at` are written
  * once and never rewritten here — a re-projection is an idempotent replay or an
  * edit, and neither reparents a post, changes what kind of post it is, or
- * re-dates it. That is a deliberate NARROWING of the Mongoose version, which
- * `$set` all five on every projection: the wide version let a later record
- * re-pin an old post to the top of every chronological feed, which is the same
+ * re-dates it. That is deliberately NARROW: rewriting all five on every
+ * projection would let a later record re-pin an old post to the top of every chronological feed, which is the same
  * shape as the future-`createdAt` bug `recordCreatedAt` exists to stop.
  *
  * `mentions` are carried across because `replacePostContent` rewrites that table
@@ -516,8 +518,7 @@ function mergeRecordContent(
  * AUTHORSHIP is not rewritten either, and that is the same rule rather than an
  * omission. A post record carries only its subject; rewriting the authorship
  * from it would REVOKE every collaborator on every re-projection, which is what
- * the Mongoose version did (`$set: { authorship: buildAuthorship(subject, []) }`)
- * and what `replacePostContent` deliberately refuses to do for the same reason.
+ * `replacePostContent` deliberately refuses to do for the same reason.
  * The owner is already established: the caller only reaches here after matching
  * `existing.oxyUserId` against the record's subject.
  */
@@ -578,10 +579,13 @@ async function projectPost(
   const parentPostId = declaredParentId && linkable.has(declaredParentId) ? declaredParentId : null;
   const threadId = declaredThreadId && linkable.has(declaredThreadId) ? declaredThreadId : null;
   if (declaredParentId && !parentPostId) {
-    logger.info('PostMaterializer: reply parent is not materialized here; leaving the reply unlinked', {
-      rkey,
-      parentPostId: declaredParentId,
-    });
+    logger.info(
+      'PostMaterializer: reply parent is not materialized here; leaving the reply unlinked',
+      {
+        rkey,
+        parentPostId: declaredParentId,
+      },
+    );
   }
 
   const existing = await loadPostRecord(rkey);
@@ -597,7 +601,12 @@ async function projectPost(
   });
 
   if (existing) {
-    await refreshProjectedPost(existing, content, { hashtags, language, threadId }, baseline?.classification);
+    await refreshProjectedPost(
+      existing,
+      content,
+      { hashtags, language, threadId },
+      baseline?.classification,
+    );
   } else {
     try {
       await insertPostRecord({
@@ -629,7 +638,12 @@ async function projectPost(
       if (!raced || raced.oxyUserId !== oxyUserId) {
         return { ok: false, reason: 'record_owner_mismatch' };
       }
-      await refreshProjectedPost(raced, content, { hashtags, language, threadId }, baseline?.classification);
+      await refreshProjectedPost(
+        raced,
+        content,
+        { hashtags, language, threadId },
+        baseline?.classification,
+      );
     }
   }
 
@@ -794,9 +808,8 @@ async function projectTombstone(
        * This called `deletePostRecord` directly until #142. That deleted the
        * post row alone, so `posts.parent_post_id`'s `ON DELETE SET NULL` left
        * every direct reply alive with a null parent and `is_reply: true` — a
-       * root post nobody wrote. Mongo deleted them, so the divergence is one the
-       * PORT introduced; `deletePost` had already been fixed for it (#126/#134)
-       * and this second path was not covered.
+       * root post nobody wrote. `deletePost` had already been fixed for it
+       * (#126/#134) and this second path was not covered.
        *
        * Whatever the reply-scoping decision turns out to be, it is now made in
        * ONE place for both callers rather than diverging between them.
@@ -867,7 +880,12 @@ export async function projectRecord(envelope: SignedRecordEnvelope): Promise<Pro
       case MENTION_POST_COLLECTION: {
         const parsed = mentionPostRecordSchema.safeParse(record);
         if (!parsed.success) return { ok: false, reason: 'invalid_record' };
-        return await projectPost(rkey, oxyUserId, parsed.data, recordCreatedAt(parsed.data.createdAt));
+        return await projectPost(
+          rkey,
+          oxyUserId,
+          parsed.data,
+          recordCreatedAt(parsed.data.createdAt),
+        );
       }
       case MENTION_LIKE_COLLECTION: {
         const parsed = mentionLikeRecordSchema.safeParse(record);
@@ -877,7 +895,12 @@ export async function projectRecord(envelope: SignedRecordEnvelope): Promise<Pro
       case MENTION_REPOST_COLLECTION: {
         const parsed = mentionRepostRecordSchema.safeParse(record);
         if (!parsed.success) return { ok: false, reason: 'invalid_record' };
-        return await projectRepost(rkey, oxyUserId, parsed.data, recordCreatedAt(parsed.data.createdAt));
+        return await projectRepost(
+          rkey,
+          oxyUserId,
+          parsed.data,
+          recordCreatedAt(parsed.data.createdAt),
+        );
       }
       case MENTION_TOMBSTONE_COLLECTION: {
         const parsed = mentionTombstoneRecordSchema.safeParse(record);

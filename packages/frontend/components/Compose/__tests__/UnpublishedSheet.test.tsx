@@ -245,9 +245,7 @@ jest.mock('../ScheduledPostPreview', () => {
   };
 });
 
-function renderSheet(
-  overrides: Partial<React.ComponentProps<typeof UnpublishedSheet>> = {},
-) {
+function renderSheet(overrides: Partial<React.ComponentProps<typeof UnpublishedSheet>> = {}) {
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     tree = TestRenderer.create(
@@ -264,22 +262,23 @@ function renderSheet(
 }
 
 function textContent(tree: TestRenderer.ReactTestRenderer): string {
-  return tree.root
-    .findAllByType(Text)
-    .flatMap((node) => node.props.children)
-    // The tab badge renders its count as a NUMBER child, so a string-only
-    // filter here would silently drop the very thing one case asserts.
-    .filter((child): child is string | number =>
-      typeof child === 'string' || typeof child === 'number')
-    .map(String)
-    .join(' | ');
+  return (
+    tree.root
+      .findAllByType(Text)
+      .flatMap((node) => node.props.children)
+      // The tab badge renders its count as a NUMBER child, so a string-only
+      // filter here would silently drop the very thing one case asserts.
+      .filter(
+        (child): child is string | number => typeof child === 'string' || typeof child === 'number',
+      )
+      .map(String)
+      .join(' | ')
+  );
 }
 
 function press(tree: TestRenderer.ReactTestRenderer, label: string) {
   const button = tree.root.find(
-    (node) =>
-      node.props.accessibilityRole === 'button' &&
-      node.props.accessibilityLabel === label,
+    (node) => node.props.accessibilityRole === 'button' && node.props.accessibilityLabel === label,
   );
   act(() => {
     button.props.onPress();
@@ -289,9 +288,7 @@ function press(tree: TestRenderer.ReactTestRenderer, label: string) {
 function pressTab(tree: TestRenderer.ReactTestRenderer, label: string) {
   const tab = tree.root
     .findAll((node) => node.props.accessibilityRole === 'tab')
-    .find((node) =>
-      node.findAllByType(Text).some((child) => child.props.children === label),
-    );
+    .find((node) => node.findAllByType(Text).some((child) => child.props.children === label));
   if (!tab) throw new Error(`No tab labelled "${label}"`);
   act(() => {
     tab.props.onPress();
@@ -300,8 +297,9 @@ function pressTab(tree: TestRenderer.ReactTestRenderer, label: string) {
 
 describe('UnpublishedSheet', () => {
   beforeAll(() => {
-    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
-      .IS_REACT_ACT_ENVIRONMENT = true;
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
   });
 
   beforeEach(() => {
@@ -373,7 +371,7 @@ describe('UnpublishedSheet', () => {
     act(() => tree.unmount());
   });
 
-  it('opens the composer on the post\'s OWN edit route, and closes the sheet', () => {
+  it("opens the composer on the post's OWN edit route, and closes the sheet", () => {
     mockScheduled.scheduledPosts = [{ id: 'post-soon' }];
     const onClose = jest.fn();
     const tree = renderSheet({ onClose });
@@ -475,7 +473,7 @@ describe('UnpublishedSheet', () => {
     act(() => tree.unmount());
   });
 
-  it('edits a server draft on the composer\'s server-post edit route, from the row and the preview', () => {
+  it("edits a server draft on the composer's server-post edit route, from the row and the preview", () => {
     mockServerDrafts.serverDrafts = [{ id: 'server-draft-1' }];
     const onClose = jest.fn();
     const tree = renderSheet({ onClose });

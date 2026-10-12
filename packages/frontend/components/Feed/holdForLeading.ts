@@ -7,8 +7,11 @@ import { useState } from 'react';
  * other; after that it latches and never holds again (a refresh keeps both on
  * screen). See `leadingPending` in `Feed.web.tsx`.
  */
-export function useHoldForLeading(leadingPending: boolean | undefined, firstPageReady: boolean): boolean {
-    const [released, setReleased] = useState(!leadingPending && firstPageReady);
-    if (!released && !leadingPending && firstPageReady) setReleased(true);
-    return !released;
+export function useHoldForLeading(
+  leadingPending: boolean | undefined,
+  firstPageReady: boolean,
+): boolean {
+  const [released, setReleased] = useState(!leadingPending && firstPageReady);
+  if (!released && !leadingPending && firstPageReady) setReleased(true);
+  return !released;
 }

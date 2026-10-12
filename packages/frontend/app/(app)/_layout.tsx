@@ -1,6 +1,6 @@
-import React from "react";
-import { Platform, StyleSheet, View } from "react-native";
-import { ExperimentalStack, Slot, usePathname } from "expo-router";
+import React from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
+import { ExperimentalStack, Slot, usePathname } from 'expo-router';
 
 import { useAuth } from '@oxy.so/services/ui/client';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
@@ -10,21 +10,21 @@ import { bottomBarContent } from '@/components/shell/bottomBarRoutes';
 
 import { MentionHomeHeader } from '@/components/navigation/MentionHomeHeader';
 import { stackSceneLayout } from '@/components/navigation/StackScene';
-import { BottomBar } from "@/components/BottomBar";
-import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
+import { BottomBar } from '@/components/BottomBar';
+import KeyboardShortcutsModal from '@/components/KeyboardShortcutsModal';
 import RegisterPush from '@/components/RegisterPushToken';
 import { RealtimePostsBridge } from '@/components/RealtimePostsBridge';
 import { RealtimeNotificationsBridge } from '@/components/RealtimeNotificationsBridge';
 import { PublicRealtimeBridge } from '@/components/PublicRealtimeBridge';
-import { RightBar } from "@/components/RightBar";
-import { useMentionSidebar } from "@/components/navigation/useMentionSidebar";
-import { useDrawer } from "@/context/DrawerContext";
-import { SignInBanner } from "@/components/SignInBanner";
+import { RightBar } from '@/components/RightBar';
+import { useMentionSidebar } from '@/components/navigation/useMentionSidebar';
+import { useDrawer } from '@/context/DrawerContext';
+import { SignInBanner } from '@/components/SignInBanner';
 import WelcomeModalGate from '@/components/WelcomeModalGate';
 import { BootMilestone } from '@/components/BootMilestone';
 
-import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
-import { useKeyboardVisibility } from "@/hooks/useKeyboardVisibility";
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useKeyboardVisibility } from '@/hooks/useKeyboardVisibility';
 import { useScreenColor } from '@/context/ScreenColorContext';
 import { APP_COLOR_PRESETS, BloomColorScope, type AppColorName } from '@oxy.so/bloom/theme';
 
@@ -59,9 +59,7 @@ function isProfileRoute(pathname: string | null | undefined): boolean {
  */
 function KeyboardShortcutsHost() {
   const { showHelpModal, setShowHelpModal } = useKeyboardShortcuts();
-  return (
-    <KeyboardShortcutsModal visible={showHelpModal} onClose={() => setShowHelpModal(false)} />
-  );
+  return <KeyboardShortcutsModal visible={showHelpModal} onClose={() => setShowHelpModal(false)} />;
 }
 
 export default function AppLayout() {
@@ -111,12 +109,18 @@ export default function AppLayout() {
 
   // The tab bar for a signed-in reader, the sign-in invitation for an anonymous
   // one — both pinned by the shell; see `bottomBarContent`.
-  const bottomContent = bottomBarContent({ pathname, keyboardVisible, isAuthenticated, isAuthResolved });
-  const bottomBar = bottomContent === 'tabs'
-    ? <BottomBar />
-    : bottomContent === 'sign-in'
-      ? <SignInBanner />
-      : undefined;
+  const bottomContent = bottomBarContent({
+    pathname,
+    keyboardVisible,
+    isAuthenticated,
+    isAuthResolved,
+  });
+  const bottomBar =
+    bottomContent === 'tabs' ? (
+      <BottomBar />
+    ) : bottomContent === 'sign-in' ? (
+      <SignInBanner />
+    ) : undefined;
 
   // The app-shell contexts this subtree reads (screen color, videos rail, video
   // playback, drawer, bottom-bar visibility) are mounted by <AppShellProviders>
@@ -134,36 +138,40 @@ export default function AppLayout() {
           for signed-out visitors, who cannot connect to the two above at all. */}
       <PublicRealtimeBridge />
       <BloomColorScope colorPreset={activeScreenColor} asChild>
-      <AppShell
-        variant="feed"
-        scroll={IS_WEB ? 'document' : 'fixed'}
-        panel
-        panelColorPreset={activeScreenColor}
-        drawer="reveal"
-        drawerOpen={drawer.isOpen}
-        onDrawerOpenChange={open => open ? drawer.open() : drawer.close()}
-        sidebar={sidebar}
-        header={pathname === '/' ? <MentionHomeHeader /> : null}
-        contentWidth={620}
-        navigationAlign="content"
-        navigationGap={0}
-        asideGap={0}
-        gutter={8}
-        navFrom={500}
-        navExpandedFrom={1300}
-        asideFrom={990}
-        asideWidth={350}
-        asideCollapse="hidden"
-        aside={<RightBar />}
-        bottomBar={bottomBar}
-        // The tab bar is navigation, so it gives way to the sidebar on wide
-        // screens; the CTA has no stand-in there and shows at every width.
-        bottomBarVisibility={isAuthenticated ? 'compact' : 'always'}
-        reserveBottomBarSpace={pathname !== '/videos' && pathname !== '/camera'}
-      >
-        <View style={StyleSheet.absoluteFill} pointerEvents="box-none" ref={registerPanelSurface} />
-        {centerContent}
-      </AppShell>
+        <AppShell
+          variant="feed"
+          scroll={IS_WEB ? 'document' : 'fixed'}
+          panel
+          panelColorPreset={activeScreenColor}
+          drawer="reveal"
+          drawerOpen={drawer.isOpen}
+          onDrawerOpenChange={(open) => (open ? drawer.open() : drawer.close())}
+          sidebar={sidebar}
+          header={pathname === '/' ? <MentionHomeHeader /> : null}
+          contentWidth={620}
+          navigationAlign="content"
+          navigationGap={0}
+          asideGap={0}
+          gutter={8}
+          navFrom={500}
+          navExpandedFrom={1300}
+          asideFrom={990}
+          asideWidth={350}
+          asideCollapse="hidden"
+          aside={<RightBar />}
+          bottomBar={bottomBar}
+          // The tab bar is navigation, so it gives way to the sidebar on wide
+          // screens; the CTA has no stand-in there and shows at every width.
+          bottomBarVisibility={isAuthenticated ? 'compact' : 'always'}
+          reserveBottomBarSpace={pathname !== '/videos' && pathname !== '/camera'}
+        >
+          <View
+            style={StyleSheet.absoluteFill}
+            pointerEvents="box-none"
+            ref={registerPanelSurface}
+          />
+          {centerContent}
+        </AppShell>
       </BloomColorScope>
       <RegisterPush />
       <BootMilestone name="route-mounted" />

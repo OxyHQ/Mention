@@ -1,18 +1,29 @@
 import { describe, expect, it } from 'bun:test';
 import {
-  canParticipateInDeployment, frontendDeploymentEnvironment, managedMentionDeploymentSchema,
-  mcpDeploymentIdentity, publicDeploymentInfo, readManagedDeployment, withManagedDeploymentEnvironment,
+  canParticipateInDeployment,
+  frontendDeploymentEnvironment,
+  managedMentionDeploymentSchema,
+  mcpDeploymentIdentity,
+  publicDeploymentInfo,
+  readManagedDeployment,
+  withManagedDeploymentEnvironment,
 } from '../src/deployment';
 import example from './fixtures/managed-deployment.json';
 
 const alpha = managedMentionDeploymentSchema.parse(example);
 const beta = managedMentionDeploymentSchema.parse({
-  ...example, tenantId: '22222222-2222-4222-8222-222222222222',
-  publicBaseUrl: 'https://social.beta.example', apiBaseUrl: 'https://api.beta.example',
-  mcpBaseUrl: 'https://mcp.beta.example', shellBaseUrl: 'https://shell.beta.example',
-  adminOxyAccountIds: ['admin-beta'], signup: { policy: 'approval', allowedOxyAccountIds: ['member-beta'] },
+  ...example,
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  publicBaseUrl: 'https://social.beta.example',
+  apiBaseUrl: 'https://api.beta.example',
+  mcpBaseUrl: 'https://mcp.beta.example',
+  shellBaseUrl: 'https://shell.beta.example',
+  adminOxyAccountIds: ['admin-beta'],
+  signup: { policy: 'approval', allowedOxyAccountIds: ['member-beta'] },
 });
-const environment = (deployment: unknown) => ({ MENTION_DEPLOYMENT_CONFIG: JSON.stringify(deployment) });
+const environment = (deployment: unknown) => ({
+  MENTION_DEPLOYMENT_CONFIG: JSON.stringify(deployment),
+});
 
 describe('dedicated deployment configuration', () => {
   it('preserves the ordinary public deployment when no manifest is present', () => {
@@ -20,7 +31,9 @@ describe('dedicated deployment configuration', () => {
     expect(readManagedDeployment(source)).toBeUndefined();
     expect(withManagedDeploymentEnvironment(source)).toBe(source);
     expect(mcpDeploymentIdentity({})).toEqual({
-      appId: 'mention', audience: 'mention-api', resource: 'https://mcp.mention.earth',
+      appId: 'mention',
+      audience: 'mention-api',
+      resource: 'https://mcp.mention.earth',
     });
   });
 
@@ -42,17 +55,31 @@ describe('dedicated deployment configuration', () => {
   it('rejects every conflicting canonical environment override', () => {
     const resolved = withManagedDeploymentEnvironment(environment(alpha));
     for (const key of Object.keys(resolved).filter((key) => key !== 'MENTION_DEPLOYMENT_CONFIG')) {
-      expect(() => withManagedDeploymentEnvironment({ ...environment(alpha), [key]: 'wrong' })).toThrow(key);
+      expect(() =>
+        withManagedDeploymentEnvironment({ ...environment(alpha), [key]: 'wrong' }),
+      ).toThrow(key);
     }
-    expect(withManagedDeploymentEnvironment({ ...environment(alpha), FRONTEND_URL: `${alpha.publicBaseUrl}/` })
-      .FRONTEND_URL).toBe(alpha.publicBaseUrl);
+    expect(
+      withManagedDeploymentEnvironment({
+        ...environment(alpha),
+        FRONTEND_URL: `${alpha.publicBaseUrl}/`,
+      }).FRONTEND_URL,
+    ).toBe(alpha.publicBaseUrl);
   });
 
-  it.each(['http://social.alpha.example', 'https://user:secret@social.alpha.example',
-    'https://social.alpha.example/path', 'https://social.alpha.example?x=1',
-    'https://social.alpha.example#fragment', 'https://localhost', 'https://127.0.0.1',
-    'https://social.alpha.example:8443'])('rejects unsafe canonical origin %s', (origin) => {
-    expect(() => readManagedDeployment(environment({ ...example, publicBaseUrl: origin }))).toThrow();
+  it.each([
+    'http://social.alpha.example',
+    'https://user:secret@social.alpha.example',
+    'https://social.alpha.example/path',
+    'https://social.alpha.example?x=1',
+    'https://social.alpha.example#fragment',
+    'https://localhost',
+    'https://127.0.0.1',
+    'https://social.alpha.example:8443',
+  ])('rejects unsafe canonical origin %s', (origin) => {
+    expect(() =>
+      readManagedDeployment(environment({ ...example, publicBaseUrl: origin })),
+    ).toThrow();
   });
 
   it('rejects colliding hosts, tenant names instead of IDs, secrets and unsupported private/domain modes', () => {
@@ -65,8 +92,12 @@ describe('dedicated deployment configuration', () => {
       { ...example, branding: { ...example.branding, apiKey: 'never-print-this-secret' } },
       { ...example, branding: { ...example.branding, logoUrl: 'never-print-this-secret' } },
     ]) {
-      expect(() => readManagedDeployment(environment(invalid))).toThrow('Invalid MENTION_DEPLOYMENT_CONFIG');
-      try { readManagedDeployment(environment(invalid)); } catch (error) {
+      expect(() => readManagedDeployment(environment(invalid))).toThrow(
+        'Invalid MENTION_DEPLOYMENT_CONFIG',
+      );
+      try {
+        readManagedDeployment(environment(invalid));
+      } catch (error) {
         expect(String(error)).not.toContain('never-print-this-secret');
       }
     }
@@ -79,12 +110,21 @@ describe('dedicated deployment configuration', () => {
   });
 
   it('does not accept branding injection through URL or color properties', () => {
-    expect(managedMentionDeploymentSchema.safeParse({ ...example,
-      branding: { ...example.branding, logoUrl: 'javascript:alert(1)' },
-    }).success).toBe(false);
-    expect(managedMentionDeploymentSchema.safeParse({ ...example,
-      branding: { ...example.branding, accentColor: 'red; background:url(https://attacker.example)' },
-    }).success).toBe(false);
+    expect(
+      managedMentionDeploymentSchema.safeParse({
+        ...example,
+        branding: { ...example.branding, logoUrl: 'javascript:alert(1)' },
+      }).success,
+    ).toBe(false);
+    expect(
+      managedMentionDeploymentSchema.safeParse({
+        ...example,
+        branding: {
+          ...example.branding,
+          accentColor: 'red; background:url(https://attacker.example)',
+        },
+      }).success,
+    ).toBe(false);
   });
 });
 
@@ -95,16 +135,26 @@ describe('deployment admission and exposure', () => {
     expect(canParticipateInDeployment(alpha, 'member-beta')).toBe(false);
     expect(canParticipateInDeployment(beta, 'member-alpha')).toBe(false);
     expect(canParticipateInDeployment(beta, 'member-beta')).toBe(true);
-    expect(canParticipateInDeployment({ ...alpha, signup: { policy: 'open' } }, 'any-oxy-account')).toBe(true);
+    expect(
+      canParticipateInDeployment({ ...alpha, signup: { policy: 'open' } }, 'any-oxy-account'),
+    ).toBe(true);
   });
 
   it('exposes branding, canonical identities and source without control-plane details', () => {
     const serialized = JSON.stringify(publicDeploymentInfo(alpha));
-    for (const privateValue of ['admin-alpha', 'member-alpha', alpha.shellBaseUrl, alpha.region, 'allowedOxyAccountIds']) {
+    for (const privateValue of [
+      'admin-alpha',
+      'member-alpha',
+      alpha.shellBaseUrl,
+      alpha.region,
+      'allowedOxyAccountIds',
+    ]) {
       expect(serialized).not.toContain(privateValue);
     }
     expect(publicDeploymentInfo(alpha).software).toMatchObject({
-      name: 'Mention', attribution: 'Mention by Oxy', revision: alpha.release.revision,
+      name: 'Mention',
+      attribution: 'Mention by Oxy',
+      revision: alpha.release.revision,
       sourceUrl: alpha.release.sourceUrl,
     });
   });

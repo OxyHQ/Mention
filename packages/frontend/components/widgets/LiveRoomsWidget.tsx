@@ -29,10 +29,7 @@ function buildRoomUrl(roomId: string): string {
   return `${WEB_BASE_URL}/live-rooms/${roomId}`;
 }
 
-function getDisplayName(
-  profile: ReturnType<typeof useUserById>,
-  userId: string,
-): string {
+function getDisplayName(profile: ReturnType<typeof useUserById>, userId: string): string {
   return profile?.name?.displayName || profile?.username || userId.slice(0, 10);
 }
 
@@ -76,7 +73,7 @@ const RoomRow = React.memo(function RoomRow({
               style={{ flex: 1, color: theme.colors.textSecondary }}
               numberOfLines={1}
             >
-              {listenerCount} listening  ·  {hostName}
+              {listenerCount} listening · {hostName}
             </Text>
           </View>
         </View>
@@ -115,10 +112,7 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
     [rooms, hiddenRoomIds],
   );
 
-  const displayedRooms = useMemo(
-    () => visibleRooms.slice(0, MAX_ROOMS_DISPLAYED),
-    [visibleRooms],
-  );
+  const displayedRooms = useMemo(() => visibleRooms.slice(0, MAX_ROOMS_DISPLAYED), [visibleRooms]);
 
   const handleShowMore = useCallback(() => {
     router.push(LIVE_ROOMS_ROUTE);
@@ -177,15 +171,22 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
                 key={room._id}
                 room={room}
                 isLast={index === displayedRooms.length - 1}
-                onPress={() => router.push({
-                  pathname: '/live-rooms/live/[id]',
-                  params: { id: room._id },
-                })}
+                onPress={() =>
+                  router.push({
+                    pathname: '/live-rooms/live/[id]',
+                    params: { id: room._id },
+                  })
+                }
                 onMenuPress={handleMenuPress}
               />
             ))}
           </View>
-          <Button appearance="plain" size="sm" onPress={handleShowMore} style={{ alignSelf: 'flex-start' }}>
+          <Button
+            appearance="plain"
+            size="sm"
+            onPress={handleShowMore}
+            style={{ alignSelf: 'flex-start' }}
+          >
             {t('Show more')}
           </Button>
         </View>

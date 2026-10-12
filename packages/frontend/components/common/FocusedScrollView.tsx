@@ -1,5 +1,11 @@
 import React, { useCallback } from 'react';
-import { Platform, ScrollView, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollViewProps } from 'react-native';
+import {
+  Platform,
+  ScrollView,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  type ScrollViewProps,
+} from 'react-native';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { useFocusedScrollable } from '@/hooks/useFocusedScrollable';
 
@@ -17,14 +23,24 @@ import { useFocusedScrollable } from '@/hooks/useFocusedScrollable';
  * On web the document is the scroller, so this is a plain ScrollView.
  */
 function NativeFocusedScrollView({ onScroll, ...props }: ScrollViewProps) {
-    const { handleScroll, scrollEventThrottle } = useLayoutScroll();
-    const ref = useFocusedScrollable<ScrollView>({ initialOffset: 0 });
-    const handleOwnScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-        handleScroll(event);
-        onScroll?.(event);
-    }, [handleScroll, onScroll]);
-    return <ScrollView {...props} ref={ref} onScroll={handleOwnScroll} scrollEventThrottle={scrollEventThrottle} />;
+  const { handleScroll, scrollEventThrottle } = useLayoutScroll();
+  const ref = useFocusedScrollable<ScrollView>({ initialOffset: 0 });
+  const handleOwnScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      handleScroll(event);
+      onScroll?.(event);
+    },
+    [handleScroll, onScroll],
+  );
+  return (
+    <ScrollView
+      {...props}
+      ref={ref}
+      onScroll={handleOwnScroll}
+      scrollEventThrottle={scrollEventThrottle}
+    />
+  );
 }
 
 export const FocusedScrollView: React.ComponentType<ScrollViewProps> =
-    Platform.OS === 'web' ? ScrollView : NativeFocusedScrollView;
+  Platform.OS === 'web' ? ScrollView : NativeFocusedScrollView;

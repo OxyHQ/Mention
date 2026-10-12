@@ -16,18 +16,20 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
  * filter → respond flow, not a query test.
  */
 
-const engineRun = vi.fn(async (
-  _definition?: unknown,
-  _context?: Record<string, unknown>,
-): Promise<unknown> => ({
-  slices: [],
-  items: [],
-  hasMore: false,
-  nextCursor: undefined,
-  totalCount: 0,
-}));
+const engineRun = vi.fn(
+  async (_definition?: unknown, _context?: Record<string, unknown>): Promise<unknown> => ({
+    slices: [],
+    items: [],
+    hasMore: false,
+    nextCursor: undefined,
+    totalCount: 0,
+  }),
+);
 vi.mock('../mtn/feed/engine/FeedEngine', () => ({
-  feedEngine: { run: (...a: unknown[]) => engineRun(...(a as [])), peekLatest: vi.fn(async () => undefined) },
+  feedEngine: {
+    run: (...a: unknown[]) => engineRun(...(a as [])),
+    peekLatest: vi.fn(async () => undefined),
+  },
 }));
 
 vi.mock('../runtime/oxyClient', () => ({
@@ -60,12 +62,14 @@ function privacyStateExcluding(ids: readonly string[]): MockPrivacyState {
   };
 }
 const privacy = vi.hoisted(() => ({
-  loadPrivacyState: vi.fn(async (): Promise<MockPrivacyState> => ({
-    blockedUserIds: new Set<string>(),
-    mutedUserIds: new Set<string>(),
-    restrictedUserIds: new Set<string>(),
-    excludedUserIds: new Set<string>(),
-  })),
+  loadPrivacyState: vi.fn(
+    async (): Promise<MockPrivacyState> => ({
+      blockedUserIds: new Set<string>(),
+      mutedUserIds: new Set<string>(),
+      restrictedUserIds: new Set<string>(),
+      excludedUserIds: new Set<string>(),
+    }),
+  ),
 }));
 vi.mock('../mtn/UserPrivacyManager', () => ({
   UserPrivacyManager: { loadPrivacyState: privacy.loadPrivacyState },
@@ -142,8 +146,14 @@ function makeRes(): MockRes {
   return {
     statusCode: 200,
     body: undefined,
-    status(c) { this.statusCode = c; return this; },
-    json(b) { this.body = b; return this; },
+    status(c) {
+      this.statusCode = c;
+      return this;
+    },
+    json(b) {
+      this.body = b;
+      return this;
+    },
   };
 }
 
@@ -324,7 +334,9 @@ describe('MtnFeedController author exclusions → sliced feeds', () => {
    */
   it('trims only the excluded PARENT and keeps the reply, renormalizing the slice', async () => {
     engineRun.mockResolvedValueOnce({
-      slices: [replyContextSlice({ id: 'parent1', author: MUTED }, { id: 'reply1', author: ALLOWED })],
+      slices: [
+        replyContextSlice({ id: 'parent1', author: MUTED }, { id: 'reply1', author: ALLOWED }),
+      ],
       items: [post('parent1', MUTED), post('reply1', ALLOWED)],
       hasMore: false,
       nextCursor: undefined,

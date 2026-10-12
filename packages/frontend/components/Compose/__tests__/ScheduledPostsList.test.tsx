@@ -51,7 +51,9 @@ jest.mock('@oxy.so/bloom/icons', () => ({
   RiListCheck3: () => null,
 }));
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
-jest.mock('@/utils/alerts', () => ({ confirmDialog: (...args: unknown[]) => mockConfirm(...args) }));
+jest.mock('@/utils/alerts', () => ({
+  confirmDialog: (...args: unknown[]) => mockConfirm(...args),
+}));
 jest.mock('@oxy.so/core/logger', () => ({
   createLogger: () => ({ error: jest.fn(), warn: jest.fn(), debug: jest.fn(), info: jest.fn() }),
 }));
@@ -67,9 +69,7 @@ jest.mock('@oxy.so/core', () => ({
 const SCHEDULED_AT = new Date(Date.now() + 24 * 60 * 60 * 1000);
 const PAST_DUE_AT = new Date(Date.now() - 30 * 1000);
 
-function post(
-  overrides: Parameters<typeof scheduledPostFixture>[0] = {},
-): HydratedPost {
+function post(overrides: Parameters<typeof scheduledPostFixture>[0] = {}): HydratedPost {
   return scheduledPostFixture({ scheduledFor: SCHEDULED_AT, ...overrides });
 }
 
@@ -97,17 +97,16 @@ function textContent(tree: TestRenderer.ReactTestRenderer): string {
   return tree.root
     .findAllByType(Text)
     .flatMap((node) => node.props.children)
-    .filter((child): child is string | number =>
-      typeof child === 'string' || typeof child === 'number')
+    .filter(
+      (child): child is string | number => typeof child === 'string' || typeof child === 'number',
+    )
     .map(String)
     .join(' | ');
 }
 
 function press(tree: TestRenderer.ReactTestRenderer, label: string) {
   const button = tree.root.find(
-    (node) =>
-      node.props.accessibilityRole === 'button' &&
-      node.props.accessibilityLabel === label,
+    (node) => node.props.accessibilityRole === 'button' && node.props.accessibilityLabel === label,
   );
   act(() => {
     button.props.onPress();
@@ -116,8 +115,9 @@ function press(tree: TestRenderer.ReactTestRenderer, label: string) {
 
 describe('ScheduledPostsList', () => {
   beforeAll(() => {
-    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
-      .IS_REACT_ACT_ENVIRONMENT = true;
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
   });
 
   beforeEach(() => {
@@ -133,8 +133,9 @@ describe('ScheduledPostsList', () => {
     // Whatever this runtime's locale is, the row must show that exact instant —
     // an ISO string leaking through would fail this.
     expect(rendered).toContain(
-      new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-        .format(SCHEDULED_AT),
+      new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
+        SCHEDULED_AT,
+      ),
     );
 
     act(() => tree.unmount());
@@ -146,7 +147,9 @@ describe('ScheduledPostsList', () => {
     const tree = renderList({ onPreview, onCancel });
 
     press(tree, 'Preview scheduled post');
-    await act(async () => { await Promise.resolve(); });
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     expect(onPreview).toHaveBeenCalledTimes(1);
     expect(onPreview.mock.calls[0][0].id).toBe('post-soon');
@@ -162,7 +165,9 @@ describe('ScheduledPostsList', () => {
     const tree = renderList({ onEdit, onCancel });
 
     press(tree, 'Edit scheduled post');
-    await act(async () => { await Promise.resolve(); });
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     expect(onEdit).toHaveBeenCalledTimes(1);
     expect(onEdit.mock.calls[0][0].id).toBe('post-soon');
@@ -178,8 +183,9 @@ describe('ScheduledPostsList', () => {
 
     expect(rendered).toContain('Publishing now…');
     expect(rendered).not.toContain(
-      new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-        .format(PAST_DUE_AT),
+      new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
+        PAST_DUE_AT,
+      ),
     );
 
     act(() => tree.unmount());
@@ -189,7 +195,9 @@ describe('ScheduledPostsList', () => {
     const tree = renderList({ posts: [post({ scheduledFor: PAST_DUE_AT })] });
 
     press(tree, 'Cancel scheduled post');
-    await act(async () => { await Promise.resolve(); });
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     expect(mockConfirm).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -226,7 +234,9 @@ describe('ScheduledPostsList', () => {
     const tree = renderList({ onCancel });
 
     press(tree, 'Cancel scheduled post');
-    await act(async () => { await Promise.resolve(); });
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     expect(mockConfirm).toHaveBeenCalled();
     expect(onCancel).not.toHaveBeenCalled();
@@ -240,7 +250,9 @@ describe('ScheduledPostsList', () => {
     const tree = renderList({ onCancel });
 
     press(tree, 'Cancel scheduled post');
-    await act(async () => { await Promise.resolve(); });
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     expect(onCancel).toHaveBeenCalledWith('post-soon');
     expect(mockToast).toHaveBeenCalledWith('Scheduled post cancelled', { type: 'success' });
@@ -253,9 +265,13 @@ describe('ScheduledPostsList', () => {
     const tree = renderList({ onCancel });
 
     press(tree, 'Cancel scheduled post');
-    await act(async () => { await Promise.resolve(); });
+    await act(async () => {
+      await Promise.resolve();
+    });
 
-    expect(mockToast).toHaveBeenCalledWith('Failed to cancel the scheduled post', { type: 'error' });
+    expect(mockToast).toHaveBeenCalledWith('Failed to cancel the scheduled post', {
+      type: 'error',
+    });
 
     act(() => tree.unmount());
   });

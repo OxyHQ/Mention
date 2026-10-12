@@ -24,9 +24,7 @@ import { logger } from '../../utils/logger';
 /** The client, or `undefined` where this deployment cannot authenticate. */
 export function getCrowdSourceClient(): CrowdSource | undefined {
   return crowdSourceForOxyService({
-    ...(config.crowdSource.baseUrl === undefined
-      ? {}
-      : { baseUrl: config.crowdSource.baseUrl }),
+    ...(config.crowdSource.baseUrl === undefined ? {} : { baseUrl: config.crowdSource.baseUrl }),
     logger: {
       info: (message, context) => logger.info(message, context),
       error: (message, context) => logger.error(message, context),

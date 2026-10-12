@@ -1,11 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { closePostgres, connectPostgres } from '../../../db/postgres';
-import {
-  clearFederationScope,
-  federationScope,
-  seedActor,
-} from '../../helpers/federationFixtures';
+import { clearFederationScope, federationScope, seedActor } from '../../helpers/federationFixtures';
 
 const scope = federationScope('ap-mentions-same-instance');
 
@@ -81,9 +77,7 @@ const CROSS_INSTANCE_NOTE = {
   type: 'Note',
   content:
     '<p><a href="https://remote.example/@bob" class="u-url mention">@<span>bob</span></a> hello</p>',
-  tag: [
-    { type: 'Mention', href: 'https://remote.example/users/bob', name: '@bob@remote.example' },
-  ],
+  tag: [{ type: 'Mention', href: 'https://remote.example/users/bob', name: '@bob@remote.example' }],
 };
 
 beforeAll(async () => {

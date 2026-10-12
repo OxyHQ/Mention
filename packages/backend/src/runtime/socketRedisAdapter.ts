@@ -21,13 +21,10 @@ export async function attachSocketRedisAdapter(io: SocketIOServer): Promise<void
 
     // Connect both clients with timeout to avoid hanging
     await Promise.race([
-      Promise.all([
-        publisher.connect(),
-        subscriber.connect()
-      ]),
+      Promise.all([publisher.connect(), subscriber.connect()]),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Redis connection timeout')), 5000)
-      )
+        setTimeout(() => reject(new Error('Redis connection timeout')), 5000),
+      ),
     ]);
 
     // Verify both clients are actually ready before proceeding
@@ -41,10 +38,19 @@ export async function attachSocketRedisAdapter(io: SocketIOServer): Promise<void
     await closeSocketRedisAdapter();
     // If Redis is unavailable, continue without adapter (single-instance mode)
     const errorMessage = error instanceof Error ? error.message : String(error);
-    if (isRedisConnectionError(error) || errorMessage.includes('timeout') || errorMessage.includes('not ready')) {
-      logger.info('Redis unavailable - Socket.IO running in single-instance mode (no horizontal scaling)');
+    if (
+      isRedisConnectionError(error) ||
+      errorMessage.includes('timeout') ||
+      errorMessage.includes('not ready')
+    ) {
+      logger.info(
+        'Redis unavailable - Socket.IO running in single-instance mode (no horizontal scaling)',
+      );
     } else {
-      logger.warn('Failed to setup Socket.IO Redis adapter, running in single-instance mode:', error);
+      logger.warn(
+        'Failed to setup Socket.IO Redis adapter, running in single-instance mode:',
+        error,
+      );
     }
   }
 }

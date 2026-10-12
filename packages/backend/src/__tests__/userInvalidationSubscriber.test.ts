@@ -97,10 +97,9 @@ describe('startUserInvalidationSubscriber', () => {
     expect(handle).not.toBeNull();
     expect(mocks.subscribe).toHaveBeenCalledTimes(1);
     expect(mocks.subscribe.mock.calls[0][0]).toBe(OXY_USER_INVALIDATION_CHANNEL);
-    expect(mocks.info).toHaveBeenCalledWith(
-      '[UserInvalidation] subscriber enabled',
-      { channel: OXY_USER_INVALIDATION_CHANNEL },
-    );
+    expect(mocks.info).toHaveBeenCalledWith('[UserInvalidation] subscriber enabled', {
+      channel: OXY_USER_INVALIDATION_CHANNEL,
+    });
   });
 
   it('drops the Redis summary AND both per-process SDK caches', async () => {
@@ -122,7 +121,11 @@ describe('startUserInvalidationSubscriber', () => {
     await startUserInvalidationSubscriber();
     deliver(VALID);
 
-    expect(mocks.publishAliasChange).toHaveBeenCalledWith({ userId: 'user-1', reason: 'profile', at: 1 });
+    expect(mocks.publishAliasChange).toHaveBeenCalledWith({
+      userId: 'user-1',
+      reason: 'profile',
+      at: 1,
+    });
   });
 
   it('ignores a message that fails the contract schema', async () => {

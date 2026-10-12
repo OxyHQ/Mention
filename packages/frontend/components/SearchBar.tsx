@@ -1,9 +1,9 @@
-import { useRouter } from 'expo-router'
-import React, { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { View } from 'react-native'
-import { Search } from '@oxy.so/bloom/search'
-import { useSurfaceFill } from '@oxy.so/bloom/styles'
+import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { View } from 'react-native';
+import { Search } from '@oxy.so/bloom/search';
+import { useSurfaceFill } from '@oxy.so/bloom/styles';
 
 /**
  * Right-rail search box — the same Bloom `Search` field the search screen uses, so
@@ -21,32 +21,35 @@ import { useSurfaceFill } from '@oxy.so/bloom/styles'
  * make that wrapper the sticky containing block and leave it nothing to travel.
  */
 export const SearchBar = () => {
-    const router = useRouter();
-    const { t } = useTranslation();
-    const [query, setQuery] = useState('');
-    // The sticky bar has to be opaque in the RAIL's colour, and the rail is not
-    // the centre panel — it sits on the shell background. `bg-card` named the
-    // panel's colour from outside the panel; this asks the surface it is
-    // actually on.
-    const surfaceFill = useSurfaceFill();
+  const router = useRouter();
+  const { t } = useTranslation();
+  const [query, setQuery] = useState('');
+  // The sticky bar has to be opaque in the RAIL's colour, and the rail is not
+  // the centre panel — it sits on the shell background. `bg-card` named the
+  // panel's colour from outside the panel; this asks the surface it is
+  // actually on.
+  const surfaceFill = useSurfaceFill();
 
-    // Same declarative `{pathname, params}` navigation the `/search/<query>` deep
-    // link uses (`app/(app)/search/[query].tsx`) — expo-router owns the encoding.
-    // A blank submit goes to the bare route rather than a trailing `?q=`.
-    const handleSubmit = () => {
-        const term = query.trim();
-        router.push(term ? { pathname: '/search', params: { q: term } } : '/search');
-    };
+  // Same declarative `{pathname, params}` navigation the `/search/<query>` deep
+  // link uses (`app/(app)/search/[query].tsx`) — expo-router owns the encoding.
+  // A blank submit goes to the bare route rather than a trailing `?q=`.
+  const handleSubmit = () => {
+    const term = query.trim();
+    router.push(term ? { pathname: '/search', params: { q: term } } : '/search');
+  };
 
-    return (
-        <View className="w-full mb-4 z-10 web:sticky web:top-0" style={{ backgroundColor: surfaceFill }}>
-            <Search
-                label={t('Search Mention')}
-                value={query}
-                onValueChange={setQuery}
-                onClearText={() => setQuery('')}
-                onSubmitEditing={handleSubmit}
-            />
-        </View>
-    );
+  return (
+    <View
+      className="w-full mb-4 z-10 web:sticky web:top-0"
+      style={{ backgroundColor: surfaceFill }}
+    >
+      <Search
+        label={t('Search Mention')}
+        value={query}
+        onValueChange={setQuery}
+        onClearText={() => setQuery('')}
+        onSubmitEditing={handleSubmit}
+      />
+    </View>
+  );
 };

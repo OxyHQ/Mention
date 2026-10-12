@@ -1,9 +1,9 @@
-import { z } from "zod/v4";
-import { api, formatApiError } from "../lib/api-client.js";
-import { normalizeVisibility, unwrapApiResponse, unwrapData } from "../lib/api-response.js";
-import { withAuthGuard } from "../lib/auth-guard.js";
-import { formatPost } from "../lib/formatters.js";
-import { buildPostContentPayload, resolveMediaInputs } from "../lib/resolve-media.js";
+import { z } from 'zod/v4';
+import { api, formatApiError } from '../lib/api-client.js';
+import { normalizeVisibility, unwrapApiResponse, unwrapData } from '../lib/api-response.js';
+import { withAuthGuard } from '../lib/auth-guard.js';
+import { formatPost } from '../lib/formatters.js';
+import { buildPostContentPayload, resolveMediaInputs } from '../lib/resolve-media.js';
 import {
   articleInputSchema,
   attachmentDescriptorSchema,
@@ -20,12 +20,16 @@ import {
   sourceLinkSchema,
   threadPostSchema,
   visibilitySchema,
-} from "../lib/post-content-schema.js";
-import type { MentionToolRegistrar } from "../lib/tool-registry.js";
+} from '../lib/post-content-schema.js';
+import type { MentionToolRegistrar } from '../lib/tool-registry.js';
 
 const createPostFields = {
-  text: z.string().optional().describe("The text content of the post"),
-  media: z.array(mediaInputSchema).max(10).optional().describe("Images/videos — fileId, url, or base64"),
+  text: z.string().optional().describe('The text content of the post'),
+  media: z
+    .array(mediaInputSchema)
+    .max(10)
+    .optional()
+    .describe('Images/videos — fileId, url, or base64'),
   poll: pollInputSchema.optional(),
   location: locationInputSchema.optional(),
   sources: z.array(sourceLinkSchema).max(5).optional(),
@@ -37,27 +41,28 @@ const createPostFields = {
   variants: languageVariantsSchema,
   laneId: laneIdSchema,
   visibility: visibilitySchema,
-  hashtags: z.array(z.string()).optional().describe("Hashtags (without # prefix)"),
-  mentions: z.array(z.string()).optional().describe("User IDs to mention"),
-  parentPostId: z.string().optional().describe("ID of the post to reply to"),
-  status: z.enum(["published", "draft", "scheduled"]).optional(),
-  scheduledFor: z.string().optional().describe("ISO date for scheduled posts"),
+  hashtags: z.array(z.string()).optional().describe('Hashtags (without # prefix)'),
+  mentions: z.array(z.string()).optional().describe('User IDs to mention'),
+  parentPostId: z.string().optional().describe('ID of the post to reply to'),
+  status: z.enum(['published', 'draft', 'scheduled']).optional(),
+  scheduledFor: z.string().optional().describe('ISO date for scheduled posts'),
   replyPermission: replyPermissionSchema,
   reviewReplies: z.boolean().optional(),
   quotesDisabled: z.boolean().optional(),
   collaboratorIds: z
     .array(z.string())
     .optional()
-    .describe("Oxy user IDs of local collaborators to invite (max 5)"),
+    .describe('Oxy user IDs of local collaborators to invite (max 5)'),
   collaboratorHandles: z
     .array(z.string())
     .optional()
-    .describe("Mention @handles of local collaborators to invite (max 5 total with IDs)"),
+    .describe('Mention @handles of local collaborators to invite (max 5 total with IDs)'),
   metadata: postMetadataSchema.optional(),
 };
 
 /** `variants[0]` IS the primary body, so a second body in `text` would be silently dropped. */
-const TEXT_AND_VARIANTS_ERROR = "Send either text or variants, not both: the first variant is the primary body.";
+const TEXT_AND_VARIANTS_ERROR =
+  'Send either text or variants, not both: the first variant is the primary body.';
 
 function sendsTextAndVariants(content: { text?: string; variants?: unknown[] }): boolean {
   return content.text !== undefined && content.variants !== undefined;
@@ -70,12 +75,15 @@ const collaboratorFields = {
 
 export function registerPostsTools(server: MentionToolRegistrar): void {
   server.tool(
-    "create-post",
-    "Create a new post on Mention with optional media, poll, article, event, room, podcast, location, sources, and collaborators (requires authorization). Invite up to 5 local users via collaboratorIds or collaboratorHandles; invitees accept through their own authorized account connection. Write the same post in several languages with variants, and file it into one of your lanes with laneId.",
+    'create-post',
+    'Create a new post on Mention with optional media, poll, article, event, room, podcast, location, sources, and collaborators (requires authorization). Invite up to 5 local users via collaboratorIds or collaboratorHandles; invitees accept through their own authorized account connection. Write the same post in several languages with variants, and file it into one of your lanes with laneId.',
     createPostFields,
     withAuthGuard(async (args) => {
       if (sendsTextAndVariants(args)) {
-        return { content: [{ type: "text" as const, text: TEXT_AND_VARIANTS_ERROR }], isError: true };
+        return {
+          content: [{ type: 'text' as const, text: TEXT_AND_VARIANTS_ERROR }],
+          isError: true,
+        };
       }
       try {
         const content = await buildPostContentPayload({
@@ -108,25 +116,35 @@ export function registerPostsTools(server: MentionToolRegistrar): void {
         if (args.collaboratorHandles) body.collaboratorHandles = args.collaboratorHandles;
         if (args.metadata) body.metadata = args.metadata;
 
-        const result = await api.post("/posts", body);
+        const result = await api.post('/posts', body);
         const post = unwrapApiResponse(result);
-        return { content: [{ type: "text" as const, text: `Post created successfully.\n\n${formatPost(post)}` }] };
+        return {
+          content: [
+            { type: 'text' as const, text: `Post created successfully.\n\n${formatPost(post)}` },
+          ],
+        };
       } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
     }),
   );
 
   server.tool(
-    "create-thread",
-    "Create a multi-post thread with full attachment support per post (requires authorization). Collaborators are not supported on threads.",
+    'create-thread',
+    'Create a multi-post thread with full attachment support per post (requires authorization). Collaborators are not supported on threads.',
     {
       posts: z.array(threadPostSchema).min(2),
-      mode: z.enum(["thread", "beast"]).optional().describe("thread = linked chain (default); beast = separate posts"),
+      mode: z
+        .enum(['thread', 'beast'])
+        .optional()
+        .describe('thread = linked chain (default); beast = separate posts'),
     },
     withAuthGuard(async ({ posts, mode }) => {
       if (posts.some((post) => sendsTextAndVariants(post.content))) {
-        return { content: [{ type: "text" as const, text: TEXT_AND_VARIANTS_ERROR }], isError: true };
+        return {
+          content: [{ type: 'text' as const, text: TEXT_AND_VARIANTS_ERROR }],
+          isError: true,
+        };
       }
       try {
         const wirePosts = await Promise.all(
@@ -146,37 +164,48 @@ export function registerPostsTools(server: MentionToolRegistrar): void {
           }),
         );
 
-        const result = await api.post("/posts/thread", {
-          mode: mode ?? "thread",
+        const result = await api.post('/posts/thread', {
+          mode: mode ?? 'thread',
           posts: wirePosts,
         });
         const resultObj = unwrapApiResponse<Record<string, unknown>>(result);
         const threadPosts = Array.isArray(resultObj.posts) ? resultObj.posts : [resultObj];
-        const formatted = threadPosts.map((p: Record<string, unknown>) => formatPost(p)).join("\n\n---\n\n");
-        return { content: [{ type: "text" as const, text: `Thread created (${threadPosts.length} posts).\n\n${formatted}` }] };
+        const formatted = threadPosts
+          .map((p: Record<string, unknown>) => formatPost(p))
+          .join('\n\n---\n\n');
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Thread created (${threadPosts.length} posts).\n\n${formatted}`,
+            },
+          ],
+        };
       } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
     }),
   );
 
   server.tool(
-    "get-post",
-    "Get a single post by ID (uses public feed hydration when available).",
-    { id: z.string().describe("The post ID") },
+    'get-post',
+    'Get a single post by ID (uses public feed hydration when available).',
+    { id: z.string().describe('The post ID') },
     async ({ id }) => {
       try {
         const result = await api.get(`/feed/item/${encodeURIComponent(id)}`);
-        return { content: [{ type: "text" as const, text: formatPost(result as Record<string, unknown>) }] };
+        return {
+          content: [{ type: 'text' as const, text: formatPost(result as Record<string, unknown>) }],
+        };
       } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
     },
   );
 
   server.tool(
-    "update-post",
-    "Update an existing post including media, sources, and collaborators within the 30-minute edit window (requires authorization).",
+    'update-post',
+    'Update an existing post including media, sources, and collaborators within the 30-minute edit window (requires authorization).',
     {
       id: z.string(),
       text: z.string().optional(),
@@ -186,39 +215,60 @@ export function registerPostsTools(server: MentionToolRegistrar): void {
       hashtags: z.array(z.string()).optional(),
       ...collaboratorFields,
     },
-    withAuthGuard(async ({ id, text, media, sources, visibility, hashtags, collaboratorIds, collaboratorHandles }) => {
-      try {
-        const body: Record<string, unknown> = {};
-        const content: Record<string, unknown> = {};
-        if (text !== undefined) content.text = text;
-        if (media !== undefined) {
-          content.media = await resolveMediaInputs(media);
+    withAuthGuard(
+      async ({
+        id,
+        text,
+        media,
+        sources,
+        visibility,
+        hashtags,
+        collaboratorIds,
+        collaboratorHandles,
+      }) => {
+        try {
+          const body: Record<string, unknown> = {};
+          const content: Record<string, unknown> = {};
+          if (text !== undefined) content.text = text;
+          if (media !== undefined) {
+            content.media = await resolveMediaInputs(media);
+          }
+          if (sources) content.sources = sources;
+          if (Object.keys(content).length > 0) body.content = content;
+
+          const vis = normalizeVisibility(visibility);
+          if (vis) body.visibility = vis;
+          if (hashtags) body.hashtags = hashtags;
+
+          if (collaboratorIds) body.collaboratorIds = collaboratorIds;
+          if (collaboratorHandles) body.collaboratorHandles = collaboratorHandles;
+
+          const result = await api.put(`/posts/${encodeURIComponent(id)}`, body);
+          const post = unwrapApiResponse(result);
+          return {
+            content: [{ type: 'text' as const, text: `Post updated.\n\n${formatPost(post)}` }],
+          };
+        } catch (error) {
+          return {
+            content: [{ type: 'text' as const, text: formatApiError(error) }],
+            isError: true,
+          };
         }
-        if (sources) content.sources = sources;
-        if (Object.keys(content).length > 0) body.content = content;
-
-        const vis = normalizeVisibility(visibility);
-        if (vis) body.visibility = vis;
-        if (hashtags) body.hashtags = hashtags;
-
-        if (collaboratorIds) body.collaboratorIds = collaboratorIds;
-        if (collaboratorHandles) body.collaboratorHandles = collaboratorHandles;
-
-        const result = await api.put(`/posts/${encodeURIComponent(id)}`, body);
-        const post = unwrapApiResponse(result);
-        return { content: [{ type: "text" as const, text: `Post updated.\n\n${formatPost(post)}` }] };
-      } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
-      }
-    }),
+      },
+    ),
   );
 
   server.tool(
-    "move-post-to-lane",
-    "Move one of your top-level posts into one of your lanes, or out of any lane with laneId null (requires authorization).",
+    'move-post-to-lane',
+    'Move one of your top-level posts into one of your lanes, or out of any lane with laneId null (requires authorization).',
     {
-      id: z.string().describe("Post ID"),
-      laneId: z.string().nullable().describe("Id of one of your lanes (see list-lanes), or null to remove the post from its lane"),
+      id: z.string().describe('Post ID'),
+      laneId: z
+        .string()
+        .nullable()
+        .describe(
+          'Id of one of your lanes (see list-lanes), or null to remove the post from its lane',
+        ),
     },
     withAuthGuard(async ({ id, laneId }) => {
       try {
@@ -227,149 +277,184 @@ export function registerPostsTools(server: MentionToolRegistrar): void {
         const text = moved.lane?.name
           ? `Post ${id} moved to lane "${moved.lane.name}".`
           : `Post ${id} removed from its lane.`;
-        return { content: [{ type: "text" as const, text }] };
+        return { content: [{ type: 'text' as const, text }] };
       } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
     }),
   );
 
   server.tool(
-    "accept-collab-invite",
-    "Accept a pending collaboration invite on a post as the account bound to this connection (requires authorization).",
-    { id: z.string().describe("Post ID") },
+    'accept-collab-invite',
+    'Accept a pending collaboration invite on a post as the account bound to this connection (requires authorization).',
+    { id: z.string().describe('Post ID') },
     withAuthGuard(async ({ id }) => {
       try {
         const result = await api.post(`/posts/${encodeURIComponent(id)}/collaborators/accept`);
         const post = unwrapApiResponse(result);
-        return { content: [{ type: "text" as const, text: `Collaboration invite accepted.\n\n${formatPost(post)}` }] };
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Collaboration invite accepted.\n\n${formatPost(post)}`,
+            },
+          ],
+        };
       } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
     }),
   );
 
   server.tool(
-    "decline-collab-invite",
-    "Decline a pending collaboration invite on a post (requires authorization).",
-    { id: z.string().describe("Post ID") },
+    'decline-collab-invite',
+    'Decline a pending collaboration invite on a post (requires authorization).',
+    { id: z.string().describe('Post ID') },
     withAuthGuard(async ({ id }) => {
       try {
         await api.post(`/posts/${encodeURIComponent(id)}/collaborators/decline`);
-        return { content: [{ type: "text" as const, text: `Collaboration invite declined for post ${id}.` }] };
+        return {
+          content: [
+            { type: 'text' as const, text: `Collaboration invite declined for post ${id}.` },
+          ],
+        };
       } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
     }),
   );
 
   server.tool(
-    "stop-collab-sharing",
-    "Stop sharing a collaborative post from your profile (requires authorization; accepted collaborator only).",
-    { id: z.string().describe("Post ID") },
+    'stop-collab-sharing',
+    'Stop sharing a collaborative post from your profile (requires authorization; accepted collaborator only).',
+    { id: z.string().describe('Post ID') },
     withAuthGuard(async ({ id }) => {
       try {
-        const result = await api.post(`/posts/${encodeURIComponent(id)}/collaborators/stop-sharing`);
+        const result = await api.post(
+          `/posts/${encodeURIComponent(id)}/collaborators/stop-sharing`,
+        );
         const post = unwrapApiResponse(result);
-        return { content: [{ type: "text" as const, text: `Stopped sharing post.\n\n${formatPost(post)}` }] };
+        return {
+          content: [
+            { type: 'text' as const, text: `Stopped sharing post.\n\n${formatPost(post)}` },
+          ],
+        };
       } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
     }),
   );
 
   server.tool(
-    "delete-post",
-    "Delete a post (requires authorization).",
+    'delete-post',
+    'Delete a post (requires authorization).',
     { id: z.string() },
     withAuthGuard(async ({ id }) => {
       try {
         await api.delete(`/posts/${encodeURIComponent(id)}`);
-        return { content: [{ type: "text" as const, text: `Post ${id} deleted successfully.` }] };
+        return { content: [{ type: 'text' as const, text: `Post ${id} deleted successfully.` }] };
       } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
     }),
   );
 
   server.tool(
-    "publish-post-now",
-    "Publish one of your drafts or scheduled posts immediately instead of waiting for its scheduled time (requires authorization). Cancel a draft or scheduled post with delete-post instead.",
-    { id: z.string().describe("Draft or scheduled post ID") },
+    'publish-post-now',
+    'Publish one of your drafts or scheduled posts immediately instead of waiting for its scheduled time (requires authorization). Cancel a draft or scheduled post with delete-post instead.',
+    { id: z.string().describe('Draft or scheduled post ID') },
     withAuthGuard(async ({ id }) => {
       try {
         const result = await api.post(`/posts/${encodeURIComponent(id)}/publish`);
         const post = unwrapApiResponse(result);
-        return { content: [{ type: "text" as const, text: `Post published.\n\n${formatPost(post)}` }] };
+        return {
+          content: [{ type: 'text' as const, text: `Post published.\n\n${formatPost(post)}` }],
+        };
       } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
     }),
   );
 
   server.tool(
-    "pin-post",
-    "Pin one of your posts to the top of your profile (requires authorization). Undo with unpin-post.",
-    { id: z.string().describe("Post ID") },
+    'pin-post',
+    'Pin one of your posts to the top of your profile (requires authorization). Undo with unpin-post.',
+    { id: z.string().describe('Post ID') },
     withAuthGuard(async ({ id }) => {
       try {
         await api.patch(`/posts/${encodeURIComponent(id)}/settings`, { isPinned: true });
-        return { content: [{ type: "text" as const, text: `Post ${id} pinned to your profile.` }] };
+        return { content: [{ type: 'text' as const, text: `Post ${id} pinned to your profile.` }] };
       } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
     }),
   );
 
   server.tool(
-    "unpin-post",
-    "Unpin a post from your profile (requires authorization).",
-    { id: z.string().describe("Post ID") },
+    'unpin-post',
+    'Unpin a post from your profile (requires authorization).',
+    { id: z.string().describe('Post ID') },
     withAuthGuard(async ({ id }) => {
       try {
         await api.patch(`/posts/${encodeURIComponent(id)}/settings`, { isPinned: false });
-        return { content: [{ type: "text" as const, text: `Post ${id} unpinned.` }] };
+        return { content: [{ type: 'text' as const, text: `Post ${id} unpinned.` }] };
       } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
     }),
   );
 
   server.tool(
-    "update-post-settings",
-    "Change who may reply to or quote one of your posts, whether replies wait for your review, and whether its like and boost counts are hidden (requires authorization). Every setting can be changed back the same way, with no edit window.",
+    'update-post-settings',
+    'Change who may reply to or quote one of your posts, whether replies wait for your review, and whether its like and boost counts are hidden (requires authorization). Every setting can be changed back the same way, with no edit window.',
     {
-      id: z.string().describe("Post ID"),
+      id: z.string().describe('Post ID'),
       replyPermission: replyPermissionSchema,
-      reviewReplies: z.boolean().optional().describe("Hold new replies for your approval"),
-      quotesDisabled: z.boolean().optional().describe("Stop others from quoting this post"),
-      hideEngagementCounts: z.boolean().optional().describe("Hide like and boost counts from others"),
+      reviewReplies: z.boolean().optional().describe('Hold new replies for your approval'),
+      quotesDisabled: z.boolean().optional().describe('Stop others from quoting this post'),
+      hideEngagementCounts: z
+        .boolean()
+        .optional()
+        .describe('Hide like and boost counts from others'),
     },
-    withAuthGuard(async ({ id, replyPermission, reviewReplies, quotesDisabled, hideEngagementCounts }) => {
-      // `undefined` members are dropped by the JSON encoding.
-      const body = { replyPermission, reviewReplies, quotesDisabled, hideEngagementCounts };
-      if (Object.values(body).every((value) => value === undefined)) {
-        return { content: [{ type: "text" as const, text: "Nothing to change: pass at least one setting." }], isError: true };
-      }
-      try {
-        const result = await api.patch<Record<string, unknown>>(`/posts/${encodeURIComponent(id)}/settings`, body);
-        const lines = [
-          `Settings for post ${id} updated.`,
-          `Replies: ${Array.isArray(result.replyPermission) && result.replyPermission.length > 0 ? result.replyPermission.join(", ") : "anyone"}`,
-          `Review replies: ${result.reviewReplies === true ? "yes" : "no"}`,
-          `Quotes disabled: ${result.quotesDisabled === true ? "yes" : "no"}`,
-          `Counts hidden: ${result.hideEngagementCounts === true ? "yes" : "no"}`,
-        ];
-        return { content: [{ type: "text" as const, text: lines.join("\n") }] };
-      } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
-      }
-    }),
+    withAuthGuard(
+      async ({ id, replyPermission, reviewReplies, quotesDisabled, hideEngagementCounts }) => {
+        // `undefined` members are dropped by the JSON encoding.
+        const body = { replyPermission, reviewReplies, quotesDisabled, hideEngagementCounts };
+        if (Object.values(body).every((value) => value === undefined)) {
+          return {
+            content: [
+              { type: 'text' as const, text: 'Nothing to change: pass at least one setting.' },
+            ],
+            isError: true,
+          };
+        }
+        try {
+          const result = await api.patch<Record<string, unknown>>(
+            `/posts/${encodeURIComponent(id)}/settings`,
+            body,
+          );
+          const lines = [
+            `Settings for post ${id} updated.`,
+            `Replies: ${Array.isArray(result.replyPermission) && result.replyPermission.length > 0 ? result.replyPermission.join(', ') : 'anyone'}`,
+            `Review replies: ${result.reviewReplies === true ? 'yes' : 'no'}`,
+            `Quotes disabled: ${result.quotesDisabled === true ? 'yes' : 'no'}`,
+            `Counts hidden: ${result.hideEngagementCounts === true ? 'yes' : 'no'}`,
+          ];
+          return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
+        } catch (error) {
+          return {
+            content: [{ type: 'text' as const, text: formatApiError(error) }],
+            isError: true,
+          };
+        }
+      },
+    ),
   );
 
   server.tool(
-    "get-drafts",
-    "Get your draft posts (requires authorization).",
+    'get-drafts',
+    'Get your draft posts (requires authorization).',
     {
       limit: z.number().optional(),
       cursor: z.string().optional(),
@@ -380,23 +465,27 @@ export function registerPostsTools(server: MentionToolRegistrar): void {
         if (limit) query.limit = limit;
         if (cursor) query.cursor = cursor;
 
-        const result = await api.get("/posts/drafts", query);
+        const result = await api.get('/posts/drafts', query);
         const resultObj = result as Record<string, unknown>;
         const posts = Array.isArray(resultObj.posts) ? resultObj.posts : [];
         if (posts.length === 0) {
-          return { content: [{ type: "text" as const, text: "No drafts found." }] };
+          return { content: [{ type: 'text' as const, text: 'No drafts found.' }] };
         }
-        const formatted = posts.map((p: Record<string, unknown>) => formatPost(p)).join("\n\n---\n\n");
-        return { content: [{ type: "text" as const, text: `Drafts (${posts.length}):\n\n${formatted}` }] };
+        const formatted = posts
+          .map((p: Record<string, unknown>) => formatPost(p))
+          .join('\n\n---\n\n');
+        return {
+          content: [{ type: 'text' as const, text: `Drafts (${posts.length}):\n\n${formatted}` }],
+        };
       } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
     }),
   );
 
   server.tool(
-    "get-scheduled-posts",
-    "Get your scheduled posts (requires authorization).",
+    'get-scheduled-posts',
+    'Get your scheduled posts (requires authorization).',
     {
       limit: z.number().optional(),
       cursor: z.string().optional(),
@@ -407,23 +496,29 @@ export function registerPostsTools(server: MentionToolRegistrar): void {
         if (limit) query.limit = limit;
         if (cursor) query.cursor = cursor;
 
-        const result = await api.get("/posts/scheduled", query);
+        const result = await api.get('/posts/scheduled', query);
         const resultObj = result as Record<string, unknown>;
         const posts = Array.isArray(resultObj.posts) ? resultObj.posts : [];
         if (posts.length === 0) {
-          return { content: [{ type: "text" as const, text: "No scheduled posts found." }] };
+          return { content: [{ type: 'text' as const, text: 'No scheduled posts found.' }] };
         }
-        const formatted = posts.map((p: Record<string, unknown>) => formatPost(p)).join("\n\n---\n\n");
-        return { content: [{ type: "text" as const, text: `Scheduled posts (${posts.length}):\n\n${formatted}` }] };
+        const formatted = posts
+          .map((p: Record<string, unknown>) => formatPost(p))
+          .join('\n\n---\n\n');
+        return {
+          content: [
+            { type: 'text' as const, text: `Scheduled posts (${posts.length}):\n\n${formatted}` },
+          ],
+        };
       } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
     }),
   );
 
   server.tool(
-    "get-saved-posts",
-    "Get your saved (bookmarked) posts (requires authorization).",
+    'get-saved-posts',
+    'Get your saved (bookmarked) posts (requires authorization).',
     {
       limit: z.number().optional(),
       page: z.number().optional(),
@@ -438,16 +533,22 @@ export function registerPostsTools(server: MentionToolRegistrar): void {
         if (search) query.search = search;
         if (folder) query.folder = folder;
 
-        const result = await api.get("/posts/saved", query);
+        const result = await api.get('/posts/saved', query);
         const resultObj = result as Record<string, unknown>;
         const posts = Array.isArray(resultObj.posts) ? resultObj.posts : [];
         if (posts.length === 0) {
-          return { content: [{ type: "text" as const, text: "No saved posts found." }] };
+          return { content: [{ type: 'text' as const, text: 'No saved posts found.' }] };
         }
-        const formatted = posts.map((p: Record<string, unknown>) => formatPost(p)).join("\n\n---\n\n");
-        return { content: [{ type: "text" as const, text: `Saved posts (${posts.length}):\n\n${formatted}` }] };
+        const formatted = posts
+          .map((p: Record<string, unknown>) => formatPost(p))
+          .join('\n\n---\n\n');
+        return {
+          content: [
+            { type: 'text' as const, text: `Saved posts (${posts.length}):\n\n${formatted}` },
+          ],
+        };
       } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
     }),
   );

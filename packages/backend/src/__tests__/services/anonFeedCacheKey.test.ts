@@ -30,9 +30,7 @@ describe('anonFeedCache.buildKey', () => {
     expect(anonFeedCache.buildKey({ ...base, languages: ['es'] })).not.toBe(
       anonFeedCache.buildKey({ ...base, languages: [] }),
     );
-    expect(anonFeedCache.buildKey({ ...base, languages: [] })).toBe(
-      anonFeedCache.buildKey(base),
-    );
+    expect(anonFeedCache.buildKey({ ...base, languages: [] })).toBe(anonFeedCache.buildKey(base));
   });
 
   /**

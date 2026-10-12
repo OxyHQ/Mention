@@ -135,7 +135,10 @@ describe('FeedGeneratorFeed.fetch', () => {
     mocks.importPostViews.mockResolvedValue([uriA, uriB, uriC]);
 
     const feed = new FeedGeneratorFeed(GEN_URI);
-    const response = await feed.fetch({ limit: 30, cursor: undefined }, { currentUserId: 'viewer' });
+    const response = await feed.fetch(
+      { limit: 30, cursor: undefined },
+      { currentUserId: 'viewer' },
+    );
 
     expect(mocks.getFeed).toHaveBeenCalledWith(GEN_URI, { cursor: undefined, limit: 30 });
     expect(mocks.importPostViews).toHaveBeenCalledWith(views);
@@ -178,7 +181,10 @@ describe('FeedGeneratorFeed.fetch', () => {
     const uriGone = 'at://did:plc:a/app.bsky.feed.post/gone';
     const postA = await importedPost(uriA);
 
-    mocks.getFeed.mockResolvedValue({ posts: [postView(uriA), postView(uriGone)], cursor: undefined });
+    mocks.getFeed.mockResolvedValue({
+      posts: [postView(uriA), postView(uriGone)],
+      cursor: undefined,
+    });
     // `importPostViews` reports both, but only `uriA` ever materialized a row.
     mocks.importPostViews.mockResolvedValue([uriA, uriGone]);
 

@@ -29,7 +29,7 @@ export class RedisStore {
    */
   async get(key: string): Promise<{ totalHits: number; resetTime: Date | undefined } | undefined> {
     const fullKey = `${this.prefix}${key}`;
-    
+
     return await withRedisFallback(
       this.redis,
       async () => {
@@ -37,7 +37,7 @@ export class RedisStore {
         if (!value) {
           return undefined;
         }
-        
+
         const totalHits = Number.parseInt(value, 10);
         if (!Number.isSafeInteger(totalHits) || totalHits < 0) {
           // A corrupt/stale value must never leak NaN into RateLimit headers.
@@ -45,11 +45,11 @@ export class RedisStore {
         }
         const ttl = await this.redis.ttl(fullKey);
         const resetTime = ttl > 0 ? new Date(Date.now() + ttl * 1000) : undefined;
-        
+
         return { totalHits, resetTime };
       },
       undefined,
-      'rate limit get'
+      'rate limit get',
     );
   }
 
@@ -63,7 +63,7 @@ export class RedisStore {
         await this.redis.setEx(`${this.prefix}${key}`, Math.ceil(ttl / 1000), value.toString());
       },
       undefined,
-      'rate limit set'
+      'rate limit set',
     );
   }
 
@@ -101,10 +101,10 @@ export class RedisStore {
     return await withRedisFallback(
       this.redis,
       async () => {
-        const result = await this.redis.eval(script, {
+        const result = (await this.redis.eval(script, {
           keys: [fullKey],
           arguments: [String(ttlSeconds)],
-        }) as [number, number];
+        })) as [number, number];
 
         const totalHits = Number(result[0]);
         const ttl = Number(result[1]);
@@ -116,7 +116,7 @@ export class RedisStore {
         return { totalHits, resetTime };
       },
       fallback,
-      'rate limit increment'
+      'rate limit increment',
     );
   }
 
@@ -130,7 +130,7 @@ export class RedisStore {
         await this.redis.decr(`${this.prefix}${key}`);
       },
       undefined,
-      'rate limit decrement'
+      'rate limit decrement',
     );
   }
 
@@ -144,7 +144,7 @@ export class RedisStore {
         await this.redis.del([`${this.prefix}${key}`]);
       },
       undefined,
-      'rate limit delete'
+      'rate limit delete',
     );
   }
 

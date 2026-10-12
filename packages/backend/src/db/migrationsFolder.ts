@@ -56,9 +56,9 @@ function findMigrationsFolder(): string {
   }
   throw new Error(
     'Cannot locate the drizzle/ migrations directory. Looked in:\n' +
-    `${attempted.map((path) => `  ${path}`).join('\n')}\n` +
-    'It must ship next to the compiled migrator — see the production stage of ' +
-    'packages/backend/Dockerfile.'
+      `${attempted.map((path) => `  ${path}`).join('\n')}\n` +
+      'It must ship next to the compiled migrator — see the production stage of ' +
+      'packages/backend/Dockerfile.',
   );
 }
 
@@ -72,7 +72,7 @@ export function readJournal(folder: string = MIGRATIONS_FOLDER): JournalEntry[] 
 /** {@link assertPostgresMigrationsCurrentAgainst}, defaulted to this image's own journal. */
 export async function assertPostgresMigrationsCurrent(
   client: postgres.Sql,
-  entries: JournalEntry[] = readJournal()
+  entries: JournalEntry[] = readJournal(),
 ): Promise<void> {
   return assertPostgresMigrationsCurrentAgainst(client, entries);
 }

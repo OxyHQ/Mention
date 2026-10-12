@@ -33,7 +33,9 @@ const AUTHOR = 'oxy-scheduled-author';
 const created: string[] = [];
 
 /** The claim the sweep drives each due post through. */
-const claim = postCreationService.claimAndPublishScheduledPost as unknown as ReturnType<typeof vi.fn>;
+const claim = postCreationService.claimAndPublishScheduledPost as unknown as ReturnType<
+  typeof vi.fn
+>;
 
 async function seedScheduled(
   scheduledFor: Date,
@@ -63,7 +65,9 @@ beforeAll(async () => {
 
 beforeEach(() => {
   claim.mockClear();
-  claim.mockImplementation(async ({ postId }: { postId: string }) => ({ id: postId }) as PostRecord);
+  claim.mockImplementation(
+    async ({ postId }: { postId: string }) => ({ id: postId }) as PostRecord,
+  );
 });
 
 afterEach(async () => {

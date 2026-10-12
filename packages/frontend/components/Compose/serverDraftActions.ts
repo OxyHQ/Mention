@@ -40,7 +40,8 @@ export async function confirmAndPublishDraft(params: {
   const confirmed = await confirmDialog({
     title: t('compose.serverDrafts.publishTitle', { defaultValue: 'Publish draft' }),
     message: t('compose.serverDrafts.publishConfirm', {
-      defaultValue: 'This draft will be published now, and everyone who can see your posts will see it.',
+      defaultValue:
+        'This draft will be published now, and everyone who can see your posts will see it.',
     }),
     okText: t('compose.serverDrafts.publish', { defaultValue: 'Publish' }),
     cancelText: t('common.cancel'),
@@ -49,11 +50,15 @@ export async function confirmAndPublishDraft(params: {
 
   try {
     await onPublish(post.id);
-    toast(t('compose.serverDrafts.published', { defaultValue: 'Draft published' }), { type: 'success' });
+    toast(t('compose.serverDrafts.published', { defaultValue: 'Draft published' }), {
+      type: 'success',
+    });
     return true;
   } catch (error) {
     logger.error('Error publishing a server draft', error);
-    toast(t('compose.serverDrafts.publishError', { defaultValue: 'Could not publish the draft' }), { type: 'error' });
+    toast(t('compose.serverDrafts.publishError', { defaultValue: 'Could not publish the draft' }), {
+      type: 'error',
+    });
     return false;
   }
 }

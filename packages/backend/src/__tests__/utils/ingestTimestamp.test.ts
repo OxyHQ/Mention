@@ -30,7 +30,9 @@ describe('clampFutureDate', () => {
   it('REJECTS rather than re-dating to the clamp edge', () => {
     // A post silently re-dated to `now + window` is the same pin, one window long.
     // Callers need `undefined` so they can fall back to their own default.
-    expect(clampFutureDate(new Date(Date.now() + 400 * 24 * HOUR_MS).toISOString(), HOUR_MS)).toBeUndefined();
+    expect(
+      clampFutureDate(new Date(Date.now() + 400 * 24 * HOUR_MS).toISOString(), HOUR_MS),
+    ).toBeUndefined();
   });
 
   it('rejects an unparseable, blank, or non-string value', () => {
@@ -43,7 +45,8 @@ describe('clampFutureDate', () => {
   });
 
   it('tolerates surrounding whitespace on an otherwise valid value', () => {
-    expect(clampFutureDate('  2024-01-02T03:04:05.000Z  ', HOUR_MS)?.toISOString())
-      .toBe('2024-01-02T03:04:05.000Z');
+    expect(clampFutureDate('  2024-01-02T03:04:05.000Z  ', HOUR_MS)?.toISOString()).toBe(
+      '2024-01-02T03:04:05.000Z',
+    );
   });
 });

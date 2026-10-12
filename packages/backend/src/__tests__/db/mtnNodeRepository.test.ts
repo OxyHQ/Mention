@@ -5,7 +5,7 @@
  * seen by nobody. Three of these cases pin a translation that would have failed
  * exactly that way, and each is mutation-sensitive rather than illustrative:
  *
- *  - A never-probed / never-synced node must LEAD its sweep. Mongo sorted a
+ *  - A never-probed / never-synced node must LEAD its sweep. The legacy store sorted a
  *    missing field first; a bare Postgres `ASC` sorts NULLs last and starves it
  *    permanently, with no error and no log.
  *  - The ingest loop's `-1` "no chain yet" sentinel must reach the column as
@@ -60,12 +60,14 @@ async function seedNode(
   oxyUserId: string,
   overrides: Partial<typeof mentionUserNodes.$inferInsert> = {},
 ): Promise<void> {
-  await getDb().insert(mentionUserNodes).values({
-    oxyUserId,
-    endpoint: 'https://node.example',
-    nodePublicKey: 'pub-key-hex',
-    ...overrides,
-  });
+  await getDb()
+    .insert(mentionUserNodes)
+    .values({
+      oxyUserId,
+      endpoint: 'https://node.example',
+      nodePublicKey: 'pub-key-hex',
+      ...overrides,
+    });
 }
 
 async function readNode(oxyUserId: string) {
@@ -129,14 +131,19 @@ describe('registering a node', () => {
       registration({ managed: true, controller: 'oxy', mode: 'push' }),
     );
 
-    expect(node).toMatchObject({ managed: true, controller: 'oxy', mode: 'push', status: 'active' });
+    expect(node).toMatchObject({
+      managed: true,
+      controller: 'oxy',
+      mode: 'push',
+      status: 'active',
+    });
     expect(node?.lastError).toBeUndefined();
   });
 
   /**
    * A registration that omits `nodeDid` LEAVES the previously advertised one.
    *
-   * The Mongo `$set` was conditional on the field being present, and the DID is
+   * The legacy-store `$set` was conditional on the field being present, and the DID is
    * informational — dropping it on every re-registration that happens not to
    * carry one would quietly empty a field nothing else repopulates.
    */

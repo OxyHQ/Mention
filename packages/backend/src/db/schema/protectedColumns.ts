@@ -1,8 +1,7 @@
 /**
  * Columns That Must Not Reach a Client
  *
- * Mongoose has `select: false`; **Mention uses it nowhere**, on any model. That
- * is not a reason to skip this module — it is the reason to have it. A column
+ * **No column is hidden by default.** That is the reason to have this module: a column
  * only stays out of a response because no DTO happens to include it, and
  * drizzle's `db.select().from(t)` returns EVERY column, so the first naive query
  * over a table holding a secret is the first time that secret can leave the
@@ -74,7 +73,7 @@ export const PROTECTED_COLUMNS_BY_TABLE: ReadonlyMap<string, ReadonlySet<string>
  * runtime leak.
  */
 export function publicColumns<T extends PgTable>(
-  table: T
+  table: T,
 ): Omit<T['_']['columns'], ProtectedPropertyOf<T>> {
   const protectedProperties = PROTECTED_COLUMNS_BY_TABLE.get(getTableName(table));
   const columns = getTableColumns(table);

@@ -9,7 +9,7 @@ import { useRefSync } from '@/hooks/useRefSync';
  * below one of them (`/@handle/replies`) the link still means "go there".
  */
 export function isCurrentRoute(href: Href, pathname: string): boolean {
-    return typeof href === 'string' && href === pathname;
+  return typeof href === 'string' && href === pathname;
 }
 
 /**
@@ -17,13 +17,16 @@ export function isCurrentRoute(href: Href, pathname: string): boolean {
  * already the current page — back to the top of it, then a reload.
  */
 export function useNavigateOrReselect(): (href: Href) => void {
-    const router = useRouter();
-    // Read at press time, so the callback keeps one identity across navigations
-    // and the memoized navigation descriptors built from it survive them.
-    const pathnameRef = useRefSync(usePathname());
-    const reselect = useReselect();
-    return useCallback((href: Href) => {
-        if (isCurrentRoute(href, pathnameRef.current)) reselect();
-        else router.navigate(href);
-    }, [pathnameRef, reselect, router]);
+  const router = useRouter();
+  // Read at press time, so the callback keeps one identity across navigations
+  // and the memoized navigation descriptors built from it survive them.
+  const pathnameRef = useRefSync(usePathname());
+  const reselect = useReselect();
+  return useCallback(
+    (href: Href) => {
+      if (isCurrentRoute(href, pathnameRef.current)) reselect();
+      else router.navigate(href);
+    },
+    [pathnameRef, reselect, router],
+  );
 }

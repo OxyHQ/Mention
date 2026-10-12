@@ -21,8 +21,15 @@ export function profileTabsOffset(summaryHeight: number): number {
 }
 
 /** Profile identity is product content; Bloom owns its scroll-revealed header. */
-export function ProfilePageHeader({ profileData, actions, overMedia = true, showBack = true }: {
-  profileData: ProfileData; actions: React.ReactNode; overMedia?: boolean;
+export function ProfilePageHeader({
+  profileData,
+  actions,
+  overMedia = true,
+  showBack = true,
+}: {
+  profileData: ProfileData;
+  actions: React.ReactNode;
+  overMedia?: boolean;
   /**
    * `false` on a root tab. Bloom's `PageHeader` draws Back whenever it is handed
    * an `onBack`, and a root tab has nowhere to go back to.
@@ -30,17 +37,19 @@ export function ProfilePageHeader({ profileData, actions, overMedia = true, show
   showBack?: boolean;
 }) {
   const safeBack = useSafeBack();
-  return <PageHeader
-    title={<UserName name={profileData.design.displayName} verified={profileData.verified} />}
-    titleReveal="onDock"
-    presentation="floating"
-    // Native lists paint their viewport above preceding siblings. Bloom's
-    // overlay placement creates the measured native chrome layer so the header
-    // remains above the banner/list; web keeps document overlap for its sticky
-    // flow geometry.
-    placement={overMedia ? (Platform.OS === 'web' ? 'overlap' : 'overlay') : 'inline'}
-    testID="profile-page-header"
-    onBack={showBack ? safeBack : undefined}
-    actions={actions}
-  />;
+  return (
+    <PageHeader
+      title={<UserName name={profileData.design.displayName} verified={profileData.verified} />}
+      titleReveal="onDock"
+      presentation="floating"
+      // Native lists paint their viewport above preceding siblings. Bloom's
+      // overlay placement creates the measured native chrome layer so the header
+      // remains above the banner/list; web keeps document overlap for its sticky
+      // flow geometry.
+      placement={overMedia ? (Platform.OS === 'web' ? 'overlap' : 'overlay') : 'inline'}
+      testID="profile-page-header"
+      onBack={showBack ? safeBack : undefined}
+      actions={actions}
+    />
+  );
 }

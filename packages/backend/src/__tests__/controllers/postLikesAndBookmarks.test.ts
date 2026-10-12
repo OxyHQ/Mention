@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 /**
  * `GET /posts/:id/likes`, `GET /posts/saved` and `GET /posts/bookmarks/folders`
- * — the three readers that moved off Mongoose in the batch-7 port and that
+ * — the three readers that moved off the legacy ODM in the batch-7 port and that
  * nothing in the suite exercised afterwards.
  *
  * They are grouped in one file because they share a subject: each one asks the
@@ -11,7 +11,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  *
  *  - `getPostLikes` pages a keyset. A broken bound does not error; it repeats or
  *    skips a row at the page edge, which reads as a ranking quirk.
- *  - `getBookmarkFolders` filters `IS NOT NULL`. The literal Mongo translation
+ *  - `getBookmarkFolders` filters `IS NOT NULL`. The literal legacy-store translation
  *    (`folder <> null`) evaluates to NULL for every row and returns an EMPTY
  *    list for everyone — a result, not an error.
  *  - `getSavedPosts` escapes an `ILIKE` term. An unescaped `%` matches every
@@ -19,7 +19,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  *
  * ## Why the assertions are all about rows
  *
- * There is nothing else left to assert on. The Mongoose models are gone from
+ * There is nothing else left to assert on. The legacy-ODM models are gone from
  * `controllers/posts/`, so there is no filter object to inspect and no `find`
  * to count — and that is the point, because a filter assertion could not have
  * distinguished any of the three failures above from correct behaviour anyway.
@@ -65,7 +65,11 @@ import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { bookmarkFolders, bookmarks, likes } from '../../db/schema/engagement';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
-import { createBookmarkFolder, getBookmarkFolders, getSavedPosts } from '../../controllers/posts/bookmarks';
+import {
+  createBookmarkFolder,
+  getBookmarkFolders,
+  getSavedPosts,
+} from '../../controllers/posts/bookmarks';
 import { getPostLikes } from '../../controllers/posts/engagementLists';
 import type { PostRecord } from '../../db/posts/postRecord';
 
@@ -151,7 +155,10 @@ describe('getPostLikes — the (created_at DESC, id DESC) keyset', () => {
   async function page(postId: string, cursor?: string) {
     const { res, captured } = buildResponse();
     await getPostLikes(
-      buildRequest({ params: { id: postId }, query: { limit: '2', ...(cursor ? { cursor } : {}) } }) as never,
+      buildRequest({
+        params: { id: postId },
+        query: { limit: '2', ...(cursor ? { cursor } : {}) },
+      }) as never,
       res as never,
     );
     return captured.body as {
@@ -234,10 +241,7 @@ describe('getPostLikes — the (created_at DESC, id DESC) keyset', () => {
       .values({ userId: scope.user('elsewhere'), postId: other.id, value: 1 });
 
     const { res, captured } = buildResponse();
-    await getPostLikes(
-      buildRequest({ params: { id: post.id }, query: {} }) as never,
-      res as never,
-    );
+    await getPostLikes(buildRequest({ params: { id: post.id }, query: {} }) as never, res as never);
 
     const body = captured.body as { users: Array<{ id: string }> };
     expect(body.users.map((user) => user.id)).not.toContain(scope.user('elsewhere'));
@@ -265,7 +269,8 @@ describe('getPostLikes — the (created_at DESC, id DESC) keyset', () => {
 describe('getBookmarkFolders', () => {
   async function seedBookmark(folder: string | null, userId = VIEWER): Promise<void> {
     const post = await seedPost(scope, { oxyUserId: scope.user('author') });
-    if (folder) await getDb().insert(bookmarkFolders).values({ userId, name: folder }).onConflictDoNothing();
+    if (folder)
+      await getDb().insert(bookmarkFolders).values({ userId, name: folder }).onConflictDoNothing();
     await getDb().insert(bookmarks).values({ userId, postId: post.id, folder });
   }
 
@@ -279,7 +284,7 @@ describe('getBookmarkFolders', () => {
     await seedBookmark('reading');
     await seedBookmark(null);
 
-    // `folder <> null` — the literal translation of Mongo's `$ne: null` — is
+    // `folder <> null` — the literal translation of the legacy store's `$ne: null` — is
     // NULL for every row and returns `[]` here. That is a WRONG RESULT, not an
     // error, so this row assertion is the only signal there is.
     expect(await folders()).toEqual(['reading']);
@@ -348,7 +353,11 @@ describe('getSavedPosts', () => {
       oxyUserId: scope.user('author'),
       content: { variants: [{ source: 'author', text, tag: 'en' }] },
     });
-    if (folder) await getDb().insert(bookmarkFolders).values({ userId: VIEWER, name: folder }).onConflictDoNothing();
+    if (folder)
+      await getDb()
+        .insert(bookmarkFolders)
+        .values({ userId: VIEWER, name: folder })
+        .onConflictDoNothing();
     await getDb().insert(bookmarks).values({ userId: VIEWER, postId: post.id, folder });
     return post;
   }

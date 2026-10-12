@@ -113,7 +113,10 @@ export function useProfileMoreMenu({
 
     const handleBlock = async () => {
       const confirmed = await confirmDialog({
-        title: t('profile.blockUser', { username: displayUsername, defaultValue: 'Block @{{username}}' }),
+        title: t('profile.blockUser', {
+          username: displayUsername,
+          defaultValue: 'Block @{{username}}',
+        }),
         message: t('profile.blockConfirm', {
           username: displayUsername,
           defaultValue: `They won't be able to find your profile, posts, or mentions. They won't be notified that you blocked them.`,
@@ -144,7 +147,9 @@ export function useProfileMoreMenu({
           { type: 'success' },
         );
       } catch {
-        toast(t('profile.blockFailed', { defaultValue: 'Failed to block user' }), { type: 'error' });
+        toast(t('profile.blockFailed', { defaultValue: 'Failed to block user' }), {
+          type: 'error',
+        });
       }
     };
 
@@ -195,53 +200,56 @@ export function useProfileMoreMenu({
       bottomSheet.openBottomSheet(true);
     };
 
-    const viewerActions: ActionMenuAction[] = !canUsePrivateApi ? [] : [
-      {
-        icon: <ListIcon size={22} className="text-foreground" />,
-        label: t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' }),
-        onPress: handleAddToList,
-      },
-      {
-        icon: <StarterPackIcon size={22} className="text-foreground" />,
-        label: t('starterPacks.addTo.menuItem', {
-          defaultValue: 'Add/remove from starter packs',
-        }),
-        onPress: handleAddToStarterPack,
-      },
-      ...(viewerOperatesAccount
-        ? []
-        : [
-          {
-            icon: <MuteIcon size={22} className="text-foreground" />,
-            label: t('profile.muteUser', {
-              username: displayUsername,
-              defaultValue: 'Mute @{{username}}',
-            }),
-            onPress: handleMute,
-          },
-        ]),
-    ];
-    const actions: ActionMenuAction[] = [...(leadingActions ?? []), ...viewerActions];
-
-    const destructiveActions: ActionMenuAction[] = viewerOperatesAccount || !canUsePrivateApi
+    const viewerActions: ActionMenuAction[] = !canUsePrivateApi
       ? []
       : [
-        {
-          icon: <BlockIcon size={22} color={theme.colors.error} />,
-          label: t('profile.blockUser', {
-            username: displayUsername,
-            defaultValue: 'Block @{{username}}',
-          }),
-          onPress: handleBlock,
-          color: theme.colors.error,
-        },
-        {
-          icon: <ReportIcon size={22} color={theme.colors.error} />,
-          label: t('profile.reportUser', { defaultValue: 'Report' }),
-          onPress: handleReport,
-          color: theme.colors.error,
-        },
-      ];
+          {
+            icon: <ListIcon size={22} className="text-foreground" />,
+            label: t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' }),
+            onPress: handleAddToList,
+          },
+          {
+            icon: <StarterPackIcon size={22} className="text-foreground" />,
+            label: t('starterPacks.addTo.menuItem', {
+              defaultValue: 'Add/remove from starter packs',
+            }),
+            onPress: handleAddToStarterPack,
+          },
+          ...(viewerOperatesAccount
+            ? []
+            : [
+                {
+                  icon: <MuteIcon size={22} className="text-foreground" />,
+                  label: t('profile.muteUser', {
+                    username: displayUsername,
+                    defaultValue: 'Mute @{{username}}',
+                  }),
+                  onPress: handleMute,
+                },
+              ]),
+        ];
+    const actions: ActionMenuAction[] = [...(leadingActions ?? []), ...viewerActions];
+
+    const destructiveActions: ActionMenuAction[] =
+      viewerOperatesAccount || !canUsePrivateApi
+        ? []
+        : [
+            {
+              icon: <BlockIcon size={22} color={theme.colors.error} />,
+              label: t('profile.blockUser', {
+                username: displayUsername,
+                defaultValue: 'Block @{{username}}',
+              }),
+              onPress: handleBlock,
+              color: theme.colors.error,
+            },
+            {
+              icon: <ReportIcon size={22} color={theme.colors.error} />,
+              label: t('profile.reportUser', { defaultValue: 'Report' }),
+              onPress: handleReport,
+              color: theme.colors.error,
+            },
+          ];
 
     // Named so the block flow can reopen the exact same menu after a cancelled
     // confirm.
@@ -256,7 +264,16 @@ export function useProfileMoreMenu({
     }
 
     openMenu();
-  }, [profileData, viewerOperatesAccount, leadingActions, canUsePrivateApi, theme, t, bottomSheet, oxyServices]);
+  }, [
+    profileData,
+    viewerOperatesAccount,
+    leadingActions,
+    canUsePrivateApi,
+    theme,
+    t,
+    bottomSheet,
+    oxyServices,
+  ]);
 
   return canUsePrivateApi || (leadingActions?.length ?? 0) > 0 ? openMoreMenu : null;
 }

@@ -7,7 +7,9 @@ import { findActorByOxyUserId, findActorByUri } from '../../db/federation/actorR
  * local account — one with no cached actor row, which costs one indexed miss.
  * A moved account costs one more lookup, for the new account's handle.
  */
-export async function loadRemoteProfileStats(oxyUserId: string): Promise<RemoteProfileStats | undefined> {
+export async function loadRemoteProfileStats(
+  oxyUserId: string,
+): Promise<RemoteProfileStats | undefined> {
   const actor = await findActorByOxyUserId(oxyUserId);
   if (!actor) return undefined;
   const stats = remoteProfileStats(actor);
@@ -69,7 +71,10 @@ export function remoteProfileStats(actor: FederatedActorRecord): RemoteProfileSt
  * which would fail the whole actor refresh over a cosmetic field. An account
  * cannot have been created after now either. Both read as unknown.
  */
-export function trustedRemoteCreatedAt(value: Date | undefined, now = Date.now()): Date | undefined {
+export function trustedRemoteCreatedAt(
+  value: Date | undefined,
+  now = Date.now(),
+): Date | undefined {
   if (!(value instanceof Date)) return undefined;
   const ms = value.getTime();
   if (Number.isNaN(ms) || ms > now) return undefined;

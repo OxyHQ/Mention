@@ -178,7 +178,9 @@ export function isFediverseSharingEnabledFromUser(
  * warn. Seeds the id-keyed Redis cache on a resolved user, same as
  * {@link isFediverseSharingEnabledFromUser}.
  */
-export async function getFediverseSharingStateByUsername(username: string): Promise<FediverseSharingState> {
+export async function getFediverseSharingStateByUsername(
+  username: string,
+): Promise<FediverseSharingState> {
   const oxy = getServiceOxyClient();
   let user: FediverseSharingUserView;
   try {
@@ -215,7 +217,9 @@ export async function getFediverseSharingStateByUsername(username: string): Prom
  * to survive. Every OTHER caller on this module keeps fail-open; only this
  * guard needs the split.
  */
-export async function getFediverseSharingStateById(oxyUserId: string): Promise<FediverseSharingState> {
+export async function getFediverseSharingStateById(
+  oxyUserId: string,
+): Promise<FediverseSharingState> {
   const oxy = getServiceOxyClient();
   let user: FediverseSharingUserView;
   try {

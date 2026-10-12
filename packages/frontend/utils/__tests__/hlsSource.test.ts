@@ -8,8 +8,7 @@ import { isHlsSource } from '../hlsSource';
  * where every federated video silently keeps failing.
  */
 describe('isHlsSource', () => {
-  const BSKY_PLAYLIST =
-    'https://video.bsky.app/watch/did%3Aplc%3Aabc/bafkrei123/playlist.m3u8';
+  const BSKY_PLAYLIST = 'https://video.bsky.app/watch/did%3Aplc%3Aabc/bafkrei123/playlist.m3u8';
 
   it('recognises a bare playlist url', () => {
     expect(isHlsSource(BSKY_PLAYLIST)).toBe(true);
@@ -32,6 +31,19 @@ describe('isHlsSource', () => {
     expect(isHlsSource(proxiedMp4)).toBe(false);
   });
 
+  it("recognises Oxy's own ladder, whose manifest path has no extension", () => {
+    // The shape `mediaResolver` builds for `hlsUrl`. Unrecognised, web put it on
+    // the element as a progressive file and never played the H.264 ladder.
+    expect(
+      isHlsSource('https://cloud.oxy.so/01a12355-5f04-73a5-bb5b-dbf6f53ce659?variant=hls_master'),
+    ).toBe(true);
+  });
+
+  it('does not claim an Oxy progressive rendition or original', () => {
+    expect(isHlsSource('https://cloud.oxy.so/01a12355?variant=720p')).toBe(false);
+    expect(isHlsSource('https://cloud.oxy.so/01a12355')).toBe(false);
+  });
+
   it('does not claim an Oxy file id, which is not a url at all', () => {
     expect(isHlsSource('6a390d4b9d8fecf98a320181')).toBe(false);
   });
@@ -44,6 +56,10 @@ describe('isHlsSource', () => {
 
   it('is not fooled by a playlist named in some other query parameter', () => {
     // Only the proxy's own `url` parameter names an upstream we will fetch.
-    expect(isHlsSource('https://api.mention.earth/media/proxy?poster=a/playlist.m3u8&url=https%3A%2F%2Fcdn.example%2Fclip.mp4')).toBe(false);
+    expect(
+      isHlsSource(
+        'https://api.mention.earth/media/proxy?poster=a/playlist.m3u8&url=https%3A%2F%2Fcdn.example%2Fclip.mp4',
+      ),
+    ).toBe(false);
   });
 });

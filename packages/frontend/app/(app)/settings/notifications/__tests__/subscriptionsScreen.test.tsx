@@ -10,11 +10,6 @@ jest.mock('@oxy.so/bloom/settings-modal', () => {
   return { SettingsCard: View, SettingsSection: View, SettingsRow: View };
 });
 
-
-
-
-
-
 /**
  * Render tests for the activity-subscriptions screen — the three behaviours that
  * only show up once the screen is actually mounted:
@@ -37,10 +32,19 @@ jest.mock('@oxy.so/bloom/settings-modal', () => {
  * a missing i18n key fails here instead of shipping a raw key.
  */
 
-type MessageNode = string | number | boolean | null | MessageNode[] | { [key: string]: MessageNode };
+type MessageNode =
+  | string
+  | number
+  | boolean
+  | null
+  | MessageNode[]
+  | { [key: string]: MessageNode };
 const messages: { [key: string]: MessageNode } = enMessages;
 
-function mockTranslate(key: string, vars?: Record<string, string> & { defaultValue?: string }): string {
+function mockTranslate(
+  key: string,
+  vars?: Record<string, string> & { defaultValue?: string },
+): string {
   // i18next resolves a dotted key against nested objects AND flat dotted keys.
   const direct = messages[key];
   const nested =
@@ -62,11 +66,22 @@ function mockTranslate(key: string, vars?: Record<string, string> & { defaultVal
 }
 
 jest.mock('@oxy.so/bloom/chat-people/contact-row', () => {
-  const { View, TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
+  const { View, TouchableOpacity } =
+    jest.requireActual<typeof import('react-native')>('react-native');
   const ReactActual = jest.requireActual<typeof import('react')>('react');
   return {
-    ContactRow: ({ avatarSlot, identitySlot, onPress }: { avatarSlot: React.ReactNode; identitySlot: React.ReactNode; onPress?: () => void }) =>
-      onPress ? ReactActual.createElement(TouchableOpacity, { onPress }, avatarSlot, identitySlot) : ReactActual.createElement(View, null, avatarSlot, identitySlot),
+    ContactRow: ({
+      avatarSlot,
+      identitySlot,
+      onPress,
+    }: {
+      avatarSlot: React.ReactNode;
+      identitySlot: React.ReactNode;
+      onPress?: () => void;
+    }) =>
+      onPress
+        ? ReactActual.createElement(TouchableOpacity, { onPress }, avatarSlot, identitySlot)
+        : ReactActual.createElement(View, null, avatarSlot, identitySlot),
   };
 });
 jest.mock('react-i18next', () => ({
@@ -174,7 +189,11 @@ jest.mock('@oxy.so/bloom/button', () => {
     accessibilityLabel?: string;
     onPress?: () => void;
   }) => (
-    <TouchableOpacity accessibilityRole="button" accessibilityLabel={accessibilityLabel} onPress={onPress}>
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      onPress={onPress}
+    >
       {children ? <Text>{children}</Text> : null}
     </TouchableOpacity>
   );
@@ -209,9 +228,6 @@ jest.mock('@/services/subscriptionService', () => ({
     getStatus: (...args: unknown[]) => mockGetStatus(...args),
   },
 }));
-
-
-
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -348,7 +364,9 @@ describe('activity subscriptions screen', () => {
 
   it('renders a subscribed account as a row', async () => {
     mockList.mockResolvedValue({
-      subscriptions: [{ author: author('a-1', 'ada', 'Ada Lovelace'), createdAt: '2026-07-02T00:00:00.000Z' }],
+      subscriptions: [
+        { author: author('a-1', 'ada', 'Ada Lovelace'), createdAt: '2026-07-02T00:00:00.000Z' },
+      ],
     });
 
     const renderer = await renderScreen(makeClient());
@@ -428,7 +446,9 @@ describe('activity subscriptions screen', () => {
 
     // …then the PROFILE bell subscribes. Same QueryClient, different surface.
     mockList.mockResolvedValue({
-      subscriptions: [{ author: author('a-9', 'ada', 'Ada Lovelace'), createdAt: '2026-07-03T00:00:00.000Z' }],
+      subscriptions: [
+        { author: author('a-9', 'ada', 'Ada Lovelace'), createdAt: '2026-07-03T00:00:00.000Z' },
+      ],
     });
 
     let toggle!: () => Promise<void>;

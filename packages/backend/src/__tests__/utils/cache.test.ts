@@ -29,6 +29,7 @@ const client = {
 const pipeline = {
   setEx: vi.fn(),
   exec: vi.fn(),
+  execAsPipeline: vi.fn(),
 };
 
 const reportRedisConnectionFailure = vi.fn();
@@ -60,6 +61,7 @@ beforeEach(() => {
   client.del.mockResolvedValue(1);
   client.multi.mockReturnValue(pipeline);
   pipeline.exec.mockResolvedValue([]);
+  pipeline.execAsPipeline.mockResolvedValue([]);
 });
 
 describe('createCache', () => {
@@ -92,7 +94,9 @@ describe('cache.get / set', () => {
   });
 
   it('reports a CONNECTION failure to the supervisor and stays quiet at warn', async () => {
-    client.get.mockRejectedValue(Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }));
+    client.get.mockRejectedValue(
+      Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }),
+    );
 
     await expect(cache.get('k')).resolves.toBeUndefined();
 
@@ -165,7 +169,22 @@ describe('cache.getMany / setMany / delete / has', () => {
     expect(client.multi).toHaveBeenCalledTimes(1);
     expect(pipeline.setEx).toHaveBeenCalledTimes(2);
     expect(pipeline.setEx).toHaveBeenCalledWith('ka', 30, JSON.stringify({ id: 'a' }));
-    expect(pipeline.exec).toHaveBeenCalledTimes(1);
+    // A pipeline, never a transaction: a MULTI that overflows the client queue
+    // leaves the connection stuck inside it (see `setExInBatches`).
+    expect(pipeline.execAsPipeline).toHaveBeenCalledTimes(1);
+    expect(pipeline.exec).not.toHaveBeenCalled();
+  });
+
+  it('splits a large batch into bounded pipelines, in order', async () => {
+    const entries = Array.from({ length: 450 }, (_, index) => [`k${index}`, index] as const);
+
+    await cache.setMany(entries);
+
+    expect(client.multi).toHaveBeenCalledTimes(3);
+    expect(pipeline.execAsPipeline).toHaveBeenCalledTimes(3);
+    expect(pipeline.setEx).toHaveBeenCalledTimes(450);
+    expect(pipeline.setEx.mock.calls[449]).toEqual(['k449', 30, JSON.stringify(449)]);
+    expect(pipeline.exec).not.toHaveBeenCalled();
   });
 
   it('checks existence without pulling the payload', async () => {
@@ -222,10 +241,7 @@ describe('cache.getOrCompute', () => {
   it('deduplicates per key, not across keys', async () => {
     const compute = vi.fn(async () => 'v');
 
-    await Promise.all([
-      cache.getOrCompute('ka', compute),
-      cache.getOrCompute('kb', compute),
-    ]);
+    await Promise.all([cache.getOrCompute('ka', compute), cache.getOrCompute('kb', compute)]);
 
     expect(compute).toHaveBeenCalledTimes(2);
   });

@@ -116,18 +116,13 @@
  *     is skipped and counted, never forced.
  *
  * WHICH STORE THIS DELETES FROM
- *   Postgres, for everything except `feed_interactions`. That is not a detail:
- *   this script used to delete the MONGO collection for fourteen entities whose
- *   rows had already moved, so every one of those deletes matched nothing, and
- *   `renderDomainTable` reported the zeros as "this domain held no such content"
- *   to the person who had just authorised a deletion. Worse, the preflight in
- *   front of it WAIVES exactly those reference probes on the strength of this
- *   cascade (`CASCADED_POST_REFERENCES`), so the gate did not block and the
- *   cascade did not clean.
- *
- *   `feed_interactions` is the single exception and it deletes from BOTH, because
- *   both hold rows that are real — see {@link purgeFeedInteractions}. It is the
- *   one entity in the cascade whose live writer is still Mongo.
+ *   Postgres, for everything. That is not a detail: a delete against a store the
+ *   rows do not live in matches nothing, and `renderDomainTable` would report the
+ *   zeros as "this domain held no such content" to the person who had just
+ *   authorised a deletion. Worse, the preflight in front of it WAIVES exactly
+ *   those reference probes on the strength of this cascade
+ *   (`CASCADED_POST_REFERENCES`), so the gate would not block and the cascade
+ *   would not clean.
  *
  * ENV
  *   DRY_RUN=1                 report only, write nothing (default: mutating,
@@ -180,11 +175,7 @@ import { feedInteractions } from '../db/schema/feeds';
 import { engagementOutbox } from '../db/schema/outbox';
 import { contentLabels, reports } from '../db/schema/moderation';
 import { authoredBy } from '../db/posts/postRepository';
-import {
-  countActors,
-  deleteActorsByUris,
-  scanActors,
-} from '../db/federation/actorRepository';
+import { countActors, deleteActorsByUris, scanActors } from '../db/federation/actorRepository';
 import { countFollows, deleteFollowsFor } from '../db/federation/followRepository';
 import {
   countMediaCacheRowsByUrls,
@@ -204,9 +195,7 @@ import {
 import { canonicalFederationHost } from '@oxy.so/federation';
 import { getBlockedDomainPolicy } from '../connectors/activitypub/federationBlockPolicy';
 import { OWN_DOMAINS } from '../connectors/activitypub/ownDomain';
-import {
-  materializeEngagementTombstone,
-} from '../services/PostEngagementCommandService';
+import { materializeEngagementTombstone } from '../services/PostEngagementCommandService';
 import { deleteCachedMedia, isMediaCacheEnabled } from '../services/mediaCache/oxyMediaStore';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
@@ -218,10 +207,7 @@ import {
   type PostDeletionTarget,
   type PostReferenceProbeName,
 } from './lib/adminDeletionPreflight';
-import {
-  assertAdminRunComplete,
-  closeAdminScriptResources,
-} from './lib/adminScriptLifecycle';
+import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import {
   clearAdminScriptCursor,
   readAdminScriptCursor,
@@ -385,8 +371,8 @@ export function buildBlockedContentDomains(
 
   if (targets.size === 0) {
     throw new EmptyBlocklistError(
-      'neither the committed policy nor FEDERATION_BLOCKED_DOMAINS names a domain '
-      + 'outside our own.',
+      'neither the committed policy nor FEDERATION_BLOCKED_DOMAINS names a domain ' +
+        'outside our own.',
     );
   }
 
@@ -576,9 +562,7 @@ function record(report: PurgeReport, domain: string, key: keyof PurgeCounts, del
  * This is the SINGLE place a row is removed, which is what makes the dry-run
  * guarantee checkable rather than a claim: no other code path in this module
  * calls `db.delete`, except the three repository functions that ARE one
- * (`deleteActorsByUris`, `deleteFollowsFor`, `deleteMediaCacheRowsByUrls`) and
- * the one collection this script still deletes from Mongo (see
- * {@link purgeFeedInteractions}).
+ * (`deleteActorsByUris`, `deleteFollowsFor`, `deleteMediaCacheRowsByUrls`).
  *
  * `returning` is what makes the live count real — a delete without it hands back
  * a driver result whose shape is the driver's business, and a wrong read of it
@@ -599,13 +583,10 @@ async function countOrDelete(
 }
 
 /**
- * {@link countOrDelete} for a table whose Mongo original was one DOCUMENT PER
- * POST holding an array, and whose counter therefore means posts rather than
- * rows.
+ * {@link countOrDelete} for a table whose counter means posts rather than rows.
  *
- * Counting distinct posts on both sides is what keeps the reported number
- * comparable to the one the Mongo version produced — and, more usefully, keeps it
- * from changing meaning with the data: rows would report a post with three
+ * Counting distinct posts is what keeps the reported number from changing
+ * meaning with the data: rows would report a post with three
  * repliers as three projections.
  */
 async function countOrDeleteDistinctPosts(
@@ -627,24 +608,8 @@ async function countOrDeleteDistinctPosts(
 }
 
 /**
- * `feed_interactions` — the lane whose residue is not fully reachable, and the
- * reason is worth reading before trusting its count.
- *
- * This used to delete from BOTH stores and sum the counts, because the table was
- * half-ported in the unusual direction: everything around it was Postgres — the
- * table, its indexes, the expiry sweep, the deletion preflight's
- * `feed_interactions.post_uri` probe, the backfill that populates it — while the
- * only writer in the running application still wrote Mongo.
- *
- * `trackFeedInteraction` now writes Postgres, so the Mongo half is a delete that
- * matches nothing new, and it is gone as that docblock said it should be.
- *
- * One consequence worth stating rather than discovering: rows written to the
- * Mongo collection BEFORE the writer ported are no longer purged by this script.
- * They are not reachable by anything — no reader remains, the collection is not
- * copied by a second backfill, and its 90-day TTL expires them on its own — but
- * "the purge no longer touches them" is a true sentence about a blocked domain's
- * residue, so it belongs here rather than in a commit message.
+ * `feed_interactions` — deleted from the Postgres table that
+ * `trackFeedInteraction` writes, matched on `post_uri`.
  */
 async function purgeFeedInteractions(
   postKeys: readonly string[],
@@ -676,12 +641,10 @@ interface PostRow {
 /**
  * The projection, as a drizzle select shape.
  *
- * `media` is NOT on it, unlike the Mongo document it replaces: media is a child
- * TABLE (`post_media`) rather than an embedded array, so the remote URLs are a
- * query — see {@link remoteMediaUrlsFor}. Nothing is lost by that; the origin URL
- * is actually better preserved, since `post_media.remote_url` keeps it after the
- * media cache has rewritten `media_id` to an Oxy file id, which the Mongo shape
- * overwrote.
+ * `media` is NOT on it: media is a child TABLE (`post_media`), so the remote
+ * URLs are a query — see {@link remoteMediaUrlsFor}. `post_media.remote_url`
+ * keeps the origin URL after the media cache has rewritten `media_id` to an Oxy
+ * file id.
  */
 const POST_CASCADE_COLUMNS = {
   id: posts.id,
@@ -701,7 +664,7 @@ const POST_CASCADE_COLUMNS = {
  * BOTH columns, because they hold the same URL at different points in the media
  * cache's life: `media_id` carries a raw remote URL until the cache rewrites it
  * to an Oxy file id, at which point the origin moves to `remote_url`. Reading
- * only the first — the literal translation of the Mongo `media[].id` read — would
+ * only the first would
  * find the bytes of posts the cache never got to and miss exactly the ones it
  * DID cache, which are the ones with bytes in our S3.
  */
@@ -835,13 +798,10 @@ async function repairBoostCounters(
   report: PurgeReport,
   domain: string,
 ): Promise<void> {
-  // There is no id-shape guard here, and its removal is the POINT rather than a
-  // simplification. It used to skip a `boostOf` that was not a Mongo ObjectId
-  // and count it as `boostTargetUncastable`, because a uuid v7 could not be cast
-  // into a Mongo query — a counter written for exactly this moment, whose
-  // docblock said it would otherwise skip EVERY boost counter repair while the
-  // run still reported success. `posts.id` is `text` and holds either id space,
-  // so nothing is uncastable and there is no longer a state to count.
+  // There is no id-shape guard here, deliberately: `posts.id` is `text` and
+  // holds either id space (legacy 24-hex and uuid v7), so nothing is
+  // uncastable and a shape guard would only skip boost counter repairs while
+  // the run still reported success.
   const survivingTargets = removed
     .filter((post) => post.boostOf !== null && !removedIds.has(post.boostOf))
     .map((post) => ({
@@ -1030,13 +990,20 @@ async function purgePostBatch(
    * the one that ran.
    */
   record(
-    report, domain, 'likesOnRemovedPosts',
+    report,
+    domain,
+    'likesOnRemovedPosts',
     await countOrDelete(likes, likes.id, inArray(likes.postId, removedIdStrings), options.dryRun),
   );
   record(
-    report, domain, 'bookmarksOnRemovedPosts',
+    report,
+    domain,
+    'bookmarksOnRemovedPosts',
     await countOrDelete(
-      bookmarks, bookmarks.id, inArray(bookmarks.postId, removedIdStrings), options.dryRun,
+      bookmarks,
+      bookmarks.id,
+      inArray(bookmarks.postId, removedIdStrings),
+      options.dryRun,
     ),
   );
   /**
@@ -1048,7 +1015,9 @@ async function purgePostBatch(
    * ask the same question or the gate clears rows this never removes.
    */
   record(
-    report, domain, 'notificationsByEntity',
+    report,
+    domain,
+    'notificationsByEntity',
     await countOrDelete(
       notifications,
       notifications.id,
@@ -1060,14 +1029,15 @@ async function purgePostBatch(
     ),
   );
   /**
-   * `post_recent_repliers` is FLAT here — one row per (post, replier) — where
-   * Mongo held one document per post with a `repliers[]` array. The counter still
+   * `post_recent_repliers` is FLAT — one row per (post, replier). The counter
    * means "projections removed", so it counts DISTINCT POSTS rather than rows;
    * otherwise a post with three repliers would report as three projections and
    * the number would silently change meaning with the shape of the data.
    */
   record(
-    report, domain, 'recentReplierProjections',
+    report,
+    domain,
+    'recentReplierProjections',
     await countOrDeleteDistinctPosts(
       postRecentRepliers,
       postRecentRepliers.postId,
@@ -1079,22 +1049,28 @@ async function purgePostBatch(
   /**
    * `polls` and `articles` are reached through their own `post_id` only.
    *
-   * The Mongo version needed a second `$or` branch on the id the POST carried
-   * (`content.pollId` / `content.article.articleId`), because those were two
-   * mirrors of one relationship that could disagree. The schema collapsed that:
-   * `polls.post_id` is the owning side and carries the constraint, so a poll a
+   * There is no second branch on the id the POST carries
+   * (`content.pollId` / `content.article.articleId`): `polls.post_id` is the
+   * owning side and carries the constraint, so a poll a
    * post names but which does not name the post back is not a state the database
    * admits. The columns are still read into {@link PostRow} because the ORPHAN
    * direction is a different question, answered below.
    */
   record(
-    report, domain, 'polls',
+    report,
+    domain,
+    'polls',
     await countOrDelete(polls, polls.id, inArray(polls.postId, removedIdStrings), options.dryRun),
   );
   record(
-    report, domain, 'articles',
+    report,
+    domain,
+    'articles',
     await countOrDelete(
-      articles, articles.id, inArray(articles.postId, removedIdStrings), options.dryRun,
+      articles,
+      articles.id,
+      inArray(articles.postId, removedIdStrings),
+      options.dryRun,
     ),
   );
 
@@ -1105,7 +1081,9 @@ async function purgePostBatch(
   // Rows about the ACTOR are a different matter and are retained — see the
   // header docblock on why the Oxy identity survives this purge.
   record(
-    report, domain, 'postgates',
+    report,
+    domain,
+    'postgates',
     await countOrDelete(
       postgates,
       postgates.id,
@@ -1117,7 +1095,9 @@ async function purgePostBatch(
     ),
   );
   record(
-    report, domain, 'threadgates',
+    report,
+    domain,
+    'threadgates',
     await countOrDelete(
       threadgates,
       threadgates.id,
@@ -1129,11 +1109,15 @@ async function purgePostBatch(
     ),
   );
   record(
-    report, domain, 'feedInteractions',
+    report,
+    domain,
+    'feedInteractions',
     await purgeFeedInteractions(removedPostKeys, options.dryRun),
   );
   record(
-    report, domain, 'engagementOutbox',
+    report,
+    domain,
+    'engagementOutbox',
     await countOrDelete(
       engagementOutbox,
       engagementOutbox.id,
@@ -1142,19 +1126,20 @@ async function purgePostBatch(
     ),
   );
   record(
-    report, domain, 'reports',
+    report,
+    domain,
+    'reports',
     await countOrDelete(
       reports,
       reports.id,
-      and(
-        eq(reports.reportedType, 'post'),
-        inArray(reports.reportedId, removedIdStrings),
-      ) as SQL,
+      and(eq(reports.reportedType, 'post'), inArray(reports.reportedId, removedIdStrings)) as SQL,
       options.dryRun,
     ),
   );
   record(
-    report, domain, 'contentLabels',
+    report,
+    domain,
+    'contentLabels',
     await countOrDelete(
       contentLabels,
       contentLabels.id,
@@ -1166,7 +1151,9 @@ async function purgePostBatch(
     ),
   );
   record(
-    report, domain, 'federationDeliveries',
+    report,
+    domain,
+    'federationDeliveries',
     options.dryRun
       ? await countDeliveriesReferencingObjects(removedPostKeys)
       : await deleteDeliveriesReferencingObjects(removedPostKeys),
@@ -1176,7 +1163,11 @@ async function purgePostBatch(
   // `posts.id`, so after the delete there is nothing left to read them from and
   // the bytes in our S3 would be unnameable.
   await purgeMediaForUrls(
-    await remoteMediaUrlsFor(removedIdStrings), options, report, domain, issues,
+    await remoteMediaUrlsFor(removedIdStrings),
+    options,
+    report,
+    domain,
+    issues,
   );
 
   // Boosts before their originals: a boost outliving its target for even part of
@@ -1187,14 +1178,19 @@ async function purgePostBatch(
   const boostIds = boosts.map((post) => post.id);
   if (boostIds.length > 0) {
     record(
-      report, domain, 'boostsByOthers',
+      report,
+      domain,
+      'boostsByOthers',
       await countOrDelete(posts, posts.id, inArray(posts.id, boostIds), options.dryRun),
     );
   }
   const removedSeeds = await countOrDelete(
     posts,
     posts.id,
-    inArray(posts.id, seeds.map((post) => post.id)),
+    inArray(
+      posts.id,
+      seeds.map((post) => post.id),
+    ),
     options.dryRun,
   );
   record(report, domain, seedCountKey, removedSeeds);
@@ -1239,26 +1235,17 @@ interface ActorRow {
  *
  * ## The read and the write must name the SAME store
  *
- * This lane used to page the MONGO `Like`/`Bookmark` collections and hand each
- * row to a tombstone that operates on the POSTGRES `likes`/`bookmarks` tables.
- * The delete matched nothing, `changed` came back false for every row, and the
- * loop recorded the whole page as `engagementResidue` — so a blocked instance's
- * like survived on a local author's post and their like count stayed inflated,
- * which is the exact outcome the counter-preserving teardown exists to prevent.
+ * This lane pages the POSTGRES `likes`/`bookmarks` tables and hands each row to
+ * a tombstone that operates on those same tables — the only writer of either
+ * relationship is `PostEngagementCommandService`, and it writes Postgres. Were
+ * the read on another store, the delete would match nothing, `changed` would
+ * come back false for every row, and the loop would record the whole page as
+ * `engagementResidue` — so a blocked instance's like would survive on a local
+ * author's post and their like count would stay inflated, which is the exact
+ * outcome the counter-preserving teardown exists to prevent.
  *
- * It reads Postgres now, because that is where the rows ARE: no code path
- * creates a Mongo `Like` or `Bookmark` any more (checked — the only writer of
- * either relationship is `PostEngagementCommandService`, and it writes
- * Postgres), so the Mongo collections hold pre-cutover rows that the backfill
- * carries across and nothing adds to.
- *
- * The paragraph that used to close this docblock explained how the lane worked
- * across the dual-run — the script read a post from Mongo and reached its likes
- * in Postgres under the same string, because `posts.id` is `text` holding the
- * ObjectId hex for every pre-cutover row. That bridge is no longer load-bearing
- * anywhere in this file: the post scan reads Postgres too, so the id never
- * crosses stores. It is worth knowing that it HOLDS, because it is what lets a
- * resume cursor written before this port still name a row afterwards.
+ * `posts.id` is `text` holding either id space, which is what lets an older
+ * resume cursor still name a row.
  */
 async function purgeActorEngagement(
   oxyUserId: string,
@@ -1282,11 +1269,12 @@ async function purgeActorEngagement(
           .where(eq(likes.userId, oxyUserId));
         return row?.total ?? 0;
       },
-      page: () => db
-        .select({ postId: likes.postId })
-        .from(likes)
-        .where(eq(likes.userId, oxyUserId))
-        .limit(ENGAGEMENT_PAGE_SIZE),
+      page: () =>
+        db
+          .select({ postId: likes.postId })
+          .from(likes)
+          .where(eq(likes.userId, oxyUserId))
+          .limit(ENGAGEMENT_PAGE_SIZE),
     },
     {
       kind: 'bookmark' as const,
@@ -1298,11 +1286,12 @@ async function purgeActorEngagement(
           .where(eq(bookmarks.userId, oxyUserId));
         return row?.total ?? 0;
       },
-      page: () => db
-        .select({ postId: bookmarks.postId })
-        .from(bookmarks)
-        .where(eq(bookmarks.userId, oxyUserId))
-        .limit(ENGAGEMENT_PAGE_SIZE),
+      page: () =>
+        db
+          .select({ postId: bookmarks.postId })
+          .from(bookmarks)
+          .where(eq(bookmarks.userId, oxyUserId))
+          .limit(ENGAGEMENT_PAGE_SIZE),
     },
   ];
 
@@ -1351,8 +1340,8 @@ async function purgeActorPosts(
   issues: RunIssues,
 ): Promise<void> {
   /**
-   * BOTH the denormalized owner and the authorship join, exactly as the Mongo
-   * `$or` did — and as the ported `purgeGoneFederatedActors` still does.
+   * BOTH the denormalized owner and the authorship join — as
+   * `purgeGoneFederatedActors` also does.
    *
    * Narrowing this to `authoredBy` alone is the mistake to avoid, and it is an
    * easy one: that helper is the ONE spelling of the authorship predicate and the
@@ -1425,7 +1414,9 @@ async function purgeActorContent(
      * equivalent and is not.
      */
     record(
-      report, domain, 'mentionsDelinked',
+      report,
+      domain,
+      'mentionsDelinked',
       await countOrDeleteDistinctPosts(
         postMentions,
         postMentions.postId,
@@ -1438,7 +1429,9 @@ async function purgeActorContent(
     // the next reply repopulates it is a cosmetic cost, and a transaction per
     // post across the whole corpus is not.
     record(
-      report, domain, 'recentReplierEntriesPulled',
+      report,
+      domain,
+      'recentReplierEntriesPulled',
       await countOrDeleteDistinctPosts(
         postRecentRepliers,
         postRecentRepliers.postId,
@@ -1448,21 +1441,23 @@ async function purgeActorContent(
     );
 
     record(
-      report, domain, 'entityFollows',
+      report,
+      domain,
+      'entityFollows',
       await countOrDelete(
-        entityFollows, entityFollows.id, eq(entityFollows.userId, oxyUserId), options.dryRun,
+        entityFollows,
+        entityFollows.id,
+        eq(entityFollows.userId, oxyUserId),
+        options.dryRun,
       ),
     );
     /**
      * Post subscriptions are AUTHOR-scoped, in BOTH directions.
      *
-     * This is the one delete in the script whose Mongo filter could never have
-     * matched: it read `{ postId: { $in: … } }` inside the post cascade, and
-     * `PostSubscription` has no `postId` — it is `(subscriberId, authorId)`, a
-     * standing request to be told about an author's new posts. Mongoose passes an
-     * unknown path straight through, so the query was well-formed, matched
-     * nothing, and reported a truthful-looking `postSubscriptions: 0` on every
-     * run since the script was written.
+     * A subscription has no `postId` — it is `(subscriberId, authorId)`, a
+     * standing request to be told about an author's new posts — so a filter on
+     * post ids inside the post cascade would match nothing and report a
+     * truthful-looking `postSubscriptions: 0` on every run.
      *
      * The subscription belongs to the ACTOR, so it is removed here instead, and
      * in both directions for the same reason `notificationsByActor` is: a local
@@ -1471,7 +1466,9 @@ async function purgeActorContent(
      * posts is engagement from an instance we no longer accept.
      */
     record(
-      report, domain, 'postSubscriptions',
+      report,
+      domain,
+      'postSubscriptions',
       await countOrDelete(
         postSubscriptions,
         postSubscriptions.id,
@@ -1483,14 +1480,13 @@ async function purgeActorContent(
       ),
     );
     record(
-      report, domain, 'notificationsByActor',
+      report,
+      domain,
+      'notificationsByActor',
       await countOrDelete(
         notifications,
         notifications.id,
-        or(
-          eq(notifications.recipientId, oxyUserId),
-          eq(notifications.actorId, oxyUserId),
-        ) as SQL,
+        or(eq(notifications.recipientId, oxyUserId), eq(notifications.actorId, oxyUserId)) as SQL,
         options.dryRun,
       ),
     );
@@ -1499,7 +1495,9 @@ async function purgeActorContent(
   // Counted BEFORE the delete, because after it there is nothing left to count —
   // and this is the number the automatic path's circuit breaker refuses on.
   record(
-    report, domain, 'localFollowsRemoved',
+    report,
+    domain,
+    'localFollowsRemoved',
     await countFollows({
       remoteActorUri: actor.uri,
       direction: 'outbound',
@@ -1507,7 +1505,9 @@ async function purgeActorContent(
     }),
   );
   record(
-    report, domain, 'federatedFollows',
+    report,
+    domain,
+    'federatedFollows',
     options.dryRun
       ? await countFollows({ remoteActorUri: actor.uri })
       : await deleteFollowsFor({ remoteActorUri: actor.uri }),
@@ -1550,30 +1550,21 @@ async function resumePoint(
     return { lastId: null, scanned: 0 };
   }
   const stored = await readAdminScriptCursor(SCRIPT_NAME, scope);
-  // NO SHAPE GUARD. This used to be `mongoose.isValidObjectId(stored.cursor)`,
-  // which returns FALSE for a uuid v7 — the id every row created after the
-  // cutover carries. Its false answer means "start from the beginning", so the
-  // cursor would silently stop resuming, permanently, with no error: a
-  // destructive sweep re-walking the corpus from the top on every attempt. The
-  // primary key is now an opaque text id and the only thing worth asking of a
+  // NO SHAPE GUARD. A 24-hex test returns FALSE for a uuid v7, and a false
+  // answer means "start from the beginning", so the cursor would silently stop
+  // resuming, permanently, with no error: a destructive sweep re-walking the
+  // corpus from the top on every attempt. The primary key is an opaque text id and the only thing worth asking of a
   // stored cursor is whether there IS one.
   if (!stored || stored.cursor.length === 0) return { lastId: null, scanned: 0 };
   return { lastId: stored.cursor, scanned: stored.scanned };
 }
 
 /*
- * `toMongoCursor` used to live here, and its removal IS this port's receipt.
- *
- * It existed because `orphan-posts` and `media` paged Mongo collections whose
- * ids really were ObjectIds, and it THREW rather than answering `null` for
- * anything else — because `null` means "start from the beginning", and a
+ * `orphan-posts` and `media` page Postgres; both cursors are opaque `text` ids
+ * and there is nothing to cast. Never add a cursor converter that answers `null`
+ * for an unrecognised id: `null` means "start from the beginning", and a
  * destructive sweep silently re-walking the corpus on every attempt is the worst
- * shape a bug in this script can take. Its docblock said the guard could not fire
- * yet, and that the moment those two phases ported, every cursor would become a
- * uuid v7 and this helper had to go WITH them rather than be relaxed. Both phases
- * page Postgres now, both cursors are opaque `text` ids, and there is nothing
- * left to cast — so it is gone, exactly as instructed, rather than loosened into
- * something that would answer `null`.
+ * shape a bug in this script can take.
  */
 
 /**
@@ -1621,10 +1612,7 @@ async function forEachBlockedActor(
   for (;;) {
     if (options.limit !== undefined && processed >= options.limit) break;
 
-    const page = await scanActors(
-      {},
-      { afterId: lastId ?? undefined, limit: PAGE_SIZE },
-    );
+    const page = await scanActors({}, { afterId: lastId ?? undefined, limit: PAGE_SIZE });
     if (page.length === 0) {
       if (lastId) await saveProgress(scope, options, lastId, scanned, issues, true);
       break;
@@ -1633,7 +1621,10 @@ async function forEachBlockedActor(
     for (const actor of page) {
       scanned += 1;
       const uriHost = hostOf(actor.uri);
-      if (!domains.has(canonicalFederationHost(actor.domain)) && (uriHost === null || !domains.has(uriHost))) {
+      if (
+        !domains.has(canonicalFederationHost(actor.domain)) &&
+        (uriHost === null || !domains.has(uriHost))
+      ) {
         continue;
       }
       if (options.limit !== undefined && processed >= options.limit) break;
@@ -1663,7 +1654,10 @@ async function loadBlockedOwnerIds(domains: ReadonlySet<string>): Promise<Readon
       const owner = actor.oxyUserId?.trim();
       if (!owner) continue;
       const uriHost = hostOf(actor.uri);
-      if (!domains.has(canonicalFederationHost(actor.domain)) && (uriHost === null || !domains.has(uriHost))) {
+      if (
+        !domains.has(canonicalFederationHost(actor.domain)) &&
+        (uriHost === null || !domains.has(uriHost))
+      ) {
         continue;
       }
       owners.add(owner);
@@ -1683,7 +1677,8 @@ async function purgeBlockedActorContent(
   issues: RunIssues,
 ): Promise<void> {
   await forEachBlockedActor(cursorScope(SCOPE_ACTORS, domains), domains, options, issues, (actor) =>
-    purgeActorContent(actor, options, report, issues));
+    purgeActorContent(actor, options, report, issues),
+  );
 }
 
 /**
@@ -1703,35 +1698,41 @@ async function dropBlockedActorAnchors(
   report: PurgeReport,
   issues: RunIssues,
 ): Promise<void> {
-  await forEachBlockedActor(cursorScope(SCOPE_ANCHORS, domains), domains, options, issues, async (actor) => {
-    const domain = domainOf(actor);
+  await forEachBlockedActor(
+    cursorScope(SCOPE_ANCHORS, domains),
+    domains,
+    options,
+    issues,
+    async (actor) => {
+      const domain = domainOf(actor);
 
-    // A dry run never entered the world this preflight asks about: the posts that
-    // name this actor are all still there precisely BECAUSE nothing was deleted,
-    // so the probe would report a refusal a live run does not produce — and the
-    // report would then show zero actors and a run-failing issue count for a
-    // preview that is working correctly. Report the anchor as would-remove and
-    // leave the question to the run that can actually answer it.
-    if (options.dryRun) {
-      record(report, domain, 'actors', 1);
-      return;
-    }
+      // A dry run never entered the world this preflight asks about: the posts that
+      // name this actor are all still there precisely BECAUSE nothing was deleted,
+      // so the probe would report a refusal a live run does not produce — and the
+      // report would then show zero actors and a run-failing issue count for a
+      // preview that is working correctly. Report the anchor as would-remove and
+      // leave the question to the run that can actually answer it.
+      if (options.dryRun) {
+        record(report, domain, 'actors', 1);
+        return;
+      }
 
-    try {
-      await assertActorAnchorSafeToDelete(`${SCRIPT_NAME}:${domain}`, { actorUri: actor.uri });
-    } catch (error) {
-      if (!(error instanceof DeletionPreflightError)) throw error;
-      logger.warn(`[${SCRIPT_NAME}] anchor preflight refused an actor; its row was kept`, {
-        domain,
-        blockers: error.blockers,
-      });
-      issues.preflightBlocked += 1;
-      return;
-    }
-    // Reached only on a live run — the dry-run branch above returned already —
-    // so this is unconditionally a delete rather than a count-or-delete.
-    record(report, domain, 'actors', await deleteActorsByUris([actor.uri]));
-  });
+      try {
+        await assertActorAnchorSafeToDelete(`${SCRIPT_NAME}:${domain}`, { actorUri: actor.uri });
+      } catch (error) {
+        if (!(error instanceof DeletionPreflightError)) throw error;
+        logger.warn(`[${SCRIPT_NAME}] anchor preflight refused an actor; its row was kept`, {
+          domain,
+          blockers: error.blockers,
+        });
+        issues.preflightBlocked += 1;
+        return;
+      }
+      // Reached only on a live run — the dry-run branch above returned already —
+      // so this is unconditionally a delete rather than a count-or-delete.
+      record(report, domain, 'actors', await deleteActorsByUris([actor.uri]));
+    },
+  );
 }
 
 /**
@@ -1748,7 +1749,10 @@ async function purgeOrphanBlockedPosts(
   report: PurgeReport,
   issues: RunIssues,
 ): Promise<void> {
-  const { lastId: resumeId, scanned: alreadyScanned } = await resumePoint(cursorScope(SCOPE_ORPHAN_POSTS, domains), options);
+  const { lastId: resumeId, scanned: alreadyScanned } = await resumePoint(
+    cursorScope(SCOPE_ORPHAN_POSTS, domains),
+    options,
+  );
   let lastId: string | null = resumeId;
   let scanned = alreadyScanned;
 
@@ -1761,7 +1765,15 @@ async function purgeOrphanBlockedPosts(
       .orderBy(asc(posts.id))
       .limit(PAGE_SIZE);
     if (page.length === 0) {
-      if (lastId) await saveProgress(cursorScope(SCOPE_ORPHAN_POSTS, domains), options, lastId, scanned, issues, true);
+      if (lastId)
+        await saveProgress(
+          cursorScope(SCOPE_ORPHAN_POSTS, domains),
+          options,
+          lastId,
+          scanned,
+          issues,
+          true,
+        );
       break;
     }
 
@@ -1786,10 +1798,7 @@ async function purgeOrphanBlockedPosts(
         .select({ postId: postAuthorships.postId, oxyUserId: postAuthorships.oxyUserId })
         .from(postAuthorships)
         .where(
-          and(
-            inArray(postAuthorships.postId, missingOwner),
-            eq(postAuthorships.role, 'owner'),
-          ),
+          and(inArray(postAuthorships.postId, missingOwner), eq(postAuthorships.role, 'owner')),
         );
       for (const owner of owners) ownerByPost.set(owner.postId, owner.oxyUserId);
     }
@@ -1829,14 +1838,25 @@ async function purgeBlockedMediaCache(
   report: PurgeReport,
   issues: RunIssues,
 ): Promise<void> {
-  const { lastId: resumeId, scanned: alreadyScanned } = await resumePoint(cursorScope(SCOPE_MEDIA, domains), options);
+  const { lastId: resumeId, scanned: alreadyScanned } = await resumePoint(
+    cursorScope(SCOPE_MEDIA, domains),
+    options,
+  );
   let lastId: string | null = resumeId;
   let scanned = alreadyScanned;
 
   for (;;) {
     const page = await pageMediaCacheRows(lastId, PAGE_SIZE);
     if (page.length === 0) {
-      if (lastId) await saveProgress(cursorScope(SCOPE_MEDIA, domains), options, lastId, scanned, issues, true);
+      if (lastId)
+        await saveProgress(
+          cursorScope(SCOPE_MEDIA, domains),
+          options,
+          lastId,
+          scanned,
+          issues,
+          true,
+        );
       break;
     }
 
@@ -1926,10 +1946,7 @@ export async function purgeBlockedDomainContent(
  * called, and failing to write its receipt must not make a completed purge look
  * like a failed one. It is logged loudly instead.
  */
-async function recordManualRunInLedger(
-  report: PurgeReport,
-  options: PurgeOptions,
-): Promise<void> {
+async function recordManualRunInLedger(report: PurgeReport, options: PurgeOptions): Promise<void> {
   if (options.dryRun) return;
 
   const now = new Date();
@@ -1970,10 +1987,12 @@ export function renderDomainTable(report: PurgeReport): string[] {
   const rows = [...report.byDomain.entries()]
     .map(([domain, counts]) => ({ domain, counts }))
     .filter(({ counts }) => COUNT_KEYS.some((key) => counts[key] > 0))
-    .sort((a, b) =>
-      (b.counts.posts + b.counts.orphanPosts) - (a.counts.posts + a.counts.orphanPosts)
-      || b.counts.actors - a.counts.actors
-      || a.domain.localeCompare(b.domain));
+    .sort(
+      (a, b) =>
+        b.counts.posts + b.counts.orphanPosts - (a.counts.posts + a.counts.orphanPosts) ||
+        b.counts.actors - a.counts.actors ||
+        a.domain.localeCompare(b.domain),
+    );
 
   if (rows.length === 0) return ['no blocked domain held any content'];
 
@@ -2008,7 +2027,10 @@ export function renderDomainTable(report: PurgeReport): string[] {
     ]),
   );
   const renderRow = (row: Record<string, string>): string =>
-    columns.map((column) => row[column].padEnd(widths.get(column) ?? 0)).join('  ').trimEnd();
+    columns
+      .map((column) => row[column].padEnd(widths.get(column) ?? 0))
+      .join('  ')
+      .trimEnd();
 
   return [renderRow(header), ...cells.map(renderRow)];
 }
@@ -2035,13 +2057,8 @@ async function main(): Promise<void> {
     );
 
     /**
-     * POSTGRES ONLY. The comment that used to sit here justified a Mongo
-     * connection by saying `feed_interactions` still had a live Mongo writer —
-     * it does not: `purgeFeedInteractions` deletes through `getDb()` against the
-     * `feed_interactions` TABLE, and the Mongoose model was deleted once nothing
-     * imported it. The connection outlived its reason, and the reason outlived
-     * its truth, which is the more dangerous half: a stale justification reads as
-     * a decision somebody made.
+     * POSTGRES ONLY. `purgeFeedInteractions` deletes through `getDb()` against
+     * the `feed_interactions` TABLE, like every other lane.
      */
     await connectPostgres();
     logger.info(`[${SCRIPT_NAME}] connected`, {

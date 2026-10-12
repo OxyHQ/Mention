@@ -53,7 +53,12 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
           accessibilityRole="progressbar"
           accessibilityLabel={t('compose.quote.loading', { defaultValue: 'Loading quoted post' })}
         >
-          <Loading className="text-primary" variant="inline" size="sm" style={{ flex: undefined }} />
+          <Loading
+            className="text-primary"
+            variant="inline"
+            size="sm"
+            style={{ flex: undefined }}
+          />
           <Text className="text-muted-foreground ml-2 text-[13px]">
             {t('compose.quote.loading', { defaultValue: 'Loading quoted post...' })}
           </Text>
@@ -71,7 +76,12 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
             federated authors alike — Bloom's Avatar accepts both shapes
             (and `null`) directly and ignores `variant` for an absolute URL,
             so nothing needs branching or coercing here. */}
-        <Avatar source={post?.user?.avatar} variant={MEDIA_VARIANT_AVATAR} size={28} style={{ marginRight: 10 }} />
+        <Avatar
+          source={post?.user?.avatar}
+          variant={MEDIA_VARIANT_AVATAR}
+          size={28}
+          style={{ marginRight: 10 }}
+        />
         <View className="flex-1 pr-6">
           <View className="flex-row items-center">
             {userName ? (

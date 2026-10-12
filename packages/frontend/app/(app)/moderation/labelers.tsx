@@ -87,12 +87,17 @@ const LabelerCard = React.memo(({ labeler, onSubscribeToggle, subscribing }: Lab
           activeOpacity={0.7}
         >
           {subscribing ? (
-            <Loading className="text-primary" variant="inline" size="sm" style={{ flex: undefined }} />
+            <Loading
+              className="text-primary"
+              variant="inline"
+              size="sm"
+              style={{ flex: undefined }}
+            />
           ) : (
             <Text
               className={cn(
-                "text-[13px] font-semibold",
-                labeler.isSubscribed ? "text-foreground" : "text-white"
+                'text-[13px] font-semibold',
+                labeler.isSubscribed ? 'text-foreground' : 'text-white',
               )}
             >
               {labeler.isSubscribed
@@ -150,7 +155,12 @@ const LabelersScreen: React.FC = () => {
 
   const queryKey = viewerQueryKeys.labelers(user?.id, debouncedSearch);
 
-  const { data: labelers = [], isLoading, isFetching, refetch } = useQuery<Labeler[]>({
+  const {
+    data: labelers = [],
+    isLoading,
+    isFetching,
+    refetch,
+  } = useQuery<Labeler[]>({
     queryKey,
     // `isSubscribed` is viewer-specific, so this is a private read and the key
     // carries the viewer — a session resolving after a cold boot re-keys and
@@ -158,7 +168,9 @@ const LabelersScreen: React.FC = () => {
     enabled: canUsePrivateApi,
     staleTime: 30_000,
     queryFn: async () => {
-      const res = await labelerService.list(debouncedSearch ? { search: debouncedSearch } : undefined);
+      const res = await labelerService.list(
+        debouncedSearch ? { search: debouncedSearch } : undefined,
+      );
       return res.items ?? [];
     },
   });
@@ -241,10 +253,7 @@ const LabelersScreen: React.FC = () => {
     [handleSubscribeToggle, subscribingIds],
   );
 
-  const keyExtractor = useCallback(
-    (item: Labeler) => String(item._id || item.id),
-    [],
-  );
+  const keyExtractor = useCallback((item: Labeler) => String(item._id || item.id), []);
 
   const ListEmpty = useCallback(
     () => (

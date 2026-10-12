@@ -1,5 +1,5 @@
 /**
- * The feed predicates that CHANGED MEANING crossing from Mongo to Postgres,
+ * The feed predicates that CHANGED MEANING crossing from the legacy store to Postgres,
  * asserted against real rows.
  *
  * Every case here guards a place where the literal translation is silently
@@ -11,7 +11,7 @@
  *
  * Four independent hazards:
  *
- *  1. **`NULL` is not `false`.** Mongo's `$nin` MATCHED a document whose field
+ *  1. **`NULL` is not `false`.** The legacy store's `$nin` MATCHED a document whose field
  *     was missing; SQL's `NOT IN` evaluates to NULL against a NULL column and
  *     the row is excluded. Same for array overlap: `NULL && ARRAY[…]` is NULL.
  *  2. **The engagement composite splits its boost term.** Native boosts and
@@ -26,7 +26,7 @@
  *
  * The NULL cases write their NULL directly rather than through
  * `insertPostRecord`, which coalesces to `[]`. That is not contrived: the
- * BACKFILL copies Mongo documents verbatim, and a document that never had a
+ * BACKFILL copies legacy-store documents verbatim, and a document that never had a
  * hashtag has no `hashtags` key at all — so NULL is what production data
  * actually contains, and the insert path is simply not how it gets there.
  */
@@ -37,11 +37,7 @@ import { PostType, PostVisibility } from '@mention/shared-types';
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
-import {
-  deletePostRecord,
-  findPostRecords,
-  insertPostRecord,
-} from '../../db/posts/postRepository';
+import { deletePostRecord, findPostRecords, insertPostRecord } from '../../db/posts/postRepository';
 import type { PostRecordInput } from '../../db/posts/postRecord';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../mtn/feed/CursorBuilder';
 import { discoverySafeSql, nsfwHashtagExcludeSql } from '../../mtn/feed/feedSafety';
@@ -115,9 +111,7 @@ describe('NULL is not false — the predicates that silently drop rows', () => {
 
     // The NULL-hashtag post is the one a bare `NOT (hashtags && …)` loses:
     // `NULL && ARRAY[…]` is NULL, and NOT NULL is NULL, which excludes the row.
-    expect(rows.map((row) => row.id).sort()).toEqual(
-      [noHashtags.id, cleanHashtags.id].sort(),
-    );
+    expect(rows.map((row) => row.id).sort()).toEqual([noHashtags.id, cleanHashtags.id].sort());
     expect(rows.map((row) => row.id)).not.toContain(nsfwHashtags.id);
   });
 
@@ -130,13 +124,10 @@ describe('NULL is not false — the predicates that silently drop rows', () => {
     expect(predicate).toBeDefined();
     if (!predicate) throw new Error('authorNotInSql returned undefined for a non-empty list');
 
-    const rows = await db
-      .select({ id: posts.id })
-      .from(posts)
-      .where(and(mine(), predicate));
+    const rows = await db.select({ id: posts.id }).from(posts).where(and(mine(), predicate));
 
     // `oxy_user_id NOT IN ('AUTHOR')` is NULL for the author-less row, so the
-    // literal translation drops it. Mongo's `$nin` matched it.
+    // literal translation drops it. The legacy store's `$nin` matched it.
     expect(rows.map((row) => row.id).sort()).toEqual([authorless.id, byOther.id].sort());
     expect(rows.map((row) => row.id)).not.toContain(byExcluded.id);
   });
@@ -238,7 +229,12 @@ describe('one engagement composite, and it dampens federated boosts', () => {
     const post = await create();
     await db
       .update(posts)
-      .set({ statsLikesCount: 3, statsBoostsCount: 0, statsFederatedBoostsCount: 0, statsCommentsCount: 0 })
+      .set({
+        statsLikesCount: 3,
+        statsBoostsCount: 0,
+        statsFederatedBoostsCount: 0,
+        statsCommentsCount: 0,
+      })
       .where(eq(posts.id, post.id));
 
     const [row] = await db
@@ -368,10 +364,9 @@ describe('an orphaned reply never becomes a root-feed post', () => {
     expect(orphan.parentPostId).toBeNull();
     expect(orphan.isReply).toBe(true);
 
-    const roots = await findPostRecords(
-      and(mine(), eq(posts.isReply, false), notABoostSql()),
-      { orderBy: [posts.id] },
-    );
+    const roots = await findPostRecords(and(mine(), eq(posts.isReply, false), notABoostSql()), {
+      orderBy: [posts.id],
+    });
 
     expect(roots.map((record) => record.id)).toEqual([root.id]);
   });

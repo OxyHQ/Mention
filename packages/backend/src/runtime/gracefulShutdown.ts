@@ -70,7 +70,7 @@ export function registerGracefulShutdown(deps: GracefulShutdownDeps): void {
         try {
           await shutdownQueues();
         } catch (error) {
-          logger.error("Error shutting down federation queues", error);
+          logger.error('Error shutting down federation queues', error);
         }
       };
 
@@ -118,6 +118,6 @@ export function registerGracefulShutdown(deps: GracefulShutdownDeps): void {
     })();
   };
 
-  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
-  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 }

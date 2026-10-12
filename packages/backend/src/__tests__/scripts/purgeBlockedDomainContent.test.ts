@@ -15,42 +15,6 @@ import type { PurgeOptions, PurgeReport } from '../../scripts/purgeBlockedDomain
  * unchanged. Only real rows can distinguish "did not delete it" from "was never
  * asked about it".
  *
- * ## What the Postgres port changed, and what this suite could not see before
- *
- * The known gap this file's header used to declare is closed. It read:
- *
- *   > This script still reads and deletes MONGO collections, but the deletion
- *   > preflight it runs probes POSTGRES — so the preflight is asking a different
- *   > store than the script deletes from, and it passes here for that reason
- *   > rather than because the corpus is clean.
- *
- * That is exactly the shape a green suite cannot report. Fourteen deletes named
- * collections nothing had written since those entities moved, so each removed
- * nothing and reported a truthful-looking zero — and `assertPostsSafeToDelete`
- * WAIVES those very probes on the strength of the cascade
- * (`CASCADED_POST_REFERENCES`), so the gate did not block either. The suite was
- * green because it seeded the same empty store the script deleted from.
- *
- * The fixture is Postgres now, and the reference rows below are seeded and then
- * asserted GONE — which is the assertion the old suite had no way to make.
- *
- * ## Mongo is gone from this file
- *
- * It used to run a real in-memory Mongo for exactly one entity:
- * `feed_interactions`, whose live writer was still
- * `mtn/feed/FeedInteractionTracker.ts` writing the Mongo collection while its
- * Postgres table was backfilled, indexed, swept and probed. The cascade deleted
- * both stores and this file proved it deleted both.
- *
- * That writer now writes Postgres, so the Mongo half of the cascade is gone and
- * the whole apparatus went with it — the `MongoMemoryServer`, the `unmock`, the
- * connection, and the second seed. The file is Postgres-only, which is what
- * every other entity in the cascade already was.
- *
- * Pre-port rows still sitting in the Mongo collection are no longer purged by
- * anything; nothing reads them and their 90-day TTL expires them. See
- * `purgeFeedInteractions` for why that is recorded rather than silent.
- *
  * ## What is mocked, and why only this
  *
  * The Oxy S3 object store, because deleting cached media bytes is a network call
@@ -103,17 +67,13 @@ const {
   reports: pgReports,
 } = await import('../../db/schema/moderation');
 const { logger } = await import('../../utils/logger');
-const {
-  federatedActors,
-  federatedDeliveryQueue,
-  federatedFollows,
-  federatedMediaCache,
-} = await import('../../db/schema/federation').then((m) => ({
-  federatedActors: m.federatedActors,
-  federatedDeliveryQueue: m.federationDeliveryQueue,
-  federatedFollows: m.federatedFollows,
-  federatedMediaCache: m.federatedMediaCache,
-}));
+const { federatedActors, federatedDeliveryQueue, federatedFollows, federatedMediaCache } =
+  await import('../../db/schema/federation').then((m) => ({
+    federatedActors: m.federatedActors,
+    federatedDeliveryQueue: m.federationDeliveryQueue,
+    federatedFollows: m.federatedFollows,
+    federatedMediaCache: m.federatedMediaCache,
+  }));
 const { adminScriptCursors } = await import('../../db/schema/adminScripts');
 const { withDeadlockRetry } = await import('../helpers/serviceFixtures');
 const { POST_REFERENCE_PROBE_NAMES } = await import('../../scripts/lib/adminDeletionPreflight');
@@ -203,9 +163,7 @@ async function clearFixtures(): Promise<void> {
   await db.delete(pgThreadgates).where(inArray(pgThreadgates.createdBy, ACCOUNTS));
   await db.delete(pgReports).where(inArray(pgReports.reporter, ACCOUNTS));
   await db.delete(pgLabelers).where(inArray(pgLabelers.creatorId, ACCOUNTS));
-  await db
-    .delete(pgEngagementOutbox)
-    .where(like(pgEngagementOutbox.id, 'purge-test-%'));
+  await db.delete(pgEngagementOutbox).where(like(pgEngagementOutbox.id, 'purge-test-%'));
   await db
     .delete(federatedDeliveryQueue)
     .where(inArray(federatedDeliveryQueue.senderOxyUserId, ACCOUNTS));
@@ -312,7 +270,10 @@ afterEach(async () => {
  */
 async function assertFixturesCleared(): Promise<void> {
   const db = getDb();
-  const posts = await db.select({ id: pgPosts.id }).from(pgPosts).where(like(pgPosts.id, '%purge-test%'));
+  const posts = await db
+    .select({ id: pgPosts.id })
+    .from(pgPosts)
+    .where(like(pgPosts.id, '%purge-test%'));
   const repliers = await db
     .select({ postId: postRecentRepliers.postId, oxyUserId: postRecentRepliers.oxyUserId })
     .from(postRecentRepliers)
@@ -326,8 +287,8 @@ async function assertFixturesCleared(): Promise<void> {
         ? 'The posts are GONE and the replier rows are not, which cleanup alone ' +
           'cannot produce — the foreign key is ON DELETE CASCADE. Something wrote ' +
           'these concurrently.'
-        : 'The previous test\'s cleanup did not finish; `clearFixtures` runs ~12 ' +
-          'deletes before the `posts` one and an earlier failure skips the rest.')
+        : "The previous test's cleanup did not finish; `clearFixtures` runs ~12 " +
+          'deletes before the `posts` one and an earlier failure skips the rest.'),
   );
 }
 
@@ -411,7 +372,7 @@ async function seed(): Promise<void> {
       type: 'text',
       parentPostId: P.blockedPost,
       // `posts_reply_discriminator_check` is `parent_post_id is null or is_reply`
-      // — a constraint the Mongo document had no counterpart for, so a fixture
+      // — a constraint the legacy-store document had no counterpart for, so a fixture
       // translated field-for-field is refused rather than quietly wrong.
       isReply: true,
       threadId: P.blockedPost,
@@ -430,7 +391,7 @@ async function seed(): Promise<void> {
   await db.insert(postMedia).values([
     { postId: P.blockedPost, position: 0, mediaId: BLOCKED_MEDIA_URL, type: 'image' },
     // The media cache already rewrote this one, so the origin URL survives only
-    // in `remote_url` — the case a literal port of the Mongo `media[].id` read
+    // in `remote_url` — the case a literal port of the legacy-store `media[].id` read
     // would miss, and the one with bytes in our S3.
     {
       postId: P.blockedPost,
@@ -485,14 +446,12 @@ async function seed(): Promise<void> {
   await db
     .insert(pgThreadgates)
     .values({ postId: P.blockedPost, postUri: BLOCKED_POST_ACTIVITY_ID, createdBy: 'oxy-blocked' });
-  await db
-    .insert(postRecentRepliers)
-    .values([
-      { postId: P.blockedPost, oxyUserId: 'oxy-local', repliedAt: new Date() },
-      // The blocked actor's entry on a SURVIVING post — pulled, not deleted with
-      // a projection.
-      { postId: P.localPost, oxyUserId: 'oxy-blocked', repliedAt: new Date() },
-    ]);
+  await db.insert(postRecentRepliers).values([
+    { postId: P.blockedPost, oxyUserId: 'oxy-local', repliedAt: new Date() },
+    // The blocked actor's entry on a SURVIVING post — pulled, not deleted with
+    // a projection.
+    { postId: P.localPost, oxyUserId: 'oxy-blocked', repliedAt: new Date() },
+  ]);
   await db.insert(postMentions).values([
     { postId: P.localPost, oxyUserId: 'oxy-blocked' },
     { postId: P.localReply, oxyUserId: 'oxy-blocked' },
@@ -612,8 +571,14 @@ async function snapshotEverything(): Promise<string> {
     db.select().from(pgReports).where(inArray(pgReports.reporter, ACCOUNTS)),
     db.select().from(pgPostgates).where(inArray(pgPostgates.createdBy, ACCOUNTS)),
     db.select().from(pgFeedInteractions).where(inArray(pgFeedInteractions.userId, ACCOUNTS)),
-    db.select().from(pgPostSubscriptions).where(inArray(pgPostSubscriptions.subscriberId, ACCOUNTS)),
-    db.select().from(federatedActors).where(inArray(federatedActors.domain, [BLOCKED, ALLOWED])),
+    db
+      .select()
+      .from(pgPostSubscriptions)
+      .where(inArray(pgPostSubscriptions.subscriberId, ACCOUNTS)),
+    db
+      .select()
+      .from(federatedActors)
+      .where(inArray(federatedActors.domain, [BLOCKED, ALLOWED])),
     db.select().from(federatedFollows).where(inArray(federatedFollows.localUserId, ACCOUNTS)),
     cursorRows(),
   ]);
@@ -634,7 +599,7 @@ async function snapshotEverything(): Promise<string> {
 }
 
 describe('purgeBlockedDomainContent — what it removes', () => {
-  it('removes a blocked domain\'s posts, actor row, follow edge and cached media', async () => {
+  it("removes a blocked domain's posts, actor row, follow edge and cached media", async () => {
     await seed();
 
     const report = await run();
@@ -703,10 +668,7 @@ describe('purgeBlockedDomainContent — what it removes', () => {
         .select()
         .from(federatedDeliveryQueue)
         .where(inArray(federatedDeliveryQueue.senderOxyUserId, ACCOUNTS)),
-      db
-        .select()
-        .from(pgNotifications)
-        .where(eq(pgNotifications.entityId, P.blockedPost)),
+      db.select().from(pgNotifications).where(eq(pgNotifications.entityId, P.blockedPost)),
     ]);
     expect(survivors.map((rows) => rows.length)).toEqual(Array(13).fill(0));
 
@@ -773,7 +735,7 @@ describe('purgeBlockedDomainContent — what it removes', () => {
     /**
      * The delete that could never have matched. It read
      * `{ postId: { $in: … } }` inside the POST cascade, and `PostSubscription`
-     * is `(subscriberId, authorId)` — it has no `postId`. Mongoose passes an
+     * is `(subscriberId, authorId)` — it has no `postId`. The legacy ODM passes an
      * unknown path straight through, so the query was well-formed, matched
      * nothing, and reported `postSubscriptions: 0` on every run since the script
      * was written.
@@ -856,13 +818,14 @@ describe('purgeBlockedDomainContent — what it removes', () => {
     const report = await run();
 
     expect(report.issues.mediaObjectDeleteFailed).toBeGreaterThan(0);
-    expect(warn.mock.calls.some(([message]) => String(message).includes('media cache is disabled')))
-      .toBe(true);
+    expect(
+      warn.mock.calls.some(([message]) => String(message).includes('media cache is disabled')),
+    ).toBe(true);
   });
 });
 
 describe('purgeBlockedDomainContent — what it must NEVER remove', () => {
-  it('leaves a local user\'s own post alone', async () => {
+  it("leaves a local user's own post alone", async () => {
     await seed();
 
     await run();
@@ -908,7 +871,7 @@ describe('purgeBlockedDomainContent — what it must NEVER remove', () => {
 
     /**
      * `parent_post_id` and `thread_id` are `ON DELETE SET NULL`, so the reference
-     * is ERASED by the database rather than left dangling as it was in Mongo.
+     * is ERASED by the database rather than left dangling as it was in the legacy store.
      * That is the trade `allowDanglingReplyReferences` exists to state, and it is
      * why the post itself surviving is the assertion: hydration soft-fails a
      * missing parent, so the reply renders and loses its "Replying to @…" handle.
@@ -947,7 +910,7 @@ describe('purgeBlockedDomainContent — what it must NEVER remove', () => {
 });
 
 describe('purgeBlockedDomainContent — the boost policy', () => {
-  it('deletes a LOCAL user\'s boost of removed content', async () => {
+  it("deletes a LOCAL user's boost of removed content", async () => {
     await seed();
 
     const report = await run();
@@ -976,14 +939,14 @@ describe('purgeBlockedDomainContent — the boost policy', () => {
 });
 
 describe('purgeBlockedDomainContent — the engagement policy', () => {
-  it('tears a blocked actor\'s like off a surviving post AND moves its counter', async () => {
+  it("tears a blocked actor's like off a surviving post AND moves its counter", async () => {
     await seed();
 
     const report = await run();
 
-    expect(
-      await getDb().select().from(pgLikes).where(eq(pgLikes.userId, 'oxy-blocked')),
-    ).toEqual([]);
+    expect(await getDb().select().from(pgLikes).where(eq(pgLikes.userId, 'oxy-blocked'))).toEqual(
+      [],
+    );
     // A bulk delete would leave the local author looking at a like count no
     // record explains. The counter moves in lockstep instead.
     const [local] = await getDb()
@@ -1001,10 +964,7 @@ describe('purgeBlockedDomainContent — the engagement policy', () => {
     const report = await run();
 
     expect(
-      await getDb()
-        .select()
-        .from(pgEntityFollows)
-        .where(eq(pgEntityFollows.userId, 'oxy-blocked')),
+      await getDb().select().from(pgEntityFollows).where(eq(pgEntityFollows.userId, 'oxy-blocked')),
     ).toEqual([]);
     expect(report.totals.entityFollows).toBe(1);
   });
@@ -1052,10 +1012,10 @@ describe('purgeBlockedDomainContent — re-running', () => {
 
   it('RESUMES from an opaque cursor rather than restarting the sweep', async () => {
     /**
-     * What replaced the `toMongoCursor` tripwire.
+     * What replaced the ObjectId-cursor tripwire.
      *
      * Two tests used to live here, both pinning the LOUD half of a transition
-     * that has now happened: a Mongo-paged phase THREW on a cursor that was not
+     * that has now happened: an ObjectId-paged phase THREW on a cursor that was not
      * an ObjectId, and a boost target whose id could not be cast was COUNTED as a
      * run issue. Both guarded the moment `posts` moved, and both said in their own
      * docblocks that they had to go WITH the port rather than be relaxed — the
@@ -1103,13 +1063,15 @@ describe('purgeBlockedDomainContent — re-running', () => {
      * `federated_actors_uri_key`.
      */
     const skipped = '0000-purge-test-resume-orphan';
-    await getDb().insert(pgPosts).values({
-      id: skipped,
-      oxyUserId: 'oxy-ghost',
-      type: 'text',
-      federationActorUri: GHOST_ACTOR_URI,
-      federationActivityId: `https://${BLOCKED}/notes/3`,
-    });
+    await getDb()
+      .insert(pgPosts)
+      .values({
+        id: skipped,
+        oxyUserId: 'oxy-ghost',
+        type: 'text',
+        federationActorUri: GHOST_ACTOR_URI,
+        federationActivityId: `https://${BLOCKED}/notes/3`,
+      });
 
     const report = await run();
 
@@ -1174,8 +1136,7 @@ describe('purgeBlockedDomainContent — failing closed', () => {
     // — correct, but silent, and only visible as a counter on a production run.
     // Failing here instead tells whoever adds the probe what they have to teach
     // this cascade, before it ships.
-    expect([...CASCADED_POST_REFERENCES].sort())
-      .toEqual([...POST_REFERENCE_PROBE_NAMES].sort());
+    expect([...CASCADED_POST_REFERENCES].sort()).toEqual([...POST_REFERENCE_PROBE_NAMES].sort());
   });
 });
 
@@ -1190,8 +1151,9 @@ describe('buildBlockedContentDomains', () => {
   });
 
   it('refuses to run when the blocklist names ONLY our own domains', () => {
-    expect(() => buildBlockedContentDomains(['mention.earth', 'www.oxy.so'], own))
-      .toThrow(EmptyBlocklistError);
+    expect(() => buildBlockedContentDomains(['mention.earth', 'www.oxy.so'], own)).toThrow(
+      EmptyBlocklistError,
+    );
   });
 
   it('subtracts our own domains from a mixed blocklist instead of honouring them', () => {
@@ -1213,9 +1175,11 @@ describe('buildBlockedContentDomains', () => {
   });
 
   it('narrows to one domain, and refuses one that is not on the blocklist', () => {
-    expect([...buildBlockedContentDomains([BLOCKED, 'other.example'], own, BLOCKED)])
-      .toEqual([BLOCKED]);
-    expect(() => buildBlockedContentDomains([BLOCKED], own, 'other.example'))
-      .toThrow(EmptyBlocklistError);
+    expect([...buildBlockedContentDomains([BLOCKED, 'other.example'], own, BLOCKED)]).toEqual([
+      BLOCKED,
+    ]);
+    expect(() => buildBlockedContentDomains([BLOCKED], own, 'other.example')).toThrow(
+      EmptyBlocklistError,
+    );
   });
 });

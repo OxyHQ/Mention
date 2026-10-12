@@ -35,7 +35,11 @@ vi.mock('../../utils/oxyHelpers', () => ({
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: hoisted.hydratePosts },
   resolveUserSummaries: vi.fn(async () => new Map()),
-  degradedActorSummary: (id: string) => ({ id, username: '', name: { displayName: 'Unknown user' } }),
+  degradedActorSummary: (id: string) => ({
+    id,
+    username: '',
+    name: { displayName: 'Unknown user' },
+  }),
 }));
 
 vi.mock('../../services/PostCollaborationService', () => ({
@@ -159,7 +163,9 @@ describe('contentLocation — the pair is now tested for BEING a pair', () => {
   });
 
   it('still writes a valid pair', async () => {
-    const captured = await edit({ contentLocation: { latitude: -33.87, longitude: 151.21, address: 'Sydney' } });
+    const captured = await edit({
+      contentLocation: { latitude: -33.87, longitude: 151.21, address: 'Sydney' },
+    });
 
     expect(captured.status).toBeUndefined();
     expect((await readPost(POST_ID))?.content.location).toEqual({
@@ -197,7 +203,10 @@ describe('postLocation — the same guard on the creation-metadata column', () =
 
   it('still writes a valid pair, and still erases on an explicit null', async () => {
     await edit({ postLocation: { latitude: 51.5, longitude: -0.12 } });
-    expect((await readPost(POST_ID))?.location).toEqual({ type: 'Point', coordinates: [-0.12, 51.5] });
+    expect((await readPost(POST_ID))?.location).toEqual({
+      type: 'Point',
+      coordinates: [-0.12, 51.5],
+    });
 
     await edit({ postLocation: null });
     expect((await readPost(POST_ID))?.location).toBeUndefined();

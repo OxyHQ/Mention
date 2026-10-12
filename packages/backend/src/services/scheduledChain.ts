@@ -92,10 +92,8 @@ export function orderScheduledChains<T extends { id: string; parentPostId?: stri
  * A narrow select rather than a whole `PostRecord`: assembling a record joins
  * nine tables, and the walk is several round trips deep by construction. None of
  * these four columns is nullable except the two the schema declares nullable, so
- * there is no absent-field branch to carry across from the Mongo shape —
- * `status` in particular is `NOT NULL DEFAULT 'published'`, which is why the
- * `?? 'published'` fallbacks the Mongo version needed are gone rather than
- * translated.
+ * there is no absent-field branch — `status` in particular is
+ * `NOT NULL DEFAULT 'published'`, so no `?? 'published'` fallback is needed.
  */
 interface ChainNode {
   id: string;
@@ -189,11 +187,13 @@ export async function loadScheduledChain(
     const children = await getDb()
       .select(CHAIN_COLUMNS)
       .from(posts)
-      .where(and(
-        eq(posts.parentPostId, post.id),
-        eq(posts.oxyUserId, ownerId),
-        eq(posts.status, 'scheduled'),
-      ))
+      .where(
+        and(
+          eq(posts.parentPostId, post.id),
+          eq(posts.oxyUserId, ownerId),
+          eq(posts.status, 'scheduled'),
+        ),
+      )
       .orderBy(asc(posts.createdAt));
     pending.push(...children);
   }

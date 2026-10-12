@@ -39,7 +39,11 @@ export async function recordSeenTopics(viewerId: string, topics: string[]): Prom
     return;
   }
   const normalized = Array.from(
-    new Set(topics.map((t) => (typeof t === 'string' ? t.toLowerCase().trim() : '')).filter((t) => t.length > 0)),
+    new Set(
+      topics
+        .map((t) => (typeof t === 'string' ? t.toLowerCase().trim() : ''))
+        .filter((t) => t.length > 0),
+    ),
   ).slice(0, MAX_TOPICS_PER_WRITE);
   if (normalized.length === 0) {
     return;

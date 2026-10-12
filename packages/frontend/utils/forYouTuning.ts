@@ -7,7 +7,9 @@ import type { ForYouFeedTuning, ForYouTuningModuleSpec } from '@mention/shared-t
  * `minQuality` is opt-in / neutral by default, so it starts at a sensible
  * quality floor the viewer can adjust once they enable it.
  */
-export const FOR_YOU_TUNING_DEFAULT_THRESHOLDS: Partial<Record<ForYouTuningModuleSpec['moduleId'], number>> = {
+export const FOR_YOU_TUNING_DEFAULT_THRESHOLDS: Partial<
+  Record<ForYouTuningModuleSpec['moduleId'], number>
+> = {
   minLength: 3,
   lowEffortGate: 12,
   nativeEngagement: 1,
@@ -27,24 +29,39 @@ export interface ResolvedTuning {
  * the dynamic threshold key strictly typed against each concrete entry shape — a
  * new tunable module fails to compile here until it is handled.
  */
-export function resolveTuning(tuning: ForYouFeedTuning, spec: ForYouTuningModuleSpec): ResolvedTuning {
+export function resolveTuning(
+  tuning: ForYouFeedTuning,
+  spec: ForYouTuningModuleSpec,
+): ResolvedTuning {
   const fallback = FOR_YOU_TUNING_DEFAULT_THRESHOLDS[spec.moduleId];
   switch (spec.moduleId) {
     case 'minLength': {
       const entry = tuning.minLength;
-      return { enabled: entry?.enabled ?? spec.defaultEnabled, threshold: entry?.minLength ?? fallback };
+      return {
+        enabled: entry?.enabled ?? spec.defaultEnabled,
+        threshold: entry?.minLength ?? fallback,
+      };
     }
     case 'lowEffortGate': {
       const entry = tuning.lowEffortGate;
-      return { enabled: entry?.enabled ?? spec.defaultEnabled, threshold: entry?.minMeaningfulTextLength ?? fallback };
+      return {
+        enabled: entry?.enabled ?? spec.defaultEnabled,
+        threshold: entry?.minMeaningfulTextLength ?? fallback,
+      };
     }
     case 'nativeEngagement': {
       const entry = tuning.nativeEngagement;
-      return { enabled: entry?.enabled ?? spec.defaultEnabled, threshold: entry?.minNativeEngagement ?? fallback };
+      return {
+        enabled: entry?.enabled ?? spec.defaultEnabled,
+        threshold: entry?.minNativeEngagement ?? fallback,
+      };
     }
     case 'minQuality': {
       const entry = tuning.minQuality;
-      return { enabled: entry?.enabled ?? spec.defaultEnabled, threshold: entry?.minQuality ?? fallback };
+      return {
+        enabled: entry?.enabled ?? spec.defaultEnabled,
+        threshold: entry?.minQuality ?? fallback,
+      };
     }
     case 'noContentWarning': {
       const entry = tuning.noContentWarning;
@@ -67,9 +84,15 @@ export function updateTuning(
     case 'minLength':
       return { ...tuning, minLength: { enabled: next.enabled, minLength: next.threshold } };
     case 'lowEffortGate':
-      return { ...tuning, lowEffortGate: { enabled: next.enabled, minMeaningfulTextLength: next.threshold } };
+      return {
+        ...tuning,
+        lowEffortGate: { enabled: next.enabled, minMeaningfulTextLength: next.threshold },
+      };
     case 'nativeEngagement':
-      return { ...tuning, nativeEngagement: { enabled: next.enabled, minNativeEngagement: next.threshold } };
+      return {
+        ...tuning,
+        nativeEngagement: { enabled: next.enabled, minNativeEngagement: next.threshold },
+      };
     case 'minQuality':
       return { ...tuning, minQuality: { enabled: next.enabled, minQuality: next.threshold } };
     case 'noContentWarning':

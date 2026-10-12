@@ -30,7 +30,11 @@ vi.mock('../../utils/oxyHelpers', () => ({
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: hoisted.hydratePosts },
   resolveUserSummaries: vi.fn(async () => new Map()),
-  degradedActorSummary: (id: string) => ({ id, username: '', name: { displayName: 'Unknown user' } }),
+  degradedActorSummary: (id: string) => ({
+    id,
+    username: '',
+    name: { displayName: 'Unknown user' },
+  }),
 }));
 
 vi.mock('../../services/PostCollaborationService', () => ({
@@ -128,7 +132,12 @@ async function altRowCount(): Promise<number> {
   const rows = await getDb()
     .select({ id: postVariantAltTexts.id })
     .from(postVariantAltTexts)
-    .where(inArray(postVariantAltTexts.variantId, variants.map((row) => row.id)));
+    .where(
+      inArray(
+        postVariantAltTexts.variantId,
+        variants.map((row) => row.id),
+      ),
+    );
   return rows.length;
 }
 
@@ -154,7 +163,10 @@ afterEach(async () => {
 
 describe('machine translations do not survive a change to their source', () => {
   it('starts from a stored machine variant with localized ALT', async () => {
-    expect(await storedRenditions()).toEqual([['en-US', 'author'], ['es-MX', 'machine']]);
+    expect(await storedRenditions()).toEqual([
+      ['en-US', 'author'],
+      ['es-MX', 'machine'],
+    ]);
     expect(await altRowCount()).toBe(1);
   });
 
@@ -185,7 +197,10 @@ describe('machine translations do not survive a change to their source', () => {
     expect(await edit({ hashtags: ['cars'] })).toBeUndefined();
     expect(await edit({ media: MEDIA })).toBeUndefined();
 
-    expect(await storedRenditions()).toEqual([['en-US', 'author'], ['es-MX', 'machine']]);
+    expect(await storedRenditions()).toEqual([
+      ['en-US', 'author'],
+      ['es-MX', 'machine'],
+    ]);
     expect(await altRowCount()).toBe(1);
   });
 });

@@ -29,7 +29,6 @@ jest.mock('@oxy.so/core/logger', () => ({
   logger: { debug: jest.fn(), error: jest.fn(), warn: jest.fn() },
 }));
 
-// eslint-disable-next-line import/first
 import { feedService } from '../feedService';
 
 describe('feedService bookmark folders', () => {
@@ -39,7 +38,9 @@ describe('feedService bookmark folders', () => {
     mockAuthenticatedPost.mockResolvedValue({ data: { folder: 'QA-empty' } });
 
     await expect(feedService.createBookmarkFolder('  QA-empty  ')).resolves.toBe('QA-empty');
-    expect(mockAuthenticatedPost).toHaveBeenCalledWith('/posts/bookmarks/folders', { name: '  QA-empty  ' });
+    expect(mockAuthenticatedPost).toHaveBeenCalledWith('/posts/bookmarks/folders', {
+      name: '  QA-empty  ',
+    });
   });
 
   it('lists the folders, and an absent list as none', async () => {

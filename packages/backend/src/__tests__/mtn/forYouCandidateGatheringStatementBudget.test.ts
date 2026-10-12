@@ -74,7 +74,11 @@ vi.mock('../../services/userSummaryCache', () => ({
 import { config } from '../../config';
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
-import { gatherGlobalLane, gatherTrendingLane, type GatherForYouCandidatesParams } from '../../mtn/feed/feeds/forYouCandidateSources';
+import {
+  gatherGlobalLane,
+  gatherTrendingLane,
+  type GatherForYouCandidatesParams,
+} from '../../mtn/feed/feeds/forYouCandidateSources';
 import { PostHydrationService } from '../../services/PostHydrationService';
 import { metrics } from '../../utils/metrics';
 
@@ -137,16 +141,18 @@ const LANE_PARAMS: GatherForYouCandidatesParams = {
 };
 
 function toSlice(posts: object[]): FeedPostSlice[] {
-  return [{
-    _sliceKey: 'budget-test',
-    items: posts.map((post) => ({
-      post: post as never,
-      isThreadParent: false,
-      isThreadChild: false,
-      isThreadLastChild: false,
-    })),
-    isIncompleteThread: false,
-  }];
+  return [
+    {
+      _sliceKey: 'budget-test',
+      items: posts.map((post) => ({
+        post: post as never,
+        isThreadParent: false,
+        isThreadChild: false,
+        isThreadLastChild: false,
+      })),
+      isIncompleteThread: false,
+    },
+  ];
 }
 
 describe('For You candidate gathering — statement budget', () => {

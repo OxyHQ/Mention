@@ -156,7 +156,10 @@ function decodeBase64Payload(raw: string): Buffer {
   return Buffer.from(payload, 'base64');
 }
 
-async function fetchRemoteMediaBuffer(rawUrl: string, abortSignal: AbortSignal): Promise<{
+async function fetchRemoteMediaBuffer(
+  rawUrl: string,
+  abortSignal: AbortSignal,
+): Promise<{
   buffer: Buffer;
   contentType: string;
   fileName: string;
@@ -168,20 +171,26 @@ async function fetchRemoteMediaBuffer(rawUrl: string, abortSignal: AbortSignal):
     if (error instanceof SsrfRejection) {
       throw Object.assign(new Error('URL not permitted'), { status: HTTP_STATUS.FORBIDDEN });
     }
-    throw Object.assign(new Error('Could not fetch the media URL'), { status: HTTP_STATUS.BAD_GATEWAY });
+    throw Object.assign(new Error('Could not fetch the media URL'), {
+      status: HTTP_STATUS.BAD_GATEWAY,
+    });
   }
 
   const { response, finalUrl } = upstream;
   const status = response.statusCode ?? HTTP_STATUS.BAD_GATEWAY;
   if (status !== HTTP_STATUS.OK) {
     response.resume();
-    throw Object.assign(new Error('Could not fetch the media URL'), { status: HTTP_STATUS.BAD_GATEWAY });
+    throw Object.assign(new Error('Could not fetch the media URL'), {
+      status: HTTP_STATUS.BAD_GATEWAY,
+    });
   }
 
   const family = contentTypeFamily(response.headers);
   if (!isComposerMediaType(family)) {
     response.destroy();
-    throw Object.assign(new Error('URL is not a supported image or video'), { status: HTTP_STATUS.UNSUPPORTED_MEDIA_TYPE });
+    throw Object.assign(new Error('URL is not a supported image or video'), {
+      status: HTTP_STATUS.UNSUPPORTED_MEDIA_TYPE,
+    });
   }
 
   const declaredLength = Number(response.headers['content-length']);
@@ -195,13 +204,19 @@ async function fetchRemoteMediaBuffer(rawUrl: string, abortSignal: AbortSignal):
     buffer = await readFullBodyBounded(response, MAX_MEDIA_BYTES);
   } catch (error) {
     if (error instanceof PayloadTooLargeError) {
-      throw Object.assign(new Error('Media is too large'), { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
+      throw Object.assign(new Error('Media is too large'), {
+        status: HTTP_STATUS.PAYLOAD_TOO_LARGE,
+      });
     }
-    throw Object.assign(new Error('Could not fetch the media URL'), { status: HTTP_STATUS.BAD_GATEWAY });
+    throw Object.assign(new Error('Could not fetch the media URL'), {
+      status: HTTP_STATUS.BAD_GATEWAY,
+    });
   }
 
   if (buffer.length === 0) {
-    throw Object.assign(new Error('Could not fetch the media URL'), { status: HTTP_STATUS.BAD_GATEWAY });
+    throw Object.assign(new Error('Could not fetch the media URL'), {
+      status: HTTP_STATUS.BAD_GATEWAY,
+    });
   }
 
   return {
@@ -230,7 +245,10 @@ async function uploadWithOxySession(
   return fileId;
 }
 
-async function enrichUploadResponse(fileId: string, contentType: string): Promise<Record<string, unknown>> {
+async function enrichUploadResponse(
+  fileId: string,
+  contentType: string,
+): Promise<Record<string, unknown>> {
   const responseBody: Record<string, unknown> = { fileId, contentType };
   try {
     const assets = await getServiceOxyClient().assets.metadataByIds([fileId]);
@@ -265,9 +283,10 @@ router.post('/', intentMediaRateLimiter, async (req: AuthRequest, res: Response)
 
   if (hasUrl === hasBase64) {
     res.status(HTTP_STATUS.BAD_REQUEST).json({
-      error: hasUrl && hasBase64
-        ? 'Provide either "url" or "base64", not both'
-        : 'Missing required "url" or "base64" field',
+      error:
+        hasUrl && hasBase64
+          ? 'Provide either "url" or "base64", not both'
+          : 'Missing required "url" or "base64" field',
     });
     return;
   }
@@ -292,9 +311,10 @@ router.post('/', intentMediaRateLimiter, async (req: AuthRequest, res: Response)
         contentType = fetched.contentType;
         fileName = fetched.fileName;
       } catch (error) {
-        const status = typeof error === 'object' && error !== null && 'status' in error
-          ? Number((error as { status: number }).status)
-          : HTTP_STATUS.BAD_GATEWAY;
+        const status =
+          typeof error === 'object' && error !== null && 'status' in error
+            ? Number((error as { status: number }).status)
+            : HTTP_STATUS.BAD_GATEWAY;
         const message = error instanceof Error ? error.message : 'Could not fetch the media URL';
         if (status === HTTP_STATUS.FORBIDDEN) {
           logger.warn('[IntentMedia] Rejected target', { reason: message });
@@ -307,9 +327,13 @@ router.post('/', intentMediaRateLimiter, async (req: AuthRequest, res: Response)
         res.status(HTTP_STATUS.PAYLOAD_TOO_LARGE).json({ error: 'Media is too large' });
         return;
       }
-      const mimeType = contentTypeFamilyFromString(typeof req.body?.mimeType === 'string' ? req.body.mimeType : undefined);
+      const mimeType = contentTypeFamilyFromString(
+        typeof req.body?.mimeType === 'string' ? req.body.mimeType : undefined,
+      );
       if (!mimeType || !isComposerMediaType(mimeType)) {
-        res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Valid "mimeType" (image/* or video/*) is required with base64' });
+        res
+          .status(HTTP_STATUS.BAD_REQUEST)
+          .json({ error: 'Valid "mimeType" (image/* or video/*) is required with base64' });
         return;
       }
       try {
@@ -328,9 +352,10 @@ router.post('/', intentMediaRateLimiter, async (req: AuthRequest, res: Response)
       }
       contentType = mimeType;
       const requestedName = typeof req.body?.filename === 'string' ? req.body.filename.trim() : '';
-      fileName = requestedName.length > 0
-        ? safeUploadBasename(requestedName)
-        : `upload.${extensionForMime(mimeType)}`;
+      fileName =
+        requestedName.length > 0
+          ? safeUploadBasename(requestedName)
+          : `upload.${extensionForMime(mimeType)}`;
     }
 
     const mcpContext = (req as OxyAuthRequestWithMcp).mcp;

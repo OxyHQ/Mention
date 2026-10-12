@@ -14,7 +14,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  * ## What changed with the Postgres port
  *
  * The old suite replaced `PostCreationService` with a stub that constructed a
- * Mongoose `Post` and never saved it, then asserted on the fields of the objects
+ * legacy-ODM `Post` and never saved it, then asserted on the fields of the objects
  * the controller happened to push into its response. Every link it checked was a
  * property of an in-memory document; nothing proved a row existed, that the two
  * link columns were written, or — most of all — that they SURVIVE, since
@@ -112,9 +112,9 @@ function buildResponse() {
  * identity, not a claim about linkage, so taking it from the response costs the
  * assertions nothing.
  */
-async function storedThread(
-  payload: { value?: { posts: unknown[] } },
-): Promise<Array<typeof posts.$inferSelect>> {
+async function storedThread(payload: {
+  value?: { posts: unknown[] };
+}): Promise<Array<typeof posts.$inferSelect>> {
   const rows = await readScopePosts(scope);
   const byId = new Map(rows.map((row) => [row.id, row]));
   const ordered = (payload.value?.posts ?? []).map((post) => byId.get((post as { id: string }).id));

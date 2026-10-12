@@ -132,7 +132,9 @@ export const translateDraft = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
     if (text.length > MAX_TEXT_LENGTH) {
-      res.status(400).json({ message: `Post text exceeds maximum length of ${MAX_TEXT_LENGTH} characters` });
+      res
+        .status(400)
+        .json({ message: `Post text exceeds maximum length of ${MAX_TEXT_LENGTH} characters` });
       return;
     }
 

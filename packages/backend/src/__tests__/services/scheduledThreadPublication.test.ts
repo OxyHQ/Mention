@@ -78,7 +78,11 @@ async function seedPosts(specs: Array<[label: string, parent: string | null]>): 
 
 /** A three-post scheduled thread, all carrying the one time the author picked. */
 function seedThread(): Promise<void> {
-  return seedPosts([['root', null], ['c1', 'root'], ['c2', 'c1']]);
+  return seedPosts([
+    ['root', null],
+    ['c1', 'root'],
+    ['c2', 'c1'],
+  ]);
 }
 
 async function statuses(): Promise<Record<string, string | undefined>> {
@@ -145,7 +149,11 @@ describe('a scheduled thread publishes as one unit, in order', () => {
   });
 
   it('still publishes independent posts concurrently — a beast batch is unchanged', async () => {
-    await seedPosts([['a', null], ['b', null], ['c', null]]);
+    await seedPosts([
+      ['a', null],
+      ['b', null],
+      ['c', null],
+    ]);
 
     const published = await scheduledPostPublisher.publishDuePosts(pastSweepWindow(NOW));
 

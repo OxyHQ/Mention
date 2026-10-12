@@ -8,7 +8,10 @@ describe('isChunkLoadError', () => {
   it.each([
     ['a Metro async-require failure', Object.assign(new Error('x'), { name: 'AsyncRequireError' })],
     ['a webpack-style chunk failure', new Error('Loading chunk 12 failed.')],
-    ['a dynamic import failure', new TypeError('Failed to fetch dynamically imported module: https://x/y.js')],
+    [
+      'a dynamic import failure',
+      new TypeError('Failed to fetch dynamically imported module: https://x/y.js'),
+    ],
     // The 2026-09-30 outage: the shared chunk 404ed, so the first module that
     // needed something from it threw this.
     ['a module from a chunk that never loaded', new Error('Requiring unknown module "908".')],

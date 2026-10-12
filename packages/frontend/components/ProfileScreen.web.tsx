@@ -3,12 +3,12 @@ import { Redirect } from 'expo-router';
 import { useAuth } from '@oxy.so/services/ui/client';
 
 import {
-    ProfileTabs,
-    isProfilePrivate,
-    useProfileAccount,
-    useProfileCanonicalHref,
-    viewerOwnsProfile,
-    type ProfileScreenProps,
+  ProfileTabs,
+  isProfilePrivate,
+  useProfileAccount,
+  useProfileCanonicalHref,
+  viewerOwnsProfile,
+  type ProfileScreenProps,
 } from './Profile';
 
 /**
@@ -37,26 +37,26 @@ import {
  * A screen has no such constraint.
  */
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, tab = 'posts', laneId }) => {
-    const account = useProfileAccount(username);
-    const { isFederated, profileData } = account;
-    const canonicalHref = useProfileCanonicalHref({ routedFamily: 'person', account });
-    const { user: currentUser } = useAuth();
+  const account = useProfileAccount(username);
+  const { isFederated, profileData } = account;
+  const canonicalHref = useProfileCanonicalHref({ routedFamily: 'person', account });
+  const { user: currentUser } = useAuth();
 
-    if (canonicalHref) {
-        return <Redirect href={canonicalHref} />;
-    }
+  if (canonicalHref) {
+    return <Redirect href={canonicalHref} />;
+  }
 
-    return (
-        <ProfileTabs
-            tab={tab}
-            laneId={laneId}
-            profileId={profileData?.id}
-            isPrivate={isProfilePrivate(profileData)}
-            isOwnProfile={viewerOwnsProfile(profileData, currentUser?.id, isFederated)}
-            isFederated={isFederated}
-            actorUri={profileData?.actorUri}
-        />
-    );
+  return (
+    <ProfileTabs
+      tab={tab}
+      laneId={laneId}
+      profileId={profileData?.id}
+      isPrivate={isProfilePrivate(profileData)}
+      isOwnProfile={viewerOwnsProfile(profileData, currentUser?.id, isFederated)}
+      isFederated={isFederated}
+      actorUri={profileData?.actorUri}
+    />
+  );
 };
 
 export default ProfileScreen;

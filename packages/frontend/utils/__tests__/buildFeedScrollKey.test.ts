@@ -18,90 +18,86 @@ import { buildFeedScrollKey, FeedFilters } from '../feedUtils';
 Object.assign(globalThis, { __DEV__: false });
 
 describe('buildFeedScrollKey', () => {
-    it('produces the same key for identical inputs', () => {
-        const a = buildFeedScrollKey({ type: 'for_you' });
-        const b = buildFeedScrollKey({ type: 'for_you' });
-        expect(a).toBe(b);
-    });
+  it('produces the same key for identical inputs', () => {
+    const a = buildFeedScrollKey({ type: 'for_you' });
+    const b = buildFeedScrollKey({ type: 'for_you' });
+    expect(a).toBe(b);
+  });
 
-    it('is stable regardless of filter key ordering', () => {
-        const a = buildFeedScrollKey({
-            type: 'hashtag',
-            filters: { hashtag: 'react', topic: 'tech' } as FeedFilters,
-        });
-        const b = buildFeedScrollKey({
-            type: 'hashtag',
-            filters: { topic: 'tech', hashtag: 'react' } as FeedFilters,
-        });
-        expect(a).toBe(b);
+  it('is stable regardless of filter key ordering', () => {
+    const a = buildFeedScrollKey({
+      type: 'hashtag',
+      filters: { hashtag: 'react', topic: 'tech' } as FeedFilters,
     });
+    const b = buildFeedScrollKey({
+      type: 'hashtag',
+      filters: { topic: 'tech', hashtag: 'react' } as FeedFilters,
+    });
+    expect(a).toBe(b);
+  });
 
-    it('distinguishes feeds by authenticated viewer', () => {
-        expect(
-            buildFeedScrollKey({
-                type: 'for_you',
-                isAuthenticated: true,
-                currentViewerId: 'alice',
-            }),
-        ).not.toBe(
-            buildFeedScrollKey({
-                type: 'for_you',
-                isAuthenticated: true,
-                currentViewerId: 'bob',
-            }),
-        );
-    });
+  it('distinguishes feeds by authenticated viewer', () => {
+    expect(
+      buildFeedScrollKey({
+        type: 'for_you',
+        isAuthenticated: true,
+        currentViewerId: 'alice',
+      }),
+    ).not.toBe(
+      buildFeedScrollKey({
+        type: 'for_you',
+        isAuthenticated: true,
+        currentViewerId: 'bob',
+      }),
+    );
+  });
 
-    it('distinguishes authenticated and anonymous feeds for the same feed identity', () => {
-        expect(
-            buildFeedScrollKey({
-                type: 'for_you',
-                isAuthenticated: true,
-                currentViewerId: 'alice',
-            }),
-        ).not.toBe(
-            buildFeedScrollKey({ type: 'for_you', isAuthenticated: false }),
-        );
-    });
+  it('distinguishes authenticated and anonymous feeds for the same feed identity', () => {
+    expect(
+      buildFeedScrollKey({
+        type: 'for_you',
+        isAuthenticated: true,
+        currentViewerId: 'alice',
+      }),
+    ).not.toBe(buildFeedScrollKey({ type: 'for_you', isAuthenticated: false }));
+  });
 
-    it('distinguishes feeds by type', () => {
-        expect(buildFeedScrollKey({ type: 'for_you' })).not.toBe(
-            buildFeedScrollKey({ type: 'following' }),
-        );
-    });
+  it('distinguishes feeds by type', () => {
+    expect(buildFeedScrollKey({ type: 'for_you' })).not.toBe(
+      buildFeedScrollKey({ type: 'following' }),
+    );
+  });
 
-    it('distinguishes feeds by userId', () => {
-        expect(buildFeedScrollKey({ type: 'posts', userId: 'u1' })).not.toBe(
-            buildFeedScrollKey({ type: 'posts', userId: 'u2' }),
-        );
-    });
+  it('distinguishes feeds by userId', () => {
+    expect(buildFeedScrollKey({ type: 'posts', userId: 'u1' })).not.toBe(
+      buildFeedScrollKey({ type: 'posts', userId: 'u2' }),
+    );
+  });
 
-    it('distinguishes feeds by filter values', () => {
-        expect(
-            buildFeedScrollKey({ type: 'hashtag', filters: { hashtag: 'react' } as FeedFilters }),
-        ).not.toBe(
-            buildFeedScrollKey({ type: 'hashtag', filters: { hashtag: 'vue' } as FeedFilters }),
-        );
-    });
+  it('distinguishes feeds by filter values', () => {
+    expect(
+      buildFeedScrollKey({ type: 'hashtag', filters: { hashtag: 'react' } as FeedFilters }),
+    ).not.toBe(buildFeedScrollKey({ type: 'hashtag', filters: { hashtag: 'vue' } as FeedFilters }));
+  });
 
-    it('treats no filters and empty filters as equivalent', () => {
-        const none = buildFeedScrollKey({ type: 'for_you' });
-        const empty = buildFeedScrollKey({ type: 'for_you', filters: {} as FeedFilters });
-        expect(none).toBe(empty);
-    });
+  it('treats no filters and empty filters as equivalent', () => {
+    const none = buildFeedScrollKey({ type: 'for_you' });
+    const empty = buildFeedScrollKey({ type: 'for_you', filters: {} as FeedFilters });
+    expect(none).toBe(empty);
+  });
 
-    it('treats missing userId and empty userId as equivalent', () => {
-        expect(buildFeedScrollKey({ type: 'for_you' })).toBe(
-            buildFeedScrollKey({ type: 'for_you', userId: '' }),
-        );
-    });
+  it('treats missing userId and empty userId as equivalent', () => {
+    expect(buildFeedScrollKey({ type: 'for_you' })).toBe(
+      buildFeedScrollKey({ type: 'for_you', userId: '' }),
+    );
+  });
 
-    it('does not collide a userId feed with a filter feed that share text', () => {
-        const userFeed = buildFeedScrollKey({ type: 'posts', userId: 'react' });
-        const filterFeed = buildFeedScrollKey({
-            type: 'posts',
-            filters: { hashtag: 'react' } as FeedFilters,
-        });
-        expect(userFeed).not.toBe(filterFeed);
+  it('does not collide a userId feed with a filter feed that share text', () => {
+    const userFeed = buildFeedScrollKey({ type: 'posts', userId: 'react' });
+    const filterFeed = buildFeedScrollKey({
+      type: 'posts',
+      filters: { hashtag: 'react' } as FeedFilters,
     });
+    expect(userFeed).not.toBe(filterFeed);
+  });
 });

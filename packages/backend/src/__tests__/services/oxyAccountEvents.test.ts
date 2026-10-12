@@ -46,7 +46,10 @@ describe('oxyAccountEvents adapter', () => {
     const list = vi.fn(async () => ({ events: [], nextCursor: 'c' }));
     client.current = { accountEvents: { verify: vi.fn(), list } };
 
-    await expect(listAccountEvents({ after: 'x', limit: 5 })).resolves.toEqual({ events: [], nextCursor: 'c' });
+    await expect(listAccountEvents({ after: 'x', limit: 5 })).resolves.toEqual({
+      events: [],
+      nextCursor: 'c',
+    });
     expect(list).toHaveBeenCalledWith({ after: 'x', limit: 5 });
   });
 
@@ -61,7 +64,9 @@ describe('oxyAccountEvents adapter', () => {
   });
 
   it("recognises the SDK's own refusal class", () => {
-    expect(isAccountEventRefusal(new OxyAccountEventError('Account event token signature is invalid'))).toBe(true);
+    expect(
+      isAccountEventRefusal(new OxyAccountEventError('Account event token signature is invalid')),
+    ).toBe(true);
   });
 
   it('recognises the SDK refusal by name only', () => {

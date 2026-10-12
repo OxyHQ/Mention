@@ -57,7 +57,13 @@ import JobLocationField, {
 } from '../JobLocationField';
 import CodePickerDialog from '../CodePickerDialog';
 
-const BARCELONA = { id: '3128760', kind: 'city' as const, name: 'Barcelona', countryCode: 'ES' as const, region: 'Catalonia' };
+const BARCELONA = {
+  id: '3128760',
+  kind: 'city' as const,
+  name: 'Barcelona',
+  countryCode: 'ES' as const,
+  region: 'Catalonia',
+};
 
 const mounted: ReactTestRenderer[] = [];
 
@@ -79,7 +85,10 @@ afterEach(() => {
 
 function items(renderer: ReactTestRenderer) {
   return renderer.root.findAll(
-    (node) => typeof node.type === 'string' && node.props.testID === 'item' && typeof node.props.onPress === 'function',
+    (node) =>
+      typeof node.type === 'string' &&
+      node.props.testID === 'item' &&
+      typeof node.props.onPress === 'function',
   );
 }
 
@@ -90,14 +99,29 @@ beforeEach(() => {
 
 describe('job location drafts', () => {
   it('round-trips a stored place, a stored country and no location', () => {
-    const place = jobLocationDraftFrom({ placeId: '3128760', countryCode: 'ES', region: 'Catalonia', city: 'Barcelona' });
+    const place = jobLocationDraftFrom({
+      placeId: '3128760',
+      countryCode: 'ES',
+      region: 'Catalonia',
+      city: 'Barcelona',
+    });
     expect(place).toEqual({ kind: 'place', place: BARCELONA });
     expect(jobLocationInputFrom(place)).toEqual({ placeId: '3128760' });
 
-    const region = jobLocationDraftFrom({ placeId: '3336901', countryCode: 'ES', region: 'Catalonia' });
+    const region = jobLocationDraftFrom({
+      placeId: '3336901',
+      countryCode: 'ES',
+      region: 'Catalonia',
+    });
     expect(region).toEqual({
       kind: 'place',
-      place: { id: '3336901', kind: 'region', name: 'Catalonia', countryCode: 'ES', region: undefined },
+      place: {
+        id: '3336901',
+        kind: 'region',
+        name: 'Catalonia',
+        countryCode: 'ES',
+        region: undefined,
+      },
     });
 
     const country = jobLocationDraftFrom({ countryCode: 'DE' });
@@ -131,7 +155,11 @@ describe('JobLocationField', () => {
   });
 
   it('picks a place from the autocomplete results', () => {
-    mockUseQuery.mockReturnValue({ data: { places: [BARCELONA] }, isFetching: false, isError: false });
+    mockUseQuery.mockReturnValue({
+      data: { places: [BARCELONA] },
+      isFetching: false,
+      isError: false,
+    });
     const onChange = jest.fn();
     const value: JobLocationDraft = { kind: 'place', place: null };
     jest.useFakeTimers();
@@ -154,9 +182,13 @@ describe('JobLocationField', () => {
 
   it('picks a country from the closed list', () => {
     const onChange = jest.fn();
-    const renderer = render(<JobLocationField value={{ kind: 'country', countryCode: null }} onChange={onChange} />);
+    const renderer = render(
+      <JobLocationField value={{ kind: 'country', countryCode: null }} onChange={onChange} />,
+    );
     act(() => items(renderer)[0].props.onPress());
-    const spain = items(renderer).find((node) => node.props.title === 'Spain' || node.props.title === 'ES');
+    const spain = items(renderer).find(
+      (node) => node.props.title === 'Spain' || node.props.title === 'ES',
+    );
     act(() => spain!.props.onPress());
     expect(onChange).toHaveBeenCalledWith({ kind: 'country', countryCode: 'ES' });
   });

@@ -26,7 +26,9 @@ describe('jobApplicationsService', () => {
 
     await jobApplicationsService.submit('job-1', { displayName: 'Jordan' });
 
-    expect(mockAuthenticated.post).toHaveBeenCalledWith('/jobs/job-1/applications', { displayName: 'Jordan' });
+    expect(mockAuthenticated.post).toHaveBeenCalledWith('/jobs/job-1/applications', {
+      displayName: 'Jordan',
+    });
   });
 
   it('lists applications for the employer, forwarding filters as params', async () => {
@@ -40,11 +42,15 @@ describe('jobApplicationsService', () => {
   });
 
   it('updates an application status on its own path', async () => {
-    mockAuthenticated.put.mockResolvedValue({ data: { application: { id: 'app-1', status: 'reviewing' } } });
+    mockAuthenticated.put.mockResolvedValue({
+      data: { application: { id: 'app-1', status: 'reviewing' } },
+    });
 
     await jobApplicationsService.updateStatus('job-1', 'app-1', 'reviewing');
 
-    expect(mockAuthenticated.put).toHaveBeenCalledWith('/jobs/job-1/applications/app-1', { status: 'reviewing' });
+    expect(mockAuthenticated.put).toHaveBeenCalledWith('/jobs/job-1/applications/app-1', {
+      status: 'reviewing',
+    });
   });
 
   it('adds and lists internal notes on the notes sub-path', async () => {
@@ -61,7 +67,9 @@ describe('jobApplicationsService', () => {
   });
 
   it('withdraws the caller’s own application', async () => {
-    mockAuthenticated.post.mockResolvedValue({ data: { application: { id: 'app-1', status: 'withdrawn' } } });
+    mockAuthenticated.post.mockResolvedValue({
+      data: { application: { id: 'app-1', status: 'withdrawn' } },
+    });
 
     await jobApplicationsService.withdraw('job-1', 'app-1');
 
@@ -77,7 +85,11 @@ describe('jobApplicationsService', () => {
       detail: undefined,
     });
 
-    await jobApplicationsService.reportExternalJob('clarity-job-1', 'duplicate', 'Same posting as job-2');
+    await jobApplicationsService.reportExternalJob(
+      'clarity-job-1',
+      'duplicate',
+      'Same posting as job-2',
+    );
     expect(mockAuthenticated.post).toHaveBeenCalledWith('/jobs/external/clarity-job-1/report', {
       reason: 'duplicate',
       detail: 'Same posting as job-2',

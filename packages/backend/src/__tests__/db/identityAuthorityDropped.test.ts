@@ -31,7 +31,9 @@ afterAll(async () => {
 });
 
 async function relationExists(name: string): Promise<boolean> {
-  const rows = await db.execute<{ oid: string | null }>(sql`select to_regclass(${name})::text as oid`);
+  const rows = await db.execute<{ oid: string | null }>(
+    sql`select to_regclass(${name})::text as oid`,
+  );
   return [...rows][0]?.oid != null;
 }
 

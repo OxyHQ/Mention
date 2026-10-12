@@ -38,7 +38,7 @@ function toListCardData(list: MentionList): ListCardData {
         }
       : undefined,
     purpose: list.purpose === 'modlist' ? 'modlist' : 'curatelist',
-    itemCount: list.memberCount ?? (list.memberOxyUserIds?.length ?? 0),
+    itemCount: list.memberCount ?? list.memberOxyUserIds?.length ?? 0,
     subscriberCount: typeof list.subscriberCount === 'number' ? list.subscriberCount : 0,
   };
 }
@@ -122,59 +122,57 @@ export default function ListsScreen() {
   const hasFollowed = followedLists.length > 0;
 
   // Directory body — identical on both platforms; only the scroll host differs.
-  const content = !hasOwned && !hasFollowed ? (
-    <EmptyState
-      title={t('lists.empty.title')}
-      subtitle={t('lists.empty.subtitle')}
-      sticker="lists"
-      action={{
-        label: t('lists.createList'),
-        onPress: () => router.push('/lists/create'),
-      }}
-      containerStyle={{ paddingVertical: 36, paddingHorizontal: 20 }}
-    />
-  ) : (
-    <View className="px-1 pb-4">
-      {hasOwned ? (
-        <View className="mb-4">
-          <Text className="text-muted-foreground text-xs font-semibold uppercase tracking-wide px-3 mb-2">
-            {t('lists.sections.yours', { defaultValue: 'Your lists' })}
-          </Text>
-          {ownedLists.map((l) => (
-            <View key={String(l._id || l.id)} className="px-3 mb-2">
-              <ListCardComponent
-                list={toListCardData(l)}
-                onPress={() => router.push(`/lists/${l._id || l.id}`)}
-              />
-            </View>
-          ))}
-        </View>
-      ) : null}
+  const content =
+    !hasOwned && !hasFollowed ? (
+      <EmptyState
+        title={t('lists.empty.title')}
+        subtitle={t('lists.empty.subtitle')}
+        sticker="lists"
+        action={{
+          label: t('lists.createList'),
+          onPress: () => router.push('/lists/create'),
+        }}
+        containerStyle={{ paddingVertical: 36, paddingHorizontal: 20 }}
+      />
+    ) : (
+      <View className="px-1 pb-4">
+        {hasOwned ? (
+          <View className="mb-4">
+            <Text className="text-muted-foreground text-xs font-semibold uppercase tracking-wide px-3 mb-2">
+              {t('lists.sections.yours', { defaultValue: 'Your lists' })}
+            </Text>
+            {ownedLists.map((l) => (
+              <View key={String(l._id || l.id)} className="px-3 mb-2">
+                <ListCardComponent
+                  list={toListCardData(l)}
+                  onPress={() => router.push(`/lists/${l._id || l.id}`)}
+                />
+              </View>
+            ))}
+          </View>
+        ) : null}
 
-      {hasFollowed ? (
-        <View className="mb-2">
-          <Text className="text-muted-foreground text-xs font-semibold uppercase tracking-wide px-3 mb-2">
-            {t('lists.sections.followed', { defaultValue: 'Followed lists' })}
-          </Text>
-          {followedLists.map((l) => (
-            <View key={String(l._id || l.id)} className="px-3 mb-2">
-              <ListCardComponent
-                list={toListCardData(l)}
-                onPress={() => router.push(`/lists/${l._id || l.id}`)}
-              />
-            </View>
-          ))}
-        </View>
-      ) : null}
-    </View>
-  );
+        {hasFollowed ? (
+          <View className="mb-2">
+            <Text className="text-muted-foreground text-xs font-semibold uppercase tracking-wide px-3 mb-2">
+              {t('lists.sections.followed', { defaultValue: 'Followed lists' })}
+            </Text>
+            {followedLists.map((l) => (
+              <View key={String(l._id || l.id)} className="px-3 mb-2">
+                <ListCardComponent
+                  list={toListCardData(l)}
+                  onPress={() => router.push(`/lists/${l._id || l.id}`)}
+                />
+              </View>
+            ))}
+          </View>
+        ) : null}
+      </View>
+    );
 
   return (
     <>
-      <SEO
-        title={t('seo.lists.title')}
-        description={t('seo.lists.description')}
-      />
+      <SEO title={t('seo.lists.title')} description={t('seo.lists.description')} />
       <View className="flex-1">
         <PageHeader
           title={t('lists.title')}
@@ -192,7 +190,8 @@ export default function ListsScreen() {
         <SignInRequired
           label={t('lists.signInRequired', { defaultValue: 'Sign in to use lists' })}
           description={t('lists.signInRequiredDesc', {
-            defaultValue: 'Lists group the accounts you want to read together. The ones you create or follow appear here.',
+            defaultValue:
+              'Lists group the accounts you want to read together. The ones you create or follow appear here.',
           })}
         >
           {/* WEB: the document (body) is the scroller — the shell owns scroll, so

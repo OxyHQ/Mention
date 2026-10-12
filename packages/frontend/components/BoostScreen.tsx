@@ -1,15 +1,15 @@
-import { useLocalSearchParams } from "expo-router";
-import { useSafeBack } from "@/hooks/useSafeBack";
-import React, { useState, useRef, useEffect } from "react";
+import { useLocalSearchParams } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
+import React, { useState, useRef, useEffect } from 'react';
 import {
-    View,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-} from "react-native";
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+} from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 import { Avatar } from '@oxy.so/bloom/avatar';
@@ -20,11 +20,11 @@ import type { CreateBoostRequest } from '@mention/shared-types/feed';
 import type { FeedItem } from '@/db';
 import PostContentText from '@/components/Post/PostContentText';
 
-import UserName from "./UserName";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAuth } from "@oxy.so/services/ui/client";
-import { getNormalizedUserHandle } from "@oxy.so/core";
-import { usePostsStore } from "../stores/postsStore";
+import UserName from './UserName';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { getNormalizedUserHandle } from '@oxy.so/core';
+import { usePostsStore } from '../stores/postsStore';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
@@ -32,212 +32,223 @@ import { logger } from '@oxy.so/core/logger';
 const MAX_CHARACTERS = 280;
 
 const BoostScreen: React.FC = () => {
-    const { user } = useAuth();
-    const { id: postId } = useLocalSearchParams<{ id: string }>();
-    const insets = useSafeAreaInsets();
-    const theme = useTheme();
-    const { t } = useTranslation();
-    const safeBack = useSafeBack();
+  const { user } = useAuth();
+  const { id: postId } = useLocalSearchParams<{ id: string }>();
+  const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const safeBack = useSafeBack();
 
-    const [content, setContent] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const discardControl = useDialogControl();
-    const [originalPost, setOriginalPost] = useState<FeedItem | null>(null);
-    const textInputRef = useRef<TextInput>(null);
+  const [content, setContent] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const discardControl = useDialogControl();
+  const [originalPost, setOriginalPost] = useState<FeedItem | null>(null);
+  const textInputRef = useRef<TextInput>(null);
 
-    const { getPostById, createBoost } = usePostsStore();
+  const { getPostById, createBoost } = usePostsStore();
 
-    useEffect(() => {
-        const loadOriginal = async () => {
-            try {
-                if (!postId) return;
-                // Try from SQLite cache first
-                const found = usePostsStore.getState().getPostFromDb(postId);
-                if (found) setOriginalPost(found);
-                else {
-                    const fetched = await getPostById(String(postId));
-                    setOriginalPost(fetched);
-                }
-            } catch {
-                logger.error('Failed to load original post for boost');
-            }
-        };
-        loadOriginal();
-    }, [postId, getPostById]);
-
-    const characterCount = content.length;
-    const isOverLimit = characterCount > MAX_CHARACTERS;
-    const canBoost = !isOverLimit && !isSubmitting;
-
-    const handleBoost = async () => {
-        if (!canBoost || !user || !originalPost || !postId) return;
-
-        setIsSubmitting(true);
-
-        try {
-            // Create boost request
-            const boostRequest: CreateBoostRequest = {
-                originalPostId: postId,
-                content: content.trim() ? { text: content.trim() } : undefined,
-                mentions: [],
-                hashtags: []
-            };
-
-            // Add to backend and store using posts store
-            await createBoost(boostRequest);
-
-            // Navigate back
-            safeBack();
-
-            // Show success feedback
-            toast('Post boosted successfully!', { type: 'success' });
-        } catch {
-            logger.error('Error boosting');
-            toast('Failed to boost. Please try again.', { type: 'error' });
-        } finally {
-            setIsSubmitting(false);
+  useEffect(() => {
+    const loadOriginal = async () => {
+      try {
+        if (!postId) return;
+        // Try from SQLite cache first
+        const found = usePostsStore.getState().getPostFromDb(postId);
+        if (found) setOriginalPost(found);
+        else {
+          const fetched = await getPostById(String(postId));
+          setOriginalPost(fetched);
         }
+      } catch {
+        logger.error('Failed to load original post for boost');
+      }
     };
+    loadOriginal();
+  }, [postId, getPostById]);
 
-    const handleCancel = () => {
-        if (content.trim().length > 0) {
-            discardControl.open();
-        } else {
-            safeBack();
-        }
-    };
+  const characterCount = content.length;
+  const isOverLimit = characterCount > MAX_CHARACTERS;
+  const canBoost = !isOverLimit && !isSubmitting;
 
-    if (!originalPost) {
-        return (
-            <View className="flex-1">
-                <Text className="text-lg text-center" style={{ marginTop: 100 }}>Post not found</Text>
-            </View>
-        );
+  const handleBoost = async () => {
+    if (!canBoost || !user || !originalPost || !postId) return;
+
+    setIsSubmitting(true);
+
+    try {
+      // Create boost request
+      const boostRequest: CreateBoostRequest = {
+        originalPostId: postId,
+        content: content.trim() ? { text: content.trim() } : undefined,
+        mentions: [],
+        hashtags: [],
+      };
+
+      // Add to backend and store using posts store
+      await createBoost(boostRequest);
+
+      // Navigate back
+      safeBack();
+
+      // Show success feedback
+      toast('Post boosted successfully!', { type: 'success' });
+    } catch {
+      logger.error('Error boosting');
+      toast('Failed to boost. Please try again.', { type: 'error' });
+    } finally {
+      setIsSubmitting(false);
     }
+  };
 
+  const handleCancel = () => {
+    if (content.trim().length > 0) {
+      discardControl.open();
+    } else {
+      safeBack();
+    }
+  };
+
+  if (!originalPost) {
     return (
-        <KeyboardAvoidingView
-            className="flex-1"
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-            {/* Header */}
-            <View
-                className="flex-row justify-between items-center px-4"
-                style={{ paddingBottom: 12, paddingTop: insets.top }}
-            >
-                <TouchableOpacity onPress={handleCancel} className="py-2 px-3">
-                    <Text className="text-primary text-base font-semibold">Cancel</Text>
-                </TouchableOpacity>
-
-                <View className="flex-row items-center">
-                    <TouchableOpacity
-                        className="rounded-full px-5 py-2"
-                        style={[!canBoost && { opacity: 0.5 }]}
-                        onPress={handleBoost}
-                        disabled={!canBoost}
-                    >
-                        <Text className="text-base font-bold" style={[!canBoost && { opacity: 0.7 }]}>
-                            {isSubmitting ? 'Boosting...' : 'Boost'}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-            <Divider />
-
-            <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
-                {/* Boost Header */}
-                <View className="flex-row items-center py-3">
-                    <RiRepeat2Line width={20} height={20} fill={theme.colors.primary} />
-                    <Text className="text-primary text-base font-semibold ml-2">Boost</Text>
-                </View>
-                <Divider />
-
-                {/* Original Post */}
-                <View className="py-4 mt-4">
-                    <View className="flex-row items-center mb-2">
-                        <Avatar source={originalPost.user.avatar ?? undefined} size={32} variant={MEDIA_VARIANT_AVATAR} style={{ marginRight: 8 }} />
-                        <View className="flex-1">
-                            <UserName
-                                name={originalPost.user.name?.displayName}
-                                handle={getNormalizedUserHandle(originalPost.user) ?? undefined}
-                                verified={originalPost.user.verified}
-                                variant="small"
-                                style={{ handle: { fontSize: 13 } }}
-                            />
-                        </View>
-                    </View>
-                    <PostContentText content={originalPost.content} postId={originalPost.id} previewChars={Infinity} />
-                </View>
-                <Divider />
-
-                {/* Boost Input */}
-                <View className="flex-1 mt-4">
-                    <View className="flex-row mb-3">
-                        <Avatar
-                            source={user?.avatar}
-                            size={48}
-                            variant={MEDIA_VARIANT_AVATAR}
-                            style={{ marginRight: 12 }}
-                        />
-                        <View className="justify-center">
-                            <Text className="text-foreground text-base font-bold mb-0.5">
-                                {user?.name.displayName}
-                            </Text>
-                            <Text className="text-muted-foreground text-sm">@{user?.username}</Text>
-                        </View>
-                    </View>
-
-                    <TextInput
-                        ref={textInputRef}
-                        className="text-foreground"
-                        style={{
-                            fontSize: 20,
-                            lineHeight: 28,
-                            minHeight: 120,
-                            textAlignVertical: 'top',
-                            color: theme.colors.text,
-                        }}
-                        placeholder={t('compose.commentPlaceholder')}
-                        placeholderTextColor={theme.colors.textTertiary}
-                        value={content}
-                        onChangeText={setContent}
-                        multiline
-                        autoFocus
-                        maxLength={MAX_CHARACTERS + 50}
-                        textAlignVertical="top"
-                    />
-
-                    {/* Character Count */}
-                    <View className="flex-row justify-end items-center mt-4 mb-5">
-                        <Text
-                            className="text-muted-foreground text-sm font-medium"
-                            style={isOverLimit ? { color: theme.colors.error } : undefined}
-                        >
-                            {characterCount}
-                        </Text>
-                        <Text className="text-muted-foreground text-sm ml-0.5">/{MAX_CHARACTERS}</Text>
-                    </View>
-                </View>
-            </ScrollView>
-
-            <Dialog
-                control={discardControl}
-                title="Discard Boost?"
-                description="Are you sure you want to discard this boost?"
-                actions={[
-                    {
-                        label: 'Discard',
-                        color: 'destructive',
-                        onPress: () => safeBack(),
-                    },
-                    {
-                        label: 'Keep Editing',
-                        color: 'cancel',
-                    },
-                ]}
-            />
-        </KeyboardAvoidingView>
+      <View className="flex-1">
+        <Text className="text-lg text-center" style={{ marginTop: 100 }}>
+          Post not found
+        </Text>
+      </View>
     );
+  }
+
+  return (
+    <KeyboardAvoidingView
+      className="flex-1"
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      {/* Header */}
+      <View
+        className="flex-row justify-between items-center px-4"
+        style={{ paddingBottom: 12, paddingTop: insets.top }}
+      >
+        <TouchableOpacity onPress={handleCancel} className="py-2 px-3">
+          <Text className="text-primary text-base font-semibold">Cancel</Text>
+        </TouchableOpacity>
+
+        <View className="flex-row items-center">
+          <TouchableOpacity
+            className="rounded-full px-5 py-2"
+            style={[!canBoost && { opacity: 0.5 }]}
+            onPress={handleBoost}
+            disabled={!canBoost}
+          >
+            <Text className="text-base font-bold" style={[!canBoost && { opacity: 0.7 }]}>
+              {isSubmitting ? 'Boosting...' : 'Boost'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      <Divider />
+
+      <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
+        {/* Boost Header */}
+        <View className="flex-row items-center py-3">
+          <RiRepeat2Line width={20} height={20} fill={theme.colors.primary} />
+          <Text className="text-primary text-base font-semibold ml-2">Boost</Text>
+        </View>
+        <Divider />
+
+        {/* Original Post */}
+        <View className="py-4 mt-4">
+          <View className="flex-row items-center mb-2">
+            <Avatar
+              source={originalPost.user.avatar ?? undefined}
+              size={32}
+              variant={MEDIA_VARIANT_AVATAR}
+              style={{ marginRight: 8 }}
+            />
+            <View className="flex-1">
+              <UserName
+                name={originalPost.user.name?.displayName}
+                handle={getNormalizedUserHandle(originalPost.user) ?? undefined}
+                verified={originalPost.user.verified}
+                variant="small"
+                style={{ handle: { fontSize: 13 } }}
+              />
+            </View>
+          </View>
+          <PostContentText
+            content={originalPost.content}
+            postId={originalPost.id}
+            previewChars={Infinity}
+          />
+        </View>
+        <Divider />
+
+        {/* Boost Input */}
+        <View className="flex-1 mt-4">
+          <View className="flex-row mb-3">
+            <Avatar
+              source={user?.avatar}
+              size={48}
+              variant={MEDIA_VARIANT_AVATAR}
+              style={{ marginRight: 12 }}
+            />
+            <View className="justify-center">
+              <Text className="text-foreground text-base font-bold mb-0.5">
+                {user?.name.displayName}
+              </Text>
+              <Text className="text-muted-foreground text-sm">@{user?.username}</Text>
+            </View>
+          </View>
+
+          <TextInput
+            ref={textInputRef}
+            className="text-foreground"
+            style={{
+              fontSize: 20,
+              lineHeight: 28,
+              minHeight: 120,
+              textAlignVertical: 'top',
+              color: theme.colors.text,
+            }}
+            placeholder={t('compose.commentPlaceholder')}
+            placeholderTextColor={theme.colors.textTertiary}
+            value={content}
+            onChangeText={setContent}
+            multiline
+            autoFocus
+            maxLength={MAX_CHARACTERS + 50}
+            textAlignVertical="top"
+          />
+
+          {/* Character Count */}
+          <View className="flex-row justify-end items-center mt-4 mb-5">
+            <Text
+              className="text-muted-foreground text-sm font-medium"
+              style={isOverLimit ? { color: theme.colors.error } : undefined}
+            >
+              {characterCount}
+            </Text>
+            <Text className="text-muted-foreground text-sm ml-0.5">/{MAX_CHARACTERS}</Text>
+          </View>
+        </View>
+      </ScrollView>
+
+      <Dialog
+        control={discardControl}
+        title="Discard Boost?"
+        description="Are you sure you want to discard this boost?"
+        actions={[
+          {
+            label: 'Discard',
+            color: 'destructive',
+            onPress: () => safeBack(),
+          },
+          {
+            label: 'Keep Editing',
+            color: 'cancel',
+          },
+        ]}
+      />
+    </KeyboardAvoidingView>
+  );
 };
 
 export default BoostScreen;

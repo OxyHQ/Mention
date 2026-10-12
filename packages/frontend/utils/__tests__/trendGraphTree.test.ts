@@ -1,11 +1,7 @@
 import type { TrendGraphEdgeDTO, TrendGraphNodeDTO } from '@mention/shared-types';
 import { buildTrendTree } from '../trendGraphTree';
 
-const node = (
-  term: string,
-  volume: number,
-  story?: string,
-): TrendGraphNodeDTO => ({
+const node = (term: string, volume: number, story?: string): TrendGraphNodeDTO => ({
   term,
   volume,
   authorCount: 3,
@@ -35,10 +31,7 @@ describe('buildTrendTree', () => {
   it('never repeats a term at the top level once it has a parent', () => {
     // One term, one place in the tree. A member listed again beside its own
     // story would double every count a reader adds up by eye.
-    const tree = buildTrendTree(
-      [node('ukraine', 40, 'ukraine'), node('kyiv', 10, 'ukraine')],
-      [],
-    );
+    const tree = buildTrendTree([node('ukraine', 40, 'ukraine'), node('kyiv', 10, 'ukraine')], []);
 
     const roots = [...tree.stories, ...tree.ungrouped].map((entry) => entry.node.term);
     expect(roots).toEqual(['ukraine']);
@@ -69,10 +62,7 @@ describe('buildTrendTree', () => {
   });
 
   it('orders everything by volume, and breaks ties by term', () => {
-    const tree = buildTrendTree(
-      [node('b', 5), node('a', 5), node('c', 9)],
-      [],
-    );
+    const tree = buildTrendTree([node('b', 5), node('a', 5), node('c', 9)], []);
 
     expect(tree.ungrouped.map((entry) => entry.node.term)).toEqual(['c', 'a', 'b']);
   });

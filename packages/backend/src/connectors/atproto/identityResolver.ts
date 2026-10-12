@@ -43,7 +43,11 @@ export interface ResolvedAtprotoIdentity {
 export async function resolveHandleToDid(handle: string): Promise<string | null> {
   // 1. AppView resolveHandle (the common path).
   try {
-    const res = await xrpcGet<{ did?: string }>(PUBLIC_APPVIEW, 'com.atproto.identity.resolveHandle', { handle });
+    const res = await xrpcGet<{ did?: string }>(
+      PUBLIC_APPVIEW,
+      'com.atproto.identity.resolveHandle',
+      { handle },
+    );
     if (res?.did && ANY_DID_RE.test(res.did)) return res.did;
   } catch (err) {
     logger.debug('[atproto] resolveHandle AppView failed', err);
@@ -136,7 +140,9 @@ export function pdsEndpointFromDidDocument(doc: AtprotoDidDocument): string | un
  * endpoint. DID-document failure is non-fatal: discovery still succeeds with the
  * DID and the input/derived handle.
  */
-export async function resolveIdentity(handleOrDid: string): Promise<ResolvedAtprotoIdentity | null> {
+export async function resolveIdentity(
+  handleOrDid: string,
+): Promise<ResolvedAtprotoIdentity | null> {
   const isDidInput = ANY_DID_RE.test(handleOrDid);
   const did = isDidInput ? handleOrDid : await resolveHandleToDid(handleOrDid);
   if (!did) return null;

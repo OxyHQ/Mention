@@ -42,7 +42,10 @@ class JobApplicationsService {
    * place rather than rejecting a reapply) — both return the same shape, so
    * callers that don't care about the distinction can ignore the status code.
    */
-  async submit(jobId: string, input: SubmitMentionJobApplicationRequest): Promise<MentionJobApplicationResponse> {
+  async submit(
+    jobId: string,
+    input: SubmitMentionJobApplicationRequest,
+  ): Promise<MentionJobApplicationResponse> {
     const res = await authenticatedClient.post<MentionJobApplicationResponse>(
       `${jobsBase(jobId)}/applications`,
       input,
@@ -76,7 +79,11 @@ class JobApplicationsService {
   }
 
   /** `POST /jobs/:id/applications/:applicationId/notes` — employer-only, 201. Never disclosed to the applicant. */
-  async addNote(jobId: string, applicationId: string, note: string): Promise<MentionJobApplicationNoteResponse> {
+  async addNote(
+    jobId: string,
+    applicationId: string,
+    note: string,
+  ): Promise<MentionJobApplicationNoteResponse> {
     const res = await authenticatedClient.post<MentionJobApplicationNoteResponse>(
       `${jobsBase(jobId)}/applications/${applicationId}/notes`,
       { note },
@@ -85,7 +92,10 @@ class JobApplicationsService {
   }
 
   /** `GET /jobs/:id/applications/:applicationId/notes` — employer-only. */
-  async listNotes(jobId: string, applicationId: string): Promise<MentionJobApplicationNoteListResponse> {
+  async listNotes(
+    jobId: string,
+    applicationId: string,
+  ): Promise<MentionJobApplicationNoteListResponse> {
     const res = await authenticatedClient.get<MentionJobApplicationNoteListResponse>(
       `${jobsBase(jobId)}/applications/${applicationId}/notes`,
     );
@@ -118,7 +128,10 @@ class JobApplicationsService {
     reason: JobReportReason,
     detail?: string,
   ): Promise<unknown> {
-    const res = await authenticatedClient.post(`/jobs/external/${clarityJobId}/report`, { reason, detail });
+    const res = await authenticatedClient.post(`/jobs/external/${clarityJobId}/report`, {
+      reason,
+      detail,
+    });
     return res.data;
   }
 }

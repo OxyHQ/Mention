@@ -13,7 +13,7 @@
  * **The wire format.** A port may not change a response body, and the two shapes
  * most likely to drift are the ones storage forced apart: `labelDefinitions`
  * moved to its own table, and an absent optional is `null` in Postgres where it
- * was `undefined` (hence absent from the JSON) in Mongoose.
+ * was `undefined` (hence absent from the JSON) in the legacy ODM.
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -162,9 +162,7 @@ describe('subscriptions', () => {
     // Drift, exactly as a legacy row could carry it.
     await db.update(labelers).set({ subscriberCount: 0 }).where(eq(labelers.id, labeler.id));
 
-    await expect(
-      LabelService.unsubscribeFromLabeler(viewer, labeler.id),
-    ).resolves.toBeUndefined();
+    await expect(LabelService.unsubscribeFromLabeler(viewer, labeler.id)).resolves.toBeUndefined();
 
     expect(await LabelService.getSubscribedLabelerIds(viewer)).toEqual([]);
     expect((await LabelService.getLabelerById(labeler.id))?.subscriberCount).toBe(0);
@@ -208,9 +206,7 @@ describe('label action overrides', () => {
     await LabelService.subscribeToLabeler(viewer, first.id);
     const { labelActions } = await LabelService.getUserEffectiveLabels(viewer);
 
-    expect(
-      [...labelActions].sort((a, b) => a.labelerId.localeCompare(b.labelerId)),
-    ).toEqual(
+    expect([...labelActions].sort((a, b) => a.labelerId.localeCompare(b.labelerId))).toEqual(
       [
         { labelerId: first.id, labelSlug: 'spam', action: 'blur' },
         { labelerId: second.id, labelSlug: 'gore', action: 'hide' },
@@ -229,9 +225,7 @@ describe('label action overrides', () => {
 
     await LabelService.subscribeToLabeler(viewer, labeler.id);
     const { labelActions } = await LabelService.getUserEffectiveLabels(viewer);
-    expect(labelActions).toEqual([
-      { labelerId: labeler.id, labelSlug: 'spam', action: 'hide' },
-    ]);
+    expect(labelActions).toEqual([{ labelerId: labeler.id, labelSlug: 'spam', action: 'hide' }]);
   });
 });
 
@@ -257,7 +251,7 @@ describe('wire format parity', () => {
 
   it('OMITS an absent optional rather than sending null', async () => {
     /**
-     * Mongoose left `description` `undefined`, which `JSON.stringify` drops.
+     * The legacy ODM left `description` `undefined`, which `JSON.stringify` drops.
      * Drizzle hands back `null`, which serializes as `"description": null` — a
      * different response body for the same absent value, and the exact shape a
      * client `if (labeler.description)` check would start rendering as empty.
@@ -278,7 +272,7 @@ describe('wire format parity', () => {
 
   it('treats a LIKE wildcard in the search term as a literal', async () => {
     /**
-     * The Mongo version escaped REGEX metacharacters; `%` and `_` are the ones
+     * The legacy-store version escaped REGEX metacharacters; `%` and `_` are the ones
      * that matter to `ILIKE`, and leaving them live turns a user's search box
      * into a way to match every labeler in the table.
      */
@@ -324,7 +318,7 @@ describe('applying and removing labels', () => {
         labelSlug: 'nonexistent',
         createdBy: 'oxy-label-creator',
       }),
-    ).rejects.toThrow("does not exist in this labeler");
+    ).rejects.toThrow('does not exist in this labeler');
   });
 
   it('labels a post whose id is a uuid v7, and one that is an ObjectId hex', async () => {

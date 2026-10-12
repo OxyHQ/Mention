@@ -9,8 +9,11 @@ export function useProfileSEOPolicy(
   searchEngineIndexing?: boolean,
 ) {
   const pathname = usePathname();
-  const [initialSEO] = useState(() => Platform.OS === 'web' && typeof document !== 'undefined'
-    ? readServerSEO(document, window.location.pathname) : undefined);
+  const [initialSEO] = useState(() =>
+    Platform.OS === 'web' && typeof document !== 'undefined'
+      ? readServerSEO(document, window.location.pathname)
+      : undefined,
+  );
   const server = initialSEO && matchesServerSEOPath(initialSEO, pathname) ? initialSEO : undefined;
   return profileSEOPolicy(visibility, server, searchEngineIndexing);
 }

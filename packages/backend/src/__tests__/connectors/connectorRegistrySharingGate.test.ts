@@ -36,7 +36,11 @@ import type { NetworkConnector, NetworkId, LocalPostEventPayload } from '@oxy.so
 import type { FederatablePost } from '../../services/serviceRegistry';
 
 /** A minimal fake connector with an overridable, spy-able `deliver`. */
-function makeConnector(id: NetworkId, deliver: NetworkConnector<PostContent>['deliver'], enabled = true): NetworkConnector<PostContent> {
+function makeConnector(
+  id: NetworkId,
+  deliver: NetworkConnector<PostContent>['deliver'],
+  enabled = true,
+): NetworkConnector<PostContent> {
   return {
     id,
     enabled,

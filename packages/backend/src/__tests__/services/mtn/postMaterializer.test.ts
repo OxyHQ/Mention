@@ -2,7 +2,7 @@
  * MTN `projectRecord` — a signed record becoming real rows.
  *
  * The suite this replaces ran the projection against an in-memory
- * re-implementation of Mongo's dotted-`$set` semantics. That could only ever
+ * re-implementation of the legacy store's dotted-`$set` semantics. That could only ever
  * assert that the code built the update it was written to build; it could not see
  * the two things this port makes possible to get wrong, and both are silent:
  *
@@ -14,7 +14,7 @@
  * hydration and the feed engine use, so a missing child row is a missing field
  * here.
  *
- * **Re-projection is now a delete-and-rewrite of the content graph**, where Mongo
+ * **Re-projection is now a delete-and-rewrite of the content graph**, where the legacy store
  * touched only the paths it named. Anything the record does NOT own — an existing
  * post's media that would not re-resolve, its @mention allowlist, its article —
  * has to be carried across explicitly, and the cases that check that are the ones
@@ -34,14 +34,24 @@ import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 // (`assets.metadataBySha256`, sha256 → fileId) is controllable and does
 // no real I/O. Hoisted so it predates the import.
 const oxyMock = vi.hoisted(() => ({
-  getServiceAssetMetadataBySha256: vi.fn<
-    (sha256s: string[]) => Promise<
-      Array<{ sha256: string; id: string; mime: string; size: number; status: 'active' | 'trash'; url?: string }>
-    >
-  >(),
+  getServiceAssetMetadataBySha256:
+    vi.fn<
+      (sha256s: string[]) => Promise<
+        Array<{
+          sha256: string;
+          id: string;
+          mime: string;
+          size: number;
+          status: 'active' | 'trash';
+          url?: string;
+        }>
+      >
+    >(),
 }));
 vi.mock('../../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ assets: { metadataBySha256: oxyMock.getServiceAssetMetadataBySha256 } }),
+  getServiceOxyClient: () => ({
+    assets: { metadataBySha256: oxyMock.getServiceAssetMetadataBySha256 },
+  }),
 }));
 
 import { closePostgres, connectPostgres, type Database } from '../../../db/postgres';
@@ -309,9 +319,7 @@ describe('projectRecord — post', () => {
   });
 
   it('rejects an invalid inner record', async () => {
-    const result = await projectRecord(
-      envelope(MENTION_POST_COLLECTION, POST_RKEY, { text: 42 }),
-    );
+    const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, { text: 42 }));
     expect(result).toEqual({ ok: false, reason: 'invalid_record' });
     expect(await readPost(POST_RKEY)).toBeNull();
   });
@@ -344,7 +352,9 @@ describe('projectRecord — the record owns some of the content, not all of it',
   });
 
   it("PRESERVES the post's @mention allowlist, which the record does not carry", async () => {
-    await seedPost(POST_RKEY, SUBJECT_OXY_ID, { mentions: ['mentioned-user-a', 'mentioned-user-b'] });
+    await seedPost(POST_RKEY, SUBJECT_OXY_ID, {
+      mentions: ['mentioned-user-a', 'mentioned-user-b'],
+    });
 
     await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord));
 
@@ -355,7 +365,7 @@ describe('projectRecord — the record owns some of the content, not all of it',
   it('PRESERVES a collaborator, which the record does not carry either', async () => {
     // A post record names only its SUBJECT, so rewriting the authorship from it
     // revokes every collaborator on every re-projection — which is what the
-    // Mongoose version did, and what `replacePostContent` deliberately refuses to
+    // legacy-ODM version did, and what `replacePostContent` deliberately refuses to
     // do for the same reason. Found by mutation-testing the refresh path: deleting
     // the authorship rewrite made nothing go red, because nothing had a
     // collaborator to lose.
@@ -425,7 +435,10 @@ describe('projectRecord — read-side blob resolution', () => {
   const withEmbed = {
     text: 'a post with media',
     createdAt: '2024-01-02T03:04:05.000Z',
-    embed: { type: 'media', items: [{ blob: { sha256: SHA, mediaType: 'image' }, alt: 'alt text' }] },
+    embed: {
+      type: 'media',
+      items: [{ blob: { sha256: SHA, mediaType: 'image' }, alt: 'alt text' }],
+    },
   };
 
   it('turns a content address into a native fileId MediaItem', async () => {
@@ -460,7 +473,9 @@ describe('projectRecord — read-side blob resolution', () => {
   });
 
   it('never aborts the projection when the reverse lookup fails', async () => {
-    oxyMock.getServiceAssetMetadataBySha256.mockRejectedValue(new Error('files:read scope missing'));
+    oxyMock.getServiceAssetMetadataBySha256.mockRejectedValue(
+      new Error('files:read scope missing'),
+    );
 
     const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, withEmbed));
 
@@ -501,7 +516,9 @@ describe('projectRecord — self-asserted createdAt is bounded', () => {
 
   it('refuses a far-future createdAt instead of pinning the post atop every feed', async () => {
     const before = Date.now();
-    const stored = await projectWithCreatedAt(new Date(Date.now() + 400 * 24 * 3600 * 1000).toISOString());
+    const stored = await projectWithCreatedAt(
+      new Date(Date.now() + 400 * 24 * 3600 * 1000).toISOString(),
+    );
     expect(stored?.getTime()).toBeGreaterThanOrEqual(before);
     expect(stored?.getTime()).toBeLessThanOrEqual(Date.now());
   });
@@ -668,7 +685,7 @@ describe('projectRecord — tombstone', () => {
      *
      * `posts.parent_post_id` is `ON DELETE SET NULL`, so deleting the parent row
      * alone leaves each reply alive with a null parent and `is_reply: true`: a
-     * root post, in every feed, written by someone who never posted it. Mongo had
+     * root post, in every feed, written by someone who never posted it. The legacy store had
      * no such promotion — the reply was deleted — so this is a parity regression
      * the port introduces rather than one it inherits.
      *
@@ -733,7 +750,10 @@ describe('projectRecord — tombstone', () => {
       ),
     );
 
-    const rows = await db.select({ id: bookmarks.id }).from(bookmarks).where(eq(bookmarks.id, BOOKMARK_RKEY));
+    const rows = await db
+      .select({ id: bookmarks.id })
+      .from(bookmarks)
+      .where(eq(bookmarks.id, BOOKMARK_RKEY));
     expect(rows).toEqual([]);
   });
 
@@ -803,7 +823,10 @@ describe('projectRecord — multilingual post (variants)', () => {
         text: 'hola',
         createdAt: createdAtIso,
         langs: ['es'],
-        embed: { type: 'media', items: [{ blob: { sha256: 'sha-img', mediaType: 'image' }, alt: 'un gato' }] },
+        embed: {
+          type: 'media',
+          items: [{ blob: { sha256: 'sha-img', mediaType: 'image' }, alt: 'un gato' }],
+        },
         variants: [
           { tag: 'es', text: 'hola' },
           { tag: 'en', text: 'hi', alt: { 'sha-img': 'a cat' } },

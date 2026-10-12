@@ -6,10 +6,10 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  * Route-level coverage for `postReadMoreAction` + `collapseLongBio` in the
  * `PUT /profile/settings` handler, against a REAL `user_settings` row.
  *
- * It used to run against an in-memory map standing in for the Mongoose model,
- * with a hand-written `setDot` reimplementing Mongo's `$set` semantics. That
+ * It used to run against an in-memory map standing in for the legacy-ODM model,
+ * with a hand-written `setDot` reimplementing the legacy store's `$set` semantics. That
  * asserted the fake agreed with itself: the store applied dotted paths the way
- * the test author believed Mongo did, and the route was never observed writing
+ * the test author believed the legacy store did, and the route was never observed writing
  * anything. The port to Postgres made the pretence visible — every case
  * returned 500 because the mocks no longer intercepted the path the handler
  * takes.
@@ -25,7 +25,9 @@ const TEST_USER = 'readmorebio-user-1';
 vi.mock('@oxy.so/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
   requireOxyAuth: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
-    (req as express.Request & { user?: { id: string }; accessToken?: string }).user = { id: TEST_USER };
+    (req as express.Request & { user?: { id: string }; accessToken?: string }).user = {
+      id: TEST_USER,
+    };
     (req as express.Request & { accessToken?: string }).accessToken = 'test-token';
     next();
   },
@@ -75,12 +77,21 @@ describe('PUT /profile/settings — postReadMoreAction + collapseLongBio', () =>
     await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, TEST_USER));
   });
 
-  it.each(['mono', 'monochrome', 'oxy', 'faircoin'])('rejects canonical preset %s through the legacy hex write', async (primaryColor) => {
-    await request(app).put('/profile/settings').send({ appearance: { primaryColor } }).expect(400);
-  });
+  it.each(['mono', 'monochrome', 'oxy', 'faircoin'])(
+    'rejects canonical preset %s through the legacy hex write',
+    async (primaryColor) => {
+      await request(app)
+        .put('/profile/settings')
+        .send({ appearance: { primaryColor } })
+        .expect(400);
+    },
+  );
 
   it('preserves basic custom hex for a free account', async () => {
-    await request(app).put('/profile/settings').send({ appearance: { primaryColor: '#102030' } }).expect(200);
+    await request(app)
+      .put('/profile/settings')
+      .send({ appearance: { primaryColor: '#102030' } })
+      .expect(200);
     expect((await getSettings()).appearance).toMatchObject({ primaryColor: '#102030' });
   });
 
@@ -91,7 +102,9 @@ describe('PUT /profile/settings — postReadMoreAction + collapseLongBio', () =>
       .expect(200);
 
     const settings = await getSettings();
-    expect((settings.appearance as Record<string, unknown>).postReadMoreAction).toBe('expandInline');
+    expect((settings.appearance as Record<string, unknown>).postReadMoreAction).toBe(
+      'expandInline',
+    );
   });
 
   it('rejects an invalid postReadMoreAction value (field keeps its default)', async () => {
@@ -101,7 +114,7 @@ describe('PUT /profile/settings — postReadMoreAction + collapseLongBio', () =>
       .expect(200);
 
     // The guarantee is that the invalid value was NOT persisted. What "not
-    // persisted" LOOKS like changed with the store: Mongo left the field
+    // persisted" LOOKS like changed with the store: the legacy store left the field
     // absent, and `appearance_post_read_more_action` is NOT NULL DEFAULT
     // 'openPost', so the column holds its default instead. Asserting
     // `toBeUndefined()` here would now be asserting the old store's shape, and
@@ -136,7 +149,13 @@ describe('PUT /profile/settings — postReadMoreAction + collapseLongBio', () =>
   it('still persists themeMode alongside the two new fields in the same request', async () => {
     await request(app)
       .put('/profile/settings')
-      .send({ appearance: { themeMode: 'dark', postReadMoreAction: 'expandInline', collapseLongBio: false } })
+      .send({
+        appearance: {
+          themeMode: 'dark',
+          postReadMoreAction: 'expandInline',
+          collapseLongBio: false,
+        },
+      })
       .expect(200);
 
     // `toMatchObject`, not `toEqual`: every appearance column is NOT NULL with
@@ -154,7 +173,7 @@ describe('PUT /profile/settings — postReadMoreAction + collapseLongBio', () =>
 
   it('a later partial-appearance request (e.g. color picker sending only primaryColor) does not reset earlier appearance fields', async () => {
     // Regression test for the whole-subdocument-replace bug: `appearance` is a
-    // Mongoose single-nested subdocument, so a request that builds it as one
+    // the legacy ODM single-nested subdocument, so a request that builds it as one
     // nested object under `update['appearance']` silently backfills any field
     // not present in the request with schema defaults, wiping earlier values.
     // `useAppColorSave.ts` sends exactly this kind of partial payload

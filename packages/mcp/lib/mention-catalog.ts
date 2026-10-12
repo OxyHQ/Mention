@@ -1,26 +1,29 @@
-import { mcpDeploymentIdentity } from "@mention/shared-types/deployment";
-import type { AppCapabilityCatalog } from "@oxy.so/contracts";
-import { registerAccountTools } from "../tools/accounts.js";
-import { registerFeedTools } from "../tools/feed.js";
-import { registerHashtagsTools } from "../tools/hashtags.js";
-import { registerInteractionsTools } from "../tools/interactions.js";
-import { registerJobsTools } from "../tools/jobs.js";
-import { registerLanesTools } from "../tools/lanes.js";
-import { registerListsTools } from "../tools/lists.js";
-import { registerMutesTools } from "../tools/mutes.js";
-import { registerMediaTools } from "../tools/media.js";
-import { registerNotificationsTools } from "../tools/notifications.js";
-import { registerPollsTools } from "../tools/polls.js";
-import { registerPostsTools } from "../tools/posts.js";
-import { registerProfileTools } from "../tools/profile.js";
-import { registerSearchTools } from "../tools/search.js";
-import { registerSocialTools } from "../tools/social.js";
-import { registerStarterPackTools } from "../tools/starter-packs.js";
-import { MENTION_TOOL_POLICIES } from "./tool-policies.js";
-import { MentionToolRegistry } from "./tool-registry.js";
+import { mcpDeploymentIdentity } from '@mention/shared-types/deployment';
+import type { AppCapabilityCatalog } from '@oxy.so/contracts';
+import { registerAccountTools } from '../tools/accounts.js';
+import { registerFeedTools } from '../tools/feed.js';
+import { registerHashtagsTools } from '../tools/hashtags.js';
+import { registerInteractionsTools } from '../tools/interactions.js';
+import { registerJobsTools } from '../tools/jobs.js';
+import { registerLanesTools } from '../tools/lanes.js';
+import { registerListsTools } from '../tools/lists.js';
+import { registerMutesTools } from '../tools/mutes.js';
+import { registerMediaTools } from '../tools/media.js';
+import { registerNotificationsTools } from '../tools/notifications.js';
+import { registerPollsTools } from '../tools/polls.js';
+import { registerPostsTools } from '../tools/posts.js';
+import { registerProfileTools } from '../tools/profile.js';
+import { registerSearchTools } from '../tools/search.js';
+import { registerSocialTools } from '../tools/social.js';
+import { registerStarterPackTools } from '../tools/starter-packs.js';
+import { MENTION_TOOL_POLICIES } from './tool-policies.js';
+import { MentionToolRegistry } from './tool-registry.js';
 
 function buildRegistry(): MentionToolRegistry {
-  const registry = new MentionToolRegistry(MENTION_TOOL_POLICIES, mcpDeploymentIdentity(process.env));
+  const registry = new MentionToolRegistry(
+    MENTION_TOOL_POLICIES,
+    mcpDeploymentIdentity(process.env),
+  );
   registerPostsTools(registry);
   registerFeedTools(registry);
   registerInteractionsTools(registry);

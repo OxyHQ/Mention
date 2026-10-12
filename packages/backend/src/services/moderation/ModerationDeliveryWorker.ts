@@ -57,14 +57,10 @@ export class ModerationDeliveryRejectedError extends Error {
 }
 
 /** Handle one `report.submit` outbox event. */
-export async function deliverReportOutboxEvent(
-  event: ModerationOutboxEvent,
-): Promise<void> {
+export async function deliverReportOutboxEvent(event: ModerationOutboxEvent): Promise<void> {
   const reportId = event.payload.reportId;
   if (reportId === undefined) {
-    throw new ModerationDeliveryRejectedError(
-      'A report.submit event carried no reportId.',
-    );
+    throw new ModerationDeliveryRejectedError('A report.submit event carried no reportId.');
   }
 
   const report = await findReportById(reportId);

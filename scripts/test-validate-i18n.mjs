@@ -14,13 +14,13 @@
  * so the catalog reader, the key extractor and the rule all execute.
  */
 
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const validator = resolve(repositoryRoot, "scripts/validate-i18n.mjs");
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const validator = resolve(repositoryRoot, 'scripts/validate-i18n.mjs');
 
 /** Canonical catalog formatting, which the validator requires of every file. */
 function catalog(entries) {
@@ -44,20 +44,23 @@ function tree(english, translations = {}) {
     if (!(key in spanish)) spanish[key] = `es ${value}`;
   }
   return {
-    "scripts/i18n-known-gaps.json": catalog({
+    'scripts/i18n-known-gaps.json': catalog({
       keysMissingFromSourceCatalog: [],
       orphanedTranslations: {},
     }),
-    "packages/frontend/locales/en.json": catalog(english),
-    "packages/frontend/locales/es.json": catalog(spanish),
-    "packages/frontend/app/screen.tsx": `${keys
-      .map((key) => `export const k${keys.indexOf(key)} = t(${JSON.stringify(key.replace(/_(?:zero|one|two|few|many|other)$/, ""))}, { count: 1 });`)
-      .join("\n")}\n`,
+    'packages/frontend/locales/en.json': catalog(english),
+    'packages/frontend/locales/es.json': catalog(spanish),
+    'packages/frontend/app/screen.tsx': `${keys
+      .map(
+        (key) =>
+          `export const k${keys.indexOf(key)} = t(${JSON.stringify(key.replace(/_(?:zero|one|two|few|many|other)$/, ''))}, { count: 1 });`,
+      )
+      .join('\n')}\n`,
   };
 }
 
 async function runAgainst(files, { realFloors = false } = {}) {
-  const root = await mkdtemp(join(tmpdir(), "i18n-validator-"));
+  const root = await mkdtemp(join(tmpdir(), 'i18n-validator-'));
   try {
     for (const [path, contents] of Object.entries(files)) {
       const full = join(root, path);
@@ -65,15 +68,18 @@ async function runAgainst(files, { realFloors = false } = {}) {
       await writeFile(full, contents);
     }
     const environment = { ...process.env, I18N_VALIDATOR_ROOT: root };
-    if (!realFloors) environment.I18N_VALIDATOR_FIXTURE_FLOORS = "1";
+    if (!realFloors) environment.I18N_VALIDATOR_FIXTURE_FLOORS = '1';
     const proc = Bun.spawnSync({
-      cmd: ["bun", validator],
+      cmd: ['bun', validator],
       cwd: repositoryRoot,
       env: environment,
-      stdout: "pipe",
-      stderr: "pipe",
+      stdout: 'pipe',
+      stderr: 'pipe',
     });
-    return { exitCode: proc.exitCode, output: `${proc.stdout.toString()}${proc.stderr.toString()}` };
+    return {
+      exitCode: proc.exitCode,
+      output: `${proc.stdout.toString()}${proc.stderr.toString()}`,
+    };
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -81,64 +87,64 @@ async function runAgainst(files, { realFloors = false } = {}) {
 
 const cases = [
   {
-    name: "real copy passes",
-    files: tree({ "settings.account.signedOutTitle": "Sign in to Mention" }),
+    name: 'real copy passes',
+    files: tree({ 'settings.account.signedOutTitle': 'Sign in to Mention' }),
     expectFailure: false,
   },
 
   // ------------------------------------------------ the shape #738 produced ---
   {
-    name: "an English value that is its key spelled out is rejected",
-    files: tree({ "settings.account.signedOutTitle": "Signed Out Title" }),
+    name: 'an English value that is its key spelled out is rejected',
+    files: tree({ 'settings.account.signedOutTitle': 'Signed Out Title' }),
     expectFailure: true,
     expectOutput: 'is the key spelled out rather than copy',
   },
   {
-    name: "the same value in a translation is rejected, naming that language",
+    name: 'the same value in a translation is rejected, naming that language',
     files: tree(
-      { "settings.account.signedOutTitle": "Sign in to Mention" },
-      { "settings.account.signedOutTitle": "Signed Out Title" },
+      { 'settings.account.signedOutTitle': 'Sign in to Mention' },
+      { 'settings.account.signedOutTitle': 'Signed Out Title' },
     ),
     expectFailure: true,
-    expectOutput: "write the real es translation",
+    expectOutput: 'write the real es translation',
   },
   {
-    name: "a snake_case key spelled out is rejected",
-    files: tree({ "compose.clear_all_description": "Clear All Description" }),
+    name: 'a snake_case key spelled out is rejected',
+    files: tree({ 'compose.clear_all_description': 'Clear All Description' }),
     expectFailure: true,
     expectOutput: 'is the key spelled out rather than copy',
   },
   {
-    name: "a plural form is rejected on the key with its CLDR suffix stripped",
+    name: 'a plural form is rejected on the key with its CLDR suffix stripped',
     files: tree({
-      "compose.poll.optionCount_one": "Option Count",
-      "compose.poll.optionCount_other": "{{count}} options",
+      'compose.poll.optionCount_one': 'Option Count',
+      'compose.poll.optionCount_other': '{{count}} options',
     }),
     expectFailure: true,
-    expectOutput: "compose.poll.optionCount_one",
+    expectOutput: 'compose.poll.optionCount_one',
   },
 
   // ------------------------------ the Title Case that must NOT be rejected ---
   // Sixty entries in the live catalog look like this. A rule that fired on them
   // would be switched off by whoever hit it first, so each shape gets a case.
   {
-    name: "a legitimate Title Case label passes",
-    files: tree({ "profile.editProfile": "Edit Profile" }),
+    name: 'a legitimate Title Case label passes',
+    files: tree({ 'profile.editProfile': 'Edit Profile' }),
     expectFailure: false,
   },
   {
-    name: "a Title Case label whose last word is an acronym passes",
-    files: tree({ "settings.aboutMention.oxySDK": "Oxy SDK" }),
+    name: 'a Title Case label whose last word is an acronym passes',
+    files: tree({ 'settings.aboutMention.oxySDK': 'Oxy SDK' }),
     expectFailure: false,
   },
   {
-    name: "a single-word key equal to its value passes",
-    files: tree({ "accounts.accountCategory.art": "Art" }),
+    name: 'a single-word key equal to its value passes',
+    files: tree({ 'accounts.accountCategory.art': 'Art' }),
     expectFailure: false,
   },
   {
-    name: "sentence case under a slot-word key passes",
-    files: tree({ "settings.account.signedOutTitle": "Signed out title" }),
+    name: 'sentence case under a slot-word key passes',
+    files: tree({ 'settings.account.signedOutTitle': 'Signed out title' }),
     expectFailure: false,
   },
 
@@ -148,136 +154,148 @@ const cases = [
   // rule has to know them from an invented key or a correct translation is the
   // expensive path to a red build.
   {
-    name: "a plural category English lacks is accepted in a translation",
+    name: 'a plural category English lacks is accepted in a translation',
     files: tree(
-      { "lanes.postCount_one": "{{count}} post", "lanes.postCount_other": "{{count}} posts" },
-      { "lanes.postCount_few": "{{count}} поста", "lanes.postCount_many": "{{count}} постов" },
+      { 'lanes.postCount_one': '{{count}} post', 'lanes.postCount_other': '{{count}} posts' },
+      { 'lanes.postCount_few': '{{count}} поста', 'lanes.postCount_many': '{{count}} постов' },
     ),
     expectFailure: false,
   },
   {
-    name: "a plural suffix on a key English does not define is still an orphan",
+    name: 'a plural suffix on a key English does not define is still an orphan',
     files: tree(
-      { "lanes.postCount_one": "{{count}} post", "lanes.postCount_other": "{{count}} posts" },
-      { "lanes.inventedCount_few": "{{count}} поста" },
+      { 'lanes.postCount_one': '{{count}} post', 'lanes.postCount_other': '{{count}} posts' },
+      { 'lanes.inventedCount_few': '{{count}} поста' },
     ),
     expectFailure: true,
-    expectOutput: "has no en source and no call site",
+    expectOutput: 'has no en source and no call site',
   },
 
   {
-    name: "a value that is its own dotted key path is rejected",
-    files: tree({ "notification.delete_error": "notification.delete_error" }),
+    name: 'a value that is its own dotted key path is rejected',
+    files: tree({ 'notification.delete_error': 'notification.delete_error' }),
     expectFailure: true,
-    expectOutput: "is set to its own key path",
+    expectOutput: 'is set to its own key path',
   },
   {
-    name: "an English prose key equal to its value still passes",
-    files: tree({ "Trending now": "Trending now" }),
+    name: 'an English prose key equal to its value still passes',
+    files: tree({ 'Trending now': 'Trending now' }),
     expectFailure: false,
   },
 
   {
-    name: "a JavaScript template literal in a value is rejected",
-    files: tree({ "profile.blockUser": "Block @${displayUsername}" }),
+    name: 'a JavaScript template literal in a value is rejected',
+    files: tree({ 'profile.blockUser': 'Block @${displayUsername}' }),
     expectFailure: true,
-    expectOutput: "JavaScript template-literal syntax",
+    expectOutput: 'JavaScript template-literal syntax',
   },
   {
-    name: "the i18next interpolation form of the same string passes",
-    files: tree({ "profile.blockUser": "Block @{{username}}" }),
+    name: 'the i18next interpolation form of the same string passes',
+    files: tree({ 'profile.blockUser': 'Block @{{username}}' }),
     expectFailure: false,
   },
 
   {
-    name: "a literal JavaScript escape sequence in a value is rejected",
-    files: tree({ "labelers.searchPlaceholder": "Search labelers\\u2026" }),
+    name: 'a literal JavaScript escape sequence in a value is rejected',
+    files: tree({ 'labelers.searchPlaceholder': 'Search labelers\\u2026' }),
     expectFailure: true,
-    expectOutput: "JavaScript escape sequence",
+    expectOutput: 'JavaScript escape sequence',
   },
   {
-    name: "the character the escape stands for passes",
-    files: tree({ "labelers.searchPlaceholder": "Search labelers\u2026" }),
+    name: 'the character the escape stands for passes',
+    files: tree({ 'labelers.searchPlaceholder': 'Search labelers\u2026' }),
     expectFailure: false,
   },
   {
-    name: "a real newline in a value passes",
-    files: tree({ "compose.hint": "First line\nsecond line" }),
+    name: 'a real newline in a value passes',
+    files: tree({ 'compose.hint': 'First line\nsecond line' }),
     expectFailure: false,
   },
 
   // ------------------------------------------------ placeholder direction ---
   {
-    name: "a translation that drops an English placeholder is rejected",
+    name: 'a translation that drops an English placeholder is rejected',
     files: tree(
-      { "compose.schedule.set": "Scheduled for {{time}}" },
-      { "compose.schedule.set": "Programado" },
+      { 'compose.schedule.set': 'Scheduled for {{time}}' },
+      { 'compose.schedule.set': 'Programado' },
     ),
     expectFailure: true,
-    expectOutput: "drops {{time}}",
+    expectOutput: 'drops {{time}}',
   },
   {
-    name: "a translation that keeps it passes",
+    name: 'a translation that keeps it passes',
     files: tree(
-      { "compose.schedule.set": "Scheduled for {{time}}" },
-      { "compose.schedule.set": "Programado para {{time}}" },
+      { 'compose.schedule.set': 'Scheduled for {{time}}' },
+      { 'compose.schedule.set': 'Programado para {{time}}' },
     ),
     expectFailure: false,
   },
   {
-    name: "a _one form may spell the number out instead of interpolating it",
+    name: 'a _one form may spell the number out instead of interpolating it',
     files: tree(
-      { "post.corrections.marker_one": "Corrected {{count}} time", "post.corrections.marker_other": "Corrected {{count}} times" },
       {
-        "post.corrections.marker_one": "Corregido una vez",
-        "post.corrections.marker_many": "Corregido {{count}} millones de veces",
-        "post.corrections.marker_other": "Corregido {{count}} veces",
+        'post.corrections.marker_one': 'Corrected {{count}} time',
+        'post.corrections.marker_other': 'Corrected {{count}} times',
+      },
+      {
+        'post.corrections.marker_one': 'Corregido una vez',
+        'post.corrections.marker_many': 'Corregido {{count}} millones de veces',
+        'post.corrections.marker_other': 'Corregido {{count}} veces',
       },
     ),
     expectFailure: false,
   },
   {
-    name: "an extra plural form is checked against the English _other source",
+    name: 'an extra plural form is checked against the English _other source',
     files: tree(
-      { "lanes.postCount_one": "{{count}} post", "lanes.postCount_other": "{{count}} posts" },
-      { "lanes.postCount_few": "несколько постов" },
+      { 'lanes.postCount_one': '{{count}} post', 'lanes.postCount_other': '{{count}} posts' },
+      { 'lanes.postCount_few': 'несколько постов' },
     ),
     expectFailure: true,
-    expectOutput: "drops {{count}}",
+    expectOutput: 'drops {{count}}',
   },
 
   {
-    name: "a plural form beside an unsuffixed English base is checked against it",
+    name: 'a plural form beside an unsuffixed English base is checked against it',
     files: tree(
-      { "notification.group.many_actors": "{{actors}} and {{count}} more" },
-      { "notification.group.many_actors_many": "{{actors}} et d'autres" },
+      { 'notification.group.many_actors': '{{actors}} and {{count}} more' },
+      { 'notification.group.many_actors_many': "{{actors}} et d'autres" },
     ),
     expectFailure: true,
-    expectOutput: "drops {{count}}",
+    expectOutput: 'drops {{count}}',
   },
 
   // -------------------------------------------------- i18next v3 leftovers ---
   {
-    name: "the v3 _plural suffix is rejected",
-    files: tree({ "compose.minutesAgo": "{{count}} minute ago", "compose.minutesAgo_plural": "{{count}} minutes ago" }),
+    name: 'the v3 _plural suffix is rejected',
+    files: tree({
+      'compose.minutesAgo': '{{count}} minute ago',
+      'compose.minutesAgo_plural': '{{count}} minutes ago',
+    }),
     expectFailure: true,
     expectOutput: "v3's `_plural` suffix",
   },
   {
-    name: "the CLDR spelling of the same pair passes",
+    name: 'the CLDR spelling of the same pair passes',
     files: tree(
-      { "compose.minutesAgo_one": "{{count}} minute ago", "compose.minutesAgo_other": "{{count}} minutes ago" },
-      { "compose.minutesAgo_many": "hace {{count}} millones de minutos" },
+      {
+        'compose.minutesAgo_one': '{{count}} minute ago',
+        'compose.minutesAgo_other': '{{count}} minutes ago',
+      },
+      { 'compose.minutesAgo_many': 'hace {{count}} millones de minutos' },
     ),
     expectFailure: false,
   },
   {
-    name: "a _one form may interpolate a count its English _one spells lexically",
+    name: 'a _one form may interpolate a count its English _one spells lexically',
     files: tree(
-      { "post.corrections.marker_one": "Corrected once", "post.corrections.marker_other": "Corrected {{count}} times" },
       {
-        "post.corrections.marker_one": "Исправлено {{count}} раз",
-        "post.corrections.marker_many": "Исправлено {{count}} миллионов раз",
+        'post.corrections.marker_one': 'Corrected once',
+        'post.corrections.marker_other': 'Corrected {{count}} times',
+      },
+      {
+        'post.corrections.marker_one': 'Исправлено {{count}} раз',
+        'post.corrections.marker_many': 'Исправлено {{count}} миллионов раз',
       },
     ),
     expectFailure: false,
@@ -289,84 +307,99 @@ const cases = [
   // is not, so a hand-written `zero|one|two` would be right for one and wrong
   // for the other. `tree()` builds an `es` catalog, whose `one` fires only at 1.
   {
-    name: "a single-value category may spell its number lexically",
+    name: 'a single-value category may spell its number lexically',
     files: tree(
-      { "post.corrections.marker_one": "Corrected {{count}} time", "post.corrections.marker_other": "Corrected {{count}} times" },
       {
-        "post.corrections.marker_one": "Corregido una vez",
-        "post.corrections.marker_many": "Corregido {{count}} millones de veces",
-        "post.corrections.marker_other": "Corregido {{count}} veces",
+        'post.corrections.marker_one': 'Corrected {{count}} time',
+        'post.corrections.marker_other': 'Corrected {{count}} times',
+      },
+      {
+        'post.corrections.marker_one': 'Corregido una vez',
+        'post.corrections.marker_many': 'Corregido {{count}} millones de veces',
+        'post.corrections.marker_other': 'Corregido {{count}} veces',
       },
     ),
     expectFailure: false,
   },
   {
-    name: "a multi-value category may not",
+    name: 'a multi-value category may not',
     files: tree(
-      { "post.corrections.marker_one": "Corrected {{count}} time", "post.corrections.marker_other": "Corrected {{count}} times" },
       {
-        "post.corrections.marker_one": "Corregido una vez",
-        "post.corrections.marker_many": "Corregido muchas veces",
-        "post.corrections.marker_other": "Corregido {{count}} veces",
+        'post.corrections.marker_one': 'Corrected {{count}} time',
+        'post.corrections.marker_other': 'Corrected {{count}} times',
+      },
+      {
+        'post.corrections.marker_one': 'Corregido una vez',
+        'post.corrections.marker_many': 'Corregido muchas veces',
+        'post.corrections.marker_other': 'Corregido {{count}} veces',
       },
     ),
     expectFailure: true,
-    expectOutput: "drops {{count}}",
+    expectOutput: 'drops {{count}}',
   },
 
   {
-    name: "an exempt category may drop the count but not another placeholder",
+    name: 'an exempt category may drop the count but not another placeholder',
     files: tree(
-      { "trendGraph.related_one": "Related: {{terms}} +{{count}} more", "trendGraph.related_other": "Related: {{terms}} +{{count}} more" },
       {
-        "trendGraph.related_one": "Relacionado: {{terms}} y uno más",
-        "trendGraph.related_many": "Relacionado: {{terms}} +{{count}} más",
-        "trendGraph.related_other": "Relacionado: {{terms}} +{{count}} más",
+        'trendGraph.related_one': 'Related: {{terms}} +{{count}} more',
+        'trendGraph.related_other': 'Related: {{terms}} +{{count}} more',
+      },
+      {
+        'trendGraph.related_one': 'Relacionado: {{terms}} y uno más',
+        'trendGraph.related_many': 'Relacionado: {{terms}} +{{count}} más',
+        'trendGraph.related_other': 'Relacionado: {{terms}} +{{count}} más',
       },
     ),
     expectFailure: false,
   },
   {
-    name: "the same form dropping the non-count placeholder is rejected",
+    name: 'the same form dropping the non-count placeholder is rejected',
     files: tree(
-      { "trendGraph.related_one": "Related: {{terms}} +{{count}} more", "trendGraph.related_other": "Related: {{terms}} +{{count}} more" },
       {
-        "trendGraph.related_one": "Relacionado: y uno más",
-        "trendGraph.related_many": "Relacionado: {{terms}} +{{count}} más",
-        "trendGraph.related_other": "Relacionado: {{terms}} +{{count}} más",
+        'trendGraph.related_one': 'Related: {{terms}} +{{count}} more',
+        'trendGraph.related_other': 'Related: {{terms}} +{{count}} more',
+      },
+      {
+        'trendGraph.related_one': 'Relacionado: y uno más',
+        'trendGraph.related_many': 'Relacionado: {{terms}} +{{count}} más',
+        'trendGraph.related_other': 'Relacionado: {{terms}} +{{count}} más',
       },
     ),
     expectFailure: true,
-    expectOutput: "drops {{terms}}",
+    expectOutput: 'drops {{terms}}',
   },
 
   // ------------------------------------------------- CLDR plural coverage ---
   // The category list is derived from Intl, so these cases also pin that the
   // derivation is per-language rather than a copy of English's two.
   {
-    name: "a language is required to cover the categories it uses",
+    name: 'a language is required to cover the categories it uses',
     files: tree(
-      { "lanes.postCount_one": "{{count}} post", "lanes.postCount_other": "{{count}} posts" },
-      { "lanes.postCount_one": "{{count}} publicación", "lanes.postCount_other": "{{count}} publicaciones" },
+      { 'lanes.postCount_one': '{{count}} post', 'lanes.postCount_other': '{{count}} posts' },
+      {
+        'lanes.postCount_one': '{{count}} publicación',
+        'lanes.postCount_other': '{{count}} publicaciones',
+      },
     ),
     expectFailure: true,
-    expectOutput: "missing the `_many` plural form",
+    expectOutput: 'missing the `_many` plural form',
   },
   {
-    name: "covering them passes",
+    name: 'covering them passes',
     files: tree(
-      { "lanes.postCount_one": "{{count}} post", "lanes.postCount_other": "{{count}} posts" },
+      { 'lanes.postCount_one': '{{count}} post', 'lanes.postCount_other': '{{count}} posts' },
       {
-        "lanes.postCount_one": "{{count}} publicación",
-        "lanes.postCount_many": "{{count}} millón de publicaciones",
-        "lanes.postCount_other": "{{count}} publicaciones",
+        'lanes.postCount_one': '{{count}} publicación',
+        'lanes.postCount_many': '{{count}} millón de publicaciones',
+        'lanes.postCount_other': '{{count}} publicaciones',
       },
     ),
     expectFailure: false,
   },
   {
-    name: "a key English does not pluralise demands no forms",
-    files: tree({ "lanes.postCount": "{{count}} posts" }),
+    name: 'a key English does not pluralise demands no forms',
+    files: tree({ 'lanes.postCount': '{{count}} posts' }),
     expectFailure: false,
   },
 
@@ -377,36 +410,41 @@ const cases = [
   // half a reviewer approves may be the half nobody sees. The rule was live for
   // several commits with nothing pinning it.
   {
-    name: "a key defined both flat and nested is rejected",
+    name: 'a key defined both flat and nested is rejected',
     files: (() => {
-      const files = tree({ "common.back": "Back" });
-      const english = { "common.retry": "Retry", common: { retry: "Try again" } };
-      files["packages/frontend/locales/en.json"] = `${JSON.stringify(english, null, 2)}\n`;
-      files["packages/frontend/locales/es.json"] = `${JSON.stringify({ "common.retry": "Reintentar" }, null, 2)}\n`;
-      files["packages/frontend/app/screen.tsx"] = "export const k = t('common.retry');\n";
+      const files = tree({ 'common.back': 'Back' });
+      const english = { 'common.retry': 'Retry', common: { retry: 'Try again' } };
+      files['packages/frontend/locales/en.json'] = `${JSON.stringify(english, null, 2)}\n`;
+      files['packages/frontend/locales/es.json'] =
+        `${JSON.stringify({ 'common.retry': 'Reintentar' }, null, 2)}\n`;
+      files['packages/frontend/app/screen.tsx'] = "export const k = t('common.retry');\n";
       return files;
     })(),
     expectFailure: true,
-    expectOutput: "defined both as a flat key and inside a nested object",
+    expectOutput: 'defined both as a flat key and inside a nested object',
   },
   {
-    name: "the same key defined once, nested only, passes",
+    name: 'the same key defined once, nested only, passes',
     files: (() => {
-      const files = tree({ "common.back": "Back" });
-      files["packages/frontend/locales/en.json"] = `${JSON.stringify({ common: { retry: "Try again" } }, null, 2)}\n`;
-      files["packages/frontend/locales/es.json"] = `${JSON.stringify({ common: { retry: "Reintentar" } }, null, 2)}\n`;
-      files["packages/frontend/app/screen.tsx"] = "export const k = t('common.retry');\n";
+      const files = tree({ 'common.back': 'Back' });
+      files['packages/frontend/locales/en.json'] =
+        `${JSON.stringify({ common: { retry: 'Try again' } }, null, 2)}\n`;
+      files['packages/frontend/locales/es.json'] =
+        `${JSON.stringify({ common: { retry: 'Reintentar' } }, null, 2)}\n`;
+      files['packages/frontend/app/screen.tsx'] = "export const k = t('common.retry');\n";
       return files;
     })(),
     expectFailure: false,
   },
   {
-    name: "the same key defined once, flat only, passes",
+    name: 'the same key defined once, flat only, passes',
     files: (() => {
-      const files = tree({ "common.back": "Back" });
-      files["packages/frontend/locales/en.json"] = `${JSON.stringify({ "common.retry": "Try again" }, null, 2)}\n`;
-      files["packages/frontend/locales/es.json"] = `${JSON.stringify({ "common.retry": "Reintentar" }, null, 2)}\n`;
-      files["packages/frontend/app/screen.tsx"] = "export const k = t('common.retry');\n";
+      const files = tree({ 'common.back': 'Back' });
+      files['packages/frontend/locales/en.json'] =
+        `${JSON.stringify({ 'common.retry': 'Try again' }, null, 2)}\n`;
+      files['packages/frontend/locales/es.json'] =
+        `${JSON.stringify({ 'common.retry': 'Reintentar' }, null, 2)}\n`;
+      files['packages/frontend/app/screen.tsx'] = "export const k = t('common.retry');\n";
       return files;
     })(),
     expectFailure: false,
@@ -416,7 +454,7 @@ const cases = [
   // The rule that every key must exist in every catalog is satisfied just as
   // well by copying en.json, and twelve catalogs shipped that way.
   {
-    name: "a catalog byte-identical to English is rejected",
+    name: 'a catalog byte-identical to English is rejected',
     files: (() => {
       const english = Object.fromEntries(
         Array.from({ length: 20 }, (_, index) => [`screen.label${index}`, `Label ${index} text`]),
@@ -424,17 +462,21 @@ const cases = [
       return tree(english, english);
     })(),
     expectFailure: true,
-    expectOutput: "is a copy of the English catalog",
+    expectOutput: 'is a copy of the English catalog',
   },
   {
-    name: "declared translation debt lets an unfinished catalog through",
+    name: 'declared translation debt lets an unfinished catalog through',
     files: (() => {
       const english = Object.fromEntries(
         Array.from({ length: 20 }, (_, index) => [`screen.label${index}`, `Label ${index} text`]),
       );
       const files = tree(english, english);
-      files["scripts/i18n-known-gaps.json"] = `${JSON.stringify(
-        { keysMissingFromSourceCatalog: [], orphanedTranslations: {}, untranslatedByLanguage: { es: 20 } },
+      files['scripts/i18n-known-gaps.json'] = `${JSON.stringify(
+        {
+          keysMissingFromSourceCatalog: [],
+          orphanedTranslations: {},
+          untranslatedByLanguage: { es: 20 },
+        },
         null,
         2,
       )}\n`;
@@ -443,57 +485,69 @@ const cases = [
     expectFailure: false,
   },
   {
-    name: "declared debt smaller than the reality is rejected",
+    name: 'declared debt smaller than the reality is rejected',
     files: (() => {
       const english = Object.fromEntries(
         Array.from({ length: 20 }, (_, index) => [`screen.label${index}`, `Label ${index} text`]),
       );
       const files = tree(english, english);
-      files["scripts/i18n-known-gaps.json"] = `${JSON.stringify(
-        { keysMissingFromSourceCatalog: [], orphanedTranslations: {}, untranslatedByLanguage: { es: 5 } },
+      files['scripts/i18n-known-gaps.json'] = `${JSON.stringify(
+        {
+          keysMissingFromSourceCatalog: [],
+          orphanedTranslations: {},
+          untranslatedByLanguage: { es: 5 },
+        },
         null,
         2,
       )}\n`;
       return files;
     })(),
     expectFailure: true,
-    expectOutput: "more than the 5 declared",
+    expectOutput: 'more than the 5 declared',
   },
   {
-    name: "declared debt a finished translation no longer needs is rejected",
+    name: 'declared debt a finished translation no longer needs is rejected',
     files: (() => {
       const english = Object.fromEntries(
         Array.from({ length: 20 }, (_, index) => [`screen.label${index}`, `Label ${index} text`]),
       );
       const files = tree(english);
-      files["scripts/i18n-known-gaps.json"] = `${JSON.stringify(
-        { keysMissingFromSourceCatalog: [], orphanedTranslations: {}, untranslatedByLanguage: { es: 20 } },
+      files['scripts/i18n-known-gaps.json'] = `${JSON.stringify(
+        {
+          keysMissingFromSourceCatalog: [],
+          orphanedTranslations: {},
+          untranslatedByLanguage: { es: 20 },
+        },
         null,
         2,
       )}\n`;
       return files;
     })(),
     expectFailure: true,
-    expectOutput: "is no longer needed",
+    expectOutput: 'is no longer needed',
   },
 
   // ------------------------------------------------------- vacuity floors ---
   {
-    name: "the real floors reject a tree this small",
-    files: tree({ "settings.account.signedOutTitle": "Sign in to Mention" }),
+    name: 'the real floors reject a tree this small',
+    files: tree({ 'settings.account.signedOutTitle': 'Sign in to Mention' }),
     realFloors: true,
     expectFailure: true,
-    expectOutput: "below the",
+    expectOutput: 'below the',
   },
 ];
 
 let failed = 0;
 for (const testCase of cases) {
-  const { exitCode, output } = await runAgainst(testCase.files, { realFloors: testCase.realFloors });
+  const { exitCode, output } = await runAgainst(testCase.files, {
+    realFloors: testCase.realFloors,
+  });
   const didFail = exitCode !== 0;
   const problems = [];
   if (didFail !== testCase.expectFailure) {
-    problems.push(`expected the validator to ${testCase.expectFailure ? "fail" : "pass"}, it ${didFail ? "failed" : "passed"}`);
+    problems.push(
+      `expected the validator to ${testCase.expectFailure ? 'fail' : 'pass'}, it ${didFail ? 'failed' : 'passed'}`,
+    );
   }
   if (testCase.expectOutput && !output.includes(testCase.expectOutput)) {
     problems.push(`expected the output to mention "${testCase.expectOutput}"`);
@@ -502,7 +556,12 @@ for (const testCase of cases) {
     failed += 1;
     console.error(`FAIL ${testCase.name}`);
     for (const problem of problems) console.error(`  - ${problem}`);
-    console.error(output.split("\n").map((line) => `  | ${line}`).join("\n"));
+    console.error(
+      output
+        .split('\n')
+        .map((line) => `  | ${line}`)
+        .join('\n'),
+    );
   } else {
     console.log(`ok   ${testCase.name}`);
   }

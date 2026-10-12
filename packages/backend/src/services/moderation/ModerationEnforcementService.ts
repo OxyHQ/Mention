@@ -1,9 +1,6 @@
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import type { Decision } from '@crowdsource.you/contracts';
-import type {
-  ModerationEnforcementAction,
-  ModerationEnforcementMode,
-} from '@mention/shared-types';
+import type { ModerationEnforcementAction, ModerationEnforcementMode } from '@mention/shared-types';
 import { getDb } from '../../db/postgres';
 import { isUniqueViolation } from '@oxy.so/db';
 import { moderationEnforcements } from '../../db/schema/moderation';
@@ -58,8 +55,7 @@ const POST_SUBJECT_TYPES: ReadonlySet<string> = new Set(['post', 'comment']);
 /**
  * What a reversal has to put back, as the two columns that hold it.
  *
- * Mongo stored this as a `previousState` subdocument; flattened, an action that
- * changed nothing simply writes neither column. Both stay optional for that
+ * An action that changed nothing simply writes neither column. Both stay optional for that
  * reason — `undefined` means "this action did not touch that field", which is
  * not the same as `null`.
  */
@@ -79,12 +75,11 @@ interface PostState {
 /**
  * The post's enforceable state, or `null` when there is no such post.
  *
- * There is deliberately NO id-shape guard here. The Mongoose version tested
- * `isValidObjectId` first, purely to dodge a `CastError` — but the caller reads
- * `null` as "the reported post no longer exists", so any subject id that was not
- * 24-char hex turned EVERY enforcement action into a silent no-op that recorded
- * a plausible reason in the audit trail. Post ids are `text` now: a
- * uuid v7 matches its row, a pre-cutover ObjectId hex matches its row, and an id
+ * There is deliberately NO id-shape guard here. The caller reads `null` as "the
+ * reported post no longer exists", so a guard that rejected a valid id shape
+ * would turn EVERY enforcement action into a silent no-op that recorded a
+ * plausible reason in the audit trail. Post ids are `text`: a uuid v7 matches
+ * its row, an ObjectId hex matches its row, and an id
  * that is neither matches nothing — which is the honest answer the caller was
  * already written for.
  */
@@ -109,8 +104,7 @@ async function applyEffect(
   action: ModerationEnforcementAction,
   subject: EnforcementSubject,
 ): Promise<
-  | { changed: true; previousState: EnforcementPreviousState }
-  | { changed: false; reason: string }
+  { changed: true; previousState: EnforcementPreviousState } | { changed: false; reason: string }
 > {
   if (action === 'none' || action === 'manual_review') {
     return { changed: false, reason: `Action '${action}' has no effect by definition` };
@@ -136,10 +130,7 @@ async function applyEffect(
       if (current.status === 'restricted') {
         return { changed: false, reason: 'The post was already restricted' };
       }
-      await getDb()
-        .update(posts)
-        .set({ status: 'restricted' })
-        .where(eq(posts.id, subject.id));
+      await getDb().update(posts).set({ status: 'restricted' }).where(eq(posts.id, subject.id));
       return { changed: true, previousState: { previousStatePostStatus: current.status } };
     }
 
@@ -274,7 +265,9 @@ const RESTRICTION_IN_FORCE_ORDER: SQL[] = [
  * the CHECK constraint at restore time, turning a correction into a 500.
  */
 function asPostStatus(value: string | null | undefined): PostStatus {
-  return value !== null && value !== undefined && (POST_STATUSES as readonly string[]).includes(value)
+  return value !== null &&
+    value !== undefined &&
+    (POST_STATUSES as readonly string[]).includes(value)
     ? (value as PostStatus)
     : 'published';
 }
@@ -288,10 +281,7 @@ function asPostStatus(value: string | null | undefined): PostStatus {
  * removed while somebody reads a queue. Taking content down still waits for a
  * person. `automatic` allows the mapped set.
  */
-function modeAllows(
-  mode: ModerationEnforcementMode,
-  action: ModerationEnforcementAction,
-): boolean {
+function modeAllows(mode: ModerationEnforcementMode, action: ModerationEnforcementAction): boolean {
   switch (mode) {
     case 'observe':
       return false;
@@ -430,9 +420,7 @@ async function applyOne(
      * transient failure permanent: the action would be deduplicated away forever and
      * the decision would silently never be carried out.
      */
-    await getDb()
-      .delete(moderationEnforcements)
-      .where(eq(moderationEnforcements.id, recordId));
+    await getDb().delete(moderationEnforcements).where(eq(moderationEnforcements.id, recordId));
     logger.error('[CrowdSource] enforcement effect failed, claim released', {
       decisionId: decision.id,
       revision: decision.revision,

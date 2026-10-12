@@ -69,23 +69,26 @@ const hasText = (value: string | undefined): boolean => Boolean(value?.trim());
 
 export const hasPollOption = (options: string[]): boolean => options.some(hasText);
 
-export const hasArticleContent = (article: ArticleData | null | undefined): article is ArticleData =>
-  Boolean(article && (hasText(article.title) || hasText(article.body)));
+export const hasArticleContent = (
+  article: ArticleData | null | undefined,
+): article is ArticleData => Boolean(article && (hasText(article.title) || hasText(article.body)));
 
 /** An event the server will accept: it has a name and a date. */
 export const isCompleteEvent = (event: EventData | null | undefined): event is EventData =>
   Boolean(event && hasText(event.name) && hasText(event.date));
 
 /** A reference to a room that exists: its id and its title. */
-export const hasRoomContent = (room: RoomAttachmentData | null | undefined): room is RoomAttachmentData =>
-  Boolean(room?.roomId && hasText(room.title));
+export const hasRoomContent = (
+  room: RoomAttachmentData | null | undefined,
+): room is RoomAttachmentData => Boolean(room?.roomId && hasText(room.title));
 
 export const hasPodcastContent = (
   podcast: PodcastAttachmentData | null | undefined,
 ): podcast is PodcastAttachmentData => Boolean(podcast?.syraPodcastId);
 
-export const hasJobContent = (job: JobAttachmentData | null | undefined): job is JobAttachmentData =>
-  Boolean(job?.mentionJobId);
+export const hasJobContent = (
+  job: JobAttachmentData | null | undefined,
+): job is JobAttachmentData => Boolean(job?.mentionJobId);
 
 /** Sources that will be published: the ones with a link. */
 export const linkedSources = (sources: Source[]): Source[] =>
@@ -107,7 +110,10 @@ export const boxHasContent = (box: ComposeBox): boolean =>
   hasPodcastContent(box.podcast) ||
   hasJobContent(box.job);
 
-const rootBox = (content: ComposeContent): ComposeBox => ({ ...content, text: content.postContent });
+const rootBox = (content: ComposeContent): ComposeBox => ({
+  ...content,
+  text: content.postContent,
+});
 
 /** Whether the post is publishable: at least one box carries something. */
 export const hasPublishableContent = (content: ComposeContent): boolean =>
@@ -151,7 +157,10 @@ export const attachmentKeysOf = (
  * attachment is gone are dropped (and duplicates with them), and a card the
  * order never named is appended.
  */
-export const reconcileAttachmentOrder = (order: readonly string[], available: readonly string[]): string[] => {
+export const reconcileAttachmentOrder = (
+  order: readonly string[],
+  available: readonly string[],
+): string[] => {
   const cards = new Set(available);
   const kept = [...new Set(order)].filter((key) => cards.has(key));
   return [...kept, ...[...cards].filter((key) => !kept.includes(key))];

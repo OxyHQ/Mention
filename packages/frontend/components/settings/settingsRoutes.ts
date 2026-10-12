@@ -12,41 +12,41 @@
  * before the app tree exists.
  */
 export const SETTINGS_PAGE_IDS = [
-  "account",
-  "about",
-  "accessibility",
-  "appearance",
-  "connected-ai",
-  "external-media",
-  "fediverse",
-  "fediverse/node",
-  "feed",
-  "for-you",
-  "interests",
-  "language",
-  "live-presence",
-  "notifications/subscriptions",
-  "notifications",
-  "privacy/blocked",
-  "privacy/hidden-words",
-  "privacy/hide-counts",
-  "privacy/muted-lanes",
-  "privacy/online-status",
-  "privacy/profile-visibility",
-  "privacy/restricted",
-  "privacy/tags-mentions",
-  "privacy",
-  "thread-preferences",
+  'account',
+  'about',
+  'accessibility',
+  'appearance',
+  'connected-ai',
+  'external-media',
+  'fediverse',
+  'fediverse/node',
+  'feed',
+  'for-you',
+  'interests',
+  'language',
+  'live-presence',
+  'notifications/subscriptions',
+  'notifications',
+  'privacy/blocked',
+  'privacy/hidden-words',
+  'privacy/hide-counts',
+  'privacy/muted-lanes',
+  'privacy/online-status',
+  'privacy/profile-visibility',
+  'privacy/restricted',
+  'privacy/tags-mentions',
+  'privacy',
+  'thread-preferences',
 ] as const;
 const pageIds: ReadonlySet<string> = new Set(SETTINGS_PAGE_IDS);
 export function isSettingsPage(page: string): boolean {
   return pageIds.has(page);
 }
 export function settingsPageFromRoute(route: string): string | null {
-  const pathname = route.split(/[?#]/)[0].replace(/\/$/, "");
-  if (pathname === "/settings") return "account";
-  if (!pathname.startsWith("/settings/")) return null;
-  const id = pathname.slice("/settings/".length);
+  const pathname = route.split(/[?#]/)[0].replace(/\/$/, '');
+  if (pathname === '/settings') return 'account';
+  if (!pathname.startsWith('/settings/')) return null;
+  const id = pathname.slice('/settings/'.length);
   return pageIds.has(id) ? id : null;
 }
 
@@ -63,7 +63,7 @@ let pending: { page: string | undefined } | null = null;
 export function requestSettings(route: string): boolean {
   const page = settingsPageFromRoute(route);
   if (!page) return false;
-  const target = page === "account" ? undefined : page;
+  const target = page === 'account' ? undefined : page;
   if (listener) listener(target);
   else pending = { page: target };
   return true;

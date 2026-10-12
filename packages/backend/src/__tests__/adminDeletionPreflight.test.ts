@@ -24,11 +24,7 @@ import { closePostgres, connectPostgres, getDb } from '../db/postgres';
 import { REPORTED_TYPES } from '../db/schema/moderation';
 import { contentLabels, labelers, moderationEnforcements, reports } from '../db/schema/moderation';
 import { articles } from '../db/schema/articles';
-import {
-  actorKeyPairs,
-  federatedFollows,
-  federationDeliveryQueue,
-} from '../db/schema/federation';
+import { actorKeyPairs, federatedFollows, federationDeliveryQueue } from '../db/schema/federation';
 import {
   customFeedMembers,
   customFeeds,
@@ -82,7 +78,7 @@ const PREFLIGHT_SOURCE = path.resolve(__dirname, '../scripts/lib/adminDeletionPr
  * and every one of them reads Postgres.
  *
  * A probe that reaches NONE of these answers its question without asking the
- * store — which is the Mongo-era defect exactly: a probe against a collection
+ * store — which is the legacy-store-era defect exactly: a probe against a collection
  * nothing writes returned "no reference" for every input, so the preflight
  * cleared every deletion while reading as a gate that ran.
  */
@@ -147,12 +143,7 @@ interface ScannedProbe {
  */
 function scanPreflightProbes(): ScannedProbe[] {
   const source = readFileSync(PREFLIGHT_SOURCE, 'utf8');
-  const sourceFile = ts.createSourceFile(
-    PREFLIGHT_SOURCE,
-    source,
-    ts.ScriptTarget.Latest,
-    true,
-  );
+  const sourceFile = ts.createSourceFile(PREFLIGHT_SOURCE, source, ts.ScriptTarget.Latest, true);
   const probes: ScannedProbe[] = [];
 
   const readsOf = (body: TypeScript.Node): string[] => {
@@ -174,16 +165,13 @@ function scanPreflightProbes(): ScannedProbe[] {
     let extra = 0;
     const count = (child: TypeScript.Node): void => {
       if (
-        ts.isCallExpression(child)
-        && ts.isIdentifier(child.expression)
-        && child.expression.text === 'or'
+        ts.isCallExpression(child) &&
+        ts.isIdentifier(child.expression) &&
+        child.expression.text === 'or'
       ) {
         extra += child.arguments.length - 1;
       }
-      if (
-        ts.isBinaryExpression(child)
-        && child.operatorToken.kind === ts.SyntaxKind.BarBarToken
-      ) {
+      if (ts.isBinaryExpression(child) && child.operatorToken.kind === ts.SyntaxKind.BarBarToken) {
         extra += 1;
       }
       ts.forEachChild(child, count);
@@ -260,11 +248,11 @@ describe('administrative deletion preflight', () => {
         {
           name: 'unavailable collection',
           hasReference: async () => {
-            throw new Error('Mongo unavailable');
+            throw new Error('store unavailable');
           },
         },
       ]),
-    ).rejects.toThrow('Mongo unavailable');
+    ).rejects.toThrow('store unavailable');
   });
 
   it('throws a typed error that identifies every blocker', () => {
@@ -280,20 +268,12 @@ describe('administrative deletion preflight', () => {
     expect(() =>
       assertAdminRunComplete('repair-test', { failed: 2, skipped: 1, partial: 0 }),
     ).toThrow('[repair-test] run incomplete: failed=2, skipped=1');
-    expect(() =>
-      assertAdminRunComplete('repair-test', { failed: 0, skipped: 0 }),
-    ).not.toThrow();
+    expect(() => assertAdminRunComplete('repair-test', { failed: 0, skipped: 0 })).not.toThrow();
   });
 
   it('keeps every direct administrative post delete behind the shared preflight', () => {
-    for (const script of [
-      'backfillFederatedPostAuthors.ts',
-      'reingestEmptyFederatedPosts.ts',
-    ]) {
-      const source = readFileSync(
-        path.resolve(__dirname, `../scripts/${script}`),
-        'utf8',
-      );
+    for (const script of ['backfillFederatedPostAuthors.ts', 'reingestEmptyFederatedPosts.ts']) {
+      const source = readFileSync(path.resolve(__dirname, `../scripts/${script}`), 'utf8');
       // BOTH assertions are load-bearing, and the second alone is not enough:
       // `indexOf` returns -1 for an absent needle, so an ordering check against a
       // preflight that had been deleted would pass vacuously. The `toContain`
@@ -306,48 +286,10 @@ describe('administrative deletion preflight', () => {
     }
   });
 
-  it('reads no Mongoose model — every probe must hit the store that is written', () => {
-    // The defect this guards is invisible at runtime: a probe against a
-    // collection nothing writes returns "no reference" and the preflight clears
-    // the deletion. Row assertions below cover four probes; this covers all
-    // thirty-odd at once, including any added later.
-    const source = readFileSync(PREFLIGHT_SOURCE, 'utf8');
-    const modelImports = [...source.matchAll(/from '\.\.\/\.\.\/models\/([\w.]+)'/g)].map(
-      (match) => match[1],
-    );
-    // The set is EMPTY now: `Report.model` was the last one, imported for the
-    // `REPORTED_TYPES` set, and its values are literals checked against
-    // the schema's own union. Asserting the exact set rather than a count keeps
-    // a swap visible, and an empty expectation still fails the moment one comes
-    // back.
-    //
-    // THE IMPORT ASSERTION IS THE LOAD-BEARING ONE OF THE TWO. It is an exact
-    // equality over a walked set, so it fails whether the list grows OR shrinks.
-    // The `.exists(` line beneath it is a NEGATIVE naming a Mongo-era API that
-    // no longer occurs anywhere in this file — it matches zero today, which
-    // means it can no longer distinguish a violation from a clean file and is
-    // kept only as a cheap tripwire for a reintroduced Mongoose read. If one of
-    // these two ever has to go, it is that one.
-    // Vacuity floor. An EXACT-EMPTY expectation is satisfied by a walk that
-    // found nothing because it broke — a mistyped path constant, a renamed
-    // directory — as readily as by a clean file. So prove the same import shape
-    // IS matchable here: the repository imports this file replaced sit at the
-    // sibling depth the model imports used to.
-    const repositoryImports = [...source.matchAll(/from '\.\.\/\.\.\/db\/([\w./]+)'/g)];
-    expect(repositoryImports.length).toBeGreaterThan(0);
-    expect(modelImports).toEqual([]);
-    expect(source).not.toMatch(/\b[A-Z]\w*\.exists\(/);
-  });
-
   /**
-   * The floor under the check above, and the only thing standing behind
-   * `assertActorSafeToDelete`.
-   *
-   * "No Mongoose model is imported" is a NEGATIVE that names the old API: once
-   * the models were deleted it matched nothing, and a pattern that matches
-   * nothing passes for every possible violation, silently, forever. It cannot
-   * see the failure that actually matters either — a probe that answers its
-   * question WITHOUT asking the store. The exact defect found this month was 3
+   * The only thing standing behind `assertActorSafeToDelete`: it catches the
+   * failure that actually matters — a probe that answers its question WITHOUT
+   * asking the store. The exact defect found this month was 3
    * of 39 actor probes reading Postgres while the rest read a store that had
    * moved, and none of the assertions above could have detected it.
    *
@@ -400,11 +342,19 @@ describe('administrative deletion preflight', () => {
     // carries no `oxyUserId`, so one shape alone under-reports what exists.
     const built = new Set(
       [
-        actorReferenceProbes({ oxyUserId: 'actor-1', actorUri: 'https://remote.example/users/a' }, true),
-        actorReferenceProbes({ oxyUserId: 'actor-1', actorUri: 'https://remote.example/users/a' }, false),
+        actorReferenceProbes(
+          { oxyUserId: 'actor-1', actorUri: 'https://remote.example/users/a' },
+          true,
+        ),
+        actorReferenceProbes(
+          { oxyUserId: 'actor-1', actorUri: 'https://remote.example/users/a' },
+          false,
+        ),
         actorReferenceProbes({ actorUri: 'https://remote.example/users/a' }, true),
         actorReferenceProbes({ actorUri: 'https://remote.example/users/a' }, false),
-      ].flat().map((probe) => probe.name),
+      ]
+        .flat()
+        .map((probe) => probe.name),
     );
 
     expect([...built].sort()).toEqual([...ACTOR_REFERENCE_PROBE_NAMES].sort());
@@ -425,8 +375,9 @@ describe('administrative deletion preflight', () => {
      * optional field, so every probe is built on every call and a single shape
      * cannot under-report.
      */
-    const built = actorAnchorProbes({ actorUri: 'https://remote.example/users/a' })
-      .map((probe) => probe.name);
+    const built = actorAnchorProbes({ actorUri: 'https://remote.example/users/a' }).map(
+      (probe) => probe.name,
+    );
 
     expect([...built].sort()).toEqual([...ACTOR_ANCHOR_PROBE_NAMES].sort());
   });
@@ -469,12 +420,11 @@ describe('administrative deletion preflight', () => {
     // must never appear among the post ones.
     expect(names).toContain('post_subscriptions.subscriber_id/author_id');
     expect(POST_REFERENCE_PROBE_NAMES).not.toContain('post_subscriptions.subscriber_id/author_id');
-
   });
 
   // A case checking that `resendPendingOutboundFollows`, `redeliverUserPosts`
   // and `backfillFederatedPostHtml` acknowledge deliveries durably and close
-  // their resources lived here. All three were Mongo-only one-shots that
+  // their resources lived here. All three were legacy-store-only one-shots that
   // nothing imported after the Postgres cutover, and they were deleted with the
   // rest of the orphan set — so the case had no subject left. It is removed
   // rather than narrowed: the property it asserted belongs to whichever script
@@ -531,8 +481,9 @@ describe('assertPostsSafeToDelete — against real rows', () => {
   it('clears a post nothing references', async () => {
     const orphan = await seed();
 
-    await expect(assertPostsSafeToDelete('preflight-test', [{ id: orphan }])).resolves
-      .toBeUndefined();
+    await expect(
+      assertPostsSafeToDelete('preflight-test', [{ id: orphan }]),
+    ).resolves.toBeUndefined();
   });
 
   it('BLOCKS a post another post replies to, quotes, boosts, or threads through', async () => {
@@ -544,13 +495,13 @@ describe('assertPostsSafeToDelete — against real rows', () => {
         ...(link === 'boostOf' ? { type: PostType.BOOST, content: {} } : {}),
       });
 
-      await expect(
-        assertPostsSafeToDelete('preflight-test', [{ id: target }]),
-      ).rejects.toThrow(DeletionPreflightError);
+      await expect(assertPostsSafeToDelete('preflight-test', [{ id: target }])).rejects.toThrow(
+        DeletionPreflightError,
+      );
       // The message has to NAME the reference, or an operator cannot act on it.
-      await expect(
-        assertPostsSafeToDelete('preflight-test', [{ id: target }]),
-      ).rejects.toThrow(/posts\.boost_of\/quote_of\/parent_post_id\/thread_id/);
+      await expect(assertPostsSafeToDelete('preflight-test', [{ id: target }])).rejects.toThrow(
+        /posts\.boost_of\/quote_of\/parent_post_id\/thread_id/,
+      );
 
       for (const id of created.splice(0).reverse()) {
         await deletePostRecord(id, undefined);
@@ -565,7 +516,7 @@ describe('assertPostsSafeToDelete — against real rows', () => {
    * id set, and the engagement pair the caller can opt out of.
    *
    * A test that only exercised the posts self-reference probe would have passed
-   * unchanged while every other probe still read a dead Mongo collection — which
+   * unchanged while every other probe still read a dead legacy-store collection — which
    * is exactly the state this file was found in.
    *
    * One case PER PROBE rather than one case covering four, so a failure names
@@ -611,7 +562,9 @@ describe('assertPostsSafeToDelete — against real rows', () => {
       },
       cleanup: async (postId) => {
         // CASCADEs the label with it.
-        await getDb().delete(labelers).where(eq(labelers.name, `preflight-labeler-${postId}`));
+        await getDb()
+          .delete(labelers)
+          .where(eq(labelers.name, `preflight-labeler-${postId}`));
       },
     },
     {
@@ -619,12 +572,14 @@ describe('assertPostsSafeToDelete — against real rows', () => {
       // that string is not the post id — the one probe an id-only fixture misses.
       probe: 'feed_interactions.post_uri',
       reference: async (postId) => {
-        await getDb().insert(feedInteractions).values({
-          userId: OTHER,
-          feedDescriptor: 'for_you',
-          postUri: `mtn://preflight/${postId}`,
-          event: 'impression',
-        });
+        await getDb()
+          .insert(feedInteractions)
+          .values({
+            userId: OTHER,
+            feedDescriptor: 'for_you',
+            postUri: `mtn://preflight/${postId}`,
+            event: 'impression',
+          });
         return { uris: [`mtn://preflight/${postId}`] };
       },
       cleanup: async (postId) => {
@@ -635,7 +590,7 @@ describe('assertPostsSafeToDelete — against real rows', () => {
     },
     {
       // `likes` CASCADEs from `posts`, so this probe is what stands between a
-      // delete and the SILENT destruction of the engagement row. Under Mongo an
+      // delete and the SILENT destruction of the engagement row. Under the legacy store an
       // unblocked delete left a visible orphan instead.
       probe: 'likes.post_id',
       reference: async (postId) => {
@@ -651,9 +606,9 @@ describe('assertPostsSafeToDelete — against real rows', () => {
     const target = await seed();
     const { uris } = await testCase.reference(target);
 
-    await expect(
-      assertPostsSafeToDelete('preflight-test', [{ id: target, uris }]),
-    ).rejects.toThrow(new RegExp(testCase.probe.replace('.', '\\.')));
+    await expect(assertPostsSafeToDelete('preflight-test', [{ id: target, uris }])).rejects.toThrow(
+      new RegExp(testCase.probe.replace('.', '\\.')),
+    );
 
     await testCase.cleanup(target);
   });
@@ -745,7 +700,7 @@ describe('assertPostsSafeToDelete — against real rows', () => {
  * clean actor — a probe against the wrong table, a mistyped column, or one whose
  * store stopped being written all answer "no reference", and the gate says SAFE.
  * It has the history to match: three of its checks read Postgres while the rest
- * read Mongo, and after that cutover every Mongo probe would have answered "no
+ * read the legacy store, and after that cutover every legacy-store probe would have answered "no
  * references" and the gate would have passed by default.
  *
  * So each case plants exactly one row that only ONE probe can see and asserts
@@ -836,9 +791,10 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
     if (arm === 'anchor') {
       return assertActorAnchorSafeToDelete('probe-test', { actorUri: subject.actorUri });
     }
-    const target = arm === 'withoutOxyUser'
-      ? { actorUri: subject.actorUri }
-      : { oxyUserId: subject.oxyUserId, actorUri: subject.actorUri };
+    const target =
+      arm === 'withoutOxyUser'
+        ? { actorUri: subject.actorUri }
+        : { oxyUserId: subject.oxyUserId, actorUri: subject.actorUri };
     return assertActorSafeToDelete('probe-test', target, { allowGoneActorCascade });
   }
 
@@ -857,7 +813,9 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       probe: 'bookmarks.user_id',
       arm: 'always',
       plant: async (s) => {
-        await getDb().insert(bookmarks).values({ userId: s.oxyUserId, postId: await foreignPost() });
+        await getDb()
+          .insert(bookmarks)
+          .values({ userId: s.oxyUserId, postId: await foreignPost() });
       },
       // Cascades with the post.
       clear: async () => {},
@@ -896,12 +854,14 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       probe: 'feed_interactions.user_id',
       arm: 'always',
       plant: async (s) => {
-        await getDb().insert(feedInteractions).values({
-          userId: s.oxyUserId,
-          feedDescriptor: 'for_you',
-          postUri: `mtn://probe/${s.oxyUserId}`,
-          event: 'impression',
-        });
+        await getDb()
+          .insert(feedInteractions)
+          .values({
+            userId: s.oxyUserId,
+            feedDescriptor: 'for_you',
+            postUri: `mtn://probe/${s.oxyUserId}`,
+            event: 'impression',
+          });
       },
       clear: async (s) => {
         await getDb().delete(feedInteractions).where(eq(feedInteractions.userId, s.oxyUserId));
@@ -948,14 +908,18 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
           .values({ subscriberId: s.oxyUserId, authorId: s.other });
       },
       clear: async (s) => {
-        await getDb().delete(postSubscriptions).where(eq(postSubscriptions.subscriberId, s.oxyUserId));
+        await getDb()
+          .delete(postSubscriptions)
+          .where(eq(postSubscriptions.subscriberId, s.oxyUserId));
       },
     },
     {
       probe: 'push_tokens.user_id',
       arm: 'always',
       plant: async (s) => {
-        await getDb().insert(pushTokens).values({ userId: s.oxyUserId, token: `probe-${s.oxyUserId}` });
+        await getDb()
+          .insert(pushTokens)
+          .values({ userId: s.oxyUserId, token: `probe-${s.oxyUserId}` });
       },
       clear: async (s) => {
         await getDb().delete(pushTokens).where(eq(pushTokens.userId, s.oxyUserId));
@@ -975,12 +939,14 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       probe: 'reports.reporter/reported_id(user)',
       arm: 'always',
       plant: async (s) => {
-        await getDb().insert(reports).values({
-          reportedType: 'user' satisfies (typeof REPORTED_TYPES)[number],
-          reportedId: s.other,
-          reporter: s.oxyUserId,
-          categories: ['spam'],
-        });
+        await getDb()
+          .insert(reports)
+          .values({
+            reportedType: 'user' satisfies (typeof REPORTED_TYPES)[number],
+            reportedId: s.other,
+            reporter: s.oxyUserId,
+            categories: ['spam'],
+          });
       },
       clear: async (s) => {
         await getDb().delete(reports).where(eq(reports.reporter, s.oxyUserId));
@@ -990,11 +956,13 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       probe: 'polls.created_by/poll_votes.user_id',
       arm: 'always',
       plant: async (s) => {
-        await getDb().insert(polls).values({
-          question: 'probe?',
-          createdBy: s.oxyUserId,
-          endsAt: new Date(Date.now() + 60_000),
-        });
+        await getDb()
+          .insert(polls)
+          .values({
+            question: 'probe?',
+            createdBy: s.oxyUserId,
+            endsAt: new Date(Date.now() + 60_000),
+          });
       },
       clear: async (s) => {
         await getDb().delete(polls).where(eq(polls.createdBy, s.oxyUserId));
@@ -1015,11 +983,13 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       arm: 'always',
       plant: async (s) => {
         const postId = await foreignPost();
-        await getDb().insert(postgates).values({
-          postId,
-          postUri: `mtn://probe/${postId}`,
-          createdBy: s.oxyUserId,
-        });
+        await getDb()
+          .insert(postgates)
+          .values({
+            postId,
+            postUri: `mtn://probe/${postId}`,
+            createdBy: s.oxyUserId,
+          });
       },
       clear: async (s) => {
         await getDb().delete(postgates).where(eq(postgates.createdBy, s.oxyUserId));
@@ -1030,11 +1000,13 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       arm: 'always',
       plant: async (s) => {
         const postId = await foreignPost();
-        await getDb().insert(threadgates).values({
-          postId,
-          postUri: `mtn://probe/${postId}`,
-          createdBy: s.oxyUserId,
-        });
+        await getDb()
+          .insert(threadgates)
+          .values({
+            postId,
+            postUri: `mtn://probe/${postId}`,
+            createdBy: s.oxyUserId,
+          });
       },
       clear: async (s) => {
         await getDb().delete(threadgates).where(eq(threadgates.createdBy, s.oxyUserId));
@@ -1044,11 +1016,13 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       probe: 'post_recent_repliers.oxy_user_id',
       arm: 'always',
       plant: async (s) => {
-        await getDb().insert(postRecentRepliers).values({
-          postId: await foreignPost(),
-          oxyUserId: s.oxyUserId,
-          repliedAt: new Date(),
-        });
+        await getDb()
+          .insert(postRecentRepliers)
+          .values({
+            postId: await foreignPost(),
+            oxyUserId: s.oxyUserId,
+            repliedAt: new Date(),
+          });
       },
       clear: async () => {},
     },
@@ -1056,17 +1030,19 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       probe: 'engagement_outbox.payload actor/owner',
       arm: 'always',
       plant: async (s) => {
-        await getDb().insert(engagementOutbox).values({
-          // The one table here whose `id` has no client-side default; every
-          // other insert in this file legitimately omits it.
-          id: randomUUID(),
-          kind: 'post.like',
-          revision: 1,
-          payloadActorOxyUserId: s.oxyUserId,
-          payloadPostId: await foreignPost(),
-          payloadRelationshipId: `probe-${s.oxyUserId}`,
-          expiresAt: new Date(Date.now() + 60_000),
-        });
+        await getDb()
+          .insert(engagementOutbox)
+          .values({
+            // The one table here whose `id` has no client-side default; every
+            // other insert in this file legitimately omits it.
+            id: randomUUID(),
+            kind: 'post.like',
+            revision: 1,
+            payloadActorOxyUserId: s.oxyUserId,
+            payloadPostId: await foreignPost(),
+            payloadRelationshipId: `probe-${s.oxyUserId}`,
+            expiresAt: new Date(Date.now() + 60_000),
+          });
       },
       clear: async () => {},
     },
@@ -1104,12 +1080,14 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       probe: 'feed_generators.created_by',
       arm: 'always',
       plant: async (s) => {
-        await getDb().insert(feedGenerators).values({
-          uri: `mtn://probe/gen/${s.oxyUserId}`,
-          name: 'probe',
-          algorithm: 'probe',
-          createdBy: s.oxyUserId,
-        });
+        await getDb()
+          .insert(feedGenerators)
+          .values({
+            uri: `mtn://probe/gen/${s.oxyUserId}`,
+            name: 'probe',
+            algorithm: 'probe',
+            createdBy: s.oxyUserId,
+          });
       },
       clear: async (s) => {
         await getDb().delete(feedGenerators).where(eq(feedGenerators.createdBy, s.oxyUserId));
@@ -1119,7 +1097,9 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       probe: 'labelers.creator_id',
       arm: 'always',
       plant: async (s) => {
-        await getDb().insert(labelers).values({ name: `probe-${s.oxyUserId}`, creatorId: s.oxyUserId });
+        await getDb()
+          .insert(labelers)
+          .values({ name: `probe-${s.oxyUserId}`, creatorId: s.oxyUserId });
       },
       clear: async (s) => {
         await getDb().delete(labelers).where(eq(labelers.creatorId, s.oxyUserId));
@@ -1152,12 +1132,14 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       probe: 'federation_delivery_queue.sender_oxy_user_id',
       arm: 'always',
       plant: async (s) => {
-        await getDb().insert(federationDeliveryQueue).values({
-          activityJson: { type: 'Probe' },
-          targetInbox: 'https://remote.invalid/inbox',
-          senderOxyUserId: s.oxyUserId,
-          nextAttemptAt: new Date(),
-        });
+        await getDb()
+          .insert(federationDeliveryQueue)
+          .values({
+            activityJson: { type: 'Probe' },
+            targetInbox: 'https://remote.invalid/inbox',
+            senderOxyUserId: s.oxyUserId,
+            nextAttemptAt: new Date(),
+          });
       },
       clear: async (s) => {
         await getDb()
@@ -1169,11 +1151,13 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       probe: 'endorsement_outbox pending owner/member',
       arm: 'always',
       plant: async (s) => {
-        await getDb().insert(endorsementOutbox).values({
-          source: 'starterPack',
-          sourceId: `probe-${s.oxyUserId}`,
-          pendingRemoveOwnerId: s.oxyUserId,
-        });
+        await getDb()
+          .insert(endorsementOutbox)
+          .values({
+            source: 'starterPack',
+            sourceId: `probe-${s.oxyUserId}`,
+            pendingRemoveOwnerId: s.oxyUserId,
+          });
       },
       clear: async (s) => {
         await getDb()
@@ -1241,7 +1225,9 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
         });
       },
       clear: async (s) => {
-        await getDb().delete(federatedFollows).where(eq(federatedFollows.remoteActorUri, s.actorUri));
+        await getDb()
+          .delete(federatedFollows)
+          .where(eq(federatedFollows.remoteActorUri, s.actorUri));
       },
     },
     {
@@ -1264,7 +1250,9 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       probe: 'likes.user_id',
       arm: 'beyondCascade',
       plant: async (s) => {
-        await getDb().insert(likes).values({ userId: s.oxyUserId, postId: await foreignPost() });
+        await getDb()
+          .insert(likes)
+          .values({ userId: s.oxyUserId, postId: await foreignPost() });
       },
       clear: async () => {},
     },
@@ -1284,13 +1272,15 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       probe: 'notifications recipient/actor',
       arm: 'beyondCascade',
       plant: async (s) => {
-        await getDb().insert(notifications).values({
-          recipientId: s.oxyUserId,
-          actorId: s.other,
-          type: 'follow',
-          entityType: 'profile',
-          entityId: `probe-${s.oxyUserId}`,
-        });
+        await getDb()
+          .insert(notifications)
+          .values({
+            recipientId: s.oxyUserId,
+            actorId: s.other,
+            type: 'follow',
+            entityType: 'profile',
+            entityId: `probe-${s.oxyUserId}`,
+          });
       },
       clear: async (s) => {
         await getDb().delete(notifications).where(eq(notifications.recipientId, s.oxyUserId));
@@ -1346,11 +1336,13 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       probe: 'actor_key_pairs.oxy_user_id',
       arm: 'beyondCascade',
       plant: async (s) => {
-        await getDb().insert(actorKeyPairs).values({
-          oxyUserId: s.oxyUserId,
-          publicKeyPem: 'probe-public',
-          keyId: `${s.actorUri}#main-key`,
-        });
+        await getDb()
+          .insert(actorKeyPairs)
+          .values({
+            oxyUserId: s.oxyUserId,
+            publicKeyPem: 'probe-public',
+            keyId: `${s.actorUri}#main-key`,
+          });
       },
       clear: async (s) => {
         await getDb().delete(actorKeyPairs).where(eq(actorKeyPairs.oxyUserId, s.oxyUserId));
@@ -1374,12 +1366,14 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       probe: 'mention_repo_heads.oxy_user_id',
       arm: 'beyondCascade',
       plant: async (s) => {
-        await getDb().insert(mentionRepoHeads).values({
-          oxyUserId: s.oxyUserId,
-          subjectDid: `did:probe:${s.oxyUserId}`,
-          seq: 1,
-          headRecordId: `probe-${s.oxyUserId}`,
-        });
+        await getDb()
+          .insert(mentionRepoHeads)
+          .values({
+            oxyUserId: s.oxyUserId,
+            subjectDid: `did:probe:${s.oxyUserId}`,
+            seq: 1,
+            headRecordId: `probe-${s.oxyUserId}`,
+          });
       },
       clear: async (s) => {
         await getDb().delete(mentionRepoHeads).where(eq(mentionRepoHeads.oxyUserId, s.oxyUserId));
@@ -1389,13 +1383,15 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       probe: 'mention_signed_records.oxy_user_id',
       arm: 'beyondCascade',
       plant: async (s) => {
-        await getDb().insert(mentionSignedRecords).values({
-          subjectDid: `did:probe:${s.oxyUserId}`,
-          oxyUserId: s.oxyUserId,
-          type: 'app.mention.feed.post',
-          envelope: { probe: true },
-          publicKey: 'probe-key',
-        });
+        await getDb()
+          .insert(mentionSignedRecords)
+          .values({
+            subjectDid: `did:probe:${s.oxyUserId}`,
+            oxyUserId: s.oxyUserId,
+            type: 'app.mention.feed.post',
+            envelope: { probe: true },
+            publicKey: 'probe-key',
+          });
       },
       clear: async (s) => {
         await getDb()
@@ -1407,12 +1403,14 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       probe: 'mention_node_ingest_witnesses.oxy_user_id',
       arm: 'beyondCascade',
       plant: async (s) => {
-        await getDb().insert(mentionNodeIngestWitnesses).values({
-          oxyUserId: s.oxyUserId,
-          recordId: `probe-${s.oxyUserId}`,
-          witnessSignature: 'probe-signature',
-          ingestedAt: 1,
-        });
+        await getDb()
+          .insert(mentionNodeIngestWitnesses)
+          .values({
+            oxyUserId: s.oxyUserId,
+            recordId: `probe-${s.oxyUserId}`,
+            witnessSignature: 'probe-signature',
+            ingestedAt: 1,
+          });
       },
       clear: async (s) => {
         await getDb()
@@ -1439,7 +1437,9 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
         });
       },
       clear: async (s) => {
-        await getDb().delete(federatedFollows).where(eq(federatedFollows.remoteActorUri, s.actorUri));
+        await getDb()
+          .delete(federatedFollows)
+          .where(eq(federatedFollows.remoteActorUri, s.actorUri));
       },
     },
   ];
@@ -1451,7 +1451,7 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
    * live table and fires. It does not reach the second arm of an `or()`: a
    * mistyped column there still returns a clean "no reference", and a wrong
    * column in the second arm of a disjunction is precisely what a mechanical
-   * Mongo-to-Postgres translation produces — which is what happened to 36 of
+   * Postgres translation produces — which is what happened to 36 of
    * these probes this month.
    *
    * Kept as a separate table only so the first-disjunct cases stay untouched;
@@ -1509,12 +1509,14 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       disjunct: 'reports.reported_id + reported_type',
       arm: 'always',
       plant: async (s) => {
-        await getDb().insert(reports).values({
-          reportedType: 'user' satisfies (typeof REPORTED_TYPES)[number],
-          reportedId: s.oxyUserId,
-          reporter: s.other,
-          categories: ['spam'],
-        });
+        await getDb()
+          .insert(reports)
+          .values({
+            reportedType: 'user' satisfies (typeof REPORTED_TYPES)[number],
+            reportedId: s.oxyUserId,
+            reporter: s.other,
+            categories: ['spam'],
+          });
       },
       clear: async (s) => {
         await getDb().delete(reports).where(eq(reports.reportedId, s.oxyUserId));
@@ -1552,16 +1554,18 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       disjunct: 'engagement_outbox.payload_post_owner_oxy_user_id',
       arm: 'always',
       plant: async (s) => {
-        await getDb().insert(engagementOutbox).values({
-          id: randomUUID(),
-          kind: 'post.like',
-          revision: 1,
-          payloadActorOxyUserId: s.other,
-          payloadPostOwnerOxyUserId: s.oxyUserId,
-          payloadPostId: await foreignPost(),
-          payloadRelationshipId: `probe-owner-${s.oxyUserId}`,
-          expiresAt: new Date(Date.now() + 60_000),
-        });
+        await getDb()
+          .insert(engagementOutbox)
+          .values({
+            id: randomUUID(),
+            kind: 'post.like',
+            revision: 1,
+            payloadActorOxyUserId: s.other,
+            payloadPostOwnerOxyUserId: s.oxyUserId,
+            payloadPostId: await foreignPost(),
+            payloadRelationshipId: `probe-owner-${s.oxyUserId}`,
+            expiresAt: new Date(Date.now() + 60_000),
+          });
       },
       clear: async () => {},
     },
@@ -1625,9 +1629,7 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
           .insert(starterPacks)
           .values({ ownerOxyUserId: s.other, name: 'probe' })
           .returning({ id: starterPacks.id });
-        await getDb()
-          .insert(starterPackUses)
-          .values({ packId: pack.id, oxyUserId: s.oxyUserId });
+        await getDb().insert(starterPackUses).values({ packId: pack.id, oxyUserId: s.oxyUserId });
       },
       clear: async (s) => {
         await getDb().delete(starterPacks).where(eq(starterPacks.ownerOxyUserId, s.other));
@@ -1659,11 +1661,13 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       disjunct: 'endorsement_outbox.pending_remove_member_ids (array containment)',
       arm: 'always',
       plant: async (s) => {
-        await getDb().insert(endorsementOutbox).values({
-          source: 'accountList',
-          sourceId: `probe-member-${s.oxyUserId}`,
-          pendingRemoveMemberIds: [s.oxyUserId],
-        });
+        await getDb()
+          .insert(endorsementOutbox)
+          .values({
+            source: 'accountList',
+            sourceId: `probe-member-${s.oxyUserId}`,
+            pendingRemoveMemberIds: [s.oxyUserId],
+          });
       },
       clear: async (s) => {
         await getDb()
@@ -1759,13 +1763,15 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       disjunct: 'notifications.actor_id',
       arm: 'beyondCascade',
       plant: async (s) => {
-        await getDb().insert(notifications).values({
-          recipientId: s.other,
-          actorId: s.oxyUserId,
-          type: 'follow',
-          entityType: 'profile',
-          entityId: `probe-actor-${s.oxyUserId}`,
-        });
+        await getDb()
+          .insert(notifications)
+          .values({
+            recipientId: s.other,
+            actorId: s.oxyUserId,
+            type: 'follow',
+            entityType: 'profile',
+            entityId: `probe-actor-${s.oxyUserId}`,
+          });
       },
       clear: async (s) => {
         await getDb().delete(notifications).where(eq(notifications.actorId, s.oxyUserId));
@@ -1778,19 +1784,25 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       probe: 'posts.written_by_oxy_user_id',
       disjunct: 'written_by_oxy_user_id',
       arm: 'always',
-      plant: async (s) => { await foreignPost({ writtenByOxyUserId: s.oxyUserId }); },
-      clear: async () => { /* `foreignPost` rows are removed by the shared post cleanup. */ },
+      plant: async (s) => {
+        await foreignPost({ writtenByOxyUserId: s.oxyUserId });
+      },
+      clear: async () => {
+        /* `foreignPost` rows are removed by the shared post cleanup. */
+      },
     },
     {
       probe: 'lanes.owner_id',
       disjunct: 'owner_id',
       arm: 'always',
       plant: async (s) => {
-        await getDb().insert(lanes).values({
-          ownerId: s.oxyUserId,
-          name: `probe-lane-${s.oxyUserId}`,
-          nameLower: `probe-lane-${s.oxyUserId}`,
-        });
+        await getDb()
+          .insert(lanes)
+          .values({
+            ownerId: s.oxyUserId,
+            name: `probe-lane-${s.oxyUserId}`,
+            nameLower: `probe-lane-${s.oxyUserId}`,
+          });
       },
       clear: async (s) => {
         await getDb().delete(lanes).where(eq(lanes.ownerId, s.oxyUserId));
@@ -1805,11 +1817,14 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       disjunct: 'viewer_oxy_user_id',
       arm: 'always',
       plant: async (s) => {
-        const [lane] = await getDb().insert(lanes).values({
-          ownerId: s.other,
-          name: `probe-mutelane-v-${s.oxyUserId}`,
-          nameLower: `probe-mutelane-v-${s.oxyUserId}`,
-        }).returning({ id: lanes.id });
+        const [lane] = await getDb()
+          .insert(lanes)
+          .values({
+            ownerId: s.other,
+            name: `probe-mutelane-v-${s.oxyUserId}`,
+            nameLower: `probe-mutelane-v-${s.oxyUserId}`,
+          })
+          .returning({ id: lanes.id });
         await getDb().insert(laneMutes).values({
           viewerOxyUserId: s.oxyUserId,
           laneId: lane.id,
@@ -1826,11 +1841,14 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       disjunct: 'lane_owner_oxy_user_id',
       arm: 'always',
       plant: async (s) => {
-        const [lane] = await getDb().insert(lanes).values({
-          ownerId: s.other,
-          name: `probe-mutelane-o-${s.oxyUserId}`,
-          nameLower: `probe-mutelane-o-${s.oxyUserId}`,
-        }).returning({ id: lanes.id });
+        const [lane] = await getDb()
+          .insert(lanes)
+          .values({
+            ownerId: s.other,
+            name: `probe-mutelane-o-${s.oxyUserId}`,
+            nameLower: `probe-mutelane-o-${s.oxyUserId}`,
+          })
+          .returning({ id: lanes.id });
         await getDb().insert(laneMutes).values({
           viewerOxyUserId: s.other,
           laneId: lane.id,
@@ -1847,14 +1865,16 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       disjunct: 'oxy_user_id',
       arm: 'always',
       plant: async (s) => {
-        await getDb().insert(mcpConnections).values({
-          oxyUserId: s.oxyUserId,
-          clientId: `probe-client-${s.oxyUserId}`,
-          clientLabel: 'Probe',
-          scopes: ['mcp:read'],
-          refreshTokenHash: `probe-hash-${s.oxyUserId}`,
-          jti: `probe-jti-o-${s.oxyUserId}`,
-        });
+        await getDb()
+          .insert(mcpConnections)
+          .values({
+            oxyUserId: s.oxyUserId,
+            clientId: `probe-client-${s.oxyUserId}`,
+            clientLabel: 'Probe',
+            scopes: ['mcp:read'],
+            refreshTokenHash: `probe-hash-${s.oxyUserId}`,
+            jti: `probe-jti-o-${s.oxyUserId}`,
+          });
       },
       clear: async (s) => {
         await getDb().delete(mcpConnections).where(eq(mcpConnections.oxyUserId, s.oxyUserId));
@@ -1865,15 +1885,17 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       disjunct: 'active_oxy_user_id',
       arm: 'always',
       plant: async (s) => {
-        await getDb().insert(mcpConnections).values({
-          oxyUserId: s.other,
-          activeOxyUserId: s.oxyUserId,
-          clientId: `probe-client-a-${s.oxyUserId}`,
-          clientLabel: 'Probe',
-          scopes: ['mcp:read'],
-          refreshTokenHash: `probe-hash-a-${s.oxyUserId}`,
-          jti: `probe-jti-a-${s.oxyUserId}`,
-        });
+        await getDb()
+          .insert(mcpConnections)
+          .values({
+            oxyUserId: s.other,
+            activeOxyUserId: s.oxyUserId,
+            clientId: `probe-client-a-${s.oxyUserId}`,
+            clientLabel: 'Probe',
+            scopes: ['mcp:read'],
+            refreshTokenHash: `probe-hash-a-${s.oxyUserId}`,
+            jti: `probe-jti-a-${s.oxyUserId}`,
+          });
       },
       clear: async (s) => {
         await getDb().delete(mcpConnections).where(eq(mcpConnections.activeOxyUserId, s.oxyUserId));
@@ -1890,20 +1912,23 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       disjunct: 'subject_id',
       arm: 'always',
       plant: async (s) => {
-        await getDb().insert(moderationEnforcements).values({
-          decisionId: `probe-decision-${s.oxyUserId}`,
-          decisionRevision: 1,
-          action: 'restrict',
-          caseId: `probe-case-${s.oxyUserId}`,
-          subjectType: 'identity.profile',
-          subjectId: s.oxyUserId,
-          outcome: 'violation',
-          reason: 'probe fixture',
-          mode: 'observe',
-        });
+        await getDb()
+          .insert(moderationEnforcements)
+          .values({
+            decisionId: `probe-decision-${s.oxyUserId}`,
+            decisionRevision: 1,
+            action: 'restrict',
+            caseId: `probe-case-${s.oxyUserId}`,
+            subjectType: 'identity.profile',
+            subjectId: s.oxyUserId,
+            outcome: 'violation',
+            reason: 'probe fixture',
+            mode: 'observe',
+          });
       },
       clear: async (s) => {
-        await getDb().delete(moderationEnforcements)
+        await getDb()
+          .delete(moderationEnforcements)
           .where(eq(moderationEnforcements.subjectId, s.oxyUserId));
       },
     },
@@ -1916,10 +1941,12 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       disjunct: 'privacy_restricted_users',
       arm: 'always',
       plant: async (s) => {
-        await getDb().insert(userSettings).values({
-          oxyUserId: s.other,
-          privacyRestrictedUsers: [s.oxyUserId],
-        });
+        await getDb()
+          .insert(userSettings)
+          .values({
+            oxyUserId: s.other,
+            privacyRestrictedUsers: [s.oxyUserId],
+          });
       },
       clear: async (s) => {
         await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, s.other));
@@ -1930,18 +1957,18 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       disjunct: 'privacy_subscribed_labelers',
       arm: 'always',
       plant: async (s) => {
-        await getDb().insert(userSettings).values({
-          oxyUserId: s.other,
-          privacySubscribedLabelers: [s.oxyUserId],
-        });
+        await getDb()
+          .insert(userSettings)
+          .values({
+            oxyUserId: s.other,
+            privacySubscribedLabelers: [s.oxyUserId],
+          });
       },
       clear: async (s) => {
         await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, s.other));
       },
     },
   ];
-
-
 
   async function runProbeCase(
     testCase: ActorProbeCase,
@@ -2000,9 +2027,7 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
         .filter((probe) => probe.owner !== 'buildPostReferenceProbes')
         .map((probe) => probe.name),
     );
-    const exercised = new Set(
-      [...cases, ...disjunctCases].map((testCase) => testCase.probe),
-    );
+    const exercised = new Set([...cases, ...disjunctCases].map((testCase) => testCase.probe));
 
     expect([...declared].filter((probe) => !exercised.has(probe)).sort()).toEqual([]);
     expect([...exercised].filter((probe) => !declared.has(probe)).sort()).toEqual([]);
@@ -2035,7 +2060,9 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
 
     const shortfall = [...summedArity.entries()]
       .filter(([probe, arity]) => (planted.get(probe) ?? 0) !== arity)
-      .map(([probe, arity]) => `${probe}: ${arity} disjunct(s), ${planted.get(probe) ?? 0} planted`);
+      .map(
+        ([probe, arity]) => `${probe}: ${arity} disjunct(s), ${planted.get(probe) ?? 0} planted`,
+      );
 
     expect(shortfall).toEqual([]);
   });

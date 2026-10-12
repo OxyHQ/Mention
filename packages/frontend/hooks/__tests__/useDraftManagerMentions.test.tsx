@@ -77,9 +77,7 @@ describe('useDraftManager mention restoration', () => {
     });
 
     const restored = onDraftLoad.mock.calls[0][0];
-    expect(restored.mentions).toEqual([
-      { userId: 'bob-id', username: 'bob', displayName: 'Bob' },
-    ]);
+    expect(restored.mentions).toEqual([{ userId: 'bob-id', username: 'bob', displayName: 'Bob' }]);
     expect(restored.threadItems[0].mentions).toEqual([
       { userId: 'carol-id', username: 'carol', displayName: 'Carol' },
     ]);
@@ -134,7 +132,10 @@ describe('useDraftManager job attachment restoration', () => {
   }
 
   it('restores a structured job location', () => {
-    expect(restoreJob({ placeId: '3128760', countryCode: 'ES', region: 'Catalonia', city: 'Barcelona' }).location).toEqual({
+    expect(
+      restoreJob({ placeId: '3128760', countryCode: 'ES', region: 'Catalonia', city: 'Barcelona' })
+        .location,
+    ).toEqual({
       placeId: '3128760',
       countryCode: 'ES',
       region: 'Catalonia',

@@ -108,9 +108,14 @@ export function TrendsWidget({ variant = 'card', divider }: TrendsWidgetProps) {
           );
         })}
       </View>
-      <Button appearance="plain" size="sm" onPress={handleMorePress} style={{ alignSelf: 'flex-start' }}>
-          Show more
-        </Button>
+      <Button
+        appearance="plain"
+        size="sm"
+        onPress={handleMorePress}
+        style={{ alignSelf: 'flex-start' }}
+      >
+        Show more
+      </Button>
     </View>
   );
 

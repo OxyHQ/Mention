@@ -38,7 +38,8 @@ function stubOwnedPgEnv(): void {
 }
 
 function clearPgEnv(): void {
-  for (const name of ['PGHOST', 'PGPORT', 'PGUSER', 'PGUSERNAME', 'PGDATABASE']) vi.stubEnv(name, undefined);
+  for (const name of ['PGHOST', 'PGPORT', 'PGUSER', 'PGUSERNAME', 'PGDATABASE'])
+    vi.stubEnv(name, undefined);
 }
 
 /** A postgres-js factory that records every construction. */
@@ -90,7 +91,9 @@ describe('readOwnedIdentity', () => {
   });
 
   it('refuses the same directory for data and socket', () => {
-    expect(() => readOwnedIdentity({ ...ENV, JEV_TEST_SOCKET: ENV.JEV_TEST_DATA })).toThrow(/different/);
+    expect(() => readOwnedIdentity({ ...ENV, JEV_TEST_SOCKET: ENV.JEV_TEST_DATA })).toThrow(
+      /different/,
+    );
   });
 });
 
@@ -149,7 +152,9 @@ describe('postgres-js lazy options', () => {
       },
     }));
     const { createTestDatabase } = await import('@oxy.so/db/testing');
-    await expect(createTestDatabase({ adminUrl: ownedUrl(identity.database) })).rejects.toThrow('stopped before query');
+    await expect(createTestDatabase({ adminUrl: ownedUrl(identity.database) })).rejects.toThrow(
+      'stopped before query',
+    );
 
     expect(seen).toEqual(['postgres:///postgres']);
     expect(maintenanceUrlOf(ownedUrl(identity.database))).toBe(seen[0]);
@@ -169,7 +174,9 @@ describe('postgres-js lazy options', () => {
   it('refuse the default localhost fallback when PGHOST is unset', async () => {
     clearPgEnv();
     const { factory, built } = recordingFactory();
-    await expect(createVerifiedClient(factory, identity, ownedUrl(identity.database))).rejects.toThrow(/localhost/);
+    await expect(
+      createVerifiedClient(factory, identity, ownedUrl(identity.database)),
+    ).rejects.toThrow(/localhost/);
     expect(built[0].options.host).toEqual(['localhost']);
   });
 
@@ -177,22 +184,30 @@ describe('postgres-js lazy options', () => {
     stubOwnedPgEnv();
     vi.stubEnv('PGHOST', '/tmp/someone-elses-cluster/socket');
     const { factory } = recordingFactory();
-    await expect(createVerifiedClient(factory, identity, ownedUrl(identity.database))).rejects.toThrow(/someone-elses/);
+    await expect(
+      createVerifiedClient(factory, identity, ownedUrl(identity.database)),
+    ).rejects.toThrow(/someone-elses/);
   });
 
   it('refuse a role other than JEV_TEST_USER, including a stray PGUSERNAME', async () => {
     stubOwnedPgEnv();
     vi.stubEnv('PGUSERNAME', 'postgres');
     const { factory } = recordingFactory();
-    await expect(createVerifiedClient(factory, identity, ownedUrl(identity.database))).rejects.toThrow(/"user":"postgres"/);
+    await expect(
+      createVerifiedClient(factory, identity, ownedUrl(identity.database)),
+    ).rejects.toThrow(/"user":"postgres"/);
   });
 
   it('show the ?host trap: a hostname url ignores the socket parameter and goes to TCP', () => {
     stubOwnedPgEnv();
-    const client = postgres(`postgres://localhost/mention_jev_owned_base?host=${identity.socket}`, { max: 1 });
+    const client = postgres(`postgres://localhost/mention_jev_owned_base?host=${identity.socket}`, {
+      max: 1,
+    });
     expect(client.options.host).toEqual(['localhost']);
     expect(client.options.path).toBe(false);
-    expect(() => assertOwnedClientOptions(client.options, identity, 'mention_jev_owned_base')).toThrow(/localhost/);
+    expect(() =>
+      assertOwnedClientOptions(client.options, identity, 'mention_jev_owned_base'),
+    ).toThrow(/localhost/);
     void client.end({ timeout: 0 });
   });
 
@@ -212,7 +227,9 @@ describe('postgres-js lazy options', () => {
   it('refuse any database but the named base and its maintenance database', async () => {
     stubOwnedPgEnv();
     const { factory } = recordingFactory();
-    await expect(createVerifiedClient(factory, identity, ownedUrl('mention'))).rejects.toThrow(/only mention_jev_owned_base/);
+    await expect(createVerifiedClient(factory, identity, ownedUrl('mention'))).rejects.toThrow(
+      /only mention_jev_owned_base/,
+    );
     expect(factory).not.toHaveBeenCalled();
   });
 });
@@ -234,7 +251,16 @@ describe('assertServerIdentity', () => {
 describe('verifyOwnedCluster', () => {
   const PID = 4242;
   const pidFile = (overrides: Partial<Record<number, string>> = {}) => {
-    const lines = [String(PID), identity.data, '1790000000', '5432', identity.socket, '', '  5432001  0', 'ready'];
+    const lines = [
+      String(PID),
+      identity.data,
+      '1790000000',
+      '5432',
+      identity.socket,
+      '',
+      '  5432001  0',
+      'ready',
+    ];
     for (const [index, value] of Object.entries(overrides)) lines[Number(index)] = value as string;
     return `${lines.join('\n')}\n`;
   };
@@ -242,7 +268,8 @@ describe('verifyOwnedCluster', () => {
     realpath: (p: string) => p,
     isDirectory: () => true,
     isSocket: (p: string) => p === SOCKET_PATH,
-    readFile: (p: string) => (p.endsWith('postmaster.pid') ? pidFile() : `${PID}\n${identity.data}\n`),
+    readFile: (p: string) =>
+      p.endsWith('postmaster.pid') ? pidFile() : `${PID}\n${identity.data}\n`,
     isAlive: (pid: number) => pid === PID,
     comm: () => 'postgres',
     ...overrides,
@@ -253,18 +280,38 @@ describe('verifyOwnedCluster', () => {
   });
 
   it.each([
-    ['a missing data directory', { isDirectory: (p: string) => p !== identity.data }, /not an existing directory/],
-    ['a symlinked socket directory', { realpath: (p: string) => (p === identity.socket ? '/var/run/postgresql' : p) }, /resolves elsewhere/],
-    ['a foreign data directory in postmaster.pid', { readFile: () => pidFile({ 1: '/var/lib/postgresql/data' }) }, /data directory/],
+    [
+      'a missing data directory',
+      { isDirectory: (p: string) => p !== identity.data },
+      /not an existing directory/,
+    ],
+    [
+      'a symlinked socket directory',
+      { realpath: (p: string) => (p === identity.socket ? '/var/run/postgresql' : p) },
+      /resolves elsewhere/,
+    ],
+    [
+      'a foreign data directory in postmaster.pid',
+      { readFile: () => pidFile({ 1: '/var/lib/postgresql/data' }) },
+      /data directory/,
+    ],
     ['a different port', { readFile: () => pidFile({ 3: '5433' }) }, /port 5433/],
-    ['a different socket directory', { readFile: () => pidFile({ 4: '/var/run/postgresql' }) }, /socket directory/],
+    [
+      'a different socket directory',
+      { readFile: () => pidFile({ 4: '/var/run/postgresql' }) },
+      /socket directory/,
+    ],
     ['a TCP listener', { readFile: () => pidFile({ 5: '127.0.0.1' }) }, /TCP must be disabled/],
     ['a dead postmaster', { isAlive: () => false }, /not running/],
     ['a recycled PID', { comm: () => 'bash' }, /not a postgres postmaster/],
     ['a missing socket file', { isSocket: () => false }, /not a Unix socket/],
-    ['a socket lock held by another process', {
-      readFile: (p: string) => (p.endsWith('postmaster.pid') ? pidFile() : '9999\n'),
-    }, /held by PID 9999/],
+    [
+      'a socket lock held by another process',
+      {
+        readFile: (p: string) => (p.endsWith('postmaster.pid') ? pidFile() : '9999\n'),
+      },
+      /held by PID 9999/,
+    ],
   ])('refuses %s', (_label, overrides, message) => {
     expect(() => verifyOwnedCluster(identity, probe(overrides))).toThrow(message);
   });

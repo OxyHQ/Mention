@@ -9,8 +9,11 @@ const invalidateProfileCounts = (authorId?: string) => invalidate(client, author
 type Predicate = (query: { queryKey: readonly unknown[] }) => boolean;
 
 function capturedPredicate(): Predicate {
-  const options = mockInvalidateQueries.mock.calls.at(-1)?.[0] as { predicate?: Predicate } | undefined;
-  if (typeof options?.predicate !== 'function') throw new Error('no predicate passed to invalidateQueries');
+  const options = mockInvalidateQueries.mock.calls.at(-1)?.[0] as
+    | { predicate?: Predicate }
+    | undefined;
+  if (typeof options?.predicate !== 'function')
+    throw new Error('no predicate passed to invalidateQueries');
   return options.predicate;
 }
 
@@ -28,8 +31,12 @@ describe('invalidateProfileCounts', () => {
     invalidateProfileCounts();
     const predicate = capturedPredicate();
 
-    expect(predicate({ queryKey: viewerQueryKeys.appearanceForUser('viewer-a', 'viewer-a') })).toBe(true);
-    expect(predicate({ queryKey: viewerQueryKeys.appearanceForUser('viewer-a', 'someone') })).toBe(false);
+    expect(predicate({ queryKey: viewerQueryKeys.appearanceForUser('viewer-a', 'viewer-a') })).toBe(
+      true,
+    );
+    expect(predicate({ queryKey: viewerQueryKeys.appearanceForUser('viewer-a', 'someone') })).toBe(
+      false,
+    );
     expect(predicate({ queryKey: viewerQueryKeys.appearanceForUser(null, 'anon') })).toBe(false);
     expect(predicate({ queryKey: viewerQueryKeys.notifications('viewer-a') })).toBe(false);
   });
@@ -38,9 +45,17 @@ describe('invalidateProfileCounts', () => {
     invalidateProfileCounts('channel-1');
     const predicate = capturedPredicate();
 
-    expect(predicate({ queryKey: viewerQueryKeys.appearanceForUser('viewer-a', 'channel-1') })).toBe(true);
-    expect(predicate({ queryKey: viewerQueryKeys.appearanceForUser('other-viewer', 'channel-1') })).toBe(true);
-    expect(predicate({ queryKey: viewerQueryKeys.appearanceForUser('viewer-a', 'viewer-a') })).toBe(true);
-    expect(predicate({ queryKey: viewerQueryKeys.appearanceForUser('viewer-a', 'someone') })).toBe(false);
+    expect(
+      predicate({ queryKey: viewerQueryKeys.appearanceForUser('viewer-a', 'channel-1') }),
+    ).toBe(true);
+    expect(
+      predicate({ queryKey: viewerQueryKeys.appearanceForUser('other-viewer', 'channel-1') }),
+    ).toBe(true);
+    expect(predicate({ queryKey: viewerQueryKeys.appearanceForUser('viewer-a', 'viewer-a') })).toBe(
+      true,
+    );
+    expect(predicate({ queryKey: viewerQueryKeys.appearanceForUser('viewer-a', 'someone') })).toBe(
+      false,
+    );
   });
 });

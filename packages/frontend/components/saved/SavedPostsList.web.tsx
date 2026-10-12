@@ -47,9 +47,7 @@ export default function SavedPostsList({
   });
   const virtualItems = virtualizer.getVirtualItems();
   const totalSize = virtualizer.getTotalSize();
-  const lastItem = virtualItems.length > 0
-    ? virtualItems[virtualItems.length - 1]
-    : undefined;
+  const lastItem = virtualItems.length > 0 ? virtualItems[virtualItems.length - 1] : undefined;
   const lastItemEnd = lastItem
     ? lastItem.start + lastItem.size - virtualizer.options.scrollMargin
     : 0;
@@ -85,10 +83,7 @@ export default function SavedPostsList({
                 transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)`,
               }}
             >
-              <Pressable
-                onLongPress={() => onLongPress(post.id)}
-                delayLongPress={500}
-              >
+              <Pressable onLongPress={() => onLongPress(post.id)} delayLongPress={500}>
                 <PostItem post={post} />
               </Pressable>
             </div>

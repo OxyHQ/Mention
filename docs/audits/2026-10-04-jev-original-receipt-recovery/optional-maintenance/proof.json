@@ -8,7 +8,7 @@
     },
     {
       "path": "packages/backend/src/__tests__/services/postClassification.test.ts",
-      "sha256": "d519bc7f1a23c7b4f8f438db8b34ead2c27df87550b9d5b7b75b51c9fe46da7f"
+      "sha256": "d3e9ba246ea5a0ad76e8fd852f892ef76f1ebcaa48de071460c157bb5f51e1a0"
     }
   ],
   "records": [
@@ -22,7 +22,7 @@
     },
     {
       "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/optional-maintenance/records/frozen-test.ts",
-      "sha256": "d519bc7f1a23c7b4f8f438db8b34ead2c27df87550b9d5b7b75b51c9fe46da7f"
+      "sha256": "d3e9ba246ea5a0ad76e8fd852f892ef76f1ebcaa48de071460c157bb5f51e1a0"
     },
     {
       "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/optional-maintenance/records/green.log",
@@ -38,7 +38,7 @@
     },
     {
       "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/optional-maintenance/records/ci-build.log",
-      "sha256": "9ab520b219ec3175c7ff39cefb8fe75e422a093af4d41f6ec3199bb60496b239"
+      "sha256": "e5dc70481bc125b95404e5abd3f4cc0618c830b9db107335f925d5fb705b3066"
     },
     {
       "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/optional-maintenance/records/ci-backend3.log",

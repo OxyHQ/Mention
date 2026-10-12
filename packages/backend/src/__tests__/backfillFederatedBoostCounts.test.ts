@@ -168,8 +168,8 @@ describe('backfillFederatedBoostCounts', () => {
     const result = await backfillFederatedBoostCounts({ postIds: originals, batchSize: 2 });
 
     expect(result).toEqual({ scanned: 3, updated: 2, failed: 0 });
-    expect(
-      await Promise.all(originals.map(async (id) => (await readRow(id)).count)),
-    ).toEqual([1, 0, 2]);
+    expect(await Promise.all(originals.map(async (id) => (await readRow(id)).count))).toEqual([
+      1, 0, 2,
+    ]);
   });
 });

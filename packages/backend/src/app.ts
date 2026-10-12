@@ -1,11 +1,7 @@
 import type { PublicDeploymentInfo } from '@mention/shared-types/deployment';
 import { createOxySecurityHeaders, type OxyCspExtensions } from '@oxy.so/core/server';
 import compression from 'compression';
-import express, {
-  type ErrorRequestHandler,
-  type Request,
-  type RequestHandler,
-} from 'express';
+import express, { type ErrorRequestHandler, type Request, type RequestHandler } from 'express';
 import type { AppRoutes } from './appRoutes';
 import { createAppAssociationRouter, wellKnownNotFound } from './routes/appAssociation.routes';
 
@@ -134,47 +130,51 @@ export function createApp(deps: CreateAppDependencies): express.Express {
   // here imports it: `@oxy.so/core` requires it at runtime but declares it as an
   // OPTIONAL peerDependency, so it is installed only because we declare it.
   // Dropping it from package.json uninstalls it and this call throws at boot.
-  app.use(createOxySecurityHeaders({
-    csp: {
-      ...MENTION_CSP_EXTENSIONS,
-      connectSrc: [
-        ...MENTION_CSP_EXTENSIONS.connectSrc,
-        deps.deployment?.apiBaseUrl ?? 'https://api.mention.earth',
-        (deps.deployment?.apiBaseUrl ?? 'https://api.mention.earth').replace(/^https:/, 'wss:'),
-      ],
-    },
-    helmet: {
-      crossOriginResourcePolicy: { policy: 'cross-origin' },
-      // Match the baseline's `frame-ancestors 'none'`; helmet's SAMEORIGIN
-      // default would state a different policy to pre-CSP browsers.
-      frameguard: { action: 'deny' },
-      // Stated rather than inherited. helmet defaults to `no-referrer`, which
-      // nobody here chose — it appears nowhere in `@oxy.so/core` — and which is
-      // stricter than the web assumes. It sends nothing at all, so every site
-      // Mention links to records the visit as direct traffic, and any third
-      // party that identifies an embedder by referrer refuses to load: YouTube
-      // answered error 153 (`ERROR_CODE_EMBEDDER_IDENTITY_MISSING_REFERRER`)
-      // for exactly this reason until the player started overriding it.
-      //
-      // `strict-origin-when-cross-origin` is what a browser does with no header
-      // at all. Cross-origin it sends the ORIGIN only — never the path, so
-      // which post a reader is on still never leaves — and it sends nothing at
-      // all when HTTPS downgrades to HTTP. The embed player keeps its own
-      // element-level policy so a future tightening here cannot silently break
-      // playback again.
-      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
-    },
-  }));
+  app.use(
+    createOxySecurityHeaders({
+      csp: {
+        ...MENTION_CSP_EXTENSIONS,
+        connectSrc: [
+          ...MENTION_CSP_EXTENSIONS.connectSrc,
+          deps.deployment?.apiBaseUrl ?? 'https://api.mention.earth',
+          (deps.deployment?.apiBaseUrl ?? 'https://api.mention.earth').replace(/^https:/, 'wss:'),
+        ],
+      },
+      helmet: {
+        crossOriginResourcePolicy: { policy: 'cross-origin' },
+        // Match the baseline's `frame-ancestors 'none'`; helmet's SAMEORIGIN
+        // default would state a different policy to pre-CSP browsers.
+        frameguard: { action: 'deny' },
+        // Stated rather than inherited. helmet defaults to `no-referrer`, which
+        // nobody here chose — it appears nowhere in `@oxy.so/core` — and which is
+        // stricter than the web assumes. It sends nothing at all, so every site
+        // Mention links to records the visit as direct traffic, and any third
+        // party that identifies an embedder by referrer refuses to load: YouTube
+        // answered error 153 (`ERROR_CODE_EMBEDDER_IDENTITY_MISSING_REFERRER`)
+        // for exactly this reason until the player started overriding it.
+        //
+        // `strict-origin-when-cross-origin` is what a browser does with no header
+        // at all. Cross-origin it sends the ORIGIN only — never the path, so
+        // which post a reader is on still never leaves — and it sends nothing at
+        // all when HTTPS downgrades to HTTP. The embed player keeps its own
+        // element-level policy so a future tightening here cannot silently break
+        // playback again.
+        referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+      },
+    }),
+  );
 
-  app.use(compression({
-    filter: (req, res) => {
-      if (req.headers['x-no-compression']) return false;
-      if (req.path === '/media/proxy') return false;
-      return compression.filter(req, res);
-    },
-    level: 6,
-    threshold: 1024,
-  }));
+  app.use(
+    compression({
+      filter: (req, res) => {
+        if (req.headers['x-no-compression']) return false;
+        if (req.path === '/media/proxy') return false;
+        return compression.filter(req, res);
+      },
+      level: 6,
+      threshold: 1024,
+    }),
+  );
 
   /**
    * MUST stay ahead of `express.json` below.
@@ -200,13 +200,15 @@ export function createApp(deps: CreateAppDependencies): express.Express {
   // authentication, and no session, admission or CSRF layer may stand in front.
   app.use('/webhooks', routes.oxyAccountEvents);
 
-  app.use(express.json({
-    limit: '1mb',
-    type: ['application/json', 'application/activity+json', 'application/ld+json'],
-    verify: (req: express.Request & { rawBody?: string }, _res, buffer) => {
-      req.rawBody = buffer?.length ? buffer.toString('utf8') : undefined;
-    },
-  }));
+  app.use(
+    express.json({
+      limit: '1mb',
+      type: ['application/json', 'application/activity+json', 'application/ld+json'],
+      verify: (req: express.Request & { rawBody?: string }, _res, buffer) => {
+        req.rawBody = buffer?.length ? buffer.toString('utf8') : undefined;
+      },
+    }),
+  );
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
   app.use((req, res, next) => {
@@ -269,7 +271,9 @@ export function createApp(deps: CreateAppDependencies): express.Express {
           ? [{ src: deployment.branding.iconUrl, sizes: 'any', purpose: 'any' }]
           : [],
         share_target: {
-          action: '/compose', method: 'GET', enctype: 'application/x-www-form-urlencoded',
+          action: '/compose',
+          method: 'GET',
+          enctype: 'application/x-www-form-urlencoded',
           params: { title: 'text', text: 'text', url: 'url' },
         },
       });
@@ -280,10 +284,12 @@ export function createApp(deps: CreateAppDependencies): express.Express {
   app.use('/.well-known', routes.webfinger);
   app.get('/.well-known/nodeinfo', (_req, res) => {
     res.json({
-      links: [{
-        rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
-        href: `https://${deps.federationDomain}/nodeinfo/2.0`,
-      }],
+      links: [
+        {
+          rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
+          href: `https://${deps.federationDomain}/nodeinfo/2.0`,
+        },
+      ],
     });
   });
   app.get('/nodeinfo/2.0', async (_req, res) => {
@@ -308,12 +314,16 @@ export function createApp(deps: CreateAppDependencies): express.Express {
         localPosts: postCount,
       },
       openRegistrations: !deps.deployment || deps.deployment.signupPolicy === 'open',
-      ...(deps.deployment ? { metadata: {
-        nodeName: deps.deployment.branding.name,
-        nodeDescription: deps.deployment.branding.about,
-        sourceUrl: deps.deployment.software.sourceUrl,
-        revision: deps.deployment.software.revision,
-      } } : {}),
+      ...(deps.deployment
+        ? {
+            metadata: {
+              nodeName: deps.deployment.branding.name,
+              nodeDescription: deps.deployment.branding.about,
+              sourceUrl: deps.deployment.software.sourceUrl,
+              revision: deps.deployment.software.revision,
+            },
+          }
+        : {}),
     });
   });
   app.use('/ap', routes.apRateLimiter);

@@ -2,7 +2,7 @@
  * The two spatial columns, asserted against REAL ROWS.
  *
  * The point of this file is the ORDERING check. `ST_MakePoint` takes
- * `(longitude, latitude)` and Mongo stored `{ lat, lon }` pairs that a
+ * `(longitude, latitude)` and the legacy store stored `{ lat, lon }` pairs that a
  * `2dsphere` index reads POSITIONALLY, so a transposed pair is the single most
  * likely thing to get wrong here — and it does not look wrong: a lat/lon swap
  * yields a perfectly plausible point in the wrong hemisphere. A test that only
@@ -31,9 +31,7 @@ const DISTANCE_TOLERANCE_METRES = 20_000;
 let db: Database;
 const createdPostIds: string[] = [];
 
-async function insertPostAt(
-  coordinates: { latitude: number; longitude: number }
-): Promise<string> {
+async function insertPostAt(coordinates: { latitude: number; longitude: number }): Promise<string> {
   const [row] = await db
     .insert(posts)
     .values({
@@ -103,12 +101,8 @@ describe('posts.geo', () => {
     `);
 
     expect(rows).toHaveLength(1);
-    expect(rows[0].metres).toBeGreaterThan(
-      BARCELONA_TO_MADRID_METRES - DISTANCE_TOLERANCE_METRES
-    );
-    expect(rows[0].metres).toBeLessThan(
-      BARCELONA_TO_MADRID_METRES + DISTANCE_TOLERANCE_METRES
-    );
+    expect(rows[0].metres).toBeGreaterThan(BARCELONA_TO_MADRID_METRES - DISTANCE_TOLERANCE_METRES);
+    expect(rows[0].metres).toBeLessThan(BARCELONA_TO_MADRID_METRES + DISTANCE_TOLERANCE_METRES);
   });
 
   it('is NULL when the post carries no coordinates', async () => {
@@ -119,7 +113,7 @@ describe('posts.geo', () => {
     createdPostIds.push(row.id);
 
     const rows = await db.execute<{ geo: string | null }>(
-      sql`select geo::text as geo from posts where id = ${row.id}`
+      sql`select geo::text as geo from posts where id = ${row.id}`,
     );
     expect(rows[0].geo).toBeNull();
   });
@@ -193,13 +187,13 @@ describe('posts.content_geo', () => {
 
 describe('coordinate constraints', () => {
   it('refuses half a coordinate pair', async () => {
-    // Mongo allowed it and the federated insert path had to strip half-written
+    // The legacy store allowed it and the federated insert path had to strip half-written
     // pairs by hand (`outbox.service.ts:904`). Here the state is unrepresentable.
     await expect(
       db.insert(posts).values({
         oxyUserId: 'oxy-test-author',
         locationLatitude: BARCELONA.latitude,
-      })
+      }),
     ).rejects.toThrow();
   });
 
@@ -209,7 +203,7 @@ describe('coordinate constraints', () => {
         oxyUserId: 'oxy-test-author',
         locationLatitude: 91,
         locationLongitude: 0,
-      })
+      }),
     ).rejects.toThrow();
   });
 });

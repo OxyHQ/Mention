@@ -18,9 +18,22 @@ function makePost(id: string): FeedItem {
     documents: [],
     user: { id: 'user-1', username: 'alice', name: { displayName: 'Alice' } },
     authors: [],
-    engagement: { likes: 0, downvotes: 0, boosts: 0, replies: 0, saves: 0, views: 0, impressions: 0 },
+    engagement: {
+      likes: 0,
+      downvotes: 0,
+      boosts: 0,
+      replies: 0,
+      saves: 0,
+      views: 0,
+      impressions: 0,
+    },
     viewerState: {
-      isOwner: false, isCollaborator: false, isLiked: false, isDownvoted: false, isBoosted: false, isSaved: false,
+      isOwner: false,
+      isCollaborator: false,
+      isLiked: false,
+      isDownvoted: false,
+      isBoosted: false,
+      isSaved: false,
     },
     permissions: { canReply: true, canDelete: false, canPin: false, canViewSources: false },
     metadata: {
@@ -62,7 +75,9 @@ describe('getAllFeedItems with reuse', () => {
     expect(items.map((item) => item.id)).toEqual(['a', 'b', 'c']);
     // The cached post is served as-is, not re-parsed.
     expect(items[0]).toBe(cachedA);
-    const fetchCall = getAllSync.mock.calls.find(([query]) => String(query).includes('WHERE id IN'));
+    const fetchCall = getAllSync.mock.calls.find(([query]) =>
+      String(query).includes('WHERE id IN'),
+    );
     expect(fetchCall?.slice(1)).toEqual(['b', 'c', 'gone']);
   });
 

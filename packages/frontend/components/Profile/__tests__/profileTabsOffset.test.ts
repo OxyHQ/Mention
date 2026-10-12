@@ -1,4 +1,8 @@
-import { PROFILE_AVATAR_OVERLAP, PROFILE_BANNER_HEIGHT, profileTabsOffset } from '../ProfilePageHeader';
+import {
+  PROFILE_AVATAR_OVERLAP,
+  PROFILE_BANNER_HEIGHT,
+  profileTabsOffset,
+} from '../ProfilePageHeader';
 
 jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
 jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));

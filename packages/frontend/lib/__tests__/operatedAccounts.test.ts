@@ -15,7 +15,9 @@ import { operatesAccount, operatesAccountNode } from '../operatedAccounts';
 
 const VIEWER_ORG = 'account-org';
 
-function node(overrides: Partial<AccountNode> & Pick<AccountNode, 'accountId' | 'kind'>): AccountNode {
+function node(
+  overrides: Partial<AccountNode> & Pick<AccountNode, 'accountId' | 'kind'>,
+): AccountNode {
   return {
     parentAccountId: null,
     account: { id: overrides.accountId } as AccountNode['account'],
@@ -25,10 +27,7 @@ function node(overrides: Partial<AccountNode> & Pick<AccountNode, 'accountId' | 
   } as AccountNode;
 }
 
-function membership(
-  status: string,
-  permissions: unknown,
-): AccountNode['callerMembership'] {
+function membership(status: string, permissions: unknown): AccountNode['callerMembership'] {
   return {
     memberUserId: 'viewer',
     status,

@@ -61,15 +61,6 @@
     // default for editor/CLI type-checking. Emitting packages override this.
     "noEmit": true
   },
-  "references": [
-    { "path": "./packages/shared-types" },
-    { "path": "./packages/backend" }
-  ],
-  "exclude": [
-    "node_modules",
-    "**/node_modules",
-    "**/dist",
-    "**/build",
-    "**/.expo"
-  ]
+  "references": [{ "path": "./packages/shared-types" }, { "path": "./packages/backend" }],
+  "exclude": ["node_modules", "**/node_modules", "**/dist", "**/build", "**/.expo"]
 }

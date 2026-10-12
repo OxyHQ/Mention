@@ -2,7 +2,11 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } from '@/components/StarterPackCard';
+import {
+  StarterPackCard,
+  StarterPackCardSkeleton,
+  type StarterPackCardData,
+} from '@/components/StarterPackCard';
 import { starterPacksService, type StarterPackSummary } from '@/services/starterPacksService';
 import { EmptyState } from '@/components/common/EmptyState';
 import { VirtualList } from '@oxy.so/bloom/list';
@@ -61,10 +65,14 @@ export function StarterPacksTab() {
         sticker="starterPacks"
         // Creating one needs a session; signed out the empty state stays
         // informational rather than offering a form that cannot submit.
-        action={canUsePrivateApi ? {
-          label: t('starterPacks.create'),
-          onPress: () => router.push('/starter-packs/create'),
-        } : undefined}
+        action={
+          canUsePrivateApi
+            ? {
+                label: t('starterPacks.create'),
+                onPress: () => router.push('/starter-packs/create'),
+              }
+            : undefined
+        }
         containerStyle={styles.emptyState}
       />
     );

@@ -51,7 +51,8 @@ function renderHook(): () => void {
 const flush = () => act(async () => {});
 
 const originalOS = Platform.OS;
-const setOS = (os: typeof Platform.OS) => Object.defineProperty(Platform, 'OS', { value: os, configurable: true });
+const setOS = (os: typeof Platform.OS) =>
+  Object.defineProperty(Platform, 'OS', { value: os, configurable: true });
 
 let openURL: jest.SpyInstance;
 beforeEach(() => {
@@ -86,12 +87,16 @@ it('offers "Get Allo" and the web app when a listing is configured', async () =>
   setOS('android');
   const store = 'https://play.google.com/store/apps/details?id=com.allo.app';
   mockPlayStoreUrl = store;
-  openURL.mockRejectedValueOnce(new Error('No Activity found to handle Intent')).mockResolvedValue(true);
+  openURL
+    .mockRejectedValueOnce(new Error('No Activity found to handle Intent'))
+    .mockResolvedValue(true);
   renderHook()();
   await flush();
 
   expect(mockShowActionMenu).toHaveBeenCalledTimes(1);
-  const [{ label, groups }] = mockShowActionMenu.mock.calls[0] as [{ label: string; groups: ActionMenuAction[][] }];
+  const [{ label, groups }] = mockShowActionMenu.mock.calls[0] as [
+    { label: string; groups: ActionMenuAction[][] },
+  ];
   expect(label).toBe('profile.allo.notInstalled');
   const [getApp, openWeb] = groups[0];
   expect(getApp.label).toBe('profile.allo.getApp');

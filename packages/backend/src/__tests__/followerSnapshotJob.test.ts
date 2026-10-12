@@ -5,7 +5,7 @@
  *
  * The sweep is BOUNDED — it samples at most `FOLLOWER_SNAPSHOT_MAX_AUTHORS`
  * authors per run — so the ORDER it picks them in decides who gets sampled at
- * all. Mongo had no ordering (`Post.distinct(...)` then `.slice(0, MAX)`), which
+ * all. The legacy store had no ordering (`Post.distinct(...)` then `.slice(0, MAX)`), which
  * meant that past the cap an arbitrary set of authors was resampled forever and
  * the rest never entered the series at all, silently. The port orders by
  * least-recently-snapshotted, and that makes the NULL ordering load-bearing:
@@ -91,7 +91,9 @@ afterEach(async () => {
   summaries = new Map();
   vi.clearAllMocks();
   if (createdAuthorIds.length > 0) {
-    await db.delete(authorFollowerSnapshots).where(inArray(authorFollowerSnapshots.oxyUserId, createdAuthorIds));
+    await db
+      .delete(authorFollowerSnapshots)
+      .where(inArray(authorFollowerSnapshots.oxyUserId, createdAuthorIds));
     await db.delete(posts).where(inArray(posts.oxyUserId, createdAuthorIds));
     createdAuthorIds.length = 0;
   }
@@ -152,7 +154,11 @@ describe('the bounded sweep reaches a never-snapshotted author FIRST', () => {
     await seedSnapshot(middle, new Date('2026-04-01T00:00:00.000Z'));
     await seedSnapshot(newest, new Date('2026-07-01T00:00:00.000Z'));
 
-    summaries = new Map([[oldest, summary(1)], [middle, summary(2)], [newest, summary(3)]]);
+    summaries = new Map([
+      [oldest, summary(1)],
+      [middle, summary(2)],
+      [newest, summary(3)],
+    ]);
 
     // Least-recently-sampled first. Sorted by id it would be aaa, mmm, zzz.
     expect(await sweptAuthorOrder()).toEqual([oldest, middle, newest]);
@@ -169,7 +175,10 @@ describe('the bounded sweep reaches a never-snapshotted author FIRST', () => {
     await seedSnapshot(sampledTwice, new Date('2026-07-02T00:00:00.000Z'));
     await seedSnapshot(sampledOnce, new Date('2026-07-01T00:00:00.000Z'));
 
-    summaries = new Map([[sampledTwice, summary(1)], [sampledOnce, summary(2)]]);
+    summaries = new Map([
+      [sampledTwice, summary(1)],
+      [sampledOnce, summary(2)],
+    ]);
 
     expect(await sweptAuthorOrder()).toEqual([sampledOnce, sampledTwice]);
   });
@@ -210,8 +219,18 @@ describe('runSnapshotSweep — what it stores', () => {
     const stalePoster = authorId('stale');
 
     await seedActivePost(active);
-    await db.insert(posts).values({ oxyUserId: privatePoster, status: 'published', visibility: 'private', createdAt: new Date() });
-    await db.insert(posts).values({ oxyUserId: draftPoster, status: 'draft', visibility: 'public', createdAt: new Date() });
+    await db.insert(posts).values({
+      oxyUserId: privatePoster,
+      status: 'published',
+      visibility: 'private',
+      createdAt: new Date(),
+    });
+    await db.insert(posts).values({
+      oxyUserId: draftPoster,
+      status: 'draft',
+      visibility: 'public',
+      createdAt: new Date(),
+    });
     await db.insert(posts).values({
       oxyUserId: stalePoster,
       status: 'published',
@@ -228,7 +247,7 @@ describe('runSnapshotSweep — what it stores', () => {
     /**
      * `follower_count` is `integer` with a `>= 0` CHECK, and one INSERT carries
      * the whole batch — so a single malformed count would abort every author's
-     * snapshot. Mongoose's per-document validation under `{ ordered: false }`
+     * snapshot. The legacy ODM's per-document validation under `{ ordered: false }`
      * dropped only the offending author, and that is the behaviour kept.
      */
     const good = authorId('good');

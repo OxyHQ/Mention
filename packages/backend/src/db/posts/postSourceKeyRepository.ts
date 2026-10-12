@@ -32,11 +32,13 @@ export async function claimSourceKey(
   const taken = await db
     .update(postSourceKeys)
     .set({ claimToken, claimedUntil: until })
-    .where(and(
-      eq(postSourceKeys.sourceKey, sourceKey),
-      isNull(postSourceKeys.postId),
-      lt(postSourceKeys.claimedUntil, sql`now()`),
-    ))
+    .where(
+      and(
+        eq(postSourceKeys.sourceKey, sourceKey),
+        isNull(postSourceKeys.postId),
+        lt(postSourceKeys.claimedUntil, sql`now()`),
+      ),
+    )
     .returning({ id: postSourceKeys.id });
   return taken.length > 0;
 }
@@ -49,11 +51,13 @@ export async function releaseSourceKeyClaim(
 ): Promise<void> {
   await db
     .delete(postSourceKeys)
-    .where(and(
-      eq(postSourceKeys.sourceKey, sourceKey),
-      isNull(postSourceKeys.postId),
-      eq(postSourceKeys.claimToken, claimToken),
-    ));
+    .where(
+      and(
+        eq(postSourceKeys.sourceKey, sourceKey),
+        isNull(postSourceKeys.postId),
+        eq(postSourceKeys.claimToken, claimToken),
+      ),
+    );
 }
 
 /**

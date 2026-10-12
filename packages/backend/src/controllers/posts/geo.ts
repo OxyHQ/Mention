@@ -64,9 +64,8 @@ export const getNearbyPosts = async (req: AuthRequest, res: Response) => {
     const rawRadius = queryString(req.query.radius);
     const latitude = Number.parseFloat(lat);
     const longitude = Number.parseFloat(lng);
-    const radiusMeters = rawRadius === undefined
-      ? DEFAULT_NEARBY_RADIUS_METERS
-      : Number.parseInt(rawRadius, 10);
+    const radiusMeters =
+      rawRadius === undefined ? DEFAULT_NEARBY_RADIUS_METERS : Number.parseInt(rawRadius, 10);
 
     if (Number.isNaN(latitude) || Number.isNaN(longitude) || Number.isNaN(radiusMeters)) {
       return res.status(400).json({ message: 'Invalid latitude, longitude, or radius' });
@@ -84,9 +83,8 @@ export const getNearbyPosts = async (req: AuthRequest, res: Response) => {
         notCollapsedCrosspostSql(),
         withinRadius(geoColumn, longitude, latitude, radiusMeters),
       ),
-      // Chronological, not nearest-first: `$near` sorts by distance, but the
-      // Mongoose call overrode that with its own `createdAt` sort, so the
-      // distance ordering was already discarded before this port.
+      // Chronological, not nearest-first: the endpoint has always served
+      // newest-first within the radius.
       { orderBy: CHRONO_DESC, limit: MAX_NEARBY_POSTS },
     );
 
@@ -103,7 +101,7 @@ export const getNearbyPosts = async (req: AuthRequest, res: Response) => {
       center: { latitude, longitude },
       radius: radiusMeters,
       locationType,
-      count: hydratedPosts.length
+      count: hydratedPosts.length,
     });
   } catch (error) {
     logger.error('Error fetching nearby posts', error);
@@ -122,7 +120,7 @@ export const getPostsInArea = async (req: AuthRequest, res: Response) => {
 
     if (!north || !south || !east || !west) {
       return res.status(400).json({
-        message: 'Bounding box coordinates (north, south, east, west) are required'
+        message: 'Bounding box coordinates (north, south, east, west) are required',
       });
     }
 
@@ -131,7 +129,12 @@ export const getPostsInArea = async (req: AuthRequest, res: Response) => {
     const eastLng = Number.parseFloat(east);
     const westLng = Number.parseFloat(west);
 
-    if (Number.isNaN(northLat) || Number.isNaN(southLat) || Number.isNaN(eastLng) || Number.isNaN(westLng)) {
+    if (
+      Number.isNaN(northLat) ||
+      Number.isNaN(southLat) ||
+      Number.isNaN(eastLng) ||
+      Number.isNaN(westLng)
+    ) {
       return res.status(400).json({ message: 'Invalid bounding box coordinates' });
     }
 
@@ -140,8 +143,8 @@ export const getPostsInArea = async (req: AuthRequest, res: Response) => {
     }
 
     const geoColumn = locationType === 'post' ? postsTable.geo : postsTable.contentGeo;
-    // `ST_MakeEnvelope(west, south, east, north, 4326)` — the same corner order
-    // as Mongo's `$box`, and the same SRID the generated points carry. Cast to
+    // `ST_MakeEnvelope(west, south, east, north, 4326)` — the corner order the
+    // request uses, and the same SRID the generated points carry. Cast to
     // `geography` so the comparison is against the column's own type; the `&&`
     // bounding-box operator is what the GiST index answers.
     const envelope = sql`ST_MakeEnvelope(${westLng}, ${southLat}, ${eastLng}, ${northLat}, 4326)::geography`;
@@ -167,7 +170,7 @@ export const getPostsInArea = async (req: AuthRequest, res: Response) => {
       posts: hydratedPosts,
       boundingBox: { north: northLat, south: southLat, east: eastLng, west: westLng },
       locationType,
-      count: hydratedPosts.length
+      count: hydratedPosts.length,
     });
   } catch (error) {
     logger.error('Error fetching posts in area', error);
@@ -188,9 +191,8 @@ export const getNearbyPostsBothLocations = async (req: AuthRequest, res: Respons
 
     const latitude = Number.parseFloat(lat);
     const longitude = Number.parseFloat(lng);
-    const radiusMeters = rawRadius === undefined
-      ? DEFAULT_NEARBY_RADIUS_METERS
-      : Number.parseInt(rawRadius, 10);
+    const radiusMeters =
+      rawRadius === undefined ? DEFAULT_NEARBY_RADIUS_METERS : Number.parseInt(rawRadius, 10);
 
     if (Number.isNaN(latitude) || Number.isNaN(longitude) || Number.isNaN(radiusMeters)) {
       return res.status(400).json({ message: 'Invalid latitude, longitude, or radius' });
@@ -224,7 +226,7 @@ export const getNearbyPostsBothLocations = async (req: AuthRequest, res: Respons
       center: { latitude, longitude },
       radius: radiusMeters,
       locationType: 'both',
-      count: hydratedPosts.length
+      count: hydratedPosts.length,
     });
   } catch (error) {
     logger.error('Error fetching nearby posts (both locations)', error);
@@ -268,10 +270,12 @@ export const getLocationStats = async (_req: AuthRequest, res: Response) => {
       withBothLocations: bothLocationsCount,
       withAnyLocation: counts?.withAnyLocation ?? 0,
       percentages: {
-        contentLocation: totalPosts > 0 ? ((contentLocationCount / totalPosts) * 100).toFixed(2) : '0.00',
+        contentLocation:
+          totalPosts > 0 ? ((contentLocationCount / totalPosts) * 100).toFixed(2) : '0.00',
         postLocation: totalPosts > 0 ? ((postLocationCount / totalPosts) * 100).toFixed(2) : '0.00',
-        bothLocations: totalPosts > 0 ? ((bothLocationsCount / totalPosts) * 100).toFixed(2) : '0.00'
-      }
+        bothLocations:
+          totalPosts > 0 ? ((bothLocationsCount / totalPosts) * 100).toFixed(2) : '0.00',
+      },
     });
   } catch (error) {
     logger.error('Error fetching location stats', error);

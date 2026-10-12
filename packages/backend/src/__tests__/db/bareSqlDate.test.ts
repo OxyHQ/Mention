@@ -107,7 +107,10 @@ function stripComments(source: string): string[] {
     while (index < line.length) {
       if (inBlock) {
         const end = line.indexOf('*/', index);
-        if (end === -1) { index = line.length; break; }
+        if (end === -1) {
+          index = line.length;
+          break;
+        }
         inBlock = false;
         index = end + 2;
         continue;

@@ -93,9 +93,7 @@ describe('ConnectorRegistry.federateNewPost', () => {
       makeConnector('atproto', otherOkDeliver),
     ]);
 
-    await expect(
-      registry.federateNewPost(POST, 'oxy-1', 'alice'),
-    ).resolves.toBeUndefined();
+    await expect(registry.federateNewPost(POST, 'oxy-1', 'alice')).resolves.toBeUndefined();
 
     expect(failDeliver).toHaveBeenCalledTimes(1);
     expect(okDeliver).toHaveBeenCalledTimes(1);
@@ -120,14 +118,11 @@ describe('ConnectorRegistry.federateNewPost', () => {
     await registry.federateNewPost(POST, 'oxy-1', 'alice');
 
     expect(mocks.loggerError).toHaveBeenCalledTimes(1);
-    expect(mocks.loggerError).toHaveBeenCalledWith(
-      '[connectors] delivery failed',
-      {
-        connector: 'activitypub',
-        error: reason,
-        type: 'post.create',
-      },
-    );
+    expect(mocks.loggerError).toHaveBeenCalledWith('[connectors] delivery failed', {
+      connector: 'activitypub',
+      error: reason,
+      type: 'post.create',
+    });
   });
 
   it('skips disabled connectors entirely', async () => {
@@ -157,10 +152,9 @@ describe('ConnectorRegistry durable delivery', () => {
   it('selects the durable connector boundary only for strict delivery', async () => {
     const bestEffort = vi.fn().mockResolvedValue(undefined);
     const durable = vi.fn().mockResolvedValue(undefined);
-    const connector = Object.assign(
-      makeConnector('activitypub', bestEffort),
-      { deliverDurably: durable },
-    );
+    const connector = Object.assign(makeConnector('activitypub', bestEffort), {
+      deliverDurably: durable,
+    });
     const registry = new ConnectorRegistry([connector]);
 
     await registry.deliver(LIKE_EVENT);
@@ -217,7 +211,12 @@ describe('ConnectorRegistry extra audiences', () => {
     // shape here would let the two paths drift on the one field that decides
     // whether the Note gets an object id at all.
     expect(widened).toHaveBeenCalledWith(
-      { kind: 'post.create', post: DELIVERED_POST, actorOxyUserId: 'oxy-1', actorUsername: 'alice' },
+      {
+        kind: 'post.create',
+        post: DELIVERED_POST,
+        actorOxyUserId: 'oxy-1',
+        actorUsername: 'alice',
+      },
       ['oxy-2'],
     );
     expect(plain).not.toHaveBeenCalled();

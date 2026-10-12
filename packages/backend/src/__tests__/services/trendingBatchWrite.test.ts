@@ -19,7 +19,7 @@
  * all-or-nothing and that the resilience has to be written out by hand.
  *
  * The wire format is the other subject. `_id`, an OMITTED `topicId`, and `Date`
- * (not string) timestamps are what Mongoose's `.lean()` produced, and the
+ * (not string) timestamps are what the legacy ODM's `.lean()` produced, and the
  * frontend consumes this response directly.
  */
 
@@ -40,7 +40,10 @@ const mocks = vi.hoisted(() => ({
 // database and a stale cache entry can never make an assertion pass.
 vi.mock('../../utils/redis', () => ({ getRedisClient: () => null }));
 vi.mock('../../utils/socket', () => ({ emitTrendsUpdated: mocks.emitTrendsUpdated }));
-vi.mock('../../utils/oxyInference', () => ({ inferenceChat: vi.fn(), isInferenceEnabled: () => false }));
+vi.mock('../../utils/oxyInference', () => ({
+  inferenceChat: vi.fn(),
+  isInferenceEnabled: () => false,
+}));
 vi.mock('../../services/TopicService', () => ({
   topicService: {
     resolveNames: mocks.resolveNames,
@@ -141,7 +144,10 @@ describe('saveTrendingBatch — a collision costs ONE trend, never the batch', (
     const at = batchStamp();
 
     const write = await saveTrendingBatch(
-      [item({ name, type: TrendingType.HASHTAG, score: 20 }), item({ name, type: TrendingType.TOPIC, score: 10 })],
+      [
+        item({ name, type: TrendingType.HASHTAG, score: 20 }),
+        item({ name, type: TrendingType.TOPIC, score: 10 }),
+      ],
       at,
     );
 
@@ -186,7 +192,7 @@ describe('saveTrendingBatch — a collision costs ONE trend, never the batch', (
   it('tolerates the same (name, type) appearing TWICE inside one batch', async () => {
     // Two hashtags that lowercase to one name — the shape `aggregateHashtags`
     // can still produce, since it groups on the stored casing and lowercases
-    // afterwards. Mongo errored on the second; `DO NOTHING` also sees rows this
+    // afterwards. The legacy store errored on the second; `DO NOTHING` also sees rows this
     // very command inserted, so it is skipped instead.
     const name = uniqueName('collide');
     const at = batchStamp();
@@ -230,7 +236,10 @@ describe('saveTrendingBatch — a collision costs ONE trend, never the batch', (
     const at = batchStamp();
 
     await saveTrendingBatch(
-      [item({ name: linked, type: TrendingType.TOPIC, topicId: 'oxy-topic-42' }), item({ name: unlinked })],
+      [
+        item({ name: linked, type: TrendingType.TOPIC, topicId: 'oxy-topic-42' }),
+        item({ name: unlinked }),
+      ],
       at,
     );
 
@@ -252,7 +261,7 @@ describe('getTrending — the wire format is the contract', () => {
 
   it('emits _id, Date timestamps, and OMITS topicId when there is none', async () => {
     /**
-     * Mongoose's `.lean()` gave an ObjectId `_id` that JSON-serialized to a
+     * The legacy ODM's `.lean()` gave an ObjectId `_id` that JSON-serialized to a
      * string, `Date` instants, and NO `topicId` key at all when the field was
      * unset. Postgres would happily hand back `null` for that last one and a raw
      * timestamp STRING for the first two if the query bypassed drizzle's mappers.
@@ -270,16 +279,29 @@ describe('getTrending — the wire format is the contract', () => {
     expect(trend?.calculatedAt).toBeInstanceOf(Date);
     expect(trend?.updatedAt).toBeInstanceOf(Date);
     expect(trend).not.toHaveProperty('topicId');
-    // Mongo bookkeeping that no reader ever looked at must not reappear.
+    // Legacy-store bookkeeping that no reader ever looked at must not reappear.
     expect(trend).not.toHaveProperty('__v');
     // The whole key set, pinned: a NULL column must be OMITTED rather than
     // emitted as `null` (the SDK's zod parse rejects a null where it expects
     // "not there"), so a key appearing here is a claim that the row really
     // carries a value.
     expect(Object.keys(trend ?? {}).sort()).toEqual([
-      '_id', 'authorCount', 'burstScore', 'calculatedAt', 'category', 'description',
-      'displayName', 'momentum', 'name', 'rank', 'scope', 'score', 'startedAt', 'type',
-      'updatedAt', 'volume',
+      '_id',
+      'authorCount',
+      'burstScore',
+      'calculatedAt',
+      'category',
+      'description',
+      'displayName',
+      'momentum',
+      'name',
+      'rank',
+      'scope',
+      'score',
+      'startedAt',
+      'type',
+      'updatedAt',
+      'volume',
     ]);
     // `actorIds` and `languages` are absent here BECAUSE the fixture's are
     // empty: `saveTrendingBatch` writes an empty list as NULL rather than as
@@ -312,7 +334,10 @@ describe('getTrending — the wire format is the contract', () => {
 
     const latest = batchStamp();
     await saveTrendingBatch(
-      [item({ name: newer, score: 50 }), item({ name: newerTopic, type: TrendingType.TOPIC, score: 40 })],
+      [
+        item({ name: newer, score: 50 }),
+        item({ name: newerTopic, type: TrendingType.TOPIC, score: 40 }),
+      ],
       latest,
     );
     await db.insert(trendBatches).values({ calculatedAt: latest, summary: '' });
@@ -341,7 +366,7 @@ describe('getTrending — the wire format is the contract', () => {
 describe('loadVolumeSeries — one series per TERM, in time order', () => {
   it('reads volumes ordered by batch time', async () => {
     /**
-     * Mongo's array happened to be in time order because the planner streamed a
+     * The legacy store's array happened to be in time order because the planner streamed a
      * matching index; `array_agg(... order by calculated_at)` states it. An
      * aggregate's input order is not guaranteed in Postgres, so leaving it out
      * would draw a sparkline whose points are in whatever sequence the planner
@@ -411,8 +436,13 @@ describe('loadVolumeSeries — one series per TERM, in time order', () => {
  * A trend is not language-neutral — `noticia` is a Spanish story and reading it
  * in an Italian list is noise — so the reader's languages decide membership.
  */
-describe('getTrending — the reader\'s languages select the audience', () => {
-  async function publishLanguageBatch(): Promise<{ es: string; it: string; none: string; global: string }> {
+describe("getTrending — the reader's languages select the audience", () => {
+  async function publishLanguageBatch(): Promise<{
+    es: string;
+    it: string;
+    none: string;
+    global: string;
+  }> {
     const es = uniqueName('es-trend');
     const it = uniqueName('it-trend');
     const none = uniqueName('no-lang-trend');
@@ -423,7 +453,14 @@ describe('getTrending — the reader\'s languages select the audience', () => {
         item({ name: it, score: 30, languages: ['it'] }),
         item({ name: none, score: 20, languages: [] }),
         item({ name: es, score: 10, languages: ['es'] }),
-        item({ name: global, score: 5, languages: ['de', 'it'], regions: ['DE', 'IT'], scope: 'global', conceptId: 'world:event' }),
+        item({
+          name: global,
+          score: 5,
+          languages: ['de', 'it'],
+          regions: ['DE', 'IT'],
+          scope: 'global',
+          conceptId: 'world:event',
+        }),
       ],
       at,
     );
@@ -495,7 +532,10 @@ describe('getTrendingHistory — one row per (day, name, type)', () => {
     const marker = uniqueName('tied');
     const at = batchStamp();
     const names = Array.from({ length: 21 }, (_, index) => `${marker}-${index}`);
-    await saveTrendingBatch(names.map((name) => item({ name, score: 5 })), at);
+    await saveTrendingBatch(
+      names.map((name) => item({ name, score: 5 })),
+      at,
+    );
 
     const stored = await db.select().from(trending).where(eq(trending.calculatedAt, at));
     const expected = stored

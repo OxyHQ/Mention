@@ -3,7 +3,7 @@
  *
  * The previous version stubbed the `Poll` model and asserted the SHAPE of the
  * `findOneAndUpdate` filter — it proved a dedup guard was written, never that a
- * duplicate vote failed to land. Mongo supplied the atomicity; Postgres has to
+ * duplicate vote failed to land. The legacy store supplied the atomicity; Postgres has to
  * be shown supplying it, so the assertions here are on `poll_votes` rows.
  *
  * What is load-bearing:
@@ -14,7 +14,7 @@
  *    the first is held by the `select … for update` on the poll row, which the
  *    concurrency test below exercises directly.
  *  - **No voter identity ever comes back, from either side of the anonymity
- *    line.** `options[].votes` used to publish the array of voter ids Mongo
+ *    line.** `options[].votes` used to publish the array of voter ids the legacy store
  *    held for a visible poll (and, for an anonymous one, its own `.length`
  *    under the SAME field — the ambiguity that crashed the poll card). Both are
  *    gone: `voteCount` is unconditionally a number, and `viewerSelectedOptionIds`
@@ -84,7 +84,7 @@ afterAll(async () => {
 });
 
 describe('recordVoteByOptionId — the local HTTP vote route', () => {
-  it('records the vote and returns counts plus the voter\'s own selection', async () => {
+  it("records the vote and returns counts plus the voter's own selection", async () => {
     const { poll, options } = await seedPoll();
     const voter = `voter-${randomUUID()}`;
 
@@ -105,7 +105,7 @@ describe('recordVoteByOptionId — the local HTTP vote route', () => {
     expect(rows[0]).toMatchObject({ optionId: options[1].id, pollId: poll.id, userId: voter });
   });
 
-  it('reports another voter\'s ballot only as a count, never in viewerSelectedOptionIds', async () => {
+  it("reports another voter's ballot only as a count, never in viewerSelectedOptionIds", async () => {
     const { poll, options } = await seedPoll();
     const first = `voter-a-${randomUUID()}`;
     const second = `voter-b-${randomUUID()}`;
@@ -141,7 +141,9 @@ describe('recordVoteByOptionId — the local HTTP vote route', () => {
     const secondVote = await pollVoteService.recordVoteByOptionId(poll.id, options[1].id, voter);
     expect(secondVote.ok).toBe(true);
     if (!secondVote.ok) return;
-    expect(secondVote.poll.viewerSelectedOptionIds.sort()).toEqual([options[0].id, options[1].id].sort());
+    expect(secondVote.poll.viewerSelectedOptionIds.sort()).toEqual(
+      [options[0].id, options[1].id].sort(),
+    );
 
     expect(await pollVoteService.recordVoteByOptionId(poll.id, options[1].id, voter)).toEqual({
       ok: false,
@@ -230,7 +232,7 @@ describe('recordVoteByOptionText — the inbound ActivityPub path', () => {
 });
 
 describe('loadPollHeader', () => {
-  it('reads the poll\'s own columns, with no options and no votes', async () => {
+  it("reads the poll's own columns, with no options and no votes", async () => {
     const { poll } = await seedPoll({ isAnonymous: true });
     const header = await loadPollHeader(db, poll.id);
     expect(header).toMatchObject({
@@ -282,7 +284,11 @@ describe('loadPollSummary', () => {
     const { poll, options } = await seedPoll({ options: ['A', 'B'] });
     const voters = Array.from({ length: 97 }, () => `voter-${randomUUID()}`);
     for (const [index, voter] of voters.entries()) {
-      await pollVoteService.recordVoteByOptionId(poll.id, options[index % 2 === 0 ? 0 : 1].id, voter);
+      await pollVoteService.recordVoteByOptionId(
+        poll.id,
+        options[index % 2 === 0 ? 0 : 1].id,
+        voter,
+      );
     }
     const expectedA = voters.filter((_, index) => index % 2 === 0).length;
     const expectedB = voters.length - expectedA;

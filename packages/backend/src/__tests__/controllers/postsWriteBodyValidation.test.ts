@@ -150,7 +150,10 @@ function post(overrides: Record<string, unknown> = {}) {
 
 /** A two-entry thread whose SECOND entry carries `entry`. */
 function thread(entry: Record<string, unknown>) {
-  return { mode: 'thread', posts: [{ content: { text: 'root' } }, { content: { text: 'tail' }, ...entry }] };
+  return {
+    mode: 'thread',
+    posts: [{ content: { text: 'root' } }, { content: { text: 'tail' }, ...entry }],
+  };
 }
 
 beforeAll(async () => {
@@ -190,7 +193,10 @@ describe('hashtags — a truthy non-array was a 500 on every create path', () =>
   });
 
   it('still accepts the array every composer sends, still lowercased and merged', async () => {
-    const captured = await call(createPost, post({ content: { text: 'a #Post' }, hashtags: ['Cat', 'art'] }));
+    const captured = await call(
+      createPost,
+      post({ content: { text: 'a #Post' }, hashtags: ['Cat', 'art'] }),
+    );
 
     expect(captured.status).toBe(201);
     expect(created[0].hashtags).toEqual(['cat', 'art', 'post']);
@@ -206,7 +212,10 @@ describe('hashtags — a truthy non-array was a 500 on every create path', () =>
   });
 
   it('now bounds the thread and update paths that had NO bound', async () => {
-    const tooMany = await call(createThread, thread({ hashtags: Array.from({ length: 31 }, (_, i) => `t${i}`) }));
+    const tooMany = await call(
+      createThread,
+      thread({ hashtags: Array.from({ length: 31 }, (_, i) => `t${i}`) }),
+    );
     expect(tooMany.status).toBe(400);
     expect(tooMany.body?.message).toContain('Too many hashtags');
 
@@ -216,7 +225,10 @@ describe('hashtags — a truthy non-array was a 500 on every create path', () =>
 
     // The bound itself is unchanged on `POST /posts` — thirty is still fine.
     created.length = 0;
-    const atTheBound = await call(createThread, thread({ hashtags: Array.from({ length: 30 }, (_, i) => `t${i}`) }));
+    const atTheBound = await call(
+      createThread,
+      thread({ hashtags: Array.from({ length: 30 }, (_, i) => `t${i}`) }),
+    );
     expect(atTheBound.status).toBe(201);
   });
 });
@@ -279,7 +291,10 @@ describe('replyPermission — an unchecked `text[]` on BOTH create paths', () =>
   it('refuses an unknown permission', async () => {
     for (const handler of [createPost, createThread] as Handler[]) {
       created.length = 0;
-      const body = handler === createPost ? post({ replyPermission: ['banana'] }) : thread({ replyPermission: ['banana'] });
+      const body =
+        handler === createPost
+          ? post({ replyPermission: ['banana'] })
+          : thread({ replyPermission: ['banana'] });
       const captured = await call(handler, body);
       expect(captured.status).toBe(400);
       expect(captured.body?.message).toContain('replyPermission');
@@ -323,7 +338,10 @@ describe('replyPermission — an unchecked `text[]` on BOTH create paths', () =>
 
 describe('content.poll — inserted verbatim and unbounded', () => {
   it('refuses a question that is not a string, which was stored as "[object Object]"', async () => {
-    const captured = await call(createPost, post({ content: { text: 'p', poll: { question: { $ne: null }, options: ['a', 'b'] } } }));
+    const captured = await call(
+      createPost,
+      post({ content: { text: 'p', poll: { question: { $ne: null }, options: ['a', 'b'] } } }),
+    );
 
     expect(captured.status).toBe(400);
     expect(captured.body?.message).toContain('question');
@@ -331,16 +349,27 @@ describe('content.poll — inserted verbatim and unbounded', () => {
   });
 
   it('refuses options that are not strings, which became options labelled "[object Object]"', async () => {
-    const captured = await call(createPost, post({ content: { text: 'p', poll: { question: 'q', options: [{ text: 'a' }, { text: 'b' }] } } }));
+    const captured = await call(
+      createPost,
+      post({
+        content: { text: 'p', poll: { question: 'q', options: [{ text: 'a' }, { text: 'b' }] } },
+      }),
+    );
 
     expect(captured.status).toBe(400);
     expect(created).toHaveLength(0);
   });
 
   it('bounds the option COUNT, which used to insert one row per element', async () => {
-    const captured = await call(createPost, post({
-      content: { text: 'p', poll: { question: 'q', options: Array.from({ length: 200 }, (_, i) => `o${i}`) } },
-    }));
+    const captured = await call(
+      createPost,
+      post({
+        content: {
+          text: 'p',
+          poll: { question: 'q', options: Array.from({ length: 200 }, (_, i) => `o${i}`) },
+        },
+      }),
+    );
 
     expect(captured.status).toBe(400);
     expect(captured.body?.message).toContain('at most 4 options');
@@ -348,7 +377,10 @@ describe('content.poll — inserted verbatim and unbounded', () => {
   });
 
   it('refuses an EMPTY options array, which published a post carrying an unanswerable poll', async () => {
-    const captured = await call(createPost, post({ content: { text: 'p', poll: { question: 'q', options: [] } } }));
+    const captured = await call(
+      createPost,
+      post({ content: { text: 'p', poll: { question: 'q', options: [] } } }),
+    );
 
     expect(captured.status).toBe(400);
     expect(created).toHaveLength(0);
@@ -357,7 +389,15 @@ describe('content.poll — inserted verbatim and unbounded', () => {
   it('refuses a truthy non-boolean flag, which stored the OPPOSITE of what was asked', async () => {
     // `poll.isMultipleChoice || false` put `'yes'` into a `boolean NOT NULL`
     // column, and the driver resolved it to `false`.
-    const captured = await call(createPost, post({ content: { text: 'p', poll: { question: 'q', options: ['a', 'b'], isMultipleChoice: 'yes' } } }));
+    const captured = await call(
+      createPost,
+      post({
+        content: {
+          text: 'p',
+          poll: { question: 'q', options: ['a', 'b'], isMultipleChoice: 'yes' },
+        },
+      }),
+    );
 
     expect(captured.status).toBe(400);
     expect(captured.body?.message).toContain('isMultipleChoice');
@@ -365,7 +405,10 @@ describe('content.poll — inserted verbatim and unbounded', () => {
   });
 
   it('refuses a malformed poll on a thread ENTRY before any entry is written', async () => {
-    const captured = await call(createThread, thread({ content: { text: 'tail', poll: { question: 'q', options: 'ab' } } }));
+    const captured = await call(
+      createThread,
+      thread({ content: { text: 'tail', poll: { question: 'q', options: 'ab' } } }),
+    );
 
     expect(captured.status).toBe(400);
     // The thread path never wrapped `createPollWithOptions` in a `try`, so this
@@ -384,8 +427,18 @@ describe('content.poll — inserted verbatim and unbounded', () => {
       // With no question typed it sends the post body instead, which may be far
       // longer than the 280 `POST /polls` allows.
       ['the post body as the question', { question: 'x'.repeat(1_000), options: ['a', 'b'] }],
-      ['an explicit deadline', { question: 'Which?', options: ['a', 'b'], endTime: new Date(Date.now() + 86_400_000).toISOString() }],
-      ['both booleans', { question: 'Which?', options: ['a', 'b'], isMultipleChoice: true, isAnonymous: true }],
+      [
+        'an explicit deadline',
+        {
+          question: 'Which?',
+          options: ['a', 'b'],
+          endTime: new Date(Date.now() + 86_400_000).toISOString(),
+        },
+      ],
+      [
+        'both booleans',
+        { question: 'Which?', options: ['a', 'b'], isMultipleChoice: true, isAnonymous: true },
+      ],
     ];
 
     for (const [label, poll] of cases) {
@@ -397,12 +450,36 @@ describe('content.poll — inserted verbatim and unbounded', () => {
   });
 
   it('still refuses a deadline in the past, and one beyond the maximum duration', async () => {
-    const past = await call(createPost, post({ content: { text: 'p', poll: { question: 'q', options: ['a', 'b'], endTime: new Date(Date.now() - 1_000).toISOString() } } }));
+    const past = await call(
+      createPost,
+      post({
+        content: {
+          text: 'p',
+          poll: {
+            question: 'q',
+            options: ['a', 'b'],
+            endTime: new Date(Date.now() - 1_000).toISOString(),
+          },
+        },
+      }),
+    );
     expect(past.status).toBe(400);
     expect(past.body?.message).toContain('future');
 
     created.length = 0;
-    const tooFar = await call(createPost, post({ content: { text: 'p', poll: { question: 'q', options: ['a', 'b'], endTime: new Date(Date.now() + 400 * 86_400_000).toISOString() } } }));
+    const tooFar = await call(
+      createPost,
+      post({
+        content: {
+          text: 'p',
+          poll: {
+            question: 'q',
+            options: ['a', 'b'],
+            endTime: new Date(Date.now() + 400 * 86_400_000).toISOString(),
+          },
+        },
+      }),
+    );
     expect(tooFar.status).toBe(400);
     expect(tooFar.body?.message).toContain('duration');
   });
@@ -410,17 +487,33 @@ describe('content.poll — inserted verbatim and unbounded', () => {
   it('still accepts a thread poll deadline the single-post path would refuse', async () => {
     // `POST /posts/thread` has never applied the future/duration bounds, and
     // applying them here would refuse threads that publish today.
-    const past = await call(createThread, thread({
-      content: { text: 'tail', poll: { question: 'q', options: ['a', 'b'], endTime: new Date(Date.now() - 1_000).toISOString() } },
-    }));
+    const past = await call(
+      createThread,
+      thread({
+        content: {
+          text: 'tail',
+          poll: {
+            question: 'q',
+            options: ['a', 'b'],
+            endTime: new Date(Date.now() - 1_000).toISOString(),
+          },
+        },
+      }),
+    );
 
     expect(past.status).toBe(201);
   });
 
   it('refuses an UNREADABLE thread poll deadline, which was `ends_at` NOT NULL raised mid-batch', async () => {
-    const captured = await call(createThread, thread({
-      content: { text: 'tail', poll: { question: 'q', options: ['a', 'b'], endTime: 'not a date' } },
-    }));
+    const captured = await call(
+      createThread,
+      thread({
+        content: {
+          text: 'tail',
+          poll: { question: 'q', options: ['a', 'b'], endTime: 'not a date' },
+        },
+      }),
+    );
 
     expect(captured.status).toBe(400);
     expect(created).toHaveLength(0);
@@ -431,7 +524,10 @@ describe('the refusals stay behind the 401', () => {
   it('answers 401, not 400, for an unauthenticated caller with a malformed body', async () => {
     for (const handler of [createPost, createThread] as Handler[]) {
       const { res, captured } = buildResponse();
-      const req = { ...buildRequest({ hashtags: 'cat', posts: [{ hashtags: 'cat' }] }), user: undefined };
+      const req = {
+        ...buildRequest({ hashtags: 'cat', posts: [{ hashtags: 'cat' }] }),
+        user: undefined,
+      };
       await handler(req as never, res as never);
       expect(captured.status).toBe(401);
     }

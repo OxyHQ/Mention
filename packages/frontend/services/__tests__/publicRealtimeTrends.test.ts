@@ -89,10 +89,7 @@ jest.mock('socket.io-client', () => ({
 import { api } from '@/utils/api';
 import { publicRealtimeService } from '@/services/publicRealtimeService';
 import { useTrendsStore } from '@/stores/trendsStore';
-import {
-  PUBLIC_REALTIME_EVENTS,
-  PUBLIC_REALTIME_NAMESPACE,
-} from '@mention/shared-types';
+import { PUBLIC_REALTIME_EVENTS, PUBLIC_REALTIME_NAMESPACE } from '@mention/shared-types';
 
 const mockApiGet = api.get as jest.Mock;
 
@@ -201,9 +198,9 @@ describe('trends:updated → trendsStore', () => {
     publicRealtimeService.disconnect();
 
     expect(socket.disconnectCalls).toBe(1);
-    expect(() =>
-      socket.emitFromServer(PUBLIC_REALTIME_EVENTS.TRENDS_UPDATED, {}),
-    ).toThrow(/nothing is listening/);
+    expect(() => socket.emitFromServer(PUBLIC_REALTIME_EVENTS.TRENDS_UPDATED, {})).toThrow(
+      /nothing is listening/,
+    );
   });
 });
 

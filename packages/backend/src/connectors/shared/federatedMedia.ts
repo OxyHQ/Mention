@@ -53,12 +53,16 @@ export async function materializeFederatedMedia(
       continue;
     }
 
-    const persistedResult = await persistRemoteMediaForFederatedOwnerDetailed(remoteUrl, ownerOxyUserId, {
-      remoteHost: getRemoteHost(remoteUrl),
-      activityId: context.activityId,
-      actorUri: context.actorUri,
-      mediaType: item.type === 'video' ? 'video' : 'image',
-    });
+    const persistedResult = await persistRemoteMediaForFederatedOwnerDetailed(
+      remoteUrl,
+      ownerOxyUserId,
+      {
+        remoteHost: getRemoteHost(remoteUrl),
+        activityId: context.activityId,
+        actorUri: context.actorUri,
+        mediaType: item.type === 'video' ? 'video' : 'image',
+      },
+    );
 
     if (!persistedResult.ok) {
       if (persistedResult.reason === 'owned-elsewhere') {

@@ -1,9 +1,6 @@
 import { DecisionSchema, type Decision } from '@crowdsource.you/contracts';
 import type { ModerationEnforcementAction } from '@mention/shared-types';
-import {
-  applyDecisionToReport,
-  findReportsForCase,
-} from '../../db/moderation/reportRepository';
+import { applyDecisionToReport, findReportsForCase } from '../../db/moderation/reportRepository';
 import { logger } from '../../utils/logger';
 import { applyDecisionEnforcement } from './ModerationEnforcementService';
 import type { ModerationOutboxEvent } from '../../db/moderation/moderationOutboxRepository';
@@ -103,14 +100,10 @@ function primaryAction(
 }
 
 /** Handle one `decision.apply` outbox event. */
-export async function applyDecisionOutboxEvent(
-  event: ModerationOutboxEvent,
-): Promise<void> {
+export async function applyDecisionOutboxEvent(event: ModerationOutboxEvent): Promise<void> {
   const caseId = event.payload.caseId;
   if (caseId === undefined) {
-    throw new ModerationDecisionRejectedError(
-      'A decision.apply event carried no caseId.',
-    );
+    throw new ModerationDecisionRejectedError('A decision.apply event carried no caseId.');
   }
 
   /**
@@ -140,9 +133,7 @@ export async function applyDecisionOutboxEvent(
      * this deployment is still being written, or while a delivery is being retried.
      * Backing off is correct; dead-lettering would throw the decision away.
      */
-    throw new ModerationDecisionDeferredError(
-      `No local report is linked to case ${caseId} yet.`,
-    );
+    throw new ModerationDecisionDeferredError(`No local report is linked to case ${caseId} yet.`);
   }
 
   /**

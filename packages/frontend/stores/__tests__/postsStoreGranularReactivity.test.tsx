@@ -56,10 +56,7 @@ jest.mock('@/db', () => ({
     mockPostReadCounts.set(postId, (mockPostReadCounts.get(postId) ?? 0) + 1);
     return mockPosts.get(postId) ?? null;
   },
-  updatePost: (
-    postId: string,
-    updater: (previous: FeedItem) => FeedItem | null | undefined
-  ) => {
+  updatePost: (postId: string, updater: (previous: FeedItem) => FeedItem | null | undefined) => {
     const previous = mockPosts.get(postId);
     if (!previous) return null;
     const next = updater(previous);
@@ -76,11 +73,7 @@ jest.mock('@/db', () => ({
     mockFeedIds.set(feedKey, posts.map(mockResolvePostId).filter(Boolean));
     mockFeedMeta.set(feedKey, meta);
   },
-  appendFeedItems: (
-    feedKey: string,
-    posts: FeedItem[],
-    meta: Partial<FeedMetaData>
-  ) => {
+  appendFeedItems: (feedKey: string, posts: FeedItem[], meta: Partial<FeedMetaData>) => {
     mockUpsertPosts(posts);
     const current = mockFeedIds.get(feedKey) ?? [];
     const next = [...current];
@@ -120,16 +113,21 @@ jest.mock('@/db', () => ({
   removePostFromAllFeeds: (postId: string) => {
     for (const [feedKey, postIds] of mockFeedIds) {
       if (postIds.includes(postId)) {
-        mockFeedIds.set(feedKey, postIds.filter((id) => id !== postId));
+        mockFeedIds.set(
+          feedKey,
+          postIds.filter((id) => id !== postId),
+        );
       }
     }
   },
   removeFeedItem: (feedKey: string, postId: string) => {
     const current = mockFeedIds.get(feedKey) ?? [];
-    mockFeedIds.set(feedKey, current.filter((id) => id !== postId));
+    mockFeedIds.set(
+      feedKey,
+      current.filter((id) => id !== postId),
+    );
   },
-  buildFeedKey: (type: string, userId?: string) =>
-    userId ? `user:${userId}:${type}` : type,
+  buildFeedKey: (type: string, userId?: string) => (userId ? `user:${userId}:${type}` : type),
   getDb: () => null,
   rowToFeedItem: (row: FeedItem) => row,
   clearAllCachedData: () => mockClearAllCachedData(),
@@ -137,12 +135,9 @@ jest.mock('@/db', () => ({
 
 jest.mock('@/services/feedService', () => ({
   feedService: {
-    getSavedPosts: (...args: unknown[]) =>
-      mockFeedService.getSavedPosts(...args),
-    getUserFeed: (...args: unknown[]) =>
-      mockFeedService.getUserFeed(...args),
-    getPostById: (...args: unknown[]) =>
-      mockFeedService.getPostById(...args),
+    getSavedPosts: (...args: unknown[]) => mockFeedService.getSavedPosts(...args),
+    getUserFeed: (...args: unknown[]) => mockFeedService.getUserFeed(...args),
+    getPostById: (...args: unknown[]) => mockFeedService.getPostById(...args),
     saveItem: (...args: unknown[]) => mockFeedService.saveItem(...args),
     unsaveItem: (...args: unknown[]) => mockFeedService.unsaveItem(...args),
   },
@@ -174,41 +169,41 @@ jest.mock('@oxy.so/core/logger', () => ({
 }));
 
 const makePost = (id: string): FeedItem => ({
-    id,
-    user: { id: `user-${id}`, username: `user-${id}`, name: { displayName: id } },
-    authors: [],
-    content: { text: id },
-    attachments: {},
-    documents: [],
-    viewerState: {
-      isOwner: false,
-      isCollaborator: false,
-      isLiked: false,
-      isDownvoted: false,
-      isBoosted: false,
-      isSaved: false,
-    },
-    permissions: {
-      canReply: true,
-      canDelete: false,
-      canPin: false,
-      canViewSources: false,
-    },
-    engagement: {
-      likes: 0,
-      downvotes: 0,
-      boosts: 0,
-      replies: 0,
-      saves: 0,
-      views: null,
-      impressions: null,
-    },
-    metadata: {
-      visibility: PostVisibility.PUBLIC,
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:00.000Z',
-    },
-  });
+  id,
+  user: { id: `user-${id}`, username: `user-${id}`, name: { displayName: id } },
+  authors: [],
+  content: { text: id },
+  attachments: {},
+  documents: [],
+  viewerState: {
+    isOwner: false,
+    isCollaborator: false,
+    isLiked: false,
+    isDownvoted: false,
+    isBoosted: false,
+    isSaved: false,
+  },
+  permissions: {
+    canReply: true,
+    canDelete: false,
+    canPin: false,
+    canViewSources: false,
+  },
+  engagement: {
+    likes: 0,
+    downvotes: 0,
+    boosts: 0,
+    replies: 0,
+    saves: 0,
+    views: null,
+    impressions: null,
+  },
+  metadata: {
+    visibility: PostVisibility.PUBLIC,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  },
+});
 
 function PostProbe({
   postId,
@@ -232,13 +227,7 @@ function ViewCountProbe({
   return null;
 }
 
-function FeedProbe({
-  type,
-  onRender,
-}: {
-  type: FeedType;
-  onRender: (items: FeedItem[]) => void;
-}) {
+function FeedProbe({ type, onRender }: { type: FeedType; onRender: (items: FeedItem[]) => void }) {
   onRender(useFeedSelector(type).items);
   return null;
 }
@@ -356,7 +345,7 @@ describe('postsStore keyed SQLite reactivity', () => {
           <PostProbe postId={postB.id} onRender={postBRenders} />
           <FeedProbe type="posts" onRender={postsFeedRenders} />
           <FeedProbe type="following" onRender={followingFeedRenders} />
-        </>
+        </>,
       );
     });
 
@@ -406,7 +395,7 @@ describe('postsStore keyed SQLite reactivity', () => {
           <FeedProbe type="posts" onRender={postsRenders} />
           <FeedProbe type="following" onRender={followingRenders} />
           <FeedProbe type="saved" onRender={savedRenders} />
-        </>
+        </>,
       );
     });
 
@@ -435,7 +424,7 @@ describe('postsStore keyed SQLite reactivity', () => {
 
   it('bounds public post and feed snapshot reads', () => {
     const boundedPosts = Array.from({ length: 1_001 }, (_, index) =>
-      makePost(`bounded-post-${index}`)
+      makePost(`bounded-post-${index}`),
     );
     for (const post of boundedPosts) mockPosts.set(post.id, post);
 
@@ -446,20 +435,17 @@ describe('postsStore keyed SQLite reactivity', () => {
           {boundedPosts.map((post) => (
             <PostProbe key={post.id} postId={post.id} onRender={() => undefined} />
           ))}
-        </>
+        </>,
       );
     });
-    const firstPostReadsBeforeRemount =
-      mockPostReadCounts.get(boundedPosts[0].id) ?? 0;
+    const firstPostReadsBeforeRemount = mockPostReadCounts.get(boundedPosts[0].id) ?? 0;
     act(() => postRenderer.unmount());
     act(() => {
       postRenderer = TestRenderer.create(
-        <PostProbe postId={boundedPosts[0].id} onRender={() => undefined} />
+        <PostProbe postId={boundedPosts[0].id} onRender={() => undefined} />,
       );
     });
-    expect(mockPostReadCounts.get(boundedPosts[0].id)).toBe(
-      firstPostReadsBeforeRemount + 1
-    );
+    expect(mockPostReadCounts.get(boundedPosts[0].id)).toBe(firstPostReadsBeforeRemount + 1);
     act(() => postRenderer.unmount());
 
     const userIds = Array.from({ length: 101 }, (_, index) => `bounded-user-${index}`);
@@ -470,7 +456,7 @@ describe('postsStore keyed SQLite reactivity', () => {
           {userIds.map((userId) => (
             <UserFeedProbe key={userId} userId={userId} onRender={() => undefined} />
           ))}
-        </>
+        </>,
       );
     });
     const firstFeedKey = mockBuildFeedKey('posts', userIds[0]);
@@ -478,12 +464,10 @@ describe('postsStore keyed SQLite reactivity', () => {
     act(() => feedRenderer.unmount());
     act(() => {
       feedRenderer = TestRenderer.create(
-        <UserFeedProbe userId={userIds[0]} onRender={() => undefined} />
+        <UserFeedProbe userId={userIds[0]} onRender={() => undefined} />,
       );
     });
-    expect(mockFeedReadCounts.get(firstFeedKey)).toBe(
-      firstFeedReadsBeforeRemount + 1
-    );
+    expect(mockFeedReadCounts.get(firstFeedKey)).toBe(firstFeedReadsBeforeRemount + 1);
     act(() => feedRenderer.unmount());
   });
 
@@ -505,12 +489,8 @@ describe('postsStore keyed SQLite reactivity', () => {
       );
     });
 
-    expect(postRenders).toHaveBeenLastCalledWith(
-      expect.objectContaining({ id: privatePost.id }),
-    );
-    expect(feedRenders).toHaveBeenLastCalledWith([
-      expect.objectContaining({ id: privatePost.id }),
-    ]);
+    expect(postRenders).toHaveBeenLastCalledWith(expect.objectContaining({ id: privatePost.id }));
+    expect(feedRenders).toHaveBeenLastCalledWith([expect.objectContaining({ id: privatePost.id })]);
 
     act(() => {
       usePostsStore.getState().resetViewerState();
@@ -526,15 +506,14 @@ describe('postsStore keyed SQLite reactivity', () => {
   });
 
   it('discards an old viewer response that settles after the reset', async () => {
-    let resolveRequest!: (value: {
-      data: { posts: FeedItem[]; hasMore: boolean };
-    }) => void;
+    let resolveRequest!: (value: { data: { posts: FeedItem[]; hasMore: boolean } }) => void;
     let requestSignal: AbortSignal | undefined;
     mockFeedService.getSavedPosts.mockImplementationOnce(
-      (request: { signal?: AbortSignal }) => new Promise((resolve) => {
-        requestSignal = request.signal;
-        resolveRequest = resolve;
-      }),
+      (request: { signal?: AbortSignal }) =>
+        new Promise((resolve) => {
+          requestSignal = request.signal;
+          resolveRequest = resolve;
+        }),
     );
 
     let request!: Promise<void>;
@@ -562,38 +541,30 @@ describe('postsStore keyed SQLite reactivity', () => {
   });
 
   it('aborts profile and detail reads at an identity boundary', async () => {
-    let resolveProfile!: (value: {
-      items: FeedItem[];
-      hasMore: boolean;
-      pending: boolean;
-    }) => void;
+    let resolveProfile!: (value: { items: FeedItem[]; hasMore: boolean; pending: boolean }) => void;
     let resolveDetail!: (value: FeedItem) => void;
     let profileSignal: AbortSignal | undefined;
     let detailSignal: AbortSignal | undefined;
 
     mockFeedService.getUserFeed.mockImplementationOnce(
-      (
-        _userId: string,
-        _request: unknown,
-        options: { signal?: AbortSignal },
-      ) => new Promise((resolve) => {
-        profileSignal = options.signal;
-        resolveProfile = resolve;
-      }),
+      (_userId: string, _request: unknown, options: { signal?: AbortSignal }) =>
+        new Promise((resolve) => {
+          profileSignal = options.signal;
+          resolveProfile = resolve;
+        }),
     );
     mockFeedService.getPostById.mockImplementationOnce(
-      (_postId: string, signal?: AbortSignal) => new Promise((resolve) => {
-        detailSignal = signal;
-        resolveDetail = resolve;
-      }),
+      (_postId: string, signal?: AbortSignal) =>
+        new Promise((resolve) => {
+          detailSignal = signal;
+          resolveDetail = resolve;
+        }),
     );
 
     let profileRequest!: Promise<{ pending: boolean }>;
     let detailRequest!: Promise<unknown>;
     act(() => {
-      profileRequest = usePostsStore
-        .getState()
-        .fetchUserFeed('profile-a', { type: 'media' });
+      profileRequest = usePostsStore.getState().fetchUserFeed('profile-a', { type: 'media' });
       detailRequest = usePostsStore.getState().getPostById('private-post');
     });
 
@@ -659,9 +630,7 @@ describe('postsStore server-authoritative counts', () => {
       const renders = jest.fn();
       let renderer!: TestRenderer.ReactTestRenderer;
       act(() => {
-        renderer = TestRenderer.create(
-          <ViewCountProbe postId="viewed" onRender={renders} />
-        );
+        renderer = TestRenderer.create(<ViewCountProbe postId="viewed" onRender={renders} />);
       });
       renders.mockClear();
 
@@ -696,7 +665,7 @@ describe('postsStore server-authoritative counts', () => {
       let renderer!: TestRenderer.ReactTestRenderer;
       act(() => {
         renderer = TestRenderer.create(
-          <PostProbe postId="viewed-quietly" onRender={postRenders} />
+          <PostProbe postId="viewed-quietly" onRender={postRenders} />,
         );
       });
       postRenders.mockClear();
@@ -724,9 +693,7 @@ describe('postsStore server-authoritative counts', () => {
       const renders = jest.fn();
       let renderer!: TestRenderer.ReactTestRenderer;
       act(() => {
-        renderer = TestRenderer.create(
-          <ViewCountProbe postId="rewritten" onRender={renders} />
-        );
+        renderer = TestRenderer.create(<ViewCountProbe postId="rewritten" onRender={renders} />);
       });
       renders.mockClear();
 
@@ -752,7 +719,7 @@ describe('postsStore server-authoritative counts', () => {
           <>
             <ViewCountProbe postId="not-in-the-store" onRender={uncachedRenders} />
             <ViewCountProbe postId="counted" onRender={hiddenRenders} />
-          </>
+          </>,
         );
       });
 
@@ -796,9 +763,7 @@ describe('postsStore server-authoritative counts', () => {
       const renders = jest.fn();
       let renderer!: TestRenderer.ReactTestRenderer;
       act(() => {
-        renderer = TestRenderer.create(
-          <ViewCountProbe postId="unchanged" onRender={renders} />
-        );
+        renderer = TestRenderer.create(<ViewCountProbe postId="unchanged" onRender={renders} />);
       });
       renders.mockClear();
 
@@ -943,7 +908,9 @@ describe('postsStore server-authoritative counts', () => {
 
     it('saving post A does not re-render the row for post B', async () => {
       act(() => {
-        usePostsStore.getState().addPostsToFeed([makePost('hook-save-a'), makePost('hook-save-b')], 'posts');
+        usePostsStore
+          .getState()
+          .addPostsToFeed([makePost('hook-save-a'), makePost('hook-save-b')], 'posts');
       });
       mockFeedService.saveItem.mockResolvedValue({ success: true, data: { message: 'ok' } });
       const rendersA = jest.fn();
@@ -954,7 +921,7 @@ describe('postsStore server-authoritative counts', () => {
           <>
             <RowProbe postId="hook-save-a" onRender={rendersA} />
             <RowProbe postId="hook-save-b" onRender={rendersB} />
-          </>
+          </>,
         );
       });
       const beforeA = rendersA.mock.calls.length;

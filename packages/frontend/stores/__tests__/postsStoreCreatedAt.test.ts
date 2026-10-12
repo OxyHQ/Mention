@@ -95,7 +95,16 @@ function original(
     documents: [],
     user: author,
     authors: [],
-    engagement: { likes: 0, downvotes: 0, boosts: 0, replies: 0, saves: 0, views: null, impressions: null, ...engagement },
+    engagement: {
+      likes: 0,
+      downvotes: 0,
+      boosts: 0,
+      replies: 0,
+      saves: 0,
+      views: null,
+      impressions: null,
+      ...engagement,
+    },
     ...view,
     metadata: {
       visibility: PostVisibility.PUBLIC,
@@ -113,7 +122,15 @@ function boost(view: typeof strangerView, embedded: HydratedPostSummary): Hydrat
     documents: [],
     user: author,
     authors: [],
-    engagement: { likes: 0, downvotes: 0, boosts: 0, replies: 0, saves: 0, views: null, impressions: null },
+    engagement: {
+      likes: 0,
+      downvotes: 0,
+      boosts: 0,
+      replies: 0,
+      saves: 0,
+      views: null,
+      impressions: null,
+    },
     ...view,
     metadata: {
       visibility: PostVisibility.PUBLIC,
@@ -152,7 +169,9 @@ describe('postsStore keeps a post’s createdAt (#1140 item 23)', () => {
 
     // 1. Publish: the create response, hydrated for the author.
     mockFeedService.createPost.mockResolvedValue({ success: true, post: original(ownerView) });
-    await store().createPost({ content: { text: 'QA test post from Android - please ignore' } } as never);
+    await store().createPost({
+      content: { text: 'QA test post from Android - please ignore' },
+    } as never);
     expect(store().getPostFromDb(ORIGINAL_ID)).not.toBeNull();
     expectDatesKept('create');
 
@@ -166,7 +185,10 @@ describe('postsStore keeps a post’s createdAt (#1140 item 23)', () => {
     expectDatesKept('boost');
 
     // 4. The boost's own broadcast, embedding the original.
-    store().addPostsToFeed([boost(strangerView, original(strangerView, { boosts: 1 })) as FeedItem], 'following');
+    store().addPostsToFeed(
+      [boost(strangerView, original(strangerView, { boosts: 1 })) as FeedItem],
+      'following',
+    );
     expectDatesKept('feed:updated boost');
 
     // 5. A room's counter event (what `socketService` applies).
@@ -177,7 +199,11 @@ describe('postsStore keeps a post’s createdAt (#1140 item 23)', () => {
     expectDatesKept('engagement event');
 
     // 6. The profile feed as production served it: the boost, then the original.
-    const later = original(strangerView, { likes: 2, boosts: 1, replies: 1 }, '2026-09-25T11:09:42.633Z');
+    const later = original(
+      strangerView,
+      { likes: 2, boosts: 1, replies: 1 },
+      '2026-09-25T11:09:42.633Z',
+    );
     mockFeedService.getUserFeed.mockResolvedValue({
       items: [boost(strangerView, later), later],
       hasMore: false,

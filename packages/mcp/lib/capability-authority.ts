@@ -3,10 +3,10 @@ import {
   capabilityTicketClaimsSchema,
   policyDecisionSchema,
   type CapabilityTicketClaims,
-} from "@oxy.so/contracts";
-import { oxyServiceClient } from "./oxy-service-client.js";
-import { z } from "zod/v4";
-import type { McpHttpConfig } from "./config.js";
+} from '@oxy.so/contracts';
+import { oxyServiceClient } from './oxy-service-client.js';
+import { z } from 'zod/v4';
+import type { McpHttpConfig } from './config.js';
 
 const introspectionEnvelopeSchema = z.object({
   active: z.boolean(),
@@ -28,10 +28,7 @@ export interface MentionCapabilityAuthority {
 }
 
 export function createMentionCapabilityAuthority(
-  config: Pick<
-    McpHttpConfig,
-    "oxyApiUrl" | "oxyServiceApiKey" | "oxyServiceApiSecret"
-  >,
+  config: Pick<McpHttpConfig, 'oxyApiUrl' | 'oxyServiceApiKey' | 'oxyServiceApiSecret'>,
 ): MentionCapabilityAuthority {
   const oxy = oxyServiceClient(config);
 
@@ -39,10 +36,10 @@ export function createMentionCapabilityAuthority(
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const serviceToken = await oxy.serviceToken();
       const response = await fetch(`${config.oxyApiUrl}${path}`, {
-        method: "POST",
+        method: 'POST',
         headers: {
           authorization: `Bearer ${serviceToken}`,
-          "content-type": "application/json",
+          'content-type': 'application/json',
         },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(10_000),
@@ -55,18 +52,20 @@ export function createMentionCapabilityAuthority(
         // Oxy's own reason (`insufficient_service_scope`, `missing_application_capability`…)
         // is what tells an operator WHICH grant is missing; the status alone
         // made a binding without `capabilities:read` an anonymous 503.
-        const reason = (await response.text().catch(() => "")).slice(0, 200);
-        throw new Error(`Oxy capability authority returned ${response.status}${reason ? `: ${reason}` : ""}`);
+        const reason = (await response.text().catch(() => '')).slice(0, 200);
+        throw new Error(
+          `Oxy capability authority returned ${response.status}${reason ? `: ${reason}` : ''}`,
+        );
       }
       return response.json();
     }
-    throw new Error("Oxy capability authority rejected refreshed service credentials");
+    throw new Error('Oxy capability authority rejected refreshed service credentials');
   };
 
   return {
     async introspect(ticket) {
       const envelope = introspectionEnvelopeSchema.parse(
-        await request("/capabilities/tickets/introspect", { ticket }),
+        await request('/capabilities/tickets/introspect', { ticket }),
       );
       if (!envelope.active || envelope.claims === undefined || envelope.decision === undefined) {
         return null;
@@ -77,7 +76,7 @@ export function createMentionCapabilityAuthority(
     },
 
     async audit(input) {
-      await request("/capabilities/audit", {
+      await request('/capabilities/audit', {
         ticket: input.ticket,
         result: input.result,
         rollback: { supported: input.rollbackSupported, attempted: false },

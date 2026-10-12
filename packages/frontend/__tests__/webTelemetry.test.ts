@@ -40,19 +40,14 @@ describe('web telemetry cardinality guards', () => {
   });
 
   it('removes identifiers from route labels', () => {
-    expect(__webTelemetryForTests.routeBucket('/p/507f1f77bcf86cd799439011'))
-      .toBe('/post');
-    expect(__webTelemetryForTests.routeBucket('/@alice@remote.example'))
-      .toBe('/profile');
-    expect(__webTelemetryForTests.routeBucket('/unknown/private-value'))
-      .toBe('/other');
+    expect(__webTelemetryForTests.routeBucket('/p/507f1f77bcf86cd799439011')).toBe('/post');
+    expect(__webTelemetryForTests.routeBucket('/@alice@remote.example')).toBe('/profile');
+    expect(__webTelemetryForTests.routeBucket('/unknown/private-value')).toBe('/other');
   });
 
   it('maps browser-specific history restores to the bounded vocabulary', () => {
-    expect(__webTelemetryForTests.normalizeNavigation('back-forward-cache'))
-      .toBe('back-forward');
-    expect(__webTelemetryForTests.normalizeNavigation('unexpected'))
-      .toBe('other');
+    expect(__webTelemetryForTests.normalizeNavigation('back-forward-cache')).toBe('back-forward');
+    expect(__webTelemetryForTests.normalizeNavigation('unexpected')).toBe('other');
   });
 
   it('stays inert when the anonymous capability probe does not opt in', async () => {
@@ -87,15 +82,13 @@ describe('web telemetry cardinality guards', () => {
 
   it('registers and removes listeners only after an explicit capability', async () => {
     jest.useFakeTimers();
-    const fetchMock = jest.fn().mockImplementation(
-      async (_url: string, options?: RequestInit) => (
-        options?.method === 'GET'
-          ? {
-              ok: true,
-              json: async () => ({ capabilities: { webTelemetry: true } }),
-            }
-          : { ok: true, json: async () => ({}) }
-      ),
+    const fetchMock = jest.fn().mockImplementation(async (_url: string, options?: RequestInit) =>
+      options?.method === 'GET'
+        ? {
+            ok: true,
+            json: async () => ({ capabilities: { webTelemetry: true } }),
+          }
+        : { ok: true, json: async () => ({}) },
     );
     Object.defineProperty(globalThis, 'fetch', {
       configurable: true,
@@ -125,12 +118,10 @@ describe('web telemetry cardinality guards', () => {
 
   it('aborts an in-flight probe without registering listeners or posting', () => {
     let probeSignal: AbortSignal | undefined;
-    const fetchMock = jest.fn().mockImplementation(
-      (_url: string, options?: RequestInit) => {
-        probeSignal = options?.signal ?? undefined;
-        return new Promise(() => undefined);
-      },
-    );
+    const fetchMock = jest.fn().mockImplementation((_url: string, options?: RequestInit) => {
+      probeSignal = options?.signal ?? undefined;
+      return new Promise(() => undefined);
+    });
     Object.defineProperty(globalThis, 'fetch', {
       configurable: true,
       value: fetchMock,
@@ -170,13 +161,13 @@ describe('web telemetry cardinality guards', () => {
 
   describe('boot milestones and document attribution', () => {
     function enabledFetch(): jest.Mock {
-      const fetchMock = jest.fn().mockImplementation(
-        async (_url: string, options?: RequestInit) => (
+      const fetchMock = jest
+        .fn()
+        .mockImplementation(async (_url: string, options?: RequestInit) =>
           options?.method === 'GET'
             ? { ok: true, json: async () => ({ capabilities: { webTelemetry: true } }) }
-            : { ok: true, json: async () => ({}) }
-        ),
-      );
+            : { ok: true, json: async () => ({}) },
+        );
       Object.defineProperty(globalThis, 'fetch', { configurable: true, value: fetchMock });
       return fetchMock;
     }
@@ -210,7 +201,13 @@ describe('web telemetry cardinality guards', () => {
 
       const milestones = postedEvents(fetchMock).filter((event) => event.type === 'milestone');
       expect(milestones).toEqual([
-        { type: 'milestone', name: 'route-mounted', value: 1234, navigation: 'navigate', route: '/' },
+        {
+          type: 'milestone',
+          name: 'route-mounted',
+          value: 1234,
+          navigation: 'navigate',
+          route: '/',
+        },
       ]);
       expect(performance.mark).toHaveBeenCalledTimes(1);
       expect(performance.mark).toHaveBeenCalledWith('mention:route-mounted');
@@ -233,9 +230,15 @@ describe('web telemetry cardinality guards', () => {
     it('keeps page-lifetime metrics on the landing route after a client-side navigation', () => {
       // LCP/CLS/INP arrive late (often on `pagehide`); by then the reader may
       // be on another route, which must not inherit the landing page's vitals.
-      Object.defineProperty(window, 'location', { configurable: true, value: { pathname: '/@alice' } });
+      Object.defineProperty(window, 'location', {
+        configurable: true,
+        value: { pathname: '/@alice' },
+      });
       const cleanup = initializeWebTelemetry();
-      Object.defineProperty(window, 'location', { configurable: true, value: { pathname: '/explore' } });
+      Object.defineProperty(window, 'location', {
+        configurable: true,
+        value: { pathname: '/explore' },
+      });
       expect(__webTelemetryForTests.documentRoute()).toBe('/profile');
       cleanup();
     });

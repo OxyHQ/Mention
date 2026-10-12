@@ -1,6 +1,6 @@
-import express, { Request, Response } from "express";
+import express, { Request, Response } from 'express';
 import { and, desc, eq, gte, max, sql } from 'drizzle-orm';
-import { HASHTAG_TOKEN_SOURCE } from "@mention/shared-types/hashtags";
+import { HASHTAG_TOKEN_SOURCE } from '@mention/shared-types/hashtags';
 import { getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
@@ -12,9 +12,9 @@ import {
   taggedPublicPosts,
   UNNESTED_TAG,
 } from '../services/search/hashtagSearch';
-import { resolveVariant } from "../services/postVariants";
-import { logger } from "../utils/logger";
-import { queryInt, queryString } from "../utils/queryParams";
+import { resolveVariant } from '../services/postVariants';
+import { logger } from '../utils/logger';
+import { queryInt, queryString } from '../utils/queryParams';
 
 const router = express.Router();
 
@@ -49,11 +49,14 @@ function parseSearchQuery(value: unknown): string | null {
 
 // Public routes
 // Get all hashtags
-router.get("/", async (req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     // Default to TRENDING_HASHTAG_LIMIT and enforce it as the maximum. An
     // unparseable `?limit` used to reach the aggregation as `$limit: NaN` (a 500).
-    const limit = Math.max(1, Math.min(queryInt(req.query.limit) || TRENDING_HASHTAG_LIMIT, TRENDING_HASHTAG_LIMIT));
+    const limit = Math.max(
+      1,
+      Math.min(queryInt(req.query.limit) || TRENDING_HASHTAG_LIMIT, TRENDING_HASHTAG_LIMIT),
+    );
 
     // An unparseable `?days` keeps its long-standing meaning of "no time window"
     // (all-time counts); only an absent one falls back to the default window.
@@ -72,101 +75,111 @@ router.get("/", async (req: Request, res: Response) => {
       limit,
       Number.isNaN(days) ? undefined : days,
       async (): Promise<TrendingHashtagRow[]> => {
-    // Primary window aggregation (overall within optional `days`)
-    const windowRows = await getDb()
-      .select({
-        tag: UNNESTED_TAG,
-        count: sql<number>`count(*)::int`,
-        latest: max(posts.createdAt),
-      })
-      .from(posts)
-      .innerJoin(sql`lateral unnest(${posts.hashtags}) as tag(value)`, sql`true`)
-      .where(taggedPublicPosts(since ? gte(posts.createdAt, since) : undefined))
-      .groupBy(UNNESTED_TAG)
-      .orderBy(desc(sql`count(*)`), desc(max(posts.createdAt)))
-      .limit(limit);
+        // Primary window aggregation (overall within optional `days`)
+        const windowRows = await getDb()
+          .select({
+            tag: UNNESTED_TAG,
+            count: sql<number>`count(*)::int`,
+            latest: max(posts.createdAt),
+          })
+          .from(posts)
+          .innerJoin(sql`lateral unnest(${posts.hashtags}) as tag(value)`, sql`true`)
+          .where(taggedPublicPosts(since ? gte(posts.createdAt, since) : undefined))
+          .groupBy(UNNESTED_TAG)
+          .orderBy(desc(sql`count(*)`), desc(max(posts.createdAt)))
+          .limit(limit);
 
-    let agg: Array<{
-      id: string;
-      text: string;
-      hashtag: string;
-      count: number;
-      created_at: Date;
-      direction?: 'up' | 'down' | 'flat';
-    }> = windowRows.map((row) => ({
-      id: row.tag,
-      text: row.tag,
-      hashtag: `#${row.tag}`,
-      count: row.count,
-      created_at: row.latest ?? new Date(0),
-    }));
+        let agg: Array<{
+          id: string;
+          text: string;
+          hashtag: string;
+          count: number;
+          created_at: Date;
+          direction?: 'up' | 'down' | 'flat';
+        }> = windowRows.map((row) => ({
+          id: row.tag,
+          text: row.tag,
+          hashtag: `#${row.tag}`,
+          count: row.count,
+          created_at: row.latest ?? new Date(0),
+        }));
 
-    // Trend direction (recent vs previous 24h windows)
-    const now = new Date();
-    const recentStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const prevStart = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+        // Trend direction (recent vs previous 24h windows)
+        const now = new Date();
+        const recentStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        const prevStart = new Date(now.getTime() - 48 * 60 * 60 * 1000);
 
-    const [recentMap, prevMap] = await Promise.all([
-      countTagsInWindow(recentStart),
-      countTagsInWindow(prevStart, recentStart),
-    ]);
-    agg = agg.map((x) => {
-      const id = (x.id || '').toLowerCase();
-      const r = recentMap.get(id) || 0;
-      const p = prevMap.get(id) || 0;
-      let direction: 'up' | 'down' | 'flat' = 'flat';
-      if (r > p) direction = 'up'; else if (p > r) direction = 'down';
-      return { ...x, direction };
-    });
+        const [recentMap, prevMap] = await Promise.all([
+          countTagsInWindow(recentStart),
+          countTagsInWindow(prevStart, recentStart),
+        ]);
+        agg = agg.map((x) => {
+          const id = (x.id || '').toLowerCase();
+          const r = recentMap.get(id) || 0;
+          const p = prevMap.get(id) || 0;
+          let direction: 'up' | 'down' | 'flat' = 'flat';
+          if (r > p) direction = 'up';
+          else if (p > r) direction = 'down';
+          return { ...x, direction };
+        });
 
-    // Fallback: if no stored hashtags yet, derive from post content.text.
-    // This scans post bodies and regex-extracts inline #tags, so it MUST stay
-    // bounded — an unbounded scan would load every public text post into memory.
-    // Two guards: a recent-window floor on `createdAt` (never wider than
-    // FALLBACK_WINDOW_MS, even when no `days` filter was supplied) and a hard
-    // document cap via `.limit()` on the newest posts.
-    if (!agg || agg.length === 0) {
-      const FALLBACK_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
-      const FALLBACK_SCAN_LIMIT = 1000;
-      const fallbackFloor = new Date(Date.now() - FALLBACK_WINDOW_MS);
-      // Honor a caller-supplied window but never let it exceed the floor.
-      const fallbackSince = since && since > fallbackFloor ? since : fallbackFloor;
-      const scanned = await findPostRecords(
-        and(
-          eq(posts.visibility, 'public'),
-          notCollapsedCrosspostSql(),
-          gte(posts.createdAt, fallbackSince),
-        ),
-        { orderBy: CHRONO_DESC, limit: FALLBACK_SCAN_LIMIT },
-      );
-      const counts: Record<string, { c: number; latest: Date }> = {};
-      for (const p of scanned) {
-        // Scan the PRIMARY rendition: an author writing the same post in two
-        // languages uses the same hashtags in both, so counting every variant
-        // would double-count the tag for a bilingual post. A post with no
-        // rendition resolves to an empty body and contributes nothing, which is
-        // what the `content.variants.0` existence probe used to express.
-        const text: string = resolveVariant(p.content).text;
-        const createdAt = p.createdAt;
-        // Same shared hashtag definition the extractor and the linkifiers use,
-        // so this fallback cannot count a different set of tags than the stored
-        // one. Occurrences are NOT deduplicated here — a tag repeated within a
-        // post counts once per use, which is what the primary aggregation does.
-        const matches = text.match(new RegExp(HASHTAG_TOKEN_SOURCE, 'gu')) || [];
-        for (const raw of matches) {
-          const tag = raw.replace(/^#/, '').toLowerCase();
-          if (!counts[tag]) counts[tag] = { c: 0, latest: createdAt };
-          counts[tag].c += 1;
-          if (createdAt > counts[tag].latest) counts[tag].latest = createdAt;
+        // Fallback: if no stored hashtags yet, derive from post content.text.
+        // This scans post bodies and regex-extracts inline #tags, so it MUST stay
+        // bounded — an unbounded scan would load every public text post into memory.
+        // Two guards: a recent-window floor on `createdAt` (never wider than
+        // FALLBACK_WINDOW_MS, even when no `days` filter was supplied) and a hard
+        // document cap via `.limit()` on the newest posts.
+        if (!agg || agg.length === 0) {
+          const FALLBACK_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+          const FALLBACK_SCAN_LIMIT = 1000;
+          const fallbackFloor = new Date(Date.now() - FALLBACK_WINDOW_MS);
+          // Honor a caller-supplied window but never let it exceed the floor.
+          const fallbackSince = since && since > fallbackFloor ? since : fallbackFloor;
+          const scanned = await findPostRecords(
+            and(
+              eq(posts.visibility, 'public'),
+              notCollapsedCrosspostSql(),
+              gte(posts.createdAt, fallbackSince),
+            ),
+            { orderBy: CHRONO_DESC, limit: FALLBACK_SCAN_LIMIT },
+          );
+          const counts: Record<string, { c: number; latest: Date }> = {};
+          for (const p of scanned) {
+            // Scan the PRIMARY rendition: an author writing the same post in two
+            // languages uses the same hashtags in both, so counting every variant
+            // would double-count the tag for a bilingual post. A post with no
+            // rendition resolves to an empty body and contributes nothing, which is
+            // what the `content.variants.0` existence probe used to express.
+            const text: string = resolveVariant(p.content).text;
+            const createdAt = p.createdAt;
+            // Same shared hashtag definition the extractor and the linkifiers use,
+            // so this fallback cannot count a different set of tags than the stored
+            // one. Occurrences are NOT deduplicated here — a tag repeated within a
+            // post counts once per use, which is what the primary aggregation does.
+            const matches = text.match(new RegExp(HASHTAG_TOKEN_SOURCE, 'gu')) || [];
+            for (const raw of matches) {
+              const tag = raw.replace(/^#/, '').toLowerCase();
+              if (!counts[tag]) counts[tag] = { c: 0, latest: createdAt };
+              counts[tag].c += 1;
+              if (createdAt > counts[tag].latest) counts[tag].latest = createdAt;
+            }
+          }
+          const fallbackArr = Object.entries(counts)
+            .map(([id, v]) => ({
+              id,
+              text: id,
+              hashtag: `#${id}`,
+              count: v.c,
+              created_at: v.latest,
+            }))
+            .sort((a, b) => b.count - a.count || b.created_at.getTime() - a.created_at.getTime())
+            .slice(0, limit);
+          // Compute simple direction for fallback (no previous window available): mark as 'up' if count > 0
+          agg = fallbackArr.map((x) => ({
+            ...x,
+            direction: (x.count > 0 ? 'up' : 'flat') as 'up' | 'flat',
+          }));
         }
-      }
-      const fallbackArr = Object.entries(counts)
-        .map(([id, v]) => ({ id, text: id, hashtag: `#${id}`, count: v.c, created_at: v.latest }))
-        .sort((a, b) => (b.count - a.count) || (b.created_at.getTime() - a.created_at.getTime()))
-        .slice(0, limit);
-      // Compute simple direction for fallback (no previous window available): mark as 'up' if count > 0
-      agg = fallbackArr.map((x) => ({ ...x, direction: (x.count > 0 ? 'up' : 'flat') as 'up' | 'flat' }));
-    }
 
         // `created_at` is serialized HERE, not left as a `Date`.
         //
@@ -184,7 +197,7 @@ router.get("/", async (req: Request, res: Response) => {
     res.json({ hashtags });
   } catch (error) {
     logger.error('[Hashtags] Error fetching hashtags:', { error, query: req.query });
-    res.status(500).json({ message: "Error fetching hashtags from posts", error });
+    res.status(500).json({ message: 'Error fetching hashtags from posts', error });
   }
 });
 
@@ -197,7 +210,7 @@ router.get('/search', async (req: Request, res: Response) => {
   if (!query) {
     return res.status(400).json({
       error: 'Invalid request',
-      message: 'Search query is required'
+      message: 'Search query is required',
     });
   }
 
@@ -205,7 +218,10 @@ router.get('/search', async (req: Request, res: Response) => {
   // default; a negative/tampered `?offset` floors at 0. `$limit: offset + limit`
   // stays sane no matter what the client sends.
   const offset = Math.max(0, queryInt(req.query.offset) ?? 0);
-  const limit = Math.min(Math.max(1, queryInt(req.query.limit) || HASHTAG_SEARCH_DEFAULT_LIMIT), HASHTAG_SEARCH_MAX_LIMIT);
+  const limit = Math.min(
+    Math.max(1, queryInt(req.query.limit) || HASHTAG_SEARCH_DEFAULT_LIMIT),
+    HASHTAG_SEARCH_MAX_LIMIT,
+  );
 
   try {
     const { results, hasMore } = await searchHashtagsWithCounts(query, offset, limit);
@@ -214,7 +230,7 @@ router.get('/search', async (req: Request, res: Response) => {
     logger.error('[Hashtags] Error searching hashtags:', { error, searchQuery: query });
     return res.status(500).json({
       error: 'Server error',
-      message: 'Error searching hashtags'
+      message: 'Error searching hashtags',
     });
   }
 });
@@ -227,7 +243,7 @@ router.post('/search', async (req: Request, res: Response) => {
   if (!query) {
     return res.status(400).json({
       error: 'Invalid request',
-      message: 'Search query is required'
+      message: 'Search query is required',
     });
   }
 
@@ -238,7 +254,7 @@ router.post('/search', async (req: Request, res: Response) => {
     logger.error('[Hashtags] Error in searchHashtags:', { error, searchQuery: query });
     return res.status(500).json({
       error: 'Server error',
-      message: 'Error searching hashtags'
+      message: 'Error searching hashtags',
     });
   }
 });

@@ -20,11 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { authenticatedClient } from '@/utils/api';
 import { createLogger } from '@oxy.so/core/logger';
-import {
-  viewerCacheId,
-  viewerStorageKey,
-  type ViewerId,
-} from '@/lib/viewerQueryKeys';
+import { viewerCacheId, viewerStorageKey, type ViewerId } from '@/lib/viewerQueryKeys';
 import { createKeyedAsyncQueue } from '@/lib/keyedAsyncQueue';
 import type {
   EmbedPlayerSource,
@@ -43,8 +39,7 @@ let activeViewerId = viewerCacheId(null);
 let hydrationGeneration = 0;
 const enqueueExternalEmbedsStorage = createKeyedAsyncQueue();
 
-const cacheKeyForViewer = (viewerId: ViewerId) =>
-  viewerStorageKey(CACHE_KEY, viewerId);
+const cacheKeyForViewer = (viewerId: ViewerId) => viewerStorageKey(CACHE_KEY, viewerId);
 
 interface ExternalEmbedsState {
   prefs: ExternalEmbedsSettings;
@@ -86,20 +81,12 @@ export const useExternalEmbedsStore = create<ExternalEmbedsState>((set, get) => 
     if (cacheReadForViewer !== normalizedViewerId) {
       cacheReadForViewer = normalizedViewerId;
       try {
-        const cached = await enqueueExternalEmbedsStorage(
-          normalizedViewerId,
-          async () => {
-            if (
-              generation !== hydrationGeneration ||
-              activeViewerId !== normalizedViewerId
-            ) return null;
-            return AsyncStorage.getItem(storageKey);
-          },
-        );
-        if (
-          generation !== hydrationGeneration ||
-          activeViewerId !== normalizedViewerId
-        ) return;
+        const cached = await enqueueExternalEmbedsStorage(normalizedViewerId, async () => {
+          if (generation !== hydrationGeneration || activeViewerId !== normalizedViewerId)
+            return null;
+          return AsyncStorage.getItem(storageKey);
+        });
+        if (generation !== hydrationGeneration || activeViewerId !== normalizedViewerId) return;
         if (cached) {
           set({ prefs: JSON.parse(cached) as ExternalEmbedsSettings });
         }
@@ -110,10 +97,7 @@ export const useExternalEmbedsStore = create<ExternalEmbedsState>((set, get) => 
 
     // 2. Server is authoritative — but only reachable once the private API is up.
     if (!canFetch) {
-      if (
-        generation === hydrationGeneration &&
-        activeViewerId === normalizedViewerId
-      ) {
+      if (generation === hydrationGeneration && activeViewerId === normalizedViewerId) {
         set({ hydrated: true });
       }
       return;
@@ -121,27 +105,15 @@ export const useExternalEmbedsStore = create<ExternalEmbedsState>((set, get) => 
 
     try {
       const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
-      if (
-        generation !== hydrationGeneration ||
-        activeViewerId !== normalizedViewerId
-      ) return;
+      if (generation !== hydrationGeneration || activeViewerId !== normalizedViewerId) return;
       const serverPrefs = response.data?.externalEmbeds;
       if (serverPrefs) {
         set({ prefs: serverPrefs, hydrated: true });
         try {
-          await enqueueExternalEmbedsStorage(
-            normalizedViewerId,
-            async () => {
-              if (
-                generation !== hydrationGeneration ||
-                activeViewerId !== normalizedViewerId
-              ) return;
-              await AsyncStorage.setItem(
-                storageKey,
-                JSON.stringify(serverPrefs),
-              );
-            },
-          );
+          await enqueueExternalEmbedsStorage(normalizedViewerId, async () => {
+            if (generation !== hydrationGeneration || activeViewerId !== normalizedViewerId) return;
+            await AsyncStorage.setItem(storageKey, JSON.stringify(serverPrefs));
+          });
         } catch (error) {
           logger.debug('Failed to cache external-embed prefs', { error });
         }
@@ -168,25 +140,16 @@ export const useExternalEmbedsStore = create<ExternalEmbedsState>((set, get) => 
 
     try {
       await authenticatedClient.put('/profile/settings', { externalEmbeds: patch });
-      if (
-        generation !== hydrationGeneration ||
-        activeViewerId !== viewerId
-      ) return;
+      if (generation !== hydrationGeneration || activeViewerId !== viewerId) return;
       // Best-effort cache write — it doesn't gate the mutation, so don't await it.
       void enqueueExternalEmbedsStorage(viewerId, async () => {
-        if (
-          generation !== hydrationGeneration ||
-          activeViewerId !== viewerId
-        ) return;
+        if (generation !== hydrationGeneration || activeViewerId !== viewerId) return;
         await AsyncStorage.setItem(storageKey, JSON.stringify(next));
       }).catch((error) => {
-          logger.debug('Failed to cache external-embed prefs', { error });
-        });
+        logger.debug('Failed to cache external-embed prefs', { error });
+      });
     } catch (error) {
-      if (
-        generation !== hydrationGeneration ||
-        activeViewerId !== viewerId
-      ) return;
+      if (generation !== hydrationGeneration || activeViewerId !== viewerId) return;
       logger.error('Failed to persist external-embed prefs', error);
       set({ prefs: previous });
     }
@@ -198,12 +161,11 @@ export const useExternalEmbedsStore = create<ExternalEmbedsState>((set, get) => 
     activeViewerId = viewerCacheId(null);
     set({ prefs: {}, hydrated: false });
     const normalizedViewerId = viewerCacheId(viewerId);
-    void enqueueExternalEmbedsStorage(
-      normalizedViewerId,
-      () => AsyncStorage.removeItem(cacheKeyForViewer(viewerId)),
+    void enqueueExternalEmbedsStorage(normalizedViewerId, () =>
+      AsyncStorage.removeItem(cacheKeyForViewer(viewerId)),
     ).catch((error) => {
-        logger.debug('Failed to remove external-embed cache', { error });
-      });
+      logger.debug('Failed to remove external-embed cache', { error });
+    });
   },
 }));
 

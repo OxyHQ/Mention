@@ -44,7 +44,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
 }));
 
 vi.mock('../../utils/privacyHelpers', async (importOriginal) => ({
-  ...await importOriginal<typeof import('../../utils/privacyHelpers')>(),
+  ...(await importOriginal<typeof import('../../utils/privacyHelpers')>()),
   getBlockedUserIds: vi.fn(async () => []),
   getRestrictedUserIds: vi.fn(async () => []),
 }));
@@ -108,7 +108,13 @@ describe('PostHydrationService — community notes', () => {
     cacheStore.clear();
     getUsersByIds.mockReset();
     getUsersByIds.mockResolvedValue([
-      { id: AUTHOR_OXY_ID, username: 'author', name: { displayName: 'Author' }, badges: [], verified: false },
+      {
+        id: AUTHOR_OXY_ID,
+        username: 'author',
+        name: { displayName: 'Author' },
+        badges: [],
+        verified: false,
+      },
     ]);
     loadShownNotes.mockReset();
     loadShownNotes.mockResolvedValue(new Map());

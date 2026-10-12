@@ -1,5 +1,8 @@
 import { config } from '../../config';
-import type { FederatedActorRecord, InstagramGraphSyncResult } from '../../db/federation/actorRecord';
+import type {
+  FederatedActorRecord,
+  InstagramGraphSyncResult,
+} from '../../db/federation/actorRecord';
 import {
   claimInstagramGraphSync,
   findActorById,
@@ -29,7 +32,11 @@ import {
   SYNC_DEADLINE_MS,
   SYNC_LEASE_TTL_MS,
 } from './constants';
-import { importInstagramMedia, type InstagramImportOptions, type InstagramImportResult } from './importer';
+import {
+  importInstagramMedia,
+  type InstagramImportOptions,
+  type InstagramImportResult,
+} from './importer';
 
 /**
  * WHEN an Instagram account's posts are read, and how much each occasion may
@@ -54,7 +61,9 @@ import { importInstagramMedia, type InstagramImportOptions, type InstagramImport
 export type InstagramSyncTrigger = 'profile_view' | 'follow' | 'periodic';
 
 /** Is this actor's identity on Instagram (kilogram bridge or Graph)? */
-export function isInstagramIdentityActor(actor: Pick<FederatedActorRecord, 'protocol' | 'networkAcct'>): boolean {
+export function isInstagramIdentityActor(
+  actor: Pick<FederatedActorRecord, 'protocol' | 'networkAcct'>,
+): boolean {
   return actor.protocol === 'instagram-graph' || instagramUsernameOfActor(actor) !== undefined;
 }
 
@@ -104,7 +113,9 @@ export function cooldownFor(trigger: InstagramSyncTrigger): number {
  * the ordinary cooldown, and — because it is not `ok` — the next run walks
  * history again instead of stopping at the first known post.
  */
-export function syncResultFor(outcome: InstagramImportResult['outcome']): InstagramGraphSyncResult | null {
+export function syncResultFor(
+  outcome: InstagramImportResult['outcome'],
+): InstagramGraphSyncResult | null {
   switch (outcome) {
     case 'ok':
       return 'ok';
@@ -150,18 +161,22 @@ export async function syncInstagramActor(
       staleLease: new Date(now.getTime() - SYNC_LEASE_TTL_MS),
     });
   } catch (err) {
-    logger.error('[instagram] failed to claim Graph sync', { error: err instanceof Error ? err.message : String(err) });
+    logger.error('[instagram] failed to claim Graph sync', {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return null;
   }
   if (!claimed) return null;
 
   let result: InstagramImportResult | null = null;
   try {
-    const isKilogram = actor.protocol === 'activitypub' && INSTAGRAM_AP_BRIDGE_HOSTS.has(actor.domain.toLowerCase());
+    const isKilogram =
+      actor.protocol === 'activitypub' && INSTAGRAM_AP_BRIDGE_HOSTS.has(actor.domain.toLowerCase());
     // The id the username must still answer with: the pin from the first
     // successful sync, or — for a Graph-only actor — the id in its own URI.
-    const expectedIgUserId = actor.instagramGraphUserId
-      ?? (actor.protocol === 'instagram-graph' ? igUserIdFromActorUri(actor.uri) : undefined);
+    const expectedIgUserId =
+      actor.instagramGraphUserId ??
+      (actor.protocol === 'instagram-graph' ? igUserIdFromActorUri(actor.uri) : undefined);
     result = await importInstagramMedia(
       {
         username,
@@ -174,12 +189,17 @@ export async function syncInstagramActor(
     );
 
     const answered = result.profile;
-    if (answered && (result.outcome === 'ok' || result.outcome === 'partial' || result.outcome === 'deadline')) {
+    if (
+      answered &&
+      (result.outcome === 'ok' || result.outcome === 'partial' || result.outcome === 'deadline')
+    ) {
       if (!actor.instagramGraphUserId) await pinInstagramGraphUserId(actor.id, answered.id);
       const walked = result.historyWalked;
       if (walked.items > 0 || walked.exhausted) {
         // An exhausted listing has no deeper history: record it as fully walked.
-        const depth = walked.exhausted ? Math.max(walked.items, config.instagramGraph.followBackfillLimit) : walked.items;
+        const depth = walked.exhausted
+          ? Math.max(walked.items, config.instagramGraph.followBackfillLimit)
+          : walked.items;
         await recordInstagramGraphHistoryDepth(actor.id, depth);
       }
       // An `instagram-graph` actor has no other source for its counts.
@@ -199,12 +219,17 @@ export async function syncInstagramActor(
     });
     return result;
   } catch (err) {
-    logger.warn('[instagram] Graph sync failed', { trigger, error: err instanceof Error ? err.message : String(err) });
+    logger.warn('[instagram] Graph sync failed', {
+      trigger,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return null;
   } finally {
     const stamp = result ? syncResultFor(result.outcome) : 'error';
     await releaseInstagramGraphSync(actor.id, now, stamp).catch((err) => {
-      logger.warn('[instagram] failed to release Graph sync lease', { error: err instanceof Error ? err.message : String(err) });
+      logger.warn('[instagram] failed to release Graph sync lease', {
+        error: err instanceof Error ? err.message : String(err),
+      });
     });
   }
 }
@@ -215,19 +240,27 @@ export async function syncInstagramActor(
  * boot) — run it detached in this process. The lease and cooldown still decide
  * inside, so an over-eager caller costs a lookup, not Graph budget.
  */
-export function requestInstagramSync(actor: FederatedActorRecord, trigger: 'profile_view' | 'follow'): void {
+export function requestInstagramSync(
+  actor: FederatedActorRecord,
+  trigger: 'profile_view' | 'follow',
+): void {
   void (async () => {
     try {
       if (await enqueueInstagramGraphSync({ actorId: actor.id, trigger })) return;
     } catch (err) {
-      logger.warn('[instagram] could not queue Graph sync; running it here', { error: err instanceof Error ? err.message : String(err) });
+      logger.warn('[instagram] could not queue Graph sync; running it here', {
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
     await syncInstagramActor(actor, trigger);
   })().catch(() => undefined);
 }
 
 /** The queue worker's body: re-read the actor (the job carries only its id) and sync it. */
-export async function runQueuedInstagramSync(actorId: string, trigger: 'profile_view' | 'follow'): Promise<void> {
+export async function runQueuedInstagramSync(
+  actorId: string,
+  trigger: 'profile_view' | 'follow',
+): Promise<void> {
   const actor = await findActorById(actorId);
   if (!actor) return;
   await syncInstagramActor(actor, trigger);
@@ -263,8 +296,14 @@ export async function runPeriodicInstagramSync(): Promise<{ synced: number; impo
     if (!result) return;
     synced += 1;
     imported += result.imported;
-    if (['budget', 'throttled', 'token_invalid', 'disabled'].includes(result.outcome)) blocked = true;
+    if (['budget', 'throttled', 'token_invalid', 'disabled'].includes(result.outcome))
+      blocked = true;
   });
-  logger.info('[instagram] periodic Graph sync', { candidates: candidates.length, synced, imported, blocked });
+  logger.info('[instagram] periodic Graph sync', {
+    candidates: candidates.length,
+    synced,
+    imported,
+    blocked,
+  });
   return { synced, imported };
 }

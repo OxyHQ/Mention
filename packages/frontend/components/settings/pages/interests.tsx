@@ -2,21 +2,21 @@ import {
   useFollowedTopics,
   useTopicFollowTargetId,
   type FollowedTopic,
-} from "@/hooks/useTopicFollows";
-import { publicQueryKeys } from "@/lib/viewerQueryKeys";
-import { topicFollowUri } from "@/services/followGraph";
-import { topicService } from "@/services/topicService";
-import { Button } from "@oxy.so/bloom/button";
-import { Loading } from "@oxy.so/bloom/loading";
-import { Search } from "@oxy.so/bloom/search";
-import { SettingsCard, SettingsSection } from "@oxy.so/bloom/settings-modal";
-import type { TopicData } from "@oxy.so/core";
-import { resolveFollowPrimaryAction, useFollowTarget } from "@oxy.so/services/ui/client";
-import { OxyAuthPrompt, useAuth } from "@oxy.so/services/ui/client";
-import { useQuery } from "@tanstack/react-query";
-import { useCallback, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { Text, View } from "react-native";
+} from '@/hooks/useTopicFollows';
+import { publicQueryKeys } from '@/lib/viewerQueryKeys';
+import { topicFollowUri } from '@/services/followGraph';
+import { topicService } from '@/services/topicService';
+import { Button } from '@oxy.so/bloom/button';
+import { Loading } from '@oxy.so/bloom/loading';
+import { Search } from '@oxy.so/bloom/search';
+import { SettingsCard, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import type { TopicData } from '@oxy.so/core';
+import { resolveFollowPrimaryAction, useFollowTarget } from '@oxy.so/services/ui/client';
+import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
+import { useQuery } from '@tanstack/react-query';
+import { useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Text, View } from 'react-native';
 
 /**
  * Your interests — a searchable grid of topics, where selecting one FOLLOWS it.
@@ -40,7 +40,7 @@ export default function InterestsSettingsScreen() {
 
   const { canUsePrivateApi, isPrivateApiPending } = useAuth();
 
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const trimmedQuery = query.trim();
 
   /*
@@ -80,11 +80,11 @@ export default function InterestsSettingsScreen() {
     return (
       <View className="gap-4">
         <OxyAuthPrompt
-          label={t("settings.interests.signInRequired", {
-            defaultValue: "Sign in to choose your interests",
+          label={t('settings.interests.signInRequired', {
+            defaultValue: 'Sign in to choose your interests',
           })}
-          description={t("settings.interests.signInRequiredDesc", {
-            defaultValue: "Pick topics so we can tailor your feed.",
+          description={t('settings.interests.signInRequiredDesc', {
+            defaultValue: 'Pick topics so we can tailor your feed.',
           })}
         />
       </View>
@@ -100,26 +100,25 @@ export default function InterestsSettingsScreen() {
             onValueChange={setQuery}
             autoCapitalize="none"
             autoCorrect={false}
-            placeholder={t("settings.interests.searchPlaceholder", {
-              defaultValue: "Search topics",
+            placeholder={t('settings.interests.searchPlaceholder', {
+              defaultValue: 'Search topics',
             })}
-            accessibilityLabel={t("settings.interests.searchLabel", {
-              defaultValue: "Search topics",
+            accessibilityLabel={t('settings.interests.searchLabel', {
+              defaultValue: 'Search topics',
             })}
-            label={t("settings.interests.searchLabel", {
-              defaultValue: "Search topics",
+            label={t('settings.interests.searchLabel', {
+              defaultValue: 'Search topics',
             })}
-            onClearText={() => setQuery("")}
+            onClearText={() => setQuery('')}
           />
         </View>
 
         <SettingsSection
-          label={t("settings.interests.title", {
-            defaultValue: "Your interests",
+          label={t('settings.interests.title', {
+            defaultValue: 'Your interests',
           })}
-          description={t("settings.interests.description", {
-            defaultValue:
-              "Topics you follow shape your feed, and come with you to every Oxy app.",
+          description={t('settings.interests.description', {
+            defaultValue: 'Topics you follow shape your feed, and come with you to every Oxy app.',
           })}
         >
           <SettingsCard>
@@ -131,12 +130,12 @@ export default function InterestsSettingsScreen() {
               <View className="px-4 py-6">
                 <Text className="text-[13px] text-muted-foreground">
                   {trimmedQuery.length > 0
-                    ? t("settings.interests.noMatches", {
+                    ? t('settings.interests.noMatches', {
                         query: trimmedQuery,
-                        defaultValue: "No topics match “{{query}}”.",
+                        defaultValue: 'No topics match “{{query}}”.',
                       })
-                    : t("settings.interests.noTopics", {
-                        defaultValue: "No topics are available yet.",
+                    : t('settings.interests.noTopics', {
+                        defaultValue: 'No topics are available yet.',
                       })}
                 </Text>
               </View>
@@ -181,13 +180,9 @@ function TopicChip({ topic, seeded, followsReady }: TopicChipProps) {
     ...(seeded ? { seededTargetId: seeded.targetId } : {}),
   });
 
-  const follow = useFollowTarget(
-    targetId,
-    seeded ? { initialStatus: seeded.status } : undefined,
-  );
+  const follow = useFollowTarget(targetId, seeded ? { initialStatus: seeded.status } : undefined);
 
-  const isOffHere =
-    follow.isFollowing && follow.status.applicationMode === "disabled";
+  const isOffHere = follow.isFollowing && follow.status.applicationMode === 'disabled';
 
   /*
    * The SDK decides WHAT a press means; this only routes its answer to the
@@ -206,13 +201,13 @@ function TopicChip({ topic, seeded, followsReady }: TopicChipProps) {
       applicationMode: follow.status.applicationMode,
     });
     switch (action) {
-      case "follow":
+      case 'follow':
         void follow.follow();
         return;
-      case "enable-here":
+      case 'enable-here':
         void follow.enableHere();
         return;
-      case "unfollow":
+      case 'unfollow':
         void follow.unfollow();
         return;
       default: {
@@ -234,24 +229,24 @@ function TopicChip({ topic, seeded, followsReady }: TopicChipProps) {
   return (
     <Button
       size="sm"
-      appearance={follow.isFollowing && !isOffHere ? "solid" : "subtle"}
+      appearance={follow.isFollowing && !isOffHere ? 'solid' : 'subtle'}
       tone="neutral"
       onPress={onPress}
       disabled={disabled}
       accessibilityLabel={
         isOffHere
-          ? t("settings.interests.chipOffHere", {
+          ? t('settings.interests.chipOffHere', {
               topic: label,
-              defaultValue: "Show {{topic}} in Mention again",
+              defaultValue: 'Show {{topic}} in Mention again',
             })
           : follow.isFollowing
-            ? t("settings.interests.chipUnfollow", {
+            ? t('settings.interests.chipUnfollow', {
                 topic: label,
-                defaultValue: "Unfollow {{topic}}",
+                defaultValue: 'Unfollow {{topic}}',
               })
-            : t("settings.interests.chipFollow", {
+            : t('settings.interests.chipFollow', {
                 topic: label,
-                defaultValue: "Follow {{topic}}",
+                defaultValue: 'Follow {{topic}}',
               })
       }
       aria-pressed={follow.isFollowing && !isOffHere}

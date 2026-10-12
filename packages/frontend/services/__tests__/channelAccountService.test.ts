@@ -93,14 +93,15 @@ describe('channelAccountService.getSettings', () => {
    * Tells `=== true` from `Boolean(...)`: only a truthy NON-boolean makes the two
    * readings disagree, and the loose one would name the human who wrote the post.
    */
-  it.each([['the string "false"', 'false'], ['the number 1', 1], ['an object', {}]])(
-    'refuses to read %s as consent to name the writer',
-    async (_label, value) => {
-      mockGet.mockResolvedValue({ data: { channel: { signPosts: value } } });
+  it.each([
+    ['the string "false"', 'false'],
+    ['the number 1', 1],
+    ['an object', {}],
+  ])('refuses to read %s as consent to name the writer', async (_label, value) => {
+    mockGet.mockResolvedValue({ data: { channel: { signPosts: value } } });
 
-      await expect(channelAccountService.getSettings(CHANNEL)).resolves.toEqual({ signPosts: false });
-    },
-  );
+    await expect(channelAccountService.getSettings(CHANNEL)).resolves.toEqual({ signPosts: false });
+  });
 });
 
 describe('channelAccountService.setSignPosts', () => {

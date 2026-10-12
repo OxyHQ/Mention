@@ -51,7 +51,9 @@ let shellInFlight: Promise<string | null> | null = null;
  * Fetch the shell, conditionally when a copy is held. A 304 keeps the copy and
  * renews its trust; anything unusable returns null (never throws).
  */
-async function fetchShellHtml(held: ShellCache | null): Promise<{ html: string; etag: string | null } | null> {
+async function fetchShellHtml(
+  held: ShellCache | null,
+): Promise<{ html: string; etag: string | null } | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SHELL_FETCH_TIMEOUT_MS);
   try {

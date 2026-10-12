@@ -96,7 +96,10 @@ function makePrivacyCountingOxyClient() {
 }
 
 /** A one-source ranked definition over `candidate`, hydrated by the engine. */
-function singleSourceRun(id: string, candidate: CandidatePost): {
+function singleSourceRun(
+  id: string,
+  candidate: CandidatePost,
+): {
   engine: FeedEngine;
   definition: FeedDefinition;
 } {

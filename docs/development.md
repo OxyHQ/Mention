@@ -10,12 +10,15 @@ working in this repository day to day. Coverage policy specifically:
 bun run dev / dev:frontend / dev:backend / dev:mcp / dev:mcp:http
 bun run build            # shared-types + backend + mcp
 bun run test / lint / check / clean
+bun run lint:fix / format   # Biome
 ```
+
+- **Biome formats and lints every package** (`biome.jsonc` at the root, run in CI as `bunx biome ci .`). `packages/frontend/eslint.config.js` is a deliberately minimal ESLint run by `expo lint .` over the whole frontend: only the Expo env-var rules, the React Compiler diagnostics and a few `eslint-plugin-react` checks Biome has no equivalent for. The frontend's import guards (the `@oxy.so/bloom/icons` barrel, `@expo/vector-icons`, expo-video's `VideoView`) are Biome `noRestrictedImports` overrides. Suppress with `// biome-ignore lint/<group>/<rule>: <reason>`.
 
 - **Run backend tests from the package root** (`cd packages/backend && bun run test`) — from the repo root they pick up stale `.dist` copies and report false failures.
 - **Rebuild `shared-types` before believing a red typecheck or build.** It is consumed through its BUILT `dist`, so after a rebase every other package compiles against the previous build and reports newly-landed symbols as missing (`TS2305`) in files you never touched.
 - **A `doctor` failure SIGINTs the rest of `check:workspace`** — the killed siblings are not broken and which ones die varies per run. Re-run the survivors individually (`validate:workflows`, `validate:lockfile`, `validate:i18n`, `validate:logger`, `audit:security`) before believing any of them failed.
-- **The backend and MCP run on Bun, not Node**, typed `["node","bun"]`; `@types/bun` is catalogued at the exact `packageManager` version and doctor fails on drift. The frontend stays Node-typed.
+- **The backend and MCP run on Bun, not Node**, typed `["node","bun"]`; `@types/bun` is catalogued at an exact version on `packageManager`'s major.minor, no newer than it (DefinitelyTyped trails Bun releases), and doctor fails on drift. Every `FROM oven/bun:<tag>`, workflow `BUN_VERSION` and `setup-bun` version must equal `packageManager` exactly (`validate:bun-pins`). The frontend stays Node-typed.
 - **Do not try to replace a dependency with a Bun built-in here.** `Bun.YAML` loses duplicate-key detection (breaks `scripts/validate-workflows.mjs`). `Bun.redis` has no `multi`/`exec`/`watch`. `Bun.Image` is not reachable from `expo prebuild`'s Node. `bun test` replaces neither Vitest (backend) nor Jest (frontend). The global virtual store is unreachable under `linker = "hoisted"`, which Metro requires.
 - **`bun run test` computes no coverage.** CI runs `test:coverage` + `coverage:check` against `packages/frontend/coverage-policy.json` (per-file pins, a no-regression ratchet). After genuinely raising coverage, run `coverage:record` and commit `coverage-baseline.json`. Detail: `packages/frontend/docs/TESTING-POLICY.md`.
 

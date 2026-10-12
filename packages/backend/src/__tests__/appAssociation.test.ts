@@ -145,7 +145,9 @@ describe('app association documents', () => {
     expect(res.status).toBe(APPLE_TEAM_ID ? 200 : 404);
 
     const configured = express().use(createAppAssociationRouter('ABCDE12345'));
-    const aasa = await request(configured).get('/.well-known/apple-app-site-association').expect(200);
+    const aasa = await request(configured)
+      .get('/.well-known/apple-app-site-association')
+      .expect(200);
     expect(aasa.headers['content-type']).toMatch(/^application\/json\b/);
     expect(aasa.body.applinks.details).toEqual([
       expect.objectContaining({ appIDs: [`ABCDE12345.${MENTION_APP_ID}`] }),

@@ -28,7 +28,7 @@ let db: Database;
 function declaredTables(): PgTable[] {
   return Object.values(schema).filter(
     (value): value is PgTable =>
-      typeof value === 'object' && value !== null && Symbol.for('drizzle:Name') in value
+      typeof value === 'object' && value !== null && Symbol.for('drizzle:Name') in value,
   );
 }
 
@@ -64,7 +64,7 @@ describe('deferred foreign keys', () => {
   it('names a parent table that does not yet exist, for every entry', () => {
     const existing = new Set(declaredTables().map(getTableName));
     const overdue = DEFERRED_FOREIGN_KEYS.filter((entry) => existing.has(entry.parentTable)).map(
-      (entry) => `${columnLabel(entry.column)} -> ${entry.parentTable}.${entry.parentColumn}`
+      (entry) => `${columnLabel(entry.column)} -> ${entry.parentTable}.${entry.parentColumn}`,
     );
     expect(overdue).toEqual([]);
   });
@@ -77,7 +77,7 @@ describe('id-shaped column classification', () => {
     // it would find NOTHING and every assertion below would pass trivially.
     const total = declaredTables().reduce(
       (count, table) => count + idShapedColumns(table).length,
-      0
+      0,
     );
     expect(total).toBeGreaterThan(40);
   });
@@ -85,7 +85,7 @@ describe('id-shaped column classification', () => {
   it('classifies every id-shaped column', async () => {
     const constrained = await constrainedColumns();
     const declaredExceptions = new Set(
-      ID_COLUMNS_WITHOUT_FOREIGN_KEY.map((entry) => columnLabel(entry.column))
+      ID_COLUMNS_WITHOUT_FOREIGN_KEY.map((entry) => columnLabel(entry.column)),
     );
     const deferred = new Set(DEFERRED_FOREIGN_KEYS.map((entry) => columnLabel(entry.column)));
 
@@ -110,14 +110,14 @@ describe('id-shaped column classification', () => {
   it('holds no stale exception for a column that now carries a constraint', async () => {
     const constrained = await constrainedColumns();
     const stale = ID_COLUMNS_WITHOUT_FOREIGN_KEY.map((entry) => columnLabel(entry.column)).filter(
-      (label) => constrained.has(label)
+      (label) => constrained.has(label),
     );
     expect(stale).toEqual([]);
   });
 
   it('gives every exception a reason', () => {
     const missing = ID_COLUMNS_WITHOUT_FOREIGN_KEY.filter(
-      (entry) => entry.reason.trim().length < 20
+      (entry) => entry.reason.trim().length < 20,
     ).map((entry) => columnLabel(entry.column));
     expect(missing).toEqual([]);
   });
@@ -144,7 +144,9 @@ describe('ON DELETE is decided per relation', () => {
     expect(rows.length).toBeGreaterThan(20);
     // `a` = NO ACTION (the default nobody chose). `c` = CASCADE, `n` = SET NULL,
     // `r` = RESTRICT, `d` = SET DEFAULT.
-    const undecided = rows.filter((row) => row.confdeltype === 'a').map((row) => row.constraint_name);
+    const undecided = rows
+      .filter((row) => row.confdeltype === 'a')
+      .map((row) => row.constraint_name);
     expect(undecided).toEqual([]);
   });
 });

@@ -66,10 +66,7 @@ export function ContentDialogHost() {
   // title flush with the sheet's edge and gave the panel no way to close but a
   // drag. `largeTitle: false` because the panels own their scrolling, so there
   // is no scroll for a large title to collapse under.
-  const header = useMemo(
-    () => (title ? { title, largeTitle: false } : undefined),
-    [title],
-  );
+  const header = useMemo(() => (title ? { title, largeTitle: false } : undefined), [title]);
 
   return (
     <Dialog

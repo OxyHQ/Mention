@@ -33,7 +33,9 @@ router.get('/', async (req: Request, res: Response) => {
     const offset = Math.max(queryInt(req.query.offset) || 0, 0);
 
     if (rawType !== undefined && type === undefined) {
-      return res.status(400).json({ error: `Invalid type. Must be one of: ${Object.values(TopicType).join(', ')}` });
+      return res
+        .status(400)
+        .json({ error: `Invalid type. Must be one of: ${Object.values(TopicType).join(', ')}` });
     }
 
     const result = await topicService.list({ type, query, limit, offset, locale });
@@ -68,7 +70,10 @@ router.get('/search', async (req: Request, res: Response) => {
       return res.json({ topics: [] });
     }
 
-    const limit = Math.min(queryInt(req.query.limit) || DEFAULT_TOPIC_SEARCH_LIMIT, MAX_TOPIC_SEARCH_LIMIT);
+    const limit = Math.min(
+      queryInt(req.query.limit) || DEFAULT_TOPIC_SEARCH_LIMIT,
+      MAX_TOPIC_SEARCH_LIMIT,
+    );
     const topics = await topicService.search(query, limit);
     res.json({ topics });
   } catch (error) {

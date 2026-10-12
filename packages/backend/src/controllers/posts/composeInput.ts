@@ -8,7 +8,11 @@
  */
 
 import { z } from 'zod';
-import { PostAttachmentDescriptor, PostAttachmentType, PostVisibility } from '@mention/shared-types';
+import {
+  PostAttachmentDescriptor,
+  PostAttachmentType,
+  PostVisibility,
+} from '@mention/shared-types';
 import type { ReplyPermission } from '@mention/shared-types';
 import { config } from '../../config';
 import type { NormalizedMediaItem } from '../../utils/mediaInput';
@@ -53,8 +57,7 @@ const MAX_POLL_OPTION_LENGTH = config.posts.maxPollOptionLength;
  */
 
 /** Message shared by every way `hashtags` can fail to be a list of tags. */
-const INVALID_HASHTAG_MESSAGE =
-  `Invalid hashtag: each must be a string of at most ${MAX_HASHTAG_LENGTH} characters`;
+const INVALID_HASHTAG_MESSAGE = `Invalid hashtag: each must be a string of at most ${MAX_HASHTAG_LENGTH} characters`;
 
 /**
  * The `hashtags` array as a client submits it.
@@ -116,7 +119,10 @@ const REPLY_PERMISSION_VALUES = {
 } as const satisfies Record<ReplyPermission, ReplyPermission>;
 
 export const replyPermissionSchema = z.array(
-  z.enum(REPLY_PERMISSION_VALUES, `replyPermission must be one of: ${Object.keys(REPLY_PERMISSION_VALUES).join(', ')}`),
+  z.enum(
+    REPLY_PERMISSION_VALUES,
+    `replyPermission must be one of: ${Object.keys(REPLY_PERMISSION_VALUES).join(', ')}`,
+  ),
   'replyPermission must be an array',
 );
 
@@ -152,25 +158,34 @@ export const replyPermissionSchema = z.array(
  * else already produced a 400 on `POST /posts` (an unparseable or past date), so
  * naming the type here changes the message and not the answer.
  */
-export const pollInputSchema = z.object({
-  question: z
-    .string('Poll question is required')
-    .min(1, 'Poll question is required')
-    .max(MAX_TEXT_LENGTH, `Poll question exceeds maximum length of ${MAX_TEXT_LENGTH} characters`),
-  options: z
-    .array(
-      z
-        .string('Every poll option must be a non-empty string')
-        .min(1, 'Every poll option must be a non-empty string')
-        .max(MAX_POLL_OPTION_LENGTH, `Every poll option must be ${MAX_POLL_OPTION_LENGTH} characters or less`),
-      'A poll needs at least one option',
-    )
-    .min(1, 'A poll needs at least one option')
-    .max(MAX_POLL_OPTIONS, `A poll may have at most ${MAX_POLL_OPTIONS} options`),
-  endTime: z.union([z.string(), z.number()], 'Invalid poll end time').nullish(),
-  isMultipleChoice: z.boolean('isMultipleChoice must be a boolean').nullish(),
-  isAnonymous: z.boolean('isAnonymous must be a boolean').nullish(),
-}, 'A poll must be an object with a question and options');
+export const pollInputSchema = z.object(
+  {
+    question: z
+      .string('Poll question is required')
+      .min(1, 'Poll question is required')
+      .max(
+        MAX_TEXT_LENGTH,
+        `Poll question exceeds maximum length of ${MAX_TEXT_LENGTH} characters`,
+      ),
+    options: z
+      .array(
+        z
+          .string('Every poll option must be a non-empty string')
+          .min(1, 'Every poll option must be a non-empty string')
+          .max(
+            MAX_POLL_OPTION_LENGTH,
+            `Every poll option must be ${MAX_POLL_OPTION_LENGTH} characters or less`,
+          ),
+        'A poll needs at least one option',
+      )
+      .min(1, 'A poll needs at least one option')
+      .max(MAX_POLL_OPTIONS, `A poll may have at most ${MAX_POLL_OPTIONS} options`),
+    endTime: z.union([z.string(), z.number()], 'Invalid poll end time').nullish(),
+    isMultipleChoice: z.boolean('isMultipleChoice must be a boolean').nullish(),
+    isAnonymous: z.boolean('isAnonymous must be a boolean').nullish(),
+  },
+  'A poll must be an object with a question and options',
+);
 
 /** A poll that has passed {@link pollInputSchema}. */
 export type ParsedPollInput = z.infer<typeof pollInputSchema>;
@@ -206,11 +221,16 @@ export const buildPostMetadata = (metadata: unknown): Record<string, unknown> =>
  * Sanitize and validate sources array.
  * Returns { sources, error } — error is set if the array exceeds the max size.
  */
-export const sanitizeSources = (arr: unknown): { sources: Array<{ url: string; title?: string }>; error?: string } => {
+export const sanitizeSources = (
+  arr: unknown,
+): { sources: Array<{ url: string; title?: string }>; error?: string } => {
   if (!Array.isArray(arr)) return { sources: [] };
 
   if (arr.length > MAX_SOURCES) {
-    return { sources: [], error: `Too many sources: maximum is ${MAX_SOURCES}, received ${arr.length}` };
+    return {
+      sources: [],
+      error: `Too many sources: maximum is ${MAX_SOURCES}, received ${arr.length}`,
+    };
   }
 
   const normalized = arr
@@ -226,7 +246,10 @@ export const sanitizeSources = (arr: unknown): { sources: Array<{ url: string; t
         const parsed = new URL(urlTrimmed);
         const normalizedUrl = parsed.toString();
         const titleRaw = (item as Record<string, unknown>)?.title;
-        const title = typeof titleRaw === 'string' ? titleRaw.trim().slice(0, MAX_SOURCE_TITLE_LENGTH) : undefined;
+        const title =
+          typeof titleRaw === 'string'
+            ? titleRaw.trim().slice(0, MAX_SOURCE_TITLE_LENGTH)
+            : undefined;
         return title ? { url: normalizedUrl, title } : { url: normalizedUrl };
       } catch {
         return null;
@@ -240,24 +263,43 @@ export const sanitizeSources = (arr: unknown): { sources: Array<{ url: string; t
 export const sanitizeArticle = (input: unknown): { title?: string; body?: string } | undefined => {
   if (!input || typeof input !== 'object') return undefined;
   const obj = input as Record<string, unknown>;
-  const title = typeof obj.title === 'string' ? obj.title.trim().slice(0, MAX_ARTICLE_TITLE_LENGTH) : undefined;
+  const title =
+    typeof obj.title === 'string' ? obj.title.trim().slice(0, MAX_ARTICLE_TITLE_LENGTH) : undefined;
   const body = typeof obj.body === 'string' ? obj.body.trim() : undefined;
   if (!title && !body) return undefined;
   return { ...(title ? { title } : {}), ...(body ? { body } : {}) };
 };
 
-export const sanitizeEventData = (eventData: unknown): { eventId?: string; name?: string; date?: string; location?: string; description?: string } | null => {
+export const sanitizeEventData = (
+  eventData: unknown,
+): {
+  eventId?: string;
+  name?: string;
+  date?: string;
+  location?: string;
+  description?: string;
+} | null => {
   if (!eventData || typeof eventData !== 'object') return null;
   const obj = eventData as Record<string, unknown>;
 
   const sanitized = {
     eventId: typeof obj.eventId === 'string' ? obj.eventId.trim() : undefined,
-    name: typeof obj.name === 'string' ? obj.name.trim().slice(0, MAX_EVENT_NAME_LENGTH) : undefined,
-    date: typeof obj.date === 'string'
-      ? obj.date.trim()
-      : (obj.date instanceof Date ? obj.date.toISOString() : undefined),
-    location: typeof obj.location === 'string' ? obj.location.trim().slice(0, MAX_EVENT_LOCATION_LENGTH) : undefined,
-    description: typeof obj.description === 'string' ? obj.description.trim().slice(0, MAX_EVENT_DESCRIPTION_LENGTH) : undefined,
+    name:
+      typeof obj.name === 'string' ? obj.name.trim().slice(0, MAX_EVENT_NAME_LENGTH) : undefined,
+    date:
+      typeof obj.date === 'string'
+        ? obj.date.trim()
+        : obj.date instanceof Date
+          ? obj.date.toISOString()
+          : undefined,
+    location:
+      typeof obj.location === 'string'
+        ? obj.location.trim().slice(0, MAX_EVENT_LOCATION_LENGTH)
+        : undefined,
+    description:
+      typeof obj.description === 'string'
+        ? obj.description.trim().slice(0, MAX_EVENT_DESCRIPTION_LENGTH)
+        : undefined,
   };
 
   if (!sanitized.name || !sanitized.date) return null;
@@ -272,7 +314,9 @@ export const sanitizeEventData = (eventData: unknown): { eventId?: string; name?
   return sanitized;
 };
 
-export const sanitizeRoomData = (roomData: unknown): { roomId: string; title: string; status?: string; topic?: string; host?: string } | null => {
+export const sanitizeRoomData = (
+  roomData: unknown,
+): { roomId: string; title: string; status?: string; topic?: string; host?: string } | null => {
   if (!roomData || typeof roomData !== 'object') return null;
   const obj = roomData as Record<string, unknown>;
   const id = obj.roomId;
@@ -281,7 +325,9 @@ export const sanitizeRoomData = (roomData: unknown): { roomId: string; title: st
   return {
     roomId: id.trim(),
     title: obj.title.trim().slice(0, 200),
-    ...(typeof obj.status === 'string' && ['scheduled', 'live', 'ended'].includes(obj.status) ? { status: obj.status } : {}),
+    ...(typeof obj.status === 'string' && ['scheduled', 'live', 'ended'].includes(obj.status)
+      ? { status: obj.status }
+      : {}),
     ...(typeof obj.topic === 'string' ? { topic: obj.topic.trim().slice(0, 100) } : {}),
     ...(typeof obj.host === 'string' ? { host: obj.host.trim() } : {}),
   };
@@ -298,7 +344,17 @@ type RawAttachmentInput =
       kind?: string;
     };
 
-const ATTACHMENT_TYPES: PostAttachmentType[] = ['media', 'poll', 'article', 'event', 'room', 'location', 'sources', 'podcast', 'job'];
+const ATTACHMENT_TYPES: PostAttachmentType[] = [
+  'media',
+  'poll',
+  'article',
+  'event',
+  'room',
+  'location',
+  'sources',
+  'podcast',
+  'job',
+];
 
 const normalizeAttachmentInput = (entry: RawAttachmentInput): PostAttachmentDescriptor | null => {
   if (!entry) return null;
@@ -369,7 +425,7 @@ export const buildOrderedAttachments = ({
   includeLocation = false,
   includeSources = false,
   includePodcast = false,
-  includeJob = false
+  includeJob = false,
 }: AttachmentBuildOptions): PostAttachmentDescriptor[] | undefined => {
   const descriptors: PostAttachmentDescriptor[] = [];
   const nonMediaTypes = new Set<PostAttachmentType>();
@@ -396,7 +452,7 @@ export const buildOrderedAttachments = ({
     descriptors.push({
       type: 'media',
       id: mediaId,
-      mediaType: explicitType || mediaItem.type
+      mediaType: explicitType || mediaItem.type,
     });
   };
 

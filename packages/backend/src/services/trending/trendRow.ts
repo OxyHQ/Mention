@@ -51,12 +51,14 @@ export function selectForAudience(
   region?: string,
 ): SerializedTrend[] {
   const wanted = new Set(languages);
-  const accepted = languages.length === 0
-    ? [...trends]
-    : trends.filter((trend) =>
-      trend.languages?.some((language) => wanted.has(language))
-      || (trend.scope === 'global' && Boolean(trend.conceptId)),
-    );
+  const accepted =
+    languages.length === 0
+      ? [...trends]
+      : trends.filter(
+          (trend) =>
+            trend.languages?.some((language) => wanted.has(language)) ||
+            (trend.scope === 'global' && Boolean(trend.conceptId)),
+        );
 
   if (!region) return accepted;
 
@@ -73,8 +75,7 @@ export function selectForAudience(
 /**
  * A trend row as `GET /trending` serves it.
  *
- * `_id` survives the port because the client's contract requires it; the value
- * is the same one Mongo held, since the backfill copies `_id` verbatim into the
+ * `_id` is emitted because the client's contract requires it; the value is the
  * `text` primary key.
  */
 export interface SerializedTrend {

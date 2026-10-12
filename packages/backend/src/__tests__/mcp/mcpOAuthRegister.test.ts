@@ -27,8 +27,7 @@ describe('retired Mention OAuth authorization surface', () => {
     expect(response.status).toBe(410);
     expect(response.body).toEqual({
       error: 'legacy_mcp_oauth_retired',
-      error_description:
-        'New Mention MCP authorizations use the central Oxy authorization server.',
+      error_description: 'New Mention MCP authorizations use the central Oxy authorization server.',
       authorization_server: 'https://api.oxy.so',
     });
   });

@@ -34,7 +34,7 @@
  */
 import { logger } from './logger';
 import { getRedisClient, reportRedisConnectionFailure } from './redis';
-import { isRedisConnectionError } from './redisHelpers';
+import { isRedisConnectionError, setExInBatches } from './redisHelpers';
 
 /** How a cache instance stores its values; see {@link CacheConfig.staleAfterMs}. */
 interface StoredEnvelope<T> {
@@ -302,19 +302,23 @@ export function createCache(config: CacheConfig): Cache {
     async getMany<T>(keys: string[]): Promise<(T | undefined)[]> {
       if (keys.length === 0) return [];
 
-      return withFallback<(T | undefined)[]>('mGet', new Array(keys.length).fill(undefined), async (client) => {
-        const values = await client.mGet(keys);
+      return withFallback<(T | undefined)[]>(
+        'mGet',
+        new Array(keys.length).fill(undefined),
+        async (client) => {
+          const values = await client.mGet(keys);
 
-        // A non-array reply would make the map below throw a TypeError, which
-        // would surface as a 500 on whatever hot path is reading the cache.
-        // Treat it as a full miss so the caller degrades to a cold computation.
-        if (!Array.isArray(values)) {
-          reportNonArrayMgetReply(name, values, keys.length);
-          return new Array<T | undefined>(keys.length).fill(undefined);
-        }
+          // A non-array reply would make the map below throw a TypeError, which
+          // would surface as a 500 on whatever hot path is reading the cache.
+          // Treat it as a full miss so the caller degrades to a cold computation.
+          if (!Array.isArray(values)) {
+            reportNonArrayMgetReply(name, values, keys.length);
+            return new Array<T | undefined>(keys.length).fill(undefined);
+          }
 
-        return values.map((raw) => (raw ? decode<T>(raw)?.value : undefined));
-      });
+          return values.map((raw) => (raw ? decode<T>(raw)?.value : undefined));
+        },
+      );
     },
 
     async has(key: string): Promise<boolean> {
@@ -339,11 +343,12 @@ export function createCache(config: CacheConfig): Cache {
       if (pairs.length === 0) return;
 
       await withFallback('mSet', undefined, async (client) => {
-        const pipeline = client.multi();
-        for (const [key, value] of pairs) {
-          pipeline.setEx(key, ttl, encode(value));
-        }
-        await pipeline.exec();
+        // Bounded pipelines, never one MULTI: see `setExInBatches`.
+        await setExInBatches(
+          client,
+          pairs.map(([key, value]) => [key, encode(value)] as const),
+          ttl,
+        );
       });
     },
 

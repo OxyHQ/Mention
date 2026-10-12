@@ -2,7 +2,7 @@
  * The engagement outbox's MTN append, end to end against real rows, on the
  * chain shape that stalled it in production.
  *
- * One account's chain came through the Mongo → Postgres cutover as seq 1..100
+ * One account's chain came through the Postgres cutover as seq 1..100
  * with neither its seq-0 genesis nor its head row. The first append afterwards
  * found no head and wrote a NEW genesis at seq 0; every append after that built
  * seq 1 and hit the imported seq 1 on the unique `(oxy_user_id, seq)` index. The
@@ -49,7 +49,12 @@ function chainOwner(): string {
 }
 
 /** A ledger row written straight to the table, as the cutover import did. */
-async function importedRow(owner: string, seq: number, prev: string, recordId: string): Promise<void> {
+async function importedRow(
+  owner: string,
+  seq: number,
+  prev: string,
+  recordId: string,
+): Promise<void> {
   const envelope = {
     version: 2,
     type: 'app_record',

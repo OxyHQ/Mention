@@ -50,15 +50,30 @@ describe('minQuality filter', () => {
     minQualityFilter.keep!(p, ctx, params);
 
   it('drops a trusted post below the threshold and keeps one at/above it', () => {
-    expect(keep(post({ postClassification: classified(0.3) }), EMPTY_CTX, { minQuality: 0.5 })).toBe(false);
-    expect(keep(post({ postClassification: classified(0.8) }), EMPTY_CTX, { minQuality: 0.5 })).toBe(true);
-    expect(keep(post({ postClassification: classified(0.5) }), EMPTY_CTX, { minQuality: 0.5 })).toBe(true);
+    expect(
+      keep(post({ postClassification: classified(0.3) }), EMPTY_CTX, { minQuality: 0.5 }),
+    ).toBe(false);
+    expect(
+      keep(post({ postClassification: classified(0.8) }), EMPTY_CTX, { minQuality: 0.5 }),
+    ).toBe(true);
+    expect(
+      keep(post({ postClassification: classified(0.5) }), EMPTY_CTX, { minQuality: 0.5 }),
+    ).toBe(true);
   });
 
   it('is NEUTRAL when the post has no trusted score (never empties on absent provenance)', () => {
     // Default all-zeros scores with no provenance marker → readTrustedScores null → kept.
     const unscored = post({
-      postClassification: { scores: { spam: 0, toxicity: 0, quality: 0, constructiveness: 0, controversy: 0, negativity: 0 } },
+      postClassification: {
+        scores: {
+          spam: 0,
+          toxicity: 0,
+          quality: 0,
+          constructiveness: 0,
+          controversy: 0,
+          negativity: 0,
+        },
+      },
     });
     expect(keep(unscored, EMPTY_CTX, { minQuality: 0.5 })).toBe(true);
   });
@@ -75,20 +90,54 @@ describe('noLowEffort filter', () => {
     noLowEffortFilter.keep!(p, EMPTY_CTX, params);
 
   it('drops custom-emoji shortcode-only and Unicode-emoji-only posts', () => {
-    expect(keep(post({ content: { variants: [{ source: 'author', text: ':oyaki::oyaki: :blobcat:' }] } }))).toBe(false);
-    expect(keep(post({ content: { variants: [{ source: 'author', text: '🔥🔥🚀✨' }] } }))).toBe(false);
+    expect(
+      keep(
+        post({ content: { variants: [{ source: 'author', text: ':oyaki::oyaki: :blobcat:' }] } }),
+      ),
+    ).toBe(false);
+    expect(keep(post({ content: { variants: [{ source: 'author', text: '🔥🔥🚀✨' }] } }))).toBe(
+      false,
+    );
   });
 
   it('keeps a low-effort post that carries media (media rescues it)', () => {
-    expect(keep(post({ content: { variants: [{ source: 'author', text: '🔥🔥' }], media: [{ id: 'm', type: 'image' }] } }))).toBe(true);
+    expect(
+      keep(
+        post({
+          content: {
+            variants: [{ source: 'author', text: '🔥🔥' }],
+            media: [{ id: 'm', type: 'image' }],
+          },
+        }),
+      ),
+    ).toBe(true);
   });
 
   it('keeps real prose', () => {
-    expect(keep(post({ content: { variants: [{ source: 'author', text: 'A perfectly ordinary sentence with real words behind it.' }] } }))).toBe(true);
+    expect(
+      keep(
+        post({
+          content: {
+            variants: [
+              {
+                source: 'author',
+                text: 'A perfectly ordinary sentence with real words behind it.',
+              },
+            ],
+          },
+        }),
+      ),
+    ).toBe(true);
   });
 
   it('optionally drops emoji-HEAVY posts via maxEmojiRatio (and only then)', () => {
-    const emojiHeavy = post({ content: { variants: [{ source: 'author', text: 'this is real text 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥' }] } });
+    const emojiHeavy = post({
+      content: {
+        variants: [
+          { source: 'author', text: 'this is real text 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥' },
+        ],
+      },
+    });
     // Without the ratio param the post has enough real text → kept.
     expect(keep(emojiHeavy)).toBe(true);
     // With a 0.5 ratio cap the emoji share exceeds it → dropped.
@@ -99,9 +148,14 @@ describe('noLowEffort filter', () => {
 // ─── linkCount ───────────────────────────────────────────────────────────────
 
 describe('linkCount filter', () => {
-  const keep = (p: CandidatePost, params: Record<string, unknown>) => linkCountFilter.keep!(p, EMPTY_CTX, params);
-  const oneLink = post({ content: { variants: [{ source: 'author', text: 'see https://a.example' }] } });
-  const twoLinks = post({ content: { variants: [{ source: 'author', text: 'https://a.example and https://b.example' }] } });
+  const keep = (p: CandidatePost, params: Record<string, unknown>) =>
+    linkCountFilter.keep!(p, EMPTY_CTX, params);
+  const oneLink = post({
+    content: { variants: [{ source: 'author', text: 'see https://a.example' }] },
+  });
+  const twoLinks = post({
+    content: { variants: [{ source: 'author', text: 'https://a.example and https://b.example' }] },
+  });
 
   it('enforces a minimum link count', () => {
     expect(keep(oneLink, { minLinks: 2 })).toBe(false);
@@ -141,7 +195,14 @@ describe('noBots filter', () => {
 
   it('keeps a normal human post that merely embeds a link', () => {
     const human = post({
-      content: { variants: [{ source: 'author', text: 'Really enjoyed this piece on deep-sea exploration, worth a read: https://blog.example/post' }] },
+      content: {
+        variants: [
+          {
+            source: 'author',
+            text: 'Really enjoyed this piece on deep-sea exploration, worth a read: https://blog.example/post',
+          },
+        ],
+      },
       federation: { actorUri: 'https://mastodon.social/users/alice' },
     });
     expect(keep(human)).toBe(true);
@@ -165,7 +226,13 @@ describe('For You gate reads EFFECTIVE per-viewer params', () => {
 
   it('a viewer disabling lowEffortGate turns it off for THAT viewer only', () => {
     // Disabled for this viewer → kept.
-    expect(lowEffortGateFilter.keep!(emojiOnly, tuning({ lowEffortGate: { enabled: false } }), GATE_PARAMS)).toBe(true);
+    expect(
+      lowEffortGateFilter.keep!(
+        emojiOnly,
+        tuning({ lowEffortGate: { enabled: false } }),
+        GATE_PARAMS,
+      ),
+    ).toBe(true);
     // A different viewer (no tuning) still gets the default gate → rejected.
     expect(lowEffortGateFilter.keep!(emojiOnly, EMPTY_CTX, GATE_PARAMS)).toBe(false);
   });
@@ -179,7 +246,13 @@ describe('For You gate reads EFFECTIVE per-viewer params', () => {
     // Default gate: stale, zero-native, off-interest → rejected.
     expect(nativeEngagementFilter.keep!(stale, EMPTY_CTX, GATE_PARAMS)).toBe(false);
     // Disabled for this viewer → kept.
-    expect(nativeEngagementFilter.keep!(stale, tuning({ nativeEngagement: { enabled: false } }), GATE_PARAMS)).toBe(true);
+    expect(
+      nativeEngagementFilter.keep!(
+        stale,
+        tuning({ nativeEngagement: { enabled: false } }),
+        GATE_PARAMS,
+      ),
+    ).toBe(true);
   });
 
   it('minQuality is NEUTRAL by default and only filters when the viewer opts in', () => {
@@ -187,9 +260,21 @@ describe('For You gate reads EFFECTIVE per-viewer params', () => {
     // Default (no tuning): neutral → kept.
     expect(minQualityFilter.keep!(lowQ, EMPTY_CTX, GATE_PARAMS)).toBe(true);
     // Viewer opts in with a threshold → low-quality dropped for them.
-    expect(minQualityFilter.keep!(lowQ, tuning({ minQuality: { enabled: true, minQuality: 0.5 } }), GATE_PARAMS)).toBe(false);
+    expect(
+      minQualityFilter.keep!(
+        lowQ,
+        tuning({ minQuality: { enabled: true, minQuality: 0.5 } }),
+        GATE_PARAMS,
+      ),
+    ).toBe(false);
     // Same viewer disabling it → back to neutral.
-    expect(minQualityFilter.keep!(lowQ, tuning({ minQuality: { enabled: false, minQuality: 0.5 } }), GATE_PARAMS)).toBe(true);
+    expect(
+      minQualityFilter.keep!(
+        lowQ,
+        tuning({ minQuality: { enabled: false, minQuality: 0.5 } }),
+        GATE_PARAMS,
+      ),
+    ).toBe(true);
   });
 
   it('For You tuning does NOT leak into a CUSTOM feed (no viewerGateTuning marker)', () => {
@@ -226,7 +311,9 @@ describe('validateForYouTuning', () => {
     expect(validateForYouTuning({ minQuality: { unknown: 1 } }).valid).toBe(false);
     expect(validateForYouTuning({ lowEffortGate: { enabled: 'yes' } }).valid).toBe(false);
     expect(validateForYouTuning({ minQuality: { minQuality: 2 } }).valid).toBe(false);
-    expect(validateForYouTuning({ nativeEngagement: { minNativeEngagement: -1 } }).valid).toBe(false);
+    expect(validateForYouTuning({ nativeEngagement: { minNativeEngagement: -1 } }).valid).toBe(
+      false,
+    );
     expect(validateForYouTuning('nope').valid).toBe(false);
   });
 });

@@ -22,21 +22,17 @@ export async function legacyApiRootReadiness(
   // one question for one ALB, and a target group still pointed at `/` must not
   // get a more forgiving answer than the endpoint it is converging to.
   const ready =
-    runtime.phase === 'ready' &&
-    runtime.migrationsComplete &&
-    (await checkPostgresHealth());
+    runtime.phase === 'ready' && runtime.migrationsComplete && (await checkPostgresHealth());
 
   res.setHeader('Cache-Control', 'no-store');
-  return res
-    .status(ready ? 200 : 503)
-    .json({
-      message: 'Welcome to the Mention API',
-      status: ready ? 'ready' : 'not_ready',
-      capabilities: {
-        // Frontend releases can precede the backend rollout. Advertising the
-        // anonymous endpoint prevents a newer web client from POSTing RUM to an
-        // older revision where the path falls through to required auth.
-        webTelemetry: true,
-      },
-    });
+  return res.status(ready ? 200 : 503).json({
+    message: 'Welcome to the Mention API',
+    status: ready ? 'ready' : 'not_ready',
+    capabilities: {
+      // Frontend releases can precede the backend rollout. Advertising the
+      // anonymous endpoint prevents a newer web client from POSTing RUM to an
+      // older revision where the path falls through to required auth.
+      webTelemetry: true,
+    },
+  });
 }

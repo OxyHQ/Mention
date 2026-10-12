@@ -15,7 +15,7 @@ const logger = createLogger('FederatedFollowSync');
 export function useFederatedFollowSync(
   profileId?: string,
   isFederated?: boolean,
-  actorUri?: string
+  actorUri?: string,
 ) {
   const oxyUserId = isFederated && profileId ? profileId : '';
   const { isFollowing } = useFollow(oxyUserId);

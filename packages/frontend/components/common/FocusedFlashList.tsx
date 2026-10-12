@@ -10,7 +10,7 @@ import { useFocusedScrollable } from '@/hooks/useFocusedScrollable';
  * FlashList's generic, so the cast gives it back.
  */
 const AnimatedFlashList = Animated.createAnimatedComponent(FlashList) as unknown as <T>(
-    props: AnimatedProps<FlashListProps<T>> & { ref?: React.Ref<FlashListRef<T>> },
+  props: AnimatedProps<FlashListProps<T>> & { ref?: React.Ref<FlashListRef<T>> },
 ) => React.ReactElement;
 
 /**
@@ -22,21 +22,23 @@ const AnimatedFlashList = Animated.createAnimatedComponent(FlashList) as unknown
  * callback it could only arrive when the JS thread was free, which on a list of
  * rows with avatars and text is exactly when it is not.
  */
-export function FocusedFlashList<T>(props: Omit<FlashListProps<T>, 'onScroll' | 'scrollEventThrottle'>) {
-    const { scrollPosition, scrollEventThrottle } = useLayoutScroll();
-    const ref = useFocusedScrollable<FlashListRef<T>>({ initialOffset: 0 });
-    const onScroll = useAnimatedScrollHandler({
-        onScroll: (event) => {
-            'worklet';
-            scrollPosition.value = event.contentOffset.y;
-        },
-    });
-    return (
-        <AnimatedFlashList<T>
-            {...props}
-            ref={ref}
-            onScroll={onScroll}
-            scrollEventThrottle={scrollEventThrottle}
-        />
-    );
+export function FocusedFlashList<T>(
+  props: Omit<FlashListProps<T>, 'onScroll' | 'scrollEventThrottle'>,
+) {
+  const { scrollPosition, scrollEventThrottle } = useLayoutScroll();
+  const ref = useFocusedScrollable<FlashListRef<T>>({ initialOffset: 0 });
+  const onScroll = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      'worklet';
+      scrollPosition.value = event.contentOffset.y;
+    },
+  });
+  return (
+    <AnimatedFlashList<T>
+      {...props}
+      ref={ref}
+      onScroll={onScroll}
+      scrollEventThrottle={scrollEventThrottle}
+    />
+  );
 }

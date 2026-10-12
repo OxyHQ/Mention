@@ -23,9 +23,10 @@ function normalizeUrl(url: string): string | null {
 
   try {
     const parsed = new URL(normalized);
-    const path = parsed.pathname.endsWith('/') && parsed.pathname !== '/'
-      ? parsed.pathname.slice(0, -1)
-      : parsed.pathname;
+    const path =
+      parsed.pathname.endsWith('/') && parsed.pathname !== '/'
+        ? parsed.pathname.slice(0, -1)
+        : parsed.pathname;
     return `${parsed.protocol}//${parsed.host}${path}${parsed.search}${parsed.hash}`;
   } catch {
     return null;
@@ -49,7 +50,15 @@ export function upsertLink(metadata: LinkMetadata): void {
   db.runSync(
     `INSERT OR REPLACE INTO link_previews (url, title, description, image, site_name, favicon, error, fetched_at, ttl_ms)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    row.url, row.title, row.description, row.image, row.site_name, row.favicon, row.error, row.fetched_at, row.ttl_ms
+    row.url,
+    row.title,
+    row.description,
+    row.image,
+    row.site_name,
+    row.favicon,
+    row.error,
+    row.fetched_at,
+    row.ttl_ms,
   );
 }
 
@@ -66,7 +75,7 @@ export function getLink(url: string): LinkMetadata | null {
   if (!db) return null;
   const row = db.getFirstSync<ClarityDocumentRow>(
     'SELECT * FROM link_previews WHERE url = ?',
-    normalized
+    normalized,
   );
 
   if (!row) return null;
@@ -92,7 +101,7 @@ export function isLinkCached(url: string): boolean {
   if (!db) return false;
   const row = db.getFirstSync<{ fetched_at: number; ttl_ms: number }>(
     'SELECT fetched_at, ttl_ms FROM link_previews WHERE url = ?',
-    normalized
+    normalized,
   );
 
   if (!row) return false;
@@ -109,10 +118,7 @@ export function pruneExpiredLinks(): number {
   if (!db) return 0;
   const now = Date.now();
 
-  const result = db.runSync(
-    'DELETE FROM link_previews WHERE (fetched_at + ttl_ms) < ?',
-    now
-  );
+  const result = db.runSync('DELETE FROM link_previews WHERE (fetched_at + ttl_ms) < ?', now);
 
   const deleted = result.changes;
   if (deleted > 0) {

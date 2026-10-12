@@ -1,6 +1,14 @@
 import React, { memo, useCallback, useMemo, type ReactNode } from 'react';
 import { isHostOf } from '@/utils/isHostOf';
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle, type DimensionValue } from 'react-native';
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type ViewStyle,
+  type DimensionValue,
+} from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@/components/common/Ionicons';
 import Svg, { Path } from 'react-native-svg';
@@ -88,7 +96,8 @@ function providerFor(showUrl?: string): Provider | null {
   }
   if (isHostOf(host, 'spotify.com')) return { label: 'Spotify', glyph: 'spotify' };
   if (host === 'podcasts.apple.com') return { label: 'Podcasts', glyph: 'apple' };
-  if (isHostOf(host, 'youtube.com') || host === 'youtu.be') return { label: 'YouTube', glyph: 'youtube' };
+  if (isHostOf(host, 'youtube.com') || host === 'youtu.be')
+    return { label: 'YouTube', glyph: 'youtube' };
   if (isHostOf(host, 'syra.fm')) return { label: 'Syra', glyph: 'syra' };
   return null;
 }
@@ -135,7 +144,11 @@ const Artwork = ({ uri, size }: { uri?: string; size: 'card' | 'strip' }) => {
     </View>
   ) : (
     <View className={cn(box, 'bg-white/15 items-center justify-center')}>
-      <RiMic2Line width={size === 'card' ? 38 : 19} height={size === 'card' ? 38 : 19} fill={WHITE_MUTED} />
+      <RiMic2Line
+        width={size === 'card' ? 38 : 19}
+        height={size === 'card' ? 38 : 19}
+        fill={WHITE_MUTED}
+      />
     </View>
   );
 };
@@ -200,7 +213,12 @@ export const PodcastCard = memo(function PodcastCard({
         >
           {artworkUrl ? (
             <View className="size-14 rounded-xl overflow-hidden">
-              <Image source={{ uri: artworkUrl }} style={styles.fill} contentFit="cover" transition={120} />
+              <Image
+                source={{ uri: artworkUrl }}
+                style={styles.fill}
+                contentFit="cover"
+                transition={120}
+              />
             </View>
           ) : (
             <View className="size-14 rounded-xl bg-card items-center justify-center">
@@ -246,8 +264,7 @@ export const PodcastCard = memo(function PodcastCard({
   }
 
   if (variant === 'video' && video) {
-    const ratio =
-      episode?.width && episode?.height ? episode.width / episode.height : 16 / 9;
+    const ratio = episode?.width && episode?.height ? episode.width / episode.height : 16 / 9;
     // Portrait video would make the card taller than the feed row can hold;
     // landscape wider than 16:9 leaves a sliver. Threads crops to the same band.
     const clampedRatio = Math.min(Math.max(ratio, 4 / 5), 16 / 9);
@@ -262,7 +279,11 @@ export const PodcastCard = memo(function PodcastCard({
           // Alone it follows its ratio, capped so the card never towers (the
           // video is `cover`, so the cap crops).
           className={cn('w-full bg-black', height !== undefined && 'flex-1 min-h-0')}
-          style={height !== undefined ? undefined : { aspectRatio: clampedRatio, maxHeight: SINGLE_MEDIA_MAX_HEIGHT - STRIP_MIN_HEIGHT }}
+          style={
+            height !== undefined
+              ? undefined
+              : { aspectRatio: clampedRatio, maxHeight: SINGLE_MEDIA_MAX_HEIGHT - STRIP_MIN_HEIGHT }
+          }
         >
           {video}
         </View>
@@ -314,10 +335,15 @@ export const PodcastCard = memo(function PodcastCard({
           <Text className="text-white text-[15px] font-bold leading-[19px]" numberOfLines={2}>
             {episode?.title ?? title}
           </Text>
-          <Text className="text-white/55 text-[11px] font-semibold uppercase tracking-wide" numberOfLines={1}>
+          <Text
+            className="text-white/55 text-[11px] font-semibold uppercase tracking-wide"
+            numberOfLines={1}
+          >
             {episode ? title : t('profile.media.podcastLabel')}
           </Text>
-          {provider ? <ProviderRow provider={provider} className={saveButton ? 'mr-[34px]' : undefined} /> : null}
+          {provider ? (
+            <ProviderRow provider={provider} className={saveButton ? 'mr-[34px]' : undefined} />
+          ) : null}
         </View>
       </Pressable>
       {saveButton ? (

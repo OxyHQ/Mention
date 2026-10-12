@@ -211,9 +211,7 @@ describe('PresenceRegistry', () => {
         expect(distributedPresence.heartbeat).toHaveBeenCalledTimes(1);
 
         connectedSocketIds.clear();
-        vi.advanceTimersByTime(
-          PRESENCE_CLEANUP_INTERVAL_MS - PRESENCE_HEARTBEAT_INTERVAL_MS,
-        );
+        vi.advanceTimersByTime(PRESENCE_CLEANUP_INTERVAL_MS - PRESENCE_HEARTBEAT_INTERVAL_MS);
         expect(distributedPresence.markOffline).toHaveBeenCalledWith('user-1');
 
         registry.stopHousekeeping();

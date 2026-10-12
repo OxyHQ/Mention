@@ -62,13 +62,18 @@ vi.mock('../../connectors/outboundFederation', () => ({ federateAsResolvedActor:
 // No `models/Article` mock: the article row is REAL, and cancelling the thread
 // has to remove it through `articles.post_id`'s `ON DELETE CASCADE` rather than
 // through a sweep. The stub that used to sit here was never asserted against —
-// it existed only to keep the Mongoose model out of the way — so once the
+// it existed only to keep the legacy-ODM model out of the way — so once the
 // article write path moved to Postgres it proved nothing in either direction.
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { findArticleById, insertArticle, newArticleId } from '../../db/posts/articleRepository';
 import { claimUnpublishedPost } from '../../db/posts/postRepository';
-import { clearServiceScope, readScopePosts, seedPost, serviceScope } from '../helpers/serviceFixtures';
+import {
+  clearServiceScope,
+  readScopePosts,
+  seedPost,
+  serviceScope,
+} from '../helpers/serviceFixtures';
 import { deletePost } from '../../controllers/posts/deletePost';
 import { publishScheduledPostNow } from '../../controllers/posts/scheduledPosts';
 
@@ -229,17 +234,16 @@ describe('cancelling a scheduled thread', () => {
   });
 
   /**
-   * CURRENT BEHAVIOUR, PRESERVED FROM MONGO — NOT A PROPERTY ANYONE CHOSE.
+   * CURRENT BEHAVIOUR — NOT A PROPERTY ANYONE CHOSE.
    *
    * Deleting a post deletes every direct reply to it, unscoped by author and
-   * unscoped by status. That is what `Post.deleteMany({ parentPostId })` did on
-   * Mongo for as long as it has existed, and the Postgres port reproduces it
-   * deliberately: `posts.parent_post_id` is `ON DELETE SET NULL`, so WITHOUT an
+   * unscoped by status. The delete is explicit and deliberate:
+   * `posts.parent_post_id` is `ON DELETE SET NULL`, so WITHOUT an
    * explicit delete the replies would survive as orphans PROMOTED TO ROOT POSTS
    * — a new behaviour nobody asked for and strictly worse than either option.
    *
-   * The two tests below previously asserted the opposite, and passed on Mongo
-   * ONLY because they mock `repairRecentRepliersAfterPostDelete`, which was the
+   * The two tests below previously asserted the opposite, and passed ONLY
+   * because they mock `repairRecentRepliersAfterPostDelete`, which was the
    * single deleter — so the mock removed the entire mechanism under test. They
    * are honest now, and they disagree with the system.
    *
@@ -253,17 +257,20 @@ describe('cancelling a scheduled thread', () => {
    * Tracked as task #141. If the answer is "scope it", these assertions flip and
    * `repairDeletedPostProjection` gains an author/status predicate.
    */
-  it('deletes a published post\'s replies too — current behaviour, see #141', async () => {
+  it("deletes a published post's replies too — current behaviour, see #141", async () => {
     await row('published-root', null, { status: 'published' });
     await row('reply', 'published-root', { status: 'published' });
     const { res } = buildResponse();
 
-    await deletePost(buildRequest(idByLabel.get('published-root') as string) as never, res as never);
+    await deletePost(
+      buildRequest(idByLabel.get('published-root') as string) as never,
+      res as never,
+    );
 
     expect(await remainingIds()).toEqual([]);
   });
 
-  it('reaches another author\'s scheduled reply — current behaviour, see #141', async () => {
+  it("reaches another author's scheduled reply — current behaviour, see #141", async () => {
     await row('root', null);
     await row('theirs', 'root', { owner: OTHER });
     const { res } = buildResponse();
@@ -287,7 +294,10 @@ describe('publishing a scheduled thread early', () => {
     await seedThread();
     const { res, payload } = buildResponse();
 
-    await publishScheduledPostNow(buildRequest(idByLabel.get('c1') as string) as never, res as never);
+    await publishScheduledPostNow(
+      buildRequest(idByLabel.get('c1') as string) as never,
+      res as never,
+    );
 
     expect(claimedLabels()).toEqual(['root', 'c1', 'c2']);
     // The response is still about the post that was asked for.
@@ -303,7 +313,10 @@ describe('publishing a scheduled thread early', () => {
     });
     const { res, payload } = buildResponse();
 
-    await publishScheduledPostNow(buildRequest(idByLabel.get('c1') as string) as never, res as never);
+    await publishScheduledPostNow(
+      buildRequest(idByLabel.get('c1') as string) as never,
+      res as never,
+    );
 
     expect(claimedLabels()).toEqual(['root']);
     expect(payload.status).toBe(404);
@@ -314,7 +327,10 @@ describe('publishing a scheduled thread early', () => {
     await row('mine', 'theirs');
     const { res, payload } = buildResponse();
 
-    await publishScheduledPostNow(buildRequest(idByLabel.get('mine') as string) as never, res as never);
+    await publishScheduledPostNow(
+      buildRequest(idByLabel.get('mine') as string) as never,
+      res as never,
+    );
 
     expect(payload.status).toBe(409);
     expect(hoisted.claim).not.toHaveBeenCalled();
@@ -324,7 +340,10 @@ describe('publishing a scheduled thread early', () => {
     await row('solo', null);
     const { res, payload } = buildResponse();
 
-    await publishScheduledPostNow(buildRequest(idByLabel.get('solo') as string) as never, res as never);
+    await publishScheduledPostNow(
+      buildRequest(idByLabel.get('solo') as string) as never,
+      res as never,
+    );
 
     expect(hoisted.claim).toHaveBeenCalledTimes(1);
     expect(payload.value?.id).toBe(idByLabel.get('solo'));
@@ -334,7 +353,10 @@ describe('publishing a scheduled thread early', () => {
     await row('done', null, { status: 'published' });
     const { res, payload } = buildResponse();
 
-    await publishScheduledPostNow(buildRequest(idByLabel.get('done') as string) as never, res as never);
+    await publishScheduledPostNow(
+      buildRequest(idByLabel.get('done') as string) as never,
+      res as never,
+    );
 
     expect(payload.status).toBe(409);
     expect(payload.value?.message).toBe('This post has already been published');

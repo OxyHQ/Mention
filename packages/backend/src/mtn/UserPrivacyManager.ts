@@ -11,11 +11,7 @@
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { mutes } from '../db/schema/engagement';
-import {
-  getBlockedUserIds,
-  getRestrictedUserIds,
-  type OxyClient,
-} from '../utils/privacyHelpers';
+import { getBlockedUserIds, getRestrictedUserIds, type OxyClient } from '../utils/privacyHelpers';
 import { logger } from '../utils/logger';
 
 export interface PrivacyState {
@@ -62,12 +58,9 @@ export class UserPrivacyManager {
     userId: string,
     options: LoadPrivacyStateOptions = {},
   ): Promise<PrivacyState> {
-    // Postgres. This read the Mongo `Mute` collection until now, which nothing
-    // has written since mutes moved — so a mute created after the cutover was
-    // never applied, and the reader kept seeing an author they had explicitly
-    // silenced. The fail-soft below makes that especially worth naming: an empty
-    // result is indistinguishable from "no mutes", so the failure mode was a
-    // silently permissive privacy state rather than an error.
+    // Read from `mutes`, the table every mute is written to. The fail-soft below
+    // is worth naming: an empty result is indistinguishable from "no mutes", so
+    // its failure mode is a silently permissive privacy state, not an error.
     const mutedUsersPromise = getDb()
       .select({ mutedId: mutes.mutedId })
       .from(mutes)
@@ -84,9 +77,7 @@ export class UserPrivacyManager {
     ]);
 
     const blockedUserIds = new Set(blockedIds.filter(validId));
-    const mutedUserIds = new Set(
-      mutedUsers.map((mute) => mute.mutedId).filter(validId),
-    );
+    const mutedUserIds = new Set(mutedUsers.map((mute) => mute.mutedId).filter(validId));
     const restrictedUserIds = new Set(restrictedIds.filter(validId));
     const excludedUserIds = new Set<string>([
       ...blockedUserIds,
@@ -107,7 +98,7 @@ export class UserPrivacyManager {
    */
   static filterPosts<T extends { oxyUserId?: string }>(
     posts: T[],
-    privacyState: PrivacyState
+    privacyState: PrivacyState,
   ): T[] {
     if (privacyState.excludedUserIds.size === 0) return posts;
     return posts.filter((post) => {

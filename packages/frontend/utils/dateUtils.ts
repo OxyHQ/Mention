@@ -2,7 +2,8 @@
  * Date utility functions for scheduling and formatting
  */
 
-export const addMinutes = (date: Date, minutes: number) => new Date(date.getTime() + minutes * 60000);
+export const addMinutes = (date: Date, minutes: number) =>
+  new Date(date.getTime() + minutes * 60000);
 
 export const formatDateInput = (date: Date) => date.toISOString().slice(0, 10);
 
@@ -12,7 +13,9 @@ export const formatTimeInput = (date: Date) =>
 
 export const formatScheduledLabel = (date: Date): string => {
   try {
-    return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
+    return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
+      date,
+    );
   } catch {
     return date.toLocaleString();
   }
@@ -31,11 +34,11 @@ export const formatScheduledShort = (date: Date): string => {
   const isThisYear = date.getFullYear() === new Date().getFullYear();
   try {
     return new Intl.DateTimeFormat(undefined, {
-      month: "short",
-      day: "numeric",
-      ...(isThisYear ? {} : { year: "numeric" }),
-      hour: "numeric",
-      minute: "2-digit",
+      month: 'short',
+      day: 'numeric',
+      ...(isThisYear ? {} : { year: 'numeric' }),
+      hour: 'numeric',
+      minute: '2-digit',
     }).format(date);
   } catch {
     return date.toLocaleString();
@@ -88,36 +91,27 @@ export function dateDiff(
     };
   } else if (diffSeconds < HOUR) {
     const value =
-      rounding === 'up'
-        ? Math.ceil(diffSeconds / MINUTE)
-        : Math.floor(diffSeconds / MINUTE);
+      rounding === 'up' ? Math.ceil(diffSeconds / MINUTE) : Math.floor(diffSeconds / MINUTE);
     diff = {
       value,
       unit: 'minute',
     };
   } else if (diffSeconds < DAY) {
     const value =
-      rounding === 'up'
-        ? Math.ceil(diffSeconds / HOUR)
-        : Math.floor(diffSeconds / HOUR);
+      rounding === 'up' ? Math.ceil(diffSeconds / HOUR) : Math.floor(diffSeconds / HOUR);
     diff = {
       value,
       unit: 'hour',
     };
   } else if (diffSeconds < MONTH_30) {
-    const value =
-      rounding === 'up'
-        ? Math.ceil(diffSeconds / DAY)
-        : Math.floor(diffSeconds / DAY);
+    const value = rounding === 'up' ? Math.ceil(diffSeconds / DAY) : Math.floor(diffSeconds / DAY);
     diff = {
       value,
       unit: 'day',
     };
   } else {
     const value =
-      rounding === 'up'
-        ? Math.ceil(diffSeconds / MONTH_30)
-        : Math.floor(diffSeconds / MONTH_30);
+      rounding === 'up' ? Math.ceil(diffSeconds / MONTH_30) : Math.floor(diffSeconds / MONTH_30);
     diff = {
       value,
       unit: 'month',
@@ -154,30 +148,20 @@ export function formatDateDiff({
       return 'now';
     }
     case 'second': {
-      return long
-        ? `${diff.value} ${diff.value === 1 ? 'second' : 'seconds'}`
-        : `${diff.value}s`;
+      return long ? `${diff.value} ${diff.value === 1 ? 'second' : 'seconds'}` : `${diff.value}s`;
     }
     case 'minute': {
-      return long
-        ? `${diff.value} ${diff.value === 1 ? 'minute' : 'minutes'}`
-        : `${diff.value}m`;
+      return long ? `${diff.value} ${diff.value === 1 ? 'minute' : 'minutes'}` : `${diff.value}m`;
     }
     case 'hour': {
-      return long
-        ? `${diff.value} ${diff.value === 1 ? 'hour' : 'hours'}`
-        : `${diff.value}h`;
+      return long ? `${diff.value} ${diff.value === 1 ? 'hour' : 'hours'}` : `${diff.value}h`;
     }
     case 'day': {
-      return long
-        ? `${diff.value} ${diff.value === 1 ? 'day' : 'days'}`
-        : `${diff.value}d`;
+      return long ? `${diff.value} ${diff.value === 1 ? 'day' : 'days'}` : `${diff.value}d`;
     }
     case 'month': {
       if (diff.value < 12) {
-        return long
-          ? `${diff.value} ${diff.value === 1 ? 'month' : 'months'}`
-          : `${diff.value}mo`;
+        return long ? `${diff.value} ${diff.value === 1 ? 'month' : 'months'}` : `${diff.value}mo`;
       }
       return new Date(diff.earlier).toLocaleDateString();
     }
@@ -215,7 +199,20 @@ export function formatFullTimestamp(input: string | number): string {
   const displayHours = hours % 12 || 12;
   const displayMinutes = minutes.toString().padStart(2, '0');
 
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
   const month = months[date.getMonth()];
   const day = date.getDate();
   const year = date.getFullYear();
@@ -237,8 +234,11 @@ export function formatRelativeTimeLocalized(
   const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
   if (diffInSeconds < 60) return t('notification.now');
-  if (diffInSeconds < 3600) return t('notification.minutes_ago', { count: Math.floor(diffInSeconds / 60) });
-  if (diffInSeconds < 86400) return t('notification.hours_ago', { count: Math.floor(diffInSeconds / 3600) });
-  if (diffInSeconds < 604800) return t('notification.days_ago', { count: Math.floor(diffInSeconds / 86400) });
+  if (diffInSeconds < 3600)
+    return t('notification.minutes_ago', { count: Math.floor(diffInSeconds / 60) });
+  if (diffInSeconds < 86400)
+    return t('notification.hours_ago', { count: Math.floor(diffInSeconds / 3600) });
+  if (diffInSeconds < 604800)
+    return t('notification.days_ago', { count: Math.floor(diffInSeconds / 86400) });
   return date.toLocaleDateString();
 }

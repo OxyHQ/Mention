@@ -80,9 +80,7 @@ describe('per-request query accounting', () => {
     await request(app).get('/posts/abc').expect(200);
 
     const exposition = await metrics.getPrometheusFormat();
-    expect(exposition).toMatch(
-      /^db_request_queries_sum\{method="GET",route="\/posts\/:id"\} 2$/m,
-    );
+    expect(exposition).toMatch(/^db_request_queries_sum\{method="GET",route="\/posts\/:id"\} 2$/m);
     expect(exposition).toMatch(
       /^db_request_duration_ms_count\{method="GET",route="\/posts\/:id"\} 1$/m,
     );

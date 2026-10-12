@@ -15,7 +15,8 @@ jest.mock('expo-router', () => ({ usePathname: () => '/', useFocusEffect: jest.f
  * that need that write the head themselves (see `mockAdvertise`).
  */
 jest.mock('expo-router/head', () => {
-  const { Children, isValidElement, useLayoutEffect } = jest.requireActual<typeof import('react')>('react');
+  const { Children, isValidElement, useLayoutEffect } =
+    jest.requireActual<typeof import('react')>('react');
   return {
     __esModule: true,
     default: function Head({ children }: { children: React.ReactNode }) {
@@ -45,24 +46,41 @@ function mockAdvertise(image: string): void {
 
 /** Let the head observer see the last mutation. */
 async function settle(): Promise<void> {
-  await act(async () => { await Promise.resolve(); });
+  await act(async () => {
+    await Promise.resolve();
+  });
 }
-jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (_key: string, options: { defaultValue: string }) => options.defaultValue }) }));
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (_key: string, options: { defaultValue: string }) => options.defaultValue,
+  }),
+}));
 jest.mock('@/config', () => ({ WEB_BASE_URL: 'https://social.example/' }));
 
 let tree: TestRenderer.ReactTestRenderer;
-afterEach(() => { act(() => tree?.unmount()); document.head.innerHTML = ''; });
+afterEach(() => {
+  act(() => tree?.unmount());
+  document.head.innerHTML = '';
+});
 
 /** The head as a map of property/name → content, from the real document. */
 function head(): Record<string, string | null> {
-  return Object.fromEntries([...document.head.querySelectorAll('meta')].map((node) => [
-    node.getAttribute('property') ?? node.getAttribute('name') ?? '', node.getAttribute('content'),
-  ]));
+  return Object.fromEntries(
+    [...document.head.querySelectorAll('meta')].map((node) => [
+      node.getAttribute('property') ?? node.getAttribute('name') ?? '',
+      node.getAttribute('content'),
+    ]),
+  );
 }
 
 test('default social card advertises the real image with its dimensions and accessible description', () => {
-  act(() => { tree = TestRenderer.create(<SEO url="https://social.example/" />); });
-  const meta = (key: string) => tree.root.findAllByType('meta').find(node => node.props.property === key || node.props.name === key)?.props.content;
+  act(() => {
+    tree = TestRenderer.create(<SEO url="https://social.example/" />);
+  });
+  const meta = (key: string) =>
+    tree.root
+      .findAllByType('meta')
+      .find((node) => node.props.property === key || node.props.name === key)?.props.content;
   expect(meta('og:image')).toBe('https://social.example/og-image.jpg');
   expect(meta('twitter:image')).toBe(meta('og:image'));
   // The image's descriptors are written straight to the document (see below).
@@ -74,16 +92,42 @@ test('default social card advertises the real image with its dimensions and acce
 });
 
 test('personalized entity images do not inherit homepage image dimensions or description', () => {
-  act(() => { tree = TestRenderer.create(<SEO url="https://social.example/" image="https://cdn.example/avatar.png" robots="noindex,nofollow" />); });
+  act(() => {
+    tree = TestRenderer.create(
+      <SEO
+        url="https://social.example/"
+        image="https://cdn.example/avatar.png"
+        robots="noindex,nofollow"
+      />,
+    );
+  });
   const nodes = tree.root.findAllByType('meta');
-  expect(nodes.find(node => node.props.property === 'og:image')?.props.content).toBe('https://cdn.example/avatar.png');
-  expect(nodes.find(node => node.props.name === 'robots')?.props.content).toBe('noindex,nofollow');
-  expect(nodes.filter(node => ['og:image:width', 'og:image:height', 'og:image:type', 'og:image:alt', 'twitter:image:alt'].includes(node.props.property || node.props.name))).toHaveLength(0);
-  expect(Object.keys(head()).filter((key) => key.startsWith('og:image:') || key === 'twitter:image:alt')).toEqual([]);
+  expect(nodes.find((node) => node.props.property === 'og:image')?.props.content).toBe(
+    'https://cdn.example/avatar.png',
+  );
+  expect(nodes.find((node) => node.props.name === 'robots')?.props.content).toBe(
+    'noindex,nofollow',
+  );
+  expect(
+    nodes.filter((node) =>
+      [
+        'og:image:width',
+        'og:image:height',
+        'og:image:type',
+        'og:image:alt',
+        'twitter:image:alt',
+      ].includes(node.props.property || node.props.name),
+    ),
+  ).toHaveLength(0);
+  expect(
+    Object.keys(head()).filter((key) => key.startsWith('og:image:') || key === 'twitter:image:alt'),
+  ).toEqual([]);
 });
 
 test('unready entity routes keep their existing server head', () => {
-  act(() => { tree = TestRenderer.create(<SEO url="https://social.example/" ready={false} />); });
+  act(() => {
+    tree = TestRenderer.create(<SEO url="https://social.example/" ready={false} />);
+  });
   expect(tree.toJSON()).toBeNull();
 });
 
@@ -95,11 +139,17 @@ test('unready entity routes keep their existing server head', () => {
  * the head advertises, not the screen that described it.
  */
 test("the default image's descriptors leave the head with the default image", async () => {
-  act(() => { tree = TestRenderer.create(<SEO url="https://social.example/" />); });
+  act(() => {
+    tree = TestRenderer.create(<SEO url="https://social.example/" />);
+  });
   expect(head()['og:image:width']).toBe('1280');
 
   act(() => tree.unmount());
-  act(() => { tree = TestRenderer.create(<SEO url="https://social.example/@someone" image="https://cdn.example/avatar.png" />); });
+  act(() => {
+    tree = TestRenderer.create(
+      <SEO url="https://social.example/@someone" image="https://cdn.example/avatar.png" />,
+    );
+  });
   await settle();
 
   expect(head()['og:image']).toBe('https://cdn.example/avatar.png');
@@ -110,8 +160,12 @@ test("the default image's descriptors leave the head with the default image", as
 
 test('two screens describing the default image never duplicate its tags', () => {
   let second!: TestRenderer.ReactTestRenderer;
-  act(() => { tree = TestRenderer.create(<SEO url="https://social.example/" />); });
-  act(() => { second = TestRenderer.create(<SEO url="https://social.example/search" />); });
+  act(() => {
+    tree = TestRenderer.create(<SEO url="https://social.example/" />);
+  });
+  act(() => {
+    second = TestRenderer.create(<SEO url="https://social.example/search" />);
+  });
   expect(document.head.querySelectorAll('meta[property="og:image:width"]')).toHaveLength(1);
   act(() => second.unmount());
 });
@@ -125,15 +179,23 @@ test('two screens describing the default image never duplicate its tags', () => 
  */
 test('a screen that stops describing the default image leaves it described while the head still shows it', async () => {
   let profile!: TestRenderer.ReactTestRenderer;
-  act(() => { tree = TestRenderer.create(<SEO url="https://social.example/" />); });
-  act(() => { profile = TestRenderer.create(<SEO url="https://social.example/@someone" />); });
+  act(() => {
+    tree = TestRenderer.create(<SEO url="https://social.example/" />);
+  });
+  act(() => {
+    profile = TestRenderer.create(<SEO url="https://social.example/@someone" />);
+  });
   act(() => profile.update(<SEO url="https://social.example/@someone" ready={false} />));
   await settle();
   expect(head()['og:image']).toBe('https://social.example/og-image.jpg');
   expect(document.head.querySelectorAll('meta[property="og:image:width"]')).toHaveLength(1);
 
   // The profile's avatar arrives and the head advertises it: no descriptors.
-  act(() => profile.update(<SEO url="https://social.example/@someone" image="https://cdn.example/avatar.png" />));
+  act(() =>
+    profile.update(
+      <SEO url="https://social.example/@someone" image="https://cdn.example/avatar.png" />,
+    ),
+  );
   await settle();
   expect(head()['og:image:width']).toBeUndefined();
 
@@ -146,13 +208,17 @@ test('a screen that stops describing the default image leaves it described while
 });
 
 test('the descriptors leave with the last head that could describe them', () => {
-  act(() => { tree = TestRenderer.create(<SEO url="https://social.example/" />); });
+  act(() => {
+    tree = TestRenderer.create(<SEO url="https://social.example/" />);
+  });
   expect(head()['og:image:width']).toBe('1280');
   act(() => tree.unmount());
   expect(head()['og:image:width']).toBeUndefined();
 });
 
 test('an unready route writes no descriptors', () => {
-  act(() => { tree = TestRenderer.create(<SEO url="https://social.example/" ready={false} />); });
+  act(() => {
+    tree = TestRenderer.create(<SEO url="https://social.example/" ready={false} />);
+  });
   expect(head()).toEqual({});
 });

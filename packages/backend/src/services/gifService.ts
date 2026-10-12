@@ -79,7 +79,7 @@ export async function searchGifs(params: SearchGifsParams): Promise<GifResponse>
     throw new Error(`KLIPY API error: ${response.status} ${response.statusText}`);
   }
 
-  const data = await response.json() as GifResponse;
+  const data = (await response.json()) as GifResponse;
 
   if (!data.result) {
     throw new Error('KLIPY API returned unsuccessful result');
@@ -107,7 +107,7 @@ export async function getTrendingGifs(params: TrendingGifsParams): Promise<GifRe
     throw new Error(`KLIPY API error: ${response.status} ${response.statusText}`);
   }
 
-  const data = await response.json() as GifResponse;
+  const data = (await response.json()) as GifResponse;
 
   if (!data.result) {
     throw new Error('KLIPY API returned unsuccessful result');

@@ -35,10 +35,7 @@ const VotePill: React.FC<VotePillProps> = ({
   const downColor = isDownvoted ? theme.colors.error : theme.colors.textSecondary;
 
   return (
-    <View
-      className="border-border bg-muted"
-      style={styles.pill}
-    >
+    <View className="border-border bg-muted" style={styles.pill}>
       <PressableScale
         style={styles.arrowButton}
         onPress={() => {
@@ -56,16 +53,9 @@ const VotePill: React.FC<VotePillProps> = ({
       {netScore !== 0 && (
         <Text
           className={
-            isLiked
-              ? "text-primary"
-              : isDownvoted
-                ? "text-destructive"
-                : "text-muted-foreground"
+            isLiked ? 'text-primary' : isDownvoted ? 'text-destructive' : 'text-muted-foreground'
           }
-          style={[
-            styles.score,
-            { fontWeight: isLiked || isDownvoted ? '600' : '400' },
-          ]}
+          style={[styles.score, { fontWeight: isLiked || isDownvoted ? '600' : '400' }]}
         >
           {formatCompactNumber(netScore)}
         </Text>

@@ -16,7 +16,13 @@ import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedPr
  * existed simply lands on `posts` instead of on a blank screen.
  */
 export default function ProfileLaneRoute() {
-    const username = useRoutedProfileUsername();
-    const { laneId } = useLocalSearchParams<{ laneId: string }>();
-    return <ProfileScreen username={username} tab="posts" laneId={typeof laneId === 'string' ? laneId : undefined} />;
+  const username = useRoutedProfileUsername();
+  const { laneId } = useLocalSearchParams<{ laneId: string }>();
+  return (
+    <ProfileScreen
+      username={username}
+      tab="posts"
+      laneId={typeof laneId === 'string' ? laneId : undefined}
+    />
+  );
 }

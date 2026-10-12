@@ -242,7 +242,10 @@ describe('post subject provider', () => {
   it('omits private or unpublished neighbouring context', async () => {
     // The gate covers the NEIGHBOUR too: a public reply is reportable, but the
     // private post it answers must not ride along into the envelope as context.
-    const parent = await textPost('Private parent.', { status: 'scheduled', visibility: 'private' });
+    const parent = await textPost('Private parent.', {
+      status: 'scheduled',
+      visibility: 'private',
+    });
     const post = await textPost('Public reply.', { parentPostId: parent.id });
 
     const snapshot = await postProvider.snapshot(post.id, 'oxy-attacker');

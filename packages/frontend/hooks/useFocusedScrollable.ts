@@ -18,34 +18,40 @@ import { useLayoutScroll, type ScrollableRef } from '@/context/LayoutScrollConte
  * when the caller knows it; after that `LayoutScrollContext` remembers.
  */
 export function useFocusedScrollable<T extends ScrollableRef>({
-    enabled = true,
-    initialOffset,
-}: { enabled?: boolean; initialOffset?: number } = {}): (node: T | null) => void {
-    const isFocused = useIsFocused();
-    const { registerScrollable } = useLayoutScroll();
-    const nodeRef = useRef<T | null>(null);
-    const releaseRef = useRef<(() => void) | null>(null);
-    const owns = enabled && isFocused;
+  enabled = true,
+  initialOffset,
+}: {
+  enabled?: boolean;
+  initialOffset?: number;
+} = {}): (node: T | null) => void {
+  const isFocused = useIsFocused();
+  const { registerScrollable } = useLayoutScroll();
+  const nodeRef = useRef<T | null>(null);
+  const releaseRef = useRef<(() => void) | null>(null);
+  const owns = enabled && isFocused;
 
-    const release = useCallback(() => {
-        releaseRef.current?.();
-        releaseRef.current = null;
-    }, []);
+  const release = useCallback(() => {
+    releaseRef.current?.();
+    releaseRef.current = null;
+  }, []);
 
-    const claim = useCallback(() => {
-        if (!nodeRef.current || releaseRef.current) return;
-        releaseRef.current = registerScrollable(nodeRef.current, initialOffset);
-    }, [registerScrollable, initialOffset]);
+  const claim = useCallback(() => {
+    if (!nodeRef.current || releaseRef.current) return;
+    releaseRef.current = registerScrollable(nodeRef.current, initialOffset);
+  }, [registerScrollable, initialOffset]);
 
-    useEffect(() => {
-        if (!owns) return;
-        claim();
-        return release;
-    }, [owns, claim, release]);
+  useEffect(() => {
+    if (!owns) return;
+    claim();
+    return release;
+  }, [owns, claim, release]);
 
-    return useCallback((node: T | null) => {
-        nodeRef.current = node;
-        release();
-        if (owns) claim();
-    }, [owns, claim, release]);
+  return useCallback(
+    (node: T | null) => {
+      nodeRef.current = node;
+      release();
+      if (owns) claim();
+    },
+    [owns, claim, release],
+  );
 }

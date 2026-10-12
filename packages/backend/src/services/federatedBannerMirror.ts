@@ -48,7 +48,10 @@ const BANNER_SWEEP_CONCURRENCY = 4;
 export function bannerRetryDelayMs(attempts: number, permanent: boolean): number {
   if (permanent) return PERMANENT_RETRY_MS;
   const exponent = Math.max(0, attempts - 1);
-  return Math.min(TRANSIENT_BACKOFF_BASE_MS * TRANSIENT_BACKOFF_FACTOR ** exponent, TRANSIENT_BACKOFF_MAX_MS);
+  return Math.min(
+    TRANSIENT_BACKOFF_BASE_MS * TRANSIENT_BACKOFF_FACTOR ** exponent,
+    TRANSIENT_BACKOFF_MAX_MS,
+  );
 }
 
 type ClaimedRow = { oxyUserId: string; actorUri: string; sourceUrl: string; attempts: number };
@@ -58,11 +61,16 @@ async function claimDueBanners(limit: number): Promise<ClaimedRow[]> {
   const due = getDb()
     .select({ oxyUserId: federatedBannerMirrors.oxyUserId })
     .from(federatedBannerMirrors)
-    .where(and(
-      sql`${federatedBannerMirrors.state} <> 'mirrored'`,
-      sql`${federatedBannerMirrors.retryAt} <= now()`,
-      or(isNull(federatedBannerMirrors.leaseUntil), lt(federatedBannerMirrors.leaseUntil, sql`now()`)),
-    ))
+    .where(
+      and(
+        sql`${federatedBannerMirrors.state} <> 'mirrored'`,
+        sql`${federatedBannerMirrors.retryAt} <= now()`,
+        or(
+          isNull(federatedBannerMirrors.leaseUntil),
+          lt(federatedBannerMirrors.leaseUntil, sql`now()`),
+        ),
+      ),
+    )
     .orderBy(asc(federatedBannerMirrors.retryAt))
     .limit(limit)
     .for('update', { skipLocked: true });
@@ -85,26 +93,32 @@ async function settle(row: ClaimedRow, result: MirrorBannerResult): Promise<void
     eq(federatedBannerMirrors.sourceUrl, row.sourceUrl),
   );
   if (result.ok) {
-    await getDb().update(federatedBannerMirrors).set({
-      state: 'mirrored',
-      attempts: 0,
-      leaseUntil: null,
-      lastFailure: null,
-      mirroredAt: sql`now()`,
-      updatedAt: new Date(),
-    }).where(sameUrl);
+    await getDb()
+      .update(federatedBannerMirrors)
+      .set({
+        state: 'mirrored',
+        attempts: 0,
+        leaseUntil: null,
+        lastFailure: null,
+        mirroredAt: sql`now()`,
+        updatedAt: new Date(),
+      })
+      .where(sameUrl);
     return;
   }
   const attempts = row.attempts + 1;
   const delay = bannerRetryDelayMs(attempts, result.permanent);
-  await getDb().update(federatedBannerMirrors).set({
-    state: 'failed',
-    attempts,
-    leaseUntil: null,
-    lastFailure: (result.reason ?? 'unknown').slice(0, 120),
-    retryAt: sql`now() + ${`${delay} milliseconds`}::interval`,
-    updatedAt: new Date(),
-  }).where(sameUrl);
+  await getDb()
+    .update(federatedBannerMirrors)
+    .set({
+      state: 'failed',
+      attempts,
+      leaseUntil: null,
+      lastFailure: (result.reason ?? 'unknown').slice(0, 120),
+      retryAt: sql`now() + ${`${delay} milliseconds`}::interval`,
+      updatedAt: new Date(),
+    })
+    .where(sameUrl);
 }
 
 export interface BannerSweepResult {
@@ -143,7 +157,12 @@ export async function runFederatedBannerMirrors(
       }
     }
   };
-  await Promise.all(Array.from({ length: Math.min(options.concurrency ?? BANNER_SWEEP_CONCURRENCY, rows.length) }, worker));
+  await Promise.all(
+    Array.from(
+      { length: Math.min(options.concurrency ?? BANNER_SWEEP_CONCURRENCY, rows.length) },
+      worker,
+    ),
+  );
 
   if (result.claimed > 0) logger.info('[BannerMirror] sweep', { ...result });
   return result;

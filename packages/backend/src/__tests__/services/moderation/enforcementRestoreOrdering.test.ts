@@ -69,7 +69,11 @@ async function createRestrictedPost(): Promise<string> {
 }
 
 async function readStatus(id: string): Promise<string | undefined> {
-  const [row] = await db.select({ status: posts.status }).from(posts).where(eq(posts.id, id)).limit(1);
+  const [row] = await db
+    .select({ status: posts.status })
+    .from(posts)
+    .where(eq(posts.id, id))
+    .limit(1);
   return row?.status;
 }
 
@@ -145,7 +149,8 @@ beforeAll(async () => {
 afterEach(async () => {
   while (usedDecisionIds.length > 0) {
     const id = usedDecisionIds.pop();
-    if (id) await db.delete(moderationEnforcements).where(eq(moderationEnforcements.decisionId, id));
+    if (id)
+      await db.delete(moderationEnforcements).where(eq(moderationEnforcements.decisionId, id));
   }
   while (createdPostIds.length > 0) {
     const id = createdPostIds.pop();

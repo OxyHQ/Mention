@@ -1,22 +1,22 @@
-import { useState, useCallback, useRef } from "react";
-import { TextInput } from "react-native";
+import { useState, useCallback, useRef } from 'react';
+import { TextInput } from 'react-native';
 
 export const usePollManager = () => {
   const [showPollCreator, setShowPollCreator] = useState(false);
-  const [pollTitle, setPollTitle] = useState("");
+  const [pollTitle, setPollTitle] = useState('');
   const [pollOptions, setPollOptions] = useState<string[]>([]);
   const pollTitleInputRef = useRef<TextInput | null>(null);
 
   const focusPollCreator = useCallback(() => {
     setShowPollCreator(true);
-    setPollOptions((prev) => (prev.length >= 2 ? prev : ["", ""]));
+    setPollOptions((prev) => (prev.length >= 2 ? prev : ['', '']));
     setTimeout(() => {
       pollTitleInputRef.current?.focus();
     }, 50);
   }, []);
 
   const addPollOption = useCallback(() => {
-    setPollOptions((prev) => [...prev, ""]);
+    setPollOptions((prev) => [...prev, '']);
   }, []);
 
   const updatePollOption = useCallback((index: number, value: string) => {
@@ -35,14 +35,14 @@ export const usePollManager = () => {
   const removePoll = useCallback(() => {
     setShowPollCreator(false);
     setPollOptions([]);
-    setPollTitle("");
+    setPollTitle('');
     pollTitleInputRef.current?.blur();
   }, []);
 
   const clearPoll = useCallback(() => {
     setShowPollCreator(false);
     setPollOptions([]);
-    setPollTitle("");
+    setPollTitle('');
   }, []);
 
   return {

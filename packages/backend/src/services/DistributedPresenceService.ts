@@ -72,10 +72,9 @@ export class DistributedPresenceService {
   ): Promise<Record<string, boolean>> {
     const uniqueIds = [...new Set(userIds.filter(validUserId))].slice(0, 100);
     const results = await Promise.all(
-      uniqueIds.map(async (userId) => [
-        userId,
-        await this.isOnline(userId, localFallback(userId)),
-      ] as const),
+      uniqueIds.map(
+        async (userId) => [userId, await this.isOnline(userId, localFallback(userId))] as const,
+      ),
     );
     return Object.fromEntries(results);
   }

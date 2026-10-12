@@ -32,12 +32,12 @@ import { resolveVariant } from '../services/postVariants';
 import { connectPostgres } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { findPostRecords, updatePostRecord } from '../db/posts/postRepository';
-import { baselineContentClassifier, BASELINE_CLASSIFIER_VERSION } from '../services/BaselineContentClassifier';
-import { logger } from '../utils/logger';
 import {
-  assertAdminRunComplete,
-  closeAdminScriptResources,
-} from './lib/adminScriptLifecycle';
+  baselineContentClassifier,
+  BASELINE_CLASSIFIER_VERSION,
+} from '../services/BaselineContentClassifier';
+import { logger } from '../utils/logger';
+import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 
 /** Posts scanned per page (stable ascending `id` cursor pagination). */

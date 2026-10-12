@@ -63,7 +63,9 @@ describe('resolveHandleToDid', () => {
     const did = await resolveHandleToDid('custom.example');
 
     expect(did).toBe(DID);
-    expect(mocks.safeGetText).toHaveBeenCalledWith('https://custom.example/.well-known/atproto-did');
+    expect(mocks.safeGetText).toHaveBeenCalledWith(
+      'https://custom.example/.well-known/atproto-did',
+    );
   });
 
   it('falls back to the _atproto DNS TXT record', async () => {
@@ -121,7 +123,13 @@ describe('DID document field extraction', () => {
     const doc = {
       id: DID,
       alsoKnownAs: ['at://alice.bsky.social'],
-      service: [{ id: '#atproto_pds', type: 'AtprotoPersonalDataServer', serviceEndpoint: 'https://pds.example' }],
+      service: [
+        {
+          id: '#atproto_pds',
+          type: 'AtprotoPersonalDataServer',
+          serviceEndpoint: 'https://pds.example',
+        },
+      ],
     };
     expect(handleFromDidDocument(doc)).toBe('alice.bsky.social');
     expect(pdsEndpointFromDidDocument(doc)).toBe('https://pds.example');
@@ -134,12 +142,22 @@ describe('resolveIdentity', () => {
     mocks.safeGetJson.mockResolvedValue({
       id: DID,
       alsoKnownAs: ['at://alice.bsky.social'],
-      service: [{ id: '#atproto_pds', type: 'AtprotoPersonalDataServer', serviceEndpoint: 'https://pds.example' }],
+      service: [
+        {
+          id: '#atproto_pds',
+          type: 'AtprotoPersonalDataServer',
+          serviceEndpoint: 'https://pds.example',
+        },
+      ],
     });
 
     const identity = await resolveIdentity('alice.bsky.social');
 
-    expect(identity).toEqual({ did: DID, handle: 'alice.bsky.social', pdsEndpoint: 'https://pds.example' });
+    expect(identity).toEqual({
+      did: DID,
+      handle: 'alice.bsky.social',
+      pdsEndpoint: 'https://pds.example',
+    });
   });
 
   it('resolves a DID input without re-resolving the handle', async () => {

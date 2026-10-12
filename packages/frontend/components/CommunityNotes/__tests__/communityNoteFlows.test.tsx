@@ -17,9 +17,13 @@ import { useCommunityNoteSheets } from '../useCommunityNoteSheets';
  */
 
 jest.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key }),
+  useTranslation: () => ({
+    t: (_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key,
+  }),
 }));
-jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: { text: '#000', textSecondary: '#666' } }) }));
+jest.mock('@oxy.so/bloom/theme', () => ({
+  useTheme: () => ({ colors: { text: '#000', textSecondary: '#666' } }),
+}));
 jest.mock('@oxy.so/bloom/icons', () => new Proxy({}, { get: () => () => null }));
 jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
 jest.mock('@oxy.so/bloom/bottom-sheet', () => ({ BottomSheet: () => null }));
@@ -39,11 +43,20 @@ jest.mock('@oxy.so/bloom/tabs', () => {
   const RN = jest.requireActual<typeof import('react-native')>('react-native');
   const Context = R.createContext<(mockValue: string) => void>(() => {});
   return {
-    Tabs: ({ children, onValueChange }: { children: React.ReactNode; onValueChange: (mockValue: string) => void }) =>
-      R.createElement(Context.Provider, { value: onValueChange }, children),
+    Tabs: ({
+      children,
+      onValueChange,
+    }: {
+      children: React.ReactNode;
+      onValueChange: (mockValue: string) => void;
+    }) => R.createElement(Context.Provider, { value: onValueChange }, children),
     TabsTrigger: ({ value, label }: { value: string; label: string }) => {
       const change = R.useContext(Context);
-      return R.createElement(RN.Pressable, { testID: `tab-${value}`, onPress: () => change(value) }, R.createElement(RN.Text, null, label));
+      return R.createElement(
+        RN.Pressable,
+        { testID: `tab-${value}`, onPress: () => change(value) },
+        R.createElement(RN.Text, null, label),
+      );
     },
   };
 });
@@ -78,7 +91,9 @@ function render(element: React.ReactElement) {
 }
 
 const pressText = (tree: TestRenderer.ReactTestRenderer, label: string) => {
-  const node = tree.root.findAll((n) => typeof n.props.onPress === 'function' && texts({ root: n } as never).includes(label))[0];
+  const node = tree.root.findAll(
+    (n) => typeof n.props.onPress === 'function' && texts({ root: n } as never).includes(label),
+  )[0];
   if (!node) throw new Error(`nothing pressable labelled ${label}`);
   act(() => node.props.onPress());
 };
@@ -92,7 +107,9 @@ describe('explainer sheets', () => {
   it('writing tips: continue and learn more', () => {
     const onContinue = jest.fn();
     const onLearnMore = jest.fn();
-    const tree = render(<WritingTipsSheet onContinue={onContinue} onLearnMore={onLearnMore} onClose={() => {}} />);
+    const tree = render(
+      <WritingTipsSheet onContinue={onContinue} onLearnMore={onLearnMore} onClose={() => {}} />,
+    );
     expect(texts(tree)).toContain('Write a helpful community note');
     pressText(tree, 'Continue');
     pressText(tree, 'Learn more');
@@ -112,7 +129,9 @@ describe('explainer sheets', () => {
 
   it('about: shows the note, and rating buttons only when rating is possible', () => {
     const readOnly = render(<AboutNoteSheet note={note()} onClose={() => {}} />);
-    expect(texts(readOnly)).toEqual(expect.arrayContaining(['About this note', 'Context.', 'Anonymous']));
+    expect(texts(readOnly)).toEqual(
+      expect.arrayContaining(['About this note', 'Context.', 'Anonymous']),
+    );
     expect(texts(readOnly)).not.toContain('Helpful');
 
     const onRate = jest.fn();
@@ -144,12 +163,16 @@ describe('useCommunityNoteSheets', () => {
 
   it('offers writing and rating only when a handler can receive them', () => {
     expect(mountHook({}).sheets).toMatchObject({ canWrite: false, canRate: false });
-    expect(mountHook({ submitNote: jest.fn(), rateNote: jest.fn() }).sheets).toMatchObject({ canWrite: true, canRate: true });
+    expect(mountHook({ submitNote: jest.fn(), rateNote: jest.fn() }).sheets).toMatchObject({
+      canWrite: true,
+      canRate: true,
+    });
   });
 
   /** The sheet element a flow put in the shared sheet (unwrapped from its Suspense). */
   const shown = (sheet: BottomSheetContextProps, call: number) =>
-    (sheet.setBottomSheetContent as jest.Mock).mock.calls[call][0].props.children as React.ReactElement<Record<string, (...args: unknown[]) => unknown>>;
+    (sheet.setBottomSheetContent as jest.Mock).mock.calls[call][0].props
+      .children as React.ReactElement<Record<string, (...args: unknown[]) => unknown>>;
 
   it('write flow: tips -> form -> sends the draft -> submitted -> done', async () => {
     const submitNote = jest.fn().mockResolvedValue(undefined);
@@ -206,11 +229,18 @@ describe('useCommunityNoteSheets', () => {
 });
 
 describe('CommunityNotesScreen', () => {
-  const entry = (id: string, overrides: Partial<CommunityNoteSummary> = {}) => ({ post: { ...post, id: `p-${id}` }, note: note({ id, text: `Note ${id}`, ...overrides }) });
+  const entry = (id: string, overrides: Partial<CommunityNoteSummary> = {}) => ({
+    post: { ...post, id: `p-${id}` },
+    note: note({ id, text: `Note ${id}`, ...overrides }),
+  });
 
   it('shows each tab its own list, and an empty state when a list is empty', () => {
     const tree = render(
-      <CommunityNotesScreen toRate={[entry('a')]} rated={[entry('b', { viewerRating: 'helpful', status: 'shown' })]} written={[]} />,
+      <CommunityNotesScreen
+        toRate={[entry('a')]}
+        rated={[entry('b', { viewerRating: 'helpful', status: 'shown' })]}
+        written={[]}
+      />,
     );
     expect(texts(tree)).toContain('Note a');
     expect(texts(tree)).not.toContain('Note b');
@@ -227,25 +257,49 @@ describe('CommunityNotesScreen', () => {
     expect(texts(readOnly)).not.toContain('Helpful');
 
     const rateable = render(
-      <CommunityNotesScreen toRate={[entry('a')]} rated={[]} written={[]} handlers={{ rateNote: jest.fn() }} />,
+      <CommunityNotesScreen
+        toRate={[entry('a')]}
+        rated={[]}
+        written={[]}
+        handlers={{ rateNote: jest.fn() }}
+      />,
     );
     pressText(rateable, 'Helpful');
   });
 
   it('labels whether a written note is shown yet', () => {
-    const tree = render(<CommunityNotesScreen toRate={[]} rated={[]} written={[entry('c'), entry('d', { status: 'shown' })]} />);
+    const tree = render(
+      <CommunityNotesScreen
+        toRate={[]}
+        rated={[]}
+        written={[entry('c'), entry('d', { status: 'shown' })]}
+      />,
+    );
     act(() => tree.root.findByProps({ testID: 'tab-notes' }).props.onPress());
-    expect(texts(tree)).toEqual(expect.arrayContaining(['Needs more ratings', 'Shown on the post']));
+    expect(texts(tree)).toEqual(
+      expect.arrayContaining(['Needs more ratings', 'Shown on the post']),
+    );
   });
 });
 
 describe('CommunityNoteCard actions', () => {
-  const { openExternalLink } = jest.requireMock<{ openExternalLink: jest.Mock }>('@/utils/openExternalLink');
-  const { CommunityNoteCard } = jest.requireActual<typeof import('../CommunityNoteCard')>('../CommunityNoteCard');
+  const { openExternalLink } = jest.requireMock<{ openExternalLink: jest.Mock }>(
+    '@/utils/openExternalLink',
+  );
+  const { CommunityNoteCard } =
+    jest.requireActual<typeof import('../CommunityNoteCard')>('../CommunityNoteCard');
 
   it('under a post: expands a long note, opens its first source and the about sheet', () => {
     const onPressAbout = jest.fn();
-    const tree = render(<CommunityNoteCard note={note({ text: 'y'.repeat(300), sourceUrls: ['https://a.example', 'https://b.example'] })} onPressAbout={onPressAbout} />);
+    const tree = render(
+      <CommunityNoteCard
+        note={note({
+          text: 'y'.repeat(300),
+          sourceUrls: ['https://a.example', 'https://b.example'],
+        })}
+        onPressAbout={onPressAbout}
+      />,
+    );
     pressText(tree, 'y'.repeat(300));
     expect(texts(tree)).not.toContain('Show more');
     pressText(tree, 'Sources ({{count}})');

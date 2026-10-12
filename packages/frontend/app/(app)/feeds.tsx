@@ -1,12 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  RefreshControl,
-  Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, RefreshControl, Platform } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
@@ -251,10 +244,15 @@ const FeedRow = ({
           <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>
             {item.owner ? `@${item.owner.username || item.owner.handle}` : ''}
             {memberCount > 0 ? ` · ${formatCompactNumber(memberCount)} members` : ''}
-            {typeof item.likeCount === 'number' && item.likeCount > 0 ? ` · ${formatCompactNumber(item.likeCount)} likes` : ''}
+            {typeof item.likeCount === 'number' && item.likeCount > 0
+              ? ` · ${formatCompactNumber(item.likeCount)} likes`
+              : ''}
           </Text>
           {item.description ? (
-            <Text className="text-[13px] leading-[18px] mt-0.5 text-muted-foreground" numberOfLines={2}>
+            <Text
+              className="text-[13px] leading-[18px] mt-0.5 text-muted-foreground"
+              numberOfLines={2}
+            >
               {item.description}
             </Text>
           ) : null}
@@ -292,9 +290,11 @@ const FeedsScreen: React.FC = () => {
 
       setMyFeeds(mine.items || []);
 
-      const mineIds = new Set((mine.items || []).map((feed: FeedItem) => String(feed._id || feed.id)));
+      const mineIds = new Set(
+        (mine.items || []).map((feed: FeedItem) => String(feed._id || feed.id)),
+      );
       setPublicFeeds(
-        (pub.items || []).filter((feed: FeedItem) => !mineIds.has(String(feed._id || feed.id)))
+        (pub.items || []).filter((feed: FeedItem) => !mineIds.has(String(feed._id || feed.id))),
       );
     } catch (e) {
       logger.warn('Failed loading feeds', { error: e });
@@ -354,22 +354,19 @@ const FeedsScreen: React.FC = () => {
    * Both request the identical descriptor, so they are two presentations of one
    * feed rather than two feeds.
    */
-  const openTrend = useCallback(
-    (trend: Trend, rank: number) => {
-      reportTrendEvent({
-        event: 'click',
-        type: trend.type,
-        surface: 'feeds',
-        rank,
-        ...(trend.recId ? { recId: trend.recId } : {}),
-      });
-      router.push({
-        pathname: '/feeds/view',
-        params: { descriptor: `trend|${trend.text}`, title: trend.displayName },
-      });
-    },
-    [],
-  );
+  const openTrend = useCallback((trend: Trend, rank: number) => {
+    reportTrendEvent({
+      event: 'click',
+      type: trend.type,
+      surface: 'feeds',
+      rank,
+      ...(trend.recId ? { recId: trend.recId } : {}),
+    });
+    router.push({
+      pathname: '/feeds/view',
+      params: { descriptor: `trend|${trend.text}`, title: trend.displayName },
+    });
+  }, []);
 
   const toggleTrend = useCallback(
     (trend: Trend) => {
@@ -416,7 +413,7 @@ const FeedsScreen: React.FC = () => {
       (f) =>
         f.title?.toLowerCase().includes(q) ||
         f.description?.toLowerCase().includes(q) ||
-        f.owner?.username?.toLowerCase().includes(q)
+        f.owner?.username?.toLowerCase().includes(q),
     );
   }, [publicFeeds, searchQuery]);
 
@@ -523,7 +520,8 @@ const FeedsScreen: React.FC = () => {
           title={t('Feeds')}
           actions={
             <Button
-              appearance="subtle" tone="neutral"
+              appearance="subtle"
+              tone="neutral"
               iconOnly
               leadingIcon={RiSettings3Line}
               onPress={() => requestSettings('/settings/feed')}
@@ -544,7 +542,11 @@ const FeedsScreen: React.FC = () => {
           <FocusedScrollView
             showsVerticalScrollIndicator={false}
             refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={theme.colors.primary}
+              />
             }
             contentContainerStyle={styles.scrollContent}
           >

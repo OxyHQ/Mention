@@ -101,12 +101,13 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
   ...[
     'src/__tests__/mtn/forYouCandidateGatheringStatementBudget.test.ts',
     'src/__tests__/forYouCandidateSources.test.ts',
-  ].map(path => ({
+  ].map((path) => ({
     path,
     jobEntryPoint: 'gatherGlobalLane',
-    reason: 'Global candidate discovery reads every eligible post. Concurrent suites can add '
-      + 'reply candidates whose parent hydration changes the measured final-page assembly cost; '
-      + 'the fixture must own its entire candidate pool without changing production query scope.',
+    reason:
+      'Global candidate discovery reads every eligible post. Concurrent suites can add ' +
+      'reply candidates whose parent hydration changes the measured final-page assembly cost; ' +
+      'the fixture must own its entire candidate pool without changing production query scope.',
   })),
   {
     path: 'src/__tests__/services/engagementProjections.test.ts',
@@ -246,7 +247,7 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
     jobEntryPoint: 'reconcileBlockedDomains',
     reason:
       'Its candidate set is every domain in the COMMITTED blocklist policy, and for each it ' +
-      'deletes that domain\'s posts and actor rows. Another file\'s federated post from a ' +
+      "deletes that domain's posts and actor rows. Another file's federated post from a " +
       'blocked domain is a candidate, and the run also writes the shared purge ledger.',
   },
   {
@@ -292,7 +293,7 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
     reason:
       'Selects every federated post on a reviewed bridge whose body is a flattened retweet and ' +
       'DELETES it. A foreign row from a bridge host entering the scan would be destroyed outright, ' +
-      'and the counters this file asserts would describe another suite\' posts.',
+      "and the counters this file asserts would describe another suite' posts.",
   },
   {
     path: 'src/__tests__/scripts/backfillQuotedPostsRows.test.ts',
@@ -300,7 +301,7 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
     reason:
       'Selects every federated post with a null `quote_of` whose body renders as `RE: <url>` and ' +
       'UPDATEs `quote_of` on it. Its suite mocks `signedFetch` to answer with a quote for ANY ' +
-      'candidate, so a foreign row entering the scan is linked to this file\'s fixture.',
+      "candidate, so a foreign row entering the scan is linked to this file's fixture.",
   },
   {
     path: 'src/__tests__/scripts/stripRenderedQuoteMarkersRows.test.ts',
@@ -309,7 +310,7 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       'Selects every variant of every federated post with a LINKED quote whose body still renders ' +
       '`RE: <url>`, and REWRITES that body. A foreign row entering the scan would have its text ' +
       'edited mid-assertion, and the marker is removed only when it names the quoted post — so a ' +
-      'shared database would also make the counters this file asserts describe other suites\' rows.',
+      "shared database would also make the counters this file asserts describe other suites' rows.",
   },
   {
     path: 'src/__tests__/scripts/backfillMediaMetadataRows.test.ts',
@@ -317,27 +318,27 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
     reason:
       'Pages over every post carrying media that still lacks intrinsic metadata and REWRITES its ' +
       'whole content graph (a transactional delete-then-insert of `post_media`). It takes no ' +
-      'scope, because a repair that only fixed the caller\'s rows would repair nothing in ' +
+      "scope, because a repair that only fixed the caller's rows would repair nothing in " +
       'production, and its suite runs it with `dryRun: false`. Sharing a database it would eat ' +
-      'the deliberately dimensionless fixtures `videosFeed.test.ts` seeds to prove the lane\'s ' +
+      "the deliberately dimensionless fixtures `videosFeed.test.ts` seeds to prove the lane's " +
       '`width > 0 AND height > 0` filter — replacing their media rows mid-assertion, and making ' +
-      'this file\'s own `scanned`/`updated` counts describe other suites\' posts.',
+      "this file's own `scanned`/`updated` counts describe other suites' posts.",
   },
   {
     path: 'src/__tests__/scripts/reconcileMetaIdentityAndCrossposts.test.ts',
     jobEntryPoint: 'reconcileMetaIdentityAndCrossposts',
     reason:
-      'Pages every federated actor and every unclustered federated post in the table — it takes no '
-      + "scope, because a reconciliation that only fixed the caller's rows would reconcile nothing "
-      + 'in production. Its suite runs it with `dryRun: false`, so on a shared database the live '
-      + "pass would record identity claims against other suites' actors and cluster their posts "
-      + 'mid-assertion.',
+      'Pages every federated actor and every unclustered federated post in the table — it takes no ' +
+      "scope, because a reconciliation that only fixed the caller's rows would reconcile nothing " +
+      'in production. Its suite runs it with `dryRun: false`, so on a shared database the live ' +
+      "pass would record identity claims against other suites' actors and cluster their posts " +
+      'mid-assertion.',
   },
   {
     path: 'src/__tests__/services/federatedMediaDeletion.test.ts',
     jobEntryPoint: 'drainFederatedMediaDeletions',
     reason:
-      'Drains the WHOLE `federated_media_deletions` outbox — every file any suite\'s post ' +
+      "Drains the WHOLE `federated_media_deletions` outbox — every file any suite's post " +
       'deletion queued — re-checking references and settling rows, so on a shared database ' +
       "it would decide other suites' files.",
   },
@@ -381,7 +382,7 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
     reason:
       'Sweeps every post in the table whose `has_links` column disagrees with its stored ' +
       'renditions and rewrites the column on each — it takes no scope, because a repair that ' +
-      'only fixed the caller\'s rows would repair nothing in production. Its suite runs it with ' +
+      "only fixed the caller's rows would repair nothing in production. Its suite runs it with " +
       '`dryRun: false`, and the rows it would eat are the deliberately-disagreeing ones ' +
       '`routes/searchPosts.test.ts` seeds to prove `has:links` reads the column, not the body.',
   },

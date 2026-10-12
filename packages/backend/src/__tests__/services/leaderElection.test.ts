@@ -42,10 +42,7 @@ class FakeRedis {
     return 'OK';
   }
 
-  async eval(
-    script: string,
-    opts: { keys: string[]; arguments: string[] },
-  ): Promise<number> {
+  async eval(script: string, opts: { keys: string[]; arguments: string[] }): Promise<number> {
     const key = opts.keys[0];
     const me = opts.arguments[0];
     const live = this.isLive(key);
@@ -234,13 +231,11 @@ describe('LeaderElection', () => {
     const setStarted = deferred();
     const allowSet = deferred();
     const originalSet = fakeRedis.set.bind(fakeRedis);
-    const setSpy = vi.spyOn(fakeRedis, 'set').mockImplementation(
-      async (key, value, options) => {
-        setStarted.resolve();
-        await allowSet.promise;
-        return originalSet(key, value, options);
-      },
-    );
+    const setSpy = vi.spyOn(fakeRedis, 'set').mockImplementation(async (key, value, options) => {
+      setStarted.resolve();
+      await allowSet.promise;
+      return originalSet(key, value, options);
+    });
 
     const tick = (node as unknown as { tick: () => Promise<void> }).tick();
     await setStarted.promise;

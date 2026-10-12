@@ -22,8 +22,12 @@ jest.mock('expo-video', () => {
       currentTime: 0,
       duration: 0,
       status: 'idle',
-      play() { player.playing = true; },
-      pause() { player.playing = false; },
+      play() {
+        player.playing = true;
+      },
+      pause() {
+        player.playing = false;
+      },
       replace() {},
       replaceAsync: async () => {},
       release() {},
@@ -82,12 +86,15 @@ jest.mock('@/lib/syraApi', () => {
     recordRequest('GET', `syra:${name}`);
     return name === 'getLivePresencePreference' ? 'active' : [];
   };
-  const client = new Proxy({}, {
-    get: (_t, method) => async (endpoint: string) => {
-      recordRequest(String(method).toUpperCase(), `syra:${endpoint}`);
-      return { data: {} };
+  const client = new Proxy(
+    {},
+    {
+      get: (_t, method) => async (endpoint: string) => {
+        recordRequest(String(method).toUpperCase(), `syra:${endpoint}`);
+        return { data: {} };
+      },
     },
-  });
+  );
   return {
     syraLinkedClient: client,
     roomsService: new Proxy({}, { get: (_t, name) => call(`rooms.${String(name)}`) }),
@@ -123,21 +130,39 @@ jest.mock('@oxy.so/services', () => {
     activeSessionId: null,
     sessions: [],
   };
-  return new Proxy({}, {
-    get: (_t, name) => {
-      if (name === '__esModule') return true;
-      if (name === 'useAuth' || name === 'useOxy') return () => auth;
-      if (name === 'queryKeys') return new Proxy({}, { get: (_q, key) => (...args: unknown[]) => [key, ...args] });
-      if (typeof name === 'string' && /^use[A-Z]/.test(name)) return () => ({ data: undefined, isLoading: false });
-      if (typeof name === 'string' && /^[A-Z]/.test(name)) return () => null;
-      return noop;
+  return new Proxy(
+    {},
+    {
+      get: (_t, name) => {
+        if (name === '__esModule') return true;
+        if (name === 'useAuth' || name === 'useOxy') return () => auth;
+        if (name === 'queryKeys')
+          return new Proxy(
+            {},
+            {
+              get:
+                (_q, key) =>
+                (...args: unknown[]) => [key, ...args],
+            },
+          );
+        if (typeof name === 'string' && /^use[A-Z]/.test(name))
+          return () => ({ data: undefined, isLoading: false });
+        if (typeof name === 'string' && /^[A-Z]/.test(name)) return () => null;
+        return noop;
+      },
     },
-  });
+  );
 });
 jest.mock('@oxy.so/services/ui/client', () => jest.requireMock('@oxy.so/services'));
 
 jest.mock('expo-router', () => {
-  const router = { push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: () => false, navigate: jest.fn() };
+  const router = {
+    push: jest.fn(),
+    replace: jest.fn(),
+    back: jest.fn(),
+    canGoBack: () => false,
+    navigate: jest.fn(),
+  };
   return {
     router,
     useRouter: () => router,
@@ -146,7 +171,11 @@ jest.mock('expo-router', () => {
     useLocalSearchParams: () => ({}),
     useFocusEffect: () => undefined,
     useIsFocused: () => true,
-    useNavigation: () => ({ addListener: () => () => undefined, isFocused: () => true, setOptions: () => undefined }),
+    useNavigation: () => ({
+      addListener: () => () => undefined,
+      isFocused: () => true,
+      setOptions: () => undefined,
+    }),
     useGlobalSearchParams: () => ({}),
     Link: ({ children }: { children: unknown }) => children,
   };

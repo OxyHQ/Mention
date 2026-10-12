@@ -21,8 +21,9 @@ describe('identityDomainOfActor', () => {
   it('prefers the RE-LABELLED network over the host the copy arrived through', () => {
     // The distinction the whole bridge policy exists for: `domain` addresses the
     // bridge, `networkAcct` names the account.
-    expect(identityDomainOfActor({ networkAcct: 'pabloiglesias@x.com', domain: 'mastox.eu' }))
-      .toBe('x.com');
+    expect(identityDomainOfActor({ networkAcct: 'pabloiglesias@x.com', domain: 'mastox.eu' })).toBe(
+      'x.com',
+    );
   });
 
   /**
@@ -35,25 +36,39 @@ describe('identityDomainOfActor', () => {
    * network, which is the whole difference.
    */
   it('answers for a RE-LABELLED actor only, never an ordinary one', () => {
-    expect(identityDomainOfActor({ networkAcct: undefined, domain: 'mastodon.social' }))
-      .toBeUndefined();
-    expect(identityDomainOfActor({ networkAcct: 'wired@x.com', domain: 'bird.makeup' }))
-      .toBe('x.com');
+    expect(
+      identityDomainOfActor({ networkAcct: undefined, domain: 'mastodon.social' }),
+    ).toBeUndefined();
+    expect(identityDomainOfActor({ networkAcct: 'wired@x.com', domain: 'bird.makeup' })).toBe(
+      'x.com',
+    );
   });
 
   it('does not qualify an ordinary actor whose Oxy canonical acct is on its own host', () => {
     // Oxy returns a `canonicalAcct` for every source, so `networkAcct` is set on
     // ordinary actors too; only a DIFFERENT network domain is a relabel.
-    expect(identityDomainOfActor({ networkAcct: 'alice@mastodon.social', domain: 'mastodon.social' }))
-      .toBeUndefined();
-    expect(identityDomainOfActor({ networkAcct: 'alice@Mastodon.Social', domain: 'mastodon.social ' }))
-      .toBeUndefined();
-    expect(qualifyBareHandles('hola @bob', identityDomainOfActor({ networkAcct: 'alice@mastodon.social', domain: 'mastodon.social' }) ?? ''))
-      .toBe('hola @bob');
+    expect(
+      identityDomainOfActor({ networkAcct: 'alice@mastodon.social', domain: 'mastodon.social' }),
+    ).toBeUndefined();
+    expect(
+      identityDomainOfActor({ networkAcct: 'alice@Mastodon.Social', domain: 'mastodon.social ' }),
+    ).toBeUndefined();
+    expect(
+      qualifyBareHandles(
+        'hola @bob',
+        identityDomainOfActor({
+          networkAcct: 'alice@mastodon.social',
+          domain: 'mastodon.social',
+        }) ?? '',
+      ),
+    ).toBe('hola @bob');
   });
 
-  it('qualifies a bridge actor onto Oxy\'s canonical network', () => {
-    const domain = identityDomainOfActor({ networkAcct: 'jordievole@x.com', domain: 'bird.makeup' });
+  it("qualifies a bridge actor onto Oxy's canonical network", () => {
+    const domain = identityDomainOfActor({
+      networkAcct: 'jordievole@x.com',
+      domain: 'bird.makeup',
+    });
     expect(domain).toBe('x.com');
     expect(qualifyBareHandles('Uno @delbarriotv', domain ?? '')).toBe('Uno @delbarriotv@x.com');
   });
@@ -76,8 +91,9 @@ describe('identityDomainOfActor', () => {
 describe('a bridge-flattened retweet', () => {
   it('turns the only reference the bridge left behind into a followable handle', () => {
     const body = 'RT: @Julio_Rodr_ ¡Tres años de Canal Red navegando a contracorriente!';
-    expect(qualifyBareHandles(body, 'x.com'))
-      .toBe('RT: @Julio_Rodr_@x.com ¡Tres años de Canal Red navegando a contracorriente!');
+    expect(qualifyBareHandles(body, 'x.com')).toBe(
+      'RT: @Julio_Rodr_@x.com ¡Tres años de Canal Red navegando a contracorriente!',
+    );
   });
 
   it('leaves a mention the Note already carried in its tag array alone', () => {
@@ -85,13 +101,19 @@ describe('a bridge-flattened retweet', () => {
     // neither double-qualified nor disturbed. Asserted because the two forms sit
     // side by side in the real post this came from.
     const body = 'RT: @BoGardiner1 [@Mehdi Hasan](mehdirhasan@x.com) remember this?';
-    expect(qualifyBareHandles(body, 'x.com'))
-      .toBe('RT: @BoGardiner1@x.com [@Mehdi Hasan](mehdirhasan@x.com) remember this?');
+    expect(qualifyBareHandles(body, 'x.com')).toBe(
+      'RT: @BoGardiner1@x.com [@Mehdi Hasan](mehdirhasan@x.com) remember this?',
+    );
   });
 
   it('qualifies onto the NETWORK, never onto the bridge that carried the copy', () => {
-    const domain = identityDomainOfActor({ networkAcct: 'pabloiglesias@x.com', domain: 'mastox.eu' });
-    expect(qualifyBareHandles('RT: @Julio_Rodr_ hola', domain ?? '')).toContain('@Julio_Rodr_@x.com');
+    const domain = identityDomainOfActor({
+      networkAcct: 'pabloiglesias@x.com',
+      domain: 'mastox.eu',
+    });
+    expect(qualifyBareHandles('RT: @Julio_Rodr_ hola', domain ?? '')).toContain(
+      '@Julio_Rodr_@x.com',
+    );
     expect(qualifyBareHandles('RT: @Julio_Rodr_ hola', domain ?? '')).not.toContain('mastox.eu');
   });
 });

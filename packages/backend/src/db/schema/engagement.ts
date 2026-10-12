@@ -3,8 +3,8 @@
  * `bookmark_folders`), `post_subscriptions`, `pokes`, `mutes`, `mute_words`,
  * `entity_follows`.
  *
- * Every one of these is a (user, thing) edge that Mongo stored as a document
- * with a compound unique index. The port is direct; the interesting parts are
+ * Every one of these is a (user, thing) edge with a compound unique key. The
+ * interesting parts are
  * the ON DELETE choices, which follow `deletePost`'s own best-effort cascade
  * (`controllers/posts.controller.ts:1741-1747`) — likes and bookmarks are
  * deleted with their post today, so they CASCADE.
@@ -30,7 +30,7 @@ export const MUTE_WORD_ACTOR_TARGETS = ['all', 'exclude-following'] as const;
 /** The longest bookmark-folder name; `BookmarkFolderService` trims and checks it first. */
 export const BOOKMARK_FOLDER_NAME_MAX_LENGTH = 100;
 
-/** `MuteWord.value` length ceiling, from the Mongoose `maxlength`. */
+/** `MuteWord.value` length ceiling. */
 const MUTE_WORD_MAX_LENGTH = 100;
 
 /**
@@ -52,7 +52,7 @@ export const likes = pgTable(
     value: integer().notNull().default(1),
     /**
      * Monotonic relationship revision, the input to the deterministic outbox id.
-     * Mongo's `min: 1, default: 1`, with legacy rows starting at zero — so the
+     * The model says `min: 1, default: 1`, with legacy rows starting at zero — so the
      * CHECK is `>= 0`, not `>= 1`, and the code's own comment says why ("Legacy
      * rows start at zero and receive revision 1 on their next transition").
      */
@@ -81,7 +81,7 @@ export const likes = pgTable(
     index('likes_post_id_idx').on(t.postId),
     // `friendsEngaged` scans "likes by these users in this window".
     index('likes_user_id_created_at_idx').on(t.userId, t.createdAt.desc()),
-  ]
+  ],
 );
 
 /** `bookmarks` — a user saved a post, optionally into a named folder. */
@@ -113,7 +113,7 @@ export const bookmarkFolders = pgTable(
       'bookmark_folders_name_check',
       sql`${t.name} = btrim(${t.name}) and length(${t.name}) between 1 and ${sql.raw(String(BOOKMARK_FOLDER_NAME_MAX_LENGTH))}`,
     ),
-  ]
+  ],
 );
 
 export const bookmarks = pgTable(
@@ -126,8 +126,7 @@ export const bookmarks = pgTable(
       .notNull()
       .references(() => posts.id, { onDelete: 'cascade' }),
     /**
-     * NULL means the default (unfiled) folder. Mongo used `default: null` for
-     * exactly this, and it must stay NULL rather than `''` — an empty string is
+     * NULL means the default (unfiled) folder, and it must stay NULL rather than `''` — an empty string is
      * a VALUE, so it would become a folder literally named "".
      *
      * A non-NULL value must name one of the owner's `bookmark_folders` — the
@@ -154,7 +153,7 @@ export const bookmarks = pgTable(
       columns: [t.userId, t.folder],
       foreignColumns: [bookmarkFolders.userId, bookmarkFolders.name],
     }).onDelete('restrict'),
-  ]
+  ],
 );
 
 /**
@@ -180,7 +179,7 @@ export const postSubscriptions = pgTable(
     unique('post_subscriptions_subscriber_id_author_id_key').on(t.subscriberId, t.authorId),
     // "Who subscribed to this author" — the notification fan-out direction.
     index('post_subscriptions_author_id_idx').on(t.authorId),
-  ]
+  ],
 );
 
 /** `pokes` — one active poke per ordered user pair. */
@@ -196,7 +195,7 @@ export const pokes = pgTable(
   (t) => [
     unique('pokes_poker_id_poked_id_key').on(t.pokerId, t.pokedId),
     index('pokes_poked_id_created_at_idx').on(t.pokedId, t.createdAt.desc()),
-  ]
+  ],
 );
 
 /** `mutes` — user A has muted user B. */
@@ -211,9 +210,9 @@ export const mutes = pgTable(
   },
   (t) => [
     unique('mutes_user_id_muted_id_key').on(t.userId, t.mutedId),
-    // The reverse direction ("who has muted me") — Mongo indexed it, keep it.
+    // The reverse direction ("who has muted me").
     index('mutes_muted_id_idx').on(t.mutedId),
-  ]
+  ],
 );
 
 /**
@@ -235,10 +234,7 @@ export const muteWords = pgTable(
     /** An Oxy account id — no foreign key. */
     userId: text().notNull(),
     value: text().notNull(),
-    targets: text({ enum: MUTE_WORD_TARGETS })
-      .array()
-      .notNull()
-      .default(sql`array[]::text[]`),
+    targets: text({ enum: MUTE_WORD_TARGETS }).array().notNull().default(sql`array[]::text[]`),
     actorTarget: text({ enum: MUTE_WORD_ACTOR_TARGETS }).notNull().default('all'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -246,15 +242,18 @@ export const muteWords = pgTable(
   (t) => [
     check(
       'mute_words_actor_target_check',
-      sql`${t.actorTarget} in (${sql.raw(inList(MUTE_WORD_ACTOR_TARGETS))})`
+      sql`${t.actorTarget} in (${sql.raw(inList(MUTE_WORD_ACTOR_TARGETS))})`,
     ),
     check(
       'mute_words_targets_check',
-      sql`${t.targets} <@ array[${sql.raw(inList(MUTE_WORD_TARGETS))}]::text[]`
+      sql`${t.targets} <@ array[${sql.raw(inList(MUTE_WORD_TARGETS))}]::text[]`,
     ),
-    check('mute_words_value_length_check', sql`length(${t.value}) <= ${sql.raw(String(MUTE_WORD_MAX_LENGTH))}`),
+    check(
+      'mute_words_value_length_check',
+      sql`length(${t.value}) <= ${sql.raw(String(MUTE_WORD_MAX_LENGTH))}`,
+    ),
     unique('mute_words_user_id_value_key').on(t.userId, t.value),
-  ]
+  ],
 );
 
 /**
@@ -262,7 +261,7 @@ export const muteWords = pgTable(
  *
  * `ENTITY_FOLLOW_TYPES` is deliberately two values: rows with
  * `entityType: 'feed'` were written historically and read by nothing (a feed
- * subscription is a `FeedLike` row). The narrowed CHECK is a REMOVAL of Mongo
+ * subscription is a `FeedLike` row). The narrowed CHECK is a REMOVAL of legacy
  * baggage, and it is the one place in this schema where the backfill must
  * actively drop rows rather than copy them — a legacy `'feed'` row would
  * otherwise fail the constraint.
@@ -287,16 +286,16 @@ export const entityFollows = pgTable(
   (t) => [
     check(
       'entity_follows_entity_type_check',
-      sql`${t.entityType} in (${sql.raw(inList(ENTITY_FOLLOW_TYPES))})`
+      sql`${t.entityType} in (${sql.raw(inList(ENTITY_FOLLOW_TYPES))})`,
     ),
     unique('entity_follows_user_id_entity_type_entity_id_key').on(
       t.userId,
       t.entityType,
-      t.entityId
+      t.entityId,
     ),
     // "Who follows this entity" — the subscriber-count maintenance direction.
     index('entity_follows_entity_idx').on(t.entityType, t.entityId),
     // "What does this user follow of this kind" — the feed-merge direction.
     index('entity_follows_user_type_idx').on(t.userId, t.entityType),
-  ]
+  ],
 );

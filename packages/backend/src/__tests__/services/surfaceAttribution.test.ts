@@ -27,10 +27,7 @@ import { isVideoSurface, MtnConfig, PostType } from '@mention/shared-types';
  */
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import {
-  deleteUserBehavior,
-  loadUserBehavior,
-} from '../../db/userProfile/userBehaviorRepository';
+import { deleteUserBehavior, loadUserBehavior } from '../../db/userProfile/userBehaviorRepository';
 import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { userPreferenceService } from '../../services/UserPreferenceService';
 
@@ -108,12 +105,16 @@ afterAll(async () => {
 
 describe('UserPreferenceService surface-aware attribution', () => {
   it('a VIDEO-surface like dampens author affinity vs a normal-surface like', async () => {
-    await userPreferenceService.recordInteraction(NORMAL_VIEWER, videoPostId, 'like', { surface: 'for_you' });
+    await userPreferenceService.recordInteraction(NORMAL_VIEWER, videoPostId, 'like', {
+      surface: 'for_you',
+    });
     // The stored relationship `weight` (what ranking consumes) is the dampened
     // value — interactionCount is a side metric and is NOT surface-scaled.
     const normalAuthorWeight = (await authorWeight(NORMAL_VIEWER)) as number;
 
-    await userPreferenceService.recordInteraction(VIDEO_VIEWER, videoPostId, 'like', { surface: 'videos' });
+    await userPreferenceService.recordInteraction(VIDEO_VIEWER, videoPostId, 'like', {
+      surface: 'videos',
+    });
     const videoAuthorWeight = (await authorWeight(VIDEO_VIEWER)) as number;
 
     expect(normalAuthorWeight).toBeGreaterThan(0);
@@ -126,12 +127,17 @@ describe('UserPreferenceService surface-aware attribution', () => {
   });
 
   it('a VIDEO-surface like amplifies post-type (content) affinity vs a normal-surface like', async () => {
-    await userPreferenceService.recordInteraction(NORMAL_VIEWER, videoPostId, 'like', { surface: 'for_you' });
+    await userPreferenceService.recordInteraction(NORMAL_VIEWER, videoPostId, 'like', {
+      surface: 'for_you',
+    });
     const normalTypes = (await loadUserBehavior(NORMAL_VIEWER))?.preferredPostTypes;
     const normalVideoTypePref = normalTypes?.video as number;
 
-    await userPreferenceService.recordInteraction(VIDEO_VIEWER, videoPostId, 'like', { surface: 'videos' });
-    const videoVideoTypePref = (await loadUserBehavior(VIDEO_VIEWER))?.preferredPostTypes.video as number;
+    await userPreferenceService.recordInteraction(VIDEO_VIEWER, videoPostId, 'like', {
+      surface: 'videos',
+    });
+    const videoVideoTypePref = (await loadUserBehavior(VIDEO_VIEWER))?.preferredPostTypes
+      .video as number;
 
     expect(normalVideoTypePref).toBeGreaterThan(0);
     // It is the VIDEO bucket that moved, not some other post type.
@@ -145,7 +151,9 @@ describe('UserPreferenceService surface-aware attribution', () => {
   });
 
   it('no context behaves exactly like a normal-surface like (backward compatible)', async () => {
-    await userPreferenceService.recordInteraction(NORMAL_VIEWER, videoPostId, 'like', { surface: 'for_you' });
+    await userPreferenceService.recordInteraction(NORMAL_VIEWER, videoPostId, 'like', {
+      surface: 'for_you',
+    });
     const ctxWeight = (await authorWeight(NORMAL_VIEWER)) as number;
 
     // VIDEO_VIEWER is just a second, independent viewer here — this case passes

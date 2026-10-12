@@ -61,7 +61,9 @@ vi.mock('../../utils/safeUpstreamFetch', async () => {
     contentTypeFamilyFromString,
     contentTypeFamily: (headers: Record<string, unknown>) =>
       contentTypeFamilyFromString(
-        typeof headers['content-type'] === 'string' ? (headers['content-type'] as string) : undefined,
+        typeof headers['content-type'] === 'string'
+          ? (headers['content-type'] as string)
+          : undefined,
       ),
   };
 });
@@ -113,7 +115,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.incrementMediaCacheFailCount.mockResolvedValue(1);
   mocks.fetchUpstreamFollowingRedirects.mockImplementation(async () =>
-    imageResponse(Buffer.from('\x89PNG\r\n\x1a\nfake-png-bytes')));
+    imageResponse(Buffer.from('\x89PNG\r\n\x1a\nfake-png-bytes')),
+  );
 });
 
 describe('the cache worker and a spent write budget', () => {
@@ -145,17 +148,24 @@ describe('the cache worker and a spent write budget', () => {
 
   it('still backs off an ordinary upload failure', async () => {
     mocks.findDueMediaCacheEntries.mockResolvedValue(['https://remote.example/one.png']);
-    mocks.uploadCachedMedia.mockRejectedValue(new Error('Oxy media store upload failed (HTTP 500)'));
+    mocks.uploadCachedMedia.mockRejectedValue(
+      new Error('Oxy media store upload failed (HTTP 500)'),
+    );
 
     await runCacheWorkerOnce();
 
     // The distinction that matters: a real failure IS this entry's problem.
-    expect(mocks.incrementMediaCacheFailCount).toHaveBeenCalledWith('https://remote.example/one.png');
+    expect(mocks.incrementMediaCacheFailCount).toHaveBeenCalledWith(
+      'https://remote.example/one.png',
+    );
   });
 
   it('caches normally when the budget is available', async () => {
     mocks.findDueMediaCacheEntries.mockResolvedValue(['https://remote.example/one.png']);
-    mocks.uploadCachedMedia.mockResolvedValue({ oxyFileId: 'oxy_file_1', contentType: 'image/png' });
+    mocks.uploadCachedMedia.mockResolvedValue({
+      oxyFileId: 'oxy_file_1',
+      contentType: 'image/png',
+    });
 
     await runCacheWorkerOnce();
 
@@ -193,7 +203,9 @@ describe('the eviction sweep and a spent write budget', () => {
   it('names the status when a delete fails, not just that one did', async () => {
     mocks.findEvictableMediaCacheEntries.mockResolvedValue(candidates.slice(0, 1));
     mocks.deleteCachedMedia.mockRejectedValue(
-      Object.assign(new Error('Oxy media store delete failed (HTTP 404): not found'), { statusCode: 404 }),
+      Object.assign(new Error('Oxy media store delete failed (HTTP 404): not found'), {
+        statusCode: 404,
+      }),
     );
     const warn = vi.spyOn(logger, 'warn');
 
@@ -211,7 +223,9 @@ describe('the eviction sweep and a spent write budget', () => {
 
   it('keeps going past an ordinary delete failure, as before', async () => {
     mocks.findEvictableMediaCacheEntries.mockResolvedValue(candidates.slice(0, 4));
-    mocks.deleteCachedMedia.mockRejectedValue(new Error('Oxy media store delete failed (HTTP 500)'));
+    mocks.deleteCachedMedia.mockRejectedValue(
+      new Error('Oxy media store delete failed (HTTP 500)'),
+    );
 
     await runEvictionOnce();
 

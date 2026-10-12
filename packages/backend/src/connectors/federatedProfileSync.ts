@@ -35,7 +35,10 @@ import {
 } from '../db/federation/actorRepository';
 import { logger } from '../utils/logger';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
-import { activityPubConnector, isPermanentlyUnavailableOutboxReason } from './activitypub/ActivityPubConnector';
+import {
+  activityPubConnector,
+  isPermanentlyUnavailableOutboxReason,
+} from './activitypub/ActivityPubConnector';
 import { FEDERATION_ENABLED } from './activitypub/constants';
 import {
   isWithinOutboxSyncCooldown,
@@ -158,9 +161,9 @@ class FederatedProfileSync {
                 // A failed backfill is still a COMPLETED sync attempt: stamp it
                 // below so the pending check can clear instead of polling forever.
                 const message = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
-          logger.warn('[FedSync] atproto backfill failed', {
-            error: message,
-          });
+                logger.warn('[FedSync] atproto backfill failed', {
+                  error: message,
+                });
               }
             }
 
@@ -195,18 +198,20 @@ class FederatedProfileSync {
           const oxyLookupClient = getServiceOxyClient();
           const oxyUser: User = await oxyLookupClient.users.get(syncUserId);
           oxyIdentity = {
-            actorUri: typeof oxyUser.federation?.actorUri === 'string'
-              ? oxyUser.federation.actorUri
-              : undefined,
-            acctHint: typeof oxyUser.username === 'string' && oxyUser.username.includes('@')
-              ? oxyUser.username
-              : undefined,
+            actorUri:
+              typeof oxyUser.federation?.actorUri === 'string'
+                ? oxyUser.federation.actorUri
+                : undefined,
+            acctHint:
+              typeof oxyUser.username === 'string' && oxyUser.username.includes('@')
+                ? oxyUser.username
+                : undefined,
           };
-      logger.info('[FedSync] resolved federated identity', {
-        type: oxyUser.type,
-        hasActorUri: Boolean(oxyIdentity.actorUri),
-        hasAccountHint: Boolean(oxyIdentity.acctHint),
-      });
+          logger.info('[FedSync] resolved federated identity', {
+            type: oxyUser.type,
+            hasActorUri: Boolean(oxyIdentity.actorUri),
+            hasAccountHint: Boolean(oxyIdentity.acctHint),
+          });
           return oxyIdentity;
         };
 
@@ -267,15 +272,25 @@ class FederatedProfileSync {
         } else {
           const { actorUri, acctHint } = await getOxyIdentity();
           const actorUriChanged = Boolean(actorUri && actorUri !== actor.uri);
-          const actorAcctChanged = Boolean(acctHint && actor.acct?.toLowerCase() !== acctHint.toLowerCase());
-          if (actorUriChanged || actorAcctChanged || this.shouldRefreshActorBeforeOutboxSync(actor)) {
+          const actorAcctChanged = Boolean(
+            acctHint && actor.acct?.toLowerCase() !== acctHint.toLowerCase(),
+          );
+          if (
+            actorUriChanged ||
+            actorAcctChanged ||
+            this.shouldRefreshActorBeforeOutboxSync(actor)
+          ) {
             const refreshUri = actorUri || actor.uri;
             const refreshAcct = acctHint || actor.acct;
-              logger.info('[FedSync] refreshing cached actor before outbox sync', {
-                actorUriChanged,
-                actorAccountChanged: actorAcctChanged,
-              });
-            const refreshed = await activityPubConnector.fetchRemoteActor(refreshUri, false, refreshAcct);
+            logger.info('[FedSync] refreshing cached actor before outbox sync', {
+              actorUriChanged,
+              actorAccountChanged: actorAcctChanged,
+            });
+            const refreshed = await activityPubConnector.fetchRemoteActor(
+              refreshUri,
+              false,
+              refreshAcct,
+            );
             if (refreshed) {
               actor = refreshed;
               refreshedActorForSync = true;
@@ -311,9 +326,10 @@ class FederatedProfileSync {
           lastOutboxSyncAt: actor.lastOutboxSyncAt,
           cooldownMs: OUTBOX_SYNC_MIN_INTERVAL_MS,
         });
-        const syncedRecently = !refreshedActorForSync
-          && !shouldClassifyUntrackedOutbox
-          && isWithinOutboxSyncCooldown(actor.lastOutboxSyncAt, OUTBOX_SYNC_MIN_INTERVAL_MS);
+        const syncedRecently =
+          !refreshedActorForSync &&
+          !shouldClassifyUntrackedOutbox &&
+          isWithinOutboxSyncCooldown(actor.lastOutboxSyncAt, OUTBOX_SYNC_MIN_INTERVAL_MS);
         if (syncedRecently) {
           logger.info('[FedSync] outbox sync skipped during cooldown');
           return;
@@ -325,7 +341,10 @@ class FederatedProfileSync {
           actor.oxyUserId = syncUserId;
         }
 
-        const syncResult = await activityPubConnector.syncOutboxPostsDetailed(actor, OUTBOX_SYNC_LIMIT);
+        const syncResult = await activityPubConnector.syncOutboxPostsDetailed(
+          actor,
+          OUTBOX_SYNC_LIMIT,
+        );
         const syncedCount = syncResult.syncedCount;
         logger.info('[FedSync] completed outbox sync', {
           count: syncedCount,
@@ -351,10 +370,7 @@ class FederatedProfileSync {
           await getDb()
             .update(posts)
             .set({ oxyUserId: syncUserId })
-            .where(and(
-              activityIdUnderActor(actor.uri),
-              isNull(posts.oxyUserId),
-            ));
+            .where(and(activityIdUnderActor(actor.uri), isNull(posts.oxyUserId)));
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -394,7 +410,10 @@ class FederatedProfileSync {
       // that makes this whole path silently never run, and it is invisible from
       // the outside — the profile still renders, it just never gains its starter
       // packs or its custom feeds.
-      logger.error('[FedSync] failed to claim atproto graph sync', { acct: actor.acct, error: message });
+      logger.error('[FedSync] failed to claim atproto graph sync', {
+        acct: actor.acct,
+        error: message,
+      });
       return;
     }
 
@@ -436,9 +455,9 @@ class FederatedProfileSync {
       await stampLastOutboxSyncAt(actorId);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-        logger.warn('[FedSync] failed to stamp post backfill', {
-          error: message,
-        });
+      logger.warn('[FedSync] failed to stamp post backfill', {
+        error: message,
+      });
     }
   }
 
@@ -477,8 +496,12 @@ class FederatedProfileSync {
     // empty. The Graph sync decides instead: pending only until a first sync
     // has finished. With the Graph connector off, an Instagram identity whose
     // outbox has been read once has nothing further to wait for.
-    if (actor.protocol === 'instagram-graph' || identityDomainOfActor(actor) === INSTAGRAM_IDENTITY_DOMAIN) {
-      if (instagramGraphConnector.enabled) return instagramGraphConnector.isProfileSyncPending(actor);
+    if (
+      actor.protocol === 'instagram-graph' ||
+      identityDomainOfActor(actor) === INSTAGRAM_IDENTITY_DOMAIN
+    ) {
+      if (instagramGraphConnector.enabled)
+        return instagramGraphConnector.isProfileSyncPending(actor);
       if (actor.protocol === 'instagram-graph') return false;
       return actor.lastOutboxSyncAt === undefined;
     }

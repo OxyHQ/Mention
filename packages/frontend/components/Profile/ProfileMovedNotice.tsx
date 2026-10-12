@@ -16,7 +16,9 @@ interface ProfileMovedNoticeProps {
  * announced a verified `Move` to another server — the notice Mastodon shows on a
  * moved account. Tapping it opens the new account's profile here.
  */
-export const ProfileMovedNotice = memo(function ProfileMovedNotice({ movedTo }: ProfileMovedNoticeProps) {
+export const ProfileMovedNotice = memo(function ProfileMovedNotice({
+  movedTo,
+}: ProfileMovedNoticeProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const label = t('profile.movedTo', {

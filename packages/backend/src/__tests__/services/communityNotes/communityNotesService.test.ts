@@ -45,7 +45,8 @@ vi.mock('../../../services/moderation/crowdSourceClient', () => ({
 // point of the exercise— could not be observed at all.
 vi.mock('../../../utils/cache', () => ({
   createCache: () => ({
-    getMany: async (keys: string[]) => keys.map((key) => (store.has(key) ? store.get(key) : undefined)),
+    getMany: async (keys: string[]) =>
+      keys.map((key) => (store.has(key) ? store.get(key) : undefined)),
     setMany: async (entries: Iterable<readonly [string, unknown]>) => {
       for (const [key, value] of entries) store.set(key, value);
     },
@@ -240,10 +241,18 @@ describe('writing', () => {
 describe('rating', () => {
   it('draws with the caller’s key and caps the languages CrowdSource accepts', async () => {
     client.communityNotes.drawToRate.mockResolvedValue([
-      { id: 'a1', note: note('n1', 'p1', { status: 'needs_ratings' }), expiresAt: '2026-09-19T00:00:00.000Z' },
+      {
+        id: 'a1',
+        note: note('n1', 'p1', { status: 'needs_ratings' }),
+        expiresAt: '2026-09-19T00:00:00.000Z',
+      },
     ]);
 
-    const drawn = await drawCommunityNotesToRate('viewer-1', ['es', 'en', 'fr', 'de', 'it', 'pt'], 'key-1');
+    const drawn = await drawCommunityNotesToRate(
+      'viewer-1',
+      ['es', 'en', 'fr', 'de', 'it', 'pt'],
+      'key-1',
+    );
 
     expect(client.communityNotes.drawToRate).toHaveBeenCalledWith(
       { raterPrincipalId: 'viewer-1', languages: ['es', 'en', 'fr', 'de', 'it'], limit: 10 },
@@ -257,7 +266,9 @@ describe('rating', () => {
 
     await drawCommunityNotesToRate('viewer-1', [], 'key-1');
 
-    expect(client.communityNotes.drawToRate.mock.calls[0]?.[0]).toMatchObject({ languages: ['en'] });
+    expect(client.communityNotes.drawToRate.mock.calls[0]?.[0]).toMatchObject({
+      languages: ['en'],
+    });
   });
 
   it('sends the rating and its reasons together', async () => {
@@ -281,14 +292,26 @@ describe('the viewer’s own lists', () => {
 
     expect(client.communityNotes.writtenBy).toHaveBeenCalledWith('viewer-1');
     expect(written).toEqual([
-      expect.objectContaining({ postId: 'p1', note: expect.objectContaining({ status: 'not_shown' }) }),
+      expect.objectContaining({
+        postId: 'p1',
+        note: expect.objectContaining({ status: 'not_shown' }),
+      }),
     ]);
     expect(written[0]?.note).not.toHaveProperty('viewerRating');
   });
 
   it('carries the rating the viewer gave onto the note they rated', async () => {
     client.communityNotes.ratedBy.mockResolvedValue([
-      { rating: { id: 'r1', noteId: 'n1', rating: 'helpful', reasons: ['relevant'], ratedAt: 'now' }, note: note('n1', 'p1') },
+      {
+        rating: {
+          id: 'r1',
+          noteId: 'n1',
+          rating: 'helpful',
+          reasons: ['relevant'],
+          ratedAt: 'now',
+        },
+        note: note('n1', 'p1'),
+      },
     ]);
 
     const rated = await communityNotesRatedBy('viewer-1');

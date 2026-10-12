@@ -1,5 +1,8 @@
 import { config } from '../config';
-import { findClustersForRecheck, markClusterRechecked } from '../db/posts/postEquivalenceRepository';
+import {
+  findClustersForRecheck,
+  markClusterRechecked,
+} from '../db/posts/postEquivalenceRepository';
 import { logger } from '../utils/logger';
 import { reevaluateCluster } from './PostEquivalenceService';
 
@@ -26,7 +29,9 @@ export class CrosspostReconciliationJob {
 
   start(): void {
     if (this.timer) return;
-    this.timer = setInterval(() => { void this.tick(); }, config.federation.crosspostRecheckIntervalMs);
+    this.timer = setInterval(() => {
+      void this.tick();
+    }, config.federation.crosspostRecheckIntervalMs);
     this.timer.unref?.();
     void this.tick();
   }

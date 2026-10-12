@@ -54,11 +54,13 @@ export async function isPostEligibleForViewTelemetry(postId: string): Promise<bo
   const [post] = await getDb()
     .select({ id: posts.id })
     .from(posts)
-    .where(and(
-      eq(posts.id, postId),
-      eq(posts.visibility, PostVisibility.PUBLIC),
-      eq(posts.status, 'published'),
-    ))
+    .where(
+      and(
+        eq(posts.id, postId),
+        eq(posts.visibility, PostVisibility.PUBLIC),
+        eq(posts.status, 'published'),
+      ),
+    )
     .limit(1);
 
   return Boolean(post);
@@ -124,11 +126,13 @@ export async function recordDedupedView(postId: string, viewerId: string): Promi
     const [updated] = await getDb()
       .update(posts)
       .set({ statsViewsCount: sql`${posts.statsViewsCount} + 1` })
-      .where(and(
-        eq(posts.id, postId),
-        eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'),
-      ))
+      .where(
+        and(
+          eq(posts.id, postId),
+          eq(posts.visibility, PostVisibility.PUBLIC),
+          eq(posts.status, 'published'),
+        ),
+      )
       .returning({ viewsCount: posts.statsViewsCount });
     return updated?.viewsCount ?? null;
   } catch (error) {

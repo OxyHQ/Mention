@@ -8,7 +8,7 @@
  *
  * Four things here fail SILENTLY if they regress:
  *
- *  1. **Deleting a lane RELEASES its posts and drops its mutes.** In Mongo that
+ *  1. **Deleting a lane RELEASES its posts and drops its mutes.** In the legacy store that
  *     was three hand-sequenced writes whose order was load-bearing; here it is
  *     `posts.lane_id ON DELETE SET NULL` plus
  *     `lane_mutes.lane_id ON DELETE CASCADE`, so one statement does all three
@@ -98,7 +98,9 @@ async function seedLane(
 
 /** Create a lane through the ROUTE, so assertions cover a real write path. */
 async function createLane(body: Record<string, unknown> = {}): Promise<request.Response> {
-  const res = await request(app).post('/lanes').send({ name: uniqueName(), ...body });
+  const res = await request(app)
+    .post('/lanes')
+    .send({ name: uniqueName(), ...body });
   if (res.status === 201) createdLaneIds.push(res.body.data.id);
   return res;
 }
@@ -279,7 +281,9 @@ describe('POST /lanes', () => {
   });
 
   it('rejects a display mode outside the enum', async () => {
-    const res = await request(app).post('/lanes').send({ name: uniqueName(), displayMode: 'secret' });
+    const res = await request(app)
+      .post('/lanes')
+      .send({ name: uniqueName(), displayMode: 'secret' });
     expect(res.status).toBe(400);
   });
 

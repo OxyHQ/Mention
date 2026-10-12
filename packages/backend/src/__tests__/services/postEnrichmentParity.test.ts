@@ -76,7 +76,8 @@ function readSource(relativePath: string): string {
 /** The body of the `POST_ENRICHMENT_STEPS` array literal in the fan-out. */
 function registeredStepsBlock(indexSource: string): string {
   const match = /POST_ENRICHMENT_STEPS[^=]*=\s*\[([\s\S]*?)\]/.exec(indexSource);
-  if (!match) throw new Error('POST_ENRICHMENT_STEPS array literal not found in postEnrichment/index.ts');
+  if (!match)
+    throw new Error('POST_ENRICHMENT_STEPS array literal not found in postEnrichment/index.ts');
   return match[1];
 }
 
@@ -104,10 +105,7 @@ describe('post-ingest enrichment — every step is registered in the fan-out', (
     expect(exported.length).toBeGreaterThan(0);
 
     const stepExport = exported.find((name) => name.startsWith('enrich'));
-    expect(
-      stepExport,
-      `${stepFile} must export an \`enrich*\` step function`,
-    ).toBeDefined();
+    expect(stepExport, `${stepFile} must export an \`enrich*\` step function`).toBeDefined();
 
     expect(
       indexSource.includes(`from './${moduleName}'`),
@@ -181,14 +179,17 @@ describe('post-ingest enrichment — every raw post write enriches', () => {
   // first reader of such a post saw none. Derived from the source, not a list,
   // so a new raw write is covered without anyone remembering this file.
   const writers = productionSources().filter((relative) =>
-    /\binsertPostRecords?\(/.test(readFileSync(join(BACKEND_SRC, relative), 'utf8')));
+    /\binsertPostRecords?\(/.test(readFileSync(join(BACKEND_SRC, relative), 'utf8')),
+  );
 
   it('finds the raw post writers (vacuity floor)', () => {
-    expect(writers).toEqual(expect.arrayContaining([
-      'services/PostCreationService.ts',
-      'services/mtn/PostMaterializer.ts',
-      'controllers/feed.controller.ts',
-    ]));
+    expect(writers).toEqual(
+      expect.arrayContaining([
+        'services/PostCreationService.ts',
+        'services/mtn/PostMaterializer.ts',
+        'controllers/feed.controller.ts',
+      ]),
+    );
   });
 
   it.each(writers)('%s calls enrichIngestedPosts', (relative) => {

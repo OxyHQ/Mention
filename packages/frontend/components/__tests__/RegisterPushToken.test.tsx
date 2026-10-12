@@ -76,15 +76,19 @@ beforeEach(() => {
 });
 
 describe('RegisterPushToken — switching accounts on the same device', () => {
-  it('registers B even though the device token is identical to A\'s', async () => {
+  it("registers B even though the device token is identical to A's", async () => {
     mockAuth.isAuthenticated = true;
     mockAuth.user = { id: 'account-a' };
     let renderer = await renderAs(undefined);
     await flush();
     expect(mockPost).toHaveBeenCalledTimes(1);
-    expect(mockPost).toHaveBeenNthCalledWith(1, '/notifications/push-token', expect.objectContaining({
-      token: DEVICE_TOKEN.token,
-    }));
+    expect(mockPost).toHaveBeenNthCalledWith(
+      1,
+      '/notifications/push-token',
+      expect.objectContaining({
+        token: DEVICE_TOKEN.token,
+      }),
+    );
 
     mockAuth.user = { id: 'account-b' };
     renderer = await renderAs(renderer);
@@ -118,13 +122,19 @@ describe('RegisterPushToken — switching accounts on the same device', () => {
   it('does not let a late-resolving POST from A overwrite the dedup state after switching to B', async () => {
     let releaseA: (() => void) | undefined;
     mockPost.mockImplementationOnce(
-      () => new Promise((resolve) => { releaseA = () => resolve({ data: { ok: true } }); }),
+      () =>
+        new Promise((resolve) => {
+          releaseA = () => resolve({ data: { ok: true } });
+        }),
     );
 
     mockAuth.isAuthenticated = true;
     mockAuth.user = { id: 'account-a' };
     let renderer = await renderAs(undefined);
-    await TestRenderer.act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    await TestRenderer.act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     // A's POST is in flight (deliberately not released yet).
 
     mockAuth.user = { id: 'account-b' };

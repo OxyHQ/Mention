@@ -144,7 +144,9 @@ export const apImageSchema: z.ZodType<unknown> = z.lazy(() =>
       .object({
         type: apType.optional(),
         mediaType: z.string().optional(),
-        url: z.union([z.string(), apLinkEntrySchema, z.array(z.union([z.string(), apLinkEntrySchema]))]).optional(),
+        url: z
+          .union([z.string(), apLinkEntrySchema, z.array(z.union([z.string(), apLinkEntrySchema]))])
+          .optional(),
         href: z.string().optional(),
       })
       .loose(),
@@ -272,7 +274,10 @@ export const apActorSchema = z
  * The ingest code branches on `typeof object === 'string'` everywhere, so this
  * union is the canonical model for that.
  */
-export const apObjectOrIri = z.union([z.string(), z.object({ id: apId.optional(), type: apType.optional() }).loose()]);
+export const apObjectOrIri = z.union([
+  z.string(),
+  z.object({ id: apId.optional(), type: apType.optional() }).loose(),
+]);
 
 /** `Create` — wraps a new Note/Article. `object` is usually embedded. */
 export const apCreateSchema = z
@@ -513,9 +518,7 @@ export type ApParseResult<T> = { ok: true; data: T } | { ok: false; error: z.Zod
 
 /** Wrap a zod `safeParse` into the {@link ApParseResult} discriminated shape. */
 function toResult<T>(parsed: z.ZodSafeParseResult<T>): ApParseResult<T> {
-  return parsed.success
-    ? { ok: true, data: parsed.data }
-    : { ok: false, error: parsed.error };
+  return parsed.success ? { ok: true, data: parsed.data } : { ok: false, error: parsed.error };
 }
 
 /**

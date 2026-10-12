@@ -35,12 +35,16 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   vi.clearAllMocks();
-  await getDb().delete(accountErasures).where(like(accountErasures.oxyUserId, `oxy-${scope.name}-%`));
+  await getDb()
+    .delete(accountErasures)
+    .where(like(accountErasures.oxyUserId, `oxy-${scope.name}-%`));
   await clearServiceScope(scope);
 });
 
 afterAll(async () => {
-  await getDb().delete(accountErasures).where(like(accountErasures.oxyUserId, `oxy-${scope.name}-%`));
+  await getDb()
+    .delete(accountErasures)
+    .where(like(accountErasures.oxyUserId, `oxy-${scope.name}-%`));
   await clearServiceScope(scope);
   await closePostgres();
 });
@@ -64,9 +68,13 @@ describe('runOperatorErasure', () => {
   it('refuses an account Oxy still resolves, and one Oxy cannot answer for', async () => {
     const post = await seedPost(scope, { oxyUserId: ACCOUNT });
     getUserById.mockResolvedValueOnce({ id: ACCOUNT, username: 'alive' });
-    await expect(runOperatorErasure({ oxyUserId: ACCOUNT, username: null, dryRun: false })).rejects.toThrow(/active/);
+    await expect(
+      runOperatorErasure({ oxyUserId: ACCOUNT, username: null, dryRun: false }),
+    ).rejects.toThrow(/active/);
     getUserById.mockRejectedValueOnce(new Error('timeout'));
-    await expect(runOperatorErasure({ oxyUserId: ACCOUNT, username: null, dryRun: false })).rejects.toThrow(/unknown/);
+    await expect(
+      runOperatorErasure({ oxyUserId: ACCOUNT, username: null, dryRun: false }),
+    ).rejects.toThrow(/unknown/);
 
     const [row] = await getDb().select({ id: posts.id }).from(posts).where(eq(posts.id, post.id));
     expect(row).toBeDefined();
@@ -76,13 +84,26 @@ describe('runOperatorErasure', () => {
     const post = await seedPost(scope, { oxyUserId: ACCOUNT });
     getUserById.mockRejectedValue(notFound());
 
-    const preview = await runOperatorErasure({ oxyUserId: ACCOUNT, username: 'gone', dryRun: true });
+    const preview = await runOperatorErasure({
+      oxyUserId: ACCOUNT,
+      username: 'gone',
+      dryRun: true,
+    });
     expect(preview).toMatchObject({ dryRun: true, oxyState: 'deleted', federated: true });
     expect((preview.preview as Record<string, number>)['posts.oxyUserId']).toBe(1);
-    expect(await getDb().select({ id: accountErasures.id }).from(accountErasures).where(eq(accountErasures.oxyUserId, ACCOUNT))).toHaveLength(0);
+    expect(
+      await getDb()
+        .select({ id: accountErasures.id })
+        .from(accountErasures)
+        .where(eq(accountErasures.oxyUserId, ACCOUNT)),
+    ).toHaveLength(0);
 
     const live = await runOperatorErasure({ oxyUserId: ACCOUNT, username: 'gone', dryRun: false });
-    expect(live).toMatchObject({ dryRun: false, eventId: `operator:${ACCOUNT}`, outcome: 'completed' });
+    expect(live).toMatchObject({
+      dryRun: false,
+      eventId: `operator:${ACCOUNT}`,
+      outcome: 'completed',
+    });
     const [gone] = await getDb().select({ id: posts.id }).from(posts).where(eq(posts.id, post.id));
     expect(gone).toBeUndefined();
     const [ledger] = await getDb()

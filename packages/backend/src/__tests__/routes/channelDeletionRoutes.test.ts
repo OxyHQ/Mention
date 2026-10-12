@@ -62,24 +62,28 @@ vi.mock('../../services/channelDeletion/ChannelDeletionService', () => {
 });
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  createUserScopedOxyServices: () => ({ accounts: { members: {
-    async list(accountId: string) {
-      if (state.callerPermissions === null) return [];
-      return [
-        {
-          _id: 'member-row-1',
-          accountId,
-          memberUserId: CALLER,
-          role: 'owner',
-          permissions: state.callerPermissions,
-          inherit: true,
-          status: 'active',
-          createdAt: '2026-01-01T00:00:00.000Z',
-          updatedAt: '2026-01-01T00:00:00.000Z',
+  createUserScopedOxyServices: () => ({
+    accounts: {
+      members: {
+        async list(accountId: string) {
+          if (state.callerPermissions === null) return [];
+          return [
+            {
+              _id: 'member-row-1',
+              accountId,
+              memberUserId: CALLER,
+              role: 'owner',
+              permissions: state.callerPermissions,
+              inherit: true,
+              status: 'active',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ];
         },
-      ];
+      },
     },
-  } } }),
+  }),
 }));
 
 vi.mock('@oxy.so/core/server', () => ({
@@ -155,9 +159,7 @@ beforeEach(() => {
 
 describe('an owner', () => {
   it('reads the counts a confirmation states, and nothing operational', async () => {
-    const res = await request(buildApp())
-      .get(`/channels/${CHANNEL}/deletion-preview`)
-      .expect(200);
+    const res = await request(buildApp()).get(`/channels/${CHANNEL}/deletion-preview`).expect(200);
 
     // Exactly the two numbers, and no `channelOxyUserId`, `replies`,
     // `quotesByOthersKept` or `federatedFollowers`: those are facts for a log,

@@ -1,7 +1,4 @@
-import {
-  MIN_TRENDS_WIDGET_SYNC_INTERVAL_MS,
-  shouldSyncTrendsWidget,
-} from '../trendsWidgetSync';
+import { MIN_TRENDS_WIDGET_SYNC_INTERVAL_MS, shouldSyncTrendsWidget } from '../trendsWidgetSync';
 
 /**
  * When the app tells the Android home-screen trends widget to fetch again.
@@ -37,7 +34,6 @@ jest.mock('@oxy.so/core/logger', () => ({
  */
 function loadSync(): typeof import('../trendsWidgetSync') {
   jest.resetModules();
-  // eslint-disable-next-line @typescript-eslint/no-require-imports -- see above
   return require('../trendsWidgetSync');
 }
 

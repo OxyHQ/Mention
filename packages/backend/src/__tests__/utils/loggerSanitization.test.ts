@@ -61,7 +61,7 @@ describe('sanitizeLogValue', () => {
   });
 
   it.each([
-    ['Mongo ObjectId', 'post 65fdc8c8c8c8c8c8c8c8c8c8 failed'],
+    ['24-char hex id', 'post 65fdc8c8c8c8c8c8c8c8c8c8 failed'],
     ['UUID v4', 'subject 550e8400-e29b-41d4-a716-446655440000 failed'],
     // The shape this service actually mints. Every id here — accounts, posts,
     // files — is a uuid **v7**, and the redactor's version class was `[1-5]`, so
@@ -76,7 +76,7 @@ describe('sanitizeLogValue', () => {
     ['local handle', 'account @alice failed'],
     ['Bearer credential', 'Bearer abc.def.ghi'],
     ['credential URL', 'https://alice:password@example.com/private?token=abc'],
-    ['MongoDB URI', 'mongodb://alice:password@mongo.internal/mention'],
+    ['PostgreSQL URI', 'postgres://alice:password@db.internal/mention'],
     ['Redis URI', 'redis://:password@redis.internal:6379/0'],
   ])('redacts a bare %s embedded in a string', (_kind, value) => {
     const sanitized = String(sanitizeLogValue(value));
@@ -107,14 +107,9 @@ describe('sanitizeLogValue', () => {
   });
 
   it('sanitizes Error fields and nested causes without exposing connection details', () => {
-    const cause = new Error(
-      'mongodb://db-user:db-password@mongo.internal/mention',
-    );
+    const cause = new Error('redis://db-user:db-password@cache.internal/0');
     const error = Object.assign(
-      new Error(
-        'Post 65fdc8c8c8c8c8c8c8c8c8c8 for oxy_user_123 failed at 2001:db8::1',
-        { cause },
-      ),
+      new Error('Post 65fdc8c8c8c8c8c8c8c8c8c8 for oxy_user_123 failed at 2001:db8::1', { cause }),
       { code: '550e8400-e29b-41d4-a716-446655440000' },
     );
 
@@ -127,7 +122,7 @@ describe('sanitizeLogValue', () => {
     });
     expect(serialized).toContain(REDACTED);
     expect(serialized).not.toMatch(
-      /65fdc8c8c8c8c8c8c8c8c8c8|oxy_user_123|2001:db8::1|mongo\.internal|db-password|mongodb:\/\//,
+      /65fdc8c8c8c8c8c8c8c8c8c8|oxy_user_123|2001:db8::1|cache\.internal|db-password|redis:\/\//,
     );
   });
 
@@ -185,7 +180,10 @@ describe('sanitizeLogValue', () => {
   });
 
   it('keeps the numbers in an erasure count map readable, and nothing else (Mention#1178)', () => {
-    const categories = Array.from({ length: 90 }, (_, index) => [`table_${index}.oxyUserId`, index]);
+    const categories = Array.from({ length: 90 }, (_, index) => [
+      `table_${index}.oxyUserId`,
+      index,
+    ]);
     const sanitized = sanitizeLogValue({
       eventId: 'operator:01a0d834-b80a-7cbd-b416-5502d33318c9',
       dryRun: true,
@@ -224,11 +222,14 @@ describe('sanitizeLogValue', () => {
   });
 
   it('fails closed for objects that cannot be inspected', () => {
-    const hostile = new Proxy({}, {
-      ownKeys() {
-        throw new Error('hostile proxy');
+    const hostile = new Proxy(
+      {},
+      {
+        ownKeys() {
+          throw new Error('hostile proxy');
+        },
       },
-    });
+    );
 
     expect(sanitizeLogValue(hostile)).toBe('[Unserializable]');
   });

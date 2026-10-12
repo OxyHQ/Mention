@@ -71,21 +71,25 @@ function parseAtUri(uri: string): { authority: string; collection: string; rkey:
  * service DID / a display name. The name + description are clamped to the schema
  * caps so an over-long remote value can never reach the row. Pure.
  */
-export function mapGeneratorView(view: AtprotoGeneratorView | undefined): NormalizedAtprotoFeedGenerator | null {
+export function mapGeneratorView(
+  view: AtprotoGeneratorView | undefined,
+): NormalizedAtprotoFeedGenerator | null {
   if (!view) return null;
   const uri = typeof view.uri === 'string' ? view.uri : '';
   const parsed = parseAtUri(uri);
   if (!parsed || parsed.collection !== FEED_GENERATOR_COLLECTION) return null;
 
   const serviceDid = typeof view.did === 'string' ? view.did : '';
-  const name = typeof view.displayName === 'string'
-    ? normalizeInlineText(view.displayName).slice(0, MAX_NAME_LENGTH)
-    : '';
+  const name =
+    typeof view.displayName === 'string'
+      ? normalizeInlineText(view.displayName).slice(0, MAX_NAME_LENGTH)
+      : '';
   if (!serviceDid || !name) return null;
 
-  const description = typeof view.description === 'string'
-    ? normalizeMultilineText(view.description).slice(0, MAX_DESCRIPTION_LENGTH)
-    : '';
+  const description =
+    typeof view.description === 'string'
+      ? normalizeMultilineText(view.description).slice(0, MAX_DESCRIPTION_LENGTH)
+      : '';
 
   return {
     uri,
@@ -116,10 +120,14 @@ export async function syncActorFeeds(did: string, ownerOxyUserId: string): Promi
 
   let response: AtprotoGetActorFeedsResponse;
   try {
-    response = await xrpcGet<AtprotoGetActorFeedsResponse>(PUBLIC_APPVIEW, 'app.bsky.feed.getActorFeeds', {
-      actor: did,
-      limit: MAX_FEEDS_PER_ACTOR,
-    });
+    response = await xrpcGet<AtprotoGetActorFeedsResponse>(
+      PUBLIC_APPVIEW,
+      'app.bsky.feed.getActorFeeds',
+      {
+        actor: did,
+        limit: MAX_FEEDS_PER_ACTOR,
+      },
+    );
   } catch (err) {
     logger.debug('[atproto] getActorFeeds failed', err);
     return 0;

@@ -72,16 +72,26 @@ function errorCode(error: unknown): string {
  * the `Undo(Follow)`). Usernames are resolved in one batched Oxy call. A row whose
  * user Oxy did not return is kept and counted, never dropped without its Undo.
  */
-async function unfollowMovedActor(oldActorUri: string): Promise<{ unfollowed: number; unresolved: number }> {
+async function unfollowMovedActor(
+  oldActorUri: string,
+): Promise<{ unfollowed: number; unresolved: number }> {
   const follows = await findFollows({ remoteActorUri: oldActorUri, direction: 'outbound' });
   if (follows.length === 0) return { unfollowed: 0, unresolved: 0 };
 
-  const users = await getServiceOxyClient().users.getMany(follows.map((follow) => follow.localUserId));
-  const usernames = new Map(users.flatMap((user) => (user?.id && user.username ? [[user.id, user.username] as const] : [])));
+  const users = await getServiceOxyClient().users.getMany(
+    follows.map((follow) => follow.localUserId),
+  );
+  const usernames = new Map(
+    users.flatMap((user) => (user?.id && user.username ? [[user.id, user.username] as const] : [])),
+  );
   const resolved = follows.filter((follow) => usernames.has(follow.localUserId));
 
   const settled = await mapWithConcurrency(resolved, UNFOLLOW_CONCURRENCY, async (follow) => {
-    await deliveryService.sendUndoFollow(follow.localUserId, usernames.get(follow.localUserId)!, oldActorUri);
+    await deliveryService.sendUndoFollow(
+      follow.localUserId,
+      usernames.get(follow.localUserId)!,
+      oldActorUri,
+    );
     // `sendUndoFollow` already removed the row unless federation is off or the
     // actor is not cached; either way the edge is stale now.
     await deleteFollow(follow.localUserId, oldActorUri, 'outbound');
@@ -102,7 +112,12 @@ function isOwnActorUri(uri: string): boolean {
 }
 
 /** Why {@link recordRemoteMove} did or did not record the move. */
-export type RemoteMoveOutcome = 'recorded' | 'local_target' | 'unknown_old_actor' | 'target_unresolved' | 'alias_missing';
+export type RemoteMoveOutcome =
+  | 'recorded'
+  | 'local_target'
+  | 'unknown_old_actor'
+  | 'target_unresolved'
+  | 'alias_missing';
 
 /**
  * Remember a remote → remote move on the old actor's row.
@@ -141,11 +156,15 @@ export async function applyInboundMove(move: InboundMove): Promise<void> {
 
   let outcome: FederationMoveOutcome;
   try {
-    outcome = await getServiceOxyClient().serviceRequest<FederationMoveOutcome>('POST', '/federation/move', {
-      oldActorUri: move.oldActorUri,
-      targetActorUri: move.targetActorUri,
-      activityId: move.activityId,
-    });
+    outcome = await getServiceOxyClient().serviceRequest<FederationMoveOutcome>(
+      'POST',
+      '/federation/move',
+      {
+        oldActorUri: move.oldActorUri,
+        targetActorUri: move.targetActorUri,
+        activityId: move.activityId,
+      },
+    );
   } catch (error) {
     const status = errorStatus(error);
     if (!isPermanentRefusal(status)) throw error;
@@ -172,9 +191,9 @@ export async function applyInboundMove(move: InboundMove): Promise<void> {
   const collapsed = projection.refusal
     ? { clustered: 0 }
     : await collapseImportedCopies(
-      { oxyUserId: outcome.targetUserId, actorUris: [move.oldActorUri] },
-      { failOnError: true },
-    );
+        { oxyUserId: outcome.targetUserId, actorUris: [move.oldActorUri] },
+        { failOnError: true },
+      );
   const follows = await unfollowMovedActor(move.oldActorUri);
 
   logger.info('[Federation] Move applied', {

@@ -12,5 +12,5 @@ export type { VoteStyle };
  * remounted.
  */
 export function useVoteStyle(): VoteStyle {
-    return useThreadPreferencesStore((state) => state.voteStyle);
+  return useThreadPreferencesStore((state) => state.voteStyle);
 }

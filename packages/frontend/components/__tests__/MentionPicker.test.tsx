@@ -21,7 +21,9 @@ const alice: MentionUser = {
 const bob: MentionUser = { id: 'bob-id', username: 'bob' };
 
 beforeAll(() => {
-  (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  (
+    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true;
 });
 
 beforeEach(() => {
@@ -47,7 +49,7 @@ function render(props: Partial<React.ComponentProps<typeof MentionPicker>> = {})
 }
 
 describe('MentionPicker', () => {
-  it('is Bloom\'s people list, naming each account once and marking the verified', () => {
+  it("is Bloom's people list, naming each account once and marking the verified", () => {
     render();
 
     expect(mockListProps?.kind).toBe('mention');
@@ -61,7 +63,7 @@ describe('MentionPicker', () => {
     expect(mockListProps?.showEmpty).toBe(true);
   });
 
-  it('selects the account behind the chosen row and reports the pointer\'s highlight', () => {
+  it("selects the account behind the chosen row and reports the pointer's highlight", () => {
     const { onSelect, onActiveIndexChange } = render();
 
     act(() => {
@@ -73,7 +75,7 @@ describe('MentionPicker', () => {
     expect(onActiveIndexChange).toHaveBeenCalledWith(0);
   });
 
-  it('hands the pending search to Bloom\'s searching line', () => {
+  it("hands the pending search to Bloom's searching line", () => {
     render({ users: [], loading: true });
 
     expect(mockListProps?.loading).toBe(true);

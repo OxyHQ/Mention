@@ -131,15 +131,15 @@ export function noteChannelBylineChanged(channelOxyUserId: string): void {
       //   `search`      — the posts tab.
       //   `notifications` — rows embed the post they are about, and the server
       //                   applies the same disclosure decision to them.
-      viewerQueryKeys.isFamily(query.queryKey, 'posts')
-      || viewerQueryKeys.isFamily(query.queryKey, 'saved-posts')
-      || viewerQueryKeys.isFamily(query.queryKey, 'search')
-      || viewerQueryKeys.isFamily(query.queryKey, 'notifications')
+      viewerQueryKeys.isFamily(query.queryKey, 'posts') ||
+      viewerQueryKeys.isFamily(query.queryKey, 'saved-posts') ||
+      viewerQueryKeys.isFamily(query.queryKey, 'search') ||
+      viewerQueryKeys.isFamily(query.queryKey, 'notifications') ||
       // And the writers list itself, which this setting does not merely change
       // but decides the EXISTENCE of: the endpoint 404s for a channel that does
       // not disclose, and `useChannelWriters` reads that refusal as "no tab".
       // Keyed by channel, so only this one is asked to fetch again.
-      || viewerQueryKeys.isChannelWriters(query.queryKey, channelOxyUserId),
+      viewerQueryKeys.isChannelWriters(query.queryKey, channelOxyUserId),
   });
 
   for (const listener of listeners) {

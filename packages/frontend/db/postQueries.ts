@@ -1,6 +1,6 @@
 /**
  * Post queries — CRUD operations for the posts table.
- * 
+ *
  * All reads are synchronous (JSI). Writes use transactions for batch ops.
  * On web without SharedArrayBuffer, all functions gracefully no-op.
  */
@@ -95,13 +95,36 @@ export function upsertPost(post: FeedItem): void {
   if (!db) return;
   db.runSync(
     UPSERT_POST_SQL,
-    row.id, row.user_id, row.type, row.parent_post_id, row.original_post_id, row.quoted_post_id,
-    row.content_json, row.attachments_json, row.link_previews_json, row.permissions_json,
-    row.boost_json, row.context_json, row.user_json,
-    row.likes_count, row.downvotes_count, row.boosts_count, row.replies_count,
-    row.saves_count, row.views_count, row.impressions_count,
-    row.is_liked, row.is_downvoted, row.is_boosted, row.is_saved, row.is_owner,
-    row.visibility, row.created_at, row.updated_at, row.fetched_at, row.raw_json
+    row.id,
+    row.user_id,
+    row.type,
+    row.parent_post_id,
+    row.original_post_id,
+    row.quoted_post_id,
+    row.content_json,
+    row.attachments_json,
+    row.link_previews_json,
+    row.permissions_json,
+    row.boost_json,
+    row.context_json,
+    row.user_json,
+    row.likes_count,
+    row.downvotes_count,
+    row.boosts_count,
+    row.replies_count,
+    row.saves_count,
+    row.views_count,
+    row.impressions_count,
+    row.is_liked,
+    row.is_downvoted,
+    row.is_boosted,
+    row.is_saved,
+    row.is_owner,
+    row.visibility,
+    row.created_at,
+    row.updated_at,
+    row.fetched_at,
+    row.raw_json,
   );
 }
 
@@ -128,13 +151,36 @@ export function upsertPosts(posts: FeedItem[]): void {
 
       db.runSync(
         UPSERT_POST_SQL,
-        row.id, row.user_id, row.type, row.parent_post_id, row.original_post_id, row.quoted_post_id,
-        row.content_json, row.attachments_json, row.link_previews_json, row.permissions_json,
-        row.boost_json, row.context_json, row.user_json,
-        row.likes_count, row.downvotes_count, row.boosts_count, row.replies_count,
-        row.saves_count, row.views_count, row.impressions_count,
-        row.is_liked, row.is_downvoted, row.is_boosted, row.is_saved, row.is_owner,
-        row.visibility, row.created_at, row.updated_at, row.fetched_at, row.raw_json
+        row.id,
+        row.user_id,
+        row.type,
+        row.parent_post_id,
+        row.original_post_id,
+        row.quoted_post_id,
+        row.content_json,
+        row.attachments_json,
+        row.link_previews_json,
+        row.permissions_json,
+        row.boost_json,
+        row.context_json,
+        row.user_json,
+        row.likes_count,
+        row.downvotes_count,
+        row.boosts_count,
+        row.replies_count,
+        row.saves_count,
+        row.views_count,
+        row.impressions_count,
+        row.is_liked,
+        row.is_downvoted,
+        row.is_boosted,
+        row.is_saved,
+        row.is_owner,
+        row.visibility,
+        row.created_at,
+        row.updated_at,
+        row.fetched_at,
+        row.raw_json,
       );
     }
     db.execSync('COMMIT');
@@ -185,7 +231,7 @@ export function getPostsByIds(ids: string[]): Record<string, FeedItem> {
     const placeholders = chunk.map(() => '?').join(',');
     const rows = db.getAllSync<PostRow>(
       `SELECT * FROM posts WHERE id IN (${placeholders})`,
-      ...chunk
+      ...chunk,
     );
     for (const row of rows) {
       const item = rowToFeedItem(row);
@@ -205,7 +251,7 @@ export function getPostsByIds(ids: string[]): Record<string, FeedItem> {
  */
 export function updatePost(
   id: string,
-  updater: (prev: FeedItem) => FeedItem | null | undefined
+  updater: (prev: FeedItem) => FeedItem | null | undefined,
 ): FeedItem | null {
   if (!id) return null;
 
@@ -245,13 +291,36 @@ export function updatePost(
     const newRow = postToRow(updated);
     db.runSync(
       UPSERT_POST_SQL,
-      newRow.id, newRow.user_id, newRow.type, newRow.parent_post_id, newRow.original_post_id, newRow.quoted_post_id,
-      newRow.content_json, newRow.attachments_json, newRow.link_previews_json, newRow.permissions_json,
-      newRow.boost_json, newRow.context_json, newRow.user_json,
-      newRow.likes_count, newRow.downvotes_count, newRow.boosts_count, newRow.replies_count,
-      newRow.saves_count, newRow.views_count, newRow.impressions_count,
-      newRow.is_liked, newRow.is_downvoted, newRow.is_boosted, newRow.is_saved, newRow.is_owner,
-      newRow.visibility, newRow.created_at, newRow.updated_at, newRow.fetched_at, newRow.raw_json
+      newRow.id,
+      newRow.user_id,
+      newRow.type,
+      newRow.parent_post_id,
+      newRow.original_post_id,
+      newRow.quoted_post_id,
+      newRow.content_json,
+      newRow.attachments_json,
+      newRow.link_previews_json,
+      newRow.permissions_json,
+      newRow.boost_json,
+      newRow.context_json,
+      newRow.user_json,
+      newRow.likes_count,
+      newRow.downvotes_count,
+      newRow.boosts_count,
+      newRow.replies_count,
+      newRow.saves_count,
+      newRow.views_count,
+      newRow.impressions_count,
+      newRow.is_liked,
+      newRow.is_downvoted,
+      newRow.is_boosted,
+      newRow.is_saved,
+      newRow.is_owner,
+      newRow.visibility,
+      newRow.created_at,
+      newRow.updated_at,
+      newRow.fetched_at,
+      newRow.raw_json,
     );
     db.execSync('COMMIT');
     return updated;
@@ -297,7 +366,7 @@ export function pruneOldPosts(maxAgeMs: number = 7 * 24 * 60 * 60 * 1000): numbe
 
   const result = db.runSync(
     `DELETE FROM posts WHERE fetched_at < ? AND id NOT IN (SELECT post_id FROM feed_items)`,
-    cutoff
+    cutoff,
   );
 
   const deleted = result.changes;

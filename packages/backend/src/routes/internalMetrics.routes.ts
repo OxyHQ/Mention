@@ -26,10 +26,7 @@ function isPrivateOrLoopback(ip: string): boolean {
   return lower.startsWith('fc') || lower.startsWith('fd') || lower.startsWith('fe80:');
 }
 
-function requestComesFromAllowedNetwork(
-  req: Request,
-  allowedIps: readonly string[],
-): boolean {
+function requestComesFromAllowedNetwork(req: Request, allowedIps: readonly string[]): boolean {
   const ip = normalizedIp(req.ip || req.socket.remoteAddress);
   if (isPrivateOrLoopback(ip)) return true;
   return allowedIps.includes(ip);

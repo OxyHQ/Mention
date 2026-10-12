@@ -31,9 +31,7 @@ function LinkSummarySheet({ links, onPressLink, onClose }: LinkSummarySheetProps
 
   return (
     <View className="bg-background px-4 pt-3 pb-2">
-      <Text className="text-foreground text-lg font-bold mb-2">
-        {t('profile.links.title')}
-      </Text>
+      <Text className="text-foreground text-lg font-bold mb-2">{t('profile.links.title')}</Text>
       <ScrollView className="max-h-[360px]" showsVerticalScrollIndicator={false}>
         {links.map((link) => (
           <Item
@@ -93,7 +91,9 @@ export const LinkSummary = memo(function LinkSummary({ links, onPressLink }: Lin
       </Text>
       {extraCount > 0 && (
         <Text className="text-muted-foreground text-[15px] shrink-0" numberOfLines={1}>
-          {t(extraCount === 1 ? 'profile.links.other' : 'profile.links.others', { count: extraCount })}
+          {t(extraCount === 1 ? 'profile.links.other' : 'profile.links.others', {
+            count: extraCount,
+          })}
         </Text>
       )}
     </Pressable>

@@ -29,8 +29,7 @@
  *
  * ## The partial unique index is the bundle invariant
  *
- * Mongo declared `{bundleId, oxyUserId}` unique with
- * `partialFilterExpression: {revokedAt: null}` — one LIVE connection per
+ * `{bundleId, oxyUserId}` is unique among unrevoked rows — one LIVE connection per
  * (bundle, account), while any number of revoked ones may accumulate as
  * history. A total unique index would refuse a user who revokes and re-links,
  * which is the ordinary recovery path. Postgres expresses it as a partial
@@ -45,8 +44,7 @@ import { createdAt, generatedId, inList, timestamptz } from '@oxy.so/db';
  * How long a redeemed or expired authorization code is kept before the sweep
  * takes it.
  *
- * Mongo used a TTL index on `expiresAt` with `expireAfterSeconds: 0` — the
- * column IS the deadline — so the retention here is 0 for the same reason the
+ * `expiresAt` IS the deadline — so the retention here is 0 for the same reason the
  * moderation tables use 0. The constant exists so `db/expiry.ts` reads it from
  * the schema rather than restating a literal.
  */
@@ -77,7 +75,7 @@ export const mcpConnections = pgTable(
     scopes: text().array().notNull(),
     /**
      * Shared id for every account linked to one MCP connector. NULLABLE because
-     * the Mongoose field carries no `required` and connections written before
+     * connections written before
      * bundles existed have none — defaulting it would invent a bundle and make
      * unrelated connections look linked.
      */
@@ -107,7 +105,7 @@ export const mcpConnections = pgTable(
     index('mcp_connections_bundle_id_idx').on(t.bundleId, t.revokedAt),
     // Revocation resolves a token family by `jti`.
     index('mcp_connections_jti_idx').on(t.jti),
-  ]
+  ],
 );
 
 /**
@@ -120,9 +118,8 @@ export const mcpConnections = pgTable(
  * while dropping the collection would fail a user whose code was issued in the
  * seconds before the freeze.
  *
- * There is no TTL index in Postgres, so the reaping Mongo did for free is now
- * an entry in `db/expiry.ts`. Without it this table grows forever — the TTL is
- * a behaviour of the source that does NOT survive the port on its own.
+ * There is no TTL index in Postgres, so reaping is an entry in
+ * `db/expiry.ts`. Without it this table grows forever.
  */
 export const mcpAuthCodes = pgTable(
   'mcp_auth_codes',
@@ -145,7 +142,7 @@ export const mcpAuthCodes = pgTable(
     uniqueIndex('mcp_auth_codes_code_key').on(t.code),
     // Required by the expiry sweep: its predicate is a range scan on this column.
     index('mcp_auth_codes_expires_at_idx').on(t.expiresAt),
-  ]
+  ],
 );
 
 /**
@@ -167,7 +164,7 @@ export const mcpRegisteredClients = pgTable(
     label: text().notNull(),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex('mcp_registered_clients_client_id_key').on(t.clientId)]
+  (t) => [uniqueIndex('mcp_registered_clients_client_id_key').on(t.clientId)],
 );
 
 /**
@@ -206,7 +203,7 @@ export const mcpEffectReceipts = pgTable(
   ],
 );
 
-/** Row types, for the call sites being ported off Mongoose. */
+/** Row types. */
 export type McpConnectionRow = typeof mcpConnections.$inferSelect;
 export type McpAuthCodeRow = typeof mcpAuthCodes.$inferSelect;
 export type McpRegisteredClientRow = typeof mcpRegisteredClients.$inferSelect;

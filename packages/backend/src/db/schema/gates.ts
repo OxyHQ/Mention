@@ -1,9 +1,8 @@
 /**
  * `threadgates` and `postgates` — who may reply to, and who may quote, a post.
  *
- * Both key on `post_uri`, an MTN URI that embeds the post's Mongo `_id`
- * (`mtn://<oxyUserId>/app.mention.feed.post/<postId>`). Mongo made it UNIQUE and
- * it stays unique; `post_id` alongside it is the same id in bare form, kept
+ * Both key on `post_uri`, an MTN URI that embeds the post id
+ * (`mtn://<oxyUserId>/app.mention.feed.post/<postId>`). It is UNIQUE; `post_id` alongside it is the same id in bare form, kept
  * because different read paths use one or the other.
  *
  * NEITHER carries a foreign key to `posts`, and that is decided rather than
@@ -42,14 +41,14 @@ export const threadgates = pgTable(
   (t) => [
     index('threadgates_post_id_idx').on(t.postId),
     index('threadgates_created_by_idx').on(t.createdBy),
-  ]
+  ],
 );
 
 /**
  * `threadgate_allow_rules` — the `allow[]` array, one row per rule.
  *
- * Mongo embedded `{ type, list? }` objects. As rows the `listOnly` invariant
- * becomes expressible: a `listOnly` rule is meaningless without a list id, and
+ * Each rule is `{ type, list? }`. As rows the `listOnly` invariant
+ * is expressible: a `listOnly` rule is meaningless without a list id, and
  * every other rule is meaningless with one.
  */
 export const threadgateAllowRules = pgTable(
@@ -71,15 +70,15 @@ export const threadgateAllowRules = pgTable(
   (t) => [
     check(
       'threadgate_allow_rules_type_check',
-      sql`${t.type} in (${sql.raw(inList(THREADGATE_ALLOW_TYPES))})`
+      sql`${t.type} in (${sql.raw(inList(THREADGATE_ALLOW_TYPES))})`,
     ),
     check(
       'threadgate_allow_rules_list_id_check',
-      sql`(${t.type} = 'listOnly') = (${t.listId} is not null)`
+      sql`(${t.type} = 'listOnly') = (${t.listId} is not null)`,
     ),
     check('threadgate_allow_rules_position_check', sql`${t.position} >= 0`),
     unique('threadgate_allow_rules_threadgate_id_position_key').on(t.threadgateId, t.position),
-  ]
+  ],
 );
 
 /** `postgates` — quote control for one post. */
@@ -104,5 +103,5 @@ export const postgates = pgTable(
   (t) => [
     index('postgates_post_id_idx').on(t.postId),
     index('postgates_created_by_idx').on(t.createdBy),
-  ]
+  ],
 );

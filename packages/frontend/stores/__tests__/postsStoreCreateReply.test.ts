@@ -74,7 +74,13 @@ function hydratedReply(): HydratedPost {
     user: { id: 'viewer' },
     content: { text: 'hello' },
     engagement: { likes: 0, replies: 0, boosts: 0, saves: 0, downvotes: 0 },
-    viewerState: { isOwner: true, isLiked: false, isBoosted: false, isSaved: false, isDownvoted: false },
+    viewerState: {
+      isOwner: true,
+      isLiked: false,
+      isBoosted: false,
+      isSaved: false,
+      isDownvoted: false,
+    },
     metadata: {},
     attachments: {},
     createdAt: '2026-09-25T12:00:00Z',
@@ -94,12 +100,17 @@ describe('postsStore.createReply', () => {
   it('caches the server’s reply, hands it to the thread, and returns it', async () => {
     mockCreateReply.mockResolvedValue({ success: true, reply: hydratedReply() });
 
-    const reply = await usePostsStore.getState().createReply({ postId: PARENT, content: { text: 'hello' } });
+    const reply = await usePostsStore
+      .getState()
+      .createReply({ postId: PARENT, content: { text: 'hello' } });
 
     expect(reply?.id).toBe('reply-1');
     expect(mockPosts.get('reply-1')?.parentPostId).toBe(PARENT);
     expect(mockPublishNewLocalReply).toHaveBeenCalledTimes(1);
-    expect(mockPublishNewLocalReply.mock.calls[0][0]).toMatchObject({ id: 'reply-1', parentPostId: PARENT });
+    expect(mockPublishNewLocalReply.mock.calls[0][0]).toMatchObject({
+      id: 'reply-1',
+      parentPostId: PARENT,
+    });
     expect(mockPosts.get(PARENT)?.engagement.replies).toBe(1);
   });
 

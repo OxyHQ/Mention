@@ -36,7 +36,10 @@ const MAX_TRENDING_HISTORY_LIMIT = 20;
  */
 router.get('/', cachePublicMedium, async (req: Request, res: Response) => {
   try {
-    const limitNum = Math.min(Math.max(queryInt(req.query.limit) || DEFAULT_TRENDING_LIMIT, 1), MAX_TRENDING_LIMIT);
+    const limitNum = Math.min(
+      Math.max(queryInt(req.query.limit) || DEFAULT_TRENDING_LIMIT, 1),
+      MAX_TRENDING_LIMIT,
+    );
 
     // Validate type filter — an unrecognized (or tampered) type means "all types".
     const rawType = queryString(req.query.type);

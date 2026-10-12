@@ -25,21 +25,18 @@ const DISPATCH_BATCH_SIZE = 100;
 /**
  * The post's authorship, read at DELIVERY time.
  *
- * `engagement_outbox` used to carry a `postAuthorship` snapshot taken when the
- * event was emitted — a `Mixed` array Mongo could not otherwise join to. The
- * column is dropped: it is reconstructible from `post_authorships`, which is the
- * authority the rest of the codebase already reads.
+ * `engagement_outbox` carries no `postAuthorship` snapshot: it is
+ * reconstructible from `post_authorships`, which is the authority the rest of
+ * the codebase already reads.
  *
- * The behaviour change is real and intended. A collaborator who accepted between
- * the like and its delivery now receives the notification, and one who was
- * removed does not — where the snapshot would have answered with the membership
- * as it stood seconds earlier. Neither answer is more correct in the abstract;
- * this one cannot go stale, and it cannot disagree with the byline the reader
- * sees on the post.
+ * This is intended. A collaborator who accepted between the like and its
+ * delivery receives the notification, and one who was removed does not — where
+ * a snapshot would answer with the membership as it stood seconds earlier.
+ * Neither answer is more correct in the abstract; this one cannot go stale, and
+ * it cannot disagree with the byline the reader sees on the post.
  *
- * Ordered owner-first, then by user id. The array Mongo carried was owner-first
- * (`buildAuthorship`), and a child table has no inherent order, so this restores
- * the familiar shape and makes the result deterministic. It is NOT load-bearing:
+ * Ordered owner-first, then by user id, matching `buildAuthorship`; a child
+ * table has no inherent order, so this gives the familiar shape and makes the result deterministic. It is NOT load-bearing:
  * `getNotificationRecipients` finds the owner by predicate, never by position.
  */
 async function loadPostAuthorship(postId: string): Promise<PostAuthorshipEntry[]> {
@@ -162,13 +159,8 @@ export async function handleEngagementOutboxEvent(
   context: EngagementOutboxHandlerContext = UNTRACKED,
   now: Date = new Date(),
 ): Promise<void> {
-  const {
-    actorOxyUserId,
-    postId,
-    relationshipId,
-    postOwnerOxyUserId,
-    previousValue,
-  } = event.payload;
+  const { actorOxyUserId, postId, relationshipId, postOwnerOxyUserId, previousValue } =
+    event.payload;
   const mtnEventIdentity = {
     idempotencyKey: event.id,
     issuedAt: event.createdAt,
@@ -179,13 +171,14 @@ export async function handleEngagementOutboxEvent(
       await runEffects(event, context, [
         {
           name: 'mtn',
-          run: () => emitLikeCreatedStrict({
-            likerOxyUserId: actorOxyUserId,
-            likeRkey: relationshipId,
-            likedPostId: postId,
-            likedPostOwnerOxyUserId: postOwnerOxyUserId,
-            ...mtnEventIdentity,
-          }),
+          run: () =>
+            emitLikeCreatedStrict({
+              likerOxyUserId: actorOxyUserId,
+              likeRkey: relationshipId,
+              likedPostId: postId,
+              likedPostOwnerOxyUserId: postOwnerOxyUserId,
+              ...mtnEventIdentity,
+            }),
         },
         {
           name: 'notification',
@@ -217,12 +210,13 @@ export async function handleEngagementOutboxEvent(
       await runEffects(event, context, [
         {
           name: 'mtn',
-          run: () => emitTombstoneStrict({
-            authorOxyUserId: actorOxyUserId,
-            tombstoneRkey: relationshipId,
-            subjectUri: likeRecordUri(actorOxyUserId, relationshipId),
-            ...mtnEventIdentity,
-          }),
+          run: () =>
+            emitTombstoneStrict({
+              authorOxyUserId: actorOxyUserId,
+              tombstoneRkey: relationshipId,
+              subjectUri: likeRecordUri(actorOxyUserId, relationshipId),
+              ...mtnEventIdentity,
+            }),
         },
         {
           name: 'federation',
@@ -238,12 +232,13 @@ export async function handleEngagementOutboxEvent(
         await runEffects(event, context, [
           {
             name: 'mtn',
-            run: () => emitTombstoneStrict({
-              authorOxyUserId: actorOxyUserId,
-              tombstoneRkey: relationshipId,
-              subjectUri: likeRecordUri(actorOxyUserId, relationshipId),
-              ...mtnEventIdentity,
-            }),
+            run: () =>
+              emitTombstoneStrict({
+                authorOxyUserId: actorOxyUserId,
+                tombstoneRkey: relationshipId,
+                subjectUri: likeRecordUri(actorOxyUserId, relationshipId),
+                ...mtnEventIdentity,
+              }),
           },
           {
             name: 'federation',
@@ -260,13 +255,14 @@ export async function handleEngagementOutboxEvent(
       await runEffects(event, context, [
         {
           name: 'mtn',
-          run: () => emitBookmarkCreatedStrict({
-            ownerOxyUserId: actorOxyUserId,
-            bookmarkRkey: relationshipId,
-            bookmarkedPostId: postId,
-            bookmarkedPostOwnerOxyUserId: postOwnerOxyUserId,
-            ...mtnEventIdentity,
-          }),
+          run: () =>
+            emitBookmarkCreatedStrict({
+              ownerOxyUserId: actorOxyUserId,
+              bookmarkRkey: relationshipId,
+              bookmarkedPostId: postId,
+              bookmarkedPostOwnerOxyUserId: postOwnerOxyUserId,
+              ...mtnEventIdentity,
+            }),
         },
       ]);
       return;
@@ -275,12 +271,13 @@ export async function handleEngagementOutboxEvent(
       await runEffects(event, context, [
         {
           name: 'mtn',
-          run: () => emitTombstoneStrict({
-            authorOxyUserId: actorOxyUserId,
-            tombstoneRkey: relationshipId,
-            subjectUri: bookmarkRecordUri(actorOxyUserId, relationshipId),
-            ...mtnEventIdentity,
-          }),
+          run: () =>
+            emitTombstoneStrict({
+              authorOxyUserId: actorOxyUserId,
+              tombstoneRkey: relationshipId,
+              subjectUri: bookmarkRecordUri(actorOxyUserId, relationshipId),
+              ...mtnEventIdentity,
+            }),
         },
       ]);
       return;

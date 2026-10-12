@@ -105,11 +105,14 @@ describe('profile avatar ring surface', () => {
   const { resolve } = jest.requireActual<typeof import('node:path')>('node:path');
   const read = (file: string) => readFileSync(resolve(__dirname, '..', file), 'utf8');
 
-  it.each(['ProfileHeader.tsx', 'ChannelHeader.tsx', 'ProfileSkeleton.tsx'])('%s rings the avatar in the surface fill', file => {
-    const source = read(file);
-    expect(source).toMatch(/useSurfaceFill\(\)/);
-    expect(source).toMatch(/borderColor: surfaceFill/);
-    expect(source).not.toMatch(/border-background/);
-    expect(source).not.toMatch(/borderColor: theme\.colors\.background/);
-  });
+  it.each(['ProfileHeader.tsx', 'ChannelHeader.tsx', 'ProfileSkeleton.tsx'])(
+    '%s rings the avatar in the surface fill',
+    (file) => {
+      const source = read(file);
+      expect(source).toMatch(/useSurfaceFill\(\)/);
+      expect(source).toMatch(/borderColor: surfaceFill/);
+      expect(source).not.toMatch(/border-background/);
+      expect(source).not.toMatch(/borderColor: theme\.colors\.background/);
+    },
+  );
 });

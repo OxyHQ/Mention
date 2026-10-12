@@ -144,8 +144,12 @@ describe('the request', () => {
   });
 
   it('carries the cursor forward as afterId', () => {
-    expect(buildPurgeRequest(DOMAIN, options(), CURSORS[0]))
-      .toEqual({ domain: DOMAIN, dryRun: true, limit: 2, afterId: CURSORS[0] });
+    expect(buildPurgeRequest(DOMAIN, options(), CURSORS[0])).toEqual({
+      domain: DOMAIN,
+      dryRun: true,
+      limit: 2,
+      afterId: CURSORS[0],
+    });
   });
 
   it('omits afterId entirely on the first pass rather than sending a null', () => {
@@ -211,7 +215,11 @@ describe('a dry run', () => {
       completedAt: null,
     });
 
-    await purgeDomainOnPlatform(DOMAIN, options({ dryRun: true, resetCursor: true }), emptyIssues());
+    await purgeDomainOnPlatform(
+      DOMAIN,
+      options({ dryRun: true, resetCursor: true }),
+      emptyIssues(),
+    );
 
     expect(h.clearAdminScriptCursor).not.toHaveBeenCalled();
     expect(issuedRequests()[0]).not.toHaveProperty('afterId');
@@ -240,8 +248,11 @@ describe('paging', () => {
 
     const outcome = await purgeDomainOnPlatform(DOMAIN, options(), emptyIssues());
 
-    expect(issuedRequests().map((request) => request.afterId))
-      .toEqual([undefined, CURSORS[0], CURSORS[1]]);
+    expect(issuedRequests().map((request) => request.afterId)).toEqual([
+      undefined,
+      CURSORS[0],
+      CURSORS[1],
+    ]);
     expect(outcome.done).toBe(true);
     expect(outcome.passes).toBe(3);
     expect(outcome.actorsProcessed).toBe(5);
@@ -290,8 +301,9 @@ describe('paging', () => {
     await purgeDomainOnPlatform(DOMAIN, options({ dryRun: false }), issues);
 
     expect(issues.cursorWriteFailed).toBe(1);
-    expect(() => assertPlatformPurgeRunComplete(reportWith(issues, 1)))
-      .toThrow(/cursorWriteFailed=1/);
+    expect(() => assertPlatformPurgeRunComplete(reportWith(issues, 1))).toThrow(
+      /cursorWriteFailed=1/,
+    );
   });
 });
 
@@ -329,8 +341,7 @@ describe('a cursor that does not advance', () => {
     const issues = emptyIssues();
     issues.stalledCursor = 1;
 
-    expect(() => assertPlatformPurgeRunComplete(reportWith(issues, 1)))
-      .toThrow(/stalledCursor=1/);
+    expect(() => assertPlatformPurgeRunComplete(reportWith(issues, 1))).toThrow(/stalledCursor=1/);
   });
 });
 
@@ -352,8 +363,9 @@ describe('the pass ceiling', () => {
     expect(outcome.passes).toBe(4);
     expect(outcome.done).toBe(false);
     expect(issues.passCeilingReached).toBe(1);
-    expect(() => assertPlatformPurgeRunComplete(reportWith(issues, 1)))
-      .toThrow(/passCeilingReached=1/);
+    expect(() => assertPlatformPurgeRunComplete(reportWith(issues, 1))).toThrow(
+      /passCeilingReached=1/,
+    );
   });
 });
 
@@ -374,8 +386,9 @@ describe('a disagreement between the two ends', () => {
   it('raises a mode disagreement as its own error, not a generic failure', async () => {
     respondWith(pass({ dryRun: true }));
 
-    await expect(purgeDomainOnPlatform(DOMAIN, options({ dryRun: false }), emptyIssues()))
-      .rejects.toBeInstanceOf(DryRunViolationError);
+    await expect(
+      purgeDomainOnPlatform(DOMAIN, options({ dryRun: false }), emptyIssues()),
+    ).rejects.toBeInstanceOf(DryRunViolationError);
   });
 
   it('refuses a domain Oxy canonicalised differently', async () => {
@@ -393,12 +406,14 @@ describe('a disagreement between the two ends', () => {
   });
 
   it('counts nothing from the pass it refused', async () => {
-    respondWith(pass({
-      canonicalDomain: 'other.example',
-      actorsDeleted: 7,
-      localFollowersAffected: 3,
-      done: true,
-    }));
+    respondWith(
+      pass({
+        canonicalDomain: 'other.example',
+        actorsDeleted: 7,
+        localFollowersAffected: 3,
+        done: true,
+      }),
+    );
 
     const outcome = await purgeDomainOnPlatform(DOMAIN, options(), emptyIssues());
 
@@ -420,23 +435,28 @@ describe('a response that cannot be read', () => {
     // sent after its ids became uuid v7, aborting the whole domain.
     ['a nextCursor that is blank', { ...pass(), nextCursor: '   ' }],
     ['a nextCursor that is not a string', { ...pass(), nextCursor: 42 }],
-    ['a retained actor with no referencedByAppIds', { ...pass(), actorsRetained: [{ oxyUserId: 'x' }] }],
+    [
+      'a retained actor with no referencedByAppIds',
+      { ...pass(), actorsRetained: [{ oxyUserId: 'x' }] },
+    ],
     ['a body that is not an object', 'ok'],
   ])('rejects %s', (_label, body) => {
     expect(() => parseDomainPurgePass(body)).toThrow(MalformedPurgeResponseError);
   });
 
   it('reads a well-formed pass, including who kept a row alive', () => {
-    const parsed = parseDomainPurgePass(pass({
-      actorsRetained: [
-        { oxyUserId: 'a', username: 'one', referencedByAppIds: ['app-1'] },
-        { oxyUserId: 'b', username: 'two', referencedByAppIds: ['app-1', 'app-2'] },
-      ],
-      localFollowersAffected: 3,
-      bytesDeleted: 2048,
-      nextCursor: CURSORS[0],
-      done: false,
-    }));
+    const parsed = parseDomainPurgePass(
+      pass({
+        actorsRetained: [
+          { oxyUserId: 'a', username: 'one', referencedByAppIds: ['app-1'] },
+          { oxyUserId: 'b', username: 'two', referencedByAppIds: ['app-1', 'app-2'] },
+        ],
+        localFollowersAffected: 3,
+        bytesDeleted: 2048,
+        nextCursor: CURSORS[0],
+        done: false,
+      }),
+    );
 
     expect(parsed.actorsRetained).toBe(2);
     expect(parsed.retainedByAppIds).toEqual(['app-1', 'app-2']);
@@ -454,8 +474,9 @@ describe('a response that cannot be read', () => {
     expect(issues.malformedResponse).toBe(1);
     expect(issues.requestFailed).toBe(0);
     expect(outcome.failed).toBe(true);
-    expect(() => assertPlatformPurgeRunComplete(reportWith(issues, 1)))
-      .toThrow(/malformedResponse=1/);
+    expect(() => assertPlatformPurgeRunComplete(reportWith(issues, 1))).toThrow(
+      /malformedResponse=1/,
+    );
   });
 });
 
@@ -468,8 +489,9 @@ describe('a candidate Oxy refused after fetching it', () => {
 
     expect(outcome.candidatesRejected).toBe(1);
     expect(issues.candidatesRejected).toBe(1);
-    expect(() => assertPlatformPurgeRunComplete(reportWith(issues, 1)))
-      .toThrow(/candidatesRejected=1/);
+    expect(() => assertPlatformPurgeRunComplete(reportWith(issues, 1))).toThrow(
+      /candidatesRejected=1/,
+    );
   });
 });
 
@@ -497,14 +519,13 @@ describe('a failing request', () => {
 
     const systemic = emptyIssues();
     systemic.requestFailed = 12;
-    expect(() => assertPlatformPurgeRunComplete(reportWith(systemic, 118)))
-      .toThrow(/requestFailed=12/);
+    expect(() => assertPlatformPurgeRunComplete(reportWith(systemic, 118))).toThrow(
+      /requestFailed=12/,
+    );
   });
 
   it('stops the run once five domains in a row have failed', async () => {
-    const domains = new Set(
-      Array.from({ length: 9 }, (_unused, index) => `d${index}.example`),
-    );
+    const domains = new Set(Array.from({ length: 9 }, (_unused, index) => `d${index}.example`));
     h.serviceRequest.mockRejectedValue({ message: 'Unauthorized', status: 401 });
 
     const report = await purgeBlockedDomainPlatformData(domains, options());
@@ -519,9 +540,7 @@ describe('a failing request', () => {
   });
 
   it('keeps sweeping when failures are scattered rather than consecutive', async () => {
-    const domains = new Set(
-      Array.from({ length: 9 }, (_unused, index) => `d${index}.example`),
-    );
+    const domains = new Set(Array.from({ length: 9 }, (_unused, index) => `d${index}.example`));
     let call = 0;
     h.serviceRequest.mockImplementation(async (_method, _path, request) => {
       call += 1;
@@ -546,7 +565,8 @@ describe('the domains that may be sent', () => {
   it('never include a domain that is not in the policy', async () => {
     const policy = new Set(getBlockedDomainPolicy().map((entry) => entry.domain));
     h.serviceRequest.mockImplementation(async (_method, _path, request) =>
-      pass({ canonicalDomain: (request as DomainPurgeRequest).domain }));
+      pass({ canonicalDomain: (request as DomainPurgeRequest).domain }),
+    );
 
     await purgeBlockedDomainPlatformData(resolvePurgeTargets(options()), options());
 
@@ -556,8 +576,9 @@ describe('the domains that may be sent', () => {
   });
 
   it('refuse a narrowed run aimed at a domain the policy does not name', () => {
-    expect(() => resolvePurgeTargets(options({ domain: 'never-blocked.example' })))
-      .toThrow(EmptyBlocklistError);
+    expect(() => resolvePurgeTargets(options({ domain: 'never-blocked.example' }))).toThrow(
+      EmptyBlocklistError,
+    );
   });
 
   it('narrow to the one requested policy domain', () => {
@@ -627,7 +648,10 @@ describe('the report', () => {
 });
 
 /** A report carrying nothing but the issues and the denominator under test. */
-function reportWith(issues: PlatformPurgeReport['issues'], domainsVisited: number): PlatformPurgeReport {
+function reportWith(
+  issues: PlatformPurgeReport['issues'],
+  domainsVisited: number,
+): PlatformPurgeReport {
   return { dryRun: true, domainsVisited, outcomes: [], issues };
 }
 

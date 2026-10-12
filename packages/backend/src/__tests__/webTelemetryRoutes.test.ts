@@ -68,14 +68,18 @@ describe('web RUM telemetry', () => {
       .post('/telemetry/web')
       .set('origin', 'http://localhost:8081')
       .set('content-type', 'text/plain;charset=UTF-8')
-      .send(JSON.stringify({
-        events: [{
-          type: 'runtime',
-          kind: 'navigation',
-          result: 'ok',
-          route: '/p/private-id',
-        }],
-      }))
+      .send(
+        JSON.stringify({
+          events: [
+            {
+              type: 'runtime',
+              kind: 'navigation',
+              result: 'ok',
+              route: '/p/private-id',
+            },
+          ],
+        }),
+      )
       .expect(204);
 
     const output = await metrics.getPrometheusFormat();
@@ -88,12 +92,14 @@ describe('web RUM telemetry', () => {
     await request(app)
       .post('/telemetry/web')
       .send({
-        events: [{
-          type: 'runtime',
-          kind: 'load',
-          result: 'ok',
-          route: '/',
-        }],
+        events: [
+          {
+            type: 'runtime',
+            kind: 'load',
+            result: 'ok',
+            route: '/',
+          },
+        ],
       })
       .expect(204);
   });
@@ -154,8 +160,20 @@ describe('web RUM telemetry', () => {
       .set('origin', 'http://localhost:8081')
       .send({
         events: [
-          { type: 'milestone', name: 'content-ready', value: 1_850, navigation: 'navigate', route: '/@alice' },
-          { type: 'milestone', name: 'route-mounted', value: 120_001, navigation: 'reload', route: '/' },
+          {
+            type: 'milestone',
+            name: 'content-ready',
+            value: 1_850,
+            navigation: 'navigate',
+            route: '/@alice',
+          },
+          {
+            type: 'milestone',
+            name: 'route-mounted',
+            value: 120_001,
+            navigation: 'reload',
+            route: '/',
+          },
         ],
       })
       .expect(204);
@@ -170,25 +188,31 @@ describe('web RUM telemetry', () => {
     await request(app)
       .post('/telemetry/web')
       .set('origin', 'http://localhost:8081')
-      .send({ events: [{ type: 'milestone', name: 'made-up', value: 10, navigation: 'navigate', route: '/' }] })
+      .send({
+        events: [
+          { type: 'milestone', name: 'made-up', value: 10, navigation: 'navigate', route: '/' },
+        ],
+      })
       .expect(400);
   });
 
   it('normalizes dynamic application paths to a finite route vocabulary', () => {
-    expect([
-      '/',
-      '/compose/new',
-      '/explore/topic',
-      '/feed/following',
-      '/feeds/abc',
-      '/oauth/callback',
-      '/p/post-id',
-      '/@alice@remote.example',
-      '/search/results',
-      '/settings/privacy',
-      '/videos/next',
-      '/unbounded/value',
-    ].map(normalizeWebTelemetryRoute)).toEqual([
+    expect(
+      [
+        '/',
+        '/compose/new',
+        '/explore/topic',
+        '/feed/following',
+        '/feeds/abc',
+        '/oauth/callback',
+        '/p/post-id',
+        '/@alice@remote.example',
+        '/search/results',
+        '/settings/privacy',
+        '/videos/next',
+        '/unbounded/value',
+      ].map(normalizeWebTelemetryRoute),
+    ).toEqual([
       '/',
       '/compose',
       '/explore',

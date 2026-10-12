@@ -1,20 +1,12 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { useAuth } from '@oxy.so/services/ui/client';
-import {
-  getDraftsStorageKey,
-  useDrafts,
-  type Draft,
-} from '../useDrafts';
+import { getDraftsStorageKey, useDrafts, type Draft } from '../useDrafts';
 
 let mockViewerId: string | null = 'viewer-a';
 const mockStorageGet = jest.fn();
-const mockStorageSet = jest.fn(
-  (_key: string, _value: unknown) => Promise.resolve(true),
-);
-const mockStorageRemove = jest.fn(
-  (_key: string) => Promise.resolve(true),
-);
+const mockStorageSet = jest.fn((_key: string, _value: unknown) => Promise.resolve(true));
+const mockStorageRemove = jest.fn((_key: string) => Promise.resolve(true));
 
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: jest.fn(),
@@ -118,18 +110,14 @@ describe('useDrafts viewer isolation', () => {
       await pendingB.promise;
       await Promise.resolve();
     });
-    expect(latestResult?.drafts.map((item) => item.id)).toEqual([
-      'draft-b',
-    ]);
+    expect(latestResult?.drafts.map((item) => item.id)).toEqual(['draft-b']);
 
     await act(async () => {
       pendingA.resolve([draft('draft-a', 3)]);
       await pendingA.promise;
       await Promise.resolve();
     });
-    expect(latestResult?.drafts.map((item) => item.id)).toEqual([
-      'draft-b',
-    ]);
+    expect(latestResult?.drafts.map((item) => item.id)).toEqual(['draft-b']);
 
     act(() => {
       renderer!.unmount();

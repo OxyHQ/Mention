@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { FederatedActorRecord } from '../../../db/federation/actorRecord';
-import { remoteProfileStats, trustedRemoteCreatedAt } from '../../../services/federation/remoteProfileStats';
+import {
+  remoteProfileStats,
+  trustedRemoteCreatedAt,
+} from '../../../services/federation/remoteProfileStats';
 
 /**
  * What a federated profile may claim about its account (OxyHQ/Mention#1126).
@@ -71,27 +74,41 @@ describe('remoteProfileStats', () => {
 
   it('omits a null atproto total too', () => {
     const stats = remoteProfileStats(
-      actor({ protocol: 'atproto', followersUrl: undefined, followingUrl: undefined, followingCount: null }),
+      actor({
+        protocol: 'atproto',
+        followersUrl: undefined,
+        followingUrl: undefined,
+        followingCount: null,
+      }),
     );
     expect(stats.followersCount).toBe(812);
     expect(stats).not.toHaveProperty('followingCount');
   });
 
   it('omits both totals on a row that was never fetched', () => {
-    const stats = remoteProfileStats(actor({ lastFetchedAt: undefined, followersCount: 0, followingCount: 0 }));
+    const stats = remoteProfileStats(
+      actor({ lastFetchedAt: undefined, followersCount: 0, followingCount: 0 }),
+    );
     expect(stats).not.toHaveProperty('followersCount');
     expect(stats).not.toHaveProperty('followingCount');
   });
 
   it('reports atproto totals without collection URLs', () => {
     const stats = remoteProfileStats(
-      actor({ protocol: 'atproto', followersUrl: undefined, followingUrl: undefined, remoteCreatedAt: undefined }),
+      actor({
+        protocol: 'atproto',
+        followersUrl: undefined,
+        followingUrl: undefined,
+        remoteCreatedAt: undefined,
+      }),
     );
     expect(stats).toEqual({ followersCount: 812, followingCount: 344 });
   });
 
   it('omits the join date when the actor published none', () => {
-    expect(remoteProfileStats(actor({ remoteCreatedAt: undefined }))).not.toHaveProperty('joinedAt');
+    expect(remoteProfileStats(actor({ remoteCreatedAt: undefined }))).not.toHaveProperty(
+      'joinedAt',
+    );
   });
 });
 

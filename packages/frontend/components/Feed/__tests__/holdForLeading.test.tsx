@@ -11,14 +11,18 @@ function Probe({ pending, ready }: { pending: boolean | undefined; ready: boolea
 
 function mount(pending: boolean | undefined, ready: boolean) {
   let renderer!: TestRenderer.ReactTestRenderer;
-  act(() => { renderer = TestRenderer.create(<Probe pending={pending} ready={ready} />); });
+  act(() => {
+    renderer = TestRenderer.create(<Probe pending={pending} ready={ready} />);
+  });
   const set = (nextPending: boolean | undefined, nextReady: boolean) =>
     act(() => renderer.update(<Probe pending={nextPending} ready={nextReady} />));
   return { set, unmount: () => act(() => renderer.unmount()) };
 }
 
 describe('useHoldForLeading — a profile pinned post and its feed appear together (#1216)', () => {
-  beforeEach(() => { seen.length = 0; });
+  beforeEach(() => {
+    seen.length = 0;
+  });
 
   it('holds while the pinned post is pending, even with the first page ready', () => {
     const { set, unmount } = mount(true, false);

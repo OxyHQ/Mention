@@ -13,9 +13,7 @@ describe('extractUrls', () => {
   });
 
   it('normalizes a bare www. form to an openable https URL', () => {
-    expect(extractUrls('visit www.example.com today')).toEqual([
-      'https://www.example.com',
-    ]);
+    expect(extractUrls('visit www.example.com today')).toEqual(['https://www.example.com']);
   });
 
   it('strips trailing punctuation', () => {

@@ -9,9 +9,7 @@ const config = getDefaultConfig(projectRoot);
 config.projectRoot = projectRoot;
 
 // Include monorepo root so Metro can resolve hoisted dependencies in root node_modules/
-config.watchFolders = [
-  monorepoRoot,
-];
+config.watchFolders = [monorepoRoot];
 
 // Helper to create block patterns
 const blockPath = (dir) => {

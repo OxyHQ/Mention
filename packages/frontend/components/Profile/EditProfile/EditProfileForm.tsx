@@ -30,10 +30,7 @@ export function EditProfileForm() {
   const { saveColor } = useAppColorSave();
 
   const viewer = useMentionColorViewer();
-  const visibleColors = useMemo(
-    () => entitledColorNames(viewer),
-    [viewer],
-  );
+  const visibleColors = useMemo(() => entitledColorNames(viewer), [viewer]);
 
   if (!isAuthenticated) {
     return (
@@ -61,7 +58,8 @@ export function EditProfileForm() {
           </Text>
           <View className="mt-3">
             <Button
-              appearance="subtle" tone="neutral"
+              appearance="subtle"
+              tone="neutral"
               size="sm"
               onPress={() => showBottomSheet?.('ManageAccount')}
             >

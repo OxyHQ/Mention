@@ -113,7 +113,10 @@ export interface ImportLookupResult {
    * AS2 object id / at-uri → the federated copy Mention already ingested of it,
    * for ids that federation brought in before the account moved.
    */
-  federated: Record<string, { postId: string; actorUri: string | null; url: string | null; oxyUserId: string | null }>;
+  federated: Record<
+    string,
+    { postId: string; actorUri: string | null; url: string | null; oxyUserId: string | null }
+  >;
 }
 
 /** An item was refused; the message is the stable `error` code Move reads. */
@@ -181,7 +184,8 @@ class PostImportService {
     // ONE Oxy round trip for every asset in the batch. A failed lookup fails the
     // items that carry media — never silently attaches an asset nobody checked.
     const assetIds = items.flatMap((item) => item.media.map((media) => media.assetId));
-    let assets: Awaited<ReturnType<typeof mediaMetadataService.resolveOxyAssets>> | null = new Map();
+    let assets: Awaited<ReturnType<typeof mediaMetadataService.resolveOxyAssets>> | null =
+      new Map();
     if (assetIds.length > 0) {
       try {
         assets = await mediaMetadataService.resolveOxyAssets(assetIds);
@@ -236,8 +240,13 @@ class PostImportService {
    * order (`docs/import.mdx`, "One post, not two"). Best effort: the items are
    * written either way, and a miss is two visible cards.
    */
-  private async collapseUnderAdoptedCopies(oxyUserId: string, results: readonly ImportItemResult[]): Promise<void> {
-    const created = results.flatMap((result) => (result.status === 'created' && result.postId ? [result.postId] : []));
+  private async collapseUnderAdoptedCopies(
+    oxyUserId: string,
+    results: readonly ImportItemResult[],
+  ): Promise<void> {
+    const created = results.flatMap((result) =>
+      result.status === 'created' && result.postId ? [result.postId] : [],
+    );
     if (created.length === 0) return;
     try {
       const actorUris = await findActorUrisOwnedBy(oxyUserId);
@@ -256,7 +265,10 @@ class PostImportService {
     batchId: string;
     item: ImportItemInput;
     known: ReadonlyMap<string, string>;
-    assets: ReadonlyMap<string, { mime: string; status: string; ownerUserId?: string | null }> | null;
+    assets: ReadonlyMap<
+      string,
+      { mime: string; status: string; ownerUserId?: string | null }
+    > | null;
   }): Promise<ImportItemResult> {
     const { oxyUserId, platform, batchId, item, known, assets } = ctx;
 
@@ -271,9 +283,11 @@ class PostImportService {
     let threadId: string | null = null;
     if (item.replyToSourceId) {
       const parentId = known.get(item.replyToSourceId);
-      if (!parentId) return { sourceId: item.sourceId, status: 'deferred', error: 'parent_not_imported' };
+      if (!parentId)
+        return { sourceId: item.sourceId, status: 'deferred', error: 'parent_not_imported' };
       const parent = await loadPostRecord(parentId);
-      if (!parent) return { sourceId: item.sourceId, status: 'deferred', error: 'parent_not_imported' };
+      if (!parent)
+        return { sourceId: item.sourceId, status: 'deferred', error: 'parent_not_imported' };
       parentPostId = parent.id;
       // A reply to one's own post is a thread continuation, joined exactly the
       // way `POST /posts/thread` joins one: every entry carries the root's id,
@@ -286,7 +300,8 @@ class PostImportService {
     let quoteOf: string | null = null;
     if (item.quoteSourceId) {
       const quotedId = known.get(item.quoteSourceId);
-      if (!quotedId) return { sourceId: item.sourceId, status: 'deferred', error: 'quote_not_imported' };
+      if (!quotedId)
+        return { sourceId: item.sourceId, status: 'deferred', error: 'quote_not_imported' };
       quoteOf = quotedId;
     }
 
@@ -351,12 +366,13 @@ class PostImportService {
 
     // The post and its ledger row are two writes: without the row the post is
     // invisible to dedupe and undo, so it never outlives a failed insert.
-    const removePost = () => deleteAuthoredPost(post.id, oxyUserId).catch((error: unknown) => {
-      logger.error('[PostImport] failed to remove an unrecorded import', {
-        postId: post.id,
-        error: error instanceof Error ? error.message : String(error),
+    const removePost = () =>
+      deleteAuthoredPost(post.id, oxyUserId).catch((error: unknown) => {
+        logger.error('[PostImport] failed to remove an unrecorded import', {
+          postId: post.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
       });
-    });
     let recorded: boolean;
     try {
       recorded = await insertPostImport({
@@ -375,13 +391,19 @@ class PostImportService {
     if (!recorded) {
       // A concurrent send of the SAME item recorded it first: ours is the duplicate.
       await removePost();
-      const winner = (await findImportsBySourceIds(oxyUserId, platform, [item.sourceId])).get(item.sourceId);
+      const winner = (await findImportsBySourceIds(oxyUserId, platform, [item.sourceId])).get(
+        item.sourceId,
+      );
       return winner
         ? { sourceId: item.sourceId, status: 'existing', postId: winner.postId }
         : { sourceId: item.sourceId, status: 'failed', error: 'internal_error' };
     }
 
-    await persistPreparedArticle(preparedArticle, post.id, 'Failed to save imported article content');
+    await persistPreparedArticle(
+      preparedArticle,
+      post.id,
+      'Failed to save imported article content',
+    );
     return { sourceId: item.sourceId, status: 'created', postId: post.id };
   }
 
@@ -394,7 +416,10 @@ class PostImportService {
    * with a parent earlier in the walk, or deleted by the author — counts as
    * neither deleted nor failed.
    */
-  async undoBatch(params: { oxyUserId: string; batchId: string }): Promise<{ deleted: number; failed: number }> {
+  async undoBatch(params: {
+    oxyUserId: string;
+    batchId: string;
+  }): Promise<{ deleted: number; failed: number }> {
     const postIds = await findBatchPostIds(params.oxyUserId, params.batchId);
     let deleted = 0;
     let failed = 0;

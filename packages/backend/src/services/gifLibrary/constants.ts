@@ -70,6 +70,25 @@ export const GIF_DEFAULT_DIMENSION = 200;
  * highest-noise tokens are removed here at normalization time instead.
  */
 export const GIF_STOPWORDS: ReadonlySet<string> = new Set([
-  'the', 'a', 'an', 'and', 'or', 'of', 'to', 'in', 'on', 'for', 'with',
-  'is', 'it', 'this', 'that', 'at', 'by', 'from', 'as', 'be', 'are',
+  'the',
+  'a',
+  'an',
+  'and',
+  'or',
+  'of',
+  'to',
+  'in',
+  'on',
+  'for',
+  'with',
+  'is',
+  'it',
+  'this',
+  'that',
+  'at',
+  'by',
+  'from',
+  'as',
+  'be',
+  'are',
 ]);

@@ -49,9 +49,7 @@ const fetchPublicKey = vi.fn(async (keyId: string) =>
  * that here so the reconstructed signing string matches.
  */
 function lowerHeaders(headers: Record<string, string>): Record<string, string> {
-  const lowered = Object.fromEntries(
-    Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]),
-  );
+  const lowered = Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]));
   if (lowered.digest && !lowered['content-type']) {
     lowered['content-type'] = AP_CONTENT_TYPE;
   }

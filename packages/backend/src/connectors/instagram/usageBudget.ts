@@ -132,7 +132,8 @@ export function decideBudget(
 ): Exclude<BudgetRefusal, 'tokens'> | null {
   if (state.tokenInvalidUntil > now) return 'token_invalid';
   if (state.throttledUntil > now) return 'throttled';
-  const ceiling = kind === 'background' ? BACKGROUND_USAGE_CEILING_PCT : INTERACTIVE_USAGE_CEILING_PCT;
+  const ceiling =
+    kind === 'background' ? BACKGROUND_USAGE_CEILING_PCT : INTERACTIVE_USAGE_CEILING_PCT;
   return decayedUsagePct(state.usagePct, state.usageAt, now) >= ceiling ? 'usage' : null;
 }
 
@@ -142,7 +143,10 @@ function floorFor(kind: GraphCallKind): number {
 
 /** Local token take — exported for tests. */
 export function takeLocalToken(kind: GraphCallKind, now = Date.now()): boolean {
-  const tokens = Math.min(GRAPH_CALL_BUCKET_CAPACITY, local.tokens + Math.max(0, now - local.tokensAt) * REFILL_PER_MS);
+  const tokens = Math.min(
+    GRAPH_CALL_BUCKET_CAPACITY,
+    local.tokens + Math.max(0, now - local.tokensAt) * REFILL_PER_MS,
+  );
   local.tokensAt = now;
   if (tokens - 1 < floorFor(kind)) {
     local.tokens = tokens;
@@ -153,12 +157,22 @@ export function takeLocalToken(kind: GraphCallKind, now = Date.now()): boolean {
 }
 
 function num(value: unknown): number {
-  const parsed = typeof value === 'string' ? Number(value) : typeof value === 'number' ? value : NaN;
+  const parsed =
+    typeof value === 'string' ? Number(value) : typeof value === 'number' ? value : NaN;
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-async function readRedisGates(redis: Redis): Promise<{ usagePct: number; usageAt: number; throttledUntil: number; tokenInvalidUntil: number }> {
-  const [usage, throttledUntil, tokenInvalidUntil] = await redis.mGet([KEY_USAGE, KEY_THROTTLED_UNTIL, KEY_TOKEN_INVALID_UNTIL]);
+async function readRedisGates(redis: Redis): Promise<{
+  usagePct: number;
+  usageAt: number;
+  throttledUntil: number;
+  tokenInvalidUntil: number;
+}> {
+  const [usage, throttledUntil, tokenInvalidUntil] = await redis.mGet([
+    KEY_USAGE,
+    KEY_THROTTLED_UNTIL,
+    KEY_TOKEN_INVALID_UNTIL,
+  ]);
   let usagePct = 0;
   let usageAt = 0;
   if (usage) {
@@ -170,7 +184,12 @@ async function readRedisGates(redis: Redis): Promise<{ usagePct: number; usageAt
       // A garbled value is no observation.
     }
   }
-  return { usagePct, usageAt, throttledUntil: num(throttledUntil), tokenInvalidUntil: num(tokenInvalidUntil) };
+  return {
+    usagePct,
+    usageAt,
+    throttledUntil: num(throttledUntil),
+    tokenInvalidUntil: num(tokenInvalidUntil),
+  };
 }
 
 /**
@@ -198,7 +217,12 @@ export async function acquireCallBudget(kind: GraphCallKind): Promise<BudgetRefu
     }
   }
   const refusal = decideBudget(
-    { usagePct: local.usagePct, usageAt: local.usageAt, throttledUntil: local.throttledUntil, tokenInvalidUntil: local.tokenInvalidUntil },
+    {
+      usagePct: local.usagePct,
+      usageAt: local.usageAt,
+      throttledUntil: local.throttledUntil,
+      tokenInvalidUntil: local.tokenInvalidUntil,
+    },
     kind,
   );
   if (refusal) return refusal;
@@ -224,7 +248,10 @@ export function parseAppUsageHeader(header: string | string[] | undefined): numb
 }
 
 /** Record a response: its usage header (one SET), and — on success — clear the throttle strikes (one DEL). */
-export async function recordUsage(header: string | string[] | undefined, succeeded: boolean): Promise<void> {
+export async function recordUsage(
+  header: string | string[] | undefined,
+  succeeded: boolean,
+): Promise<void> {
   const pct = parseAppUsageHeader(header);
   const now = Date.now();
   if (pct !== undefined) {
@@ -246,7 +273,10 @@ export async function recordUsage(header: string | string[] | undefined, succeed
 
 /** The backoff for the `strikes`-th consecutive throttle — exported for tests. */
 export function throttleBackoffMs(strikes: number): number {
-  return Math.min(THROTTLE_BACKOFF_BASE_MS * 2 ** (Math.max(1, strikes) - 1), THROTTLE_BACKOFF_MAX_MS);
+  return Math.min(
+    THROTTLE_BACKOFF_BASE_MS * 2 ** (Math.max(1, strikes) - 1),
+    THROTTLE_BACKOFF_MAX_MS,
+  );
 }
 
 /** Meta throttled us: one atomic INCR decides the strike, the backoff follows from it. */

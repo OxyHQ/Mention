@@ -200,7 +200,9 @@ const PublishAsDialog = memo(function PublishAsDialog({
         <View className="mt-2 flex-row items-center gap-3 rounded-2xl border border-border px-3 py-3">
           <View className="flex-1">
             <Text className="text-foreground text-[15px] font-semibold">
-              {t('compose.publishAs.alsoPostToProfile', { defaultValue: 'Also post to my profile' })}
+              {t('compose.publishAs.alsoPostToProfile', {
+                defaultValue: 'Also post to my profile',
+              })}
             </Text>
             <Text className="text-muted-foreground text-[13px]">
               {t('compose.publishAs.alsoPostToProfileHint', {

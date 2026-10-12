@@ -36,7 +36,8 @@ const DECODES = join(__dirname, '..', '..', '..', 'components', 'common', 'Video
  * the comment explaining the guard says the words — so the detector answered
  * yes, the check excused itself, and it passed with the guard deleted.
  */
-const decodesHlsInJs = (file: string): boolean => /import[^;]*\buseHlsPlayback\b[^;]*from/.test(file);
+const decodesHlsInJs = (file: string): boolean =>
+  /import[^;]*\buseHlsPlayback\b[^;]*from/.test(file);
 
 describe('the reel only prefers a source it can play', () => {
   const screen = readFileSync(SCREEN, 'utf8');

@@ -8,7 +8,10 @@
 import { FeedPostSlice, HydratedPost } from '@mention/shared-types';
 import { FeedDescriptor } from '@mention/shared-types';
 import type { FeedTuning } from '@mention/shared-types';
-import type { RankingUserBehavior, FeedRankingSettings } from '../../services/ranking/signalContext';
+import type {
+  RankingUserBehavior,
+  FeedRankingSettings,
+} from '../../services/ranking/signalContext';
 import type { OxyClient } from '../../utils/privacyHelpers';
 
 export interface FeedAPIResponse {
@@ -135,7 +138,7 @@ export interface FeedContext {
    * Lane ids THIS reader has silenced (`LaneMute`), resolved once per request by
    * `loadViewerFeedContext`. Applied by `FeedEngine` as an in-memory predicate
    * over the merged pool — see there for why it is not a `FilterModule` and not a
-   * Mongo clause. Empty / absent for anonymous readers and for the overwhelming
+   * query clause. Empty / absent for anonymous readers and for the overwhelming
    * majority of authenticated ones, in which case the predicate is never built.
    */
   mutedLaneIds?: string[];
@@ -155,4 +158,3 @@ export interface FeedAPI {
    */
   fetch(options: FeedFetchOptions, context: FeedContext): Promise<FeedAPIResponse>;
 }
-

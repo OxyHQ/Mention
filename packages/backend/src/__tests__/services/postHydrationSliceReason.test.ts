@@ -120,15 +120,29 @@ function makePostRow(id: string, authorId: string, overrides: PostRowOverrides =
  */
 function makeReplyContextSlice(parentOverrides: PostRowOverrides = {}): FeedPostSlice {
   const parent = makePostRow(PARENT_ID, PARENT_AUTHOR_ID, parentOverrides);
-  const reply = { ...makePostRow(REPLY_ID, REPLY_AUTHOR_ID), parentPostId: PARENT_ID, isReply: true };
+  const reply = {
+    ...makePostRow(REPLY_ID, REPLY_AUTHOR_ID),
+    parentPostId: PARENT_ID,
+    isReply: true,
+  };
 
   return {
     _sliceKey: `${PARENT_ID}+${REPLY_ID}`,
     isIncompleteThread: true,
     reason: { type: 'replyContext' },
     items: [
-      { post: parent as unknown as HydratedPost, isThreadParent: true, isThreadChild: false, isThreadLastChild: false },
-      { post: reply as unknown as HydratedPost, isThreadParent: false, isThreadChild: true, isThreadLastChild: true },
+      {
+        post: parent as unknown as HydratedPost,
+        isThreadParent: true,
+        isThreadChild: false,
+        isThreadLastChild: false,
+      },
+      {
+        post: reply as unknown as HydratedPost,
+        isThreadParent: false,
+        isThreadChild: true,
+        isThreadLastChild: true,
+      },
     ],
   };
 }
@@ -140,8 +154,20 @@ describe('PostHydrationService — reply context under the viewer ACL', () => {
     cacheStore.clear();
     getUsersByIds.mockReset();
     getUsersByIds.mockResolvedValue([
-      { id: PARENT_AUTHOR_ID, username: 'parenthandle', name: { displayName: 'Parent Author' }, badges: [], verified: false },
-      { id: REPLY_AUTHOR_ID, username: 'replyhandle', name: { displayName: 'Reply Author' }, badges: [], verified: false },
+      {
+        id: PARENT_AUTHOR_ID,
+        username: 'parenthandle',
+        name: { displayName: 'Parent Author' },
+        badges: [],
+        verified: false,
+      },
+      {
+        id: REPLY_AUTHOR_ID,
+        username: 'replyhandle',
+        name: { displayName: 'Reply Author' },
+        badges: [],
+        verified: false,
+      },
     ]);
     service = new PostHydrationService();
   });
@@ -160,26 +186,29 @@ describe('PostHydrationService — reply context under the viewer ACL', () => {
   it.each([
     ['an unpublished parent', { status: 'draft' }],
     ['a private parent', { visibility: 'private' }],
-  ] as const)('names nobody, but still reports a reply, when the ACL drops %s', async (_label, parentOverrides) => {
-    const [slice] = await service.hydrateSlices([makeReplyContextSlice(parentOverrides)], {
-      viewerId: VIEWER_ID,
-    });
+  ] as const)(
+    'names nobody, but still reports a reply, when the ACL drops %s',
+    async (_label, parentOverrides) => {
+      const [slice] = await service.hydrateSlices([makeReplyContextSlice(parentOverrides)], {
+        viewerId: VIEWER_ID,
+      });
 
-    // The parent post is gone from the response…
-    expect(slice.items.map((item) => item.post.id)).toEqual([REPLY_ID]);
+      // The parent post is gone from the response…
+      expect(slice.items.map((item) => item.post.id)).toEqual([REPLY_ID]);
 
-    const reply = slice.items[0].post;
-    // …and so is its author. Naming them would reveal both the existence of a
-    // post this viewer was refused and who wrote it.
-    expect(reply.replyContext?.parentAuthor).toBeUndefined();
-    expect(JSON.stringify(slice)).not.toContain('parenthandle');
-    expect(JSON.stringify(slice)).not.toContain('Parent Author');
+      const reply = slice.items[0].post;
+      // …and so is its author. Naming them would reveal both the existence of a
+      // post this viewer was refused and who wrote it.
+      expect(reply.replyContext?.parentAuthor).toBeUndefined();
+      expect(JSON.stringify(slice)).not.toContain('parenthandle');
+      expect(JSON.stringify(slice)).not.toContain('Parent Author');
 
-    // But the row is STILL declared a reply, in both carriers. The reason used to
-    // be stripped here along with the author it once held, which quietly let a
-    // viewer who had hidden replies be served exactly the replies whose parent
-    // they could not read — `removeReplies` filters on this tag.
-    expect(reply.replyContext).toBeDefined();
-    expect(slice.reason?.type).toBe('replyContext');
-  });
+      // But the row is STILL declared a reply, in both carriers. The reason used to
+      // be stripped here along with the author it once held, which quietly let a
+      // viewer who had hidden replies be served exactly the replies whose parent
+      // they could not read — `removeReplies` filters on this tag.
+      expect(reply.replyContext).toBeDefined();
+      expect(slice.reason?.type).toBe('replyContext');
+    },
+  );
 });

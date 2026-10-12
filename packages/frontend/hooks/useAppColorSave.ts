@@ -27,51 +27,57 @@ export function useAppColorSave() {
   const viewer = useMentionColorViewer();
   const [saving, setSaving] = useState(false);
 
-  const saveColor = useCallback(async (name: AppColorName) => {
-    if (!isColorEntitled(name, viewer)) throw new Error('Color is not available for this account');
-    setSaving(true);
-    setColorPreset(name);
-    const hex = APP_COLOR_PRESETS[name].hex;
-    const profileUpdate: Parameters<typeof oxyServices.users.updateMe>[0] = { color: name };
-    if (source === 'account') {
-      profileUpdate.themePreference = {
-        mode: mode === 'light' || mode === 'dark' ? mode : 'system',
-        colorPreset: name,
-      };
-    }
-    try {
-      await Promise.all([
-        oxyServices.users.updateMe(profileUpdate),
-        updateMySettings({
-          appearance: { primaryColor: hex },
-        }),
-      ]);
-      // `oxyServices.users.updateMe` busts the SDK's internal HTTP response cache
-      // but NOT the React Query user caches that `useProfileData`/`useUserByUsername`
-      // read. Without this, the viewer's own profile keeps rendering the
-      // pre-change accent color (via `useProfileScreenColor` → `BloomColorScope`)
-      // until the 5-minute staleTime elapses or a full reload. Scope the
-      // invalidation to the VIEWER'S OWN entries only: invalidating the whole
-      // `queryKeys.users.details()` subtree would drop every cached profile and
-      // user-card app-wide for a change to the viewer's own color. `detail(ownId)`
-      // prefix-matches the by-id entry AND any `detailForViewer(ownId, …)` entry;
-      // the by-username entry is a separate key and needs its own call. The
-      // viewer's own profile is always local, so no federated-resolve key applies.
-      // `updateMySettings` already invalidates the `['appearance', ...]` key.
-      const ownId = user?.id;
-      const ownUsername = user?.username;
-      if (ownId) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(ownId) });
+  const saveColor = useCallback(
+    async (name: AppColorName) => {
+      if (!isColorEntitled(name, viewer))
+        throw new Error('Color is not available for this account');
+      setSaving(true);
+      setColorPreset(name);
+      const hex = APP_COLOR_PRESETS[name].hex;
+      const profileUpdate: Parameters<typeof oxyServices.users.updateMe>[0] = { color: name };
+      if (source === 'account') {
+        profileUpdate.themePreference = {
+          mode: mode === 'light' || mode === 'dark' ? mode : 'system',
+          colorPreset: name,
+        };
       }
-      if (ownId && ownUsername) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.users.byUsername(ownUsername, ownId) });
+      try {
+        await Promise.all([
+          oxyServices.users.updateMe(profileUpdate),
+          updateMySettings({
+            appearance: { primaryColor: hex },
+          }),
+        ]);
+        // `oxyServices.users.updateMe` busts the SDK's internal HTTP response cache
+        // but NOT the React Query user caches that `useProfileData`/`useUserByUsername`
+        // read. Without this, the viewer's own profile keeps rendering the
+        // pre-change accent color (via `useProfileScreenColor` → `BloomColorScope`)
+        // until the 5-minute staleTime elapses or a full reload. Scope the
+        // invalidation to the VIEWER'S OWN entries only: invalidating the whole
+        // `queryKeys.users.details()` subtree would drop every cached profile and
+        // user-card app-wide for a change to the viewer's own color. `detail(ownId)`
+        // prefix-matches the by-id entry AND any `detailForViewer(ownId, …)` entry;
+        // the by-username entry is a separate key and needs its own call. The
+        // viewer's own profile is always local, so no federated-resolve key applies.
+        // `updateMySettings` already invalidates the `['appearance', ...]` key.
+        const ownId = user?.id;
+        const ownUsername = user?.username;
+        if (ownId) {
+          queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(ownId) });
+        }
+        if (ownId && ownUsername) {
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.users.byUsername(ownUsername, ownId),
+          });
+        }
+      } catch (error) {
+        logger.error('Error updating color', error);
+      } finally {
+        setSaving(false);
       }
-    } catch (error) {
-      logger.error('Error updating color', error);
-    } finally {
-      setSaving(false);
-    }
-  }, [oxyServices, setColorPreset, updateMySettings, source, mode, user, viewer]);
+    },
+    [oxyServices, setColorPreset, updateMySettings, source, mode, user, viewer],
+  );
 
   return { saveColor, saving };
 }

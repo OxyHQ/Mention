@@ -91,8 +91,8 @@ async function waitForBlockedInsert(): Promise<void> {
     if (waiting.length > 0) return;
     if (Date.now() > deadline) {
       throw new Error(
-        'the racing insert never blocked on the unique index, so this test never '
-        + 'reached the ON CONFLICT path it exists to cover',
+        'the racing insert never blocked on the unique index, so this test never ' +
+          'reached the ON CONFLICT path it exists to cover',
       );
     }
     await new Promise((resolve) => setTimeout(resolve, BLOCK_POLL_INTERVAL_MS));
@@ -218,7 +218,7 @@ describe('the worker claim', () => {
 
     const due = await findDueMediaCacheEntries(50);
 
-    // A never-attempted row has a NULL `next_attempt_at`; in Mongo that was two
+    // A never-attempted row has a NULL `next_attempt_at`; in the legacy store that was two
     // alternatives (explicit null, absent field) and dropping the null branch
     // starves every first attempt while the query still looks correct.
     expect(new Set(due.filter((u) => u.startsWith(ORIGIN)))).toEqual(new Set([never, elapsed]));
@@ -282,7 +282,7 @@ describe('the cached and evicted transitions', () => {
   /**
    * A re-cache that produced no poster CLEARS the previous one.
    *
-   * Mongoose stripped an `undefined` out of `$set`, so the old id survived and
+   * The legacy ODM stripped an `undefined` out of `$set`, so the old id survived and
    * the row went on naming a poster object this entry no longer owns — which
    * eviction would then try to delete on its behalf.
    */

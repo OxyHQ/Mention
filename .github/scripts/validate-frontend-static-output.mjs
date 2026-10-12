@@ -1,11 +1,9 @@
 #!/usr/bin/env bun
 
-import { access, readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { access, readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
-const outputDirectory = resolve(
-  process.argv[2] || "packages/frontend/dist",
-);
+const outputDirectory = resolve(process.argv[2] || 'packages/frontend/dist');
 const failures = [];
 
 async function exists(path) {
@@ -17,38 +15,36 @@ async function exists(path) {
   }
 }
 
-const indexPath = resolve(outputDirectory, "index.html");
+const indexPath = resolve(outputDirectory, 'index.html');
 if (!(await exists(indexPath))) {
-  failures.push("index.html is missing");
+  failures.push('index.html is missing');
 }
 
-const headersPath = resolve(outputDirectory, "_headers");
+const headersPath = resolve(outputDirectory, '_headers');
 if (!(await exists(headersPath))) {
-  failures.push("_headers is missing");
+  failures.push('_headers is missing');
 } else {
-  const headers = await readFile(headersPath, "utf8");
+  const headers = await readFile(headersPath, 'utf8');
   // The two paths Expo writes content-hashed output to: JS chunks under
   // /_expo/static, and everything imported as an asset — Bloom's `.woff2` web
   // fonts among them — under /assets. `/fonts/*` used to be here because the
   // app served the fonts from `public/fonts/` with hand-copied hashes; Bloom
   // emits them itself now, so that directory no longer exists.
-  for (const route of ["/_expo/static/*", "/assets/*"]) {
-    const escapedRoute = route.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (const route of ['/_expo/static/*', '/assets/*']) {
+    const escapedRoute = route.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const immutableRule = new RegExp(
       `^${escapedRoute}\\s*\\n(?:[ \\t]+[^\\n]*\\n)*?[ \\t]+Cache-Control:\\s*public,\\s*max-age=31536000,\\s*immutable\\s*$`,
-      "im",
+      'im',
     );
     if (!immutableRule.test(headers)) {
-      failures.push(
-        `_headers has no one-year immutable cache rule for ${route}`,
-      );
+      failures.push(`_headers has no one-year immutable cache rule for ${route}`);
     }
   }
 }
 
-if (await exists(resolve(outputDirectory, "_routes.json"))) {
+if (await exists(resolve(outputDirectory, '_routes.json'))) {
   failures.push(
-    "_routes.json must not be published; it is a Cloudflare Pages Advanced Mode " +
+    '_routes.json must not be published; it is a Cloudflare Pages Advanced Mode ' +
       "file, and the shell Worker's routing is declared in packages/frontend/wrangler.toml",
   );
 }
@@ -60,10 +56,10 @@ if (await exists(resolve(outputDirectory, "_routes.json"))) {
 // control file from the ephemeral output before Worker promotion: Workers
 // already provide the fallback via `not_found_handling`, and current Wrangler
 // rejects the Pages rewrite because it conflicts with canonical HTML handling.
-if (!(await exists(resolve(outputDirectory, "_redirects")))) {
+if (!(await exists(resolve(outputDirectory, '_redirects')))) {
   failures.push(
-    "_redirects is missing; the Cloudflare Pages preview the release gate runs " +
-      "against has no other source of SPA fallback",
+    '_redirects is missing; the Cloudflare Pages preview the release gate runs ' +
+      'against has no other source of SPA fallback',
   );
 }
 
@@ -75,7 +71,7 @@ if (!(await exists(resolve(outputDirectory, "_redirects")))) {
 // and names a file in this export, so the preload cannot double-download.
 if (await exists(indexPath)) {
   const { checkFontPreloads } = await import(
-    "../../packages/frontend/scripts/web-font-preload.mjs"
+    '../../packages/frontend/scripts/web-font-preload.mjs'
   );
   failures.push(...(await checkFontPreloads(outputDirectory)));
 }

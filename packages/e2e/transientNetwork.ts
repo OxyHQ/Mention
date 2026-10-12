@@ -76,7 +76,10 @@ export async function withTransientTransportRetry<T>(
       if (retry >= retryDelaysMs.length || !isTransientTransportFault(error)) {
         throw error;
       }
-      onRetry?.(error instanceof Error ? error : new Error(String(error)), retryDelaysMs.length - retry);
+      onRetry?.(
+        error instanceof Error ? error : new Error(String(error)),
+        retryDelaysMs.length - retry,
+      );
       await new Promise((resolve) => setTimeout(resolve, retryDelaysMs[retry]));
     }
   }

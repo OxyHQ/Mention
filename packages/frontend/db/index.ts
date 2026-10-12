@@ -1,6 +1,6 @@
 /**
  * Database module — barrel export.
- * 
+ *
  * Import from '@/db' for all database operations.
  */
 

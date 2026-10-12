@@ -39,7 +39,7 @@ import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 /** C0 and C1 controls, minus tab, newline and carriage return. */
-// eslint-disable-next-line no-control-regex
+// biome-ignore lint/suspicious/noControlCharactersInRegex: matching control characters is this guard's whole purpose.
 const FORBIDDEN_CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/;
 
 const SOURCE_ROOT = join(__dirname, '..', '..');
@@ -71,7 +71,7 @@ describe('source files', () => {
         offenders.push(
           `${file.slice(SOURCE_ROOT.length + 1)}:${index + 1} contains U+` +
             `${codePoint.toString(16).toUpperCase().padStart(4, '0')} — write the ` +
-            'escape instead of the raw character'
+            'escape instead of the raw character',
         );
       }
     }

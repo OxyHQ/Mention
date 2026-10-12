@@ -26,15 +26,24 @@ vi.mock('../../../connectors/activitypub/helpers', async () => {
   );
   return { ...actual, signedFetch: mocks.signedFetch };
 });
-vi.mock('../../../connectors/oxyIdentity', () => ({ resolveOxyIdentity: mocks.resolveOxyIdentity }));
-vi.mock('../../../connectors/identity', () => ({ reportFederatedActorGone: vi.fn(async () => 'archived') }));
+vi.mock('../../../connectors/oxyIdentity', () => ({
+  resolveOxyIdentity: mocks.resolveOxyIdentity,
+}));
+vi.mock('../../../connectors/identity', () => ({
+  reportFederatedActorGone: vi.fn(async () => 'archived'),
+}));
 vi.mock('../../../services/ActorIdentityProjectionService', () => ({
   reconcileActorIdentityProjection: vi.fn(async () => ({ postsChanged: 0 })),
 }));
 
 import { closePostgres, connectPostgres } from '../../../db/postgres';
 import { actorService } from '../../../connectors/activitypub/actor.service';
-import { clearFederationScope, federationScope, readActor, seedActor } from '../../helpers/federationFixtures';
+import {
+  clearFederationScope,
+  federationScope,
+  readActor,
+  seedActor,
+} from '../../helpers/federationFixtures';
 import { oxyIdentityFixture } from '../../helpers/oxyIdentityFixtures';
 
 const scope = federationScope('actor-handle-rename');
@@ -72,8 +81,16 @@ beforeEach(() => {
     }
     return new Response('', { status: answer ?? 404 });
   });
-  mocks.resolveOxyIdentity.mockImplementation(async ({ actorUri, transportAcct }: { actorUri: string; transportAcct: string }) =>
-    oxyIdentityFixture({ actorUri, transportAcct, canonicalAcct: transportAcct, network: scope.domain, userId: `oxy-${actorUri.split('/').pop()}` }));
+  mocks.resolveOxyIdentity.mockImplementation(
+    async ({ actorUri, transportAcct }: { actorUri: string; transportAcct: string }) =>
+      oxyIdentityFixture({
+        actorUri,
+        transportAcct,
+        canonicalAcct: transportAcct,
+        network: scope.domain,
+        userId: `oxy-${actorUri.split('/').pop()}`,
+      }),
+  );
 });
 
 afterEach(async () => {

@@ -88,7 +88,8 @@ const ComposeLanguageSheet = memo(function ComposeLanguageSheet({
         safeArea={false}
         leading={
           <Button
-            appearance="subtle" tone="neutral"
+            appearance="subtle"
+            tone="neutral"
             iconOnly
             leadingIcon={RiCloseLine}
             onPress={onClose}
@@ -105,27 +106,31 @@ const ComposeLanguageSheet = memo(function ComposeLanguageSheet({
         trailing={<RiArrowRightSLine width={18} height={18} fill={theme.colors.textTertiary} />}
       />
 
-      {variantTags.length > 0 ? tags.map((tag) => {
-        const language = describeContentLanguage(tag);
-        const isActive = tag === activeTag;
-        return (
-          <Item
-            key={tag}
-            onPress={() => handlePress(tag)}
-            role="option"
-            selected={isActive}
-            title={language.nativeName}
-            subtitle={
-              tag === primaryTag
-                ? t('compose.languages.main', { defaultValue: 'Main language' })
-                : language.englishName
-            }
-            trailing={
-              isActive ? <RiCheckboxCircleFill size="md" fill={theme.colors.primary} /> : undefined
-            }
-          />
-        );
-      }) : null}
+      {variantTags.length > 0
+        ? tags.map((tag) => {
+            const language = describeContentLanguage(tag);
+            const isActive = tag === activeTag;
+            return (
+              <Item
+                key={tag}
+                onPress={() => handlePress(tag)}
+                role="option"
+                selected={isActive}
+                title={language.nativeName}
+                subtitle={
+                  tag === primaryTag
+                    ? t('compose.languages.main', { defaultValue: 'Main language' })
+                    : language.englishName
+                }
+                trailing={
+                  isActive ? (
+                    <RiCheckboxCircleFill size="md" fill={theme.colors.primary} />
+                  ) : undefined
+                }
+              />
+            );
+          })
+        : null}
 
       <Item
         // Item forwards the native press event. Keep the component's callback

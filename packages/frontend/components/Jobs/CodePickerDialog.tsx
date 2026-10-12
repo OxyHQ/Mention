@@ -47,7 +47,9 @@ function CodePickerDialogInner<Code extends string>({
     const needle = fold(query.trim());
     if (!needle) return options;
     return options.filter(
-      (option) => fold(option.code).startsWith(needle) || (option.name ? fold(option.name).includes(needle) : false),
+      (option) =>
+        fold(option.code).startsWith(needle) ||
+        (option.name ? fold(option.name).includes(needle) : false),
     );
   }, [options, query]);
 
@@ -61,7 +63,12 @@ function CodePickerDialogInner<Code extends string>({
       title={title}
       label={title}
     >
-      <Search label={searchLabel} value={query} onChangeText={setQuery} onClearText={() => setQuery('')} />
+      <Search
+        label={searchLabel}
+        value={query}
+        onChangeText={setQuery}
+        onClearText={() => setQuery('')}
+      />
       <ScrollView style={{ maxHeight: 360, marginTop: 8 }} keyboardShouldPersistTaps="handled">
         {filtered.length === 0 ? (
           <Text className="text-center text-sm text-muted-foreground py-6">

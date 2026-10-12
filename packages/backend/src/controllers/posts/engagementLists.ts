@@ -42,10 +42,8 @@ const clampLikesLimit = (limit: number | undefined): number =>
  * degraded user (neutral name, EMPTY username) — never the raw id as a handle,
  * which would render a ghost `@<oxyUserId>` and a broken profile link.
  */
-const mapActorSummary = (
-  userId: string,
-  user: PostUser | undefined,
-): PostUser => user ?? degradedActorSummary(userId);
+const mapActorSummary = (userId: string, user: PostUser | undefined): PostUser =>
+  user ?? degradedActorSummary(userId);
 
 // Get users who liked a post
 export const getPostLikes = async (req: AuthRequest, res: Response) => {
@@ -59,8 +57,7 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
     }
 
     // `(created_at DESC, id DESC)`, not `_id DESC`. `likes.id` is `text` holding
-    // an ObjectId hex for a row migrated from Mongo and a uuid v7 for anything
-    // written since, and the two spaces interleave under text collation — so an
+    // a 24-hex id for a legacy row and a uuid v7 for anything newer, and the two spaces interleave under text collation — so an
     // id-only bound behind an id-only sort is neither chronological nor stable
     // across the boundary, and would skip and repeat rows at every page edge.
     // Same keyset `getPostBoosts` below already uses.
@@ -91,7 +88,7 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
     // Get unique user IDs, then resolve actor summaries through the same shared
     // resolver PostHydrationService uses (canonical `name.displayName`, batched
     // bulk fetch, Redis-cached) instead of N hand-built per-id Oxy reads.
-    const userIds = [...new Set(likesToReturn.map(like => like.userId))];
+    const userIds = [...new Set(likesToReturn.map((like) => like.userId))];
     const summaries = await resolveUserSummaries(userIds);
     const users = userIds.map((userId) => mapActorSummary(userId, summaries.get(userId)?.user));
 
@@ -99,7 +96,7 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
       users,
       hasMore,
       nextCursor,
-      totalCount: likesToReturn.length
+      totalCount: likesToReturn.length,
     });
   } catch (error) {
     logger.error('Error fetching post likes', error);
@@ -140,8 +137,7 @@ const MAX_KNOWN_LIKER_CANDIDATES = 5000;
  * bounded by a `$in` PLUS an exact `postId`: together they let the unique
  * `{ userId: 1, postId: 1 }` index answer with one seek per followed id, so the
  * work scales with the viewer's FOLLOW COUNT — bounded below — instead of with
- * the post's like count. (The order of the keys in the filter document is
- * irrelevant; MongoDB's planner picks an index by cost, not by BSON order.)
+ * the post's like count.
  *
  * Measured on a 150k-like post with a 5000-wide graph and no matches, which is
  * both the common case and the one no `limit` can short-circuit: 5000 keys and
@@ -173,8 +169,10 @@ export const getKnownPostLikers = async (req: AuthRequest, res: Response) => {
       return res.json({ likers: [], total: 0 });
     }
 
-    const followingIds = extractFollowingIds(await oxyClient.follows.viewerGraph())
-      .slice(0, MAX_KNOWN_LIKER_CANDIDATES);
+    const followingIds = extractFollowingIds(await oxyClient.follows.viewerGraph()).slice(
+      0,
+      MAX_KNOWN_LIKER_CANDIDATES,
+    );
     if (followingIds.length === 0) {
       return res.json({ likers: [], total: 0 });
     }
@@ -201,7 +199,9 @@ export const getKnownPostLikers = async (req: AuthRequest, res: Response) => {
 
     const likerIds = [...new Set(likes.map((like) => like.userId))];
     const summaries = await resolveUserSummaries(likerIds);
-    const likers = likerIds.map((likerId) => mapActorSummary(likerId, summaries.get(likerId)?.user));
+    const likers = likerIds.map((likerId) =>
+      mapActorSummary(likerId, summaries.get(likerId)?.user),
+    );
 
     return res.json({ likers, total: totals?.total ?? 0 });
   } catch (error) {
@@ -234,7 +234,11 @@ export const getPostBoosts = async (req: AuthRequest, res: Response) => {
     if (keyset) conditions.push(keyset);
 
     const boosts = await getDb()
-      .select({ id: postsTable.id, oxyUserId: postsTable.oxyUserId, createdAt: postsTable.createdAt })
+      .select({
+        id: postsTable.id,
+        oxyUserId: postsTable.oxyUserId,
+        createdAt: postsTable.createdAt,
+      })
       .from(postsTable)
       .where(and(...conditions))
       .orderBy(...chronoOrderBy())
@@ -250,7 +254,13 @@ export const getPostBoosts = async (req: AuthRequest, res: Response) => {
     // Get unique user IDs, then resolve actor summaries through the same shared
     // resolver PostHydrationService uses (canonical `name.displayName`, batched
     // bulk fetch, Redis-cached) instead of N hand-built per-id Oxy reads.
-    const userIds = [...new Set(boostsToReturn.map(boost => boost.oxyUserId).filter((value): value is string => typeof value === 'string'))];
+    const userIds = [
+      ...new Set(
+        boostsToReturn
+          .map((boost) => boost.oxyUserId)
+          .filter((value): value is string => typeof value === 'string'),
+      ),
+    ];
     const summaries = await resolveUserSummaries(userIds);
     const users = userIds.map((userId) => mapActorSummary(userId, summaries.get(userId)?.user));
 
@@ -258,7 +268,7 @@ export const getPostBoosts = async (req: AuthRequest, res: Response) => {
       users,
       hasMore,
       nextCursor,
-      totalCount: boostsToReturn.length
+      totalCount: boostsToReturn.length,
     });
   } catch (error) {
     logger.error('Error fetching post boosts', error);

@@ -10,201 +10,258 @@ import { AgentIcon } from '@/assets/icons/agent-icon';
 import { AutomatedIcon } from '@/assets/icons/automated-icon';
 import type { UserNameProps } from '@/components/Profile/types';
 
-const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated, kind, isAgent, isAutomated, href, asHeading, onExplainNetwork, onExplainChannel, copyableHandle, variant = 'default', align = 'start', style, trailingBadge, handleTrailing }) => {
-    const theme = useTheme();
-    const nameStyle = [styles.name, variant === 'small' && styles.nameSmall, style?.name];
+const UserName: React.FC<UserNameProps> = ({
+  name,
+  handle,
+  verified,
+  isFederated,
+  kind,
+  isAgent,
+  isAutomated,
+  href,
+  asHeading,
+  onExplainNetwork,
+  onExplainChannel,
+  copyableHandle,
+  variant = 'default',
+  align = 'start',
+  style,
+  trailingBadge,
+  handleTrailing,
+}) => {
+  const theme = useTheme();
+  const nameStyle = [styles.name, variant === 'small' && styles.nameSmall, style?.name];
 
-    // Opt-in centered layout (default `'start'` keeps every existing caller
-    // byte-unchanged): center the name row + handle line for a stacked, centered
-    // profile header. All alignment is expressed via NativeWind classes.
-    const isCentered = align === 'center';
-    const nameRowClassName = isCentered ? 'gap-1 justify-center' : 'gap-1';
-    const handleClassName = isCentered ? 'text-muted-foreground text-center' : 'text-muted-foreground';
+  // Opt-in centered layout (default `'start'` keeps every existing caller
+  // byte-unchanged): center the name row + handle line for a stacked, centered
+  // profile header. All alignment is expressed via NativeWind classes.
+  const isCentered = align === 'center';
+  const nameRowClassName = isCentered ? 'gap-1 justify-center' : 'gap-1';
+  const handleClassName = isCentered
+    ? 'text-muted-foreground text-center'
+    : 'text-muted-foreground';
 
-    const handleCopyHandle = useCallback(async () => {
-        if (!handle) return;
-        const text = `@${handle}`;
-        await Clipboard.setStringAsync(text);
-        toast('Copied to clipboard', { type: 'success' });
-    }, [handle]);
+  const handleCopyHandle = useCallback(async () => {
+    if (!handle) return;
+    const text = `@${handle}`;
+    await Clipboard.setStringAsync(text);
+    toast('Copied to clipboard', { type: 'success' });
+  }, [handle]);
 
-    // Determine icon size from passed name fontSize (supports StyleSheet refs) so icon matches text size.
-    const flattenedNameStyle = style?.name ? (StyleSheet.flatten(style.name) as TextStyle) : undefined;
-    const passedFontSize = flattenedNameStyle?.fontSize;
-    const effectiveFontSize = passedFontSize ?? (variant === 'small' ? 14 : 15);
-    // Use the same size as the font so badge matches text size (profile header requirement)
-    const iconSize = Math.round(effectiveFontSize);
-    // Small positive translateY to nudge the icon downward to align with text baseline.
-    // Use a slightly larger nudge for larger fonts (e.g., header titles) to improve visual alignment.
-    const baselineNudge = Math.round(effectiveFontSize >= 18 ? effectiveFontSize * 0.18 : effectiveFontSize * 0.06);
+  // Determine icon size from passed name fontSize (supports StyleSheet refs) so icon matches text size.
+  const flattenedNameStyle = style?.name
+    ? (StyleSheet.flatten(style.name) as TextStyle)
+    : undefined;
+  const passedFontSize = flattenedNameStyle?.fontSize;
+  const effectiveFontSize = passedFontSize ?? (variant === 'small' ? 14 : 15);
+  // Use the same size as the font so badge matches text size (profile header requirement)
+  const iconSize = Math.round(effectiveFontSize);
+  // Small positive translateY to nudge the icon downward to align with text baseline.
+  // Use a slightly larger nudge for larger fonts (e.g., header titles) to improve visual alignment.
+  const baselineNudge = Math.round(
+    effectiveFontSize >= 18 ? effectiveFontSize * 0.18 : effectiveFontSize * 0.06,
+  );
 
-    // Single source of truth for the "display name else handle, once" rule:
-    //  - a real display name owns the bold primary slot, with the muted `@handle`
-    //    line trailing below (as before);
-    //  - with NO display name the `@handle` takes the bold primary slot ONCE and
-    //    the separate muted handle line is suppressed (never blank, never doubled);
-    //  - with neither, nothing renders.
-    const hasName = !!name?.trim();
-    const primaryText = hasName ? name : (handle ? `@${handle}` : undefined);
-    const showHandleLine = hasName && !!handle;
+  // Single source of truth for the "display name else handle, once" rule:
+  //  - a real display name owns the bold primary slot, with the muted `@handle`
+  //    line trailing below (as before);
+  //  - with NO display name the `@handle` takes the bold primary slot ONCE and
+  //    the separate muted handle line is suppressed (never blank, never doubled);
+  //  - with neither, nothing renders.
+  const hasName = !!name?.trim();
+  const primaryText = hasName ? name : handle ? `@${handle}` : undefined;
+  const showHandleLine = hasName && !!handle;
 
-    // Handle line: the muted `@handle`, optionally with a passive inline element
-    // (e.g. a "Follows you" tag) rendered to its right on the SAME line. When a
-    // trailing element is present the handle is wrapped in a row and the caller's
-    // bottom margin is relocated onto that row so the tag stays vertically
-    // centered with the handle text; the handle itself shrinks first so it stays
-    // primary. With no trailing element the original single-Text path is kept
-    // byte-for-byte, so every other caller is unaffected.
-    let handleLineNode: React.ReactNode = null;
-    if (showHandleLine) {
-        if (handleTrailing != null) {
-            const flatHandle = StyleSheet.flatten([styles.handle, style?.handle]) as TextStyle;
-            const { marginBottom: handleMarginBottom, ...handleTextStyle } = flatHandle;
-            const handleText = (
-                <Text
-                    className={handleClassName}
-                    style={[handleTextStyle, styles.handleShrink]}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                >
-                    @{handle}
-                </Text>
-            );
-            handleLineNode = (
-                <View
-                    className={isCentered ? 'gap-2 justify-center' : 'gap-2'}
-                    style={[styles.handleTrailingRow, handleMarginBottom != null ? { marginBottom: handleMarginBottom } : null]}
-                >
-                    {isFederated && copyableHandle ? (
-                        <TouchableOpacity activeOpacity={0.7} onPress={handleCopyHandle} style={styles.handleShrink}>
-                            {handleText}
-                        </TouchableOpacity>
-                    ) : (
-                        handleText
-                    )}
-                    {handleTrailing}
-                </View>
-            );
-        } else if (isFederated && copyableHandle) {
-            handleLineNode = (
-                <TouchableOpacity activeOpacity={0.7} onPress={handleCopyHandle}>
-                    <Text className={handleClassName} style={[styles.handle, style?.handle]} numberOfLines={1} ellipsizeMode="tail">
-                        @{handle}
-                    </Text>
-                </TouchableOpacity>
-            );
-        } else {
-            handleLineNode = (
-                <Text className={handleClassName} style={[styles.handle, style?.handle]} numberOfLines={1} ellipsizeMode="tail">
-                    @{handle}
-                </Text>
-            );
-        }
-    }
-
-    // The name, and with an `href` a link inside it: on web `<a>` within the
-    // heading, never one element asked to be both (react-native-web renders
-    // the role's tag, and an `<h1 href>` is not a link). The link takes the
-    // name's style from the Text around it. The click stops at the link: a
-    // name inside a pressable row must not also press the row.
-    const nameText = (
+  // Handle line: the muted `@handle`, optionally with a passive inline element
+  // (e.g. a "Follows you" tag) rendered to its right on the SAME line. When a
+  // trailing element is present the handle is wrapped in a row and the caller's
+  // bottom margin is relocated onto that row so the tag stays vertically
+  // centered with the handle text; the handle itself shrinks first so it stays
+  // primary. With no trailing element the original single-Text path is kept
+  // byte-for-byte, so every other caller is unaffected.
+  let handleLineNode: React.ReactNode = null;
+  if (showHandleLine) {
+    if (handleTrailing != null) {
+      const flatHandle = StyleSheet.flatten([styles.handle, style?.handle]) as TextStyle;
+      const { marginBottom: handleMarginBottom, ...handleTextStyle } = flatHandle;
+      const handleText = (
         <Text
-            className="text-foreground"
-            style={nameStyle}
+          className={handleClassName}
+          style={[handleTextStyle, styles.handleShrink]}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          @{handle}
+        </Text>
+      );
+      handleLineNode = (
+        <View
+          className={isCentered ? 'gap-2 justify-center' : 'gap-2'}
+          style={[
+            styles.handleTrailingRow,
+            handleMarginBottom != null ? { marginBottom: handleMarginBottom } : null,
+          ]}
+        >
+          {isFederated && copyableHandle ? (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={handleCopyHandle}
+              style={styles.handleShrink}
+            >
+              {handleText}
+            </TouchableOpacity>
+          ) : (
+            handleText
+          )}
+          {handleTrailing}
+        </View>
+      );
+    } else if (isFederated && copyableHandle) {
+      handleLineNode = (
+        <TouchableOpacity activeOpacity={0.7} onPress={handleCopyHandle}>
+          <Text
+            className={handleClassName}
+            style={[styles.handle, style?.handle]}
             numberOfLines={1}
             ellipsizeMode="tail"
-            role={asHeading ? 'heading' : undefined}
+          >
+            @{handle}
+          </Text>
+        </TouchableOpacity>
+      );
+    } else {
+      handleLineNode = (
+        <Text
+          className={handleClassName}
+          style={[styles.handle, style?.handle]}
+          numberOfLines={1}
+          ellipsizeMode="tail"
         >
-            {href ? (
-                <Link href={href} push asChild onPress={(event) => event.stopPropagation()}>
-                    <Text>{primaryText}</Text>
-                </Link>
-            ) : primaryText}
+          @{handle}
         </Text>
-    );
+      );
+    }
+  }
 
-    const inner = (
-        <>
-            <View className={nameRowClassName} style={styles.nameRow}>
-                {primaryText != null && nameText}
-                {/* No colour passed: the badge owns its blue (VERIFIED_BADGE_COLOR,
+  // The name, and with an `href` a link inside it: on web `<a>` within the
+  // heading, never one element asked to be both (react-native-web renders
+  // the role's tag, and an `<h1 href>` is not a link). The link takes the
+  // name's style from the Text around it. The click stops at the link: a
+  // name inside a pressable row must not also press the row.
+  const nameText = (
+    <Text
+      className="text-foreground"
+      style={nameStyle}
+      numberOfLines={1}
+      ellipsizeMode="tail"
+      role={asHeading ? 'heading' : undefined}
+    >
+      {href ? (
+        <Link href={href} push asChild onPress={(event) => event.stopPropagation()}>
+          <Text>{primaryText}</Text>
+        </Link>
+      ) : (
+        primaryText
+      )}
+    </Text>
+  );
+
+  const inner = (
+    <>
+      <View className={nameRowClassName} style={styles.nameRow}>
+        {primaryText != null && nameText}
+        {/* No colour passed: the badge owns its blue (VERIFIED_BADGE_COLOR,
                     the default of `VerifiedIcon`'s `color`). It used to take
                     `text-primary`, which a profile scopes to the PROFILE OWNER's
                     colour preset — so the same seal was a different colour on
                     every profile, and the compact scroll header opted out into
                     `text-foreground` on top of that, drawing it black/white a
                     few pixels above the very same badge in the identity line. */}
-                {verified && (
-                    <VerifiedIcon size={iconSize} style={{ transform: [{ translateY: baselineNudge }] }} />
-                )}
-                {/* One marker for the account's whole identity state — remote or
+        {verified && (
+          <VerifiedIcon size={iconSize} style={{ transform: [{ translateY: baselineNudge }] }} />
+        )}
+        {/* One marker for the account's whole identity state — remote or
                     channel, never both, and nothing at all for an ordinary local
                     account. Inert unless the caller passed the handler for the
                     marker it draws; forwarded, never chosen between here. */}
-                <AccountBadge
-                    isFederated={isFederated}
-                    kind={kind}
-                    onExplainNetwork={onExplainNetwork}
-                    onExplainChannel={onExplainChannel}
-                    size={iconSize}
-                    color={theme.colors.text}
-                    style={{ transform: [{ translateY: baselineNudge }] }}
-                />
+        <AccountBadge
+          isFederated={isFederated}
+          kind={kind}
+          onExplainNetwork={onExplainNetwork}
+          onExplainChannel={onExplainChannel}
+          size={iconSize}
+          color={theme.colors.text}
+          style={{ transform: [{ translateY: baselineNudge }] }}
+        />
 
-                {isAgent && (
-                    <AgentIcon size={iconSize} className="text-muted-foreground" style={{ transform: [{ translateY: baselineNudge }] }} />
-                )}
-                {isAutomated && (
-                    <AutomatedIcon size={iconSize} className="text-muted-foreground" style={{ transform: [{ translateY: baselineNudge }] }} />
-                )}
-                {trailingBadge}
-            </View>
-            {handleLineNode}
-        </>
-    );
+        {isAgent && (
+          <AgentIcon
+            size={iconSize}
+            className="text-muted-foreground"
+            style={{ transform: [{ translateY: baselineNudge }] }}
+          />
+        )}
+        {isAutomated && (
+          <AutomatedIcon
+            size={iconSize}
+            className="text-muted-foreground"
+            style={{ transform: [{ translateY: baselineNudge }] }}
+          />
+        )}
+        {trailingBadge}
+      </View>
+      {handleLineNode}
+    </>
+  );
 
-    return <View className={isCentered ? 'items-center' : undefined} style={[styles.container, style?.container]}>{inner}</View>;
+  return (
+    <View
+      className={isCentered ? 'items-center' : undefined}
+      style={[styles.container, style?.container]}
+    >
+      {inner}
+    </View>
+  );
 };
 
-
 const styles = StyleSheet.create({
-    container: {
-        flexDirection: 'column',
-    },
-    nameRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        // Allow the row to shrink below its content's intrinsic width when a
-        // constraining parent requests it, so the name Text can ellipsize.
-        minWidth: 0,
-    },
-    name: {
-        fontSize: 15,
-        fontWeight: '700',
-        // Shrink (and ellipsize via numberOfLines=1) only when the parent
-        // constrains width; a no-op when there is room, so unconstrained
-        // callers keep the name's intrinsic width.
-        flexShrink: 1,
-    },
-    nameSmall: {
-        fontSize: 14,
-        fontWeight: '700',
-    },
-    handle: {
-        fontSize: 15,
-        lineHeight: 20,
-    },
-    // Row that holds the `@handle` plus an inline trailing tag; the handle keeps
-    // the flexible space and shrinks first so the tag never pushes it offscreen.
-    handleTrailingRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        minWidth: 0,
-    },
-    handleShrink: {
-        flexShrink: 1,
-        minWidth: 0,
-    },
+  container: {
+    flexDirection: 'column',
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    // Allow the row to shrink below its content's intrinsic width when a
+    // constraining parent requests it, so the name Text can ellipsize.
+    minWidth: 0,
+  },
+  name: {
+    fontSize: 15,
+    fontWeight: '700',
+    // Shrink (and ellipsize via numberOfLines=1) only when the parent
+    // constrains width; a no-op when there is room, so unconstrained
+    // callers keep the name's intrinsic width.
+    flexShrink: 1,
+  },
+  nameSmall: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  handle: {
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  // Row that holds the `@handle` plus an inline trailing tag; the handle keeps
+  // the flexible space and shrinks first so the tag never pushes it offscreen.
+  handleTrailingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+  },
+  handleShrink: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
 });
 
 export default React.memo(UserName);

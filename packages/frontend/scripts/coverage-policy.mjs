@@ -44,39 +44,39 @@
  *   node scripts/coverage-policy.mjs --record [--coverage-dir <dir>]
  */
 
-import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { execFileSync } from 'node:child_process';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const packageRoot = process.env.COVERAGE_POLICY_ROOT
   ? resolve(process.env.COVERAGE_POLICY_ROOT)
-  : resolve(dirname(fileURLToPath(import.meta.url)), "..");
+  : resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-const POLICY_PATH = join(packageRoot, "coverage-policy.json");
-const BASELINE_PATH = join(packageRoot, "coverage-baseline.json");
-const METRICS = ["statements", "branches", "functions", "lines"];
+const POLICY_PATH = join(packageRoot, 'coverage-policy.json');
+const BASELINE_PATH = join(packageRoot, 'coverage-baseline.json');
+const METRICS = ['statements', 'branches', 'functions', 'lines'];
 
 /** How to get back here from a laptop. Printed with every failure. */
 const REPRO =
-  "reproduce locally:\n"
-  + "    bun run --cwd packages/frontend test:coverage\n"
-  + "    bun run --cwd packages/frontend coverage:check";
+  'reproduce locally:\n' +
+  '    bun run --cwd packages/frontend test:coverage\n' +
+  '    bun run --cwd packages/frontend coverage:check';
 
 function parseArguments(argv) {
-  const options = { record: false, coverageDir: "coverage", base: null };
+  const options = { record: false, coverageDir: 'coverage', base: null };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
-    if (argument === "--record") options.record = true;
-    else if (argument === "--coverage-dir") options.coverageDir = argv[++index];
-    else if (argument === "--base") options.base = argv[++index];
+    if (argument === '--record') options.record = true;
+    else if (argument === '--coverage-dir') options.coverageDir = argv[++index];
+    else if (argument === '--base') options.base = argv[++index];
     else throw new Error(`unrecognised argument: ${argument}`);
   }
   return options;
 }
 
 function readJson(path) {
-  return JSON.parse(readFileSync(path, "utf8"));
+  return JSON.parse(readFileSync(path, 'utf8'));
 }
 
 /**
@@ -89,29 +89,29 @@ function readJson(path) {
 function globToRegExp(pattern) {
   if (/[?[\]{}()!+@]/.test(pattern)) {
     throw new Error(
-      `coverage-policy.json: unsupported glob syntax in "${pattern}" — `
-      + "only `**`, `*` and literal path segments are understood",
+      `coverage-policy.json: unsupported glob syntax in "${pattern}" — ` +
+        'only `**`, `*` and literal path segments are understood',
     );
   }
-  let source = "^";
+  let source = '^';
   for (let index = 0; index < pattern.length; index += 1) {
     const character = pattern[index];
-    if (character === "*") {
-      if (pattern[index + 1] === "*") {
+    if (character === '*') {
+      if (pattern[index + 1] === '*') {
         // `dir/**/x` must also match `dir/x`, so the slash is optional.
-        if (pattern[index + 2] === "/") {
-          source += "(?:[^/]+/)*";
+        if (pattern[index + 2] === '/') {
+          source += '(?:[^/]+/)*';
           index += 2;
         } else {
-          source += ".*";
+          source += '.*';
           index += 1;
         }
       } else {
-        source += "[^/]*";
+        source += '[^/]*';
       }
       continue;
     }
-    source += character.replace(/[.^$\\|]/g, "\\$&");
+    source += character.replace(/[.^$\\|]/g, '\\$&');
   }
   return new RegExp(`${source}$`);
 }
@@ -126,8 +126,8 @@ function collectSourceFiles(directory, collected) {
     const full = join(directory, entry.name);
     const relativePath = relative(packageRoot, full);
     if (
-      entry.isDirectory()
-      && /^(?:node_modules|android|ios|dist|\.expo|coverage|assets|locales|public)$/.test(entry.name)
+      entry.isDirectory() &&
+      /^(?:node_modules|android|ios|dist|\.expo|coverage|assets|locales|public)$/.test(entry.name)
     ) {
       continue;
     }
@@ -158,28 +158,26 @@ function pinFrom(percentages) {
 
 const options = parseArguments(process.argv.slice(2));
 const policy = readJson(POLICY_PATH);
-const summaryPath = resolve(packageRoot, options.coverageDir, "coverage-summary.json");
+const summaryPath = resolve(packageRoot, options.coverageDir, 'coverage-summary.json');
 
 if (!existsSync(summaryPath)) {
   console.error(
-    `Coverage policy: no report at ${summaryPath}.\n`
-    + "  The policy is evaluated against the report `test:coverage` writes; without\n"
-    + "  one there is nothing to measure and a pass would mean nothing.\n"
-    + `  ${REPRO}`,
+    `Coverage policy: no report at ${summaryPath}.\n` +
+      '  The policy is evaluated against the report `test:coverage` writes; without\n' +
+      '  one there is nothing to measure and a pass would mean nothing.\n' +
+      `  ${REPRO}`,
   );
   process.exit(1);
 }
 
 const report = readJson(summaryPath);
-const reportedFiles = Object.keys(report).filter((key) => key !== "total");
+const reportedFiles = Object.keys(report).filter((key) => key !== 'total');
 
 const everySourceFile = collectSourceFiles(packageRoot, []);
-const allSourceFiles = everySourceFile.filter(
-  (path) => !matchesAny(path, policy.globalExcludes),
-);
+const allSourceFiles = everySourceFile.filter((path) => !matchesAny(path, policy.globalExcludes));
 const testFiles = everySourceFile.filter((path) => /\.test\.tsx?$/.test(path));
 const snapshotUsers = testFiles.filter((path) =>
-  /toMatch(?:Inline)?Snapshot\s*\(/.test(readFileSync(join(packageRoot, path), "utf8")),
+  /toMatch(?:Inline)?Snapshot\s*\(/.test(readFileSync(join(packageRoot, path), 'utf8')),
 );
 
 /** Domain membership: path -> the id of the first domain that claims it. */
@@ -212,9 +210,9 @@ if (options.record) {
   }
   if (missing.length > 0) {
     console.error(
-      "Coverage policy: cannot record — the report omits domain files, so the\n"
-      + "  baseline would silently stop covering them:\n"
-      + missing.map((path) => `    ${path}`).join("\n"),
+      'Coverage policy: cannot record — the report omits domain files, so the\n' +
+        '  baseline would silently stop covering them:\n' +
+        missing.map((path) => `    ${path}`).join('\n'),
     );
     process.exit(1);
   }
@@ -231,10 +229,10 @@ if (options.record) {
     `${JSON.stringify(
       {
         $comment:
-          "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. "
-          + "Do not hand-edit: a lowered number here is a lowered gate, and "
-          + "coverage-policy.json's base-revision check refuses one that is not "
-          + "listed in allowedBaselineDecreases.",
+          'Machine-recorded by `bun run --cwd packages/frontend coverage:record`. ' +
+          'Do not hand-edit: a lowered number here is a lowered gate, and ' +
+          "coverage-policy.json's base-revision check refuses one that is not " +
+          'listed in allowedBaselineDecreases.',
         total,
         pins,
       },
@@ -243,8 +241,8 @@ if (options.record) {
     )}\n`,
   );
   console.log(
-    `Coverage baseline recorded: ${Object.keys(pins).length} pinned files, `
-    + `${total.statements.pct}% statements overall.`,
+    `Coverage baseline recorded: ${Object.keys(pins).length} pinned files, ` +
+      `${total.statements.pct}% statements overall.`,
   );
   process.exit(0);
 }
@@ -267,9 +265,9 @@ const fail = (headline, detail) => failures.push(`${headline}\n${detail}`);
 if (reportedFiles.length < policy.minimumFilesInReport) {
   fail(
     `Coverage report holds ${reportedFiles.length} files, below the ${policy.minimumFilesInReport} floor.`,
-    "  A short report is what a collapsed run looks like, and every check below\n"
-    + "  would read it as an improvement rather than a failure.\n"
-    + `  ${REPRO}`,
+    '  A short report is what a collapsed run looks like, and every check below\n' +
+      '  would read it as an improvement rather than a failure.\n' +
+      `  ${REPRO}`,
   );
 }
 
@@ -286,11 +284,11 @@ const unclassified = domainFiles.filter(
 if (unclassified.length > 0) {
   fail(
     `${unclassified.length} behavioural-logic file(s) are inside a coverage domain but classified nowhere:`,
-    `${unclassified.map((path) => `    ${path}  (domain: ${domainOf.get(path)})`).join("\n")}\n`
-    + "  Cover it and record the pin, or add it to `unenforceable` in\n"
-    + "  coverage-policy.json with a reason and bump `expectedCounts`.\n"
-    + "    bun run --cwd packages/frontend coverage:record\n"
-    + `  ${REPRO}`,
+    `${unclassified.map((path) => `    ${path}  (domain: ${domainOf.get(path)})`).join('\n')}\n` +
+      '  Cover it and record the pin, or add it to `unenforceable` in\n' +
+      '  coverage-policy.json with a reason and bump `expectedCounts`.\n' +
+      '    bun run --cwd packages/frontend coverage:record\n' +
+      `  ${REPRO}`,
   );
 }
 
@@ -314,11 +312,11 @@ const absentFromReport = domainFiles.filter(
 if (absentFromReport.length > 0) {
   fail(
     `${absentFromReport.length} behavioural-logic file(s) are missing from the coverage report:`,
-    `${absentFromReport.map((path) => `    ${path}`).join("\n")}\n`
-    + "  jest reports `Failed to collect coverage from <file>` and carries on at exit\n"
-    + "  0, so a file that cannot be parsed simply leaves the denominator and every\n"
-    + "  percentage here IMPROVES. Search the run's output for that line.\n"
-    + `  ${REPRO}`,
+    `${absentFromReport.map((path) => `    ${path}`).join('\n')}\n` +
+      '  jest reports `Failed to collect coverage from <file>` and carries on at exit\n' +
+      '  0, so a file that cannot be parsed simply leaves the denominator and every\n' +
+      "  percentage here IMPROVES. Search the run's output for that line.\n" +
+      `  ${REPRO}`,
   );
 }
 
@@ -331,10 +329,10 @@ if (absentFromReport.length > 0) {
 const domainFileSet = new Set(domainFiles);
 const staleEntries = [];
 for (const [label, paths] of [
-  ["pins", Object.keys(baseline.pins)],
-  ["unenforceable", Object.keys(policy.unenforceable)],
-  ["belowBarExemptions", Object.keys(policy.belowBarExemptions)],
-  ["criticalPaths", Object.values(policy.criticalPaths).flat()],
+  ['pins', Object.keys(baseline.pins)],
+  ['unenforceable', Object.keys(policy.unenforceable)],
+  ['belowBarExemptions', Object.keys(policy.belowBarExemptions)],
+  ['criticalPaths', Object.values(policy.criticalPaths).flat()],
 ]) {
   for (const path of paths) {
     if (!existsSync(join(packageRoot, path))) {
@@ -347,8 +345,8 @@ for (const [label, paths] of [
 if (staleEntries.length > 0) {
   fail(
     `${staleEntries.length} coverage-policy entr(ies) no longer describe anything:`,
-    `${staleEntries.map((entry) => `    ${entry}`).join("\n")}\n`
-    + "  Remove them and bump `expectedCounts` in coverage-policy.json.",
+    `${staleEntries.map((entry) => `    ${entry}`).join('\n')}\n` +
+      '  Remove them and bump `expectedCounts` in coverage-policy.json.',
   );
 }
 
@@ -372,9 +370,9 @@ for (const [name, expected] of Object.entries(policy.expectedCounts)) {
   if (actualCounts[name] !== expected) {
     fail(
       `coverage-policy.json expects ${expected} ${name}, found ${actualCounts[name]}.`,
-      "  Every one of these lists is a way to switch the gate off quietly, so each\n"
-      + "  carries an exact count rather than a bound. If the change is intended,\n"
-      + "  edit `expectedCounts` in the same commit and say why in the message.",
+      '  Every one of these lists is a way to switch the gate off quietly, so each\n' +
+        '  carries an exact count rather than a bound. If the change is intended,\n' +
+        '  edit `expectedCounts` in the same commit and say why in the message.',
     );
   }
 }
@@ -403,11 +401,11 @@ for (const [path, pin] of Object.entries(baseline.pins)) {
 if (pinFailures.length > 0) {
   fail(
     `${pinFailures.length} file(s) lost coverage they had at the recorded baseline:`,
-    `${pinFailures.map((entry) => `    ${entry}`).join("\n")}\n`
-    + "  Pins only ever fire downwards. Add the assertion back rather than\n"
-    + "  re-recording — `coverage:record` cannot lower a pin past the base\n"
-    + "  revision without an entry in `allowedBaselineDecreases`.\n"
-    + `  ${REPRO}`,
+    `${pinFailures.map((entry) => `    ${entry}`).join('\n')}\n` +
+      '  Pins only ever fire downwards. Add the assertion back rather than\n' +
+      '  re-recording — `coverage:record` cannot lower a pin past the base\n' +
+      '  revision without an entry in `allowedBaselineDecreases`.\n' +
+      `  ${REPRO}`,
   );
 }
 
@@ -441,8 +439,8 @@ for (const [path, area] of criticalPaths) {
   for (const [metric, minimum] of Object.entries(policy.criticalPathBar)) {
     if (percentages[metric] < minimum) {
       barFailures.push(
-        `${path} (${area}): ${metric} ${percentages[metric]}% is below the `
-        + `critical-path bar of ${minimum}%`,
+        `${path} (${area}): ${metric} ${percentages[metric]}% is below the ` +
+          `critical-path bar of ${minimum}%`,
       );
     }
   }
@@ -450,13 +448,13 @@ for (const [path, area] of criticalPaths) {
 if (barFailures.length > 0) {
   fail(
     `${barFailures.length} critical-path file(s) are under the bar:`,
-    `${barFailures.map((entry) => `    ${entry}`).join("\n")}\n`
-    + "  These are the seven areas issue #700 names — session and account\n"
-    + "  switching, composer and post mutations, query keys and invalidation,\n"
-    + "  permissions and channels, federation-facing state, deep links and share\n"
-    + "  intents, feed pagination and restoration. Raise the coverage; an entry in\n"
-    + "  `belowBarExemptions` needs a reason, a date and a bumped exact count.\n"
-    + `  ${REPRO}`,
+    `${barFailures.map((entry) => `    ${entry}`).join('\n')}\n` +
+      '  These are the seven areas issue #700 names — session and account\n' +
+      '  switching, composer and post mutations, query keys and invalidation,\n' +
+      '  permissions and channels, federation-facing state, deep links and share\n' +
+      '  intents, feed pagination and restoration. Raise the coverage; an entry in\n' +
+      '  `belowBarExemptions` needs a reason, a date and a bumped exact count.\n' +
+      `  ${REPRO}`,
   );
 }
 
@@ -476,9 +474,9 @@ const spentExemptions = Object.keys(policy.belowBarExemptions).filter((path) => 
 if (spentExemptions.length > 0) {
   fail(
     `${spentExemptions.length} below-bar exemption(s) now clear the bar and must be removed:`,
-    `${spentExemptions.map((path) => `    ${path}`).join("\n")}\n`
-    + "  Leaving them would hold the door open for a regression that has already\n"
-    + "  been fixed. Delete the entries and decrement `expectedCounts`.",
+    `${spentExemptions.map((path) => `    ${path}`).join('\n')}\n` +
+      '  Leaving them would hold the door open for a regression that has already\n' +
+      '  been fixed. Delete the entries and decrement `expectedCounts`.',
   );
 }
 
@@ -499,19 +497,22 @@ for (const path of domainFiles) {
   const listed = Boolean(policy.unenforceable[path]);
   if (covered > 0 && listed) {
     webForkFailures.push(
-      `${path}: has ${covered} covered statements, so it is reachable from the suite — `
-      + "move it out of `unenforceable` and pin it",
+      `${path}: has ${covered} covered statements, so it is reachable from the suite — ` +
+        'move it out of `unenforceable` and pin it',
     );
   }
   if (covered === 0 && !listed && report[join(packageRoot, path)]?.statements.total > 0) {
     webForkFailures.push(
-      `${path}: a web fork with no coverage must be listed in \`unenforceable\` — `
-      + "jest resolves the native extension, so nothing implicit can ever load it",
+      `${path}: a web fork with no coverage must be listed in \`unenforceable\` — ` +
+        'jest resolves the native extension, so nothing implicit can ever load it',
     );
   }
 }
 if (webForkFailures.length > 0) {
-  fail(`${webForkFailures.length} web-fork classification problem(s):`, `${webForkFailures.map((entry) => `    ${entry}`).join("\n")}`);
+  fail(
+    `${webForkFailures.length} web-fork classification problem(s):`,
+    `${webForkFailures.map((entry) => `    ${entry}`).join('\n')}`,
+  );
 }
 
 /*
@@ -529,20 +530,20 @@ for (const metric of METRICS) {
   if (current < recorded) {
     fail(
       `Overall ${metric} coverage fell to ${current}% from the recorded ${recorded}%.`,
-      `  ${report.total[metric].covered}/${report.total[metric].total} against a `
-      + `baseline of ${baseline.total[metric].covered}/${baseline.total[metric].total}.\n`
-      + "  Cover what the change added, or explain the drop in\n"
-      + "  `allowedBaselineDecreases` and re-record.\n"
-      + `  ${REPRO}`,
+      `  ${report.total[metric].covered}/${report.total[metric].total} against a ` +
+        `baseline of ${baseline.total[metric].covered}/${baseline.total[metric].total}.\n` +
+        '  Cover what the change added, or explain the drop in\n' +
+        '  `allowedBaselineDecreases` and re-record.\n' +
+        `  ${REPRO}`,
     );
   } else if (current > recorded + drift) {
     fail(
       `Overall ${metric} coverage rose to ${current}% but the baseline still says ${recorded}%.`,
-      `  A stale baseline is a ratchet that stopped turning: it would let the suite\n`
-      + `  fall all the way back to ${recorded}% later without a word. Re-record it in\n`
-      + "  this change:\n"
-      + "    bun run --cwd packages/frontend coverage:record\n"
-      + `  (the allowance before this fires is ${drift} percentage points).`,
+      `  A stale baseline is a ratchet that stopped turning: it would let the suite\n` +
+        `  fall all the way back to ${recorded}% later without a word. Re-record it in\n` +
+        '  this change:\n' +
+        '    bun run --cwd packages/frontend coverage:record\n' +
+        `  (the allowance before this fires is ${drift} percentage points).`,
     );
   }
 }
@@ -562,13 +563,13 @@ const observedDecreases = new Set();
 // `||`, not `??`: on a workflow_dispatch run GitHub supplies an EMPTY string for
 // both `base_ref` and `event.before`, and an empty base resolves to nothing, so
 // the check would fail every manual run rather than compare against main.
-const baseRevision = options.base || process.env.COVERAGE_POLICY_BASE || "origin/main";
+const baseRevision = options.base || process.env.COVERAGE_POLICY_BASE || 'origin/main';
 
 let repositoryRoot = null;
 try {
-  repositoryRoot = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+  repositoryRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], {
     cwd: packageRoot,
-    encoding: "utf8",
+    encoding: 'utf8',
   }).trim();
 } catch {
   repositoryRoot = null;
@@ -577,18 +578,18 @@ try {
 if (repositoryRoot === null) {
   fail(
     "Cannot resolve a git repository, so the baseline's own direction is unchecked.",
-    "  Every other check reads the committed baseline; without this one a change\n"
-    + "  may lower the baseline and remove the tests in a single commit.\n"
-    + "  Run this from a checkout, and pass `--base <rev>` in CI.",
+    '  Every other check reads the committed baseline; without this one a change\n' +
+      '  may lower the baseline and remove the tests in a single commit.\n' +
+      '  Run this from a checkout, and pass `--base <rev>` in CI.',
   );
 } else {
   const baselineInRepo = relative(repositoryRoot, BASELINE_PATH);
   let baseBaseline = null;
   let baseResolves = true;
   try {
-    execFileSync("git", ["rev-parse", "--verify", "--quiet", `${baseRevision}^{commit}`], {
+    execFileSync('git', ['rev-parse', '--verify', '--quiet', `${baseRevision}^{commit}`], {
       cwd: repositoryRoot,
-      stdio: "ignore",
+      stdio: 'ignore',
     });
   } catch {
     baseResolves = false;
@@ -596,17 +597,17 @@ if (repositoryRoot === null) {
   if (!baseResolves) {
     fail(
       `The base revision \`${baseRevision}\` does not resolve in this checkout.`,
-      "  Not skipped on purpose: an unresolvable base and a base with no regression\n"
-      + "  look identical, and treating them the same is how this check would stop\n"
-      + "  measuring. Fetch the base branch, or pass `--base <rev>`.",
+      '  Not skipped on purpose: an unresolvable base and a base with no regression\n' +
+        '  look identical, and treating them the same is how this check would stop\n' +
+        '  measuring. Fetch the base branch, or pass `--base <rev>`.',
     );
   } else {
     try {
       baseBaseline = JSON.parse(
-        execFileSync("git", ["show", `${baseRevision}:${baselineInRepo}`], {
+        execFileSync('git', ['show', `${baseRevision}:${baselineInRepo}`], {
           cwd: repositoryRoot,
-          encoding: "utf8",
-          stdio: ["ignore", "pipe", "ignore"],
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'ignore'],
         }),
       );
     } catch {
@@ -624,8 +625,8 @@ if (repositoryRoot === null) {
         observedDecreases.add(key);
         if (!declaredDecreases.has(key)) {
           regressions.push(
-            `total ${metric}: baseline lowered from ${baseBaseline.total[metric].pct}% `
-            + `to ${baseline.total[metric].pct}%`,
+            `total ${metric}: baseline lowered from ${baseBaseline.total[metric].pct}% ` +
+              `to ${baseline.total[metric].pct}%`,
           );
         }
       }
@@ -634,7 +635,9 @@ if (repositoryRoot === null) {
       const pin = baseline.pins[path];
       if (!pin) {
         if (existsSync(join(packageRoot, path))) {
-          regressions.push(`${path}: pinned on ${baseRevision}, unpinned here while the file still exists`);
+          regressions.push(
+            `${path}: pinned on ${baseRevision}, unpinned here while the file still exists`,
+          );
         }
         continue;
       }
@@ -653,10 +656,10 @@ if (repositoryRoot === null) {
     if (regressions.length > 0) {
       fail(
         `The recorded baseline is lower than \`${baseRevision}\`'s in ${regressions.length} place(s):`,
-        `${regressions.map((entry) => `    ${entry}`).join("\n")}\n`
-        + "  Re-recording a lower baseline is how a coverage gate is switched off, so\n"
-        + "  each drop needs an entry in `allowedBaselineDecreases` giving the path,\n"
-        + "  the metric, the date and why the code legitimately shrank.",
+        `${regressions.map((entry) => `    ${entry}`).join('\n')}\n` +
+          '  Re-recording a lower baseline is how a coverage gate is switched off, so\n' +
+          '  each drop needs an entry in `allowedBaselineDecreases` giving the path,\n' +
+          '  the metric, the date and why the code legitimately shrank.',
       );
     }
   }
@@ -673,8 +676,8 @@ const spentDecreases = [...declaredDecreases.keys()].filter((key) => !observedDe
 if (spentDecreases.length > 0) {
   fail(
     `${spentDecreases.length} entr(ies) in \`allowedBaselineDecreases\` excuse a decrease that is not happening:`,
-    `${spentDecreases.map((key) => `    ${key}`).join("\n")}\n`
-    + "  Remove them; a spent entry is a standing permission for the next drop.",
+    `${spentDecreases.map((key) => `    ${key}`).join('\n')}\n` +
+      '  Remove them; a spent entry is a standing permission for the next drop.',
   );
 }
 
@@ -686,15 +689,15 @@ if (spentDecreases.length > 0) {
  * package.json that any edit can lower. Issue #700 asks explicitly that it stay
  * protected, so the policy asserts the number rather than trusting it.
  */
-const packageJson = readJson(join(packageRoot, "package.json"));
+const packageJson = readJson(join(packageRoot, 'package.json'));
 const jestThresholds = packageJson.jest.coverageThreshold ?? {};
 for (const [path, required] of Object.entries(policy.jestOwnedThresholds)) {
   const declared = jestThresholds[path];
   if (!declared) {
     fail(
       `package.json no longer declares a jest coverage threshold for ${path}.`,
-      "  It is listed in `jestOwnedThresholds` because it protects a boundary that a\n"
-      + "  global percentage cannot see. Restore the entry.",
+      '  It is listed in `jestOwnedThresholds` because it protects a boundary that a\n' +
+        '  global percentage cannot see. Restore the entry.',
     );
     continue;
   }
@@ -702,8 +705,8 @@ for (const [path, required] of Object.entries(policy.jestOwnedThresholds)) {
     if ((declared[metric] ?? 0) < required[metric]) {
       fail(
         `The jest threshold for ${path} was lowered: ${metric} ${declared[metric]}% < ${required[metric]}%.`,
-        "  Add the missing assertion instead. This entry exists because the file is\n"
-        + "  load-bearing, not because the number was convenient.",
+        '  Add the missing assertion instead. This entry exists because the file is\n' +
+          '  load-bearing, not because the number was convenient.',
       );
     }
   }
@@ -719,18 +722,18 @@ for (const [path, required] of Object.entries(policy.jestOwnedThresholds)) {
 if (testFiles.length < policy.minimumTestFiles) {
   fail(
     `Only ${testFiles.length} test files were scanned, below the ${policy.minimumTestFiles} floor.`,
-    "  A scan that reads nothing reports the same clean snapshot result as a\n"
-    + "  package with no snapshots in it.",
+    '  A scan that reads nothing reports the same clean snapshot result as a\n' +
+      '  package with no snapshots in it.',
   );
 }
 if (snapshotUsers.length !== policy.expectedCounts.snapshotAssertions) {
   fail(
-    `${snapshotUsers.length} test file(s) assert against snapshots; the policy allows `
-    + `${policy.expectedCounts.snapshotAssertions}.`,
-    `${snapshotUsers.map((path) => `    ${path}`).join("\n")}\n`
-    + "  A snapshot over a rendered screen covers hundreds of statements while\n"
-    + "  asserting only that today's output equals today's output — coverage without\n"
-    + "  confidence, and the cheapest way to satisfy every number above.",
+    `${snapshotUsers.length} test file(s) assert against snapshots; the policy allows ` +
+      `${policy.expectedCounts.snapshotAssertions}.`,
+    `${snapshotUsers.map((path) => `    ${path}`).join('\n')}\n` +
+      '  A snapshot over a rendered screen covers hundreds of statements while\n' +
+      "  asserting only that today's output equals today's output — coverage without\n" +
+      '  confidence, and the cheapest way to satisfy every number above.',
   );
 }
 
@@ -739,24 +742,24 @@ if (snapshotUsers.length !== policy.expectedCounts.snapshotAssertions) {
 /* ------------------------------------------------------------------ */
 
 if (failures.length > 0) {
-  console.error("Frontend coverage policy FAILED\n");
+  console.error('Frontend coverage policy FAILED\n');
   for (const failure of failures) console.error(`  ${failure}\n`);
   console.error(
-    `  Policy: packages/frontend/coverage-policy.json\n`
-    + `  Baseline: packages/frontend/coverage-baseline.json\n`
-    + `  Rationale: packages/frontend/docs/TESTING-POLICY.md\n`,
+    `  Policy: packages/frontend/coverage-policy.json\n` +
+      `  Baseline: packages/frontend/coverage-baseline.json\n` +
+      `  Rationale: packages/frontend/docs/TESTING-POLICY.md\n`,
   );
   process.exit(1);
 }
 
 console.log(
-  "Frontend coverage policy passed.\n"
-  + `  ${domainFiles.length} behavioural-logic files in ${policy.domains.length} domains, `
-  + `${Object.keys(baseline.pins).length} pinned, `
-  + `${Object.keys(policy.unenforceable).length} unenforceable.\n`
-  + `  ${criticalPaths.size} critical-path files at >= ${policy.criticalPathBar.statements}% statements / `
-  + `${policy.criticalPathBar.branches}% branches, `
-  + `${Object.keys(policy.belowBarExemptions).length} exempted.\n`
-  + `  Overall ${report.total.statements.pct}% statements against a recorded `
-  + `${baseline.total.statements.pct}%, over ${reportedFiles.length} files.`,
+  'Frontend coverage policy passed.\n' +
+    `  ${domainFiles.length} behavioural-logic files in ${policy.domains.length} domains, ` +
+    `${Object.keys(baseline.pins).length} pinned, ` +
+    `${Object.keys(policy.unenforceable).length} unenforceable.\n` +
+    `  ${criticalPaths.size} critical-path files at >= ${policy.criticalPathBar.statements}% statements / ` +
+    `${policy.criticalPathBar.branches}% branches, ` +
+    `${Object.keys(policy.belowBarExemptions).length} exempted.\n` +
+    `  Overall ${report.total.statements.pct}% statements against a recorded ` +
+    `${baseline.total.statements.pct}%, over ${reportedFiles.length} files.`,
 );

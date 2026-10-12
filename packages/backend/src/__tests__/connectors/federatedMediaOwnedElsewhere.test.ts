@@ -12,7 +12,9 @@ const h = vi.hoisted(() => ({ persist: vi.fn(), recordAccess: vi.fn() }));
 vi.mock('../../services/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: h.persist,
 }));
-vi.mock('../../services/mediaCache/cacheStore', () => ({ recordAccessAndMaybeEnqueue: h.recordAccess }));
+vi.mock('../../services/mediaCache/cacheStore', () => ({
+  recordAccessAndMaybeEnqueue: h.recordAccess,
+}));
 vi.mock('../../services/MediaMetadataService', () => ({
   mediaMetadataService: { enrichFromOxy: vi.fn(async (items: unknown) => items) },
 }));
@@ -41,11 +43,16 @@ describe('materializeFederatedMedia and 409 owned elsewhere', () => {
   });
 
   it('still drops media that is genuinely gone (the existing 404 rule)', async () => {
-    h.persist.mockImplementation(async (url: string) => (url === URL_A
-      ? { ok: false, reason: 'owned-elsewhere', permanent: true }
-      : { ok: false, reason: 'upstream-error', status: 404, permanent: true }));
+    h.persist.mockImplementation(async (url: string) =>
+      url === URL_A
+        ? { ok: false, reason: 'owned-elsewhere', permanent: true }
+        : { ok: false, reason: 'upstream-error', status: 404, permanent: true },
+    );
     const result = await materializeFederatedMedia(
-      [{ id: URL_A, type: 'image' }, { id: URL_B, type: 'image' }],
+      [
+        { id: URL_A, type: 'image' },
+        { id: URL_B, type: 'image' },
+      ],
       [],
       'oxy-owner',
     );

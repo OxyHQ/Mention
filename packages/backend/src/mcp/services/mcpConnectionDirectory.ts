@@ -46,11 +46,15 @@ const connectionStateSchema = z.object({
   connection_id: z.string().trim().min(1),
   origin_account_id: z.string().trim().min(1),
   active_account_id: z.string().trim().min(1),
-  accounts: z.array(z.object({
-    account_id: z.string().trim().min(1),
-    is_origin: z.boolean(),
-    linked_at: z.string().trim().min(1),
-  })).default([]),
+  accounts: z
+    .array(
+      z.object({
+        account_id: z.string().trim().min(1),
+        is_origin: z.boolean(),
+        linked_at: z.string().trim().min(1),
+      }),
+    )
+    .default([]),
 });
 
 const accountLinkSchema = z.object({
@@ -84,14 +88,11 @@ export function connectionStateFromClaims(
   tokenAccountId: string,
 ): McpConnectionState | null {
   if (typeof claims !== 'object' || claims === null) return null;
-  const parsed = connectionStateSchema.safeParse(
-    (claims as Record<string, unknown>).connection,
-  );
+  const parsed = connectionStateSchema.safeParse((claims as Record<string, unknown>).connection);
   if (!parsed.success) return null;
   if (parsed.data.origin_account_id !== tokenAccountId) return null;
-  if (!parsed.data.accounts.some(
-    (account) => account.account_id === parsed.data.active_account_id,
-  )) return null;
+  if (!parsed.data.accounts.some((account) => account.account_id === parsed.data.active_account_id))
+    return null;
   return toState(parsed.data);
 }
 

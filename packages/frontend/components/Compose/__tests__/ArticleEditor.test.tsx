@@ -38,11 +38,13 @@ jest.mock('@oxy.so/bloom/dialog', () => {
 });
 
 jest.mock('@oxy.so/bloom/text-field', () => {
-  const { TextInput: RNTextInput } = jest.requireActual<typeof import('react-native')>('react-native');
+  const { TextInput: RNTextInput } =
+    jest.requireActual<typeof import('react-native')>('react-native');
   return { TextFieldInput: (props: Record<string, unknown>) => <RNTextInput {...props} /> };
 });
 jest.mock('@oxy.so/bloom/textarea', () => {
-  const { TextInput: RNTextInput } = jest.requireActual<typeof import('react-native')>('react-native');
+  const { TextInput: RNTextInput } =
+    jest.requireActual<typeof import('react-native')>('react-native');
   return { Textarea: (props: Record<string, unknown>) => <RNTextInput multiline {...props} /> };
 });
 
@@ -61,9 +63,7 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 
 const noop = () => {};
 
-function renderEditor(
-  overrides: Partial<React.ComponentProps<typeof ArticleEditor>> = {},
-) {
+function renderEditor(overrides: Partial<React.ComponentProps<typeof ArticleEditor>> = {}) {
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     tree = TestRenderer.create(
@@ -173,16 +173,19 @@ describe('ArticleEditor surface', () => {
       />
     );
 
-    act(() => { tree = TestRenderer.create(render(true)); });
-    act(() => { tree?.update(render(false)); });
-    act(() => { tree?.update(render(true)); });
+    act(() => {
+      tree = TestRenderer.create(render(true));
+    });
+    act(() => {
+      tree?.update(render(false));
+    });
+    act(() => {
+      tree?.update(render(true));
+    });
 
     if (!tree) throw new Error('ArticleEditor failed to re-render');
     const values = tree.root.findAllByType(TextInput).map((node) => node.props.value);
-    expect(values).toEqual([
-      'On scheduling',
-      'A long body that must survive a round trip.',
-    ]);
+    expect(values).toEqual(['On scheduling', 'A long body that must survive a round trip.']);
 
     act(() => tree?.unmount());
   });

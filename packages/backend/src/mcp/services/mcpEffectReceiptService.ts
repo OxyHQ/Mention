@@ -1,10 +1,7 @@
 import { createHash } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
-import {
-  mcpEffectReceipts,
-  type McpEffectReceiptRow,
-} from '../../db/schema/mcp';
+import { mcpEffectReceipts, type McpEffectReceiptRow } from '../../db/schema/mcp';
 
 export interface McpEffectIdentity {
   oxyUserId: string;
@@ -17,15 +14,13 @@ export interface McpEffectIdentity {
 export type McpEffectReservation =
   | { kind: 'reserved'; receiptId: string }
   | {
-    kind: 'duplicate';
-    status: McpEffectReceiptRow['status'];
-    responseStatus: number | null;
-  }
+      kind: 'duplicate';
+      status: McpEffectReceiptRow['status'];
+      responseStatus: number | null;
+    }
   | { kind: 'conflict' };
 
-export async function reserveMcpEffect(
-  identity: McpEffectIdentity,
-): Promise<McpEffectReservation> {
+export async function reserveMcpEffect(identity: McpEffectIdentity): Promise<McpEffectReservation> {
   const idempotencyKeyHash = sha256(identity.idempotencyKey);
   const requestHash = sha256(identity.requestFingerprint);
   const inserted = await getDb()
@@ -57,11 +52,13 @@ export async function reserveMcpEffect(
       responseStatus: mcpEffectReceipts.responseStatus,
     })
     .from(mcpEffectReceipts)
-    .where(and(
-      eq(mcpEffectReceipts.oxyUserId, identity.oxyUserId),
-      eq(mcpEffectReceipts.clientId, identity.clientId),
-      eq(mcpEffectReceipts.idempotencyKeyHash, idempotencyKeyHash),
-    ))
+    .where(
+      and(
+        eq(mcpEffectReceipts.oxyUserId, identity.oxyUserId),
+        eq(mcpEffectReceipts.clientId, identity.clientId),
+        eq(mcpEffectReceipts.idempotencyKeyHash, idempotencyKeyHash),
+      ),
+    )
     .limit(1);
 
   if (!existing) {
@@ -83,18 +80,11 @@ export async function finalizeMcpEffect(
   await getDb()
     .update(mcpEffectReceipts)
     .set({
-      status: indeterminate
-        ? 'indeterminate'
-        : responseStatus < 400
-          ? 'succeeded'
-          : 'failed',
+      status: indeterminate ? 'indeterminate' : responseStatus < 400 ? 'succeeded' : 'failed',
       responseStatus,
       completedAt: new Date(),
     })
-    .where(and(
-      eq(mcpEffectReceipts.id, receiptId),
-      eq(mcpEffectReceipts.status, 'started'),
-    ));
+    .where(and(eq(mcpEffectReceipts.id, receiptId), eq(mcpEffectReceipts.status, 'started')));
 }
 
 function sha256(value: string): string {

@@ -99,7 +99,9 @@ class StarterPacksService {
   }
 
   async removeMembers(id: string, userIds: string[]) {
-    const res = await authenticatedClient.delete(`${STARTER_PACKS_BASE}/${id}/members`, { data: { userIds } });
+    const res = await authenticatedClient.delete(`${STARTER_PACKS_BASE}/${id}/members`, {
+      data: { userIds },
+    });
     return res.data as StarterPackSummary;
   }
 

@@ -6,7 +6,7 @@ import { isFeedCacheStaleForByline } from '@/stores/bylineInvalidation';
 
 /** The feed whose held read is being judged, and who is reading it. */
 export interface FeedReadIdentity extends FeedQueryIdentity {
-    viewerId?: string;
+  viewerId?: string;
 }
 
 /**
@@ -29,8 +29,10 @@ export interface FeedReadIdentity extends FeedQueryIdentity {
  * (`hooks/useFeedQuery`) and the SQLite store (`hooks/useFeedState`).
  */
 export function isFeedReadStale(feed: FeedReadIdentity, readAt: number): boolean {
-    return isFeedCacheStale(feed.type, feed.userId, feed.viewerId, readAt)
-        || isLaneFeedCacheStale(feed.userId, feed.viewerId, feed.filters?.laneId, readAt)
-        || isFeedCacheStaleForSafety(readAt)
-        || isFeedCacheStaleForByline(readAt);
+  return (
+    isFeedCacheStale(feed.type, feed.userId, feed.viewerId, readAt) ||
+    isLaneFeedCacheStale(feed.userId, feed.viewerId, feed.filters?.laneId, readAt) ||
+    isFeedCacheStaleForSafety(readAt) ||
+    isFeedCacheStaleForByline(readAt)
+  );
 }

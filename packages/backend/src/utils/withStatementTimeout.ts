@@ -53,7 +53,8 @@ export function isStatementTimeout(error: unknown): boolean {
   const code = (value: unknown): unknown =>
     value && typeof value === 'object' ? (value as { code?: unknown }).code : undefined;
   if (code(error) === '57014') return true;
-  const cause = error && typeof error === 'object' ? (error as { cause?: unknown }).cause : undefined;
+  const cause =
+    error && typeof error === 'object' ? (error as { cause?: unknown }).cause : undefined;
   return code(cause) === '57014';
 }
 

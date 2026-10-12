@@ -47,16 +47,18 @@ export function planHistoricalEmojiCleanup(
     return text.length > 0 ? [{ ...variant, text }] : [];
   });
   const priorSpoiler = post.federation?.spoilerText;
-  const cleanedSpoiler = priorSpoiler === undefined
-    ? undefined
-    : removeDeclaredCustomEmoji(priorSpoiler, names).replace(/\s+/g, ' ').trim() || undefined;
+  const cleanedSpoiler =
+    priorSpoiler === undefined
+      ? undefined
+      : removeDeclaredCustomEmoji(priorSpoiler, names).replace(/\s+/g, ' ').trim() || undefined;
   if (cleanedSpoiler !== priorSpoiler) changed = true;
   if (!changed) return { kind: 'unchanged' };
 
-  const hasRescue = (post.content.media?.length ?? 0) > 0
-    || (post.content.attachments?.length ?? 0) > 0
-    || post.content.poll != null
-    || cleanedSpoiler !== undefined;
+  const hasRescue =
+    (post.content.media?.length ?? 0) > 0 ||
+    (post.content.attachments?.length ?? 0) > 0 ||
+    post.content.poll != null ||
+    cleanedSpoiler !== undefined;
   if (variants.length === 0 && !hasRescue) return { kind: 'delete' };
   return { kind: 'update', variants, spoilerText: cleanedSpoiler };
 }
@@ -75,10 +77,13 @@ function candidateFilter(lastId: string | null): SQL {
     isNotNull(posts.federationActorUri),
     shortcodeCandidate,
   ) as SQL;
-  return lastId ? and(base, gt(posts.id, lastId)) as SQL : base;
+  return lastId ? (and(base, gt(posts.id, lastId)) as SQL) : base;
 }
 
-async function applyUpdate(post: PostRecord, decision: Extract<HistoricalEmojiCleanupDecision, { kind: 'update' }>): Promise<void> {
+async function applyUpdate(
+  post: PostRecord,
+  decision: Extract<HistoricalEmojiCleanupDecision, { kind: 'update' }>,
+): Promise<void> {
   const text = decision.variants[0]?.text ?? '';
   const survivingLanguages = decision.variants
     .map((variant) => variant.tag)
@@ -93,26 +98,30 @@ async function applyUpdate(post: PostRecord, decision: Extract<HistoricalEmojiCl
     instanceDomain: post.federation?.actorUri ? getRemoteHost(post.federation.actorUri) : undefined,
   });
   await getDb().transaction(async (tx) => {
-    await updatePostRecord(post.id, {
-      language: signals.language ?? null,
-      postClassification: {
-        status: 'pending',
-        attempts: 0,
-        topics: signals.topics,
-        topicRefs: [],
-        languages: signals.languages,
-        region: signals.region,
-        hashtagsNorm: signals.hashtagsNorm,
-        trendTerms: signals.trendTerms,
-        sensitive: signals.sensitive,
-        scores: signals.scores,
-        version: signals.version,
-        sentiment: 'neutral',
-        intent: 'other',
-        confidence: 0,
-        classifiedAt: new Date(signals.classifiedAt),
+    await updatePostRecord(
+      post.id,
+      {
+        language: signals.language ?? null,
+        postClassification: {
+          status: 'pending',
+          attempts: 0,
+          topics: signals.topics,
+          topicRefs: [],
+          languages: signals.languages,
+          region: signals.region,
+          hashtagsNorm: signals.hashtagsNorm,
+          trendTerms: signals.trendTerms,
+          sensitive: signals.sensitive,
+          scores: signals.scores,
+          version: signals.version,
+          sentiment: 'neutral',
+          intent: 'other',
+          confidence: 0,
+          classifiedAt: new Date(signals.classifiedAt),
+        },
       },
-    }, tx);
+      tx,
+    );
     await tx
       .update(posts)
       .set({ federationSpoilerText: decision.spoilerText ?? null })

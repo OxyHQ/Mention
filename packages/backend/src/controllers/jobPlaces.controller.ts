@@ -11,7 +11,11 @@
 import type { NextFunction, Response } from 'express';
 import { z } from 'zod';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { isCountryCode, type CountryCode, type MentionJobPlaceSearchResponse } from '@mention/shared-types';
+import {
+  isCountryCode,
+  type CountryCode,
+  type MentionJobPlaceSearchResponse,
+} from '@mention/shared-types';
 import { createError } from '../utils/error';
 import { logger } from '../utils/logger';
 import {
@@ -28,7 +32,10 @@ export const placeSearchQuerySchema = z.object({
     .min(1, 'q is required')
     .max(100, 'q must be at most 100 characters'),
   countryCode: z
-    .custom<CountryCode>(isCountryCode, 'countryCode must be an ISO 3166-1 alpha-2 country code (e.g. "ES")')
+    .custom<CountryCode>(
+      isCountryCode,
+      'countryCode must be an ISO 3166-1 alpha-2 country code (e.g. "ES")',
+    )
     .optional(),
   kind: z.enum(['city', 'region'], 'kind must be city or region').optional(),
   limit: z.coerce
@@ -50,7 +57,9 @@ class JobPlacesController {
           path: issue.path.map(String).join('.') || '(query)',
           message: issue.message,
         }));
-        return res.status(400).json({ error: 'Validation error', message: issues[0]?.message, issues });
+        return res
+          .status(400)
+          .json({ error: 'Validation error', message: issues[0]?.message, issues });
       }
 
       const places = await searchJobPlaces(parsed.data);

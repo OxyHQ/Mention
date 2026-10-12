@@ -18,7 +18,11 @@ import { PostType, PostVisibility, type MediaItem } from '@mention/shared-types'
 const enrichFromOxy = vi.fn();
 const needsOxyRetry = vi.fn();
 
-vi.mock('../../services/MediaMetadataService', () => ({
+vi.mock('../../services/MediaMetadataService', async (importOriginal) => ({
+  // The real comparison: what counts as a change is part of what is under test.
+  mediaMetadataChanged: (
+    await importOriginal<typeof import('../../services/MediaMetadataService')>()
+  ).mediaMetadataChanged,
   mediaMetadataService: {
     enrichFromOxy: (...args: unknown[]) => enrichFromOxy(...args),
     needsOxyRetry: (...args: unknown[]) => needsOxyRetry(...args),
@@ -130,6 +134,19 @@ describe('processMediaMetadataEnrichJob', () => {
     expect(await storedMedia(postId)).toEqual([probedVideo]);
   });
 
+  it("persists Oxy's HLS ladder stamp once it arrives, with nothing else changed", async () => {
+    // The ladder finishes after the probe: dimensions are already stored, and the
+    // stamp alone must still be written, or the DTO never carries an `hlsUrl`.
+    const postId = await seedPostWithMedia([probedVideo]);
+    const stamped = { ...probedVideo, hlsReadyAt: '2026-10-10T18:00:00.000Z' };
+    enrichFromOxy.mockResolvedValue([stamped]);
+    needsOxyRetry.mockReturnValue(false);
+
+    await patchPostMediaMetadata(postId);
+
+    expect(await storedMedia(postId)).toEqual([stamped]);
+  });
+
   it('keeps the gallery ORDER when it rewrites the media rows', async () => {
     // The child table carries a dense `position`, and the write is a
     // delete-then-insert of the whole set — so an enrichment that reordered the
@@ -171,7 +188,9 @@ describe('processMediaMetadataEnrichJob', () => {
     await expect(processMediaMetadataEnrichJob(postId)).rejects.toThrow('oxy unreachable');
     // A transport failure must NOT be relabelled as a pending probe — the two
     // have different causes and the pending path must stay attributable.
-    await expect(processMediaMetadataEnrichJob(postId)).rejects.not.toThrow(MediaMetadataPendingError);
+    await expect(processMediaMetadataEnrichJob(postId)).rejects.not.toThrow(
+      MediaMetadataPendingError,
+    );
   });
 
   it('is a no-op for a post with no media', async () => {

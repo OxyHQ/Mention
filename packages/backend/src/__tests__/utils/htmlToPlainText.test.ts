@@ -30,7 +30,7 @@ describe('htmlToPlainText', () => {
     expect(htmlToPlainText('<p>uno</p>\n   \n   \n<p>dos</p>')).toBe('uno\n\ndos');
   });
 
-  it('preserves the author\'s paragraph breaks', () => {
+  it("preserves the author's paragraph breaks", () => {
     expect(htmlToPlainText('<p>uno</p><p>dos</p>')).toBe('uno\n\ndos');
     expect(htmlToPlainText('<p>uno<br>dos</p>')).toBe('uno\ndos');
   });
@@ -129,7 +129,9 @@ describe('htmlToPlainText — mention anchors degrade to their handle', () => {
     // Pleroma-shaped: `class="hashtag"` and no `rel`. Mastodon's own inner-span
     // shape (`class="mention hashtag" rel="tag"`) is covered by both signals.
     expect(
-      htmlToPlainText('<a class="hashtag" href="https://bsky.app/search?q=%23Climate">#Climate</a>'),
+      htmlToPlainText(
+        '<a class="hashtag" href="https://bsky.app/search?q=%23Climate">#Climate</a>',
+      ),
     ).toBe('#Climate');
     expect(
       htmlToPlainText(
@@ -169,29 +171,48 @@ describe('htmlToPlainText — mention anchors degrade to their handle', () => {
   });
 });
 
-
 describe('post bodies preserve unresolved mention destinations', () => {
   const options = { preserveMentionLinks: true };
   const url = 'https://flipboard.com/@forbes/leadership-bs0je34pz';
 
   it('retains a Flipboard Group link and its visible handle without inventing an identity', () => {
     const html = `<p>Posted into Leadership <span class="h-card"><a href="${url}" class="u-url mention">@<span>leadership-forbes</span></a></span></p>`;
-    expect(htmlToPlainText(html, options)).toBe(`Posted into Leadership [@@leadership-forbes](${url})`);
+    expect(htmlToPlainText(html, options)).toBe(
+      `Posted into Leadership [@@leadership-forbes](${url})`,
+    );
     expect(htmlToPlainText(html)).toBe('Posted into Leadership @leadership-forbes');
   });
 
   it('preserves resolved placeholders and hashtag labels', () => {
-    expect(htmlToPlainText('<p>[mention:oxy-user] <a href="https://example.org/tags/art" class="mention hashtag">#art</a></p>', options))
-      .toBe('[mention:oxy-user] #art');
+    expect(
+      htmlToPlainText(
+        '<p>[mention:oxy-user] <a href="https://example.org/tags/art" class="mention hashtag">#art</a></p>',
+        options,
+      ),
+    ).toBe('[mention:oxy-user] #art');
   });
 
-  it.each(['javascript:alert(1)', 'data:text/html,hello', 'not a URL'])('does not link an unsafe or invalid destination %s', (href) => {
-    expect(htmlToPlainText(`<a href="${href}" class="mention">@alice</a>`, options)).toBe('@alice');
-  });
+  it.each(['javascript:alert(1)', 'data:text/html,hello', 'not a URL'])(
+    'does not link an unsafe or invalid destination %s',
+    (href) => {
+      expect(htmlToPlainText(`<a href="${href}" class="mention">@alice</a>`, options)).toBe(
+        '@alice',
+      );
+    },
+  );
 
   it('encodes URL delimiters and decodes entities without splitting the labelled link', () => {
-    expect(htmlToPlainText('<a href="https://example.org/@a(b)?x=1&amp;y=2" class="mention">@alice</a>', options))
-      .toBe('[@@alice](https://example.org/@a%28b%29?x=1&y=2)');
-    expect(htmlToPlainText('<a href="https://example.org/@alice" class="mention">@alice&#93;(bad)</a>', options)).toBe('@alice](bad)');
+    expect(
+      htmlToPlainText(
+        '<a href="https://example.org/@a(b)?x=1&amp;y=2" class="mention">@alice</a>',
+        options,
+      ),
+    ).toBe('[@@alice](https://example.org/@a%28b%29?x=1&y=2)');
+    expect(
+      htmlToPlainText(
+        '<a href="https://example.org/@alice" class="mention">@alice&#93;(bad)</a>',
+        options,
+      ),
+    ).toBe('@alice](bad)');
   });
 });

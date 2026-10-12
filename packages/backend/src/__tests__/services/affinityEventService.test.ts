@@ -44,7 +44,11 @@ import {
   AFFINITY_DRAIN_BATCH_SIZE,
 } from '../../services/AffinityEventService';
 
-const signalsClient = { pushEvents: mocks.pushEvents, pushEndorsements: vi.fn(), pushInterests: vi.fn() };
+const signalsClient = {
+  pushEvents: mocks.pushEvents,
+  pushEndorsements: vi.fn(),
+  pushInterests: vi.fn(),
+};
 
 function makeService() {
   return new AffinityEventService(signalsClient as unknown as never);
@@ -62,14 +66,24 @@ beforeEach(() => {
 describe('AffinityEventService.record', () => {
   it('buffers a compact event to the Redis list and caps the buffer length', async () => {
     const service = makeService();
-    const ok = await service.record({ fromUserId: 'a', toUserId: 'b', type: 'like', eventId: 'like:1' });
+    const ok = await service.record({
+      fromUserId: 'a',
+      toUserId: 'b',
+      type: 'like',
+      eventId: 'like:1',
+    });
 
     expect(ok).toBe(true);
     expect(mocks.lPush).toHaveBeenCalledTimes(1);
     const [key, payload] = mocks.lPush.mock.calls[0];
     expect(key).toBe(AFFINITY_BUFFER_KEY);
     const parsed = JSON.parse(String(payload));
-    expect(parsed).toMatchObject({ fromUserId: 'a', toUserId: 'b', type: 'like', eventId: 'like:1' });
+    expect(parsed).toMatchObject({
+      fromUserId: 'a',
+      toUserId: 'b',
+      type: 'like',
+      eventId: 'like:1',
+    });
     expect(typeof parsed.occurredAt).toBe('string');
 
     // Buffer capped to [0, MAX-1] on every push.
@@ -108,7 +122,9 @@ describe('AffinityEventService.record', () => {
     const service = makeService();
 
     // Must resolve (to false), never reject.
-    await expect(service.record({ fromUserId: 'a', toUserId: 'b', type: 'like' })).resolves.toBe(false);
+    await expect(service.record({ fromUserId: 'a', toUserId: 'b', type: 'like' })).resolves.toBe(
+      false,
+    );
   });
 });
 
@@ -125,8 +141,16 @@ describe('AffinityEventService.drainOnce', () => {
 
     expect(count).toBe(2);
     // Claim reads the newest batch and trims it off in the same MULTI.
-    expect(mocks.multiLRange).toHaveBeenCalledWith(AFFINITY_BUFFER_KEY, 0, AFFINITY_DRAIN_BATCH_SIZE - 1);
-    expect(mocks.multiLTrim).toHaveBeenCalledWith(AFFINITY_BUFFER_KEY, AFFINITY_DRAIN_BATCH_SIZE, -1);
+    expect(mocks.multiLRange).toHaveBeenCalledWith(
+      AFFINITY_BUFFER_KEY,
+      0,
+      AFFINITY_DRAIN_BATCH_SIZE - 1,
+    );
+    expect(mocks.multiLTrim).toHaveBeenCalledWith(
+      AFFINITY_BUFFER_KEY,
+      AFFINITY_DRAIN_BATCH_SIZE,
+      -1,
+    );
 
     expect(mocks.pushEvents).toHaveBeenCalledTimes(1);
     const events = mocks.pushEvents.mock.calls[0][0];
@@ -166,7 +190,9 @@ describe('AffinityEventService.drainOnce', () => {
   });
 
   it('re-buffers the claimed batch (once) and returns 0 when the push fails', async () => {
-    const buffered = [JSON.stringify({ fromUserId: 'a', toUserId: 'b', type: 'like', eventId: 'like:1' })];
+    const buffered = [
+      JSON.stringify({ fromUserId: 'a', toUserId: 'b', type: 'like', eventId: 'like:1' }),
+    ];
     mocks.multiExec.mockResolvedValue([buffered, 'OK']);
     mocks.pushEvents.mockRejectedValue(new Error('oxy down'));
 

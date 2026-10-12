@@ -41,7 +41,9 @@ function Probe(props: Props) {
 }
 
 beforeAll(() => {
-  (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  (
+    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true;
 });
 
 function mount(props: Props) {
@@ -54,7 +56,11 @@ function mount(props: Props) {
 
 describe('useAttachmentOrder', () => {
   it('shows a card only for an attachment that counts', () => {
-    mount({ ...base, event: { name: ' ', date: EVENT.date }, mediaIds: [{ id: 'm1', type: 'image' }] });
+    mount({
+      ...base,
+      event: { name: ' ', date: EVENT.date },
+      mediaIds: [{ id: 'm1', type: 'image' }],
+    });
     expect(latest!.attachmentOrder).toEqual(['media:m1']);
   });
 
@@ -66,7 +72,11 @@ describe('useAttachmentOrder', () => {
     act(() => latest!.setAttachmentOrder(['media:m1', 'event']));
     expect(latest!.attachmentOrder).toEqual(['media:m1', 'event']);
 
-    act(() => renderer.update(<Probe {...base} event={EVENT} mediaIds={media} linkUrls={['https://x.test']} />));
+    act(() =>
+      renderer.update(
+        <Probe {...base} event={EVENT} mediaIds={media} linkUrls={['https://x.test']} />,
+      ),
+    );
     expect(latest!.attachmentOrder).toEqual(['media:m1', 'event', 'link:https://x.test']);
 
     act(() => renderer.update(<Probe {...base} mediaIds={media} linkUrls={['https://x.test']} />));
@@ -75,7 +85,10 @@ describe('useAttachmentOrder', () => {
 
   it('moves a card, and moving media reorders the media list with it', () => {
     const setMediaIds = jest.fn();
-    const media = [{ id: 'm1', type: 'image' as const }, { id: 'm2', type: 'image' as const }];
+    const media = [
+      { id: 'm1', type: 'image' as const },
+      { id: 'm2', type: 'image' as const },
+    ];
     mount({ ...base, mediaIds: media, setMediaIds });
     expect(latest!.attachmentOrder).toEqual(['media:m1', 'media:m2']);
 

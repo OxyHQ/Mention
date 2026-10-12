@@ -66,18 +66,24 @@ function armTimer(): void {
   if (timer && next >= timerDue) return;
   if (timer) clearTimeout(timer);
   timerDue = next;
-  timer = setTimeout(() => {
-    timer = null;
-    timerDue = Infinity;
-    void flush();
-  }, Math.max(0, next - Date.now()));
+  timer = setTimeout(
+    () => {
+      timer = null;
+      timerDue = Infinity;
+      void flush();
+    },
+    Math.max(0, next - Date.now()),
+  );
 }
 
 function attemptsFor(postId: string): number {
   return attempts.get(postId)?.count ?? 0;
 }
 
-function applyAnswer(postId: string, entry: PostDocumentsResponse['posts'][string] | undefined): void {
+function applyAnswer(
+  postId: string,
+  entry: PostDocumentsResponse['posts'][string] | undefined,
+): void {
   usePostsStore.getState().updatePostEverywhere(postId, (prev) => ({
     ...prev,
     // An id the server did not answer for is one this viewer may not read (or
@@ -158,7 +164,8 @@ function versionOf(post: { metadata?: { updatedAt?: unknown } }): string {
 export function registerPendingDocuments(): () => void {
   return onPostsStored((posts) => {
     for (const post of posts) {
-      if (post.documentsPending === true && post.id) requestPendingDocuments(String(post.id), versionOf(post));
+      if (post.documentsPending === true && post.id)
+        requestPendingDocuments(String(post.id), versionOf(post));
       // A boost or quote carries its embedded post, whose cards are its own.
       const nested = [post.quotedPost, post.originalPost, post.boost?.originalPost];
       for (const embedded of nested) {

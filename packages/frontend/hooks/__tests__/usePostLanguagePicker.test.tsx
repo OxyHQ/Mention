@@ -54,7 +54,11 @@ const machineItalian: PostLanguageOption = { tag: 'it', source: 'machine', text:
 
 let openPicker: () => void;
 
-function mountPicker(options: PostLanguageOption[], activeTag: string | null, onSelect = jest.fn()) {
+function mountPicker(
+  options: PostLanguageOption[],
+  activeTag: string | null,
+  onSelect = jest.fn(),
+) {
   const Probe: React.FC = () => {
     openPicker = usePostLanguagePicker(options, activeTag, onSelect);
     return null;
@@ -68,7 +72,9 @@ function mountPicker(options: PostLanguageOption[], activeTag: string | null, on
 
 /** The sheet the hook handed to the shared bottom sheet, rendered. */
 function sheet(): TestRenderer.ReactTestRenderer {
-  const content = mockSetBottomSheetContent.mock.calls.at(-1)?.[0] as React.ReactElement | undefined;
+  const content = mockSetBottomSheetContent.mock.calls.at(-1)?.[0] as
+    | React.ReactElement
+    | undefined;
   if (!content) throw new Error('nothing was handed to the bottom sheet');
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {

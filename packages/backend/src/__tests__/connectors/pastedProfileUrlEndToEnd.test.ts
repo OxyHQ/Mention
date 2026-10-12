@@ -7,7 +7,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { WEBFINGER_JRD } = vi.hoisted(() => ({
   WEBFINGER_JRD: {
     subject: 'acct:elonmusk@bird.makeup',
-    links: [{ rel: 'self', type: 'application/activity+json', href: 'https://bird.makeup/users/elonmusk' }],
+    links: [
+      {
+        rel: 'self',
+        type: 'application/activity+json',
+        href: 'https://bird.makeup/users/elonmusk',
+      },
+    ],
   },
 }));
 
@@ -62,7 +68,9 @@ vi.mock('../../utils/oxyHelpers', () => ({
 }));
 
 vi.mock('@oxy.so/core/server', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@oxy.so/core/server')>()), getRequiredOxyUserId: () => 'local-user-1' }));
+  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
+  getRequiredOxyUserId: () => 'local-user-1',
+}));
 vi.mock('../../middleware/rateLimiter', () => ({
   apiRateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
@@ -73,7 +81,9 @@ vi.mock('../../services/fediverseSharing', () => ({
   isFediverseSharingEnabled: vi.fn(async () => true),
   invalidateFediverseSharing: vi.fn(),
 }));
-vi.mock('../../services/ActorIdentityProjectionService', () => ({ reconcileActorIdentityProjection: mocks.reconcileProjection }));
+vi.mock('../../services/ActorIdentityProjectionService', () => ({
+  reconcileActorIdentityProjection: mocks.reconcileProjection,
+}));
 vi.mock('../../services/userSummaryCache', () => ({ invalidate: vi.fn() }));
 vi.mock('../../services/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: vi.fn(async () => ({ ok: false, permanent: true })),
@@ -95,15 +105,15 @@ const LIVE_ACTOR = {
   outbox: 'https://bird.makeup/users/elonmusk/outbox',
   icon: { type: 'Image', url: AVATAR },
   summary:
-    "<br>This account is a replica from Twitter. Its author can't see your replies. "
-    + 'If you find this service useful, please consider supporting us via our Patreon. <br>',
+    "<br>This account is a replica from Twitter. Its author can't see your replies. " +
+    'If you find this service useful, please consider supporting us via our Patreon. <br>',
   attachment: [
     {
       type: 'PropertyValue',
       name: 'Official',
       value:
-        '<a href="https://twitter.com/elonmusk" rel="me nofollow noopener noreferrer" target="_blank">'
-        + '<span class="invisible">https://</span><span class="ellipsis">twitter.com/elonmusk</span></a>',
+        '<a href="https://twitter.com/elonmusk" rel="me nofollow noopener noreferrer" target="_blank">' +
+        '<span class="invisible">https://</span><span class="ellipsis">twitter.com/elonmusk</span></a>',
     },
   ],
 };
@@ -127,14 +137,24 @@ beforeEach(() => {
     storedRow = { uri, ...columns };
     return Promise.resolve({ ...storedRow, id: 'row-1' });
   });
-  mocks.serviceRequest.mockResolvedValue(oxyIdentityFixture({ actorUri: ACTOR_URI, transportAcct: 'elonmusk@bird.makeup', canonicalAcct: 'elonmusk@x.com', network: 'x.com', userId: 'oxy-elon', avatar: AVATAR }));
+  mocks.serviceRequest.mockResolvedValue(
+    oxyIdentityFixture({
+      actorUri: ACTOR_URI,
+      transportAcct: 'elonmusk@bird.makeup',
+      canonicalAcct: 'elonmusk@x.com',
+      network: 'x.com',
+      userId: 'oxy-elon',
+      avatar: AVATAR,
+    }),
+  );
   mocks.signedFetch.mockImplementation(async (url: string) =>
     url === ACTOR_URI
       ? new Response(JSON.stringify(LIVE_ACTOR), {
           status: 200,
           headers: { 'content-type': 'application/activity+json' },
         })
-      : new Response('', { status: 404 }));
+      : new Response('', { status: 404 }),
+  );
 });
 
 describe('pasting https://x.com/elonmusk', () => {

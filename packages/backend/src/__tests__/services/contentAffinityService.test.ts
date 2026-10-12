@@ -4,7 +4,7 @@
  * Four of this service's five inputs crossed the store boundary in this batch —
  * `likes`, `posts` (reply/boost targets, author resolution, and the two coverage
  * aggregations), `entity_follows` and `user_settings` all live in Postgres now.
- * The suite this replaces mocked the four Mongoose models, so after the port the
+ * The suite this replaces mocked the four legacy-ODM models, so after the port the
  * mocks intercepted nothing and every data-dependent case quietly asserted
  * against an empty result. That is the exact shape this file exists to stop:
  * signals are asserted on ROWS the service actually read, and on the WEIGHTS it
@@ -52,9 +52,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../db/userProfile/userBehaviorRepository', async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import('../../db/userProfile/userBehaviorRepository')
-  >();
+  const actual =
+    await importOriginal<typeof import('../../db/userProfile/userBehaviorRepository')>();
   return {
     ...actual,
     loadUserBehavior: async (oxyUserId: string) => {
@@ -91,13 +90,17 @@ import { posts } from '../../db/schema/posts';
 import { entityFollows, likes } from '../../db/schema/engagement';
 import { userSettings } from '../../db/schema/userProfile';
 import { insertPostRecord } from '../../db/posts/postRepository';
+import { refreshTopicAffinityPosts } from '../../services/TopicAffinityRefreshJob';
 import {
   deleteUserBehavior,
   updateUserBehavior,
 } from '../../db/userProfile/userBehaviorRepository';
 import type { PostRecordInput } from '../../db/posts/postRecord';
 import type { OxyClient } from '../../utils/privacyHelpers';
-import { ContentAffinityService, type ContentCandidate } from '../../services/ContentAffinityService';
+import {
+  ContentAffinityService,
+  type ContentCandidate,
+} from '../../services/ContentAffinityService';
 
 /**
  * Namespace for every id, hashtag and topic this file writes. The coverage
@@ -259,7 +262,11 @@ beforeEach(async () => {
   vi.clearAllMocks();
   mocks.behaviorLoadError = null;
   // Redis disabled by default → every case measures a real computation.
-  mocks.getRedisClient.mockReturnValue({ isReady: false, get: mocks.redisGet, set: mocks.redisSet });
+  mocks.getRedisClient.mockReturnValue({
+    isReady: false,
+    get: mocks.redisGet,
+    set: mocks.redisSet,
+  });
   mocks.loadPrivacyState.mockResolvedValue({
     blockedUserIds: new Set(),
     mutedUserIds: new Set(),
@@ -278,7 +285,9 @@ afterEach(async () => {
   }
   await db.delete(entityFollows).where(eq(entityFollows.userId, VIEWER));
   if (createdSettingsOwners.length > 0) {
-    await db.delete(userSettings).where(inArray(userSettings.oxyUserId, createdSettingsOwners.splice(0)));
+    await db
+      .delete(userSettings)
+      .where(inArray(userSettings.oxyUserId, createdSettingsOwners.splice(0)));
   }
 });
 
@@ -506,7 +515,9 @@ describe('exclusions and profile access', () => {
 
   it('batches the follow-graph read across every protected candidate', async () => {
     await followHashtag(id('rust'));
-    const protectedAuthors = Array.from({ length: 75 }, (_, index) => id(`private-author-${index}`));
+    const protectedAuthors = Array.from({ length: 75 }, (_, index) =>
+      id(`private-author-${index}`),
+    );
     await Promise.all(
       protectedAuthors.map((author) => createPost(author, { hashtags: [id('rust')] })),
     );
@@ -637,6 +648,8 @@ describe('the behavior-derived signals', () => {
       });
     }
     await createPost(id('rust-author'), { postClassification: { topics: [id('rust')] } });
+    // Topic affinity reads `topic_affinity_posts`; the leader refreshes it.
+    await refreshTopicAffinityPosts(db);
 
     const result = await service.getContentCandidates(VIEWER);
 
@@ -662,6 +675,8 @@ describe('the behavior-derived signals', () => {
     );
     await createPost(id('crypto-author'), { postClassification: { topics: [id('crypto')] } });
     await createPost(id('rust-author'), { postClassification: { topics: [id('rust')] } });
+    // Topic affinity reads `topic_affinity_posts`; the leader refreshes it.
+    await refreshTopicAffinityPosts(db);
 
     const result = await service.getContentCandidates(VIEWER);
 

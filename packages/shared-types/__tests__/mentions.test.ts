@@ -11,9 +11,7 @@ import {
 
 describe('canonical mention reconciliation', () => {
   it('extracts distinct placeholders in body order', () => {
-    expect(
-      extractMentionIds('Hi [mention:b], [mention:a], again [mention:b]'),
-    ).toEqual(['b', 'a']);
+    expect(extractMentionIds('Hi [mention:b], [mention:a], again [mention:b]')).toEqual(['b', 'a']);
   });
 
   it('keeps only authorized ids that still have a real placeholder', () => {
@@ -31,10 +29,7 @@ describe('canonical mention reconciliation', () => {
   });
 
   it('normalizes historical object ids without preserving empties', () => {
-    expect(normalizeMentionIds([' a ', { id: 'b' }, { _id: 'a' }, '', null])).toEqual([
-      'a',
-      'b',
-    ]);
+    expect(normalizeMentionIds([' a ', { id: 'b' }, { _id: 'a' }, '', null])).toEqual(['a', 'b']);
   });
 
   it('uses every author rendition but ignores machine translations', () => {
@@ -87,7 +82,10 @@ describe('rewriting the renditions that can mention', () => {
 
     // An author variant exists, so `text` is the hydration convenience copy and
     // is NOT a rendition anybody can be mentioned from — nor one to write to.
-    const storedShape = { text: 'convenience copy', variants: [{ source: 'author', text: 'body' }] };
+    const storedShape = {
+      text: 'convenience copy',
+      variants: [{ source: 'author', text: 'body' }],
+    };
     mapMentionTexts(storedShape, () => 'rewritten');
     expect(storedShape.text).toBe('convenience copy');
     expect(storedShape.variants[0].text).toBe('rewritten');
@@ -117,8 +115,7 @@ describe('rewriting the renditions that can mention', () => {
 describe('per-post mention ceiling', () => {
   const body = (count: number): string =>
     Array.from({ length: count }, (_, i) => `[mention:u${i}]`).join(' ');
-  const ids = (count: number): string[] =>
-    Array.from({ length: count }, (_, i) => `u${i}`);
+  const ids = (count: number): string[] => Array.from({ length: count }, (_, i) => `u${i}`);
 
   it('holds the chosen value — moving it must be a deliberate act', () => {
     expect(MAX_MENTIONS_PER_POST).toBe(16);

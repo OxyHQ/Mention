@@ -199,7 +199,7 @@ afterAll(async () => {
 });
 
 describe('GET /profile/settings/:userId profile-design visibility', () => {
-  it('withholds a private profile\'s design from a stranger', async () => {
+  it("withholds a private profile's design from a stranger", async () => {
     await seedTarget('private');
     followingByViewer.set(VIEWER, []);
 
@@ -210,7 +210,7 @@ describe('GET /profile/settings/:userId profile-design visibility', () => {
     expect(settings.profileMedia).toBeUndefined();
   });
 
-  it('withholds a followers-only profile\'s design from a non-follower', async () => {
+  it("withholds a followers-only profile's design from a non-follower", async () => {
     await seedTarget('followers_only');
     followingByViewer.set(VIEWER, ['someone-else']);
 
@@ -255,7 +255,7 @@ describe('GET /profile/settings/:userId profile-design visibility', () => {
 
     expect(settings.profileHeaderImage).toBe('private-banner-file');
     // The OWNER sees their whole appearance object, defaults included. That is
-    // not a wire change: the Mongoose schema declared the same defaults and
+    // not a wire change: the legacy-ODM schema declared the same defaults and
     // applied them on document creation, so a real settings document always
     // carried these three. The previous expectation was written against a
     // hand-built partial fixture that production could not produce — the port
@@ -329,7 +329,8 @@ describe('profile design resolved privacy policy', () => {
   });
 
   it.each(['private', 'followers_only'] as const)(
-    'reports %s while keeping the stranger response redacted and owner access intact', async (visibility) => {
+    'reports %s while keeping the stranger response redacted and owner access intact',
+    async (visibility) => {
       await seedTarget(visibility);
       followingByViewer.set(VIEWER, []);
       const stranger = await getDesign();

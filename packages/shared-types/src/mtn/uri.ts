@@ -71,19 +71,35 @@ export class MtnUri {
 // MTN lexicon constants so the URI builders cannot drift from the record schemas.
 
 export function createPostUri(oxyUserId: string, postId: string): string {
-  return new MtnUri({ identity: oxyUserId, collection: MENTION_POST_COLLECTION, rkey: postId }).toString();
+  return new MtnUri({
+    identity: oxyUserId,
+    collection: MENTION_POST_COLLECTION,
+    rkey: postId,
+  }).toString();
 }
 
 export function createLikeUri(oxyUserId: string, likeId: string): string {
-  return new MtnUri({ identity: oxyUserId, collection: MENTION_LIKE_COLLECTION, rkey: likeId }).toString();
+  return new MtnUri({
+    identity: oxyUserId,
+    collection: MENTION_LIKE_COLLECTION,
+    rkey: likeId,
+  }).toString();
 }
 
 export function createRepostUri(oxyUserId: string, repostId: string): string {
-  return new MtnUri({ identity: oxyUserId, collection: MENTION_REPOST_COLLECTION, rkey: repostId }).toString();
+  return new MtnUri({
+    identity: oxyUserId,
+    collection: MENTION_REPOST_COLLECTION,
+    rkey: repostId,
+  }).toString();
 }
 
 export function createBookmarkUri(oxyUserId: string, bookmarkId: string): string {
-  return new MtnUri({ identity: oxyUserId, collection: MENTION_BOOKMARK_COLLECTION, rkey: bookmarkId }).toString();
+  return new MtnUri({
+    identity: oxyUserId,
+    collection: MENTION_BOOKMARK_COLLECTION,
+    rkey: bookmarkId,
+  }).toString();
 }
 
 /**

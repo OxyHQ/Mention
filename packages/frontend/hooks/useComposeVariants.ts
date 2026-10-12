@@ -26,12 +26,18 @@ export const useComposeVariants = (defaultPrimaryTag: string) => {
 
   const setActiveTag = useCallback((tag: string) => dispatch({ type: 'set-active', tag }), []);
   const addLanguage = useCallback((tag: string) => dispatch({ type: 'add-language', tag }), []);
-  const removeLanguage = useCallback((tag: string) => dispatch({ type: 'remove-language', tag }), []);
+  const removeLanguage = useCallback(
+    (tag: string) => dispatch({ type: 'remove-language', tag }),
+    [],
+  );
   const renameLanguage = useCallback(
     (from: string, to: string) => dispatch({ type: 'rename-language', from, to }),
     [],
   );
-  const setPrimaryLanguage = useCallback((tag: string) => dispatch({ type: 'set-primary-language', tag }), []);
+  const setPrimaryLanguage = useCallback(
+    (tag: string) => dispatch({ type: 'set-primary-language', tag }),
+    [],
+  );
   const promoteLanguage = useCallback(
     (tag: string, oldPrimaryByItem: Record<string, PromotablePrimary>) =>
       dispatch({ type: 'promote-to-primary', tag, oldPrimaryByItem }),
@@ -39,7 +45,8 @@ export const useComposeVariants = (defaultPrimaryTag: string) => {
   );
 
   const setVariantText = useCallback(
-    (tag: string, itemId: string, text: string) => dispatch({ type: 'set-text', tag, itemId, text }),
+    (tag: string, itemId: string, text: string) =>
+      dispatch({ type: 'set-text', tag, itemId, text }),
     [],
   );
 
@@ -72,7 +79,10 @@ export const useComposeVariants = (defaultPrimaryTag: string) => {
     [],
   );
 
-  const removeVariantItem = useCallback((itemId: string) => dispatch({ type: 'remove-item', itemId }), []);
+  const removeVariantItem = useCallback(
+    (itemId: string) => dispatch({ type: 'remove-item', itemId }),
+    [],
+  );
 
   const loadVariants = useCallback(
     (next: ComposeVariantsState) => dispatch({ type: 'load', state: next }),
@@ -81,7 +91,8 @@ export const useComposeVariants = (defaultPrimaryTag: string) => {
 
   /** Rebuild the buffer from a draft's persisted (possibly absent) variant blob. */
   const loadVariantsFromDraft = useCallback(
-    (raw: unknown) => dispatch({ type: 'load', state: deserializeVariants(raw, defaultPrimaryTag) }),
+    (raw: unknown) =>
+      dispatch({ type: 'load', state: deserializeVariants(raw, defaultPrimaryTag) }),
     [defaultPrimaryTag],
   );
 

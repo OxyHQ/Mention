@@ -56,24 +56,19 @@ export interface FeedInteractionData {
  * `null` otherwise — see {@link applyImpressionSignals}. Nothing else the server
  * does here is invisible to the caller, so nothing else needs returning.
  *
- * The raw row goes to `feed_interactions` in POSTGRES. It was the last live
- * Mongo write in the request path, and the last one to find because it was a
- * dynamic `import('../../models/FeedInteraction')` — invisible to a
- * static-import scan. Everything else about this function already wrote
- * Postgres: the view count, the dwell aggregate and the preference signal below.
- *
- * Leaving it on Mongo would not have failed, which is what made it dangerous:
- * the Postgres table exists, is indexed, is swept by `db/expiry.ts` and is
- * probed by the deletion preflight, and the backfill fills it — so after the
- * cutover it would have sat frozen at the backfill snapshot while every new row
- * accumulated in a Mongo collection nothing reads.
+ * The raw row goes to `feed_interactions` in POSTGRES, alongside everything else
+ * this function writes: the view count, the dwell aggregate and the preference
+ * signal below. The table is indexed, swept by `db/expiry.ts` and probed by the
+ * deletion preflight.
  *
  * `createdAt` is written EXPLICITLY from the caller's timestamp rather than
  * left to the column default. The caller stamps the interaction when it
  * happened; this write is awaited inside a request but the value it records is
  * not "now", and a default would quietly re-date every row to insert time.
  */
-export async function trackFeedInteraction(interaction: FeedInteractionData): Promise<number | null> {
+export async function trackFeedInteraction(
+  interaction: FeedInteractionData,
+): Promise<number | null> {
   try {
     await getDb().insert(feedInteractions).values({
       userId: interaction.userId,
@@ -165,11 +160,13 @@ export async function applyImpressionSignals(
   const [post] = await getDb()
     .select({ oxyUserId: posts.oxyUserId, isFederated: IS_FEDERATED })
     .from(posts)
-    .where(and(
-      eq(posts.id, postId),
-      eq(posts.visibility, PostVisibility.PUBLIC),
-      eq(posts.status, 'published'),
-    ))
+    .where(
+      and(
+        eq(posts.id, postId),
+        eq(posts.visibility, PostVisibility.PUBLIC),
+        eq(posts.status, 'published'),
+      ),
+    )
     .limit(1);
   if (!post) {
     return null;
@@ -200,7 +197,8 @@ export async function applyImpressionSignals(
   //    originating feed is forwarded as the attribution surface so a video-feed
   //    view is attributed to video content, not the author.
   const dwellMs = interaction.durationMs ?? 0;
-  const signal = dwellMs > 0 && dwellMs < MtnConfig.preferences.dwellSkipThresholdMs ? 'skip' : 'view';
+  const signal =
+    dwellMs > 0 && dwellMs < MtnConfig.preferences.dwellSkipThresholdMs ? 'skip' : 'view';
   // Online metric: the derived view/skip signal for this impression.
   recordInteractionSignal(signal, interaction.feedDescriptor);
   await userPreferenceService.recordInteraction(interaction.userId, postId, signal, {

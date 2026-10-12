@@ -14,21 +14,21 @@ export enum NotificationType {
   SYSTEM = 'system',
   SECURITY = 'security',
   TRENDING = 'trending',
-  RECOMMENDATION = 'recommendation'
+  RECOMMENDATION = 'recommendation',
 }
 
 export enum NotificationPriority {
   LOW = 'low',
   NORMAL = 'normal',
   HIGH = 'high',
-  URGENT = 'urgent'
+  URGENT = 'urgent',
 }
 
 export enum NotificationStatus {
   UNREAD = 'unread',
   READ = 'read',
   ARCHIVED = 'archived',
-  DELETED = 'deleted'
+  DELETED = 'deleted',
 }
 
 export interface Notification {
@@ -166,12 +166,15 @@ export interface NotificationPreferences {
   push: boolean;
   sms: boolean;
   inApp: boolean;
-  byType: Record<NotificationType, {
-    email: boolean;
-    push: boolean;
-    sms: boolean;
-    inApp: boolean;
-  }>;
+  byType: Record<
+    NotificationType,
+    {
+      email: boolean;
+      push: boolean;
+      sms: boolean;
+      inApp: boolean;
+    }
+  >;
   quietHours: {
     enabled: boolean;
     startTime: string; // HH:mm format

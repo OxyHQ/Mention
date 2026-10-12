@@ -27,10 +27,31 @@ export function WritingTipsSheet({ onContinue, onLearnMore, onClose }: WritingTi
         </Text>
         <NoteTipList
           tips={[
-            { icon: RiEditLine, body: t('communityNotes.tips.context', { defaultValue: 'Add background for posts that might be misleading or confusing.' }) },
-            { icon: RiFileTextLine, body: t('communityNotes.tips.neutral', { defaultValue: 'Use language that is neutral, unbiased and easy to understand.' }) },
-            { icon: RiLinkM, body: t('communityNotes.tips.source', { defaultValue: 'Back up what you write with a link to a reliable source.' }) },
-            { icon: RiEyeOffLine, body: t('communityNotes.tips.anonymous', { defaultValue: "Community notes are anonymous. Nobody can see who wrote or rated a note." }) },
+            {
+              icon: RiEditLine,
+              body: t('communityNotes.tips.context', {
+                defaultValue: 'Add background for posts that might be misleading or confusing.',
+              }),
+            },
+            {
+              icon: RiFileTextLine,
+              body: t('communityNotes.tips.neutral', {
+                defaultValue: 'Use language that is neutral, unbiased and easy to understand.',
+              }),
+            },
+            {
+              icon: RiLinkM,
+              body: t('communityNotes.tips.source', {
+                defaultValue: 'Back up what you write with a link to a reliable source.',
+              }),
+            },
+            {
+              icon: RiEyeOffLine,
+              body: t('communityNotes.tips.anonymous', {
+                defaultValue:
+                  'Community notes are anonymous. Nobody can see who wrote or rated a note.',
+              }),
+            },
           ]}
         />
         <View className="gap-2">

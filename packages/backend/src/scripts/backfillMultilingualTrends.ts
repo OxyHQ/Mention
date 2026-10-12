@@ -31,7 +31,9 @@ export interface MultilingualTrendBackfillResult {
   membershipsInserted: number;
 }
 
-export async function backfillMultilingualTrends(dryRun = false): Promise<MultilingualTrendBackfillResult> {
+export async function backfillMultilingualTrends(
+  dryRun = false,
+): Promise<MultilingualTrendBackfillResult> {
   const postsResult = await rebaselineTrendTerms({ all: true, dryRun });
   let trendsScanned = 0;
   let trendsUpdated = 0;
@@ -60,12 +62,14 @@ export async function backfillMultilingualTrends(dryRun = false): Promise<Multil
 
       if (!dryRun) {
         await getDb().update(trending).set(patch).where(eq(trending.id, row.id));
-        membershipsInserted += await saveStoryMemberships([{
-          id: row.id,
-          name: row.name,
-          terms: row.terms?.length ? row.terms : [row.name],
-          calculatedAt: row.calculatedAt,
-        }]);
+        membershipsInserted += await saveStoryMemberships([
+          {
+            id: row.id,
+            name: row.name,
+            terms: row.terms?.length ? row.terms : [row.name],
+            calculatedAt: row.calculatedAt,
+          },
+        ]);
       }
       trendsUpdated += 1;
     }
@@ -105,5 +109,7 @@ async function main(): Promise<void> {
 }
 
 if (require.main === module) {
-  main().then(() => process.exit(0)).catch(() => process.exit(1));
+  main()
+    .then(() => process.exit(0))
+    .catch(() => process.exit(1));
 }

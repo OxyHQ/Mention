@@ -69,7 +69,8 @@ export function SuggestedProfileCard({
         onPress={press}
         disabled={!press}
         accessibilityRole={press ? 'link' : undefined}
-        className="flex-1 items-center gap-2">
+        className="flex-1 items-center gap-2"
+      >
         <Avatar
           source={resolved.avatar || undefined}
           size={AVATAR_SIZE}
@@ -91,7 +92,8 @@ export function SuggestedProfileCard({
         <Text
           className="text-muted-foreground text-center text-[13px]"
           style={styles.bio}
-          numberOfLines={BIO_LINES}>
+          numberOfLines={BIO_LINES}
+        >
           {bio ?? ''}
         </Text>
       </PressableScale>
@@ -118,7 +120,9 @@ export function SuggestedProfileCardSkeleton() {
         <Skeleton.Circle size={AVATAR_SIZE} />
         <Skeleton.Text style={[IDENTITY_STYLE.name, { width: 110 }]} />
         <Skeleton.Text style={[IDENTITY_STYLE.handle, { width: 80 }]} />
-        <Skeleton.Col style={{ gap: 0, alignItems: 'center', minHeight: BIO_LINES * BIO_LINE_HEIGHT }}>
+        <Skeleton.Col
+          style={{ gap: 0, alignItems: 'center', minHeight: BIO_LINES * BIO_LINE_HEIGHT }}
+        >
           <Skeleton.Text style={{ width: 130, fontSize: 13, lineHeight: BIO_LINE_HEIGHT }} />
           <Skeleton.Text style={{ width: 90, fontSize: 13, lineHeight: BIO_LINE_HEIGHT }} />
         </Skeleton.Col>

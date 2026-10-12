@@ -36,7 +36,7 @@ function makeAxiosError(options: {
           data: options.data,
           headers: {},
           config: config as never,
-        }
+        },
   );
   return error;
 }
@@ -59,7 +59,10 @@ describe('normalizeApiError', () => {
   });
 
   it('reads a server `code` field when present', () => {
-    const err = makeAxiosError({ status: 429, data: { code: 'RATE_LIMITED', message: 'Slow down' } });
+    const err = makeAxiosError({
+      status: 429,
+      data: { code: 'RATE_LIMITED', message: 'Slow down' },
+    });
     const result = normalizeApiError(err);
     expect(result.status).toBe(429);
     expect(result.code).toBe('RATE_LIMITED');
@@ -127,7 +130,9 @@ describe('normalizeApiError', () => {
 
 describe('getErrorMessage', () => {
   it('prefers the server `error` field, then `message`, from a response body', () => {
-    expect(getErrorMessage({ response: { data: { error: 'Too long' } } }, 'fallback')).toBe('Too long');
+    expect(getErrorMessage({ response: { data: { error: 'Too long' } } }, 'fallback')).toBe(
+      'Too long',
+    );
     expect(getErrorMessage({ response: { data: { message: 'Nope' } } }, 'fallback')).toBe('Nope');
   });
 
@@ -182,7 +187,11 @@ describe('classifyApiError', () => {
 describe('isNotFoundError / isUnauthorizedError', () => {
   it('read the status wherever normalizeApiError finds it', () => {
     expect(isNotFoundError(Object.assign(new Error('x'), { status: 404 }))).toBe(true);
-    expect(isNotFoundError(new Error('wrapped', { cause: Object.assign(new Error('x'), { status: 404 }) }))).toBe(true);
+    expect(
+      isNotFoundError(
+        new Error('wrapped', { cause: Object.assign(new Error('x'), { status: 404 }) }),
+      ),
+    ).toBe(true);
     expect(isNotFoundError(Object.assign(new Error('x'), { status: 502 }))).toBe(false);
     expect(isUnauthorizedError(Object.assign(new Error('x'), { status: 401 }))).toBe(true);
     expect(isUnauthorizedError('boom')).toBe(false);

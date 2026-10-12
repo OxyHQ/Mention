@@ -20,41 +20,72 @@ jest.mock('react-i18next', () => ({
       (options?.defaultValue ?? _key).replace('{{count}}', String(options?.count ?? '')),
   }),
 }));
-jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: { text: '#000', textSecondary: '#666' } }) }));
+jest.mock('@oxy.so/bloom/theme', () => ({
+  useTheme: () => ({ colors: { text: '#000', textSecondary: '#666' } }),
+}));
 jest.mock('@oxy.so/bloom/icons', () => new Proxy({}, { get: () => () => null }));
 jest.mock('@oxy.so/bloom/button', () => {
   const RN = jest.requireActual<typeof import('react-native')>('react-native');
   const R = jest.requireActual<typeof import('react')>('react');
   return {
-    Button: ({ children, onPress, disabled }: { children?: React.ReactNode; onPress?: () => void; disabled?: boolean }) =>
-      R.createElement(RN.Pressable, { onPress, disabled, accessibilityRole: 'button', testID: 'bloom-button' }, R.createElement(RN.Text, null, children)),
+    Button: ({
+      children,
+      onPress,
+      disabled,
+    }: {
+      children?: React.ReactNode;
+      onPress?: () => void;
+      disabled?: boolean;
+    }) =>
+      R.createElement(
+        RN.Pressable,
+        { onPress, disabled, accessibilityRole: 'button', testID: 'bloom-button' },
+        R.createElement(RN.Text, null, children),
+      ),
   };
 });
 jest.mock('@oxy.so/bloom/checkbox', () => {
   const RN = jest.requireActual<typeof import('react-native')>('react-native');
   const R = jest.requireActual<typeof import('react')>('react');
   return {
-    Checkbox: ({ label, checked, onCheckedChange }: { label: string; checked: boolean; onCheckedChange: (v: boolean) => void }) =>
-      R.createElement(RN.Pressable, { testID: `reason-${label}`, onPress: () => onCheckedChange(!checked) }, R.createElement(RN.Text, null, label)),
+    Checkbox: ({
+      label,
+      checked,
+      onCheckedChange,
+    }: {
+      label: string;
+      checked: boolean;
+      onCheckedChange: (v: boolean) => void;
+    }) =>
+      R.createElement(
+        RN.Pressable,
+        { testID: `reason-${label}`, onPress: () => onCheckedChange(!checked) },
+        R.createElement(RN.Text, null, label),
+      ),
   };
 });
 jest.mock('@oxy.so/bloom/textarea', () => {
   const RN = jest.requireActual<typeof import('react-native')>('react-native');
   const R = jest.requireActual<typeof import('react')>('react');
-  return { Textarea: (props: { value: string; onChangeText: (v: string) => void }) => R.createElement(RN.TextInput, { testID: 'note-text', ...props }) };
+  return {
+    Textarea: (props: { value: string; onChangeText: (v: string) => void }) =>
+      R.createElement(RN.TextInput, { testID: 'note-text', ...props }),
+  };
 });
 jest.mock('@oxy.so/bloom/text-field', () => {
   const RN = jest.requireActual<typeof import('react-native')>('react-native');
   const R = jest.requireActual<typeof import('react')>('react');
   return {
-    TextField: ({ children }: { children?: React.ReactNode }) => R.createElement(RN.View, null, children),
-    TextFieldInput: (props: { value: string; onChangeText: (v: string) => void }) => R.createElement(RN.TextInput, { testID: 'note-source', ...props }),
-    TextFieldHint: ({ children }: { children?: React.ReactNode }) => R.createElement(RN.Text, null, children),
+    TextField: ({ children }: { children?: React.ReactNode }) =>
+      R.createElement(RN.View, null, children),
+    TextFieldInput: (props: { value: string; onChangeText: (v: string) => void }) =>
+      R.createElement(RN.TextInput, { testID: 'note-source', ...props }),
+    TextFieldHint: ({ children }: { children?: React.ReactNode }) =>
+      R.createElement(RN.Text, null, children),
   };
 });
 jest.mock('@/components/Feed/PostItem', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/utils/openExternalLink', () => ({ openExternalLink: jest.fn() }));
-
 
 const note = (overrides: Partial<CommunityNoteSummary> = {}): CommunityNoteSummary => ({
   id: 'note-1',
@@ -70,7 +101,9 @@ const texts = (tree: TestRenderer.ReactTestRenderer) =>
 
 /** The mocked Bloom buttons, in render order (the sheet header's close button comes first). */
 const bloomButtons = (tree: TestRenderer.ReactTestRenderer) =>
-  tree.root.findAllByType(jest.requireMock<{ Button: React.ComponentType }>('@oxy.so/bloom/button').Button);
+  tree.root.findAllByType(
+    jest.requireMock<{ Button: React.ComponentType }>('@oxy.so/bloom/button').Button,
+  );
 
 const lastButton = (tree: TestRenderer.ReactTestRenderer) => {
   const button = bloomButtons(tree).at(-1);
@@ -92,7 +125,9 @@ beforeAll(() => {
 
 describe('CommunityNoteCard', () => {
   it('collapses a long note under a post and offers to show more', () => {
-    const tree = render(<CommunityNoteCard note={note({ text: 'x'.repeat(300) })} onPressAbout={() => {}} />);
+    const tree = render(
+      <CommunityNoteCard note={note({ text: 'x'.repeat(300) })} onPressAbout={() => {}} />,
+    );
     expect(texts(tree)).toContain('Show more');
     expect(texts(tree)).toContain('About this note');
   });
@@ -110,7 +145,9 @@ describe('CommunityNoteCard', () => {
     const readOnly = render(<CommunityNoteCard note={note()} variant="rate" />);
     expect(texts(readOnly)).not.toContain('Helpful');
 
-    const alreadyRated = render(<CommunityNoteCard note={note({ viewerRating: 'helpful' })} variant="rate" onRate={onRate} />);
+    const alreadyRated = render(
+      <CommunityNoteCard note={note({ viewerRating: 'helpful' })} variant="rate" onRate={onRate} />,
+    );
     expect(texts(alreadyRated)).toContain('You rated this note helpful');
     expect(texts(alreadyRated)).not.toContain('Helpful');
   });
@@ -132,8 +169,12 @@ describe('RateNoteSheet', () => {
   });
 
   it('asks why NOT helpful with the not-helpful reasons', () => {
-    const tree = render(<RateNoteSheet rating="not_helpful" onSubmit={() => {}} onClose={() => {}} />);
-    expect(texts(tree)).toEqual(expect.arrayContaining(['Why is the community note not helpful?', 'Incorrect information']));
+    const tree = render(
+      <RateNoteSheet rating="not_helpful" onSubmit={() => {}} onClose={() => {}} />,
+    );
+    expect(texts(tree)).toEqual(
+      expect.arrayContaining(['Why is the community note not helpful?', 'Incorrect information']),
+    );
   });
 });
 
@@ -146,14 +187,23 @@ describe('WriteNoteSheet', () => {
     const tree = render(<WriteNoteSheet post={post} onSubmit={onSubmit} onClose={() => {}} />);
     expect(submit(tree).props.disabled).toBe(true);
 
-    act(() => tree.root.findByProps({ testID: 'note-text' }).props.onChangeText('  Real context.  '));
+    act(() =>
+      tree.root.findByProps({ testID: 'note-text' }).props.onChangeText('  Real context.  '),
+    );
     expect(submit(tree).props.disabled).toBe(false);
 
     act(() => tree.root.findByProps({ testID: 'note-source' }).props.onChangeText('not a link'));
     expect(submit(tree).props.disabled).toBe(true);
 
-    act(() => tree.root.findByProps({ testID: 'note-source' }).props.onChangeText('https://example.com/source'));
+    act(() =>
+      tree.root
+        .findByProps({ testID: 'note-source' })
+        .props.onChangeText('https://example.com/source'),
+    );
     act(() => submit(tree).props.onPress());
-    expect(onSubmit).toHaveBeenCalledWith({ text: 'Real context.', sourceUrl: 'https://example.com/source' });
+    expect(onSubmit).toHaveBeenCalledWith({
+      text: 'Real context.',
+      sourceUrl: 'https://example.com/source',
+    });
   });
 });

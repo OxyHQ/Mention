@@ -1,10 +1,10 @@
-import rateLimit from "express-rate-limit";
-import slowDown from "express-slow-down";
-import type { RequestHandler } from "express";
-import { Request } from "express";
+import rateLimit from 'express-rate-limit';
+import slowDown from 'express-slow-down';
+import type { RequestHandler } from 'express';
+import { Request } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { RedisStore } from "./rateLimitStore";
-import { hashedIpKey } from "../utils/ipKey";
+import { RedisStore } from './rateLimitStore';
+import { hashedIpKey } from '../utils/ipKey';
 import { getValidatedFeedSource, isExpensiveFeedRequest } from './feedThrottleDescriptor';
 
 // Realistic thresholds for global slow-down. The shared global rate limiter is
@@ -33,7 +33,11 @@ function generateRateLimitKey(req: Request, prefix: string): string {
 /**
  * Get rate limit max value based on authentication status
  */
-function getRateLimitMax(req: Request, authenticatedLimit: number, unauthenticatedLimit: number): number {
+function getRateLimitMax(
+  req: Request,
+  authenticatedLimit: number,
+  unauthenticatedLimit: number,
+): number {
   const authReq = req as AuthRequest;
   return authReq.user?.id ? authenticatedLimit : unauthenticatedLimit;
 }
@@ -69,7 +73,8 @@ function isRateLimitExempt(req: Request): boolean {
 // threshold and shares the same exemption predicate.
 const bruteForceProtection: RequestHandler = slowDown({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  delayAfter: (req: Request) => getRateLimitMax(req, AUTHENTICATED_LIMIT_PER_WINDOW, UNAUTHENTICATED_LIMIT_PER_WINDOW),
+  delayAfter: (req: Request) =>
+    getRateLimitMax(req, AUTHENTICATED_LIMIT_PER_WINDOW, UNAUTHENTICATED_LIMIT_PER_WINDOW),
   delayMs: () => 500, // add 500ms delay per request above limit
   // Key per-user (fallback to IP) for the same reason as the rate limiter:
   // shared ALB IPs must not lump distinct authenticated users together.
@@ -78,9 +83,9 @@ const bruteForceProtection: RequestHandler = slowDown({
 });
 
 // Rate limiter for feed endpoints (per user: 100 requests/minute)
-const feedStore = new RedisStore({ 
+const feedStore = new RedisStore({
   prefix: 'rate-limit:feed:',
-  windowMs: 60 * 1000 // 1 minute
+  windowMs: 60 * 1000, // 1 minute
 });
 export const feedRateLimiter = rateLimit({
   store: feedStore,
@@ -98,22 +103,22 @@ export const feedRateLimiter = rateLimit({
     }
     return hashedIpKey(req);
   },
-  message: "Too many feed requests. Please slow down.",
+  message: 'Too many feed requests. Please slow down.',
   standardHeaders: true,
   legacyHeaders: false,
 });
 
 // Rate limiter for feed endpoints (per IP: 10 requests/second)
-const feedIPStore = new RedisStore({ 
+const feedIPStore = new RedisStore({
   prefix: 'rate-limit:feed-ip:',
-  windowMs: 1000 // 1 second
+  windowMs: 1000, // 1 second
 });
 export const feedIPRateLimiter = rateLimit({
   store: feedIPStore,
   windowMs: 1000, // 1 second
   max: 10, // 10 requests per second per IP
   keyGenerator: (req: Request) => hashedIpKey(req),
-  message: "Too many requests from this IP. Please slow down.",
+  message: 'Too many requests from this IP. Please slow down.',
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -184,7 +189,7 @@ export const postWriteRateLimiter = rateLimit({
 /**
  * Rate limiter for the statistics/insights router.
  *
- * EVERY handler there reaches Mongo, so the whole router is the
+ * EVERY handler there reaches the database, so the whole router is the
  * `js/missing-rate-limiting` surface, not just the one route CodeQL's dataflow
  * happened to reach: `getPostInsights` runs three parallel `countDocuments`, the
  * public per-day heatmap aggregates a caller-chosen window of up to 366 days,
@@ -518,7 +523,7 @@ export const channelDeletionRateLimiter = rateLimit({
  * Rate limiter for `POST /statistics/post/:postId/view`.
  *
  * The only WRITE on the statistics router, and the only route there that reaches
- * Mongo on every single call: a counted view is a `findOneAndUpdate`, and a view
+ * the database on every single call: a counted view is an upsert, and a view
  * the dedupe window rejects still costs the read-back that produces the response.
  * Unbounded, that is one DB round trip per request for as fast as a caller can
  * issue them.
@@ -575,9 +580,9 @@ export const searchRateLimiter = rateLimit({
 });
 
 // Request throttling for expensive feed operations (For You feed with ranking)
-const feedThrottleStore = new RedisStore({ 
+const feedThrottleStore = new RedisStore({
   prefix: 'rate-limit:feed-throttle:',
-  windowMs: 60 * 1000 // 1 minute
+  windowMs: 60 * 1000, // 1 minute
 });
 export const feedThrottle: RequestHandler = slowDown({
   store: feedThrottleStore,
@@ -602,7 +607,7 @@ export const feedThrottle: RequestHandler = slowDown({
   skip: (req: Request) => {
     // Don't throttle simple feed types
     return !isExpensiveFeedRequest(req);
-  }
+  },
 });
 
 export { bruteForceProtection };

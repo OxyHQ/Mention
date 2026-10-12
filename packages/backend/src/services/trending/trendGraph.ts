@@ -87,16 +87,19 @@ export function buildTrendGraph(
     .filter((pair) => keptTerms.has(pair.a) && keptTerms.has(pair.b))
     .sort((left, right) => {
       const byPosts = right.posts - left.posts;
-      return byPosts !== 0 ? byPosts : edgeKey(left.a, left.b).localeCompare(edgeKey(right.a, right.b));
+      return byPosts !== 0
+        ? byPosts
+        : edgeKey(left.a, left.b).localeCompare(edgeKey(right.a, right.b));
     });
 
   const edges: TrendGraphEdgeDTO[] = candidateEdges.slice(0, MAX_EDGES).map((pair) => {
     const [a, b] = pair.a <= pair.b ? [pair.a, pair.b] : [pair.b, pair.a];
     const volumeA = candidates.find((candidate) => candidate.term === pair.a)?.volume ?? 0;
     const volumeB = candidates.find((candidate) => candidate.term === pair.b)?.volume ?? 0;
-    const strength = pair.reason === 'canonical-alias'
-      ? 1
-      : pair.posts / Math.sqrt(Math.max(1, volumeA * volumeB));
+    const strength =
+      pair.reason === 'canonical-alias'
+        ? 1
+        : pair.posts / Math.sqrt(Math.max(1, volumeA * volumeB));
     return {
       a,
       b,
@@ -146,8 +149,7 @@ export async function saveTrendGraph(graph: TrendGraphSnapshot | null): Promise<
 
   try {
     // `onConflictDoUpdate` on `calculated_at`, which is the table's UNIQUE key
-    // and the batch's identity — the direct analogue of the Mongo upsert, and
-    // what makes a retried batch replace its own graph rather than collide with
+    // and the batch's identity — an upsert, which is what makes a retried batch replace its own graph rather than collide with
     // it. `dropped_edges` is set on BOTH paths, including back to NULL when a
     // retry truncated nothing: leaving the previous value would say the stored
     // graph is incomplete when it is now whole.

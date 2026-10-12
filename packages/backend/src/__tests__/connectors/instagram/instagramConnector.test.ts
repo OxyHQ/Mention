@@ -28,7 +28,12 @@ vi.mock('../../../config', async (importOriginal) => {
     ...actual,
     config: {
       ...actual.config,
-      instagramGraph: { enabled: true, businessAccountId: '17841400000000000', apiVersion: 'v23.0', followBackfillLimit: 50 },
+      instagramGraph: {
+        enabled: true,
+        businessAccountId: '17841400000000000',
+        apiVersion: 'v23.0',
+        followBackfillLimit: 50,
+      },
     },
     getMetaGraphAccessToken: () => 'test-token',
   };
@@ -51,7 +56,9 @@ vi.mock('../../../db/posts/postRepository', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../db/posts/postRepository')>()),
   findPostRecords: h.findPostRecords,
 }));
-vi.mock('../../../services/ActorIdentityProjectionService', () => ({ reconcileActorIdentityProjection: h.reconcile }));
+vi.mock('../../../services/ActorIdentityProjectionService', () => ({
+  reconcileActorIdentityProjection: h.reconcile,
+}));
 vi.mock('../../../services/userSummaryCache', () => ({ invalidate: vi.fn() }));
 vi.mock('../../../connectors/instagram/sync', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../connectors/instagram/sync')>()),
@@ -121,7 +128,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   config.instagramGraph.enabled = true;
   h.reconcile.mockResolvedValue({});
-  h.upsertActor.mockImplementation(async (uri: string, columns: Record<string, unknown>) => ({ id: 'row-g', uri, ...columns }));
+  h.upsertActor.mockImplementation(async (uri: string, columns: Record<string, unknown>) => ({
+    id: 'row-g',
+    uri,
+    ...columns,
+  }));
   h.findPostRecords.mockResolvedValue([]);
 });
 
@@ -135,7 +146,12 @@ describe('routing instagram-graph URIs', () => {
   });
 
   it('goes to the Instagram connector whatever the registration order — even behind a greedy connector', () => {
-    const greedy = { ...activityPubConnector, id: 'activitypub' as const, enabled: true, matches: () => true };
+    const greedy = {
+      ...activityPubConnector,
+      id: 'activitypub' as const,
+      enabled: true,
+      matches: () => true,
+    };
     const registry = new ConnectorRegistry([greedy, atprotoConnector, instagramGraphConnector]);
     expect(registry.connectorFor(GRAPH_ACTOR)?.id).toBe('instagram-graph');
     expect(registry.connectorFor(KILOGRAM_ACTOR)?.id).toBe('activitypub');
@@ -170,7 +186,8 @@ describe('parsing an instagram-graph identity from Oxy (@oxy.so/contracts 4)', (
     h.serviceRequest.mockResolvedValue(graphIdentity());
     await resolveOxyIdentity({ actorUri: GRAPH_ACTOR, protocol: 'instagram-graph' });
     expect(h.serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
-      actorUri: GRAPH_ACTOR, protocol: 'instagram-graph',
+      actorUri: GRAPH_ACTOR,
+      protocol: 'instagram-graph',
     });
   });
 });
@@ -187,19 +204,29 @@ describe('caching an instagram-graph actor', () => {
       oxyUserId: 'oxy-zuck',
       bio: 'I build stuff',
     });
-    expect(h.upsertActor).toHaveBeenCalledWith(GRAPH_ACTOR, expect.objectContaining({
-      protocol: 'instagram-graph',
-      username: 'zuck',
-      domain: 'instagram.com',
-      acct: 'zuck@instagram.com',
+    expect(h.upsertActor).toHaveBeenCalledWith(
+      GRAPH_ACTOR,
+      expect.objectContaining({
+        protocol: 'instagram-graph',
+        username: 'zuck',
+        domain: 'instagram.com',
+        acct: 'zuck@instagram.com',
+        networkAcct: 'zuck@instagram.com',
+      }),
+      [],
+    );
+    expect(h.reconcile).toHaveBeenCalledWith({
+      actorUri: GRAPH_ACTOR,
+      oxyUserId: 'oxy-zuck',
       networkAcct: 'zuck@instagram.com',
-    }), []);
-    expect(h.reconcile).toHaveBeenCalledWith({ actorUri: GRAPH_ACTOR, oxyUserId: 'oxy-zuck', networkAcct: 'zuck@instagram.com' });
+    });
   });
 
   it('resolves through /federation/resolve end to end', async () => {
     h.serviceRequest.mockResolvedValue(graphIdentity());
-    const res = await request(app).get('/federation/resolve').query({ handle: 'https://www.instagram.com/zuck/' });
+    const res = await request(app)
+      .get('/federation/resolve')
+      .query({ handle: 'https://www.instagram.com/zuck/' });
 
     expect(res.status).toBe(200);
     expect(res.body.actor).toMatchObject({
@@ -216,17 +243,24 @@ describe('/federation/actor/posts on an empty Instagram profile', () => {
     h.findActorByUri.mockResolvedValue(actorRow());
     const res = await request(app).get('/federation/actor/posts').query({ uri: KILOGRAM_ACTOR });
     expect(res.body).toMatchObject({ posts: [], syncing: true });
-    expect(h.syncInBackground).toHaveBeenCalledWith(expect.objectContaining({ uri: KILOGRAM_ACTOR }), 'profile_view');
+    expect(h.syncInBackground).toHaveBeenCalledWith(
+      expect.objectContaining({ uri: KILOGRAM_ACTOR }),
+      'profile_view',
+    );
   });
 
   it('stops reporting syncing once a sync has finished — no flicker', async () => {
-    h.findActorByUri.mockResolvedValue(actorRow({ instagramGraphSyncedAt: new Date(Date.now() - 86_400_000) }));
+    h.findActorByUri.mockResolvedValue(
+      actorRow({ instagramGraphSyncedAt: new Date(Date.now() - 86_400_000) }),
+    );
     const res = await request(app).get('/federation/actor/posts').query({ uri: KILOGRAM_ACTOR });
     expect(res.body).toMatchObject({ posts: [], syncing: false });
   });
 
   it('accepts an instagram-graph actor URI', async () => {
-    h.findActorByUri.mockResolvedValue(actorRow({ protocol: 'instagram-graph', uri: GRAPH_ACTOR, outboxUrl: undefined }));
+    h.findActorByUri.mockResolvedValue(
+      actorRow({ protocol: 'instagram-graph', uri: GRAPH_ACTOR, outboxUrl: undefined }),
+    );
     const res = await request(app).get('/federation/actor/posts').query({ uri: GRAPH_ACTOR });
     expect(res.status).toBe(200);
     expect(res.body.syncing).toBe(true);

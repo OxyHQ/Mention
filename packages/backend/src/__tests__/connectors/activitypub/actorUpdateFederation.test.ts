@@ -77,7 +77,8 @@ function deliveredInboxes(): string[] {
 
 /** The activity enqueued. */
 function deliveredActivity(): Record<string, unknown> {
-  return (enqueueDelivery.mock.calls[0]?.[0] as { activityJson: Record<string, unknown> }).activityJson;
+  return (enqueueDelivery.mock.calls[0]?.[0] as { activityJson: Record<string, unknown> })
+    .activityJson;
 }
 
 const scope = federationScope('actor-update-federation');
@@ -102,7 +103,7 @@ beforeEach(async () => {
     createdAt: '2020-01-01T00:00:00.000Z',
   });
   getPublicKey.mockResolvedValue({ keyId: `${ALICE_ACTOR}#main-key`, publicKeyPem: 'PEM' });
-  // A REAL `user_settings` row. The banner used to come from a Mongoose model
+  // A REAL `user_settings` row. The banner used to come from a legacy-ODM model
   // nothing writes since settings moved to Postgres, so the broadcast carried no
   // `image` in production while this test asserted one.
   await getDb()

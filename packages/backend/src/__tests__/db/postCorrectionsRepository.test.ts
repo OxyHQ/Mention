@@ -46,10 +46,7 @@ let db: Database;
 const createdPostIds: string[] = [];
 
 async function createPost(): Promise<string> {
-  const [row] = await db
-    .insert(posts)
-    .values({ oxyUserId: CHANNEL })
-    .returning({ id: posts.id });
+  const [row] = await db.insert(posts).values({ oxyUserId: CHANNEL }).returning({ id: posts.id });
   createdPostIds.push(row.id);
   return row.id;
 }
@@ -247,7 +244,10 @@ describe('retention', () => {
     // numbers say so: 1, then a gap, then an unbroken tail to the newest.
     expect(retained.map((entry) => entry.revision)).toEqual([
       1,
-      ...Array.from({ length: MAX_RETAINED_POST_CORRECTIONS - 1 }, (_, i) => total - (MAX_RETAINED_POST_CORRECTIONS - 2) + i),
+      ...Array.from(
+        { length: MAX_RETAINED_POST_CORRECTIONS - 1 },
+        (_, i) => total - (MAX_RETAINED_POST_CORRECTIONS - 2) + i,
+      ),
     ]);
     expect(retained[1].revision).toBeGreaterThan(2);
   });

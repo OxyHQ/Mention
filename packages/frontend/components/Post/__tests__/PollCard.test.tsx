@@ -75,10 +75,15 @@ function poll(overrides: Partial<PollDetail> = {}): PollDetail {
   };
 }
 
-async function render(element: React.ReactElement, client = new QueryClient()): Promise<ReactTestRenderer> {
+async function render(
+  element: React.ReactElement,
+  client = new QueryClient(),
+): Promise<ReactTestRenderer> {
   let renderer!: ReactTestRenderer;
   await TestRenderer.act(async () => {
-    renderer = TestRenderer.create(<QueryClientProvider client={client}>{element}</QueryClientProvider>);
+    renderer = TestRenderer.create(
+      <QueryClientProvider client={client}>{element}</QueryClientProvider>,
+    );
   });
   // The poll arrives through React Query; let its fetch resolve and commit.
   await TestRenderer.act(async () => {
@@ -90,7 +95,9 @@ async function render(element: React.ReactElement, client = new QueryClient()): 
 function textOf(renderer: ReactTestRenderer): string {
   return renderer.root
     .findAllByType(Text)
-    .map((node) => (Array.isArray(node.props.children) ? node.props.children.join('') : node.props.children))
+    .map((node) =>
+      Array.isArray(node.props.children) ? node.props.children.join('') : node.props.children,
+    )
     .join(' | ');
 }
 
@@ -134,7 +141,7 @@ describe('PollCard — an anonymous poll with votes renders without throwing', (
     expect(textOf(renderer)).toContain('100%');
   });
 
-  it('many votes across both options, including the viewer\'s own', async () => {
+  it("many votes across both options, including the viewer's own", async () => {
     mockGetPoll.mockResolvedValue({
       success: true,
       data: poll({
@@ -150,10 +157,9 @@ describe('PollCard — an anonymous poll with votes renders without throwing', (
 
     expect(textOf(renderer)).toContain('10 votes');
     // The viewer already voted (single-choice), so every option is disabled.
-    const options = renderer.root.findAll(
-      (node) => typeof node.props?.disabled === 'boolean',
-      { deep: true },
-    );
+    const options = renderer.root.findAll((node) => typeof node.props?.disabled === 'boolean', {
+      deep: true,
+    });
     expect(options.every((node) => node.props.disabled === true)).toBe(true);
   });
 });

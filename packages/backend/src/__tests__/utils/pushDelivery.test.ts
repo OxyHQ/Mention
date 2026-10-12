@@ -140,9 +140,10 @@ describe('sendPushToUser', () => {
     mocks.sendEachForMulticast.mockImplementation(async (message: { tokens: string[] }) => ({
       responses: message.tokens.map((token) => ({
         success: token !== dead,
-        error: token === dead
-          ? { errorInfo: { code: 'messaging/registration-token-not-registered' } }
-          : undefined,
+        error:
+          token === dead
+            ? { errorInfo: { code: 'messaging/registration-token-not-registered' } }
+            : undefined,
       })),
     }));
 

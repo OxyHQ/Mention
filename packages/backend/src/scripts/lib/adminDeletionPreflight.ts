@@ -46,7 +46,12 @@ import {
   mentionSignedRecords,
   mentionUserNodes,
 } from '../../db/schema/mtn';
-import { contentLabels, labelers, moderationEnforcements, reports } from '../../db/schema/moderation';
+import {
+  contentLabels,
+  labelers,
+  moderationEnforcements,
+  reports,
+} from '../../db/schema/moderation';
 import { endorsementOutbox, engagementOutbox } from '../../db/schema/outbox';
 import { pollVotes, polls } from '../../db/schema/polls';
 import {
@@ -82,16 +87,14 @@ export interface PostDeletionTarget {
  * Whether ANY row of `table` matches `where` — the Postgres analogue of
  * `Model.exists`, and the only shape a reference probe needs.
  *
- * EVERY probe in this file goes through this or `postExists`. That is the whole
- * repair: each probe used to ask a Mongoose model whose collection moved to
- * Postgres in an earlier batch and which nothing has written since, so it
- * answered "no reference" for every input — the preflight cleared EVERY
- * deletion, silently, in the permissive direction. A gate that fails open is
- * worse than an absent one, because the operator believes it ran.
+ * EVERY probe in this file goes through this or `postExists`, against the live
+ * tables. A probe that asked a store nothing writes would answer "no reference"
+ * for every input — the preflight would clear EVERY deletion, silently, in the
+ * permissive direction. A gate that fails open is worse than an absent one,
+ * because the operator believes it ran.
  *
- * It surfaced only because post ids became uuid v7 and several Mongoose paths
- * are typed `ObjectId`, which turned the silence into a CastError. The columns
- * here are all `text`, so they hold either id space.
+ * The columns here are all `text`, so they hold either id space (legacy 24-hex
+ * and uuid v7).
  */
 async function anyRow(
   table: PgTable,
@@ -142,10 +145,7 @@ export async function collectReferenceBlockers(
   return results.filter((result) => result.found).map((result) => result.name);
 }
 
-export function assertNoDeletionBlockers(
-  context: string,
-  blockers: readonly string[],
-): void {
+export function assertNoDeletionBlockers(context: string, blockers: readonly string[]): void {
   if (blockers.length > 0) {
     throw new DeletionPreflightError(context, blockers);
   }
@@ -253,10 +253,7 @@ function buildPostReferenceProbes(
   targets: readonly PostDeletionTarget[],
 ): Record<PostReferenceProbeName, () => Promise<boolean>> {
   const idStrings = unique(targets.map((target) => target.id));
-  const postKeys = unique([
-    ...idStrings,
-    ...targets.flatMap((target) => target.uris ?? []),
-  ]);
+  const postKeys = unique([...idStrings, ...targets.flatMap((target) => target.uris ?? [])]);
 
   return {
     'post_evaluations.post_id': () =>
@@ -315,8 +312,8 @@ function buildPostReferenceProbes(
     'federation_delivery_queue.activity_json': () => hasDeliveriesReferencingObjects(postKeys),
     // These two now carry a real `ON DELETE CASCADE` to `posts.id`, so the
     // reference cannot be left DANGLING — which makes the probe MORE
-    // load-bearing, not less. Under Mongo an unblocked delete left a visible
-    // orphan; under Postgres it destroys the engagement row silently. A caller's
+    // load-bearing, not less: an unblocked delete destroys the engagement row
+    // silently. A caller's
     // `removedByCascade` acknowledgement stays the only way past it.
     'likes.post_id': () => anyRow(likes, likes.id, inArray(likes.postId, idStrings)),
     'bookmarks.post_id': () =>
@@ -545,16 +542,12 @@ export function actorReferenceProbes(
             reports.id,
             or(
               eq(reports.reporter, oxyUserId),
-              and(
-                eq(reports.reportedType, 'user'),
-                eq(reports.reportedId, oxyUserId),
-              ),
+              and(eq(reports.reportedType, 'user'), eq(reports.reportedId, oxyUserId)),
             ),
           ),
       },
       {
-        // Mongo embedded the ballots in `options.votes`; they are their own
-        // table now, so the second arm is an EXISTS rather than a dotted path.
+        // Ballots are their own table, so the second arm is an EXISTS.
         name: 'polls.created_by/poll_votes.user_id',
         hasReference: () =>
           anyRow(
@@ -594,8 +587,8 @@ export function actorReferenceProbes(
           ),
       },
       {
-        // Mongo's third arm, `payload.postAuthorship.oxyUserId`, has NO column:
-        // that snapshot was dropped as reconstructible from `post_authorships`,
+        // `payload.postAuthorship.oxyUserId` has NO column: that snapshot is
+        // reconstructible from `post_authorships`,
         // which the `posts non-owner authorship` probe below already covers.
         name: 'engagement_outbox.payload actor/owner',
         hasReference: () =>
@@ -666,10 +659,7 @@ export function actorReferenceProbes(
             contentLabels.id,
             or(
               eq(contentLabels.createdBy, oxyUserId),
-              and(
-                eq(contentLabels.targetType, 'user'),
-                eq(contentLabels.targetId, oxyUserId),
-              ),
+              and(eq(contentLabels.targetType, 'user'), eq(contentLabels.targetId, oxyUserId)),
             ),
           ),
       },
@@ -875,15 +865,13 @@ export function actorReferenceProbes(
           anyRow(
             notifications,
             notifications.id,
-            or(
-              eq(notifications.recipientId, oxyUserId),
-              eq(notifications.actorId, oxyUserId),
-            ),
+            or(eq(notifications.recipientId, oxyUserId), eq(notifications.actorId, oxyUserId)),
           ),
       },
       {
         name: 'user_settings.oxy_user_id',
-        hasReference: () => anyRow(userSettings, userSettings.id, eq(userSettings.oxyUserId, oxyUserId)),
+        hasReference: () =>
+          anyRow(userSettings, userSettings.id, eq(userSettings.oxyUserId, oxyUserId)),
       },
       {
         name: 'user_behaviors.oxy_user_id',

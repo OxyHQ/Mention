@@ -31,20 +31,31 @@ const TRAILING_URL_RE = /\s*(https?:\/\/[^\s]+|www\.[^\s]+)\s*$/;
 /** In-feed truncation thresholds (chars) per the `postTextExpand` preference. */
 const PREVIEW_CHARS = { default: 280, more: 600, muchMore: 1200, all: Infinity } as const;
 
-const PostContentText: React.FC<Props> = ({ content, postId, previewChars, overrideText, linkPreviewUrls }) => {
+const PostContentText: React.FC<Props> = ({
+  content,
+  postId,
+  previewChars,
+  overrideText,
+  linkPreviewUrls,
+}) => {
   // No `useRouter()` / `useTranslation()` here: this renders on every row, and
   // both are only needed for a truncated body's suffix — the imperative router
   // navigates on press, and the one translated label is its own component
   // (#1103).
-  const postTextExpand = useAppearanceStore((s) => s.mySettings?.appearance?.postTextExpand) ?? 'default';
-  const postReadMoreAction = useAppearanceStore((s) => s.mySettings?.appearance?.postReadMoreAction) ?? 'openPost';
+  const postTextExpand =
+    useAppearanceStore((s) => s.mySettings?.appearance?.postTextExpand) ?? 'default';
+  const postReadMoreAction =
+    useAppearanceStore((s) => s.mySettings?.appearance?.postReadMoreAction) ?? 'openPost';
   const effectivePreviewChars = previewChars ?? PREVIEW_CHARS[postTextExpand];
   const resolvedText = typeof content === 'string' ? content : content?.text || '';
   const rawText = overrideText || resolvedText;
 
-  const textContent = linkPreviewUrls && linkPreviewUrls.length > 0
-    ? rawText.replace(TRAILING_URL_RE, (match: string, url: string) => linkPreviewUrls.includes(url) ? '' : match)
-    : rawText;
+  const textContent =
+    linkPreviewUrls && linkPreviewUrls.length > 0
+      ? rawText.replace(TRAILING_URL_RE, (match: string, url: string) =>
+          linkPreviewUrls.includes(url) ? '' : match,
+        )
+      : rawText;
 
   // Surfaces that never truncate (the focused post on a detail screen, the boost
   // screen) pass `previewChars={Infinity}`, which makes the hook a no-op — the
@@ -55,22 +66,23 @@ const PostContentText: React.FC<Props> = ({ content, postId, previewChars, overr
   const { displayText, isTruncated, isExpanded, toggle } = useExpandableText(
     textContent,
     effectivePreviewChars,
-    postReadMoreAction
+    postReadMoreAction,
   );
 
   if (!textContent) return null;
 
-  const suffix = isTruncated && postId ? (
-    postReadMoreAction === 'expandInline' ? (
-      <Text className="text-primary" onPress={toggle}>
-        {isExpanded ? <ShowLessLabel /> : ' Read more'}
-      </Text>
-    ) : (
-      <Text className="text-primary" onPress={() => router.push(`/p/${postId}`)}>
-        {' Read more'}
-      </Text>
-    )
-  ) : null;
+  const suffix =
+    isTruncated && postId ? (
+      postReadMoreAction === 'expandInline' ? (
+        <Text className="text-primary" onPress={toggle}>
+          {isExpanded ? <ShowLessLabel /> : ' Read more'}
+        </Text>
+      ) : (
+        <Text className="text-primary" onPress={() => router.push(`/p/${postId}`)}>
+          {' Read more'}
+        </Text>
+      )
+    ) : null;
 
   return (
     <LinkifiedText

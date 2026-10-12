@@ -169,8 +169,12 @@ beforeEach(() => {
 
 afterEach(async () => {
   vi.restoreAllMocks();
-  await getDb().delete(reports).where(like(reports.reporter, `${SCOPE_PREFIX}%`));
-  await getDb().delete(reports).where(like(reports.reportedId, `${SCOPE_PREFIX}%`));
+  await getDb()
+    .delete(reports)
+    .where(like(reports.reporter, `${SCOPE_PREFIX}%`));
+  await getDb()
+    .delete(reports)
+    .where(like(reports.reportedId, `${SCOPE_PREFIX}%`));
   await clearServiceScope(scope);
 });
 

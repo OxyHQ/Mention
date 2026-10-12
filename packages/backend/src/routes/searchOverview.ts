@@ -90,9 +90,17 @@ router.get('/overview', async (req: AuthRequest, res: Response) => {
       '',
       [],
       // Total, so the client can read every key.
-      ([
-        'profiles', 'posts', 'hashtags', 'lists', 'feeds', 'starterPacks', 'saved',
-      ] as SearchLaneName[]).map((name) => ({ name, status: 'skipped' as const })),
+      (
+        [
+          'profiles',
+          'posts',
+          'hashtags',
+          'lists',
+          'feeds',
+          'starterPacks',
+          'saved',
+        ] as SearchLaneName[]
+      ).map((name) => ({ name, status: 'skipped' as const })),
     );
     res.json(empty);
     return;
@@ -147,7 +155,11 @@ router.get('/overview', async (req: AuthRequest, res: Response) => {
     const lanes: LaneDefinition[] = [
       { name: 'hashtags', budgetMs: LANE_BUDGET_MS, run: async () => (await shared).hashtags },
       { name: 'feeds', budgetMs: LANE_BUDGET_MS, run: async () => (await shared).feeds },
-      { name: 'starterPacks', budgetMs: LANE_BUDGET_MS, run: async () => (await shared).starterPacks },
+      {
+        name: 'starterPacks',
+        budgetMs: LANE_BUDGET_MS,
+        run: async () => (await shared).starterPacks,
+      },
       {
         name: 'lists',
         budgetMs: LANE_BUDGET_MS,

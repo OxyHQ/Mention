@@ -23,11 +23,13 @@ describe('requestObservability', () => {
       .expect(200);
 
     expect(response.headers['x-request-id']).toBe('request-safe-123');
-    expect(metrics.getCounter('http_requests_total', {
-      method: 'GET',
-      route: '/posts/:id',
-      status: '2xx',
-    })).toBe(1);
+    expect(
+      metrics.getCounter('http_requests_total', {
+        method: 'GET',
+        route: '/posts/:id',
+        status: '2xx',
+      }),
+    ).toBe(1);
     expect(logger.info).toHaveBeenCalledWith(
       'HTTP request completed',
       expect.objectContaining({ route: '/posts/:id', requestId: 'request-safe-123' }),
@@ -38,10 +40,12 @@ describe('requestObservability', () => {
   it('collapses unmatched paths instead of labeling attacker-controlled URLs', async () => {
     await request(app).get('/private-user-alice').expect(404);
 
-    expect(metrics.getCounter('http_requests_total', {
-      method: 'GET',
-      route: '/unmatched',
-      status: '4xx',
-    })).toBe(1);
+    expect(
+      metrics.getCounter('http_requests_total', {
+        method: 'GET',
+        route: '/unmatched',
+        status: '4xx',
+      }),
+    ).toBe(1);
   });
 });

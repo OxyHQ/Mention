@@ -20,11 +20,6 @@
  * claiming and renewing leases, so a replay that was a real write would block on
  * (and could deadlock with) a live claim.
  *
- * The Mongoose version had to fight its own `timestamps: true` to get here — it
- * named `createdAt`/`updatedAt` explicitly inside `$setOnInsert` AND passed
- * `timestamps: false`, because otherwise Mongo saw one path under two operators
- * and refused the whole update, aborting every like, downvote, save and unsave.
- * None of that survives the port: Postgres has no such conflict, and
  * `ON CONFLICT DO NOTHING` is a genuine no-op by construction.
  *
  * ## Claims are leases, so every consumer must be idempotent on `id`
@@ -84,14 +79,11 @@ export type EngagementVoteValue = 1 | -1;
 /**
  * What a consumer needs to carry out one engagement transition.
  *
- * Mongo declared this as a nested subdocument with eight named leaves; the
- * leaves are real columns now (`payload_*`), and this is the shape they are read
- * back into. `postAuthorship` is NOT among them: Mongo carried a `Mixed`
- * snapshot of the post's authorship so the consumer would not have to re-read a
- * post that may have changed, but it is reconstructible from `post_authorships`,
- * so the consumer reads those rows instead. The consequence is a real (and
- * intended) semantic change — the notification fan-out now uses the authorship
- * as it stands at DELIVERY time, not as it stood at emit time.
+ * The eight leaves are real columns (`payload_*`), and this is the shape they
+ * are read back into. `postAuthorship` is NOT among them: it is reconstructible
+ * from `post_authorships`, so the consumer reads those rows instead — the
+ * notification fan-out uses the authorship as it stands at DELIVERY time, not as
+ * it stood at emit time, by design.
  */
 export interface EngagementOutboxPayload {
   actorOxyUserId: string;
@@ -175,8 +167,7 @@ function toEvent(row: EventRow): EngagementOutboxEvent {
       actorOxyUserId: row.payloadActorOxyUserId,
       postId: row.payloadPostId,
       relationshipId: row.payloadRelationshipId,
-      // Drizzle hands back `null` where Mongoose handed back `undefined`, and
-      // every consumer of these two is typed `string | undefined`.
+      // Drizzle hands back `null` for an empty column, and every consumer of these two is typed `string | undefined`.
       postOwnerOxyUserId: row.payloadPostOwnerOxyUserId ?? undefined,
       federationActivityId: row.payloadFederationActivityId ?? undefined,
       previousValue: voteValue(row.payloadPreviousValue),
@@ -223,11 +214,7 @@ export async function enqueueEngagementOutboxEvent(
   input: EnqueueEngagementEventInput,
   tx: Transaction,
 ): Promise<string> {
-  const eventId = engagementOutboxEventId(
-    input.kind,
-    input.relationshipId,
-    input.revision,
-  );
+  const eventId = engagementOutboxEventId(input.kind, input.relationshipId, input.revision);
   const now = new Date();
   await tx
     .insert(engagementOutbox)
@@ -247,9 +234,7 @@ export async function enqueueEngagementOutboxEvent(
       // One instant for both, so the claim's `available_at <= now` gate and its
       // `created_at` ordering describe the same moment.
       availableAt: now,
-      expiresAt: new Date(
-        now.getTime() + ENGAGEMENT_OUTBOX_RETENTION_SECONDS * 1_000,
-      ),
+      expiresAt: new Date(now.getTime() + ENGAGEMENT_OUTBOX_RETENTION_SECONDS * 1_000),
       createdAt: now,
       updatedAt: now,
     })
@@ -269,8 +254,8 @@ export async function enqueueEngagementOutboxEvent(
  * a dead worker cannot strand its event forever.
  *
  * The ordering is `created_at ASC`, and `created_at` is NOT NULL — worth stating
- * because the trap here is real: Mongo sorts a MISSING value first while
- * Postgres sorts NULLs LAST, so a batch-bounded sweep ordered on a nullable
+ * because the trap here is real: Postgres sorts NULLs LAST in ascending order,
+ * so a batch-bounded sweep ordered on a nullable
  * column would never reach the oldest row. Nothing in this table's claim path
  * orders on a nullable column; if one is ever added it needs `NULLS FIRST`.
  */
@@ -289,20 +274,11 @@ export async function claimEngagementOutboxEvent(options: {
     .from(engagementOutbox)
     .where(
       and(
-        options.eventId === undefined
-          ? undefined
-          : eq(engagementOutbox.id, options.eventId),
+        options.eventId === undefined ? undefined : eq(engagementOutbox.id, options.eventId),
         or(
-          and(
-            eq(engagementOutbox.status, 'pending'),
-            lte(engagementOutbox.availableAt, now),
-          ),
-          // A NULL `lease_until` never satisfies `<= now`, which is the same
-          // answer Mongo's `$lte` gave for a missing field.
-          and(
-            eq(engagementOutbox.status, 'processing'),
-            lte(engagementOutbox.leaseUntil, now),
-          ),
+          and(eq(engagementOutbox.status, 'pending'), lte(engagementOutbox.availableAt, now)),
+          // A NULL `lease_until` never satisfies `<= now`.
+          and(eq(engagementOutbox.status, 'processing'), lte(engagementOutbox.leaseUntil, now)),
         ),
       ),
     )
@@ -329,12 +305,10 @@ export async function claimEngagementOutboxEvent(options: {
 /**
  * Whether a LOWER revision for the same relationship is still unfinished.
  *
- * `status <> 'processed'` is total here because the column is NOT NULL — the
- * Mongo `$ne` also matched documents missing the field, and there are none.
+ * `status <> 'processed'` is total here because the column is NOT NULL, so no
+ * row is dropped by a NULL comparison.
  */
-async function hasEarlierUnprocessedRevision(
-  event: EngagementOutboxEvent,
-): Promise<boolean> {
+async function hasEarlierUnprocessedRevision(event: EngagementOutboxEvent): Promise<boolean> {
   const [earlier] = await getDb()
     .select({ id: engagementOutbox.id })
     .from(engagementOutbox)
@@ -409,9 +383,8 @@ export async function completeEngagementOutboxEvent(
 /**
  * Extend only a live lease still owned by this dispatcher.
  *
- * Mongo distinguished `matchedCount` from `modifiedCount` here because writing
- * the same `leaseUntil` twice modified nothing; Postgres has no such split — a
- * row that matched was updated — so the returned row IS the ownership answer.
+ * Postgres has no matched-versus-modified split — a row that matched was
+ * updated — so the returned row IS the ownership answer.
  */
 export async function renewEngagementOutboxEvent(
   eventId: string,
@@ -463,7 +436,7 @@ export async function markEngagementOutboxEffectDone(
 
 function nextAttemptAt(attempts: number, now: Date): Date {
   const exponent = Math.max(0, Math.min(attempts - 1, 10));
-  const delayMs = Math.min(1_000 * (2 ** exponent), MAX_BACKOFF_MS);
+  const delayMs = Math.min(1_000 * 2 ** exponent, MAX_BACKOFF_MS);
   return new Date(now.getTime() + delayMs);
 }
 
@@ -509,15 +482,10 @@ interface LeaseHeartbeatResult {
   error?: unknown;
 }
 
-function startLeaseHeartbeat(options: {
-  eventId: string;
-  leaseOwner: string;
-  leaseMs: number;
-}): { stop: () => Promise<LeaseHeartbeatResult> } {
-  const renewIntervalMs = Math.max(
-    MIN_LEASE_RENEW_INTERVAL_MS,
-    Math.floor(options.leaseMs / 3),
-  );
+function startLeaseHeartbeat(options: { eventId: string; leaseOwner: string; leaseMs: number }): {
+  stop: () => Promise<LeaseHeartbeatResult>;
+} {
+  const renewIntervalMs = Math.max(MIN_LEASE_RENEW_INTERVAL_MS, Math.floor(options.leaseMs / 3));
   let stopped = false;
   let lost = false;
   let renewalError: unknown;
@@ -525,11 +493,7 @@ function startLeaseHeartbeat(options: {
 
   const renew = (): void => {
     if (stopped || lost || renewalInFlight) return;
-    const renewal = renewEngagementOutboxEvent(
-      options.eventId,
-      options.leaseOwner,
-      options.leaseMs,
-    )
+    const renewal = renewEngagementOutboxEvent(options.eventId, options.leaseOwner, options.leaseMs)
       .then((stillOwner) => {
         if (!stillOwner) {
           lost = true;
@@ -574,10 +538,7 @@ export async function dispatchEngagementOutbox(options: {
   signal?: AbortSignal;
 }): Promise<{ processed: number; failed: number }> {
   const leaseOwner = options.leaseOwner ?? `engagement:${process.pid}:${randomUUID()}`;
-  const batchSize = Math.min(
-    Math.max(1, options.batchSize ?? DEFAULT_BATCH_SIZE),
-    MAX_BATCH_SIZE,
-  );
+  const batchSize = Math.min(Math.max(1, options.batchSize ?? DEFAULT_BATCH_SIZE), MAX_BATCH_SIZE);
   const leaseMs = Math.max(MIN_LEASE_MS, options.leaseMs ?? DEFAULT_LEASE_MS);
   let processed = 0;
   let failed = 0;
@@ -613,11 +574,7 @@ export async function dispatchEngagementOutbox(options: {
     let deliveryError: unknown;
     const context: EngagementOutboxHandlerContext = {
       async markEffectDone(effect) {
-        const stillOwner = await markEngagementOutboxEffectDone(
-          event.id,
-          leaseOwner,
-          effect,
-        );
+        const stillOwner = await markEngagementOutboxEffectDone(event.id, leaseOwner, effect);
         if (!stillOwner) {
           throw new Error(`lease lost before recording the ${effect} effect`);
         }
@@ -649,19 +606,12 @@ export async function dispatchEngagementOutbox(options: {
 
     if (deliveryError) {
       failed += 1;
-      const released = await failEngagementOutboxEvent(
-        event,
-        leaseOwner,
-        deliveryError,
-      );
+      const released = await failEngagementOutboxEvent(event, leaseOwner, deliveryError);
       logger.warn('[EngagementOutbox] event delivery failed', {
         eventId: event.id,
         kind: event.kind,
         attempts: event.attempts,
-        error:
-          deliveryError instanceof Error
-            ? deliveryError.message
-            : String(deliveryError),
+        error: deliveryError instanceof Error ? deliveryError.message : String(deliveryError),
       });
       if (!released) {
         logger.warn('[EngagementOutbox] lease lost before failure release', {

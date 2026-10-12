@@ -70,7 +70,14 @@ import { loadPostRecord } from '../../db/posts/postRepository';
 import { drainBackgroundWork } from '../../runtime/backgroundWork';
 import { postCollaborationService } from '../../services/PostCollaborationService';
 import { postCreationService } from '../../services/PostCreationService';
-import { clearPostScope, postScope, readPostRow, seedLane, seedPost, track } from '../helpers/postFixtures';
+import {
+  clearPostScope,
+  postScope,
+  readPostRow,
+  seedLane,
+  seedPost,
+  track,
+} from '../helpers/postFixtures';
 
 const scope = postScope('publish-server-draft');
 const AUTHOR = scope.user('author');
@@ -166,17 +173,28 @@ describe('publishing a server draft', () => {
     expect(stored?.status).toBe('published');
     expect(stored?.laneId).toBe(laneId);
     expect(stored?.content.sources).toEqual(SOURCES);
-    expect(stored?.content.variants?.map(({ tag, text, source }) => ({ tag, text, source })))
-      .toEqual(VARIANTS);
-    expect(stored?.authorship).toEqual(expect.arrayContaining([
-      expect.objectContaining({ oxyUserId: COLLABORATOR, role: 'collaborator', status: 'pending' }),
-    ]));
+    expect(
+      stored?.content.variants?.map(({ tag, text, source }) => ({ tag, text, source })),
+    ).toEqual(VARIANTS);
+    expect(stored?.authorship).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          oxyUserId: COLLABORATOR,
+          role: 'collaborator',
+          status: 'pending',
+        }),
+      ]),
+    );
   });
 
   it('federates a draft with nobody left to consent', async () => {
     const postId = await createDraft();
 
-    await postCreationService.claimAndPublishScheduledPost({ postId, ownerId: AUTHOR, from: 'draft' });
+    await postCreationService.claimAndPublishScheduledPost({
+      postId,
+      ownerId: AUTHOR,
+      from: 'draft',
+    });
     await settle();
 
     expect(hoisted.federateNewPost).toHaveBeenCalledTimes(1);
@@ -197,7 +215,11 @@ describe('publishing a server draft', () => {
 
   it('refuses a second publish of a draft that already went out', async () => {
     const postId = await createDraft();
-    await postCreationService.claimAndPublishScheduledPost({ postId, ownerId: AUTHOR, from: 'draft' });
+    await postCreationService.claimAndPublishScheduledPost({
+      postId,
+      ownerId: AUTHOR,
+      from: 'draft',
+    });
 
     const again = await postCreationService.claimAndPublishScheduledPost({
       postId,
@@ -224,7 +246,11 @@ describe('publishing a server draft', () => {
 
   it('dates the published post from its publication, not from when it was drafted', async () => {
     const draftedAt = new Date('2026-01-05T09:00:00.000Z');
-    const draft = await seedPost(scope, { oxyUserId: AUTHOR, status: 'draft', createdAt: draftedAt });
+    const draft = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      status: 'draft',
+      createdAt: draftedAt,
+    });
 
     const before = Date.now();
     await postCreationService.claimAndPublishScheduledPost({

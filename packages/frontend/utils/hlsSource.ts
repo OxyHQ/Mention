@@ -8,6 +8,9 @@
  * to be recognised: the wrapped form is what the app renders, and the bare form
  * is what a direct upstream url looks like.
  *
+ * Oxy's own adaptive ladder is the third spelling: `…/<id>?variant=hls_master`,
+ * a manifest whose path has no extension at all.
+ *
  * Pure and platform-agnostic; the decision of what to DO about an HLS source is
  * `lib/hlsPlayback` (a JS player on web, the platform decoder on native).
  */
@@ -17,6 +20,13 @@ const HLS_PATH_SUFFIX = '.m3u8';
 
 /** Query parameter the media proxy carries the upstream url in. */
 const PROXY_URL_PARAM = 'url';
+
+/**
+ * Oxy's own adaptive ladder: `mediaResolver` builds `hlsUrl` as
+ * `<cdn>/<id>?variant=hls_master`, a manifest whose PATH carries no extension.
+ */
+const OXY_VARIANT_PARAM = 'variant';
+const OXY_HLS_VARIANT = 'hls_master';
 
 /** True when `pathname` names a playlist, ignoring a trailing slash. */
 function pathIsPlaylist(pathname: string): boolean {
@@ -46,6 +56,7 @@ export function isHlsSource(src: string | undefined | null): boolean {
   }
 
   if (pathIsPlaylist(parsed.pathname)) return true;
+  if (parsed.searchParams.get(OXY_VARIANT_PARAM) === OXY_HLS_VARIANT) return true;
 
   const proxied = parsed.searchParams.get(PROXY_URL_PARAM);
   if (!proxied) return false;

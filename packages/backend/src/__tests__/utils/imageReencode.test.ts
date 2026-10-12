@@ -9,7 +9,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * nothing (an ffmpeg without `libwebp`).
  */
 
-interface SpawnCall { command: string; args: string[] }
+interface SpawnCall {
+  command: string;
+  args: string[];
+}
 const spawnCalls: SpawnCall[] = [];
 
 class FakeChild extends EventEmitter {
@@ -31,7 +34,12 @@ vi.mock('node:child_process', () => ({
   },
 }));
 
-import { buildReencodeArgs, reencodeFirstFrame, REENCODE_TARGETS, REENCODED_MAX_EDGE_PX } from '../../utils/imageReencode';
+import {
+  buildReencodeArgs,
+  reencodeFirstFrame,
+  REENCODE_TARGETS,
+  REENCODED_MAX_EDGE_PX,
+} from '../../utils/imageReencode';
 
 beforeEach(() => {
   spawnCalls.length = 0;
@@ -72,7 +80,11 @@ describe('reencodeFirstFrame', () => {
   it('returns the WebP still', async () => {
     const result = reencodeFirstFrame('/tmp/in.bin');
     await answer(0, Buffer.from('RIFFxxxxWEBP'), 0);
-    await expect(result).resolves.toEqual({ ok: true, buffer: Buffer.from('RIFFxxxxWEBP'), contentType: 'image/webp' });
+    await expect(result).resolves.toEqual({
+      ok: true,
+      buffer: Buffer.from('RIFFxxxxWEBP'),
+      contentType: 'image/webp',
+    });
     expect(spawnCalls).toHaveLength(1);
   });
 

@@ -1,7 +1,4 @@
-import type {
-  HydratedPost,
-  HydratedPostSummary,
-} from '@mention/shared-types';
+import type { HydratedPost, HydratedPostSummary } from '@mention/shared-types';
 import type { FeedItem } from './schema';
 
 type TransformOptions = {
@@ -39,10 +36,28 @@ type TransformOptions = {
  * keeps answering from disk with a payload that still carries it.
  */
 type HandledPostKey =
-  | 'id' | 'content' | 'attachments' | 'documents' | 'documentsPending' | 'user' | 'authors'
-  | 'authorship' | 'engagement' | 'viewerState' | 'permissions' | 'metadata'
-  | 'lane' | 'crosspost' | 'importedFrom' | 'parentPostId' | 'replyContext' | 'communityNote'
-  | 'originalPost' | 'quotedPost' | 'boost' | 'context';
+  | 'id'
+  | 'content'
+  | 'attachments'
+  | 'documents'
+  | 'documentsPending'
+  | 'user'
+  | 'authors'
+  | 'authorship'
+  | 'engagement'
+  | 'viewerState'
+  | 'permissions'
+  | 'metadata'
+  | 'lane'
+  | 'crosspost'
+  | 'importedFrom'
+  | 'parentPostId'
+  | 'replyContext'
+  | 'communityNote'
+  | 'originalPost'
+  | 'quotedPost'
+  | 'boost'
+  | 'context';
 
 type UnhandledPostKey = Exclude<keyof HydratedPost, HandledPostKey>;
 
@@ -58,12 +73,14 @@ export function toFeedItem(
   const hydrated: HydratedPost = post;
   const mediaIds = post.attachments.media?.map((item) => item.id) ?? [];
 
-  const originalPost = !options.skipRelated && hydrated.originalPost
-    ? toFeedItem(hydrated.originalPost, { skipRelated: true })
-    : null;
-  const quotedPost = !options.skipRelated && hydrated.quotedPost
-    ? toFeedItem(hydrated.quotedPost, { skipRelated: true })
-    : null;
+  const originalPost =
+    !options.skipRelated && hydrated.originalPost
+      ? toFeedItem(hydrated.originalPost, { skipRelated: true })
+      : null;
+  const quotedPost =
+    !options.skipRelated && hydrated.quotedPost
+      ? toFeedItem(hydrated.quotedPost, { skipRelated: true })
+      : null;
   const boost = hydrated.boost
     ? {
         ...hydrated.boost,

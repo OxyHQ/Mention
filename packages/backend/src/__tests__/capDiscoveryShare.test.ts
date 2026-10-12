@@ -74,8 +74,12 @@ describe('capDiscoveryShare — no-op guards (returns the input unchanged)', () 
   it('discovery already within the cap (nothing to defer)', () => {
     // limit 10, maxShare 0.7 → maxDiscovery 7; only 3 discovery slices → no overflow.
     const within = [
-      trusted('t1'), discovery('d1'), trusted('t2'),
-      discovery('d2'), trusted('t3'), discovery('d3'),
+      trusted('t1'),
+      discovery('d1'),
+      trusted('t2'),
+      discovery('d2'),
+      trusted('t3'),
+      discovery('d3'),
     ];
     expect(capDiscoveryShare(within, isDiscovery, 0.7, 10)).toBe(within);
   });
@@ -86,7 +90,7 @@ describe('capDiscoveryShare — deferral contract (never drops)', () => {
     // limit 10, maxShare 0.7 → maxDiscovery = floor(7) = 7.
     const input = [
       ...Array.from({ length: 8 }, (_, i) => discovery(`d${i}`)), // 8 discovery
-      ...Array.from({ length: 4 }, (_, i) => trusted(`t${i}`)),   // 4 trusted
+      ...Array.from({ length: 4 }, (_, i) => trusted(`t${i}`)), // 4 trusted
     ];
     const out = capDiscoveryShare(input, isDiscovery, 0.7, 10);
 
@@ -105,8 +109,13 @@ describe('capDiscoveryShare — deferral contract (never drops)', () => {
   it('preserves relative order within kept and within deferred (stable partition)', () => {
     // limit 4, maxShare 0.5 → maxDiscovery = floor(2) = 2. 5 discovery, 2 trusted.
     const input = [
-      discovery('d0'), trusted('t0'), discovery('d1'), discovery('d2'),
-      trusted('t1'), discovery('d3'), discovery('d4'),
+      discovery('d0'),
+      trusted('t0'),
+      discovery('d1'),
+      discovery('d2'),
+      trusted('t1'),
+      discovery('d3'),
+      discovery('d4'),
     ];
     const out = capDiscoveryShare(input, isDiscovery, 0.5, 4);
 
@@ -157,7 +166,8 @@ describe('capDiscoveryShare — thin follow graph still fills the page', () => {
     // 2 trusted + 12 discovery, limit 10, maxDiscovery 7. kept = 2 + 7 = 9 < limit,
     // so one deferred discovery slice backfills the visible page — it fills to 10.
     const input = [
-      trusted('t0'), trusted('t1'),
+      trusted('t0'),
+      trusted('t1'),
       ...Array.from({ length: 12 }, (_, i) => discovery(`d${i}`)),
     ];
     const out = capDiscoveryShare(input, isDiscovery, 0.7, 10);
@@ -166,6 +176,11 @@ describe('capDiscoveryShare — thin follow graph still fills the page', () => {
     const window = out.slice(0, 10);
     expect(window).toHaveLength(10);
     // Both trusted slices survive inside the rendered page (trusted floor honored).
-    expect(window.filter((s) => !s.discovery).map((s) => s.id).sort()).toEqual(['t0', 't1']);
+    expect(
+      window
+        .filter((s) => !s.discovery)
+        .map((s) => s.id)
+        .sort(),
+    ).toEqual(['t0', 't1']);
   });
 });

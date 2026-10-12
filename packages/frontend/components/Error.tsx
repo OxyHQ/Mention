@@ -53,11 +53,20 @@ export function Error({
         error={{
           title,
           message,
-          onRetry: onRetry ? async () => { await onRetry(); } : undefined,
+          onRetry: onRetry
+            ? async () => {
+                await onRetry();
+              }
+            : undefined,
         }}
         footer={
           hideBackButton ? undefined : (
-            <Button appearance="subtle" tone="neutral" leadingIcon={RiArrowLeftLine} onPress={handleGoBack}>
+            <Button
+              appearance="subtle"
+              tone="neutral"
+              leadingIcon={RiArrowLeftLine}
+              onPress={handleGoBack}
+            >
               {router.canGoBack() ? 'Go back' : 'Go home'}
             </Button>
           )

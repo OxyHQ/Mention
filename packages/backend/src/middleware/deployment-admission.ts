@@ -1,6 +1,9 @@
 import type { RequestHandler } from 'express';
 import type { OxyAuthRequest } from '@oxy.so/core/server';
-import { canParticipateInDeployment, type ManagedMentionDeployment } from '@mention/shared-types/deployment';
+import {
+  canParticipateInDeployment,
+  type ManagedMentionDeployment,
+} from '@mention/shared-types/deployment';
 
 /** Identity is already resolved by Oxy/MCP; never accept an account from the body. */
 export function createDeploymentAdmission(
@@ -15,7 +18,9 @@ export function createDeploymentAdmission(
       return;
     }
     if (!canParticipateInDeployment(deployment, accountId)) {
-      response.status(403).json({ error: 'deployment_membership_required', signupPolicy: deployment.signup.policy });
+      response
+        .status(403)
+        .json({ error: 'deployment_membership_required', signupPolicy: deployment.signup.policy });
       return;
     }
     next();

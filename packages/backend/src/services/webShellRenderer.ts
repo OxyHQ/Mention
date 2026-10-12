@@ -62,12 +62,17 @@ export function mapHomepageOg(): OgData {
     url: `${WEB_ORIGIN}/`,
     type: 'website',
     robots: 'index,follow',
-    jsonLd: siteStructuredData({ origin: WEB_ORIGIN, name, logoUrl: config.deployment?.branding.logoUrl }),
+    jsonLd: siteStructuredData({
+      origin: WEB_ORIGIN,
+      name,
+      logoUrl: config.deployment?.branding.logoUrl,
+    }),
     image: `${WEB_ORIGIN}/og-image.jpg`,
     imageWidth: 1280,
     imageHeight: 720,
     imageType: 'image/jpeg',
-    imageAlt: 'Illustration of friends and a dog gathered around the Mention logo under a blue sky.',
+    imageAlt:
+      'Illustration of friends and a dog gathered around the Mention logo under a blue sky.',
   };
 }
 
@@ -175,7 +180,9 @@ export function buildOgMetaHtml(og: OgData): string {
     `<meta property="og:url" content="${url}">` +
     `<meta property="og:title" content="${title}">` +
     `<meta property="og:description" content="${description}">` +
-    (og.profileUsername ? `<meta property="profile:username" content="${escapeHtml(og.profileUsername)}">` : '') +
+    (og.profileUsername
+      ? `<meta property="profile:username" content="${escapeHtml(og.profileUsername)}">`
+      : '') +
     `<meta name="twitter:card" content="${card}">` +
     `<meta name="twitter:title" content="${title}">` +
     `<meta name="twitter:description" content="${description}">` +
@@ -190,9 +197,12 @@ export function buildOgMetaHtml(og: OgData): string {
       `<meta name="twitter:image" content="${image}">`;
     if (og.imageWidth) html += `<meta property="og:image:width" content="${og.imageWidth}">`;
     if (og.imageHeight) html += `<meta property="og:image:height" content="${og.imageHeight}">`;
-    if (og.imageType) html += `<meta property="og:image:type" content="${escapeHtml(og.imageType)}">`;
-    if (og.imageAlt) html += `<meta property="og:image:alt" content="${escapeHtml(og.imageAlt)}">` +
-      `<meta name="twitter:image:alt" content="${escapeHtml(og.imageAlt)}">`;
+    if (og.imageType)
+      html += `<meta property="og:image:type" content="${escapeHtml(og.imageType)}">`;
+    if (og.imageAlt)
+      html +=
+        `<meta property="og:image:alt" content="${escapeHtml(og.imageAlt)}">` +
+        `<meta name="twitter:image:alt" content="${escapeHtml(og.imageAlt)}">`;
   }
 
   if (og.jsonLd) {
@@ -266,15 +276,27 @@ export function renderShellWithOg(shell: string, og: OgData | null): string {
   // rather than emitting competing canonical/robots/description values.
   // Keep a token boundary where a tag was removed. This transforms a trusted
   // executable shell; it is not an HTML sanitizer.
-  let html = shell.replace(/<meta\b[^>]*>/gi, (tag) =>
-    /\b(?:name|property)\s*=\s*(["'])(?:description|robots|og:[^"']+|twitter:[^"']+)\1/i.test(tag) ? ' ' : tag)
-    .replace(/<link\b[^>]*>/gi, (tag) => /\brel\s*=\s*(["'])canonical\1/i.test(tag) ? ' ' : tag)
-    .replace(/<script\b[^>]*type\s*=\s*(["'])application\/ld\+json\1[^>]*>[\s\S]*?<\/script>/gi, ' ');
+  let html = shell
+    .replace(/<meta\b[^>]*>/gi, (tag) =>
+      /\b(?:name|property)\s*=\s*(["'])(?:description|robots|og:[^"']+|twitter:[^"']+)\1/i.test(tag)
+        ? ' '
+        : tag,
+    )
+    .replace(/<link\b[^>]*>/gi, (tag) => (/\brel\s*=\s*(["'])canonical\1/i.test(tag) ? ' ' : tag))
+    .replace(
+      /<script\b[^>]*type\s*=\s*(["'])application\/ld\+json\1[^>]*>[\s\S]*?<\/script>/gi,
+      ' ',
+    );
   if (og.lang) {
-    html = html.replace(/<html\b([^>]*)\blang=(['"])[^'"]*\2([^>]*)>/i, (_match, before, _quote, after) =>
-      `<html${before}lang="${escapeHtml(og.lang ?? 'en')}"${after}>`);
+    html = html.replace(
+      /<html\b([^>]*)\blang=(['"])[^'"]*\2([^>]*)>/i,
+      (_match, before, _quote, after) =>
+        `<html${before}lang="${escapeHtml(og.lang ?? 'en')}"${after}>`,
+    );
   }
-  html = TITLE_RE.test(html) ? html.replace(TITLE_RE, () => titleTag) : injectHeadHtml(html, titleTag);
+  html = TITLE_RE.test(html)
+    ? html.replace(TITLE_RE, () => titleTag)
+    : injectHeadHtml(html, titleTag);
   html = HEAD_CLOSE_RE.test(html)
     ? html.replace(HEAD_CLOSE_RE, () => `${meta}</head>`)
     : meta + html;
@@ -296,7 +318,13 @@ export interface ProfileSeoFacts {
 /** A schema.org `InteractionCounter` for one action type, or nothing when the count is unknown. */
 function interactionCounter(action: 'FollowAction' | 'WriteAction', count: number | undefined) {
   return typeof count === 'number' && Number.isFinite(count) && count >= 0
-    ? [{ '@type': 'InteractionCounter', interactionType: `https://schema.org/${action}`, userInteractionCount: count }]
+    ? [
+        {
+          '@type': 'InteractionCounter',
+          interactionType: `https://schema.org/${action}`,
+          userInteractionCount: count,
+        },
+      ]
     : [];
 }
 
@@ -315,7 +343,10 @@ function interactionCounter(action: 'FollowAction' | 'WriteAction', count: numbe
  * totals therefore come from the origin ({@link ProfileSeoFacts.remote}), and
  * are left out — not zeroed — when the origin did not report them.
  */
-export function mapProfileOg(data: OxyProfileData | null | undefined, facts: ProfileSeoFacts = {}): OgData | null {
+export function mapProfileOg(
+  data: OxyProfileData | null | undefined,
+  facts: ProfileSeoFacts = {},
+): OgData | null {
   if (!data?.username) return null;
 
   const username = data.username;
@@ -327,9 +358,11 @@ export function mapProfileOg(data: OxyProfileData | null | undefined, facts: Pro
   const brand = config.deployment?.branding.name ?? 'Mention';
   // A profile with no bio still gets a real description: an empty one leaves
   // the search snippet to whatever the crawler scrapes from the app chrome.
-  const description = bio || (displayName
-    ? `${displayName} (@${username}) is on ${brand}. See their posts, replies and media.`
-    : `@${username} is on ${brand}. See their posts, replies and media.`);
+  const description =
+    bio ||
+    (displayName
+      ? `${displayName} (@${username}) is on ${brand}. See their posts, replies and media.`
+      : `@${username} is on ${brand}. See their posts, replies and media.`);
   const isFederated = Boolean(data.isFederated || data.type === 'federated');
 
   const followers = isFederated ? facts.remote?.followersCount : data._count?.followers;
@@ -338,10 +371,13 @@ export function mapProfileOg(data: OxyProfileData | null | undefined, facts: Pro
 
   // The origin actor is the same person on the network they post from.
   const actorUri = isFederated ? data.federation?.actorUri : undefined;
-  const sameAs = [...new Set([
-    ...(data.links ?? []),
-    ...(actorUri ? [actorUri] : []),
-  ].filter((link) => /^https?:\/\//i.test(link)))];
+  const sameAs = [
+    ...new Set(
+      [...(data.links ?? []), ...(actorUri ? [actorUri] : [])].filter((link) =>
+        /^https?:\/\//i.test(link),
+      ),
+    ),
+  ];
 
   const image = ogImageForAvatar(avatar);
 
@@ -478,7 +514,8 @@ export function mapPostOg(
 
   // `og:image` must be an IMAGE: a video's own file is not one, its poster is.
   const first = media[0];
-  const mediaImage = first?.type === 'video' ? (first.posterUrl || first.thumbUrl) : (first?.url || first?.thumbUrl);
+  const mediaImage =
+    first?.type === 'video' ? first.posterUrl || first.thumbUrl : first?.url || first?.thumbUrl;
   const documentImage = post.documents?.[0]?.imageUrl;
   const avatarImage = ogImageForAvatar(user.avatar);
   const image = mediaImage || documentImage || avatarImage || undefined;
@@ -501,7 +538,11 @@ export function mapPostOg(
       name: snippet || `Video by ${author} on ${brand}`,
       // Required by Google's video results. The author's own words about the
       // clip first, then the post around it, then who posted it.
-      description: (item.alt?.trim() || bodyText || `A video posted by ${author} (${authorHandle}) on ${brand}.`).slice(0, 500),
+      description: (
+        item.alt?.trim() ||
+        bodyText ||
+        `A video posted by ${author} (${authorHandle}) on ${brand}.`
+      ).slice(0, 500),
       contentUrl: item.url,
       thumbnailUrl: item.posterUrl || item.thumbUrl,
       ...(createdAt ? { uploadDate: createdAt } : {}),
@@ -571,7 +612,9 @@ function authorJsonLd(
     '@type': user.kind === 'channel' ? 'Organization' : 'Person',
     name,
     alternateName: handle ? `@${handle}` : name,
-    ...(handle ? { url: `${WEB_ORIGIN}${canonicalProfilePath({ username: handle, kind: user.kind })}` } : {}),
+    ...(handle
+      ? { url: `${WEB_ORIGIN}${canonicalProfilePath({ username: handle, kind: user.kind })}` }
+      : {}),
     ...(image ? { image } : {}),
   };
 }
@@ -617,6 +660,12 @@ function titleSnippet(text: string, max = 70): string {
 /** A schema.org `InteractionCounter`, or nothing when the count is unknown or hidden. */
 function countOf(action: 'LikeAction' | 'ShareAction', count: number | null | undefined) {
   return typeof count === 'number' && Number.isFinite(count) && count >= 0
-    ? [{ '@type': 'InteractionCounter', interactionType: `https://schema.org/${action}`, userInteractionCount: count }]
+    ? [
+        {
+          '@type': 'InteractionCounter',
+          interactionType: `https://schema.org/${action}`,
+          userInteractionCount: count,
+        },
+      ]
     : [];
 }

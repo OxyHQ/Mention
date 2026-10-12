@@ -16,7 +16,7 @@ import { useHttpTestServers } from '../helpers/httpTestServers';
  * applied to the whole router would pass a test that only hammered `/mine`.
  *
  * The queries are REAL and answer from an empty database. They used to be four
- * mocked Mongoose models; porting the route made those mocks inert, and a
+ * mocked legacy-ODM models; porting the route made those mocks inert, and a
  * limiter test does not need them — an identity with no lanes is the cheapest
  * possible request either way.
  *
@@ -160,7 +160,7 @@ describe('GET /lanes/mine rate limiting', () => {
     expect((await request(app).get('/lanes/mine')).status).toBe(429);
   });
 
-  it('keys per CALLER — one caller\'s spend never throttles another', async () => {
+  it("keys per CALLER — one caller's spend never throttles another", async () => {
     const noisy = await buildApp();
     await hammer(noisy, '/lanes/mine', LIMIT + 1);
 

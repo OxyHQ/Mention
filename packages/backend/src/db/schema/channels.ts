@@ -19,9 +19,9 @@
  *
  * ## `name_lower` is DERIVED, and that is load-bearing
  *
- * `lanes.name_lower` is what the unique index is built on, and Mongo derived it
- * in a `pre('validate')` hook so no route, script or test could arrive at a
- * second spelling. A hook has no equivalent here, so the derivation belongs to
+ * `lanes.name_lower` is what the unique index is built on, and it is derived
+ * in ONE place so no route, script or test can arrive at a
+ * second spelling. The derivation belongs to
  * the repository that writes these rows — and the constraint is the backstop
  * that makes a missed derivation a refused write instead of a duplicate lane.
  *
@@ -64,14 +64,14 @@ export const lanes = pgTable(
   (t) => [
     check(
       'lanes_display_mode_check',
-      sql`${t.displayMode} in (${sql.raw(inList(LANE_DISPLAY_MODES))})`
+      sql`${t.displayMode} in (${sql.raw(inList(LANE_DISPLAY_MODES))})`,
     ),
     // One name per PUBLISHER. `owner_id` alone is the key now that a publisher is
     // always an Oxy account: under the old `(owner_type, owner_id, name_lower)`
     // key one publisher could hold the same lane name twice, once per owner type.
     unique('lanes_owner_name_lower_key').on(t.ownerId, t.nameLower),
     index('lanes_owner_idx').on(t.ownerId, t.createdAt.desc()),
-  ]
+  ],
 );
 
 /** `lane_mutes` — a viewer hiding one publisher's lane. */
@@ -92,5 +92,5 @@ export const laneMutes = pgTable(
   (t) => [
     unique('lane_mutes_viewer_lane_key').on(t.viewerOxyUserId, t.laneId),
     index('lane_mutes_viewer_chrono_idx').on(t.viewerOxyUserId, t.createdAt.desc()),
-  ]
+  ],
 );

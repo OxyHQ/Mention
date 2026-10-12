@@ -29,11 +29,7 @@ export function profileBasePath(family: ProfileRouteFamily, handle: string): Hre
  * `/@channel/about` renders perfectly well, it is simply a URL that account does
  * not own.
  */
-export function profileSubPath(
-  family: ProfileRouteFamily,
-  handle: string,
-  subpath: string,
-): Href {
+export function profileSubPath(family: ProfileRouteFamily, handle: string, subpath: string): Href {
   return family === 'channel' ? `/c/${handle}/${subpath}` : `/@${handle}/${subpath}`;
 }
 

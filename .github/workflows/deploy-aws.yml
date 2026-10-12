@@ -182,108 +182,19 @@ jobs:
           STALE_RELEASE: skip
         run: bash .github/scripts/require-current-main.sh
 
-      - name: Sync GitHub secrets to SSM
-        if: steps.current_changes.outputs.current == 'true'
-        id: sync
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE64 }}
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-          INTERNAL_METRICS_TOKEN: ${{ secrets.INTERNAL_METRICS_TOKEN }}
-          KLIPY_APP_KEY: ${{ secrets.KLIPY_APP_KEY }}
-          MENTION_DID: ${{ secrets.MENTION_DID }}
-          MENTION_MCP_JWT_SECRET: ${{ secrets.MENTION_MCP_JWT_SECRET }}
-          MENTION_OXY_CLIENT_ID: ${{ secrets.MENTION_OXY_CLIENT_ID }}
-          MENTION_PRIVATE_KEY: ${{ secrets.MENTION_PRIVATE_KEY }}
-          MENTION_PUBLIC_KEY: ${{ secrets.MENTION_PUBLIC_KEY }}
-          # The SAME GitHub secret `deploy-frontends.yml` uploads to the shell
-          # Worker. One value, two custodians: here it reaches the backend through
-          # SSM, there it reaches the Worker through `wrangler deploy
-          # --secrets-file`. Rotating it means running both workflows.
-          MENTION_SHELL_ACCESS_KEY: ${{ secrets.MENTION_SHELL_ACCESS_KEY }}
-          REDIS_HOST: ${{ secrets.REDIS_HOST }}
-          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
-          REDIS_URI: ${{ secrets.REDIS_URI }}
-          # Instagram Graph (Business Discovery) connector credentials. OPTIONAL:
-          # unset, they are skipped like any other empty secret and the deploy
-          # step binds neither (see OPTIONAL_TASK_SECRETS there).
-          META_GRAPH_ACCESS_TOKEN: ${{ secrets.META_GRAPH_ACCESS_TOKEN }}
-          META_IG_BUSINESS_ACCOUNT_ID: ${{ secrets.META_IG_BUSINESS_ACCOUNT_ID }}
-          # No REDIS_URL. `/oxy/_shared/REDIS_URL` is owned by oxy-infra
-          # Terraform (terraform-uswest2/redis.tf), and an app deploy must never
-          # write a shared parameter: six repos each copied their own
-          # secrets.REDIS_URL into it, two held different values, and every
-          # deploy flipped it between Redis clusters (incident 2026-09-27). Task
-          # definitions still READ it; only the write is gone. Everything below
-          # lands under /oxy/$APP/, so nothing here writes /oxy/_shared/.
-          # The allowlist below is the whole set. A name absent from it is never
-          # written: the sync loop only ever calls `put-parameter --overwrite`,
-          # so dropping a name does not delete anything — it leaves any existing
-          # parameter of that name in place, frozen at its last synced value.
-          # A frozen parameter is invisible until something reads it and gets a
-          # stale answer, so retiring a secret means dropping it from here AND
-          # deciding separately whether the parameter itself goes. That second
-          # decision is irreversible and belongs to whoever owns SSM.
-          SSM_SECRET_ALLOWLIST: >-
-            DATABASE_URL FIREBASE_SERVICE_ACCOUNT_BASE64 FIREBASE_PROJECT_ID
-            INTERNAL_METRICS_TOKEN KLIPY_APP_KEY MENTION_OXY_CLIENT_ID
-            MENTION_DID MENTION_PRIVATE_KEY MENTION_PUBLIC_KEY
-            MENTION_SHELL_ACCESS_KEY
-            REDIS_URI
-            REDIS_HOST REDIS_PASSWORD
-            META_GRAPH_ACCESS_TOKEN META_IG_BUSINESS_ACCOUNT_ID
-        run: |
-          set -euo pipefail
-          # The backend's config schema refuses to boot on a non-numeric id, and
-          # a boot failure only surfaces as a reverted rollout. Refuse it here,
-          # before anything is written. The value is never printed.
-          if [[ -n "$META_IG_BUSINESS_ACCOUNT_ID" && "$META_IG_BUSINESS_ACCOUNT_ID" != "-" &&
-                ! "$META_IG_BUSINESS_ACCOUNT_ID" =~ ^[[:space:]]*[0-9]{1,32}[[:space:]]*$ ]]; then
-            echo "::error::secrets.META_IG_BUSINESS_ACCOUNT_ID is not a numeric Instagram user id; nothing was synced."
-            exit 1
-          fi
-          if [[ -z "$MENTION_MCP_JWT_SECRET" || "$MENTION_MCP_JWT_SECRET" == "-" ]]; then
-            echo "::error::MENTION_MCP_JWT_SECRET is empty; refusing to rotate only one service."
-            exit 1
-          fi
-
-          # Running tasks keep their injected value. Update both parameter
-          # paths successfully before any task is restarted.
-          for path in \
-            /oxy/mention/MENTION_MCP_JWT_SECRET \
-            /oxy/mention-mcp/MENTION_MCP_JWT_SECRET; do
-            aws ssm put-parameter \
-              --name "$path" \
-              --value "$MENTION_MCP_JWT_SECRET" \
-              --type SecureString \
-              --overwrite \
-              >/dev/null
-            echo "Synced $path"
-          done
-
-          # NAMES written in this run, never values. The deploy step binds an
-          # optional secret only when its name is here: the write above succeeded
-          # (or the job already failed), so the parameter exists before any
-          # revision naming it is registered.
-          synced=""
-          for key in $SSM_SECRET_ALLOWLIST; do
-            value="${!key:-}"
-            [[ -z "$key" ]] && continue
-            if [[ -z "$value" || "$value" == "-" ]]; then
-              echo "::warning::Skipping empty or placeholder secret $key; SSM unchanged."
-              continue
-            fi
-            path="/oxy/$APP/$key"
-            aws ssm put-parameter \
-              --name "$path" \
-              --value "$value" \
-              --type SecureString \
-              --overwrite \
-              >/dev/null
-            echo "Synced $path"
-            synced="${synced:+$synced }$key"
-          done
-          echo "synced=$synced" >>"$GITHUB_OUTPUT"
+      # Runtime secrets are NOT in GitHub. SSM Parameter Store (/oxy/mention/*
+      # and /oxy/mention-mcp/*, SecureString) is their single source of truth:
+      # the task definition reads them at task start, and nothing in this
+      # workflow writes one. Setting or rotating a value is
+      # `aws ssm put-parameter --overwrite` by its owner (oxy-infra
+      # docs/runbooks/46-app-secrets-in-ssm.md), never a repo secret. Until
+      # 2026-10-10 a step here copied GitHub repo secrets into SSM on every
+      # deploy; that made GitHub the source of truth for production credentials
+      # and is gone. Two values have a second home that a rotation must update
+      # too (docs/AWS_DEPLOYMENT.md, "Runtime secrets"): MENTION_MCP_JWT_SECRET
+      # is read from BOTH /oxy/mention/ and /oxy/mention-mcp/, and
+      # MENTION_SHELL_ACCESS_KEY is also the shell Worker's key, which
+      # deploy-frontends.yml uploads from the GitHub secret of that name.
 
       - name: Re-verify current main before ECS rollout
         id: current_release
@@ -344,11 +255,23 @@ jobs:
           # token. Without this the webhook route is not mounted, and the outbox
           # deliberately holds reports rather than send ones whose decisions
           # could never be verified on the way back.
+          #
+          # META_GRAPH_ACCESS_TOKEN / META_IG_BUSINESS_ACCOUNT_ID: the Instagram
+          # Graph connector's credentials. They used to be OPTIONAL bindings,
+          # added only when the GitHub-to-SSM sync had written them in the same
+          # run; with that sync gone nothing in a deploy can prove a parameter
+          # exists, so they are fixed like the rest. Both parameters exist and
+          # were already bound on the live revision when this changed
+          # (oxy-mention:505, 2026-10-10). The connector stays inert until
+          # vars.INSTAGRAM_GRAPH_ENABLED is true. A NEW secret follows the same
+          # order: write the parameter first, then name it here.
           TASK_SECRET_OVERRIDES_JSON: >-
             {"MENTION_MCP_JWT_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/MENTION_MCP_JWT_SECRET",
              "DATABASE_URL":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/DATABASE_URL",
              "MENTION_SHELL_ACCESS_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/MENTION_SHELL_ACCESS_KEY",
-             "CROWDSOURCE_WEBHOOK_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/CROWDSOURCE_WEBHOOK_SECRET"}
+             "CROWDSOURCE_WEBHOOK_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/CROWDSOURCE_WEBHOOK_SECRET",
+             "META_GRAPH_ACCESS_TOKEN":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/META_GRAPH_ACCESS_TOKEN",
+             "META_IG_BUSINESS_ACCOUNT_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/META_IG_BUSINESS_ACCOUNT_ID"}
           # Provider credentials never enter this task. Mention selects its
           # reviewed profile by exact opaque primary key; Oxy resolves and signs
           # concrete Kaana routes. Slugs, display names and row order are not
@@ -368,21 +291,14 @@ jobs:
             {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd",
              "WEB_SHELL_ORIGIN":"https://shell.mention.earth",
              "MOVE_APPLICATION_ID":"4bac8f1baed68fd02d65d592"}
-          # OPTIONAL bindings, merged into the three lists above and below by
-          # optional-task-bindings.sh (which states the rules in full):
-          #
-          # - A secret here is bound to /oxy/mention/<NAME> ONLY when the sync
-          #   step wrote it in this run. Merging before anybody sets the GitHub
-          #   secret therefore binds nothing, rather than naming a parameter
-          #   that does not exist (registers fine, cannot start).
-          # - A variable here comes from the repository variable of the same
-          #   name. Set: validated against the backend's config schema and
-          #   rendered. Unset: REMOVED from the revision, so the code default
-          #   applies — Instagram off, Graph v23.0, backfill 50, federated media
-          #   deletion ON. The Instagram connector additionally stays inert
-          #   until both credentials are present.
-          OPTIONAL_TASK_SECRETS: META_GRAPH_ACCESS_TOKEN META_IG_BUSINESS_ACCOUNT_ID
-          SYNCED_SECRETS: ${{ steps.sync.outputs.synced }}
+          # OPTIONAL environment, merged into the lists above and below by
+          # optional-task-bindings.sh (which states the rules in full). A
+          # variable here comes from the repository variable of the same name.
+          # Set: validated against the backend's config schema and rendered.
+          # Unset: REMOVED from the revision, so the code default applies —
+          # Instagram off, Graph v23.0, backfill 50, federated media deletion
+          # ON. The Instagram connector additionally stays inert until both
+          # credentials are present.
           OPTIONAL_TASK_ENV: >-
             INSTAGRAM_GRAPH_ENABLED
             META_GRAPH_API_VERSION

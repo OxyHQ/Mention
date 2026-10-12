@@ -122,7 +122,11 @@ describe('resolveTrendSummary — demand pays for it', () => {
     vi.clearAllMocks();
     await getDb().delete(trendSummaries).where(eq(trendSummaries.term, TERM));
     mocks.incr.mockResolvedValue(2);
-    mocks.getRedisClient.mockResolvedValue({ incr: mocks.incr, expire: mocks.expire, set: mocks.set });
+    mocks.getRedisClient.mockResolvedValue({
+      incr: mocks.incr,
+      expire: mocks.expire,
+      set: mocks.set,
+    });
     mocks.isInferenceEnabled.mockReturnValue(true);
     await call();
     expect(mocks.expire).not.toHaveBeenCalled();
@@ -198,10 +202,7 @@ describe('resolveTrendSummary — what gets stored', () => {
   it('stores the summary under the term AND the run', async () => {
     await call();
 
-    const rows = await getDb()
-      .select()
-      .from(trendSummaries)
-      .where(eq(trendSummaries.term, TERM));
+    const rows = await getDb().select().from(trendSummaries).where(eq(trendSummaries.term, TERM));
     expect(rows).toHaveLength(1);
     expect(rows[0].runStartedAt).toEqual(RUN_STARTED_AT);
     // A run is part of the IDENTITY, not metadata: `orioles` is a trade this
@@ -215,8 +216,9 @@ describe('resolveTrendSummary — what gets stored', () => {
         loadExcerpts: () => Promise.resolve(POSTS),
       }),
     ).toEqual({ description: 'The Orioles traded Dean Kremer to the Twins.' });
-    expect(await getDb().select().from(trendSummaries).where(eq(trendSummaries.term, TERM)))
-      .toHaveLength(2);
+    expect(
+      await getDb().select().from(trendSummaries).where(eq(trendSummaries.term, TERM)),
+    ).toHaveLength(2);
   });
 
   it('truncates a runaway answer to the configured length', async () => {

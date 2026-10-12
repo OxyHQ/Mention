@@ -42,13 +42,10 @@ interface RawPost {
 /**
  * A lean document from THIS service's own two queries, as a {@link RawPost}.
  *
- * The Mongoose `Post` model yielded `_id` and had no stored `is_reply`, while
- * `RawPost` speaks the ported vocabulary. Bridging them with a bare cast
- * produced objects whose `id` was `undefined`, and the damage was silent:
- * `_sliceKey` became `"undefined+…"`, `additionalPostIds` handed hydration an
- * `undefined` id, and the `seenPostIds` guard deduped every fetched parent
+ * A record whose `id` is `undefined` does silent damage: `_sliceKey` becomes
+ * `"undefined+…"`, `additionalPostIds` hands hydration an `undefined` id, and the `seenPostIds` guard dedupes every fetched parent
  * against the single key `undefined` — so on a page with two replies to two
- * DIFFERENT parents, only the first reply got its parent prepended.
+ * DIFFERENT parents, only the first reply gets its parent prepended.
  *
  * Deriving `isReply` is correct only because these documents predate the stored
  * column; it goes through the shared {@link derivesReplyIntent} so the two
@@ -74,7 +71,7 @@ class ThreadSlicingService {
    */
   async sliceFeed(
     posts: RawPost[],
-    options: Partial<ThreadSlicingOptions> = {}
+    options: Partial<ThreadSlicingOptions> = {},
   ): Promise<{ slices: FeedPostSlice[]; additionalPostIds: string[] }> {
     const opts = { ...DEFAULT_OPTIONS, ...options };
 
@@ -175,18 +172,19 @@ class ThreadSlicingService {
       // post DTO, so a reply renders its context on feeds that never slice at all.
       if (opts.enableReplyContext && post.isReply) {
         const parentId = post.parentPostId;
-        const parent = parentId ? parentPostMap.get(parentId) ?? postById.get(parentId) : undefined;
-        const attachableParent =
-          parent && !seenPostIds.has(getPostId(parent)) ? parent : undefined;
+        const parent = parentId
+          ? (parentPostMap.get(parentId) ?? postById.get(parentId))
+          : undefined;
+        const attachableParent = parent && !seenPostIds.has(getPostId(parent)) ? parent : undefined;
         if (attachableParent) {
           seenPostIds.add(getPostId(attachableParent));
         }
 
-        slices.push(buildSlice(
-          attachableParent ? [attachableParent, post] : [post],
-          true,
-          { type: 'replyContext' },
-        ));
+        slices.push(
+          buildSlice(attachableParent ? [attachableParent, post] : [post], true, {
+            type: 'replyContext',
+          }),
+        );
         continue;
       }
 
@@ -204,7 +202,7 @@ class ThreadSlicingService {
    */
   private async fetchThreadChildren(
     posts: RawPost[],
-    maxSliceSize: number
+    maxSliceSize: number,
   ): Promise<Map<string, RawPost[]>> {
     const result = new Map<string, RawPost[]>();
 
@@ -219,16 +217,16 @@ class ThreadSlicingService {
     if (threadRoots.size === 0) return result;
 
     // One (thread, author) pair per root, OR-ed together.
-    const threadConditions = Array.from(threadRoots.entries()).map(([threadId, oxyUserId]) =>
-      and(
-        eq(postsTable.threadId, threadId),
-        eq(postsTable.oxyUserId, oxyUserId),
-        // `is not null`, NOT `<> null`: Mongo's `$ne: null` also matched a missing
-        // field, while SQL's `<>` against NULL is NULL and matches nothing — the
-        // literal translation would return no continuations at all and silently
-        // un-thread every self-thread in the feed.
-        isNotNull(postsTable.parentPostId),
-      ) as SQL,
+    const threadConditions = Array.from(threadRoots.entries()).map(
+      ([threadId, oxyUserId]) =>
+        and(
+          eq(postsTable.threadId, threadId),
+          eq(postsTable.oxyUserId, oxyUserId),
+          // `is not null`, NOT `<> null`: SQL's `<>` against NULL is NULL and
+          // matches nothing — that would return no continuations at all and silently
+          // un-thread every self-thread in the feed.
+          isNotNull(postsTable.parentPostId),
+        ) as SQL,
     );
 
     try {
@@ -271,7 +269,7 @@ class ThreadSlicingService {
    */
   private async fetchParentPosts(
     posts: RawPost[],
-    postById: Map<string, RawPost>
+    postById: Map<string, RawPost>,
   ): Promise<Map<string, RawPost>> {
     const result = new Map<string, RawPost>();
 
@@ -315,7 +313,6 @@ class ThreadSlicingService {
 
     return result;
   }
-
 }
 
 function getPostId(post: RawPost): string {
@@ -347,7 +344,7 @@ export function assignThreadState(items: FeedSliceItem[]): FeedSliceItem[] {
 function buildSlice(
   posts: RawPost[],
   isIncompleteThread: boolean,
-  reason?: FeedSliceReason
+  reason?: FeedSliceReason,
 ): FeedPostSlice {
   const rawItems: FeedSliceItem[] = posts.map((post) => ({
     // Raw lean doc placeholder: PostHydrationService.hydrateSlices replaces this

@@ -18,7 +18,16 @@ export function isPublicProfileHandle(
   if (!canonical) return false;
   const routed = normalizeHandle(routedHandle);
   if (routed === canonical) return true;
-  if (!resolvedProfile || typeof resolvedProfile !== 'object' || !('externalIdentities' in resolvedProfile)) return false;
-  const aliases = externalIdentityReferenceSchema.array().safeParse(resolvedProfile.externalIdentities);
-  return aliases.success && aliases.data.some((alias) => normalizeHandle(alias.canonicalAcct) === routed);
+  if (
+    !resolvedProfile ||
+    typeof resolvedProfile !== 'object' ||
+    !('externalIdentities' in resolvedProfile)
+  )
+    return false;
+  const aliases = externalIdentityReferenceSchema
+    .array()
+    .safeParse(resolvedProfile.externalIdentities);
+  return (
+    aliases.success && aliases.data.some((alias) => normalizeHandle(alias.canonicalAcct) === routed)
+  );
 }

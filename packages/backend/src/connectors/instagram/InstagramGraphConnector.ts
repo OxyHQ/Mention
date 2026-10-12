@@ -9,10 +9,17 @@ import type {
 } from '@oxy.so/federation';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
 import { findActorByUri } from '../../db/federation/actorRepository';
-import { deleteFollow, upsertOutboundAcceptedSubscription } from '../../db/federation/followRepository';
+import {
+  deleteFollow,
+  upsertOutboundAcceptedSubscription,
+} from '../../db/federation/followRepository';
 import { logger } from '../../utils/logger';
 import { resolveOxyExternalUser } from '../identity';
-import { INSTAGRAM_GRAPH_NETWORK_ID, isInstagramGraphActorUri, isInstagramGraphEnabled } from './constants';
+import {
+  INSTAGRAM_GRAPH_NETWORK_ID,
+  isInstagramGraphActorUri,
+  isInstagramGraphEnabled,
+} from './constants';
 import { fetchAndUpsertInstagramGraphActor } from './profile';
 import {
   isInstagramIdentityActor,
@@ -110,7 +117,9 @@ class InstagramGraphConnector implements NetworkConnector<PostContent> {
         return;
       default: {
         const exhaustive: never = event;
-        throw new Error(`InstagramGraphConnector: unhandled local event ${JSON.stringify(exhaustive)}`);
+        throw new Error(
+          `InstagramGraphConnector: unhandled local event ${JSON.stringify(exhaustive)}`,
+        );
       }
     }
   }
@@ -162,7 +171,9 @@ class InstagramGraphConnector implements NetworkConnector<PostContent> {
         requestInstagramSync(actor, 'follow');
       }
     } catch (err) {
-      logger.warn('[instagram] follow backfill lookup failed', { error: err instanceof Error ? err.message : String(err) });
+      logger.warn('[instagram] follow backfill lookup failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
@@ -183,7 +194,12 @@ class InstagramGraphConnector implements NetworkConnector<PostContent> {
    * cooldown would make the profile flicker between a spinner and empty forever
    * (the kilogram outbox never fills). A remembered `not_business` never waits.
    */
-  isProfileSyncPending(actor: Pick<FederatedActorRecord, 'protocol' | 'networkAcct' | 'oxyUserId' | 'instagramGraphSyncedAt'>): boolean {
+  isProfileSyncPending(
+    actor: Pick<
+      FederatedActorRecord,
+      'protocol' | 'networkAcct' | 'oxyUserId' | 'instagramGraphSyncedAt'
+    >,
+  ): boolean {
     if (!this.enabled || !actor.oxyUserId || !isInstagramIdentityActor(actor)) return false;
     return actor.instagramGraphSyncedAt === undefined;
   }

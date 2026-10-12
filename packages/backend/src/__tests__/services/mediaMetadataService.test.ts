@@ -34,6 +34,19 @@ describe('MediaMetadataService helpers', () => {
     expect(isOxyFileId('   ')).toBe(false);
   });
 
+  /**
+   * Production, 2026-10-10: the backfill stamped 26,228 videos and the post API
+   * still served none of them an `hlsUrl`. Hydration reads a stored media item
+   * through this list, and the ladder stamp was not on it.
+   */
+  it('readPersistedMediaFields carries the HLS ladder stamp through hydration', () => {
+    expect(readPersistedMediaFields({ hlsReadyAt: '2026-10-10T01:42:43.597Z' })).toEqual({
+      hlsReadyAt: '2026-10-10T01:42:43.597Z',
+    });
+    expect(readPersistedMediaFields({ hlsReadyAt: 'not a date' })).toEqual({});
+    expect(readPersistedMediaFields({ hlsReadyAt: 1 })).toEqual({});
+  });
+
   it('readPersistedMediaFields copies stored intrinsic fields', () => {
     const fields = readPersistedMediaFields({
       width: 1080,
@@ -135,6 +148,29 @@ describe('MediaMetadataService.enrichFromOxy', () => {
     });
   });
 
+  it("copies Oxy's HLS ladder stamp, which is what lets players leave the original", async () => {
+    const fileId = '01a12355-5f04-73a5-bb5b-dbf6f53ce659';
+    const { getServiceOxyClient } = await import('../../utils/oxyHelpers');
+    vi.mocked(getServiceOxyClient).mockReturnValue({
+      assets: {
+        metadataByIds: vi.fn().mockResolvedValue([
+          {
+            id: fileId,
+            width: 1916,
+            height: 1078,
+            durationSec: 30,
+            hlsReadyAt: '2026-10-10T18:00:00.000Z',
+          },
+        ]),
+      },
+    } as never);
+
+    const { mediaMetadataService } = await import('../../services/MediaMetadataService');
+    const [enriched] = await mediaMetadataService.enrichFromOxy([{ id: fileId, type: 'video' }]);
+
+    expect(enriched.hlsReadyAt).toBe('2026-10-10T18:00:00.000Z');
+  });
+
   /**
    * The regression that made this file worth reopening, exercised end to end
    * rather than through the predicate: a modern Oxy id must reach the by-ids
@@ -145,9 +181,11 @@ describe('MediaMetadataService.enrichFromOxy', () => {
   it('enriches an asset whose id is a uuid v7 (post-cutover Oxy ids)', async () => {
     const fileId = '01a0821e-d61a-7a78-b5d1-afb1850bd5a4';
     const { getServiceOxyClient } = await import('../../utils/oxyHelpers');
-    const metadataByIds = vi.fn().mockResolvedValue([
-      { id: fileId, width: 720, height: 1280, durationSec: 12, orientation: 'portrait' },
-    ]);
+    const metadataByIds = vi
+      .fn()
+      .mockResolvedValue([
+        { id: fileId, width: 720, height: 1280, durationSec: 12, orientation: 'portrait' },
+      ]);
     vi.mocked(getServiceOxyClient).mockReturnValue({
       assets: { metadataByIds },
     } as never);
@@ -190,7 +228,41 @@ describe('MediaMetadataService.enrichFromOxy', () => {
 
     expect(mediaMetadataService.needsOxyRetry(pending)).toBe(true);
     expect(
-      mediaMetadataService.needsOxyRetry([{ ...pending[0], width: 720, height: 1280, durationSec: 12 }]),
+      mediaMetadataService.needsOxyRetry([
+        {
+          ...pending[0],
+          width: 720,
+          height: 1280,
+          durationSec: 12,
+          hlsReadyAt: '2026-10-10T18:00:00.000Z',
+        },
+      ]),
+    ).toBe(false);
+  });
+
+  /**
+   * Production, 2026-10-10: an Instagram reel uploaded as VP9 showed only its
+   * poster on an iPhone. Oxy had finished its H.264 ladder, but nothing ever
+   * copied the stamp, so the DTO carried no `hlsUrl` and every player was handed
+   * the VP9 original. A video keeps retrying until the ladder is stamped.
+   */
+  it('keeps a video pending until Oxy has finished its HLS ladder', async () => {
+    const { mediaMetadataService } = await import('../../services/MediaMetadataService');
+    const probed: MediaItem = {
+      id: '01a12355-5f04-73a5-bb5b-dbf6f53ce659',
+      type: 'video',
+      width: 1916,
+      height: 1078,
+      durationSec: 30,
+    };
+
+    expect(mediaMetadataService.needsOxyRetry([probed])).toBe(true);
+    expect(
+      mediaMetadataService.needsOxyRetry([{ ...probed, hlsReadyAt: '2026-10-10T18:00:00.000Z' }]),
+    ).toBe(false);
+    // An image has no ladder to wait for.
+    expect(
+      mediaMetadataService.needsOxyRetry([{ id: probed.id, type: 'image', width: 1, height: 1 }]),
     ).toBe(false);
   });
 
@@ -206,8 +278,12 @@ describe('MediaMetadataService.enrichFromOxy', () => {
 
     expect(mediaMetadataService.needsOxyRetry([image])).toBe(true);
     // An image has no duration to wait for: dimensions settle it.
-    expect(mediaMetadataService.needsOxyRetry([{ ...image, width: 1080, height: 1350 }])).toBe(false);
+    expect(mediaMetadataService.needsOxyRetry([{ ...image, width: 1080, height: 1350 }])).toBe(
+      false,
+    );
     // A remote (proxied) image is not Oxy's to probe.
-    expect(mediaMetadataService.needsOxyRetry([{ id: 'https://remote.example/a.jpg', type: 'image' }])).toBe(false);
+    expect(
+      mediaMetadataService.needsOxyRetry([{ id: 'https://remote.example/a.jpg', type: 'image' }]),
+    ).toBe(false);
   });
 });

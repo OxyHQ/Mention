@@ -1,18 +1,18 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback } from 'react';
 import {
   mergeMentionData,
   reconcileMentionData,
   type MentionData,
   type MentionTextValue,
-} from "@/utils/mentions";
-import { ComposerMediaItem } from "@/utils/composeUtils";
-import { Source } from "@/hooks/useSourcesManager";
-import { ArticleData } from "@/hooks/useArticleManager";
-import { EventData } from "@/hooks/useEventManager";
-import { PodcastAttachmentData } from "@/hooks/usePodcastManager";
-import { RoomAttachmentData } from "@/hooks/useRoomManager";
-import type { ReplyPermission } from "@/components/Compose/ReplySettingsSheet";
-import type { AccountNode } from "@oxy.so/core";
+} from '@/utils/mentions';
+import { ComposerMediaItem } from '@/utils/composeUtils';
+import { Source } from '@/hooks/useSourcesManager';
+import { ArticleData } from '@/hooks/useArticleManager';
+import { EventData } from '@/hooks/useEventManager';
+import { PodcastAttachmentData } from '@/hooks/usePodcastManager';
+import { RoomAttachmentData } from '@/hooks/useRoomManager';
+import type { ReplyPermission } from '@/components/Compose/ReplySettingsSheet';
+import type { AccountNode } from '@oxy.so/core';
 
 /**
  * One box — the root post or a thread item — as it comes back OUT of a stored
@@ -100,10 +100,10 @@ export const useThreadManager = () => {
   const addThread = useCallback((defaults?: ThreadItemDefaults) => {
     const newThread: ThreadItem = {
       id: `thread-${Date.now()}`,
-      text: "",
+      text: '',
       mediaIds: [],
       pollOptions: [],
-      pollTitle: "",
+      pollTitle: '',
       showPollCreator: false,
       location: null,
       mentions: [],
@@ -117,7 +117,7 @@ export const useThreadManager = () => {
       // forward either.
       laneId: null,
       attachmentOrder: [],
-      replyPermission: defaults?.replyPermission ?? ["anyone"],
+      replyPermission: defaults?.replyPermission ?? ['anyone'],
       reviewReplies: defaults?.reviewReplies ?? false,
       quotesDisabled: defaults?.quotesDisabled ?? false,
       isSensitive: defaults?.isSensitive ?? false,
@@ -139,27 +139,20 @@ export const useThreadManager = () => {
    * registry. `variantTexts` contains that thread item's other language bodies.
    */
   const updateThreadMentionState = useCallback(
-    (
-      threadId: string,
-      value: MentionTextValue,
-      variantTexts: readonly string[] = [],
-    ) => {
+    (threadId: string, value: MentionTextValue, variantTexts: readonly string[] = []) => {
       setThreadItems((prev) =>
         prev.map((item) =>
           item.id === threadId
             ? {
                 ...item,
                 text: value.text,
-                mentions: reconcileMentionData(
-                  [value.text, ...variantTexts],
-                  value.mentions,
-                ),
+                mentions: reconcileMentionData([value.text, ...variantTexts], value.mentions),
               }
-            : item
-        )
+            : item,
+        ),
       );
     },
-    []
+    [],
   );
 
   /**
@@ -167,11 +160,7 @@ export const useThreadManager = () => {
    * changes. The primary body stays untouched.
    */
   const reconcileThreadMentionState = useCallback(
-    (
-      threadId: string,
-      mentions: readonly MentionData[],
-      variantTexts: readonly string[],
-    ) => {
+    (threadId: string, mentions: readonly MentionData[], variantTexts: readonly string[]) => {
       setThreadItems((prev) =>
         prev.map((item) =>
           item.id === threadId
@@ -182,30 +171,27 @@ export const useThreadManager = () => {
                   mergeMentionData(item.mentions, mentions),
                 ),
               }
-            : item
-        )
+            : item,
+        ),
       );
     },
-    []
+    [],
   );
 
-  const addThreadMedia = useCallback(
-    (threadId: string, mediaItem: ComposerMediaItem) => {
-      setThreadItems((prev) =>
-        prev.map((item) =>
-          item.id === threadId
-            ? {
-                ...item,
-                mediaIds: item.mediaIds.some((m) => m.id === mediaItem.id)
-                  ? item.mediaIds
-                  : [...item.mediaIds, mediaItem],
-              }
-            : item
-        )
-      );
-    },
-    []
-  );
+  const addThreadMedia = useCallback((threadId: string, mediaItem: ComposerMediaItem) => {
+    setThreadItems((prev) =>
+      prev.map((item) =>
+        item.id === threadId
+          ? {
+              ...item,
+              mediaIds: item.mediaIds.some((m) => m.id === mediaItem.id)
+                ? item.mediaIds
+                : [...item.mediaIds, mediaItem],
+            }
+          : item,
+      ),
+    );
+  }, []);
 
   const addThreadMediaMultiple = useCallback(
     (threadId: string, mediaItems: ComposerMediaItem[]) => {
@@ -215,10 +201,10 @@ export const useThreadManager = () => {
           const existingIds = new Set(item.mediaIds.map((m) => m.id));
           const newItems = mediaItems.filter((m) => !existingIds.has(m.id));
           return { ...item, mediaIds: [...item.mediaIds, ...newItems] };
-        })
+        }),
       );
     },
-    []
+    [],
   );
 
   const removeThreadMedia = useCallback((threadId: string, mediaId: string) => {
@@ -226,48 +212,43 @@ export const useThreadManager = () => {
       prev.map((item) =>
         item.id === threadId
           ? { ...item, mediaIds: item.mediaIds.filter((m) => m.id !== mediaId) }
-          : item
-      )
+          : item,
+      ),
     );
   }, []);
 
-  const setThreadMediaAlt = useCallback(
-    (threadId: string, mediaId: string, alt: string) => {
-      setThreadItems((prev) =>
-        prev.map((item) =>
-          item.id === threadId
-            ? {
-                ...item,
-                mediaIds: item.mediaIds.map((m) =>
-                  m.id === mediaId
-                    ? { ...m, alt: alt.trim().length > 0 ? alt : undefined }
-                    : m
-                ),
-              }
-            : item
-        )
-      );
-    },
-    []
-  );
+  const setThreadMediaAlt = useCallback((threadId: string, mediaId: string, alt: string) => {
+    setThreadItems((prev) =>
+      prev.map((item) =>
+        item.id === threadId
+          ? {
+              ...item,
+              mediaIds: item.mediaIds.map((m) =>
+                m.id === mediaId ? { ...m, alt: alt.trim().length > 0 ? alt : undefined } : m,
+              ),
+            }
+          : item,
+      ),
+    );
+  }, []);
 
   const moveThreadMedia = useCallback(
-    (threadId: string, mediaId: string, direction: "left" | "right") => {
+    (threadId: string, mediaId: string, direction: 'left' | 'right') => {
       setThreadItems((prev) =>
         prev.map((item) => {
           if (item.id !== threadId) return item;
           const index = item.mediaIds.findIndex((m) => m.id === mediaId);
           if (index === -1) return item;
-          const targetIndex = direction === "left" ? index - 1 : index + 1;
+          const targetIndex = direction === 'left' ? index - 1 : index + 1;
           if (targetIndex < 0 || targetIndex >= item.mediaIds.length) return item;
           const updatedMedia = [...item.mediaIds];
           const [mediaItem] = updatedMedia.splice(index, 1);
           updatedMedia.splice(targetIndex, 0, mediaItem);
           return { ...item, mediaIds: updatedMedia };
-        })
+        }),
       );
     },
-    []
+    [],
   );
 
   const openThreadPollCreator = useCallback((threadId: string) => {
@@ -277,57 +258,47 @@ export const useThreadManager = () => {
           ? {
               ...item,
               showPollCreator: true,
-              pollOptions: item.pollOptions.length === 0 ? ["", ""] : item.pollOptions,
-              pollTitle: item.pollTitle || "",
+              pollOptions: item.pollOptions.length === 0 ? ['', ''] : item.pollOptions,
+              pollTitle: item.pollTitle || '',
             }
-          : item
-      )
+          : item,
+      ),
     );
   }, []);
 
   const addThreadPollOption = useCallback((threadId: string) => {
     setThreadItems((prev) =>
       prev.map((item) =>
-        item.id === threadId
-          ? { ...item, pollOptions: [...item.pollOptions, ""] }
-          : item
-      )
+        item.id === threadId ? { ...item, pollOptions: [...item.pollOptions, ''] } : item,
+      ),
     );
   }, []);
 
-  const updateThreadPollOption = useCallback(
-    (threadId: string, index: number, value: string) => {
-      setThreadItems((prev) =>
-        prev.map((item) =>
-          item.id === threadId
-            ? {
-                ...item,
-                pollOptions: item.pollOptions.map((opt, i) =>
-                  i === index ? value : opt
-                ),
-              }
-            : item
-        )
-      );
-    },
-    []
-  );
+  const updateThreadPollOption = useCallback((threadId: string, index: number, value: string) => {
+    setThreadItems((prev) =>
+      prev.map((item) =>
+        item.id === threadId
+          ? {
+              ...item,
+              pollOptions: item.pollOptions.map((opt, i) => (i === index ? value : opt)),
+            }
+          : item,
+      ),
+    );
+  }, []);
 
-  const removeThreadPollOption = useCallback(
-    (threadId: string, index: number) => {
-      setThreadItems((prev) =>
-        prev.map((item) =>
-          item.id === threadId && item.pollOptions.length > 2
-            ? {
-                ...item,
-                pollOptions: item.pollOptions.filter((_, i) => i !== index),
-              }
-            : item
-        )
-      );
-    },
-    []
-  );
+  const removeThreadPollOption = useCallback((threadId: string, index: number) => {
+    setThreadItems((prev) =>
+      prev.map((item) =>
+        item.id === threadId && item.pollOptions.length > 2
+          ? {
+              ...item,
+              pollOptions: item.pollOptions.filter((_, i) => i !== index),
+            }
+          : item,
+      ),
+    );
+  }, []);
 
   const removeThreadPoll = useCallback((threadId: string) => {
     setThreadItems((prev) =>
@@ -337,41 +308,34 @@ export const useThreadManager = () => {
               ...item,
               showPollCreator: false,
               pollOptions: [],
-              pollTitle: "",
+              pollTitle: '',
             }
-          : item
-      )
+          : item,
+      ),
     );
   }, []);
 
-  const updateThreadPollTitle = useCallback(
-    (threadId: string, title: string) => {
-      setThreadItems((prev) =>
-        prev.map((item) =>
-          item.id === threadId ? { ...item, pollTitle: title } : item
-        )
-      );
-    },
-    []
-  );
+  const updateThreadPollTitle = useCallback((threadId: string, title: string) => {
+    setThreadItems((prev) =>
+      prev.map((item) => (item.id === threadId ? { ...item, pollTitle: title } : item)),
+    );
+  }, []);
 
   const setThreadLocation = useCallback(
     (
       threadId: string,
-      location: { latitude: number; longitude: number; address?: string } | null
+      location: { latitude: number; longitude: number; address?: string } | null,
     ) => {
       setThreadItems((prev) =>
-        prev.map((item) => (item.id === threadId ? { ...item, location } : item))
+        prev.map((item) => (item.id === threadId ? { ...item, location } : item)),
       );
     },
-    []
+    [],
   );
 
   const removeThreadLocation = useCallback((threadId: string) => {
     setThreadItems((prev) =>
-      prev.map((item) =>
-        item.id === threadId ? { ...item, location: null } : item
-      )
+      prev.map((item) => (item.id === threadId ? { ...item, location: null } : item)),
     );
   }, []);
 
@@ -379,85 +343,57 @@ export const useThreadManager = () => {
   const setThreadReplyPermission = useCallback(
     (threadId: string, replyPermission: ReplyPermission[]) => {
       setThreadItems((prev) =>
-        prev.map((item) =>
-          item.id === threadId ? { ...item, replyPermission } : item
-        )
+        prev.map((item) => (item.id === threadId ? { ...item, replyPermission } : item)),
       );
     },
-    []
+    [],
   );
 
-  const setThreadReviewReplies = useCallback(
-    (threadId: string, reviewReplies: boolean) => {
-      setThreadItems((prev) =>
-        prev.map((item) =>
-          item.id === threadId ? { ...item, reviewReplies } : item
-        )
-      );
-    },
-    []
-  );
+  const setThreadReviewReplies = useCallback((threadId: string, reviewReplies: boolean) => {
+    setThreadItems((prev) =>
+      prev.map((item) => (item.id === threadId ? { ...item, reviewReplies } : item)),
+    );
+  }, []);
 
-  const setThreadQuotesDisabled = useCallback(
-    (threadId: string, quotesDisabled: boolean) => {
-      setThreadItems((prev) =>
-        prev.map((item) =>
-          item.id === threadId ? { ...item, quotesDisabled } : item
-        )
-      );
-    },
-    []
-  );
+  const setThreadQuotesDisabled = useCallback((threadId: string, quotesDisabled: boolean) => {
+    setThreadItems((prev) =>
+      prev.map((item) => (item.id === threadId ? { ...item, quotesDisabled } : item)),
+    );
+  }, []);
 
-  const setThreadSensitive = useCallback(
-    (threadId: string, isSensitive: boolean) => {
-      setThreadItems((prev) =>
-        prev.map((item) =>
-          item.id === threadId ? { ...item, isSensitive } : item
-        )
-      );
-    },
-    []
-  );
+  const setThreadSensitive = useCallback((threadId: string, isSensitive: boolean) => {
+    setThreadItems((prev) =>
+      prev.map((item) => (item.id === threadId ? { ...item, isSensitive } : item)),
+    );
+  }, []);
 
-  const setThreadPublishAs = useCallback(
-    (threadId: string, publishAs: AccountNode | null) => {
-      setThreadItems((prev) =>
-        prev.map((item) =>
-          // The lane goes with the account, in both directions: a lane belongs
-          // to one publisher, so the one picked while this box was the author's
-          // is not a lane the channel has. Kept, it reaches the server as a lane
-          // the new publisher does not own — a 404 the author only sees after
-          // pressing post.
-          item.id === threadId ? { ...item, publishAs, laneId: null } : item
-        )
-      );
-    },
-    []
-  );
+  const setThreadPublishAs = useCallback((threadId: string, publishAs: AccountNode | null) => {
+    setThreadItems((prev) =>
+      prev.map((item) =>
+        // The lane goes with the account, in both directions: a lane belongs
+        // to one publisher, so the one picked while this box was the author's
+        // is not a lane the channel has. Kept, it reaches the server as a lane
+        // the new publisher does not own — a 404 the author only sees after
+        // pressing post.
+        item.id === threadId ? { ...item, publishAs, laneId: null } : item,
+      ),
+    );
+  }, []);
 
   // Sources management
-  const setThreadSources = useCallback(
-    (threadId: string, sources: Source[]) => {
-      setThreadItems((prev) =>
-        prev.map((item) => (item.id === threadId ? { ...item, sources } : item))
-      );
-    },
-    []
-  );
+  const setThreadSources = useCallback((threadId: string, sources: Source[]) => {
+    setThreadItems((prev) =>
+      prev.map((item) => (item.id === threadId ? { ...item, sources } : item)),
+    );
+  }, []);
 
-  const addThreadSource = useCallback(
-    (threadId: string, source: Source) => {
-      setThreadItems((prev) =>
-        prev.map((item) =>
-          item.id === threadId
-            ? { ...item, sources: [...item.sources, source] }
-            : item
-        )
-      );
-    },
-    []
-  );
+  const addThreadSource = useCallback((threadId: string, source: Source) => {
+    setThreadItems((prev) =>
+      prev.map((item) =>
+        item.id === threadId ? { ...item, sources: [...item.sources, source] } : item,
+      ),
+    );
+  }, []);
 
   const updateThreadSourceField = useCallback(
     (threadId: string, sourceId: string, field: keyof Source, value: string) => {
@@ -467,80 +403,60 @@ export const useThreadManager = () => {
             ? {
                 ...item,
                 sources: item.sources.map((s) =>
-                  s.id === sourceId ? { ...s, [field]: value } : s
+                  s.id === sourceId ? { ...s, [field]: value } : s,
                 ),
               }
-            : item
-        )
+            : item,
+        ),
       );
     },
-    []
+    [],
   );
 
-  const removeThreadSource = useCallback(
-    (threadId: string, sourceId: string) => {
-      setThreadItems((prev) =>
-        prev.map((item) =>
-          item.id === threadId
-            ? { ...item, sources: item.sources.filter((s) => s.id !== sourceId) }
-            : item
-        )
-      );
-    },
-    []
-  );
+  const removeThreadSource = useCallback((threadId: string, sourceId: string) => {
+    setThreadItems((prev) =>
+      prev.map((item) =>
+        item.id === threadId
+          ? { ...item, sources: item.sources.filter((s) => s.id !== sourceId) }
+          : item,
+      ),
+    );
+  }, []);
 
   // Article management
-  const setThreadArticle = useCallback(
-    (threadId: string, article: ArticleData | null) => {
-      setThreadItems((prev) =>
-        prev.map((item) => (item.id === threadId ? { ...item, article } : item))
-      );
-    },
-    []
-  );
+  const setThreadArticle = useCallback((threadId: string, article: ArticleData | null) => {
+    setThreadItems((prev) =>
+      prev.map((item) => (item.id === threadId ? { ...item, article } : item)),
+    );
+  }, []);
 
   const removeThreadArticle = useCallback((threadId: string) => {
     setThreadItems((prev) =>
-      prev.map((item) =>
-        item.id === threadId ? { ...item, article: null } : item
-      )
+      prev.map((item) => (item.id === threadId ? { ...item, article: null } : item)),
     );
   }, []);
 
   // Event management
-  const setThreadEvent = useCallback(
-    (threadId: string, event: EventData | null) => {
-      setThreadItems((prev) =>
-        prev.map((item) => (item.id === threadId ? { ...item, event } : item))
-      );
-    },
-    []
-  );
+  const setThreadEvent = useCallback((threadId: string, event: EventData | null) => {
+    setThreadItems((prev) =>
+      prev.map((item) => (item.id === threadId ? { ...item, event } : item)),
+    );
+  }, []);
 
   const removeThreadEvent = useCallback((threadId: string) => {
     setThreadItems((prev) =>
-      prev.map((item) =>
-        item.id === threadId ? { ...item, event: null } : item
-      )
+      prev.map((item) => (item.id === threadId ? { ...item, event: null } : item)),
     );
   }, []);
 
   // Room management
-  const setThreadRoom = useCallback(
-    (threadId: string, room: RoomAttachmentData | null) => {
-      setThreadItems((prev) =>
-        prev.map((item) => (item.id === threadId ? { ...item, room } : item))
-      );
-    },
-    []
-  );
+  const setThreadRoom = useCallback((threadId: string, room: RoomAttachmentData | null) => {
+    setThreadItems((prev) => prev.map((item) => (item.id === threadId ? { ...item, room } : item)));
+  }, []);
 
   const removeThreadRoom = useCallback((threadId: string) => {
     setThreadItems((prev) =>
-      prev.map((item) =>
-        item.id === threadId ? { ...item, room: null } : item
-      )
+      prev.map((item) => (item.id === threadId ? { ...item, room: null } : item)),
     );
   }, []);
 
@@ -548,17 +464,15 @@ export const useThreadManager = () => {
   const setThreadPodcast = useCallback(
     (threadId: string, podcast: PodcastAttachmentData | null) => {
       setThreadItems((prev) =>
-        prev.map((item) => (item.id === threadId ? { ...item, podcast } : item))
+        prev.map((item) => (item.id === threadId ? { ...item, podcast } : item)),
       );
     },
-    []
+    [],
   );
 
   const removeThreadPodcast = useCallback((threadId: string) => {
     setThreadItems((prev) =>
-      prev.map((item) =>
-        item.id === threadId ? { ...item, podcast: null } : item
-      )
+      prev.map((item) => (item.id === threadId ? { ...item, podcast: null } : item)),
     );
   }, []);
 
@@ -572,50 +486,39 @@ export const useThreadManager = () => {
    */
   const setThreadLaneId = useCallback((threadId: string, laneId: string | null) => {
     setThreadItems((prev) =>
-      prev.map((item) => (item.id === threadId ? { ...item, laneId } : item))
+      prev.map((item) => (item.id === threadId ? { ...item, laneId } : item)),
     );
   }, []);
 
   // Attachment order management
-  const setThreadAttachmentOrder = useCallback(
-    (threadId: string, attachmentOrder: string[]) => {
-      setThreadItems((prev) =>
-        prev.map((item) =>
-          item.id === threadId ? { ...item, attachmentOrder } : item
-        )
-      );
-    },
-    []
-  );
+  const setThreadAttachmentOrder = useCallback((threadId: string, attachmentOrder: string[]) => {
+    setThreadItems((prev) =>
+      prev.map((item) => (item.id === threadId ? { ...item, attachmentOrder } : item)),
+    );
+  }, []);
 
-  const addThreadAttachment = useCallback(
-    (threadId: string, key: string) => {
-      setThreadItems((prev) =>
-        prev.map((item) =>
-          item.id === threadId && !item.attachmentOrder.includes(key)
-            ? { ...item, attachmentOrder: [...item.attachmentOrder, key] }
-            : item
-        )
-      );
-    },
-    []
-  );
+  const addThreadAttachment = useCallback((threadId: string, key: string) => {
+    setThreadItems((prev) =>
+      prev.map((item) =>
+        item.id === threadId && !item.attachmentOrder.includes(key)
+          ? { ...item, attachmentOrder: [...item.attachmentOrder, key] }
+          : item,
+      ),
+    );
+  }, []);
 
-  const removeThreadAttachment = useCallback(
-    (threadId: string, key: string) => {
-      setThreadItems((prev) =>
-        prev.map((item) =>
-          item.id === threadId
-            ? {
-                ...item,
-                attachmentOrder: item.attachmentOrder.filter((k) => k !== key),
-              }
-            : item
-        )
-      );
-    },
-    []
-  );
+  const removeThreadAttachment = useCallback((threadId: string, key: string) => {
+    setThreadItems((prev) =>
+      prev.map((item) =>
+        item.id === threadId
+          ? {
+              ...item,
+              attachmentOrder: item.attachmentOrder.filter((k) => k !== key),
+            }
+          : item,
+      ),
+    );
+  }, []);
 
   const clearAllThreads = useCallback(() => {
     setThreadItems([]);
@@ -630,33 +533,35 @@ export const useThreadManager = () => {
    * sensitive/quote flags entirely.
    */
   const loadThreadsFromDraft = useCallback((threads: DraftThreadItem[]) => {
-    setThreadItems(threads.map((thread) => ({
-      id: thread.id,
-      text: thread.text,
-      mediaIds: thread.mediaIds,
-      pollOptions: thread.pollOptions,
-      pollTitle: thread.pollTitle ?? "",
-      showPollCreator: thread.showPollCreator,
-      location: thread.location,
-      mentions: thread.mentions,
-      sources: thread.sources,
-      article: thread.article,
-      event: thread.event,
-      room: thread.room,
-      podcast: thread.podcast,
-      attachmentOrder: thread.attachmentOrder,
-      // A draft never persisted the lane, so a restored box starts on none.
-      laneId: null,
-      replyPermission: ["anyone"],
-      reviewReplies: false,
-      quotesDisabled: false,
-      isSensitive: false,
-      // A draft never persisted the author of a box — the account graph can move
-      // between the save and the restore, so a stored id could name an account
-      // the caller no longer operates. Restoring to the author is the choice that
-      // cannot publish under an identity nobody re-confirmed.
-      publishAs: null,
-    })));
+    setThreadItems(
+      threads.map((thread) => ({
+        id: thread.id,
+        text: thread.text,
+        mediaIds: thread.mediaIds,
+        pollOptions: thread.pollOptions,
+        pollTitle: thread.pollTitle ?? '',
+        showPollCreator: thread.showPollCreator,
+        location: thread.location,
+        mentions: thread.mentions,
+        sources: thread.sources,
+        article: thread.article,
+        event: thread.event,
+        room: thread.room,
+        podcast: thread.podcast,
+        attachmentOrder: thread.attachmentOrder,
+        // A draft never persisted the lane, so a restored box starts on none.
+        laneId: null,
+        replyPermission: ['anyone'],
+        reviewReplies: false,
+        quotesDisabled: false,
+        isSensitive: false,
+        // A draft never persisted the author of a box — the account graph can move
+        // between the save and the restore, so a stored id could name an account
+        // the caller no longer operates. Restoring to the author is the choice that
+        // cannot publish under an identity nobody re-confirmed.
+        publishAs: null,
+      })),
+    );
   }, []);
 
   return {

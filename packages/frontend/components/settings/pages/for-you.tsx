@@ -2,32 +2,23 @@ import {
   FOR_YOU_TUNING_MODULES,
   type ForYouFeedTuning,
   type ForYouTuningModuleSpec,
-} from "@mention/shared-types/mtn/feedTuning";
-import { Loading } from "@oxy.so/bloom/loading";
-import {
-  SettingsCard,
-  SettingsRow,
-  SettingsSection,
-} from "@oxy.so/bloom/settings-modal";
-import { Switch } from "@oxy.so/bloom/switch";
-import { OxyAuthPrompt, useAuth } from "@oxy.so/services/ui/client";
-import { useMemo } from "react";
-import { useTranslation } from "react-i18next";
-import { Text, View } from "react-native";
+} from '@mention/shared-types/mtn/feedTuning';
+import { Loading } from '@oxy.so/bloom/loading';
+import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { Switch } from '@oxy.so/bloom/switch';
+import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
+import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Text, View } from 'react-native';
 
-import { Slider } from "@oxy.so/bloom/slider";
-import { useForYouTuning } from "@/hooks/useForYouTuning";
-import { resolveTuning, updateTuning } from "@/utils/forYouTuning";
+import { Slider } from '@oxy.so/bloom/slider';
+import { useForYouTuning } from '@/hooks/useForYouTuning';
+import { resolveTuning, updateTuning } from '@/utils/forYouTuning';
 
-type TuningCategory = ForYouTuningModuleSpec["category"];
+type TuningCategory = ForYouTuningModuleSpec['category'];
 
 /** Category display order for the tuning groups. */
-const CATEGORY_ORDER: readonly TuningCategory[] = [
-  "safety",
-  "quality",
-  "engagement",
-  "content",
-];
+const CATEGORY_ORDER: readonly TuningCategory[] = ['safety', 'quality', 'engagement', 'content'];
 
 interface TuningCategoryGroup {
   category: TuningCategory;
@@ -42,12 +33,10 @@ function groupByCategory(): TuningCategoryGroup[] {
     list.push(spec);
     byCategory.set(spec.category, list);
   }
-  return CATEGORY_ORDER.filter((category) => byCategory.has(category)).map(
-    (category) => ({
-      category,
-      modules: byCategory.get(category) ?? [],
-    }),
-  );
+  return CATEGORY_ORDER.filter((category) => byCategory.has(category)).map((category) => ({
+    category,
+    modules: byCategory.get(category) ?? [],
+  }));
 }
 
 /** One tunable module: an on/off toggle plus a threshold slider when enabled. */
@@ -65,15 +54,12 @@ function TuningModuleRow({
   // A toggle-only module has no threshold, so it renders the switch and nothing
   // else. Reading `spec.step` unconditionally is what the discriminated union in
   // `FOR_YOU_TUNING_MODULES` exists to prevent.
-  const range = spec.control === "number-range" ? spec : undefined;
+  const range = spec.control === 'number-range' ? spec : undefined;
   const stepIsFractional = range !== undefined && range.step < 1;
 
   return (
     <>
-      <SettingsRow
-        label={t(spec.labelKey)}
-        description={t(spec.descriptionKey)}
-      >
+      <SettingsRow label={t(spec.labelKey)} description={t(spec.descriptionKey)}>
         {
           <Switch
             checked={enabled}
@@ -99,7 +85,7 @@ function TuningModuleRow({
             min={range.min}
             max={range.max}
             step={range.step}
-            label={t("feed.tuning.threshold", { defaultValue: "Threshold" })}
+            label={t('feed.tuning.threshold', { defaultValue: 'Threshold' })}
             formatValue={(value) =>
               stepIsFractional ? value.toFixed(2) : String(Math.round(value))
             }
@@ -129,12 +115,12 @@ export default function ForYouTuningScreen() {
     return (
       <View className="gap-4">
         <OxyAuthPrompt
-          label={t("feed.tuning.signInRequired", {
-            defaultValue: "Sign in to tune your For You feed",
+          label={t('feed.tuning.signInRequired', {
+            defaultValue: 'Sign in to tune your For You feed',
           })}
-          description={t("feed.tuning.signInRequiredDesc", {
+          description={t('feed.tuning.signInRequiredDesc', {
             defaultValue:
-              "Adjust which quality, engagement, and content filters shape your discovery feed.",
+              'Adjust which quality, engagement, and content filters shape your discovery feed.',
           })}
         />
       </View>
@@ -156,9 +142,9 @@ export default function ForYouTuningScreen() {
       <View className="gap-4">
         <View className="pt-2 pb-1">
           <Text className="text-[13px] leading-[18px] text-muted-foreground">
-            {t("feed.tuning.intro", {
+            {t('feed.tuning.intro', {
               defaultValue:
-                "These filters shape only your For You discovery feed. Accounts you follow are never filtered.",
+                'These filters shape only your For You discovery feed. Accounts you follow are never filtered.',
             })}
           </Text>
         </View>
@@ -170,12 +156,7 @@ export default function ForYouTuningScreen() {
           >
             <SettingsCard>
               {group.modules.map((spec) => (
-                <TuningModuleRow
-                  key={spec.moduleId}
-                  spec={spec}
-                  tuning={tuning}
-                  onSave={save}
-                />
+                <TuningModuleRow key={spec.moduleId} spec={spec} tuning={tuning} onSave={save} />
               ))}
             </SettingsCard>
           </SettingsSection>

@@ -22,8 +22,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  * ## What changed with the Postgres port
  *
  * The old suite replaced `models/Like` with a chainable stub and asserted on the
- * Mongo filter object the controller BUILT — including that `filter.postId` was
- * a `mongoose.Types.ObjectId`. Both the model and that cast are gone: likes live
+ * legacy-store filter object the controller BUILT — including that `filter.postId` was
+ * an ObjectId. Both the model and that cast are gone: likes live
  * in the `likes` table, `post_id` is the post's `text` primary key, and the
  * whole query is a `WHERE user_id = ANY(...) AND post_id = ... AND value = 1`.
  *
@@ -210,7 +210,10 @@ describe('getKnownPostLikers', () => {
     viewerFollows([upvoter, downvoter]);
     await seedLike(upvoter, 1);
     await seedLike(downvoter, -1);
-    resolveSummaries([[upvoter, 'up'], [downvoter, 'down']]);
+    resolveSummaries([
+      [upvoter, 'up'],
+      [downvoter, 'down'],
+    ]);
 
     expect(await callEndpoint({ user: { id: VIEWER } })).toMatchObject({
       body: {
@@ -249,7 +252,10 @@ describe('getKnownPostLikers', () => {
     viewerFollows(following);
     await seedLike(inside);
     await seedLike(outside);
-    resolveSummaries([[inside, 'ana'], [outside, 'bob']]);
+    resolveSummaries([
+      [inside, 'ana'],
+      [outside, 'bob'],
+    ]);
 
     const captured = await callEndpoint({ user: { id: VIEWER } });
 

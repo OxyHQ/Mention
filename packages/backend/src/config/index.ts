@@ -1,8 +1,12 @@
-import { readManagedDeployment, withManagedDeploymentEnvironment, mcpDeploymentIdentity } from '@mention/shared-types/deployment';
+import {
+  readManagedDeployment,
+  withManagedDeploymentEnvironment,
+  mcpDeploymentIdentity,
+} from '@mention/shared-types/deployment';
+import { canAttestWorkloadIdentity } from '@oxy.so/core/server';
 import * as z from 'zod';
 
-export const MENTION_INFERENCE_ROUTING_PROFILE_ID =
-  '01a06477-94f5-74f0-bc25-4c5c13b93ccd' as const;
+export const MENTION_INFERENCE_ROUTING_PROFILE_ID = '01a06477-94f5-74f0-bc25-4c5c13b93ccd' as const;
 
 const withoutTrailingSlash = (value: string): string => value.replace(/\/+$/, '');
 
@@ -12,10 +16,7 @@ const emptyAsUndefined = (value: unknown): unknown =>
 const optionalString = (minimumLength = 1) =>
   z.preprocess(emptyAsUndefined, z.string().min(minimumLength).optional());
 
-const trimmedOptionalString = z.preprocess(
-  emptyAsUndefined,
-  z.string().trim().min(1).optional(),
-);
+const trimmedOptionalString = z.preprocess(emptyAsUndefined, z.string().trim().min(1).optional());
 
 const integerFromEnv = (
   fallback: number,
@@ -102,17 +103,14 @@ const host = z
 const optionalHost = z.preprocess(emptyAsUndefined, host.optional());
 
 const commaSeparatedDomains = (fallback: readonly string[] = []) =>
-  z.preprocess(
-    (value) => {
-      if (value === undefined || value === null || value === '') return [...fallback];
-      if (Array.isArray(value)) return value;
-      return String(value)
-        .split(',')
-        .map((entry) => entry.trim())
-        .filter(Boolean);
-    },
-    z.array(domain),
-  );
+  z.preprocess((value) => {
+    if (value === undefined || value === null || value === '') return [...fallback];
+    if (Array.isArray(value)) return value;
+    return String(value)
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }, z.array(domain));
 
 const exactIpList = z.preprocess(
   (value) => {
@@ -127,9 +125,7 @@ const exactIpList = z.preprocess(
     z
       .string()
       .refine(
-        (value) =>
-          /^(?:\d{1,3}\.){3}\d{1,3}$/.test(value) ||
-          /^[0-9a-f:]+$/i.test(value),
+        (value) => /^(?:\d{1,3}\.){3}\d{1,3}$/.test(value) || /^[0-9a-f:]+$/i.test(value),
         'must be an IPv4 or IPv6 address',
       )
       .refine((value) => {
@@ -205,7 +201,6 @@ export const discoveryGateModuleIds = [
   'authorHasAvatar',
 ] as const;
 
-
 /**
  * The only schema allowed to read backend runtime environment variables.
  * Invalid supplied values fail fast; defaults apply only when a value is absent
@@ -214,9 +209,7 @@ export const discoveryGateModuleIds = [
 const environmentSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-    LOG_LEVEL: z
-      .enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'silent'])
-      .optional(),
+    LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'silent']).optional(),
     // Local dev default only — ECS injects PORT explicitly (oxy-infra
     // terraform-uswest2/app-services-realtime.tf). 4110 is Mention's slot in
     // the per-app port map so several Oxy backends can run side by side.
@@ -302,10 +295,7 @@ const environmentSchema = z
       emptyAsUndefined,
       httpOrigin.default('https://mention.earth'),
     ),
-    MENTION_WEB_ORIGIN: z.preprocess(
-      emptyAsUndefined,
-      httpOrigin.default('https://mention.earth'),
-    ),
+    MENTION_WEB_ORIGIN: z.preprocess(emptyAsUndefined, httpOrigin.default('https://mention.earth')),
     MENTION_API_ORIGIN: z.preprocess(
       emptyAsUndefined,
       httpOrigin.default('https://api.mention.earth'),
@@ -384,11 +374,19 @@ const environmentSchema = z
     META_GRAPH_ACCESS_TOKEN: trimmedOptionalString,
     META_IG_BUSINESS_ACCOUNT_ID: z.preprocess(
       emptyAsUndefined,
-      z.string().trim().regex(/^\d{1,32}$/, 'META_IG_BUSINESS_ACCOUNT_ID must be a numeric Instagram user id').optional(),
+      z
+        .string()
+        .trim()
+        .regex(/^\d{1,32}$/, 'META_IG_BUSINESS_ACCOUNT_ID must be a numeric Instagram user id')
+        .optional(),
     ),
     META_GRAPH_API_VERSION: z.preprocess(
       emptyAsUndefined,
-      z.string().trim().regex(/^v\d{1,3}\.\d{1,3}$/, 'META_GRAPH_API_VERSION must look like v23.0').default('v23.0'),
+      z
+        .string()
+        .trim()
+        .regex(/^v\d{1,3}\.\d{1,3}$/, 'META_GRAPH_API_VERSION must look like v23.0')
+        .default('v23.0'),
     ),
     INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT: integerFromEnv(50, { minimum: 1, maximum: 200 }),
 
@@ -521,9 +519,7 @@ const environmentSchema = z
     if (hasFirebaseCredential !== hasFirebaseProject) {
       context.addIssue({
         code: 'custom',
-        path: [
-          hasFirebaseCredential ? 'FIREBASE_PROJECT_ID' : 'FIREBASE_SERVICE_ACCOUNT_BASE64',
-        ],
+        path: [hasFirebaseCredential ? 'FIREBASE_PROJECT_ID' : 'FIREBASE_SERVICE_ACCOUNT_BASE64'],
         message: 'Firebase credential and project id must be configured together',
       });
     }
@@ -537,7 +533,8 @@ const environmentSchema = z
       context.addIssue({
         code: 'custom',
         path: ['MENTION_DID'],
-        message: 'MENTION_DID, MENTION_PRIVATE_KEY and MENTION_PUBLIC_KEY must be configured together',
+        message:
+          'MENTION_DID, MENTION_PRIVATE_KEY and MENTION_PUBLIC_KEY must be configured together',
       });
     }
   });
@@ -552,10 +549,17 @@ export function parseRuntimeEnvironment(source: EnvironmentSource): RuntimeEnvir
     throw new Error(`Invalid Mention runtime configuration:\n${z.prettifyError(parsed.error)}`);
   }
   if (readManagedDeployment(source)) {
-    const requiredKeys = ['DATABASE_URL', 'REDIS_URL', 'OXY_SERVICE_API_KEY',
-      'OXY_SERVICE_API_SECRET', 'MENTION_OXY_CLIENT_ID', 'MENTION_SHELL_ACCESS_KEY'] as const;
+    const requiredKeys = [
+      'DATABASE_URL',
+      'REDIS_URL',
+      'OXY_SERVICE_API_KEY',
+      'OXY_SERVICE_API_SECRET',
+      'MENTION_OXY_CLIENT_ID',
+      'MENTION_SHELL_ACCESS_KEY',
+    ] as const;
     for (const key of requiredKeys) {
-      if (!parsed.data[key]) throw new Error(`${key} is required for a dedicated Managed Mention data plane`);
+      if (!parsed.data[key])
+        throw new Error(`${key} is required for a dedicated Managed Mention data plane`);
     }
   }
   return parsed.data;
@@ -580,9 +584,7 @@ function redisConfigFrom(environmentValue: RuntimeEnvironment): RedisConnectionC
     password: environmentValue.REDIS_PASSWORD,
     db: environmentValue.REDIS_DB,
     explicitlyConfigured: Boolean(
-      environmentValue.REDIS_URL ||
-        environmentValue.REDIS_URI ||
-        environmentValue.REDIS_HOST,
+      environmentValue.REDIS_URL || environmentValue.REDIS_URI || environmentValue.REDIS_HOST,
     ),
   };
 }
@@ -596,9 +598,7 @@ export function getRedisConnectionConfig(): RedisConnectionConfig {
  * Dynamic configured-state check retained for lifecycle/tests that intentionally
  * toggle Redis after module import. Parsing still happens here, centrally.
  */
-export function isRedisRuntimeConfigured(
-  source: EnvironmentSource = process.env,
-): boolean {
+export function isRedisRuntimeConfigured(source: EnvironmentSource = process.env): boolean {
   const redisEnvironment = z
     .object({
       REDIS_URL: optionalRedisUrl,
@@ -615,7 +615,9 @@ export function isRedisRuntimeConfigured(
       }
     })
     .parse(source);
-  return Boolean(redisEnvironment.REDIS_URL || redisEnvironment.REDIS_URI || redisEnvironment.REDIS_HOST);
+  return Boolean(
+    redisEnvironment.REDIS_URL || redisEnvironment.REDIS_URI || redisEnvironment.REDIS_HOST,
+  );
 }
 
 /**
@@ -701,9 +703,7 @@ export function getKlipyAppKey(): string {
   return environment.KLIPY_APP_KEY ?? '';
 }
 
-export function getIpHashSalt(
-  source: EnvironmentSource = process.env,
-): string | undefined {
+export function getIpHashSalt(source: EnvironmentSource = process.env): string | undefined {
   const parsed = z
     .object({
       IP_HASH_SALT: optionalString(16),
@@ -714,11 +714,7 @@ export function getIpHashSalt(
   // Prefer a dedicated salt. Existing deployments can safely fall back to the
   // former MCP signing secret, which nothing signs with any more: hashedIpKey
   // domain-separates its input with `rl|`, so no raw IP is exposed.
-  return (
-    parsed.IP_HASH_SALT ??
-    parsed.DEVICE_ID_SALT ??
-    parsed.MENTION_MCP_JWT_SECRET
-  );
+  return parsed.IP_HASH_SALT ?? parsed.DEVICE_ID_SALT ?? parsed.MENTION_MCP_JWT_SECRET;
 }
 
 export function getFirebaseConfig():
@@ -777,9 +773,10 @@ export function getMentionSigningConfig(
   };
 }
 
-export function getMentionNodeConfig(
-  source: EnvironmentSource = process.env,
-): { publicKey?: string; baseUrl?: string } {
+export function getMentionNodeConfig(source: EnvironmentSource = process.env): {
+  publicKey?: string;
+  baseUrl?: string;
+} {
   const parsed = z
     .object({
       MENTION_NODE_PUBLIC_KEY: optionalString(),
@@ -862,9 +859,10 @@ export const config = {
      * The EFFECTIVE gate: the flag AND both credentials. A half-configured
      * deployment is inert rather than failing calls it knows cannot succeed.
      */
-    enabled: environment.INSTAGRAM_GRAPH_ENABLED
-      && Boolean(environment.META_GRAPH_ACCESS_TOKEN)
-      && Boolean(environment.META_IG_BUSINESS_ACCOUNT_ID),
+    enabled:
+      environment.INSTAGRAM_GRAPH_ENABLED &&
+      Boolean(environment.META_GRAPH_ACCESS_TOKEN) &&
+      Boolean(environment.META_IG_BUSINESS_ACCOUNT_ID),
     businessAccountId: environment.META_IG_BUSINESS_ACCOUNT_ID,
     apiVersion: environment.META_GRAPH_API_VERSION,
     followBackfillLimit: environment.INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT,
@@ -1003,10 +1001,6 @@ export const config = {
 
 /**
  * The variables a task cannot boot without.
- *
- * **No `MONGODB_*` variable is among them, and none may come back.** Mongo is
- * gone from this package — no driver, no models, no copier — so a variable
- * naming it could only ever be read by something that should not exist.
  */
 export function validateEnvironment(): void {
   const missing: string[] = [];
@@ -1028,17 +1022,21 @@ export function validateEnvironment(): void {
   if (config.classification.enabled && !config.inference.routingProfileId) {
     missing.push('OXY_INFERENCE_ROUTING_PROFILE_ID');
   }
+  // Classification spends through the Kaana edge AS Mention, so it needs an
+  // identity Oxy accepts — the either-or `canAuthenticateAsService` answers,
+  // asked here directly because that module imports this one. Demanding the key
+  // pair alone made switching classification on in ECS, where the task role
+  // attests and no pair exists (oxy ADR 0026), a reason to put one back.
   if (
     config.classification.enabled &&
+    !canAttestWorkloadIdentity() &&
     !(environment.OXY_SERVICE_API_KEY && environment.OXY_SERVICE_API_SECRET)
   ) {
-    missing.push('OXY_SERVICE_API_KEY/OXY_SERVICE_API_SECRET');
+    missing.push(
+      'an Oxy service identity (ECS task role, or OXY_SERVICE_API_KEY/OXY_SERVICE_API_SECRET)',
+    );
   }
-  if (
-    config.gif.libraryWriteEnabled &&
-    !environment.KLIPY_APP_KEY &&
-    config.runtime.isProduction
-  ) {
+  if (config.gif.libraryWriteEnabled && !environment.KLIPY_APP_KEY && config.runtime.isProduction) {
     missing.push('KLIPY_APP_KEY');
   }
 

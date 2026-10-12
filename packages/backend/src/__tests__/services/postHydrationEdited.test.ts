@@ -57,7 +57,16 @@ vi.mock('../../utils/privacyHelpers', () => ({
 vi.mock('../../db/postgres', () => {
   const builder = () => {
     const q: Record<string, unknown> = {};
-    for (const m of ['from', 'where', 'innerJoin', 'leftJoin', 'orderBy', 'limit', 'offset', 'groupBy']) {
+    for (const m of [
+      'from',
+      'where',
+      'innerJoin',
+      'leftJoin',
+      'orderBy',
+      'limit',
+      'offset',
+      'groupBy',
+    ]) {
       q[m] = () => q;
     }
     q.then = (resolve: (value: unknown[]) => unknown) => Promise.resolve([]).then(resolve);
@@ -109,8 +118,17 @@ function postRow(edit: { isEdited?: unknown; editHistory?: unknown } = {}) {
     oxyUserId: AUTHOR_ID,
     authorship: [{ oxyUserId: AUTHOR_ID, role: 'owner', status: 'accepted' }],
     type: 'post',
-    content: { variants: [{ tag: 'en', source: 'author', text: 'the sentence this post says now' }] },
-    stats: { likesCount: 0, boostsCount: 0, commentsCount: 0, downvotesCount: 0, savesCount: 0, viewsCount: 0 },
+    content: {
+      variants: [{ tag: 'en', source: 'author', text: 'the sentence this post says now' }],
+    },
+    stats: {
+      likesCount: 0,
+      boostsCount: 0,
+      commentsCount: 0,
+      downvotesCount: 0,
+      savesCount: 0,
+      viewsCount: 0,
+    },
     metadata: { createdAt: new Date('2026-03-01T00:00:00Z') },
     createdAt: new Date('2026-03-01T00:00:00Z'),
     visibility: 'public',
@@ -151,10 +169,9 @@ describe('metadata.isEdited', () => {
   it('is false on a post whose body was never replaced', async () => {
     // The control for the case above. Same row, same code path, one column
     // flipped — the only fixture that can tell the flag apart from a constant.
-    const [hydrated] = await service.hydratePosts(
-      [postRow({ isEdited: false, editHistory: [] })],
-      { maxDepth: 0 },
-    );
+    const [hydrated] = await service.hydratePosts([postRow({ isEdited: false, editHistory: [] })], {
+      maxDepth: 0,
+    });
 
     expect(hydrated.metadata.isEdited).toBe(false);
   });

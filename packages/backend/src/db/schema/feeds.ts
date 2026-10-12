@@ -3,8 +3,8 @@
  * legacy filter arrays), `feed_generators`, `feed_likes`, `feed_reviews`,
  * `feed_interactions`, and the viewer's saved-feed layout.
  *
- * `CustomFeed` is the one model where the migration contract's "no Mongo
- * baggage" and "no relational link may be lost" pull hardest. The document
+ * `CustomFeed` is the one model where "no document-store baggage" and "no
+ * relational link may be lost" pull hardest. The document
  * carries BOTH the current composable `definition` subdocument AND seven legacy
  * filter fields the doc comment marks "read-only; consumed only by the migration
  * + the request-time fallback while the backfill has not yet run". Both are
@@ -69,15 +69,12 @@ export const FEED_GENERATOR_NETWORKS = ['atproto'] as const;
  */
 export const FEED_INTERACTION_RETENTION_SECONDS = 90 * 24 * 60 * 60;
 
-/** `FeedReview.rating` bounds, from the Mongoose `min`/`max`. */
 /**
  * The review scale, exported because the ROUTE has to enforce it too.
  *
  * `feed_reviews_rating_check` is the floor, not the gate: a value outside the
  * range — or a fractional one, which an `integer` column refuses outright — 500s
- * on a request path. Mongoose declared the same `min`/`max` and never ran them
- * (`runValidators` is set nowhere in this package) and cast whatever it was
- * given, so the port turns a quietly-stored bad value into a visible error.
+ * on a request path — a visible error rather than a quietly-stored bad value.
  * Better, but the honest answer to a malformed body is a 400.
  */
 export const RATING_MIN = 1;
@@ -122,21 +119,19 @@ export const customFeeds = pgTable(
   (t) => [
     check(
       'custom_feeds_definition_mode_check',
-      sql`${t.definitionMode} is null or ${t.definitionMode} in (${sql.raw(inList(FEED_MODES))})`
+      sql`${t.definitionMode} is null or ${t.definitionMode} in (${sql.raw(inList(FEED_MODES))})`,
     ),
     check(
       'custom_feeds_category_check',
-      sql`${t.category} is null or ${t.category} in (${sql.raw(inList(FEED_CATEGORIES))})`
+      sql`${t.category} is null or ${t.category} in (${sql.raw(inList(FEED_CATEGORIES))})`,
     ),
     check('custom_feeds_counts_check', sql`${t.subscriberCount} >= 0 and ${t.ratingsCount} >= 0`),
     check(
       'custom_feeds_average_rating_check',
-      sql`${t.averageRating} between 0 and ${sql.raw(String(RATING_MAX))}`
+      sql`${t.averageRating} between 0 and ${sql.raw(String(RATING_MAX))}`,
     ),
     index('custom_feeds_owner_chrono_idx').on(t.ownerOxyUserId, t.createdAt.desc()),
-    index('custom_feeds_public_chrono_idx')
-      .on(t.createdAt.desc())
-      .where(sql`${t.isPublic}`),
+    index('custom_feeds_public_chrono_idx').on(t.createdAt.desc()).where(sql`${t.isPublic}`),
     // The marketplace's category browse, sorted by popularity.
     index('custom_feeds_marketplace_idx')
       .on(t.category, t.subscriberCount.desc())
@@ -161,9 +156,9 @@ export const customFeeds = pgTable(
      */
     index('custom_feeds_search_trgm_gin').using(
       'gin',
-      sql`custom_feeds_search_text(${t.title}, ${t.description}, ${t.keywords}) gin_trgm_ops`
+      sql`custom_feeds_search_text(${t.title}, ${t.description}, ${t.keywords}) gin_trgm_ops`,
     ),
-  ]
+  ],
 );
 
 /**
@@ -196,11 +191,15 @@ export const customFeedDefinitionModules = pgTable(
   (t) => [
     check(
       'custom_feed_definition_modules_kind_check',
-      sql`${t.kind} in (${sql.raw(inList(FEED_MODULE_KINDS))})`
+      sql`${t.kind} in (${sql.raw(inList(FEED_MODULE_KINDS))})`,
     ),
     check('custom_feed_definition_modules_position_check', sql`${t.position} >= 0`),
-    unique('custom_feed_definition_modules_feed_kind_position_key').on(t.feedId, t.kind, t.position),
-  ]
+    unique('custom_feed_definition_modules_feed_kind_position_key').on(
+      t.feedId,
+      t.kind,
+      t.position,
+    ),
+  ],
 );
 
 /** `custom_feed_members` — the junction replacing `CustomFeed.memberOxyUserIds`. */
@@ -220,7 +219,7 @@ export const customFeedMembers = pgTable(
     unique('custom_feed_members_feed_id_oxy_user_id_key').on(t.feedId, t.oxyUserId),
     unique('custom_feed_members_feed_id_position_key').on(t.feedId, t.position),
     index('custom_feed_members_oxy_user_id_idx').on(t.oxyUserId),
-  ]
+  ],
 );
 
 /**
@@ -244,16 +243,15 @@ export const customFeedSourceLists = pgTable(
   (t) => [
     unique('custom_feed_source_lists_feed_id_list_id_key').on(t.feedId, t.listId),
     index('custom_feed_source_lists_list_id_idx').on(t.listId),
-  ]
+  ],
 );
 
 /**
  * `custom_feed_topics` — the junction replacing `CustomFeed.topicIds`.
  *
- * Mongo typed these `Schema.Types.ObjectId, ref: 'Topic'`, but there is no
- * `Topic` collection in Mention's database — the registry lives in Oxy (see the
- * comment on `Post.postClassification.topicRefs`). So the ref was never
- * resolvable and this carries no foreign key.
+ * There is no `Topic` table in Mention's database — the registry lives in Oxy
+ * (see the comment on `Post.postClassification.topicRefs`). So this carries no
+ * foreign key.
  */
 export const customFeedTopics = pgTable(
   'custom_feed_topics',
@@ -265,7 +263,7 @@ export const customFeedTopics = pgTable(
     /** An Oxy Topic-registry id — no foreign key. */
     topicId: text().notNull(),
   },
-  (t) => [unique('custom_feed_topics_feed_id_topic_id_key').on(t.feedId, t.topicId)]
+  (t) => [unique('custom_feed_topics_feed_id_topic_id_key').on(t.feedId, t.topicId)],
 );
 
 /**
@@ -301,20 +299,17 @@ export const feedGenerators = pgTable(
   (t) => [
     check(
       'feed_generators_source_network_check',
-      sql`${t.sourceNetwork} is null or ${t.sourceNetwork} in (${sql.raw(inList(FEED_GENERATOR_NETWORKS))})`
+      sql`${t.sourceNetwork} is null or ${t.sourceNetwork} in (${sql.raw(inList(FEED_GENERATOR_NETWORKS))})`,
     ),
     // Same all-or-nothing restoration as `starter_packs.source_*`.
     check(
       'feed_generators_source_complete_check',
       sql`(${t.sourceNetwork} is null and ${t.sourceServiceDid} is null and ${t.sourceSyncedAt} is null)
-        or (${t.sourceNetwork} is not null and ${t.sourceServiceDid} is not null and ${t.sourceSyncedAt} is not null)`
+        or (${t.sourceNetwork} is not null and ${t.sourceServiceDid} is not null and ${t.sourceSyncedAt} is not null)`,
     ),
-    check(
-      'feed_generators_counts_check',
-      sql`${t.likeCount} >= 0 and ${t.subscriberCount} >= 0`
-    ),
+    check('feed_generators_counts_check', sql`${t.likeCount} >= 0 and ${t.subscriberCount} >= 0`),
     index('feed_generators_created_by_idx').on(t.createdBy),
-  ]
+  ],
 );
 
 /**
@@ -342,7 +337,7 @@ export const feedLikes = pgTable(
     index('feed_likes_feed_id_idx').on(t.feedId),
     // "Feeds I subscribe to" — the marketplace exclusion.
     index('feed_likes_user_id_idx').on(t.userId),
-  ]
+  ],
 );
 
 /** `feed_reviews` — one rating + optional text per (feed, reviewer). */
@@ -363,22 +358,22 @@ export const feedReviews = pgTable(
   (t) => [
     check(
       'feed_reviews_rating_check',
-      sql`${t.rating} between ${sql.raw(String(RATING_MIN))} and ${sql.raw(String(RATING_MAX))}`
+      sql`${t.rating} between ${sql.raw(String(RATING_MIN))} and ${sql.raw(String(RATING_MAX))}`,
     ),
     unique('feed_reviews_feed_id_reviewer_id_key').on(t.feedId, t.reviewerId),
     index('feed_reviews_reviewer_id_idx').on(t.reviewerId),
-  ]
+  ],
 );
 
 /**
  * `feed_interactions` — impressions/clicks/engagement, for ranking feedback.
  *
- * Mongo reaped these with a 90-day TTL index on `createdAt`; the analogue is a
+ * Rows expire 90 days after `created_at` via a
  * registry entry in `db/expiry.ts`, and `created_at` carries the btree the sweep
  * predicate needs.
  *
  * `post_uri` carries a POST ID, not a URL — `FeedInteractionTracker` says so
- * outright ("`postUri` is the local post id (Mongo `_id` string)"). It is
+ * outright ("`postUri` is the local post id"). It is
  * client-supplied and validated before use, so it carries no foreign key: a
  * forged value must produce no row rather than a constraint error.
  */
@@ -400,13 +395,13 @@ export const feedInteractions = pgTable(
   (t) => [
     check(
       'feed_interactions_event_check',
-      sql`${t.event} in (${sql.raw(inList(FEED_INTERACTION_EVENTS))})`
+      sql`${t.event} in (${sql.raw(inList(FEED_INTERACTION_EVENTS))})`,
     ),
     index('feed_interactions_user_chrono_idx').on(t.userId, t.createdAt.desc()),
     index('feed_interactions_post_event_idx').on(t.postUri, t.event),
     // Required by the expiry sweep: its predicate is a range scan on this column.
     index('feed_interactions_created_at_idx').on(t.createdAt),
-  ]
+  ],
 );
 
 /**
@@ -416,22 +411,18 @@ export const feedInteractions = pgTable(
  * parent survives as its own row because it carries the timestamps and is the
  * thing the `PRESET_FEEDS` seeding decides to create.
  */
-export const userFeedPreferences = pgTable(
-  'user_feed_preferences',
-  {
-    id: generatedId(),
-    /** An Oxy account id — no foreign key. One row per user. */
-    oxyUserId: text().notNull().unique('user_feed_preferences_oxy_user_id_key'),
-    createdAt: createdAt(),
-    updatedAt: updatedAt(),
-  }
-);
+export const userFeedPreferences = pgTable('user_feed_preferences', {
+  id: generatedId(),
+  /** An Oxy account id — no foreign key. One row per user. */
+  oxyUserId: text().notNull().unique('user_feed_preferences_oxy_user_id_key'),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
 
 /**
  * `user_saved_feeds` — one saved/pinned feed in the viewer's layout.
  *
- * Mongo's subdocument used `_id: false` because "a saved feed is identified by
- * its `key`, not an ObjectId"; the unique `(preference_id, key)` below is that
+ * A saved feed is identified by its `key`, not by a row id; the unique `(preference_id, key)` below is that
  * statement as a constraint.
  */
 export const userSavedFeeds = pgTable(
@@ -452,5 +443,5 @@ export const userSavedFeeds = pgTable(
   (t) => [
     unique('user_saved_feeds_preference_id_key_key').on(t.preferenceId, t.key),
     index('user_saved_feeds_preference_order_idx').on(t.preferenceId, t.order),
-  ]
+  ],
 );

@@ -23,9 +23,10 @@ describe('extractUrls', () => {
   });
 
   it('deduplicates repeated URLs, preserving first-occurrence order', () => {
-    expect(
-      extractUrls('https://b.test then https://a.test then https://b.test again'),
-    ).toEqual(['https://b.test', 'https://a.test']);
+    expect(extractUrls('https://b.test then https://a.test then https://b.test again')).toEqual([
+      'https://b.test',
+      'https://a.test',
+    ]);
   });
 
   it('caps the result at MAX_POST_DOCUMENTS', () => {

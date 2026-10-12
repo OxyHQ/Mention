@@ -39,8 +39,7 @@ const TREND_EXCERPTS_PER_TERM = 12;
  * posts.
  *
  * The body comes from the PRIMARY rendition (`position = 0` of
- * `post_content_variants`), which is the author's own words — the same one the
- * Mongo projection took. Ordered by `created_at` alone with no id tie-break:
+ * `post_content_variants`), which is the author's own words. Ordered by `created_at` alone with no id tie-break:
  * `posts.id` mixes ObjectId hex and uuid v7 and is not a chronological axis,
  * and for a sample of twelve an arbitrary tie is not worth a wrong order.
  *
@@ -62,18 +61,17 @@ export function termExcerptBranch(term: string) {
     .from(posts)
     .innerJoin(
       postContentVariants,
+      and(eq(postContentVariants.postId, posts.id), eq(postContentVariants.position, 0)),
+    )
+    .where(
       and(
-        eq(postContentVariants.postId, posts.id),
-        eq(postContentVariants.position, 0),
+        notCollapsedCrosspostSql(),
+        trendTermMatchSql(term),
+        eq(posts.status, 'published'),
+        eq(posts.visibility, PostVisibility.PUBLIC),
+        sensitiveExcludeSql(),
       ),
     )
-    .where(and(
-      notCollapsedCrosspostSql(),
-      trendTermMatchSql(term),
-      eq(posts.status, 'published'),
-      eq(posts.visibility, PostVisibility.PUBLIC),
-      sensitiveExcludeSql(),
-    ))
     .orderBy(desc(posts.createdAt))
     .limit(TREND_EXCERPTS_PER_TERM);
 }
@@ -124,10 +122,12 @@ export async function loadExcerptsByTerm(terms: readonly string[]): Promise<Map<
   const unique = [...byTerm.keys()];
 
   try {
-    const branches = unique.map((term, ord) => sql`
+    const branches = unique.map(
+      (term, ord) => sql`
       select ${term}::text as term, ${ord}::int as ord, branch.body, branch.created_at
       from (${termExcerptBranch(term)}) as branch
-    `);
+    `,
+    );
 
     // `ord` then `created_at desc` RESTATES the ordering rather than trusting
     // the order an `Append` happens to emit. Nothing in SQL guarantees that
@@ -144,10 +144,10 @@ export async function loadExcerptsByTerm(terms: readonly string[]): Promise<Map<
       if (text.length > 0) byTerm.get(row.term)?.push(text);
     }
   } catch (error) {
-    logger.warn(
-      '[Trending] Excerpt lookup failed; labelling the whole batch without evidence',
-      { terms: unique.length, error },
-    );
+    logger.warn('[Trending] Excerpt lookup failed; labelling the whole batch without evidence', {
+      terms: unique.length,
+      error,
+    });
     for (const term of unique) byTerm.set(term, []);
   }
 

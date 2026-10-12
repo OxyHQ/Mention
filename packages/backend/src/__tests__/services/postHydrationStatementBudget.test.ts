@@ -147,7 +147,9 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await clearPostScope(scope);
-  await getDb().delete(userSettings).where(inArray(userSettings.oxyUserId, [AUTHOR_ID, VIEWER_ID]));
+  await getDb()
+    .delete(userSettings)
+    .where(inArray(userSettings.oxyUserId, [AUTHOR_ID, VIEWER_ID]));
 });
 
 function hydrate(posts: object[]) {

@@ -17,7 +17,9 @@ const rankPosts = vi.fn(async (posts: Array<Record<string, unknown>>) => {
   return posts;
 });
 vi.mock('../services/FeedRankingService', () => ({
-  feedRankingService: { rankPosts: (...args: unknown[]) => rankPosts(...(args as Parameters<typeof rankPosts>)) },
+  feedRankingService: {
+    rankPosts: (...args: unknown[]) => rankPosts(...(args as Parameters<typeof rankPosts>)),
+  },
 }));
 vi.mock('../services/ThreadSlicingService', () => ({
   threadSlicingService: {
@@ -140,7 +142,13 @@ describe('feed_discovery_gated_total', () => {
 
     await engine.run(def([{ module: 'disc', enabled: true }]), ctx(), { limit: 30 });
 
-    expect(metrics.getCounter(FEED_METRICS.discoveryGated, { reason: 'gate', source: 'disc', shadow: 'false' })).toBe(1);
+    expect(
+      metrics.getCounter(FEED_METRICS.discoveryGated, {
+        reason: 'gate',
+        source: 'disc',
+        shadow: 'false',
+      }),
+    ).toBe(1);
     // Enforced: the junk candidate was dropped.
     expect(idsOf()).not.toContain(id(1));
   });
@@ -151,7 +159,13 @@ describe('feed_discovery_gated_total', () => {
 
     await engine.run(def([{ module: 'disc', enabled: true }]), ctx(), { limit: 30 });
 
-    expect(metrics.getCounter(FEED_METRICS.discoveryGated, { reason: 'gate', source: 'disc', shadow: 'true' })).toBe(1);
+    expect(
+      metrics.getCounter(FEED_METRICS.discoveryGated, {
+        reason: 'gate',
+        source: 'disc',
+        shadow: 'true',
+      }),
+    ).toBe(1);
     expect(idsOf()).toContain(id(1)); // measure-only: kept
   });
 
@@ -161,7 +175,13 @@ describe('feed_discovery_gated_total', () => {
 
     await engine.run(def([{ module: 'trusted', enabled: true }]), ctx(), { limit: 30 });
 
-    expect(metrics.getCounter(FEED_METRICS.discoveryGated, { reason: 'gate', source: 'trusted', shadow: 'false' })).toBe(0);
+    expect(
+      metrics.getCounter(FEED_METRICS.discoveryGated, {
+        reason: 'gate',
+        source: 'trusted',
+        shadow: 'false',
+      }),
+    ).toBe(0);
     expect(idsOf()).toContain(id(1));
   });
 });
@@ -183,7 +203,13 @@ describe('A/B enforcement via ctx.discoveryGateBucket', () => {
     await engine.run(def([{ module: 'disc', enabled: true }]), ctx('gate-off'), { limit: 30 });
 
     expect(idsOf()).toContain(id(1)); // not dropped
-    expect(metrics.getCounter(FEED_METRICS.discoveryGated, { reason: 'gate', source: 'disc', shadow: 'true' })).toBe(1);
+    expect(
+      metrics.getCounter(FEED_METRICS.discoveryGated, {
+        reason: 'gate',
+        source: 'disc',
+        shadow: 'true',
+      }),
+    ).toBe(1);
   });
 
   it('gate-on enforces (dropped, shadow=false)', async () => {
@@ -193,21 +219,32 @@ describe('A/B enforcement via ctx.discoveryGateBucket', () => {
     await engine.run(def([{ module: 'disc', enabled: true }]), ctx('gate-on'), { limit: 30 });
 
     expect(idsOf()).not.toContain(id(1)); // dropped
-    expect(metrics.getCounter(FEED_METRICS.discoveryGated, { reason: 'gate', source: 'disc', shadow: 'false' })).toBe(1);
+    expect(
+      metrics.getCounter(FEED_METRICS.discoveryGated, {
+        reason: 'gate',
+        source: 'disc',
+        shadow: 'false',
+      }),
+    ).toBe(1);
   });
 });
 
 describe('feed_federated_share', () => {
   it('records the federated share of the merged pool by base descriptor', async () => {
     setShadow(true);
-    registry.register(source('disc', [
-      makePost(1, { federation: { actorUri: 'https://remote/users/a' } }),
-      makePost(2), // local
-    ]));
+    registry.register(
+      source('disc', [
+        makePost(1, { federation: { actorUri: 'https://remote/users/a' } }),
+        makePost(2), // local
+      ]),
+    );
 
     await engine.run(def([{ module: 'disc', enabled: true }]), ctx(), { limit: 30 });
 
     // pool = [#1 federated, #2 local] → share 0.5.
-    expect(metrics.getGauge(FEED_METRICS.federatedShare, { descriptor: 'for_you' })).toBeCloseTo(0.5, 5);
+    expect(metrics.getGauge(FEED_METRICS.federatedShare, { descriptor: 'for_you' })).toBeCloseTo(
+      0.5,
+      5,
+    );
   });
 });

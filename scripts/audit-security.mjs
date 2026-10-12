@@ -14,9 +14,7 @@ for (const entry of exceptions) {
   }
   const expires = new Date(`${entry.expires}T23:59:59.999Z`);
   if (!Number.isFinite(expires.getTime()) || expires < today) {
-    throw new Error(
-      `Security audit exception ${entry.advisory} expired on ${entry.expires}`,
-    );
+    throw new Error(`Security audit exception ${entry.advisory} expired on ${entry.expires}`);
   }
 }
 
@@ -88,7 +86,10 @@ for (const [packageName, advisories] of Object.entries(payload)) {
   if (!Array.isArray(advisories)) continue;
   for (const advisory of advisories) {
     const severity = String(advisory?.severity ?? '').toLowerCase();
-    const id = String(advisory?.url ?? '').split('/').pop() || String(advisory?.id ?? '');
+    const id =
+      String(advisory?.url ?? '')
+        .split('/')
+        .pop() || String(advisory?.id ?? '');
     if (
       (severityRank.get(severity) ?? 0) >= severityRank.get('high') &&
       !ignoredAdvisories.has(id)
@@ -106,9 +107,7 @@ for (const [packageName, advisories] of Object.entries(payload)) {
 if (blocking.length > 0) {
   console.error('Reachable high/critical dependency advisories block this build:');
   for (const issue of blocking) {
-    console.error(
-      `- ${issue.package} ${issue.advisory} (${issue.severity}): ${issue.title}`,
-    );
+    console.error(`- ${issue.package} ${issue.advisory} (${issue.severity}): ${issue.title}`);
   }
   process.exit(1);
 }

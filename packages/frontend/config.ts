@@ -5,13 +5,7 @@ export const IS_DEVELOPMENT = process.env.NODE_ENV === 'development';
 
 // Mirrors `LogLevel` from @oxy.so/core/logger — the levels the shared logger
 // understands. Anything else in EXPO_PUBLIC_LOG_LEVEL is ignored.
-const VALID_LOG_LEVELS: readonly LogLevel[] = [
-  'silent',
-  'error',
-  'warn',
-  'info',
-  'debug',
-];
+const VALID_LOG_LEVELS: readonly LogLevel[] = ['silent', 'error', 'warn', 'info', 'debug'];
 const configuredLogLevel = process.env.EXPO_PUBLIC_LOG_LEVEL;
 export const LOG_LEVEL: LogLevel | undefined =
   configuredLogLevel && VALID_LOG_LEVELS.includes(configuredLogLevel as LogLevel)
@@ -30,10 +24,8 @@ export const API_URL_SOCKET =
 // Syra live-rooms backend. Mention's rooms feature is powered by Syra, so room
 // HTTP + realtime traffic targets Syra (NOT api.mention.earth). The Oxy bearer
 // token authenticates cross-app (same Oxy identity). Overridable per-environment.
-export const SYRA_API_URL =
-  process.env.EXPO_PUBLIC_SYRA_API_URL || 'https://api.syra.fm/api';
-export const SYRA_SOCKET_URL =
-  process.env.EXPO_PUBLIC_SYRA_SOCKET_URL || 'wss://api.syra.fm';
+export const SYRA_API_URL = process.env.EXPO_PUBLIC_SYRA_API_URL || 'https://api.syra.fm/api';
+export const SYRA_SOCKET_URL = process.env.EXPO_PUBLIC_SYRA_SOCKET_URL || 'wss://api.syra.fm';
 
 // Oxy is ALWAYS the production identity provider — there is deliberately no
 // localhost fallback here, unlike `API_URL` above. Oxy owns the account, and a
@@ -61,11 +53,11 @@ export const OXY_CLIENT_ID =
 /** Registered OAuth redirect surface for this web origin (exact match). */
 export const OXY_AUTH_REDIRECT_URI =
   process.env.EXPO_PUBLIC_OXY_AUTH_REDIRECT_URI ??
-  process.env.EXPO_PUBLIC_WEB_BASE_URL ?? 'https://mention.earth';
+  process.env.EXPO_PUBLIC_WEB_BASE_URL ??
+  'https://mention.earth';
 
 // Public web origin used to build shareable deep links (posts, trends, rooms).
-export const WEB_BASE_URL =
-  process.env.EXPO_PUBLIC_WEB_BASE_URL || 'https://mention.earth';
+export const WEB_BASE_URL = process.env.EXPO_PUBLIC_WEB_BASE_URL || 'https://mention.earth';
 
 // Stripe Payment Links (open in browser)
 export const STRIPE_LINK_PLUS = process.env.EXPO_PUBLIC_STRIPE_LINK_PLUS || '';
@@ -91,4 +83,6 @@ export const INSTANCE_REVISION = process.env.EXPO_PUBLIC_INSTANCE_REVISION || ''
  * for. Oxy lists every connector an account authorized; the ones for this
  * resource are the ones Mention's settings show.
  */
-export const MCP_RESOURCE_URL = (process.env.EXPO_PUBLIC_MCP_URL || 'https://mcp.mention.earth').replace(/\/+$/, '');
+export const MCP_RESOURCE_URL = (
+  process.env.EXPO_PUBLIC_MCP_URL || 'https://mcp.mention.earth'
+).replace(/\/+$/, '');

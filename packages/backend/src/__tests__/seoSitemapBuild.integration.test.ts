@@ -93,10 +93,16 @@ beforeEach(() => {
   serviceRequest.mockReset();
   // Oxy answers for every requested author except HIDDEN, as its bulk endpoint
   // omits an account that is not publicly discoverable.
-  serviceRequest.mockImplementation(async (_method: string, _url: string, body: { ids: string[] }) =>
-    body.ids
-      .filter((id) => id !== HIDDEN)
-      .map((id) => ({ id, username: id === AUTHOR ? 'sitemapauthor' : `u${id.length}`, name: { displayName: 'A' } })));
+  serviceRequest.mockImplementation(
+    async (_method: string, _url: string, body: { ids: string[] }) =>
+      body.ids
+        .filter((id) => id !== HIDDEN)
+        .map((id) => ({
+          id,
+          username: id === AUTHOR ? 'sitemapauthor' : `u${id.length}`,
+          name: { displayName: 'A' },
+        })),
+  );
 });
 
 afterEach(async () => {
@@ -121,18 +127,28 @@ describe('SEO sitemaps', () => {
   });
 
   it('builds every sitemap in one pass and serves them from the cache', async () => {
-    const listed = await seedPost(scope, { oxyUserId: AUTHOR, authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }] });
+    const listed = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
+    });
     const privatePost = await seedPost(scope, {
       oxyUserId: AUTHOR,
       authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
       visibility: PostVisibility.PRIVATE,
     });
-    const hidden = await seedPost(scope, { oxyUserId: HIDDEN, authorship: [{ oxyUserId: HIDDEN, role: 'owner', status: 'accepted' }] });
+    const hidden = await seedPost(scope, {
+      oxyUserId: HIDDEN,
+      authorship: [{ oxyUserId: HIDDEN, role: 'owner', status: 'accepted' }],
+    });
 
     const report = await buildAllSitemaps();
     expect(report.postRows).toBeGreaterThanOrEqual(2);
     // Bulk resolution only: 100 authors per Oxy call, never one per profile.
-    expect(serviceRequest.mock.calls.every(([method, url]) => method === 'POST' && url === '/users/by-ids')).toBe(true);
+    expect(
+      serviceRequest.mock.calls.every(
+        ([method, url]) => method === 'POST' && url === '/users/by-ids',
+      ),
+    ).toBe(true);
 
     const app = makeApp();
     const index = await request(app).get('/sitemap.xml');
@@ -145,8 +161,12 @@ describe('SEO sitemaps', () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect((await request(app).get('/sitemap.xml')).text).toBe(index.text);
     expect(index.headers['last-modified']).toBeTruthy();
-    expect(index.text).toContain(`https://mention.earth/sitemaps/profiles-${bucketOf(AUTHOR)}-0.xml`);
-    expect(index.text).toContain(`https://mention.earth/sitemaps/posts-${bucketOf(listed.id)}-0.xml`);
+    expect(index.text).toContain(
+      `https://mention.earth/sitemaps/profiles-${bucketOf(AUTHOR)}-0.xml`,
+    );
+    expect(index.text).toContain(
+      `https://mention.earth/sitemaps/posts-${bucketOf(listed.id)}-0.xml`,
+    );
 
     const postShard = await request(app).get(`/sitemaps/posts-${bucketOf(listed.id)}-0.xml`);
     expect(postShard.status).toBe(200);
@@ -176,7 +196,10 @@ describe('SEO sitemaps', () => {
   });
 
   it('lists an original, never the boosts that repeat it', async () => {
-    const original = await seedPost(scope, { oxyUserId: AUTHOR, authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }] });
+    const original = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
+    });
     const boost = await seedPost(scope, {
       oxyUserId: AUTHOR,
       authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
@@ -194,22 +217,36 @@ describe('SEO sitemaps', () => {
   });
 
   it('leaves out every post and the profile of an author who opted out of search engines', async () => {
-    await getDb().insert(userSettings).values({ oxyUserId: OPTED_OUT, privacySearchEngineIndexing: false });
+    await getDb()
+      .insert(userSettings)
+      .values({ oxyUserId: OPTED_OUT, privacySearchEngineIndexing: false });
     try {
-      const listed = await seedPost(scope, { oxyUserId: AUTHOR, authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }] });
-      const optedOut = await seedPost(scope, { oxyUserId: OPTED_OUT, authorship: [{ oxyUserId: OPTED_OUT, role: 'owner', status: 'accepted' }] });
+      const listed = await seedPost(scope, {
+        oxyUserId: AUTHOR,
+        authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
+      });
+      const optedOut = await seedPost(scope, {
+        oxyUserId: OPTED_OUT,
+        authorship: [{ oxyUserId: OPTED_OUT, role: 'owner', status: 'accepted' }],
+      });
 
       await buildAllSitemaps();
 
       const app = makeApp();
       const listedShard = await request(app).get(`/sitemaps/posts-${bucketOf(listed.id)}-0.xml`);
       expect(listedShard.text).toContain(`https://mention.earth/p/${listed.id}`);
-      const optedOutShard = await request(app).get(`/sitemaps/posts-${bucketOf(optedOut.id)}-0.xml`);
+      const optedOutShard = await request(app).get(
+        `/sitemaps/posts-${bucketOf(optedOut.id)}-0.xml`,
+      );
       expect(optedOutShard.text).not.toContain(optedOut.id);
-      const profileShard = await request(app).get(`/sitemaps/profiles-${bucketOf(OPTED_OUT)}-0.xml`);
+      const profileShard = await request(app).get(
+        `/sitemaps/profiles-${bucketOf(OPTED_OUT)}-0.xml`,
+      );
       expect(profileShard.text).not.toContain(`/@u${OPTED_OUT.length}<`);
       // The opted-out author was never even resolved for a profile entry.
-      const resolved = serviceRequest.mock.calls.flatMap(([, , body]) => (body as { ids: string[] }).ids);
+      const resolved = serviceRequest.mock.calls.flatMap(
+        ([, , body]) => (body as { ids: string[] }).ids,
+      );
       expect(resolved).not.toContain(OPTED_OUT);
     } finally {
       await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, OPTED_OUT));
@@ -217,11 +254,16 @@ describe('SEO sitemaps', () => {
   });
 
   it('keeps the previous sitemaps when a build fails', async () => {
-    await seedPost(scope, { oxyUserId: AUTHOR, authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }] });
+    await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
+    });
     await buildAllSitemaps();
     const before = (await request(makeApp()).get('/sitemap.xml')).text;
 
-    serviceRequest.mockRejectedValue(Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 }));
+    serviceRequest.mockRejectedValue(
+      Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 }),
+    );
     await expect(buildAllSitemaps()).rejects.toThrow('HTTP 429');
 
     const after = await request(makeApp()).get('/sitemap.xml');
@@ -230,7 +272,10 @@ describe('SEO sitemaps', () => {
   });
 
   it('rebuilds only when the catalog is due, and backs off after a failure', async () => {
-    await seedPost(scope, { oxyUserId: AUTHOR, authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }] });
+    await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
+    });
     const job = new SitemapBuildJob();
 
     expect(await sitemapsAreDue()).toBe(true);

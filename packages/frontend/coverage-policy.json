@@ -17,59 +17,38 @@
     {
       "id": "stores",
       "why": "Zustand stores hold the client's own truth — engagement, identity, scroll position, invalidation signals.",
-      "include": [
-        "stores/**/*.ts",
-        "stores/**/*.tsx"
-      ]
+      "include": ["stores/**/*.ts", "stores/**/*.tsx"]
     },
     {
       "id": "services",
       "why": "Every network call the app makes and the shapes it expects back.",
-      "include": [
-        "services/**/*.ts"
-      ]
+      "include": ["services/**/*.ts"]
     },
     {
       "id": "lib",
       "why": "Session, query client, query keys, share intents, telemetry, platform forks.",
-      "include": [
-        "lib/**/*.ts",
-        "lib/**/*.tsx"
-      ],
-      "exclude": [
-        "lib/animations/**"
-      ]
+      "include": ["lib/**/*.ts", "lib/**/*.tsx"],
+      "exclude": ["lib/animations/**"]
     },
     {
       "id": "db",
       "why": "The on-device feed cache, its schema and its migrations.",
-      "include": [
-        "db/**/*.ts"
-      ]
+      "include": ["db/**/*.ts"]
     },
     {
       "id": "providers",
       "why": "Boot order, auth routing and account-switch teardown — the components that are logic.",
-      "include": [
-        "components/providers/**/*.ts",
-        "components/providers/**/*.tsx"
-      ]
+      "include": ["components/providers/**/*.ts", "components/providers/**/*.tsx"]
     },
     {
       "id": "hooks",
       "why": "Where the app's product behaviour actually lives.",
-      "include": [
-        "hooks/**/*.ts",
-        "hooks/**/*.tsx"
-      ]
+      "include": ["hooks/**/*.ts", "hooks/**/*.tsx"]
     },
     {
       "id": "utils",
       "why": "Pure logic: intent parsing, post building, feed merging, formatting.",
-      "include": [
-        "utils/**/*.ts",
-        "utils/**/*.tsx"
-      ]
+      "include": ["utils/**/*.ts", "utils/**/*.tsx"]
     },
     {
       "id": "post-interactions",
@@ -209,16 +188,13 @@
     "jest-expo resolves the NATIVE platform extension, so `import './X'` never",
     "loads `X.web.tsx`. Measured on this repository: a syntax error inserted into",
     "Feed.web.tsx left the whole suite green. A test that names `../X.web`",
-    "explicitly DOES load it — which is why three web forks here carry real",
-    "coverage and are pinned like anything else. These three are reachable by no",
+    "explicitly DOES load it — which is why four web forks here carry real",
+    "coverage and are pinned like anything else. These are reachable by no",
     "implicit path and have no direct test, so a coverage floor on them would be",
     "a number nobody can move. tsc and `expo export --platform web` are their",
     "gates. The policy fails if one of them gains coverage and stays on this list."
   ],
   "unenforceable": {
-    "lib/hlsPlayback.web.ts": {
-      "reason": "Web-only fork, no direct test; jest resolves lib/hlsPlayback.native.ts instead."
-    },
     "lib/lottieWeb.web.ts": {
       "reason": "Web-only fork, no direct test; jest resolves lib/lottieWeb.ts instead. It only points dotLottie at the bundled WebAssembly asset, and a missing call degrades to the still image."
     },
@@ -264,9 +240,9 @@
     "one defensible line at a time, and a bound cannot tell growth from shrinkage."
   ],
   "expectedCounts": {
-    "domainFiles": 284,
-    "pins": 280,
-    "unenforceable": 4,
+    "domainFiles": 285,
+    "pins": 282,
+    "unenforceable": 3,
     "belowBarExemptions": 9,
     "criticalPaths": 35,
     "allowedBaselineDecreases": 0,

@@ -66,7 +66,9 @@ function cardText(value: unknown, max: number): string | undefined {
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
 }
 
 /**
@@ -101,7 +103,10 @@ export function extractApLinkPreviews(object: { attachment?: unknown }): RemoteL
  * already stored, and a card is a fallback — a failure here must not fail (and so
  * retry) the ingest that stored it, whose redelivery the dedup would drop anyway.
  */
-export async function storeRemoteLinkPreviews(postId: string, previews: readonly RemoteLinkPreview[]): Promise<void> {
+export async function storeRemoteLinkPreviews(
+  postId: string,
+  previews: readonly RemoteLinkPreview[],
+): Promise<void> {
   try {
     await replacePostLinkPreviews(postId, previews);
   } catch (error) {

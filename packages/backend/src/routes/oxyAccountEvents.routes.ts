@@ -60,14 +60,21 @@ export const oxyAccountEventsRateLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-function answer(res: Response, status: number, outcome: string, body: Record<string, unknown>): void {
+function answer(
+  res: Response,
+  status: number,
+  outcome: string,
+  body: Record<string, unknown>,
+): void {
   metrics.incrementCounter(ACCOUNT_EVENT_WEBHOOK_METRIC, 1, { outcome });
   res.status(status).json(body);
 }
 
 export async function handleAccountEvent(req: Request, res: Response): Promise<void> {
   if (!req.is(TOKEN_CONTENT_TYPE)) {
-    answer(res, 415, 'unsupported_media_type', { error: `Content-Type must be ${TOKEN_CONTENT_TYPE}` });
+    answer(res, 415, 'unsupported_media_type', {
+      error: `Content-Type must be ${TOKEN_CONTENT_TYPE}`,
+    });
     return;
   }
   const token = typeof req.body === 'string' ? req.body.trim() : '';

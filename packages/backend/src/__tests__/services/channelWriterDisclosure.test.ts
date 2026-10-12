@@ -84,7 +84,7 @@ describe('loadSigningChannelIds', () => {
    * these cases and nothing else.
    *
    * WHAT CHANGED WITH THE PORT, because the honest version is weaker than the
-   * one this comment used to make. On Mongo these were REACHABLE values — a form
+   * one this comment used to make. On the legacy store these were REACHABLE values — a form
    * post or a hand-edited document really could store `"false"`. `user_settings.
    * channel_account_sign_posts` is a typed `boolean` column, so Postgres cannot
    * hand back any of them, and the values that ARE reachable (`true`, `false`,

@@ -14,16 +14,15 @@ import { FeedEmptyState } from '../FeedEmptyState';
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
 
 jest.mock('react-i18next', () => ({
-    useTranslation: () => ({
-        t: (key: string, options?: { defaultValue?: string }) =>
-            options?.defaultValue ?? key,
-    }),
+  useTranslation: () => ({
+    t: (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key,
+  }),
 }));
 
 jest.mock('expo-image', () => ({ Image: 'Image' }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
-    useTheme: () => ({ colors: {} }),
+  useTheme: () => ({ colors: {} }),
 }));
 
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: 'Loading' }));
@@ -42,30 +41,30 @@ jest.mock('@oxy.so/bloom/button', () => ({ Button: 'Button' }));
 // stand-in already names each one through `displayName`.
 
 function render(props: Partial<React.ComponentProps<typeof FeedEmptyState>>) {
-    let tree!: TestRenderer.ReactTestRenderer;
-    act(() => {
-        tree = TestRenderer.create(
-            <FeedEmptyState
-                isLoading={false}
-                error={null}
-                hasItems={false}
-                type="for_you"
-                onRetry={async () => {}}
-                {...props}
-            />,
-        );
-    });
-    return tree;
+  let tree!: TestRenderer.ReactTestRenderer;
+  act(() => {
+    tree = TestRenderer.create(
+      <FeedEmptyState
+        isLoading={false}
+        error={null}
+        hasItems={false}
+        type="for_you"
+        onRetry={async () => {}}
+        {...props}
+      />,
+    );
+  });
+  return tree;
 }
 
 /** Host/mocked element names come back as `ElementType`; compare them as text. */
 function isElement(node: TestRenderer.ReactTestInstance, name: string): boolean {
-    return String(node.type) === name;
+  return String(node.type) === name;
 }
 
 /** Every empty-state block the tree renders. */
 function blocks(tree: TestRenderer.ReactTestRenderer): TestRenderer.ReactTestInstance[] {
-    return tree.root.findAll((node) => isElement(node, 'BloomEmptyState'), { deep: true });
+  return tree.root.findAll((node) => isElement(node, 'BloomEmptyState'), { deep: true });
 }
 
 /**
@@ -75,62 +74,66 @@ function blocks(tree: TestRenderer.ReactTestRenderer): TestRenderer.ReactTestIns
  * it replaces did.
  */
 function iconNames(tree: TestRenderer.ReactTestRenderer): string[] {
-    return blocks(tree)
-        .map((node) => node.props.icon)
-        .filter(Boolean)
-        .map((icon: { displayName?: string; name?: string }) => String(icon.displayName ?? icon.name));
+  return blocks(tree)
+    .map((node) => node.props.icon)
+    .filter(Boolean)
+    .map((icon: { displayName?: string; name?: string }) => String(icon.displayName ?? icon.name));
 }
 
 /** The sticker each block draws as its illustration, by catalogue name. */
 function stickerNames(tree: TestRenderer.ReactTestRenderer): string[] {
-    return blocks(tree)
-        .map((node) => node.props.illustration as { props?: { name?: string } } | undefined)
-        .map((illustration) => illustration?.props?.name)
-        .filter((name): name is string => typeof name === 'string');
+  return blocks(tree)
+    .map((node) => node.props.illustration as { props?: { name?: string } } | undefined)
+    .map((illustration) => illustration?.props?.name)
+    .filter((name): name is string => typeof name === 'string');
 }
 
 /** The retry affordance: the block's action, leading with the refresh glyph. */
 function retryButtons(tree: TestRenderer.ReactTestRenderer): TestRenderer.ReactTestInstance[] {
-    return blocks(tree).filter((node) => {
-        const action = node.props.action as { icon?: { displayName?: string } } | undefined;
-        return action?.icon?.displayName === 'RiRefreshLine';
-    });
+  return blocks(tree).filter((node) => {
+    const action = node.props.action as { icon?: { displayName?: string } } | undefined;
+    return action?.icon?.displayName === 'RiRefreshLine';
+  });
 }
 
 function textContent(tree: TestRenderer.ReactTestRenderer): string {
-    return blocks(tree)
-        .flatMap((node) => [node.props.title, node.props.description])
-        .filter((child): child is string => typeof child === 'string')
-        .join(' | ');
+  return blocks(tree)
+    .flatMap((node) => [node.props.title, node.props.description])
+    .filter((child): child is string => typeof child === 'string')
+    .join(' | ');
 }
 
 describe('FeedEmptyState', () => {
-    it('shows the loading state while a read (and its retries) is in flight', () => {
-        const tree = render({ isLoading: true, error: 'Failed to load', errorKind: 'transient' });
-        expect(tree.root.findAll((node) => isElement(node, 'Loading')).length).toBe(1);
-        expect(iconNames(tree)).toEqual([]);
-        expect(retryButtons(tree)).toHaveLength(0);
-    });
+  it('shows the loading state while a read (and its retries) is in flight', () => {
+    const tree = render({ isLoading: true, error: 'Failed to load', errorKind: 'transient' });
+    expect(tree.root.findAll((node) => isElement(node, 'Loading')).length).toBe(1);
+    expect(iconNames(tree)).toEqual([]);
+    expect(retryButtons(tree)).toHaveLength(0);
+  });
 
-    it('reads as a calm retry — no alarm disc — for a backend hiccup', () => {
-        const tree = render({ error: 'Failed to load', errorKind: 'transient' });
-        // The retry affordance stays; the tinted warning disc does not.
-        expect(iconNames(tree)).toEqual([]);
-        expect(stickerNames(tree)).toEqual(['loadError']);
-        expect(retryButtons(tree)).toHaveLength(1);
-        expect(textContent(tree)).toContain('feed.empty.title');
-    });
+  it('reads as a calm retry — no alarm disc — for a backend hiccup', () => {
+    const tree = render({ error: 'Failed to load', errorKind: 'transient' });
+    // The retry affordance stays; the tinted warning disc does not.
+    expect(iconNames(tree)).toEqual([]);
+    expect(stickerNames(tree)).toEqual(['loadError']);
+    expect(retryButtons(tree)).toHaveLength(1);
+    expect(textContent(tree)).toContain('feed.empty.title');
+  });
 
-    it('draws the no-connection sticker and copy for a device with no network', () => {
-        const tree = render({ error: 'Failed to load', errorKind: 'offline' });
-        expect(iconNames(tree)).toEqual([]);
-        expect(stickerNames(tree)).toEqual(['offline']);
-        expect(textContent(tree)).toContain('No connection. Check your network and try again.');
-    });
+  it('draws the no-connection sticker and copy for a device with no network', () => {
+    const tree = render({ error: 'Failed to load', errorKind: 'offline' });
+    expect(iconNames(tree)).toEqual([]);
+    expect(stickerNames(tree)).toEqual(['offline']);
+    expect(textContent(tree)).toContain('No connection. Check your network and try again.');
+  });
 
-    it('never shows a failure while there are rows to read', () => {
-        const tree = render({ error: 'Failed to load more posts', errorKind: 'transient', hasItems: true });
-        expect(retryButtons(tree)).toHaveLength(0);
-        expect(textContent(tree)).not.toContain('feed.empty.title');
+  it('never shows a failure while there are rows to read', () => {
+    const tree = render({
+      error: 'Failed to load more posts',
+      errorKind: 'transient',
+      hasItems: true,
     });
+    expect(retryButtons(tree)).toHaveLength(0);
+    expect(textContent(tree)).not.toContain('feed.empty.title');
+  });
 });

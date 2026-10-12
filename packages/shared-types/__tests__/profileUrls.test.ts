@@ -76,7 +76,9 @@ describe('ownProfileUrlHandle — only a profile on one of OUR hosts', () => {
 
   it('treats `www.` as the same host, on either side of the comparison', () => {
     expect(ownProfileUrlHandle('https://www.mention.earth/@alice', OURS)).toBe('alice');
-    expect(ownProfileUrlHandle('https://mention.earth/@alice', ['www.mention.earth'])).toBe('alice');
+    expect(ownProfileUrlHandle('https://mention.earth/@alice', ['www.mention.earth'])).toBe(
+      'alice',
+    );
   });
 
   it('is case-insensitive about the host and only the host', () => {

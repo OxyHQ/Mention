@@ -4,11 +4,11 @@ import { queryClient } from '@/lib/queryClient';
 import { viewerQueryKeys, type FeedQueryIdentity } from '@/lib/viewerQueryKeys';
 import { advanceLocalPostRevision } from '@/stores/feedScrollStore';
 import {
-    feedReceivesOwnNewPost,
-    feedThreadParentId,
-    getItemKey,
-    mergeFeedPageContent,
-    type MergedFeedPageContent,
+  feedReceivesOwnNewPost,
+  feedThreadParentId,
+  getItemKey,
+  mergeFeedPageContent,
+  type MergedFeedPageContent,
 } from '@/utils/feedUtils';
 
 /**
@@ -29,13 +29,13 @@ import {
 
 /** One page of a feed, normalised (`mergeFeedPageContent`) as it was read. */
 export interface FeedPage extends MergedFeedPageContent {
-    hasMore: boolean;
-    nextCursor?: string;
-    /**
-     * The server answered `pending` with nothing to show: a federated profile
-     * whose ActivityPub outbox is still syncing in the background.
-     */
-    pending: boolean;
+  hasMore: boolean;
+  nextCursor?: string;
+  /**
+   * The server answered `pending` with nothing to show: a federated profile
+   * whose ActivityPub outbox is still syncing in the background.
+   */
+  pending: boolean;
 }
 
 /** A page's cursor; the first page has none. */
@@ -56,20 +56,20 @@ export type FeedQueryData = InfiniteData<FeedPage, FeedPageParam>;
  * pages in order keeps every card at its position in the accumulated feed.
  */
 export function foldFeedPages(pages: readonly FeedPage[]): MergedFeedPageContent {
-    return mergeFeedPageContent(undefined, {
-        items: pages.flatMap((page) => page.items),
-        slices: pages.flatMap((page) => page.slices ?? []),
-        interstitials: pages.flatMap((page) => page.interstitials ?? []),
-    });
+  return mergeFeedPageContent(undefined, {
+    items: pages.flatMap((page) => page.items),
+    slices: pages.flatMap((page) => page.slices ?? []),
+    interstitials: pages.flatMap((page) => page.interstitials ?? []),
+  });
 }
 
 /** A single-post slice for a post the viewer just created. */
 function localPostSlice(post: HydratedPost): FeedPostSlice {
-    return {
-        _sliceKey: `local-new:${getItemKey(post)}`,
-        isIncompleteThread: false,
-        items: [{ post, isThreadParent: false, isThreadChild: false, isThreadLastChild: false }],
-    };
+  return {
+    _sliceKey: `local-new:${getItemKey(post)}`,
+    isIncompleteThread: false,
+    items: [{ post, isThreadParent: false, isThreadChild: false, isThreadLastChild: false }],
+  };
 }
 
 /**
@@ -77,19 +77,21 @@ function localPostSlice(post: HydratedPost): FeedPostSlice {
  * the feed renders by slice. Unchanged when the post is already there.
  */
 export function prependFeedPost(data: FeedQueryData, post: HydratedPost): FeedQueryData {
-    const [first, ...rest] = data.pages;
-    if (!first) return data;
-    const key = getItemKey(post);
-    if (data.pages.some((page) => page.items.some((item) => getItemKey(item) === key))) return data;
+  const [first, ...rest] = data.pages;
+  if (!first) return data;
+  const key = getItemKey(post);
+  if (data.pages.some((page) => page.items.some((item) => getItemKey(item) === key))) return data;
 
-    // A feed that renders by slice would not show the post from its items alone.
-    const rendersBySlice = data.pages.some((page) => (page.slices?.length ?? 0) > 0);
-    const inASlice = data.pages.some((page) =>
-        page.slices?.some((slice) => slice.items.some((sliceItem) => getItemKey(sliceItem.post) === key)));
-    const slices = rendersBySlice && !inASlice
-        ? [localPostSlice(post), ...(first.slices ?? [])]
-        : first.slices;
-    return { ...data, pages: [{ ...first, items: [post, ...first.items], slices }, ...rest] };
+  // A feed that renders by slice would not show the post from its items alone.
+  const rendersBySlice = data.pages.some((page) => (page.slices?.length ?? 0) > 0);
+  const inASlice = data.pages.some((page) =>
+    page.slices?.some((slice) =>
+      slice.items.some((sliceItem) => getItemKey(sliceItem.post) === key),
+    ),
+  );
+  const slices =
+    rendersBySlice && !inASlice ? [localPostSlice(post), ...(first.slices ?? [])] : first.slices;
+  return { ...data, pages: [{ ...first, items: [post, ...first.items], slices }, ...rest] };
 }
 
 /**
@@ -98,23 +100,23 @@ export function prependFeedPost(data: FeedQueryData, post: HydratedPost): FeedQu
  * any more; `foldFeedPages` drops it.
  */
 export function removeFeedPost(data: FeedQueryData, postId: string): FeedQueryData {
-    let changed = false;
-    const pages = data.pages.map((page) => {
-        const items = page.items.filter((item) => getItemKey(item) !== postId);
-        let slicesChanged = false;
-        const slices = page.slices
-            ?.map((slice) => {
-                const sliceItems = slice.items.filter((sliceItem) => getItemKey(sliceItem.post) !== postId);
-                if (sliceItems.length === slice.items.length) return slice;
-                slicesChanged = true;
-                return { ...slice, items: sliceItems };
-            })
-            .filter((slice) => slice.items.length > 0);
-        if (items.length === page.items.length && !slicesChanged) return page;
-        changed = true;
-        return { ...page, items, slices: slicesChanged ? slices : page.slices };
-    });
-    return changed ? { ...data, pages } : data;
+  let changed = false;
+  const pages = data.pages.map((page) => {
+    const items = page.items.filter((item) => getItemKey(item) !== postId);
+    let slicesChanged = false;
+    const slices = page.slices
+      ?.map((slice) => {
+        const sliceItems = slice.items.filter((sliceItem) => getItemKey(sliceItem.post) !== postId);
+        if (sliceItems.length === slice.items.length) return slice;
+        slicesChanged = true;
+        return { ...slice, items: sliceItems };
+      })
+      .filter((slice) => slice.items.length > 0);
+    if (items.length === page.items.length && !slicesChanged) return page;
+    changed = true;
+    return { ...page, items, slices: slicesChanged ? slices : page.slices };
+  });
+  return changed ? { ...data, pages } : data;
 }
 
 // ---------------------------------------------------------------------------
@@ -133,23 +135,23 @@ export function removeFeedPost(data: FeedQueryData, postId: string): FeedQueryDa
  * would warm-start as if it postdated it.
  */
 function updateFeedQueries(
-    matches: (feed: FeedQueryIdentity) => boolean,
-    update: (data: FeedQueryData) => FeedQueryData,
+  matches: (feed: FeedQueryIdentity) => boolean,
+  update: (data: FeedQueryData) => FeedQueryData,
 ): void {
-    const loaded = queryClient.getQueriesData<FeedQueryData>({
-        predicate: (query) => {
-            const feed = viewerQueryKeys.feedIdentity(query.queryKey);
-            return feed !== null && matches(feed);
-        },
+  const loaded = queryClient.getQueriesData<FeedQueryData>({
+    predicate: (query) => {
+      const feed = viewerQueryKeys.feedIdentity(query.queryKey);
+      return feed !== null && matches(feed);
+    },
+  });
+  for (const [queryKey, data] of loaded) {
+    if (!data) continue;
+    const next = update(data);
+    if (next === data) continue;
+    queryClient.setQueryData<FeedQueryData>(queryKey, next, {
+      updatedAt: queryClient.getQueryState(queryKey)?.dataUpdatedAt,
     });
-    for (const [queryKey, data] of loaded) {
-        if (!data) continue;
-        const next = update(data);
-        if (next === data) continue;
-        queryClient.setQueryData<FeedQueryData>(queryKey, next, {
-            updatedAt: queryClient.getQueryState(queryKey)?.dataUpdatedAt,
-        });
-    }
+  }
 }
 
 /**
@@ -158,12 +160,12 @@ function updateFeedQueries(
  * mounted or not — and advance the revision that brings it into view.
  */
 export function publishNewLocalPost(post: HydratedPost): void {
-    const authorId = post.user?.id ? String(post.user.id) : undefined;
-    updateFeedQueries(
-        (feed) => feedReceivesOwnNewPost({ ...feed, currentUserId: authorId }),
-        (data) => prependFeedPost(data, post),
-    );
-    advanceLocalPostRevision();
+  const authorId = post.user?.id ? String(post.user.id) : undefined;
+  updateFeedQueries(
+    (feed) => feedReceivesOwnNewPost({ ...feed, currentUserId: authorId }),
+    (data) => prependFeedPost(data, post),
+  );
+  advanceLocalPostRevision();
 }
 
 /**
@@ -175,16 +177,18 @@ export function publishNewLocalPost(post: HydratedPost): void {
  * the feed only ever holds what a read of it could have returned.
  */
 export function publishNewLocalReply(reply: HydratedPost): void {
-    const parentId = String(reply.parentPostId ?? '');
-    if (!parentId) return;
-    updateFeedQueries(
-        (feed) => feed.type === 'replies'
-            && feedThreadParentId(feed.filters) === parentId,
-        (data) => prependFeedPost(data, reply),
-    );
+  const parentId = String(reply.parentPostId ?? '');
+  if (!parentId) return;
+  updateFeedQueries(
+    (feed) => feed.type === 'replies' && feedThreadParentId(feed.filters) === parentId,
+    (data) => prependFeedPost(data, reply),
+  );
 }
 
 /** Drop a removed post from every feed that holds it — a deleted post vanishes everywhere. */
 export function publishRemovedLocalPost(postId: string): void {
-    updateFeedQueries(() => true, (data) => removeFeedPost(data, postId));
+  updateFeedQueries(
+    () => true,
+    (data) => removeFeedPost(data, postId),
+  );
 }

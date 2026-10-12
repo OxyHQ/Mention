@@ -13,7 +13,7 @@
  *     engagement there would poison author/topic affinity with engagement that
  *     never touched a post.
  *  2. They are low-cardinality COUNTERS, never per-row documents. A counter write
- *     is a Map update, so the hot path stays I/O-free (no Mongo, no Redis). The
+ *     is a Map update, so the hot path stays I/O-free (no database, no Redis). The
  *     labels are `kind`, `event` and the BASE descriptor — all fixed, small sets.
  *     A viewer id, a slot key or a target account id would make the label space
  *     unbounded, so none of them are ever emitted.
@@ -69,11 +69,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isInterstitialKind(value: unknown): value is FeedInterstitialKind {
-  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(INTERSTITIAL_KINDS, value);
+  return (
+    typeof value === 'string' && Object.prototype.hasOwnProperty.call(INTERSTITIAL_KINDS, value)
+  );
 }
 
 function isInterstitialEventName(value: unknown): value is FeedInterstitialEventName {
-  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(INTERSTITIAL_EVENTS, value);
+  return (
+    typeof value === 'string' && Object.prototype.hasOwnProperty.call(INTERSTITIAL_EVENTS, value)
+  );
 }
 
 export type ParsedInterstitialEvent =
@@ -115,7 +119,10 @@ export function parseInterstitialEvent(body: unknown): ParsedInterstitialEvent {
     return { ok: false, error: 'Invalid or missing event' };
   }
 
-  if (position !== undefined && (typeof position !== 'number' || !Number.isInteger(position) || position < 0)) {
+  if (
+    position !== undefined &&
+    (typeof position !== 'number' || !Number.isInteger(position) || position < 0)
+  ) {
     return { ok: false, error: 'Invalid position' };
   }
 

@@ -40,7 +40,10 @@ import { connectPostgres, getDb } from '../db/postgres';
 import { federatedActors } from '../db/schema/federation';
 import { postSourceKeys } from '../db/schema/postContent';
 import { posts } from '../db/schema/posts';
-import { instagramSourceKeyFromApObjectUri, INSTAGRAM_AP_BRIDGE_HOSTS } from '../connectors/shared/instagramSourceKey';
+import {
+  instagramSourceKeyFromApObjectUri,
+  INSTAGRAM_AP_BRIDGE_HOSTS,
+} from '../connectors/shared/instagramSourceKey';
 import { logger } from '../utils/logger';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
@@ -94,11 +97,13 @@ async function attachKey(postId: string, sourceKey: string): Promise<KeyOutcome>
   const tookOver = await getDb()
     .update(postSourceKeys)
     .set({ postId, claimedUntil: null, claimToken: null })
-    .where(and(
-      eq(postSourceKeys.sourceKey, sourceKey),
-      isNull(postSourceKeys.postId),
-      lt(postSourceKeys.claimedUntil, sql`now()`),
-    ))
+    .where(
+      and(
+        eq(postSourceKeys.sourceKey, sourceKey),
+        isNull(postSourceKeys.postId),
+        lt(postSourceKeys.claimedUntil, sql`now()`),
+      ),
+    )
     .returning({ id: postSourceKeys.id });
   if (tookOver.length > 0) return 'written';
   const inserted = await getDb()
@@ -115,7 +120,9 @@ async function attachKey(postId: string, sourceKey: string): Promise<KeyOutcome>
 }
 
 /** The bridge posts of one actor that have no source key, with the key they should get. */
-async function keylessPostsOf(actorUri: string): Promise<Array<{ postId: string; sourceKey: string }>> {
+async function keylessPostsOf(
+  actorUri: string,
+): Promise<Array<{ postId: string; sourceKey: string }>> {
   const rows = await getDb()
     .select({ id: posts.id, activityId: posts.federationActivityId })
     .from(posts)
@@ -163,7 +170,13 @@ export async function backfillInstagramSourceKeys(
   const pauseMs = opts.pauseMs ?? PAUSE_MS;
   const hosts = [...(opts.bridgeHosts ?? INSTAGRAM_AP_BRIDGE_HOSTS)];
   const result: InstagramSourceKeyBackfillResult = {
-    actors: 0, candidates: 0, written: 0, conflicts: 0, claimed: 0, validated: [], unvalidated: [],
+    actors: 0,
+    candidates: 0,
+    written: 0,
+    conflicts: 0,
+    claimed: 0,
+    validated: [],
+    unvalidated: [],
   };
 
   for (const host of hosts) {
@@ -208,7 +221,9 @@ export const EXIT_INCOMPLETE = 75;
  * VALIDATE could not get its lock in time — both are "re-run later", and the
  * one-shot workflow reports them that way rather than as a failure.
  */
-export function sourceKeyBackfillExitCode(result: Pick<InstagramSourceKeyBackfillResult, 'claimed' | 'unvalidated'>): number {
+export function sourceKeyBackfillExitCode(
+  result: Pick<InstagramSourceKeyBackfillResult, 'claimed' | 'unvalidated'>,
+): number {
   return result.claimed > 0 || result.unvalidated.length > 0 ? EXIT_INCOMPLETE : 0;
 }
 

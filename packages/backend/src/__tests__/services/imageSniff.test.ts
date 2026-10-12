@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isAnimatedImage, isWebSafeImageType, sniffImageMime } from '../../services/mediaCache/imageSniff';
+import {
+  isAnimatedImage,
+  isWebSafeImageType,
+  sniffImageMime,
+} from '../../services/mediaCache/imageSniff';
 
 /** The magic-byte decision a sniffing download (a federated banner) is made on. */
 describe('sniffImageMime', () => {
@@ -38,12 +42,22 @@ describe('isAnimatedImage', () => {
   const gce = Buffer.from([0x21, 0xf9, 0x04]);
 
   it('a GIF with two frames is animated, one frame is not', () => {
-    expect(isAnimatedImage(Buffer.concat([Buffer.from('GIF89a'), gce, Buffer.alloc(8), gce]), 'image/gif')).toBe(true);
-    expect(isAnimatedImage(Buffer.concat([Buffer.from('GIF89a'), gce, Buffer.alloc(8)]), 'image/gif')).toBe(false);
+    expect(
+      isAnimatedImage(
+        Buffer.concat([Buffer.from('GIF89a'), gce, Buffer.alloc(8), gce]),
+        'image/gif',
+      ),
+    ).toBe(true);
+    expect(
+      isAnimatedImage(Buffer.concat([Buffer.from('GIF89a'), gce, Buffer.alloc(8)]), 'image/gif'),
+    ).toBe(false);
   });
 
   it('a WebP with the VP8X animation flag is animated', () => {
-    const header = Buffer.concat([Buffer.from('RIFF\0\0\0\0WEBPVP8X'), Buffer.from([0, 0, 0, 0, 0x02])]);
+    const header = Buffer.concat([
+      Buffer.from('RIFF\0\0\0\0WEBPVP8X'),
+      Buffer.from([0, 0, 0, 0, 0x02]),
+    ]);
     expect(isAnimatedImage(header, 'image/webp')).toBe(true);
     header[20] = 0x00;
     expect(isAnimatedImage(header, 'image/webp')).toBe(false);
@@ -51,7 +65,9 @@ describe('isAnimatedImage', () => {
 
   it('an APNG (acTL before IDAT) is animated, a plain PNG is not', () => {
     const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-    expect(isAnimatedImage(Buffer.concat([png, Buffer.from('IHDRacTLIDAT')]), 'image/png')).toBe(true);
+    expect(isAnimatedImage(Buffer.concat([png, Buffer.from('IHDRacTLIDAT')]), 'image/png')).toBe(
+      true,
+    );
     expect(isAnimatedImage(Buffer.concat([png, Buffer.from('IHDRIDAT')]), 'image/png')).toBe(false);
   });
 });

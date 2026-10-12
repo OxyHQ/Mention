@@ -81,12 +81,12 @@ class TrendingService {
    * job (FeedJobScheduler, FollowerSnapshotJob, etc.).
    */
   public initialize(): void {
-    this.calculateTrending().catch(error => {
+    this.calculateTrending().catch((error) => {
       logger.error('[Trending] Initial calculation failed:', error);
     });
 
     this.calculationInterval = setInterval(() => {
-      this.calculateTrending().catch(error => {
+      this.calculateTrending().catch((error) => {
         logger.error('[Trending] Periodic calculation failed:', error);
       });
     }, this.CALCULATION_INTERVAL);
@@ -290,10 +290,7 @@ class TrendingService {
     // Only reached on a cache MISS. The entry below is warmed right after each
     // recalculation (see warmDefaultCache), so these run on the order of once per
     // 30-minute batch per requested shape — not once per reader.
-    const [series, actors] = await Promise.all([
-      loadVolumeSeries(trends),
-      loadTrendActors(trends),
-    ]);
+    const [series, actors] = await Promise.all([loadVolumeSeries(trends), loadTrendActors(trends)]);
 
     const result = {
       trending: trends.map((trend): TrendWithSeries => {
@@ -361,10 +358,9 @@ class TrendingService {
           description: trending.description,
         })
         .from(trending)
-        .where(and(
-          eq(trending.name, normalized),
-          eq(trending.calculatedAt, latestBatch.calculatedAt),
-        ))
+        .where(
+          and(eq(trending.name, normalized), eq(trending.calculatedAt, latestBatch.calculatedAt)),
+        )
         .limit(1);
       // Not in the current batch, or written before onset tracking: either way
       // there is no run to attribute a summary to, so there is nothing to do.

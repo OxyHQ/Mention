@@ -106,9 +106,16 @@ describe('mirrorFederatedBanner', () => {
 
   it('queues the REPLACED banner file for deletion, in the same transaction', async () => {
     mocks.previousBanner = 'old_banner_file';
-    mocks.persistRemoteMedia.mockResolvedValue({ ok: true, media: { oxyFileId: 'new_banner_file', contentType: 'image/png', sizeBytes: 1 } });
+    mocks.persistRemoteMedia.mockResolvedValue({
+      ok: true,
+      media: { oxyFileId: 'new_banner_file', contentType: 'image/png', sizeBytes: 1 },
+    });
 
-    const result = await mirrorFederatedBanner('https://files.mastodon.social/b.png', 'oxy-user-1', 'https://mastodon.social/users/alice');
+    const result = await mirrorFederatedBanner(
+      'https://files.mastodon.social/b.png',
+      'oxy-user-1',
+      'https://mastodon.social/users/alice',
+    );
 
     expect(result).toEqual({ ok: true, permanent: false });
     expect(mocks.enqueueFederatedMediaDeletions).toHaveBeenCalledWith(['old_banner_file'], tx);
@@ -116,26 +123,46 @@ describe('mirrorFederatedBanner', () => {
 
   it('does not queue the banner when the remote re-sends the SAME file', async () => {
     mocks.previousBanner = 'same_file';
-    mocks.persistRemoteMedia.mockResolvedValue({ ok: true, media: { oxyFileId: 'same_file', contentType: 'image/png', sizeBytes: 1 } });
+    mocks.persistRemoteMedia.mockResolvedValue({
+      ok: true,
+      media: { oxyFileId: 'same_file', contentType: 'image/png', sizeBytes: 1 },
+    });
 
-    await mirrorFederatedBanner('https://files.mastodon.social/b.png', 'oxy-user-1', 'https://mastodon.social/users/alice');
+    await mirrorFederatedBanner(
+      'https://files.mastodon.social/b.png',
+      'oxy-user-1',
+      'https://mastodon.social/users/alice',
+    );
 
     expect(mocks.enqueueFederatedMediaDeletions).not.toHaveBeenCalled();
   });
 
   it('does not store a banner whose file is being deleted (a shared, tombstoned id)', async () => {
     const { FederatedMediaGoneError } = await import('../../db/federation/mediaDeletionRepository');
-    mocks.persistRemoteMedia.mockResolvedValue({ ok: true, media: { oxyFileId: 'gone_file', contentType: 'image/png', sizeBytes: 1 } });
-    mocks.assertFederatedMediaUsable.mockRejectedValueOnce(new FederatedMediaGoneError(['gone_file']));
+    mocks.persistRemoteMedia.mockResolvedValue({
+      ok: true,
+      media: { oxyFileId: 'gone_file', contentType: 'image/png', sizeBytes: 1 },
+    });
+    mocks.assertFederatedMediaUsable.mockRejectedValueOnce(
+      new FederatedMediaGoneError(['gone_file']),
+    );
 
-    const result = await mirrorFederatedBanner('https://files.mastodon.social/b.png', 'oxy-user-1', 'https://mastodon.social/users/alice');
+    const result = await mirrorFederatedBanner(
+      'https://files.mastodon.social/b.png',
+      'oxy-user-1',
+      'https://mastodon.social/users/alice',
+    );
 
     expect(result).toEqual({ ok: false, permanent: false, reason: 'file-being-deleted' });
     expect(mocks.updateUserSettings).not.toHaveBeenCalled();
   });
 
   it('warns and reports a transient (retryable) failure (no header stored)', async () => {
-    mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false, reason: 'upstream-error' });
+    mocks.persistRemoteMedia.mockResolvedValue({
+      ok: false,
+      permanent: false,
+      reason: 'upstream-error',
+    });
 
     const result = await mirrorFederatedBanner(
       'https://files.mastodon.social/banner.png',

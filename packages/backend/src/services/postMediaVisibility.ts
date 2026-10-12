@@ -28,7 +28,9 @@ type PostMediaContent = Parameters<typeof authorVariants>[0];
  * external media, which has no Oxy visibility) are not.
  */
 export function isOxyFileId(id: unknown): id is string {
-  return typeof id === 'string' && id.length > 0 && !id.startsWith('temp-') && !/^https?:\/\//i.test(id);
+  return (
+    typeof id === 'string' && id.length > 0 && !id.startsWith('temp-') && !/^https?:\/\//i.test(id)
+  );
 }
 
 /**
@@ -87,7 +89,9 @@ export async function ensurePostMediaPublic(
   if (!client) return;
   const fileIds = postMediaFileIds(content);
   if (fileIds.length === 0) return;
-  const results = await Promise.allSettled(fileIds.map((fileId) => client.assets.setVisibility(fileId, 'public')));
+  const results = await Promise.allSettled(
+    fileIds.map((fileId) => client.assets.setVisibility(fileId, 'public')),
+  );
   results.forEach((result, index) => {
     if (result.status === 'rejected') {
       logger.warn('[postMediaVisibility] Failed to make post media public', {

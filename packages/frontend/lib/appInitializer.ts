@@ -8,10 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SplashScreen from 'expo-splash-screen';
 
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
-import {
-  hasNotificationPermission,
-  setupNotifications,
-} from '@/utils/notifications';
+import { hasNotificationPermission, setupNotifications } from '@/utils/notifications';
 import { initializeI18n } from './i18n';
 import { logger } from '@oxy.so/core/logger';
 
@@ -117,7 +114,7 @@ export class AppInitializer {
         loadVideoMuteState().then(() => logger.debug('VideoMute done')),
       ]);
 
-      logger.debug('All tasks settled', { statuses: results.map(r => r.status) });
+      logger.debug('All tasks settled', { statuses: results.map((r) => r.status) });
 
       // Hide splash screen
       try {
@@ -136,5 +133,4 @@ export class AppInitializer {
       };
     }
   }
-
 }

@@ -343,9 +343,9 @@ const CHAINABLE_METHODS: ReadonlySet<string> = new Set([
 
 function isThenable(value: unknown): value is PromiseLike<unknown> {
   return (
-    (typeof value === 'object' || typeof value === 'function')
-    && value !== null
-    && typeof (value as { then?: unknown }).then === 'function'
+    (typeof value === 'object' || typeof value === 'function') &&
+    value !== null &&
+    typeof (value as { then?: unknown }).then === 'function'
   );
 }
 
@@ -371,7 +371,12 @@ function observeQuery(statement: string, pending: unknown): unknown {
     );
   };
 
-  const trigger = (method: unknown, target: object, receiver: unknown, args: unknown[]): unknown => {
+  const trigger = (
+    method: unknown,
+    target: object,
+    receiver: unknown,
+    args: unknown[],
+  ): unknown => {
     if (typeof method !== 'function') return method;
     if (startedAt === null) startedAt = process.hrtime.bigint();
     const result = Reflect.apply(method, target, args);

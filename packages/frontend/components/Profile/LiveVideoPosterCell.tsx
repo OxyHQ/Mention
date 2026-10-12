@@ -63,7 +63,7 @@ const LiveVideoPosterCell = React.memo<LiveVideoPosterCellProps>(
     const views = cachedViews !== undefined ? cachedViews : fallbackViews;
 
     return <VideoPosterCell {...cellProps} views={views} />;
-  }
+  },
 );
 LiveVideoPosterCell.displayName = 'LiveVideoPosterCell';
 

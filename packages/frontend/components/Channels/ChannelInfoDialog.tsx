@@ -156,7 +156,13 @@ function ChannelInfoDialogContent({ onClose }: { onClose: () => void }) {
        * English is the wrong string to eyeball this with.
        */}
       <View className="flex-row items-center gap-3">
-        <Button appearance="plain" tone="neutral" size="lg" className="flex-1" onPress={onSecondary}>
+        <Button
+          appearance="plain"
+          tone="neutral"
+          size="lg"
+          className="flex-1"
+          onPress={onSecondary}
+        >
           {isFirstStep ? t('channels.explainer.cancel') : t('channels.explainer.back')}
         </Button>
         <Button appearance="solid" tone="accent" size="lg" className="flex-1" onPress={onPrimary}>

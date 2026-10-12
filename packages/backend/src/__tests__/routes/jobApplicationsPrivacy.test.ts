@@ -51,7 +51,13 @@ vi.mock('../../utils/oxyHelpers', () => ({
       members: {
         list: async (accountId: string) =>
           accountId === EMPLOYER_ID
-            ? [{ memberUserId: EMPLOYER_OPERATOR_ID, status: 'active', permissions: ['account:act_as'] }]
+            ? [
+                {
+                  memberUserId: EMPLOYER_OPERATOR_ID,
+                  status: 'active',
+                  permissions: ['account:act_as'],
+                },
+              ]
             : [],
       },
     },
@@ -115,7 +121,7 @@ afterAll(async () => {
 });
 
 describe('job applications — the privacy invariant', () => {
-  it('never discloses the applicant\'s posts or follows to the employer, and returns only MentionJobApplication fields', async () => {
+  it("never discloses the applicant's posts or follows to the employer, and returns only MentionJobApplication fields", async () => {
     // The applicant has an active, unrelated social life on Mention: a post and
     // a followed hashtag that has nothing to do with this job application.
     const [leakPost] = await db

@@ -172,10 +172,12 @@ describe('PostCreationService — native Stage-A baseline', () => {
     expect(post.federation?.activityId).toBe(`https://${scope.name}.test/statuses/1`);
   });
 
-  it("does not widen discovery from an unverified federated multi-language declaration", async () => {
+  it('does not widen discovery from an unverified federated multi-language declaration', async () => {
     const post = await createAndReload({
       oxyUserId: scope.user('federated-multi'),
-      content: { text: 'This English body, but the AP source declared two languages via contentMap.' },
+      content: {
+        text: 'This English body, but the AP source declared two languages via contentMap.',
+      },
       // The inbox/outbox handlers pass extractApLanguage (primary) + extractApLanguages (full set).
       language: 'en',
       languages: ['en', 'es'],

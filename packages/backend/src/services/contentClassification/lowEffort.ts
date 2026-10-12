@@ -102,8 +102,7 @@ export function detectLowEffort(rawText: string, cfg: LowEffortConfig): LowEffor
   const hashtagCount = countTextEntities(scaffold, 'hashtag');
   const mentionCount = countTextEntities(scaffold, 'bareHandle');
 
-  const stripped = stripTextEntities(withoutShortcodes, scanOptions)
-    .replace(EMOJI_PATTERN, ' ');
+  const stripped = stripTextEntities(withoutShortcodes, scanOptions).replace(EMOJI_PATTERN, ' ');
 
   const realTextLength = (stripped.match(LETTER_PATTERN) ?? []).length;
   const contentCharCount = (stripped.match(CONTENT_CHAR_PATTERN) ?? []).length;
@@ -112,7 +111,8 @@ export function detectLowEffort(rawText: string, cfg: LowEffortConfig): LowEffor
 
   // Nothing but emoji/punctuation/whitespace survived the strip AND no
   // URL/mention/hashtag scaffolding was present — so the body is decoration only.
-  const decorativeOnly = contentCharCount === 0 && urlCount === 0 && mentionCount === 0 && hashtagCount === 0;
+  const decorativeOnly =
+    contentCharCount === 0 && urlCount === 0 && mentionCount === 0 && hashtagCount === 0;
   const shortcodeOnly = decorativeOnly && shortcodeCount > 0;
   const emojiOnly = decorativeOnly && shortcodeCount === 0 && emojiCount > 0;
 

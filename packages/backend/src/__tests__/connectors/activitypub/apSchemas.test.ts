@@ -154,7 +154,11 @@ describe('apNoteSchema', () => {
           type: 'Video',
           url: [
             { type: 'Link', mediaType: 'video/mp4', href: 'https://peertube.example/v/720.mp4' },
-            { type: 'Link', mediaType: 'application/x-mpegURL', href: 'https://peertube.example/v/master.m3u8' },
+            {
+              type: 'Link',
+              mediaType: 'application/x-mpegURL',
+              href: 'https://peertube.example/v/master.m3u8',
+            },
           ],
         },
       ],
@@ -228,7 +232,11 @@ describe('apActorSchema', () => {
       outbox: 'https://mastodon.social/users/alice/outbox',
       followers: 'https://mastodon.social/users/alice/followers',
       following: 'https://mastodon.social/users/alice/following',
-      icon: { type: 'Image', mediaType: 'image/png', url: 'https://files.mastodon.social/avatar.png' },
+      icon: {
+        type: 'Image',
+        mediaType: 'image/png',
+        url: 'https://files.mastodon.social/avatar.png',
+      },
       image: { type: 'Image', url: 'https://files.mastodon.social/header.png' },
       publicKey: {
         id: 'https://mastodon.social/users/alice#main-key',
@@ -324,7 +332,9 @@ describe('parseInboundActivity', () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.data.type).toBe('Announce');
-    expect((r.data as { object: unknown }).object).toBe('https://peertube.example/videos/watch/abc');
+    expect((r.data as { object: unknown }).object).toBe(
+      'https://peertube.example/videos/watch/abc',
+    );
   });
 
   it('parses an Announce wrapping an embedded object', () => {
@@ -345,7 +355,9 @@ describe('parseInboundActivity', () => {
       object: 'https://mention.earth/ap/posts/64b000000000000000000000',
     });
     expect(r.ok).toBe(true);
-    expect(apLikeSchema.safeParse({ type: 'Like', actor: 'https://x', object: 'https://y' }).success).toBe(true);
+    expect(
+      apLikeSchema.safeParse({ type: 'Like', actor: 'https://x', object: 'https://y' }).success,
+    ).toBe(true);
   });
 
   it('parses a Follow', () => {
@@ -356,7 +368,9 @@ describe('parseInboundActivity', () => {
       object: 'https://mention.earth/ap/users/alice',
     });
     expect(r.ok).toBe(true);
-    expect(apFollowSchema.safeParse({ type: 'Follow', object: 'https://x/users/a' }).success).toBe(true);
+    expect(apFollowSchema.safeParse({ type: 'Follow', object: 'https://x/users/a' }).success).toBe(
+      true,
+    );
   });
 
   it('parses an Accept with an embedded Follow object', () => {
@@ -451,7 +465,12 @@ describe('parseInboundActivity', () => {
       id: 'https://x/update/2',
       type: 'Update',
       actor: 'https://x/users/a',
-      object: { id: 'https://x/users/a', type: 'Person', inbox: 'https://x/users/a/inbox', name: 'New Name' },
+      object: {
+        id: 'https://x/users/a',
+        type: 'Person',
+        inbox: 'https://x/users/a/inbox',
+        name: 'New Name',
+      },
     });
     expect(r.success).toBe(true);
   });
@@ -467,17 +486,30 @@ describe('parseInboundActivity', () => {
   });
 
   it('fails on an unknown / unhandled activity type', () => {
-    const r = parseInboundActivity({ id: 'https://x/flag/1', type: 'Flag', actor: 'https://x/u', object: 'https://y' });
+    const r = parseInboundActivity({
+      id: 'https://x/flag/1',
+      type: 'Flag',
+      actor: 'https://x/u',
+      object: 'https://y',
+    });
     expect(r.ok).toBe(false);
   });
 
   it('fails when the Create object IRI/embed is missing entirely', () => {
-    const r = parseInboundActivity({ id: 'https://x/create/2', type: 'Create', actor: 'https://x/u' });
+    const r = parseInboundActivity({
+      id: 'https://x/create/2',
+      type: 'Create',
+      actor: 'https://x/u',
+    });
     expect(r.ok).toBe(false);
   });
 
   it('fails when a wrong-typed payload is fed (e.g. an actor, not an activity)', () => {
-    const r = parseInboundActivity({ id: 'https://x/u', type: 'Person', inbox: 'https://x/u/inbox' });
+    const r = parseInboundActivity({
+      id: 'https://x/u',
+      type: 'Person',
+      inbox: 'https://x/u/inbox',
+    });
     expect(r.ok).toBe(false);
   });
 
@@ -513,7 +545,11 @@ describe('apOrderedCollection / apOrderedCollectionPage', () => {
       type: 'OrderedCollection',
       totalItems: 2,
       orderedItems: [
-        { id: 'https://pleroma.example/activities/1', type: 'Create', object: { id: 'https://pleroma.example/objects/1', type: 'Note' } },
+        {
+          id: 'https://pleroma.example/activities/1',
+          type: 'Create',
+          object: { id: 'https://pleroma.example/objects/1', type: 'Note' },
+        },
         'https://pleroma.example/activities/2',
       ],
     });
@@ -529,7 +565,11 @@ describe('apOrderedCollection / apOrderedCollectionPage', () => {
       partOf: 'https://mastodon.social/users/alice/outbox',
       next: 'https://mastodon.social/users/alice/outbox?max_id=1&page=true',
       orderedItems: [
-        { id: 'https://mastodon.social/users/alice/statuses/2/activity', type: 'Announce', object: 'https://other/note/1' },
+        {
+          id: 'https://mastodon.social/users/alice/statuses/2/activity',
+          type: 'Announce',
+          object: 'https://other/note/1',
+        },
       ],
     });
     expect(r.ok).toBe(true);

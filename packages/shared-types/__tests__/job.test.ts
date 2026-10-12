@@ -37,16 +37,25 @@ describe('job vocabularies are Clarity’s own', () => {
 
 describe('formatMentionJobLocation', () => {
   it('orders city, region, country and localizes the country through the lookup', () => {
-    const location = { placeId: '3128760', countryCode: 'ES', region: 'Catalonia', city: 'Barcelona' } as const;
+    const location = {
+      placeId: '3128760',
+      countryCode: 'ES',
+      region: 'Catalonia',
+      city: 'Barcelona',
+    } as const;
     expect(formatMentionJobLocation(location)).toBe('Barcelona, Catalonia, ES');
     expect(formatMentionJobLocation(location, () => 'Spain')).toBe('Barcelona, Catalonia, Spain');
   });
 
   it('shows a region place once and a country-only role as the country alone', () => {
-    expect(mentionJobLocationParts({ placeId: '3336901', countryCode: 'ES', region: 'Catalonia', city: 'Catalonia' })).toEqual([
-      'Catalonia',
-      'ES',
-    ]);
+    expect(
+      mentionJobLocationParts({
+        placeId: '3336901',
+        countryCode: 'ES',
+        region: 'Catalonia',
+        city: 'Catalonia',
+      }),
+    ).toEqual(['Catalonia', 'ES']);
     expect(formatMentionJobLocation({ countryCode: 'DE' }, () => 'Germany')).toBe('Germany');
   });
 });

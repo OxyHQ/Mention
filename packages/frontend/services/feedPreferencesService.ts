@@ -41,7 +41,9 @@ class FeedPreferencesService {
 
   async update(savedFeeds: SavedFeed[]): Promise<SavedFeed[]> {
     return run('update', async () => {
-      const res = await authenticatedClient.put<FeedPreferencesResponse>('/feed/preferences', { savedFeeds });
+      const res = await authenticatedClient.put<FeedPreferencesResponse>('/feed/preferences', {
+        savedFeeds,
+      });
       return res.data.savedFeeds ?? savedFeeds;
     });
   }

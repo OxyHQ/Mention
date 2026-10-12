@@ -70,9 +70,7 @@ const BY_REPORTED_TYPE: ReadonlyMap<string, ModerationSubjectProvider> = new Map
  * asks before queueing a delivery, and `EvidenceSnapshotService` asks again when it
  * builds one; a type this returns `undefined` for is stored and never enqueued.
  */
-export function subjectProviderFor(
-  reportedType: string,
-): ModerationSubjectProvider | undefined {
+export function subjectProviderFor(reportedType: string): ModerationSubjectProvider | undefined {
   return BY_REPORTED_TYPE.get(reportedType);
 }
 

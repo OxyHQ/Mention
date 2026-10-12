@@ -34,21 +34,34 @@ vi.mock('../../../utils/redis', () => ({
   }),
 }));
 
-vi.mock('../../../db/federation/actorKeyPairRepository', () => ({ hasActorKeyPair: mocks.hasActorKeyPair }));
-vi.mock('../../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ users: { get: mocks.getUserById, byUsername: mocks.getProfileByUsername } }),
+vi.mock('../../../db/federation/actorKeyPairRepository', () => ({
+  hasActorKeyPair: mocks.hasActorKeyPair,
 }));
-vi.mock('../../../connectors/outboundFederation', () => ({ federateAsResolvedActorAndWait: mocks.federate }));
+vi.mock('../../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({
+    users: { get: mocks.getUserById, byUsername: mocks.getProfileByUsername },
+  }),
+}));
+vi.mock('../../../connectors/outboundFederation', () => ({
+  federateAsResolvedActorAndWait: mocks.federate,
+}));
 vi.mock('../../../utils/logger', () => ({
   logger: { info: vi.fn(), warn: mocks.warn, error: vi.fn(), debug: vi.fn() },
 }));
 
-import { aliasFingerprint, publishAliasChange } from '../../../services/federation/aliasPublication';
+import {
+  aliasFingerprint,
+  publishAliasChange,
+} from '../../../services/federation/aliasPublication';
 
 const OLD = 'https://mastodon.example/users/alice';
 
 function aliases(values: string[] | undefined) {
-  mocks.getProfileByUsername.mockResolvedValue({ id: 'u1', username: 'alice', ...(values ? { alsoKnownAs: values } : {}) });
+  mocks.getProfileByUsername.mockResolvedValue({
+    id: 'u1',
+    username: 'alice',
+    ...(values ? { alsoKnownAs: values } : {}),
+  });
 }
 
 let at = 0;
@@ -71,7 +84,11 @@ describe('publishAliasChange', () => {
     expect(mocks.federate).toHaveBeenCalledTimes(1);
     const [userId, , build] = mocks.federate.mock.calls[0];
     expect(userId).toBe('u1');
-    expect(build('alice')).toEqual({ kind: 'actor.update', actorOxyUserId: 'u1', actorUsername: 'alice' });
+    expect(build('alice')).toEqual({
+      kind: 'actor.update',
+      actorOxyUserId: 'u1',
+      actorUsername: 'alice',
+    });
   });
 
   it('stays quiet for a profile edit that leaves the aliases as they were', async () => {
@@ -102,7 +119,11 @@ describe('publishAliasChange', () => {
   it('lets exactly one task handle an event every task receives', async () => {
     aliases([OLD]);
     const shared = event();
-    const outcomes = await Promise.all([publishAliasChange(shared), publishAliasChange(shared), publishAliasChange(shared)]);
+    const outcomes = await Promise.all([
+      publishAliasChange(shared),
+      publishAliasChange(shared),
+      publishAliasChange(shared),
+    ]);
 
     expect(outcomes.filter((o) => o === 'published')).toHaveLength(1);
     expect(outcomes.filter((o) => o === 'claimed_elsewhere')).toHaveLength(2);
@@ -133,7 +154,9 @@ describe('publishAliasChange', () => {
 
 describe('aliasFingerprint', () => {
   it('compares as a set of publishable https URIs', () => {
-    expect(aliasFingerprint([OLD, 'https://b.example/u'])).toBe(aliasFingerprint(['https://b.example/u', OLD, OLD]));
+    expect(aliasFingerprint([OLD, 'https://b.example/u'])).toBe(
+      aliasFingerprint(['https://b.example/u', OLD, OLD]),
+    );
     expect(aliasFingerprint(['http://insecure.example/u', 'not a url'])).toBe(aliasFingerprint([]));
   });
 });

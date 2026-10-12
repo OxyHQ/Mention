@@ -22,7 +22,12 @@ export interface ExternalEmbedPlayerProps {
  * Web external embed player. The `<iframe>` is mounted ONLY while `active`, so
  * nothing external loads before the user presses play (and consent is granted).
  */
-export function ExternalEmbedPlayer({ params, thumb, active, onPressPlay }: ExternalEmbedPlayerProps) {
+export function ExternalEmbedPlayer({
+  params,
+  thumb,
+  active,
+  onPressPlay,
+}: ExternalEmbedPlayerProps) {
   const [loading, setLoading] = useState(true);
 
   const aspect = useMemo(
@@ -49,7 +54,12 @@ export function ExternalEmbedPlayer({ params, thumb, active, onPressPlay }: Exte
           style={{ border: 0, width: '100%', height: '100%', backgroundColor: 'transparent' }}
         />
       ) : null}
-      <ExternalEmbedPoster thumb={thumb} active={active} loading={loading} onPressPlay={onPressPlay} />
+      <ExternalEmbedPoster
+        thumb={thumb}
+        active={active}
+        loading={loading}
+        onPressPlay={onPressPlay}
+      />
     </View>
   );
 }

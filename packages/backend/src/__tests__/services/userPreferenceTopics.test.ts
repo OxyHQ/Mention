@@ -28,10 +28,7 @@ import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { eq } from 'drizzle-orm';
 import { userBehaviors } from '../../db/schema/userProfile';
 import type { TopicPreference } from '../../db/userProfile/userBehaviorRecord';
-import {
-  deleteUserBehavior,
-  loadUserBehavior,
-} from '../../db/userProfile/userBehaviorRepository';
+import { deleteUserBehavior, loadUserBehavior } from '../../db/userProfile/userBehaviorRepository';
 import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { userPreferenceService } from '../../services/UserPreferenceService';
 

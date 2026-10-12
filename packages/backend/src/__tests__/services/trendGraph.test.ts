@@ -28,14 +28,16 @@ describe('buildTrendGraph', () => {
       new Map(),
     );
 
-    expect(graph.edges).toEqual([{
-      a: 'kyiv',
-      b: 'ukraine',
-      posts: 8,
-      linked: false,
-      strength: 0.4,
-      reason: 'cooccurrence',
-    }]);
+    expect(graph.edges).toEqual([
+      {
+        a: 'kyiv',
+        b: 'ukraine',
+        posts: 8,
+        linked: false,
+        strength: 0.4,
+        reason: 'cooccurrence',
+      },
+    ]);
   });
 
   it('marks only the pairs the clusterer actually accepted', () => {
@@ -92,13 +94,7 @@ describe('buildTrendGraph', () => {
     const many = Array.from({ length: 320 }, (_, index) =>
       node(`t${String(index).padStart(3, '0')}`, 320 - index),
     );
-    const graph = buildTrendGraph(
-      AT,
-      many,
-      [{ a: 't000', b: 't319', posts: 9 }],
-      [],
-      new Map(),
-    );
+    const graph = buildTrendGraph(AT, many, [{ a: 't000', b: 't319', posts: 9 }], [], new Map());
 
     const terms = new Set(graph.nodes.map((graphNode) => graphNode.term));
     expect(terms.has('t319')).toBe(false);

@@ -23,8 +23,8 @@ const url = process.env.DATABASE_URL;
 if (!url) {
   throw new Error(
     'DATABASE_URL is required by drizzle-kit. Start a local Postgres with:\n' +
-    '  docker compose -f ../../docker-compose.postgres.yml up -d postgres\n' +
-    'then set DATABASE_URL in packages/backend/.env.'
+      '  docker compose -f ../../docker-compose.postgres.yml up -d postgres\n' +
+      'then set DATABASE_URL in packages/backend/.env.',
   );
 }
 

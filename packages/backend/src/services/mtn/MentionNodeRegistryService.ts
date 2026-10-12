@@ -136,17 +136,23 @@ export async function materializeNodeFromRecord(
 ): Promise<MentionUserNodeRecord | null> {
   const parsed = nodeRecordSchema.safeParse(record);
   if (!parsed.success) {
-    logger.warn('MentionNodeRegistry: node record payload failed validation; skipping materialization', {
-      oxyUserId,
-    });
+    logger.warn(
+      'MentionNodeRegistry: node record payload failed validation; skipping materialization',
+      {
+        oxyUserId,
+      },
+    );
     return null;
   }
 
   const endpoint = normalizeHttpsEndpoint(parsed.data.endpoint);
   if (!endpoint) {
-    logger.warn('MentionNodeRegistry: node record endpoint is not a valid HTTPS URL; skipping materialization', {
-      oxyUserId,
-    });
+    logger.warn(
+      'MentionNodeRegistry: node record endpoint is not a valid HTTPS URL; skipping materialization',
+      {
+        oxyUserId,
+      },
+    );
     return null;
   }
 
@@ -214,7 +220,10 @@ export async function probeLiveness(oxyUserId: string): Promise<void> {
         outcome = {
           reachable: false,
           probedAt: probeAt,
-          error: `node responded with HTTP ${result.status}`.slice(0, MENTION_NODE_LAST_ERROR_MAX_LEN),
+          error: `node responded with HTTP ${result.status}`.slice(
+            0,
+            MENTION_NODE_LAST_ERROR_MAX_LEN,
+          ),
         };
       }
     } catch (fetchErr) {
@@ -224,7 +233,10 @@ export async function probeLiveness(oxyUserId: string): Promise<void> {
         probedAt: probeAt,
         error: message.slice(0, MENTION_NODE_LAST_ERROR_MAX_LEN),
       };
-      logger.debug('MentionNodeRegistry: node liveness probe failed', { oxyUserId, error: message });
+      logger.debug('MentionNodeRegistry: node liveness probe failed', {
+        oxyUserId,
+        error: message,
+      });
     }
 
     await recordNodeLiveness(oxyUserId, outcome);
@@ -356,22 +368,30 @@ function resolveManagedEndpoint(oxyUserId: string): string | null {
  * `mention_user_nodes` row — DEFERRED, exactly like Oxy F5c); this layer only
  * writes the cryptographic registration + the cache flag.
  */
-export async function provisionManagedVault(oxyUserId: string): Promise<ProvisionManagedVaultResult> {
+export async function provisionManagedVault(
+  oxyUserId: string,
+): Promise<ProvisionManagedVaultResult> {
   const issuer = getMentionCustodialIssuer();
   const privateKey = getMentionCustodialPrivateKey();
   const custodialPublicKey = getMentionCustodialPublicKey();
   if (!issuer || !privateKey || !custodialPublicKey) {
-    logger.warn('MentionNodeRegistry: managed vault refused — Mention custodial key not configured', {
-      oxyUserId,
-    });
+    logger.warn(
+      'MentionNodeRegistry: managed vault refused — Mention custodial key not configured',
+      {
+        oxyUserId,
+      },
+    );
     return { ok: false, reason: 'custodial_key_unconfigured' };
   }
 
   const endpoint = resolveManagedEndpoint(oxyUserId);
   if (!endpoint) {
-    logger.warn('MentionNodeRegistry: managed vault refused — MENTION_NODE_BASE_URL unset or not a valid HTTPS base', {
-      oxyUserId,
-    });
+    logger.warn(
+      'MentionNodeRegistry: managed vault refused — MENTION_NODE_BASE_URL unset or not a valid HTTPS base',
+      {
+        oxyUserId,
+      },
+    );
     return { ok: false, reason: 'managed_endpoint_unconfigured' };
   }
 
@@ -437,7 +457,11 @@ export async function provisionManagedVault(oxyUserId: string): Promise<Provisio
 
     // A concurrent writer advanced the chain head between our read and write —
     // re-read the head and retry. Anything else is a hard failure.
-    if (result.reason === 'chain_conflict' || result.reason === 'bad_seq' || result.reason === 'chain_fork') {
+    if (
+      result.reason === 'chain_conflict' ||
+      result.reason === 'bad_seq' ||
+      result.reason === 'chain_fork'
+    ) {
       continue;
     }
 
@@ -449,17 +473,25 @@ export async function provisionManagedVault(oxyUserId: string): Promise<Provisio
   }
 
   if (!stored) {
-    logger.warn('MentionNodeRegistry: managed vault abandoned after chain-race retries', { oxyUserId });
+    logger.warn('MentionNodeRegistry: managed vault abandoned after chain-race retries', {
+      oxyUserId,
+    });
     return { ok: false, reason: 'provision_failed' };
   }
 
   // Project the just-signed record into the operational cache as a
   // Mention-operated managed node (active) + fire the async liveness probe.
-  const node = await materializeNodeFromRecord(oxyUserId, record, { managed: true, controller: 'oxy' });
+  const node = await materializeNodeFromRecord(oxyUserId, record, {
+    managed: true,
+    controller: 'oxy',
+  });
   if (!node) {
-    logger.error('MentionNodeRegistry: managed vault chain record stored but cache materialization failed', {
-      oxyUserId,
-    });
+    logger.error(
+      'MentionNodeRegistry: managed vault chain record stored but cache materialization failed',
+      {
+        oxyUserId,
+      },
+    );
     return { ok: false, reason: 'provision_failed' };
   }
 

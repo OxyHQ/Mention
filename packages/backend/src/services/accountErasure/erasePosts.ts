@@ -54,7 +54,6 @@ import { invalidate as invalidatePostDetail } from '../postDetailCache';
 import { logger } from '../../utils/logger';
 import { ERASURE_BOOST_CHUNK, ERASURE_POST_BATCH } from './erasureLimits';
 
-
 const LOG_PREFIX = '[AccountErasure]';
 
 const CASCADE_ROW = {
@@ -150,7 +149,10 @@ async function deleteBoostChunk(rows: readonly CascadedPostRow[]): Promise<numbe
   await getDb().transaction(async (tx) => {
     await cascadePostReferences(rows, tx);
     await deleteModerationAndRepairRows(tx, ids);
-    const deleted = await tx.delete(posts).where(inArray(posts.id, ids)).returning({ id: posts.id });
+    const deleted = await tx
+      .delete(posts)
+      .where(inArray(posts.id, ids))
+      .returning({ id: posts.id });
     removed = deleted.length;
   });
   for (const id of ids) await invalidatePostDetail(id);
@@ -158,10 +160,18 @@ async function deleteBoostChunk(rows: readonly CascadedPostRow[]): Promise<numbe
 }
 
 /** Post-scoped rows no foreign key reaches: enforcement records and repair evidence. */
-async function deleteModerationAndRepairRows(tx: Transaction, ids: readonly string[]): Promise<void> {
+async function deleteModerationAndRepairRows(
+  tx: Transaction,
+  ids: readonly string[],
+): Promise<void> {
   await tx
     .delete(moderationEnforcements)
-    .where(and(eq(moderationEnforcements.subjectType, 'post'), inArray(moderationEnforcements.subjectId, [...ids])));
+    .where(
+      and(
+        eq(moderationEnforcements.subjectType, 'post'),
+        inArray(moderationEnforcements.subjectId, [...ids]),
+      ),
+    );
   await tx.delete(repairFetchFailures).where(inArray(repairFetchFailures.postId, [...ids]));
 }
 
@@ -192,7 +202,10 @@ async function decrement(
   `);
 }
 
-function tally(values: readonly (string | null)[], removed: ReadonlySet<string>): Map<string, number> {
+function tally(
+  values: readonly (string | null)[],
+  removed: ReadonlySet<string>,
+): Map<string, number> {
   const counts = new Map<string, number>();
   for (const value of values) {
     if (value === null || removed.has(value)) continue;
@@ -246,7 +259,9 @@ export async function eraseAccountPosts(
     if (boostCount > ERASURE_BOOST_CHUNK) {
       for (const level of [...levels].reverse()) {
         for (let start = 0; start < level.length; start += ERASURE_BOOST_CHUNK) {
-          result.boostsByOthers += await deleteBoostChunk(level.slice(start, start + ERASURE_BOOST_CHUNK));
+          result.boostsByOthers += await deleteBoostChunk(
+            level.slice(start, start + ERASURE_BOOST_CHUNK),
+          );
         }
       }
       boosts = [];
@@ -268,7 +283,10 @@ export async function eraseAccountPosts(
       result.deletesSent += await broadcast(federated);
     }
 
-    const survivingParents = tally(own.map((row) => row.parentPostId), removed);
+    const survivingParents = tally(
+      own.map((row) => row.parentPostId),
+      removed,
+    );
     const boostedOriginals = tally(
       own.filter((row) => row.type === PostType.BOOST).map((row) => row.boostOf),
       removed,
@@ -279,7 +297,9 @@ export async function eraseAccountPosts(
       clusterIds = await findClusterIdsForPosts(allIds, tx);
       await cascadePostReferences(rows, tx);
       await deleteModerationAndRepairRows(tx, allIds);
-      await pullDetachedQuoteUris(tx, [...new Set(rows.flatMap((row) => [row.id, ...postUris(row)]))]);
+      await pullDetachedQuoteUris(tx, [
+        ...new Set(rows.flatMap((row) => [row.id, ...postUris(row)])),
+      ]);
       await decrement(tx, 'stats_comments_count', survivingParents);
       await decrement(tx, 'stats_boosts_count', boostedOriginals);
       // Boosts first by id, then the account's posts; `boost_of` would cascade
@@ -287,11 +307,19 @@ export async function eraseAccountPosts(
       if (boosts.length > 0) {
         const gone = await tx
           .delete(posts)
-          .where(inArray(posts.id, boosts.map((row) => row.id)))
+          .where(
+            inArray(
+              posts.id,
+              boosts.map((row) => row.id),
+            ),
+          )
           .returning({ id: posts.id });
         result.boostsByOthers += gone.length;
       }
-      const deleted = await tx.delete(posts).where(inArray(posts.id, ownIds)).returning({ id: posts.id });
+      const deleted = await tx
+        .delete(posts)
+        .where(inArray(posts.id, ownIds))
+        .returning({ id: posts.id });
       result.posts += deleted.length;
     });
 
@@ -322,7 +350,9 @@ export async function eraseAccountPosts(
 }
 
 /** How many posts the walk would take, and how many federated. Read-only. */
-export async function countAccountPosts(oxyUserId: string): Promise<{ posts: number; federated: number }> {
+export async function countAccountPosts(
+  oxyUserId: string,
+): Promise<{ posts: number; federated: number }> {
   const [row] = await getDb()
     .select({
       posts: sql<number>`count(*)::int`,

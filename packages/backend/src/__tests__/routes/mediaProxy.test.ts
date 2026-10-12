@@ -44,7 +44,8 @@ const cacheStore = vi.hoisted(() => ({
 vi.mock('../../services/mediaCache/cacheStore', () => ({
   lookupCacheRow: (...args: unknown[]) => cacheStore.lookupCacheRow(...args),
   bumpAccess: (...args: unknown[]) => cacheStore.bumpAccess(...args),
-  recordAccessAndMaybeEnqueue: (...args: unknown[]) => cacheStore.recordAccessAndMaybeEnqueue(...args),
+  recordAccessAndMaybeEnqueue: (...args: unknown[]) =>
+    cacheStore.recordAccessAndMaybeEnqueue(...args),
 }));
 
 /**
@@ -85,7 +86,8 @@ vi.mock('../../utils/safeUpstreamFetch', async () => {
   );
   return {
     ...actual,
-    fetchUpstreamFollowingRedirects: (...args: unknown[]) => fetchUpstreamFollowingRedirects(...args),
+    fetchUpstreamFollowingRedirects: (...args: unknown[]) =>
+      fetchUpstreamFollowingRedirects(...args),
   };
 });
 
@@ -167,7 +169,10 @@ describe('GET /media/proxy — upstream status mapping', () => {
   });
 
   it('maps an upstream 403 to our 404 (not 502) and negative-caches it', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({ response: fakeResponse(403), finalUrl: REMOTE });
+    fetchUpstreamFollowingRedirects.mockResolvedValue({
+      response: fakeResponse(403),
+      finalUrl: REMOTE,
+    });
 
     const res = await request(app).get('/media/proxy').query({ url: REMOTE });
 
@@ -176,7 +181,10 @@ describe('GET /media/proxy — upstream status mapping', () => {
   });
 
   it('maps an upstream 404 to our 404 and negative-caches it', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({ response: fakeResponse(404), finalUrl: REMOTE });
+    fetchUpstreamFollowingRedirects.mockResolvedValue({
+      response: fakeResponse(404),
+      finalUrl: REMOTE,
+    });
 
     const res = await request(app).get('/media/proxy').query({ url: REMOTE });
 
@@ -185,7 +193,10 @@ describe('GET /media/proxy — upstream status mapping', () => {
   });
 
   it('maps an upstream 410 (gone) to our 404', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({ response: fakeResponse(410), finalUrl: REMOTE });
+    fetchUpstreamFollowingRedirects.mockResolvedValue({
+      response: fakeResponse(410),
+      finalUrl: REMOTE,
+    });
 
     const res = await request(app).get('/media/proxy').query({ url: REMOTE });
 
@@ -194,7 +205,10 @@ describe('GET /media/proxy — upstream status mapping', () => {
   });
 
   it('maps a genuine upstream 500 to 502 and does NOT negative-cache it', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({ response: fakeResponse(500), finalUrl: REMOTE });
+    fetchUpstreamFollowingRedirects.mockResolvedValue({
+      response: fakeResponse(500),
+      finalUrl: REMOTE,
+    });
 
     const res = await request(app).get('/media/proxy').query({ url: REMOTE });
 
@@ -203,7 +217,10 @@ describe('GET /media/proxy — upstream status mapping', () => {
   });
 
   it('maps a genuine upstream 503 to 502 and does NOT negative-cache it', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({ response: fakeResponse(503), finalUrl: REMOTE });
+    fetchUpstreamFollowingRedirects.mockResolvedValue({
+      response: fakeResponse(503),
+      finalUrl: REMOTE,
+    });
 
     const res = await request(app).get('/media/proxy').query({ url: REMOTE });
 
@@ -242,16 +259,25 @@ describe('GET /media/proxy — upstream status mapping', () => {
   });
 
   it('does NOT negative-cache request-specific 400 responses', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({ response: fakeResponse(400), finalUrl: REMOTE });
+    fetchUpstreamFollowingRedirects.mockResolvedValue({
+      response: fakeResponse(400),
+      finalUrl: REMOTE,
+    });
 
-    const res = await request(app).get('/media/proxy').set('Range', 'bytes=not-a-range').query({ url: REMOTE });
+    const res = await request(app)
+      .get('/media/proxy')
+      .set('Range', 'bytes=not-a-range')
+      .query({ url: REMOTE });
 
     expect(res.status).toBe(404);
     expect(markNegativelyCached).not.toHaveBeenCalled();
   });
 
   it('does NOT negative-cache transient upstream 429 responses', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({ response: fakeResponse(429), finalUrl: REMOTE });
+    fetchUpstreamFollowingRedirects.mockResolvedValue({
+      response: fakeResponse(429),
+      finalUrl: REMOTE,
+    });
 
     const res = await request(app).get('/media/proxy').query({ url: REMOTE });
 
@@ -260,18 +286,30 @@ describe('GET /media/proxy — upstream status mapping', () => {
   });
 
   it('does NOT negative-cache 4xx responses to ranged requests', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({ response: fakeResponse(403), finalUrl: REMOTE });
+    fetchUpstreamFollowingRedirects.mockResolvedValue({
+      response: fakeResponse(403),
+      finalUrl: REMOTE,
+    });
 
-    const res = await request(app).get('/media/proxy').set('Range', 'bytes=0-1').query({ url: REMOTE });
+    const res = await request(app)
+      .get('/media/proxy')
+      .set('Range', 'bytes=0-1')
+      .query({ url: REMOTE });
 
     expect(res.status).toBe(404);
     expect(markNegativelyCached).not.toHaveBeenCalled();
   });
 
   it('does NOT negative-cache 4xx responses to conditional requests', async () => {
-    fetchUpstreamFollowingRedirects.mockResolvedValue({ response: fakeResponse(404), finalUrl: REMOTE });
+    fetchUpstreamFollowingRedirects.mockResolvedValue({
+      response: fakeResponse(404),
+      finalUrl: REMOTE,
+    });
 
-    const res = await request(app).get('/media/proxy').set('If-None-Match', '"stale"').query({ url: REMOTE });
+    const res = await request(app)
+      .get('/media/proxy')
+      .set('If-None-Match', '"stale"')
+      .query({ url: REMOTE });
 
     expect(res.status).toBe(404);
     expect(markNegativelyCached).not.toHaveBeenCalled();
@@ -279,9 +317,15 @@ describe('GET /media/proxy — upstream status mapping', () => {
 
   it('does NOT use the URL-only negative cache for ranged requests', async () => {
     isNegativelyCached.mockResolvedValue(true);
-    fetchUpstreamFollowingRedirects.mockResolvedValue({ response: fakeResponse(416), finalUrl: REMOTE });
+    fetchUpstreamFollowingRedirects.mockResolvedValue({
+      response: fakeResponse(416),
+      finalUrl: REMOTE,
+    });
 
-    const res = await request(app).get('/media/proxy').set('Range', 'bytes=999-1000').query({ url: REMOTE });
+    const res = await request(app)
+      .get('/media/proxy')
+      .set('Range', 'bytes=999-1000')
+      .query({ url: REMOTE });
 
     expect(res.status).toBe(416);
     expect(isNegativelyCached).not.toHaveBeenCalled();
@@ -447,7 +491,9 @@ describe('GET /media/proxy — sized variants', () => {
     // No upstream stream, and no cache-front failure: the fallback never ran.
     expect(fetchUpstreamFollowingRedirects).not.toHaveBeenCalled();
     expect(
-      warn.mock.calls.some(([message]) => String(message).includes('[MediaProxy] Cache front failed')),
+      warn.mock.calls.some(([message]) =>
+        String(message).includes('[MediaProxy] Cache front failed'),
+      ),
     ).toBe(false);
     warn.mockRestore();
   });

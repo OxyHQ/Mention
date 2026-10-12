@@ -28,7 +28,10 @@ const NO_DELAY_RETRIES = [0, 0, 0];
  * TCP RST — `resetAndDestroy` rather than `destroy`, which is what makes the
  * client read ECONNRESET instead of a graceful close.
  */
-function resettingServer(resetsToServe: number): { server: http.Server; requestCount: () => number } {
+function resettingServer(resetsToServe: number): {
+  server: http.Server;
+  requestCount: () => number;
+} {
   let resets = 0;
   let requests = 0;
   const server = http.createServer((req, res) => {
@@ -47,11 +50,15 @@ function resettingServer(resetsToServe: number): { server: http.Server; requestC
 async function listenOnLoopback(server: http.Server): Promise<string> {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
-  if (!address || typeof address === 'string') throw new Error('probe server did not bind to a port');
+  if (!address || typeof address === 'string')
+    throw new Error('probe server did not bind to a port');
   return `http://127.0.0.1:${address.port}`;
 }
 
-test('a reset connection is retried and the page still gets its bytes', async ({ context, page }) => {
+test('a reset connection is retried and the page still gets its bytes', async ({
+  context,
+  page,
+}) => {
   const { server, requestCount } = resettingServer(2);
   const origin = await listenOnLoopback(server);
   const retried: number[] = [];
@@ -106,7 +113,11 @@ test('a reset that outlives the budget still fails the gate', async ({ context, 
     } catch (error) {
       surfaced = error instanceof Error ? error.message : String(error);
     }
-    await route.fulfill({ status: 200, headers: { 'content-type': 'text/html' }, body: '<html></html>' });
+    await route.fulfill({
+      status: 200,
+      headers: { 'content-type': 'text/html' },
+      body: '<html></html>',
+    });
   });
 
   await page.goto(`${origin}/`);
@@ -121,7 +132,12 @@ test('a reset that outlives the budget still fails the gate', async ({ context, 
 });
 
 test('the predicate admits transport faults and refuses everything else', () => {
-  for (const fault of ['read ECONNRESET', 'connect ECONNREFUSED 127.0.0.1:1', 'write EPIPE', 'socket hang up']) {
+  for (const fault of [
+    'read ECONNRESET',
+    'connect ECONNREFUSED 127.0.0.1:1',
+    'write EPIPE',
+    'socket hang up',
+  ]) {
     expect(isTransientTransportFault(new Error(`route.fetch: ${fault}`)), fault).toBe(true);
   }
 

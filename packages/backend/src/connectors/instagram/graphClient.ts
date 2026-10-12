@@ -39,10 +39,12 @@ const USER_AGENT = 'Mention/instagram-connector (+https://mention.earth)';
 /** A Graph `after` cursor: opaque base64url-ish. Bounded so it cannot smuggle syntax. */
 const CURSOR_RE = /^[A-Za-z0-9_=-]{1,1024}$/;
 
-const PROFILE_FIELDS = 'id,username,name,biography,profile_picture_url,followers_count,follows_count,media_count';
+const PROFILE_FIELDS =
+  'id,username,name,biography,profile_picture_url,followers_count,follows_count,media_count';
 
-const MEDIA_FIELDS = 'id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,'
-  + 'like_count,comments_count,children{media_type,media_url,thumbnail_url}';
+const MEDIA_FIELDS =
+  'id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,' +
+  'like_count,comments_count,children{media_type,media_url,thumbnail_url}';
 
 export type InstagramGraphErrorKind =
   | 'disabled'
@@ -65,7 +67,11 @@ export class InstagramGraphError extends Error {
   readonly code?: number;
   readonly subcode?: number;
 
-  constructor(kind: InstagramGraphErrorKind, message: string, detail: { status?: number; code?: number; subcode?: number } = {}) {
+  constructor(
+    kind: InstagramGraphErrorKind,
+    message: string,
+    detail: { status?: number; code?: number; subcode?: number } = {},
+  ) {
     super(message);
     this.name = 'InstagramGraphError';
     this.kind = kind;
@@ -136,21 +142,31 @@ interface GraphErrorBody {
 
 /** Classify a Graph error body. Exported for tests. */
 export function classifyGraphError(status: number, body: unknown): InstagramGraphError {
-  const error = (body && typeof body === 'object' ? (body as GraphErrorBody).error : undefined) ?? {};
+  const error =
+    (body && typeof body === 'object' ? (body as GraphErrorBody).error : undefined) ?? {};
   const code = typeof error.code === 'number' ? error.code : undefined;
   const subcode = typeof error.error_subcode === 'number' ? error.error_subcode : undefined;
   // Meta's message is a short sentence about the request; it carries no token.
-  const upstreamMessage = typeof error.message === 'string' ? error.message.slice(0, 200) : `HTTP ${status}`;
+  const upstreamMessage =
+    typeof error.message === 'string' ? error.message.slice(0, 200) : `HTTP ${status}`;
   const detail = { status, code, subcode };
 
   if (subcode === NOT_BUSINESS_SUBCODE) {
-    return new InstagramGraphError('not_business', 'Not a discoverable Instagram Business/Creator account', detail);
+    return new InstagramGraphError(
+      'not_business',
+      'Not a discoverable Instagram Business/Creator account',
+      detail,
+    );
   }
   if ((code !== undefined && THROTTLE_CODES.has(code)) || status === 429) {
     return new InstagramGraphError('throttled', `Graph API throttled: ${upstreamMessage}`, detail);
   }
   if (code === TOKEN_INVALID_CODE) {
-    return new InstagramGraphError('token_invalid', `Graph API token rejected: ${upstreamMessage}`, detail);
+    return new InstagramGraphError(
+      'token_invalid',
+      `Graph API token rejected: ${upstreamMessage}`,
+      detail,
+    );
   }
   return new InstagramGraphError('api', `Graph API error: ${upstreamMessage}`, detail);
 }
@@ -170,22 +186,30 @@ function asGraphProfile(raw: unknown, requestedUsername: string): GraphBusinessP
   const root = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : undefined;
   const discovery = root?.business_discovery;
   if (!discovery || typeof discovery !== 'object') {
-    throw new InstagramGraphError('bad_response', 'Graph response carried no business_discovery object');
+    throw new InstagramGraphError(
+      'bad_response',
+      'Graph response carried no business_discovery object',
+    );
   }
   const record = discovery as Record<string, unknown>;
   if (typeof record.id !== 'string' || !/^\d{1,32}$/.test(record.id)) {
     throw new InstagramGraphError('bad_response', 'Graph business_discovery carried no usable id');
   }
   const username = typeof record.username === 'string' ? record.username : requestedUsername;
-  const num = (value: unknown): number | undefined => (typeof value === 'number' && Number.isFinite(value) ? value : undefined);
-  const str = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined);
+  const num = (value: unknown): number | undefined =>
+    typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+  const str = (value: unknown): string | undefined =>
+    typeof value === 'string' ? value : undefined;
 
   let media: GraphMediaPage | undefined;
   const rawMedia = record.media;
   if (rawMedia && typeof rawMedia === 'object') {
     const mediaRecord = rawMedia as { data?: unknown; paging?: { cursors?: { after?: unknown } } };
     const data = Array.isArray(mediaRecord.data)
-      ? mediaRecord.data.filter((item): item is GraphMedia => Boolean(item) && typeof (item as GraphMedia).id === 'string')
+      ? mediaRecord.data.filter(
+          (item): item is GraphMedia =>
+            Boolean(item) && typeof (item as GraphMedia).id === 'string',
+        )
       : [];
     const after = mediaRecord.paging?.cursors?.after;
     media = {
@@ -258,7 +282,9 @@ export async function fetchBusinessDiscovery(
     });
     status = result.status;
     headers = result.headers;
-    bodyText = Buffer.from(await readBoundedResponseBody(result.response, MAX_GRAPH_RESPONSE_BYTES)).toString('utf8');
+    bodyText = Buffer.from(
+      await readBoundedResponseBody(result.response, MAX_GRAPH_RESPONSE_BYTES),
+    ).toString('utf8');
   } catch (err) {
     // The transport error names the host at most; it is summarised, not echoed.
     const name = err instanceof Error ? err.name : 'Error';
@@ -279,16 +305,22 @@ export async function fetchBusinessDiscovery(
     const error = classifyGraphError(status, body);
     if (error.kind === 'throttled') {
       const until = await recordThrottle().catch(() => 0);
-      logger.warn('[instagram] Graph API throttled; backing off', { code: error.code, until: until ? new Date(until).toISOString() : undefined });
+      logger.warn('[instagram] Graph API throttled; backing off', {
+        code: error.code,
+        until: until ? new Date(until).toISOString() : undefined,
+      });
     } else if (error.kind === 'token_invalid') {
       await recordTokenInvalid().catch(() => undefined);
       if (!tokenInvalidLogged) {
         tokenInvalidLogged = true;
         // Loud, once: nothing Instagram imports again until an operator rotates
         // META_GRAPH_ACCESS_TOKEN. The token itself is never logged.
-        logger.error('[instagram] META_GRAPH_ACCESS_TOKEN was rejected by the Graph API (code 190); Instagram sync is paused until it is replaced', {
-          subcode: error.subcode,
-        });
+        logger.error(
+          '[instagram] META_GRAPH_ACCESS_TOKEN was rejected by the Graph API (code 190); Instagram sync is paused until it is replaced',
+          {
+            subcode: error.subcode,
+          },
+        );
       }
     }
     throw error;

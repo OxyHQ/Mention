@@ -120,7 +120,9 @@ export const webfingerRouter = createWebfingerRouter({
     set: (username, jrd) => {
       const redis = getRedisClient();
       if (redis?.isReady) {
-        redis.setEx(webfingerCacheKey(username), WEBFINGER_CACHE_TTL, JSON.stringify(jrd)).catch(() => {});
+        redis
+          .setEx(webfingerCacheKey(username), WEBFINGER_CACHE_TTL, JSON.stringify(jrd))
+          .catch(() => {});
       }
     },
   },
@@ -154,8 +156,11 @@ export const actorRouter = createActorRouter({
   },
   fetchFollowPage,
   logger: {
-    debug: (message, detail) => (detail === undefined ? logger.debug(message) : logger.debug(message, detail)),
-    warn: (message, detail) => (detail === undefined ? logger.warn(message) : logger.warn(message, detail)),
-    error: (message, detail) => (detail === undefined ? logger.error(message) : logger.error(message, detail)),
+    debug: (message, detail) =>
+      detail === undefined ? logger.debug(message) : logger.debug(message, detail),
+    warn: (message, detail) =>
+      detail === undefined ? logger.warn(message) : logger.warn(message, detail),
+    error: (message, detail) =>
+      detail === undefined ? logger.error(message) : logger.error(message, detail),
   },
 });

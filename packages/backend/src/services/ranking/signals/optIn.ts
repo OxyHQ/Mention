@@ -120,12 +120,17 @@ export function penalizeSeen(post: RankablePost, seenPostIds: Set<string> | unde
  * verified map is absent, the author is not in it, or the author is not
  * verified; the configured boost when `authorVerified.get(authorId) === true`.
  */
-export function verifiedBoost(post: RankablePost, authorVerified: Map<string, boolean> | undefined): number {
+export function verifiedBoost(
+  post: RankablePost,
+  authorVerified: Map<string, boolean> | undefined,
+): number {
   if (!authorVerified) {
     return 1.0;
   }
   const authorId = post?.oxyUserId ? String(post.oxyUserId) : '';
-  return authorId && authorVerified.get(authorId) === true ? R.optInSignals.verifiedBoost.boost : 1.0;
+  return authorId && authorVerified.get(authorId) === true
+    ? R.optInSignals.verifiedBoost.boost
+    : 1.0;
 }
 
 /**
@@ -137,7 +142,10 @@ export function verifiedBoost(post: RankablePost, authorVerified: Map<string, bo
  * entirely, so the tiers Mention can observe run `new` → `verified` and an
  * unresolved author is an unresolved author, not a suspect one.
  */
-export function trustTierBoost(post: RankablePost, authorTrustTiers: Map<string, string> | undefined): number {
+export function trustTierBoost(
+  post: RankablePost,
+  authorTrustTiers: Map<string, string> | undefined,
+): number {
   if (!authorTrustTiers) {
     return 1.0;
   }
@@ -159,7 +167,10 @@ export function trustTierBoost(post: RankablePost, authorTrustTiers: Map<string,
  * (reached at 2× the threshold) and clamps there — so an extreme sample can
  * never run away with the score.
  */
-export function dwellTimeBoost(post: RankablePost, dwellAverages: Map<string, number> | undefined): number {
+export function dwellTimeBoost(
+  post: RankablePost,
+  dwellAverages: Map<string, number> | undefined,
+): number {
   if (!dwellAverages) {
     return 1.0;
   }
@@ -228,7 +239,10 @@ export function reciprocityBoost(
  * judged), or ANY of the post's topics is in the recent set; the configured
  * boost when the post has topics and ALL of them are novel to the viewer.
  */
-export function noveltyBoost(post: RankablePost, viewerRecentTopics: Set<string> | undefined): number {
+export function noveltyBoost(
+  post: RankablePost,
+  viewerRecentTopics: Set<string> | undefined,
+): number {
   if (!viewerRecentTopics || viewerRecentTopics.size === 0) {
     return 1.0;
   }
@@ -335,7 +349,10 @@ export function starterPackBoost(
  * with this penalty already enabled. The penalty still earns its place: it covers
  * what reaches ranking WITHOUT passing one of those queries.
  */
-export function languageMismatchPenalty(post: RankablePost, viewerBaseLanguages: string[] | undefined): number {
+export function languageMismatchPenalty(
+  post: RankablePost,
+  viewerBaseLanguages: string[] | undefined,
+): number {
   if (post?._discovery !== true) {
     return 1.0;
   }
@@ -346,7 +363,9 @@ export function languageMismatchPenalty(post: RankablePost, viewerBaseLanguages:
   if (!Array.isArray(postLanguages) || postLanguages.length === 0) {
     return 1.0;
   }
-  const overlaps = postLanguages.some((lang) => viewerBaseLanguages.includes(getBaseLanguage(lang)));
+  const overlaps = postLanguages.some((lang) =>
+    viewerBaseLanguages.includes(getBaseLanguage(lang)),
+  );
   return overlaps ? 1.0 : R.optInSignals.languageMismatchPenalty.penalty;
 }
 
@@ -368,22 +387,35 @@ export const OPT_IN_SIGNALS: readonly OptInScorer[] = [
   { id: 'mediaBoost', score: (post) => mediaBoost(post) },
   { id: 'positivity', score: (post) => positivityBoost(post) },
   { id: 'conversational', score: (post) => conversationalBoost(post) },
-  { id: 'coldStartBoost', score: (post, ctx) => coldStartBoost(post, ctx.authorFollowerCounts?.get(String(post.oxyUserId))) },
+  {
+    id: 'coldStartBoost',
+    score: (post, ctx) =>
+      coldStartBoost(post, ctx.authorFollowerCounts?.get(String(post.oxyUserId))),
+  },
   { id: 'penalizeSeen', score: (post, ctx) => penalizeSeen(post, ctx.seenPostIdsSet) },
   { id: 'verifiedBoost', score: (post, ctx) => verifiedBoost(post, ctx.authorVerified) },
   { id: 'dwellTime', score: (post, ctx) => dwellTimeBoost(post, ctx.dwellAverages) },
   { id: 'socialProof', score: (post, ctx) => socialProofBoost(post, ctx.networkEngagerCounts) },
-  { id: 'reciprocityBoost', score: (post, ctx) => reciprocityBoost(post, ctx.userBehavior, ctx.mutualIdsSet) },
+  {
+    id: 'reciprocityBoost',
+    score: (post, ctx) => reciprocityBoost(post, ctx.userBehavior, ctx.mutualIdsSet),
+  },
   { id: 'noveltyBoost', score: (post, ctx) => noveltyBoost(post, ctx.viewerRecentTopics) },
   // Phase 4 discovery signals — appended at the END so existing opt-in ordering
   // (and the golden-master product) is unchanged. Both fire only when explicitly
   // enabled (DORMANT until Phase 5), so preset ranking is unaffected.
   { id: 'localBoost', score: (post) => localBoost(post) },
   { id: 'portraitBoost', score: (post) => portraitBoost(post) },
-  { id: 'languageMismatchPenalty', score: (post, ctx) => languageMismatchPenalty(post, ctx.viewerBaseLanguages) },
+  {
+    id: 'languageMismatchPenalty',
+    score: (post, ctx) => languageMismatchPenalty(post, ctx.viewerBaseLanguages),
+  },
   // Curation signal — appended at the END for the same reason: an existing feed's
   // opt-in product is untouched unless it explicitly enables this signal.
-  { id: 'starterPackBoost', score: (post, ctx) => starterPackBoost(post, ctx.authorStarterPackScores) },
+  {
+    id: 'starterPackBoost',
+    score: (post, ctx) => starterPackBoost(post, ctx.authorStarterPackScores),
+  },
   // Standing signal — appended at the END for the same reason as the two above:
   // an existing feed's opt-in product is byte-identical unless it enables this.
   { id: 'trustTierBoost', score: (post, ctx) => trustTierBoost(post, ctx.authorTrustTiers) },

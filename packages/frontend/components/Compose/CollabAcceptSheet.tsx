@@ -23,7 +23,10 @@ const CollabAcceptSheet: React.FC<CollabAcceptSheetProps> = ({
 }) => {
   const { t } = useTranslation();
   const inviterHandle = getNormalizedUserHandle(inviter);
-  const inviterName = displayNameOrHandle(inviter.name?.displayName, inviterHandle ? `@${inviterHandle}` : '');
+  const inviterName = displayNameOrHandle(
+    inviter.name?.displayName,
+    inviterHandle ? `@${inviterHandle}` : '',
+  );
 
   return (
     <View className="px-4 pb-8 pt-2 gap-4">
@@ -38,13 +41,19 @@ const CollabAcceptSheet: React.FC<CollabAcceptSheetProps> = ({
       </Text>
       <View className="gap-3">
         <Text className="text-foreground text-[15px]">
-          {t('collab.acceptAttribution', { defaultValue: 'Your username will be added to this post as a co-author.' })}
+          {t('collab.acceptAttribution', {
+            defaultValue: 'Your username will be added to this post as a co-author.',
+          })}
         </Text>
         <Text className="text-foreground text-[15px]">
-          {t('collab.acceptDistribution', { defaultValue: 'The post will be shared with your followers and appear on your profile.' })}
+          {t('collab.acceptDistribution', {
+            defaultValue: 'The post will be shared with your followers and appear on your profile.',
+          })}
         </Text>
         <Text className="text-foreground text-[15px]">
-          {t('collab.acceptVisibility', { defaultValue: 'If any collaborator has a public account, the post is public.' })}
+          {t('collab.acceptVisibility', {
+            defaultValue: 'If any collaborator has a public account, the post is public.',
+          })}
         </Text>
       </View>
       <View className="gap-2 mt-2">

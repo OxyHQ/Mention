@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import type { VideoView } from 'expo-video';
+import { useCallback, useEffect, useState } from 'react';
+import type { VideoViewHandle } from '@oxy.so/bloom/video-view';
 import type HlsJs from 'hls.js';
 import { createLogger } from '@oxy.so/core/logger';
 import { isHlsSource } from '@/utils/hlsSource';
@@ -120,6 +120,27 @@ const HLS_CONFIG = {
   startLevel: -1,
 } as const;
 
+/**
+ * Hand an element whose stream failed the same video as a progressive file.
+ *
+ * While hls.js is attached it, not expo-video, supplies the element's bytes, so
+ * a fatal stream error never reaches expo-video's status — and with it the
+ * fallback every other player failure takes. This is that fallback, on the same
+ * element expo-video keeps driving: play/pause and the time updates carry on.
+ * `resume` is whether the element was playing when the stream died.
+ */
+export function playProgressiveInstead(
+  element: HTMLVideoElement,
+  src: string,
+  resume: boolean,
+): void {
+  element.src = src;
+  if (!resume) return;
+  void element.play().catch(() => {
+    // Autoplay refused; the viewer's tap plays it like any video.
+  });
+}
+
 /** What the caller needs to know about the JS decoder for one source. */
 export interface HlsPlayback {
   /**
@@ -129,6 +150,12 @@ export interface HlsPlayback {
    * playlist url would first try — and fail — to decode it natively.
    */
   readonly active: boolean;
+  /**
+   * The `ref` for the `VideoView` that paints this source. It fills `viewRef`
+   * as an object ref would, and it is what attaches hls.js — so give it to that
+   * view and to nothing else.
+   */
+  readonly ref: React.Ref<VideoViewHandle>;
 }
 
 /**
@@ -136,20 +163,33 @@ export interface HlsPlayback {
  * `src` is an HLS source this browser needs a JS decoder for.
  *
  * The element is reached through `VideoView.nativeRef`, which expo-video
- * documents as the `HTMLVideoElement` on web. Everything else about the player —
+ * documents as the `HTMLVideoElement` on web, and it is attached WHEN THE
+ * ELEMENT EXISTS — through the view's ref, not an effect of the component that
+ * owns this hook. The two are not the same moment: a flight host paints its
+ * video through a slot that mounts after the owner's effects have run, so an
+ * effect reading `viewRef` found nothing, logged a warning nobody sees in a
+ * production build, and never asked again. Every feed and post video that
+ * needed hls.js sat on its poster with no source at all. Everything else about the player —
  * play/pause, muting, the time updates driving the scrubber, the status events —
  * keeps running through expo-video, whose web player operates on that same
  * element; hls.js only supplies the bytes.
  */
 export function useHlsPlayback(
   src: string,
-  viewRef: React.RefObject<InstanceType<typeof VideoView> | null>,
+  viewRef: React.RefObject<VideoViewHandle | null>,
   /**
    * Whether segments should keep downloading. A player the authority has
    * paused (scrolled away, screen blurred) stops fetching instead of filling
    * its buffer for nobody; it resumes from where it stopped.
    */
   loading = true,
+  /**
+   * The same video as a progressive file, played when the stream fails. While
+   * hls.js is attached it, not expo-video, supplies this element's bytes, so a
+   * fatal stream error never reaches expo-video's status and its fallback; the
+   * element is handed this file instead, which is all a fallback is.
+   */
+  fallbackSrc?: string,
 ): HlsPlayback {
   // The decision is a pure function of the source and the browser, so it is
   // resolved during render (not in an effect): the caller needs it on the FIRST
@@ -158,50 +198,63 @@ export function useHlsPlayback(
   const [active] = useState(() => needsJsHlsDecoder(src));
   const [instance, setInstance] = useState<HlsJs | null>(null);
 
-  useEffect(() => {
-    if (!active) return;
+  // A ref callback with a cleanup (React 19): React runs it when the view
+  // mounts and the cleanup when it unmounts or a dependency changes, so the
+  // decoder's lifetime is the element's.
+  const ref = useCallback(
+    (handle: VideoViewHandle | null) => {
+      viewRef.current = handle;
+      if (!active || !handle) return undefined;
 
-    const element: unknown = viewRef.current?.nativeRef?.current;
-    if (!(element instanceof HTMLVideoElement)) {
-      logger.warn('No video element to attach to; HLS source will not play');
-      return;
-    }
+      const element: unknown = handle.nativeRef?.current;
+      if (!(element instanceof HTMLVideoElement)) {
+        logger.warn('No video element to attach to; HLS source will not play');
+        return undefined;
+      }
 
-    let hls: HlsJs | null = null;
-    let cancelled = false;
+      let hls: HlsJs | null = null;
+      let cancelled = false;
 
-    void loadHls()
-      .then((Hls) => {
-        if (cancelled) return;
-        const created = new Hls(HLS_CONFIG);
-        hls = created;
-        created.on(Hls.Events.ERROR, (_event, data) => {
-          if (!data.fatal) return;
-          logger.warn('Fatal HLS error, giving up on this source', {
-            errorType: data.type,
-            details: data.details,
+      void loadHls()
+        .then((Hls) => {
+          if (cancelled) return;
+          const created = new Hls(HLS_CONFIG);
+          hls = created;
+          created.on(Hls.Events.ERROR, (_event, data) => {
+            if (!data.fatal) return;
+            logger.warn('Fatal HLS error, giving up on this source', {
+              errorType: data.type,
+              details: data.details,
+            });
+            // Read before destroying: detaching resets the element.
+            const resume = !element.paused;
+            created.destroy();
+            if (hls === created) hls = null;
+            setInstance((current) => (current === created ? null : current));
+            if (fallbackSrc) playProgressiveInstead(element, fallbackSrc, resume);
           });
-          created.destroy();
-          if (hls === created) hls = null;
-          setInstance((current) => (current === created ? null : current));
+          created.loadSource(src);
+          created.attachMedia(element);
+          setInstance(created);
+        })
+        .catch((error: unknown) => {
+          logger.warn('Failed to load the HLS decoder', {
+            reason: error instanceof Error ? error.message : String(error),
+          });
         });
-        created.loadSource(src);
-        created.attachMedia(element);
-        setInstance(created);
-      })
-      .catch((error: unknown) => {
-        logger.warn('Failed to load the HLS decoder', {
-          reason: error instanceof Error ? error.message : String(error),
-        });
-      });
 
-    return () => {
-      cancelled = true;
-      hls?.destroy();
-      hls = null;
-      setInstance(null);
-    };
-  }, [active, src, viewRef]);
+      return () => {
+        cancelled = true;
+        hls?.destroy();
+        hls = null;
+        setInstance(null);
+        // A cleanup replaces React's `ref(null)` call, so release the handle
+        // here — unless a newer view has already taken the ref.
+        if (viewRef.current === handle) viewRef.current = null;
+      };
+    },
+    [active, src, viewRef, fallbackSrc],
+  );
 
   useEffect(() => {
     if (!instance) return;
@@ -213,5 +266,5 @@ export function useHlsPlayback(
     }
   }, [instance, loading]);
 
-  return { active };
+  return { active, ref };
 }

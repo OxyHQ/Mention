@@ -68,18 +68,16 @@ describe('templateOxyRoute', () => {
     );
     expect(templateOxyRoute('/users/me/graph')).toBe('/users/me/graph');
     expect(templateOxyRoute('/privacy/blocked/12345')).toBe('/privacy/blocked/:id');
-    expect(
-      templateOxyRoute('/assets/2b8f4e1c-9a0d-4f7b-8c31-5e6d7a8b9c01/stream'),
-    ).toBe('/assets/:id/stream');
+    expect(templateOxyRoute('/assets/2b8f4e1c-9a0d-4f7b-8c31-5e6d7a8b9c01/stream')).toBe(
+      '/assets/:id/stream',
+    );
   });
 
   it('drops the query string, so a scoped media token cannot become a label', () => {
     expect(templateOxyRoute('/assets/650000000000000000000010?mt=secret-media-token')).toBe(
       '/assets/:id',
     );
-    expect(templateOxyRoute('https://api.oxy.so/users/me/graph?fresh=1')).toBe(
-      '/users/me/graph',
-    );
+    expect(templateOxyRoute('https://api.oxy.so/users/me/graph?fresh=1')).toBe('/users/me/graph');
   });
 
   it('collapses to /other once the template cap is reached', () => {
@@ -87,7 +85,9 @@ describe('templateOxyRoute', () => {
     // shape that is already known, which is the whole point of the templating.
     const seen = new Set<string>();
     for (let index = 0; index < 60; index += 1) {
-      seen.add(templateOxyRoute(`/synthetic-route-${String.fromCharCode(97 + index % 26)}${index}`));
+      seen.add(
+        templateOxyRoute(`/synthetic-route-${String.fromCharCode(97 + (index % 26))}${index}`),
+      );
     }
     expect(seen.has('/other')).toBe(true);
   });
@@ -127,12 +127,16 @@ describe('instrumentOxyEgress', () => {
 
   it('records a rejection under its status class and rethrows it', async () => {
     const failure = Object.assign(new Error('forbidden'), { status: 403 });
-    const client = { http: new FakeHttpService(async () => { throw failure; }) };
+    const client = {
+      http: new FakeHttpService(async () => {
+        throw failure;
+      }),
+    };
     instrumentOxyEgress(client);
 
-    await expect(
-      client.http.request({ method: 'GET', url: '/users/me/graph' }),
-    ).rejects.toThrow('forbidden');
+    await expect(client.http.request({ method: 'GET', url: '/users/me/graph' })).rejects.toThrow(
+      'forbidden',
+    );
 
     expect(await exposition()).toContain(
       'oxy_calls_total{method="GET",route="/users/me/graph",status="4xx"} 1',
@@ -200,8 +204,16 @@ describe('instrumentOxyEgress', () => {
   describe('measureOxyFetch', () => {
     it('counts a raw fetch in the request tally and the templated series, by status', async () => {
       const tally = await runWithOxyAccounting(async (accumulated) => {
-        await measureOxyFetch('GET', '/profiles/username/alice', async () => new Response('{}', { status: 200 }));
-        await measureOxyFetch('POST', '/capabilities/tickets/introspect', async () => new Response('', { status: 401 }));
+        await measureOxyFetch(
+          'GET',
+          '/profiles/username/alice',
+          async () => new Response('{}', { status: 200 }),
+        );
+        await measureOxyFetch(
+          'POST',
+          '/capabilities/tickets/introspect',
+          async () => new Response('', { status: 401 }),
+        );
         return accumulated;
       });
 
@@ -215,7 +227,9 @@ describe('instrumentOxyEgress', () => {
     it('counts a rejected fetch as a 5xx and rethrows it', async () => {
       const failure = new Error('socket hang up');
       const tally = await runWithOxyAccounting(async (accumulated) => {
-        await expect(measureOxyFetch('GET', '/users/1', () => Promise.reject(failure))).rejects.toBe(failure);
+        await expect(
+          measureOxyFetch('GET', '/users/1', () => Promise.reject(failure)),
+        ).rejects.toBe(failure);
         return accumulated;
       });
       expect(tally.errorCount).toBe(1);

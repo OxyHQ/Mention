@@ -74,8 +74,14 @@ function makeRes(): Res {
   const res: Res = {
     statusCode: 200,
     body: undefined,
-    status(code) { res.statusCode = code; return res; },
-    json(payload) { res.body = payload; return res; },
+    status(code) {
+      res.statusCode = code;
+      return res;
+    },
+    json(payload) {
+      res.body = payload;
+      return res;
+    },
   };
   return res;
 }
@@ -94,7 +100,12 @@ async function seedInLanguage(languages: string[] | undefined, likes: number): P
   const record = await seedPost(scope, {
     visibility: PostVisibility.PUBLIC,
     status: 'published',
-    ...(languages ? { language: languages[0], postClassification: { status: 'baseline', topics: [], languages } } : {}),
+    ...(languages
+      ? {
+          language: languages[0],
+          postClassification: { status: 'baseline', topics: [], languages },
+        }
+      : {}),
   });
   await getDb().update(posts).set({ statsLikesCount: likes }).where(eq(posts.id, record.id));
   return record.id;
@@ -201,7 +212,12 @@ describe('anonymous For You — the reader language reaches the query', () => {
     };
     const res = makeRes();
     await mtnFeedController.getFeed(request as never, res as never);
-    const body = res.body as { data?: { slices?: Array<{ items: Array<{ post: { id: string } }> }>; items?: Array<{ id: string }> } };
+    const body = res.body as {
+      data?: {
+        slices?: Array<{ items: Array<{ post: { id: string } }> }>;
+        items?: Array<{ id: string }>;
+      };
+    };
     const returned = new Set(
       [
         ...(body.data?.items ?? []).map((item) => item.id),

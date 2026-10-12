@@ -8,9 +8,7 @@ import {
 
 const mockStorageGet = jest.fn();
 const mockStorageSet = jest.fn();
-const mockStorageRemove = jest.fn(
-  (_key: string) => Promise.resolve(true),
-);
+const mockStorageRemove = jest.fn((_key: string) => Promise.resolve(true));
 
 jest.mock('@/utils/storage', () => ({
   Storage: {
@@ -62,16 +60,12 @@ describe('recommendation filter viewer isolation', () => {
       showAutomated: false,
     });
 
-    await expect(requestA).resolves.toEqual(
-      DEFAULT_RECOMMENDATION_FILTERS,
-    );
+    await expect(requestA).resolves.toEqual(DEFAULT_RECOMMENDATION_FILTERS);
   });
 
   it('orders old write → reset remove → new write for A → B → A', async () => {
     const pendingWrite = deferred<boolean>();
-    mockStorageSet
-      .mockReturnValueOnce(pendingWrite.promise)
-      .mockResolvedValueOnce(true);
+    mockStorageSet.mockReturnValueOnce(pendingWrite.promise).mockResolvedValueOnce(true);
     const viewerId = 'late-writer-a';
     const storageKey = getRecommendationFiltersStorageKey(viewerId);
 
@@ -103,13 +97,10 @@ describe('recommendation filter viewer isolation', () => {
     await flushQueue();
 
     expect(mockStorageSet).toHaveBeenCalledTimes(2);
-    const scopedRemoveIndex = mockStorageRemove.mock.calls.findIndex(
-      ([key]) => key === storageKey,
-    );
+    const scopedRemoveIndex = mockStorageRemove.mock.calls.findIndex(([key]) => key === storageKey);
     expect(scopedRemoveIndex).toBeGreaterThanOrEqual(0);
     const firstSetOrder = mockStorageSet.mock.invocationCallOrder[0];
-    const resetRemoveOrder =
-      mockStorageRemove.mock.invocationCallOrder[scopedRemoveIndex];
+    const resetRemoveOrder = mockStorageRemove.mock.invocationCallOrder[scopedRemoveIndex];
     const secondSetOrder = mockStorageSet.mock.invocationCallOrder[1];
     expect(firstSetOrder).toBeLessThan(resetRemoveOrder);
     expect(resetRemoveOrder).toBeLessThan(secondSetOrder);

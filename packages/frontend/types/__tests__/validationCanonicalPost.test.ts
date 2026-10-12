@@ -21,13 +21,15 @@ function canonicalPost(): HydratedPost {
       avatar: 'avatar-1',
       verified: true,
     },
-    authors: [{
-      id: 'user-1',
-      username: 'alice',
-      name: { displayName: 'Alice' },
-      role: 'owner',
-      status: 'accepted',
-    }],
+    authors: [
+      {
+        id: 'user-1',
+        username: 'alice',
+        name: { displayName: 'Alice' },
+        role: 'owner',
+        status: 'accepted',
+      },
+    ],
     engagement: {
       likes: 1,
       downvotes: 0,
@@ -76,15 +78,17 @@ describe('notification embedded post contract', () => {
     // drop every such notification from the list.
     const post = {
       ...canonicalPost(),
-      documents: [{
-        id: 'doc-1',
-        canonicalUrl: 'https://example.com/article',
-        title: 'Article',
-        type: 'page',
-        status: 'indexed',
-        authors: [],
-        evidence: {},
-      }],
+      documents: [
+        {
+          id: 'doc-1',
+          canonicalUrl: 'https://example.com/article',
+          title: 'Article',
+          type: 'page',
+          status: 'indexed',
+          authors: [],
+          evidence: {},
+        },
+      ],
     };
 
     const results = validateNotifications([notification(post)]);

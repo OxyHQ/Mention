@@ -49,15 +49,10 @@ export interface InterstitialCardProps {
  * for item-level events (click/follow/subscribe/use/dismiss), and omitted for
  * card-level ones (impression/seeMore).
  */
-export type ReportInterstitialEvent = (
-  event: FeedInterstitialEventName,
-  position?: number,
-) => void;
+export type ReportInterstitialEvent = (event: FeedInterstitialEventName, position?: number) => void;
 
 /** The band's bound reporter. Stable while the slot it reports for is. */
-export function useInterstitialReporter(
-  telemetry: InterstitialTelemetry,
-): ReportInterstitialEvent {
+export function useInterstitialReporter(telemetry: InterstitialTelemetry): ReportInterstitialEvent {
   const { feedDescriptor, slotKey, kind } = telemetry;
 
   return useCallback(
@@ -126,8 +121,7 @@ export function useInterstitialImpression(
       const observer = new IntersectionObserver(
         (entries) => {
           const seen = entries.some(
-            (entry) =>
-              entry.isIntersecting && entry.intersectionRatio >= IMPRESSION_VISIBLE_RATIO,
+            (entry) => entry.isIntersecting && entry.intersectionRatio >= IMPRESSION_VISIBLE_RATIO,
           );
           if (!seen) return;
           reportImpression();

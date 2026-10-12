@@ -30,7 +30,7 @@ const screen = readFileSync(SCREEN, 'utf8');
 function rowSource(): string {
   const start = screen.indexOf('const VideoItem = memo<VideoItemProps>');
   expect(start).toBeGreaterThan(-1);
-  const end = screen.indexOf("ActiveVideoSurface.displayName", start);
+  const end = screen.indexOf('ActiveVideoSurface.displayName', start);
   return screen.slice(start, end === -1 ? undefined : end);
 }
 
@@ -47,7 +47,9 @@ describe('a reel slide that failed to load', () => {
 
   it('clears the error when the reader comes back to the slide', () => {
     const row = rowSource();
-    const reset = row.match(/if\s*\(isActive\s*&&\s*videoError\)\s*\{\s*setVideoError\(false\);\s*\}/);
+    const reset = row.match(
+      /if\s*\(isActive\s*&&\s*videoError\)\s*\{\s*setVideoError\(false\);\s*\}/,
+    );
     expect(reset).not.toBeNull();
   });
 

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext } from "react";
+import { createContext, useCallback, useContext } from 'react';
 
 export interface MentionSettingsActions {
   open: (page?: string) => void;
@@ -7,11 +7,10 @@ export interface MentionSettingsActions {
   navigate: (route: string) => void;
   afterClose: (action: () => void) => void;
 }
-export const MentionSettingsContext =
-  createContext<MentionSettingsActions | null>(null);
+export const MentionSettingsContext = createContext<MentionSettingsActions | null>(null);
 export function useMentionSettings() {
   const value = useContext(MentionSettingsContext);
-  if (!value) throw new Error("MentionSettingsProvider is missing");
+  if (!value) throw new Error('MentionSettingsProvider is missing');
   return value;
 }
 export function useSettingsRouter() {
@@ -27,10 +26,7 @@ export function useSettingsRouter() {
 export function useSettingsBack() {
   const { open, page } = useMentionSettings();
   return useCallback(
-    () =>
-      open(
-        page.includes("/") ? page.slice(0, page.lastIndexOf("/")) : "account",
-      ),
+    () => open(page.includes('/') ? page.slice(0, page.lastIndexOf('/')) : 'account'),
     [open, page],
   );
 }

@@ -32,10 +32,10 @@
  * shape is correct one line above and wrong one line below.
  */
 
-import { readdir, readFile } from "node:fs/promises";
-import { dirname, join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import ts from "typescript";
+import { readdir, readFile } from 'node:fs/promises';
+import { dirname, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 
 /**
  * The tree to scan. Overridable so the validator's own tests can point it at a
@@ -44,22 +44,21 @@ import ts from "typescript";
  */
 const repositoryRoot = process.env.LOGGER_VALIDATOR_ROOT
   ? resolve(process.env.LOGGER_VALIDATOR_ROOT)
-  : resolve(dirname(fileURLToPath(import.meta.url)), "..");
+  : resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** The module whose `error()` puts the error in the second argument. */
-const SDK_LOGGER_MODULE = "@oxy.so/core/logger";
+const SDK_LOGGER_MODULE = '@oxy.so/core/logger';
 
 /** Package source roots that may import the SDK logger. */
 const SOURCE_ROOTS = [
-  "packages/frontend",
-  "packages/backend/src",
-  "packages/mcp/src",
-  "packages/shared-types/src",
+  'packages/frontend',
+  'packages/backend/src',
+  'packages/mcp/src',
+  'packages/shared-types/src',
 ];
 
 const SOURCE_EXTENSIONS = /\.(?:tsx?|jsx?)$/;
-const EXCLUDED_PATH =
-  /(?:^|\/)(?:node_modules|dist|\.expo|android|ios|__mocks__)(?:\/|$)/;
+const EXCLUDED_PATH = /(?:^|\/)(?:node_modules|dist|\.expo|android|ios|__mocks__)(?:\/|$)/;
 
 /**
  * Vacuity floors. A traversal that quietly stops finding files, or an import
@@ -99,9 +98,9 @@ function sdkLoggerIdentifiers(source) {
 
   for (const statement of source.statements) {
     if (
-      !ts.isImportDeclaration(statement)
-      || !ts.isStringLiteral(statement.moduleSpecifier)
-      || statement.moduleSpecifier.text !== SDK_LOGGER_MODULE
+      !ts.isImportDeclaration(statement) ||
+      !ts.isStringLiteral(statement.moduleSpecifier) ||
+      statement.moduleSpecifier.text !== SDK_LOGGER_MODULE
     ) {
       continue;
     }
@@ -109,7 +108,7 @@ function sdkLoggerIdentifiers(source) {
     if (bindings && ts.isNamedImports(bindings)) {
       for (const element of bindings.elements) {
         const originalName = (element.propertyName ?? element.name).text;
-        if (originalName === "createLogger") {
+        if (originalName === 'createLogger') {
           factories.add(element.name.text);
         } else {
           imported.add(element.name.text);
@@ -124,19 +123,19 @@ function sdkLoggerIdentifiers(source) {
   // loggers too, and are how most call sites actually get one.
   const visit = (node) => {
     if (
-      ts.isVariableDeclaration(node)
-      && ts.isIdentifier(node.name)
-      && node.initializer
-      && ts.isCallExpression(node.initializer)
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      ts.isCallExpression(node.initializer)
     ) {
       const callee = node.initializer.expression;
       if (ts.isIdentifier(callee) && factories.has(callee.text)) {
         imported.add(node.name.text);
       } else if (
-        ts.isPropertyAccessExpression(callee)
-        && callee.name.text === "child"
-        && ts.isIdentifier(callee.expression)
-        && imported.has(callee.expression.text)
+        ts.isPropertyAccessExpression(callee) &&
+        callee.name.text === 'child' &&
+        ts.isIdentifier(callee.expression) &&
+        imported.has(callee.expression.text)
       ) {
         imported.add(node.name.text);
       }
@@ -153,19 +152,19 @@ function offendingCalls(source, loggerNames) {
   const offences = [];
   const visit = (node) => {
     if (
-      ts.isCallExpression(node)
-      && ts.isPropertyAccessExpression(node.expression)
-      && node.expression.name.text === "error"
-      && ts.isIdentifier(node.expression.expression)
-      && loggerNames.has(node.expression.expression.text)
-      && node.arguments.length >= 2
-      && ts.isObjectLiteralExpression(node.arguments[1])
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === 'error' &&
+      ts.isIdentifier(node.expression.expression) &&
+      loggerNames.has(node.expression.expression.text) &&
+      node.arguments.length >= 2 &&
+      ts.isObjectLiteralExpression(node.arguments[1])
     ) {
       const { line } = source.getLineAndCharacterOfPosition(node.getStart(source));
       offences.push({
         line: line + 1,
         logger: node.expression.expression.text,
-        text: node.getText(source).split("\n")[0].trim(),
+        text: node.getText(source).split('\n')[0].trim(),
       });
     }
     ts.forEachChild(node, visit);
@@ -183,7 +182,7 @@ for (const root of SOURCE_ROOTS) {
 }
 
 for (const path of scannedFiles) {
-  const contents = await readFile(path, "utf8");
+  const contents = await readFile(path, 'utf8');
   // Cheap pre-filter: parsing every file is the slow part, and a file that
   // never names the module cannot import from it.
   if (!contents.includes(SDK_LOGGER_MODULE)) continue;
@@ -193,7 +192,7 @@ for (const path of scannedFiles) {
     contents,
     ts.ScriptTarget.Latest,
     /* setParentNodes */ true,
-    path.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+    path.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
   const loggerNames = sdkLoggerIdentifiers(source);
   if (loggerNames.size === 0) continue;
@@ -201,10 +200,10 @@ for (const path of scannedFiles) {
 
   for (const offence of offendingCalls(source, loggerNames)) {
     failures.push(
-      `${relative(repositoryRoot, path)}:${offence.line}: `
-      + `\`${offence.logger}.error\` takes the error SECOND, not a context object — `
-      + `write \`${offence.logger}.error(message, error)\` (context goes third).\n`
-      + `    ${offence.text}`,
+      `${relative(repositoryRoot, path)}:${offence.line}: ` +
+        `\`${offence.logger}.error\` takes the error SECOND, not a context object — ` +
+        `write \`${offence.logger}.error(message, error)\` (context goes third).\n` +
+        `    ${offence.text}`,
     );
   }
 }
@@ -222,12 +221,12 @@ if (loggerFiles.length < MINIMUM_LOGGER_FILES) {
 }
 
 if (failures.length > 0) {
-  console.error("Logger argument validation failed:\n");
+  console.error('Logger argument validation failed:\n');
   for (const failure of failures) console.error(`  ${failure}\n`);
   process.exit(1);
 }
 
 console.log(
-  `Logger argument validation passed — ${loggerFiles.length} files import ${SDK_LOGGER_MODULE}, `
-  + `of ${scannedFiles.length} scanned.`,
+  `Logger argument validation passed — ${loggerFiles.length} files import ${SDK_LOGGER_MODULE}, ` +
+    `of ${scannedFiles.length} scanned.`,
 );

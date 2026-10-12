@@ -10,7 +10,14 @@
  * profile screen, so every one of them must resolve to an author feed —
  * `author|<oxyUserId>|<filter>`.
  */
-export type AuthorFeedFilter = 'posts' | 'replies' | 'media' | 'videos' | 'likes' | 'boosts' | 'mentions';
+export type AuthorFeedFilter =
+  | 'posts'
+  | 'replies'
+  | 'media'
+  | 'videos'
+  | 'likes'
+  | 'boosts'
+  | 'mentions';
 
 /** {@link AuthorFeedFilter} as a runtime list, in profile-tab order. */
 export const AUTHOR_FEED_FILTERS: readonly AuthorFeedFilter[] = [
@@ -94,10 +101,11 @@ export function parseFeedDescriptor(descriptor: FeedDescriptor): ParsedFeedDescr
 /**
  * Build a feed descriptor from source and params.
  */
-export function buildFeedDescriptor(source: FeedDescriptorSource, ...params: string[]): FeedDescriptor {
-  const descriptor = params.length === 0
-    ? source
-    : `${source}|${params.join('|')}`;
+export function buildFeedDescriptor(
+  source: FeedDescriptorSource,
+  ...params: string[]
+): FeedDescriptor {
+  const descriptor = params.length === 0 ? source : `${source}|${params.join('|')}`;
   if (!isValidFeedDescriptor(descriptor)) {
     throw new Error(`Invalid feed descriptor: ${descriptor}`);
   }
@@ -109,8 +117,17 @@ export function buildFeedDescriptor(source: FeedDescriptorSource, ...params: str
  */
 export function isValidFeedDescriptor(value: string): value is FeedDescriptor {
   const simpleSources: ReadonlySet<FeedDescriptorSource> = new Set([
-    'following', 'following_direct', 'for_you', 'explore', 'videos', 'media', 'saved',
-    'trending', 'mutuals', 'friends_popular', 'friends_of_friends',
+    'following',
+    'following_direct',
+    'for_you',
+    'explore',
+    'videos',
+    'media',
+    'saved',
+    'trending',
+    'mutuals',
+    'friends_popular',
+    'friends_of_friends',
   ]);
   const [source, ...params] = value.split('|');
 

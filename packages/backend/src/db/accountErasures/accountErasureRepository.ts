@@ -83,7 +83,9 @@ export async function recordAccountErasureRequest(
     await db
       .update(accountErasures)
       .set({ username: request.username })
-      .where(and(eq(accountErasures.eventId, request.eventId), sql`${accountErasures.username} is null`));
+      .where(
+        and(eq(accountErasures.eventId, request.eventId), sql`${accountErasures.username} is null`),
+      );
   }
   const existing = await findAccountErasure(request.eventId);
   if (!existing) {
@@ -249,7 +251,9 @@ export async function findErasedAccountUsernames(
   const rows = await getDb()
     .select({ oxyUserId: accountErasures.oxyUserId, username: accountErasures.username })
     .from(accountErasures)
-    .where(and(inArray(accountErasures.oxyUserId, [...oxyUserIds]), isNotNull(accountErasures.username)));
+    .where(
+      and(inArray(accountErasures.oxyUserId, [...oxyUserIds]), isNotNull(accountErasures.username)),
+    );
   const byUser = new Map<string, string>();
   for (const row of rows) if (row.username) byUser.set(row.oxyUserId, row.username);
   return byUser;

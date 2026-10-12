@@ -1,15 +1,14 @@
 /**
  * The write path for `feed_generators` mirrored from an external network.
  *
- * ## The split this closes, and which way its false answer pointed
+ * ## Why the writer and the reader must share this table
  *
- * `FeedGeneratorFeed.isAtprotoBacked()` already read `feed_generators` from
- * Postgres while `connectors/atproto/feedgen.mapper.ts` still wrote the Mongoose
- * model — two self-consistent halves that never met. The reader's miss is not an
- * error: it logs `no atproto-backed generator for descriptor` at INFO and serves
+ * `FeedGeneratorFeed.isAtprotoBacked()` reads `feed_generators`, and
+ * `connectors/atproto/feedgen.mapper.ts` writes it through here. The reader's
+ * miss is not an error: it logs `no atproto-backed generator for descriptor` at INFO and serves
  * an EMPTY page, because a stale `feedgen|<uri>` link must never break the feed
- * engine. So every mirrored Bluesky feed resolved to nothing, on a request path,
- * with the only evidence an info-level line nobody greps for.
+ * engine. So an unwritten mirrored Bluesky feed resolves to nothing, on a request
+ * path, with the only evidence an info-level line nobody greps for.
  *
  * The observer is a person who opened the feed, which is what makes this a
  * repository rather than something that throws — but the direction is worth
@@ -41,9 +40,8 @@ export interface AtprotoFeedGeneratorInput {
  * `subscriber_count` is deliberately absent from the conflict update: it is
  * Mention's own number, not the remote service's, and re-syncing metadata must
  * not reset it. `description` and `avatar` ARE written as NULL when the remote
- * view no longer carries them — Mongoose dropped `undefined` keys from an update,
- * so a description deleted upstream survived here forever; a mirror that cannot
- * un-set a field is not mirroring it.
+ * view no longer carries them, so a description deleted upstream is deleted
+ * here too; a mirror that cannot un-set a field is not mirroring it.
  */
 export async function upsertAtprotoFeedGenerator(
   generator: AtprotoFeedGeneratorInput,

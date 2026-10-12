@@ -202,7 +202,11 @@ describe('a row recycled onto another post', () => {
   it('never shows the previous post’s MACHINE translation, even one that lands after the recycle', async () => {
     mockReaderLanguage = 'it-IT';
     let resolveTranslate!: (value: unknown) => void;
-    mockApiPost.mockReturnValue(new Promise((resolve) => { resolveTranslate = resolve; }));
+    mockApiPost.mockReturnValue(
+      new Promise((resolve) => {
+        resolveTranslate = resolve;
+      }),
+    );
 
     let renderer!: TestRenderer.ReactTestRenderer;
     await act(async () => {
@@ -228,7 +232,9 @@ describe('a row recycled onto another post', () => {
     expect(state.activeTag).toBe('en');
     // The only request is the one the reader asked for, on post-1.
     expect(mockApiPost).toHaveBeenCalledTimes(1);
-    expect(mockApiPost).toHaveBeenCalledWith('/posts/post-1/translate', { targetLanguage: 'it-IT' });
+    expect(mockApiPost).toHaveBeenCalledWith('/posts/post-1/translate', {
+      targetLanguage: 'it-IT',
+    });
 
     await act(async () => {
       renderer.unmount();
@@ -628,7 +634,9 @@ describe('no automatic translation', () => {
     await flush();
 
     expect(mockApiPost).toHaveBeenCalledTimes(1);
-    expect(mockApiPost).toHaveBeenCalledWith('/posts/post-1/translate', { targetLanguage: 'es-MX' });
+    expect(mockApiPost).toHaveBeenCalledWith('/posts/post-1/translate', {
+      targetLanguage: 'es-MX',
+    });
     expect(state.displayText).toBe('Hola mundo');
     expect(state.isTranslated).toBe(true);
   });

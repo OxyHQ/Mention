@@ -11,7 +11,11 @@ import { getPostCreator } from '../../services/serviceRegistry';
 import { mapWithConcurrency } from '../../utils/concurrency';
 import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
 import type { MediaItem } from '@mention/shared-types';
-import type { NormalizedExternalActor, NormalizedExternalMedia, NormalizedExternalPost } from '@oxy.so/federation';
+import type {
+  NormalizedExternalActor,
+  NormalizedExternalMedia,
+  NormalizedExternalPost,
+} from '@oxy.so/federation';
 import { xrpcGet } from './xrpcClient';
 import { fetchAndUpsertAtprotoProfile } from './profile.mapper';
 import { BSKY_APP_ORIGIN, POST_COLLECTION, PUBLIC_APPVIEW } from './constants';
@@ -134,7 +138,11 @@ function extractHashtags(record: AtprotoPostRecord): string[] {
   }
   for (const facet of record.facets ?? []) {
     for (const feature of facet.features ?? []) {
-      if (feature?.$type === 'app.bsky.richtext.facet#tag' && typeof feature.tag === 'string' && feature.tag.trim()) {
+      if (
+        feature?.$type === 'app.bsky.richtext.facet#tag' &&
+        typeof feature.tag === 'string' &&
+        feature.tag.trim()
+      ) {
         tags.add(feature.tag.trim().replace(/^#/, '').toLowerCase());
       }
     }
@@ -148,7 +156,11 @@ function extractMentionDids(record: AtprotoPostRecord | undefined): string[] {
   const dids: string[] = [];
   for (const facet of record.facets ?? []) {
     for (const feature of facet.features ?? []) {
-      if (feature?.$type === 'app.bsky.richtext.facet#mention' && typeof feature.did === 'string' && feature.did) {
+      if (
+        feature?.$type === 'app.bsky.richtext.facet#mention' &&
+        typeof feature.did === 'string' &&
+        feature.did
+      ) {
         dids.push(feature.did);
       }
     }
@@ -187,11 +199,19 @@ function buildFacetReplacements(
     const byteEnd = facet.index?.byteEnd;
     if (typeof byteStart !== 'number' || typeof byteEnd !== 'number') continue;
     for (const feature of facet.features ?? []) {
-      if (feature?.$type === 'app.bsky.richtext.facet#link' && typeof feature.uri === 'string' && feature.uri) {
+      if (
+        feature?.$type === 'app.bsky.richtext.facet#link' &&
+        typeof feature.uri === 'string' &&
+        feature.uri
+      ) {
         ops.push({ byteStart, byteEnd, replacement: feature.uri });
         break; // one replacement per facet byte range
       }
-      if (feature?.$type === 'app.bsky.richtext.facet#mention' && typeof feature.did === 'string' && feature.did) {
+      if (
+        feature?.$type === 'app.bsky.richtext.facet#mention' &&
+        typeof feature.did === 'string' &&
+        feature.did
+      ) {
         const oxyUserId = mentionMap.get(feature.did);
         if (oxyUserId) {
           ops.push({ byteStart, byteEnd, replacement: `[mention:${oxyUserId}]` });
@@ -225,7 +245,11 @@ function applyFacetReplacements(text: string, ops: FacetReplacement[]): string {
   let nextStart = buffer.length;
   for (const op of ordered) {
     if (op.byteEnd > nextStart) continue;
-    out = Buffer.concat([out.subarray(0, op.byteStart), Buffer.from(op.replacement, 'utf8'), out.subarray(op.byteEnd)]);
+    out = Buffer.concat([
+      out.subarray(0, op.byteStart),
+      Buffer.from(op.replacement, 'utf8'),
+      out.subarray(op.byteEnd),
+    ]);
     nextStart = op.byteStart;
   }
   return out.toString('utf8');
@@ -245,7 +269,10 @@ function extractQuotedUri(embed: AtprotoEmbedView | undefined): string | undefin
       : embed?.$type === 'app.bsky.embed.recordWithMedia#view'
         ? embed.record?.record
         : undefined;
-  if (recordView?.$type === 'app.bsky.embed.record#viewRecord' && typeof recordView.uri === 'string') {
+  if (
+    recordView?.$type === 'app.bsky.embed.record#viewRecord' &&
+    typeof recordView.uri === 'string'
+  ) {
     const parsed = parseAtUri(recordView.uri);
     if (parsed && parsed.collection === POST_COLLECTION) return recordView.uri;
   }
@@ -269,7 +296,9 @@ function normalizeLangs(langs: unknown): string[] {
 function hasAdultLabel(record: AtprotoPostRecord): boolean {
   const values = record.labels?.values;
   if (!Array.isArray(values)) return false;
-  return values.some((entry) => typeof entry?.val === 'string' && ADULT_LABEL_VALUES.has(entry.val));
+  return values.some(
+    (entry) => typeof entry?.val === 'string' && ADULT_LABEL_VALUES.has(entry.val),
+  );
 }
 
 function patchFromAspectRatio(
@@ -364,7 +393,8 @@ export function mapPostViewToNormalizedPost(
   const url = `${BSKY_APP_ORIGIN}/profile/${profileRef}/post/${parsed.rkey}`;
   const langs = normalizeLangs(record.langs);
   const media = extractMediaFromEmbed(postView.embed);
-  const inReplyTo = typeof record.reply?.parent?.uri === 'string' ? record.reply.parent.uri : undefined;
+  const inReplyTo =
+    typeof record.reply?.parent?.uri === 'string' ? record.reply.parent.uri : undefined;
   const quotedUri = extractQuotedUri(postView.embed);
 
   // Rewrite richtext facets over the RAW body FIRST, then normalize whitespace:
@@ -411,7 +441,7 @@ async function resolveAtprotoMentionOxyId(
     const existing = await findActorByUri(did);
     if (existing?.oxyUserId) return existing.oxyUserId;
   } catch (err) {
-      logger.warn('[atproto] mention actor lookup failed', err);
+    logger.warn('[atproto] mention actor lookup failed', err);
   }
   if (!allowIdentityMutation) return undefined;
   const actor = await fetchAndUpsertAtprotoProfile(did);
@@ -450,7 +480,9 @@ async function resolveThreadAndQuoteLinks(
   inReplyTo: string | undefined,
   quotedUri: string | undefined,
 ): Promise<{ parentPostId?: string; threadId?: string; quoteOf?: string }> {
-  const uris = [inReplyTo, quotedUri].filter((uri): uri is string => typeof uri === 'string' && uri.length > 0);
+  const uris = [inReplyTo, quotedUri].filter(
+    (uri): uri is string => typeof uri === 'string' && uri.length > 0,
+  );
   if (uris.length === 0) return {};
 
   const docs = await getDb()
@@ -572,7 +604,7 @@ export async function importAuthorFeed(
   const did = actor.externalId;
   const ownerOxyUserId = actor.oxyUserId;
   if (!ownerOxyUserId) {
-      logger.warn('[atproto] skipped author feed import without a resolved Oxy user');
+    logger.warn('[atproto] skipped author feed import without a resolved Oxy user');
     return { posts: [] };
   }
   // Stamp the actor's instance domain (e.g. `bsky.social`) on imported posts —
@@ -588,7 +620,7 @@ export async function importAuthorFeed(
       cursor: opts.cursor,
     });
   } catch (err) {
-      logger.debug('[atproto] getAuthorFeed failed', err);
+    logger.debug('[atproto] getAuthorFeed failed', err);
     return { posts: [] };
   }
 
@@ -729,7 +761,9 @@ async function resolveFeedAuthors(dids: readonly string[]): Promise<Map<string, 
  * local `Post` for the caller to load — it drops out of the page rather than
  * appearing blank.
  */
-export async function importPostViews(postViews: ReadonlyArray<AtprotoPostView | undefined>): Promise<string[]> {
+export async function importPostViews(
+  postViews: ReadonlyArray<AtprotoPostView | undefined>,
+): Promise<string[]> {
   // Keep only real feed-post views that carry both an AT-URI and an author DID, in
   // the generator's order.
   const candidates: Array<{ uri: string; did: string; view: AtprotoPostView }> = [];
@@ -748,12 +782,19 @@ export async function importPostViews(postViews: ReadonlyArray<AtprotoPostView |
   const authorMap = await resolveFeedAuthors([...new Set(candidates.map((c) => c.did))]);
   const mentionDids = new Set<string>();
   for (const candidate of candidates) {
-    for (const mentionedDid of extractMentionDids(candidate.view.record)) mentionDids.add(mentionedDid);
+    for (const mentionedDid of extractMentionDids(candidate.view.record))
+      mentionDids.add(mentionedDid);
   }
   const mentionMap = await resolveMentionDids(mentionDids);
 
   // Map each view to a normalized post (author validated against its own DID).
-  const mapped: Array<{ uri: string; post: NormalizedExternalPost; owner: string; did: string; instanceDomain: string }> = [];
+  const mapped: Array<{
+    uri: string;
+    post: NormalizedExternalPost;
+    owner: string;
+    did: string;
+    instanceDomain: string;
+  }> = [];
   for (const candidate of candidates) {
     const author = authorMap.get(candidate.did);
     if (!author) continue; // unresolved author → skip (no orphan)

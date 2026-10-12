@@ -150,11 +150,13 @@ export async function emitRepostCreated(
       boosterOxyUserId,
       MENTION_REPOST_COLLECTION,
       boost.id,
-      toRecordPayload(buildRepostRecord({
-        repostedPostId,
-        repostedPostOwnerOxyUserId: ownerOxyUserId,
-        createdAt: boost.createdAt,
-      })),
+      toRecordPayload(
+        buildRepostRecord({
+          repostedPostId,
+          repostedPostOwnerOxyUserId: ownerOxyUserId,
+          createdAt: boost.createdAt,
+        }),
+      ),
     );
   });
 }
@@ -172,28 +174,34 @@ export async function emitLikeCreated(args: {
   await isolate('emitLikeCreated', () => emitLikeCreatedStrict(args));
 }
 
-export async function emitLikeCreatedStrict(args: {
-  likerOxyUserId: string;
-  likeRkey: string;
-  likedPostId: string;
-  likedPostOwnerOxyUserId: string | undefined;
-} & DurableEmissionIdentity): Promise<void> {
+export async function emitLikeCreatedStrict(
+  args: {
+    likerOxyUserId: string;
+    likeRkey: string;
+    likedPostId: string;
+    likedPostOwnerOxyUserId: string | undefined;
+  } & DurableEmissionIdentity,
+): Promise<void> {
   const likedPostOwnerOxyUserId = args.likedPostOwnerOxyUserId;
   if (!likedPostOwnerOxyUserId) return;
-  await requireAppend('emitLikeCreated', () => signAndAppend(
-    args.likerOxyUserId,
-    MENTION_LIKE_COLLECTION,
-    args.likeRkey,
-    toRecordPayload(buildLikeRecord({
-      likedPostId: args.likedPostId,
-      likedPostOwnerOxyUserId,
-      createdAt: emissionDate(args.issuedAt),
-    })),
-    {
-      idempotencyKey: args.idempotencyKey,
-      issuedAt: args.issuedAt,
-    },
-  ));
+  await requireAppend('emitLikeCreated', () =>
+    signAndAppend(
+      args.likerOxyUserId,
+      MENTION_LIKE_COLLECTION,
+      args.likeRkey,
+      toRecordPayload(
+        buildLikeRecord({
+          likedPostId: args.likedPostId,
+          likedPostOwnerOxyUserId,
+          createdAt: emissionDate(args.issuedAt),
+        }),
+      ),
+      {
+        idempotencyKey: args.idempotencyKey,
+        issuedAt: args.issuedAt,
+      },
+    ),
+  );
 }
 
 /**
@@ -210,24 +218,30 @@ export async function emitTombstone(args: {
   await isolate('emitTombstone', () => emitTombstoneStrict(args));
 }
 
-export async function emitTombstoneStrict(args: {
-  authorOxyUserId: string;
-  tombstoneRkey: string;
-  subjectUri: string;
-} & DurableEmissionIdentity): Promise<void> {
-  await requireAppend('emitTombstone', () => signAndAppend(
-    args.authorOxyUserId,
-    MENTION_TOMBSTONE_COLLECTION,
-    args.tombstoneRkey,
-    toRecordPayload(buildTombstoneRecord({
-      subjectUri: args.subjectUri,
-      createdAt: emissionDate(args.issuedAt),
-    })),
-    {
-      idempotencyKey: args.idempotencyKey,
-      issuedAt: args.issuedAt,
-    },
-  ));
+export async function emitTombstoneStrict(
+  args: {
+    authorOxyUserId: string;
+    tombstoneRkey: string;
+    subjectUri: string;
+  } & DurableEmissionIdentity,
+): Promise<void> {
+  await requireAppend('emitTombstone', () =>
+    signAndAppend(
+      args.authorOxyUserId,
+      MENTION_TOMBSTONE_COLLECTION,
+      args.tombstoneRkey,
+      toRecordPayload(
+        buildTombstoneRecord({
+          subjectUri: args.subjectUri,
+          createdAt: emissionDate(args.issuedAt),
+        }),
+      ),
+      {
+        idempotencyKey: args.idempotencyKey,
+        issuedAt: args.issuedAt,
+      },
+    ),
+  );
 }
 
 /**
@@ -243,28 +257,34 @@ export async function emitBookmarkCreated(args: {
   await isolate('emitBookmarkCreated', () => emitBookmarkCreatedStrict(args));
 }
 
-export async function emitBookmarkCreatedStrict(args: {
-  ownerOxyUserId: string;
-  bookmarkRkey: string;
-  bookmarkedPostId: string;
-  bookmarkedPostOwnerOxyUserId: string | undefined;
-} & DurableEmissionIdentity): Promise<void> {
+export async function emitBookmarkCreatedStrict(
+  args: {
+    ownerOxyUserId: string;
+    bookmarkRkey: string;
+    bookmarkedPostId: string;
+    bookmarkedPostOwnerOxyUserId: string | undefined;
+  } & DurableEmissionIdentity,
+): Promise<void> {
   const bookmarkedPostOwnerOxyUserId = args.bookmarkedPostOwnerOxyUserId;
   if (!bookmarkedPostOwnerOxyUserId) return;
-  await requireAppend('emitBookmarkCreated', () => signAndAppend(
-    args.ownerOxyUserId,
-    MENTION_BOOKMARK_COLLECTION,
-    args.bookmarkRkey,
-    toRecordPayload(buildBookmarkRecord({
-      bookmarkedPostId: args.bookmarkedPostId,
-      bookmarkedPostOwnerOxyUserId,
-      createdAt: emissionDate(args.issuedAt),
-    })),
-    {
-      idempotencyKey: args.idempotencyKey,
-      issuedAt: args.issuedAt,
-    },
-  ));
+  await requireAppend('emitBookmarkCreated', () =>
+    signAndAppend(
+      args.ownerOxyUserId,
+      MENTION_BOOKMARK_COLLECTION,
+      args.bookmarkRkey,
+      toRecordPayload(
+        buildBookmarkRecord({
+          bookmarkedPostId: args.bookmarkedPostId,
+          bookmarkedPostOwnerOxyUserId,
+          createdAt: emissionDate(args.issuedAt),
+        }),
+      ),
+      {
+        idempotencyKey: args.idempotencyKey,
+        issuedAt: args.issuedAt,
+      },
+    ),
+  );
 }
 
 /* -------------------------------------------------------------------------- */

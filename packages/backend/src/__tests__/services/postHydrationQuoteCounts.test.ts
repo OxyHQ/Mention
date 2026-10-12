@@ -91,7 +91,13 @@ describe('PostHydrationService — quote counts', () => {
     countQuotesOfSpy.mockClear();
 
     getUsersByIds.mockResolvedValue([
-      { id: AUTHOR, username: 'author', name: { displayName: 'Author' }, badges: [], verified: false },
+      {
+        id: AUTHOR,
+        username: 'author',
+        name: { displayName: 'Author' },
+        badges: [],
+        verified: false,
+      },
     ]);
     getUserById.mockResolvedValue(null);
 

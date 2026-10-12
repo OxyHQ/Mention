@@ -119,7 +119,11 @@ describe('assertCanPublishAsAccount — the free path', () => {
     const reader = readerReturning([]);
 
     await expect(
-      assertCanPublishAsAccount({ publishAsOxyUserId: null, callerId: CALLER, memberReader: reader }),
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: null,
+        callerId: CALLER,
+        memberReader: reader,
+      }),
     ).resolves.toEqual({ authorId: CALLER, authorKind: null });
 
     // Not one question asked of Oxy — this is the overwhelming majority of posts.
@@ -131,7 +135,11 @@ describe('assertCanPublishAsAccount — the free path', () => {
     const reader = readerReturning([]);
 
     await expect(
-      assertCanPublishAsAccount({ publishAsOxyUserId: CALLER, callerId: CALLER, memberReader: reader }),
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: CALLER,
+        callerId: CALLER,
+        memberReader: reader,
+      }),
     ).resolves.toEqual({ authorId: CALLER, authorKind: null });
 
     expect(reader.calls).toEqual([]);
@@ -141,7 +149,11 @@ describe('assertCanPublishAsAccount — the free path', () => {
     const reader = readerReturning([]);
 
     await expect(
-      assertCanPublishAsAccount({ publishAsOxyUserId: `  ${CALLER} `, callerId: CALLER, memberReader: reader }),
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: `  ${CALLER} `,
+        callerId: CALLER,
+        memberReader: reader,
+      }),
     ).resolves.toEqual({ authorId: CALLER, authorKind: null });
 
     expect(reader.calls).toEqual([]);
@@ -153,7 +165,11 @@ describe('assertCanPublishAsAccount — a channel', () => {
     const reader = readerReturning([member({ role: 'viewer', permissions: VIEWER_PERMISSIONS })]);
 
     await expect(
-      assertCanPublishAsAccount({ publishAsOxyUserId: CHANNEL, callerId: CALLER, memberReader: reader }),
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: CHANNEL,
+        callerId: CALLER,
+        memberReader: reader,
+      }),
     ).resolves.toEqual({ authorId: CHANNEL, authorKind: 'channel' });
 
     expect(reader.calls).toEqual([CHANNEL]);
@@ -174,15 +190,25 @@ describe('assertCanPublishAsAccount — a channel', () => {
     ]);
 
     await expect(
-      assertCanPublishAsAccount({ publishAsOxyUserId: CHANNEL, callerId: CALLER, memberReader: reader }),
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: CHANNEL,
+        callerId: CALLER,
+        memberReader: reader,
+      }),
     ).resolves.toEqual({ authorId: CHANNEL, authorKind: 'channel' });
   });
 
   it('refuses a non-member (403)', async () => {
-    const reader = readerReturning([member({ memberUserId: 'somebody-else', permissions: OWNER_PERMISSIONS })]);
+    const reader = readerReturning([
+      member({ memberUserId: 'somebody-else', permissions: OWNER_PERMISSIONS }),
+    ]);
 
     await expect(
-      assertCanPublishAsAccount({ publishAsOxyUserId: CHANNEL, callerId: CALLER, memberReader: reader }),
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: CHANNEL,
+        callerId: CALLER,
+        memberReader: reader,
+      }),
     ).rejects.toMatchObject({ status: 403 });
   });
 
@@ -190,7 +216,11 @@ describe('assertCanPublishAsAccount — a channel', () => {
     const reader = readerReturning([member({ status, permissions: OWNER_PERMISSIONS })]);
 
     await expect(
-      assertCanPublishAsAccount({ publishAsOxyUserId: CHANNEL, callerId: CALLER, memberReader: reader }),
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: CHANNEL,
+        callerId: CALLER,
+        memberReader: reader,
+      }),
     ).rejects.toMatchObject({ status: 403 });
   });
 });
@@ -206,7 +236,11 @@ describe('assertCanPublishAsAccount — an act-as-eligible account', () => {
     const reader = readerReturning([member({ role: 'editor', permissions: EDITOR_PERMISSIONS })]);
 
     await expect(
-      assertCanPublishAsAccount({ publishAsOxyUserId: accountId, callerId: CALLER, memberReader: reader }),
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: accountId,
+        callerId: CALLER,
+        memberReader: reader,
+      }),
     ).resolves.toEqual({ authorId: accountId, authorKind: kind });
   });
 
@@ -224,16 +258,26 @@ describe('assertCanPublishAsAccount — an act-as-eligible account', () => {
       const reader = readerReturning([member({ role: 'viewer', permissions: VIEWER_PERMISSIONS })]);
 
       await expect(
-        assertCanPublishAsAccount({ publishAsOxyUserId: accountId, callerId: CALLER, memberReader: reader }),
+        assertCanPublishAsAccount({
+          publishAsOxyUserId: accountId,
+          callerId: CALLER,
+          memberReader: reader,
+        }),
       ).rejects.toMatchObject({ status: 403 });
     },
   );
 
   it('MUTATION GUARD: refuses a developer too — it is the permission, not one role name', async () => {
-    const reader = readerReturning([member({ role: 'developer', permissions: DEVELOPER_PERMISSIONS })]);
+    const reader = readerReturning([
+      member({ role: 'developer', permissions: DEVELOPER_PERMISSIONS }),
+    ]);
 
     await expect(
-      assertCanPublishAsAccount({ publishAsOxyUserId: ORGANIZATION, callerId: CALLER, memberReader: reader }),
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: ORGANIZATION,
+        callerId: CALLER,
+        memberReader: reader,
+      }),
     ).rejects.toMatchObject({ status: 403 });
   });
 
@@ -247,7 +291,11 @@ describe('assertCanPublishAsAccount — an act-as-eligible account', () => {
     const reader = readerReturning([member({ role: 'owner', permissions: VIEWER_PERMISSIONS })]);
 
     await expect(
-      assertCanPublishAsAccount({ publishAsOxyUserId: ORGANIZATION, callerId: CALLER, memberReader: reader }),
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: ORGANIZATION,
+        callerId: CALLER,
+        memberReader: reader,
+      }),
     ).rejects.toMatchObject({ status: 403 });
   });
 
@@ -260,29 +308,46 @@ describe('assertCanPublishAsAccount — an act-as-eligible account', () => {
     const reader = readerReturning([withoutPermissions]);
 
     await expect(
-      assertCanPublishAsAccount({ publishAsOxyUserId: ORGANIZATION, callerId: CALLER, memberReader: reader }),
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: ORGANIZATION,
+        callerId: CALLER,
+        memberReader: reader,
+      }),
     ).rejects.toMatchObject({ status: 403 });
   });
 
   it('matches the ACTIVE row when the caller also has an inactive one', async () => {
     const reader = readerReturning([
       member({ status: 'removed', role: 'owner', permissions: OWNER_PERMISSIONS }),
-      member({ _id: 'member-row-2', status: 'active', role: 'editor', permissions: EDITOR_PERMISSIONS }),
+      member({
+        _id: 'member-row-2',
+        status: 'active',
+        role: 'editor',
+        permissions: EDITOR_PERMISSIONS,
+      }),
     ]);
 
     await expect(
-      assertCanPublishAsAccount({ publishAsOxyUserId: ORGANIZATION, callerId: CALLER, memberReader: reader }),
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: ORGANIZATION,
+        callerId: CALLER,
+        memberReader: reader,
+      }),
     ).resolves.toEqual({ authorId: ORGANIZATION, authorKind: 'organization' });
   });
 
-  it('does NOT borrow another member\'s act_as', async () => {
+  it("does NOT borrow another member's act_as", async () => {
     const reader = readerReturning([
       member({ memberUserId: 'somebody-else', role: 'owner', permissions: OWNER_PERMISSIONS }),
       member({ role: 'viewer', permissions: VIEWER_PERMISSIONS }),
     ]);
 
     await expect(
-      assertCanPublishAsAccount({ publishAsOxyUserId: ORGANIZATION, callerId: CALLER, memberReader: reader }),
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: ORGANIZATION,
+        callerId: CALLER,
+        memberReader: reader,
+      }),
     ).rejects.toMatchObject({ status: 403 });
   });
 });
@@ -292,7 +357,11 @@ describe('assertCanPublishAsAccount — the refusals that never reach Oxy', () =
     const reader = readerReturning([member({ role: 'owner', permissions: OWNER_PERMISSIONS })]);
 
     await expect(
-      assertCanPublishAsAccount({ publishAsOxyUserId: PERSONAL, callerId: CALLER, memberReader: reader }),
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: PERSONAL,
+        callerId: CALLER,
+        memberReader: reader,
+      }),
     ).rejects.toMatchObject({ status: 400 });
     expect(reader.calls).toEqual([]);
   });
@@ -301,7 +370,11 @@ describe('assertCanPublishAsAccount — the refusals that never reach Oxy', () =
     const reader = readerReturning([member({ role: 'owner', permissions: OWNER_PERMISSIONS })]);
 
     await expect(
-      assertCanPublishAsAccount({ publishAsOxyUserId: 'unknown-account', callerId: CALLER, memberReader: reader }),
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: 'unknown-account',
+        callerId: CALLER,
+        memberReader: reader,
+      }),
     ).rejects.toMatchObject({ status: 400 });
     expect(reader.calls).toEqual([]);
   });
@@ -311,7 +384,11 @@ describe('assertCanPublishAsAccount — the refusals that never reach Oxy', () =
     const reader = readerReturning([member({ role: 'owner', permissions: OWNER_PERMISSIONS })]);
 
     await expect(
-      assertCanPublishAsAccount({ publishAsOxyUserId: ORGANIZATION, callerId: CALLER, memberReader: reader }),
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: ORGANIZATION,
+        callerId: CALLER,
+        memberReader: reader,
+      }),
     ).rejects.toMatchObject({ status: 400 });
   });
 
@@ -327,7 +404,11 @@ describe('assertCanPublishAsAccount — the refusals that never reach Oxy', () =
 
   it('refuses when there is no reader to ask with (403) — an MCP caller', async () => {
     await expect(
-      assertCanPublishAsAccount({ publishAsOxyUserId: CHANNEL, callerId: CALLER, memberReader: undefined }),
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: CHANNEL,
+        callerId: CALLER,
+        memberReader: undefined,
+      }),
     ).rejects.toMatchObject({ status: 403 });
   });
 
@@ -343,13 +424,21 @@ describe('assertCanPublishAsAccount — the refusals that never reach Oxy', () =
     };
 
     await expect(
-      assertCanPublishAsAccount({ publishAsOxyUserId: ORGANIZATION, callerId: CALLER, memberReader: reader }),
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: ORGANIZATION,
+        callerId: CALLER,
+        memberReader: reader,
+      }),
     ).rejects.toMatchObject({ status: 503 });
   });
 
   it('the refusals are PublishAsAccessError, so the HTTP layer can map them', async () => {
     await expect(
-      assertCanPublishAsAccount({ publishAsOxyUserId: PERSONAL, callerId: CALLER, memberReader: readerReturning([]) }),
+      assertCanPublishAsAccount({
+        publishAsOxyUserId: PERSONAL,
+        callerId: CALLER,
+        memberReader: readerReturning([]),
+      }),
     ).rejects.toBeInstanceOf(PublishAsAccessError);
   });
 });

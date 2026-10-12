@@ -28,8 +28,7 @@ vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
   emitLikeCreatedStrict: mocks.emitLikeCreatedStrict,
   emitTombstoneStrict: mocks.emitTombstoneStrict,
   emitBookmarkCreatedStrict: mocks.emitBookmarkCreatedStrict,
-  likeRecordUri: (userId: string, relationId: string) =>
-    `mtn://${userId}/likes/${relationId}`,
+  likeRecordUri: (userId: string, relationId: string) => `mtn://${userId}/likes/${relationId}`,
   bookmarkRecordUri: (userId: string, relationId: string) =>
     `mtn://${userId}/bookmarks/${relationId}`,
 }));
@@ -227,10 +226,7 @@ describe('handleEngagementOutboxEvent', () => {
 
     await handleEngagementOutboxEvent(event('post.like', post.id));
 
-    expect(mocks.createPostAuthorNotificationsStrict).toHaveBeenCalledWith(
-      [],
-      expect.anything(),
-    );
+    expect(mocks.createPostAuthorNotificationsStrict).toHaveBeenCalledWith([], expect.anything());
   });
 
   it('surfaces a durable federation queue failure so the event remains retryable', async () => {
@@ -239,9 +235,9 @@ describe('handleEngagementOutboxEvent', () => {
       new Error('delivery queue unavailable'),
     );
 
-    await expect(
-      handleEngagementOutboxEvent(event('post.like', postId)),
-    ).rejects.toThrow('delivery queue unavailable');
+    await expect(handleEngagementOutboxEvent(event('post.like', postId))).rejects.toThrow(
+      'delivery queue unavailable',
+    );
   });
 
   it('retracts the prior like when an upvote becomes a downvote', async () => {
@@ -431,18 +427,15 @@ describe('handleEngagementOutboxEvent', () => {
 
 describe('EngagementOutboxDispatcher lifecycle', () => {
   it('contains a claim failure instead of creating an unhandled timer rejection', async () => {
-    vi.mocked(dispatchEngagementOutbox).mockRejectedValueOnce(
-      new Error('Postgres unavailable'),
-    );
+    vi.mocked(dispatchEngagementOutbox).mockRejectedValueOnce(new Error('Postgres unavailable'));
     const dispatcher = new EngagementOutboxDispatcher();
 
     dispatcher.start();
     await dispatcher.stop();
 
-    expect(mocks.loggerError).toHaveBeenCalledWith(
-      '[EngagementOutbox] dispatch tick failed',
-      { error: 'Postgres unavailable' },
-    );
+    expect(mocks.loggerError).toHaveBeenCalledWith('[EngagementOutbox] dispatch tick failed', {
+      error: 'Postgres unavailable',
+    });
   });
 
   it('waits for active work and refuses queued ticks after stop', async () => {
@@ -482,10 +475,10 @@ describe('EngagementOutboxDispatcher lifecycle', () => {
     await dispatcher.stop();
 
     expect(dispatchEngagementOutbox).toHaveBeenCalledTimes(1);
-    expect(mocks.loggerInfo).toHaveBeenCalledWith(
-      '[EngagementOutbox] dispatch batch complete',
-      { processed: 2, failed: 1 },
-    );
+    expect(mocks.loggerInfo).toHaveBeenCalledWith('[EngagementOutbox] dispatch batch complete', {
+      processed: 2,
+      failed: 1,
+    });
   });
 
   it('can stop before start and stringifies a non-Error dispatch failure', async () => {
@@ -497,14 +490,14 @@ describe('EngagementOutboxDispatcher lifecycle', () => {
     dispatcher.start();
     await dispatcher.stop();
 
-    expect(mocks.loggerError).toHaveBeenCalledWith(
-      '[EngagementOutbox] dispatch tick failed',
-      { error: 'offline' },
-    );
+    expect(mocks.loggerError).toHaveBeenCalledWith('[EngagementOutbox] dispatch tick failed', {
+      error: 'offline',
+    });
   });
 
   it('supports timer handles without an unref method', async () => {
-    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval')
+    const setIntervalSpy = vi
+      .spyOn(globalThis, 'setInterval')
       .mockReturnValue({} as ReturnType<typeof setInterval>);
     const dispatcher = new EngagementOutboxDispatcher();
     try {
@@ -519,11 +512,9 @@ describe('EngagementOutboxDispatcher lifecycle', () => {
 
   it('does not let an older stop or completion clear a restarted dispatcher', async () => {
     let resolveFirst!: (value: { processed: number; failed: number }) => void;
-    const firstDispatch = new Promise<{ processed: number; failed: number }>(
-      (resolve) => {
-        resolveFirst = resolve;
-      },
-    );
+    const firstDispatch = new Promise<{ processed: number; failed: number }>((resolve) => {
+      resolveFirst = resolve;
+    });
     vi.mocked(dispatchEngagementOutbox)
       .mockReturnValueOnce(firstDispatch)
       .mockResolvedValueOnce({ processed: 0, failed: 0 });

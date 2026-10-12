@@ -2,12 +2,8 @@ import { authenticatedClient } from '@/utils/api';
 import { useExternalEmbedsStore } from '../externalEmbedsStore';
 
 const mockGetItem = jest.fn();
-const mockSetItem = jest.fn(
-  (_key: string, _value: string) => Promise.resolve(),
-);
-const mockRemoveItem = jest.fn(
-  (_key: string) => Promise.resolve(),
-);
+const mockSetItem = jest.fn((_key: string, _value: string) => Promise.resolve());
+const mockRemoveItem = jest.fn((_key: string) => Promise.resolve());
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
   __esModule: true,
@@ -63,12 +59,9 @@ describe('external embeds persistence isolation', () => {
 
   it('orders old cache write → reset remove → returning viewer hydrate', async () => {
     const viewerId = 'external-viewer-a';
-    const storageKey =
-      '@mention_external_embeds:v2:external-viewer-a';
+    const storageKey = '@mention_external_embeds:v2:external-viewer-a';
     const oldWriteGate = deferred<void>();
-    mockSetItem
-      .mockReturnValueOnce(oldWriteGate.promise)
-      .mockResolvedValueOnce(undefined);
+    mockSetItem.mockReturnValueOnce(oldWriteGate.promise).mockResolvedValueOnce(undefined);
     mockSettingsGet
       .mockResolvedValueOnce({
         data: { externalEmbeds: { youtube: 'hide' } },
@@ -77,19 +70,13 @@ describe('external embeds persistence isolation', () => {
         data: { externalEmbeds: { youtube: 'show' } },
       });
 
-    const firstHydrate = useExternalEmbedsStore
-      .getState()
-      .hydrate(true, viewerId);
+    const firstHydrate = useExternalEmbedsStore.getState().hydrate(true, viewerId);
     await flushQueue();
     await flushQueue();
     expect(mockSetItem).toHaveBeenCalledTimes(1);
 
-    useExternalEmbedsStore
-      .getState()
-      .resetViewerState(viewerId);
-    const secondHydrate = useExternalEmbedsStore
-      .getState()
-      .hydrate(true, viewerId);
+    useExternalEmbedsStore.getState().resetViewerState(viewerId);
+    const secondHydrate = useExternalEmbedsStore.getState().hydrate(true, viewerId);
     await flushQueue();
     expect(mockSetItem).toHaveBeenCalledTimes(1);
     expect(mockGetItem).toHaveBeenCalledTimes(1);
@@ -100,13 +87,10 @@ describe('external embeds persistence isolation', () => {
 
     expect(mockSetItem).toHaveBeenCalledTimes(2);
     expect(mockGetItem).toHaveBeenCalledTimes(2);
-    const scopedRemoveIndex = mockRemoveItem.mock.calls.findIndex(
-      ([key]) => key === storageKey,
-    );
+    const scopedRemoveIndex = mockRemoveItem.mock.calls.findIndex(([key]) => key === storageKey);
     expect(scopedRemoveIndex).toBeGreaterThanOrEqual(0);
     const firstSetOrder = mockSetItem.mock.invocationCallOrder[0];
-    const resetRemoveOrder =
-      mockRemoveItem.mock.invocationCallOrder[scopedRemoveIndex];
+    const resetRemoveOrder = mockRemoveItem.mock.invocationCallOrder[scopedRemoveIndex];
     const secondGetOrder = mockGetItem.mock.invocationCallOrder[1];
     const secondSetOrder = mockSetItem.mock.invocationCallOrder[1];
     expect(firstSetOrder).toBeLessThan(resetRemoveOrder);

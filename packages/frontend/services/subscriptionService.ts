@@ -3,17 +3,23 @@ import { authenticatedClient } from '../utils/api';
 
 class SubscriptionService {
   async getStatus(authorId: string): Promise<{ subscribed: boolean }> {
-    const resp = await authenticatedClient.get<{ subscribed: boolean }>(`/subscriptions/${authorId}/status`);
+    const resp = await authenticatedClient.get<{ subscribed: boolean }>(
+      `/subscriptions/${authorId}/status`,
+    );
     return resp.data;
   }
 
   async subscribe(authorId: string): Promise<{ subscribed: boolean }> {
-    const resp = await authenticatedClient.post<{ subscribed: boolean }>(`/subscriptions/${authorId}`);
+    const resp = await authenticatedClient.post<{ subscribed: boolean }>(
+      `/subscriptions/${authorId}`,
+    );
     return resp.data;
   }
 
   async unsubscribe(authorId: string): Promise<{ subscribed: boolean }> {
-    const resp = await authenticatedClient.delete<{ subscribed: boolean }>(`/subscriptions/${authorId}`);
+    const resp = await authenticatedClient.delete<{ subscribed: boolean }>(
+      `/subscriptions/${authorId}`,
+    );
     return resp.data;
   }
 
@@ -28,7 +34,9 @@ class SubscriptionService {
     if (cursor) params.cursor = cursor;
     if (limit !== undefined) params.limit = limit;
 
-    const resp = await authenticatedClient.get<PostSubscriptionListResponse>('/subscriptions', { params });
+    const resp = await authenticatedClient.get<PostSubscriptionListResponse>('/subscriptions', {
+      params,
+    });
     return resp.data;
   }
 }

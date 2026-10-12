@@ -77,7 +77,12 @@ export async function findClusterById(
     .where(eq(postEquivalenceMembers.clusterId, clusterId))
     .orderBy(desc(postEquivalenceMembers.preferred), postEquivalenceMembers.postId);
 
-  return { id: cluster.id, kind: cluster.kind, confidence: cluster.confidence, members: members.map(assembleMember) };
+  return {
+    id: cluster.id,
+    kind: cluster.kind,
+    confidence: cluster.confidence,
+    members: members.map(assembleMember),
+  };
 }
 
 /** One member to write. `preferred` is decided by the service, never here. */
@@ -158,17 +163,21 @@ export async function setPreferredMember(
     await tx
       .update(postEquivalenceMembers)
       .set({ preferred: false })
-      .where(and(
-        eq(postEquivalenceMembers.clusterId, clusterId),
-        ne(postEquivalenceMembers.postId, postId),
-      ));
+      .where(
+        and(
+          eq(postEquivalenceMembers.clusterId, clusterId),
+          ne(postEquivalenceMembers.postId, postId),
+        ),
+      );
     await tx
       .update(postEquivalenceMembers)
       .set({ preferred: true })
-      .where(and(
-        eq(postEquivalenceMembers.clusterId, clusterId),
-        eq(postEquivalenceMembers.postId, postId),
-      ));
+      .where(
+        and(
+          eq(postEquivalenceMembers.clusterId, clusterId),
+          eq(postEquivalenceMembers.postId, postId),
+        ),
+      );
     await applyCollapseProjection(clusterId, tx);
   });
 }
@@ -187,10 +196,12 @@ export async function removeClusterMember(
   await db.transaction(async (tx) => {
     await tx
       .delete(postEquivalenceMembers)
-      .where(and(
-        eq(postEquivalenceMembers.clusterId, clusterId),
-        eq(postEquivalenceMembers.postId, postId),
-      ));
+      .where(
+        and(
+          eq(postEquivalenceMembers.clusterId, clusterId),
+          eq(postEquivalenceMembers.postId, postId),
+        ),
+      );
     await tx.update(posts).set({ crosspostCollapsed: false }).where(eq(posts.id, postId));
     await applyCollapseProjection(clusterId, tx);
   });
@@ -212,7 +223,12 @@ export async function dissolveCluster(
       await tx
         .update(posts)
         .set({ crosspostCollapsed: false })
-        .where(inArray(posts.id, members.map((member) => member.postId)));
+        .where(
+          inArray(
+            posts.id,
+            members.map((member) => member.postId),
+          ),
+        );
     }
     await tx.delete(postEquivalenceClusters).where(eq(postEquivalenceClusters.id, clusterId));
   });
@@ -234,10 +250,12 @@ async function applyCollapseProjection(
     .update(posts)
     .set({ crosspostCollapsed: sql`not ${postEquivalenceMembers.preferred}` })
     .from(postEquivalenceMembers)
-    .where(and(
-      eq(postEquivalenceMembers.postId, posts.id),
-      eq(postEquivalenceMembers.clusterId, clusterId),
-    ));
+    .where(
+      and(
+        eq(postEquivalenceMembers.postId, posts.id),
+        eq(postEquivalenceMembers.clusterId, clusterId),
+      ),
+    );
 }
 
 /** The clusters these posts belong to — read BEFORE a delete cascades them away. */
@@ -269,7 +287,8 @@ export async function countEquivalence(
 
 /** Oldest checked first: durable ordering prevents restarts starving later clusters. */
 export async function findClustersForRecheck(limit: number): Promise<string[]> {
-  const rows = await getDb().select({ id: postEquivalenceClusters.id })
+  const rows = await getDb()
+    .select({ id: postEquivalenceClusters.id })
     .from(postEquivalenceClusters)
     .orderBy(postEquivalenceClusters.updatedAt, postEquivalenceClusters.id)
     .limit(limit);
@@ -278,6 +297,8 @@ export async function findClustersForRecheck(limit: number): Promise<string[]> {
 
 /** Advance surviving clusters after each check; dissolved clusters are already gone. */
 export async function markClusterRechecked(clusterId: string): Promise<void> {
-  await getDb().update(postEquivalenceClusters).set({ updatedAt: new Date() })
+  await getDb()
+    .update(postEquivalenceClusters)
+    .set({ updatedAt: new Date() })
     .where(eq(postEquivalenceClusters.id, clusterId));
 }

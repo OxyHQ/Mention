@@ -62,7 +62,11 @@
 
 import { Router, type Response } from 'express';
 import { and, desc, eq, isNotNull, sql } from 'drizzle-orm';
-import { PostVisibility, type ChannelWriter, type ChannelWritersResponse } from '@mention/shared-types';
+import {
+  PostVisibility,
+  type ChannelWriter,
+  type ChannelWritersResponse,
+} from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
@@ -148,11 +152,8 @@ function parseWritersCursor(raw: string | undefined): WritersCursor | undefined 
  *    the fail-closed direction: a non-public post still names its writer to
  *    whoever may read THAT post, but it does not put a name in a directory.
  *  - `written_by_oxy_user_id is not null` — a post published by a person signed
- *    in as themselves has no writer to disclose. Mongo needed `$type: 'string'`
- *    here rather than `$exists`, because a stored `null` satisfies `$exists`
- *    while satisfying nothing else and only the typed form made the partial index
- *    eligible. Postgres has one spelling of absent, so the distinction disappears
- *    with the store that created it.
+ *    in as themselves has no writer to disclose. Postgres has one spelling of
+ *    absent, so `is not null` is the whole test.
  *
  * There is deliberately no post-TYPE filter and no lane filter, so a boost the
  * channel published counts its publisher, a thread continuation counts its
@@ -237,9 +238,7 @@ async function loadWriterIds(
       )
     : grouped;
 
-  const rows = await paged
-    .orderBy(desc(lastPostAt), desc(posts.writtenByOxyUserId))
-    .limit(limit);
+  const rows = await paged.orderBy(desc(lastPostAt), desc(posts.writtenByOxyUserId)).limit(limit);
 
   // `isNotNull` narrows the ROWS, never the column's TypeScript type, so the
   // filter is what makes the non-null claim real rather than asserted.
@@ -264,7 +263,8 @@ router.get(
   // production, and this is also the only position CodeQL inspects.
   ...(config.runtime.isProduction ? [channelWritersRateLimiter] : []),
   async (req: AuthRequest, res: Response) => {
-    const channelOxyUserId = typeof req.params.oxyUserId === 'string' ? req.params.oxyUserId.trim() : '';
+    const channelOxyUserId =
+      typeof req.params.oxyUserId === 'string' ? req.params.oxyUserId.trim() : '';
     try {
       if (!channelOxyUserId || channelOxyUserId.length > MAX_OXY_USER_ID_LENGTH) {
         return sendErrorResponse(res, 400, 'Bad Request', 'oxyUserId is required');
@@ -336,7 +336,9 @@ router.get(
       }
 
       const writers: ChannelWriter[] = page.map((row) => ({
-        writer: writerSummaries.get(row.writerOxyUserId)?.user ?? degradedActorSummary(row.writerOxyUserId),
+        writer:
+          writerSummaries.get(row.writerOxyUserId)?.user ??
+          degradedActorSummary(row.writerOxyUserId),
         lastPostAt: row.lastPostAt.toISOString(),
       }));
 

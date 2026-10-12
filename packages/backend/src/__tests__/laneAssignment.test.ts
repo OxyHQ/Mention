@@ -13,7 +13,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
  * cutover `lanes.id` is uuid v7, so that answered `false` for EVERY real lane and
  * every assignment 404'd — nothing could be laned at all. A mocked `Lane.exists`
  * cannot see it: the mock reports whether it was CALLED, and the case that
- * asserted "without reaching Mongo" for a malformed id would have gone on passing
+ * asserted "without reaching the legacy store" for a malformed id would have gone on passing
  * while the same branch silently rejected every legitimate one. So the lanes here
  * are rows, with the ids the database mints.
  */
@@ -99,12 +99,12 @@ describe('assertLaneAssignable — replies and boosts', () => {
 });
 
 describe('assertLaneAssignable — ownership', () => {
-  it('scopes the lookup to the post\'s OWNER', async () => {
+  it("scopes the lookup to the post's OWNER", async () => {
     const laneId = await lane();
     await expect(assertLaneAssignable({ laneId, authorId: AUTHOR })).resolves.toBeUndefined();
   });
 
-  it('scopes it to the CHANNEL when the channel is the post\'s owner', async () => {
+  it("scopes it to the CHANNEL when the channel is the post's owner", async () => {
     // A channel is an Oxy account and authors its own posts, so the caller passes
     // the channel as `authorId` and the same single comparison applies — a lane of
     // the WRITER'S is not eligible, which is what stops a channel post being filed

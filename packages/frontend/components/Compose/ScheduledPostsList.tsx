@@ -69,7 +69,8 @@ export async function confirmAndCancel(params: {
     title: t('compose.scheduled.cancelTitle', { defaultValue: 'Cancel scheduled post' }),
     message: pastDue
       ? t('compose.scheduled.cancelConfirmPastDue', {
-          defaultValue: 'Its time has passed, so it may already have been published. Either way this post will be deleted.',
+          defaultValue:
+            'Its time has passed, so it may already have been published. Either way this post will be deleted.',
         })
       : t('compose.scheduled.cancelConfirm', {
           defaultValue: 'This post will be deleted and never published.',
@@ -85,11 +86,16 @@ export async function confirmAndCancel(params: {
 
   try {
     await onCancel(post.id);
-    toast(t('compose.scheduled.cancelled', { defaultValue: 'Scheduled post cancelled' }), { type: 'success' });
+    toast(t('compose.scheduled.cancelled', { defaultValue: 'Scheduled post cancelled' }), {
+      type: 'success',
+    });
     return true;
   } catch (error) {
     logger.error('Error cancelling scheduled post', error);
-    toast(t('compose.scheduled.cancelError', { defaultValue: 'Failed to cancel the scheduled post' }), { type: 'error' });
+    toast(
+      t('compose.scheduled.cancelError', { defaultValue: 'Failed to cancel the scheduled post' }),
+      { type: 'error' },
+    );
     return false;
   }
 }
@@ -117,146 +123,165 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
   const { t } = useTranslation();
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
-  const handleCancel = useCallback(async (post: HydratedPost) => {
-    setCancellingId(post.id);
-    try {
-      await confirmAndCancel({ post, onCancel, t });
-    } finally {
-      setCancellingId(null);
-    }
-  }, [onCancel, t]);
+  const handleCancel = useCallback(
+    async (post: HydratedPost) => {
+      setCancellingId(post.id);
+      try {
+        await confirmAndCancel({ post, onCancel, t });
+      } finally {
+        setCancellingId(null);
+      }
+    },
+    [onCancel, t],
+  );
 
-  const getPreview = useCallback((post: HydratedPost) => {
-    const text = post.content?.text?.trim();
-    if (text) {
-      return text.length > 100 ? `${text.substring(0, 100)}...` : text;
-    }
-    const articleTitle = post.content?.article?.title?.trim();
-    if (articleTitle) {
-      return articleTitle;
-    }
-    const mediaCount = post.content?.media?.length ?? 0;
-    if (mediaCount > 0) {
-      return t('compose.draftWithMedia', { count: mediaCount });
-    }
-    if (post.content?.poll ?? post.content?.pollId) {
-      return t('compose.draftWithPoll');
-    }
-    return t('compose.emptyDraft');
-  }, [t]);
+  const getPreview = useCallback(
+    (post: HydratedPost) => {
+      const text = post.content?.text?.trim();
+      if (text) {
+        return text.length > 100 ? `${text.substring(0, 100)}...` : text;
+      }
+      const articleTitle = post.content?.article?.title?.trim();
+      if (articleTitle) {
+        return articleTitle;
+      }
+      const mediaCount = post.content?.media?.length ?? 0;
+      if (mediaCount > 0) {
+        return t('compose.draftWithMedia', { count: mediaCount });
+      }
+      if (post.content?.poll ?? post.content?.pollId) {
+        return t('compose.draftWithPoll');
+      }
+      return t('compose.emptyDraft');
+    },
+    [t],
+  );
 
-  const renderItem = useCallback(({ item }: { item: HydratedPost }) => {
-    const isCancelling = cancellingId === item.id;
-    const publishAt = scheduledDate(item);
-    const mediaCount = item.content?.media?.length ?? 0;
-    const hasPoll = Boolean(item.content?.poll ?? item.content?.pollId);
+  const renderItem = useCallback(
+    ({ item }: { item: HydratedPost }) => {
+      const isCancelling = cancellingId === item.id;
+      const publishAt = scheduledDate(item);
+      const mediaCount = item.content?.media?.length ?? 0;
+      const hasPoll = Boolean(item.content?.poll ?? item.content?.pollId);
 
-    // A past-due row must not keep advertising a future time: by then the 60s
-    // publisher sweep may already have sent it.
-    const timeLabel = publishAt === null
-      ? t('compose.scheduled.unknownTime', { defaultValue: 'Time unavailable' })
-      : isPastDue(item)
-        ? t('compose.scheduled.publishing', { defaultValue: 'Publishing now…' })
-        : formatScheduledLabel(publishAt);
+      // A past-due row must not keep advertising a future time: by then the 60s
+      // publisher sweep may already have sent it.
+      const timeLabel =
+        publishAt === null
+          ? t('compose.scheduled.unknownTime', { defaultValue: 'Time unavailable' })
+          : isPastDue(item)
+            ? t('compose.scheduled.publishing', { defaultValue: 'Publishing now…' })
+            : formatScheduledLabel(publishAt);
 
-    // Whose queue this entry is in. Only shown for an account that is NOT the
-    // reader — labelling their own posts "you" on every row would be noise, and
-    // the absence of a label is already the clearest possible "mine".
-    //
-    // It deliberately names the ACCOUNT and never the person who queued it: a
-    // channel's writers are anonymous unless it signs its posts, and that
-    // decision is made on the server. When a channel DOES sign, the writer is
-    // already in `authors[]` and the preview's byline draws them — so this row
-    // never has to make a disclosure judgement of its own.
-    // `viewerId` is checked FIRST and not merely compared: it is absent for the
-    // moment between mount and the session landing, and `author.id !== undefined`
-    // is true of every row — so comparing alone labels the reader's own posts as
-    // somebody else's during exactly the window nobody watches.
-    const author = item.user;
-    const queuedFor =
-      author !== undefined && viewerId !== undefined && author.id !== viewerId
-        ? author.name?.displayName?.trim() || getNormalizedUserHandle(author) || undefined
-        : undefined;
+      // Whose queue this entry is in. Only shown for an account that is NOT the
+      // reader — labelling their own posts "you" on every row would be noise, and
+      // the absence of a label is already the clearest possible "mine".
+      //
+      // It deliberately names the ACCOUNT and never the person who queued it: a
+      // channel's writers are anonymous unless it signs its posts, and that
+      // decision is made on the server. When a channel DOES sign, the writer is
+      // already in `authors[]` and the preview's byline draws them — so this row
+      // never has to make a disclosure judgement of its own.
+      // `viewerId` is checked FIRST and not merely compared: it is absent for the
+      // moment between mount and the session landing, and `author.id !== undefined`
+      // is true of every row — so comparing alone labels the reader's own posts as
+      // somebody else's during exactly the window nobody watches.
+      const author = item.user;
+      const queuedFor =
+        author !== undefined && viewerId !== undefined && author.id !== viewerId
+          ? author.name?.displayName?.trim() || getNormalizedUserHandle(author) || undefined
+          : undefined;
 
-    return (
-      <View className="flex-row items-center px-4 py-3 bg-background border-b border-border">
-        <TouchableOpacity
-          className="flex-1 flex-row items-center"
-          onPress={() => onPreview(item)}
-          disabled={isCancelling}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={t('compose.scheduled.previewA11y', { defaultValue: 'Preview scheduled post' })}
-        >
-          <View className="flex-1 mr-3">
-            <View className="flex-row items-center gap-1.5 mb-1">
-              <RiCalendarLine width={14} height={14} fill={theme.colors.primary} />
-              <Text className="text-xs font-semibold" style={{ color: theme.colors.primary }}>
-                {timeLabel}
-              </Text>
-              {queuedFor !== undefined && (
-                <Text
-                  className="text-xs text-muted-foreground flex-shrink"
-                  numberOfLines={1}
-                  accessibilityLabel={t('compose.scheduled.queuedForA11y', {
-                    defaultValue: 'Queued for {{account}}',
-                    account: queuedFor,
-                  })}
-                >
-                  {queuedFor}
+      return (
+        <View className="flex-row items-center px-4 py-3 bg-background border-b border-border">
+          <TouchableOpacity
+            className="flex-1 flex-row items-center"
+            onPress={() => onPreview(item)}
+            disabled={isCancelling}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t('compose.scheduled.previewA11y', {
+              defaultValue: 'Preview scheduled post',
+            })}
+          >
+            <View className="flex-1 mr-3">
+              <View className="flex-row items-center gap-1.5 mb-1">
+                <RiCalendarLine width={14} height={14} fill={theme.colors.primary} />
+                <Text className="text-xs font-semibold" style={{ color: theme.colors.primary }}>
+                  {timeLabel}
                 </Text>
-              )}
-            </View>
-            <Text className="text-sm text-foreground mb-1" numberOfLines={2}>
-              {getPreview(item)}
-            </Text>
-            {(mediaCount > 0 || hasPoll) && (
-              <View className="flex-row items-center gap-3 mt-1">
-                {mediaCount > 0 && (
-                  <View className="flex-row items-center gap-1">
-                    <RiImageLine width={14} height={14} fill={theme.colors.textSecondary} />
-                    <Text className="text-xs text-muted-foreground">
-                      {mediaCount}
-                    </Text>
-                  </View>
-                )}
-                {hasPoll && (
-                  <RiListCheck3 width={14} height={14} fill={theme.colors.textSecondary} />
+                {queuedFor !== undefined && (
+                  <Text
+                    className="text-xs text-muted-foreground flex-shrink"
+                    numberOfLines={1}
+                    accessibilityLabel={t('compose.scheduled.queuedForA11y', {
+                      defaultValue: 'Queued for {{account}}',
+                      account: queuedFor,
+                    })}
+                  >
+                    {queuedFor}
+                  </Text>
                 )}
               </View>
+              <Text className="text-sm text-foreground mb-1" numberOfLines={2}>
+                {getPreview(item)}
+              </Text>
+              {(mediaCount > 0 || hasPoll) && (
+                <View className="flex-row items-center gap-3 mt-1">
+                  {mediaCount > 0 && (
+                    <View className="flex-row items-center gap-1">
+                      <RiImageLine width={14} height={14} fill={theme.colors.textSecondary} />
+                      <Text className="text-xs text-muted-foreground">{mediaCount}</Text>
+                    </View>
+                  )}
+                  {hasPoll && (
+                    <RiListCheck3 width={14} height={14} fill={theme.colors.textSecondary} />
+                  )}
+                </View>
+              )}
+            </View>
+            <RiArrowRightSLine size="md" fill={theme.colors.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            className="p-1 mr-1"
+            onPress={() => onEdit(item)}
+            disabled={isCancelling}
+            hitSlop={HIT_SLOP_LG}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t('compose.scheduled.edit', {
+              defaultValue: 'Edit scheduled post',
+            })}
+          >
+            <RiEditLine width={18} height={18} fill={theme.colors.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            className="p-1"
+            onPress={() => handleCancel(item)}
+            disabled={isCancelling}
+            hitSlop={HIT_SLOP_LG}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t('compose.scheduled.cancelTitle', {
+              defaultValue: 'Cancel scheduled post',
+            })}
+          >
+            {isCancelling ? (
+              <Loading
+                className="text-primary"
+                variant="inline"
+                size="sm"
+                style={{ flex: undefined }}
+              />
+            ) : (
+              <RiDeleteBinLine width={18} height={18} fill={theme.colors.textSecondary} />
             )}
-          </View>
-          <RiArrowRightSLine size="md" fill={theme.colors.textSecondary} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          className="p-1 mr-1"
-          onPress={() => onEdit(item)}
-          disabled={isCancelling}
-          hitSlop={HIT_SLOP_LG}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={t('compose.scheduled.edit', { defaultValue: 'Edit scheduled post' })}
-        >
-          <RiEditLine width={18} height={18} fill={theme.colors.textSecondary} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          className="p-1"
-          onPress={() => handleCancel(item)}
-          disabled={isCancelling}
-          hitSlop={HIT_SLOP_LG}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={t('compose.scheduled.cancelTitle', { defaultValue: 'Cancel scheduled post' })}
-        >
-          {isCancelling ? (
-            <Loading className="text-primary" variant="inline" size="sm" style={{ flex: undefined }} />
-          ) : (
-            <RiDeleteBinLine width={18} height={18} fill={theme.colors.textSecondary} />
-          )}
-        </TouchableOpacity>
-      </View>
-    );
-  }, [cancellingId, getPreview, handleCancel, onEdit, onPreview, t, theme, viewerId]);
+          </TouchableOpacity>
+        </View>
+      );
+    },
+    [cancellingId, getPreview, handleCancel, onEdit, onPreview, t, theme, viewerId],
+  );
 
   if (isLoading) {
     return (
@@ -270,7 +295,9 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
     return (
       <View className="flex-1 justify-center items-center py-12 px-8">
         <Text className="text-base text-center text-muted-foreground">
-          {t('compose.scheduled.loadError', { defaultValue: "We couldn't load your scheduled posts" })}
+          {t('compose.scheduled.loadError', {
+            defaultValue: "We couldn't load your scheduled posts",
+          })}
         </Text>
         <Button className="mt-4" onPress={onRetry}>
           {t('common.retry', { defaultValue: 'Retry' })}

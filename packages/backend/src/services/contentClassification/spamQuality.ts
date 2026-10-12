@@ -22,11 +22,7 @@ import {
   stripTextEntities,
 } from '@mention/shared-types/textEntities';
 import { detectLowEffort, type LowEffortResult } from './lowEffort';
-import {
-  detectBotShape,
-  type BotShapeResult,
-  type BotSignalContext,
-} from './botSignals';
+import { detectBotShape, type BotShapeResult, type BotSignalContext } from './botSignals';
 import { escapeRegExp } from '@oxy.so/utils/text';
 
 /**
@@ -310,10 +306,10 @@ const SENTENCE_TERMINATORS = /[.!?]/g;
 
 /** Whole-word/phrase, case-insensitive matchers compiled once from the lists. */
 const PROMO_PATTERNS: readonly RegExp[] = PROMO_KEYWORDS.map(
-  kw => new RegExp(`\\b${escapeRegExp(kw)}\\b`, 'i'),
+  (kw) => new RegExp(`\\b${escapeRegExp(kw)}\\b`, 'i'),
 );
 const PROFANITY_PATTERNS: readonly RegExp[] = PROFANITY_TERMS.map(
-  term => new RegExp(`\\b${escapeRegExp(term)}\\b`, 'i'),
+  (term) => new RegExp(`\\b${escapeRegExp(term)}\\b`, 'i'),
 );
 
 /** Clamp a number into the inclusive 0..1 range. */
@@ -347,9 +343,7 @@ function longestRepeatRun(text: string): number {
  * SAME visible-prose definition the ingest-time classifier uses (no divergence).
  */
 export function visibleText(text: string): string {
-  return stripTextEntities(text, SCAFFOLD_SCAN)
-    .replace(/\s+/g, ' ')
-    .trim();
+  return stripTextEntities(text, SCAFFOLD_SCAN).replace(/\s+/g, ' ').trim();
 }
 
 /** Pre-extracted, reusable counts so spam + quality + toxicity share one parse. */
@@ -403,7 +397,7 @@ function extractFeatures(rawText: string, hashtagCount: number): TextFeatures {
 
 /** Whether the text contains a promotional keyword/phrase. */
 function hasPromoKeyword(text: string): boolean {
-  return PROMO_PATTERNS.some(pattern => pattern.test(text));
+  return PROMO_PATTERNS.some((pattern) => pattern.test(text));
 }
 
 /** Count of DISTINCT profanity terms present (so repeats don't over-count). */

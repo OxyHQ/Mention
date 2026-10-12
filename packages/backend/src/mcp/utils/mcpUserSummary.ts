@@ -17,22 +17,14 @@ function safeVisualValue(value: unknown, rawIds: Set<string>): string {
 }
 
 /** Build an MCP-facing identity without ever promoting an Oxy id to a visual field. */
-export function toMcpUserSummary(
-  oxyUserId: string,
-  user?: User | null,
-): McpUserSummary {
+export function toMcpUserSummary(oxyUserId: string, user?: User | null): McpUserSummary {
   const fallback = degradedActorSummary(oxyUserId);
-  const rawIds = new Set(
-    [oxyUserId, typeof user?.id === 'string' ? user.id : ''].filter(Boolean),
-  );
+  const rawIds = new Set([oxyUserId, typeof user?.id === 'string' ? user.id : ''].filter(Boolean));
   const username = safeVisualValue(user?.username, rawIds);
-  const normalizedHandle = username && user
-    ? getNormalizedUserHandle(user) ?? username
-    : '';
+  const normalizedHandle = username && user ? (getNormalizedUserHandle(user) ?? username) : '';
   const handle = safeVisualValue(normalizedHandle, rawIds);
-  const displayName = safeVisualValue(user?.name?.displayName, rawIds)
-    || handle
-    || fallback.name.displayName;
+  const displayName =
+    safeVisualValue(user?.name?.displayName, rawIds) || handle || fallback.name.displayName;
 
   return {
     oxyUserId,

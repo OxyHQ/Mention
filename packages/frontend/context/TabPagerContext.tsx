@@ -267,7 +267,15 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
   );
 
   const value = useMemo<TabPagerValue>(
-    () => ({ progress, chromeProgress, activeIndex, activePage, selectTab, leaveTab, registerCommitter }),
+    () => ({
+      progress,
+      chromeProgress,
+      activeIndex,
+      activePage,
+      selectTab,
+      leaveTab,
+      registerCommitter,
+    }),
     [progress, chromeProgress, activeIndex, activePage, selectTab, leaveTab, registerCommitter],
   );
 

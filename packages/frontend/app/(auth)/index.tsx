@@ -29,11 +29,10 @@ export default function AuthScreen() {
         </View>
         <View className="flex-1 justify-center items-center p-12">
           <View className="w-full max-w-[360px] gap-6">
-            <Text className="text-2xl font-bold text-foreground">
-              {t('Log into Mention')}
-            </Text>
+            <Text className="text-2xl font-bold text-foreground">{t('Log into Mention')}</Text>
             <Button
-              appearance="solid" tone="accent"
+              appearance="solid"
+              tone="accent"
               size="lg"
               style={styles.signInButton}
               onPress={() => signIn().catch(() => {})}
@@ -48,16 +47,15 @@ export default function AuthScreen() {
       <SafeAreaView className="flex md:hidden flex-1 justify-center items-center p-6">
         <View className="flex-1 justify-center items-center gap-4">
           <LogoIcon size={48} className="text-primary" />
-          <Text className="text-[28px] font-bold mt-2 text-foreground">
-            Mention
-          </Text>
+          <Text className="text-[28px] font-bold mt-2 text-foreground">Mention</Text>
           <Text className="text-base text-center max-w-[280px] leading-[22px] text-muted-foreground">
             {t('See what\u2019s happening in the world right now.')}
           </Text>
         </View>
         <View className="w-full max-w-[320px] pb-8">
           <Button
-            appearance="solid" tone="accent"
+            appearance="solid"
+            tone="accent"
             size="lg"
             style={styles.signInButton}
             onPress={() => signIn().catch(() => {})}

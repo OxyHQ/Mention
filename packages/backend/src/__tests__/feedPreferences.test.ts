@@ -22,9 +22,8 @@ import { eq } from 'drizzle-orm';
 // collapsing it causes — is invisible to it.
 
 let settingsDoc: { feedTuning?: { forYou?: unknown } } | null = null;
-const settingsUpdate = vi.fn(
-  (_oxyUserId: string, update: { set: Record<string, unknown> }) =>
-    Promise.resolve({ feedTuning: { forYou: update.set['feedTuning.forYou'] } }),
+const settingsUpdate = vi.fn((_oxyUserId: string, update: { set: Record<string, unknown> }) =>
+  Promise.resolve({ feedTuning: { forYou: update.set['feedTuning.forYou'] } }),
 );
 /**
  * The repository is the seam: this suite is about the controller's VALIDATION
@@ -73,8 +72,14 @@ function makeRes() {
   const res = {
     statusCode: 200,
     body: undefined as unknown,
-    status(c: number) { this.statusCode = c; return this; },
-    json(b: unknown) { this.body = b; return this; },
+    status(c: number) {
+      this.statusCode = c;
+      return this;
+    },
+    json(b: unknown) {
+      this.body = b;
+      return this;
+    },
   };
   return res;
 }
@@ -97,7 +102,9 @@ describe('GET /feed/preferences', () => {
   it('seeds the preset defaults (For You + Following pinned) when nothing stored', async () => {
     const res = makeRes();
     await feedPreferencesController.get(authed(), res as never);
-    const saved = (res.body as { data: { savedFeeds: Array<{ descriptor: string; pinned: boolean }> } }).data.savedFeeds;
+    const saved = (
+      res.body as { data: { savedFeeds: Array<{ descriptor: string; pinned: boolean }> } }
+    ).data.savedFeeds;
     const forYou = saved.find((f) => f.descriptor === 'for_you');
     const following = saved.find((f) => f.descriptor === 'following');
     const trending = saved.find((f) => f.descriptor === 'trending');
@@ -112,7 +119,9 @@ describe('GET /feed/preferences', () => {
     ]);
     const res = makeRes();
     await feedPreferencesController.get(authed(), res as never);
-    const saved = (res.body as { data: { savedFeeds: Array<{ descriptor: string; pinned: boolean }> } }).data.savedFeeds;
+    const saved = (
+      res.body as { data: { savedFeeds: Array<{ descriptor: string; pinned: boolean }> } }
+    ).data.savedFeeds;
     expect(saved.find((f) => f.descriptor === 'for_you')?.pinned).toBe(false); // stored value preserved
     expect(saved.find((f) => f.descriptor === 'following')?.pinned).toBe(false); // appended unpinned
   });
@@ -128,7 +137,11 @@ describe('PUT /feed/preferences', () => {
   it('persists a whitelisted savedFeeds array', async () => {
     const res = makeRes();
     await feedPreferencesController.update(
-      authed({ savedFeeds: [{ key: 'for_you', descriptor: 'for_you', pinned: true, order: 0, evil: 'drop-me' }] }),
+      authed({
+        savedFeeds: [
+          { key: 'for_you', descriptor: 'for_you', pinned: true, order: 0, evil: 'drop-me' },
+        ],
+      }),
       res as never,
     );
     expect(res.statusCode).toBe(200);
@@ -158,7 +171,9 @@ describe('PUT /feed/preferences', () => {
     const feedId = await seedCustomFeed({ isPublic: false });
     const res = makeRes();
     await feedPreferencesController.update(
-      authed({ savedFeeds: [{ key: 'c', descriptor: `custom|${feedId}`, pinned: false, order: 0 }] }),
+      authed({
+        savedFeeds: [{ key: 'c', descriptor: `custom|${feedId}`, pinned: false, order: 0 }],
+      }),
       res as never,
     );
     expect(res.statusCode).toBe(403);
@@ -169,7 +184,9 @@ describe('PUT /feed/preferences', () => {
     const feedId = await seedCustomFeed({ isPublic: true });
     const res = makeRes();
     await feedPreferencesController.update(
-      authed({ savedFeeds: [{ key: 'c', descriptor: `custom|${feedId}`, pinned: false, order: 0 }] }),
+      authed({
+        savedFeeds: [{ key: 'c', descriptor: `custom|${feedId}`, pinned: false, order: 0 }],
+      }),
       res as never,
     );
     expect(res.statusCode).toBe(200);
@@ -182,7 +199,9 @@ describe('PUT /feed/preferences', () => {
     // wrong reason.
     const res = makeRes();
     await feedPreferencesController.update(
-      authed({ savedFeeds: [{ key: 'c', descriptor: 'custom|fp-no-such-feed', pinned: false, order: 0 }] }),
+      authed({
+        savedFeeds: [{ key: 'c', descriptor: 'custom|fp-no-such-feed', pinned: false, order: 0 }],
+      }),
       res as never,
     );
     expect(res.statusCode).toBe(400);
@@ -190,7 +209,10 @@ describe('PUT /feed/preferences', () => {
 
   it('401s an anonymous request', async () => {
     const res = makeRes();
-    await feedPreferencesController.update({ user: undefined, body: { savedFeeds: [] } } as never, res as never);
+    await feedPreferencesController.update(
+      { user: undefined, body: { savedFeeds: [] } } as never,
+      res as never,
+    );
     expect(res.statusCode).toBe(401);
   });
 });
@@ -223,7 +245,12 @@ describe('PUT /feed/tuning', () => {
   it('validates + persists the forYou tuning (rejecting out-of-range)', async () => {
     const res = makeRes();
     await feedPreferencesController.updateTuning(
-      authed({ forYou: { lowEffortGate: { enabled: false }, minQuality: { enabled: true, minQuality: 0.4 } } }),
+      authed({
+        forYou: {
+          lowEffortGate: { enabled: false },
+          minQuality: { enabled: true, minQuality: 0.4 },
+        },
+      }),
       res as never,
     );
     expect(res.statusCode).toBe(200);
@@ -236,7 +263,10 @@ describe('PUT /feed/tuning', () => {
 
   it('400s an out-of-range threshold and never writes', async () => {
     const res = makeRes();
-    await feedPreferencesController.updateTuning(authed({ forYou: { minQuality: { minQuality: 2 } } }), res as never);
+    await feedPreferencesController.updateTuning(
+      authed({ forYou: { minQuality: { minQuality: 2 } } }),
+      res as never,
+    );
     expect(res.statusCode).toBe(400);
     expect(settingsUpdate).not.toHaveBeenCalled();
   });
@@ -250,7 +280,10 @@ describe('PUT /feed/tuning', () => {
 
   it('401s an anonymous request', async () => {
     const res = makeRes();
-    await feedPreferencesController.updateTuning({ user: undefined, body: { forYou: {} } } as never, res as never);
+    await feedPreferencesController.updateTuning(
+      { user: undefined, body: { forYou: {} } } as never,
+      res as never,
+    );
     expect(res.statusCode).toBe(401);
   });
 });

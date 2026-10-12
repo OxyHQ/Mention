@@ -17,7 +17,5 @@ import { useFocusEffect } from 'expo-router';
  * the screen instead of one per handler.
  */
 export function useDismissKeyboardOnBlur(): void {
-  useFocusEffect(
-    useCallback(() => () => Keyboard.dismiss(), []),
-  );
+  useFocusEffect(useCallback(() => () => Keyboard.dismiss(), []));
 }

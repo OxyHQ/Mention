@@ -340,7 +340,11 @@ export function TabsPager({
               <Screen
                 enabled
                 activityState={
-                  isFocused ? 2 : (page.bar && page.preload) || Math.abs(index - settledPage) <= 1 ? 1 : 0
+                  isFocused
+                    ? 2
+                    : (page.bar && page.preload) || Math.abs(index - settledPage) <= 1
+                      ? 1
+                      : 0
                 }
                 style={styles.screen}
               >

@@ -8,10 +8,7 @@ import { Platform } from 'react-native';
 
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { NotificationPermissionSheet } from '@/components/NotificationPermissionSheet';
-import {
-  hasNotificationPermission,
-  requestNotificationPermissions,
-} from '@/utils/notifications';
+import { hasNotificationPermission, requestNotificationPermissions } from '@/utils/notifications';
 import { INITIALIZATION_TIMEOUT } from '@/lib/constants';
 
 interface NotificationPermissionGateProps {
@@ -21,9 +18,7 @@ interface NotificationPermissionGateProps {
 /**
  * Shows notification permission prompt when needed (native only)
  */
-export function NotificationPermissionGate({
-  appIsReady,
-}: NotificationPermissionGateProps) {
+export function NotificationPermissionGate({ appIsReady }: NotificationPermissionGateProps) {
   const bs = useContext(BottomSheetContext);
 
   useEffect(() => {
@@ -53,7 +48,7 @@ export function NotificationPermissionGate({
               // token registration handled by <RegisterPush />
             }
           }}
-        />
+        />,
       );
       bs.openBottomSheet(true);
     };
@@ -68,4 +63,3 @@ export function NotificationPermissionGate({
 
   return null;
 }
-

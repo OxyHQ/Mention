@@ -24,7 +24,7 @@ import {
  *
  * The dedupe store and the outbox are REAL ROWS. That replaces the file's most
  * load-bearing fake: `ModerationEvent.create` had to RAISE a synthetic `E11000` to
- * express "somebody else has this event", because in Mongo that answer only ever
+ * express "somebody else has this event", because in the legacy store that answer only ever
  * arrived as an error — so the fake decided, in the test, what the production code
  * was then judged on for classifying correctly. `moderation_events.id` is the
  * primary key and `claimModerationEvent` answers with a VALUE (`ON CONFLICT DO
@@ -156,7 +156,9 @@ describe('CrowdSource webhook receiver', () => {
     await getDb()
       .delete(moderationOutbox)
       .where(like(moderationOutbox.id, `${decisionApplyEventId(EVENT_PREFIX)}%`));
-    await getDb().delete(moderationEvents).where(like(moderationEvents.id, `${EVENT_PREFIX}%`));
+    await getDb()
+      .delete(moderationEvents)
+      .where(like(moderationEvents.id, `${EVENT_PREFIX}%`));
     mocks.enqueueFailure = null;
     // Re-established per test rather than once, so the pass-through case below can
     // clear them without leaving every later test dependent on its ordering.
@@ -168,7 +170,9 @@ describe('CrowdSource webhook receiver', () => {
     await getDb()
       .delete(moderationOutbox)
       .where(like(moderationOutbox.id, `${decisionApplyEventId(EVENT_PREFIX)}%`));
-    await getDb().delete(moderationEvents).where(like(moderationEvents.id, `${EVENT_PREFIX}%`));
+    await getDb()
+      .delete(moderationEvents)
+      .where(like(moderationEvents.id, `${EVENT_PREFIX}%`));
   });
 
   it('accepts a signed decision once and queues exactly one unit of work', async () => {

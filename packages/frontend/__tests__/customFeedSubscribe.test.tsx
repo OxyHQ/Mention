@@ -32,7 +32,13 @@ const VIEWER_ID = 'viewer-1';
 
 // ── Module boundaries ───────────────────────────────────────────────────────
 
-type MessageNode = string | number | boolean | null | MessageNode[] | { [key: string]: MessageNode };
+type MessageNode =
+  | string
+  | number
+  | boolean
+  | null
+  | MessageNode[]
+  | { [key: string]: MessageNode };
 
 const messages: { [key: string]: MessageNode } = enMessages;
 
@@ -54,8 +60,7 @@ function lookup(key: string): string | undefined {
  */
 function mockTranslate(key: string, vars?: Record<string, string | number>): string {
   const count = typeof vars?.count === 'number' ? vars.count : undefined;
-  const candidates =
-    count === undefined ? [key] : [`${key}_${count === 1 ? 'one' : 'other'}`, key];
+  const candidates = count === undefined ? [key] : [`${key}_${count === 1 ? 'one' : 'other'}`, key];
   const template = candidates.map(lookup).find((value) => value !== undefined);
   if (template === undefined) return key;
   if (!vars) return template;
@@ -170,11 +175,20 @@ jest.mock('@oxy.so/bloom/tabs', () => {
   const RN = jest.requireActual<typeof import('react-native')>('react-native');
   const Context = R.createContext<(mockValue: string) => void>(() => {});
   return {
-    Tabs: ({ children, onValueChange }: { children: React.ReactNode; onValueChange: (mockValue: string) => void }) =>
-      R.createElement(Context.Provider, { value: onValueChange }, children),
+    Tabs: ({
+      children,
+      onValueChange,
+    }: {
+      children: React.ReactNode;
+      onValueChange: (mockValue: string) => void;
+    }) => R.createElement(Context.Provider, { value: onValueChange }, children),
     TabsTrigger: ({ value, label }: { value: string; label: string }) => {
       const change = R.useContext(Context);
-      return R.createElement(RN.Pressable, { testID: `tab-${value}`, onPress: () => change(value) }, R.createElement(RN.Text, null, label));
+      return R.createElement(
+        RN.Pressable,
+        { testID: `tab-${value}`, onPress: () => change(value) },
+        R.createElement(RN.Text, null, label),
+      );
     },
   };
 });
@@ -185,15 +199,31 @@ jest.mock('@oxy.so/bloom/fab', () => {
 });
 
 jest.mock('@oxy.so/bloom/media-header', () => {
-  const { TouchableOpacity: RNTouchable, Text: RNText } = jest.requireActual<typeof import('react-native')>('react-native');
+  const { TouchableOpacity: RNTouchable, Text: RNText } =
+    jest.requireActual<typeof import('react-native')>('react-native');
   return {
-    FollowButton: ({ following, onFollowChange, label, followingLabel, disabled }: {
-      following: boolean; onFollowChange: (following: boolean) => void;
-      label: string; followingLabel: string; disabled?: boolean;
-    }) => <RNTouchable accessibilityRole="button" accessibilityState={{ selected: following }}
-      disabled={disabled} onPress={() => onFollowChange(!following)}>
-      <RNText>{following ? followingLabel : label}</RNText>
-    </RNTouchable>,
+    FollowButton: ({
+      following,
+      onFollowChange,
+      label,
+      followingLabel,
+      disabled,
+    }: {
+      following: boolean;
+      onFollowChange: (following: boolean) => void;
+      label: string;
+      followingLabel: string;
+      disabled?: boolean;
+    }) => (
+      <RNTouchable
+        accessibilityRole="button"
+        accessibilityState={{ selected: following }}
+        disabled={disabled}
+        onPress={() => onFollowChange(!following)}
+      >
+        <RNText>{following ? followingLabel : label}</RNText>
+      </RNTouchable>
+    ),
   };
 });
 
@@ -201,9 +231,13 @@ jest.mock('@oxy.so/bloom/button', () => {
   const { TouchableOpacity: RNTouchable } =
     jest.requireActual<typeof import('react-native')>('react-native');
   return {
-    Button: ({ onPress, accessibilityLabel }: { onPress?: () => void; accessibilityLabel?: string }) => (
-      <RNTouchable onPress={onPress} accessibilityLabel={accessibilityLabel} />
-    ),
+    Button: ({
+      onPress,
+      accessibilityLabel,
+    }: {
+      onPress?: () => void;
+      accessibilityLabel?: string;
+    }) => <RNTouchable onPress={onPress} accessibilityLabel={accessibilityLabel} />,
   };
 });
 

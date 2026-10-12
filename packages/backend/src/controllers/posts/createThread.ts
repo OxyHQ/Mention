@@ -6,13 +6,13 @@
  * here in one place rather than by looping `createPost`.
  */
 
-import { Response } from 'express';
+import type { Response } from 'express';
 import { updatePostRecord } from '../../db/posts/postRepository';
 import type { PostRecord } from '../../db/posts/postRecord';
 import { attachPollToPost, createPollWithOptions } from '../../db/polls/pollRepository';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { createMentionNotifications } from '../../utils/notificationUtils';
-import { PostVisibility, PostContent, PostContentVariant } from '@mention/shared-types';
+import { PostVisibility, type PostContent, type PostContentVariant } from '@mention/shared-types';
 import type { ReplyPermission } from '@mention/shared-types';
 import { postCreationService } from '../../services/PostCreationService';
 import { persistPreparedArticle, prepareArticle } from '../../services/postArticles';
@@ -20,11 +20,15 @@ import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
 import { mergeHashtags } from '../../utils/textProcessing';
 import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
-import { createPostMediaOwnerClient, ensurePostMediaPublic } from '../../services/postMediaVisibility';
+import {
+  createPostMediaOwnerClient,
+  ensurePostMediaPublic,
+} from '../../services/postMediaVisibility';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { getRuntimeSocketServer } from '../../runtime/socketServer';
 import { normalizeMediaItems } from '../../utils/mediaInput';
 import { warmClarityDocumentForText } from '../../utils/clarityDocumentWarm';
+import { trackBackgroundWork } from '../../runtime/backgroundWork';
 import { resolveVariant, validateAuthorVariants } from '../../services/postVariants';
 import { assertLaneAssignable, LaneAssignmentError } from '../../utils/laneAssignment';
 import type { AccountKind } from '@oxy.so/contracts';
@@ -180,7 +184,10 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       // end to end, since the creation loop below hands every post the SAME reader
       // and lets `PostCreationService` run the real gate itself — nothing routes
       // around the authorization.
-      const decided = new Map<string, { authorId: string | null; authorKind: AccountKind | null }>();
+      const decided = new Map<
+        string,
+        { authorId: string | null; authorKind: AccountKind | null }
+      >();
       for (let i = 0; i < posts.length; i++) {
         const requested = accountForEntry(i);
         const key = requested ?? '';
@@ -404,13 +411,18 @@ export const createThread = async (req: AuthRequest, res: Response) => {
           address = locationData.address;
         }
 
-        if (typeof longitude === 'number' && typeof latitude === 'number' &&
-            latitude >= -90 && latitude <= 90 &&
-            longitude >= -180 && longitude <= 180) {
+        if (
+          typeof longitude === 'number' &&
+          typeof latitude === 'number' &&
+          latitude >= -90 &&
+          latitude <= 90 &&
+          longitude >= -180 &&
+          longitude <= 180
+        ) {
           processedContentLocation = {
             type: 'Point' as const,
             coordinates: [longitude, latitude] as [number, number],
-            address: address || undefined
+            address: address || undefined,
           };
         }
       }
@@ -450,7 +462,8 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       // Handle event data
       const threadSanitizedEvent = sanitizeEventData(content?.event);
       if (threadSanitizedEvent && threadSanitizedEvent.name && threadSanitizedEvent.date) {
-        postContent.event = threadSanitizedEvent as import('@mention/shared-types').PostEventContent;
+        postContent.event =
+          threadSanitizedEvent as import('@mention/shared-types').PostEventContent;
       }
 
       // Handle room data
@@ -468,7 +481,11 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         try {
           postContent.podcast = await resolvePodcastContent(threadSanitizedPodcast.syraPodcastId);
         } catch (podcastError) {
-          logger.warn('Failed to resolve Syra podcast for thread post; dropping', { userId, syraPodcastId: threadSanitizedPodcast.syraPodcastId, error: podcastError });
+          logger.warn('Failed to resolve Syra podcast for thread post; dropping', {
+            userId,
+            syraPodcastId: threadSanitizedPodcast.syraPodcastId,
+            error: podcastError,
+          });
         }
       }
 
@@ -481,7 +498,11 @@ export const createThread = async (req: AuthRequest, res: Response) => {
           const jobContent = await resolveJobContent(threadSanitizedJob.mentionJobId);
           if (jobContent) postContent.job = jobContent;
         } catch (jobError) {
-          logger.warn('Failed to resolve Mention job for thread post; dropping', { userId, mentionJobId: threadSanitizedJob.mentionJobId, error: jobError });
+          logger.warn('Failed to resolve Mention job for thread post; dropping', {
+            userId,
+            mentionJobId: threadSanitizedJob.mentionJobId,
+            error: jobError,
+          });
         }
       }
 
@@ -497,7 +518,9 @@ export const createThread = async (req: AuthRequest, res: Response) => {
           question: poll.question,
           options: poll.options,
           createdBy: userId,
-          endsAt: new Date(poll.endTime || Date.now() + DEFAULT_POLL_DURATION_DAYS * 24 * 60 * 60 * 1000),
+          endsAt: new Date(
+            poll.endTime || Date.now() + DEFAULT_POLL_DURATION_DAYS * 24 * 60 * 60 * 1000,
+          ),
           isMultipleChoice: poll.isMultipleChoice || false,
           isAnonymous: poll.isAnonymous || false,
         });
@@ -511,7 +534,11 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       const uniqueTags = mergeHashtags(postContent.text ?? '', entryHashtags[i]);
 
       // Create post
-      const attachmentsInput = content?.attachments || content?.attachmentOrder || postData.attachments || postData.attachmentOrder;
+      const attachmentsInput =
+        content?.attachments ||
+        content?.attachmentOrder ||
+        postData.attachments ||
+        postData.attachmentOrder;
       const computedAttachments = buildOrderedAttachments({
         rawAttachments: attachmentsInput || postContent.attachments,
         media: Array.isArray(postContent.media) ? postContent.media : [],
@@ -522,7 +549,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         includeLocation: Boolean(postContent.location),
         includeSources: Boolean(postContent.sources && postContent.sources.length),
         includePodcast: Boolean(postContent.podcast),
-        includeJob: Boolean(postContent.job)
+        includeJob: Boolean(postContent.job),
       });
 
       if (computedAttachments) {
@@ -612,7 +639,11 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         anchored = { ...post, threadId: post.id };
       }
 
-      await persistPreparedArticle(preparedArticle, anchored.id, 'Failed to save article content (thread)');
+      await persistPreparedArticle(
+        preparedArticle,
+        anchored.id,
+        'Failed to save article content (thread)',
+      );
 
       // Mentions per post in thread. Read the reconciled persisted allowlist,
       // never the raw request metadata: an orphan id must not notify anyone.
@@ -632,7 +663,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
             // channel's writer in the notification of a post the channel signed,
             // which is the anonymity `writtenByOxyUserId` exists to keep.
             anchored.oxyUserId ?? userId,
-            'post'
+            'post',
           );
         }
       } catch (e) {
@@ -679,8 +710,11 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    await Promise.all(
-      createdPostObjects.map((p) => warmClarityDocumentForText(resolveVariant(p.content).text)),
+    // Never awaited — see the same call in `createPost.ts`.
+    trackBackgroundWork(
+      Promise.all(
+        createdPostObjects.map((p) => warmClarityDocumentForText(resolveVariant(p.content).text)),
+      ),
     );
 
     const createdPosts = await postHydrationService.hydratePosts(createdPostObjects, {
@@ -713,7 +747,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         io.emit('feed:updated', {
           type: 'for_you',
           post: mainPost,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
         io.emit('feed:updated', {
           type: 'following',
@@ -723,7 +757,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
           // Naming the caller would push an account's post into the feeds of the
           // caller's followers, who may not follow the account at all.
           authorId: entryAuthorIds[0] ?? userId,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       }
     } catch (socketError) {

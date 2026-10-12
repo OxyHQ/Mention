@@ -21,7 +21,10 @@ import JobApplicationDetailSheet from '@/components/Jobs/JobApplicationDetailShe
 import { EmptyState } from '@/components/common/EmptyState';
 import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
 
-const STATUS_TONE: Record<MentionJobApplicationStatus, 'default' | 'primary' | 'success' | 'warning' | 'error' | 'info'> = {
+const STATUS_TONE: Record<
+  MentionJobApplicationStatus,
+  'default' | 'primary' | 'success' | 'warning' | 'error' | 'info'
+> = {
   new: 'info',
   reviewing: 'primary',
   interview: 'warning',
@@ -50,7 +53,11 @@ export default function JobApplicationsScreen() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const applicationsQuery = useInfiniteQuery({
-    queryKey: viewerQueryKeys.jobApplications(user?.id, jobId, statusFilter === 'all' ? undefined : statusFilter),
+    queryKey: viewerQueryKeys.jobApplications(
+      user?.id,
+      jobId,
+      statusFilter === 'all' ? undefined : statusFilter,
+    ),
     queryFn: ({ pageParam }) =>
       jobApplicationsService.listForEmployer(jobId, {
         status: statusFilter === 'all' ? undefined : statusFilter,
@@ -76,14 +83,20 @@ export default function JobApplicationsScreen() {
   // this job's applications is simply invalidated, since a status change can
   // move the row between buckets (e.g. out of the tab currently open).
   const handleStatusChanged = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: viewerQueryKeys.jobApplicationsRoot(user?.id, jobId) });
+    void queryClient.invalidateQueries({
+      queryKey: viewerQueryKeys.jobApplicationsRoot(user?.id, jobId),
+    });
     bottomSheet.openBottomSheet(false);
   }, [queryClient, user?.id, jobId, bottomSheet]);
 
   const openApplication = useCallback(
     (application: MentionJobApplication) => {
       bottomSheet.setBottomSheetContent(
-        <JobApplicationDetailSheet jobId={jobId} application={application} onStatusChanged={handleStatusChanged} />,
+        <JobApplicationDetailSheet
+          jobId={jobId}
+          application={application}
+          onStatusChanged={handleStatusChanged}
+        />,
       );
       bottomSheet.openBottomSheet(true);
     },
@@ -114,7 +127,11 @@ export default function JobApplicationsScreen() {
         {t('jobs.applications.all', { defaultValue: 'All' })}
       </Chip>
       {MENTION_JOB_APPLICATION_STATUSES.map((status) => (
-        <Chip key={status} selected={statusFilter === status} onPress={() => setStatusFilter(status)}>
+        <Chip
+          key={status}
+          selected={statusFilter === status}
+          onPress={() => setStatusFilter(status)}
+        >
           {status}
         </Chip>
       ))}
@@ -127,7 +144,9 @@ export default function JobApplicationsScreen() {
         {header}
         <View className="flex-1 items-center justify-center px-8">
           <Text className="text-muted-foreground text-base text-center">
-            {t('jobs.applications.forbidden', { defaultValue: 'Only this job\'s operators can view applications' })}
+            {t('jobs.applications.forbidden', {
+              defaultValue: "Only this job's operators can view applications",
+            })}
           </Text>
         </View>
       </View>
@@ -145,7 +164,9 @@ export default function JobApplicationsScreen() {
           </View>
         ) : applicationsQuery.isError ? (
           <ErrorState
-            title={t('jobs.applications.errorTitle', { defaultValue: 'Could not load applications' })}
+            title={t('jobs.applications.errorTitle', {
+              defaultValue: 'Could not load applications',
+            })}
             onRetry={() => void applicationsQuery.refetch()}
             hideBackButton
           />
@@ -172,9 +193,15 @@ export default function JobApplicationsScreen() {
                     numberOfLines={1}
                     onPress={() => openApplication(item)}
                   >
-                    {item.displayName || t('jobs.applications.unnamed', { defaultValue: 'Applicant' })}
+                    {item.displayName ||
+                      t('jobs.applications.unnamed', { defaultValue: 'Applicant' })}
                   </Text>
-                  <Badge content={item.status} color={STATUS_TONE[item.status]} variant="subtle" size="small" />
+                  <Badge
+                    content={item.status}
+                    color={STATUS_TONE[item.status]}
+                    variant="subtle"
+                    size="small"
+                  />
                 </View>
                 {item.contactMethod ? (
                   <Text className="text-muted-foreground text-[13px] mt-0.5" numberOfLines={1}>

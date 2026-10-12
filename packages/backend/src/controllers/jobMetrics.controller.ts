@@ -30,7 +30,12 @@ import { getJobMetricsSummary, recordJobMetricEvent } from '../db/jobs/jobMetric
  * `MentionJobMetricEvent` (`@mention/shared-types`) is a TYPE, not a const
  * array, so there is nothing to import here.
  */
-const METRIC_EVENTS = ['view', 'apply_start', 'external_apply_click', 'application_completed'] as const;
+const METRIC_EVENTS = [
+  'view',
+  'apply_start',
+  'external_apply_click',
+  'application_completed',
+] as const;
 
 const recordEventSchema = z.object({
   event: z.enum(METRIC_EVENTS),

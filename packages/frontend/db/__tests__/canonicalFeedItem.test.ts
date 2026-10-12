@@ -3,10 +3,7 @@ import { PostVisibility } from '@mention/shared-types/post';
 import { toFeedItem } from '../feedItem';
 import { postToRow, rowToFeedItem } from '../schema';
 
-function makePost(
-  id: string,
-  overrides: Partial<HydratedPost> = {},
-): HydratedPost {
+function makePost(id: string, overrides: Partial<HydratedPost> = {}): HydratedPost {
   return {
     id,
     content: { text: `post ${id}` },
@@ -21,13 +18,15 @@ function makePost(
       avatar: `avatar-${id}`,
       verified: true,
     },
-    authors: [{
-      id: `user-${id}`,
-      username: `user-${id}`,
-      name: { displayName: `User ${id}` },
-      role: 'owner',
-      status: 'accepted',
-    }],
+    authors: [
+      {
+        id: `user-${id}`,
+        username: `user-${id}`,
+        name: { displayName: `User ${id}` },
+        role: 'owner',
+        status: 'accepted',
+      },
+    ],
     engagement: {
       likes: 3,
       downvotes: 1,

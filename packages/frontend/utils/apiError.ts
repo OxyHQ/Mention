@@ -70,7 +70,8 @@ export function normalizeApiError(error: unknown): NormalizedApiError {
       const status = candidate.response?.status;
       const body = candidate.response?.data;
       const serverMessage = isRecord(body)
-        ? readString((body as ServerErrorBody).message) ?? readString((body as ServerErrorBody).error)
+        ? (readString((body as ServerErrorBody).message) ??
+          readString((body as ServerErrorBody).error))
         : undefined;
       const serverCode = isRecord(body) ? readString((body as ServerErrorBody).code) : undefined;
 
@@ -150,7 +151,10 @@ export function isValidationError(error: NormalizedApiError): boolean {
 export type ApiErrorReason = 'validation' | 'rateLimited' | 'network' | 'server';
 
 /** Classify a caught error into a {@link ApiErrorReason} for user messaging. */
-export function classifyApiError(error: unknown): { reason: ApiErrorReason; normalized: NormalizedApiError } {
+export function classifyApiError(error: unknown): {
+  reason: ApiErrorReason;
+  normalized: NormalizedApiError;
+} {
   const normalized = normalizeApiError(error);
   let reason: ApiErrorReason = 'server';
   if (isRateLimitError(normalized)) {
@@ -183,7 +187,8 @@ export function isNotFoundError(error: unknown): boolean {
 
 export function getErrorMessage(error: unknown, fallback: string): string {
   if (error && typeof error === 'object' && 'response' in error) {
-    const response = (error as { response?: { data?: { error?: string; message?: string } } }).response;
+    const response = (error as { response?: { data?: { error?: string; message?: string } } })
+      .response;
     return response?.data?.error || response?.data?.message || fallback;
   }
   return fallback;

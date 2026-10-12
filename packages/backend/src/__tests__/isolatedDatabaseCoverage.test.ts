@@ -85,10 +85,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import {
-  ISOLATED_DATABASE_FILES,
-  needsIsolatedDatabase,
-} from './isolatedDatabaseFiles';
+import { ISOLATED_DATABASE_FILES, needsIsolatedDatabase } from './isolatedDatabaseFiles';
 import { SCRIPT_SCOPE } from './scriptScope';
 
 /** `packages/backend/` — the root the listed paths are relative to. */
@@ -183,7 +180,12 @@ function collectTestFiles(directory: string): string[] {
       continue;
     }
     if (entry.endsWith('.test.ts')) {
-      found.push(absolute.slice(PACKAGE_ROOT.length + 1).split(sep).join('/'));
+      found.push(
+        absolute
+          .slice(PACKAGE_ROOT.length + 1)
+          .split(sep)
+          .join('/'),
+      );
     }
   }
   return found;
@@ -217,7 +219,7 @@ describe('isolated-database file list', () => {
       expect(
         callersOf(entryPoint),
         `no test file calls "${entryPoint.name}" — the pattern is stale, and a ` +
-        'pattern that cannot match cannot fail',
+          'pattern that cannot match cannot fail',
       ).not.toHaveLength(0);
     }
   });
@@ -230,8 +232,8 @@ describe('isolated-database file list', () => {
         expect(
           listed.has(file),
           `${file} calls ${entryPoint.name}, which rewrites rows it does not own, ` +
-          'but it is missing from ISOLATED_DATABASE_FILES — it will run against ' +
-          "the shared database and corrupt other files' rows. Add it there.",
+            'but it is missing from ISOLATED_DATABASE_FILES — it will run against ' +
+            "the shared database and corrupt other files' rows. Add it there.",
         ).toBe(true);
       }
     }
@@ -243,19 +245,19 @@ describe('isolated-database file list', () => {
       expect(
         entryPoint,
         `${entry.path} names job entry point "${entry.jobEntryPoint}", which this ` +
-        'scanner does not know about — the two lists have drifted',
+          'scanner does not know about — the two lists have drifted',
       ).toBeDefined();
       if (!entryPoint) continue;
 
       expect(
         sourceByFile.has(entry.path),
         `${entry.path} is listed but does not exist — a moved or deleted file ` +
-        'isolates nothing while still reading as covered',
+          'isolates nothing while still reading as covered',
       ).toBe(true);
       expect(
         entryPoint.call.test(sourceByFile.get(entry.path) ?? ''),
         `${entry.path} no longer calls ${entry.jobEntryPoint}; drop the entry ` +
-        'rather than paying for a database it does not need',
+          'rather than paying for a database it does not need',
       ).toBe(true);
     }
   });
@@ -310,9 +312,9 @@ describe('script scope declarations', () => {
         expect(
           SCRIPT_SCOPE[specifier],
           `${file} imports src/scripts/${specifier}, which has no entry in SCRIPT_SCOPE. ` +
-          'Classify it: does its DRIVING SELECT name an owner, or does it page a whole ' +
-          'table? Read the select that CHOOSES the rows, not the where on the write — ' +
-          'every known offender updates by primary key.',
+            'Classify it: does its DRIVING SELECT name an owner, or does it page a whole ' +
+            'table? Read the select that CHOOSES the rows, not the where on the write — ' +
+            'every known offender updates by primary key.',
         ).toBeDefined();
       }
     }
@@ -329,8 +331,8 @@ describe('script scope declarations', () => {
         expect(
           needsIsolatedDatabase(join(PACKAGE_ROOT, file)),
           `${file} imports src/scripts/${specifier}, declared "whole-table" — it pages a ` +
-          'whole table and rewrites what it finds, so on the shared database it reaches ' +
-          "rows other files own. Add it to ISOLATED_DATABASE_FILES.",
+            'whole table and rewrites what it finds, so on the shared database it reaches ' +
+            'rows other files own. Add it to ISOLATED_DATABASE_FILES.',
         ).toBe(true);
       }
     }
@@ -355,7 +357,7 @@ describe('script scope declarations', () => {
       expect(
         imported.has(specifier),
         `SCRIPT_SCOPE declares src/scripts/${specifier}, which no test imports — drop it ` +
-        'rather than carrying a classification nothing checks',
+          'rather than carrying a classification nothing checks',
       ).toBe(true);
     }
   });
@@ -377,7 +379,9 @@ describe('needsIsolatedDatabase', () => {
     const listed = ISOLATED_DATABASE_FILES[0]?.path ?? '';
     const basename = listed.slice(listed.lastIndexOf('/') + 1);
     expect(needsIsolatedDatabase(join(PACKAGE_ROOT, 'src', '__tests__', basename))).toBe(false);
-    expect(needsIsolatedDatabase(join(PACKAGE_ROOT, 'src/__tests__/appFactory.test.ts'))).toBe(false);
+    expect(needsIsolatedDatabase(join(PACKAGE_ROOT, 'src/__tests__/appFactory.test.ts'))).toBe(
+      false,
+    );
   });
 
   it('is not satisfied by a partial path segment', () => {

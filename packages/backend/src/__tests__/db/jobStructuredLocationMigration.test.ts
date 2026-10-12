@@ -31,7 +31,9 @@ function statements(tag: string): string[] {
 }
 
 function legacyJobsTable(): string {
-  const create = statements(LEGACY_TAG).find((statement) => statement.startsWith('CREATE TABLE "mention_jobs"'));
+  const create = statements(LEGACY_TAG).find((statement) =>
+    statement.startsWith('CREATE TABLE "mention_jobs"'),
+  );
   if (!create) throw new Error(`${LEGACY_TAG} no longer creates mention_jobs`);
   return create;
 }
@@ -61,7 +63,13 @@ interface MigratedRow {
 }
 
 const LEGACY_ROWS: LegacyRow[] = [
-  { id: 'valid-country', country: 'ES', region: 'Catalonia', city: 'Barcelona', raw: 'Barcelona, Spain' },
+  {
+    id: 'valid-country',
+    country: 'ES',
+    region: 'Catalonia',
+    city: 'Barcelona',
+    raw: 'Barcelona, Spain',
+  },
   { id: 'lowercase-country', country: ' es ', raw: 'Spain' },
   { id: 'country-name', country: 'Spain', city: 'Madrid', raw: 'Madrid' },
   { id: 'kosovo', country: 'XK', raw: 'Pristina' },
@@ -155,7 +163,11 @@ describe('0041_job_structured_location on legacy rows', () => {
   });
 
   it('leaves a free-text-only location with no location at all', () => {
-    expect(row('raw-only')).toMatchObject({ location_country_code: null, location_region: null, location_city: null });
+    expect(row('raw-only')).toMatchObject({
+      location_country_code: null,
+      location_region: null,
+      location_city: null,
+    });
   });
 
   it('drops location_raw and adds location_place_id', () => {
@@ -174,7 +186,12 @@ describe('0041_job_structured_location on legacy rows', () => {
   });
 
   it('clears the whole salary when the currency is unknown or withdrawn, no amount is stated, or an amount is negative', () => {
-    for (const id of ['salary-unknown-currency', 'salary-withdrawn-currency', 'salary-no-amount', 'salary-negative']) {
+    for (const id of [
+      'salary-unknown-currency',
+      'salary-withdrawn-currency',
+      'salary-no-amount',
+      'salary-negative',
+    ]) {
       expect(row(id), id).toMatchObject({
         salary_min: null,
         salary_max: null,

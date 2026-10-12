@@ -91,19 +91,16 @@ function scheduleControl(tree: TestRenderer.ReactTestRenderer) {
 
 describe('ComposeScheduleIndicator', () => {
   beforeAll(() => {
-    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
-      .IS_REACT_ACT_ENVIRONMENT = true;
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
   });
 
   function render(props: Partial<React.ComponentProps<typeof ComposeScheduleIndicator>> = {}) {
     let tree: TestRenderer.ReactTestRenderer | undefined;
     act(() => {
       tree = TestRenderer.create(
-        <ComposeScheduleIndicator
-          scheduledLabel={SCHEDULED_LABEL}
-          onPress={() => {}}
-          {...props}
-        />,
+        <ComposeScheduleIndicator scheduledLabel={SCHEDULED_LABEL} onPress={() => {}} {...props} />,
       );
     });
     if (!tree) throw new Error('ComposeScheduleIndicator failed to render');
@@ -235,18 +232,16 @@ describe('ComposeScheduleIndicator', () => {
 
 describe('PostHeader — the time slot the composer writes into', () => {
   beforeAll(() => {
-    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
-      .IS_REACT_ACT_ENVIRONMENT = true;
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
   });
 
   function renderHeader(timeSlot?: React.ReactNode) {
     let tree: TestRenderer.ReactTestRenderer | undefined;
     act(() => {
       tree = TestRenderer.create(
-        <PostHeader
-          user={{ displayName: 'Nate', handle: 'nate' }}
-          timeSlot={timeSlot}
-        />,
+        <PostHeader user={{ displayName: 'Nate', handle: 'nate' }} timeSlot={timeSlot} />,
       );
     });
     if (!tree) throw new Error('PostHeader failed to render');
@@ -268,7 +263,6 @@ describe('PostHeader — the time slot the composer writes into', () => {
     const tree = renderHeader(
       <ComposeScheduleIndicator scheduledLabel={SCHEDULED_LABEL} onPress={() => {}} />,
     );
-
 
     const text = textContent(tree);
     expect(text).toContain(SCHEDULED_LABEL);

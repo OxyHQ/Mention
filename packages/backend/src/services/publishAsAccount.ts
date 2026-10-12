@@ -210,8 +210,7 @@ export async function listOperatedChannelIds(
   return accounts
     .filter(
       (node) =>
-        node.kind === 'channel' &&
-        membershipAuthorizesActingFor(node.kind, node.callerMembership),
+        node.kind === 'channel' && membershipAuthorizesActingFor(node.kind, node.callerMembership),
     )
     .map((node) => node.accountId)
     .filter((accountId): accountId is string => Boolean(accountId));
@@ -309,9 +308,7 @@ export async function resolveAccountKinds(
  * author must read as not-a-channel rather than refusing every reply on the site
  * for the duration of an identity outage.
  */
-export async function isChannelAccount(
-  oxyUserId: string | null | undefined,
-): Promise<boolean> {
+export async function isChannelAccount(oxyUserId: string | null | undefined): Promise<boolean> {
   return (await resolveAccountKind(oxyUserId)) === 'channel';
 }
 

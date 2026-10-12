@@ -104,7 +104,11 @@ class FakeRedis {
     return entry.value;
   }
 
-  async set(key: string, value: string, options: { condition: 'NX'; expiration: { value: number } }) {
+  async set(
+    key: string,
+    value: string,
+    options: { condition: 'NX'; expiration: { value: number } },
+  ) {
     if (options.condition === 'NX' && this.live(key) !== undefined) return null;
     this.store.set(key, { value, expireAt: Date.now() + options.expiration.value });
     return 'OK';
@@ -147,13 +151,16 @@ function fakeTranslate(messages: ChatMessage[]): string {
   if (body) return `[${language}] ${body[1]}`;
   const payload = JSON.parse(prompt.slice(prompt.indexOf('\n') + 1)) as Record<string, string>;
   return JSON.stringify(
-    Object.fromEntries(Object.entries(payload).map(([key, value]) => [key, `[${language}] ${value}`])),
+    Object.fromEntries(
+      Object.entries(payload).map(([key, value]) => [key, `[${language}] ${value}`]),
+    ),
   );
 }
 
 /** How many BODY translations the model was asked for (keyed calls excluded). */
 function bodyCalls(): number {
-  return inferenceChat.mock.calls.filter(([, options]) => options?.feature === 'post-translation').length;
+  return inferenceChat.mock.calls.filter(([, options]) => options?.feature === 'post-translation')
+    .length;
 }
 
 /** Every non-test `.ts` file under `dir`. */
@@ -216,7 +223,12 @@ describe('machine translation cache', () => {
     });
     if (!dto) throw new Error('hydration dropped the post');
     return dto as unknown as {
-      content: { text: string; textLang?: string; media?: MediaItem[]; article?: { title?: string; excerpt?: string } };
+      content: {
+        text: string;
+        textLang?: string;
+        media?: MediaItem[];
+        article?: { title?: string; excerpt?: string };
+      };
     };
   }
 
@@ -230,7 +242,13 @@ describe('machine translation cache', () => {
     inferenceChat.mockImplementation(async (messages: ChatMessage[]) => fakeTranslate(messages));
     getUsersByIds.mockReset();
     getUsersByIds.mockResolvedValue([
-      { id: AUTHOR_ID, username: 'author', name: { displayName: 'Author' }, badges: [], verified: false },
+      {
+        id: AUTHOR_ID,
+        username: 'author',
+        name: { displayName: 'Author' },
+        badges: [],
+        verified: false,
+      },
     ]);
     hydration = new PostHydrationService();
     redis = new FakeRedis();
@@ -253,7 +271,10 @@ describe('machine translation cache', () => {
         .map((file) => path.relative(srcRoot, file));
       expect(callers).toEqual([path.join('controllers', 'posts', 'translation.ts')]);
 
-      const hydrationSource = fs.readFileSync(path.join(srcRoot, 'services', 'PostHydrationService.ts'), 'utf8');
+      const hydrationSource = fs.readFileSync(
+        path.join(srcRoot, 'services', 'PostHydrationService.ts'),
+        'utf8',
+      );
       expect(hydrationSource).not.toMatch(/PostTranslationService|oxyInference/);
     });
 
@@ -295,10 +316,22 @@ describe('machine translation cache', () => {
       const post = await seed(englishPost());
 
       const mexico = await translation.translatePost(post.id, post.content, 'es_mx');
-      const spain = await translation.translatePost(post.id, (await fresh(post.id)).content, 'es-ES');
+      const spain = await translation.translatePost(
+        post.id,
+        (await fresh(post.id)).content,
+        'es-ES',
+      );
 
-      expect(mexico).toEqual({ text: '[Spanish (Mexico)] I bought a car', tag: 'es-MX', cached: false });
-      expect(spain).toEqual({ text: '[Spanish (Spain)] I bought a car', tag: 'es-ES', cached: false });
+      expect(mexico).toEqual({
+        text: '[Spanish (Mexico)] I bought a car',
+        tag: 'es-MX',
+        cached: false,
+      });
+      expect(spain).toEqual({
+        text: '[Spanish (Spain)] I bought a car',
+        tag: 'es-ES',
+        cached: false,
+      });
 
       const rows = await machineRows(post.id);
       expect(rows.map((row) => [row.position, row.tag, row.source])).toEqual([
@@ -308,8 +341,12 @@ describe('machine translation cache', () => {
       ]);
 
       inferenceChat.mockClear();
-      expect((await hydrate(post.id, ['es-MX'])).content.text).toBe('[Spanish (Mexico)] I bought a car');
-      expect((await hydrate(post.id, ['es-ES'])).content.text).toBe('[Spanish (Spain)] I bought a car');
+      expect((await hydrate(post.id, ['es-MX'])).content.text).toBe(
+        '[Spanish (Mexico)] I bought a car',
+      );
+      expect((await hydrate(post.id, ['es-ES'])).content.text).toBe(
+        '[Spanish (Spain)] I bought a car',
+      );
       expect(inferenceChat).not.toHaveBeenCalled();
     });
 
@@ -318,9 +355,17 @@ describe('machine translation cache', () => {
       await translation.translatePost(post.id, post.content, 'es-MX');
       inferenceChat.mockClear();
 
-      const again = await translation.translatePost(post.id, (await fresh(post.id)).content, 'es-MX');
+      const again = await translation.translatePost(
+        post.id,
+        (await fresh(post.id)).content,
+        'es-MX',
+      );
 
-      expect(again).toEqual({ text: '[Spanish (Mexico)] I bought a car', tag: 'es-MX', cached: true });
+      expect(again).toEqual({
+        text: '[Spanish (Mexico)] I bought a car',
+        tag: 'es-MX',
+        cached: true,
+      });
       expect(inferenceChat).not.toHaveBeenCalled();
     });
 
@@ -342,9 +387,15 @@ describe('machine translation cache', () => {
         ],
       });
 
-      const result = await translation.translatePost(post.id, post.content, 'es-MX', { force: true });
+      const result = await translation.translatePost(post.id, post.content, 'es-MX', {
+        force: true,
+      });
 
-      expect(result).toEqual({ text: 'Me compré un carro (del autor)', tag: 'es-MX', cached: true });
+      expect(result).toEqual({
+        text: 'Me compré un carro (del autor)',
+        tag: 'es-MX',
+        cached: true,
+      });
       expect(inferenceChat).not.toHaveBeenCalled();
     });
   });
@@ -358,20 +409,26 @@ describe('machine translation cache', () => {
       );
 
       expect(bodyCalls()).toBe(1);
-      expect(new Set(results.map((result) => result.text))).toEqual(new Set(['[Spanish (Mexico)] I bought a car']));
-      expect((await machineRows(post.id)).filter((row) => row.source === 'machine')).toHaveLength(1);
+      expect(new Set(results.map((result) => result.text))).toEqual(
+        new Set(['[Spanish (Mexico)] I bought a car']),
+      );
+      expect((await machineRows(post.id)).filter((row) => row.source === 'machine')).toHaveLength(
+        1,
+      );
     });
 
     /** Number each body translation, so two inference calls cannot look like one. */
     function numberedInference(): void {
       let call = 0;
-      inferenceChat.mockImplementation(async (messages: ChatMessage[], options?: { feature?: string }) => {
-        if (options?.feature !== 'post-translation') return fakeTranslate(messages);
-        call += 1;
-        // Yield long enough that the other task reaches the lock while this one holds it.
-        await new Promise((resolve) => setTimeout(resolve, 30));
-        return `${fakeTranslate(messages)} #${call}`;
-      });
+      inferenceChat.mockImplementation(
+        async (messages: ChatMessage[], options?: { feature?: string }) => {
+          if (options?.feature !== 'post-translation') return fakeTranslate(messages);
+          call += 1;
+          // Yield long enough that the other task reaches the lock while this one holds it.
+          await new Promise((resolve) => setTimeout(resolve, 30));
+          return `${fakeTranslate(messages)} #${call}`;
+        },
+      );
     }
 
     it('pays for ONE inference across two backend tasks sharing Redis', async () => {
@@ -424,7 +481,11 @@ describe('machine translation cache', () => {
 
       const result = await translation.translatePost(post.id, post.content, 'es-MX');
 
-      expect(result).toEqual({ text: '[Spanish (Mexico)] I bought a car', tag: 'es-MX', cached: false });
+      expect(result).toEqual({
+        text: '[Spanish (Mexico)] I bought a car',
+        tag: 'es-MX',
+        cached: false,
+      });
       expect(bodyCalls()).toBe(1);
     });
   });
@@ -434,17 +495,23 @@ describe('machine translation cache', () => {
     function gateInference(): { started: Promise<void>; release: () => void } {
       let release!: () => void;
       let signalStarted!: () => void;
-      const gate = new Promise<void>((resolve) => { release = resolve; });
-      const started = new Promise<void>((resolve) => { signalStarted = resolve; });
-      let held = false;
-      inferenceChat.mockImplementation(async (messages: ChatMessage[], options?: { feature?: string }) => {
-        if (options?.feature === 'post-translation' && !held) {
-          held = true;
-          signalStarted();
-          await gate;
-        }
-        return fakeTranslate(messages);
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
       });
+      const started = new Promise<void>((resolve) => {
+        signalStarted = resolve;
+      });
+      let held = false;
+      inferenceChat.mockImplementation(
+        async (messages: ChatMessage[], options?: { feature?: string }) => {
+          if (options?.feature === 'post-translation' && !held) {
+            held = true;
+            signalStarted();
+            await gate;
+          }
+          return fakeTranslate(messages);
+        },
+      );
       return { started, release };
     }
 
@@ -452,10 +519,14 @@ describe('machine translation cache', () => {
       const current = await fresh(postId);
       // What `updatePost` does to renditions on a body edit: the author's new
       // body, every machine translation dropped.
-      await replacePostContent(postId, {
-        ...current.content,
-        variants: [{ tag: 'en-US', source: 'author', text }],
-      }, current.mentions ?? []);
+      await replacePostContent(
+        postId,
+        {
+          ...current.content,
+          variants: [{ tag: 'en-US', source: 'author', text }],
+        },
+        current.mentions ?? [],
+      );
     }
 
     it('does not cache the stale translation; it translates the NEW source instead', async () => {
@@ -470,43 +541,63 @@ describe('machine translation cache', () => {
 
       const machine = (await machineRows(post.id)).filter((row) => row.source === 'machine');
       expect(machine.map((row) => row.body)).toEqual(['[Spanish (Mexico)] I sold my car']);
-      expect(result).toEqual({ text: '[Spanish (Mexico)] I sold my car', tag: 'es-MX', cached: false });
+      expect(result).toEqual({
+        text: '[Spanish (Mexico)] I sold my car',
+        tag: 'es-MX',
+        cached: false,
+      });
       expect(bodyCalls()).toBe(2);
     });
 
     it('fails with a typed conflict — and stores nothing — when the source changes again during the retry', async () => {
       const post = await seed(englishPost('I bought a car'));
       let edits = 0;
-      inferenceChat.mockImplementation(async (messages: ChatMessage[], options?: { feature?: string }) => {
-        // Every body translation is overtaken by an author edit.
-        if (options?.feature === 'post-translation') {
-          edits += 1;
-          await edit(post.id, `edit number ${edits}`);
-        }
-        return fakeTranslate(messages);
-      });
+      inferenceChat.mockImplementation(
+        async (messages: ChatMessage[], options?: { feature?: string }) => {
+          // Every body translation is overtaken by an author edit.
+          if (options?.feature === 'post-translation') {
+            edits += 1;
+            await edit(post.id, `edit number ${edits}`);
+          }
+          return fakeTranslate(messages);
+        },
+      );
 
-      await expect(translation.translatePost(post.id, post.content, 'es-MX'))
-        .rejects.toBeInstanceOf(TranslationSourceChangedError);
+      await expect(
+        translation.translatePost(post.id, post.content, 'es-MX'),
+      ).rejects.toBeInstanceOf(TranslationSourceChangedError);
 
       expect((await machineRows(post.id)).filter((row) => row.source === 'machine')).toEqual([]);
     });
 
     it('fingerprints only what is translated: body, shown media alt text, and the article', () => {
-      const base: StoredPostContent = { ...englishPost(), media, article: { title: 'T', excerpt: 'E' } };
+      const base: StoredPostContent = {
+        ...englishPost(),
+        media,
+        article: { title: 'T', excerpt: 'E' },
+      };
       const fingerprint = translationSourceFingerprint(base);
 
-      expect(translationSourceFingerprint({
-        ...base,
-        media: media.map((item) => ({ ...item, width: 640, height: 480 })),
-        variants: [...(base.variants ?? []), { tag: 'de', source: 'machine', text: 'x' }],
-      })).toBe(fingerprint);
+      expect(
+        translationSourceFingerprint({
+          ...base,
+          media: media.map((item) => ({ ...item, width: 640, height: 480 })),
+          variants: [...(base.variants ?? []), { tag: 'de', source: 'machine', text: 'x' }],
+        }),
+      ).toBe(fingerprint);
 
-      expect(translationSourceFingerprint({ ...base, ...englishPost('changed') })).not.toBe(fingerprint);
-      expect(translationSourceFingerprint({ ...base, media: [{ ...media[0]!, alt: 'changed' }, media[1]!] }))
-        .not.toBe(fingerprint);
-      expect(translationSourceFingerprint({ ...base, article: { title: 'changed', excerpt: 'E' } }))
-        .not.toBe(fingerprint);
+      expect(translationSourceFingerprint({ ...base, ...englishPost('changed') })).not.toBe(
+        fingerprint,
+      );
+      expect(
+        translationSourceFingerprint({
+          ...base,
+          media: [{ ...media[0]!, alt: 'changed' }, media[1]!],
+        }),
+      ).not.toBe(fingerprint);
+      expect(
+        translationSourceFingerprint({ ...base, article: { title: 'changed', excerpt: 'E' } }),
+      ).not.toBe(fingerprint);
     });
   });
 
@@ -548,7 +639,10 @@ describe('machine translation cache', () => {
 
       // The English reader still sees the author's own descriptions.
       const english = await hydrate(post.id, ['en-US']);
-      expect(english.content.media?.map((item) => item.alt)).toEqual(['A red car', 'A parking lot']);
+      expect(english.content.media?.map((item) => item.alt)).toEqual([
+        'A red car',
+        'A parking lot',
+      ]);
     });
 
     it('replaces a forced machine variant’s ALT rows together with the variant', async () => {
@@ -557,15 +651,21 @@ describe('machine translation cache', () => {
       const [before] = (await machineRows(post.id)).filter((row) => row.source === 'machine');
 
       inferenceChat.mockImplementation(async (messages: ChatMessage[]) =>
-        fakeTranslate(messages).replaceAll('[Spanish (Mexico)]', '[v2]'));
-      await translation.translatePost(post.id, (await fresh(post.id)).content, 'es-MX', { force: true });
+        fakeTranslate(messages).replaceAll('[Spanish (Mexico)]', '[v2]'),
+      );
+      await translation.translatePost(post.id, (await fresh(post.id)).content, 'es-MX', {
+        force: true,
+      });
 
       const machine = (await machineRows(post.id)).filter((row) => row.source === 'machine');
       expect(machine).toHaveLength(1);
       expect(machine[0]?.body).toBe('[v2] I bought a car');
 
       const altRows = await getDb()
-        .select({ variantId: postVariantAltTexts.variantId, description: postVariantAltTexts.description })
+        .select({
+          variantId: postVariantAltTexts.variantId,
+          description: postVariantAltTexts.description,
+        })
         .from(postVariantAltTexts)
         .where(inArray(postVariantAltTexts.variantId, [before!.id, machine[0]!.id]))
         .orderBy(asc(postVariantAltTexts.mediaId));

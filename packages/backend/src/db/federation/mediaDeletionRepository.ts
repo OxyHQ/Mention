@@ -47,7 +47,10 @@ async function lockFiles(tx: DatabaseOrTransaction, fileIds: readonly string[]):
   if (keys.length === 0) return;
   await tx.execute(sql`
     select pg_advisory_xact_lock(hashtext(t.key))
-    from unnest(array[${sql.join(keys.map((key) => sql`${key}`), sql`, `)}]::text[]) with ordinality as t(key, n)
+    from unnest(array[${sql.join(
+      keys.map((key) => sql`${key}`),
+      sql`, `,
+    )}]::text[]) with ordinality as t(key, n)
     order by t.n
   `);
 }
@@ -75,16 +78,20 @@ export async function findGoneFederatedMedia(
 ): Promise<Set<string>> {
   // Items without an id (a stored remote-only item, legacy input) reference no
   // Oxy file: nothing to lock or check.
-  const fileIds = [...new Set(requested.filter((id): id is string => typeof id === 'string' && id.length > 0))];
+  const fileIds = [
+    ...new Set(requested.filter((id): id is string => typeof id === 'string' && id.length > 0)),
+  ];
   if (fileIds.length === 0) return new Set();
   await lockFiles(tx, fileIds);
   const gone = await tx
     .select({ oxyFileId: federatedMediaDeletions.oxyFileId })
     .from(federatedMediaDeletions)
-    .where(and(
-      inArray(federatedMediaDeletions.oxyFileId, fileIds),
-      inArray(federatedMediaDeletions.state, [...TOMBSTONE_STATES]),
-    ));
+    .where(
+      and(
+        inArray(federatedMediaDeletions.oxyFileId, fileIds),
+        inArray(federatedMediaDeletions.state, [...TOMBSTONE_STATES]),
+      ),
+    );
   return new Set(gone.map((row) => row.oxyFileId));
 }
 
@@ -128,13 +135,21 @@ export async function enqueueFederatedMediaDeletionsForPosts(
     .select({ mediaId: postVariantMedia.mediaId })
     .from(postVariantMedia)
     .innerJoin(postContentVariants, eq(postContentVariants.id, postVariantMedia.variantId))
-    .where(and(inArray(postContentVariants.postId, ids), eq(postVariantMedia.cachedFromFederation, true)));
+    .where(
+      and(
+        inArray(postContentVariants.postId, ids),
+        eq(postVariantMedia.cachedFromFederation, true),
+      ),
+    );
   const fileIds = [...new Set([...rows, ...variantRows].map((row) => row.mediaId))];
   return enqueueFederatedMediaDeletions(fileIds, db);
 }
 
 /** The re-hosted federated file ids a post references (its media and its variants' media). */
-export async function federatedMediaIdsOfPost(db: DatabaseOrTransaction, postId: string): Promise<Set<string>> {
+export async function federatedMediaIdsOfPost(
+  db: DatabaseOrTransaction,
+  postId: string,
+): Promise<Set<string>> {
   const rows = await db
     .select({ mediaId: postMedia.mediaId })
     .from(postMedia)
@@ -143,7 +158,9 @@ export async function federatedMediaIdsOfPost(db: DatabaseOrTransaction, postId:
     .select({ mediaId: postVariantMedia.mediaId })
     .from(postVariantMedia)
     .innerJoin(postContentVariants, eq(postContentVariants.id, postVariantMedia.variantId))
-    .where(and(eq(postContentVariants.postId, postId), eq(postVariantMedia.cachedFromFederation, true)));
+    .where(
+      and(eq(postContentVariants.postId, postId), eq(postVariantMedia.cachedFromFederation, true)),
+    );
   return new Set([...rows, ...variantRows].map((row) => row.mediaId));
 }
 
@@ -158,7 +175,13 @@ export async function enqueueFederatedMediaDeletions(
     .values(fileIds.map((oxyFileId) => ({ oxyFileId })))
     .onConflictDoUpdate({
       target: federatedMediaDeletions.oxyFileId,
-      set: { state: 'pending', attempts: 0, nextAttemptAt: sql`now()`, lastError: null, updatedAt: new Date() },
+      set: {
+        state: 'pending',
+        attempts: 0,
+        nextAttemptAt: sql`now()`,
+        lastError: null,
+        updatedAt: new Date(),
+      },
       // Re-arm a file kept as `in_use`, or a `pending` row with no failed
       // attempts that is already due. A revived file waits out its grace period
       // (`next_attempt_at` in the future): pulling it to now would delete it
@@ -192,7 +215,10 @@ export interface DueMediaDeletion {
 }
 
 /** Rows whose next attempt is due, oldest first. */
-export async function findDueMediaDeletions(limit: number, db: DatabaseOrTransaction = getDb()): Promise<DueMediaDeletion[]> {
+export async function findDueMediaDeletions(
+  limit: number,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<DueMediaDeletion[]> {
   const rows = await db
     .select({
       oxyFileId: federatedMediaDeletions.oxyFileId,
@@ -200,10 +226,12 @@ export async function findDueMediaDeletions(limit: number, db: DatabaseOrTransac
       attempts: federatedMediaDeletions.attempts,
     })
     .from(federatedMediaDeletions)
-    .where(and(
-      inArray(federatedMediaDeletions.state, ['pending', 'deleting']),
-      lte(federatedMediaDeletions.nextAttemptAt, sql`now()`),
-    ))
+    .where(
+      and(
+        inArray(federatedMediaDeletions.state, ['pending', 'deleting']),
+        lte(federatedMediaDeletions.nextAttemptAt, sql`now()`),
+      ),
+    )
     .orderBy(asc(federatedMediaDeletions.nextAttemptAt))
     .limit(limit);
   return rows as DueMediaDeletion[];
@@ -214,26 +242,59 @@ export async function findDueMediaDeletions(limit: number, db: DatabaseOrTransac
  * variant's media, a federated profile banner — or, for a poster, a still
  * referenced video it belongs to. Batched: one statement per table.
  */
-async function referencedFileIds(tx: DatabaseOrTransaction, fileIds: readonly string[]): Promise<Set<string>> {
+async function referencedFileIds(
+  tx: DatabaseOrTransaction,
+  fileIds: readonly string[],
+): Promise<Set<string>> {
   const ids = [...fileIds];
   const used = new Set<string>();
-  const add = (rows: Array<{ id: string | null }>) => rows.forEach((row) => row.id && used.add(row.id));
+  const add = (rows: Array<{ id: string | null }>) =>
+    rows.forEach((row) => row.id && used.add(row.id));
 
-  add(await tx.select({ id: postMedia.mediaId }).from(postMedia).where(inArray(postMedia.mediaId, ids)));
-  add(await tx.select({ id: postVariantMedia.mediaId }).from(postVariantMedia).where(inArray(postVariantMedia.mediaId, ids)));
-  add(await tx.select({ id: userSettings.profileHeaderImage }).from(userSettings).where(inArray(userSettings.profileHeaderImage, ids)));
+  add(
+    await tx
+      .select({ id: postMedia.mediaId })
+      .from(postMedia)
+      .where(inArray(postMedia.mediaId, ids)),
+  );
+  add(
+    await tx
+      .select({ id: postVariantMedia.mediaId })
+      .from(postVariantMedia)
+      .where(inArray(postVariantMedia.mediaId, ids)),
+  );
+  add(
+    await tx
+      .select({ id: userSettings.profileHeaderImage })
+      .from(userSettings)
+      .where(inArray(userSettings.profileHeaderImage, ids)),
+  );
 
   // A poster is in use while ANY video it belongs to is.
   const posterOf = await tx
-    .select({ poster: federatedMediaPosters.posterFileId, video: federatedMediaPosters.videoFileId })
+    .select({
+      poster: federatedMediaPosters.posterFileId,
+      video: federatedMediaPosters.videoFileId,
+    })
     .from(federatedMediaPosters)
     .where(inArray(federatedMediaPosters.posterFileId, ids));
   if (posterOf.length > 0) {
     const videos = [...new Set(posterOf.map((row) => row.video))];
     const liveVideos = new Set<string>();
-    const addVideo = (rows: Array<{ id: string | null }>) => rows.forEach((row) => row.id && liveVideos.add(row.id));
-    addVideo(await tx.select({ id: postMedia.mediaId }).from(postMedia).where(inArray(postMedia.mediaId, videos)));
-    addVideo(await tx.select({ id: postVariantMedia.mediaId }).from(postVariantMedia).where(inArray(postVariantMedia.mediaId, videos)));
+    const addVideo = (rows: Array<{ id: string | null }>) =>
+      rows.forEach((row) => row.id && liveVideos.add(row.id));
+    addVideo(
+      await tx
+        .select({ id: postMedia.mediaId })
+        .from(postMedia)
+        .where(inArray(postMedia.mediaId, videos)),
+    );
+    addVideo(
+      await tx
+        .select({ id: postVariantMedia.mediaId })
+        .from(postVariantMedia)
+        .where(inArray(postVariantMedia.mediaId, videos)),
+    );
     for (const row of posterOf) if (liveVideos.has(row.video)) used.add(row.poster);
   }
   return used;
@@ -252,7 +313,12 @@ export async function tombstoneUnreferenced(fileIds: readonly string[]): Promise
     const rows = await tx
       .select({ oxyFileId: federatedMediaDeletions.oxyFileId })
       .from(federatedMediaDeletions)
-      .where(and(inArray(federatedMediaDeletions.oxyFileId, [...fileIds]), eq(federatedMediaDeletions.state, 'pending')));
+      .where(
+        and(
+          inArray(federatedMediaDeletions.oxyFileId, [...fileIds]),
+          eq(federatedMediaDeletions.state, 'pending'),
+        ),
+      );
     const pending = rows.map((row) => row.oxyFileId);
     if (pending.length === 0) return [];
 
@@ -260,12 +326,14 @@ export async function tombstoneUnreferenced(fileIds: readonly string[]): Promise
     const inUse = pending.filter((id) => used.has(id));
     const unused = pending.filter((id) => !used.has(id));
     if (inUse.length > 0) {
-      await tx.update(federatedMediaDeletions)
+      await tx
+        .update(federatedMediaDeletions)
         .set({ state: 'in_use', updatedAt: new Date() })
         .where(inArray(federatedMediaDeletions.oxyFileId, inUse));
     }
     if (unused.length > 0) {
-      await tx.update(federatedMediaDeletions)
+      await tx
+        .update(federatedMediaDeletions)
         .set({ state: 'deleting', nextAttemptAt: sql`now()`, updatedAt: new Date() })
         .where(inArray(federatedMediaDeletions.oxyFileId, unused));
       const posters = await tx
@@ -284,15 +352,24 @@ export async function tombstoneUnreferenced(fileIds: readonly string[]): Promise
  * the file is live, NOT a tombstone, and a later deletion re-arms it.
  */
 export async function settleMediaDeletions(
-  results: ReadonlyArray<{ oxyFileId: string; result: 'deleted' | 'not_found' | 'forbidden' | 'in_use' }>,
+  results: ReadonlyArray<{
+    oxyFileId: string;
+    result: 'deleted' | 'not_found' | 'forbidden' | 'in_use';
+  }>,
   db: DatabaseOrTransaction = getDb(),
 ): Promise<void> {
   for (const state of ['deleted', 'not_found', 'forbidden', 'in_use'] as const) {
     const ids = results.filter((row) => row.result === state).map((row) => row.oxyFileId);
     if (ids.length === 0) continue;
-    await db.update(federatedMediaDeletions)
+    await db
+      .update(federatedMediaDeletions)
       .set({ state, lastError: null, settledAt: sql`now()`, updatedAt: new Date() })
-      .where(and(inArray(federatedMediaDeletions.oxyFileId, ids), eq(federatedMediaDeletions.state, 'deleting')));
+      .where(
+        and(
+          inArray(federatedMediaDeletions.oxyFileId, ids),
+          eq(federatedMediaDeletions.state, 'deleting'),
+        ),
+      );
   }
 }
 
@@ -304,18 +381,24 @@ export async function retryMediaDeletions(
   db: DatabaseOrTransaction = getDb(),
 ): Promise<void> {
   if (fileIds.length === 0) return;
-  await db.update(federatedMediaDeletions)
+  await db
+    .update(federatedMediaDeletions)
     .set({
       attempts: sql`${federatedMediaDeletions.attempts} + 1`,
       nextAttemptAt: sql`now() + (${delayMs} * interval '1 millisecond')`,
       lastError: reason.slice(0, 200),
       updatedAt: new Date(),
     })
-    .where(and(
-      inArray(federatedMediaDeletions.oxyFileId, [...fileIds]),
-      or(eq(federatedMediaDeletions.state, 'deleting'), eq(federatedMediaDeletions.state, 'pending')),
-      isNotNull(federatedMediaDeletions.oxyFileId),
-    ));
+    .where(
+      and(
+        inArray(federatedMediaDeletions.oxyFileId, [...fileIds]),
+        or(
+          eq(federatedMediaDeletions.state, 'deleting'),
+          eq(federatedMediaDeletions.state, 'pending'),
+        ),
+        isNotNull(federatedMediaDeletions.oxyFileId),
+      ),
+    );
 }
 
 /**
@@ -352,11 +435,13 @@ export async function reviveFederatedFiles(
         lastError: null,
         updatedAt: new Date(),
       })
-      .where(and(
-        inArray(federatedMediaDeletions.oxyFileId, [...fileIds]),
-        inArray(federatedMediaDeletions.state, ['deleted', 'not_found']),
-        lt(federatedMediaDeletions.settledAt, sql`${uploadStartedAt.toISOString()}::timestamptz`),
-      ))
+      .where(
+        and(
+          inArray(federatedMediaDeletions.oxyFileId, [...fileIds]),
+          inArray(federatedMediaDeletions.state, ['deleted', 'not_found']),
+          lt(federatedMediaDeletions.settledAt, sql`${uploadStartedAt.toISOString()}::timestamptz`),
+        ),
+      )
       .returning({ oxyFileId: federatedMediaDeletions.oxyFileId });
     return revived.map((row) => row.oxyFileId);
   });
@@ -370,7 +455,9 @@ export async function reviveFederatedFiles(
  *    been queued: the pair can no longer keep the poster alive or queue it.
  * Tombstones themselves stay, by design.
  */
-export async function pruneFederatedMediaHousekeeping(limit = 500): Promise<{ forbidden: number; posterPairs: number }> {
+export async function pruneFederatedMediaHousekeeping(
+  limit = 500,
+): Promise<{ forbidden: number; posterPairs: number }> {
   const forbidden = await getDb().execute<{ id: string }>(sql`
     delete from ${federatedMediaDeletions}
     where ${federatedMediaDeletions.id} in (
@@ -396,7 +483,10 @@ export async function pruneFederatedMediaHousekeeping(limit = 500): Promise<{ fo
 }
 
 /** Rows whose attempts reached `threshold`: a deletion Oxy keeps refusing to answer. */
-export async function countStuckMediaDeletions(threshold: number, db: DatabaseOrTransaction = getDb()): Promise<number> {
+export async function countStuckMediaDeletions(
+  threshold: number,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<number> {
   const [row] = await db.execute<{ stuck: number }>(sql`
     select count(*)::int as stuck from ${federatedMediaDeletions}
     where ${federatedMediaDeletions.state} in ('pending', 'deleting')

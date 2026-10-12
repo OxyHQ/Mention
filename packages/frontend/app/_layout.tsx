@@ -5,8 +5,8 @@ import { registerChunkErrorRecovery } from '@/lib/chunkReload';
 import NetInfo from '@react-native-community/netinfo';
 import { focusManager, onlineManager } from '@tanstack/react-query';
 import * as SplashScreen from 'expo-splash-screen';
-import React, { useEffect, useState } from "react";
-import { AppState, Platform, type AppStateStatus } from "react-native";
+import React, { useEffect, useState } from 'react';
+import { AppState, Platform, type AppStateStatus } from 'react-native';
 import { BloomProvider } from '@oxy.so/bloom/provider';
 import { APP_DEFAULT_COLOR_PRESET } from '@/lib/colorEntitlement';
 
@@ -102,8 +102,15 @@ export default function RootLayout() {
 
   // React Query managers - setup once on mount
   useEffect(() => {
+    // Online means "has a network", never NetInfo's reachability probe. On
+    // native that probe fetches a Google URL; where it is blocked, slow or
+    // behind a captive portal it reports unreachable, and React Query's
+    // `networkMode: 'online'` would pause every query — feed modules and
+    // who-to-follow stay on skeletons forever while Mention's own API is
+    // perfectly reachable. A request that really cannot get through fails and
+    // retries on its own. `null` (not yet known) counts as connected.
     const unsubscribeNetInfo = NetInfo.addEventListener((state) => {
-      onlineManager.setOnline(Boolean(state.isConnected && state.isInternetReachable !== false));
+      onlineManager.setOnline(state.isConnected !== false);
     });
 
     const onAppStateChange = (status: AppStateStatus) => {
@@ -169,9 +176,7 @@ export default function RootLayout() {
         <AppProviders oxyServices={oxyServices} queryClient={queryClient}>
           {appIsReady ? (
             <>
-              {Platform.OS !== 'web' && (
-                <NotificationPermissionGate appIsReady={appIsReady} />
-              )}
+              {Platform.OS !== 'web' && <NotificationPermissionGate appIsReady={appIsReady} />}
               <PortalProvider>
                 {/* Wraps the OUTLET too: the Settings modal is portalled into
                     the outlet, so its pages render there, not where the

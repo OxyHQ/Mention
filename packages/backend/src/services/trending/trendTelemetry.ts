@@ -132,9 +132,7 @@ function isTrendEventSurface(value: unknown): value is TrendEventSurface {
   return typeof value === 'string' && Object.prototype.hasOwnProperty.call(TREND_SURFACES, value);
 }
 
-export type ParsedTrendEvent =
-  | { ok: true; input: TrendEventInput }
-  | { ok: false; error: string };
+export type ParsedTrendEvent = { ok: true; input: TrendEventInput } | { ok: false; error: string };
 
 /**
  * Validate a client-sent trend event. The body is attacker-controlled, so

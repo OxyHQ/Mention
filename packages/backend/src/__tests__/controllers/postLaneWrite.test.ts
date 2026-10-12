@@ -44,7 +44,9 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => ({})),
-  createUserScopedOxyServices: vi.fn(() => ({ accounts: { members: { list: oxy.listAccountMembers } } })),
+  createUserScopedOxyServices: vi.fn(() => ({
+    accounts: { members: { list: oxy.listAccountMembers } },
+  })),
   getServiceOxyClient: vi.fn(() => ({})),
 }));
 
@@ -67,8 +69,14 @@ function makeRes(): MockRes {
   const res: MockRes = {
     statusCode: 200,
     body: undefined,
-    status(code) { this.statusCode = code; return this; },
-    json(body) { this.body = body; return this; },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body) {
+      this.body = body;
+      return this;
+    },
   };
   return res;
 }
@@ -136,7 +144,7 @@ describe('PATCH /posts/:id/lane', () => {
     await updatePostLane(makeReq(post.id, { laneId: null }), res as never);
 
     expect(res.statusCode).toBe(200);
-    // Mongo needed `$unset` because `post_lane_chrono_v1` was partial on
+    // The legacy store needed `$unset` because `post_lane_chrono_v1` was partial on
     // `{ laneId: { $exists: true } }` and a stored `null` SATISFIED it, leaving a
     // laneless post indexed forever. The Postgres filter is `lane_id is not
     // null`, so null is exactly the state that stays out of the index — absent
@@ -247,7 +255,6 @@ describe('PATCH /posts/:id/lane', () => {
   });
 });
 
-
 /**
  * A CHANNEL post IS movable through this route — by the person who wrote it —
  * and the lane it may be moved into is the CHANNEL's, never the mover's.
@@ -272,13 +279,13 @@ describe('PATCH /posts/:id/lane', () => {
  * construction" cases would now pass for no reason at all.
  *
  * They are ROW assertions rather than "was the lookup called with these
- * arguments". `main` asserted the lane check's Mongo FILTER
+ * arguments". `main` asserted the lane check's legacy-store FILTER
  * (`{_id, ownerId: CHANNEL}`) and the update's filter; both spell a query that
  * no longer exists, and neither could tell a write that landed from one that
  * matched nothing. Seeding a lane under each owner and reading `lane_id` back
  * answers the same question about the code that actually runs.
  */
-describe('PATCH /posts/:id/lane — a channel post moves against the CHANNEL\'s lanes', () => {
+describe("PATCH /posts/:id/lane — a channel post moves against the CHANNEL's lanes", () => {
   const CHANNEL_ACCOUNT = scope.user('channel-account');
   const OTHER_HUMAN = scope.user('other-human');
 

@@ -1,6 +1,0 @@
-node_modules
-dist
-.expo
-packages/backend/dist
-packages/frontend/dist
-packages/shared-types/dist

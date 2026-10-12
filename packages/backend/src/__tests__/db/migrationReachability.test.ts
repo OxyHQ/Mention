@@ -237,20 +237,20 @@ describe('the journal shipped in this image', () => {
       [
         appeared.length > 0 &&
           `NEW out-of-order migration(s): ${appeared.join(', ')}.\n` +
-          'Each was generated on a branch cut before another branch\'s migration ' +
-          'merged, so its journal `when` is below the ledger high-water and it ' +
-          'will NEVER be applied to a database already past that point.\n' +
-          'FIX IT NOW, while it is free: regenerate so the `when` is newer than ' +
-          `every other entry (above ${newest}) — rename drizzle/<tag>.sql AND its ` +
-          'record in drizzle/meta/_journal.json.\n' +
-          'Do NOT edit the ledger, and do NOT add the tag to KNOWN_STRANDED_TAGS ' +
-          'to make this pass — that hides a migration that will never run.',
+            "Each was generated on a branch cut before another branch's migration " +
+            'merged, so its journal `when` is below the ledger high-water and it ' +
+            'will NEVER be applied to a database already past that point.\n' +
+            'FIX IT NOW, while it is free: regenerate so the `when` is newer than ' +
+            `every other entry (above ${newest}) — rename drizzle/<tag>.sql AND its ` +
+            'record in drizzle/meta/_journal.json.\n' +
+            'Do NOT edit the ledger, and do NOT add the tag to KNOWN_STRANDED_TAGS ' +
+            'to make this pass — that hides a migration that will never run.',
         gone.length > 0 &&
           `${gone.join(', ')} no longer strand — the hazard is gone. Remove them ` +
-          'from KNOWN_STRANDED_TAGS so this test keeps meaning something.',
+            'from KNOWN_STRANDED_TAGS so this test keeps meaning something.',
       ]
         .filter(Boolean)
-        .join('\n\n') || 'the stranded set changed'
+        .join('\n\n') || 'the stranded set changed',
     ).toEqual(KNOWN_STRANDED_TAGS);
   });
 
@@ -278,7 +278,7 @@ describe('the journal shipped in this image', () => {
     expect(() => planMigrationRun(entries, upToFourth)).toThrow(UnreachableMigrationError);
     expect(() => planMigrationRun(entries, upToFourth)).toThrow(/0005_post_trend_terms/);
     expect(() => planMigrationRun(entries, upToFourth)).toThrow(
-      /0006_trend_labels_and_bridged_identity/
+      /0006_trend_labels_and_bridged_identity/,
     );
   });
 });

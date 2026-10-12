@@ -61,7 +61,14 @@ jest.mock('@oxy.so/bloom/hooks', () => ({ useHaptics: () => jest.fn() }));
 jest.mock('@oxy.so/bloom/button', () => {
   const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
-    GlyphButton: ({ children, accessibilityLabel, disabled = false, busy = false, onPress, color }: {
+    GlyphButton: ({
+      children,
+      accessibilityLabel,
+      disabled = false,
+      busy = false,
+      onPress,
+      color,
+    }: {
       children: (foreground: string) => React.ReactNode;
       accessibilityLabel: string;
       disabled?: boolean;
@@ -258,7 +265,9 @@ function renderItem(
  * the toolbar decided not to render is not an affordance the author has.
  */
 function iconNames(tree: TestRenderer.ReactTestRenderer): string[] {
-  return tree.root.findAll((node) => iconName(node) !== undefined).map((node) => String(iconName(node)));
+  return tree.root
+    .findAll((node) => iconName(node) !== undefined)
+    .map((node) => String(iconName(node)));
 }
 
 function iconColor(tree: TestRenderer.ReactTestRenderer, name: string): unknown {
@@ -281,8 +290,9 @@ function control(tree: TestRenderer.ReactTestRenderer, label: string) {
 }
 
 beforeAll(() => {
-  (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
-    .IS_REACT_ACT_ENVIRONMENT = true;
+  (
+    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true;
 });
 
 describe('ComposeThreadItem — the per-entry controls a continuation carries', () => {
@@ -359,7 +369,9 @@ describe('ComposeThreadItem — the per-entry controls a continuation carries', 
 
       expect(tree.root.findAllByType(ScheduleIcon)).toHaveLength(0);
       expect(tree.root.findAllByType(ScheduleIconActive)).toHaveLength(0);
-      expect(iconNames(tree).filter((name) => /^(language(-outline)?|RiGlobalLine)$/.test(name))).toEqual([]);
+      expect(
+        iconNames(tree).filter((name) => /^(language(-outline)?|RiGlobalLine)$/.test(name)),
+      ).toEqual([]);
 
       // Not vacuous: the per-entry controls next to them ARE drawn. The lane one
       // appears in BOTH modes here because this case hands the item its handler

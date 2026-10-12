@@ -9,22 +9,18 @@
  *
  * ## Three traps this module is written against
  *
- * 1. **`$ne` against a possibly-absent value.** Mongo's `$ne` MATCHES a missing
- *    field and its `$expr: { $ne: [a, b] }` treats a missing `a` as null, so
- *    `{ $expr: { $ne: ['$outboxBackfill.outboxUrl', '$outboxUrl'] } }` selected
- *    every actor that had never been backfilled. SQL's `<>` yields NULL — not
- *    true — the moment either side is NULL, so the direct translation drops
- *    exactly the rows the predicate exists to find. Every such comparison below
+ * 1. **`<>` against a possibly-NULL value.** "the backfilled outbox URL differs
+ *    from the current one" must select every actor that has never been
+ *    backfilled. SQL's `<>` yields NULL — not true — the moment either side is
+ *    NULL, so a plain `<>` drops exactly the rows the predicate exists to find. Every such comparison below
  *    uses `IS DISTINCT FROM` / `IS NOT TRUE`, which are total.
- * 2. **NULL ordering is REVERSED between the two.** Mongo sorts a missing value
- *    FIRST on an ascending sort; Postgres sorts NULLs LAST. The backfill claim
+ * 2. **Postgres sorts NULLs LAST on an ascending sort.** The backfill claim
  *    orders by `outbox_backfill_last_run_at ASC` precisely so an actor that has
  *    never run is picked first, so it must say `NULLS FIRST` explicitly or the
  *    never-run actors are served last — starved behind every actor that has run
  *    at least once.
  * 3. **Drizzle keys `set()` by column PROPERTY and silently ignores an unknown
- *    key.** The Mongo writes this replaces were dot-path updates
- *    (`'outboxBackfill.status'`), and a leftover dot path handed to `set()`
+ *    key.** A nested dot path (`'outboxBackfill.status'`) handed to `set()`
  *    updates nothing and throws nothing — an outbox marked permanently
  *    unavailable would be re-fetched forever. Every write below builds a typed
  *    `Partial<typeof federatedActors.$inferInsert>`, so a stale property name
@@ -32,19 +28,30 @@
  *
  * A note on shape: an optional field is assembled as a PRESENT key holding
  * `undefined` rather than being omitted. Nothing here reaches a wire contract
- * (`JSON.stringify` drops `undefined`) or a Mongo update document, and every
+ * (`JSON.stringify` drops `undefined`), and every
  * reader is a property access, so the distinction is unobservable and the
  * assembly stays one flat object literal instead of fifteen conditional spreads.
  */
 
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, lte, ne, or, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { qualified } from '@oxy.so/db';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
-import {
-  federatedActorFields,
-  federatedActors,
-  federatedFollows,
-} from '../schema/federation';
+import { federatedActorFields, federatedActors, federatedFollows } from '../schema/federation';
 import type {
   FederatedActorField,
   FederatedActorRecord,
@@ -129,7 +136,11 @@ export async function findActorByUri(
   uri: string,
   db: DatabaseOrTransaction = getDb(),
 ): Promise<FederatedActorRecord | null> {
-  const [row] = await db.select().from(federatedActors).where(eq(federatedActors.uri, uri)).limit(1);
+  const [row] = await db
+    .select()
+    .from(federatedActors)
+    .where(eq(federatedActors.uri, uri))
+    .limit(1);
   return row ? assembleActorRecord(row) : null;
 }
 
@@ -147,9 +158,8 @@ export async function findActorById(
  *
  * `federated_actors.oxy_user_id` is NOT unique — a re-resolved actor can leave a
  * second row pointing at the same Oxy account — so this returns the most recently
- * fetched one, which is the row the resolver has been keeping current. Mongo's
- * `findOne` returned whatever the index scan reached first, which is the same
- * question answered arbitrarily rather than deliberately.
+ * fetched one, which is the row the resolver has been keeping current — answered
+ * deliberately rather than by whatever an index scan reaches first.
  */
 export async function findActorByOxyUserId(
   oxyUserId: string,
@@ -295,13 +305,18 @@ export async function findOtherActorHoldingHandle(
   const [row] = await db
     .select()
     .from(federatedActors)
-    .where(and(
-      or(
-        eq(federatedActors.acct, handle.acct),
-        and(eq(federatedActors.domain, handle.domain), eq(federatedActors.username, handle.username)),
+    .where(
+      and(
+        or(
+          eq(federatedActors.acct, handle.acct),
+          and(
+            eq(federatedActors.domain, handle.domain),
+            eq(federatedActors.username, handle.username),
+          ),
+        ),
+        ne(federatedActors.uri, exceptUri),
       ),
-      ne(federatedActors.uri, exceptUri),
-    ))
+    )
     .limit(1);
   return row ? assembleActorRecord(row) : null;
 }
@@ -336,10 +351,9 @@ export interface ActorScanFilter {
   /**
    * Every protocol EXCEPT this one.
    *
-   * Mongo's `{ protocol: { $ne: 'atproto' } }` also matched a row with NO
-   * `protocol` at all, which was the point — pre-atproto rows had none. The
+   * Pre-atproto rows carried no protocol; the
    * column is `NOT NULL DEFAULT 'activitypub'`, so `<> 'atproto'` is total here
-   * and covers that population; the `$ne`/`<>` asymmetry that bites elsewhere in
+   * and covers that population; the NULL `<>` trap that bites elsewhere in
    * this file does not, because there is no NULL to swallow the comparison.
    */
   protocolNot?: FederatedActorRecord['protocol'];
@@ -351,7 +365,6 @@ export interface ActorScanFilter {
   /**
    * Actors the remote reports as having no posts.
    *
-   * The Mongo filter was `$or: [{postsCount: 0}, {postsCount: {$exists: false}}]`.
    * `posts_count` is NULL when UNKNOWN, which is not "no posts", so `= 0`
    * deliberately matches only a reported zero.
    */
@@ -365,7 +378,8 @@ export interface ActorScanFilter {
 function scanClauses(filter: ActorScanFilter): SQL[] {
   const clauses: SQL[] = [];
   if (filter.protocol !== undefined) clauses.push(eq(federatedActors.protocol, filter.protocol));
-  if (filter.protocolNot !== undefined) clauses.push(ne(federatedActors.protocol, filter.protocolNot));
+  if (filter.protocolNot !== undefined)
+    clauses.push(ne(federatedActors.protocol, filter.protocolNot));
   if (filter.suspended !== undefined) clauses.push(eq(federatedActors.suspended, filter.suspended));
   if (filter.zeroPostsCount) clauses.push(eq(federatedActors.postsCount, 0));
   if (filter.uri !== undefined) clauses.push(eq(federatedActors.uri, filter.uri));
@@ -380,7 +394,9 @@ function scanClauses(filter: ActorScanFilter): SQL[] {
     clauses.push(and(isNotNull(federatedActors.oxyUserId), ne(federatedActors.oxyUserId, ''))!);
   }
   if (filter.uriOrAcct !== undefined) {
-    clauses.push(or(eq(federatedActors.uri, filter.uriOrAcct), eq(federatedActors.acct, filter.uriOrAcct))!);
+    clauses.push(
+      or(eq(federatedActors.uri, filter.uriOrAcct), eq(federatedActors.acct, filter.uriOrAcct))!,
+    );
   }
   return clauses;
 }
@@ -447,10 +463,8 @@ export async function loadActorFields(
  * The ActivityPub actor types the schema's CHECK constraint admits, and the one
  * anything else becomes.
  *
- * This narrowing has to happen, and it is the one place the port is not
- * behaviour-preserving — deliberately, because the alternative is worse. Mongoose
- * declared the same enum but `findOneAndUpdate` does not run validators, so the
- * upsert stored whatever string the remote sent: `type: "Bot"`, `"Hubzilla"`,
+ * This narrowing has to happen, because the alternative is worse. A remote can
+ * send any string as its type: `type: "Bot"`, `"Hubzilla"`,
  * anything. `federated_actors_type_check` rejects those, and a rejected upsert
  * fails `fetchRemoteActor`, which means the actor never resolves, no inbound
  * activity from that instance can ever be attributed, and the only symptom is
@@ -538,9 +552,8 @@ const REMOTE_COUNT_COLUMNS = ['followersCount', 'followingCount', 'postsCount'] 
  * list therefore CLEARS the links, which is what a profile that removed all of
  * them means — matching the `$set: { fields: [...] }` it replaces.
  *
- * Mongo's counterpart threw a duplicate-key error when a DIFFERENT uri already
- * held this `acct` (or `(domain, username)`); the unique constraints here raise
- * the same way, and the actor resolver's caller treats it as a failed resolution.
+ * When a DIFFERENT uri already holds this `acct` (or `(domain, username)`)
+ * the unique constraints raise a duplicate-key error, and the actor resolver's caller treats it as a failed resolution.
  * That is deliberate — silently taking the handle from another row would let one
  * remote instance hijack another's cached identity.
  */
@@ -891,7 +904,11 @@ export async function claimInstagramGraphSync(
       and(
         eq(federatedActors.id, actorId),
         isNotNull(federatedActors.oxyUserId),
-        instagramGraphDueSql({ due: cutoffs.cooldown, notBusiness: cutoffs.notBusiness, shortRetry: cutoffs.shortRetry }),
+        instagramGraphDueSql({
+          due: cutoffs.cooldown,
+          notBusiness: cutoffs.notBusiness,
+          shortRetry: cutoffs.shortRetry,
+        }),
         or(
           isNull(federatedActors.instagramGraphSyncStartedAt),
           lte(federatedActors.instagramGraphSyncStartedAt, cutoffs.staleLease),
@@ -945,7 +962,10 @@ export async function setActorRemoteCounts(
   if (counts.followingCount !== undefined) set.followingCount = counts.followingCount;
   if (counts.postsCount !== undefined) set.postsCount = counts.postsCount;
   if (Object.keys(set).length === 0) return;
-  await db.update(federatedActors).set({ ...set, updatedAt: new Date() }).where(eq(federatedActors.id, actorId));
+  await db
+    .update(federatedActors)
+    .set({ ...set, updatedAt: new Date() })
+    .where(eq(federatedActors.id, actorId));
 }
 
 /** An actor the periodic Instagram Graph sync may pick up. */
@@ -991,7 +1011,10 @@ export async function findInstagramGraphSyncCandidates(
         )`,
       ),
     )
-    .orderBy(sql`${federatedActors.instagramGraphSyncedAt} asc nulls first`, asc(federatedActors.id))
+    .orderBy(
+      sql`${federatedActors.instagramGraphSyncedAt} asc nulls first`,
+      asc(federatedActors.id),
+    )
     .limit(limit);
 }
 
@@ -1006,8 +1029,7 @@ export interface ActorTextPatch {
 /**
  * Rewrite an actor's normalized text, and its links' text, atomically.
  *
- * Addressed by POSITION rather than replacing the links wholesale, for the same
- * reason the Mongo counterpart used `fields.<n>.<key>` dot paths: `verified_at`
+ * Addressed by POSITION rather than replacing the links wholesale, because `verified_at`
  * on an untouched row must survive a normalization pass. A position with no row
  * simply updates nothing.
  *
@@ -1159,12 +1181,14 @@ export async function findActorsWithOutboxByUris(
   return rows.flatMap((row) =>
     row.outboxUrl === null
       ? []
-      : [{
-        uri: row.uri,
-        acct: row.acct,
-        outboxUrl: row.outboxUrl,
-        oxyUserId: optional(row.oxyUserId),
-      }],
+      : [
+          {
+            uri: row.uri,
+            acct: row.acct,
+            outboxUrl: row.outboxUrl,
+            oxyUserId: optional(row.oxyUserId),
+          },
+        ],
   );
 }
 
@@ -1180,16 +1204,14 @@ export interface OutboxBackfillCandidate extends OutboxSyncActorRef {
  *
  * Two total predicates carry the whole correctness of this query.
  *
- * `outbox_backfill_outbox_url IS DISTINCT FROM outbox_url` replaces
- * `{ $expr: { $ne: [...] } }`. It has to be `IS DISTINCT FROM` and not `<>`
+ * `outbox_backfill_outbox_url IS DISTINCT FROM outbox_url` has to be `IS DISTINCT FROM` and not `<>`
  * because the left side is NULL for every actor that has never been backfilled —
  * the largest group this is meant to select — and `NULL <> 'https://…'` is NULL,
  * which `WHERE` discards. With `<>` the job would only ever pick up actors whose
  * remote had MOVED its outbox.
  *
- * `ORDER BY outbox_backfill_last_run_at ASC NULLS FIRST` replaces Mongo's
- * `sort({'outboxBackfill.lastRunAt': 1})`. Mongo puts a missing value first;
- * Postgres puts NULL last. Without `NULLS FIRST` an actor that has never been
+ * `ORDER BY outbox_backfill_last_run_at ASC NULLS FIRST`: Postgres puts NULL
+ * last by default. Without `NULLS FIRST` an actor that has never been
  * backfilled sorts behind every actor that has, so on any instance with more
  * resolved actors than one batch, the ones that most need a first pass never get
  * one.
@@ -1226,14 +1248,16 @@ export async function findOutboxBackfillCandidates(
   return rows.flatMap((row) =>
     row.outboxUrl === null
       ? []
-      : [{
-        id: row.id,
-        uri: row.uri,
-        acct: row.acct,
-        outboxUrl: row.outboxUrl,
-        oxyUserId: optional(row.oxyUserId),
-        outboxBackfill: assembleOutboxBackfill(row),
-      }],
+      : [
+          {
+            id: row.id,
+            uri: row.uri,
+            acct: row.acct,
+            outboxUrl: row.outboxUrl,
+            oxyUserId: optional(row.oxyUserId),
+            outboxBackfill: assembleOutboxBackfill(row),
+          },
+        ],
   );
 }
 
@@ -1274,7 +1298,8 @@ function toBackfillColumns(patch: OutboxBackfillPatch): Partial<ActorInsert> {
   if (patch.cursorItemOffset !== undefined) {
     columns.outboxBackfillCursorItemOffset = patch.cursorItemOffset;
   }
-  if (patch.processedCount !== undefined) columns.outboxBackfillProcessedCount = patch.processedCount;
+  if (patch.processedCount !== undefined)
+    columns.outboxBackfillProcessedCount = patch.processedCount;
   if (patch.importedCount !== undefined) columns.outboxBackfillImportedCount = patch.importedCount;
   if (patch.existingCount !== undefined) columns.outboxBackfillExistingCount = patch.existingCount;
   if (patch.pageCount !== undefined) columns.outboxBackfillPageCount = patch.pageCount;

@@ -2,19 +2,10 @@
  * The recent-replier read model: the ≤3 newest DISTINCT public repliers per post,
  * newest first, used to render reply avatars on a feed card.
  *
- * ## `buildRecentReplierUpdatePipeline` is gone, and nothing replaces it
+ * ## One ROW per (post, replier)
  *
- * Mongo kept one document per post holding an ORDERED array with a `≤3`
- * validator, and maintaining it needed a hand-written aggregation update
- * pipeline — a `$let` over `$filter`/`$concatArrays`/`$slice` that spliced the
- * candidate into the array in place while preserving a NEWER existing entry from
- * the same user. That pipeline existed only because an array cannot be updated
- * any other way; with one ROW per (post, replier) there is nothing to splice.
- * `mergeRecentRepliers`, the pure reference implementation that existed to make
- * the pipeline testable in isolation, is gone with it — the behaviour it modelled
- * is now asserted against real rows.
- *
- * The three rules it encoded all survive, as SQL:
+ * With one row per (post, replier) there is no array to splice; the behaviour
+ * is asserted against real rows. The three rules, as SQL:
  *
  * - **Newest wins per user** — `greatest(excluded.replied_at, …)` in the upsert,
  *   so historical federation/backfill arriving out of order cannot demote a
@@ -104,7 +95,10 @@ export const ELIGIBLE_REPLY_MATCH = and(
  * Eligibility is only the floor: a caller showing them still applies its own
  * safety and audience rules.
  */
-export async function loadNewestEligibleReplies(postId: string, limit: number): Promise<PostRecord[]> {
+export async function loadNewestEligibleReplies(
+  postId: string,
+  limit: number,
+): Promise<PostRecord[]> {
   return findPostRecords(and(eq(posts.parentPostId, postId), ELIGIBLE_REPLY_MATCH), {
     orderBy: CHRONO_DESC,
     limit,
@@ -195,12 +189,7 @@ async function trimToLimit(postId: string, tx: Transaction): Promise<void> {
 
   await tx
     .delete(postRecentRepliers)
-    .where(
-      and(
-        eq(postRecentRepliers.postId, postId),
-        notInArray(postRecentRepliers.id, newest),
-      ),
-    );
+    .where(and(eq(postRecentRepliers.postId, postId), notInArray(postRecentRepliers.id, newest)));
 }
 
 /**
@@ -219,12 +208,7 @@ export async function recordRecentReplierForPost(reply: RecentReplyLike): Promis
   const repliedAt = validDate(reply.createdAt) ?? new Date();
 
   // Draft/private replies must never leak an avatar through this index.
-  if (
-    !postId ||
-    !oxyUserId ||
-    status !== 'published' ||
-    visibility !== PostVisibility.PUBLIC
-  ) {
+  if (!postId || !oxyUserId || status !== 'published' || visibility !== PostVisibility.PUBLIC) {
     return;
   }
 
@@ -327,10 +311,7 @@ export async function repairRecentRepliersAfterPostDelete(
       return;
     } catch (error) {
       lastError = error;
-      if (
-        attempt === MAX_PROJECTION_REPAIR_ATTEMPTS ||
-        !isRetryableProjectionConflict(error)
-      ) {
+      if (attempt === MAX_PROJECTION_REPAIR_ATTEMPTS || !isRetryableProjectionConflict(error)) {
         break;
       }
     }
@@ -350,9 +331,7 @@ export async function repairRecentRepliersAfterPostDelete(
  * so it is stated in SQL rather than inherited from the storage order an array
  * used to provide.
  */
-export async function loadRecentReplierIds(
-  postIds: string[],
-): Promise<RecentReplierProjection> {
+export async function loadRecentReplierIds(postIds: string[]): Promise<RecentReplierProjection> {
   const perPostRepliers = new Map<string, string[]>();
   const allReplierIds = new Set<string>();
   const uniquePostIds = [...new Set(postIds.map(String).filter(Boolean))];
@@ -382,8 +361,7 @@ export async function loadRecentReplierIds(
       // existed — or by a concurrent trim — must not widen the page's avatar row.
       if (existing.length >= POST_RECENT_REPLIER_LIMIT) continue;
       // No de-duplication pass: `post_recent_repliers_post_id_oxy_user_id_key`
-      // makes a repeated author for one post unrepresentable, where the Mongo
-      // array could hold one.
+      // makes a repeated author for one post unrepresentable.
       existing.push(row.oxyUserId);
       perPostRepliers.set(row.postId, existing);
       allReplierIds.add(row.oxyUserId);

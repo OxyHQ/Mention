@@ -1,9 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import {
-  config,
-  getGifMediaProxySecret,
-  getMentionSigningValues,
-} from '../../config';
+import { config, getGifMediaProxySecret, getMentionSigningValues } from '../../config';
 import { logger } from '../../utils/logger';
 
 /**
@@ -139,7 +135,8 @@ export function signGifMediaUrl(upstreamUrl: string): string | null {
 export function verifyGifMediaRequest(u: unknown, s: unknown): string | null {
   const key = resolveSigningKey();
   if (!key) return null;
-  if (typeof u !== 'string' || typeof s !== 'string' || u.length === 0 || s.length === 0) return null;
+  if (typeof u !== 'string' || typeof s !== 'string' || u.length === 0 || s.length === 0)
+    return null;
 
   const upstreamUrl = Buffer.from(u, 'base64url').toString('utf8');
   if (!isAllowedKlipyHost(upstreamUrl)) return null;
@@ -160,6 +157,9 @@ export function unwrapGifMediaUrl(maybeProxyUrl: string): string {
   if (!maybeProxyUrl || !URL.canParse(maybeProxyUrl)) return maybeProxyUrl;
   const parsed = new URL(maybeProxyUrl);
   if (parsed.pathname !== GIF_MEDIA_PROXY_PATH) return maybeProxyUrl;
-  const upstreamUrl = verifyGifMediaRequest(parsed.searchParams.get('u'), parsed.searchParams.get('s'));
+  const upstreamUrl = verifyGifMediaRequest(
+    parsed.searchParams.get('u'),
+    parsed.searchParams.get('s'),
+  );
   return upstreamUrl ?? maybeProxyUrl;
 }

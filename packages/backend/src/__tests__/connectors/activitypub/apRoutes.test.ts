@@ -22,7 +22,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * That distinction is the whole reason for the rewrite. The previous version
  * mocked `Post.find` and asserted the FILTER OBJECT (`parentPostId: null`,
  * `$or: …`), which cannot tell a correct query from one that matches nothing —
- * and pinned a Mongo spelling that has since become SQL, so it would go red on a
+ * and pinned a legacy-store spelling that has since become SQL, so it would go red on a
  * correct port and green on a broken one. Two user-visible bugs live exactly
  * there and are now covered by rows:
  *
@@ -117,11 +117,7 @@ import { PostVisibility } from '@mention/shared-types';
 import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
 import { posts } from '../../../db/schema/posts';
 import { userSettings } from '../../../db/schema/userProfile';
-import {
-  clearFederationScope,
-  federationScope,
-  seedPost,
-} from '../../helpers/federationFixtures';
+import { clearFederationScope, federationScope, seedPost } from '../../helpers/federationFixtures';
 import type { PostRecord } from '../../../db/posts/postRecord';
 import apRoutes from '../../../connectors/activitypub/routes/ap.routes';
 import { actorRouter } from '../../../connectors/activitypub/routes/engine.routes';
@@ -146,7 +142,9 @@ async function setBanner(profileHeaderImage: string | null): Promise<void> {
 }
 
 /** A post owned by ALICE — the outbox/featured/dereference subject. */
-async function alicePost(overrides: Partial<Parameters<typeof seedPost>[1]> = {}): Promise<PostRecord> {
+async function alicePost(
+  overrides: Partial<Parameters<typeof seedPost>[1]> = {},
+): Promise<PostRecord> {
   return seedPost(scope, { oxyUserId: ALICE, ...overrides });
 }
 
@@ -208,7 +206,7 @@ describe('GET /ap/users/:username — actor image (banner)', () => {
 
   it('advertises the banner as AP image when the user has a profileHeaderImage', async () => {
     // A REAL `user_settings` row. Under the previous mock this passed while the
-    // production read went to a Mongoose model nothing writes any more, so every
+    // production read went to a legacy-ODM model nothing writes any more, so every
     // actor JSON omitted `image` and no banner ever reached Mastodon.
     await setBanner('banner-id');
     mocks.resolveMediaRef.mockReturnValue({ url: 'https://cloud.oxy.so/banner-id' });
@@ -298,10 +296,12 @@ describe('GET /ap/users/:username/outbox?page=true — reuses buildCreateNoteAct
     );
     expect(res.body.type).toBe('OrderedCollectionPage');
     // Newest first, and the ids are the ones actually stored.
-    expect(res.body.orderedItems.map((item: { object: { id: string } }) => item.object.id)).toEqual([
-      `https://mention.earth/ap/users/alice/posts/${newer.id}`,
-      `https://mention.earth/ap/users/alice/posts/${older.id}`,
-    ]);
+    expect(res.body.orderedItems.map((item: { object: { id: string } }) => item.object.id)).toEqual(
+      [
+        `https://mention.earth/ap/users/alice/posts/${newer.id}`,
+        `https://mention.earth/ap/users/alice/posts/${older.id}`,
+      ],
+    );
     expect(res.body.totalItems).toBe(2);
     // A page that does not overfetch past the window has no further page.
     expect(res.body.next).toBeUndefined();
@@ -320,15 +320,15 @@ describe('GET /ap/users/:username/outbox?page=true — reuses buildCreateNoteAct
       .set('Accept', AP_ACCEPT)
       .expect(200);
 
-    expect(res.body.orderedItems.map((item: { object: { id: string } }) => item.object.id)).toEqual([
-      `https://mention.earth/ap/users/alice/posts/${published.id}`,
-    ]);
+    expect(res.body.orderedItems.map((item: { object: { id: string } }) => item.object.id)).toEqual(
+      [`https://mention.earth/ap/users/alice/posts/${published.id}`],
+    );
   });
 
   it('never publishes an ORPHANED REPLY as a top-level Note', async () => {
     // `parent_post_id` is `ON DELETE SET NULL`, so deleting the parent leaves a
     // reply whose parent id is NULL while `is_reply` stays true. Scoping the
-    // outbox on `parent_post_id IS NULL` — the literal translation of the Mongo
+    // outbox on `parent_post_id IS NULL` — the literal translation of the legacy-store
     // filter — publishes it to the fediverse as if the author had posted it on
     // its own. `is_reply = false` is what prevents that, and this is the only
     // test that can tell the two predicates apart.
@@ -490,9 +490,9 @@ describe('GET /ap/users/:username/outbox?page=true — keyset pagination', () =>
       .set('Accept', AP_ACCEPT)
       .expect(200);
 
-    expect(res.body.orderedItems.map((item: { object: { id: string } }) => item.object.id)).toEqual([
-      post.id,
-    ]);
+    expect(res.body.orderedItems.map((item: { object: { id: string } }) => item.object.id)).toEqual(
+      [post.id],
+    );
   });
 });
 
@@ -550,7 +550,10 @@ describe('GET /ap/users/:username/collections/featured — pinned posts', () => 
 
   it('404s an unknown user', async () => {
     mocks.resolveOxyUser.mockResolvedValue(null);
-    await request(app).get('/ap/users/ghost/collections/featured').set('Accept', AP_ACCEPT).expect(404);
+    await request(app)
+      .get('/ap/users/ghost/collections/featured')
+      .set('Accept', AP_ACCEPT)
+      .expect(404);
     expect(mocks.buildCreateNoteActivity).not.toHaveBeenCalled();
   });
 });
@@ -580,7 +583,7 @@ describe('an author surface filters on the AUTHOR and nothing else', () => {
    * captured query object: the scope is shared between the count, the page window
    * and the featured collection precisely so they cannot drift, and a query
    * assertion for each would be three separate claims about three separate
-   * strings (and would pin a Mongo spelling that is SQL now).
+   * strings (and would pin a legacy-store spelling that is SQL now).
    */
   const CHANNEL = scope.user('the-daily');
 
@@ -650,7 +653,10 @@ describe('GET /ap/users/:username/followers — Oxy follow graph (local + federa
   });
 
   it('summary advertises the true Oxy count as totalItems + a first page link, without hitting the graph list', async () => {
-    const res = await request(app).get('/ap/users/alice/followers').set('Accept', AP_ACCEPT).expect(200);
+    const res = await request(app)
+      .get('/ap/users/alice/followers')
+      .set('Accept', AP_ACCEPT)
+      .expect(200);
 
     expect(res.body.type).toBe('OrderedCollection');
     expect(res.body.id).toBe('https://mention.earth/ap/users/alice/followers');
@@ -666,7 +672,10 @@ describe('GET /ap/users/:username/followers — Oxy follow graph (local + federa
     mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1' }); // no `_count` (rare resolution fallback)
     mocks.getUserFollowers.mockResolvedValue({ followers: [], total: 9, hasMore: false });
 
-    const res = await request(app).get('/ap/users/alice/followers').set('Accept', AP_ACCEPT).expect(200);
+    const res = await request(app)
+      .get('/ap/users/alice/followers')
+      .set('Accept', AP_ACCEPT)
+      .expect(200);
 
     // A minimal (limit 1) graph call resolves the authoritative total.
     expect(mocks.getUserFollowers).toHaveBeenCalledWith('u1', { limit: 1, offset: 0 });
@@ -708,7 +717,9 @@ describe('GET /ap/users/:username/followers — Oxy follow graph (local + federa
       'https://remote.example/users/carol',
     ]);
     // `hasMore` from the Oxy list drives an offset-based `next`.
-    expect(res.body.next).toBe('https://mention.earth/ap/users/alice/followers?page=true&offset=20');
+    expect(res.body.next).toBe(
+      'https://mention.earth/ap/users/alice/followers?page=true&offset=20',
+    );
   });
 
   it('follows an `offset` param into the graph query and self-references the page id, no `next` when the graph reports no more', async () => {
@@ -742,7 +753,10 @@ describe('GET /ap/users/:username/followers — Oxy follow graph (local + federa
       hasMore: false,
     });
 
-    const res = await request(app).get('/ap/users/alice/followers?page=true').set('Accept', AP_ACCEPT).expect(200);
+    const res = await request(app)
+      .get('/ap/users/alice/followers?page=true')
+      .set('Accept', AP_ACCEPT)
+      .expect(200);
 
     expect(res.body.orderedItems).toEqual(['https://mention.earth/ap/users/bob']);
   });
@@ -751,7 +765,10 @@ describe('GET /ap/users/:username/followers — Oxy follow graph (local + federa
     mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1', _count: { followers: 5 } });
     mocks.getUserFollowers.mockRejectedValue(new Error('oxy down'));
 
-    const res = await request(app).get('/ap/users/alice/followers?page=true').set('Accept', AP_ACCEPT).expect(200);
+    const res = await request(app)
+      .get('/ap/users/alice/followers?page=true')
+      .set('Accept', AP_ACCEPT)
+      .expect(200);
 
     expect(res.body.type).toBe('OrderedCollectionPage');
     expect(res.body.orderedItems).toEqual([]);
@@ -772,7 +789,10 @@ describe('GET /ap/users/:username/following — Oxy follow graph (local + federa
   });
 
   it('summary advertises the true Oxy following count + a first page link', async () => {
-    const res = await request(app).get('/ap/users/alice/following').set('Accept', AP_ACCEPT).expect(200);
+    const res = await request(app)
+      .get('/ap/users/alice/following')
+      .set('Accept', AP_ACCEPT)
+      .expect(200);
 
     expect(res.body.type).toBe('OrderedCollection');
     expect(res.body.first).toBe('https://mention.earth/ap/users/alice/following?page=true');
@@ -868,7 +888,7 @@ describe('GET /ap/users/:username/posts/:id — dereference', () => {
     expect(mocks.buildCreateNoteActivity).not.toHaveBeenCalled();
   });
 
-  it("404s a post owned by someone else, even though it is public and published", async () => {
+  it('404s a post owned by someone else, even though it is public and published', async () => {
     const post = await alicePost({ oxyUserId: scope.user('mallory') });
 
     await request(app).get(`/ap/users/alice/posts/${post.id}`).set('Accept', AP_ACCEPT).expect(404);
@@ -881,7 +901,10 @@ describe('GET /ap/users/:username/posts/:id — dereference', () => {
     const reply = await alicePost({ parentPostId: parent.id, isReply: true });
     stubBuilder(reply);
 
-    await request(app).get(`/ap/users/alice/posts/${reply.id}`).set('Accept', AP_ACCEPT).expect(200);
+    await request(app)
+      .get(`/ap/users/alice/posts/${reply.id}`)
+      .set('Accept', AP_ACCEPT)
+      .expect(200);
   });
 
   it('passes the resolved reply context into the Note builder for a reply post', async () => {
@@ -894,11 +917,16 @@ describe('GET /ap/users/:username/posts/:id — dereference', () => {
     };
     mocks.resolveReplyContext.mockResolvedValue(replyContext);
 
-    await request(app).get(`/ap/users/alice/posts/${reply.id}`).set('Accept', AP_ACCEPT).expect(200);
+    await request(app)
+      .get(`/ap/users/alice/posts/${reply.id}`)
+      .set('Accept', AP_ACCEPT)
+      .expect(200);
 
     // The route resolves the reply addressing from the SERVED row and threads it
     // into the pure Note builder as the third argument.
-    expect(mocks.resolveReplyContext).toHaveBeenCalledWith(expect.objectContaining({ id: reply.id }));
+    expect(mocks.resolveReplyContext).toHaveBeenCalledWith(
+      expect.objectContaining({ id: reply.id }),
+    );
     expect(mocks.buildCreateNoteActivity).toHaveBeenCalledWith(
       expect.objectContaining({ id: reply.id }),
       'alice',

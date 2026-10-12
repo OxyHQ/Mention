@@ -4,12 +4,12 @@ import { Redirect, router, type Href } from 'expo-router';
 
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import {
-    ProfileShell,
-    ProfileTabBarRow,
-    laneTabKey,
-    usePersonProfileView,
-    type ProfileScreenProps,
-    type ProfileTabDescriptor,
+  ProfileShell,
+  ProfileTabBarRow,
+  laneTabKey,
+  usePersonProfileView,
+  type ProfileScreenProps,
+  type ProfileTabDescriptor,
 } from './Profile';
 
 /**
@@ -33,70 +33,85 @@ import {
  * renders only the tab's CONTENT, and everything above it comes from the
  * `[username]` layout.
  */
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, tab = 'posts', laneId, isRootTab = false }) => {
-    // Active tab — local state so switching tabs does not remount the page.
-    // Held as the tab's KEY, not its index: the strip's length depends on how
-    // many lanes the publisher has, so an index means a different tab before and
-    // after that list loads. A lane deep link therefore paints `posts` for one
-    // frame and settles on the lane once its key resolves.
-    const [activeTabKey, setActiveTabKey] = useState<string>(
-        () => (laneId ? laneTabKey(laneId) : tab),
-    );
+const ProfileScreen: React.FC<ProfileScreenProps> = ({
+  username,
+  tab = 'posts',
+  laneId,
+  isRootTab = false,
+}) => {
+  // Active tab — local state so switching tabs does not remount the page.
+  // Held as the tab's KEY, not its index: the strip's length depends on how
+  // many lanes the publisher has, so an index means a different tab before and
+  // after that list loads. A lane deep link therefore paints `posts` for one
+  // frame and settles on the lane once its key resolves.
+  const [activeTabKey, setActiveTabKey] = useState<string>(() =>
+    laneId ? laneTabKey(laneId) : tab,
+  );
 
-    // The strip owns the selection and the URL follows it: `replace`, so the
-    // page is deep-linkable and shareable without a history entry per tab.
-    // WEB does the opposite — there the route owns the selection and each tab
-    // is pushed, which is what makes Back return to the tab you came from. It
-    // can, because there the strip outlives the navigation; here it does not.
-    const onSelectTab = useCallback((descriptor: ProfileTabDescriptor, href: Href) => {
-        setActiveTabKey(descriptor.key);
-        router.replace(href);
-    }, []);
+  // The strip owns the selection and the URL follows it: `replace`, so the
+  // page is deep-linkable and shareable without a history entry per tab.
+  // WEB does the opposite — there the route owns the selection and each tab
+  // is pushed, which is what makes Back return to the tab you came from. It
+  // can, because there the strip outlives the navigation; here it does not.
+  const onSelectTab = useCallback((descriptor: ProfileTabDescriptor, href: Href) => {
+    setActiveTabKey(descriptor.key);
+    router.replace(href);
+  }, []);
 
-    const view = usePersonProfileView({ activeKey: activeTabKey, onSelectTab, username });
+  const view = usePersonProfileView({ activeKey: activeTabKey, onSelectTab, username });
 
-    // A channel account's page is `/c/<handle>`. Sitting on `/@<handle>` for one
-    // is a URL nobody should keep — a post row links every author to `/@`, since
-    // the DTO says nothing about account kind, so this is how a reader reaches a
-    // channel at all. The rule itself lives in `profileRoute.ts`, shared with the
-    // channel screen so the two can never disagree about which way to send.
-    if (view.canonicalHref) {
-        return <Redirect href={view.canonicalHref} />;
-    }
+  // A channel account's page is `/c/<handle>`. Sitting on `/@<handle>` for one
+  // is a URL nobody should keep — a post row links every author to `/@`, since
+  // the DTO says nothing about account kind, so this is how a reader reaches a
+  // channel at all. The rule itself lives in `profileRoute.ts`, shared with the
+  // channel screen so the two can never disagree about which way to send.
+  if (view.canonicalHref) {
+    return <Redirect href={view.canonicalHref} />;
+  }
 
-    const tabBar = (
-        <ProfileTabBarRow showLanes={view.isOwnProfile}>
-            <Tabs value={view.activeDescriptor?.key ?? 'posts'} onValueChange={view.selectTab} variant="underline">{(view.tabDescriptors.map((descriptor) => ({
-                    id: descriptor.key,
-                    label: descriptor.label,
-                }))).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
-        </ProfileTabBarRow>
-    );
+  const tabBar = (
+    <ProfileTabBarRow showLanes={view.isOwnProfile}>
+      <Tabs
+        value={view.activeDescriptor?.key ?? 'posts'}
+        onValueChange={view.selectTab}
+        variant="underline"
+      >
+        {view.tabDescriptors
+          .map((descriptor) => ({
+            id: descriptor.key,
+            label: descriptor.label,
+          }))
+          .map((tab: { id: string; label: string; count?: number }) => (
+            <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
+          ))}
+      </Tabs>
+    </ProfileTabBarRow>
+  );
 
-    return (
-        <>
-            {/* `web:z-auto` so this profile wrapper does not become its own
+  return (
+    <>
+      {/* `web:z-auto` so this profile wrapper does not become its own
                 stacking context and trap the sticky header chrome below the
                 panel's bleed-mask/border overlays (see ProfileShell's root for
                 the full rationale). No effect on native. */}
-            <View className="flex-1 web:z-auto">
-                {view.seo}
-                <ProfileShell
-                    chrome={view.chrome}
-                    loading={view.loading}
-                    profileData={view.profileData}
-                    notFound={view.notFound}
-                    onRetry={view.refresh}
-                    banner={{ uri: view.bannerUri }}
-                    headerActions={view.headerActions}
-                    summary={view.summary}
-                    tabBar={tabBar}
-                    tabs={view.tabs}
-                    isRootTab={isRootTab}
-                />
-            </View>
-        </>
-    );
+      <View className="flex-1 web:z-auto">
+        {view.seo}
+        <ProfileShell
+          chrome={view.chrome}
+          loading={view.loading}
+          profileData={view.profileData}
+          notFound={view.notFound}
+          onRetry={view.refresh}
+          banner={{ uri: view.bannerUri }}
+          headerActions={view.headerActions}
+          summary={view.summary}
+          tabBar={tabBar}
+          tabs={view.tabs}
+          isRootTab={isRootTab}
+        />
+      </View>
+    </>
+  );
 };
 
 export default ProfileScreen;

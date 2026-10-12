@@ -15,12 +15,8 @@ describe('viewer-owned engagement queue persistence', () => {
   };
 
   it('uses a distinct encoded storage namespace for every viewer', () => {
-    expect(engagementQueueStorageKey('viewer/a')).toBe(
-      'mention-engagement-queue:v2:viewer%2Fa',
-    );
-    expect(engagementQueueStorageKey('viewer/a')).not.toBe(
-      engagementQueueStorageKey('viewer-b'),
-    );
+    expect(engagementQueueStorageKey('viewer/a')).toBe('mention-engagement-queue:v2:viewer%2Fa');
+    expect(engagementQueueStorageKey('viewer/a')).not.toBe(engagementQueueStorageKey('viewer-b'));
   });
 
   it('round-trips only when the envelope owner matches the active viewer', () => {
@@ -31,9 +27,7 @@ describe('viewer-owned engagement queue persistence', () => {
   });
 
   it('rejects the legacy ownerless payload instead of guessing an identity', () => {
-    expect(
-      parseEngagementQueue<TestUpdate>(JSON.stringify(updates), 'viewer-a'),
-    ).toBeNull();
+    expect(parseEngagementQueue<TestUpdate>(JSON.stringify(updates), 'viewer-a')).toBeNull();
   });
 
   it('rejects malformed payloads', () => {

@@ -26,9 +26,8 @@
  * the newest recorded `created_at`" rule — so a database migrated by either is
  * understood by the other.
  *
- * THIS IS THE ONLY MIGRATION MECHANISM. A separate data-migration runner used to
- * sit beside it for the Mongo store, with its own ledger; both are gone, and a
- * schema change now goes through `drizzle/` and this file and nothing else.
+ * THIS IS THE ONLY MIGRATION MECHANISM. A schema change goes through `drizzle/`
+ * and this file and nothing else.
  *
  * DRY RUN. `DRY_RUN=true` reports which migrations WOULD be applied and writes
  * nothing — not even the ledger table.
@@ -85,7 +84,7 @@ async function main(): Promise<void> {
   if (!url) {
     throw new Error(
       'DATABASE_URL is not set. Start a local Postgres with: ' +
-      'docker compose -f docker-compose.postgres.yml up -d postgres'
+        'docker compose -f docker-compose.postgres.yml up -d postgres',
     );
   }
 
@@ -124,7 +123,7 @@ async function main(): Promise<void> {
     if (dryRun) {
       logger.info(
         `DRY RUN — ${pending.length} migration(s) would be applied; nothing was written`,
-        { pending: tags, journalEntries: entries.length }
+        { pending: tags, journalEntries: entries.length },
       );
       return;
     }
@@ -153,7 +152,7 @@ async function main(): Promise<void> {
     if (remaining.length > 0) {
       throw new Error(
         `Migration reported success but ${remaining.length} migration(s) are still ` +
-        `pending: ${remaining.map((entry) => entry.tag).join(', ')}`
+          `pending: ${remaining.map((entry) => entry.tag).join(', ')}`,
       );
     }
 

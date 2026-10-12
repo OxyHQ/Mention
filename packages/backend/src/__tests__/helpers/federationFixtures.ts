@@ -2,7 +2,7 @@
  * Real `federated_actors` / `federated_follows` / `posts` rows for the
  * federation suites.
  *
- * These suites used to mock the Mongoose models, which meant every assertion
+ * These suites used to mock the legacy-ODM models, which meant every assertion
  * about an actor or a follow edge was an assertion about the mock: a test could
  * say "the inbound Follow was recorded" while the only thing it observed was
  * that `findOneAndUpdate` had been CALLED. Both tables are Postgres now, so the
@@ -22,7 +22,11 @@ import { eq, inArray, like, or } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { getDb } from '../../db/postgres';
 import { lanes } from '../../db/schema/channels';
-import { federatedActorFields, federatedActors, federatedFollows } from '../../db/schema/federation';
+import {
+  federatedActorFields,
+  federatedActors,
+  federatedFollows,
+} from '../../db/schema/federation';
 import { assembleActorRecord } from '../../db/federation/actorRepository';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
 import { deletePostRecord, insertPostRecord } from '../../db/posts/postRepository';

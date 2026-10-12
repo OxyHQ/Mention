@@ -39,11 +39,13 @@ export function VideoReplies({ postId, onClose, onCommentPosted }: VideoRepliesP
   return (
     <View style={styles.container}>
       <View style={styles.header} className="border-b border-border">
-        <Text style={[styles.title, { color: theme.colors.text }]}>
-          {t('videos.replies')}
-        </Text>
+        <Text style={[styles.title, { color: theme.colors.text }]}>{t('videos.replies')}</Text>
         {onClose && (
-          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={t('common.close', { defaultValue: 'Close' })}>
+          <Pressable
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+          >
             <RiCloseLine width={22} height={22} fill={theme.colors.text} />
           </Pressable>
         )}

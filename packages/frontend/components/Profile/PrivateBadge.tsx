@@ -9,9 +9,7 @@ import type { PrivateBadgeProps } from './types';
  * Private profile indicator badge
  * Shows lock icon with privacy level text
  */
-export const PrivateBadge = memo(function PrivateBadge({
-  privacySettings,
-}: PrivateBadgeProps) {
+export const PrivateBadge = memo(function PrivateBadge({ privacySettings }: PrivateBadgeProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const isFollowersOnly = privacySettings?.profileVisibility === 'followers_only';
@@ -20,9 +18,7 @@ export const PrivateBadge = memo(function PrivateBadge({
     <View className="flex-row items-center self-start rounded-xl px-1.5 py-0.5 gap-1 mt-1 mb-1 bg-muted">
       <RiLockLine size="xs" fill={theme.colors.textSecondary} />
       <Text className="text-muted-foreground text-xs font-medium">
-        {isFollowersOnly
-          ? t('settings.privacy.followersOnly')
-          : t('settings.privacy.private')}
+        {isFollowersOnly ? t('settings.privacy.followersOnly') : t('settings.privacy.private')}
       </Text>
     </View>
   );

@@ -20,9 +20,7 @@ const mockDb = {
     }
     return { changes: 1, lastInsertRowId: 0 };
   }),
-  getFirstSync: jest.fn(() =>
-    mockOwner === null ? null : { value: mockOwner },
-  ),
+  getFirstSync: jest.fn(() => (mockOwner === null ? null : { value: mockOwner })),
   getAllSync: jest.fn(() => []),
   closeSync: jest.fn(),
 };
@@ -39,10 +37,7 @@ jest.mock('../memoryStore', () => ({
 const mockGetDb = getDb as jest.Mock;
 const mockResetDb = resetDb as jest.Mock;
 const mockMemClearAll = memClearAll as jest.Mock;
-const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(
-  globalThis,
-  'localStorage',
-);
+const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
 
 describe('viewer-owned cache lifecycle', () => {
   beforeEach(() => {
@@ -54,11 +49,7 @@ describe('viewer-owned cache lifecycle', () => {
 
   afterEach(() => {
     if (originalLocalStorageDescriptor) {
-      Object.defineProperty(
-        globalThis,
-        'localStorage',
-        originalLocalStorageDescriptor,
-      );
+      Object.defineProperty(globalThis, 'localStorage', originalLocalStorageDescriptor);
     } else {
       Reflect.deleteProperty(globalThis, 'localStorage');
     }
@@ -84,9 +75,7 @@ describe('viewer-owned cache lifecycle', () => {
 
     expect(mockMemClearAll).toHaveBeenCalledTimes(1);
     expect(mockDb.execSync).toHaveBeenNthCalledWith(1, 'BEGIN IMMEDIATE');
-    expect(mockDb.execSync.mock.calls[1]?.[0]).toContain(
-      'DELETE FROM posts',
-    );
+    expect(mockDb.execSync.mock.calls[1]?.[0]).toContain('DELETE FROM posts');
     expect(mockDb.execSync).toHaveBeenLastCalledWith('COMMIT');
     expect(mockOwner).toBe('viewer-b');
   });
@@ -118,9 +107,7 @@ describe('viewer-owned cache lifecycle', () => {
   });
 
   it('uses the persisted browser owner when SQLite is unavailable', () => {
-    const values = new Map<string, string>([
-      ['mention.viewer-cache-owner.v1', 'viewer-a'],
-    ]);
+    const values = new Map<string, string>([['mention.viewer-cache-owner.v1', 'viewer-a']]);
     const browserStorage = {
       getItem: jest.fn((key: string) => values.get(key) ?? null),
       setItem: jest.fn((key: string, value: string) => {

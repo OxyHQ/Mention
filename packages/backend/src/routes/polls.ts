@@ -19,4 +19,4 @@ router.delete('/:id', pollsController.deletePoll);
 // Update a poll's post ID
 router.post('/:id/update-post', pollsController.updatePollPostId);
 
-export default router; 
+export default router;

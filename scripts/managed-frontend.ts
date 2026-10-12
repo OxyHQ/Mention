@@ -1,5 +1,8 @@
 import { fileURLToPath } from 'node:url';
-import { frontendDeploymentEnvironment, readManagedDeployment } from '../packages/shared-types/src/deployment';
+import {
+  frontendDeploymentEnvironment,
+  readManagedDeployment,
+} from '../packages/shared-types/src/deployment';
 
 const deployment = readManagedDeployment(process.env);
 if (!deployment) throw new Error('MENTION_DEPLOYMENT_CONFIG is required');
@@ -9,7 +12,9 @@ if (command === '--print-env') {
   process.stdout.write(`${JSON.stringify(publicEnvironment, null, 2)}\n`);
 } else if (command === '--build') {
   if (!process.env.EXPO_PUBLIC_OXY_CLIENT_ID) {
-    throw new Error('EXPO_PUBLIC_OXY_CLIENT_ID must identify the registered tenant OAuth application');
+    throw new Error(
+      'EXPO_PUBLIC_OXY_CLIENT_ID must identify the registered tenant OAuth application',
+    );
   }
   // Do not pass database, cloud, service credentials or the server manifest to Expo.
   const environment: Record<string, string> = { NODE_ENV: 'production' };
@@ -22,7 +27,9 @@ if (command === '--print-env') {
   const result = Bun.spawnSync(['bun', 'run', 'build:frontend'], {
     cwd: fileURLToPath(new URL('..', import.meta.url)),
     env: { ...environment, ...publicEnvironment },
-    stdin: 'inherit', stdout: 'inherit', stderr: 'inherit',
+    stdin: 'inherit',
+    stdout: 'inherit',
+    stderr: 'inherit',
   });
   process.exitCode = result.exitCode;
 } else {

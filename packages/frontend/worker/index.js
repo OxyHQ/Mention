@@ -36,7 +36,7 @@ import { observeEdgeRequest } from '@oxy.so/telemetry/edge';
  * shared secret; the name is public and carries nothing on its own. Compared
  * lowercase because `Headers.get` is case-insensitive but the literal here is not.
  */
-const SHELL_ACCESS_HEADER = "x-mention-shell-key";
+const SHELL_ACCESS_HEADER = 'x-mention-shell-key';
 
 const encoder = new TextEncoder();
 
@@ -60,8 +60,8 @@ function denial(status, body) {
   return new Response(body, {
     status,
     headers: {
-      "Content-Type": "text/plain; charset=utf-8",
-      "Cache-Control": "no-store",
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'no-store',
     },
   });
 }
@@ -73,15 +73,36 @@ const assetWorker = {
       // Loud and distinct from 403: this is the deployment being wrong, not the
       // caller. `deploy-frontends.yml` asserts the secret before it promotes a
       // version, so reaching this in production means that assertion was removed.
-      return observeEdgeRequest({ service: 'mention', request, env, ctx, next: () => Promise.resolve(denial(503, 'Shell access key is not configured on this Worker.')) });
+      return observeEdgeRequest({
+        service: 'mention',
+        request,
+        env,
+        ctx,
+        next: () =>
+          Promise.resolve(denial(503, 'Shell access key is not configured on this Worker.')),
+      });
     }
 
     const presented = request.headers.get(SHELL_ACCESS_HEADER);
     if (!presented || !keyMatches(presented, configured)) {
-      return observeEdgeRequest({ service: 'mention', request, env, ctx, next: () => Promise.resolve(denial(403, 'Not accessible directly. Use https://mention.earth.')) });
+      return observeEdgeRequest({
+        service: 'mention',
+        request,
+        env,
+        ctx,
+        next: () =>
+          Promise.resolve(denial(403, 'Not accessible directly. Use https://mention.earth.')),
+      });
     }
 
-    return observeEdgeRequest({ service: 'mention', request, env, ctx, peer: { service: 'mention' }, next: () => env.ASSETS.fetch(request) });
+    return observeEdgeRequest({
+      service: 'mention',
+      request,
+      env,
+      ctx,
+      peer: { service: 'mention' },
+      next: () => env.ASSETS.fetch(request),
+    });
   },
 };
 

@@ -71,10 +71,7 @@ export async function loadVolumeSeries(
         volumes: sql<number[]>`array_agg(${trending.volume} order by ${trending.calculatedAt})`,
       })
       .from(trending)
-      .where(and(
-        inArray(trending.name, names),
-        gte(trending.calculatedAt, cutoff),
-      ))
+      .where(and(inArray(trending.name, names), gte(trending.calculatedAt, cutoff)))
       .groupBy(trending.name);
 
     for (const row of rows) {

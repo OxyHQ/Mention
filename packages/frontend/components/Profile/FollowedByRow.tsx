@@ -24,7 +24,10 @@ interface FollowedByRowProps {
  * {@link useMutualFollowers}). Tapping the row opens the connections screen on
  * the "In common" tab.
  */
-export const FollowedByRow = memo(function FollowedByRow({ profileId, username }: FollowedByRowProps) {
+export const FollowedByRow = memo(function FollowedByRow({
+  profileId,
+  username,
+}: FollowedByRowProps) {
   const { t } = useTranslation();
   const { mutuals, total, isPending } = useMutualFollowers(profileId);
 
@@ -47,7 +50,9 @@ export const FollowedByRow = memo(function FollowedByRow({ profileId, username }
   }
 
   const name1 = displayNameOrHandle(mutuals[0].name.displayName, mutuals[0].username);
-  const name2 = mutuals[1] ? displayNameOrHandle(mutuals[1].name.displayName, mutuals[1].username) : undefined;
+  const name2 = mutuals[1]
+    ? displayNameOrHandle(mutuals[1].name.displayName, mutuals[1].username)
+    : undefined;
 
   let label: string;
   if (total === 1 || !name2) {
@@ -77,7 +82,13 @@ export const FollowedByRow = memo(function FollowedByRow({ profileId, username }
       accessibilityRole="button"
       accessibilityLabel={label}
     >
-      <AvatarGroup items={avatarItems} size={20} max={3} total={total} variant={MEDIA_VARIANT_AVATAR} />
+      <AvatarGroup
+        items={avatarItems}
+        size={20}
+        max={3}
+        total={total}
+        variant={MEDIA_VARIANT_AVATAR}
+      />
       <Text className="text-muted-foreground text-[15px] shrink" numberOfLines={1}>
         {label}
       </Text>

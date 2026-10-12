@@ -34,7 +34,9 @@ jest.mock('expo-router', () => ({
 }));
 jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => mockSafeBack }));
 jest.mock('@/hooks/useProfileData', () => ({ useProfileData: () => mockProfile }));
-jest.mock('@/hooks/useProfileScreenColor', () => ({ useProfileScreenColor: () => ({ colorName: undefined }) }));
+jest.mock('@/hooks/useProfileScreenColor', () => ({
+  useProfileScreenColor: () => ({ colorName: undefined }),
+}));
 jest.mock('@/hooks/useRecommendations', () => ({
   useRecommendations: () => ({
     recommendations: [],
@@ -70,44 +72,69 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('@/components/ProfileCard', () => {
-  const { Text: RNText, View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
+  const { Text: RNText, View: RNView } =
+    jest.requireActual<typeof import('react-native')>('react-native');
   return {
-    ProfileCard: ({ profile }: { profile: { username: string } }) => <RNText>{`row:${profile.username}`}</RNText>,
+    ProfileCard: ({ profile }: { profile: { username: string } }) => (
+      <RNText>{`row:${profile.username}`}</RNText>
+    ),
     ProfileCardSkeletonList: () => <RNView testID="connections-skeletons" />,
   };
 });
 jest.mock('@/components/common/EmptyState', () => {
-  const { Pressable, Text: RNText, View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
+  const {
+    Pressable,
+    Text: RNText,
+    View: RNView,
+  } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
     // Two empty states share this component: the missing profile (sticker
     // `profileNotFound`) and an empty list, told apart by the sticker.
-    EmptyState: ({ title, action, error, sticker }: {
+    EmptyState: ({
+      title,
+      action,
+      error,
+      sticker,
+    }: {
       title?: string;
       action?: { label: string; onPress: () => void };
       error?: { message: string; onRetry?: () => Promise<void> };
       sticker?: string;
-    }) => error ? (
-      <Pressable testID="connections-error" onPress={() => { void error.onRetry?.(); }}>
-        <RNText>{error.message}</RNText>
-      </Pressable>
-    ) : sticker !== 'profileNotFound' ? (
-      <RNView testID="connections-empty" accessibilityHint={sticker}>
-        <RNText>{title}</RNText>
-      </RNView>
-    ) : (
-      <RNView testID="profile-not-found">
-        <RNText>{title}</RNText>
-        {action ? <Pressable testID="not-found-back" onPress={action.onPress}><RNText>{action.label}</RNText></Pressable> : null}
-      </RNView>
-    ),
+    }) =>
+      error ? (
+        <Pressable
+          testID="connections-error"
+          onPress={() => {
+            void error.onRetry?.();
+          }}
+        >
+          <RNText>{error.message}</RNText>
+        </Pressable>
+      ) : sticker !== 'profileNotFound' ? (
+        <RNView testID="connections-empty" accessibilityHint={sticker}>
+          <RNText>{title}</RNText>
+        </RNView>
+      ) : (
+        <RNView testID="profile-not-found">
+          <RNText>{title}</RNText>
+          {action ? (
+            <Pressable testID="not-found-back" onPress={action.onPress}>
+              <RNText>{action.label}</RNText>
+            </Pressable>
+          ) : null}
+        </RNView>
+      ),
   };
 });
 jest.mock('@/assets/illustrations/NoUpdates', () => ({ NoUpdatesIllustration: () => null }));
 jest.mock('@/components/Error', () => {
-  const { Pressable, Text: RNText } = jest.requireActual<typeof import('react-native')>('react-native');
+  const { Pressable, Text: RNText } =
+    jest.requireActual<typeof import('react-native')>('react-native');
   return {
     Error: ({ message, onRetry }: { message: string; onRetry: () => void }) => (
-      <Pressable testID="connections-error" onPress={onRetry}><RNText>{message}</RNText></Pressable>
+      <Pressable testID="connections-error" onPress={onRetry}>
+        <RNText>{message}</RNText>
+      </Pressable>
     ),
   };
 });
@@ -125,15 +152,22 @@ jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { card: '#fff', textSecondary: '#666' } }),
 }));
 jest.mock('@oxy.so/bloom/list', () => {
-  const { Text: RNText, View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
+  const { Text: RNText, View: RNView } =
+    jest.requireActual<typeof import('react-native')>('react-native');
   return {
-    VirtualList: ({ data, renderItem, ListEmptyComponent }: {
+    VirtualList: ({
+      data,
+      renderItem,
+      ListEmptyComponent,
+    }: {
       data: unknown[];
       renderItem: (info: { item: unknown }) => React.ReactNode;
       ListEmptyComponent: React.ReactNode;
     }) => (
       <RNView testID="connections-list">
-        {data.length === 0 ? ListEmptyComponent : data.map((item, i) => <RNView key={i}>{renderItem({ item })}</RNView>)}
+        {data.length === 0
+          ? ListEmptyComponent
+          : data.map((item, i) => <RNView key={i}>{renderItem({ item })}</RNView>)}
         <RNText>{`count:${data.length}`}</RNText>
       </RNView>
     ),
@@ -146,7 +180,10 @@ const byTestId = (tree: TestRenderer.ReactTestRenderer, testID: string) =>
   tree.root.findAll((node) => node.props.testID === testID && typeof node.type === 'string');
 
 const texts = (tree: TestRenderer.ReactTestRenderer) =>
-  tree.root.findAllByType(Text).flatMap((node) => node.props.children).filter((c) => typeof c === 'string');
+  tree.root
+    .findAllByType(Text)
+    .flatMap((node) => node.props.children)
+    .filter((c) => typeof c === 'string');
 
 let mounted: TestRenderer.ReactTestRenderer | null = null;
 
@@ -156,7 +193,9 @@ async function renderScreen() {
   await act(async () => {
     tree = TestRenderer.create(
       <QueryClientProvider client={client}>
-        <View><ConnectionsScreen /></View>
+        <View>
+          <ConnectionsScreen />
+        </View>
       </QueryClientProvider>,
     );
   });
@@ -176,7 +215,9 @@ afterEach(() => {
 });
 
 beforeAll(() => {
-  (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  (
+    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true;
 });
 
 beforeEach(() => {
@@ -199,7 +240,11 @@ describe.each(['followers', 'following'])('the %s route', (tab) => {
     expect(byTestId(tree, 'profile-not-found')).toHaveLength(1);
     expect(texts(tree)).toContain('Profile not found');
 
-    act(() => byTestId(tree, 'not-found-back')[0].props.onClick?.() ?? byTestId(tree, 'not-found-back')[0].props.onPress?.());
+    act(
+      () =>
+        byTestId(tree, 'not-found-back')[0].props.onClick?.() ??
+        byTestId(tree, 'not-found-back')[0].props.onPress?.(),
+    );
     expect(mockSafeBack).toHaveBeenCalled();
     expect(mockGetUserFollowers).not.toHaveBeenCalled();
     expect(mockGetUserFollowing).not.toHaveBeenCalled();
@@ -239,10 +284,14 @@ describe.each(['followers', 'following'])('the %s route', (tab) => {
     expect(byTestId(tree, 'connections-skeletons')).toHaveLength(0);
     expect(byTestId(tree, 'profile-not-found')).toHaveLength(0);
     expect(texts(tree)).toContain('count:0');
-    expect(texts(tree)).toContain(tab === 'followers' ? 'No followers yet' : 'Not following anyone yet');
+    expect(texts(tree)).toContain(
+      tab === 'followers' ? 'No followers yet' : 'Not following anyone yet',
+    );
     const empty = byTestId(tree, 'connections-empty');
     expect(empty).toHaveLength(1);
-    expect(empty[0].props.accessibilityHint).toBe(tab === 'followers' ? 'connectionsFollowers' : 'connectionsFollowing');
+    expect(empty[0].props.accessibilityHint).toBe(
+      tab === 'followers' ? 'connectionsFollowers' : 'connectionsFollowing',
+    );
   });
 });
 

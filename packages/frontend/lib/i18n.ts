@@ -3,7 +3,12 @@
  * Separated from _layout.tsx for better testability and maintainability
  */
 
-import { createInstance, type Resource, type ResourceKey, type i18n as I18nInstance } from 'i18next';
+import {
+  createInstance,
+  type Resource,
+  type ResourceKey,
+  type i18n as I18nInstance,
+} from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
 import enUS from '@/locales/en.json';

@@ -9,11 +9,11 @@
  *
  * ## `attempts` is incremented in SQL, not read-modify-written
  *
- * The Mongo version read `attempts`, added one in JavaScript, and wrote the sum
- * back. Two drains overlapping on one scope therefore both read the same value
- * and both wrote the same successor, so the backoff stopped growing and a
- * permanently failing scope was retried at the first interval forever. The
- * increment is now the database's, inside a transaction with the write that
+ * Reading `attempts`, adding one in JavaScript, and writing the sum back lets
+ * two drains overlapping on one scope both read the same value and both write
+ * the same successor, so the backoff stops growing and a permanently failing
+ * scope is retried at the first interval forever. The increment is the
+ * database's, inside a transaction with the write that
  * reads it back to compute the next attempt time.
  *
  * ## The backoff schedule lives here
@@ -41,11 +41,11 @@ export type EndorsementOutboxStatus = (typeof ENDORSEMENT_OUTBOX_STATUSES)[numbe
  * desired-state, so the drain keeps retrying slowly rather than abandoning it.
  */
 const BACKOFF_INTERVALS_MS = [
-  1 * 60 * 1000,        // 1 minute
-  5 * 60 * 1000,        // 5 minutes
-  30 * 60 * 1000,       // 30 minutes
-  2 * 60 * 60 * 1000,   // 2 hours
-  12 * 60 * 60 * 1000,  // 12 hours
+  1 * 60 * 1000, // 1 minute
+  5 * 60 * 1000, // 5 minutes
+  30 * 60 * 1000, // 30 minutes
+  2 * 60 * 60 * 1000, // 2 hours
+  12 * 60 * 60 * 1000, // 12 hours
 ];
 
 /** Largest backoff used once the schedule is exhausted (re-arm, never drop). */
@@ -58,7 +58,7 @@ const MAX_BACKOFF_MS = BACKOFF_INTERVALS_MS[BACKOFF_INTERVALS_MS.length - 1];
  */
 export function getEndorsementNextAttempt(attempts: number): Date {
   const index = Math.min(Math.max(attempts - 1, 0), BACKOFF_INTERVALS_MS.length - 1);
-  const interval = attempts <= 0 ? 0 : BACKOFF_INTERVALS_MS[index] ?? MAX_BACKOFF_MS;
+  const interval = attempts <= 0 ? 0 : (BACKOFF_INTERVALS_MS[index] ?? MAX_BACKOFF_MS);
   return new Date(Date.now() + interval);
 }
 
@@ -84,7 +84,7 @@ function scope(source: EndorsementSource, sourceId: string) {
  * members that must be retracted.
  *
  * The removal ids UNION with whatever is already recorded rather than replacing
- * it — this is Mongo's `$addToSet … $each`, and it matters because two removals
+ * it, and that matters because two removals
  * before a successful drain must both be retracted. Replacing would drop the
  * first, permanently: nothing recomputes a removal, since the members are gone
  * from the source document by then.
@@ -181,9 +181,8 @@ export async function loadPendingRemoval(
 /**
  * Mark a scope's push as delivered, clearing the retry state.
  *
- * `error` is cleared explicitly. The Mongo write set it to `undefined`, which
- * Mongoose strips out of `$set` — so a row that had just succeeded went on
- * carrying the message from the last failure, and the only place that reads it
+ * `error` is cleared explicitly, so a row that has just succeeded does not go on
+ * carrying the message from the last failure — the only place that reads it
  * is a human debugging why a scope is stuck.
  */
 export async function markEndorsementSent(

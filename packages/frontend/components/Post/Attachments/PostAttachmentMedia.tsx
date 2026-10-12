@@ -7,7 +7,12 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
 import { MediaInsetBorder } from '@oxy.so/bloom/media-inset-border';
 import VideoPlayer from '@/components/common/VideoPlayer';
-import { MEDIA_CARD_WIDTH, MEDIA_CARD_HEIGHT, MEDIA_CARD_RADIUS, SINGLE_MEDIA_MAX_HEIGHT } from '@/utils/composeUtils';
+import {
+  MEDIA_CARD_WIDTH,
+  MEDIA_CARD_HEIGHT,
+  MEDIA_CARD_RADIUS,
+  SINGLE_MEDIA_MAX_HEIGHT,
+} from '@/utils/composeUtils';
 import {
   getAspectRatio,
   hasAspectRatio,
@@ -27,9 +32,8 @@ import { HIT_SLOP_MD } from '@/styles/hitSlop';
  */
 export type RegisterThumbHost = (node: View | null) => void;
 
-const webGrabCursorStyle: ViewStyle | null = Platform.OS === 'web'
-  ? ({ cursor: 'grab' } as unknown as ViewStyle)
-  : null;
+const webGrabCursorStyle: ViewStyle | null =
+  Platform.OS === 'web' ? ({ cursor: 'grab' } as unknown as ViewStyle) : null;
 
 const MIN_WIDTH = 100;
 
@@ -117,10 +121,13 @@ function useMediaCardStyle(
   // the record does not carry. (Adapted from bluesky-social/social-app
   // d7f40b7e7, MIT © 2023–2026 Bluesky Social PBC.)
   const hasRecordAspectRatio = recordAspectRatio !== undefined;
-  const onAspectRatio = useCallback((ratio: number) => {
-    if (hasRecordAspectRatio) return;
-    setLearnedAspectRatio((prev) => (prev === ratio ? prev : ratio));
-  }, [hasRecordAspectRatio]);
+  const onAspectRatio = useCallback(
+    (ratio: number) => {
+      if (hasRecordAspectRatio) return;
+      setLearnedAspectRatio((prev) => (prev === ratio ? prev : ratio));
+    },
+    [hasRecordAspectRatio],
+  );
   // Until the ratio is known the card still takes a definite box, the standard
   // card's: a height-less card resolves to ZERO height on web (the player fills
   // 100% of it) and a video with no stored dimensions rendered as nothing.
@@ -216,12 +223,33 @@ interface PostAttachmentVideoProps {
  * and the anchor are hooks, and a hook cannot be called conditionally. The
  * shared body below is what they have in common.
  */
-const PostAttachmentVideoShell: React.FC<PostAttachmentVideoProps & {
-  player?: ExpoVideoPlayer;
-  flightHostId?: string;
-}> = ({ src, fallbackSrc, concealed, poster, aspectRatio, width, height, postId, onPress, hasSingleMedia, tallRow, overlay, player, flightHostId }) => {
+const PostAttachmentVideoShell: React.FC<
+  PostAttachmentVideoProps & {
+    player?: ExpoVideoPlayer;
+    flightHostId?: string;
+  }
+> = ({
+  src,
+  fallbackSrc,
+  concealed,
+  poster,
+  aspectRatio,
+  width,
+  height,
+  postId,
+  onPress,
+  hasSingleMedia,
+  tallRow,
+  overlay,
+  player,
+  flightHostId,
+}) => {
   const recordRatio = readMediaAspectRatio({ aspectRatio, width, height });
-  const { cardClass, cardStyle, onAspectRatio } = useMediaCardStyle(Boolean(hasSingleMedia), recordRatio, tallRow);
+  const { cardClass, cardStyle, onAspectRatio } = useMediaCardStyle(
+    Boolean(hasSingleMedia),
+    recordRatio,
+    tallRow,
+  );
   return (
     <View
       className={`bg-muted rounded-[15px] overflow-hidden ${cardClass}`}
@@ -253,7 +281,9 @@ const PostAttachmentVideoShell: React.FC<PostAttachmentVideoProps & {
  * optional: they ARE the identity the registry and the flight layer agree on,
  * and the caller has already checked for them.
  */
-const FlyableVideo: React.FC<PostAttachmentVideoProps & { postId: string; mediaId: string }> = (props) => {
+const FlyableVideo: React.FC<PostAttachmentVideoProps & { postId: string; mediaId: string }> = (
+  props,
+) => {
   const flightId = videoPlayerKey(props.postId, props.mediaId);
   const player = useVideoPlayerLease(flightId, props.src);
   // No `registerAnchor` here: the host registers ITSELF, and registering the
@@ -263,9 +293,11 @@ const FlyableVideo: React.FC<PostAttachmentVideoProps & { postId: string; mediaI
 };
 
 const PostAttachmentVideo: React.FC<PostAttachmentVideoProps> = (props) =>
-  props.postId && props.mediaId
-    ? <FlyableVideo {...props} postId={props.postId} mediaId={props.mediaId} />
-    : <PostAttachmentVideoShell {...props} />;
+  props.postId && props.mediaId ? (
+    <FlyableVideo {...props} postId={props.postId} mediaId={props.mediaId} />
+  ) : (
+    <PostAttachmentVideoShell {...props} />
+  );
 
 // Inline looping muted GIF rendered as an mp4 video (like X/Meta). Mirrors
 // PostAttachmentVideo's container/sizing, but with gif semantics: always muted,
@@ -281,7 +313,11 @@ const PostAttachmentGif: React.FC<{
   overlay?: React.ReactNode;
 }> = ({ src, aspectRatio, width, height, postId, hasSingleMedia, tallRow, overlay }) => {
   const recordRatio = readMediaAspectRatio({ aspectRatio, width, height });
-  const { cardClass, cardStyle, onAspectRatio } = useMediaCardStyle(Boolean(hasSingleMedia), recordRatio, tallRow);
+  const { cardClass, cardStyle, onAspectRatio } = useMediaCardStyle(
+    Boolean(hasSingleMedia),
+    recordRatio,
+    tallRow,
+  );
   return (
     <View
       className={`bg-muted rounded-[15px] overflow-hidden ${cardClass}`}
@@ -316,7 +352,18 @@ const PostAttachmentImage: React.FC<{
   hasSingleMedia?: boolean;
   tallRow?: boolean;
   overlay?: React.ReactNode;
-}> = ({ src, alt, aspectRatio: dtoAspectRatio, width, height, onPress, registerHost, hasSingleMedia, tallRow = false, overlay }) => {
+}> = ({
+  src,
+  alt,
+  aspectRatio: dtoAspectRatio,
+  width,
+  height,
+  onPress,
+  registerHost,
+  hasSingleMedia,
+  tallRow = false,
+  overlay,
+}) => {
   const theme = useTheme();
   const wrapperRef = useRef<View | null>(null);
   // The ratio is DERIVED while it is knowable synchronously — from the record,
@@ -328,15 +375,19 @@ const PostAttachmentImage: React.FC<{
   const recordRatio = readMediaAspectRatio({ aspectRatio: dtoAspectRatio, width, height });
   const cachedRatio = recordRatio === undefined ? getAspectRatio(src) : undefined;
   const [measured, setMeasured] = useState<{ src: string; ratio: number } | null>(null);
-  const aspectRatio = recordRatio ?? cachedRatio ?? (measured?.src === src ? measured.ratio : undefined);
+  const aspectRatio =
+    recordRatio ?? cachedRatio ?? (measured?.src === src ? measured.ratio : undefined);
 
   // Callback ref: keep the local ref (for open-press measurement) AND mirror the
   // host into the parent's index registry (for the close fly-back). Registers on
   // mount, clears on unmount — no effect needed.
-  const setHostRef = useCallback((node: View | null) => {
-    wrapperRef.current = node;
-    registerHost?.(node);
-  }, [registerHost]);
+  const setHostRef = useCallback(
+    (node: View | null) => {
+      wrapperRef.current = node;
+      registerHost?.(node);
+    },
+    [registerHost],
+  );
 
   useEffect(() => {
     if (recordRatio !== undefined) {
@@ -349,14 +400,17 @@ const PostAttachmentImage: React.FC<{
   // from the image that loads anyway — `onLoad` carries its intrinsic size —
   // instead of a separate `getSize` request for the same bytes.
   const needsMeasure = recordRatio === undefined && !hasAspectRatio(src);
-  const handleImageLoad = useCallback((event: ImageLoadEventData) => {
-    if (!needsMeasure) return;
-    const { width: naturalWidth, height: naturalHeight } = event.source;
-    if (naturalWidth <= 0 || naturalHeight <= 0) return;
-    const ratio = naturalWidth / naturalHeight;
-    setMeasured({ src, ratio });
-    setAspectRatioInCache(src, ratio);
-  }, [needsMeasure, src]);
+  const handleImageLoad = useCallback(
+    (event: ImageLoadEventData) => {
+      if (!needsMeasure) return;
+      const { width: naturalWidth, height: naturalHeight } = event.source;
+      if (naturalWidth <= 0 || naturalHeight <= 0) return;
+      const ratio = naturalWidth / naturalHeight;
+      setMeasured({ src, ratio });
+      setAspectRatioInCache(src, ratio);
+    },
+    [needsMeasure, src],
+  );
   const handleImageError = useCallback(() => {
     if (!needsMeasure) return;
     setMeasured({ src, ratio: DEFAULT_ASPECT_RATIO });
@@ -420,10 +474,7 @@ const PostAttachmentImage: React.FC<{
   // The outermost element carries the size, so the press target and the rect
   // the gallery flies from are exactly the image — never a wider wrapper.
   const imageContent = (
-    <View
-      className={onPress ? undefined : boxClass}
-      style={onPress ? styles.fullSize : boxStyle}
-    >
+    <View className={onPress ? undefined : boxClass} style={onPress ? styles.fullSize : boxStyle}>
       {lazyImage}
       {hasAlt && (
         <View
@@ -521,9 +572,8 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
   // and no wrapper stands between the box and the row it sizes against. Keeping
   // the media mounted under it means revealing does not remount or reload it —
   // the cover simply unmounts.
-  const cover = sensitive && !revealed
-    ? <SensitiveMediaCover onReveal={() => setRevealed(true)} />
-    : null;
+  const cover =
+    sensitive && !revealed ? <SensitiveMediaCover onReveal={() => setRevealed(true)} /> : null;
 
   let media: React.ReactNode;
   if (type === 'video') {

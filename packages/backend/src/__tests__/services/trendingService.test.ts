@@ -6,7 +6,7 @@
  * space that quietly narrows back to hashtags, an author floor computed from
  * posts. None of them raises anything; they just produce a plausible list.
  *
- * The suite this replaces asserted the SHAPE of a Mongo `$match`/`$group`
+ * The suite this replaces asserted the SHAPE of a legacy-store `$match`/`$group`
  * object. It could tell you the pipeline named `metadata.isSensitive`, and
  * nothing at all about whether a sensitive post ever reached a trend. Every
  * assertion below is on the returned MEASUREMENT, computed from rows.
@@ -23,11 +23,18 @@ import { MtnConfig } from '@mention/shared-types';
 
 // Trending pulls in side-effecting collaborators the aggregation never touches.
 vi.mock('../../utils/socket', () => ({ emitTrendsUpdated: vi.fn() }));
-vi.mock('../../utils/oxyInference', () => ({ inferenceChat: vi.fn(), isInferenceEnabled: () => false }));
+vi.mock('../../utils/oxyInference', () => ({
+  inferenceChat: vi.fn(),
+  isInferenceEnabled: () => false,
+}));
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
-import { trendTermMatchSql, TREND_CANDIDATE_COLUMNS, TREND_TERM_COLUMNS } from '../../services/trending/termSpace';
+import {
+  trendTermMatchSql,
+  TREND_CANDIDATE_COLUMNS,
+  TREND_TERM_COLUMNS,
+} from '../../services/trending/termSpace';
 /**
  * The aggregation returns the candidates AND the co-occurrence graph behind
  * them. The graph is `null` when clustering is off — the only thing these cases
@@ -91,7 +98,10 @@ async function seedPost(options: SeedOptions = {}): Promise<string> {
       crosspostCollapsed: options.crosspostCollapsed ?? false,
       visibility: options.visibility ?? 'public',
       createdAt: options.createdAt ?? recently(),
-      oxyUserId: options.oxyUserId === undefined ? `author-${RUN}-${createdPostIds.length}` : options.oxyUserId,
+      oxyUserId:
+        options.oxyUserId === undefined
+          ? `author-${RUN}-${createdPostIds.length}`
+          : options.oxyUserId,
       language: options.language ?? 'en',
       classificationTrendTerms: options.trendTerms,
       hashtags: options.hashtags,
@@ -106,7 +116,10 @@ async function seedPost(options: SeedOptions = {}): Promise<string> {
 
   if (options.isBoost) {
     // A boost points at an original; the aggregation excludes anything that does.
-    await db.update(posts).set({ boostOf: row.id }).where(inArray(posts.id, [row.id]));
+    await db
+      .update(posts)
+      .set({ boostOf: row.id })
+      .where(inArray(posts.id, [row.id]));
   }
   return row.id;
 }
@@ -187,7 +200,7 @@ describe('aggregateTermCandidates — what is allowed to count', () => {
 
   it('excludes a post the deterministic classifier already scored as spam', async () => {
     /**
-     * The clause has to be TOTAL. Mongo's `{ $not: { $gte: n } }` matched a post
+     * The clause has to be TOTAL. The legacy store's `{ $not: { $gte: n } }` matched a post
      * with no spam score at all; SQL's `< n` would DROP those, shrinking every
      * count. The unclassified post below is the one that proves `is not true`
      * was written rather than `<`.

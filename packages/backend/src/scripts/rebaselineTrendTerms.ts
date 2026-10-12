@@ -39,7 +39,10 @@ import { resolveVariant } from '../services/postVariants';
 import { connectPostgres } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { findPostRecords, updatePostRecord } from '../db/posts/postRepository';
-import { baselineContentClassifier, BASELINE_CLASSIFIER_VERSION } from '../services/BaselineContentClassifier';
+import {
+  baselineContentClassifier,
+  BASELINE_CLASSIFIER_VERSION,
+} from '../services/BaselineContentClassifier';
 import { logger } from '../utils/logger';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 
@@ -76,7 +79,7 @@ export async function rebaselineTrendTerms(
   const hours = opts.hours ?? DEFAULT_HOURS;
   const since = new Date(Date.now() - hours * 60 * 60 * 1000);
 
-  const windowFilter = opts.all ? undefined : gte(posts.createdAt, since) as SQL;
+  const windowFilter = opts.all ? undefined : (gte(posts.createdAt, since) as SQL);
 
   let scanned = 0;
   let updated = 0;
@@ -105,9 +108,9 @@ export async function rebaselineTrendTerms(
       // no-op write is still a write.
       const current = post.postClassification?.trendTerms ?? [];
       if (
-        post.postClassification?.version === BASELINE_CLASSIFIER_VERSION
-        && current.length === signals.trendTerms.length
-        && current.every((term, index) => term === signals.trendTerms[index])
+        post.postClassification?.version === BASELINE_CLASSIFIER_VERSION &&
+        current.length === signals.trendTerms.length &&
+        current.every((term, index) => term === signals.trendTerms[index])
       ) {
         continue;
       }

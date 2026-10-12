@@ -7,7 +7,7 @@ import { getIpHashSalt } from '../config';
  * Privacy-preserving rate-limit key for anonymous callers.
  *
  * The raw client IP must never reach a store at rest — not Redis key names, not
- * logs, not Mongo. We normalize the IP first via express-rate-limit's
+ * logs, not the database. We normalize the IP first via express-rate-limit's
  * `ipKeyGenerator` (buckets IPv6 to its /56 prefix so a single v6 host can't
  * rotate through its allocation to mint fresh keys), then HMAC the result with a
  * server-side salt. The `rl|` namespace prevents these keys from ever being

@@ -7,7 +7,9 @@ vi.mock('../utils/redis', () => ({
   getRedisClient: vi.fn().mockReturnValue({
     isReady: false,
     isOpen: false,
-    connect: vi.fn().mockRejectedValue(Object.assign(new Error('ECONNREFUSED'), { code: 'ECONNREFUSED' })),
+    connect: vi
+      .fn()
+      .mockRejectedValue(Object.assign(new Error('ECONNREFUSED'), { code: 'ECONNREFUSED' })),
     ping: vi.fn().mockRejectedValue(new Error('not connected')),
     get: vi.fn(),
     set: vi.fn(),
@@ -60,9 +62,9 @@ function expectedMultiplier(score: number): number {
 describe('starterPackBoost scorer', () => {
   it('is EXACTLY neutral for an uncurated author (never penalizes)', () => {
     expect(service.calculateStarterPackBoost(makePost(), new Map())).toBe(1.0);
-    expect(
-      service.calculateStarterPackBoost(makePost(), new Map([['someone-else', 10]])),
-    ).toBe(1.0);
+    expect(service.calculateStarterPackBoost(makePost(), new Map([['someone-else', 10]]))).toBe(
+      1.0,
+    );
   });
 
   it('is EXACTLY neutral when the score map is absent (signal off / resolution failed)', () => {
@@ -72,7 +74,9 @@ describe('starterPackBoost scorer', () => {
   it('is EXACTLY neutral for a non-positive or non-finite score', () => {
     expect(service.calculateStarterPackBoost(makePost(), new Map([['author-1', 0]]))).toBe(1.0);
     expect(service.calculateStarterPackBoost(makePost(), new Map([['author-1', -3]]))).toBe(1.0);
-    expect(service.calculateStarterPackBoost(makePost(), new Map([['author-1', Number.NaN]]))).toBe(1.0);
+    expect(service.calculateStarterPackBoost(makePost(), new Map([['author-1', Number.NaN]]))).toBe(
+      1.0,
+    );
   });
 
   it('lifts a curated author, log-scaled in the curation score', () => {
@@ -87,9 +91,9 @@ describe('starterPackBoost scorer', () => {
   });
 
   it('is CLAMPED at `maxBoost` — curation can never run away with the score', () => {
-    expect(service.calculateStarterPackBoost(makePost(), new Map([['author-1', CURATION.maxScore]]))).toBe(
-      CURATION.maxBoost,
-    );
+    expect(
+      service.calculateStarterPackBoost(makePost(), new Map([['author-1', CURATION.maxScore]])),
+    ).toBe(CURATION.maxBoost);
     // Even an (impossible) score far above the policy's own clamp saturates.
     expect(service.calculateStarterPackBoost(makePost(), new Map([['author-1', 1_000_000]]))).toBe(
       CURATION.maxBoost,
@@ -99,7 +103,10 @@ describe('starterPackBoost scorer', () => {
   it('a low-follower curation RING earns a small lift; a real curator set earns the cap', () => {
     // Mirrors the policy suite: 3 zero-follower sybils with single-use packs.
     const ringScore = 3 * Math.log1p(1) * curatorAuthority(undefined);
-    const ringBoost = service.calculateStarterPackBoost(makePost(), new Map([['author-1', ringScore]]));
+    const ringBoost = service.calculateStarterPackBoost(
+      makePost(),
+      new Map([['author-1', ringScore]]),
+    );
 
     expect(ringBoost).toBeLessThan(1 + (CURATION.maxBoost - 1) * 0.5);
 

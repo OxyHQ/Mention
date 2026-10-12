@@ -39,31 +39,37 @@ const CollaboratorsList: React.FC<CollaboratorsListProps> = ({ authors, onClose,
   const router = useRouter();
   const { t } = useTranslation();
 
-  const handleUserPress = useCallback((user: PostUser) => {
-    onClose();
-    const href = profileHrefForUser(user);
-    if (href) {
-      router.push(href);
-    }
-  }, [onClose, router]);
+  const handleUserPress = useCallback(
+    (user: PostUser) => {
+      onClose();
+      const href = profileHrefForUser(user);
+      if (href) {
+        router.push(href);
+      }
+    },
+    [onClose, router],
+  );
 
-  const renderUser = useCallback(({ item }: { item: PostUser }) => (
-    <ProfileCard
-      profile={{
-        id: item.id,
-        username: item.username,
-        name: item.name,
-        avatar: item.avatar,
-        verified: item.verified,
-        isFederated: item.isFederated,
-        kind: item.kind,
-        instance: item.instance,
-        federation: item.federation,
-      }}
-      showFollowButton
-      onPress={() => handleUserPress(item)}
-    />
-  ), [handleUserPress]);
+  const renderUser = useCallback(
+    ({ item }: { item: PostUser }) => (
+      <ProfileCard
+        profile={{
+          id: item.id,
+          username: item.username,
+          name: item.name,
+          avatar: item.avatar,
+          verified: item.verified,
+          isFederated: item.isFederated,
+          kind: item.kind,
+          instance: item.instance,
+          federation: item.federation,
+        }}
+        showFollowButton
+        onPress={() => handleUserPress(item)}
+      />
+    ),
+    [handleUserPress],
+  );
 
   return (
     <View className="flex-1 bg-background">
@@ -72,7 +78,8 @@ const CollaboratorsList: React.FC<CollaboratorsListProps> = ({ authors, onClose,
         safeArea={false}
         actions={
           <Button
-            appearance="subtle" tone="neutral"
+            appearance="subtle"
+            tone="neutral"
             iconOnly
             leadingIcon={RiCloseLine}
             accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
@@ -81,11 +88,7 @@ const CollaboratorsList: React.FC<CollaboratorsListProps> = ({ authors, onClose,
         }
       />
 
-      <FlatList
-        data={authors}
-        renderItem={renderUser}
-        keyExtractor={(item) => item.id}
-      />
+      <FlatList data={authors} renderItem={renderUser} keyExtractor={(item) => item.id} />
     </View>
   );
 };

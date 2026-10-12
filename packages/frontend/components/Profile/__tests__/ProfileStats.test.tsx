@@ -20,9 +20,7 @@ const BASE_PROPS: React.ComponentProps<typeof ProfileStats> = {
   onRepliesPress: jest.fn(),
 };
 
-async function renderedText(
-  props: React.ComponentProps<typeof ProfileStats>,
-): Promise<string[]> {
+async function renderedText(props: React.ComponentProps<typeof ProfileStats>): Promise<string[]> {
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(<ProfileStats {...props} />);
@@ -66,7 +64,11 @@ describe('ProfileStats follow-graph totals', () => {
   });
 
   it('hides a total that is unknown instead of rendering 0', async () => {
-    const text = await renderedText({ ...BASE_PROPS, followerCount: undefined, followingCount: undefined });
+    const text = await renderedText({
+      ...BASE_PROPS,
+      followerCount: undefined,
+      followingCount: undefined,
+    });
 
     expect(text).not.toContain('profile.followers');
     expect(text).not.toContain('profile.following');

@@ -45,9 +45,7 @@ jest.mock('react-i18next', () => ({
         .split('.')
         .reduce<unknown>(
           (node, part) =>
-            node && typeof node === 'object'
-              ? (node as Record<string, unknown>)[part]
-              : undefined,
+            node && typeof node === 'object' ? (node as Record<string, unknown>)[part] : undefined,
           catalog,
         );
       return typeof resolved === 'string' ? resolved : `MISSING_I18N_KEY:${key}`;
@@ -217,7 +215,10 @@ describe('AccountBadge — which marker the account state chooses', () => {
     ['a Mastodon (ActivityPub) account', { handle: 'alice@mastodon.social' }],
     ['an X account bridged by bird.makeup', { handle: 'jack@x.com' }],
     ['an Instagram account bridged by kilogram', { handle: 'zuck@instagram.com' }],
-    ['an Instagram account read through the Graph API', { network: 'instagram-graph', handle: 'zuck@instagram.com' }],
+    [
+      'an Instagram account read through the Graph API',
+      { network: 'instagram-graph', handle: 'zuck@instagram.com' },
+    ],
     ['a Bluesky (atproto) account', { network: 'atproto', handle: 'alice.bsky.social' }],
   ])('draws the SAME fediverse marker for %s, and no network chip', (_case, extra) => {
     const onExplainNetwork = jest.fn();

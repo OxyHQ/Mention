@@ -48,20 +48,20 @@ const logger = createLogger('VideoPlayerRegistry');
 export type VideoPlayerKey = string & { readonly __brand: 'VideoPlayerKey' };
 
 export function videoPlayerKey(postId: string, mediaId: string): VideoPlayerKey {
-    return `${postId}:${mediaId}` as VideoPlayerKey;
+  return `${postId}:${mediaId}` as VideoPlayerKey;
 }
 
 export interface VideoPlayerEntry {
-    readonly player: VideoPlayer;
-    /**
-     * The source the player was CONSTRUCTED with — not necessarily what it is
-     * playing now. A consumer that needs a different video calls
-     * `player.replaceAsync`; re-acquiring with another source deliberately does
-     * not rebuild, so this stays as a record of where the player started.
-     */
-    readonly source: string;
-    /** How many live leases are holding this player open. Never below 1: an entry at zero is deleted. */
-    readonly refCount: number;
+  readonly player: VideoPlayer;
+  /**
+   * The source the player was CONSTRUCTED with — not necessarily what it is
+   * playing now. A consumer that needs a different video calls
+   * `player.replaceAsync`; re-acquiring with another source deliberately does
+   * not rebuild, so this stays as a record of where the player started.
+   */
+  readonly source: string;
+  /** How many live leases are holding this player open. Never below 1: an entry at zero is deleted. */
+  readonly refCount: number;
 }
 
 /**
@@ -76,76 +76,77 @@ export interface VideoPlayerEntry {
  * arithmetic cannot be corrupted by a caller getting its own bookkeeping wrong.
  */
 export interface VideoPlayerLease {
-    readonly key: VideoPlayerKey;
-    readonly player: VideoPlayer;
-    readonly release: () => void;
+  readonly key: VideoPlayerKey;
+  readonly player: VideoPlayer;
+  readonly release: () => void;
 }
 
 interface VideoPlayerRegistryState {
-    /**
-     * Reactive: consumers read through this store (zustand is backed by
-     * `useSyncExternalStore`) rather than through a module-level map or a ref
-     * read during render. The React Compiler is on, and external mutable state
-     * read from a memoized position is frozen at its first value — for a
-     * registry that would mean rendering a `VideoView` against a player that has
-     * already been released.
-     */
-    readonly entries: Readonly<Record<string, VideoPlayerEntry>>;
-    acquire: (key: VideoPlayerKey, source: string) => VideoPlayerLease;
+  /**
+   * Reactive: consumers read through this store (zustand is backed by
+   * `useSyncExternalStore`) rather than through a module-level map or a ref
+   * read during render. The React Compiler is on, and external mutable state
+   * read from a memoized position is frozen at its first value — for a
+   * registry that would mean rendering a `VideoView` against a player that has
+   * already been released.
+   */
+  readonly entries: Readonly<Record<string, VideoPlayerEntry>>;
+  acquire: (key: VideoPlayerKey, source: string) => VideoPlayerLease;
 }
 
 export const useVideoPlayerRegistry = create<VideoPlayerRegistryState>((set, get) => ({
-    entries: {},
+  entries: {},
 
-    acquire: (key, source) => {
-        const existing = get().entries[key];
-        // A source hls.js will decode (a federated playlist, on a browser that
-        // cannot play one itself) is withheld from the player: hls.js attaches
-        // its own MediaSource to the element, and a player holding the playlist
-        // url would first start — and fail — a native load of it.
-        const player = existing?.player
-            ?? createVideoPlayer(needsJsHlsDecoder(source) ? null : videoSourceFor(source));
+  acquire: (key, source) => {
+    const existing = get().entries[key];
+    // A source hls.js will decode (a federated playlist, on a browser that
+    // cannot play one itself) is withheld from the player: hls.js attaches
+    // its own MediaSource to the element, and a player holding the playlist
+    // url would first start — and fail — a native load of it.
+    const player =
+      existing?.player ??
+      createVideoPlayer(needsJsHlsDecoder(source) ? null : videoSourceFor(source));
 
+    set((state) => ({
+      entries: {
+        ...state.entries,
+        [key]: existing
+          ? { ...existing, refCount: existing.refCount + 1 }
+          : { player, source, refCount: 1 },
+      },
+    }));
+
+    // Spent by the first `release()` call on THIS lease, so a caller that
+    // releases twice cannot reach the shared count a second time.
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+
+      const entry = get().entries[key];
+      // Absent means the registry was reset out from under this lease
+      // (`__resetVideoPlayerRegistry`). The player is already gone; there
+      // is nothing left to count down.
+      if (!entry) return;
+
+      if (entry.refCount > 1) {
         set((state) => ({
-            entries: {
-                ...state.entries,
-                [key]: existing
-                    ? { ...existing, refCount: existing.refCount + 1 }
-                    : { player, source, refCount: 1 },
-            },
+          entries: { ...state.entries, [key]: { ...entry, refCount: entry.refCount - 1 } },
         }));
+        return;
+      }
 
-        // Spent by the first `release()` call on THIS lease, so a caller that
-        // releases twice cannot reach the shared count a second time.
-        let released = false;
-        const release = () => {
-            if (released) return;
-            released = true;
+      // Last holder: drop the entry FIRST, so nothing can observe — or
+      // re-acquire — an entry whose player is being torn down.
+      set((state) => {
+        const { [key]: _dropped, ...rest } = state.entries;
+        return { entries: rest };
+      });
+      releasePlayer(entry.player, key);
+    };
 
-            const entry = get().entries[key];
-            // Absent means the registry was reset out from under this lease
-            // (`__resetVideoPlayerRegistry`). The player is already gone; there
-            // is nothing left to count down.
-            if (!entry) return;
-
-            if (entry.refCount > 1) {
-                set((state) => ({
-                    entries: { ...state.entries, [key]: { ...entry, refCount: entry.refCount - 1 } },
-                }));
-                return;
-            }
-
-            // Last holder: drop the entry FIRST, so nothing can observe — or
-            // re-acquire — an entry whose player is being torn down.
-            set((state) => {
-                const { [key]: _dropped, ...rest } = state.entries;
-                return { entries: rest };
-            });
-            releasePlayer(entry.player, key);
-        };
-
-        return { key, player, release };
-    },
+    return { key, player, release };
+  },
 }));
 
 /**
@@ -158,7 +159,7 @@ export const useVideoPlayerRegistry = create<VideoPlayerRegistryState>((set, get
  * here rather than inline.
  */
 export function acquireVideoPlayer(key: VideoPlayerKey, source: string): VideoPlayerLease {
-    return useVideoPlayerRegistry.getState().acquire(key, source);
+  return useVideoPlayerRegistry.getState().acquire(key, source);
 }
 
 /**
@@ -171,7 +172,7 @@ export function acquireVideoPlayer(key: VideoPlayerKey, source: string): VideoPl
  * `use`-prefixed identifier used as a value.
  */
 export function peekVideoPlayer(key: VideoPlayerKey): VideoPlayer | null {
-    return useVideoPlayerRegistry.getState().entries[key]?.player ?? null;
+  return useVideoPlayerRegistry.getState().entries[key]?.player ?? null;
 }
 
 /**
@@ -194,10 +195,10 @@ export function peekVideoPlayer(key: VideoPlayerKey): VideoPlayer | null {
 let transitionHold: VideoPlayerLease | null = null;
 
 export function holdAcrossTransition(key: VideoPlayerKey, source: string): void {
-    if (transitionHold?.key === key) return;
-    const previous = transitionHold;
-    transitionHold = acquireVideoPlayer(key, source);
-    previous?.release();
+  if (transitionHold?.key === key) return;
+  const previous = transitionHold;
+  transitionHold = acquireVideoPlayer(key, source);
+  previous?.release();
 }
 
 /**
@@ -208,9 +209,9 @@ export function holdAcrossTransition(key: VideoPlayerKey, source: string): void 
  * destroy the very player being handed over.
  */
 export function releaseTransitionHold(key: VideoPlayerKey): void {
-    if (transitionHold?.key !== key) return;
-    transitionHold.release();
-    transitionHold = null;
+  if (transitionHold?.key !== key) return;
+  transitionHold.release();
+  transitionHold = null;
 }
 
 /**
@@ -233,15 +234,15 @@ export function releaseTransitionHold(key: VideoPlayerKey): void {
  * row pointed at another video would otherwise keep the previous player.
  */
 export function useVideoPlayerLease(key: VideoPlayerKey, source: string): VideoPlayer {
-    const [lease] = useState(() => {
-        const own = acquireVideoPlayer(key, source);
-        // A real owner has arrived, so the transition's bridge is done. After
-        // acquiring, never before — see `releaseTransitionHold`.
-        releaseTransitionHold(key);
-        return own;
-    });
-    useEffect(() => () => lease.release(), [lease]);
-    return lease.player;
+  const [lease] = useState(() => {
+    const own = acquireVideoPlayer(key, source);
+    // A real owner has arrived, so the transition's bridge is done. After
+    // acquiring, never before — see `releaseTransitionHold`.
+    releaseTransitionHold(key);
+    return own;
+  });
+  useEffect(() => () => lease.release(), [lease]);
+  return lease.player;
 }
 
 /**
@@ -251,11 +252,11 @@ export function useVideoPlayerLease(key: VideoPlayerKey, source: string): VideoP
  * it: it means two owners believed they held the last reference.
  */
 function releasePlayer(player: VideoPlayer, key: VideoPlayerKey): void {
-    try {
-        player.release();
-    } catch (error) {
-        logger.error('Releasing a video player threw', error, { key });
-    }
+  try {
+    player.release();
+  } catch (error) {
+    logger.error('Releasing a video player threw', error, { key });
+  }
 }
 
 /**
@@ -263,9 +264,9 @@ function releasePlayer(player: VideoPlayer, key: VideoPlayerKey): void {
  * test's leases cannot leak a decoder into the next.
  */
 export function __resetVideoPlayerRegistry(): void {
-    const { entries } = useVideoPlayerRegistry.getState();
-    useVideoPlayerRegistry.setState({ entries: {} });
-    for (const [key, entry] of Object.entries(entries)) {
-        releasePlayer(entry.player, key as VideoPlayerKey);
-    }
+  const { entries } = useVideoPlayerRegistry.getState();
+  useVideoPlayerRegistry.setState({ entries: {} });
+  for (const [key, entry] of Object.entries(entries)) {
+    releasePlayer(entry.player, key as VideoPlayerKey);
+  }
 }

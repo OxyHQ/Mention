@@ -87,8 +87,7 @@ describe('nativeWeightedEngagement — federated dampening', () => {
   it('weights the native and federated subsets of a mixed post independently', () => {
     // 8 boosts, 3 of them federated → 5 native·2.5 + 3 federated·0.5.
     const counts: EngagementCounts = { boosts: 8, federatedBoosts: 3 };
-    const expected =
-      5 * REAL_WEIGHTS.boostWeight + 3 * REAL_WEIGHTS.federatedBoostWeight;
+    const expected = 5 * REAL_WEIGHTS.boostWeight + 3 * REAL_WEIGHTS.federatedBoostWeight;
     expect(nativeWeightedEngagement(counts, REAL_WEIGHTS)).toBeCloseTo(expected, 10);
   });
 

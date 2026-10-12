@@ -99,7 +99,7 @@ reset is survived, and that an exhausted budget still fails.
 MENTION_E2E_CANDIDATE_ORIGIN=https://<deployment>.mention-frontend.pages.dev \
   bun run --cwd packages/e2e test
 
-# Or against a local export: bun run build:frontend && npx serve packages/frontend/dist
+# Or against a local export: bun run build:frontend && bunx serve packages/frontend/dist
 MENTION_E2E_CANDIDATE_ORIGIN=http://127.0.0.1:4110 bun run --cwd packages/e2e test
 ```
 

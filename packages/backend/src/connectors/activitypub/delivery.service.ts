@@ -9,10 +9,7 @@ import {
   findFollow,
   upsertOutboundPending,
 } from '../../db/federation/followRepository';
-import {
-  insertDeliveries,
-  insertDelivery,
-} from '../../db/federation/deliveryQueueRepository';
+import { insertDeliveries, insertDelivery } from '../../db/federation/deliveryQueueRepository';
 import { getPublicKey, signViaOxy } from './crypto';
 import {
   AP_CONTENT_TYPE,
@@ -31,7 +28,7 @@ import { isFediverseSharingEnabled } from '../../services/fediverseSharing';
 /**
  * Mention's outbound DELIVERY service.
  *
- * The delivery transport (sign → SSRF-safe POST → BullMQ/Mongo durable queue), the
+ * The delivery transport (sign → SSRF-safe POST → BullMQ/Postgres durable queue), the
  * shared-inbox dedup fan-out, and the follow protocol (Follow / Undo(Follow) /
  * Accept(Follow)) + the `Update(Person)` rebroadcast now live in
  * `@oxy.so/federation`'s `createDeliveryService` so every Oxy app federates
@@ -116,10 +113,12 @@ export const deliveryService: DeliveryService = createDeliveryService<EngineFede
   },
   buildLocalActorObject,
   logger: {
-    debug: (message, detail) => (detail === undefined ? logger.debug(message) : logger.debug(message, detail)),
+    debug: (message, detail) =>
+      detail === undefined ? logger.debug(message) : logger.debug(message, detail),
     info: (message) => logger.info(message),
     warn: (message) => logger.warn(message),
-    error: (message, detail) => (detail === undefined ? logger.error(message) : logger.error(message, detail)),
+    error: (message, detail) =>
+      detail === undefined ? logger.error(message) : logger.error(message, detail),
   },
 });
 

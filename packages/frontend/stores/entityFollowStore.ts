@@ -3,7 +3,7 @@ import { entityFollowService, type EntityFollowType } from '@/services/entityFol
 import { logger } from '@oxy.so/core/logger';
 
 interface EntityFollowState {
-  following: Record<string, boolean>;  // key: "type:id"
+  following: Record<string, boolean>; // key: "type:id"
   loading: Record<string, boolean>;
 
   fetchStatus: (entityType: EntityFollowType, entityId: string) => Promise<void>;
@@ -27,7 +27,10 @@ export const useEntityFollowStore = create<EntityFollowState>((set, get) => ({
     try {
       const isFollowing = await entityFollowService.getStatus(entityType, entityId);
       if (operationEpoch !== viewerEpoch) return;
-      set((s) => ({ following: { ...s.following, [k]: isFollowing }, loading: { ...s.loading, [k]: false } }));
+      set((s) => ({
+        following: { ...s.following, [k]: isFollowing },
+        loading: { ...s.loading, [k]: false },
+      }));
     } catch (error) {
       if (operationEpoch !== viewerEpoch) return;
       logger.warn('Failed to load entity follow status', { error, entityType, entityId });
@@ -39,7 +42,10 @@ export const useEntityFollowStore = create<EntityFollowState>((set, get) => ({
     const k = key(entityType, entityId);
     const current = get().following[k] ?? false;
     const operationEpoch = viewerEpoch;
-    set((s) => ({ following: { ...s.following, [k]: !current }, loading: { ...s.loading, [k]: true } }));
+    set((s) => ({
+      following: { ...s.following, [k]: !current },
+      loading: { ...s.loading, [k]: true },
+    }));
     try {
       if (current) {
         await entityFollowService.unfollow(entityType, entityId);
@@ -51,7 +57,10 @@ export const useEntityFollowStore = create<EntityFollowState>((set, get) => ({
     } catch (error) {
       if (operationEpoch !== viewerEpoch) return;
       logger.warn('Failed to toggle entity follow', { error, entityType, entityId });
-      set((s) => ({ following: { ...s.following, [k]: current }, loading: { ...s.loading, [k]: false } }));
+      set((s) => ({
+        following: { ...s.following, [k]: current },
+        loading: { ...s.loading, [k]: false },
+      }));
     }
   },
 

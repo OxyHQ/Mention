@@ -18,6 +18,9 @@
  * @param dbAvailable - result of isDbAvailable() — true on native, true on web
  *   only when SharedArrayBuffer is present (COOP/COEP headers enabled)
  */
-export function resolveUseMemoryFeed(useScoped: boolean | undefined, dbAvailable: boolean): boolean {
-    return !!(useScoped) || !dbAvailable;
+export function resolveUseMemoryFeed(
+  useScoped: boolean | undefined,
+  dbAvailable: boolean,
+): boolean {
+  return !!useScoped || !dbAvailable;
 }

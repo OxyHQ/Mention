@@ -3,7 +3,10 @@ import { expect, test } from '../fixtures';
 
 for (const width of [390, 1024, 1440]) {
   for (const colorScheme of ['light', 'dark'] as const) {
-    test(`profile media and docked chrome share geometry (${width}, ${colorScheme})`, async ({ page, candidate }) => {
+    test(`profile media and docked chrome share geometry (${width}, ${colorScheme})`, async ({
+      page,
+      candidate,
+    }) => {
       await page.setViewportSize({ width, height: 800 });
       await page.emulateMedia({ colorScheme });
       await page.goto(`/@${PROFILE_HANDLE}`);
@@ -23,21 +26,30 @@ for (const width of [390, 1024, 1440]) {
       }
 
       // The media starts behind the header; the header reserves no blank band.
-      await expect.poll(async () => {
-        const [h, b] = await Promise.all([header.boundingBox(), banner.boundingBox()]);
-        return h && b ? Math.abs(h.y - b.y) : Infinity;
-      }).toBeLessThan(1);
+      await expect
+        .poll(async () => {
+          const [h, b] = await Promise.all([header.boundingBox(), banner.boundingBox()]);
+          return h && b ? Math.abs(h.y - b.y) : Infinity;
+        })
+        .toBeLessThan(1);
 
       // The avatar rises 45px into the banner, painted over it, and the tab
       // strip starts where the summary ends — no transform hole under it.
       const hero = await page.evaluate(() => {
-        const cover = document.querySelector('[data-testid="profile-hero-cover"]')!.getBoundingClientRect();
+        const cover = document
+          .querySelector('[data-testid="profile-hero-cover"]')!
+          .getBoundingClientRect();
         const content = document.querySelector('[data-testid="profile-hero-content"]')!;
-        const avatar = [...content.querySelectorAll('img')].find(img => img.getBoundingClientRect().width >= 80);
+        const avatar = [...content.querySelectorAll('img')].find(
+          (img) => img.getBoundingClientRect().width >= 80,
+        );
         if (!avatar) return null;
         const a = avatar.getBoundingClientRect();
         const hit = document.elementFromPoint(a.left + a.width / 2, cover.bottom - 10);
-        return { overlap: cover.bottom - a.top, onTop: Boolean(hit && avatar.parentElement?.contains(hit)) };
+        return {
+          overlap: cover.bottom - a.top,
+          onTop: Boolean(hit && avatar.parentElement?.contains(hit)),
+        };
       });
       expect(hero).not.toBeNull();
       expect(Math.abs(hero!.overlap - 41)).toBeLessThanOrEqual(2); // 45 minus the 4px ring
@@ -47,24 +59,30 @@ for (const width of [390, 1024, 1440]) {
 
       // Wait for actual feed runway. Scrolling before posts arrive clamps to 0
       // and would accidentally inspect the resting chrome twice.
-      await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight - innerHeight)).toBeGreaterThan(900);
+      await expect
+        .poll(() => page.evaluate(() => document.documentElement.scrollHeight - innerHeight))
+        .toBeGreaterThan(900);
       for (const offset of [600, 850]) {
-        await page.evaluate(y => window.scrollTo(0, y), offset);
+        await page.evaluate((y) => window.scrollTo(0, y), offset);
         await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(offset);
-        await expect.poll(async () => {
-          const [h, t] = await Promise.all([header.boundingBox(), tabs.boundingBox()]);
-          return h && t ? Math.abs(t.y - h.y - h.height) : Infinity;
-        }).toBeLessThan(1);
+        await expect
+          .poll(async () => {
+            const [h, t] = await Promise.all([header.boundingBox(), tabs.boundingBox()]);
+            return h && t ? Math.abs(t.y - h.y - h.height) : Infinity;
+          })
+          .toBeLessThan(1);
         await expect(fill).toHaveCSS('opacity', '1');
-        const headerFill = await fill.evaluate(node => getComputedStyle(node).backgroundColor);
+        const headerFill = await fill.evaluate((node) => getComputedStyle(node).backgroundColor);
         expect(headerFill).not.toBe('rgba(0, 0, 0, 0)');
         await expect(tabs).toHaveCSS('background-color', headerFill);
         // Mask/border layers must not cover the interactive header islands.
         const back = page.getByTestId('profile-page-header-back');
-        expect(await back.evaluate(node => {
-          const r = node.getBoundingClientRect();
-          return node.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
-        })).toBe(true);
+        expect(
+          await back.evaluate((node) => {
+            const r = node.getBoundingClientRect();
+            return node.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+          }),
+        ).toBe(true);
       }
       expect(candidate.scriptErrors).toEqual([]);
     });

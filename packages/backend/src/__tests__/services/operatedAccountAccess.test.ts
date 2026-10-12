@@ -51,7 +51,11 @@ describe('viewerOperatesAccount — an absent target is not an operated account'
 
     for (const target of ['', '   ', null, undefined]) {
       expect(
-        await viewerOperatesAccount({ targetOxyUserId: target, callerId: CALLER, memberReader: reader }),
+        await viewerOperatesAccount({
+          targetOxyUserId: target,
+          callerId: CALLER,
+          memberReader: reader,
+        }),
       ).toBe(false);
     }
   });

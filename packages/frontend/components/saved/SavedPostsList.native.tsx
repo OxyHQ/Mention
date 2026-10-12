@@ -2,10 +2,7 @@ import { useCallback } from 'react';
 import { Pressable } from 'react-native';
 import { FocusedFlashList } from '@/components/common/FocusedFlashList';
 import PostItem from '@/components/Feed/PostItem';
-import type {
-  SavedPost,
-  SavedPostsListProps,
-} from './SavedPostsList.types';
+import type { SavedPost, SavedPostsListProps } from './SavedPostsList.types';
 
 const keyExtractor = (post: SavedPost) => post.id;
 const getItemType = () => 'saved-post';
@@ -19,10 +16,7 @@ export default function SavedPostsList({
 }: SavedPostsListProps) {
   const renderItem = useCallback(
     ({ item }: { item: SavedPost }) => (
-      <Pressable
-        onLongPress={() => onLongPress(item.id)}
-        delayLongPress={500}
-      >
+      <Pressable onLongPress={() => onLongPress(item.id)} delayLongPress={500}>
         <PostItem post={item} />
       </Pressable>
     ),

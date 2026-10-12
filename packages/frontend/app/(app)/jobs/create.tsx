@@ -13,7 +13,11 @@ import { Field } from '@oxy.so/bloom/field';
 import { Item } from '@oxy.so/bloom/item';
 import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { SegmentedControl, SegmentedControlItem, SegmentedControlItemText } from '@oxy.so/bloom/segmented-control';
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+  SegmentedControlItemText,
+} from '@oxy.so/bloom/segmented-control';
 import { TagField } from '@oxy.so/bloom/tag-field';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
@@ -108,7 +112,8 @@ function EmployerPickerDialog({
       {accounts.length === 0 ? (
         <Text className="text-center text-sm text-muted-foreground py-6 px-6">
           {t('jobs.create.noEmployers', {
-            defaultValue: 'You do not operate an organization or project account yet. Create one to publish a job.',
+            defaultValue:
+              'You do not operate an organization or project account yet. Create one to publish a job.',
           })}
         </Text>
       ) : (
@@ -124,7 +129,10 @@ function EmployerPickerDialog({
                 verified={Boolean(account.account.verified)}
               />
             }
-            title={displayNameOrHandle(account.account.name?.displayName, `@${account.account.username}`)}
+            title={displayNameOrHandle(
+              account.account.name?.displayName,
+              `@${account.account.username}`,
+            )}
             subtitle={`@${account.account.username} · ${account.kind}`}
             selected={account.accountId === selectedId}
           />
@@ -209,7 +217,8 @@ export default function CreateJobScreen() {
           : undefined,
         skills: skills.length > 0 ? skills : undefined,
         applicationMode,
-        externalApplyUrl: applicationMode === 'external' ? externalApplyUrl.trim() || undefined : undefined,
+        externalApplyUrl:
+          applicationMode === 'external' ? externalApplyUrl.trim() || undefined : undefined,
         publish,
       };
     },
@@ -253,7 +262,9 @@ export default function CreateJobScreen() {
       // now") is a real, if currently rare, failure — surfaced with the
       // backend's own message rather than swallowed or generic-ized.
       const fallback = isJobEntitlementError(error)
-        ? t('jobs.create.entitlementFailed', { defaultValue: 'This account cannot publish a job right now' })
+        ? t('jobs.create.entitlementFailed', {
+            defaultValue: 'This account cannot publish a job right now',
+          })
         : t('jobs.create.failed', { defaultValue: 'Could not save this job' });
       toast.error(getJobErrorMessage(error, fallback));
     },
@@ -268,8 +279,11 @@ export default function CreateJobScreen() {
     [buildPayload, createMutation],
   );
 
-  const canSubmitBase = Boolean(employer && title.trim() && description.trim() && !isJobLocationIncomplete(location));
-  const canPublish = canSubmitBase && (applicationMode !== 'external' || externalApplyUrl.trim().length > 0);
+  const canSubmitBase = Boolean(
+    employer && title.trim() && description.trim() && !isJobLocationIncomplete(location),
+  );
+  const canPublish =
+    canSubmitBase && (applicationMode !== 'external' || externalApplyUrl.trim().length > 0);
   const publishingIntent = createMutation.variables?.publish === true;
 
   return (
@@ -294,15 +308,24 @@ export default function CreateJobScreen() {
                 onPress={() => setEmployerPickerOpen(true)}
                 leading={
                   employer ? (
-                    <Avatar source={employer.account.avatar} size={36} variant={MEDIA_VARIANT_AVATAR} />
+                    <Avatar
+                      source={employer.account.avatar}
+                      size={36}
+                      variant={MEDIA_VARIANT_AVATAR}
+                    />
                   ) : undefined
                 }
                 title={
                   employer
-                    ? displayNameOrHandle(employer.account.name?.displayName, `@${employer.account.username}`)
+                    ? displayNameOrHandle(
+                        employer.account.name?.displayName,
+                        `@${employer.account.username}`,
+                      )
                     : accountsLoading
                       ? t('common.loading', { defaultValue: 'Loading…' })
-                      : t('jobs.create.selectEmployer', { defaultValue: 'Select an organization or project' })
+                      : t('jobs.create.selectEmployer', {
+                          defaultValue: 'Select an organization or project',
+                        })
                 }
                 subtitle={employer ? `@${employer.account.username}` : undefined}
               />
@@ -348,15 +371,22 @@ export default function CreateJobScreen() {
           </View>
 
           {/* Workplace type */}
-          <Field label={t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })} style={{ marginTop: 16 }}>
+          <Field
+            label={t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })}
+            style={{ marginTop: 16 }}
+          >
             <SegmentedControl
               label={t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })}
               type="radio"
               value={workplaceType || 'unset'}
-              onChange={(value) => setWorkplaceType(value === 'unset' ? '' : (value as MentionJobWorkplaceType))}
+              onChange={(value) =>
+                setWorkplaceType(value === 'unset' ? '' : (value as MentionJobWorkplaceType))
+              }
             >
               <SegmentedControlItem value="unset">
-                <SegmentedControlItemText>{t('jobs.create.notSpecified', { defaultValue: 'Not specified' })}</SegmentedControlItemText>
+                <SegmentedControlItemText>
+                  {t('jobs.create.notSpecified', { defaultValue: 'Not specified' })}
+                </SegmentedControlItemText>
               </SegmentedControlItem>
               {MENTION_JOB_WORKPLACE_TYPES.map((value) => (
                 <SegmentedControlItem key={value} value={value}>
@@ -435,7 +465,10 @@ export default function CreateJobScreen() {
           </Field>
 
           {/* Skills — Enter or a comma commits a skill; each chip removes itself. */}
-          <Field label={t('jobs.create.skills', { defaultValue: 'Skills' })} style={{ marginTop: 16 }}>
+          <Field
+            label={t('jobs.create.skills', { defaultValue: 'Skills' })}
+            style={{ marginTop: 16 }}
+          >
             <TagField
               value={skills}
               onChange={handleSkillsChange}
@@ -445,7 +478,9 @@ export default function CreateJobScreen() {
 
           {/* Application mode */}
           <View className="mt-4">
-            <Field label={t('jobs.create.applicationMode', { defaultValue: 'How do people apply?' })}>
+            <Field
+              label={t('jobs.create.applicationMode', { defaultValue: 'How do people apply?' })}
+            >
               <SegmentedControl
                 label={t('jobs.create.applicationMode', { defaultValue: 'How do people apply?' })}
                 type="radio"
@@ -479,7 +514,8 @@ export default function CreateJobScreen() {
             ) : (
               <Text className="text-muted-foreground text-xs mt-2">
                 {t('jobs.create.applyViaMentionHint', {
-                  defaultValue: 'Applicants apply through Mention, and you’ll review applications from your dashboard.',
+                  defaultValue:
+                    'Applicants apply through Mention, and you’ll review applications from your dashboard.',
                 })}
               </Text>
             )}
@@ -488,7 +524,8 @@ export default function CreateJobScreen() {
           {/* Submit */}
           <View className="flex-row gap-3 mt-6">
             <Button
-              appearance="subtle" tone="neutral"
+              appearance="subtle"
+              tone="neutral"
               size="lg"
               style={{ flex: 1 }}
               loading={createMutation.isPending && !publishingIntent}
@@ -498,7 +535,8 @@ export default function CreateJobScreen() {
               {t('jobs.create.saveDraft', { defaultValue: 'Save draft' })}
             </Button>
             <Button
-              appearance="solid" tone="accent"
+              appearance="solid"
+              tone="accent"
               size="lg"
               style={{ flex: 1 }}
               loading={createMutation.isPending && publishingIntent}

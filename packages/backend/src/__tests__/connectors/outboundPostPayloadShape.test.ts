@@ -78,7 +78,11 @@ function findPayloadSites(): PayloadSite[] {
       for (let cursor = index + 1; cursor < lines.length; cursor++) {
         const candidate = lines[cursor].trim();
         if (candidate === '' || candidate.startsWith('//') || candidate.startsWith('*')) continue;
-        sites.push({ file: path.relative(SOURCE_ROOT, file), line: index + 1, postLine: candidate });
+        sites.push({
+          file: path.relative(SOURCE_ROOT, file),
+          line: index + 1,
+          postLine: candidate,
+        });
         break;
       }
     });
@@ -101,9 +105,7 @@ describe('outbound post payloads', () => {
       return /^post:\s*\{/.test(site.postLine);
     });
 
-    expect(
-      handBuilt.map((site) => `${site.file}:${site.line} -> ${site.postLine}`),
-    ).toEqual([]);
+    expect(handBuilt.map((site) => `${site.file}:${site.line} -> ${site.postLine}`)).toEqual([]);
   });
 
   it('finds a `post:` line for every event it scanned', () => {

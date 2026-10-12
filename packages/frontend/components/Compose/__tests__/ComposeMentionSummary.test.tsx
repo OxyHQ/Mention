@@ -304,9 +304,7 @@ describe('a link that stays a link is never announced', () => {
       },
     });
 
-    await renderSummary([
-      'read https://example.com/blog then https://mention.earth/@alice',
-    ]);
+    await renderSummary(['read https://example.com/blog then https://mention.earth/@alice']);
 
     expect(askedUrls()).toEqual([['https://mention.earth/@alice']]);
   });
@@ -338,7 +336,11 @@ describe('the summary describes the body, and only the body', () => {
 
   it('asserts nothing until the lookup has answered', async () => {
     let settle: (value: unknown) => void = () => {};
-    mockPost.mockReturnValue(new Promise((resolve) => { settle = resolve; }));
+    mockPost.mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     let tree: TestRenderer.ReactTestRenderer | undefined;
@@ -392,7 +394,11 @@ describe('the summary describes the body, and only the body', () => {
       );
     });
 
-    for (const text of ['https://mention.earth/@al', 'https://mention.earth/@ali', 'https://mention.earth/@alice']) {
+    for (const text of [
+      'https://mention.earth/@al',
+      'https://mention.earth/@ali',
+      'https://mention.earth/@alice',
+    ]) {
       await act(async () => {
         (tree as TestRenderer.ReactTestRenderer).update(
           <QueryClientProvider client={client}>

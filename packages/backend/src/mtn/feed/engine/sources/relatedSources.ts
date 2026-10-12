@@ -11,7 +11,18 @@
  */
 
 import { PostVisibility, MtnConfig } from '@mention/shared-types';
-import { and, arrayOverlaps, eq, gte, inArray, isNotNull, ne, or, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  arrayOverlaps,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { getDb } from '../../../../db/postgres';
 import { authorFollowerSnapshots, posts } from '../../../../db/schema';
 import { assemblePostRecords } from '../../../../db/posts/postRepository';
@@ -69,10 +80,17 @@ interface MoreLikeThisSeed {
  * NOTE: block / restrict relationships are not resolved onto the feed engine
  * context pre-hydration, so this enforces post VISIBILITY only.
  */
-function isSeedAuthorized(visibility: unknown, seedAuthorId: string, ctx: FeedEngineContext): boolean {
+function isSeedAuthorized(
+  visibility: unknown,
+  seedAuthorId: string,
+  ctx: FeedEngineContext,
+): boolean {
   if (visibility === PostVisibility.PUBLIC) return true;
   if (seedAuthorId && seedAuthorId === ctx.currentUserId) return true;
-  if (visibility === PostVisibility.FOLLOWERS_ONLY && (ctx.followingIds ?? []).includes(seedAuthorId)) {
+  if (
+    visibility === PostVisibility.FOLLOWERS_ONLY &&
+    (ctx.followingIds ?? []).includes(seedAuthorId)
+  ) {
     return true;
   }
   return false;
@@ -85,9 +103,8 @@ function isSeedAuthorized(visibility: unknown, seedAuthorId: string, ctx: FeedEn
  * Returns `null` when a `postId` was given but is not found, or when the viewer
  * is not authorized to view that seed post.
  *
- * The Mongo original guarded the lookup with `ObjectId.isValid`. That guard is
- * DELETED per `@oxy.so/db`: it existed only to dodge a `CastError`, and a text id
- * naming no row already produces the `null` this returns.
+ * There is deliberately no id-shape guard on the lookup, per `@oxy.so/db`: a
+ * text id naming no row already produces the `null` this returns.
  */
 async function resolveSeed(
   params: Record<string, unknown>,
@@ -97,7 +114,12 @@ async function resolveSeed(
 
   if (postId) {
     let seedPost:
-      | { topics: string[] | null; hashtags: string[] | null; oxyUserId: string | null; visibility: string }
+      | {
+          topics: string[] | null;
+          hashtags: string[] | null;
+          oxyUserId: string | null;
+          visibility: string;
+        }
       | undefined;
     try {
       [seedPost] = await getDb()
@@ -186,7 +208,8 @@ export const moreLikeThisSource: SourceModule = {
     const windowStart = new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
     const conditions: SQL[] = [
       eq(posts.visibility, PostVisibility.PUBLIC),
-      eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+      eq(posts.status, 'published'),
+      notCollapsedCrosspostSql(),
       gte(posts.createdAt, windowStart),
       discoverySafeSql(),
       or(...alternatives) as SQL,
@@ -296,7 +319,8 @@ export const nearbySource: SourceModule = {
         .where(
           and(
             eq(posts.visibility, PostVisibility.PUBLIC),
-            eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+            eq(posts.status, 'published'),
+            notCollapsedCrosspostSql(),
             discoverySafeSql(),
             notABoostSql(),
             sql`ST_DWithin(${posts.geo}, ${point}, ${radiusKm * METRES_PER_KM})`,
@@ -315,7 +339,8 @@ export const nearbySource: SourceModule = {
     const conditions: SQL[] = [
       eq(posts.classificationRegion, region),
       eq(posts.visibility, PostVisibility.PUBLIC),
-      eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+      eq(posts.status, 'published'),
+      notCollapsedCrosspostSql(),
       discoverySafeSql(),
     ];
     if (keyset) conditions.push(keyset);
@@ -490,10 +515,9 @@ function loadRankedCreators(windowStart: Date, now: number): Promise<RankedCreat
  * beat already-huge accounts), and returns those authors' recent public SFW
  * top-level posts, scored (`finalScore`) by their author's growth rate.
  *
- * `$first`/`$last` after a `$sort` become `array_agg(... ORDER BY ...)` picking
- * element 1 — the aggregate carries its own ordering, so unlike the Mongo
- * pipeline this does not depend on a preceding sort stage that a later edit
- * could remove.
+ * First/last values are `array_agg(... ORDER BY ...)` picking element 1 — the
+ * aggregate carries its own ordering, so this does not depend on a preceding
+ * sort stage that a later edit could remove.
  *
  * INFRA CAVEAT: inert until the snapshot job has recorded at least two samples
  * spanning the window for some authors — with no snapshots (or no positive
@@ -533,7 +557,8 @@ export const risingCreatorsSource: SourceModule = {
           // hitting the identical mistake in its own fixture helper.
           inArray(posts.oxyUserId, authorIds),
           eq(posts.visibility, PostVisibility.PUBLIC),
-          eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+          eq(posts.status, 'published'),
+          notCollapsedCrosspostSql(),
           gte(posts.createdAt, windowStart),
           discoverySafeSql(),
           eq(posts.isReply, false),
@@ -546,7 +571,8 @@ export const risingCreatorsSource: SourceModule = {
 
     return candidates
       .map((post) => {
-        post.finalScore = typeof post.oxyUserId === 'string' ? rateById.get(post.oxyUserId) ?? 0 : 0;
+        post.finalScore =
+          typeof post.oxyUserId === 'string' ? (rateById.get(post.oxyUserId) ?? 0) : 0;
         return post;
       })
       .sort((a, b) => {

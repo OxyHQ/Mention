@@ -1,11 +1,5 @@
 import React, { memo, useCallback, useMemo, useState } from 'react';
-import {
-  FlatList,
-  Pressable,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { FlatList, Pressable, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
@@ -17,7 +11,11 @@ import { Item } from '@oxy.so/bloom/item';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
-import { useAppearanceStore, type ProfileMedia, type UserAppearance } from '@/stores/appearanceStore';
+import {
+  useAppearanceStore,
+  type ProfileMedia,
+  type UserAppearance,
+} from '@/stores/appearanceStore';
 import { useProfileSongPreview } from '@/hooks/useProfileSongPreview';
 import { useInfiniteCatalogSearch, ResultsFooter } from '@/hooks/useInfiniteCatalogSearch';
 import { createLogger } from '@oxy.so/core/logger';
@@ -157,7 +155,9 @@ const SongResultRow = memo(function SongResultRow({
             isLoading={preview.isLoading}
             onPress={handlePress}
             size="sm"
-            accessibilityLabel={preview.isPlaying ? t('profile.media.song.pause') : t('profile.media.song.play')}
+            accessibilityLabel={
+              preview.isPlaying ? t('profile.media.song.pause') : t('profile.media.song.play')
+            }
           />
         ) : undefined
       }
@@ -355,9 +355,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
 
   return (
     <View className="bg-background px-4 pt-3 pb-2">
-      <Text className="text-foreground text-lg font-bold mb-3">
-        {t('profile.media.title')}
-      </Text>
+      <Text className="text-foreground text-lg font-bold mb-3">{t('profile.media.title')}</Text>
 
       {/* SONG / PODCAST toggle */}
       <View className="flex-row p-1 rounded-full bg-muted mb-3">
@@ -398,7 +396,11 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
         <RiSearchLine size="sm" fill={colors.textSecondary} />
         <TextInput
           className="flex-1 text-[15px] text-foreground"
-          placeholder={isSongTab ? t('profile.media.song.searchPlaceholder') : t('profile.media.podcast.searchPlaceholder')}
+          placeholder={
+            isSongTab
+              ? t('profile.media.song.searchPlaceholder')
+              : t('profile.media.podcast.searchPlaceholder')
+          }
           placeholderTextColor={colors.textTertiary}
           value={query}
           onChangeText={setQuery}
@@ -426,7 +428,9 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
           </View>
         ) : activeSearch.isError ? (
           <Text className="text-muted-foreground text-[15px] text-center py-10">
-            {isSongTab ? t('profile.media.song.searchError') : t('profile.media.podcast.searchError')}
+            {isSongTab
+              ? t('profile.media.song.searchError')
+              : t('profile.media.podcast.searchError')}
           </Text>
         ) : !activeSearch.hasQuery ? (
           <Text className="text-muted-foreground text-[15px] text-center py-10">
@@ -562,7 +566,10 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
             {saving ? (
               <SpinnerIcon size={20} color={colors.primaryForeground} />
             ) : (
-              <Text className="text-[15px] font-semibold" style={{ color: colors.primaryForeground }}>
+              <Text
+                className="text-[15px] font-semibold"
+                style={{ color: colors.primaryForeground }}
+              >
                 {t('profile.media.save')}
               </Text>
             )}
@@ -612,7 +619,10 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
             {saving ? (
               <SpinnerIcon size={20} color={colors.primaryForeground} />
             ) : (
-              <Text className="text-[15px] font-semibold" style={{ color: colors.primaryForeground }}>
+              <Text
+                className="text-[15px] font-semibold"
+                style={{ color: colors.primaryForeground }}
+              >
                 {t('profile.media.save')}
               </Text>
             )}

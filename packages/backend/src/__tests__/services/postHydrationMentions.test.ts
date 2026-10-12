@@ -93,11 +93,7 @@ describe('PostHydrationService.replaceMentionPlaceholders', () => {
     getUsersByIds.mockResolvedValue([makeOxyUser('u1', 'alice', 'Alice')]);
 
     const text = 'hi [mention:u1] and again [mention:u1]!';
-    const result = await asReplacer(service).replaceMentionPlaceholders(
-      text,
-      ['u1'],
-      new Map(),
-    );
+    const result = await asReplacer(service).replaceMentionPlaceholders(text, ['u1'], new Map());
 
     expect(result).toBe('hi [@Alice](alice) and again [@Alice](alice)!');
     // Batched: a single bulk fetch, never the per-id getUserById fallback.

@@ -55,10 +55,11 @@ function walk(directory: string): string[] {
  * route.
  */
 function routePathFor(file: string): string {
-  const withoutExtension = relative(appRoot, file).replace(/(\.(web|native|ios|android))?\.tsx?$/, '');
-  const segments = withoutExtension
-    .split('/')
-    .filter((segment) => !/^\(.+\)$/.test(segment));
+  const withoutExtension = relative(appRoot, file).replace(
+    /(\.(web|native|ios|android))?\.tsx?$/,
+    '',
+  );
+  const segments = withoutExtension.split('/').filter((segment) => !/^\(.+\)$/.test(segment));
   if (segments.at(-1) === 'index') segments.pop();
   return `/${segments.join('/')}`;
 }

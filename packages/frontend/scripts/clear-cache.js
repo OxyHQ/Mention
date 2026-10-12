@@ -18,7 +18,7 @@ const cacheDirs = [
   path.join(projectRoot, 'dist'),
 ];
 
-cacheDirs.forEach(dir => {
+cacheDirs.forEach((dir) => {
   if (fs.existsSync(dir)) {
     console.log(`  Removing ${dir}`);
     fs.rmSync(dir, { recursive: true, force: true });

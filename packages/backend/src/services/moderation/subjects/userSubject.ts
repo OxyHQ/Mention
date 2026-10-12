@@ -76,9 +76,7 @@ export function createUserSubjectProvider(): ModerationSubjectProvider {
            * ghost-handle bug, and a permalink is optional precisely so nobody has
            * to invent one.
            */
-          ...(username === undefined
-            ? {}
-            : { permalink: `${config.web.origin}/@${username}` }),
+          ...(username === undefined ? {} : { permalink: `${config.web.origin}/@${username}` }),
           author: { oxyUserId: reportedId },
         },
         content: {

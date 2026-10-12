@@ -186,7 +186,12 @@ beforeEach(async () => {
 
 describe('handleLike — local owner like notification', () => {
   function likeActivity() {
-    return { id: `${ACTOR_URI}/likes/1`, type: 'Like' as const, actor: ACTOR_URI, object: targetUri };
+    return {
+      id: `${ACTOR_URI}/likes/1`,
+      type: 'Like' as const,
+      actor: ACTOR_URI,
+      object: targetUri,
+    };
   }
 
   it('notifies the owner (type:"like") on a NEW inbound like, mirroring the native shape', async () => {
@@ -227,7 +232,11 @@ describe('handleLike — local owner like notification', () => {
     // The actor exists but was never linked to an Oxy account.
     await clearFederationScope(scope);
     await seedRemoteActor(null);
-    await seedFollow(scope, { remoteActorUri: ACTOR_URI, direction: 'outbound', status: 'accepted' });
+    await seedFollow(scope, {
+      remoteActorUri: ACTOR_URI,
+      direction: 'outbound',
+      status: 'accepted',
+    });
 
     await inboxProcessingService.processInboxActivity(likeActivity(), ACTOR_URI);
 
@@ -309,7 +318,11 @@ describe('handleAnnounce — local owner boost notification', () => {
     // The actor exists but was never linked to an Oxy account.
     await clearFederationScope(scope);
     await seedRemoteActor(null);
-    await seedFollow(scope, { remoteActorUri: ACTOR_URI, direction: 'outbound', status: 'accepted' });
+    await seedFollow(scope, {
+      remoteActorUri: ACTOR_URI,
+      direction: 'outbound',
+      status: 'accepted',
+    });
 
     await inboxProcessingService.processInboxActivity(announceActivity(), ACTOR_URI);
 

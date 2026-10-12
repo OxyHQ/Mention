@@ -8,10 +8,7 @@
  * For an ATTRIBUTE value (an anchor `href`), use {@link escapeApHtmlAttr}.
  */
 export function escapeApHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 /**
@@ -54,12 +51,14 @@ export function wrapApParagraphs(safeBody: string): string {
   // single boundary, because HTML has no empty paragraph to render.
   const paragraphs = safeBody.split(/\n[ \t]*(?:\n[ \t]*)+/);
 
-  return paragraphs
-    .map((paragraph) => paragraph.trim())
-    .filter((paragraph) => paragraph.length > 0)
-    // A single newline that survives inside a paragraph is an author line break.
-    .map((paragraph) => `<p>${paragraph.replace(/\n/g, '<br>')}</p>`)
-    .join('');
+  return (
+    paragraphs
+      .map((paragraph) => paragraph.trim())
+      .filter((paragraph) => paragraph.length > 0)
+      // A single newline that survives inside a paragraph is an author line break.
+      .map((paragraph) => `<p>${paragraph.replace(/\n/g, '<br>')}</p>`)
+      .join('')
+  );
 }
 
 /**

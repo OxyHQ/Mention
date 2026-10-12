@@ -112,7 +112,11 @@ export function atprotoIdentityHandle(handle: string, did: string): string {
   return isUnresolvedAtprotoHandle(handle) ? did : handle;
 }
 
-export function splitHandle(handle: string): { username: string; domain: string; federatedUsername: string } {
+export function splitHandle(handle: string): {
+  username: string;
+  domain: string;
+  federatedUsername: string;
+} {
   // The suffix rule itself lives in `@oxy.so/federation`'s bridge policy, beside
   // the Bluesky network record this connector's instance domain now comes from.
   // The same Bluesky account can also reach us over ActivityPub through Bridgy
@@ -128,7 +132,9 @@ export function splitHandle(handle: string): { username: string; domain: string;
 }
 
 /** Map a getProfile response to the network-neutral actor shape (pure). */
-export function mapProfileToNormalizedActor(profile: AtprotoProfileView): NormalizedExternalActor | null {
+export function mapProfileToNormalizedActor(
+  profile: AtprotoProfileView,
+): NormalizedExternalActor | null {
   const did = typeof profile.did === 'string' ? profile.did : '';
   const handle = typeof profile.handle === 'string' ? profile.handle : '';
   if (!did || !handle) return null;
@@ -142,8 +148,10 @@ export function mapProfileToNormalizedActor(profile: AtprotoProfileView): Normal
   // (or their client) typed, and our clients render it faithfully
   // (`white-space: pre-wrap`). The display name is ONE LINE — a newline in it is
   // never meaningful — while the bio is a BODY whose paragraphs must survive.
-  const displayName = typeof profile.displayName === 'string' ? normalizeInlineText(profile.displayName) : '';
-  const bio = typeof profile.description === 'string' ? normalizeMultilineText(profile.description) : '';
+  const displayName =
+    typeof profile.displayName === 'string' ? normalizeInlineText(profile.displayName) : '';
+  const bio =
+    typeof profile.description === 'string' ? normalizeMultilineText(profile.description) : '';
   return {
     network: 'atproto',
     externalId: did,
@@ -178,7 +186,9 @@ export function mapProfileToNormalizedActor(profile: AtprotoProfileView): Normal
  * stays undefined — callers MUST NOT import posts for an unresolved author (no
  * orphan posts), exactly like the ActivityPub no-orphan invariant.
  */
-export async function upsertAtprotoActor(actor: NormalizedExternalActor): Promise<NormalizedExternalActor> {
+export async function upsertAtprotoActor(
+  actor: NormalizedExternalActor,
+): Promise<NormalizedExternalActor> {
   const did = actor.externalId;
   // Substituted again (idempotent) rather than trusted, for the same reason the
   // bio is re-normalized below: this function is exported and does not require
@@ -190,8 +200,13 @@ export async function upsertAtprotoActor(actor: NormalizedExternalActor): Promis
 
   let resolved: Awaited<ReturnType<typeof resolveOxyIdentity>>;
   try {
-    resolved = await resolveOxyIdentity({ actorUri: did, transportAcct: identityHandle, protocol: 'atproto' });
-    if (resolved.externalIdentity.actorUri !== did) throw new Error('Oxy resolved a different source actor');
+    resolved = await resolveOxyIdentity({
+      actorUri: did,
+      transportAcct: identityHandle,
+      protocol: 'atproto',
+    });
+    if (resolved.externalIdentity.actorUri !== did)
+      throw new Error('Oxy resolved a different source actor');
   } catch (err) {
     logger.warn('[atproto] Oxy identity resolution failed', { did, err });
     return { ...actor, oxyUserId: undefined };
@@ -246,7 +261,7 @@ export async function upsertAtprotoActor(actor: NormalizedExternalActor): Promis
     // the failing statement AND its bound parameters, so logging the object
     // publishes every value the row carried.
     const failure = describeDriverError(err);
-    const reason = isUniqueViolation(err) ? failure.constraint ?? 'unique_violation' : 'other';
+    const reason = isUniqueViolation(err) ? (failure.constraint ?? 'unique_violation') : 'other';
     metrics.incrementCounter(ACTOR_UPSERT_FAILED_METRIC, 1, { protocol: 'atproto', reason });
     if (isUniqueViolation(err)) {
       logger.error('[atproto] federated actor upsert refused by a unique constraint', {
@@ -267,7 +282,11 @@ export async function upsertAtprotoActor(actor: NormalizedExternalActor): Promis
   }
 
   if (!fedActor) return { ...actor, oxyUserId: undefined };
-  const projection = await reconcileActorIdentityProjection({ actorUri: did, oxyUserId: resolved.user.id, networkAcct: resolved.externalIdentity.canonicalAcct });
+  const projection = await reconcileActorIdentityProjection({
+    actorUri: did,
+    oxyUserId: resolved.user.id,
+    networkAcct: resolved.externalIdentity.canonicalAcct,
+  });
   if (projection.refusal) return { ...actor, oxyUserId: undefined };
   return {
     ...actor,
@@ -285,10 +304,14 @@ export async function upsertAtprotoActor(actor: NormalizedExternalActor): Promis
  * `federated_actors` row, and resolve its Oxy user. `actor` may be a handle or a DID.
  * Returns null when the profile cannot be fetched / mapped.
  */
-export async function fetchAndUpsertAtprotoProfile(actor: string): Promise<NormalizedExternalActor | null> {
+export async function fetchAndUpsertAtprotoProfile(
+  actor: string,
+): Promise<NormalizedExternalActor | null> {
   let profile: AtprotoProfileView;
   try {
-    profile = await xrpcGet<AtprotoProfileView>(PUBLIC_APPVIEW, 'app.bsky.actor.getProfile', { actor });
+    profile = await xrpcGet<AtprotoProfileView>(PUBLIC_APPVIEW, 'app.bsky.actor.getProfile', {
+      actor,
+    });
   } catch (err) {
     logger.debug('[atproto] getProfile failed', err);
     return null;

@@ -19,9 +19,7 @@ export const ProfileCommunities = memo(function ProfileCommunities({
 
   return (
     <View className="mt-4">
-      <Text className="text-foreground text-sm font-bold mb-3">
-        {t('profile.communities')}
-      </Text>
+      <Text className="text-foreground text-sm font-bold mb-3">{t('profile.communities')}</Text>
       {communities.map((community, index) => (
         <CommunityCard key={community.id || index} community={community} />
       ))}
@@ -51,9 +49,7 @@ const CommunityCard = memo(function CommunityCard({ community }: { community: Co
           </View>
         )}
         <View className="flex-1">
-          <Text className="text-foreground text-base font-bold mb-1">
-            {community.name}
-          </Text>
+          <Text className="text-foreground text-base font-bold mb-1">{community.name}</Text>
           {community.description && (
             <Text className="text-muted-foreground text-sm mb-2" style={{ lineHeight: 18 }}>
               {community.description}

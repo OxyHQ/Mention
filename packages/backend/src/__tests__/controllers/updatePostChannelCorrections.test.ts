@@ -49,7 +49,9 @@ const hoisted = vi.hoisted(() => ({
 // reaches this.
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: hoisted.createScopedOxyClient,
-  createUserScopedOxyServices: vi.fn(() => ({ accounts: { members: { list: hoisted.listAccountMembers } } })),
+  createUserScopedOxyServices: vi.fn(() => ({
+    accounts: { members: { list: hoisted.listAccountMembers } },
+  })),
 }));
 
 /**
@@ -63,7 +65,11 @@ vi.mock('../../utils/oxyHelpers', () => ({
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: hoisted.hydratePosts },
   resolveUserSummaries: hoisted.resolveUserSummaries,
-  degradedActorSummary: (id: string) => ({ id, username: '', name: { displayName: 'Unknown user' } }),
+  degradedActorSummary: (id: string) => ({
+    id,
+    username: '',
+    name: { displayName: 'Unknown user' },
+  }),
 }));
 
 vi.mock('../../services/PostCollaborationService', () => ({
@@ -226,7 +232,10 @@ describe('the edit window', () => {
     await seedChannelPost();
     const { res, captured } = buildResponse();
 
-    await updatePost(buildRequest({ content: { text: 'corrected a day later' } }, WRITER_ID) as never, res as never);
+    await updatePost(
+      buildRequest({ content: { text: 'corrected a day later' } }, WRITER_ID) as never,
+      res as never,
+    );
 
     expect(captured.status).toBeUndefined();
     expect(await storedText()).toBe('corrected a day later');
@@ -236,7 +245,10 @@ describe('the edit window', () => {
     await seedPersonalPost();
     const { res, captured } = buildResponse();
 
-    await updatePost(buildRequest({ content: { text: 'rewritten a day later' } }, PERSON_ID) as never, res as never);
+    await updatePost(
+      buildRequest({ content: { text: 'rewritten a day later' } }, PERSON_ID) as never,
+      res as never,
+    );
 
     expect(captured.status).toBe(403);
     expect(await storedText()).toBe('as published');
@@ -251,7 +263,10 @@ describe('the edit window', () => {
     hoisted.resolveUserSummaries.mockRejectedValue(new Error('Oxy is down'));
     const { res, captured } = buildResponse();
 
-    await updatePost(buildRequest({ content: { text: 'rewritten during an outage' } }, PERSON_ID) as never, res as never);
+    await updatePost(
+      buildRequest({ content: { text: 'rewritten during an outage' } }, PERSON_ID) as never,
+      res as never,
+    );
 
     expect(captured.status).toBe(403);
     expect(await storedText()).toBe('as published');
@@ -261,7 +276,10 @@ describe('the edit window', () => {
     await seedPersonalPost({ createdAt: new Date(Date.now() - 60_000) });
     const { res, captured } = buildResponse();
 
-    await updatePost(buildRequest({ content: { text: 'quick typo fix' } }, PERSON_ID) as never, res as never);
+    await updatePost(
+      buildRequest({ content: { text: 'quick typo fix' } }, PERSON_ID) as never,
+      res as never,
+    );
 
     expect(captured.status).toBeUndefined();
     expect(await storedText()).toBe('quick typo fix');
@@ -273,7 +291,10 @@ describe('the correction trail', () => {
     await seedChannelPost();
     const { res } = buildResponse();
 
-    await updatePost(buildRequest({ content: { text: 'corrected' } }, WRITER_ID) as never, res as never);
+    await updatePost(
+      buildRequest({ content: { text: 'corrected' } }, WRITER_ID) as never,
+      res as never,
+    );
 
     const trail = await listPostCorrections(POST_ID);
     expect(trail).toHaveLength(1);
@@ -287,8 +308,14 @@ describe('the correction trail', () => {
   it('accumulates one entry per correction, oldest first', async () => {
     await seedChannelPost();
 
-    await updatePost(buildRequest({ content: { text: 'second' } }, WRITER_ID) as never, buildResponse().res as never);
-    await updatePost(buildRequest({ content: { text: 'third' } }, WRITER_ID) as never, buildResponse().res as never);
+    await updatePost(
+      buildRequest({ content: { text: 'second' } }, WRITER_ID) as never,
+      buildResponse().res as never,
+    );
+    await updatePost(
+      buildRequest({ content: { text: 'third' } }, WRITER_ID) as never,
+      buildResponse().res as never,
+    );
 
     expect((await listPostCorrections(POST_ID)).map((entry) => entry.previousText)).toEqual([
       'as published',
@@ -305,7 +332,10 @@ describe('the correction trail', () => {
     await seedChannelPost();
     const { res, captured } = buildResponse();
 
-    await updatePost(buildRequest({ content: { text: 'as published' } }, WRITER_ID) as never, res as never);
+    await updatePost(
+      buildRequest({ content: { text: 'as published' } }, WRITER_ID) as never,
+      res as never,
+    );
 
     expect(captured.status).toBeUndefined();
     expect(await listPostCorrections(POST_ID)).toEqual([]);
@@ -320,7 +350,10 @@ describe('the correction trail', () => {
     await seedPersonalPost({ createdAt: new Date(Date.now() - 60_000) });
     const { res } = buildResponse();
 
-    await updatePost(buildRequest({ content: { text: 'quick typo fix' } }, PERSON_ID) as never, res as never);
+    await updatePost(
+      buildRequest({ content: { text: 'quick typo fix' } }, PERSON_ID) as never,
+      res as never,
+    );
 
     expect(await storedText()).toBe('quick typo fix');
     expect(await listPostCorrections(POST_ID)).toEqual([]);
@@ -329,13 +362,22 @@ describe('the correction trail', () => {
 
   it('is what GET /posts/:id/corrections serves, oldest first', async () => {
     await seedChannelPost();
-    await updatePost(buildRequest({ content: { text: 'second' } }, WRITER_ID) as never, buildResponse().res as never);
-    await updatePost(buildRequest({ content: { text: 'third' } }, WRITER_ID) as never, buildResponse().res as never);
+    await updatePost(
+      buildRequest({ content: { text: 'second' } }, WRITER_ID) as never,
+      buildResponse().res as never,
+    );
+    await updatePost(
+      buildRequest({ content: { text: 'third' } }, WRITER_ID) as never,
+      buildResponse().res as never,
+    );
 
     const { res, captured } = buildResponse();
     // Anonymous on purpose: a publication's corrections are addressed to whoever
     // read the post, and most of them are not signed in.
-    await getPostCorrections({ params: { id: POST_ID }, query: {}, headers: {}, acceptsLanguages: () => [] } as never, res as never);
+    await getPostCorrections(
+      { params: { id: POST_ID }, query: {}, headers: {}, acceptsLanguages: () => [] } as never,
+      res as never,
+    );
 
     expect(captured.status).toBeUndefined();
     expect(captured.body).toEqual({
@@ -354,11 +396,17 @@ describe('the correction trail', () => {
     // see this post" would be a second answer, and the wrong one would serve
     // superseded bodies of a post the viewer was just refused.
     await seedChannelPost();
-    await updatePost(buildRequest({ content: { text: 'corrected' } }, WRITER_ID) as never, buildResponse().res as never);
+    await updatePost(
+      buildRequest({ content: { text: 'corrected' } }, WRITER_ID) as never,
+      buildResponse().res as never,
+    );
     hoisted.hydratePosts.mockImplementation(async () => []);
 
     const { res, captured } = buildResponse();
-    await getPostCorrections({ params: { id: POST_ID }, query: {}, headers: {}, acceptsLanguages: () => [] } as never, res as never);
+    await getPostCorrections(
+      { params: { id: POST_ID }, query: {}, headers: {}, acceptsLanguages: () => [] } as never,
+      res as never,
+    );
 
     expect(captured.status).toBe(404);
     expect(captured.body).toEqual({ message: 'Post not available' });
@@ -367,7 +415,12 @@ describe('the correction trail', () => {
   it('404s a post that does not exist', async () => {
     const { res, captured } = buildResponse();
     await getPostCorrections(
-      { params: { id: 'no-such-post-id' }, query: {}, headers: {}, acceptsLanguages: () => [] } as never,
+      {
+        params: { id: 'no-such-post-id' },
+        query: {},
+        headers: {},
+        acceptsLanguages: () => [],
+      } as never,
       res as never,
     );
 
@@ -385,11 +438,17 @@ describe('the correction trail', () => {
     // under test is which NUMBER the endpoint reports, not the eviction that
     // produced the gap (that is `db/postCorrectionsRepository.test.ts`).
     await seedChannelPost();
-    await updatePost(buildRequest({ content: { text: 'corrected' } }, WRITER_ID) as never, buildResponse().res as never);
+    await updatePost(
+      buildRequest({ content: { text: 'corrected' } }, WRITER_ID) as never,
+      buildResponse().res as never,
+    );
     await getDb().update(posts).set({ correctionCount: 87 }).where(eq(posts.id, POST_ID));
 
     const { res, captured } = buildResponse();
-    await getPostCorrections({ params: { id: POST_ID }, query: {}, headers: {}, acceptsLanguages: () => [] } as never, res as never);
+    await getPostCorrections(
+      { params: { id: POST_ID }, query: {}, headers: {}, acceptsLanguages: () => [] } as never,
+      res as never,
+    );
 
     expect(captured.body).toMatchObject({ total: 87 });
     // ...and the served rows really are fewer, so the two numbers are genuinely
@@ -401,7 +460,10 @@ describe('the correction trail', () => {
     await seedChannelPost();
 
     const { res, captured } = buildResponse();
-    await getPostCorrections({ params: { id: POST_ID }, query: {}, headers: {}, acceptsLanguages: () => [] } as never, res as never);
+    await getPostCorrections(
+      { params: { id: POST_ID }, query: {}, headers: {}, acceptsLanguages: () => [] } as never,
+      res as never,
+    );
 
     expect(captured.body).toEqual({ postId: POST_ID, total: 0, corrections: [] });
   });
@@ -415,7 +477,10 @@ describe('the correction trail', () => {
     });
     const { res, captured } = buildResponse();
 
-    await updatePost(buildRequest({ content: { text: 'reworked before it goes out' } }, WRITER_ID) as never, res as never);
+    await updatePost(
+      buildRequest({ content: { text: 'reworked before it goes out' } }, WRITER_ID) as never,
+      res as never,
+    );
 
     expect(captured.status).toBeUndefined();
     expect(await storedText()).toBe('reworked before it goes out');

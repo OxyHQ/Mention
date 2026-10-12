@@ -19,7 +19,8 @@ import {
 
 const identity = readOwnedIdentity(process.env);
 for (const [name, value] of Object.entries(ownedPgEnv(identity))) {
-  if (process.env[name] !== value) throw new Error(`${name} is ${JSON.stringify(process.env[name])}, expected ${value}`);
+  if (process.env[name] !== value)
+    throw new Error(`${name} is ${JSON.stringify(process.env[name])}, expected ${value}`);
 }
 if (process.env.PGDATABASE !== undefined) throw new Error('PGDATABASE must be unset');
 const baseUrl = ownedUrl(identity.database);
@@ -42,10 +43,14 @@ for (const [database, url] of targets) {
     assertServerIdentity(identity, data.data_directory, tcp.listen_addresses);
     const [row] = await client`select current_database() as database, current_user as role`;
     if (row.database !== database || row.role !== identity.user) {
-      throw new Error(`Connected as ${row.role} to ${row.database}, expected ${identity.user} to ${database}`);
+      throw new Error(
+        `Connected as ${row.role} to ${row.database}, expected ${identity.user} to ${database}`,
+      );
     }
   } finally {
     await client.end({ timeout: 1 });
   }
-  console.log(`Owned PostgreSQL verified for ${database}: postmaster ${pid}, ${identity.data}, socket ${identity.socket}, TCP disabled`);
+  console.log(
+    `Owned PostgreSQL verified for ${database}: postmaster ${pid}, ${identity.data}, socket ${identity.socket}, TCP disabled`,
+  );
 }

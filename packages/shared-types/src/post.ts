@@ -2,10 +2,15 @@
  * Post-related types for Mention social network
  */
 
+import type { ImageVariantName } from '@oxy.so/utils/image';
 import type { CommunityNoteSummary } from './communityNotes';
 import type { AccountKind, UserNameResponse } from '@oxy.so/contracts';
-import type { Document as ClarityDocument } from '@clarity.surf/sdk' with { "resolution-mode": "import" };
-export type { Document as ClarityDocument } from '@clarity.surf/sdk' with { "resolution-mode": "import" };
+import type { Document as ClarityDocument } from '@clarity.surf/sdk' with {
+  'resolution-mode': 'import',
+};
+export type { Document as ClarityDocument } from '@clarity.surf/sdk' with {
+  'resolution-mode': 'import',
+};
 import { GeoJSONPoint } from './common';
 import type { LaneSummary } from './lane';
 import type { PostJobContent, PostJobInput } from './job';
@@ -16,13 +21,13 @@ export enum PostType {
   VIDEO = 'video',
   POLL = 'poll',
   BOOST = 'boost',
-  QUOTE = 'quote'
+  QUOTE = 'quote',
 }
 
 export enum PostVisibility {
   PUBLIC = 'public',
   FOLLOWERS_ONLY = 'followers_only',
-  PRIVATE = 'private'
+  PRIVATE = 'private',
 }
 
 /**
@@ -80,13 +85,13 @@ export enum PostVisibility {
  * no-variant original costs ~15x (measured on a live banner: 2.66 MB PNG
  * original / 270 KB `w2048` / 179 KB `w1280`).
  */
-export const MEDIA_VARIANT_THUMB = 'w320';
-export const MEDIA_VARIANT_FULL = 'w2048';
-export const MEDIA_VARIANT_AVATAR = 'w96';
-export const MEDIA_VARIANT_AVATAR_LG = 'thumb';
-export const MEDIA_VARIANT_VIDEO_THUMB = 'w320';
-export const MEDIA_VARIANT_VIDEO_POSTER = 'w1280';
-export const MEDIA_VARIANT_BANNER = 'w1280';
+export const MEDIA_VARIANT_THUMB = 'w320' satisfies ImageVariantName;
+export const MEDIA_VARIANT_FULL = 'w2048' satisfies ImageVariantName;
+export const MEDIA_VARIANT_AVATAR = 'w96' satisfies ImageVariantName;
+export const MEDIA_VARIANT_AVATAR_LG = 'thumb' satisfies ImageVariantName;
+export const MEDIA_VARIANT_VIDEO_THUMB = 'w320' satisfies ImageVariantName;
+export const MEDIA_VARIANT_VIDEO_POSTER = 'w1280' satisfies ImageVariantName;
+export const MEDIA_VARIANT_BANNER = 'w1280' satisfies ImageVariantName;
 
 export interface MediaItem {
   id: string;
@@ -170,7 +175,16 @@ export interface MediaItem {
   hlsUrl?: string;
 }
 
-export type PostAttachmentType = 'media' | 'poll' | 'article' | 'location' | 'sources' | 'event' | 'room' | 'podcast' | 'job';
+export type PostAttachmentType =
+  | 'media'
+  | 'poll'
+  | 'article'
+  | 'location'
+  | 'sources'
+  | 'event'
+  | 'room'
+  | 'podcast'
+  | 'job';
 
 export interface PostAttachmentDescriptor {
   type: PostAttachmentType;
@@ -948,7 +962,7 @@ export interface PostFilters {
   dateFrom?: string;
   dateTo?: string;
   isEdited?: boolean;
-} 
+}
 
 /**
  * Normalized API response structures for hydrated posts
@@ -1103,7 +1117,6 @@ export interface PostAttachmentBundle {
   podcast?: PostPodcastContent;
   job?: PostJobContent;
 }
-
 
 /**
  * Maximum number of link-preview cards attached to a single post. Shared by the

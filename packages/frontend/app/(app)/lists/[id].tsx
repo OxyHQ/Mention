@@ -86,7 +86,10 @@ export default function ListDetailScreen() {
   // Stable across renders so the posts-tab Feed's `listHeaderComponent`
   // (which embeds this tab bar) keeps a stable element identity and the
   // memoized Feed does not re-render every parent render.
-  const TABS = useMemo(() => TABS_CONFIG.map(tab => ({ id: tab.id, label: t(tab.labelKey) })), [t]);
+  const TABS = useMemo(
+    () => TABS_CONFIG.map((tab) => ({ id: tab.id, label: t(tab.labelKey) })),
+    [t],
+  );
 
   const loadList = useCallback(async () => {
     if (!id) return;
@@ -154,114 +157,140 @@ export default function ListDetailScreen() {
   // list owns the document scroll on web (mirrors `feeds/[id].tsx` and native's
   // `ListHeaderComponent`); on the `members` tab the same chrome renders inside
   // that tab's own <ScrollView>. Declared after the data so it can read `list`.
-  const renderSubheader = useCallback(() => (
-    <View className="px-4 pt-3 pb-2">
-      <View className="flex-row items-start gap-3">
-        <Avatar
-          source={list?.avatar || undefined}
-          size={58}
-          variant={MEDIA_VARIANT_AVATAR_LG}
-          style={{ borderRadius: 12 }}
-        />
-        <View className="flex-1 justify-center">
-          <Text
-            className="text-foreground text-[22px] font-bold leading-[26px]"
-            numberOfLines={4}
-          >
-            {list?.title || 'Untitled List'}
-          </Text>
-          <ProfileHoverCard username={isOwnList ? undefined : listOwnerHandle}>
-            <Pressable
-              onPress={() => {
-                if (listOwnerHandle && !isOwnList) {
-                  router.push(`/@${listOwnerHandle}`);
-                }
-              }}
-              disabled={isOwnList || !listOwner?.username}
+  const renderSubheader = useCallback(
+    () => (
+      <View className="px-4 pt-3 pb-2">
+        <View className="flex-row items-start gap-3">
+          <Avatar
+            source={list?.avatar || undefined}
+            size={58}
+            variant={MEDIA_VARIANT_AVATAR_LG}
+            style={{ borderRadius: 12 }}
+          />
+          <View className="flex-1 justify-center">
+            <Text
+              className="text-foreground text-[22px] font-bold leading-[26px]"
+              numberOfLines={4}
             >
-              <Text className="text-muted-foreground text-sm mt-0.5">
-                {bylineText}
-              </Text>
-            </Pressable>
-          </ProfileHoverCard>
-        </View>
-      </View>
-
-      {/* Description */}
-      {list?.description ? (
-        <Text className="text-foreground text-[15px] leading-[20px] mt-3">
-          {list.description}
-        </Text>
-      ) : null}
-
-      {/* Stats row */}
-      <View className="flex-row items-center gap-4 mt-3 mb-1">
-        <View className="flex-row items-center gap-1">
-          <Text className="text-foreground text-sm font-semibold">
-            {formatCompactNumber(memberCount)}
-          </Text>
-          <Text className="text-muted-foreground text-sm">
-            {memberCount === 1 ? 'member' : 'members'}
-          </Text>
-        </View>
-        <View className="flex-row items-center gap-1">
-          <Text className="text-foreground text-sm font-semibold">
-            {formatCompactNumber(subscriberCount)}
-          </Text>
-          <Text className="text-muted-foreground text-sm">
-            {subscriberCount === 1
-              ? t('lists.subscriberSingular', { defaultValue: 'subscriber' })
-              : t('lists.subscriberPlural', { defaultValue: 'subscribers' })}
-          </Text>
-        </View>
-        <View className="flex-row items-center gap-1">
-          {list?.isPublic ? (
-            <RiGlobalLine width={14} height={14} fill={theme.colors.textSecondary} />
-          ) : (
-            <RiLockLine width={14} height={14} fill={theme.colors.textSecondary} />
-          )}
-          <Text className="text-muted-foreground text-sm">
-            {list?.isPublic ? 'Public' : 'Private'}
-          </Text>
-        </View>
-        {!isOwnList ? (
-          <View className="ml-auto">
-            <EntityFollowButton
-              entityType="list"
-              entityId={listId}
-              label={t('lists.followList', { defaultValue: 'Follow list' })}
-              followingLabel={t('lists.followingList', { defaultValue: 'Following' })}
-              size="sm"
-            />
+              {list?.title || 'Untitled List'}
+            </Text>
+            <ProfileHoverCard username={isOwnList ? undefined : listOwnerHandle}>
+              <Pressable
+                onPress={() => {
+                  if (listOwnerHandle && !isOwnList) {
+                    router.push(`/@${listOwnerHandle}`);
+                  }
+                }}
+                disabled={isOwnList || !listOwner?.username}
+              >
+                <Text className="text-muted-foreground text-sm mt-0.5">{bylineText}</Text>
+              </Pressable>
+            </ProfileHoverCard>
           </View>
+        </View>
+
+        {/* Description */}
+        {list?.description ? (
+          <Text className="text-foreground text-[15px] leading-[20px] mt-3">
+            {list.description}
+          </Text>
         ) : null}
+
+        {/* Stats row */}
+        <View className="flex-row items-center gap-4 mt-3 mb-1">
+          <View className="flex-row items-center gap-1">
+            <Text className="text-foreground text-sm font-semibold">
+              {formatCompactNumber(memberCount)}
+            </Text>
+            <Text className="text-muted-foreground text-sm">
+              {memberCount === 1 ? 'member' : 'members'}
+            </Text>
+          </View>
+          <View className="flex-row items-center gap-1">
+            <Text className="text-foreground text-sm font-semibold">
+              {formatCompactNumber(subscriberCount)}
+            </Text>
+            <Text className="text-muted-foreground text-sm">
+              {subscriberCount === 1
+                ? t('lists.subscriberSingular', { defaultValue: 'subscriber' })
+                : t('lists.subscriberPlural', { defaultValue: 'subscribers' })}
+            </Text>
+          </View>
+          <View className="flex-row items-center gap-1">
+            {list?.isPublic ? (
+              <RiGlobalLine width={14} height={14} fill={theme.colors.textSecondary} />
+            ) : (
+              <RiLockLine width={14} height={14} fill={theme.colors.textSecondary} />
+            )}
+            <Text className="text-muted-foreground text-sm">
+              {list?.isPublic ? 'Public' : 'Private'}
+            </Text>
+          </View>
+          {!isOwnList ? (
+            <View className="ml-auto">
+              <EntityFollowButton
+                entityType="list"
+                entityId={listId}
+                label={t('lists.followList', { defaultValue: 'Follow list' })}
+                followingLabel={t('lists.followingList', { defaultValue: 'Following' })}
+                size="sm"
+              />
+            </View>
+          ) : null}
+        </View>
       </View>
-    </View>
-  ), [list?.avatar, list?.title, list?.description, list?.isPublic, listOwner?.username, listOwnerHandle, isOwnList, bylineText, memberCount, subscriberCount, listId, theme.colors.textSecondary, t]);
+    ),
+    [
+      list?.avatar,
+      list?.title,
+      list?.description,
+      list?.isPublic,
+      listOwner?.username,
+      listOwnerHandle,
+      isOwnList,
+      bylineText,
+      memberCount,
+      subscriberCount,
+      listId,
+      theme.colors.textSecondary,
+      t,
+    ],
+  );
 
   // Chrome (subheader + tab bar) handed to the posts-tab Feed as its
   // listHeaderComponent. A single element so the Feed treats it as one header.
-  const postsTabHeader = useMemo(() => (
-    <View>
-      {renderSubheader()}
-      <Tabs value={"posts"} onValueChange={setActiveTab} variant="underline">{(TABS).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
-    </View>
-  ), [renderSubheader, TABS, listId]);
+  const postsTabHeader = useMemo(
+    () => (
+      <View>
+        {renderSubheader()}
+        <Tabs value={'posts'} onValueChange={setActiveTab} variant="underline">
+          {TABS.map((tab: { id: string; label: string; count?: number }) => (
+            <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
+          ))}
+        </Tabs>
+      </View>
+    ),
+    [renderSubheader, TABS, listId],
+  );
 
   const headerActions = (
     <>
       <Button
-        appearance="subtle" tone="neutral"
+        appearance="subtle"
+        tone="neutral"
         iconOnly
         leadingIcon={Platform.OS === 'web' ? RiLinkM : RiShare2Line}
         onPress={handleShare}
-        accessibilityLabel={Platform.OS === 'web'
-          ? t('postActions.copyLink', { defaultValue: 'Copy link' })
-          : t('videos.share', { defaultValue: 'Share' })}
+        accessibilityLabel={
+          Platform.OS === 'web'
+            ? t('postActions.copyLink', { defaultValue: 'Copy link' })
+            : t('videos.share', { defaultValue: 'Share' })
+        }
       />
       {isOwnList ? (
         <Button
-          appearance="subtle" tone="neutral"
+          appearance="subtle"
+          tone="neutral"
           iconOnly
           leadingIcon={RiEditBoxLine}
           onPress={() => router.push(`/lists/${listId}/edit`)}
@@ -297,9 +326,7 @@ export default function ListDetailScreen() {
         />
         <View className="flex-1 items-center justify-center gap-3">
           <RiAlertLine size="3xl" fill={theme.colors.textSecondary} />
-          <Text className="text-muted-foreground text-base">
-            {error || 'List not found'}
-          </Text>
+          <Text className="text-muted-foreground text-base">{error || 'List not found'}</Text>
           <TouchableOpacity onPress={loadList}>
             <Text className="text-primary text-sm font-medium">Try again</Text>
           </TouchableOpacity>
@@ -339,7 +366,11 @@ export default function ListDetailScreen() {
             }
           >
             {renderSubheader()}
-            <Tabs value={activeTab} onValueChange={setActiveTab} variant="underline">{(TABS).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
+            <Tabs value={activeTab} onValueChange={setActiveTab} variant="underline">
+              {TABS.map((tab: { id: string; label: string; count?: number }) => (
+                <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
+              ))}
+            </Tabs>
             <EmptyState
               title={t('lists.emptyPosts', { defaultValue: 'No posts yet' })}
               subtitle={t('lists.emptyPostsSubtext', {
@@ -367,7 +398,11 @@ export default function ListDetailScreen() {
           header={
             <View>
               {renderSubheader()}
-              <Tabs value={activeTab} onValueChange={setActiveTab} variant="underline">{(TABS).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
+              <Tabs value={activeTab} onValueChange={setActiveTab} variant="underline">
+                {TABS.map((tab: { id: string; label: string; count?: number }) => (
+                  <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
+                ))}
+              </Tabs>
             </View>
           }
         />
@@ -438,9 +473,7 @@ function ListMembers({
           onPress={() => router.push(`/lists/${listId}/edit`)}
           activeOpacity={0.7}
         >
-          <View
-            className="w-10 h-10 rounded-full items-center justify-center bg-primary"
-          >
+          <View className="w-10 h-10 rounded-full items-center justify-center bg-primary">
             <RiUserAddFill size="md" fill="#fff" />
           </View>
           <Text className="text-primary text-[15px] font-semibold">

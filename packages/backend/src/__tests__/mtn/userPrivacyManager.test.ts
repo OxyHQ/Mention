@@ -5,7 +5,7 @@
  * The Oxy helpers stay mocked — they are a network call to another service, and
  * this suite is not about Oxy. The MUTES are real rows, because they are the
  * half Mention owns and the half that just moved stores: nothing had written a
- * Mongo mute since mutes became a Postgres table, so a mute created after the
+ * legacy-store mute since mutes became a Postgres table, so a mute created after the
  * cutover was never applied and the reader kept seeing an author they had
  * explicitly silenced. The old suite mocked `models/Mute` and asserted the
  * arguments it was called with, which cannot distinguish "queried the right
@@ -36,7 +36,9 @@ const OWNED_IDS = [VIEWER, OTHER_VIEWER];
 
 async function seedMutes(userId: string, mutedIds: string[]): Promise<void> {
   if (mutedIds.length === 0) return;
-  await getDb().insert(mutes).values(mutedIds.map((mutedId) => ({ userId, mutedId })));
+  await getDb()
+    .insert(mutes)
+    .values(mutedIds.map((mutedId) => ({ userId, mutedId })));
 }
 
 beforeAll(async () => {
@@ -77,9 +79,7 @@ describe('UserPrivacyManager Oxy authority', () => {
     expect(state.blockedUserIds).toEqual(new Set(['blocked', 'duplicate']));
     expect(state.mutedUserIds).toEqual(new Set(['muted', 'duplicate']));
     expect(state.restrictedUserIds).toEqual(new Set(['restricted', 'duplicate']));
-    expect(state.excludedUserIds).toEqual(
-      new Set(['blocked', 'duplicate', 'muted', 'restricted']),
-    );
+    expect(state.excludedUserIds).toEqual(new Set(['blocked', 'duplicate', 'muted', 'restricted']));
     // The viewer id rides along with the client because it is what keys the
     // per-viewer privacy cache: without it every read goes back to Oxy.
     expect(mocks.getBlockedUserIds).toHaveBeenCalledWith(scopedOxyClient, VIEWER);
@@ -157,9 +157,8 @@ describe('UserPrivacyManager Oxy authority', () => {
     ).rejects.toThrow('delegated privacy authorization rejected');
   });
 
-  it('applies a mute created now, which the Mongo read could not see', async () => {
-    // The regression this port fixes, stated as a case: a mute written through
-    // the live path must be honoured on the next read.
+  it('applies a mute created now on the next read', async () => {
+    // A mute written through the live path must be honoured on the next read.
     mocks.getBlockedUserIds.mockResolvedValue([]);
     await seedMutes(VIEWER, ['freshly-muted']);
 

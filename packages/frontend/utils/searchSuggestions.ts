@@ -91,9 +91,7 @@ export function buildOperatorValueSuggestions(
   limit: number,
 ): string[] {
   const closed = CLOSED_OPERATOR_VALUES[token.prefix];
-  const candidates = closed
-    ? [...closed]
-    : ['me', ...recentOperands(searchHistory)];
+  const candidates = closed ? [...closed] : ['me', ...recentOperands(searchHistory)];
 
   const typed = token.value.replace(/^@/, '').toLowerCase();
   const seen = new Set<string>();

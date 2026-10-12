@@ -109,17 +109,23 @@ export function useScheduledPosts(): UseScheduledPostsResult {
   });
 
   const { mutateAsync: cancel } = cancelMutation;
-  const cancelScheduledPost = useCallback(async (postId: string) => {
-    await cancel(postId);
-  }, [cancel]);
+  const cancelScheduledPost = useCallback(
+    async (postId: string) => {
+      await cancel(postId);
+    },
+    [cancel],
+  );
 
   const { mutateAsync: publishNow } = publishMutation;
-  const publishScheduledPostNow = useCallback(async (postId: string) => {
-    await publishNow(postId);
-  }, [publishNow]);
+  const publishScheduledPostNow = useCallback(
+    async (postId: string) => {
+      await publishNow(postId);
+    },
+    [publishNow],
+  );
 
   return {
-    scheduledPosts: enabled ? query.data ?? [] : [],
+    scheduledPosts: enabled ? (query.data ?? []) : [],
     isLoading: enabled && query.isLoading,
     isError: query.isError,
     refetch: query.refetch,

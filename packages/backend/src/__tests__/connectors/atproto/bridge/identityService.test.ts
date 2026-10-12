@@ -14,9 +14,9 @@ const mockResolveDid = vi.fn();
 const mockGetUserById = vi.fn();
 
 vi.mock('../../../../connectors/activitypub/constants', async () => {
-  const actual = await vi.importActual<typeof import('../../../../connectors/activitypub/constants')>(
-    '../../../../connectors/activitypub/constants',
-  );
+  const actual = await vi.importActual<
+    typeof import('../../../../connectors/activitypub/constants')
+  >('../../../../connectors/activitypub/constants');
   return { ...actual, resolveOxyUser: (...a: unknown[]) => mockResolveOxyUser(...a) };
 });
 
@@ -96,7 +96,7 @@ describe('getAtprotoIdentity', () => {
 });
 
 describe('getAtprotoIdentityByOxyUserId', () => {
-  it('derives the handle from the user\'s CURRENT username (never the raw id)', async () => {
+  it("derives the handle from the user's CURRENT username (never the raw id)", async () => {
     const identity = await getAtprotoIdentityByOxyUserId(OWNER);
     expect(identity).toMatchObject({
       did: buildUserDid(OWNER),
@@ -139,7 +139,11 @@ describe('buildBridgeDidDocumentView', () => {
 
   it('does NOT duplicate the #atproto_pds entry when the doc already has one', async () => {
     const doc = canonicalDoc();
-    doc.service.push({ id: ATPROTO_PDS_SERVICE_ID, type: ATPROTO_PDS_SERVICE_TYPE, serviceEndpoint: 'https://x' });
+    doc.service.push({
+      id: ATPROTO_PDS_SERVICE_ID,
+      type: ATPROTO_PDS_SERVICE_TYPE,
+      serviceEndpoint: 'https://x',
+    });
     mockResolveDid.mockResolvedValueOnce(doc);
     const view = await buildBridgeDidDocumentView('alice');
     const pdsEntries = view?.service.filter((s) => s.id === ATPROTO_PDS_SERVICE_ID) ?? [];

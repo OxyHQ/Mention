@@ -45,7 +45,7 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
   const canAddMore = sources.length < maxSources;
   const hasInvalidSources = useMemo(
     () => sources.some((source) => source.url.trim().length > 0 && !validateUrl(source.url)),
-    [sources, validateUrl]
+    [sources, validateUrl],
   );
 
   useEffect(() => {
@@ -62,7 +62,8 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
         safeArea={false}
         leading={
           <Button
-            appearance="subtle" tone="neutral"
+            appearance="subtle"
+            tone="neutral"
             iconOnly
             leadingIcon={RiCloseLine}
             onPress={onClose}
@@ -72,12 +73,16 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
       />
 
       <Text className="text-[13px] text-muted-foreground mt-3 mb-3 px-4" style={{ lineHeight: 18 }}>
-        {t('compose.sources.help', { defaultValue: 'Share links to help readers verify your post.' })}
+        {t('compose.sources.help', {
+          defaultValue: 'Share links to help readers verify your post.',
+        })}
       </Text>
 
       {hasInvalidSources && (
         <Text className="text-xs mb-3 px-4" style={{ color: theme.colors.error || '#ff4d4f' }}>
-          {t('compose.sources.linksInvalid', { defaultValue: 'Please fix the highlighted links before posting.' })}
+          {t('compose.sources.linksInvalid', {
+            defaultValue: 'Please fix the highlighted links before posting.',
+          })}
         </Text>
       )}
 
@@ -88,16 +93,22 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
         {sources.length === 0 ? (
           <EmptyState
             title={t('compose.sources.emptyTitle', { defaultValue: 'No sources added yet' })}
-            subtitle={t('compose.sources.emptySubtitle', { defaultValue: 'Add credible references to support your post.' })}
+            subtitle={t('compose.sources.emptySubtitle', {
+              defaultValue: 'Add credible references to support your post.',
+            })}
             icon={{
               name: 'link-outline',
               size: 48,
             }}
-            action={canAddMore ? {
-              label: t('compose.sources.add', { defaultValue: 'Add source' }),
-              onPress: onAdd,
-              icon: 'add-outline',
-            } : undefined}
+            action={
+              canAddMore
+                ? {
+                    label: t('compose.sources.add', { defaultValue: 'Add source' }),
+                    onPress: onAdd,
+                    icon: 'add-outline',
+                  }
+                : undefined
+            }
           />
         ) : (
           <View className="gap-3 px-4">
@@ -111,11 +122,16 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
                   elevation="none"
                   radius="radius-12"
                   className="p-3 gap-2.5"
-                  style={isUrlInvalid ? { borderColor: theme.colors.error || '#ff4d4f' } : undefined}
+                  style={
+                    isUrlInvalid ? { borderColor: theme.colors.error || '#ff4d4f' } : undefined
+                  }
                 >
                   <View className="flex-row items-center justify-between">
                     <Text className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
-                      {t('compose.sources.itemLabel', { defaultValue: 'Source {{index}}', index: index + 1 })}
+                      {t('compose.sources.itemLabel', {
+                        defaultValue: 'Source {{index}}',
+                        index: index + 1,
+                      })}
                     </Text>
                     <TouchableOpacity
                       onPress={() => onRemove(source.id)}
@@ -129,7 +145,9 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
                   </View>
 
                   <TextFieldInput
-                    label={t('compose.sources.titlePlaceholder', { defaultValue: 'Source title (optional)' })}
+                    label={t('compose.sources.titlePlaceholder', {
+                      defaultValue: 'Source title (optional)',
+                    })}
                     value={source.title}
                     onChangeText={(value) => onUpdate(source.id, 'title', value)}
                     maxLength={200}
@@ -138,10 +156,16 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
                   />
 
                   <Field
-                    error={isUrlInvalid ? t('compose.sources.invalidUrl', { defaultValue: 'Enter a valid URL.' }) : null}
+                    error={
+                      isUrlInvalid
+                        ? t('compose.sources.invalidUrl', { defaultValue: 'Enter a valid URL.' })
+                        : null
+                    }
                   >
                     <TextFieldInput
-                      label={t('compose.sources.urlPlaceholder', { defaultValue: 'https://example.com/article' })}
+                      label={t('compose.sources.urlPlaceholder', {
+                        defaultValue: 'https://example.com/article',
+                      })}
                       value={source.url}
                       onChangeText={(value) => onUpdate(source.id, 'url', value)}
                       invalid={isUrlInvalid}
@@ -162,7 +186,8 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
       {sources.length > 0 && (
         <Button
           className="mt-3 mx-4"
-          appearance="subtle" tone="neutral"
+          appearance="subtle"
+          tone="neutral"
           size="lg"
           leadingIcon={RiAddLine}
           onPress={onAdd}
@@ -173,7 +198,10 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
       )}
 
       {!canAddMore && (
-        <Text className="text-xs text-center mt-2 px-4" style={{ color: theme.colors.textTertiary }}>
+        <Text
+          className="text-xs text-center mt-2 px-4"
+          style={{ color: theme.colors.textTertiary }}
+        >
           {t('compose.sources.limit', { defaultValue: 'You can add up to 5 sources' })}
         </Text>
       )}

@@ -20,7 +20,13 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  */
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import { clearPostScope, postScope, readPostRow, seedLane, seedPost } from '../helpers/postFixtures';
+import {
+  clearPostScope,
+  postScope,
+  readPostRow,
+  seedLane,
+  seedPost,
+} from '../helpers/postFixtures';
 
 const postCreationCreate = vi.fn();
 vi.mock('../../services/PostCreationService', () => ({
@@ -49,12 +55,10 @@ const isChannelAccount = vi.fn();
 vi.mock('../../services/publishAsAccount', () => ({
   isChannelAccount: (...args: unknown[]) => isChannelAccount(...args),
   cacheAccountMemberReads: (reader: unknown) => reader,
-  assertCanPublishAsAccount: vi.fn(
-    async (params: { callerId: string | null }) => ({
-      authorId: params.callerId,
-      authorKind: null,
-    }),
-  ),
+  assertCanPublishAsAccount: vi.fn(async (params: { callerId: string | null }) => ({
+    authorId: params.callerId,
+    authorKind: null,
+  })),
   PublishAsAccessError: class PublishAsAccessError extends Error {
     readonly status: number;
     constructor(status: number, message: string) {
@@ -84,8 +88,14 @@ function makeRes(): MockRes {
   const res: MockRes = {
     statusCode: 200,
     body: undefined,
-    status(code) { this.statusCode = code; return this; },
-    json(body) { this.body = body; return this; },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body) {
+      this.body = body;
+      return this;
+    },
   };
   return res;
 }
@@ -145,7 +155,10 @@ describe('PATCH /posts/:id/settings — replyPermission on a channel post', () =
     const post = await seedPost(scope, { oxyUserId: USER_ID, replyPermission: ['anyone'] });
 
     const res = makeRes();
-    await updatePostSettings(req(USER_ID, post.id, { replyPermission: ['followers'] }), res as never);
+    await updatePostSettings(
+      req(USER_ID, post.id, { replyPermission: ['followers'] }),
+      res as never,
+    );
 
     expect(res.statusCode).toBe(200);
     expect((await readPostRow(post.id))?.replyPermission).toEqual(['followers']);
@@ -161,7 +174,10 @@ describe('PATCH /posts/:id/settings — replyPermission on a channel post', () =
     });
 
     const res = makeRes();
-    await updatePostSettings(req(USER_ID, post.id, { replyPermission: ['mentioned'] }), res as never);
+    await updatePostSettings(
+      req(USER_ID, post.id, { replyPermission: ['mentioned'] }),
+      res as never,
+    );
 
     expect(res.statusCode).toBe(200);
     expect((await readPostRow(post.id))?.replyPermission).toEqual(['mentioned']);
@@ -186,7 +202,11 @@ describe('POST /posts/thread — one placement per mode, and only one', () => {
   it('400s a batch-level publishAsOxyUserId in BEAST mode — the per-entry field is the only way to say it', async () => {
     const res = makeRes();
     await createThread(
-      req({ mode: 'beast', publishAsOxyUserId: CHANNEL_ACCOUNT, posts: [{ content: { text: 'a' } }] }),
+      req({
+        mode: 'beast',
+        publishAsOxyUserId: CHANNEL_ACCOUNT,
+        posts: [{ content: { text: 'a' } }],
+      }),
       res as never,
     );
 

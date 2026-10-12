@@ -106,8 +106,14 @@ export const accountErasures = pgTable(
   },
   (t) => [
     unique('account_erasures_event_id_key').on(t.eventId),
-    check('account_erasures_source_check', sql`${t.source} in (${sql.raw(inList(ACCOUNT_ERASURE_SOURCES))})`),
-    check('account_erasures_status_check', sql`${t.status} in (${sql.raw(inList(ACCOUNT_ERASURE_STATUSES))})`),
+    check(
+      'account_erasures_source_check',
+      sql`${t.source} in (${sql.raw(inList(ACCOUNT_ERASURE_SOURCES))})`,
+    ),
+    check(
+      'account_erasures_status_check',
+      sql`${t.status} in (${sql.raw(inList(ACCOUNT_ERASURE_STATUSES))})`,
+    ),
     check('account_erasures_attempts_check', sql`${t.attempts} >= 0`),
     // "Was this account erased?" (the profile routes) and "is another run of this
     // account in flight?" (the claim) both read by account.

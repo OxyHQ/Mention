@@ -1,19 +1,19 @@
-import React from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import React from 'react';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { useTranslation } from "react-i18next";
+import { useTranslation } from 'react-i18next';
 
 interface ArticleEditorProps {
-    visible: boolean;
-    title: string;
-    body: string;
-    onTitleChange: (title: string) => void;
-    onBodyChange: (body: string) => void;
-    onSave: () => void;
-    onClose: () => void;
+  visible: boolean;
+  title: string;
+  body: string;
+  onTitleChange: (title: string) => void;
+  onBodyChange: (body: string) => void;
+  onSave: () => void;
+  onClose: () => void;
 }
 
 /**
@@ -38,68 +38,68 @@ interface ArticleEditorProps {
  * reopening cannot lose them.
  */
 export const ArticleEditor: React.FC<ArticleEditorProps> = ({
-    visible,
-    title,
-    body,
-    onTitleChange,
-    onBodyChange,
-    onSave,
-    onClose,
+  visible,
+  title,
+  body,
+  onTitleChange,
+  onBodyChange,
+  onSave,
+  onClose,
 }) => {
-    const theme = useTheme();
-    const { t } = useTranslation();
+  const theme = useTheme();
+  const { t } = useTranslation();
 
-    const saveAction = (
-        <TouchableOpacity
-            onPress={onSave}
-            className="px-4 py-2 rounded-full bg-primary"
-            activeOpacity={0.85}
-            accessibilityRole="button"
-        >
-            <Text className="text-sm font-semibold" style={{ color: theme.colors.card }}>
-                {t("common.save")}
-            </Text>
-        </TouchableOpacity>
-    );
+  const saveAction = (
+    <TouchableOpacity
+      onPress={onSave}
+      className="px-4 py-2 rounded-full bg-primary"
+      activeOpacity={0.85}
+      accessibilityRole="button"
+    >
+      <Text className="text-sm font-semibold" style={{ color: theme.colors.card }}>
+        {t('common.save')}
+      </Text>
+    </TouchableOpacity>
+  );
 
-    return (
-        <Dialog
-            open={visible}
-            onClose={onClose}
-            placement={{ base: 'bottom', md: 'center' }}
-            maxWidth={720}
-            maxHeightRatio={0.92}
-            header={{
-                title: t("compose.article.editorTitle", { defaultValue: "Write article" }),
-                largeTitle: false,
-                right: saveAction,
-            }}
-            testID="articleEditorDialog"
-        >
-            <View className="gap-4 pb-6">
-                <TextFieldInput
-                    label={t("compose.article.titlePlaceholder", {
-                        defaultValue: "Article title",
-                    })}
-                    value={title}
-                    onChangeText={onTitleChange}
-                    maxLength={280}
-                />
+  return (
+    <Dialog
+      open={visible}
+      onClose={onClose}
+      placement={{ base: 'bottom', md: 'center' }}
+      maxWidth={720}
+      maxHeightRatio={0.92}
+      header={{
+        title: t('compose.article.editorTitle', { defaultValue: 'Write article' }),
+        largeTitle: false,
+        right: saveAction,
+      }}
+      testID="articleEditorDialog"
+    >
+      <View className="gap-4 pb-6">
+        <TextFieldInput
+          label={t('compose.article.titlePlaceholder', {
+            defaultValue: 'Article title',
+          })}
+          value={title}
+          onChangeText={onTitleChange}
+          maxLength={280}
+        />
 
-                <Textarea
-                    accessibilityLabel={t("compose.article.bodyPlaceholder", {
-                        defaultValue: "Start writing…",
-                    })}
-                    placeholder={t("compose.article.bodyPlaceholder", {
-                        defaultValue: "Start writing…",
-                    })}
-                    value={body}
-                    onChangeText={onBodyChange}
-                    rows={12}
-                    autoResize
-                    maxRows={40}
-                />
-            </View>
-        </Dialog>
-    );
+        <Textarea
+          accessibilityLabel={t('compose.article.bodyPlaceholder', {
+            defaultValue: 'Start writing…',
+          })}
+          placeholder={t('compose.article.bodyPlaceholder', {
+            defaultValue: 'Start writing…',
+          })}
+          value={body}
+          onChangeText={onBodyChange}
+          rows={12}
+          autoResize
+          maxRows={40}
+        />
+      </View>
+    </Dialog>
+  );
 };

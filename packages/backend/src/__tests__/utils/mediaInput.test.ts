@@ -48,10 +48,12 @@ describe('normalizeAltInput', () => {
 
 describe('normalizeMediaItems', () => {
   it('normalizes the alt of every accepted item', () => {
-    expect(normalizeMediaItems([
-      { id: 'a', type: 'image', alt: '  un gato\n  en una caja ' },
-      { id: 'b', type: 'video', alt: 'ya limpio' },
-    ])).toEqual([
+    expect(
+      normalizeMediaItems([
+        { id: 'a', type: 'image', alt: '  un gato\n  en una caja ' },
+        { id: 'b', type: 'video', alt: 'ya limpio' },
+      ]),
+    ).toEqual([
       { id: 'a', type: 'image', alt: 'un gato en una caja' },
       { id: 'b', type: 'video', alt: 'ya limpio' },
     ]);
@@ -66,8 +68,10 @@ describe('normalizeMediaItems', () => {
   });
 
   it('still whitelists the fields it accepts — client metadata is never trusted', () => {
-    expect(normalizeMediaItems([
-      { id: 'a', type: 'image', alt: ' hola ', width: 9999, cachedFromFederation: true },
-    ])).toEqual([{ id: 'a', type: 'image', alt: 'hola' }]);
+    expect(
+      normalizeMediaItems([
+        { id: 'a', type: 'image', alt: ' hola ', width: 9999, cachedFromFederation: true },
+      ]),
+    ).toEqual([{ id: 'a', type: 'image', alt: 'hola' }]);
   });
 });

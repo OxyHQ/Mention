@@ -8,16 +8,14 @@
 # for the deploy step to hand to deploy-ecs-image.sh as
 # TASK_SECRET_OVERRIDES_JSON, TASK_ENV_OVERRIDES_JSON and TASK_ENV_REMOVALS.
 #
-# OPTIONAL SECRETS (OPTIONAL_TASK_SECRETS) are bound only when the sync step
-# wrote their parameter IN THIS RUN (SYNCED_SECRETS, names only). That is the
-# whole start-safety argument: a task definition naming a parameter that does
-# not exist registers fine and then cannot start, and a merge that lands before
-# anybody sets the GitHub secret must not produce one. The sync step runs first
-# and fails the job if a write fails, so a name it reports exists in SSM by the
-# time the revision naming it is registered. A name it did not report gets no
-# NEW binding — though a binding already on the running revision rides forward
-# as every secret does, and its parameter is still there, because the sync only
-# ever overwrites.
+# There are no optional SECRETS. They existed while a deploy step copied GitHub
+# secrets into SSM, and were bound only when that step had written their
+# parameter in the same run. With runtime secrets set in SSM by their owner
+# (oxy-infra docs/runbooks/46-app-secrets-in-ssm.md) a deploy cannot prove a
+# parameter exists, so every secret binding is a fixed one in
+# TASK_SECRET_OVERRIDES_JSON, named only after its parameter is written — a task
+# definition naming a parameter that does not exist registers fine and then
+# cannot start. The secrets object is passed through unchanged.
 #
 # OPTIONAL ENVIRONMENT (OPTIONAL_TASK_ENV) comes from repository variables, read
 # from OPTIONAL_ENV_<NAME>. Set: validated against what the backend's config
@@ -38,9 +36,12 @@ set -euo pipefail
 TASK_SECRET_OVERRIDES_JSON="${TASK_SECRET_OVERRIDES_JSON:-}"
 TASK_ENV_OVERRIDES_JSON="${TASK_ENV_OVERRIDES_JSON:-}"
 TASK_ENV_REMOVALS="${TASK_ENV_REMOVALS:-}"
-OPTIONAL_TASK_SECRETS="${OPTIONAL_TASK_SECRETS:-}"
 OPTIONAL_TASK_ENV="${OPTIONAL_TASK_ENV:-}"
-SYNCED_SECRETS="${SYNCED_SECRETS:-}"
+
+if [[ -n "${OPTIONAL_TASK_SECRETS:-}" || -n "${SYNCED_SECRETS:-}" ]]; then
+  echo "::error::OPTIONAL_TASK_SECRETS and SYNCED_SECRETS are retired; bind a secret in TASK_SECRET_OVERRIDES_JSON after writing its SSM parameter." >&2
+  exit 1
+fi
 
 [[ -n "$TASK_SECRET_OVERRIDES_JSON" ]] || TASK_SECRET_OVERRIDES_JSON='{}'
 [[ -n "$TASK_ENV_OVERRIDES_JSON" ]] || TASK_ENV_OVERRIDES_JSON='{}'
@@ -94,23 +95,6 @@ validate_env_value() {
 }
 
 secrets="$TASK_SECRET_OVERRIDES_JSON"
-for name in $OPTIONAL_TASK_SECRETS; do
-  if ! valid_name "$name"; then
-    echo "::error::OPTIONAL_TASK_SECRETS must be environment variable names; got '$name'." >&2
-    exit 1
-  fi
-  if jq -e --arg name "$name" 'has($name)' <<<"$secrets" >/dev/null; then
-    echo "::error::$name is both a fixed and an optional task secret. Remove it from one." >&2
-    exit 1
-  fi
-  if contains_word "$name" "$SYNCED_SECRETS"; then
-    arn="arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/oxy/${APP}/${name}"
-    secrets="$(jq -c --arg name "$name" --arg arn "$arn" '. + {($name): $arn}' <<<"$secrets")"
-    echo "Binding $name: its parameter was synced in this run." >&2
-  else
-    echo "::notice::Not binding $name: secrets.$name was not synced in this run (unset or placeholder)." >&2
-  fi
-done
 
 environment="$TASK_ENV_OVERRIDES_JSON"
 removals="$TASK_ENV_REMOVALS"

@@ -109,12 +109,8 @@ describe('per-request Oxy accounting', () => {
     await request(app).get('/feed/item/abc').expect(200);
 
     const exposition = await metrics.getPrometheusFormat();
-    expect(exposition).toContain(
-      'oxy_request_calls_count{method="GET",route="/feed/item/:id"} 1',
-    );
-    expect(exposition).toContain(
-      'oxy_request_calls_sum{method="GET",route="/feed/item/:id"} 2',
-    );
+    expect(exposition).toContain('oxy_request_calls_count{method="GET",route="/feed/item/:id"} 1');
+    expect(exposition).toContain('oxy_request_calls_sum{method="GET",route="/feed/item/:id"} 2');
     expect(exposition).toContain(
       'oxy_request_duration_ms_count{method="GET",route="/feed/item/:id"} 1',
     );

@@ -56,7 +56,7 @@ describe('the Postgres migration boot gate', () => {
 
   it('refuses when the image ships a migration the ledger has not recorded', async () => {
     await expect(
-      assertPostgresMigrationsCurrent(getPostgresClient(), journalStagedAhead())
+      assertPostgresMigrationsCurrent(getPostgresClient(), journalStagedAhead()),
     ).rejects.toThrow(/not current/);
   });
 
@@ -65,7 +65,7 @@ describe('the Postgres migration boot gate', () => {
     // someone holding a frozen deploy, and "which ones" is what tells them
     // whether the one-shot never ran or died partway through.
     await expect(
-      assertPostgresMigrationsCurrent(getPostgresClient(), journalStagedAhead())
+      assertPostgresMigrationsCurrent(getPostgresClient(), journalStagedAhead()),
     ).rejects.toThrow(UNAPPLIED_TAG);
   });
 });

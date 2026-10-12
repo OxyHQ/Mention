@@ -36,7 +36,7 @@ import { MtnConfig } from '@mention/shared-types';
 import type { User as OxyUser } from '@oxy.so/core';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { getRedisClient } from '../utils/redis';
-import { withRedisFallback } from '../utils/redisHelpers';
+import { setExInBatches, withRedisFallback } from '../utils/redisHelpers';
 import { logger } from '../utils/logger';
 
 /**
@@ -74,9 +74,12 @@ async function readCached(curatorIds: string[]): Promise<Map<string, number>> {
       // against ElastiCache Valkey); iterating it would throw a TypeError that
       // `withRedisFallback` does NOT swallow. Treat it as a full miss.
       if (!Array.isArray(values)) {
-        logger.debug('[CuratorFollowerCounts] mGet returned a non-array reply; treating as cache miss', {
-          keyCount: curatorIds.length,
-        });
+        logger.debug(
+          '[CuratorFollowerCounts] mGet returned a non-array reply; treating as cache miss',
+          {
+            keyCount: curatorIds.length,
+          },
+        );
         return hits;
       }
 
@@ -95,7 +98,7 @@ async function readCached(curatorIds: string[]): Promise<Map<string, number>> {
   );
 }
 
-/** Write freshly-resolved counts with a TTL, in one pipelined round trip. */
+/** Write freshly-resolved counts with a TTL, in bounded pipelines (`setExInBatches`). */
 async function writeCached(counts: Map<string, number>): Promise<void> {
   if (counts.size === 0) return;
 
@@ -103,11 +106,11 @@ async function writeCached(counts: Map<string, number>): Promise<void> {
   await withRedisFallback(
     redis,
     async () => {
-      const pipeline = redis.multi();
-      for (const [curatorId, count] of counts) {
-        pipeline.setEx(keyFor(curatorId), cacheTtlSeconds, String(count));
-      }
-      await pipeline.exec();
+      await setExInBatches(
+        redis,
+        [...counts].map(([curatorId, count]) => [keyFor(curatorId), String(count)] as const),
+        cacheTtlSeconds,
+      );
     },
     undefined,
     'curatorFollowerCountsWrite',
@@ -126,7 +129,9 @@ async function writeCached(counts: Map<string, number>): Promise<void> {
  * resolved, or Oxy failed) — `curatorAuthority` maps that to the neutral floor, so
  * an unresolvable curator is never penalized, only un-amplified. Never throws.
  */
-export async function resolveCuratorFollowerCounts(curatorIds: string[]): Promise<Map<string, number>> {
+export async function resolveCuratorFollowerCounts(
+  curatorIds: string[],
+): Promise<Map<string, number>> {
   const counts = new Map<string, number>();
   const uniqueIds = Array.from(new Set(curatorIds.filter((id) => id.length > 0)));
   if (uniqueIds.length === 0) {
@@ -163,10 +168,13 @@ export async function resolveCuratorFollowerCounts(curatorIds: string[]): Promis
   } catch (error) {
     // Fail-soft: the misses keep an UNKNOWN count → neutral curator authority. The
     // curation signal still scores (usage-weighted), the feed still serves.
-    logger.warn('[CuratorFollowerCounts] Bulk follower lookup failed; curators fall back to neutral authority', {
-      curatorCount: missIds.length,
-      reason: error instanceof Error ? error.message : 'unknown',
-    });
+    logger.warn(
+      '[CuratorFollowerCounts] Bulk follower lookup failed; curators fall back to neutral authority',
+      {
+        curatorCount: missIds.length,
+        reason: error instanceof Error ? error.message : 'unknown',
+      },
+    );
     return counts;
   }
 

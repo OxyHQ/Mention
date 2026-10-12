@@ -12,7 +12,7 @@
  *
  * ## The two properties that are easy to lose in this port
  *
- * **The order is CHRONOLOGICAL, not ranked.** Mongo's text index on
+ * **The order is CHRONOLOGICAL, not ranked.** The legacy store's text index on
  * `content.variants.text` was single-field, so every match scored identically
  * and `sort({createdAt:-1,_id:-1})` decided the whole order. Postgres offers
  * `ts_rank`, and adding it — or per-lexeme weights — would silently reorder the
@@ -129,11 +129,11 @@ interface SearchBody {
   nextCursor?: string;
 }
 
-async function search(
-  query: Record<string, string | number>,
-  agent = app,
-): Promise<SearchBody> {
-  const res = await request(agent).get('/search').query({ type: 'posts', ...query }).expect(200);
+async function search(query: Record<string, string | number>, agent = app): Promise<SearchBody> {
+  const res = await request(agent)
+    .get('/search')
+    .query({ type: 'posts', ...query })
+    .expect(200);
   return res.body as SearchBody;
 }
 
@@ -187,12 +187,14 @@ async function mute(
   userId: string,
   rule: { value: string; targets: string[]; actorTarget?: 'all' | 'exclude-following' },
 ): Promise<void> {
-  await getDb().insert(muteWords).values({
-    userId,
-    value: rule.value,
-    targets: rule.targets,
-    actorTarget: rule.actorTarget ?? 'all',
-  });
+  await getDb()
+    .insert(muteWords)
+    .values({
+      userId,
+      value: rule.value,
+      targets: rule.targets,
+      actorTarget: rule.actorTarget ?? 'all',
+    });
   mutedUserIds.push(userId);
 }
 
@@ -245,7 +247,7 @@ describe('GET /search — what the query selects', () => {
   });
 
   it('matches a non-primary rendition, because the vector is per variant', async () => {
-    // The Spanish translation carries the term; the primary does not. Mongo's
+    // The Spanish translation carries the term; the primary does not. The legacy store's
     // text index covered `content.variants.text` as a multikey path, so this
     // matched there too — an EXISTS over one variant row is the port of that,
     // and a predicate bound to `position = 0` would silently narrow it.
@@ -377,14 +379,18 @@ describe('GET /search — order and pagination', () => {
       .execute(
         sql`update ${posts} set created_at = created_at + interval '527 microseconds' where id = ${post.id}`,
       )
-      .then(() => undefined, (error: unknown) => error);
+      .then(
+        () => undefined,
+        (error: unknown) => error,
+      );
 
     expect(failure, 'the write must be REFUSED, not silently accepted').toBeDefined();
     // The CONSTRAINT NAME, not the message: drizzle wraps the driver error in a
     // "Failed query: …" of its own, so matching the message text asserts
     // drizzle's formatting rather than which rule rejected the row.
-    expect((failure as { cause?: { constraint_name?: string } })?.cause?.constraint_name)
-      .toBe('posts_created_at_ms_precision_check');
+    expect((failure as { cause?: { constraint_name?: string } })?.cause?.constraint_name).toBe(
+      'posts_created_at_ms_precision_check',
+    );
   });
 
   it('walks a page boundary that falls INSIDE one millisecond', async () => {
@@ -406,14 +412,17 @@ describe('GET /search — order and pagination', () => {
     const created: string[] = [];
     await getDb().transaction(async (tx) => {
       for (let index = 0; index < 3; index += 1) {
-        const record = await insertPostRecord({
-          oxyUserId: scope.user('author'),
-          authorship: [{ oxyUserId: scope.user('author'), role: 'owner', status: 'accepted' }],
-          type: PostType.TEXT,
-          visibility: PostVisibility.PUBLIC,
-          status: 'published',
-          content: body(`sameinstant ${index}`),
-        }, tx);
+        const record = await insertPostRecord(
+          {
+            oxyUserId: scope.user('author'),
+            authorship: [{ oxyUserId: scope.user('author'), role: 'owner', status: 'accepted' }],
+            type: PostType.TEXT,
+            visibility: PostVisibility.PUBLIC,
+            status: 'published',
+            content: body(`sameinstant ${index}`),
+          },
+          tx,
+        );
         created.push(record.id);
         track(scope, record.id);
       }
@@ -453,10 +462,22 @@ describe('GET /search — order and pagination', () => {
     const now = Date.now();
     const hoursAgo = (hours: number): Date => new Date(now - hours * 60 * 60 * 1000);
     const inDay = await seedPost(scope, { content: body('windowed'), createdAt: hoursAgo(2) });
-    const inWeekA = await seedPost(scope, { content: body('windowed'), createdAt: hoursAgo(3 * 24) });
-    const inWeekB = await seedPost(scope, { content: body('windowed'), createdAt: hoursAgo(5 * 24) });
-    const inMonth = await seedPost(scope, { content: body('windowed'), createdAt: hoursAgo(20 * 24) });
-    const older = await seedPost(scope, { content: body('windowed'), createdAt: hoursAgo(90 * 24) });
+    const inWeekA = await seedPost(scope, {
+      content: body('windowed'),
+      createdAt: hoursAgo(3 * 24),
+    });
+    const inWeekB = await seedPost(scope, {
+      content: body('windowed'),
+      createdAt: hoursAgo(5 * 24),
+    });
+    const inMonth = await seedPost(scope, {
+      content: body('windowed'),
+      createdAt: hoursAgo(20 * 24),
+    });
+    const older = await seedPost(scope, {
+      content: body('windowed'),
+      createdAt: hoursAgo(90 * 24),
+    });
     const expected = [inDay.id, inWeekA.id, inWeekB.id, inMonth.id, older.id];
 
     // One page, across all four windows.
@@ -631,8 +652,9 @@ describe('GET /search — operators', () => {
     });
     const textOnly = await seedPost(scope, { content: body('words only') });
 
-    expect((await idsFor({ query: `${TERM} has:media`, limit: 50 })).sort())
-      .toEqual([withImage.id, withVideo.id].sort());
+    expect((await idsFor({ query: `${TERM} has:media`, limit: 50 })).sort()).toEqual(
+      [withImage.id, withVideo.id].sort(),
+    );
     expect(await idsFor({ query: TERM, mediaType: 'video', limit: 50 })).toEqual([withVideo.id]);
     expect(await idsFor({ query: `${TERM} has:media`, limit: 50 })).not.toContain(textOnly.id);
   });
@@ -662,8 +684,9 @@ describe('GET /search — operators', () => {
 
     expect(await idsFor({ query: `${TERM} min_likes:5` })).toEqual([popular.id]);
     expect(await idsFor({ query: `${TERM} min_boosts:3` })).toEqual([popular.id]);
-    expect((await idsFor({ query: `${TERM} min_likes:0`, limit: 50 })).sort())
-      .toEqual([popular.id, quiet.id].sort());
+    expect((await idsFor({ query: `${TERM} min_likes:0`, limit: 50 })).sort()).toEqual(
+      [popular.id, quiet.id].sort(),
+    );
   });
 
   it('bounds the window with since: and until:', async () => {
@@ -709,7 +732,7 @@ describe('GET /search — operators', () => {
     expect(mocks.getProfileByUsername).toHaveBeenCalledWith('alice');
   });
 
-  it('filters by any of the post\'s detected languages, not only the primary', async () => {
+  it("filters by any of the post's detected languages, not only the primary", async () => {
     // The classifier VERSION is stamped deliberately. `backfillPostLanguages`
     // is a corpus-wide sweep with no scope, and its own suite runs it for real
     // in the same database — an unstamped row is one of the states it selects,
@@ -775,7 +798,7 @@ describe('GET /search — sensitive-content gating', () => {
   it('never drops an UNCLASSIFIED post from a safe-mode page', async () => {
     // The `is not true` half of the gate. Two of the three flag columns are
     // nullable, and `<> true` against NULL is NULL — so a literal translation of
-    // Mongo's `$ne: true` would silently hide every post that was never
+    // the legacy store's `$ne: true` would silently hide every post that was never
     // classified, which is the overwhelming majority.
     const unclassified = await seedPost(scope, { content: body('never classified') });
     const [row] = await getDb()

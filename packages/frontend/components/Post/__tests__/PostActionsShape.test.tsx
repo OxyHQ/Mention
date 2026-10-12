@@ -27,9 +27,9 @@ import PostActions from '../PostActions';
  */
 
 jest.mock('@oxy.so/bloom/theme', () => ({
-    useTheme: () => ({
-        colors: { primary: '#1d9bf0', success: '#00ba7c', textSecondary: '#8899a6' },
-    }),
+  useTheme: () => ({
+    colors: { primary: '#1d9bf0', success: '#00ba7c', textSecondary: '#8899a6' },
+  }),
 }));
 jest.mock('@oxy.so/bloom/hooks', () => ({ useHaptics: () => () => undefined }));
 jest.mock('@oxy.so/bloom/loading', () => ({ SpinnerIcon: () => null }));
@@ -43,9 +43,15 @@ jest.mock('@oxy.so/bloom/pressable-scale', () => ({ PressableScale: 'PressableSc
 
 // Icons are react-native-svg subtrees and say nothing about the bar's shape.
 jest.mock('@/assets/icons/comment-icon', () => ({ CommentIcon: () => null }));
-jest.mock('@/assets/icons/boost-icon', () => ({ BoostIcon: () => null, BoostIconActive: () => null }));
+jest.mock('@/assets/icons/boost-icon', () => ({
+  BoostIcon: () => null,
+  BoostIconActive: () => null,
+}));
 jest.mock('@/assets/icons/share-icon', () => ({ ShareIcon: () => null }));
-jest.mock('@/assets/icons/bookmark-icon', () => ({ Bookmark: () => null, BookmarkActive: () => null }));
+jest.mock('@/assets/icons/bookmark-icon', () => ({
+  Bookmark: () => null,
+  BookmarkActive: () => null,
+}));
 jest.mock('@/assets/icons/analytics-icon', () => ({ AnalyticsIcon: () => null }));
 jest.mock('@/lib/animations/AnimatedLikeIcon', () => ({ AnimatedLikeIcon: () => null }));
 jest.mock('@/lib/animations/CountWheel', () => ({ CountWheel: () => null }));
@@ -53,76 +59,75 @@ jest.mock('@/lib/animations/CountWheel', () => ({ CountWheel: () => null }));
 const noop = () => undefined;
 
 function renderBar(props: Partial<React.ComponentProps<typeof PostActions>> = {}) {
-    let renderer: TestRenderer.ReactTestRenderer | undefined;
-    act(() => {
-        renderer = TestRenderer.create(
-            <PostActions
-                engagement={{ replies: 2, likes: 3 }}
-                repliesSummary="2 replies"
-                {...props}
-                onReply={noop}
-                onBoost={noop}
-                onLike={noop}
-                onSave={noop}
-                onShare={noop}
-            />,
-        );
-    });
-    if (!renderer) throw new Error('render produced no tree');
-    return renderer;
+  let renderer: TestRenderer.ReactTestRenderer | undefined;
+  act(() => {
+    renderer = TestRenderer.create(
+      <PostActions
+        engagement={{ replies: 2, likes: 3 }}
+        repliesSummary="2 replies"
+        {...props}
+        onReply={noop}
+        onBoost={noop}
+        onLike={noop}
+        onSave={noop}
+        onShare={noop}
+      />,
+    );
+  });
+  if (!renderer) throw new Error('render produced no tree');
+  return renderer;
 }
 
 describe('PostActions shape', () => {
-    it('renders the icon row and the summary as siblings, with no wrapper around them', () => {
-        const renderer = renderBar();
-        const roots = renderer.toJSON();
+  it('renders the icon row and the summary as siblings, with no wrapper around them', () => {
+    const renderer = renderBar();
+    const roots = renderer.toJSON();
 
-        // A fragment root: react-test-renderer returns an ARRAY when the
-        // component renders siblings, and a single object when it wraps them.
-        expect(Array.isArray(roots)).toBe(true);
-        expect(roots).toHaveLength(2);
+    // A fragment root: react-test-renderer returns an ARRAY when the
+    // component renders siblings, and a single object when it wraps them.
+    expect(Array.isArray(roots)).toBe(true);
+    expect(roots).toHaveLength(2);
 
-        act(() => renderer.unmount());
-    });
+    act(() => renderer.unmount());
+  });
 
-    it('still shows the reply summary, and nothing in it is pressable', () => {
-        const renderer = renderBar();
+  it('still shows the reply summary, and nothing in it is pressable', () => {
+    const renderer = renderBar();
 
-        const summaries = renderer.root.findAll(
-            (node) => node.children.some((c) => c === '2 replies'),
-            { deep: false },
-        );
-        expect(summaries).toHaveLength(1);
+    const summaries = renderer.root.findAll(
+      (node) => node.children.some((c) => c === '2 replies'),
+      { deep: false },
+    );
+    expect(summaries).toHaveLength(1);
 
-        // The bar's own buttons are still PressableScale; the summary is not.
-        const summaryRoot = renderer.root.findAll(
-            (node) => typeof node.props?.className === 'string'
-                && node.props.className.includes('mt-2'),
-            { deep: false },
-        );
-        expect(summaryRoot).toHaveLength(1);
-        expect(summaryRoot[0].type).not.toBe('PressableScale');
-        expect(summaryRoot[0].findAllByType('PressableScale' as never)).toHaveLength(0);
+    // The bar's own buttons are still PressableScale; the summary is not.
+    const summaryRoot = renderer.root.findAll(
+      (node) => typeof node.props?.className === 'string' && node.props.className.includes('mt-2'),
+      { deep: false },
+    );
+    expect(summaryRoot).toHaveLength(1);
+    expect(summaryRoot[0].type).not.toBe('PressableScale');
+    expect(summaryRoot[0].findAllByType('PressableScale' as never)).toHaveLength(0);
 
-        act(() => renderer.unmount());
-    });
+    act(() => renderer.unmount());
+  });
 
-    // The bar counted likes and saves and left the boost icon bare, so a post
-    // boosted once read as boosted by nobody (OxyHQ/Mention#1140).
-    it('counts boosts beside the boost icon, and draws no count at zero', () => {
-        const withBoosts = renderBar({ engagement: { replies: 0, likes: 0, boosts: 1 } });
-        const boostButton = withBoosts.root.findAll(
-            (node) => String(node.type) === 'PressableScale' && node.props.accessibilityLabel === 'Boost',
-        );
-        expect(boostButton).toHaveLength(1);
-        expect(boostButton[0].findAll((node) => node.children.includes('1'))).not.toHaveLength(0);
-        act(() => withBoosts.unmount());
+  // The bar counted likes and saves and left the boost icon bare, so a post
+  // boosted once read as boosted by nobody (OxyHQ/Mention#1140).
+  it('counts boosts beside the boost icon, and draws no count at zero', () => {
+    const withBoosts = renderBar({ engagement: { replies: 0, likes: 0, boosts: 1 } });
+    const boostButton = withBoosts.root.findAll(
+      (node) => String(node.type) === 'PressableScale' && node.props.accessibilityLabel === 'Boost',
+    );
+    expect(boostButton).toHaveLength(1);
+    expect(boostButton[0].findAll((node) => node.children.includes('1'))).not.toHaveLength(0);
+    act(() => withBoosts.unmount());
 
-        const none = renderBar({ engagement: { replies: 0, likes: 0, boosts: 0 } });
-        const bare = none.root.findAll(
-            (node) => String(node.type) === 'PressableScale' && node.props.accessibilityLabel === 'Boost',
-        );
-        expect(bare[0].findAll((node) => node.children.includes('0'))).toHaveLength(0);
-        act(() => none.unmount());
-    });
+    const none = renderBar({ engagement: { replies: 0, likes: 0, boosts: 0 } });
+    const bare = none.root.findAll(
+      (node) => String(node.type) === 'PressableScale' && node.props.accessibilityLabel === 'Boost',
+    );
+    expect(bare[0].findAll((node) => node.children.includes('0'))).toHaveLength(0);
+    act(() => none.unmount());
+  });
 });

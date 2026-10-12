@@ -70,7 +70,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await getDb().delete(moderationEvents).where(like(moderationEvents.id, `${EVENT_PREFIX}%`));
+  await getDb()
+    .delete(moderationEvents)
+    .where(like(moderationEvents.id, `${EVENT_PREFIX}%`));
   await closePostgres();
 });
 

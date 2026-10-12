@@ -2,7 +2,7 @@
  * The post storage layer, against a real database.
  *
  * Every assertion here is about a ROW, not about a query having been built —
- * that distinction is the whole reason this suite exists. The Mongoose suites it
+ * that distinction is the whole reason this suite exists. The legacy-ODM suites it
  * replaces mocked the model and checked which arguments the service passed, so
  * they were green while the thing under them was wrong; the guard that shipped
  * broken in the sibling oxy-api port was exactly of that shape.
@@ -106,7 +106,10 @@ describe('the root-vs-reply discriminator', () => {
    */
   it('keeps an orphaned reply classified as a reply after its parent is deleted', async () => {
     const parent = await create();
-    const reply = await create({ parentPostId: parent.id, content: { variants: [{ source: 'author', text: 're' }] } });
+    const reply = await create({
+      parentPostId: parent.id,
+      content: { variants: [{ source: 'author', text: 're' }] },
+    });
 
     expect(reply.isReply).toBe(true);
     expect(reply.parentPostId).toBe(parent.id);
@@ -162,7 +165,10 @@ describe('the root-vs-reply discriminator', () => {
     const rejection = await db
       .insert(posts)
       .values({ id: uuidv7(), oxyUserId: AUTHOR, parentPostId: parent.id, isReply: false })
-      .then(() => null, (error: unknown) => error);
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
     expect(rejection).not.toBeNull();
     expect(isCheckViolation(rejection, 'posts_reply_discriminator_check')).toBe(true);
   });
@@ -176,7 +182,10 @@ describe('the root-vs-reply discriminator', () => {
         federationInReplyTo: 'https://remote.example/notes/parent',
         isReply: false,
       })
-      .then(() => null, (error: unknown) => error);
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
     expect(rejection).not.toBeNull();
     expect(isCheckViolation(rejection, 'posts_federated_reply_discriminator_check')).toBe(true);
   });
@@ -249,7 +258,9 @@ describe('authorship', () => {
     const byOwner = await findPostRecords(authoredBy(AUTHOR), { orderBy: CHRONO_DESC });
     expect(byOwner.map((record) => record.id).sort()).toEqual([owned.id, collaborated.id].sort());
 
-    const byCollaborator = await findPostRecords(authoredBy(COLLABORATOR), { orderBy: CHRONO_DESC });
+    const byCollaborator = await findPostRecords(authoredBy(COLLABORATOR), {
+      orderBy: CHRONO_DESC,
+    });
     expect(byCollaborator.map((record) => record.id)).toEqual([collaborated.id]);
   });
 
@@ -264,7 +275,7 @@ describe('authorship', () => {
   });
 
   it('refuses a second owner on one post', async () => {
-    // The invariant `getOwnerId` has always assumed and Mongo could not state.
+    // The invariant `getOwnerId` has always assumed and the legacy store could not state.
     const record = await create();
     await expect(
       db.insert(postAuthorships).values({
@@ -311,17 +322,16 @@ describe('the content graph', () => {
       { id: 'media-a', type: 'image', width: 800, height: 600, orientation: 'landscape' },
       { id: 'media-b', type: 'video', durationSec: 12.5, mime: 'video/mp4' },
     ],
-    attachments: [
-      { type: 'media', id: 'media-a', mediaType: 'image' },
-      { type: 'sources' },
-    ],
-    sources: [
-      { url: 'https://example.com/one', title: 'One' },
-      { url: 'https://example.com/two' },
-    ],
+    attachments: [{ type: 'media', id: 'media-a', mediaType: 'image' }, { type: 'sources' }],
+    sources: [{ url: 'https://example.com/one', title: 'One' }, { url: 'https://example.com/two' }],
     article: { articleId: 'article-1', title: 'Title', excerpt: 'Excerpt' },
     pollId: 'poll-1',
-    event: { eventId: 'e1', name: 'Launch', date: '2026-03-01T10:00:00.000Z', location: 'Barcelona' },
+    event: {
+      eventId: 'e1',
+      name: 'Launch',
+      date: '2026-03-01T10:00:00.000Z',
+      location: 'Barcelona',
+    },
     room: { roomId: 'r1', title: 'Room', status: 'live', topic: 'Topic', host: 'host' },
     podcast: { syraPodcastId: 'p1', title: 'Show', author: 'Host', showUrl: 'https://syra.fm/p1' },
     location: { type: 'Point', coordinates: [2.1734, 41.3851], address: 'Barcelona' },
@@ -339,10 +349,16 @@ describe('the content graph', () => {
     // that order, so a lost `order by position` reorders what federates and what
     // gets signed onto the MTN chain.
     expect(content?.variants?.map((variant) => variant.tag)).toEqual(['en', 'es', 'de']);
-    expect(content?.variants?.[0]).toMatchObject({ tag: 'en', source: 'author', text: 'primary body' });
+    expect(content?.variants?.[0]).toMatchObject({
+      tag: 'en',
+      source: 'author',
+      text: 'primary body',
+    });
     expect(content?.variants?.[0].alt).toEqual({ 'media-a': 'a cat' });
     expect(content?.variants?.[1]).toMatchObject({ tag: 'es', source: 'author' });
-    expect(content?.variants?.[1].media).toEqual([{ id: 'media-es', type: 'image', alt: 'un gato' }]);
+    expect(content?.variants?.[1].media).toEqual([
+      { id: 'media-es', type: 'image', alt: 'un gato' },
+    ]);
     expect(content?.variants?.[1].article).toEqual({
       title: 'Titulo',
       body: 'Cuerpo largo',
@@ -581,7 +597,11 @@ describe('reads the rest of the port depends on', () => {
 
   it('cascades a boost away with its original and spares a quote', async () => {
     const original = await create();
-    const boost = await create({ boostOf: original.id, type: PostType.BOOST, content: { variants: [] } });
+    const boost = await create({
+      boostOf: original.id,
+      type: PostType.BOOST,
+      content: { variants: [] },
+    });
     const quote = await create({ quoteOf: original.id, type: PostType.QUOTE });
 
     await db.delete(posts).where(eq(posts.id, original.id));
@@ -598,7 +618,7 @@ describe('reads the rest of the port depends on', () => {
 describe('writes', () => {
   it('merges a metadata patch instead of replacing the subdocument', async () => {
     /**
-     * The Mongo counterpart was a dotted `$set`, and a dot path handed to
+     * The legacy-store counterpart was a dotted `$set`, and a dot path handed to
      * drizzle's `set()` is an unknown property that drizzle silently IGNORES —
      * the write does nothing and throws nothing. This asserts the merge on real
      * columns: flipping the federation flag must not clear the pin.
@@ -700,7 +720,7 @@ describe('writes', () => {
 
   it('omits an absent optional rather than sending null', async () => {
     /**
-     * Drizzle hands `null` where Mongoose handed `undefined`, and the shared
+     * Drizzle hands `null` where the legacy ODM handed `undefined`, and the shared
      * contract OMITS an absent optional — the SDK's zod parse rejects a null
      * where it expects the key to be missing. This is that conversion, asserted
      * on the keys most likely to be absent.
@@ -750,7 +770,7 @@ describe('writes', () => {
 describe('list reads', () => {
   it('pages newest-first on a keyset both of whose columns are NOT NULL', async () => {
     /**
-     * Mongo sorts missing values FIRST and Postgres sorts NULLs LAST, so a sort
+     * The legacy store sorts missing values FIRST and Postgres sorts NULLs LAST, so a sort
      * key that can be null silently reverses which end of the range a bounded
      * sweep reaches. `created_at` and `id` are both `NOT NULL`, which is what
      * makes this ordering safe without a `nulls first`.

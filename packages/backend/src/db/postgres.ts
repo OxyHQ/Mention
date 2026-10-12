@@ -10,10 +10,8 @@
  * exactly what every test run does.
  *
  * Placement note: everything Postgres is kept together under `src/db/` rather
- * than split across two directories (the sibling oxy-api port puts its connector
- * in `src/config/postgres.ts`). This note used to orient the reader by naming
- * Mongo's connector at `src/utils/database.ts`; that file no longer exists, and
- * a pointer to a deleted path is worse than no pointer.
+ * than split across two directories (oxy-api puts its connector
+ * in `src/config/postgres.ts`).
  *
  * Connect once at boot, then read the handle synchronously from anywhere via
  * `getDb()`.
@@ -72,7 +70,7 @@ export async function connectPostgres(): Promise<Database> {
   if (!url) {
     throw new Error(
       'DATABASE_URL is not set. Start a local Postgres with: ' +
-      'docker compose -f docker-compose.postgres.yml up -d postgres'
+        'docker compose -f docker-compose.postgres.yml up -d postgres',
     );
   }
 
@@ -129,7 +127,7 @@ export function getDb(): Database {
   if (!db) {
     throw new Error(
       'PostgreSQL is not connected. Call connectPostgres() during startup ' +
-      'before issuing queries.'
+        'before issuing queries.',
     );
   }
   return db;
@@ -159,7 +157,7 @@ export function getPostgresClient(): postgres.Sql {
   if (!client) {
     throw new Error(
       'PostgreSQL is not connected. Call connectPostgres() during startup ' +
-      'before reaching for the raw client.'
+        'before reaching for the raw client.',
     );
   }
   return client;

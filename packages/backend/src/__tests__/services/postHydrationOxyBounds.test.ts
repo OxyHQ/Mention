@@ -1,12 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const {
-  cacheGet,
-  cacheSet,
-  getUsersByIds,
-  getUserById,
-  federatedActorFind,
-} = vi.hoisted(() => ({
+const { cacheGet, cacheSet, getUsersByIds, getUserById, federatedActorFind } = vi.hoisted(() => ({
   cacheGet: vi.fn(),
   cacheSet: vi.fn(),
   getUsersByIds: vi.fn(),
@@ -91,7 +85,9 @@ describe('resolveUserSummaries Oxy bounds', () => {
   });
 
   it('maps authoritative redirected ids in one bulk fetch without per-id fallbacks', async () => {
-    getUsersByIds.mockResolvedValue([{ ...oxyUser('canonical'), redirectedUserIds: ['legacy-a', 'legacy-b'] }]);
+    getUsersByIds.mockResolvedValue([
+      { ...oxyUser('canonical'), redirectedUserIds: ['legacy-a', 'legacy-b'] },
+    ]);
     const result = await resolveUserSummaries(['legacy-a', 'legacy-b', 'canonical']);
     expect(result.get('legacy-a')?.user.id).toBe('canonical');
     expect(result.get('legacy-b')?.user.id).toBe('canonical');
@@ -220,9 +216,7 @@ describe('resolveUserSummaries Oxy bounds', () => {
     );
 
     const cohorts = Array.from({ length: 4 }, (_, cohort) =>
-      resolveUserSummaries(
-        Array.from({ length: 10 }, (_, index) => `global-${cohort}-${index}`),
-      ),
+      resolveUserSummaries(Array.from({ length: 10 }, (_, index) => `global-${cohort}-${index}`)),
     );
     await Promise.resolve();
     await Promise.resolve();

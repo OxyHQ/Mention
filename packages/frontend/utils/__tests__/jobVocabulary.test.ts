@@ -1,4 +1,9 @@
-import { countryName, currencyName, formatClarityJobLocation, formatJobLocation } from '@/utils/jobVocabulary';
+import {
+  countryName,
+  currencyName,
+  formatClarityJobLocation,
+  formatJobLocation,
+} from '@/utils/jobVocabulary';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en' } }),
@@ -31,13 +36,20 @@ describe('jobVocabulary', () => {
   });
 
   it('formats a Mention location most-specific first', () => {
-    const label = formatJobLocation({ placeId: '3128760', countryCode: 'ES', region: 'Catalonia', city: 'Barcelona' }, 'en');
-    expect(label).toBe(hasDisplayNames ? 'Barcelona, Catalonia, Spain' : 'Barcelona, Catalonia, ES');
+    const label = formatJobLocation(
+      { placeId: '3128760', countryCode: 'ES', region: 'Catalonia', city: 'Barcelona' },
+      'en',
+    );
+    expect(label).toBe(
+      hasDisplayNames ? 'Barcelona, Catalonia, Spain' : 'Barcelona, Catalonia, ES',
+    );
     expect(formatJobLocation({ countryCode: 'ES' }, 'en')).toBe(hasDisplayNames ? 'Spain' : 'ES');
   });
 
   it('prefers a Clarity listing’s structured fields and keeps a crawled listing’s own text otherwise', () => {
-    expect(formatClarityJobLocation({ raw: 'Anywhere in Spain', countryCode: 'ES' }, 'en')).toBe(hasDisplayNames ? 'Spain' : 'ES');
+    expect(formatClarityJobLocation({ raw: 'Anywhere in Spain', countryCode: 'ES' }, 'en')).toBe(
+      hasDisplayNames ? 'Spain' : 'ES',
+    );
     expect(formatClarityJobLocation({ raw: 'Planet Earth' }, 'en')).toBe('Planet Earth');
     expect(formatClarityJobLocation(undefined, 'en')).toBeUndefined();
   });

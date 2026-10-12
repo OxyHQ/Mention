@@ -67,16 +67,24 @@ function makeFullyPopulatedPost(): HydratedPost {
       name: { displayName: 'User One' },
       avatar: 'avatar-1',
     },
-    authors: [{
-      id: 'user-1',
-      username: 'user1',
-      name: { displayName: 'User One' },
-      role: 'owner',
-      status: 'accepted',
-    }],
+    authors: [
+      {
+        id: 'user-1',
+        username: 'user1',
+        name: { displayName: 'User One' },
+        role: 'owner',
+        status: 'accepted',
+      },
+    ],
     authorship: [{ oxyUserId: 'user-1', role: 'owner', status: 'accepted' }],
     engagement: {
-      likes: 0, downvotes: 0, boosts: 0, replies: 0, saves: 0, views: 0, impressions: 0,
+      likes: 0,
+      downvotes: 0,
+      boosts: 0,
+      replies: 0,
+      saves: 0,
+      views: 0,
+      impressions: 0,
     },
     viewerState: {
       isOwner: false,

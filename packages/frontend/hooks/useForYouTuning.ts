@@ -28,10 +28,7 @@ export interface UseForYouTuning {
 export function useForYouTuning(): UseForYouTuning {
   const { user, canUsePrivateApi } = useAuth();
   const queryClient = useQueryClient();
-  const queryKey = useMemo(
-    () => viewerQueryKeys.feedTuning(user?.id),
-    [user?.id],
-  );
+  const queryKey = useMemo(() => viewerQueryKeys.feedTuning(user?.id), [user?.id]);
 
   const query = useQuery<ForYouFeedTuning>({
     queryKey,
@@ -42,7 +39,12 @@ export function useForYouTuning(): UseForYouTuning {
 
   const tuning = useMemo<ForYouFeedTuning>(() => query.data ?? {}, [query.data]);
 
-  const mutation = useMutation<ForYouFeedTuning, Error, ForYouFeedTuning, { previous: ForYouFeedTuning | undefined }>({
+  const mutation = useMutation<
+    ForYouFeedTuning,
+    Error,
+    ForYouFeedTuning,
+    { previous: ForYouFeedTuning | undefined }
+  >({
     mutationFn: (next) => feedTuningService.update(next),
     onMutate: async (next) => {
       await queryClient.cancelQueries({ queryKey });

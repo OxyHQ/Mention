@@ -31,8 +31,14 @@ function qualifyVariants(
 
 describe('backfill: which bodies change', () => {
   it('qualifies a bare handle against the IDENTITY domain, not the bridge host', () => {
-    const domain = identityDomainOfActor({ networkAcct: 'pabloiglesias@x.com', domain: 'mastox.eu' });
-    const next = qualifyVariants([{ source: 'author', text: 'RT: @Julio_Rodr_ hola' }], domain ?? '');
+    const domain = identityDomainOfActor({
+      networkAcct: 'pabloiglesias@x.com',
+      domain: 'mastox.eu',
+    });
+    const next = qualifyVariants(
+      [{ source: 'author', text: 'RT: @Julio_Rodr_ hola' }],
+      domain ?? '',
+    );
     expect(next?.[0].text).toBe('RT: @Julio_Rodr_@x.com hola');
   });
 
@@ -53,7 +59,10 @@ describe('backfill: which bodies change', () => {
     // Variants are the only home for a post's body; repairing variants[0] alone
     // would leave a translated rendition carrying the bare handle forever.
     const next = qualifyVariants(
-      [{ source: 'author', text: 'hola @a' }, { source: 'author', text: 'hello @a' }],
+      [
+        { source: 'author', text: 'hola @a' },
+        { source: 'author', text: 'hello @a' },
+      ],
       'x.com',
     );
     expect(next?.map((v) => v.text)).toEqual(['hola @a@x.com', 'hello @a@x.com']);
@@ -75,19 +84,19 @@ describe('backfill: which bodies change', () => {
 /**
  * The bug that made the first production run a silent no-op.
  *
- * The cursor was opened WITHOUT `.lean()`, so each variant was a Mongoose
+ * The cursor was opened WITHOUT `.lean()`, so each variant was a legacy-ODM
  * subdocument. Its own enumerable properties are internals — `_doc` among them,
  * holding the ORIGINAL values — so `{ ...variant, text }` carried the original
  * text along, the cast on the way back in preferred it, and the update wrote a
  * document identical to the one already stored. Exit 0, no error, nothing
  * changed, and the script reported 213 written.
  *
- * Reproduced here with an object shaped like a Mongoose subdocument, so the
+ * Reproduced here with an object shaped like a legacy-ODM subdocument, so the
  * regression is pinned by behaviour rather than by remembering to keep a
  * `.lean()` call.
  */
 describe('backfill: the spread must not carry stale values', () => {
-  /** What a non-lean Mongoose subdocument looks like to a spread. */
+  /** What a non-lean legacy-ODM subdocument looks like to a spread. */
   const subdocLike = (text: string) => {
     const doc = { source: 'author', text, tag: 'es' };
     return Object.defineProperty({ $__: {}, _doc: doc, $isNew: false }, 'text', {

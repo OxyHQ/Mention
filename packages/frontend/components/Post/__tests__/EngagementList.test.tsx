@@ -33,13 +33,18 @@ function mockNormalizeHandlePart(value?: string | null): string | null {
   if (!trimmed || /[/?#]/.test(trimmed)) return null;
   return trimmed;
 }
-function mockNormalizedHandle(user: {
-  username?: string | null;
-  handle?: string | null;
-  instance?: string | null;
-  isFederated?: boolean | null;
-  federation?: { domain?: string | null } | null;
-} | null | undefined): string | null {
+function mockNormalizedHandle(
+  user:
+    | {
+        username?: string | null;
+        handle?: string | null;
+        instance?: string | null;
+        isFederated?: boolean | null;
+        federation?: { domain?: string | null } | null;
+      }
+    | null
+    | undefined,
+): string | null {
   const username = mockNormalizeHandlePart(user?.username ?? user?.handle);
   if (!username) return null;
   const isFederated = user?.isFederated === true;
@@ -84,7 +89,8 @@ jest.mock('@/components/ProfileCard', () => {
   // Faithful reproduction of ProfileCard's primary-label decision: a real display
   // name wins; otherwise the `@handle`; otherwise "Unknown user".
   const ProfileCard = ({ profile }: { profile: Record<string, unknown> }) => {
-    const handle = mockNormalizedHandle(profile as Parameters<typeof mockNormalizedHandle>[0]) ?? '';
+    const handle =
+      mockNormalizedHandle(profile as Parameters<typeof mockNormalizedHandle>[0]) ?? '';
     const name = profile.name as { displayName?: string } | undefined;
     const displayName = name?.displayName?.trim();
     const primaryLabel = displayName || (handle ? `@${handle}` : 'Unknown user');

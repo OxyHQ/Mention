@@ -23,7 +23,9 @@ const NOTE = 'https://kilogram.makeup/users/planprobe/statuses/DqPlanProbe01';
 async function planOf(where: SQL): Promise<string> {
   return getDb().transaction(async (tx) => {
     await tx.execute(sql`set local enable_seqscan = off`);
-    const rows = await tx.execute<{ 'QUERY PLAN': string }>(sql`explain select ${posts.id} from ${posts} where ${where}`);
+    const rows = await tx.execute<{ 'QUERY PLAN': string }>(
+      sql`explain select ${posts.id} from ${posts} where ${where}`,
+    );
     return [...rows].map((row) => row['QUERY PLAN']).join('\n');
   });
 }
@@ -45,11 +47,13 @@ describe('the source-key match is index-driven', () => {
   });
 
   it('nor does the published-object resolution (Like / Announce / reply parent)', async () => {
-    const plan = await planOf(and(
-      postMatchesFederatedObjectSql(NOTE),
-      eq(posts.status, 'published'),
-      eq(posts.visibility, PostVisibility.PUBLIC),
-    ) as SQL);
+    const plan = await planOf(
+      and(
+        postMatchesFederatedObjectSql(NOTE),
+        eq(posts.status, 'published'),
+        eq(posts.visibility, PostVisibility.PUBLIC),
+      ) as SQL,
+    );
     expect(plan).not.toMatch(/Seq Scan on posts/);
   });
 });
@@ -64,13 +68,17 @@ describe('the federated-media deletion reference check is index-driven', () => {
   }
 
   it('looks variant media up by id without scanning post_variant_media', async () => {
-    const plan = await planOfRaw(sql`select media_id from post_variant_media where media_id in ('a', 'b')`);
+    const plan = await planOfRaw(
+      sql`select media_id from post_variant_media where media_id in ('a', 'b')`,
+    );
     expect(plan).not.toMatch(/Seq Scan on post_variant_media/);
     expect(plan).toMatch(/post_variant_media_media_id_idx/);
   });
 
   it('looks banners up by file id without scanning user_settings', async () => {
-    const plan = await planOfRaw(sql`select profile_header_image from user_settings where profile_header_image in ('a', 'b')`);
+    const plan = await planOfRaw(
+      sql`select profile_header_image from user_settings where profile_header_image in ('a', 'b')`,
+    );
     expect(plan).not.toMatch(/Seq Scan on user_settings/);
     expect(plan).toMatch(/user_settings_profile_header_image_idx/);
   });

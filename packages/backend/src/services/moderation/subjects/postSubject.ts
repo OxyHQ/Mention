@@ -217,9 +217,7 @@ async function contextResource(
     type: 'text',
     data: { text: body.text },
     ...(body.language === undefined ? {} : { language: body.language }),
-    ...(neighbour.createdAt === undefined
-      ? {}
-      : { createdAt: new Date(neighbour.createdAt) }),
+    ...(neighbour.createdAt === undefined ? {} : { createdAt: new Date(neighbour.createdAt) }),
   };
 }
 
@@ -247,9 +245,8 @@ function permalink(post: SnapshotPost): string {
  * `public_feed` deliberately does not claim "Mention only". Whether a LOCAL post
  * also went out to the fediverse is not a fact this row can answer: the obvious
  * candidate, `metadata.federationDelivered`, is not a declared path on
- * `PostMetadataSchema` and Mongoose's strict mode strips it on write, so it reads
- * `undefined` on every post regardless of what happened. Asserting locality from
- * an absent flag would be inventing a distribution fact — so the token asserts
+ * `PostMetadataSchema`, so it cannot be relied on to reflect what happened.
+ * Asserting locality from an absent flag would be inventing a distribution fact — so the token asserts
  * what is true and denies nothing.
  */
 function distributionHint(post: SnapshotPost): string {
@@ -290,9 +287,7 @@ function reachedAudience(post: SnapshotPost): number | undefined {
    * Omitted rather than coerced: a rounded or clamped value would be a number
    * Mention made up, which is the thing this field must never carry.
    */
-  return typeof views === 'number' && Number.isInteger(views) && views >= 0
-    ? views
-    : undefined;
+  return typeof views === 'number' && Number.isInteger(views) && views >= 0 ? views : undefined;
 }
 
 export function createPostSubjectProvider(input: {
@@ -348,7 +343,8 @@ export function createPostSubjectProvider(input: {
       const post = await loadPost(reportedId, reporterId);
       if (!post) return null;
 
-      const ownerId = getOwnerId(normalizeAuthorship(post.authorship)) ?? post.oxyUserId ?? undefined;
+      const ownerId =
+        getOwnerId(normalizeAuthorship(post.authorship)) ?? post.oxyUserId ?? undefined;
       const body = postText(post);
 
       const context: ModerationContextResource[] = [];

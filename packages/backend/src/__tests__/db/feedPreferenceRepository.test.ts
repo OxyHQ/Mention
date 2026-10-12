@@ -2,7 +2,7 @@
  * `user_feed_preferences` + `user_saved_feeds` against real rows.
  *
  * This replaces `__tests__/models/userFeedPreference.test.ts`, which asserted
- * the Mongoose schema's shape — that saved-feed subdocuments carried no `_id`,
+ * the legacy-ODM schema's shape — that saved-feed subdocuments carried no `_id`,
  * and that `oxyUserId` was uniquely indexed. Both statements survive the port as
  * constraints rather than schema options (`user_saved_feeds` is keyed by
  * `(preference_id, key)`, `user_feed_preferences.oxy_user_id` is unique), so they
@@ -83,7 +83,7 @@ describe('storing a layout', () => {
   /**
    * A saved feed is identified by its `key` within one layout.
    *
-   * Mongo said this by giving the subdocument `_id: false`; Postgres says it
+   * The legacy store said this by giving the subdocument `_id: false`; Postgres says it
    * with `unique (preference_id, key)`. Replacing a layout therefore has to
    * clear the old rows first — leaving them beside the new ones violates it,
    * which is why the replace is one transaction.
@@ -119,9 +119,11 @@ describe('storing a layout', () => {
   });
 
   /** A second save must reuse the viewer's row, not fail on its unique owner. */
-  it('saves repeatedly without duplicating the viewer\'s preference row', async () => {
+  it("saves repeatedly without duplicating the viewer's preference row", async () => {
     await replaceFeedLayout(VIEWER, [{ key: 'a', descriptor: 'for_you', pinned: true, order: 0 }]);
-    await replaceFeedLayout(VIEWER, [{ key: 'b', descriptor: 'following', pinned: true, order: 0 }]);
+    await replaceFeedLayout(VIEWER, [
+      { key: 'b', descriptor: 'following', pinned: true, order: 0 },
+    ]);
 
     const rows = await getDb()
       .select({ id: userFeedPreferences.id })

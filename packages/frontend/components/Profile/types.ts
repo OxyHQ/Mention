@@ -11,7 +11,18 @@ import type { ProfileData } from '@/hooks/useProfileData';
 import type { FollowButton, useAuth } from '@oxy.so/services/ui/client';
 
 // Tab configuration
-export const TAB_NAMES = ['posts', 'replies', 'media', 'videos', 'likes', 'boosts', 'mentions', 'feeds', 'starter_packs', 'lists'] as const;
+export const TAB_NAMES = [
+  'posts',
+  'replies',
+  'media',
+  'videos',
+  'likes',
+  'boosts',
+  'mentions',
+  'feeds',
+  'starter_packs',
+  'lists',
+] as const;
 
 /**
  * Tabs only a CHANNEL account's profile has, appended after {@link TAB_NAMES}.
@@ -127,9 +138,7 @@ const CHANNEL_EXCLUDED_TABS = [
  * reads as `personal` (the column's default), which is also every federated and
  * unresolved profile — none of which is a channel.
  */
-export function profileTabsForAccountKind(
-  kind: AccountKind | undefined,
-): readonly ProfileTab[] {
+export function profileTabsForAccountKind(kind: AccountKind | undefined): readonly ProfileTab[] {
   if (kind === 'organization' || kind === 'project') {
     return [...TAB_NAMES, ...ORGANIZATION_ONLY_TAB_NAMES];
   }
@@ -229,10 +238,7 @@ export function buildProfileTabDescriptors(
  * on the lane), and a lane deleted while somebody had its tab open resolves to
  * nothing at all rather than to a blank screen.
  */
-export function profileTabIndex(
-  descriptors: readonly ProfileTabDescriptor[],
-  key: string,
-): number {
+export function profileTabIndex(descriptors: readonly ProfileTabDescriptor[], key: string): number {
   const index = descriptors.findIndex((descriptor) => descriptor.key === key);
   return index >= 0 ? index : 0;
 }

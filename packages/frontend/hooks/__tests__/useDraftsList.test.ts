@@ -41,8 +41,14 @@ function server(id: string, updatedAt: string): HydratedPost {
 describe('mergeDrafts', () => {
   it('interleaves both origins by last change, newest first', () => {
     const merged = mergeDrafts(
-      [device('device-new', Date.parse('2026-09-03T12:00:00.000Z')), device('device-old', Date.parse('2026-09-01T12:00:00.000Z'))],
-      [server('server-mid', '2026-09-02T12:00:00.000Z'), server('server-newest', '2026-09-04T12:00:00.000Z')],
+      [
+        device('device-new', Date.parse('2026-09-03T12:00:00.000Z')),
+        device('device-old', Date.parse('2026-09-01T12:00:00.000Z')),
+      ],
+      [
+        server('server-mid', '2026-09-02T12:00:00.000Z'),
+        server('server-newest', '2026-09-04T12:00:00.000Z'),
+      ],
     );
 
     expect(merged.map((item) => `${item.origin}:${item.id}`)).toEqual([
@@ -59,7 +65,12 @@ describe('mergeDrafts', () => {
 
     const [first, second] = mergeDrafts([draft], [post]);
 
-    expect(first).toEqual({ origin: 'server', id: 'server-1', updatedAt: Date.parse('2026-09-02T12:00:00.000Z'), post });
+    expect(first).toEqual({
+      origin: 'server',
+      id: 'server-1',
+      updatedAt: Date.parse('2026-09-02T12:00:00.000Z'),
+      post,
+    });
     expect(second).toEqual({ origin: 'device', id: 'device-1', updatedAt: draft.updatedAt, draft });
   });
 

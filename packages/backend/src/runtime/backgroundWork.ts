@@ -106,9 +106,7 @@ export function trackedBackgroundWorkCount(): number {
  * must not be blocked by the thing it is trying to be polite about. Returns
  * whether the set emptied, so the caller can say which happened.
  */
-export async function drainBackgroundWork(
-  timeoutMs: number = DRAIN_TIMEOUT_MS,
-): Promise<boolean> {
+export async function drainBackgroundWork(timeoutMs: number = DRAIN_TIMEOUT_MS): Promise<boolean> {
   if (tracked.size === 0) return true;
 
   const pending = Array.from(tracked);
@@ -120,10 +118,7 @@ export async function drainBackgroundWork(
   });
 
   try {
-    const drained = await Promise.race([
-      Promise.allSettled(pending).then(() => true),
-      timedOut,
-    ]);
+    const drained = await Promise.race([Promise.allSettled(pending).then(() => true), timedOut]);
     if (!drained) {
       logger.warn('[BackgroundWork] drain timed out; abandoning detached tasks', {
         pending: tracked.size,

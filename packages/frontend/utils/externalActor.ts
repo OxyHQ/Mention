@@ -24,8 +24,7 @@ const AT_URI_RE =
   /^at:\/\/(did:(?:plc|web):[^/]+|[a-z0-9][a-z0-9.-]*\.[a-z]{2,})(?:\/([a-zA-Z0-9.]+)(?:\/([a-zA-Z0-9._~-]+))?)?$/i;
 
 /** A bare DNS handle (≥2 labels, alphabetic TLD): `alice.bsky.social`, `example.com`. */
-const HANDLE_RE =
-  /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
+const HANDLE_RE = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
 
 /** True when `query` is a fediverse `user@host` acct (with or without a leading `@`). */
 function isFediverseAcct(query: string): boolean {

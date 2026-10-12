@@ -20,7 +20,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  * ## What the Postgres port changed here, and what it did not
  *
  * An entry is now a {@link PostRecord} — a plain immutable value with `id`, not
- * a Mongoose document with `_id` — and `federatePublishedPost` answers with the
+ * a legacy-ODM document with `_id` — and `federatePublishedPost` answers with the
  * RE-READ record when it delivered and `null` when it did not, rather than a
  * boolean beside a document it mutated in place. The batch path still reads that
  * answer as "did this go out", so `!delivered` is the same test it always was
@@ -34,10 +34,13 @@ import type { PostRecord } from '../../db/posts/postRecord';
 
 const { isFediverseSharingEnabled, federatePublishedPost } = vi.hoisted(() => ({
   isFediverseSharingEnabled: vi.fn<(oxyUserId: string) => Promise<boolean>>(),
-  federatePublishedPost: vi.fn<
-    (post: PostRecord, ctx: { oxyUserId: string | null; alsoDeliverToAudiencesOf?: string[] }) =>
-      Promise<PostRecord | null>
-  >(),
+  federatePublishedPost:
+    vi.fn<
+      (
+        post: PostRecord,
+        ctx: { oxyUserId: string | null; alsoDeliverToAudiencesOf?: string[] },
+      ) => Promise<PostRecord | null>
+    >(),
 }));
 
 vi.mock('../../services/fediverseSharing', () => ({ isFediverseSharingEnabled }));
@@ -59,7 +62,9 @@ function federatedIds(): string[] {
 }
 
 /** The call arguments recorded for the entry with this id. */
-function callFor(postId: string): { oxyUserId?: string | null; alsoDeliverToAudiencesOf?: string[] } | undefined {
+function callFor(
+  postId: string,
+): { oxyUserId?: string | null; alsoDeliverToAudiencesOf?: string[] } | undefined {
   return federatePublishedPost.mock.calls.find((call) => call[0].id === postId)?.[1];
 }
 
@@ -184,7 +189,7 @@ describe('federatePostBatch — an author who does not share ends the chain', ()
     expect(federatedIds()).toEqual(['p1']);
   });
 
-  it('removes only the silent account\'s own posts from a beast batch', async () => {
+  it("removes only the silent account's own posts from a beast batch", async () => {
     // The SAME accounts in the SAME order as the chain case above, so the two
     // shapes are told apart by their results and not by their fixtures. A beast
     // entry answers nothing, so nothing downstream depends on alice.

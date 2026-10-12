@@ -23,7 +23,10 @@ vi.mock('../../utils/oxyHelpers', () => ({
 // Oxy inference is imported by the module; stub so it loads purely. `topic_stats` needs
 // no stub — `resolveTopicRefs` issues no query, and the tests that DO write rows
 // live in `topicStats.test.ts` against a real database.
-vi.mock('../../utils/oxyInference', () => ({ inferenceJSON: vi.fn(), isInferenceEnabled: () => false }));
+vi.mock('../../utils/oxyInference', () => ({
+  inferenceJSON: vi.fn(),
+  isInferenceEnabled: () => false,
+}));
 
 import { topicService } from '../../services/TopicService';
 
@@ -57,15 +60,9 @@ describe('TopicService.resolveTopicRefs', () => {
   it('returns a name-only ref for a name that does not resolve to a Topic document', async () => {
     mocks.resolveTopicNames.mockResolvedValue([{ _id: 'id-known', name: 'known' }]);
 
-    const refs = await topicService.resolveTopicRefs([
-      { name: 'known' },
-      { name: 'unknown' },
-    ]);
+    const refs = await topicService.resolveTopicRefs([{ name: 'known' }, { name: 'unknown' }]);
 
-    expect(refs).toEqual([
-      { name: 'known', topicId: 'id-known' },
-      { name: 'unknown' },
-    ]);
+    expect(refs).toEqual([{ name: 'known', topicId: 'id-known' }, { name: 'unknown' }]);
   });
 
   it('degrades to all name-only refs when the registry call throws (never drops the list)', async () => {
@@ -78,10 +75,7 @@ describe('TopicService.resolveTopicRefs', () => {
 
     // resolveNames swallows the error and returns an empty map → no topicIds, but
     // the names (and any relevance) are preserved.
-    expect(refs).toEqual([
-      { name: 'coffee', relevance: 7 },
-      { name: 'espresso' },
-    ]);
+    expect(refs).toEqual([{ name: 'coffee', relevance: 7 }, { name: 'espresso' }]);
   });
 
   it('returns [] for an empty input (no registry call)', async () => {

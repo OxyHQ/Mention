@@ -2,7 +2,11 @@ import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Text } from '@oxy.so/bloom/typography';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
-import { ProfileCard, ProfileCardSkeletonList, type ProfileCardData } from '@/components/ProfileCard';
+import {
+  ProfileCard,
+  ProfileCardSkeletonList,
+  type ProfileCardData,
+} from '@/components/ProfileCard';
 import { useLocalSearchParams, router, usePathname } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import React, { useCallback, useMemo } from 'react';
@@ -173,11 +177,12 @@ function ConnectionsContent({
   const { t } = useTranslation();
   const theme = useTheme();
 
-  const profileHandle = getNormalizedUserHandle({
-    username: profileData?.username || cleanUsername,
-    instance: profileData?.instance,
-    isFederated: profileData?.isFederated,
-  }) || cleanUsername;
+  const profileHandle =
+    getNormalizedUserHandle({
+      username: profileData?.username || cleanUsername,
+      instance: profileData?.instance,
+      isFederated: profileData?.isFederated,
+    }) || cleanUsername;
 
   // The route IS the active tab — `handleTabPress` navigates, so there is
   // nothing else that could select one. Derived rather than held in state, which
@@ -206,9 +211,10 @@ function ConnectionsContent({
     queryFn: async () => {
       if (!profileId) return [];
       try {
-        const list = listKind === 'following'
-          ? (await oxyServices.follows.following(profileId)).following
-          : (await oxyServices.follows.followers(profileId)).followers;
+        const list =
+          listKind === 'following'
+            ? (await oxyServices.follows.following(profileId)).following
+            : (await oxyServices.follows.followers(profileId)).followers;
         cacheActors(list);
         return list;
       } catch (err) {
@@ -291,17 +297,17 @@ function ConnectionsContent({
     placeholderData: keepPreviousData,
     staleTime: RECOMMENDATIONS_STALE_TIME_MS,
   });
-  const mutuals = useMemo<ConnectionUser[]>(
-    () => inCommonQuery.data ?? [],
-    [inCommonQuery.data],
-  );
+  const mutuals = useMemo<ConnectionUser[]>(() => inCommonQuery.data ?? [], [inCommonQuery.data]);
 
-  const handleTabPress = useCallback((tabId: string) => {
-    if (!routeUsername) return;
-    const tab = tabId as TabType;
-    const subroute = tab === 'who-may-know' ? 'who-may-know' : tab;
-    router.push(`/@${profileHandle}/${subroute}`);
-  }, [profileHandle, routeUsername]);
+  const handleTabPress = useCallback(
+    (tabId: string) => {
+      if (!routeUsername) return;
+      const tab = tabId as TabType;
+      const subroute = tab === 'who-may-know' ? 'who-may-know' : tab;
+      router.push(`/@${profileHandle}/${subroute}`);
+    },
+    [profileHandle, routeUsername],
+  );
 
   const getInviteMessage = useCallback(() => {
     const userHandle = user?.username || '';
@@ -313,13 +319,13 @@ function ConnectionsContent({
         name: viewerName,
         handle: userHandle,
         url: appUrl,
-        defaultValue: `Join me on Mention! ${viewerName} (@${userHandle})\n${appUrl}`
+        defaultValue: `Join me on Mention! ${viewerName} (@${userHandle})\n${appUrl}`,
       });
     } else {
       return t('settings.inviteContacts.shareMessage', {
         name: viewerName,
         url: appUrl,
-        defaultValue: `Join me on Mention! ${viewerName}\n${appUrl}`
+        defaultValue: `Join me on Mention! ${viewerName}\n${appUrl}`,
       });
     }
   }, [user, t]);
@@ -362,27 +368,34 @@ function ConnectionsContent({
     return <ProfileCard profile={profile} showFollowButton />;
   }, []);
 
-  const renderInviteBanner = useCallback(() => (
-    <TouchableOpacity
-      className="flex-row items-center p-3 mx-4 mt-3 mb-2 rounded-[20px] border bg-card border-border"
-      style={{ gap: 10 }}
-      onPress={handleInviteFriends}
-      activeOpacity={0.7}
-    >
-      <View className="w-10 h-10 rounded-full items-center justify-center bg-primary">
-        <RiGroupFill size="md" fill={theme.colors.card} />
-      </View>
-      <View className="flex-1">
-        <Text className="text-[15px] font-bold mb-0.5 text-foreground">
-          {t('settings.inviteContacts.inviteBannerTitle', { defaultValue: 'Invite friends from your contacts' })}
-        </Text>
-        <Text className="text-[13px] font-medium text-muted-foreground">
-          {t('settings.inviteContacts.inviteBannerSubtitle', { defaultValue: 'Share Mention and grow your community.' })}
-        </Text>
-      </View>
-      <RiArrowRightSLine size="md" fill={theme.colors.textSecondary} />
-    </TouchableOpacity>
-  ), [handleInviteFriends, theme.colors.card, theme.colors.textSecondary, t]);
+  const renderInviteBanner = useCallback(
+    () => (
+      <TouchableOpacity
+        className="flex-row items-center p-3 mx-4 mt-3 mb-2 rounded-[20px] border bg-card border-border"
+        style={{ gap: 10 }}
+        onPress={handleInviteFriends}
+        activeOpacity={0.7}
+      >
+        <View className="w-10 h-10 rounded-full items-center justify-center bg-primary">
+          <RiGroupFill size="md" fill={theme.colors.card} />
+        </View>
+        <View className="flex-1">
+          <Text className="text-[15px] font-bold mb-0.5 text-foreground">
+            {t('settings.inviteContacts.inviteBannerTitle', {
+              defaultValue: 'Invite friends from your contacts',
+            })}
+          </Text>
+          <Text className="text-[13px] font-medium text-muted-foreground">
+            {t('settings.inviteContacts.inviteBannerSubtitle', {
+              defaultValue: 'Share Mention and grow your community.',
+            })}
+          </Text>
+        </View>
+        <RiArrowRightSLine size="md" fill={theme.colors.textSecondary} />
+      </TouchableOpacity>
+    ),
+    [handleInviteFriends, theme.colors.card, theme.colors.textSecondary, t],
+  );
 
   const currentData = useMemo(() => {
     switch (activeTab) {
@@ -407,7 +420,9 @@ function ConnectionsContent({
       case 'following':
         return t('connections.emptyFollowing', { defaultValue: 'Not following anyone yet' });
       case 'who-may-know':
-        return t('connections.emptyRecommendations', { defaultValue: 'No recommendations available' });
+        return t('connections.emptyRecommendations', {
+          defaultValue: 'No recommendations available',
+        });
       case 'in-common':
         return t('connections.emptyInCommon', { defaultValue: 'No mutual followers' });
       default:
@@ -435,7 +450,7 @@ function ConnectionsContent({
         });
       case 'in-common':
         return t('connections.emptyInCommonSubtitle', {
-          defaultValue: "People you follow who also follow this account will appear here.",
+          defaultValue: 'People you follow who also follow this account will appear here.',
         });
       default:
         return '';
@@ -461,12 +476,15 @@ function ConnectionsContent({
     }
   };
 
-  const tabs = useMemo(() => [
-    { id: 'followers', label: t('Followers', { defaultValue: 'Followers' }) },
-    { id: 'following', label: t('Following', { defaultValue: 'Following' }) },
-    { id: 'in-common', label: t('connections.tabs.inCommon', { defaultValue: 'In common' }) },
-    { id: 'who-may-know', label: t('Who May Know', { defaultValue: 'Who May Know' }) },
-  ], [t]);
+  const tabs = useMemo(
+    () => [
+      { id: 'followers', label: t('Followers', { defaultValue: 'Followers' }) },
+      { id: 'following', label: t('Following', { defaultValue: 'Following' }) },
+      { id: 'in-common', label: t('connections.tabs.inCommon', { defaultValue: 'In common' }) },
+      { id: 'who-may-know', label: t('Who May Know', { defaultValue: 'Who May Know' }) },
+    ],
+    [t],
+  );
 
   // Every tab is one query, and the active tab's decides loading, error and
   // refresh. The shared recommendations hook exposes the same field names.
@@ -484,7 +502,9 @@ function ConnectionsContent({
       : activeTab === 'following'
         ? t('connections.failedFollowing', { defaultValue: 'Failed to load following' })
         : t('connections.failedFollowers', { defaultValue: 'Failed to load followers' });
-  const activeError = activeQuery.isError ? getErrorMessage(activeQuery.error, activeFailure) : null;
+  const activeError = activeQuery.isError
+    ? getErrorMessage(activeQuery.error, activeFailure)
+    : null;
   const activeLoading = activeQuery.isLoading;
   const activeRefreshing = activeQuery.isFetching;
   const { refetch: refetchActive } = activeQuery;
@@ -525,8 +545,7 @@ function ConnectionsContent({
     // tab's own fetch, and the profile lookup that keys it) paint the row
     // skeletons rather than a centered spinner the list then replaces.
     const isWaitingForRows =
-      (activeLoading && currentData.length === 0) ||
-      (needsProfile && profileLoading);
+      (activeLoading && currentData.length === 0) || (needsProfile && profileLoading);
     if (isWaitingForRows) {
       return <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />;
     }
@@ -535,7 +554,9 @@ function ConnectionsContent({
       <VirtualList
         data={currentData}
         renderItem={renderUser}
-        keyExtractor={(item: ConnectionUser) => String(item.id || item._id || item.userID || item.username)}
+        keyExtractor={(item: ConnectionUser) =>
+          String(item.id || item._id || item.userID || item.username)
+        }
         ListHeaderComponent={activeTab === 'who-may-know' ? renderInviteBanner : undefined}
         ListEmptyComponent={
           <EmptyState
@@ -566,7 +587,11 @@ function ConnectionsContent({
         backLabel={t('common.back', { defaultValue: 'Back' })}
       />
 
-      <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">{(tabs).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
+      <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
+        {tabs.map((tab: { id: string; label: string; count?: number }) => (
+          <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
+        ))}
+      </Tabs>
 
       {renderContent()}
     </View>

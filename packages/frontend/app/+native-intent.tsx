@@ -21,7 +21,13 @@ export function linkPath(url: string): string {
  * the modal over it. See `components/settings/settingsRoutes.ts` for why a
  * settings screen in the native stack is not an option.
  */
-export function redirectSystemPath({ path, initial }: { path: string; initial: boolean }): string | null {
+export function redirectSystemPath({
+  path,
+  initial,
+}: {
+  path: string;
+  initial: boolean;
+}): string | null {
   try {
     if (requestSettings(linkPath(path))) return initial ? '/' : null;
   } catch {

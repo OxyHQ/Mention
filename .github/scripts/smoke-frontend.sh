@@ -94,10 +94,38 @@ if ! grep -q '\.js$' "$asset_list"; then
   exit 1
 fi
 
+# A promotion reaches the edge's nodes one at a time, and every node answers
+# from its own version. For a few seconds after a deploy, a document from a node
+# that has the new version can name a chunk that a node still on the old version
+# does not have. That node answers with the SPA fallback (`index.html`), which
+# the apex proxy turns into a 404 for browsers. Measured twice on 2026-10-10:
+# the gate read that window as a broken release and rolled it back, and a re-run
+# of the same build passed.
+#
+# So a chunk the document names must be SERVED, and it is given the rollout to
+# get there: a bounded wait while the answer is "not yet" (the fallback or a
+# 404). Anything else fails at once, and so does a chunk still missing when the
+# window closes. That is a release that does not ship its own assets.
+SMOKE_ASSET_PROPAGATION_ATTEMPTS="${SMOKE_ASSET_PROPAGATION_ATTEMPTS:-12}"
+SMOKE_ASSET_PROPAGATION_INTERVAL="${SMOKE_ASSET_PROPAGATION_INTERVAL:-5}"
+
 index=0
 while IFS= read -r asset_path; do
   index=$((index + 1))
-  status="$(request "web-asset-$index" "$WEB_ORIGIN$asset_path")"
+  for attempt in $(seq 1 "$SMOKE_ASSET_PROPAGATION_ATTEMPTS"); do
+    status="$(request "web-asset-$index" "$WEB_ORIGIN$asset_path")"
+    not_yet=false
+    if [[ "$status" == "404" ]]; then
+      not_yet=true
+    elif [[ "$status" == "200" ]] && grep -Eiq '^content-type: *text/html' "$smoke_dir/web-asset-$index.headers"; then
+      not_yet=true
+    fi
+    if [[ "$not_yet" == false || "$attempt" -eq "$SMOKE_ASSET_PROPAGATION_ATTEMPTS" ]]; then
+      break
+    fi
+    echo "$asset_path is not served yet (attempt $attempt/$SMOKE_ASSET_PROPAGATION_ATTEMPTS); waiting for the rollout to reach this node."
+    sleep "$SMOKE_ASSET_PROPAGATION_INTERVAL"
+  done
   if [[ "$status" != "200" ]]; then
     echo "::error::$asset_path returned HTTP $status (expected 200); the served document names a chunk this release does not have."
     exit 1

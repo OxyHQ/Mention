@@ -191,15 +191,21 @@ describe('the spelling is what makes an index usable — measured, not assumed',
   }
 
   it('serves the declared order with no Sort', async () => {
-    expect(await planNodeTypes('created_at desc nulls last, id desc nulls last')).not.toContain('Sort');
+    expect(await planNodeTypes('created_at desc nulls last, id desc nulls last')).not.toContain(
+      'Sort',
+    );
   });
 
   it('serves the exact reverse with no Sort, by reading the index backwards', async () => {
-    expect(await planNodeTypes('created_at asc nulls first, id asc nulls first')).not.toContain('Sort');
+    expect(await planNodeTypes('created_at asc nulls first, id asc nulls first')).not.toContain(
+      'Sort',
+    );
   });
 
   it("sorts for drizzle's `desc()` spelling, which is NULLS FIRST", async () => {
-    expect(await planNodeTypes('created_at desc nulls first, id desc nulls first')).toContain('Sort');
+    expect(await planNodeTypes('created_at desc nulls first, id desc nulls first')).toContain(
+      'Sort',
+    );
   });
 
   it("sorts for drizzle's `asc()` spelling, which is NULLS LAST", async () => {

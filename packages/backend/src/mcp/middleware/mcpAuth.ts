@@ -52,10 +52,15 @@ function tokenKind(token: string): 'central' | 'legacy' | null {
     // A foreign tenant's MCP token must be rejected here, never retried as an
     // ordinary Oxy session. Decoded claims only select the verifier; they do not
     // authorize anything (the live introspection below verifies exact binding).
-    if (audiences.includes(config.deploymentMcp.audience)
-      || audiences.some((audience) => typeof audience === 'string'
-        && /^mention(?:-[a-f0-9-]{36})?-api$/.test(audience))
-      || (typeof decoded.resource === 'string' && typeof decoded.account_id === 'string')) return 'central';
+    if (
+      audiences.includes(config.deploymentMcp.audience) ||
+      audiences.some(
+        (audience) =>
+          typeof audience === 'string' && /^mention(?:-[a-f0-9-]{36})?-api$/.test(audience),
+      ) ||
+      (typeof decoded.resource === 'string' && typeof decoded.account_id === 'string')
+    )
+      return 'central';
     // Mention-issued tokens were minted for the MCP resource itself.
     if (audiences.includes(config.mcp.resourceUrl)) return 'legacy';
     return null;
@@ -66,9 +71,7 @@ function tokenKind(token: string): 'central' | 'legacy' | null {
 
 function normalizeScope(value: string | string[]): string {
   const scopes = Array.isArray(value) ? value : value.split(/\s+/);
-  return [...new Set(scopes.map((scope) => scope.trim()).filter(Boolean))]
-    .sort()
-    .join(' ');
+  return [...new Set(scopes.map((scope) => scope.trim()).filter(Boolean))].sort().join(' ');
 }
 
 async function resolveCentralMcpUser(token: string): Promise<McpAuthOutcome> {
@@ -82,9 +85,9 @@ async function resolveCentralMcpUser(token: string): Promise<McpAuthOutcome> {
     });
     if (!claims) return { status: 'revoked' };
     if (
-      claims.iss !== oxyApiUrl
-      || claims.aud !== config.deploymentMcp.audience
-      || claims.resource !== config.mcp.resourceUrl
+      claims.iss !== oxyApiUrl ||
+      claims.aud !== config.deploymentMcp.audience ||
+      claims.resource !== config.mcp.resourceUrl
     ) {
       return { status: 'invalid' };
     }
@@ -113,39 +116,38 @@ async function resolveCentralMcpUser(token: string): Promise<McpAuthOutcome> {
 }
 
 async function resolveMcpUser(token: string): Promise<McpAuthOutcome> {
-  return tokenKind(token) === 'central'
-    ? resolveCentralMcpUser(token)
-    : { status: 'retired' };
+  return tokenKind(token) === 'central' ? resolveCentralMcpUser(token) : { status: 'retired' };
 }
 
 function scopeSet(scope: string): Set<string> {
-  return new Set(scope.split(/\s+/).map((value) => value.trim()).filter(Boolean));
+  return new Set(
+    scope
+      .split(/\s+/)
+      .map((value) => value.trim())
+      .filter(Boolean),
+  );
 }
 
 function requestHasMcpScope(req: Request, context: McpRequestContext): boolean {
   const scopes = scopeSet(context.scope);
-  return mentionCapabilityRequirementsForRequest(req.method, req.path).some(
-    (requirement) =>
-      requirement.requiredCapabilities.every((capability) => scopes.has(capability)),
+  return mentionCapabilityRequirementsForRequest(req.method, req.path).some((requirement) =>
+    requirement.requiredCapabilities.every((capability) => scopes.has(capability)),
   );
 }
 
-function enforceMcpRequestScope(
-  req: Request,
-  res: Response,
-  context: McpRequestContext,
-): boolean {
+function enforceMcpRequestScope(req: Request, res: Response, context: McpRequestContext): boolean {
   if (requestHasMcpScope(req, context)) return true;
 
   const requirements = mentionCapabilityRequirementsForRequest(req.method, req.path);
-  const required = [...new Set(
-    requirements.flatMap((requirement) => requirement.requiredCapabilities),
-  )].sort();
+  const required = [
+    ...new Set(requirements.flatMap((requirement) => requirement.requiredCapabilities)),
+  ].sort();
   res.status(403).json({
     error: 'insufficient_scope',
-    message: required.length > 0
-      ? `MCP token lacks a capability required for ${req.method} ${req.path}`
-      : 'This Mention endpoint is not exposed to external MCP tokens',
+    message:
+      required.length > 0
+        ? `MCP token lacks a capability required for ${req.method} ${req.path}`
+        : 'This Mention endpoint is not exposed to external MCP tokens',
     required_scope: required,
   });
   return false;
@@ -197,11 +199,12 @@ export function createRequireMcpOrOxyAuth(oxy: OxyServer): RequestHandler {
       }
       res.status(401).json({
         error: 'invalid_token',
-        message: outcome.status === 'retired'
-          ? 'Mention-issued MCP tokens were retired on 2026-10-02. Reconnect through Oxy.'
-          : outcome.status === 'revoked'
-            ? 'MCP token has been revoked'
-            : 'Invalid MCP token',
+        message:
+          outcome.status === 'retired'
+            ? 'Mention-issued MCP tokens were retired on 2026-10-02. Reconnect through Oxy.'
+            : outcome.status === 'revoked'
+              ? 'MCP token has been revoked'
+              : 'Invalid MCP token',
       });
       return;
     }
