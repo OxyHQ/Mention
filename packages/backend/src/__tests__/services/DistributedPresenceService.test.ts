@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import type { RedisClientType } from '../../utils/redis';
 import { DistributedPresenceService } from '../../services/DistributedPresenceService';
 

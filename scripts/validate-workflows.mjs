@@ -445,6 +445,27 @@ for (const workflowName of workflowNames) {
           `${workflowName}: CI complete must run the collection gate over the merged report`,
         );
       }
+      // While the backend suite is split between Vitest and `bun test`
+      // (packages/backend/testRunnerSplit.ts), every shard must run its bun
+      // half too, and the collection gate must read those reports — otherwise
+      // the files Vitest excludes are run by nothing, and nothing says so.
+      const shardRuns = (workflow?.jobs?.['backend-test']?.steps || []).map((step) =>
+        typeof step?.run === 'string' ? step.run : '',
+      );
+      if (!shardRuns.some((run) => run.includes('test:bun') && run.includes('--shard='))) {
+        failures.push(
+          `${workflowName}: every backend-test shard must run its share of the bun test files (test:bun --shard=…)`,
+        );
+      }
+      if (
+        !mergeRuns.some(
+          (run) => run.includes('check:suite-collection') && run.includes('--bun-junit'),
+        )
+      ) {
+        failures.push(
+          `${workflowName}: the collection gate must read the bun test reports as well as the merged Vitest report`,
+        );
+      }
       if (!mergeRuns.some((run) => run.includes('BACKEND_SHARDS'))) {
         failures.push(
           `${workflowName}: CI complete must refuse a missing or extra shard before merging`,

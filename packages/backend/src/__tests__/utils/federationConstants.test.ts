@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { isBlockedDomain } from '../../connectors/activitypub/constants';
 import { OXY_IDENTITY_APEX } from '../../connectors/activitypub/ownDomain';
 

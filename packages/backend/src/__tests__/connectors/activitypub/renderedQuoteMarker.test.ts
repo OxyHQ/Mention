@@ -13,7 +13,7 @@
  * refuse.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { stripRenderedQuoteMarker } from '../../../connectors/activitypub/helpers';
 
 const WEB = 'https://mastodon.social/@getkirby/116619403689196814';

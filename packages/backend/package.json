@@ -16,7 +16,9 @@
     "db:migrate": "bun src/db/migrate.ts",
     "backfill:multilingual-trends": "bun src/scripts/backfillMultilingualTrends.ts",
     "backfill:custom-emoji": "bun src/scripts/cleanFederatedCustomEmoji.ts",
-    "test": "node ../../node_modules/vitest/vitest.mjs run",
+    "test": "bun run test:vitest && bun run test:bun",
+    "test:vitest": "node ../../node_modules/vitest/vitest.mjs run",
+    "test:bun": "bun --no-env-file runBunTests.ts",
     "test:watch": "node ../../node_modules/vitest/vitest.mjs",
     "test:coverage": "node ../../node_modules/vitest/vitest.mjs run --coverage",
     "clean": "rm -rf dist"

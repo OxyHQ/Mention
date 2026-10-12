@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import {
   SITEMAP_BUCKET_COUNT,
   SITEMAP_URL_LIMIT,

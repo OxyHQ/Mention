@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { clampFutureDate } from '../../utils/ingestTimestamp';
 
 const HOUR_MS = 60 * 60 * 1000;

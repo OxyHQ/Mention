@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import {
   BLOCKLIST_SOURCE_INSTANCES,
   BLOCKLIST_SOURCE_REGISTRY,

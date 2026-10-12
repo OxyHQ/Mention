@@ -504,6 +504,27 @@ jobs:
           --coverage.reportsDirectory="$RUNNER_TEMP/backend-coverage-shard"
           --reporter=default --reporter=blob
           --outputFile.blob="$RUNNER_TEMP/backend-blobs/blob-$SHARD_INDEX-$SHARD_TOTAL.json"
+      # The files that have moved to `bun test` — every `*.test.ts` importing
+      # from `bun:test` (packages/backend/testRunnerSplit.ts), which Vitest
+      # excludes. Same shard index over the bun file list, same Postgres
+      # service, its own throwaway database. Runs even when the Vitest shard
+      # failed, so one red run reports both runners. The JUnit report is what
+      # the collection gate in `CI complete` folds into the merged Vitest
+      # report: each file must be reported by exactly one runner.
+      #
+      # Not under coverage yet: `bun test` has no branch or per-file floor, and
+      # what replaces the floors above once most of the suite has moved is an
+      # open decision, not something a runner swap gets to settle.
+      - name: Run this shard of the backend's bun test files
+        if: ${{ !cancelled() && steps.scope.outputs.run == 'true' }}
+        env:
+          SHARD_INDEX: ${{ matrix.shard }}
+          SHARD_TOTAL: ${{ strategy.job-total }}
+        run: >-
+          bun run --cwd packages/backend test:bun --
+          --shard="$SHARD_INDEX/$SHARD_TOTAL"
+          --reporter=junit
+          --reporter-outfile="$RUNNER_TEMP/backend-bun-junit/junit-$SHARD_INDEX-$SHARD_TOTAL.xml"
       # `always()`: a shard whose suite failed still hands its blob to the merge,
       # so the merged report names every failing and every dead file. `overwrite`
       # so re-running one shard replaces its own blob from the earlier attempt.
@@ -513,6 +534,15 @@ jobs:
         with:
           name: mention-backend-blob-${{ matrix.shard }}
           path: ${{ runner.temp }}/backend-blobs/blob-${{ matrix.shard }}-${{ strategy.job-total }}.json
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 1
+      - name: Upload this shard's bun test report
+        if: always() && steps.scope.outputs.run == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mention-backend-bun-junit-${{ matrix.shard }}
+          path: ${{ runner.temp }}/backend-bun-junit/junit-${{ matrix.shard }}-${{ strategy.job-total }}.xml
           if-no-files-found: error
           overwrite: true
           retention-days: 1
@@ -958,6 +988,13 @@ jobs:
           pattern: mention-backend-blob-*
           path: ${{ runner.temp }}/backend-blobs
           merge-multiple: true
+      - name: Download every shard's bun test report
+        if: steps.scope.outputs.run == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: mention-backend-bun-junit-*
+          path: ${{ runner.temp }}/backend-bun-junit
+          merge-multiple: true
       # The shard count is an explicit input, never inferred from what is on
       # disk: a run that lost a shard's artifact would otherwise merge the rest
       # and judge the floors over a thinner suite. Exactly blob-1..N-of-N, each
@@ -985,6 +1022,25 @@ jobs:
             exit 1
           fi
           echo "All $BACKEND_SHARDS shard blobs present."
+
+          # The same refusal for the `bun test` half of each shard.
+          dir="$RUNNER_TEMP/backend-bun-junit"
+          expected=()
+          for i in $(seq 1 "$BACKEND_SHARDS"); do
+            expected+=("junit-$i-$BACKEND_SHARDS.xml")
+            if [ ! -s "$dir/junit-$i-$BACKEND_SHARDS.xml" ]; then
+              echo "::error::shard $i/$BACKEND_SHARDS produced no bun test report; refusing to judge the suite without it."
+              exit 1
+            fi
+          done
+          actual="$(cd "$dir" && ls -1 | sort)"
+          wanted="$(printf '%s\n' "${expected[@]}" | sort)"
+          if [ "$actual" != "$wanted" ]; then
+            echo "::error::bun test reports on disk do not match the $BACKEND_SHARDS declared shards:"
+            echo "$actual"
+            exit 1
+          fi
+          echo "All $BACKEND_SHARDS shard bun test reports present."
       # The merged run applies vitest.config.ts's thresholds — global AND every
       # per-file pin — to the merged coverage of all shards: the same numbers an
       # unsharded run measures, judged the same way. It carries no `--shard`, so
@@ -1012,9 +1068,16 @@ jobs:
       # slice of it. `always()` so it still reports when the merge step failed —
       # a load failure fails the suite too, and this is the step that says WHICH
       # files and why the ratio lied.
+      #
+      # Both runners: the merged Vitest report plus every shard's `bun test`
+      # JUnit report, so a file run by neither is missing and a file run by
+      # both (or by two shards) fails.
       - name: Assert the suite collected what it claims to run
         if: always() && steps.scope.outputs.run == 'true'
-        run: bun run check:suite-collection "$RUNNER_TEMP/backend-report.json" packages/backend/src
+        run: >-
+          bun run check:suite-collection "$RUNNER_TEMP/backend-report.json" packages/backend/src
+          --bun-cwd packages/backend
+          $(printf -- '--bun-junit %s ' "$RUNNER_TEMP"/backend-bun-junit/junit-*.xml)
       - name: Upload coverage summary
         if: always() && steps.scope.outputs.run == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

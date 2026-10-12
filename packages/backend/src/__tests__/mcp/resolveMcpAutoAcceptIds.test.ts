@@ -1,5 +1,5 @@
 import type { Request } from 'express';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { resolveMcpAutoAcceptIds } from '../../mcp/utils/resolveMcpAutoAcceptIds';
 
 /** A request served through an MCP connection Oxy says covers these accounts. */

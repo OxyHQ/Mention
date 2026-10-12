@@ -14,7 +14,7 @@
  * failure it is meant to guard — which is what the first version of it did.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 

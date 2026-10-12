@@ -10,7 +10,12 @@
  * moves numbers too.
  */
 
-import { validateCollection, report } from './validate-suite-collection.mjs';
+import {
+  bunJunitResults,
+  report,
+  validateCollection,
+  withBunResults,
+} from './validate-suite-collection.mjs';
 
 let failures = 0;
 
@@ -194,6 +199,65 @@ console.log('validate-suite-collection self-test:');
 {
   const result = validateCollection({}, ['/repo/a.test.ts']);
   check('a report with no testResults FAILS rather than passing vacuously', result.ok === false);
+}
+
+// ------------------------------- two runners: Vitest + `bun test` ---------
+{
+  // Shaped like real `bun test --reporter=junit` output: a <testsuite> per
+  // file AND per describe, each repeating the file, and a skipped case.
+  const junit = `<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="bun test" tests="3">
+  <testsuite name="src/b.test.ts" file="src/b.test.ts" tests="3">
+    <testsuite name="outer" file="src/b.test.ts" line="2" tests="2">
+      <testcase name="one" classname="outer" file="src/b.test.ts" line="2" assertions="1" />
+      <testcase name="a &gt; b" classname="outer" file="src/b.test.ts" line="3" assertions="0">
+        <skipped />
+      </testcase>
+    </testsuite>
+    <testcase name="top" classname="" file="src/b.test.ts" line="4" assertions="1" />
+  </testsuite>
+</testsuites>`;
+  const bun = bunJunitResults(junit, '/repo');
+  check(
+    'JUnit cases are counted per FILE, not per nested testsuite',
+    bun.results.length === 1 &&
+      bun.results[0].name === '/repo/src/b.test.ts' &&
+      bun.results[0].assertionResults.length === 3 &&
+      bun.numTotalTests === 3,
+  );
+  check('and names are unescaped', bun.results[0].assertionResults[1].fullName === 'a > b');
+
+  const disk = ['/repo/src/a.test.ts', '/repo/src/b.test.ts'];
+  const vitest = { testResults: [file('/repo/src/a.test.ts', 2)], numTotalTests: 2 };
+  const merged = withBunResults(vitest, bun);
+  const result = validateCollection(merged, disk);
+  check('a file run by bun test counts as reported', result.ok === true);
+  check('and its cases join the soft total', result.counts.testsCollected === 5);
+
+  check(
+    'without the bun report, the same file is MISSING',
+    validateCollection(vitest, disk).missingFromReport.includes('/repo/src/b.test.ts'),
+  );
+
+  const dead = bunJunitResults('<testsuites name="bun test" tests="0"></testsuites>', '/repo');
+  check(
+    'a bun file that died at load (no <testcase>) is MISSING, not passing',
+    validateCollection(withBunResults(vitest, dead), disk).missingFromReport.includes(
+      '/repo/src/b.test.ts',
+    ),
+  );
+
+  const twice = withBunResults(
+    { testResults: [file('/repo/src/a.test.ts', 2), file('/repo/src/b.test.ts', 3)] },
+    bun,
+  );
+  const both = validateCollection(twice, disk);
+  check('a file reported by BOTH runners FAILS', both.ok === false);
+  check('and the gate NAMES it', output(both).includes('/repo/src/b.test.ts'));
+  check('and says why', output(both).includes('MORE THAN ONCE'));
+
+  const twoShards = validateCollection(withBunResults(withBunResults(vitest, bun), bun), disk);
+  check('a file reported by two bun shards FAILS', twoShards.reportedTwice.length === 1);
 }
 
 console.log('');
