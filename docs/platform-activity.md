@@ -36,7 +36,8 @@ party runtime internals require instrumentation at their owning services.
 ## Static web traffic
 
 This app's web traffic is measured keylessly by Oxy from Cloudflare's own
-analytics (see OxyHQ/oxy `docs/operations/cloudflare-web-activity.md`). The
+analytics (see [Cloudflare web activity](https://github.com/OxyHQ/oxy/blob/main/docs/operations/cloudflare-web-activity.md)
+in OxyHQ/oxy). The
 frontend Worker holds no Oxy activity secret and runs no activity code: it only
 applies the shell access gate and serves its ASSETS binding. The
 `OXY_EDGE_ACTIVITY_*` bindings were never provisioned and nothing reads them now;
