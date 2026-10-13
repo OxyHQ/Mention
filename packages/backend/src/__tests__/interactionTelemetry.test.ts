@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { FEED_INTERACTION_BATCH_LIMIT } from '@mention/shared-types';
 import type { FeedInteractionInput } from '@mention/shared-types';
 import { parseFeedInteractionBatch } from '../mtn/feed/interactionTelemetry';

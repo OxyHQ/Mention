@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { MtnConfig, validateForYouTuning } from '@mention/shared-types';
 import type { FeedTuning } from '@mention/shared-types';
 import {

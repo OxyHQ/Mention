@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import type { TrendGraphEdgeDTO, TrendGraphNodeDTO } from '@mention/shared-types';
 import { buildTrendGraph, type TrendGraphNodeInput } from '../../services/trending/trendGraph';
 import { applyGraphFilters } from '../../services/trending/trendGraphQuery';

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 
 /**
  * Bridgy Fed identity derivation. Bridgy Fed bridges a Bluesky user onto

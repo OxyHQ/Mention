@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import type { FeedDescriptor } from '@mention/shared-types';
 import { resolveDefinition } from '../mtn/feed/definitions/resolveDefinition';
 import { discoveryGateModuleIds } from '../config';

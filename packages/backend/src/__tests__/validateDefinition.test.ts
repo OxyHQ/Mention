@@ -1,4 +1,4 @@
-import { beforeAll, describe, it, expect } from 'vitest';
+import { beforeAll, describe, it, expect } from 'bun:test';
 
 /**
  * Task 3 — validateDefinition guards every user-authored custom-feed definition:
