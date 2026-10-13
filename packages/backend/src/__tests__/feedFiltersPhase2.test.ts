@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { PostType } from '@mention/shared-types';
 import { feedModuleRegistry } from '../mtn/feed/engine/FeedModuleRegistry';
 import { registerFilterModules } from '../mtn/feed/engine/filters';

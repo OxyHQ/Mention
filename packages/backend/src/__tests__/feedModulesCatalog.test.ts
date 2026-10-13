@@ -1,4 +1,4 @@
-import { beforeAll, describe, it, expect } from 'vitest';
+import { beforeAll, describe, it, expect } from 'bun:test';
 
 /**
  * Task 5 — the module catalog offers only userComposable sources/filters + every

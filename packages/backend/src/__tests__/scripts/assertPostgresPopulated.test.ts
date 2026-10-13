@@ -8,7 +8,7 @@
  * the verdict — including the two failures it must not conflate.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import {
   evaluatePopulation,
   POPULATION_FLOORS,

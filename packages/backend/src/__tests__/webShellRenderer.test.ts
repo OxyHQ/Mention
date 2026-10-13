@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { config } from '../config';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import type { HydratedPost } from '@mention/shared-types';
 import {
   escapeHtml,

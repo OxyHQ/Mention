@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import type { FeedPostSlice, HydratedPost } from '@mention/shared-types';
 import { MtnConfig } from '@mention/shared-types';
 import { diversifyByAuthor } from '../mtn/feed/diversifyByAuthor';

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { FeedResponseBuilder } from '../utils/FeedResponseBuilder';
 import type { FeedPostSlice, HydratedPost } from '@mention/shared-types';
 

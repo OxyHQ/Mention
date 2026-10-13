@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { MtnConfig } from '@mention/shared-types';
 import type { FeedPostSlice } from '@mention/shared-types';
 import { planInterstitials } from '../mtn/feed/interstitials/planInterstitials';

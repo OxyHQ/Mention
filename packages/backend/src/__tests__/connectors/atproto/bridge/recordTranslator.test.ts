@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import {
   MENTION_POST_COLLECTION,
   MENTION_LIKE_COLLECTION,

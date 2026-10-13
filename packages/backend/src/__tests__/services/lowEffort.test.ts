@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { detectLowEffort } from '../../services/contentClassification/lowEffort';
 import { SPAM_QUALITY_CONFIG } from '../../services/contentClassification/spamQuality';
 

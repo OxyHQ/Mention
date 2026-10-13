@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import type * as TypeScript from 'typescript';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import {
   ADMIN_MUTATION_CONFIRMATION_ENV,
   assertAdminMutationAllowed,
