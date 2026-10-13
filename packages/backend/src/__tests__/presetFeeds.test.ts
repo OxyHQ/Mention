@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { isValidFeedDescriptor, PRESET_FEEDS, MtnConfig } from '@mention/shared-types';
 import type { PresetFeed } from '@mention/shared-types';
 

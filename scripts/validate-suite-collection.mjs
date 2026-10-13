@@ -29,6 +29,18 @@
  * Total tests collected is printed as a SOFT signal and never fails the run, so
  * nobody is tempted to edit the hard check to make a number go away.
  *
+ * ## Two runners, one suite
+ *
+ * While the backend moves from Vitest to `bun test`, a file is run by exactly
+ * one of them (`packages/backend/testRunnerSplit.ts`). `bun test`'s results
+ * arrive as JUnit XML (`--bun-junit`, one per shard) and are folded into the
+ * Vitest report as ordinary entries, so both invariants above hold over the
+ * UNION — a file neither runner reported is still missing. A third invariant
+ * comes with the union:
+ *
+ *   3. **No file is reported twice.** Two runners (or two shards) that both
+ *      claim a file would double its count and hide that the split broke.
+ *
  * ## Skips are safe, and that was measured rather than assumed
  *
  * `it.skip` / `describe.skip` still COLLECT: vitest reports the cases with
@@ -40,6 +52,9 @@
  * the suite legitimately collects zero.
  *
  * Usage:  node scripts/validate-suite-collection.mjs <vitest-report.json> [testRoot]
+ *            [--bun-cwd <dir> --bun-junit <junit.xml> [--bun-junit <junit.xml> …]]
+ *
+ * `--bun-cwd` is the directory `bun test` ran in: JUnit names files relative to it.
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -63,6 +78,47 @@ export function testFilesOnDisk(root) {
   return found.sort();
 }
 
+const XML_ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+const unescapeXml = (value) =>
+  value.replace(/&(amp|lt|gt|quot|apos);/g, (_m, name) => XML_ENTITIES[name]);
+
+/**
+ * `bun test --reporter=junit` output as Vitest-report entries: one per test
+ * FILE, with one assertion result per `<testcase>`. Cases are grouped by their
+ * own `file` attribute rather than by `<testsuite>`, because Bun nests a
+ * `<testsuite>` per `describe` and every level repeats the file. A file that
+ * died at load has no `<testcase>` and no entry, so it surfaces as missing.
+ *
+ * @returns `{ results, numTotalTests }`
+ */
+export function bunJunitResults(xml, cwd) {
+  const byFile = new Map();
+  let numTotalTests = 0;
+  for (const match of xml.matchAll(/<testcase\b([^>]*?)\/?>/g)) {
+    const file = /\bfile="([^"]*)"/.exec(match[1]);
+    if (!file) continue;
+    const name = resolve(cwd, unescapeXml(file[1]));
+    const caseName = /\bname="([^"]*)"/.exec(match[1]);
+    if (!byFile.has(name)) byFile.set(name, []);
+    byFile.get(name).push({ fullName: unescapeXml(caseName?.[1] ?? ''), status: 'reported' });
+    numTotalTests += 1;
+  }
+  const results = [...byFile].map(([name, assertionResults]) => ({ name, assertionResults }));
+  return { results, numTotalTests };
+}
+
+/** A Vitest report with `bun test` results appended to it, untouched otherwise. */
+export function withBunResults(report, bun) {
+  return {
+    ...report,
+    testResults: [
+      ...(Array.isArray(report?.testResults) ? report.testResults : []),
+      ...bun.results,
+    ],
+    numTotalTests: (report?.numTotalTests ?? 0) + bun.numTotalTests,
+  };
+}
+
 /**
  * Compare a vitest JSON report against the files that exist.
  *
@@ -80,7 +136,13 @@ export function validateCollection(report, filesOnDisk, mtimes = new Map(), cuto
   // was reported as a real miss when it could not possibly have been collected.
   const reportMtime =
     cutoffOverride ?? (typeof report?.startTime === 'number' ? report.startTime : null);
-  const reported = new Map(results.map((file) => [resolve(file.name), file]));
+  const reported = new Map();
+  const reportedTwice = new Set();
+  for (const file of results) {
+    const path = resolve(file.name);
+    if (reported.has(path)) reportedTwice.add(path);
+    reported.set(path, file);
+  }
 
   const absent = filesOnDisk.map((path) => resolve(path)).filter((path) => !reported.has(path));
 
@@ -108,7 +170,7 @@ export function validateCollection(report, filesOnDisk, mtimes = new Map(), cuto
     .sort();
 
   return {
-    ok: missingFromReport.length === 0 && collectingZero.length === 0,
+    ok: missingFromReport.length === 0 && collectingZero.length === 0 && reportedTwice.size === 0,
     counts: {
       filesOnDisk: filesOnDisk.length,
       filesInReport: results.length,
@@ -118,6 +180,7 @@ export function validateCollection(report, filesOnDisk, mtimes = new Map(), cuto
     missingFromReport,
     missingCreatedAfterReport,
     collectingZero,
+    reportedTwice: [...reportedTwice].sort(),
   };
 }
 
@@ -158,17 +221,43 @@ export function report(result, log = console.log) {
     for (const path of result.collectingZero) log(`       ${path}`);
   }
 
+  if (result.reportedTwice?.length > 0) {
+    log('');
+    log('FAIL — these files were reported MORE THAN ONCE: by both Vitest and `bun test`, or by');
+    log('       two shards. Each file must belong to exactly one runner — see');
+    log('       packages/backend/testRunnerSplit.ts.');
+    for (const path of result.reportedTwice) log(`       ${path}`);
+  }
+
   return result.ok ? 0 : 1;
 }
 
 const isMain = process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop());
 if (isMain) {
-  const [reportPath, testRoot = 'packages/backend/src'] = process.argv.slice(2);
-  if (!reportPath) {
-    console.error('usage: validate-suite-collection.mjs <vitest-report.json> [testRoot]');
+  const positional = [];
+  const bunJunitPaths = [];
+  let bunCwd = null;
+  const args = process.argv.slice(2);
+  for (let i = 0; i < args.length; i += 1) {
+    if (args[i] === '--bun-junit') bunJunitPaths.push(args[++i]);
+    else if (args[i] === '--bun-cwd') bunCwd = args[++i];
+    else positional.push(args[i]);
+  }
+  const [reportPath, testRoot = 'packages/backend/src'] = positional;
+  if (!reportPath || (bunJunitPaths.length > 0 && !bunCwd) || bunJunitPaths.includes(undefined)) {
+    console.error(
+      'usage: validate-suite-collection.mjs <vitest-report.json> [testRoot] ' +
+        '[--bun-cwd <dir> --bun-junit <junit.xml> ...]',
+    );
     process.exit(2);
   }
-  const parsed = JSON.parse(readFileSync(reportPath, 'utf8'));
+  let parsed = JSON.parse(readFileSync(reportPath, 'utf8'));
+  for (const junitPath of bunJunitPaths) {
+    parsed = withBunResults(
+      parsed,
+      bunJunitResults(readFileSync(junitPath, 'utf8'), resolve(bunCwd)),
+    );
+  }
   const files = testFilesOnDisk(resolve(testRoot));
   const mtimes = new Map(files.map((path) => [resolve(path), statSync(path).mtimeMs]));
   // No cutoff override: `report.startTime` is the right one. The report's own

@@ -1,6 +1,7 @@
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 import { loadEnv } from 'vite';
 import path from 'node:path';
+import { splitTestFiles } from './testRunnerSplit';
 
 const backendRoot = path.resolve(__dirname, '.');
 
@@ -100,6 +101,13 @@ export default defineConfig({
     //   docker compose -f ../../docker-compose.postgres.yml up -d postgres
     globalSetup: [path.resolve(backendRoot, 'vitest.globalSetup.ts')],
     include: [path.resolve(backendRoot, 'src/__tests__/**/*.test.ts')],
+    // Files that import from `bun:test` belong to `bun test` (`runBunTests.ts`)
+    // while the suite moves runner — see `testRunnerSplit.ts`, the one rule both
+    // runners read, so no file is run by neither or by both.
+    exclude: [
+      ...configDefaults.exclude,
+      ...splitTestFiles().bun.map((file) => path.relative(backendRoot, file)),
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text-summary', 'json-summary'],

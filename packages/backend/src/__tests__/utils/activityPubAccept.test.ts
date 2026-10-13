@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { isActivityPubAccept } from '../../connectors/activitypub/constants';
 
 describe('isActivityPubAccept', () => {

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'bun:test';
 import { FeedModuleRegistry } from '../mtn/feed/engine/FeedModuleRegistry';
 import type { SourceModule, SignalModule, FilterModule } from '../mtn/feed/engine/types';
 
