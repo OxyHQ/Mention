@@ -19,7 +19,7 @@
       "@syra.fm/sdk": "^0.16.2",
       "@types/bun": "1.4.2",
       "@types/jsonwebtoken": "^9.0.10",
-      "@types/node": "^26.6.2",
+      "@types/node": "^26.6.5",
       "jsonwebtoken": "^9.0.3",
       "typescript": "~6.0.3",
       "zod": "^4.6.5",
