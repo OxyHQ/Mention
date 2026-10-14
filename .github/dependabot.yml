@@ -16,7 +16,8 @@
 # then close the Dependabot PR.
 #
 # Deliberately conservative:
-#   * Oxy packages are proposed together as one reviewable update.
+#   * Oxy packages are proposed together as one update, checked daily, and
+#     auto-merged once `CI complete` is green; third-party stays manual.
 #   * Expo, React and the native toolchain remain manually coordinated.
 #   * Everything else is grouped to keep PR volume low.
 version: 2
@@ -33,8 +34,7 @@ updates:
   - package-ecosystem: "bun"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "daily"
       time: "06:00"
       timezone: "Europe/Madrid"
     open-pull-requests-limit: 5
@@ -47,9 +47,14 @@ updates:
     # Group low-risk updates so we get a small number of consolidated PRs
     # instead of one PR per package.
     groups:
+      # First-party SDKs get their own PR and it auto-merges
+      # (.github/workflows/automerge-first-party.yml). It must stay the FIRST
+      # group: a dependency joins the first group it matches.
       oxy-platform:
         patterns:
           - "@oxy.so/*"
+          - "@alia.onl/*"
+          - "@clarity.surf/*"
       minor-and-patch:
         applies-to: version-updates
         update-types:
