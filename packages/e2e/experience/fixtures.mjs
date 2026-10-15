@@ -128,7 +128,7 @@ async function setup(context, authenticated = true, viewer = owner) {
         headers: {
           'access-control-allow-origin': req.headers()['origin'] || MENTION_ORIGIN,
           'access-control-allow-credentials': 'true',
-          'access-control-allow-methods': 'GET,POST,PUT,DELETE,OPTIONS',
+          'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
           'access-control-allow-headers': '*',
         },
       });
@@ -209,7 +209,8 @@ async function setup(context, authenticated = true, viewer = owner) {
     if (path.includes('/notifications/unread')) return json({ count: 0 });
     if (path.includes('entitlements')) return json({});
     if (path.includes('/users/by-ids')) return json({ users: [owner] });
-    if (path.includes('/session/sessions')) return json([]);
+    if (path.includes('/session/sessions') || path.startsWith('/session/device/sessions/'))
+      return json([]);
     if (path.includes('/accounts')) return json({ accounts: [], items: [] });
     if (path.includes('/feed') || path.includes('/posts'))
       return json({ posts: [], items: [], hasMore: false, nextCursor: null });
