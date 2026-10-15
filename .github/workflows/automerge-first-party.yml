@@ -17,6 +17,9 @@ jobs:
   automerge:
     if: github.actor == 'dependabot[bot]' && startsWith(github.head_ref, 'dependabot/bun/oxy-platform-')
     runs-on: ubuntu-latest
+    # One API call. Without a bound, a hung job holds one of the org's 20
+    # concurrent job slots for GitHub's 360-minute default.
+    timeout-minutes: 5
     steps:
       - run: gh pr merge --auto --merge "$PR_URL"
         env:
