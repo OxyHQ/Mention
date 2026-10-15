@@ -9,7 +9,7 @@
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { getTableColumns } from 'drizzle-orm';
 import { actorKeyPairs } from '../../db/schema/federation';
 import {

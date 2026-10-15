@@ -1,6 +1,6 @@
 import express from 'express';
 import request from 'supertest';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import { createInternalMetricsRouter } from '../routes/internalMetrics.routes';
 import { metrics } from '../utils/metrics';
 

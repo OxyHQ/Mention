@@ -24,7 +24,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { eq, like } from 'drizzle-orm';
 
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';

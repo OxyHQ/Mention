@@ -25,7 +25,7 @@
  *     other, which is the only place the `union` earns its keep.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 

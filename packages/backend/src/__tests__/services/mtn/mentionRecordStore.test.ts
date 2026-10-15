@@ -27,7 +27,7 @@
  * turns the loser's duplicate into an unhandled 500.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import type { SignedRecordEnvelope } from '@oxy.so/contracts';

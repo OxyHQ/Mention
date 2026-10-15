@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, it, expect } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, it, expect } from 'bun:test';
 import { eq } from 'drizzle-orm';
 
 /**

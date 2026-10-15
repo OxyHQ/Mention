@@ -9,7 +9,7 @@
  * about, fail here instead of shipping unconstrained.
  */
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { getTableName, sql } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';

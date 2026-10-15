@@ -16,7 +16,7 @@
  * one.
  */
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { closePostgres, connectPostgres, getPostgresClient } from '../../db/postgres';
 import { assertPostgresMigrationsCurrent, readJournal } from '../../db/migrationsFolder';
 import type { JournalEntry } from '@oxy.so/db/migrate';

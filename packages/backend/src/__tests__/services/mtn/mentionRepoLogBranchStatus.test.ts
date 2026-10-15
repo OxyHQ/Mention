@@ -15,7 +15,7 @@
  * history, and a puller sees an empty repo rather than an error.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import type { SignedRecordEnvelope } from '@oxy.so/contracts';
