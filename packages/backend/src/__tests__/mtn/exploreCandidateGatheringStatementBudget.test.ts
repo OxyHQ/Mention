@@ -10,7 +10,7 @@
  * `discoverySources.ts`'s `exploreSource` doc comment.
  */
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 
 import { config } from '../../config';
 import { closePostgres, connectPostgres } from '../../db/postgres';

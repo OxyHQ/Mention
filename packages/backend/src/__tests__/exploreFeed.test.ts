@@ -42,7 +42,7 @@
  *    arriving can move an existing candidate across a page boundary.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { inArray } from 'drizzle-orm';
 import { MtnConfig, PostType, PostVisibility } from '@mention/shared-types';
 

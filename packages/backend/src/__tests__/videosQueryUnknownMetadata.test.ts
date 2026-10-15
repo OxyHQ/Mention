@@ -29,7 +29,7 @@
  * ask for it back.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { and, eq } from 'drizzle-orm';
 import { MtnConfig, PostType, PostVisibility } from '@mention/shared-types';
 import type { MediaItem } from '@mention/shared-types';

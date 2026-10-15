@@ -14,7 +14,7 @@
 
 import express from 'express';
 import request from 'supertest';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearPostScope, postScope, seedCrosspostCluster, seedPost } from '../helpers/postFixtures';

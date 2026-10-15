@@ -28,7 +28,7 @@
  * isolation AND the whole set together.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { and, eq } from 'drizzle-orm';
 import {
   isValidFeedDescriptor,

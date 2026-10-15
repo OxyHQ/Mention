@@ -13,7 +13,7 @@
  * lands in the Indian Ocean over 5000 km from either.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { GENERATED_ALWAYS, sqlStateOf } from '@oxy.so/db';
@@ -189,21 +189,27 @@ describe('coordinate constraints', () => {
   it('refuses half a coordinate pair', async () => {
     // The legacy store allowed it and the federated insert path had to strip half-written
     // pairs by hand (`outbox.service.ts:904`). Here the state is unrepresentable.
+    // Promise.resolve runs the drizzle builder: bun:test's `rejects` wants a real
+    // promise, and a builder is a lazy thenable that executes only on `then`.
     await expect(
-      db.insert(posts).values({
-        oxyUserId: 'oxy-test-author',
-        locationLatitude: BARCELONA.latitude,
-      }),
+      Promise.resolve(
+        db.insert(posts).values({
+          oxyUserId: 'oxy-test-author',
+          locationLatitude: BARCELONA.latitude,
+        }),
+      ),
     ).rejects.toThrow();
   });
 
   it('refuses an out-of-range coordinate', async () => {
     await expect(
-      db.insert(posts).values({
-        oxyUserId: 'oxy-test-author',
-        locationLatitude: 91,
-        locationLongitude: 0,
-      }),
+      Promise.resolve(
+        db.insert(posts).values({
+          oxyUserId: 'oxy-test-author',
+          locationLatitude: 91,
+          locationLongitude: 0,
+        }),
+      ),
     ).rejects.toThrow();
   });
 });

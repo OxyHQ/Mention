@@ -28,7 +28,7 @@
  * id set — so the run's shared database cannot leak into them.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { and, inArray, type SQL } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 

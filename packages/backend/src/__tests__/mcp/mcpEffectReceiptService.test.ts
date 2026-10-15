@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { mcpEffectReceipts } from '../../db/schema/mcp';
 import {

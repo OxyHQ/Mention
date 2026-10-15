@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { getTableColumns, getTableName, is } from 'drizzle-orm';
 import { PgTable, pgTable, text } from 'drizzle-orm/pg-core';
 import { sqlColumnName } from '@oxy.so/db';

@@ -32,7 +32,7 @@
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 const BACKEND_ROOT = path.resolve(__dirname, '../..');
 const REPO_ROOT = path.resolve(BACKEND_ROOT, '../..');
