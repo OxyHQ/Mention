@@ -1,8 +1,10 @@
+import { organizationDirectoryQueryKeys } from '@/lib/viewerQueryKeys';
 import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import {
+  ORGANIZATION_NAME_MAX_LENGTH,
   ORGANIZATION_TYPES,
   createOrganizationSchema,
   type Organization,
@@ -53,7 +55,7 @@ export function ExperienceEmployerField({
     return () => clearTimeout(timer);
   }, [query]);
   const results = useInfiniteQuery({
-    queryKey: ['oxy', 'organizations', 'search', debounced, user?.id, isAuthenticated],
+    queryKey: organizationDirectoryQueryKeys.search(debounced, user?.id, isAuthenticated),
     queryFn: ({ pageParam }) =>
       oxyServices.organizations.search({
         query: debounced,
@@ -84,7 +86,7 @@ export function ExperienceEmployerField({
     },
     onSuccess: (organization) => {
       select(organization);
-      void queryClient.invalidateQueries({ queryKey: ['oxy', 'organizations'] });
+      void queryClient.invalidateQueries({ queryKey: organizationDirectoryQueryKeys.all() });
     },
   });
   const employer = selected ?? initialEmployer;
@@ -129,7 +131,7 @@ export function ExperienceEmployerField({
             <TextFieldInput
               label={label}
               value={query}
-              maxLength={200}
+              maxLength={ORGANIZATION_NAME_MAX_LENGTH}
               onChangeText={(text) => {
                 setQuery(text);
                 setCreating(false);

@@ -9,7 +9,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTranslation } from 'react-i18next';
 import type { Experience } from '@clarity.surf/sdk/experience';
-import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { organizationDirectoryQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { useScreenReselect } from '@/context/ScreenReselectContext';
 import type { Organization } from '@oxy.so/contracts';
 import { ExperienceEditor } from './ExperienceEditor';
@@ -63,7 +63,7 @@ export function ProfileExperience({
     ...new Set((query.data ?? []).map((entry) => entry.employerOxyAccountId)),
   ].sort();
   const employers = useQuery({
-    queryKey: ['oxy', 'organizations', 'batch', employerIds, user?.id, isAuthenticated],
+    queryKey: organizationDirectoryQueryKeys.batch(employerIds, user?.id, isAuthenticated),
     queryFn: () => oxyServices.organizations.batch({ ids: employerIds }),
     enabled: employerIds.length > 0,
   });

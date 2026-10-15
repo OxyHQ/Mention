@@ -74,6 +74,15 @@ export const publicQueryKeys = {
     [...PUBLIC_ROOT, 'trend-graph', language ?? 'all', region ?? 'all'] as const,
 };
 
+/** Oxy directory queries share one prefix so canonical organization writes invalidate every view. */
+export const organizationDirectoryQueryKeys = {
+  all: () => ['oxy', 'organizations'] as const,
+  batch: (ids: readonly string[], viewerId: ViewerId, authenticated: boolean) =>
+    [...organizationDirectoryQueryKeys.all(), 'batch', ids, viewerId, authenticated] as const,
+  search: (query: string, viewerId: ViewerId, authenticated: boolean) =>
+    [...organizationDirectoryQueryKeys.all(), 'search', query, viewerId, authenticated] as const,
+};
+
 /**
  * Every response whose shape or visibility can depend on the signed-in viewer
  * starts with this prefix. Besides preventing A/B cache collisions, the prefix
