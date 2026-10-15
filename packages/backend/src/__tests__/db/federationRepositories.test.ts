@@ -22,7 +22,7 @@
  * down the first time a remote sends an unrecognized `type`.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import {

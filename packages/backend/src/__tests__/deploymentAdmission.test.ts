@@ -1,6 +1,6 @@
 import express from 'express';
 import request from 'supertest';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import type { OxyAuthRequest } from '@oxy.so/core/server';
 import { managedMentionDeploymentSchema } from '@mention/shared-types/deployment';
 import example from '../../../shared-types/__tests__/fixtures/managed-deployment.json';

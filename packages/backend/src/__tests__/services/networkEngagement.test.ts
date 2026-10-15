@@ -15,7 +15,7 @@
  * would have hidden the very asymmetry that made the like half wrong.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { inArray } from 'drizzle-orm';
 import { PostType } from '@mention/shared-types';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';

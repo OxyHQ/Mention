@@ -16,7 +16,7 @@
  * still passed, because none of them touched a database.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { and, eq, inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { bookmarkFolders, bookmarks } from '../../db/schema/engagement';
@@ -178,8 +178,12 @@ describe('BookmarkFolderService', () => {
 
   it('refuses a bookmark naming a folder that does not exist, at the database', async () => {
     const post = await seedPost(scope);
+    // Promise.resolve runs the drizzle builder: bun:test's `rejects` wants a real
+    // promise, and a builder is a lazy thenable that executes only on `then`.
     await expect(
-      getDb().insert(bookmarks).values({ userId: VIEWER_A, postId: post.id, folder: 'nowhere' }),
+      Promise.resolve(
+        getDb().insert(bookmarks).values({ userId: VIEWER_A, postId: post.id, folder: 'nowhere' }),
+      ),
     ).rejects.toThrow();
   });
 });
