@@ -1252,7 +1252,7 @@
   "sidebar.chat": "聊天",
   "sidebar.liveRooms": "直播房间",
   "sidebar.channels": "频道",
-  "sidebar.askAlia": "问 Alia",
+  "header.askAlia": "问 Alia",
   "sidebar.saved": "收藏",
   "sidebar.feeds": "信息流",
   "sidebar.lists": "列表",

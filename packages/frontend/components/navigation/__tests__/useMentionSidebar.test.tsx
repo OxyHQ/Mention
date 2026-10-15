@@ -24,8 +24,6 @@ jest.mock('@/context/MentionSettingsContext', () => ({
   useMentionSettings: () => ({ open: mockOpenSettings }),
 }));
 jest.mock('@/context/DrawerContext', () => ({ useDrawer: () => ({ close: mockClose }) }));
-const mockAskAlia = jest.fn();
-jest.mock('@/context/AskAliaContext', () => ({ useAskAlia: () => ({ open: mockAskAlia }) }));
 jest.mock('@/hooks/useNavigateOrReselect', () => ({
   useNavigateOrReselect: () => mockNavigateOrReselect,
 }));
@@ -64,13 +62,8 @@ it('treats the logo as the Home link', () => {
   expect(mockNavigateOrReselect).toHaveBeenCalledWith('/');
 });
 
-it('opens the Alia sheet from Ask Alia, closing the drawer and navigating nowhere', () => {
-  const askAlia = sidebar.items?.find((item) => item.key === 'sidebar.askAlia');
-  expect(askAlia?.href).toBeUndefined();
-  act(() => askAlia?.onPress?.());
-  expect(mockClose).toHaveBeenCalled();
-  expect(mockAskAlia).toHaveBeenCalled();
-  expect(mockNavigateOrReselect).not.toHaveBeenCalled();
+it('has no Ask Alia row: the entry point is the header', () => {
+  expect(sidebar.items?.find((item) => item.key === 'sidebar.askAlia')).toBeUndefined();
 });
 
 it('keeps settings a sheet, not a page to reselect', () => {

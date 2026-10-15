@@ -45,6 +45,8 @@ const MENTION_CSP_EXTENSIONS = {
     'data:',
     // The embedded Alia SDK reads its model catalogue and streams chat here.
     'https://api.alia.onl',
+    // Alia's shared avatar runtime fetches its WebAssembly and data files here.
+    'https://alia.onl',
     // Live rooms are served by Syra's backend and LiveKit, not api.mention.earth.
     'https://api.syra.fm',
     'wss://api.syra.fm',
@@ -73,7 +75,11 @@ const MENTION_CSP_EXTENSIONS = {
   // ThorVG compiled to WebAssembly; the binary is served from this origin
   // (`frontend/lib/lottieWeb.web.ts`), so no script source is added. Without
   // it Bloom's `Sticker` still works — it shows the still image.
-  scriptSrc: ["'wasm-unsafe-eval'"],
+  //
+  // `https://alia.onl` is the one script origin: Ask Alia's avatar is a module
+  // imported from `https://alia.onl/bloom-character/runtime.mjs`. It starts no
+  // Worker, so `worker-src` is untouched.
+  scriptSrc: ["'wasm-unsafe-eval'", 'https://alia.onl'],
 } satisfies OxyCspExtensions;
 
 /**

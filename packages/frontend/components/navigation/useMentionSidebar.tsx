@@ -8,14 +8,11 @@ import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { ProfileButton } from '@oxy.so/services/ui/client';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
-import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
-import { RiSparklingFill } from '@oxy.so/bloom/icons/RiSparklingFill';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { LogoIcon } from '@/assets/logo';
 import { useMentionSettings } from '@/context/MentionSettingsContext';
 import { useDrawer } from '@/context/DrawerContext';
-import { useAskAlia } from '@/context/AskAliaContext';
 import { useNavigateOrReselect } from '@/hooks/useNavigateOrReselect';
 import { Home, HomeActive } from '@/assets/icons/home-icon';
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
@@ -30,14 +27,6 @@ import { Bell, BellActive } from '@/assets/icons/bell-icon';
 
 function LiveRoomsIcon({ size = 24, color }: { size?: number; color?: string }) {
   return <RiBroadcastLine width={size} height={size} fill={color} />;
-}
-
-function AskAliaIcon({ size = 24, color }: { size?: number; color?: string }) {
-  return <RiSparklingLine width={size} height={size} fill={color} />;
-}
-
-function AskAliaIconActive({ size = 24, color }: { size?: number; color?: string }) {
-  return <RiSparklingFill width={size} height={size} fill={color} />;
 }
 
 function paintNavigationIcon(icon: React.ReactNode, width?: number, fill?: string) {
@@ -58,7 +47,6 @@ export function useMentionSidebar(): SidebarProps {
   const { close } = useDrawer();
   const settings = useMentionSettings();
   const navigateOrReselect = useNavigateOrReselect();
-  const askAlia = useAskAlia();
   // The row for the page already open is not a destination: it takes the
   // reader back to the top, then reloads.
   const handleNavPress = useCallback(
@@ -72,11 +60,6 @@ export function useMentionSidebar(): SidebarProps {
     close();
     router.push('/compose');
   }, [close, router]);
-  // The drawer closes and the chat rises over the app.
-  const handleAskAlia = useCallback(() => {
-    close();
-    askAlia.open();
-  }, [close, askAlia]);
   const handleAddAccount = useCallback(() => {
     close();
     signIn().catch(() => {});
@@ -135,14 +118,6 @@ export function useMentionSidebar(): SidebarProps {
         iconActive: <SearchActive />,
         route: '/explore',
       },
-      // A sheet, not a page. Signed out, the press opens the Oxy sign-in dialog
-      // (see AskAliaContext).
-      {
-        title: t('sidebar.askAlia'),
-        icon: <AskAliaIcon />,
-        iconActive: <AskAliaIconActive />,
-        onPress: handleAskAlia,
-      },
       {
         title: t('sidebar.notifications'),
         icon: <Bell />,
@@ -196,7 +171,7 @@ export function useMentionSidebar(): SidebarProps {
         onPress: handleNavigateManage,
       },
     ],
-    [t, user, avatarUri, avatarName, handleNavigateProfile, handleNavigateManage, handleAskAlia],
+    [t, user, avatarUri, avatarName, handleNavigateProfile, handleNavigateManage],
   );
 
   const pathname = usePathname();

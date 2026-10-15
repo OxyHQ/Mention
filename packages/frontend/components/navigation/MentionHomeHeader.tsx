@@ -6,13 +6,18 @@ import { AppShellMenuButton } from '@oxy.so/bloom/app-shell';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
+import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import { LogoIcon } from '@/assets/logo';
+import { useAskAlia } from '@/context/AskAliaContext';
 import { useNavigateOrReselect } from '@/hooks/useNavigateOrReselect';
 
 export function MentionHomeHeader() {
   const router = useRouter();
   const { t } = useTranslation();
   const navigateOrReselect = useNavigateOrReselect();
+  // A sheet, not a page. Signed out, the press opens the Oxy sign-in dialog
+  // (see AskAliaContext).
+  const askAlia = useAskAlia();
   return (
     <PageHeader
       title={
@@ -30,6 +35,9 @@ export function MentionHomeHeader() {
       leading={<AppShellMenuButton />}
       actions={
         <ButtonGroup accessibilityLabel={t('common.actions', { defaultValue: 'Page actions' })}>
+          <ButtonGroupItem leadingIcon={RiSparklingLine} onPress={askAlia.open}>
+            {t('header.askAlia')}
+          </ButtonGroupItem>
           <ButtonGroupItem
             iconOnly
             leadingIcon={RiSearchLine}
