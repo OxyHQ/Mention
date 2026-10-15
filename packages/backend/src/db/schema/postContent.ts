@@ -26,6 +26,7 @@ import {
   index,
   integer,
   pgTable,
+  primaryKey,
   text,
   unique,
   uniqueIndex,
@@ -668,6 +669,42 @@ export const postMentions = pgTable(
     unique('post_mentions_post_id_oxy_user_id_key').on(t.postId, t.oxyUserId),
     // "Posts that mention me", newest first — the mentions surface.
     index('post_mentions_oxy_user_id_idx').on(t.oxyUserId),
+  ],
+);
+
+/**
+ * `post_hashtags` — one row per (public post, hashtag), newest first per tag.
+ *
+ * A hashtag page asks for the newest public posts carrying ONE tag.
+ * `posts.hashtags` can only answer that through its GIN index, which finds every
+ * post with the tag but cannot order them: a common tag walked the public
+ * chronological index filtering `hashtags @>` (18k rows read for 21 kept,
+ * 1.1 s cold), and a less common one fetched every match's heap page and
+ * sorted (1k pages, 0.7 s cold; production, 2026-10-15). With
+ * `post_hashtags_tag_recent_idx` a page is one index range of its own length.
+ *
+ * MAINTAINED ON WRITE by the `posts_hashtags_*` triggers (migration 0071): the
+ * statement that publishes, hides, collapses, re-tags or re-dates a post
+ * rewrites that post's rows here, in the same transaction, and
+ * `ON DELETE CASCADE` removes them with the post. Rows exist only while the post
+ * is public, published and not a collapsed crosspost variant — the hashtag
+ * page's own filter. Posts written before the triggers existed are copied by
+ * `scripts/backfillPostHashtags.ts`.
+ */
+export const postHashtags = pgTable(
+  'post_hashtags',
+  {
+    postId: text()
+      .notNull()
+      .references(() => posts.id, { onDelete: 'cascade' }),
+    /** One element of `posts.hashtags`, exactly as stored. */
+    tag: text().notNull(),
+    /** The post's `created_at`, so the page orders without visiting `posts`. */
+    createdAt: timestamptz().notNull(),
+  },
+  (t) => [
+    primaryKey({ name: 'post_hashtags_pkey', columns: [t.postId, t.tag] }),
+    index('post_hashtags_tag_recent_idx').on(t.tag, t.createdAt.desc(), t.postId.desc()),
   ],
 );
 

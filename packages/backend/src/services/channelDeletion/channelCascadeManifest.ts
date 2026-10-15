@@ -214,6 +214,13 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     why: 'A denormalized replier projection for a destroyed post. `ON DELETE CASCADE` on `posts.id`.',
   },
   {
+    table: 'post_hashtags',
+    column: 'postId',
+    scope: 'channel-posts',
+    action: 'database',
+    why: 'A trigger-maintained hashtag index row for a destroyed post. `ON DELETE CASCADE` on `posts.id`.',
+  },
+  {
     table: 'post_corrections',
     column: 'postId',
     scope: 'channel-posts',

@@ -470,6 +470,13 @@
       "when": 1792039752180,
       "tag": "0066_post_search_vector_statistics",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1792043641469,
+      "tag": "0071_post_hashtags",
+      "breakpoints": true
     }
   ]
 }
