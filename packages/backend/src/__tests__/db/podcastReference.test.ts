@@ -60,7 +60,7 @@ it('projects input, variants, repository insert and replacement to the opaque re
 });
 it('migration removes existing snapshots, keeps references and rejects copies from old-image writers without breaking writes', async () => {
   const migration = readFileSync(
-    join(__dirname, '../../..', 'drizzle/0069_podcast_reference_only.sql'),
+    join(__dirname, '../../..', 'drizzle/0073_podcast_reference_only.sql'),
     'utf8',
   );
   await getDb().transaction(async (tx) => {

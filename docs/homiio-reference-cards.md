@@ -1,7 +1,7 @@
 # Homiio case cards
 
 Mention stores `content.homiioCase = { caseId }`, backed by
-`posts.content_homiio_case_id` (migration `0068_homiio_case_reference`). There is
+`posts.content_homiio_case_id` (migration `0072_ecosystem_references_and_events`). There is
 no foreign key, address column, or provider content snapshot. The repository
 projects untrusted references to the ID on both insert and replacement; hydration
 returns the ID without calling Homiio. Existing case links can also become cards

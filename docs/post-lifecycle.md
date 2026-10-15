@@ -118,7 +118,7 @@ change does not refresh a read notice or create another one. Existing socket and
 push delivery remains best effort after commit; the durable inbox survives a
 process exit. These notices contain no private attendee roster.
 
-Migration `0070_event_attendance` adds attendance and event state without
+Migration `0072_ecosystem_references_and_events` adds attendance and event state without
 rewriting existing events. Apply it before the new image. The backend image
 builds and ships `@mention/contracts`; new clients need the corresponding API.
 The generated contract is `packages/contracts/openapi.events.json`, served at
