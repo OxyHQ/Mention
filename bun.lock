@@ -68,7 +68,7 @@
     },
     "packages/contracts": {
       "name": "@mention/contracts",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "dependencies": {
         "zod": "catalog:",
       },
@@ -226,7 +226,7 @@
     },
     "packages/sdk": {
       "name": "@mention/sdk",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "dependencies": {
         "@mention/contracts": "^0.1.1",
       },

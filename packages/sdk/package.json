@@ -1,6 +1,6 @@
 {
   "name": "@mention/sdk",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "commonjs",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,6 +18,6 @@
     "test": "bun test src"
   },
   "dependencies": {
-    "@mention/contracts": "^0.1.1"
+    "@mention/contracts": "^0.1.2"
   }
 }
