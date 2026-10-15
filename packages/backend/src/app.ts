@@ -124,6 +124,16 @@ export function createApp(deps: CreateAppDependencies): express.Express {
       res.setHeader('Expires', '0');
     }
     if (req.method === 'OPTIONS') {
+      // Let the browser keep this preflight. Without a max-age Chrome keeps it
+      // for 5 seconds, so every request that needs one — all of a signed-in
+      // reader's (`Authorization` is not CORS-safelisted) and any carrying the
+      // SDK's `X-Oxy-*` telemetry headers — paid a full extra round trip again
+      // as soon as it repeated: the unread-count poll, a feed refetch, the same
+      // post reopened. Browsers cache a preflight per method and URL, so a URL
+      // seen for the first time still pays it. The allowed methods and headers
+      // above are constant, so a longer cache cannot serve anything stale.
+      // Browsers clamp the value (Chrome to 2 hours); 86400 matches api.oxy.so.
+      res.setHeader('Access-Control-Max-Age', '86400');
       return res.status(204).end();
     }
     next();

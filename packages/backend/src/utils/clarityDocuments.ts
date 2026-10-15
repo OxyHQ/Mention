@@ -98,9 +98,16 @@ export interface ResolvedClarityDocuments {
  * than passed on — the card shows without that image instead of hotlinking it.
  * This is the one door every card goes through (hydration, the pending-card
  * follow-up and the composer), so no other code path can leak an origin URL.
+ *
+ * The extracted article body (`content`) is dropped here too. A card shows a
+ * title, a description and an image; no client reads the body. It was riding
+ * along in every feed, profile, post and search response that carried a link —
+ * measured on production's `for_you` page: 17 KB of one article's text in one
+ * row, 26.6 KB of 89 KB across the page, half the compressed response
+ * (22.6 → 11.7 KB gzip) — and was persisted with the row in the app's caches.
  */
 export function clarityHostedDocument(document: ClarityDocument): ClarityDocument {
-  const { imageUrl, faviconUrl, ...rest } = document;
+  const { imageUrl, faviconUrl, content: _content, ...rest } = document;
   return {
     ...rest,
     ...(isClarityAssetUrl(imageUrl) ? { imageUrl } : {}),
