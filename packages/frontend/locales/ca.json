@@ -2140,8 +2140,6 @@
   "Failed to load post": "No s'ha pogut carregar la publicació",
   "Failed to load post for editing": "No s'ha pogut carregar la publicació per editar-la",
   "GIF attached": "GIF adjuntat",
-  "Help me edit an image": "Ajuda'm a editar una imatge",
-  "How can I help you today?": "Com et puc ajudar avui?",
   "Interaction limited": "Interacció limitada",
   "Loading GIFs...": "S'estan carregant els GIF...",
   "Loading post...": "S'està carregant la publicació...",
@@ -2176,7 +2174,6 @@
   "Suggested for you": "Suggerits per a tu",
   "Thread": "Fil",
   "Trending now": "Tendències ara",
-  "What are the latest news?": "Quines són les últimes notícies?",
   "Who can reply": "Qui pot respondre",
   "Your reply has been posted!": "S'ha publicat la teva resposta!",
   "profile.signInRequired": "Inicia la sessió per veure el teu perfil",
@@ -2547,5 +2544,10 @@
     "title": "Aquesta pàgina no existeix",
     "subtitle": "Pot ser que l'enllaç estigui trencat o que la pàgina s'hagi mogut.",
     "goHome": "Ves a l'inici"
-  }
+  },
+  "alia.clientContext": "La persona fa servir Mention, una xarxa social de publicacions, respostes, llistes i feeds, i et demana ajuda.",
+  "alia.onScreen": "És a la pantalla {{path}}.",
+  "alia.suggestion.news": "De què parla tothom avui?",
+  "alia.suggestion.write": "Ajuda'm a escriure una publicació",
+  "alia.suggestion.discover": "Suggereix-me comptes i temes per seguir"
 }

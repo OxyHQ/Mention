@@ -3,15 +3,7 @@ import { join } from 'node:path';
 
 import { bottomBarContent, hidesBottomBar } from '../bottomBarRoutes';
 
-/**
- * The Alia chat's text input sat under the shell's bottom tab bar and its
- * compose FAB (#1140). A full-screen conversation gets no bar.
- */
 describe('hidesBottomBar', () => {
-  it.each(['/ai', '/ai/', '/ai/thread-1'])('hides the bar on the chat route %s', (pathname) => {
-    expect(hidesBottomBar(pathname)).toBe(true);
-  });
-
   // The pushed composer: the tab bar and the FAB sat on its footer (#1140).
   it('hides the bar over the pushed composer', () => {
     expect(hidesBottomBar('/compose')).toBe(true);
@@ -69,13 +61,10 @@ describe('bottomBarContent', () => {
     expect(bottomBarContent({ ...base, isAuthResolved: false })).toBeNull();
   });
 
-  it.each(['/ai', '/compose'])(
-    'draws nothing on the full-screen route %s, signed in or not',
-    (pathname) => {
-      expect(bottomBarContent({ ...base, pathname })).toBeNull();
-      expect(bottomBarContent({ ...base, pathname, isAuthenticated: true })).toBeNull();
-    },
-  );
+  it('draws nothing on the full-screen composer, signed in or not', () => {
+    expect(bottomBarContent({ ...base, pathname: '/compose' })).toBeNull();
+    expect(bottomBarContent({ ...base, pathname: '/compose', isAuthenticated: true })).toBeNull();
+  });
 
   it('draws nothing over the keyboard', () => {
     expect(bottomBarContent({ ...base, keyboardVisible: true })).toBeNull();

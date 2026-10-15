@@ -2113,8 +2113,6 @@
   "Failed to load post": "投稿を読み込めませんでした",
   "Failed to load post for editing": "編集する投稿を読み込めませんでした",
   "GIF attached": "GIFを添付しました",
-  "Help me edit an image": "画像の編集を手伝ってください",
-  "How can I help you today?": "今日はどうされましたか？",
   "Interaction limited": "やり取りが制限されています",
   "Loading GIFs...": "GIFを読み込み中...",
   "Loading post...": "投稿を読み込み中...",
@@ -2149,7 +2147,6 @@
   "Suggested for you": "あなたへのおすすめ",
   "Thread": "スレッド",
   "Trending now": "いまのトレンド",
-  "What are the latest news?": "最新のニュースは？",
   "Who can reply": "返信できる人",
   "Your reply has been posted!": "返信を投稿しました！",
   "profile.signInRequired": "サインインしてプロフィールを表示",
@@ -2519,5 +2516,10 @@
     "title": "このページは存在しません",
     "subtitle": "リンクが壊れているか、ページが移動した可能性があります。",
     "goHome": "ホームへ"
-  }
+  },
+  "alia.clientContext": "この人は、投稿・返信・リスト・フィードのあるソーシャルネットワーク Mention を使っていて、あなたに助けを求めています。",
+  "alia.onScreen": "いま表示している画面は {{path}} です。",
+  "alia.suggestion.news": "今日はみんな何について話している？",
+  "alia.suggestion.write": "投稿を書くのを手伝って",
+  "alia.suggestion.discover": "フォローするアカウントやトピックを提案して"
 }

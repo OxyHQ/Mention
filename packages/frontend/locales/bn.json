@@ -2113,8 +2113,6 @@
   "Failed to load post": "পোস্ট লোড করা যায়নি",
   "Failed to load post for editing": "সম্পাদনার জন্য পোস্ট লোড করা যায়নি",
   "GIF attached": "GIF সংযুক্ত হয়েছে",
-  "Help me edit an image": "একটি ছবি সম্পাদনা করতে সাহায্য করুন",
-  "How can I help you today?": "আজ আমি আপনাকে কীভাবে সাহায্য করতে পারি?",
   "Interaction limited": "যোগাযোগ সীমিত",
   "Loading GIFs...": "GIF লোড হচ্ছে...",
   "Loading post...": "পোস্ট লোড হচ্ছে...",
@@ -2149,7 +2147,6 @@
   "Suggested for you": "আপনার জন্য প্রস্তাবিত",
   "Thread": "থ্রেড",
   "Trending now": "এখন ট্রেন্ডিং",
-  "What are the latest news?": "সর্বশেষ খবর কী?",
   "Who can reply": "কারা উত্তর দিতে পারবেন",
   "Your reply has been posted!": "আপনার উত্তর পোস্ট করা হয়েছে!",
   "profile.signInRequired": "আপনার প্রোফাইল দেখতে সাইন ইন করুন",
@@ -2519,5 +2516,10 @@
     "title": "এই পাতাটি নেই",
     "subtitle": "লিংকটি হয়তো ভাঙা, অথবা পাতাটি সরানো হয়েছে।",
     "goHome": "হোমে যান"
-  }
+  },
+  "alia.clientContext": "ব্যক্তিটি Mention ব্যবহার করছেন, যেটি পোস্ট, উত্তর, তালিকা ও ফিডের একটি সামাজিক নেটওয়ার্ক, এবং আপনার সাহায্য চাইছেন।",
+  "alia.onScreen": "তিনি এখন {{path}} স্ক্রিনে আছেন।",
+  "alia.suggestion.news": "আজ সবাই কী নিয়ে কথা বলছে?",
+  "alia.suggestion.write": "একটি পোস্ট লিখতে আমাকে সাহায্য করো",
+  "alia.suggestion.discover": "অনুসরণ করার জন্য অ্যাকাউন্ট ও বিষয় সুপারিশ করো"
 }

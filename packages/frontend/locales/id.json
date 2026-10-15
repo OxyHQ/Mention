@@ -2113,8 +2113,6 @@
   "Failed to load post": "Gagal memuat postingan",
   "Failed to load post for editing": "Gagal memuat postingan untuk diedit",
   "GIF attached": "GIF dilampirkan",
-  "Help me edit an image": "Bantu aku mengedit gambar",
-  "How can I help you today?": "Ada yang bisa kubantu hari ini?",
   "Interaction limited": "Interaksi dibatasi",
   "Loading GIFs...": "Memuat GIF...",
   "Loading post...": "Memuat postingan...",
@@ -2149,7 +2147,6 @@
   "Suggested for you": "Disarankan untukmu",
   "Thread": "Utas",
   "Trending now": "Sedang tren",
-  "What are the latest news?": "Apa berita terbaru?",
   "Who can reply": "Siapa yang bisa membalas",
   "Your reply has been posted!": "Balasanmu sudah diposting!",
   "profile.signInRequired": "Masuk untuk melihat profilmu",
@@ -2519,5 +2516,10 @@
     "title": "Halaman ini tidak ada",
     "subtitle": "Tautannya mungkin rusak, atau halamannya telah dipindahkan.",
     "goHome": "Ke beranda"
-  }
+  },
+  "alia.clientContext": "Orang ini memakai Mention, jejaring sosial untuk kiriman, balasan, daftar, dan feed, dan meminta bantuanmu.",
+  "alia.onScreen": "Dia sedang berada di layar {{path}}.",
+  "alia.suggestion.news": "Apa yang sedang dibicarakan semua orang hari ini?",
+  "alia.suggestion.write": "Bantu aku menulis sebuah kiriman",
+  "alia.suggestion.discover": "Sarankan akun dan topik untuk diikuti"
 }
