@@ -9,15 +9,12 @@ import { AvatarGroup } from '@oxy.so/bloom/avatar-group';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { MtnConfig } from '@mention/shared-types/mtn/config';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import type { Trend } from '@/interfaces/Trend';
 import type { BloomIcon } from '@/components/settings/RowIcon';
 import { HIT_SLOP_LG } from '@/styles/hitSlop';
-
-const MS_PER_HOUR = 60 * 60 * 1000;
-const HOURS_PER_DAY = 24;
+import { getTrendBadge } from './trendBadge';
 
 /** Faces shown beside a trend. Matches what the server stores per trend. */
 const TREND_FACE_SIZE = 18;
@@ -96,44 +93,6 @@ function getTrendLabel(trend: Trend, t: TFunction): string {
     })}`;
   }
   return kind;
-}
-
-/**
- * How long this run of the trend has been going, as a badge.
- *
- * `hot` outranks age: it is the stronger claim and the two would otherwise
- * compete for the same corner. Below the `new` window the badge is the age
- * itself, which is more informative than a second adjective — and a trend with
- * no `startedAt` (written before onset tracking) gets NO badge rather than a
- * guessed one.
- */
-function getTrendBadge(
-  trend: Trend,
-  t: TFunction,
-): { text: string; tone: 'hot' | 'new' | 'age' } | null {
-  if (trend.status === 'hot') {
-    return { text: t('trend.badge.hot', { defaultValue: 'Hot' }), tone: 'hot' };
-  }
-  if (!trend.startedAt) return null;
-
-  const startedAt = Date.parse(trend.startedAt);
-  if (Number.isNaN(startedAt)) return null;
-
-  const ageMs = Date.now() - startedAt;
-  if (ageMs < 0) return null;
-  if (ageMs < MtnConfig.trending.detection.newTrendMaxAgeMs) {
-    return { text: t('trend.badge.new', { defaultValue: 'New' }), tone: 'new' };
-  }
-
-  const hours = Math.floor(ageMs / MS_PER_HOUR);
-  if (hours < HOURS_PER_DAY) {
-    return {
-      text: t('trend.badge.hoursAgo', { count: hours, defaultValue: `${hours}h` }),
-      tone: 'age',
-    };
-  }
-  const days = Math.floor(hours / HOURS_PER_DAY);
-  return { text: t('trend.badge.daysAgo', { count: days, defaultValue: `${days}d` }), tone: 'age' };
 }
 
 interface TrendItemRowProps {

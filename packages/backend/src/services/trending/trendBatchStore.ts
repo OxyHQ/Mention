@@ -92,6 +92,7 @@ export async function saveTrendingBatch(
     authorCount: item.authorCount,
     momentum: item.momentum,
     startedAt: item.startedAt,
+    firstSeenAt: item.firstSeenAt,
     ...(item.status ? { status: item.status } : {}),
     ...(item.actorIds.length > 0 ? { actorIds: item.actorIds } : {}),
     ...(item.languages.length > 0 ? { languages: item.languages } : {}),

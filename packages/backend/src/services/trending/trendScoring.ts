@@ -275,3 +275,22 @@ export function resolveTrendStartedAt(appearances: readonly Date[], now: Date): 
 
   return runStart;
 }
+
+/**
+ * When the term first trended within the history it was given — across every
+ * run, gaps and all.
+ *
+ * This, not {@link resolveTrendStartedAt}, is what `new` means. A run restarts
+ * whenever a term is out of the list for longer than the gap tolerance, and on
+ * a short list a perennial term (`us`, `trump`) does that several times a day;
+ * each restart is a new run of an old trend. Only a term absent from the whole
+ * lookback is new. A future timestamp is ignored for the same reason it is in
+ * the run reconstruction: it cannot be evidence of an earlier start.
+ */
+export function resolveTrendFirstSeenAt(appearances: readonly Date[], now: Date): Date {
+  let firstSeen = now;
+  for (const appearance of appearances) {
+    if (appearance.getTime() < firstSeen.getTime()) firstSeen = appearance;
+  }
+  return firstSeen;
+}

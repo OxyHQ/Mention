@@ -79,6 +79,7 @@ function item(overrides: Partial<TrendItem> & { name: string }): TrendItem {
     authorCount: 4,
     momentum: 0.5,
     startedAt: new Date(),
+    firstSeenAt: new Date(),
     actorIds: [],
     languages: [],
     // Every term the row stands for, its own name first. One element unless
@@ -293,6 +294,7 @@ describe('getTrending — the wire format is the contract', () => {
       'category',
       'description',
       'displayName',
+      'firstSeenAt',
       'momentum',
       'name',
       'rank',

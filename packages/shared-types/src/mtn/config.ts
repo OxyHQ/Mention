@@ -1050,7 +1050,10 @@ export const MtnConfig = {
       hotBurstScore: 6,
       /**
        * How long a trend is considered NEW after it first appeared, for the
-       * client's badge. Past it the client shows the trend's age instead.
+       * client's badge — measured from `firstSeenAt` (its first appearance in
+       * the onset lookback), never from the current run's `startedAt`: a term
+       * returning after a few hours off the list is not new. Past it the client
+       * shows the run's age instead.
        */
       newTrendMaxAgeMs: 2 * 60 * 60 * 1000,
       /**

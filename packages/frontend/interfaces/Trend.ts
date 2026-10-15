@@ -19,11 +19,18 @@ export interface Trend {
   /** Coarse taxonomy hint. Absent when nothing was assigned. */
   category?: TrendCategory;
   /**
-   * When this run of the trend began, ISO. Drives the `new` badge and the age
-   * label. Absent on trends that predate onset tracking — those simply show no
-   * badge, which is honest: nobody knows when they started.
+   * When this run of the trend began, ISO. Drives the age label. Absent on
+   * trends that predate onset tracking — those simply show no badge, which is
+   * honest: nobody knows when they started.
    */
   startedAt?: string;
+  /**
+   * When the term first trended within the server's onset lookback (a week),
+   * ISO — across every run, however often it dropped off the list and came
+   * back. Drives the `new` badge: a perennial term returning after a few hours
+   * starts a new RUN, not a new trend. Absent on rows written before the field.
+   */
+  firstSeenAt?: string;
   /** Present only while the trend is bursting hard enough to be called out. */
   status?: TrendStatus;
   /** Distinct authors behind the trend. Absent on rows that predate the field. */

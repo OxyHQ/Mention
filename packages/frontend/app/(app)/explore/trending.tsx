@@ -82,6 +82,7 @@ function topicToTrend(topic: TrendingTopic): Trend {
     displayName: topic.displayName?.trim() || topic.name,
     ...(topic.category ? { category: topic.category } : {}),
     ...(topic.startedAt ? { startedAt: topic.startedAt } : {}),
+    ...(topic.firstSeenAt ? { firstSeenAt: topic.firstSeenAt } : {}),
     ...(topic.status ? { status: topic.status } : {}),
     ...(typeof topic.authorCount === 'number' ? { authorCount: topic.authorCount } : {}),
     ...(topic.actors?.length ? { actors: topic.actors } : {}),
