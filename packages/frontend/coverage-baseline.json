@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 44.43,
-      "covered": 11846,
-      "total": 26657
+      "pct": 44.91,
+      "covered": 12095,
+      "total": 26927
     },
     "branches": {
-      "pct": 39.35,
-      "covered": 7545,
-      "total": 19173
+      "pct": 40.06,
+      "covered": 7809,
+      "total": 19493
     },
     "functions": {
-      "pct": 39.51,
-      "covered": 2697,
-      "total": 6825
+      "pct": 40.15,
+      "covered": 2783,
+      "total": 6930
     },
     "lines": {
-      "pct": 45.13,
-      "covered": 10739,
-      "total": 23795
+      "pct": 45.63,
+      "covered": 11012,
+      "total": 24130
     }
   },
   "pins": {
@@ -576,10 +576,10 @@
       "lines": 0
     },
     "hooks/useReelChrome.ts": {
-      "statements": 62,
-      "branches": 58,
-      "functions": 53,
-      "lines": 62
+      "statements": 65,
+      "branches": 62,
+      "functions": 56,
+      "lines": 65
     },
     "hooks/useReelImpressions.ts": {
       "statements": 100,
@@ -669,7 +669,7 @@
       "statements": 26,
       "branches": 8,
       "functions": 3,
-      "lines": 27
+      "lines": 30
     },
     "hooks/useThreadPreferences.ts": {
       "statements": 0,
@@ -828,10 +828,10 @@
       "lines": 100
     },
     "lib/hlsPlayback.web.ts": {
-      "statements": 24,
-      "branches": 29,
-      "functions": 31,
-      "lines": 25
+      "statements": 65,
+      "branches": 60,
+      "functions": 75,
+      "lines": 69
     },
     "lib/i18n.ts": {
       "statements": 41,
@@ -843,7 +843,7 @@
       "statements": 84,
       "branches": 100,
       "functions": 66,
-      "lines": 84
+      "lines": 91
     },
     "lib/liveConfig.tsx": {
       "statements": 0,
@@ -1067,6 +1067,12 @@
       "functions": 0,
       "lines": 0
     },
+    "services/experienceService.ts": {
+      "statements": 94,
+      "branches": 88,
+      "functions": 100,
+      "lines": 94
+    },
     "services/feedPreferencesService.ts": {
       "statements": 0,
       "branches": 0,
@@ -1251,7 +1257,7 @@
       "statements": 50,
       "branches": 38,
       "functions": 43,
-      "lines": 50
+      "lines": 54
     },
     "stores/feedQueryCache.ts": {
       "statements": 100,
@@ -1437,7 +1443,7 @@
       "statements": 92,
       "branches": 95,
       "functions": 80,
-      "lines": 92
+      "lines": 93
     },
     "utils/displayName.ts": {
       "statements": 100,
