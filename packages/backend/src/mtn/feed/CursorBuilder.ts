@@ -266,27 +266,34 @@ export async function chronoCursorSql(
   cursor?: string,
   direction: ChronoDirection = 'desc',
 ): Promise<SQL | undefined> {
-  const parsed = ChronoCursor.parse(cursor);
-  if (!parsed) return undefined;
-
-  let boundaryAt: Date;
-  if (parsed.ts !== undefined) {
-    boundaryAt = new Date(parsed.ts);
-  } else {
-    const [anchor] = await getDb()
-      .select({ createdAt: posts.createdAt })
-      .from(posts)
-      .where(eq(posts.id, parsed.id))
-      .limit(1);
-    if (!anchor) return undefined;
-    boundaryAt = anchor.createdAt;
-  }
+  const boundary = await chronoCursorBoundary(cursor);
+  if (!boundary) return undefined;
 
   const beyond = direction === 'asc' ? gt : lt;
   return or(
-    beyond(posts.createdAt, boundaryAt),
-    and(eq(posts.createdAt, boundaryAt), beyond(posts.id, parsed.id)),
+    beyond(posts.createdAt, boundary.at),
+    and(eq(posts.createdAt, boundary.at), beyond(posts.id, boundary.id)),
   ) as SQL;
+}
+
+/**
+ * The `(created_at, id)` a chronological cursor continues after, with a legacy
+ * id-only cursor's `created_at` recovered as {@link chronoCursorSql} describes.
+ * `undefined` for no cursor, or one naming a post that no longer exists.
+ */
+export async function chronoCursorBoundary(
+  cursor?: string,
+): Promise<{ at: Date; id: string } | undefined> {
+  const parsed = ChronoCursor.parse(cursor);
+  if (!parsed) return undefined;
+  if (parsed.ts !== undefined) return { at: new Date(parsed.ts), id: parsed.id };
+
+  const [anchor] = await getDb()
+    .select({ createdAt: posts.createdAt })
+    .from(posts)
+    .where(eq(posts.id, parsed.id))
+    .limit(1);
+  return anchor ? { at: anchor.createdAt, id: parsed.id } : undefined;
 }
 
 /**
