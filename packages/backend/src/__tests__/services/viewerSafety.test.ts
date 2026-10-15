@@ -9,7 +9,7 @@
  * that threw on every failure.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { inArray } from 'drizzle-orm';
 

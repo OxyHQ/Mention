@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import type { PostRecordInput } from '../../db/posts/postRecord';
 import { planHistoricalEmojiCleanup } from '../../scripts/cleanFederatedCustomEmoji';

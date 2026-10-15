@@ -8,7 +8,7 @@
  * they are written for — so the properties they lean on are asserted here, once.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { uuidv7 } from '@oxy.so/db';
 import { sameMillisecondIds } from './tiedIds';

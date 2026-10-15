@@ -34,7 +34,7 @@
  * disagree by a row.
  */
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { and, eq, sql } from 'drizzle-orm';
 
 import { closePostgres, connectPostgres, getDb, type Transaction } from '../../db/postgres';

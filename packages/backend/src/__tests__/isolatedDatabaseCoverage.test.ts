@@ -83,7 +83,7 @@
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { ISOLATED_DATABASE_FILES, needsIsolatedDatabase } from './isolatedDatabaseFiles';
 import { SCRIPT_SCOPE } from './scriptScope';

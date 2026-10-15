@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { eq } from 'drizzle-orm';
 
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
@@ -84,11 +84,15 @@ describe('privacy.showSensitiveContent', () => {
     // writer cannot store "unknown" and leave a read surface to guess.
     const id = viewer('null-write');
     await ensureUserSettings(id);
+    // Promise.resolve runs the drizzle builder: bun:test's `rejects` wants a real
+    // promise, and a builder is a lazy thenable that executes only on `then`.
     await expect(
-      getDb()
-        .update(userSettings)
-        .set({ privacyShowSensitiveContent: null as unknown as boolean })
-        .where(eq(userSettings.oxyUserId, id)),
+      Promise.resolve(
+        getDb()
+          .update(userSettings)
+          .set({ privacyShowSensitiveContent: null as unknown as boolean })
+          .where(eq(userSettings.oxyUserId, id)),
+      ),
     ).rejects.toThrow();
   });
 });

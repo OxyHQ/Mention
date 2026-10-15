@@ -35,7 +35,7 @@
  *   and `videosQueryUnknownMetadata.test.ts`; this file pins the base predicate.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { and, eq } from 'drizzle-orm';
 import {
   isValidFeedDescriptor,
