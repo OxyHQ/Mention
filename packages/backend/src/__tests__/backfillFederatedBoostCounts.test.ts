@@ -23,7 +23,7 @@
  * to `assertAdminRunComplete` and is covered in `adminDeletionPreflight.test.ts`.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';

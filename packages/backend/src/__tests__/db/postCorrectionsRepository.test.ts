@@ -25,7 +25,7 @@
  * so a literal author id would collide with whatever a sibling file wrote.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { eq } from 'drizzle-orm';
 
 import { closePostgres, connectPostgres, getDb, type Database } from '../../db/postgres';
@@ -167,14 +167,18 @@ describe('recordPostCorrection', () => {
     const postId = await createPost();
     await correct(postId, 'as published', 1_700_000_000_000);
 
+    // Promise.resolve runs the drizzle builder: bun:test's `rejects` wants a real
+    // promise, and a builder is a lazy thenable that executes only on `then`.
     await expect(
-      db.insert(postCorrections).values({
-        postId,
-        revision: 1,
-        previousText: 'a second revision 1',
-        correctedByOxyUserId: WRITER,
-        createdAt: new Date(1_700_000_060_000),
-      }),
+      Promise.resolve(
+        db.insert(postCorrections).values({
+          postId,
+          revision: 1,
+          previousText: 'a second revision 1',
+          correctedByOxyUserId: WRITER,
+          createdAt: new Date(1_700_000_060_000),
+        }),
+      ),
     ).rejects.toThrow();
   });
 
@@ -182,13 +186,15 @@ describe('recordPostCorrection', () => {
     const postId = await createPost();
 
     await expect(
-      db.insert(postCorrections).values({
-        postId,
-        revision: 0,
-        previousText: 'not a revision',
-        correctedByOxyUserId: WRITER,
-        createdAt: new Date(1_700_000_000_000),
-      }),
+      Promise.resolve(
+        db.insert(postCorrections).values({
+          postId,
+          revision: 0,
+          previousText: 'not a revision',
+          correctedByOxyUserId: WRITER,
+          createdAt: new Date(1_700_000_000_000),
+        }),
+      ),
     ).rejects.toThrow();
   });
 

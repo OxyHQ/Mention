@@ -19,7 +19,7 @@
  * requests for one remote URL all the time.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { eq, inArray, like } from 'drizzle-orm';
 
 import { closePostgres, connectPostgres, getDb, getPostgresClient } from '../../db/postgres';

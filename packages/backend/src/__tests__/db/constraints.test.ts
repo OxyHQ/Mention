@@ -7,7 +7,7 @@
  * nothing at all.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { isUniqueViolation, uuidv7 } from '@oxy.so/db';
@@ -85,10 +85,14 @@ describe('posts.status', () => {
   });
 
   it('rejects a value outside the closed set', async () => {
+    // Promise.resolve runs the drizzle builder: bun:test's `rejects` wants a real
+    // promise, and a builder is a lazy thenable that executes only on `then`.
     await expect(
-      db.execute(sql`
+      Promise.resolve(
+        db.execute(sql`
         insert into posts (id, status) values (${uuidv7()}, 'shadowbanned')
       `),
+      ),
     ).rejects.toThrow();
   });
 });
@@ -98,10 +102,12 @@ describe('posts.reply_permission', () => {
     // A scalar enum column cannot express this: the constraint is on the array's
     // ELEMENTS, and the legacy store's array-enum was never enforced on an update.
     await expect(
-      db.execute(sql`
+      Promise.resolve(
+        db.execute(sql`
         insert into posts (id, reply_permission)
         values (${uuidv7()}, array['anyone', 'nobody', 'maybe']::text[])
       `),
+      ),
     ).rejects.toThrow();
   });
 
@@ -202,10 +208,12 @@ describe('likes', () => {
   it('accepts only an up-vote or a down-vote', async () => {
     const postId = await createPost();
     await expect(
-      db.execute(sql`
+      Promise.resolve(
+        db.execute(sql`
         insert into likes (id, user_id, post_id, value)
         values (${uuidv7()}, 'voter', ${postId}, 2)
       `),
+      ),
     ).rejects.toThrow();
   });
 
@@ -282,18 +290,22 @@ describe('threadgate_allow_rules', () => {
       .returning({ id: threadgates.id });
 
     await expect(
-      db
-        .insert(threadgateAllowRules)
-        .values({ threadgateId: gate.id, position: 0, type: 'listOnly' }),
+      Promise.resolve(
+        db
+          .insert(threadgateAllowRules)
+          .values({ threadgateId: gate.id, position: 0, type: 'listOnly' }),
+      ),
     ).rejects.toThrow();
 
     await expect(
-      db.insert(threadgateAllowRules).values({
-        threadgateId: gate.id,
-        position: 0,
-        type: 'followingOnly',
-        listId: 'some-list',
-      }),
+      Promise.resolve(
+        db.insert(threadgateAllowRules).values({
+          threadgateId: gate.id,
+          position: 0,
+          type: 'followingOnly',
+          listId: 'some-list',
+        }),
+      ),
     ).rejects.toThrow();
 
     await db
@@ -309,14 +321,16 @@ describe('user_settings.profile_media', () => {
     // The legacy store got this mutual exclusion for free by storing ONE subdocument.
     // Flattened into columns it has to be stated.
     await expect(
-      db.insert(userSettings).values({
-        oxyUserId: `mixed-${uuidv7()}`,
-        profileMediaType: 'song',
-        profileMediaTitle: 'A Song',
-        profileMediaSyraTrackId: 'track-1',
-        profileMediaPreviewUrl: 'https://example.invalid/preview.mp3',
-        profileMediaSyraPodcastId: 'show-1',
-      }),
+      Promise.resolve(
+        db.insert(userSettings).values({
+          oxyUserId: `mixed-${uuidv7()}`,
+          profileMediaType: 'song',
+          profileMediaTitle: 'A Song',
+          profileMediaSyraTrackId: 'track-1',
+          profileMediaPreviewUrl: 'https://example.invalid/preview.mp3',
+          profileMediaSyraPodcastId: 'show-1',
+        }),
+      ),
     ).rejects.toThrow();
   });
 

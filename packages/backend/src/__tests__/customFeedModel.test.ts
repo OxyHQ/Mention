@@ -15,7 +15,8 @@
  *    with no definition is distinguishable from one with an empty definition.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
+import { rejectionOf } from './helpers/rejection';
 import { randomUUID } from 'node:crypto';
 import { eq, inArray, sql } from 'drizzle-orm';
 
@@ -114,25 +115,25 @@ describe('the composable definition', () => {
      * every write path, which is why `schema/CONVENTIONS.md` chose `text` + a
      * CHECK over a pg enum.
      */
-    await expect(
-      db.insert(customFeeds).values({
-        ownerOxyUserId: `owner-${randomUUID()}`,
-        title: 'Bad',
-        definitionMode: sql`'nonsense'`,
-      }),
-    ).rejects.toSatisfy((error: unknown) =>
-      isCheckViolation(error, 'custom_feeds_definition_mode_check'),
-    );
+    expect(
+      await rejectionOf(
+        db.insert(customFeeds).values({
+          ownerOxyUserId: `owner-${randomUUID()}`,
+          title: 'Bad',
+          definitionMode: sql`'nonsense'`,
+        }),
+      ),
+    ).toSatisfy((error: unknown) => isCheckViolation(error, 'custom_feeds_definition_mode_check'));
 
     const feedId = await seedFeed({ definitionMode: 'ranked' });
-    await expect(
-      db
-        .update(customFeeds)
-        .set({ definitionMode: sql`'nonsense'` })
-        .where(eq(customFeeds.id, feedId)),
-    ).rejects.toSatisfy((error: unknown) =>
-      isCheckViolation(error, 'custom_feeds_definition_mode_check'),
-    );
+    expect(
+      await rejectionOf(
+        db
+          .update(customFeeds)
+          .set({ definitionMode: sql`'nonsense'` })
+          .where(eq(customFeeds.id, feedId)),
+      ),
+    ).toSatisfy((error: unknown) => isCheckViolation(error, 'custom_feeds_definition_mode_check'));
   });
 
   it('refuses two modules of one kind at the same position', async () => {
@@ -142,10 +143,14 @@ describe('the composable definition', () => {
     await db
       .insert(customFeedDefinitionModules)
       .values({ feedId, kind: 'source', position: 0, module: 'keywords', enabled: true });
+    // Promise.resolve runs the drizzle builder: bun:test's `rejects` wants a real
+    // promise, and a builder is a lazy thenable that executes only on `then`.
     await expect(
-      db
-        .insert(customFeedDefinitionModules)
-        .values({ feedId, kind: 'source', position: 0, module: 'accounts', enabled: true }),
+      Promise.resolve(
+        db
+          .insert(customFeedDefinitionModules)
+          .values({ feedId, kind: 'source', position: 0, module: 'accounts', enabled: true }),
+      ),
     ).rejects.toThrow();
   });
 });

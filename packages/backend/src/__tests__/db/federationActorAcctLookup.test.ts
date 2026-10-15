@@ -4,7 +4,7 @@
  * Against real rows, because the answer is only as good as the `acct` column
  * it reads: an acct we store without an Oxy id yet must not resolve.
  */
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { findActorOxyUserIdsByAccts } from '../../db/federation/actorRepository';

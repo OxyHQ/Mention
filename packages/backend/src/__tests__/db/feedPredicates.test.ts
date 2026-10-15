@@ -31,7 +31,7 @@
  * actually contains, and the insert path is simply not how it gets there.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 

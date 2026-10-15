@@ -16,7 +16,7 @@
  * every load, for every viewer who emptied their layout.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { eq } from 'drizzle-orm';
 
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
