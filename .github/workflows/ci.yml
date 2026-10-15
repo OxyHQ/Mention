@@ -206,6 +206,7 @@ jobs:
           bun .github/scripts/test-runtime-image-audit.mjs
           bun run --cwd packages/frontend coverage:policy-selftest
           bun run --cwd packages/frontend web-font-preload:selftest
+          bun run --cwd packages/frontend web-layout-preload:selftest
 
       # The production images' build inputs (each Dockerfile, its context,
       # target and both .dockerignore files) must match the one reviewed pin in
