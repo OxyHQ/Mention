@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, mock, jest } from 'bun:test';
+import { advanceTimersByTimeAsync } from './helpers/fakeTimers';
 
 import {
   SHELL_TTL_MS,
@@ -27,17 +28,22 @@ function response(status: number, body: string, etag: string | null) {
 }
 
 /** Let the fire-and-forget background revalidation settle. */
-const settle = () => vi.advanceTimersByTimeAsync(0);
+const settle = () => advanceTimersByTimeAsync(0);
+
+const realFetch = globalThis.fetch;
+function stubFetch(fetchMock: unknown) {
+  globalThis.fetch = fetchMock as typeof fetch;
+}
 
 describe('web shell document cache', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
+    jest.useFakeTimers();
     resetShellDocumentForTests();
   });
 
   afterEach(() => {
-    vi.useRealTimers();
-    vi.unstubAllGlobals();
+    jest.useRealTimers();
+    globalThis.fetch = realFetch;
   });
 
   it('trusts a fetched document only for seconds, not minutes', () => {
@@ -45,25 +51,24 @@ describe('web shell document cache', () => {
   });
 
   it('serves from memory inside the TTL without another request', async () => {
-    const fetchMock = vi.fn(async () => response(200, RELEASE_A, '"a"'));
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = mock(async () => response(200, RELEASE_A, '"a"'));
+    stubFetch(fetchMock);
 
     expect(await getShell()).toBe(RELEASE_A);
-    vi.advanceTimersByTime(SHELL_TTL_MS - 1);
+    jest.advanceTimersByTime(SHELL_TTL_MS - 1);
     expect(await getShell()).toBe(RELEASE_A);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('revalidates with the ETag once the TTL passes, and a 304 keeps the copy', async () => {
-    const fetchMock = vi
-      .fn()
+    const fetchMock = mock()
       .mockResolvedValueOnce(response(200, RELEASE_A, '"a"'))
       .mockResolvedValueOnce(response(304, '', null));
-    vi.stubGlobal('fetch', fetchMock);
+    stubFetch(fetchMock);
 
     await getShell();
-    vi.advanceTimersByTime(SHELL_TTL_MS + 1);
+    jest.advanceTimersByTime(SHELL_TTL_MS + 1);
     expect(await getShell()).toBe(RELEASE_A); // stale copy served while it revalidates
     await settle();
 
@@ -71,20 +76,19 @@ describe('web shell document cache', () => {
     expect(revalidation.headers['If-None-Match']).toBe('"a"');
 
     // The 304 renewed the copy: no third request inside the next TTL.
-    vi.advanceTimersByTime(SHELL_TTL_MS - 1);
+    jest.advanceTimersByTime(SHELL_TTL_MS - 1);
     await getShell();
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('picks up a new release within one TTL plus one request', async () => {
-    const fetchMock = vi
-      .fn()
+    const fetchMock = mock()
       .mockResolvedValueOnce(response(200, RELEASE_A, '"a"'))
       .mockResolvedValueOnce(response(200, RELEASE_B, '"b"'));
-    vi.stubGlobal('fetch', fetchMock);
+    stubFetch(fetchMock);
 
     await getShell();
-    vi.advanceTimersByTime(SHELL_TTL_MS + 1);
+    jest.advanceTimersByTime(SHELL_TTL_MS + 1);
     await getShell();
     await settle();
 
@@ -92,11 +96,10 @@ describe('web shell document cache', () => {
   });
 
   it('stops trusting the copy the moment a chunk it names is missing', async () => {
-    const fetchMock = vi
-      .fn()
+    const fetchMock = mock()
       .mockResolvedValueOnce(response(200, RELEASE_A, '"a"'))
       .mockResolvedValueOnce(response(200, RELEASE_B, '"b"'));
-    vi.stubGlobal('fetch', fetchMock);
+    stubFetch(fetchMock);
 
     await getShell();
     invalidateShellDocument(); // well inside the TTL
@@ -107,14 +110,13 @@ describe('web shell document cache', () => {
   });
 
   it('keeps serving the held copy when the origin is down', async () => {
-    const fetchMock = vi
-      .fn()
+    const fetchMock = mock()
       .mockResolvedValueOnce(response(200, RELEASE_A, '"a"'))
       .mockResolvedValue(response(503, '', null));
-    vi.stubGlobal('fetch', fetchMock);
+    stubFetch(fetchMock);
 
     await getShell();
-    vi.advanceTimersByTime(SHELL_TTL_MS + 1);
+    jest.advanceTimersByTime(SHELL_TTL_MS + 1);
 
     expect(await getShell()).toBe(RELEASE_A);
     await settle();
@@ -122,8 +124,8 @@ describe('web shell document cache', () => {
   });
 
   it('has nothing to invalidate before the first fetch', () => {
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = mock();
+    stubFetch(fetchMock);
     invalidateShellDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });

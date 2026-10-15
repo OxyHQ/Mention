@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, mock } from 'bun:test';
 import { fetchWithRecencyFallback, FEED_RECENCY_WINDOWS_MS } from '../utils/feedUtils';
 
 /**
@@ -21,7 +21,7 @@ type Runner = (cutoff: Date | undefined) => Promise<number[]>;
 
 describe('fetchWithRecencyFallback', () => {
   it('returns the first (narrowest) window that fills the page and stops', async () => {
-    const run = vi.fn<Runner>(async () => [1, 2, 3]); // full page every time
+    const run = mock<Runner>(async () => [1, 2, 3]); // full page every time
     const result = await fetchWithRecencyFallback(3, run);
 
     expect(result).toEqual([1, 2, 3]);
@@ -33,8 +33,7 @@ describe('fetchWithRecencyFallback', () => {
   });
 
   it('widens to the 30d window when 7d underfills', async () => {
-    const run = vi
-      .fn<Runner>()
+    const run = mock<Runner>()
       .mockResolvedValueOnce([1]) // 7d: underfills (needs 3)
       .mockResolvedValueOnce([1, 2, 3]); // 30d: fills
     const result = await fetchWithRecencyFallback(3, run);
@@ -48,8 +47,7 @@ describe('fetchWithRecencyFallback', () => {
   });
 
   it('falls back to an unbounded scan (never-blank) when every window underfills', async () => {
-    const run = vi
-      .fn<Runner>()
+    const run = mock<Runner>()
       .mockResolvedValueOnce([]) // 7d
       .mockResolvedValueOnce([1]) // 30d
       .mockResolvedValueOnce([1, 2]); // unbounded — returned regardless of size

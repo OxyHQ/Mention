@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import { PUBLIC_REALTIME_NAMESPACE } from '@mention/shared-types';
 import type { Server as SocketIOServer } from 'socket.io';
 import {
@@ -24,10 +24,10 @@ function createServers(): SocketIOServer {
 }
 
 function createAuthProvider(): SocketAuthProvider & {
-  middleware: { socket: ReturnType<typeof vi.fn> };
+  middleware: { socket: ReturnType<typeof mock> };
 } {
-  const middleware = vi.fn().mockResolvedValue(undefined);
-  return { middleware: { socket: vi.fn().mockReturnValue(middleware) } };
+  const middleware = mock().mockResolvedValue(undefined);
+  return { middleware: { socket: mock().mockReturnValue(middleware) } };
 }
 
 afterEach(async () => {
@@ -81,9 +81,9 @@ describe('createSocketNamespaces', () => {
 
     const notifications = io.of('/notifications');
     const posts = io.of('/posts');
-    const notificationsUse = vi.spyOn(notifications, 'use');
-    const postsUse = vi.spyOn(posts, 'use');
-    const mainUse = vi.spyOn(io, 'use');
+    const notificationsUse = spyOn(notifications, 'use');
+    const postsUse = spyOn(posts, 'use');
+    const mainUse = spyOn(io, 'use');
 
     const namespaces = createSocketNamespaces(io, oxy);
 
@@ -101,7 +101,7 @@ describe('createSocketNamespaces', () => {
     const oxy = createAuthProvider();
 
     const publicNamespace = io.of(PUBLIC_REALTIME_NAMESPACE);
-    const publicUse = vi.spyOn(publicNamespace, 'use');
+    const publicUse = spyOn(publicNamespace, 'use');
 
     const namespaces = createSocketNamespaces(io, oxy);
 

@@ -1,22 +1,22 @@
 import type { RedisClientType } from '../utils/redis';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 import { isRedisConnectionError, withRedisFallback } from '../utils/redisHelpers';
 
 function redisClient(overrides: Record<string, unknown>): RedisClientType {
   return {
     isReady: false,
     isOpen: false,
-    ping: vi.fn(),
-    connect: vi.fn(),
+    ping: mock(),
+    connect: mock(),
     ...overrides,
   } as unknown as RedisClientType;
 }
 
 describe('redis hot-path fallback', () => {
   it('runs a ready operation without PINGing or reconnecting', async () => {
-    const ping = vi.fn();
-    const connect = vi.fn();
-    const operation = vi.fn().mockResolvedValue('result');
+    const ping = mock();
+    const connect = mock();
+    const operation = mock().mockResolvedValue('result');
     const client = redisClient({ isReady: true, isOpen: true, ping, connect });
 
     await expect(withRedisFallback(client, operation, 'fallback')).resolves.toBe('result');
@@ -26,8 +26,8 @@ describe('redis hot-path fallback', () => {
   });
 
   it('falls back immediately when the shared client is not ready', async () => {
-    const operation = vi.fn();
-    const connect = vi.fn();
+    const operation = mock();
+    const connect = mock();
     const client = redisClient({ isOpen: true, connect });
 
     await expect(withRedisFallback(client, operation, 'fallback')).resolves.toBe('fallback');

@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, mock, jest } from 'bun:test';
+import { advanceTimersByTimeAsync } from '../helpers/fakeTimers';
 import {
   evaluateShadowWithDeadline,
   isJevShadowReleased,
@@ -163,13 +164,13 @@ describe('Jev shadow policy', () => {
 });
 
 describe('shadow evaluation deadline', () => {
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => jest.useRealTimers());
 
   it('aborts an unresponsive evaluator and ignores its late successful result', async () => {
-    vi.useFakeTimers();
+    jest.useFakeTimers();
     let signal: AbortSignal | undefined;
     let finish: ((value: ShadowSignals) => void) | undefined;
-    const evaluate = vi.fn((input: { signal: AbortSignal }) => {
+    const evaluate = mock((input: { signal: AbortSignal }) => {
       signal = input.signal;
       return new Promise<ShadowSignals>((resolve) => {
         finish = resolve;
@@ -180,9 +181,14 @@ describe('shadow evaluation deadline', () => {
       { text: 'synthetic', languages: ['en'], idempotencyKey: 'same-claim' },
       30_000,
     );
-    const rejected = expect(pending).rejects.toThrow(/cost uncertain/);
-    await vi.advanceTimersByTimeAsync(30_000);
-    await rejected;
+    // Not `expect(pending).rejects` before advancing: bun:test's `rejects`
+    // blocks until the promise settles, and only the advance below settles it.
+    const outcome = pending.then(
+      () => 'resolved',
+      (error: Error) => error.message,
+    );
+    await advanceTimersByTimeAsync(30_000);
+    expect(await outcome).toMatch(/cost uncertain/);
     expect(signal?.aborted).toBe(true);
     // The late resolution cannot change the settled deadline outcome.
     expect(finish).toBeTypeOf('function');
@@ -203,7 +209,7 @@ describe('shadow evaluation deadline', () => {
   });
 
   it('does not start another request when the batch budget is exhausted', async () => {
-    const evaluate = vi.fn();
+    const evaluate = mock();
     await expect(
       evaluateShadowWithDeadline(
         { release, evaluate },

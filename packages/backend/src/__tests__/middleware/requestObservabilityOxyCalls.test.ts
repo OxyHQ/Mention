@@ -12,7 +12,7 @@
 
 import express from 'express';
 import request from 'supertest';
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, jest, type Mock } from 'bun:test';
 import { config } from '../../config';
 import { requestObservability } from '../../middleware/requestObservability';
 import { logger } from '../../utils/logger';
@@ -47,7 +47,7 @@ afterAll(() => {
 
 beforeEach(() => {
   metrics.reset();
-  vi.clearAllMocks();
+  jest.clearAllMocks();
 });
 
 const app = express();
@@ -70,9 +70,9 @@ app.get('/static', (_req, res) => res.status(200).json({ ok: true }));
 
 /** The completion line the middleware logs, whatever else the run logged. */
 function completionContext(): Record<string, unknown> {
-  const call = vi
-    .mocked(logger.info)
-    .mock.calls.find(([message]) => message === 'HTTP request completed');
+  const call = (logger.info as unknown as Mock<(...args: unknown[]) => void>).mock.calls.find(
+    ([message]) => message === 'HTTP request completed',
+  );
   expect(call).toBeDefined();
   return call?.[1] as Record<string, unknown>;
 }
@@ -99,7 +99,7 @@ describe('per-request Oxy accounting', () => {
 
   it('does not carry one request’s calls into the next', async () => {
     await request(app).get('/feed/item/abc').expect(200);
-    vi.clearAllMocks();
+    jest.clearAllMocks();
     await request(app).get('/feed/item/def').expect(200);
 
     expect(completionContext().oxyCallCount).toBe(2);

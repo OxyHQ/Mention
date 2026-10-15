@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, mock } from 'bun:test';
 import type { Request, Response, NextFunction } from 'express';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
@@ -24,18 +24,18 @@ function makeReq(body: unknown = {}, params: Record<string, string> = {}): Reque
 
 function makeRes() {
   const res = {
-    status: vi.fn().mockReturnThis(),
-    json: vi.fn().mockReturnThis(),
+    status: mock().mockReturnThis(),
+    json: mock().mockReturnThis(),
   } as unknown as Response;
   return res;
 }
 
 function makeNext(): NextFunction {
-  return vi.fn() as unknown as NextFunction;
+  return mock() as unknown as NextFunction;
 }
 
 function getJsonBody(res: Response): unknown {
-  return (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
+  return (res.json as ReturnType<typeof mock>).mock.calls[0][0];
 }
 
 // --- validateBody -----------------------------------------------------------

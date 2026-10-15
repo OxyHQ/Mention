@@ -1,6 +1,6 @@
 import express from 'express';
 import request from 'supertest';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 import type { CapabilityTicketClaims } from '@oxy.so/contracts';
 import {
   createOptionalMentionCapabilityAuth,
@@ -37,9 +37,9 @@ function claims(tool: string, capability: string): CapabilityTicketClaims {
   };
 }
 
-function appFor(ticketClaims: CapabilityTicketClaims, introspect = vi.fn(async () => true)) {
+function appFor(ticketClaims: CapabilityTicketClaims, introspect = mock(async () => true)) {
   const dependencies: MentionCapabilityAuthDependencies = {
-    verify: vi.fn(async () => ticketClaims),
+    verify: mock(async () => ticketClaims),
     introspect,
   };
   const app = express();
@@ -113,7 +113,7 @@ describe('Mention capability authentication', () => {
   it('rejects revocation between planning and domain execution', async () => {
     const { app } = appFor(
       claims('create-post', 'social.posts.publish'),
-      vi.fn(async () => false),
+      mock(async () => false),
     );
     const response = await request(app)
       .post('/posts')

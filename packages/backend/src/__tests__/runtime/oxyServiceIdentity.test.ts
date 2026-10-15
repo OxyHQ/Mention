@@ -9,7 +9,7 @@
  * asserted is the `Authorization` header that reaches the network, which is the
  * only thing oxy-api's limiter reads.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, spyOn, jest } from 'bun:test';
 import { clearRuntimeOxyClient, getRuntimeOxyClient } from '../../runtime/oxyClient';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 
@@ -23,7 +23,7 @@ describe('server-side Oxy clients carry the service token on session-less reads'
   afterEach(() => {
     globalThis.fetch = originalFetch;
     clearRuntimeOxyClient();
-    vi.restoreAllMocks();
+    jest.restoreAllMocks();
   });
 
   it.each([
@@ -41,11 +41,11 @@ describe('server-side Oxy clients carry the service token on session-less reads'
 
     const client = getClient();
     // A local checkout can mint nothing; pretend this one can, as a task can.
-    vi.spyOn(
+    spyOn(
       client as unknown as { canMintServiceToken(): boolean },
       'canMintServiceToken',
     ).mockReturnValue(true);
-    vi.spyOn(client, 'serviceToken').mockResolvedValue('mention-service-token');
+    spyOn(client, 'serviceToken').mockResolvedValue('mention-service-token');
 
     await client.users.byUsername(`alice-${Math.random().toString(36).slice(2)}`, { cache: false });
 
