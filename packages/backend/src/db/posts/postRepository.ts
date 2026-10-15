@@ -47,7 +47,7 @@
  * needs a nullable sort key must say `nulls first` explicitly.
  */
 
-import { and, asc, eq, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import {
   enqueueFederatedMediaDeletions,
   enqueueFederatedMediaDeletionsForPosts,
@@ -103,7 +103,17 @@ import { invalidate as invalidatePostDetailCache } from '../../services/postDeta
 
 type PostRow = typeof posts.$inferSelect;
 type PostInsert = typeof posts.$inferInsert;
-type VariantRow = typeof postContentVariants.$inferSelect;
+/**
+ * Every rendition column hydration reads: all of them but `search_vector`.
+ *
+ * The vector is the text index's input, read by nothing in the app, and at
+ * ~364 bytes it is about half the row and larger than the body it is derived
+ * from (production sample, 2026-10-15). A bare `select()` shipped and parsed it
+ * for every rendition of every post every feed hydrates.
+ */
+const { searchVector: _searchVector, ...variantReadColumns } = getTableColumns(postContentVariants);
+export { variantReadColumns };
+type VariantRow = Omit<typeof postContentVariants.$inferSelect, 'searchVector'>;
 type MediaRow = typeof postMedia.$inferSelect;
 type VariantMediaRow = typeof postVariantMedia.$inferSelect;
 
@@ -300,7 +310,7 @@ async function loadChildRows(
         asc(postAuthorships.id),
       ),
     db
-      .select()
+      .select(variantReadColumns)
       .from(postContentVariants)
       .where(inArray(postContentVariants.postId, [...postIds]))
       .orderBy(asc(postContentVariants.position)),
