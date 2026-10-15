@@ -90,7 +90,6 @@ import { posts } from '../../db/schema/posts';
 import { entityFollows, likes } from '../../db/schema/engagement';
 import { userSettings } from '../../db/schema/userProfile';
 import { insertPostRecord } from '../../db/posts/postRepository';
-import { refreshTopicAffinityPosts } from '../../services/TopicAffinityRefreshJob';
 import {
   deleteUserBehavior,
   updateUserBehavior,
@@ -648,8 +647,6 @@ describe('the behavior-derived signals', () => {
       });
     }
     await createPost(id('rust-author'), { postClassification: { topics: [id('rust')] } });
-    // Topic affinity reads `topic_affinity_posts`; the leader refreshes it.
-    await refreshTopicAffinityPosts(db);
 
     const result = await service.getContentCandidates(VIEWER);
 
@@ -675,8 +672,6 @@ describe('the behavior-derived signals', () => {
     );
     await createPost(id('crypto-author'), { postClassification: { topics: [id('crypto')] } });
     await createPost(id('rust-author'), { postClassification: { topics: [id('rust')] } });
-    // Topic affinity reads `topic_affinity_posts`; the leader refreshes it.
-    await refreshTopicAffinityPosts(db);
 
     const result = await service.getContentCandidates(VIEWER);
 

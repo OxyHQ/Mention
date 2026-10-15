@@ -95,6 +95,8 @@ describe('the sweep registry', () => {
       // never claimed again, so nothing else will ever remove one.
       'moderation_outbox',
       'notifications',
+      // A trigger-maintained 30-day read model; the triggers only ever add.
+      'topic_affinity_posts',
       // The largest rows in the schema — a whole batch of nodes and edges in two
       // jsonb columns.
       'trend_graphs',

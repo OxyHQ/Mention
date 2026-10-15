@@ -214,6 +214,22 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     why: 'A denormalized replier projection for a destroyed post. `ON DELETE CASCADE` on `posts.id`.',
   },
   {
+    table: 'topic_affinity_posts',
+    column: 'postId',
+    scope: 'channel-posts',
+    action: 'database',
+    why: 'A trigger-maintained copy of a public post for topic affinity. `ON DELETE CASCADE` on `posts.id`.',
+  },
+  {
+    table: 'topic_affinity_posts',
+    column: 'oxyUserId',
+    scope: 'channel-account',
+    action: 'database',
+    why:
+      "Always the author of the row's own post (the trigger copies `posts.oxy_user_id`), so the channel's " +
+      'rows go with its posts: `ON DELETE CASCADE` on `topic_affinity_posts.post_id` → `posts.id`.',
+  },
+  {
     table: 'post_corrections',
     column: 'postId',
     scope: 'channel-posts',
