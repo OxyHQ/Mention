@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 
 import { useProfileScroll } from '../useProfileScroll';
@@ -29,6 +30,8 @@ const mockGetFeedMeta = jest.fn<FeedMeta, [string]>(() => ({
   nextCursor: 'cursor-1',
 }));
 let mockFeedUI: Record<string, { isLoading: boolean }> = {};
+// The web pager listens to the shared `scrollY`, not to a ScrollView.
+let mockScrollYListener: ((state: { value: number }) => void) | null = null;
 
 jest.mock('@/stores/postsStore', () => ({
   usePostsStore: {
@@ -54,7 +57,13 @@ jest.mock('@/hooks/useFocusedScrollable', () => ({
 
 jest.mock('@/context/LayoutScrollContext', () => ({
   useLayoutScroll: () => ({
-    scrollY: { addListener: () => 'listener-1', removeListener: () => {} },
+    scrollY: {
+      addListener: (listener: (state: { value: number }) => void) => {
+        mockScrollYListener = listener;
+        return 'listener-1';
+      },
+      removeListener: () => {},
+    },
     createAnimatedScrollHandler: (listener: (event: unknown) => void) => listener,
     scrollToOffset: () => {},
     setScrollY: () => {},
@@ -109,6 +118,7 @@ beforeEach(() => {
   jest.useFakeTimers();
   jest.clearAllMocks();
   mockFeedUI = {};
+  mockScrollYListener = null;
   mockGetFeedMeta.mockReturnValue({ hasMore: true, nextCursor: 'cursor-1' });
   latest = null;
 });
@@ -203,6 +213,16 @@ describe('useProfileScroll load-more targeting', () => {
     act(() => renderer.unmount());
   });
 
+  it('leaves the first page to the list: no cursor, no load-more', async () => {
+    mockGetFeedMeta.mockReturnValue({ hasMore: true });
+    const renderer = await mount('user-1', 'posts');
+
+    scrollToBottom();
+    expect(mockFetchUserFeed).not.toHaveBeenCalled();
+
+    act(() => renderer.unmount());
+  });
+
   it('does not page a profile it has no id for', async () => {
     const renderer = await mount(undefined, 'posts');
 
@@ -224,6 +244,68 @@ describe('useProfileScroll load-more targeting', () => {
 
       scrollToBottom();
       expect(mockFetchUserFeed).not.toHaveBeenCalled();
+
+      act(() => renderer.unmount());
+    },
+  );
+});
+
+/**
+ * On the web a feed tab is a `<Feed>` that pages itself from its own cache, so
+ * this pager serves only the grids, whose web list has no end detection.
+ * Paging a feed tab here too requested every page of the profile twice.
+ */
+describe('useProfileScroll on the web', () => {
+  // Only the two measurements the web pager reads; the test runs without a DOM.
+  const globals = globalThis as unknown as {
+    document?: unknown;
+    window?: { innerHeight?: number };
+  };
+  const originalDocument = globals.document;
+  const originalInnerHeight = globals.window?.innerHeight;
+
+  beforeEach(() => {
+    jest.replaceProperty(Platform, 'OS', 'web');
+    // A document 100px taller than the viewport: any scroll is near the bottom.
+    globals.document = { documentElement: { scrollHeight: 1000 } };
+    if (globals.window) globals.window.innerHeight = 900;
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    globals.document = originalDocument;
+    if (globals.window) globals.window.innerHeight = originalInnerHeight;
+  });
+
+  function scrollDocument() {
+    act(() => {
+      mockScrollYListener?.({ value: 0 });
+    });
+  }
+
+  it.each<ProfileTab>(['posts', 'replies', 'likes'])(
+    'leaves %s to its <Feed>, which pages itself',
+    async (tab) => {
+      const renderer = await mount('user-1', tab);
+
+      expect(mockScrollYListener).not.toBeNull();
+      scrollDocument();
+      expect(mockFetchUserFeed).not.toHaveBeenCalled();
+
+      act(() => renderer.unmount());
+    },
+  );
+
+  it.each<ProfileTab>(['media', 'videos'])(
+    'pages the %s grid, which has no pager of its own',
+    async (tab) => {
+      const renderer = await mount('user-1', tab);
+
+      scrollDocument();
+      expect(mockFetchUserFeed).toHaveBeenCalledWith(
+        'user-1',
+        expect.objectContaining({ type: tab, cursor: 'cursor-1' }),
+      );
 
       act(() => renderer.unmount());
     },
