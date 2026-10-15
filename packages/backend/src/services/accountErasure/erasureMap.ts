@@ -139,6 +139,16 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
       '`ON DELETE CASCADE` from `posts` removes it when the posts phase deletes that post.',
   },
   {
+    table: 'author_post_counts',
+    column: 'oxyUserId',
+    disposition: 'delete-row',
+    phase: 'account',
+    why:
+      "The account's own post counts. Deleting its posts brings them to zero (the `posts` triggers " +
+      'subtract as each row goes), but the row would still name the account, so it goes after the walk. ' +
+      'A subtraction never recreates a row, so nothing writes it back.',
+  },
+  {
     table: 'post_authorships',
     column: 'oxyUserId',
     disposition: 'delete-entry',

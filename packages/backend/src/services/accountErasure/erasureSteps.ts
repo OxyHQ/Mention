@@ -85,7 +85,7 @@ import {
   postMentions,
   postRecentRepliers,
 } from '../../db/schema/postContent';
-import { posts } from '../../db/schema/posts';
+import { authorPostCounts, posts } from '../../db/schema/posts';
 import { userBehaviorAuthors, userBehaviors, userSettings } from '../../db/schema/userProfile';
 import { recomputeRecentRepliers } from '../PostRecentReplierService';
 import { ERASED_ACCOUNT_SENTINEL, type ErasurePhase } from './erasureMap';
@@ -424,6 +424,12 @@ export const ERASURE_STEPS: Readonly<Record<string, ErasureStep>> = {
     postAuthorships,
     postAuthorships.id,
     accountIs(postAuthorships.oxyUserId),
+  ),
+  'author_post_counts.oxyUserId': deleteRows(
+    'account',
+    authorPostCounts,
+    authorPostCounts.oxyUserId,
+    accountIs(authorPostCounts.oxyUserId),
   ),
   'posts.writtenByOxyUserId': replaceAccount(
     posts,
