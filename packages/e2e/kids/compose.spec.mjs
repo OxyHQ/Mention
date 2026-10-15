@@ -156,7 +156,11 @@ test('supervised writer uploads privately, previews through scoped access and su
     if (p === `/assets/${file.id}/url`)
       return json({ url: `https://api.oxy.so/assets/${file.id}/stream?token=fixture-scoped` });
     if (p === `/assets/${file.id}`) return json(file);
-    if (p.includes('socket.io')) return route.abort();
+    if (
+      ['https://api.mention.earth', 'https://api.oxy.so'].includes(url.origin) &&
+      (p === '/socket.io' || p === '/socket.io/')
+    )
+      return route.abort();
     if (p.includes('/session/sessions') || p.startsWith('/session/device/sessions'))
       return json([]);
     if (p.includes('/accounts')) return json({ accounts: [], items: [] });

@@ -5,7 +5,14 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { useSupervisionState } from '@/hooks/useSupervisionState';
 
 /** Unreviewed product surfaces are unavailable, not a request to weaken protection. */
-export function SupervisedFeatureGate({ children }: { children: ReactNode }) {
+export function SupervisedFeatureGate({
+  children,
+  allowSupervised = false,
+}: {
+  children: ReactNode;
+  /** Only for a reviewed surface; this never replaces the live server decision. */
+  allowSupervised?: boolean;
+}) {
   const { t } = useTranslation();
   const state = useSupervisionState();
   if (state.isError)
@@ -21,7 +28,7 @@ export function SupervisedFeatureGate({ children }: { children: ReactNode }) {
       />
     );
   if (!state.ready) return <Loading />;
-  if (state.supervised)
+  if (state.supervised && !allowSupervised)
     return (
       <EmptyState
         icon={{ name: 'lock-closed-outline' }}
