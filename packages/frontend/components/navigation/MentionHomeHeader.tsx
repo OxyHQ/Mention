@@ -35,15 +35,15 @@ export function MentionHomeHeader() {
       leading={<AppShellMenuButton />}
       actions={
         <ButtonGroup accessibilityLabel={t('common.actions', { defaultValue: 'Page actions' })}>
-          <ButtonGroupItem leadingIcon={RiSparklingLine} onPress={askAlia.open}>
-            {t('header.askAlia')}
-          </ButtonGroupItem>
           <ButtonGroupItem
             iconOnly
             leadingIcon={RiSearchLine}
             accessibilityLabel={t('Search')}
             onPress={() => router.push('/search')}
           />
+          <ButtonGroupItem leadingIcon={RiSparklingLine} onPress={askAlia.open}>
+            {t('header.askAlia')}
+          </ButtonGroupItem>
           <ButtonGroupItem
             iconOnly
             leadingIcon={RiNotification3Line}
