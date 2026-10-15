@@ -42,7 +42,9 @@ export function ExperienceEditor({
 }) {
   const { t } = useTranslation();
   const control = useDialogControl();
-  useEffect(() => { control.open(); }, [control]);
+  useEffect(() => {
+    control.open();
+  }, [control]);
   const { user, canUsePrivateApi } = useAuth();
   const canEdit = user?.id === ownerId && canUsePrivateApi;
   const [draft, setDraft] = useState<ExperienceInput>(() => ({
