@@ -19,10 +19,10 @@ past any of:
 
 | Budget | Ceiling |
 | --- | --- |
-| Total bytes | 20.8125 MiB |
-| JavaScript bytes | 16.45 MiB |
-| Initial JavaScript bytes | 6.9 MiB |
-| Initial JavaScript gzip bytes | 1.78 MiB (target: 1.6 MiB) |
+| Total bytes | 21,905,408 bytes (20.891 MiB) |
+| JavaScript bytes | 17,271,808 bytes (16.473 MiB) |
+| Initial JavaScript bytes | 7.10 MiB |
+| Initial JavaScript gzip bytes | 1.82 MiB (target: 1.6 MiB) |
 | Font bytes | 4 MiB |
 | Largest single file | 7.5 MiB |
 
@@ -55,6 +55,35 @@ adoption (`docs/audits/2026-10-04-catalog-and-bundle-followup/`), and
 group (#1371): main sat 4 KiB under the ceiling and the group's patch releases
 (TanStack Query, dotlottie, LiveKit and others) add 7.17 KiB, every other
 ceiling unchanged and initial JavaScript +2.83 KiB.
+
+The canonical Experience feature (#1408, 2026-10-15) raises only the two
+aggregate ceilings to the next KiB above its measured production export:
+total +81,920 bytes and JavaScript +22,733 bytes. The export comparison uses
+main `db5f552f7` and the same source-map analyzer with official registry
+Bloom 10.6.1, Oxy core 4.8.0/services 11.3.0/contracts 4.14.0 and Clarity SDK
+0.5.0. No initial-load, font, largest-file ceiling or long-term target moves.
+
+| Signal | Main | Experience after lazy loading | Change |
+| --- | --- | --- | --- |
+| Total bytes | 21,738,829 | 21,904,776 | +165,947 |
+| JavaScript bytes | 17,105,947 | 17,271,788 | +165,841 |
+| Initial JavaScript bytes | 7,317,050 | 7,343,972 | +26,922 |
+| Initial JavaScript gzip bytes | 1,885,295 | 1,891,064 | +5,769 |
+
+Source-map attribution identifies 72,497 added source bytes in the 15 Mention
+locale catalogues. Other additions are the Experience list/editor/employer
+selector and the canonical organization SDK/shared account UI. Services 11.3 uses Color 5;
+Expo Router still requires Color 4, accounting for about 14 KiB of the initial
+isolated-gzip source increase. Their incompatible major versions remain intact.
+Source bytes and isolated gzip are attribution signals, not additive measures
+of the minified output in the table.
+
+Experience previously loaded with every profile. Its single lazy boundary now
+removes 39,752 JavaScript bytes from the initial load, with the history, editor
+and Clarity client downloaded only when that tab opens. The `deferredSources`
+gate asserts the history/editor stay out of the initial chunk, alongside all
+existing deferred features. All 15 translations remain available; production
+browser checks cover owner edits, visitor access and the shared directory.
 
 The JavaScript-bytes ceiling was raised from 13 MiB by
 `4ca5f1e feat(i18n): translate all fourteen locales` — the locale catalogues are

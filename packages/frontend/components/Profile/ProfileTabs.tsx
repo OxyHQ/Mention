@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { lazy, memo, Suspense } from 'react';
 import { View, Text, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -13,7 +13,6 @@ import { Feed } from '@/components/Feed/index';
 // tab with no pinned post first, then pushed the whole feed down under it (#1216).
 import PinnedPostItem from '@/components/Feed/PostItem';
 import { ProfileWriters } from './ProfileWriters';
-import { ProfileExperience } from './ProfileExperience';
 import MediaGrid from './MediaGrid';
 import VideosGrid from './VideosGrid';
 import { FeedCard } from '@/components/FeedCard';
@@ -37,6 +36,10 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Button } from '@oxy.so/bloom/button';
 import { useReselectReloadKey } from '@/context/ScreenReselectContext';
+
+const ProfileExperience = lazy(() =>
+  import('./ProfileExperience').then((module) => ({ default: module.ProfileExperience })),
+);
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -143,7 +146,11 @@ export const ProfileTabs = memo(function ProfileTabs({
   }
 
   if (tab === 'experience') {
-    return <ProfileExperience profileId={profileId} isOwnProfile={isOwnProfile} />;
+    return (
+      <Suspense fallback={<Loading />}>
+        <ProfileExperience profileId={profileId} isOwnProfile={isOwnProfile} />
+      </Suspense>
+    );
   }
 
   // Lists tab

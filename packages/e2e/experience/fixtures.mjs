@@ -215,7 +215,11 @@ async function setup(context, authenticated = true, viewer = owner) {
     if (path.includes('/feed') || path.includes('/posts'))
       return json({ posts: [], items: [], hasMore: false, nextCursor: null });
     if (path.includes('/lanes')) return json({ items: [], lanes: [], nextCursor: null });
-    if (path.includes('socket.io')) return route.abort();
+    if (
+      ['https://api.mention.earth', 'https://api.oxy.so'].includes(url.origin) &&
+      (path === '/socket.io' || path === '/socket.io/')
+    )
+      return route.abort();
     return json({ items: [], data: [], nextCursor: null });
   });
 }
