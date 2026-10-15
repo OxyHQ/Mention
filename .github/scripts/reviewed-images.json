@@ -7,7 +7,7 @@
       "dockerfile": "packages/backend/Dockerfile",
       "context": ".",
       "target": null,
-      "buildInputsSha256": "1955210b07810740a7ef0a64a87c819cb02246bcd97520f0cfb555f0846bd3a9"
+      "buildInputsSha256": "bd4eec29afeac35081a9f9c93e0184f08ebb1b7e62061a3048edc36ce8a43376"
     },
     {
       "name": "mention-mcp",
@@ -15,7 +15,7 @@
       "dockerfile": "packages/mcp/Dockerfile",
       "context": ".",
       "target": null,
-      "buildInputsSha256": "c534148a4868995719fb1ccc8080e141705ecff18d4a6dfcc2a8ada0d2249516"
+      "buildInputsSha256": "9d7b5f45044da298442d65f6fbed2004ba6c758f6ba3d8ee53e2d90b31493b84"
     }
   ]
 }

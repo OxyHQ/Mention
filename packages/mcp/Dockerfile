@@ -43,7 +43,6 @@ ENV OXY_API_URL=https://api.oxy.so
 
 COPY --from=manifests /app/package.json /app/bun.lock /app/bunfig.toml ./
 COPY --from=manifests /app/patches/ patches/
-COPY --from=manifests /app/vendor/ vendor/
 COPY --from=manifests /app/packages/shared-types/package.json packages/shared-types/
 COPY --from=manifests /app/packages/mcp/package.json packages/mcp/
 COPY --from=manifests /app/packages/backend/package.json packages/backend/
