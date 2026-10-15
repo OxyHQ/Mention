@@ -162,7 +162,8 @@ above). zod enters startup through `@syra.fm/sdk/client`'s response schemas,
 reached from two async chunks (the podcast-save client and the live runtime),
 which `extractCommonChunk` hoists into `__common`.
 
-Neither half has a fix in Mention, measured on 2026-10-15:
+Neither half has a fix in Mention, measured on 2026-10-15 (the fix landed in
+the SDK — see the next section):
 
 - **The locales cannot be shaken by changing imports.** zod's own
   classic schemas module (and zod/mini's) imports zod's core as a namespace
@@ -184,6 +185,33 @@ Neither half has a fix in Mention, measured on 2026-10-15:
 
 None of it RUNS at startup — the factories are defined, not required, until one
 of those chunks loads — so the cost is the download and parse of ~490 KiB raw.
+
+### zod out of startup (2026-10-15)
+
+Fixed at the root, in the SDK: `@syra.fm/sdk` 0.18 checks its responses (the
+client and the live-rooms engine) in plain TypeScript and serves its Zod
+schemas only from `@syra.fm/sdk/schemas`, for server consumers (OxyHQ/Syra).
+That leaves Mention's notification validators (`types/validation.ts`, behind
+`lib/notificationValidation.ts`'s one `import()`) as zod's only way in, so zod
+and its locales stay in that async chunk and leave `__common`. No Mention code
+changed. Measured on one `expo export --platform web` (tree shaking on) of the
+same commit, `@syra.fm/sdk` 0.16.2 vs 0.18.0:
+
+| Signal | Before | After | Δ |
+| --- | --- | --- | --- |
+| Initial JavaScript bytes | 6,275,398 (5.98 MiB) | 5,695,652 (5.43 MiB) | −579,746 (−9.2 %) |
+| Initial JavaScript gzip bytes | 1,641,225 (1.57 MiB) | 1,540,839 (1.47 MiB) | −100,386 (−6.1 %) |
+| Initial JavaScript brotli bytes | 1,257,560 (1.20 MiB) | 1,177,799 (1.12 MiB) | −79,761 (−6.3 %) |
+| `__common` bytes | 5,170,316 | 4,590,570 | −579,746 |
+| JavaScript bytes (all chunks) | 15,645,157 | 15,648,050 | +2,893 |
+
+The ceilings moved down to ~5 % above the build (5.7 MiB initial, 1.55 MiB
+gzip). `bundle-budgets.json` lists `^/node_modules/zod/` under
+`deferredSources`, so a second async consumer of zod — which would hoist it
+straight back into `__common` — fails `analyze-bundle --ci` instead of costing
+~560 KiB unnoticed. (`@oxy.so/contracts` still bundles its own zod 3 copy under
+`@oxy.so/contracts/node_modules/zod/`, which that pattern deliberately does not
+match; it is counted under `@oxy.so/contracts`.)
 
 ### Layout chunk preloads (2026-10-15)
 
