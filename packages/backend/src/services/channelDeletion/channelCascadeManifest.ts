@@ -804,6 +804,15 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     why: 'Denormalized follower counts used by feed ranking.',
   },
   {
+    table: 'author_post_counts',
+    column: 'oxyUserId',
+    scope: 'channel-account',
+    action: 'delete-row',
+    why:
+      "The channel's own post counts, kept by triggers on `posts`. Deleting its posts brings them to zero; " +
+      'the row still names the channel, so it goes too.',
+  },
+  {
     table: 'mention_signed_records',
     column: 'oxyUserId',
     scope: 'channel-account',
