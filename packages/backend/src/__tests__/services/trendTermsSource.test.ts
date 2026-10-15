@@ -60,16 +60,14 @@ async function seedTrend(name: string, memberIds: string[] = []): Promise<void> 
     .returning({ id: trending.id });
   createdTrendIds.push(row.id);
   if (memberIds.length > 0) {
-    await db
-      .insert(trendStoryPosts)
-      .values(
-        memberIds.map((postId) => ({
-          trendId: row.id,
-          postId,
-          relevance: 1,
-          matchedTerms: [name],
-        })),
-      );
+    await db.insert(trendStoryPosts).values(
+      memberIds.map((postId) => ({
+        trendId: row.id,
+        postId,
+        relevance: 1,
+        matchedTerms: [name],
+      })),
+    );
   }
 }
 
