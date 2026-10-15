@@ -17,6 +17,8 @@ COPY packages/backend/package.json packages/backend/
 COPY packages/mcp/package.json packages/mcp/
 COPY packages/frontend/package.json packages/frontend/
 COPY packages/e2e/package.json packages/e2e/
+COPY packages/contracts/package.json packages/contracts/
+COPY packages/sdk/package.json packages/sdk/
 RUN bun install --frozen-lockfile --ignore-scripts --lockfile-only
 
 FROM manifests AS builder
@@ -47,6 +49,8 @@ COPY --from=manifests /app/packages/backend/package.json packages/backend/
 COPY --from=manifests /app/packages/mcp/package.json packages/mcp/
 COPY --from=manifests /app/packages/frontend/package.json packages/frontend/
 COPY --from=manifests /app/packages/e2e/package.json packages/e2e/
+COPY --from=manifests /app/packages/contracts/package.json packages/contracts/
+COPY --from=manifests /app/packages/sdk/package.json packages/sdk/
 
 RUN --mount=type=cache,target=/root/.bun/install/cache \
   bun install --frozen-lockfile --omit=dev --omit=peer --omit=optional --ignore-scripts \

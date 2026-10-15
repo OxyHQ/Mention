@@ -66,6 +66,13 @@
         "vitest": "^5.0.3",
       },
     },
+    "packages/contracts": {
+      "name": "@mention/contracts",
+      "version": "0.1.1",
+      "dependencies": {
+        "zod": "catalog:",
+      },
+    },
     "packages/e2e": {
       "name": "@mention/e2e",
       "version": "1.0.0",
@@ -215,6 +222,13 @@
         "@types/node": "catalog:",
         "jsonwebtoken": "catalog:",
         "typescript": "catalog:",
+      },
+    },
+    "packages/sdk": {
+      "name": "@mention/sdk",
+      "version": "0.1.1",
+      "dependencies": {
+        "@mention/contracts": "^0.1.1",
       },
     },
     "packages/shared-types": {
@@ -900,11 +914,15 @@
 
     "@mention/backend": ["@mention/backend@workspace:packages/backend"],
 
+    "@mention/contracts": ["@mention/contracts@workspace:packages/contracts"],
+
     "@mention/e2e": ["@mention/e2e@workspace:packages/e2e"],
 
     "@mention/frontend": ["@mention/frontend@workspace:packages/frontend"],
 
     "@mention/mcp": ["@mention/mcp@workspace:packages/mcp"],
+
+    "@mention/sdk": ["@mention/sdk@workspace:packages/sdk"],
 
     "@mention/shared-types": ["@mention/shared-types@workspace:packages/shared-types"],
 
