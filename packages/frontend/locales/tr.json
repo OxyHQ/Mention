@@ -2113,8 +2113,6 @@
   "Failed to load post": "Gönderi yüklenemedi",
   "Failed to load post for editing": "Gönderi düzenlemek üzere yüklenemedi",
   "GIF attached": "GIF eklendi",
-  "Help me edit an image": "Bir görseli düzenlememe yardım et",
-  "How can I help you today?": "Bugün sana nasıl yardımcı olabilirim?",
   "Interaction limited": "Etkileşim sınırlı",
   "Loading GIFs...": "GIF'ler yükleniyor...",
   "Loading post...": "Gönderi yükleniyor...",
@@ -2149,7 +2147,6 @@
   "Suggested for you": "Sana önerilenler",
   "Thread": "Konu dizisi",
   "Trending now": "Şu anda gündemde",
-  "What are the latest news?": "Son haberler neler?",
   "Who can reply": "Kimler yanıtlayabilir",
   "Your reply has been posted!": "Yanıtın paylaşıldı!",
   "profile.signInRequired": "Profilini görmek için giriş yap",
@@ -2519,5 +2516,10 @@
     "title": "Bu sayfa mevcut değil",
     "subtitle": "Bağlantı bozuk olabilir veya sayfa taşınmış olabilir.",
     "goHome": "Ana sayfaya git"
-  }
+  },
+  "alia.clientContext": "Kişi; gönderiler, yanıtlar, listeler ve akışlar sunan bir sosyal ağ olan Mention'ı kullanıyor ve senden yardım istiyor.",
+  "alia.onScreen": "Şu anda {{path}} ekranında.",
+  "alia.suggestion.news": "Bugün herkes ne konuşuyor?",
+  "alia.suggestion.write": "Bir gönderi yazmama yardım et",
+  "alia.suggestion.discover": "Takip edilecek hesaplar ve konular öner"
 }

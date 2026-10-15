@@ -2167,8 +2167,6 @@
   "Failed to load post": "Не удалось загрузить пост",
   "Failed to load post for editing": "Не удалось загрузить пост для редактирования",
   "GIF attached": "GIF прикреплён",
-  "Help me edit an image": "Помогите отредактировать изображение",
-  "How can I help you today?": "Чем я могу помочь?",
   "Interaction limited": "Взаимодействие ограничено",
   "Loading GIFs...": "Загрузка GIF...",
   "Loading post...": "Загрузка поста...",
@@ -2203,7 +2201,6 @@
   "Suggested for you": "Рекомендуем вам",
   "Thread": "Тред",
   "Trending now": "Сейчас в трендах",
-  "What are the latest news?": "Какие последние новости?",
   "Who can reply": "Кто может отвечать",
   "Your reply has been posted!": "Ваш ответ опубликован!",
   "profile.signInRequired": "Войдите, чтобы увидеть свой профиль",
@@ -2575,5 +2572,10 @@
     "title": "Этой страницы не существует",
     "subtitle": "Возможно, ссылка неверна или страница была перемещена.",
     "goHome": "На главную"
-  }
+  },
+  "alia.clientContext": "Человек пользуется Mention, социальной сетью с публикациями, ответами, списками и лентами, и просит тебя о помощи.",
+  "alia.onScreen": "Сейчас он на экране {{path}}.",
+  "alia.suggestion.news": "О чём сегодня все говорят?",
+  "alia.suggestion.write": "Помоги написать публикацию",
+  "alia.suggestion.discover": "Предложи аккаунты и темы для подписки"
 }

@@ -2487,8 +2487,6 @@
   "Failed to load post": "Failed to load post",
   "Failed to load post for editing": "Failed to load post for editing",
   "GIF attached": "GIF attached",
-  "Help me edit an image": "Help me edit an image",
-  "How can I help you today?": "How can I help you today?",
   "Interaction limited": "Interaction limited",
   "Loading GIFs...": "Loading GIFs...",
   "Loading post...": "Loading post...",
@@ -2523,7 +2521,6 @@
   "Suggested for you": "Suggested for you",
   "Thread": "Thread",
   "Trending now": "Trending now",
-  "What are the latest news?": "What are the latest news?",
   "Who can reply": "Who can reply",
   "Your reply has been posted!": "Your reply has been posted!",
   "profile.signInRequired": "Sign in to see your profile",
@@ -2847,5 +2844,10 @@
     "title": "This page does not exist",
     "subtitle": "The link may be broken, or the page may have moved.",
     "goHome": "Go to home"
-  }
+  },
+  "alia.clientContext": "The person is using Mention, a social network for posts, replies, lists and feeds, and is asking you for help.",
+  "alia.onScreen": "They are on the screen {{path}}.",
+  "alia.suggestion.news": "What is everyone talking about today?",
+  "alia.suggestion.write": "Help me write a post",
+  "alia.suggestion.discover": "Suggest accounts and topics to follow"
 }

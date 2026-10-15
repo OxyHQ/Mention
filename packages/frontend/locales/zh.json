@@ -2113,8 +2113,6 @@
   "Failed to load post": "加载帖子失败",
   "Failed to load post for editing": "加载待编辑的帖子失败",
   "GIF attached": "已附加 GIF",
-  "Help me edit an image": "帮我编辑一张图片",
-  "How can I help you today?": "今天有什么可以帮你的？",
   "Interaction limited": "互动受限",
   "Loading GIFs...": "正在加载 GIF…",
   "Loading post...": "正在加载帖子…",
@@ -2149,7 +2147,6 @@
   "Suggested for you": "为你推荐",
   "Thread": "串文",
   "Trending now": "正在热议",
-  "What are the latest news?": "有什么最新消息？",
   "Who can reply": "谁可以回复",
   "Your reply has been posted!": "你的回复已发布！",
   "profile.signInRequired": "登录以查看你的个人资料",
@@ -2519,5 +2516,10 @@
     "title": "此页面不存在",
     "subtitle": "链接可能已失效，或页面已被移动。",
     "goHome": "返回首页"
-  }
+  },
+  "alia.clientContext": "这位用户正在使用 Mention（一个包含帖子、回复、列表和信息流的社交网络），并向你寻求帮助。",
+  "alia.onScreen": "他们当前所在的页面是 {{path}}。",
+  "alia.suggestion.news": "今天大家都在聊什么？",
+  "alia.suggestion.write": "帮我写一条帖子",
+  "alia.suggestion.discover": "推荐一些值得关注的账号和话题"
 }

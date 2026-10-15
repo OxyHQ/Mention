@@ -2140,8 +2140,6 @@
   "Failed to load post": "Falha ao carregar a publicação",
   "Failed to load post for editing": "Falha ao carregar a publicação para edição",
   "GIF attached": "GIF anexado",
-  "Help me edit an image": "Ajuda-me a editar uma imagem",
-  "How can I help you today?": "Como te posso ajudar hoje?",
   "Interaction limited": "Interação limitada",
   "Loading GIFs...": "A carregar GIFs...",
   "Loading post...": "A carregar a publicação...",
@@ -2176,7 +2174,6 @@
   "Suggested for you": "Sugerido para ti",
   "Thread": "Tópico",
   "Trending now": "Em tendência agora",
-  "What are the latest news?": "Quais são as últimas notícias?",
   "Who can reply": "Quem pode responder",
   "Your reply has been posted!": "A tua resposta foi publicada!",
   "profile.signInRequired": "Inicia sessão para ver o teu perfil",
@@ -2547,5 +2544,10 @@
     "title": "Esta página não existe",
     "subtitle": "O link pode estar quebrado ou a página pode ter sido movida.",
     "goHome": "Ir para o início"
-  }
+  },
+  "alia.clientContext": "A pessoa está usando o Mention, uma rede social de publicações, respostas, listas e feeds, e pede a sua ajuda.",
+  "alia.onScreen": "Ela está na tela {{path}}.",
+  "alia.suggestion.news": "Sobre o que todo mundo está falando hoje?",
+  "alia.suggestion.write": "Ajude-me a escrever uma publicação",
+  "alia.suggestion.discover": "Sugira contas e assuntos para seguir"
 }

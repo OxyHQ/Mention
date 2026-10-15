@@ -15,6 +15,7 @@ import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { LogoIcon } from '@/assets/logo';
 import { useMentionSettings } from '@/context/MentionSettingsContext';
 import { useDrawer } from '@/context/DrawerContext';
+import { useAskAlia } from '@/context/AskAliaContext';
 import { useNavigateOrReselect } from '@/hooks/useNavigateOrReselect';
 import { Home, HomeActive } from '@/assets/icons/home-icon';
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
@@ -57,6 +58,7 @@ export function useMentionSidebar(): SidebarProps {
   const { close } = useDrawer();
   const settings = useMentionSettings();
   const navigateOrReselect = useNavigateOrReselect();
+  const askAlia = useAskAlia();
   // The row for the page already open is not a destination: it takes the
   // reader back to the top, then reloads.
   const handleNavPress = useCallback(
@@ -70,6 +72,11 @@ export function useMentionSidebar(): SidebarProps {
     close();
     router.push('/compose');
   }, [close, router]);
+  // The drawer closes and the chat rises over the app.
+  const handleAskAlia = useCallback(() => {
+    close();
+    askAlia.open();
+  }, [close, askAlia]);
   const handleAddAccount = useCallback(() => {
     close();
     signIn().catch(() => {});
@@ -128,18 +135,14 @@ export function useMentionSidebar(): SidebarProps {
         iconActive: <SearchActive />,
         route: '/explore',
       },
-      // Alia answers the reader's Oxy session, so the row is not offered to an
-      // anonymous visitor.
-      ...(user
-        ? [
-            {
-              title: t('sidebar.askAlia'),
-              icon: <AskAliaIcon />,
-              iconActive: <AskAliaIconActive />,
-              route: '/ai' as const,
-            },
-          ]
-        : []),
+      // A sheet, not a page. Signed out, the press opens the Oxy sign-in dialog
+      // (see AskAliaContext).
+      {
+        title: t('sidebar.askAlia'),
+        icon: <AskAliaIcon />,
+        iconActive: <AskAliaIconActive />,
+        onPress: handleAskAlia,
+      },
       {
         title: t('sidebar.notifications'),
         icon: <Bell />,
@@ -193,7 +196,7 @@ export function useMentionSidebar(): SidebarProps {
         onPress: handleNavigateManage,
       },
     ],
-    [t, user, avatarUri, avatarName, handleNavigateProfile, handleNavigateManage],
+    [t, user, avatarUri, avatarName, handleNavigateProfile, handleNavigateManage, handleAskAlia],
   );
 
   const pathname = usePathname();

@@ -2219,8 +2219,6 @@
   "Failed to load post": "فشل تحميل المنشور",
   "Failed to load post for editing": "فشل تحميل المنشور للتعديل",
   "GIF attached": "تم إرفاق صورة GIF",
-  "Help me edit an image": "ساعدني في تعديل صورة",
-  "How can I help you today?": "كيف يمكنني مساعدتك اليوم؟",
   "Interaction limited": "التفاعل مقيَّد",
   "Loading GIFs...": "جارٍ تحميل صور GIF...",
   "Loading post...": "جارٍ تحميل المنشور...",
@@ -2255,7 +2253,6 @@
   "Suggested for you": "مقترح لك",
   "Thread": "خيط",
   "Trending now": "الرائج الآن",
-  "What are the latest news?": "ما آخر الأخبار؟",
   "Who can reply": "من يمكنه الرد",
   "Your reply has been posted!": "تم نشر ردّك!",
   "profile.signInRequired": "سجّل الدخول لعرض ملفك الشخصي",
@@ -2629,5 +2626,10 @@
     "title": "هذه الصفحة غير موجودة",
     "subtitle": "ربما يكون الرابط معطلاً أو تم نقل الصفحة.",
     "goHome": "الذهاب إلى الصفحة الرئيسية"
-  }
+  },
+  "alia.clientContext": "يستخدم الشخص Mention، وهي شبكة اجتماعية للمنشورات والردود والقوائم والخلاصات، ويطلب مساعدتك.",
+  "alia.onScreen": "هو الآن في الشاشة {{path}}.",
+  "alia.suggestion.news": "عمَّ يتحدث الجميع اليوم؟",
+  "alia.suggestion.write": "ساعدني في كتابة منشور",
+  "alia.suggestion.discover": "اقترح حسابات ومواضيع للمتابعة"
 }
