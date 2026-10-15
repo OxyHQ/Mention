@@ -1,10 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, mock, spyOn, jest } from 'bun:test';
 import express from 'express';
 import request from 'supertest';
 import https from 'node:https';
 import { Readable } from 'node:stream';
 
 import * as shellDocument from '../services/webShellDocument';
+import { advanceTimersByTimeAsync } from './helpers/fakeTimers';
 import {
   __apexProxyForTests,
   apexFrontendProxy,
@@ -55,7 +56,7 @@ function stubCdn(overrides?: {
   headers?: Record<string, string>;
   body?: string;
 }) {
-  const requestMock = vi.fn(
+  const requestMock = mock(
     (
       url: string | URL,
       _options: unknown,
@@ -101,7 +102,7 @@ function stubCdn(overrides?: {
   );
   // Only `https` is stubbed: the CDN origin is https, while supertest itself uses
   // `http.request` to reach the local Express app — mocking that would break it.
-  vi.spyOn(https, 'request').mockImplementation(requestMock as unknown as typeof https.request);
+  spyOn(https, 'request').mockImplementation(requestMock as unknown as typeof https.request);
   return requestMock;
 }
 
@@ -110,7 +111,7 @@ const API = 'api.mention.earth';
 
 describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
   beforeEach(() => {
-    vi.restoreAllMocks();
+    jest.restoreAllMocks();
   });
 
   it('proxies apex `/` to the frontend CDN (SPA homepage, not the API welcome)', async () => {
@@ -218,7 +219,7 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
   });
 
   it('drops the held shell document when a hashed chunk it named is gone', async () => {
-    const invalidate = vi.spyOn(shellDocument, 'invalidateShellDocument');
+    const invalidate = spyOn(shellDocument, 'invalidateShellDocument');
     stubCdn({ contentType: 'text/html; charset=utf-8' });
 
     await request(makeApp())
@@ -229,7 +230,7 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
   });
 
   it('leaves the held shell document alone when a chunk is served', async () => {
-    const invalidate = vi.spyOn(shellDocument, 'invalidateShellDocument');
+    const invalidate = spyOn(shellDocument, 'invalidateShellDocument');
     stubCdn({ contentType: 'application/javascript' });
 
     await request(makeApp())
@@ -442,14 +443,14 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
 
 describe('apex proxy upstream deadline', () => {
   beforeEach(() => {
-    vi.restoreAllMocks();
-    vi.useFakeTimers();
+    jest.restoreAllMocks();
+    jest.useFakeTimers();
   });
 
   /** An upstream that answers every request with a redirect after `delayMs`. */
   function stubRedirectingCdn(delayMs: number) {
     const destroyed: Error[] = [];
-    const requestMock = vi.fn(
+    const requestMock = mock(
       (
         url: string | URL,
         _options: unknown,
@@ -491,7 +492,7 @@ describe('apex proxy upstream deadline', () => {
         return clientReq;
       },
     );
-    vi.spyOn(https, 'request').mockImplementation(requestMock as unknown as typeof https.request);
+    spyOn(https, 'request').mockImplementation(requestMock as unknown as typeof https.request);
     return { requestMock, destroyed };
   }
 
@@ -512,10 +513,10 @@ describe('apex proxy upstream deadline', () => {
       (error: Error) => error.message,
     );
 
-    await vi.advanceTimersByTimeAsync(PROXY_FETCH_TIMEOUT_MS + 1);
+    await advanceTimersByTimeAsync(PROXY_FETCH_TIMEOUT_MS + 1);
 
     expect(await outcome).toMatch(/did not answer within/);
     expect(requestMock.mock.calls.length).toBeLessThanOrEqual(3);
-    vi.useRealTimers();
+    jest.useRealTimers();
   });
 });

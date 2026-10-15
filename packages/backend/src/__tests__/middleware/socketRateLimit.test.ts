@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, mock, spyOn, jest } from 'bun:test';
 import { logger } from '../../utils/logger';
 import { createSocketRateLimiter } from '../../middleware/socketRateLimit';
 
@@ -13,12 +13,16 @@ import { createSocketRateLimiter } from '../../middleware/socketRateLimit';
  */
 describe('socketRateLimit wrap() error containment', () => {
   beforeEach(() => {
-    vi.restoreAllMocks();
+    jest.restoreAllMocks();
+    // `logger.error` is already a mock (bunSetup.ts), and bun's `spyOn` on a
+    // mock reuses it rather than wrapping it, so without this each test's spy
+    // would start with the previous tests' calls.
+    jest.clearAllMocks();
   });
 
   it('contains a synchronous throw without letting it escape the caller', () => {
     const { wrap } = createSocketRateLimiter();
-    const error = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+    const error = spyOn(logger, 'error').mockImplementation(() => undefined);
     const socket = { id: 'socket-1' };
     const handler = wrap(socket, 'someEvent', () => {
       throw new Error('boom');
@@ -31,7 +35,7 @@ describe('socketRateLimit wrap() error containment', () => {
 
   it('contains an async rejection as an unhandled-rejection sentinel would catch', async () => {
     const { wrap } = createSocketRateLimiter();
-    vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+    spyOn(logger, 'error').mockImplementation(() => undefined);
     const socket = { id: 'socket-2' };
 
     // The real trigger: an async handler destructuring a missing payload
@@ -45,7 +49,7 @@ describe('socketRateLimit wrap() error containment', () => {
       },
     );
 
-    const unhandled = vi.fn();
+    const unhandled = mock();
     process.once('unhandledRejection', unhandled);
 
     handler(undefined as never);
@@ -58,7 +62,7 @@ describe('socketRateLimit wrap() error containment', () => {
 
   it('logs the failure once the returned promise settles, not before', async () => {
     const { wrap } = createSocketRateLimiter();
-    const error = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+    const error = spyOn(logger, 'error').mockImplementation(() => undefined);
     const socket = { id: 'socket-3' };
     const handler = wrap(socket, 'someEvent', async () => {
       throw new Error('async boom');
@@ -72,9 +76,9 @@ describe('socketRateLimit wrap() error containment', () => {
 
   it('acks the true last argument with a bounded error when the handler fails', () => {
     const { wrap } = createSocketRateLimiter();
-    vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+    spyOn(logger, 'error').mockImplementation(() => undefined);
     const socket = { id: 'socket-4' };
-    const ack = vi.fn();
+    const ack = mock();
     const handler = wrap(socket, 'someEvent', () => {
       throw new Error('boom with details nobody outside should see');
     });
@@ -87,7 +91,7 @@ describe('socketRateLimit wrap() error containment', () => {
 
   it('does not call a non-function trailing argument', () => {
     const { wrap } = createSocketRateLimiter();
-    vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+    spyOn(logger, 'error').mockImplementation(() => undefined);
     const socket = { id: 'socket-5' };
     const handler = wrap(socket, 'someEvent', () => {
       throw new Error('boom');
@@ -98,7 +102,7 @@ describe('socketRateLimit wrap() error containment', () => {
 
   it('leaves rate limiting behaviour unchanged for a handler that always throws', () => {
     const { wrap } = createSocketRateLimiter();
-    vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+    spyOn(logger, 'error').mockImplementation(() => undefined);
     const socket = { id: 'socket-6' };
     let calls = 0;
     // getPresenceBulk is configured for 10 events / 10s.

@@ -12,7 +12,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import express, { type ErrorRequestHandler, type RequestHandler } from 'express';
 import request from 'supertest';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 import type { CreateAppDependencies } from '../app';
 import { createApp } from '../app';
 import type { AppRoutes } from '../appRoutes';
@@ -63,7 +63,7 @@ const errorHandler: ErrorRequestHandler = (_error, _req, res, _next) => {
 function createTestApp() {
   // Stands in for the real apex proxy: the shell Worker's SPA fallback answers
   // every path it is asked for with the HTML shell.
-  const apexProxy = vi.fn<RequestHandler>((req, res, next) => {
+  const apexProxy = mock<RequestHandler>((req, res, next) => {
     if (req.headers.host !== APEX) return next();
     res.status(200).type('html').send('<!doctype html><div id="root"></div>');
   });
@@ -95,8 +95,8 @@ function createTestApp() {
     isAllowedOrigin: () => true,
     isApexHost: (req) => req.headers.host === APEX,
     isApexWebPlaneRequest: (req) => req.headers.host === APEX,
-    countLocalPosts: vi.fn().mockResolvedValue(0),
-    logger: { debug: vi.fn() },
+    countLocalPosts: mock().mockResolvedValue(0),
+    logger: { debug: mock() },
     middleware: {
       requestObservability: passThrough,
       rateLimiter: passThrough,

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 import { OxyInferenceClient } from '@oxy.so/core/inference';
 import type { DecisionRequest, DecisionSuccess } from '@oxy.so/contracts';
 import { createJevShadowEvaluation } from '../../services/contentClassification/jevSdk';
@@ -46,7 +46,7 @@ function response(request: DecisionRequest): DecisionSuccess {
 }
 function fixture(mutate: (result: DecisionSuccess) => unknown = (result) => result) {
   // Exercise the public SDK with an in-memory fetch double, never a provider.
-  const transport = vi.fn(async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+  const transport = mock(async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
     const request = JSON.parse(String(init?.body)) as DecisionRequest;
     return new Response(JSON.stringify(mutate(response(request))), {
       headers: { 'Content-Type': 'application/json', 'X-Oxy-Request-Id': 'oxy-request' },
@@ -58,7 +58,7 @@ function fixture(mutate: (result: DecisionSuccess) => unknown = (result) => resu
 
 describe('published Jev SDK consumer', () => {
   it('refuses a configured recovery authority without a canonical reader before any inference', () => {
-    const decide = vi.fn();
+    const decide = mock();
     expect(() =>
       createJevShadowEvaluation({ decide }, release, topics, {
         applicationId: 'fixture',
@@ -79,7 +79,7 @@ describe('published Jev SDK consumer', () => {
         ...(delegatedUserId === undefined ? {} : { delegatedUserId }),
       };
       const original = { ...authority };
-      const transport = vi.fn(async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const transport = mock(async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
         const headers = new Headers(init?.headers);
         expect(headers.get('Idempotency-Key')).toBe(input.idempotencyKey);
         expect(headers.get('X-Oxy-User-Id')).toBe(delegatedUserId ?? null);

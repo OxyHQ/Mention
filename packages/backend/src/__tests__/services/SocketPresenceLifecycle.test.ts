@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 import {
   registerSocketPresence,
   type AuthenticatedPresenceSocket,
@@ -17,7 +17,7 @@ class FakeSocket extends EventEmitter {
   readonly id = 'socket-1';
   readonly user = { id: 'user-1' };
   connected = true;
-  readonly join = vi.fn();
+  readonly join = mock();
 
   disconnectNow(): void {
     this.connected = false;
@@ -33,12 +33,12 @@ describe('SocketPresenceLifecycle', () => {
   it('does not mark a socket online when it disconnects during the initial Redis lookup', async () => {
     const lookup = deferred<boolean>();
     const distributedPresence = {
-      isOnline: vi.fn().mockReturnValue(lookup.promise),
-      markOnline: vi.fn().mockResolvedValue(undefined),
-      markOffline: vi.fn().mockResolvedValue(undefined),
+      isOnline: mock().mockReturnValue(lookup.promise),
+      markOnline: mock().mockResolvedValue(undefined),
+      markOffline: mock().mockResolvedValue(undefined),
     };
     const onlineUsers = new Map<string, Set<string>>();
-    const broadcastPresence = vi.fn();
+    const broadcastPresence = mock();
     const socket = new FakeSocket();
 
     const registration = registerSocketPresence(asPresenceSocket(socket), {
@@ -60,12 +60,12 @@ describe('SocketPresenceLifecycle', () => {
   it('removes a late Redis markOnline when disconnect races the refresh', async () => {
     const onlineWrite = deferred<void>();
     const distributedPresence = {
-      isOnline: vi.fn().mockResolvedValue(false),
-      markOnline: vi.fn().mockReturnValue(onlineWrite.promise),
-      markOffline: vi.fn().mockResolvedValue(undefined),
+      isOnline: mock().mockResolvedValue(false),
+      markOnline: mock().mockReturnValue(onlineWrite.promise),
+      markOffline: mock().mockResolvedValue(undefined),
     };
     const onlineUsers = new Map<string, Set<string>>();
-    const broadcastPresence = vi.fn();
+    const broadcastPresence = mock();
     const socket = new FakeSocket();
 
     const registration = registerSocketPresence(asPresenceSocket(socket), {
@@ -89,12 +89,12 @@ describe('SocketPresenceLifecycle', () => {
 
   it('joins and broadcasts only after distributed presence is committed', async () => {
     const distributedPresence = {
-      isOnline: vi.fn().mockResolvedValue(false),
-      markOnline: vi.fn().mockResolvedValue(undefined),
-      markOffline: vi.fn().mockResolvedValue(undefined),
+      isOnline: mock().mockResolvedValue(false),
+      markOnline: mock().mockResolvedValue(undefined),
+      markOffline: mock().mockResolvedValue(undefined),
     };
     const onlineUsers = new Map<string, Set<string>>();
-    const broadcastPresence = vi.fn();
+    const broadcastPresence = mock();
     const socket = new FakeSocket();
 
     await registerSocketPresence(asPresenceSocket(socket), {

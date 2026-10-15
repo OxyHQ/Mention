@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import {
   FEDERATION_BLOCK_POLICY,
   getBlockedDomainPolicy,
@@ -46,14 +46,16 @@ describe('getBlockedDomainPolicy', () => {
     // starts consulting the environment. Without a value present, a version of
     // this function that read `FEDERATION_BLOCKED_DOMAINS` would produce
     // identical output and the check would be decorative. Scoped to this test —
-    // `blockedDomainEnforcement.test.ts` sets the same variable, and vitest
-    // workers share `process.env`.
-    vi.stubEnv('FEDERATION_BLOCKED_DOMAINS', 'from-the-console.invalid');
+    // `blockedDomainEnforcement.test.ts` sets the same variable, and test
+    // files can share `process.env`.
+    const previous = process.env.FEDERATION_BLOCKED_DOMAINS;
+    process.env.FEDERATION_BLOCKED_DOMAINS = 'from-the-console.invalid';
 
     const merged = resolveFederationBlocks(committed, ['from-the-console.invalid']);
     const policyOnly = getBlockedDomainPolicy(committed);
 
-    vi.unstubAllEnvs();
+    if (previous === undefined) delete process.env.FEDERATION_BLOCKED_DOMAINS;
+    else process.env.FEDERATION_BLOCKED_DOMAINS = previous;
 
     // The merged view — what the transparency page publishes — does carry it.
     expect(merged.map((block) => block.domain)).toContain('from-the-console.invalid');

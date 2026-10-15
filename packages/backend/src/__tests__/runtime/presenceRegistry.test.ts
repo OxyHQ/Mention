@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, mock, spyOn, jest } from 'bun:test';
 import {
   PRESENCE_CLEANUP_INTERVAL_MS,
   PRESENCE_HEARTBEAT_INTERVAL_MS,
@@ -13,18 +13,18 @@ import {
  */
 
 function createDistributedPresence(): DistributedPresencePort & {
-  isOnline: ReturnType<typeof vi.fn>;
-  markOnline: ReturnType<typeof vi.fn>;
-  markOffline: ReturnType<typeof vi.fn>;
-  getBulk: ReturnType<typeof vi.fn>;
-  heartbeat: ReturnType<typeof vi.fn>;
+  isOnline: ReturnType<typeof mock>;
+  markOnline: ReturnType<typeof mock>;
+  markOffline: ReturnType<typeof mock>;
+  getBulk: ReturnType<typeof mock>;
+  heartbeat: ReturnType<typeof mock>;
 } {
   return {
-    isOnline: vi.fn().mockResolvedValue(false),
-    markOnline: vi.fn().mockResolvedValue(undefined),
-    markOffline: vi.fn().mockResolvedValue(undefined),
-    getBulk: vi.fn().mockResolvedValue({}),
-    heartbeat: vi.fn().mockResolvedValue(undefined),
+    isOnline: mock().mockResolvedValue(false),
+    markOnline: mock().mockResolvedValue(undefined),
+    markOffline: mock().mockResolvedValue(undefined),
+    getBulk: mock().mockResolvedValue({}),
+    heartbeat: mock().mockResolvedValue(undefined),
   };
 }
 
@@ -189,7 +189,7 @@ describe('PresenceRegistry', () => {
   describe('housekeeping timers', () => {
     it('unrefs both intervals so they never hold the event loop open', () => {
       const probe = setInterval(() => undefined, 60_000);
-      const unref = vi.spyOn(Object.getPrototypeOf(probe), 'unref');
+      const unref = spyOn(Object.getPrototypeOf(probe), 'unref');
       clearInterval(probe);
 
       try {
@@ -202,24 +202,24 @@ describe('PresenceRegistry', () => {
     });
 
     it('runs the cleanup sweep and the heartbeat on their own cadences', () => {
-      vi.useFakeTimers();
+      jest.useFakeTimers();
       try {
         track('user-1', 'socket-a');
         registry.startHousekeeping();
 
-        vi.advanceTimersByTime(PRESENCE_HEARTBEAT_INTERVAL_MS);
+        jest.advanceTimersByTime(PRESENCE_HEARTBEAT_INTERVAL_MS);
         expect(distributedPresence.heartbeat).toHaveBeenCalledTimes(1);
 
         connectedSocketIds.clear();
-        vi.advanceTimersByTime(PRESENCE_CLEANUP_INTERVAL_MS - PRESENCE_HEARTBEAT_INTERVAL_MS);
+        jest.advanceTimersByTime(PRESENCE_CLEANUP_INTERVAL_MS - PRESENCE_HEARTBEAT_INTERVAL_MS);
         expect(distributedPresence.markOffline).toHaveBeenCalledWith('user-1');
 
         registry.stopHousekeeping();
         distributedPresence.heartbeat.mockClear();
-        vi.advanceTimersByTime(PRESENCE_HEARTBEAT_INTERVAL_MS * 10);
+        jest.advanceTimersByTime(PRESENCE_HEARTBEAT_INTERVAL_MS * 10);
         expect(distributedPresence.heartbeat).not.toHaveBeenCalled();
       } finally {
-        vi.useRealTimers();
+        jest.useRealTimers();
       }
     });
   });

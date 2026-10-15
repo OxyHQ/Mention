@@ -12,7 +12,7 @@
  * if the status survives, and "an empty array" is not a status.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, spyOn } from 'bun:test';
 
 import { runSearchOverview, type LaneDefinition } from '../../services/search/SearchOrchestrator';
 
@@ -191,7 +191,7 @@ describe('runSearchOverview', () => {
   it('logs a lane failure rather than swallowing it', async () => {
     // A per-lane status is for the client; an operator still needs the reason.
     const { logger } = await import('../../utils/logger');
-    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined as never);
+    const warn = spyOn(logger, 'warn').mockImplementation(() => undefined as never);
     try {
       await runSearchOverview(
         'q',

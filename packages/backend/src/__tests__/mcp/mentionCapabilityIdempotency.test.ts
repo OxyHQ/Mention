@@ -1,6 +1,6 @@
 import express from 'express';
 import request from 'supertest';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 import type { CapabilityTicketClaims } from '@oxy.so/contracts';
 import { createMentionCapabilityEffectIdempotency } from '../../capabilities/capabilityEffectIdempotency.middleware';
 import type { RequestWithMentionCapability } from '../../capabilities/capabilityAuth.middleware';
@@ -39,9 +39,9 @@ function buildApp(
         responseStatus: number;
       },
 ) {
-  const reserve = vi.fn(async () => reservation);
-  const finalize = vi.fn(async () => undefined);
-  const effect = vi.fn((_request, response) => response.status(201).json({ ok: true }));
+  const reserve = mock(async () => reservation);
+  const finalize = mock(async () => undefined);
+  const effect = mock((_request, response) => response.status(201).json({ ok: true }));
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
