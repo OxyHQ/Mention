@@ -5,7 +5,9 @@ import { VoiceSession } from '@alia.onl/sdk/voice';
 
 interface AskAliaSheetProps {
   /** Bumped on every press of Ask Alia; each change presents the sheet. */
-  presentSignal: number;
+  askId: number;
+  /** Sent as the first message when the press carried one; the conversation opens over the sheet. */
+  prompt?: string;
   clientContext: string;
   welcomeSuggestions: { id: string; text: string }[];
 }
@@ -16,15 +18,19 @@ interface AskAliaSheetProps {
  * press, so the first `present()` runs as soon as the sheet is ready.
  */
 const AskAliaSheet: React.FC<AskAliaSheetProps> = ({
-  presentSignal,
+  askId,
+  prompt,
   clientContext,
   welcomeSuggestions,
 }) => {
   const ref = useRef<AliaChatSheetRef>(null);
 
+  // The prompt belongs to the press that carried it: only a new press presents again.
+  const promptRef = useRef(prompt);
+  promptRef.current = prompt;
   useEffect(() => {
-    if (presentSignal > 0) ref.current?.present();
-  }, [presentSignal]);
+    if (askId > 0) ref.current?.present(promptRef.current ? { text: promptRef.current } : undefined);
+  }, [askId]);
 
   return (
     <AliaChatSheet

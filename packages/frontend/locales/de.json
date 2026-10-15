@@ -2521,5 +2521,8 @@
   "alia.onScreen": "Sie befindet sich auf dem Bildschirm {{path}}.",
   "alia.suggestion.news": "Worüber spricht heute alle Welt?",
   "alia.suggestion.write": "Hilf mir, einen Beitrag zu schreiben",
-  "alia.suggestion.discover": "Schlage mir Konten und Themen zum Folgen vor"
+  "alia.suggestion.discover": "Schlage mir Konten und Themen zum Folgen vor",
+  "profile.actions.askAlia": "Alia zu @{{handle}} fragen",
+  "profile.askAlia.prompt": "Erzähl mir von @{{handle}} auf Mention: wer das ist, worüber die Person postet und wofür sie bekannt ist.",
+  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering."
 }

@@ -2521,5 +2521,8 @@
   "alia.onScreen": "Şu anda {{path}} ekranında.",
   "alia.suggestion.news": "Bugün herkes ne konuşuyor?",
   "alia.suggestion.write": "Bir gönderi yazmama yardım et",
-  "alia.suggestion.discover": "Takip edilecek hesaplar ve konular öner"
+  "alia.suggestion.discover": "Takip edilecek hesaplar ve konular öner",
+  "profile.actions.askAlia": "Alia'ya @{{handle}} hakkında sor",
+  "profile.askAlia.prompt": "Mention'da @{{handle}} hakkında bilgi ver: kim olduğunu, ne paylaştığını ve neyle tanındığını anlat.",
+  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering."
 }
