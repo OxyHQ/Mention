@@ -156,7 +156,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      # fetch-depth: 0 so the base revision's bun.lock is readable for the
+      # lockfile steps at the end of this job; `git show <base>:bun.lock` is
+      # their whole mechanism.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
@@ -216,33 +221,25 @@ jobs:
       - name: Verify the production image's build inputs are reviewed
         run: python3 -B .github/scripts/reviewed-image.py check
 
-  # Ported from bluesky-social/social-app 513a188a2 ("Add a GitHub Action
-  # verifying lockfile against base", MIT (c) 2023-2026 Bluesky Social PBC).
-  #
-  # This exists because `bun install --frozen-lockfile`, which every other job
-  # here runs, cannot be trusted as the gate: bun 1.3.14 fails that flag
-  # non-deterministically on a clean, unmodified HEAD, so a failure proves
-  # nothing and gets learned-around. Resolving the base branch's lockfile
-  # against this revision's manifests and comparing to the committed file makes
-  # "this lockfile came from a clean resolve" a property of the commit instead.
-  #
-  # Kept as its own job rather than a step in `quality`, because it has to
-  # rewrite bun.lock in the workspace to do its work.
-  lockfile:
-    name: Lockfile resolves cleanly from the base
-    needs: provenance
-    if: ${{ !cancelled() && needs.provenance.outputs.verified != 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      # fetch-depth: 0 so the base revision's bun.lock is readable from this
-      # checkout; `git show <base>:bun.lock` is the whole mechanism.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
+      # Ported from bluesky-social/social-app 513a188a2 ("Add a GitHub Action
+      # verifying lockfile against base", MIT (c) 2023-2026 Bluesky Social PBC).
+      #
+      # This exists because `bun install --frozen-lockfile`, which every job
+      # here runs, cannot be trusted as the gate: bun 1.3.14 fails that flag
+      # non-deterministically on a clean, unmodified HEAD, so a failure proves
+      # nothing and gets learned-around. Resolving the base branch's lockfile
+      # against this revision's manifests and comparing to the committed file
+      # makes "this lockfile came from a clean resolve" a property of the commit
+      # instead.
+      #
+      # It was its own job ("Lockfile resolves cleanly from the base") for ~10s
+      # of work, and on this org's free plan a job is a queue slot, not just a
+      # runner. Folded in here as the LAST steps, because the check rewrites
+      # bun.lock in the workspace and nothing may run on that tree after it.
+      # `!cancelled()` so a failure further up this job still gets the lockfile
+      # its own verdict, exactly as the separate job did; `CI complete` fails on
+      # either through this job's result.
+      #
       # A pull request compares against the tip of its base branch. A push to
       # main compares against what main pointed at beforehand, because this repo
       # integrates batches locally and pushes once, so a lockfile change can
@@ -253,8 +250,9 @@ jobs:
       # (CI_BASE_REVISION above). It MUST resolve: the queue is the last gate
       # before main, and skipping here would be the one path on which a
       # lockfile change reached main without this check.
-      - name: Resolve the base revision
-        id: base
+      - name: Resolve the lockfile's base revision
+        id: lockfile_base
+        if: ${{ !cancelled() }}
         env:
           BASE_REVISION: ${{ env.CI_BASE_REVISION }}
           EVENT_NAME: ${{ github.event_name }}
@@ -272,10 +270,10 @@ jobs:
             echo "revision=" >> "$GITHUB_OUTPUT"
             echo "::notice::no base revision to compare bun.lock against; skipping"
           fi
-      - name: Verify bun.lock against the base revision
-        if: steps.base.outputs.revision != ''
+      - name: Lockfile resolves cleanly from the base
+        if: ${{ !cancelled() && steps.lockfile_base.outcome == 'success' && steps.lockfile_base.outputs.revision != '' }}
         env:
-          BASE_REVISION: ${{ steps.base.outputs.revision }}
+          BASE_REVISION: ${{ steps.lockfile_base.outputs.revision }}
         run: bash .github/scripts/verify-lockfile.sh "$BASE_REVISION"
 
   tests:
@@ -296,7 +294,7 @@ jobs:
     # disagree about what is installed.
     #
     # Declared for every matrix entry, though since the backend moved to its own
-    # sharded job below none of these three legs connects to it: a `services:`
+    # sharded job below none of these legs connects to it: a `services:`
     # block cannot be made conditional on a matrix value, and an empty `image` is
     # a hard error. Kept because the frontend and shared-types suites have
     # reached for a database before, and 14s of container start is cheaper than
@@ -324,21 +322,28 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # `scopes` is the ci-scope.sh legs a matrix entry answers for; each
+        # suite step below runs only when ITS scope said so.
+        #
+        # The backend is NOT here: it is the `backend-test` shards and the
+        # merge inside `CI complete` below, because it was this matrix's
+        # critical path by a factor of two.
         include:
-          # Bun's coverage reporter only accounts for loaded modules and does not
-          # expose a branch-threshold gate. Keep these suites complete rather than
-          # publishing a misleading shared-types/MCP percentage.
-          - package: shared-types
-            command: bun run --cwd packages/shared-types test
-            coverage: false
-          # The backend is NOT here: it is the `backend-test` shards and the
-          # merge inside `CI complete` below, because it was this matrix's
-          # critical path by a factor of two.
           - package: frontend
-            command: bun run --cwd packages/frontend test:coverage -- --coverageDirectory="$RUNNER_TEMP/frontend-coverage"
+            scopes: frontend
             coverage: true
-          - package: mcp
-            command: bun run --cwd packages/mcp test
+          # shared-types and mcp were two legs of ~45-55s each, most of it
+          # checkout, setup and install: on this org's free plan two queue
+          # slots for under a minute of tests between them. One runner now
+          # runs both suites as separate steps, each still gated on its own
+          # scope and each still run when the other fails, so a red leg names
+          # every failing suite.
+          #
+          # Bun's coverage reporter only accounts for loaded modules and does
+          # not expose a branch-threshold gate. Keep these suites complete
+          # rather than publishing a misleading shared-types/MCP percentage.
+          - package: shared-types and mcp
+            scopes: shared-types mcp
             coverage: false
     steps:
       # fetch-depth: 0 because the scope diff below needs both ends of the
@@ -352,11 +357,34 @@ jobs:
       # while a leg that no-ops in its own runner costs nobody anything.
       # It also keeps every check reporting `success` instead of `skipped`,
       # which is what branch protection wants.
-      - name: Decide whether this package's suite must run
+      #
+      # One output per scope (`frontend`, `shared-types`, `mcp`), plus `run`:
+      # true when ANY of this entry's suites must run, which is what the shared
+      # setup below keys on. A scope that answers anything but true/false is a
+      # red step, never a silent skip.
+      - name: Decide which of this leg's suites must run
         id: scope
         env:
           CI_SCOPE_BASE: ${{ env.CI_BASE_REVISION }}
-        run: bash .github/scripts/ci-scope.sh ${{ matrix.package }}
+          LEG_SCOPES: ${{ matrix.scopes }}
+        run: |
+          set -euo pipefail
+          any=false
+          for scope in $LEG_SCOPES; do
+            decision="$(mktemp)"
+            GITHUB_OUTPUT="$decision" bash .github/scripts/ci-scope.sh "$scope"
+            answer="$(sed -n 's/^run=//p' "$decision")"
+            case "$answer" in
+              true) any=true ;;
+              false) ;;
+              *)
+                echo "::error::ci-scope.sh $scope answered '$answer', not true or false."
+                exit 1
+                ;;
+            esac
+            echo "$scope=$answer" >> "$GITHUB_OUTPUT"
+          done
+          echo "run=$any" >> "$GITHUB_OUTPUT"
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         if: steps.scope.outputs.run == 'true'
         with:
@@ -370,17 +398,18 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         run: bun install --frozen-lockfile --ignore-scripts
       - name: Build shared runtime package
+        id: build_shared
         if: steps.scope.outputs.run == 'true'
         run: bun run build:shared-types
-      - name: Run complete package test suite
-        if: steps.scope.outputs.run == 'true'
-        run: ${{ matrix.command }}
+      - name: Run complete package test suite (frontend)
+        if: steps.scope.outputs.frontend == 'true'
+        run: bun run --cwd packages/frontend test:coverage -- --coverageDirectory="$RUNNER_TEMP/frontend-coverage"
       # The feed row-cost harness (issue #1103): real rows under the real
       # providers, gated on structural budgets — per-row element counts, per-row
       # requests and Query observers, re-renders of unrelated rows, and zero
       # translation requests during a fling. Its timings are recorded, not gated.
       - name: Feed row-cost harness
-        if: matrix.package == 'frontend' && steps.scope.outputs.run == 'true'
+        if: steps.scope.outputs.frontend == 'true'
         run: bun run --cwd packages/frontend test:perf
       # The frontend's critical-path floor and no-regression ratchet. Kept out of
       # `test:coverage` itself because CI appends `--coverageDirectory` to that
@@ -396,7 +425,7 @@ jobs:
       # that removes the tests; the script REFUSES an unresolvable base rather
       # than skipping, so a shallow clone fails loudly instead of vacuously.
       - name: Enforce the frontend coverage policy
-        if: always() && matrix.package == 'frontend' && steps.scope.outputs.run == 'true'
+        if: always() && steps.scope.outputs.frontend == 'true'
         env:
           COVERAGE_POLICY_BASE: ${{ env.CI_BASE_REVISION }}
         run: bun run --cwd packages/frontend coverage:check -- --coverage-dir "$RUNNER_TEMP/frontend-coverage"
@@ -408,6 +437,15 @@ jobs:
           path: ${{ runner.temp }}/${{ matrix.package }}-coverage/coverage-summary.json
           if-no-files-found: error
           retention-days: 14
+      # `!cancelled()` plus the build's own outcome: each suite runs when its
+      # scope says so and the shared setup succeeded, whatever the other suite
+      # did — the two used to be separate legs and must not hide each other.
+      - name: Run complete package test suite (shared-types)
+        if: ${{ !cancelled() && steps.build_shared.outcome == 'success' && steps.scope.outputs.shared-types == 'true' }}
+        run: bun run --cwd packages/shared-types test
+      - name: Run complete package test suite (mcp)
+        if: ${{ !cancelled() && steps.build_shared.outcome == 'success' && steps.scope.outputs.mcp == 'true' }}
+        run: bun run --cwd packages/mcp test
 
   # The backend suite, one shard per runner.
   #
@@ -946,7 +984,7 @@ jobs:
   # it failed or was cancelled.
   ci-complete:
     name: CI complete
-    needs: [provenance, quality, lockfile, tests, backend-test, e2e, frontend-bundle-baseline, frontend-bundle]
+    needs: [provenance, quality, tests, backend-test, e2e, frontend-bundle-baseline, frontend-bundle]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -1116,13 +1154,14 @@ jobs:
           # "fine" is how a required check stops checking. `tests` and
           # `backend-test` are matrices: their result is success only when
           # every leg succeeded; a leg whose scope said "nothing changed" still
-          # reports success, never skipped.
+          # reports success, never skipped. The lockfile check is a step of
+          # `quality`, so it fails this through quality's result.
           #
           # The ONE exception is a push whose exact SHA passed this very job in
           # the merge queue: those jobs already ran, green, on this tree, and
           # were skipped for that reason alone. Then they must be skipped — a
           # job that ran anyway means the gating broke, and is worth a red.
-          for job in quality lockfile tests backend-test e2e; do
+          for job in quality tests backend-test e2e; do
             result="$(jq -r --arg job "$job" '.[$job].result' <<<"$RESULTS")"
             if [ "$verified" = true ]; then
               [ "$result" = skipped ] || failures+=("$job ran on a queue-verified push: $result")
