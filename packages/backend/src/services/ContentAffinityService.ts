@@ -395,15 +395,15 @@ export class ContentAffinityService {
       // viewer's preferred topics, grouped by author, tracking which preferred
       // topics they covered and their post volume.
       //
-      // The posts come from `topic_affinity_posts`, a narrow materialized view of
-      // exactly the eligible rows (public, published, authored, non-boost, with
-      // topics, last 30 days) that `TopicAffinityRefreshJob` refreshes on the
-      // leader. Reading `posts` itself cost up to ~17k heap pages per call —
+      // The posts come from `topic_affinity_posts`, a narrow table of exactly
+      // the eligible rows (public, published, authored, non-boost, with topics,
+      // last 30 days) that triggers on `posts` keep current in the writing
+      // transaction. Reading `posts` itself cost up to ~17k heap pages per call —
       // pages the engagement counters keep rewriting, so never all-visible and
       // rarely cached: slow-query median 18 s in a normal week (2026-10-03..09).
-      // The view's eligibility filter replaces the one this query used to carry;
-      // the `since` window still applies here, so a view that missed a refresh
-      // can lag new posts but never widen the window.
+      // The table's eligibility filter replaces the one this query used to
+      // carry; the `since` window still applies here, so a row the expiry sweep
+      // has not reached yet is never read.
       //
       // The bounded scan is an inner subquery so the row cap applies BEFORE the
       // grouping — grouping the whole corpus
