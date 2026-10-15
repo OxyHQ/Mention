@@ -145,6 +145,10 @@ type QueueDoc = PostRecord;
  *
  * ONE arm: `classification_status` is `NOT NULL DEFAULT 'pending'`, so
  * "absent" is not a state a row can be in.
+ *
+ * No index serves it while the baseline worker is off in production; see the
+ * note where `posts_classification_queue_idx` used to be declared in
+ * `db/schema/posts.ts` before switching `POST_CLASSIFICATION_ENABLED` on.
  */
 const UNCLASSIFIED: SQL = eq(posts.classificationStatus, 'pending');
 

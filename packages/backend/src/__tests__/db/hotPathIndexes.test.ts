@@ -58,18 +58,15 @@
  * `chronoOrderPlan.test.ts` shipped that and it was flaky twice in eight runs.
  * The property asserted above is what the DDL DECLARES.
  *
- * The one plan assertion here is the last block, and it is the other shape: a
- * private single-index temp table, `on commit drop` inside one transaction,
- * where the planner has no choice to make and no other file can be writing rows.
- * It exists because migration 0026 made this file's `posts_classification_queue_idx`
- * entry a claim a declaration cannot carry — that a PARTIAL index is still
- * reachable by the queries it was cut for — and a declaration test alone would
- * pin the predicate while saying nothing about whether anything can still use it.
+ * The plan assertions here are the other shape: a private temp table that
+ * shadows `posts` on one connection, `on commit drop` inside one transaction,
+ * where the planner chooses among the migration's own indexes and no other file
+ * can be writing rows.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
@@ -167,16 +164,6 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
       'USING btree (parent_post_id, visibility, status, created_at DESC NULLS LAST, id DESC NULLS LAST)',
   },
   {
-    name: 'post_links_chrono_v1',
-    table: 'posts',
-    serves:
-      'search `has:links` (`routes/search.ts`) — the only query this index exists for, and the one that ' +
-      'made it pure write amplification for as long as the query was spelled `desc()`',
-    definition:
-      'CREATE INDEX post_links_chrono_v1 ON public.posts ' +
-      'USING btree (has_links, visibility, status, created_at DESC NULLS LAST, id DESC NULLS LAST)',
-  },
-  {
     name: 'posts_owner_chrono_idx',
     table: 'posts',
     serves:
@@ -185,17 +172,6 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
     definition:
       'CREATE INDEX posts_owner_chrono_idx ON public.posts ' +
       'USING btree (oxy_user_id, visibility, status, created_at DESC NULLS LAST, id DESC NULLS LAST)',
-  },
-  {
-    name: 'posts_type_chrono_idx',
-    table: 'posts',
-    serves:
-      'the GLOBAL media and videos feeds — `inArray(posts.type, [IMAGE, VIDEO])` in ' +
-      '`utils/feedQueryBuilder.ts`, which is the one place a `type` predicate leads with no author term ' +
-      'to send the planner somewhere cheaper',
-    definition:
-      'CREATE INDEX posts_type_chrono_idx ON public.posts ' +
-      'USING btree (type, visibility, status, created_at DESC NULLS LAST)',
   },
   {
     name: 'posts_created_at_idx',
@@ -217,21 +193,6 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
     definition:
       'CREATE INDEX posts_public_author_recent_idx ON public.posts ' +
       "USING btree (created_at, oxy_user_id) WHERE ((visibility = 'public'::text) AND (status = 'published'::text))",
-  },
-  {
-    name: 'posts_public_topic_recent_idx',
-    table: 'posts',
-    serves:
-      'the eligible window `topic_affinity_posts` (0065) is built from — the posts topic affinity ' +
-      'reads for the For You affinity lane and who-to-follow — as an index walk instead of a lossy GIN ' +
-      'bitmap over the whole history (~29k buffers, 30-96 s on a busy database). PARTIAL on a ' +
-      'non-empty topic list (~8% of posts); the query spells `cardinality(...) > 0` so the planner ' +
-      'can prove it, and orders `desc nulls last` to walk the key in order',
-    definition:
-      'CREATE INDEX posts_public_topic_recent_idx ON public.posts ' +
-      'USING btree (created_at DESC NULLS LAST, id DESC NULLS LAST, oxy_user_id, classification_topics) ' +
-      "WHERE ((visibility = 'public'::text) AND (status = 'published'::text) AND (type <> 'boost'::text) " +
-      'AND (oxy_user_id IS NOT NULL) AND (cardinality(classification_topics) > 0))',
   },
   {
     name: 'posts_thread_idx',
@@ -369,23 +330,6 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
     definition:
       'CREATE INDEX posts_classification_region_idx ON public.posts ' +
       'USING btree (classification_region, created_at DESC NULLS LAST) WHERE (classification_region IS NOT NULL)',
-  },
-  {
-    name: 'posts_classification_queue_idx',
-    table: 'posts',
-    serves:
-      'the Stage-B classification queue, which drains oldest-first within one status. Ascending ' +
-      '`created_at` on purpose — this is the one chronological index here that is not a feed keyset. ' +
-      'NARROWED to the pending set by migration 0026 (11 MB → 296 kB on the seeded corpus, the queue ' +
-      'drained), on the census below rather than on a recollection: every predicate on ' +
-      "`classification_status` in this package selects `'pending'`, through ONE constant, and the #753 " +
-      'audit had left this index full for want of exactly that evidence. The predicate is what makes ' +
-      'it small and is also the whole risk — a predicate on any OTHER status falls off it silently, ' +
-      'onto a sequential scan — so the census is what keeps the narrowing licensed, and the plan ' +
-      'assertions below are what show the pending side still reaches it',
-    definition:
-      'CREATE INDEX posts_classification_queue_idx ON public.posts USING btree (classification_status, created_at) ' +
-      "WHERE (classification_status = 'pending'::text)",
   },
   {
     name: 'posts_curated_idx',
@@ -582,327 +526,6 @@ describe('the classification of `posts` indexes is exhaustive', () => {
   });
 });
 
-/**
- * `posts_classification_queue_idx`, settled — the census the #753 audit could
- * not perform to its own satisfaction.
- *
- * The audit narrowed four indexes to partial and recovered 65 MB. It left this
- * one (15 MB) full and said why: a partial index on
- * `classification_status = 'pending'` would make it tiny, but it could not rule
- * out a reader of the OTHER three statuses, and the failure mode of getting that
- * wrong is silent — a missing index has no functional symptom, it just gets slow
- * at a row count nobody can reproduce locally.
- *
- * Measured 2026-08-16, this is the whole surface of that column in this package:
- *
- *   PREDICATE  `services/PostClassificationService.ts` — ONE constant,
- *              `UNCLASSIFIED`, comparing the column to `'pending'`, used by
- *              `markEmptyPosts` (an UPDATE) and `classifyBatch` (the SELECT this
- *              index exists for, `order by created_at asc, id asc limit 25`).
- *   WRITE      `db/posts/postRepository.ts` (insert + patch values) and
- *              `PostClassificationService`'s `.set({ classificationStatus })`.
- *   PROJECTION `db/posts/postRepository.ts` (row → record) and
- *              `scripts/inspectTrendTerms.ts`.
- *
- * `'baseline'`, `'classified'` and `'failed'` are read ONLY from an
- * already-hydrated record — `services/contentClassification/trustedScores.ts`
- * and `services/ranking/signals/optIn.ts` both compare
- * `classification.status === 'classified'` in memory. Neither is a query and
- * neither can reach an index.
- *
- * Migration 0026 performed the narrowing on that evidence, and this census is
- * what keeps it safe rather than what justified it once: an occurrence of the
- * column that this file cannot MAP fails the build, so a second predicate cannot
- * arrive unnoticed and quietly find the index it needs no longer covers its
- * status. Read the failure that way — a new predicate on `'failed'` is not a
- * lint to be silenced here, it is a query that will silently sequential-scan
- * `posts` until this index is widened again. This lives beside the index's own
- * classification on purpose — they are two halves of one claim, and separating
- * them is how one goes stale while the other keeps passing.
- */
-describe('the classification queue index is settled by a census, not by a memory', () => {
-  /**
-   * `src`, minus the two places an occurrence means nothing about queries.
-   *
-   * `__tests__` writes fixtures. `db/schema/` DECLARES the column and its CHECK
-   * constraint — the constraint names every status by construction, which is
-   * what a whole-table declaration does and is not a query. Everything else,
-   * `scripts/` included, is in scope.
-   */
-  const SOURCE_ROOT = path.resolve(__dirname, '../..');
-  const EXCLUDED_DIRS = new Set(['__tests__', 'node_modules', 'schema']);
-
-  /** The column, as a query builder names it and as raw SQL would. */
-  const OCCURRENCE = /classificationStatus|classification_status/;
-
-  /** A comparison against the column — `eq(posts.classificationStatus, 'pending')` and every other shape. */
-  const PREDICATE = /\b(\w+)\(\s*posts\.classificationStatus\s*,\s*([^)]*)\)/;
-  /** `status: posts.classificationStatus` / `status: row.classificationStatus`. */
-  const PROJECTION = /:\s*(?:posts|row)\.classificationStatus\b/;
-  /** `classificationStatus: <value>` — an object key being ASSIGNED, never compared. */
-  const WRITE = /\bclassificationStatus\s*:/;
-
-  interface Occurrence {
-    file: string;
-    line: number;
-    text: string;
-  }
-
-  function sourceFiles(dir: string): string[] {
-    const out: string[] = [];
-    for (const name of readdirSync(dir)) {
-      const full = path.join(dir, name);
-      if (statSync(full).isDirectory()) {
-        if (EXCLUDED_DIRS.has(name)) continue;
-        out.push(...sourceFiles(full));
-        continue;
-      }
-      if (name.endsWith('.ts')) out.push(full);
-    }
-    return out;
-  }
-
-  /**
-   * Strip comments before counting.
-   *
-   * A comment quoting a predicate verbatim inflates a census, most dangerously
-   * when it is written to CORRECT someone — and the prose above spells one out.
-   */
-  function stripComments(source: string): string {
-    return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
-  }
-
-  /** Every line of in-scope source naming the column, comments removed. */
-  function occurrences(): Occurrence[] {
-    const found: Occurrence[] = [];
-    for (const file of sourceFiles(SOURCE_ROOT)) {
-      const lines = stripComments(readFileSync(file, 'utf8')).split('\n');
-      lines.forEach((text, index) => {
-        if (OCCURRENCE.test(text)) {
-          found.push({
-            file: path.relative(SOURCE_ROOT, file),
-            line: index + 1,
-            text: text.trim(),
-          });
-        }
-      });
-    }
-    return found;
-  }
-
-  it('sees the column at all, in more than one file — the vacuity floor', () => {
-    const found = occurrences();
-
-    // A traversal that broke, or a pattern that stopped matching, reports the
-    // same clean zero as an absent column — and a zero here would make every
-    // assertion below vacuously true.
-    expect(found.length).toBeGreaterThanOrEqual(4);
-    expect(new Set(found.map((entry) => entry.file)).size).toBeGreaterThanOrEqual(2);
-    expect(found.some((entry) => entry.file === 'services/PostClassificationService.ts')).toBe(
-      true,
-    );
-  });
-
-  it('can tell a predicate on ANOTHER status apart — the positive control', () => {
-    // The measurement below is "no predicate selects anything but 'pending'",
-    // and that is also what a matcher which recognises nothing reports. So the
-    // matcher is shown a predicate of exactly the shape it must catch.
-    const synthetic = "const STUCK = eq(posts.classificationStatus, 'failed');";
-
-    const match = PREDICATE.exec(synthetic);
-    expect(match).not.toBeNull();
-    expect(match?.[1]).toBe('eq');
-    expect(match?.[2]).toBe("'failed'");
-    // And the same string must NOT be swallowed by the two benign classifiers.
-    expect(PROJECTION.test(synthetic)).toBe(false);
-    expect(WRITE.test(synthetic)).toBe(false);
-  });
-
-  it('maps every occurrence — an unmapped one is a shape nobody decided about', () => {
-    const unmapped = occurrences().filter(
-      (entry) =>
-        !PREDICATE.test(entry.text) && !PROJECTION.test(entry.text) && !WRITE.test(entry.text),
-    );
-
-    expect(
-      unmapped,
-      'A `classification_status` reference this census cannot classify as a predicate, a projection ' +
-        'or a write.\nIf it is a new PREDICATE, say which status it selects and re-decide ' +
-        '`posts_classification_queue_idx` above — a partial index on the pending set would not serve ' +
-        'it.\nDo NOT widen the patterns to make it disappear.',
-    ).toEqual([]);
-  });
-
-  it("compares the column only against 'pending', and only with `eq`", () => {
-    const predicates = occurrences()
-      .map((entry) => ({ entry, match: PREDICATE.exec(entry.text) }))
-      .filter((row): row is { entry: Occurrence; match: RegExpExecArray } => row.match !== null);
-
-    // Floor: the queue's own predicate exists. Without it, "every predicate
-    // selects 'pending'" is true of a list with no predicates in it.
-    expect(predicates.length).toBeGreaterThanOrEqual(1);
-
-    expect(
-      predicates.map(({ entry, match }) => `${entry.file}: ${match[1]}(…, ${match[2]})`),
-      "Every predicate on `classification_status` must be `eq(…, 'pending')`.\n" +
-        'One that is not means the classification queue index cannot be narrowed to the pending set, ' +
-        'and the entry for `posts_classification_queue_idx` above says the opposite.',
-    ).toEqual(predicates.map(({ entry }) => `${entry.file}: eq(…, 'pending')`));
-  });
-});
-
-/**
- * The pending queue still REACHES its index — and nothing else does.
- *
- * `WHERE classification_status = 'pending'` is a promise about what the index
- * contains, not about what the planner will do with it, and the two come apart
- * in the direction that has no symptom: a partial index the queries can no
- * longer use is a correct index nobody reads. `eq` is strict, so Postgres can
- * prove `classification_status = 'pending'` implies the predicate — which is a
- * reason to expect this to work, not a measurement that it does.
- *
- * Measured here on a probe table rather than on `posts`, for the reason the
- * header gives: with one index there is no CHOICE to attribute a result to, and
- * `on commit drop` inside a transaction keeps the whole thing invisible to the
- * files running in parallel. The probe carries no primary key on purpose — a
- * `posts_pkey` analogue would be a second index, and then "it used the partial
- * one" would be a preference rather than the only thing available.
- *
- * Both shapes are the ones `PostClassificationService` really issues, taken from
- * the statements postgres logged while the service ran, with the projection cut
- * to the columns the probe has: `classifyBatch`'s semi-join SELECT and
- * `markEmptyPosts`' anti-join UPDATE. On the seeded corpus (300k posts, 3%
- * pending) both stayed on the index — an Index Scan and a Bitmap Index Scan
- * respectively — while the negative control fell to a parallel sequential scan.
- */
-describe('the narrowed queue index is still reachable by the queue, and only by it', () => {
-  /** 3% of the probe's rows, matching the drained queue the seeded corpus modelled. */
-  const PROBE_ROWS = 60_000;
-
-  /** `classifyBatch`: the pending set, joined to its bodies, oldest first. */
-  const PENDING_SELECT = `
-    select id from queue_probe
-    where classification_status = 'pending'
-      and exists (select 1 from queue_probe_bodies where queue_probe_bodies.post_id = queue_probe.id)
-      and status = 'published'
-      and boost_of is null
-    order by created_at asc, id asc
-    limit 25`;
-
-  /** `markEmptyPosts`: the pending rows with no body at all, flipped in one statement. */
-  const PENDING_UPDATE = `
-    update queue_probe set classification_status = 'classified'
-    where classification_status = 'pending'
-      and not exists (select 1 from queue_probe_bodies where queue_probe_bodies.post_id = queue_probe.id)`;
-
-  /**
-   * The negative control: `PENDING_SELECT` with the status changed to `'failed'`.
-   *
-   * `'failed'`, not `'classified'`, and that is the whole control rather than a
-   * detail of it. Measured: with the probe's index widened back to TOTAL, a
-   * `'classified'` predicate STILL plans as a sequential scan — `'classified'`
-   * is 97% of the rows, so the planner would not use an index over it either
-   * way, and the control passed against a total index. It measured selectivity
-   * and reported it as coverage.
-   *
-   * `'failed'` is seeded at the same 3% as `'pending'`, so selectivity is held
-   * constant and the only difference left between the two queries is whether
-   * this index covers the status. Against a total index the control plans as a
-   * Bitmap Index Scan and this test fails; against the partial one it falls to a
-   * sequential scan, which is the cost the narrowing accepts and the census
-   * upstream is what keeps nothing from paying it.
-   */
-  const FAILED_SELECT = PENDING_SELECT.replace("'pending'", "'failed'");
-
-  /**
-   * Plan every query against a private table carrying exactly ONE index, shaped
-   * like `posts_classification_queue_idx` after migration 0026.
-   */
-  async function probePlans(queries: readonly string[]): Promise<string[]> {
-    return db.transaction(async (tx) => {
-      await tx.execute(sql`
-        create temp table queue_probe (
-          id text not null,
-          created_at timestamptz not null,
-          classification_status text not null,
-          status text not null,
-          boost_of text
-        ) on commit drop
-      `);
-      await tx.execute(sql`
-        create temp table queue_probe_bodies (post_id text not null) on commit drop
-      `);
-      await tx.execute(sql`
-        create index queue_probe_idx on queue_probe (classification_status, created_at)
-        where classification_status = 'pending'
-      `);
-      await tx.execute(sql`
-        insert into queue_probe
-        select lpad(g::text, 24, '0'),
-               now() - (g || ' seconds')::interval,
-               case
-                 when g % 100 < 3 then 'pending'
-                 when g % 100 < 6 then 'failed'
-                 else 'classified'
-               end,
-               'published',
-               null
-        from generate_series(1, ${sql.raw(String(PROBE_ROWS))}) g
-      `);
-      await tx.execute(sql`
-        insert into queue_probe_bodies
-        select lpad(g::text, 24, '0') from generate_series(1, ${sql.raw(String(PROBE_ROWS))}) g
-        where g % 25 <> 0
-      `);
-      await tx.execute(sql`analyze queue_probe`);
-      await tx.execute(sql`analyze queue_probe_bodies`);
-
-      const plans: string[] = [];
-      for (const query of queries) {
-        const rows = await tx.execute<{ 'QUERY PLAN': string }>(
-          sql`explain (costs off) ${sql.raw(query)}`,
-        );
-        plans.push([...rows].map((row) => row['QUERY PLAN']).join('\n'));
-      }
-      return plans;
-    });
-  }
-
-  it('plans the queue on the partial index, and an equally rare non-pending status off it', async () => {
-    const [pendingSelect, pendingUpdate, failedSelect] = await probePlans([
-      PENDING_SELECT,
-      PENDING_UPDATE,
-      FAILED_SELECT,
-    ]);
-
-    // `classifyBatch` — the query the index exists for.
-    expect(pendingSelect, 'the pending SELECT no longer reaches the partial index').toContain(
-      'queue_probe_idx',
-    );
-    // Anchored, and the anchor is the assertion: `queue_probe_bodies` is
-    // sequentially scanned in every plan here, so a substring test for
-    // `Seq Scan on queue_probe` matches whatever happens and a test for it with
-    // a trailing space matches nothing at all — the plan ends that line.
-    expect(pendingSelect).not.toMatch(/Seq Scan on queue_probe$/m);
-
-    // `markEmptyPosts` — an UPDATE, which is the half a SELECT-only proof would
-    // miss: it reaches the same rows through a different scan node.
-    expect(pendingUpdate, 'the pending UPDATE no longer reaches the partial index').toContain(
-      'queue_probe_idx',
-    );
-
-    // The control. A total index serves this one — measured — so its FALLING
-    // OFF is the only observation in this file that distinguishes the narrowed
-    // index from the index it replaced.
-    expect(
-      failedSelect,
-      "a predicate on 'failed' reached the partial index — which an index restricted to the pending " +
-        'set cannot serve, so this plan is measuring a WIDER index than the one 0026 created',
-    ).not.toContain('queue_probe_idx');
-    expect(failedSelect).toMatch(/Seq Scan on queue_probe$/m);
-  });
-});
-
 it('bounds source index creation, restores prior timeouts and serves exact actor lookups', async () => {
   const migration = readFileSync(
     path.resolve(__dirname, '../../../drizzle/0039_source_identity_projection_index.sql'),
@@ -1037,49 +660,6 @@ it('bounds the federation URL index build, restores prior timeouts and serves ex
   });
 });
 
-it('bounds the topic-affinity index build, restores prior timeouts and serves the view window', async () => {
-  const migration = readFileSync(
-    path.resolve(__dirname, '../../../drizzle/0064_posts_public_topic_recent_idx.sql'),
-    'utf8',
-  );
-  await db.transaction(async (tx) => {
-    // A private table shadows public.posts only on this transaction's connection.
-    await tx.execute(
-      sql`create temp table posts (id text, oxy_user_id text, classification_topics text[], visibility text, status text, type text, created_at timestamptz) on commit drop`,
-    );
-    // Production's proportions: most posts carry no topics, and the classified
-    // ones span far more than the 30-day window.
-    await tx.execute(
-      sql`insert into posts select n::text, 'author-' || (n % 500)::text, case when n % 12 = 0 then array['tech', 'topic-' || (n % 40)::text] else '{}'::text[] end, case when n % 7 = 0 then 'private' else 'public' end, case when n % 10 = 0 then 'draft' else 'published' end, case when n % 9 = 0 then 'boost' else 'post' end, now() - (n || ' minutes')::interval from generate_series(1, 400000) n`,
-    );
-    await tx.execute(sql`set local lock_timeout = '750ms'`);
-    await tx.execute(sql`set local statement_timeout = '90s'`);
-    let boundedBuildObserved = false;
-    for (const statement of migration.split('--> statement-breakpoint')) {
-      if (/^CREATE INDEX/m.test(statement)) {
-        const [settings] = await tx.execute<{ lock_timeout: string; statement_timeout: string }>(
-          sql`select current_setting('lock_timeout') lock_timeout, current_setting('statement_timeout') statement_timeout`,
-        );
-        expect(settings).toEqual({ lock_timeout: '5s', statement_timeout: '1min' });
-        boundedBuildObserved = true;
-      }
-      await tx.execute(sql.raw(statement));
-    }
-    expect(boundedBuildObserved).toBe(true);
-    const [restored] = await tx.execute<{ lock_timeout: string; statement_timeout: string }>(
-      sql`select current_setting('lock_timeout') lock_timeout, current_setting('statement_timeout') statement_timeout`,
-    );
-    expect(restored).toEqual({ lock_timeout: '750ms', statement_timeout: '90s' });
-    await tx.execute(sql`analyze posts`);
-    // The window `topic_affinity_posts` (0065) is defined by.
-    const rows = await tx.execute<{ 'QUERY PLAN': string }>(
-      sql`explain (costs off) select id, oxy_user_id, created_at, classification_topics from posts where visibility = 'public' and status = 'published' and type <> 'boost' and oxy_user_id is not null and cardinality(classification_topics) > 0 and created_at >= now() - interval '30 days'`,
-    );
-    const plan = rows.map((row) => row['QUERY PLAN']).join('\n');
-    expect(plan).toContain('posts_public_topic_recent_idx');
-  });
-});
-
 it('bounds the public-author window index build, restores prior timeouts and serves the snapshot sweep (#1166)', async () => {
   const migration = readFileSync(
     path.resolve(__dirname, '../../../drizzle/0052_posts_public_author_recent_idx.sql'),
@@ -1120,5 +700,51 @@ it('bounds the public-author window index build, restores prior timeouts and ser
     expect(rows.map((row) => row['QUERY PLAN']).join('\n')).toContain(
       'posts_public_author_recent_idx',
     );
+  });
+});
+
+it('drops the four unread posts indexes under a bounded lock wait and restores prior timeouts', async () => {
+  const migration = readFileSync(
+    path.resolve(__dirname, '../../../drizzle/0073_posts_unused_indexes.sql'),
+    'utf8',
+  );
+  const dropped = [
+    'post_links_chrono_v1',
+    'posts_type_chrono_idx',
+    'posts_public_topic_recent_idx',
+    'posts_classification_queue_idx',
+  ];
+  await db.transaction(async (tx) => {
+    // A private table shadows public.posts only on this transaction's connection,
+    // and the temp schema is searched first, so the drops resolve to its indexes.
+    await tx.execute(sql`create temp table posts (id text, created_at timestamptz) on commit drop`);
+    for (const name of dropped) {
+      await tx.execute(sql.raw(`create index "${name}" on posts (created_at)`));
+    }
+    await tx.execute(sql`create index posts_kept_idx on posts (id)`);
+    await tx.execute(sql`set local lock_timeout = '750ms'`);
+    await tx.execute(sql`set local statement_timeout = '90s'`);
+    const drops: string[] = [];
+    for (const statement of migration.split('--> statement-breakpoint')) {
+      const name = /^DROP INDEX IF EXISTS "(\w+)"/m.exec(statement)?.[1];
+      if (name) {
+        const [settings] = await tx.execute<{ lock_timeout: string; statement_timeout: string }>(
+          sql`select current_setting('lock_timeout') lock_timeout, current_setting('statement_timeout') statement_timeout`,
+        );
+        expect(settings).toEqual({ lock_timeout: '5s', statement_timeout: '1min' });
+        drops.push(name);
+      }
+      await tx.execute(sql.raw(statement));
+    }
+    expect(drops).toEqual(dropped);
+    const [restored] = await tx.execute<{ lock_timeout: string; statement_timeout: string }>(
+      sql`select current_setting('lock_timeout') lock_timeout, current_setting('statement_timeout') statement_timeout`,
+    );
+    expect(restored).toEqual({ lock_timeout: '750ms', statement_timeout: '90s' });
+
+    const indexes = await tx.execute<{ indexname: string }>(
+      sql`select indexname from pg_indexes where tablename = 'posts' and schemaname like 'pg_temp%' order by 1`,
+    );
+    expect(indexes.map((row) => row.indexname)).toEqual(['posts_kept_idx']);
   });
 });
