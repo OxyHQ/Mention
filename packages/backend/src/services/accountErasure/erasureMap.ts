@@ -100,6 +100,13 @@ export function erasureKey(entry: Pick<ErasureMapEntry, 'table' | 'column'>): st
 }
 
 export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
+  {
+    table: 'event_attendance',
+    column: 'oxyUserId',
+    disposition: 'delete-entry',
+    phase: 'account',
+    why: 'Attendance belongs to the erased person; removing it releases their seat.',
+  },
   // ---------------------------------------------------------------------------
   // drain
   // ---------------------------------------------------------------------------

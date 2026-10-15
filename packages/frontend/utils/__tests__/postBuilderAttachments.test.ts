@@ -109,3 +109,10 @@ describe('buildThreadPost attachments', () => {
     ).toBeUndefined();
   });
 });
+
+it('carries capacity through root and thread event payloads', () => {
+  expect(main({ event: { ...EVENT, capacity: 12 } }).content.event?.capacity).toBe(12);
+  expect(buildThreadPost(box({ event: { ...EVENT, capacity: 7 } })).content.event?.capacity).toBe(
+    7,
+  );
+});

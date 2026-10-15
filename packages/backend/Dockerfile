@@ -28,8 +28,10 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
 
 COPY packages/shared-types/ packages/shared-types/
 COPY packages/backend/ packages/backend/
+COPY packages/contracts/ packages/contracts/
 
 RUN bun run --cwd packages/shared-types build
+RUN bun run --cwd packages/contracts build
 RUN bun run --cwd packages/backend build
 
 FROM oven/bun:1.4.3-alpine@sha256:629e17411f1f129dbec3af78d5af9c9f2a937435c80349437206c6b0b7422373 AS runtime
@@ -59,6 +61,7 @@ RUN rm -rf packages/frontend packages/mcp packages/e2e
 
 COPY --from=builder /app/packages/shared-types/dist/ packages/shared-types/dist/
 COPY --from=builder /app/packages/backend/dist/ packages/backend/dist/
+COPY --from=builder /app/packages/contracts/dist/ packages/contracts/dist/
 # The SQL migrations, next to the compiled migrator that applies them
 # (`dist/src/db/migrate.js`, run as a one-shot ECS task). Without this the
 # migrator finds no journal and refuses to run rather than reporting a clean

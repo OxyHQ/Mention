@@ -95,6 +95,7 @@ interface BuildMainPostParams {
 
 /** An attached event as the wire carries it: trimmed, optional fields only when set. */
 const eventContent = (event: EventData) => ({
+  ...(event.capacity !== undefined ? { capacity: event.capacity } : {}),
   name: event.name.trim(),
   date: event.date,
   ...(event.location?.trim() && { location: event.location.trim() }),

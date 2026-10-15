@@ -350,6 +350,9 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     // Handle event data
     const eventData = content?.event || req.body.event;
     const sanitizedEvent = sanitizeEventData(eventData);
+    if (eventData && !sanitizedEvent) return res.status(400).json({ message: 'Invalid event' });
+    if (sanitizedEvent && postContent.homiioCase)
+      return res.status(400).json({ message: 'Homiio participation belongs in Homiio' });
     if (sanitizedEvent && sanitizedEvent.name && sanitizedEvent.date) {
       postContent.event = sanitizedEvent as import('@mention/shared-types').PostEventContent;
     }

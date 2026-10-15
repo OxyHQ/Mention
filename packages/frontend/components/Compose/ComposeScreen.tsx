@@ -17,7 +17,7 @@ import * as ExpoLocation from 'expo-location';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useQueryClient } from '@tanstack/react-query';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useComposeExit, type ComposePresentation } from './useComposeExit';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
@@ -246,6 +246,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   // Also server-decided. It has no window either, and saving keeps it a draft —
   // it is published from the drafts sheet — so the notice has to say so, and a
   // save has to refresh that sheet's list.
+  const [editingHasEvent, setEditingHasEvent] = useState(false);
   const [editingServerDraft, setEditingServerDraft] = useState(false);
   // The post under edit belongs to a CHANNEL. A channel is a publication: its
   // posts stay editable for their whole life, so the banner must not promise a
@@ -393,6 +394,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     setEventDraftDate,
     eventDraftLocation,
     setEventDraftLocation,
+    eventDraftCapacity,
+    setEventDraftCapacity,
     eventDraftDescription,
     setEventDraftDescription,
     openEventEditor,
@@ -1100,6 +1103,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             displayName: mentionUser?.name?.displayName?.trim() || username,
           };
         });
+        setEditingHasEvent(Boolean(source.content.event));
         const primaryText = primaryTextFromPost(source.content);
         const authorVariantTexts = (source.content.variants ?? [])
           .filter((variant) => variant.source === 'author')
@@ -3910,8 +3914,17 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           onClose={closeArticleEditor}
           onSave={handleArticleSave}
         />
+        {editPostId && editingHasEvent && !editingScheduledPost && !editingServerDraft && (
+          <Button onPress={() => router.push(`/events/${encodeURIComponent(editPostId)}`)}>
+            {t('events.manage', { defaultValue: 'Manage event details and attendance' })}
+          </Button>
+        )}
         <EventEditor
-          visible={isEventEditorVisible}
+          capacity={eventDraftCapacity}
+          onCapacityChange={setEventDraftCapacity}
+          visible={
+            isEventEditorVisible && (!editPostId || editingScheduledPost || editingServerDraft)
+          }
           name={eventDraftName}
           date={eventDraftDate}
           location={eventDraftLocation}

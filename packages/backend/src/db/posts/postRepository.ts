@@ -488,6 +488,9 @@ function assembleContent(row: PostRow, children: PostChildRows): StoredPostConte
           date: row.contentEventDate.toISOString(),
           location: optional(row.contentEventLocation),
           description: optional(row.contentEventDescription),
+          capacity: row.contentEventCapacity,
+          cancelled: row.contentEventCancelled,
+          revision: row.contentEventRevision,
         })
       : undefined;
 
@@ -922,6 +925,7 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
     contentEventDate: content.event?.date ? new Date(content.event.date) : null,
     contentEventLocation: content.event?.location ?? null,
     contentEventDescription: content.event?.description ?? null,
+    contentEventCapacity: content.event?.capacity ?? null,
 
     contentRoomId: content.room?.roomId ?? null,
     contentRoomTitle: content.room?.title ?? null,
@@ -1695,6 +1699,25 @@ export async function replacePostContent(
 ): Promise<void> {
   const write = async (tx: DatabaseOrTransaction): Promise<void> => {
     await lockPostContent(tx, postId);
+    const [eventOwner] = await tx.select().from(posts).where(eq(posts.id, postId)).for('update');
+    const managedEvent =
+      eventOwner?.status === 'published' &&
+      eventOwner.contentEventName !== null &&
+      eventOwner.contentEventDate !== null &&
+      !eventOwner.federationActorUri;
+    if (managedEvent && eventOwner) {
+      content = {
+        ...content,
+        homiioCase: undefined,
+        event: {
+          name: eventOwner.contentEventName!,
+          date: eventOwner.contentEventDate!.toISOString(),
+          location: eventOwner.contentEventLocation ?? undefined,
+          description: eventOwner.contentEventDescription ?? undefined,
+          eventId: eventOwner.contentEventId ?? undefined,
+        },
+      };
+    }
     // The re-hosted federated files the OLD content references: an edit that
     // drops one queues it for deletion (below), or the file leaks in Oxy.
     const before = await federatedMediaIdsOfPost(tx, postId);
@@ -1743,15 +1766,17 @@ export async function replacePostContent(
         contentEventDate: content.event?.date ? new Date(content.event.date) : null,
         contentEventLocation: content.event?.location ?? null,
         contentEventDescription: content.event?.description ?? null,
+        ...(managedEvent ? {} : { contentEventCapacity: content.event?.capacity ?? null }),
         contentRoomId: content.room?.roomId ?? null,
         contentRoomTitle: content.room?.title ?? null,
         contentRoomStatus: content.room?.status ?? null,
         contentRoomTopic: content.room?.topic ?? null,
         contentRoomHost: content.room?.host ?? null,
-        contentHomiioCaseId:
-          sanitizeHomiioCase(content.homiioCase)?.caseId ??
-          homiioCaseFromText(content.variants?.[0]?.text ?? '')?.caseId ??
-          null,
+        contentHomiioCaseId: managedEvent
+          ? null
+          : (sanitizeHomiioCase(content.homiioCase)?.caseId ??
+            homiioCaseFromText(content.variants?.[0]?.text ?? '')?.caseId ??
+            null),
         contentPodcastSyraId: content.podcast?.syraPodcastId ?? null,
         contentPodcastTitle: null,
         contentPodcastAuthor: null,

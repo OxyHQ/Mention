@@ -271,6 +271,14 @@ export async function formatPushForNotification(
     logger.debug('[Push] Failed to hydrate actor for notification, using fallback name', { error });
   }
   const map: Record<string, { title: string; body: string }> = {
+    event_updated: {
+      title: 'Event updated',
+      body: `${actorName} updated an event you are attending`,
+    },
+    event_cancelled: {
+      title: 'Event cancelled',
+      body: `${actorName} cancelled an event you are attending`,
+    },
     like: { title: 'New like', body: `${actorName} liked your post` },
     reply: { title: 'New reply', body: `${actorName} replied to your post` },
     mention: { title: 'You were mentioned', body: `${actorName} mentioned you` },

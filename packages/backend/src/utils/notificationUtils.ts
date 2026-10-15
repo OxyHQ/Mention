@@ -458,3 +458,48 @@ export const createPostAuthorNotificationsStrict = async (
     { throwOnPersistenceError: true },
   );
 };
+
+/**
+ * Event changes commit their inbox notice in the SAME transaction as the change.
+ * One inbox row per event/actor/kind is refreshed for a new revision. A retry of
+ * the event command is a no-op before reaching here, so it cannot mark a read
+ * notice unread again. Socket/push delivery after commit remains best effort.
+ */
+export async function writeEventNotifications(
+  tx: import('../db/postgres').Transaction,
+  data: { postId: string; actorId: string; recipients: string[]; cancelled: boolean },
+): Promise<(typeof notifications.$inferSelect)[]> {
+  const result: (typeof notifications.$inferSelect)[] = [];
+  for (let i = 0; i < data.recipients.length; i += NOTIFICATION_INSERT_CHUNK) {
+    const recipients = data.recipients
+      .slice(i, i + NOTIFICATION_INSERT_CHUNK)
+      .filter((id) => id !== data.actorId);
+    if (!recipients.length) continue;
+    const now = new Date();
+    result.push(
+      ...(await tx
+        .insert(notifications)
+        .values(
+          recipients.map((recipientId) => ({
+            recipientId,
+            actorId: data.actorId,
+            entityId: data.postId,
+            entityType: 'post' as const,
+            type: data.cancelled ? ('event_cancelled' as const) : ('event_updated' as const),
+          })),
+        )
+        .onConflictDoUpdate({
+          target: NOTIFICATION_CONFLICT_TARGET,
+          set: { read: false, createdAt: now, updatedAt: now },
+        })
+        .returning()),
+    );
+  }
+  return result;
+}
+
+export async function deliverEventNotifications(
+  rows: (typeof notifications.$inferSelect)[],
+): Promise<void> {
+  await deliverNotifications(rows, true);
+}

@@ -1,3 +1,4 @@
+import { eventAttendance } from '../../db/schema/events';
 /**
  * THE TABLE — the ONE place a manifest step's Postgres shape is written down.
  *
@@ -232,6 +233,11 @@ export const STEP_BINDINGS: Readonly<Record<string, StepBinding>> = {
   },
 
   // --- Rows keyed on the channel ACCOUNT -------------------------------------
+  'event_attendance.oxyUserId|channel-account': {
+    phase: 'account',
+    table: eventAttendance,
+    where: accountEq(eventAttendance.oxyUserId),
+  },
   'notifications.entityId|channel-account': {
     phase: 'account',
     table: notifications,

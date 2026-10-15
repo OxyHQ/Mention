@@ -117,7 +117,7 @@ export async function deleteAuthoredPost(
   // would read that transaction's own uncommitted deletes and pass by
   // construction — a check that cannot fail.
   try {
-    await reportResidue(allDeletionTargets(deletedTargets), deletedId);
+    await reportResidue(allDeletionTargets(deletedTargets), deletedId, true);
   } catch (error) {
     recordDeletionSideEffectFailure('residue_check', error);
   }
