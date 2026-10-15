@@ -83,7 +83,7 @@ SSM Parameter Store is the ONE source of every backend and MCP runtime secret:
 task definition at task start. GitHub holds none of them, and
 `scripts/validate-workflows.mjs` fails CI if any workflow writes SSM or reads a
 repo secret outside its CI-only allowlist (`CLOUDFLARE_*` and the shell key for
-`deploy-frontends.yml`, `ADD_TO_PROJECT_TOKEN` for `add-to-roadmap.yml`). Until
+`deploy-frontends.yml`). Until
 2026-10-10 the deploys copied GitHub repo secrets into SSM on every run.
 
 ```bash
