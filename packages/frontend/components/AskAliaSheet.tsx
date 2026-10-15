@@ -29,7 +29,8 @@ const AskAliaSheet: React.FC<AskAliaSheetProps> = ({
   const promptRef = useRef(prompt);
   promptRef.current = prompt;
   useEffect(() => {
-    if (askId > 0) ref.current?.present(promptRef.current ? { text: promptRef.current } : undefined);
+    if (askId > 0)
+      ref.current?.present(promptRef.current ? { text: promptRef.current } : undefined);
   }, [askId]);
 
   return (
