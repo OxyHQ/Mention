@@ -19,10 +19,10 @@ past any of:
 
 | Budget | Ceiling |
 | --- | --- |
-| Total bytes | 19.75 MiB |
-| JavaScript bytes | 15.25 MiB |
-| Initial JavaScript bytes | 6.4 MiB |
-| Initial JavaScript gzip bytes | 1.67 MiB (target: 1.6 MiB) |
+| Total bytes | 19.5 MiB |
+| JavaScript bytes | 15 MiB |
+| Initial JavaScript bytes | 5.45 MiB |
+| Initial JavaScript gzip bytes | 1.5 MiB (target: 1.6 MiB) |
 | Font bytes | 4 MiB |
 | Largest single file | 7.5 MiB |
 
@@ -251,6 +251,52 @@ first paint is bound by downloading and running `__common` (1.3 MB brotli,
 Alia's avatar runtime blocked (it competes for bandwidth on `/`) the home gain
 is the same (−0.34 s).
 
+### Reanimated's layout animations and the feed's first request (2026-10-15)
+
+Two root causes, each measured on its own export of the same commit
+(headless Chromium, 430×932, 4x CPU, 150 ms RTT, ~9 Mbit/s, cold cache).
+
+**Gesture Handler kept all of Reanimated.** Its `reanimatedWrapper.js` loads
+Reanimated with `require('react-native-reanimated')` (an optional peer
+upstream). A CommonJS `require` hands Metro the whole module, so tree shaking
+has to keep every Reanimated export — ~100 layout-animation presets (Zoom,
+Flip, Bounce, Rotate, …), the screen transitions and the rest — none of which
+Mention or Bloom uses. A bun patch (`patches/react-native-gesture-handler@2.32.0.patch`,
+documented in `patches/README.md`) imports by name the four members it reads.
+What stays of the layout animations (101 KiB) is Reanimated's own web
+layout-animation runtime, which every animated component imports, and the
+Fade and Slide presets the app and Bloom use.
+
+| Signal | Before | After | Δ |
+| --- | --- | --- | --- |
+| Initial JavaScript bytes | 5,695,652 | 5,464,883 | −230,769 (−4.1 %) |
+| Initial JavaScript gzip bytes | 1,540,839 | 1,515,556 | −25,283 |
+| Initial JavaScript brotli bytes | 1,177,799 | 1,158,657 | −19,142 |
+| Reanimated in `__common` | 722 KiB | 500 KiB | −222 KiB |
+
+**The feed's first request waited for the whole screen.** A cold feed's first
+page left from the React Query observer's subscription, which React makes only
+after the whole screen has rendered and committed: on `/` the request went out
+~130 ms after the feed itself had rendered, with the main thread then idle for
+most of the response. `useFeedQuery` now starts the read during render (TanStack's
+`usePrefetchInfiniteQuery` pattern, gated on the observer's own `active`), and
+the observer joins it. Preloading the home page chunk as well was measured and
+NOT kept: the chunk then arrives at ~0.35 s instead of ~2.9 s, but the request
+leaves at the same moment, because rendering the shell above the feed — not the
+chunk — is what it waits for.
+
+Both together, against the export before them (median of 9 interleaved cold
+loads on `/`, 5 on a post and a profile; production API):
+
+| Page | FCP | LCP | First feed request | First row | Long tasks |
+| --- | --- | --- | --- | --- | --- |
+| `/` | 2.67 → 2.63 s | 4.08 → 3.96 s | 3.21 → 3.06 s | 3.97 → 3.84 s | 1.43 → 1.42 s |
+| `/p/<id>` | 2.64 → 2.62 s | 4.19 → 4.07 s | 3.48 → 3.37 s | 3.89 → 3.86 s | 1.25 → 1.23 s |
+| `/@gargron@mastodon.social` | 2.63 → 2.60 s | 4.71 → 4.76 s | 3.49 → 3.43 s | 4.38 → 4.34 s | 1.59 → 1.59 s |
+
+The profile's LCP is its banner image, which neither change touches; its
+difference is inside the run-to-run spread.
+
 ### Measured startup costs still open (2026-10-15)
 
 - **Alia's live avatar on the home header's Ask Alia button** (`AliaAvatarIcon`,
@@ -264,11 +310,37 @@ is the same (−0.34 s).
   size-aware level of detail, or a still for icon sizes) and in alia.onl's
   caching, not in Mention.
 - **Theme tokens.** Bloom's `BloomThemeProvider` solved the same preset's tokens
-  twice on its first render (~50 ms each at 4x CPU) — fixed in Bloom 10.8.2
-  (OxyHQ/Bloom#361), which Mention picks up with its next Bloom bump. The splash
-  (`AppSplashScreen`) resolves the full DARK token set for one gradient stop,
-  another ~50 ms before first paint on a light-mode device, where the theme
-  never uses that set.
+  twice on its first render — fixed in Bloom 10.8.2 (OxyHQ/Bloom#361). The
+  splash (`AppSplashScreen`) resolves the full DARK token set for one gradient
+  stop, which a light-mode device never uses otherwise: Bloom 10.10.0
+  (OxyHQ/Bloom#363) adds `getPresetBackground`, the one token for one tone
+  solve, and the splash moves to it with that bump. Measured with the Bloom
+  build: colour-engine CPU before 2.9 s 143 → 99 ms (4x CPU, 3 profiles each);
+  the splash's own share 5 ms. What is left is the ONE light set the theme
+  needs (~90 ms at 4x on its first, unwarmed call); precomputing every built-in
+  preset instead would ship 64 presets × 2 modes, 40 KB gzip, to every reader.
+- **`@oxy.so/contracts` and its zod 3 copy** — 122.8 KB raw, 24.5 KB gzip,
+  19.1 KB brotli of `__common`, and ~20 ms of module evaluation at 4x CPU
+  (schemas are built when their module loads). Not a fix to make in Mention or
+  by moving imports: `@oxy.so/core` validates its responses with these schemas
+  at runtime, the startup session path included, and every API namespace is a
+  static import of `OxyServices`, so a subpath import reaches the same modules.
+  The copy is also the SMALLEST zod there is: the app's own zod 4 would bring
+  its locales (~490 KiB) into `__common` with it. The root fix is in the SDK —
+  core checking its responses without zod on the client, as `@syra.fm/sdk` 0.18
+  does, or namespaces whose schemas load with their first call.
+- **Identity crypto** (`@oxy.so/core/crypto`, `@noble/*`, `@scure/bip39`'s
+  wordlist, `buffer`, `@oxy.so/protocol`): ~105 KB raw, ~32 KB gzip of
+  `__common`. `OxyContext` and core's cold boot (`identitySession`) import it
+  statically; a signed-out web reader never signs anything.
+- **Module evaluation is diffuse.** ~2,800 modules initialise before first
+  paint (~530 ms of factory time at 4x CPU, plus ~280 ms of the Metro
+  runtime's own `loadModuleImplementation`): react-native-web ~100 ms, Bloom
+  ~90 ms (no family above ~10 ms), expo-router ~70 ms, app code ~60 ms across
+  ~460 modules (none above 4 ms). The largest subtree a page does not need is the
+  profile chrome under `app/(app)/[username]/_layout.tsx` (~40 ms, evaluated on
+  every URL because expo-router requires every layout to build the route
+  tree); deferring it would put a chunk round trip in front of every profile.
 
 ### Real-browser release gate
 
