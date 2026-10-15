@@ -2,7 +2,12 @@ import { readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 import { profileTabHref, profileTabSelectionFromPathname } from '../profileTabRoute';
-import { ORGANIZATION_ONLY_TAB_NAMES, TAB_NAMES, laneTabKey } from '../types';
+import {
+  ORGANIZATION_ONLY_TAB_NAMES,
+  PERSONAL_ONLY_TAB_NAMES,
+  TAB_NAMES,
+  laneTabKey,
+} from '../types';
 
 /**
  * Which profile URLs get the tab chrome, and which get none.
@@ -70,7 +75,8 @@ const TAB_PATHNAMES = ROUTE_PATHNAMES.filter((pathname) => {
     second === undefined ||
     second === 'lane' ||
     (TAB_NAMES as readonly string[]).includes(second) ||
-    (ORGANIZATION_ONLY_TAB_NAMES as readonly string[]).includes(second)
+    (ORGANIZATION_ONLY_TAB_NAMES as readonly string[]).includes(second) ||
+    (PERSONAL_ONLY_TAB_NAMES as readonly string[]).includes(second)
   );
 });
 

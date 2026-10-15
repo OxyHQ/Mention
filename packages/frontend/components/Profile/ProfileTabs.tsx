@@ -13,6 +13,7 @@ import { Feed } from '@/components/Feed/index';
 // tab with no pinned post first, then pushed the whole feed down under it (#1216).
 import PinnedPostItem from '@/components/Feed/PostItem';
 import { ProfileWriters } from './ProfileWriters';
+import { ProfileExperience } from './ProfileExperience';
 import MediaGrid from './MediaGrid';
 import VideosGrid from './VideosGrid';
 import { FeedCard } from '@/components/FeedCard';
@@ -139,6 +140,10 @@ export const ProfileTabs = memo(function ProfileTabs({
     return (
       <ProfileJobs employerOxyUserId={profileId} isOwnProfile={isOwnProfile} viewerId={user?.id} />
     );
+  }
+
+  if (tab === 'experience') {
+    return <ProfileExperience profileId={profileId} isOwnProfile={isOwnProfile} />;
   }
 
   // Lists tab

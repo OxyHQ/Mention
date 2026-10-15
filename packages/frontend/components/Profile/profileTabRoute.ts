@@ -1,6 +1,7 @@
 import type { Href } from 'expo-router';
 import {
   ORGANIZATION_ONLY_TAB_NAMES,
+  PERSONAL_ONLY_TAB_NAMES,
   TAB_NAMES,
   laneTabKey,
   type ProfileTab,
@@ -15,7 +16,11 @@ import {
  * purpose — no `writers.tsx` file exists, and reaching it is local
  * tab-strip-press state only, same as before this addition.
  */
-const ROUTED_TAB_NAMES: readonly string[] = [...TAB_NAMES, ...ORGANIZATION_ONLY_TAB_NAMES];
+const ROUTED_TAB_NAMES: readonly string[] = [
+  ...TAB_NAMES,
+  ...ORGANIZATION_ONLY_TAB_NAMES,
+  ...PERSONAL_ONLY_TAB_NAMES,
+];
 
 /**
  * A profile tab's URL, and the reverse reading of one.
