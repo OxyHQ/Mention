@@ -7,11 +7,13 @@
  */
 
 import type { Response } from 'express';
-import { and, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, eq, type SQL } from 'drizzle-orm';
 import { posts as postsTable } from '../../db/schema/posts';
-import { postHashtags } from '../../db/schema/postContent';
-import { getDb } from '../../db/postgres';
 import { CHRONO_DESC, findPostRecords, loadPostRecord } from '../../db/posts/postRepository';
+import {
+  findHashtagPage as findHashtagPageAt,
+  postsListedUnderHashtagSql,
+} from '../../db/posts/postHashtagRepository';
 import {
   ChronoCursor,
   chronoCursorBoundary,
@@ -180,11 +182,6 @@ export const getPostCorrections = async (req: AuthRequest, res: Response) => {
   }
 };
 
-/** The tag rows a hashtag page reads: stored tags are lowercase. */
-function hashtagRows(hashtag: string): SQL {
-  return eq(postHashtags.tag, hashtag.toLowerCase());
-}
-
 /**
  * The hashtag discovery predicate: the posts `post_hashtags` lists under the tag.
  *
@@ -197,41 +194,16 @@ function hashtagRows(hashtag: string): SQL {
  * does not use it: see {@link findHashtagPage}.
  */
 export function buildPostsByHashtagFilter(hashtag: string): SQL {
-  return inArray(
-    postsTable.id,
-    getDb().select({ id: postHashtags.postId }).from(postHashtags).where(hashtagRows(hashtag)),
-  );
+  return postsListedUnderHashtagSql(hashtag);
 }
 
 /**
- * One chronological page of a hashtag: `limit` posts after `cursor`.
- *
- * The page is chosen in `post_hashtags`, as one range of
- * `post_hashtags_tag_recent_idx` (tag, created_at desc, post_id desc) exactly as
- * long as the page, and only those posts are then read from `posts`. On
- * `posts.hashtags` the GIN index could find a tag's posts but not order them: a
- * common tag walked the public chronological index (17,881 rows for 21 kept,
- * 1.1 s cold) and a less common one sorted every match (1,061 heap pages,
- * 0.73 s cold; production, 2026-10-15). The rows copy their post's `created_at`,
- * so the cursor bounds the same order either side.
+ * One chronological page of a hashtag: `limit` posts after `cursor`. The read is
+ * `postHashtagRepository.findHashtagPage`; this resolves the cursor (a legacy
+ * one carrying no timestamp costs one primary-key lookup) into its boundary.
  */
 export async function findHashtagPage(hashtag: string, cursor: string | undefined, limit: number) {
-  const boundary = await chronoCursorBoundary(cursor);
-  // A row comparison, so the bound is part of the index range rather than a
-  // filter over every row of the tag newer than the cursor.
-  const keyset = boundary
-    ? sql`(${postHashtags.createdAt}, ${postHashtags.postId}) < (${boundary.at.toISOString()}::timestamptz, ${boundary.id})`
-    : undefined;
-  const page = getDb()
-    .select({ id: postHashtags.postId })
-    .from(postHashtags)
-    .where(and(hashtagRows(hashtag), keyset))
-    .orderBy(
-      sql`${postHashtags.createdAt} desc nulls last`,
-      sql`${postHashtags.postId} desc nulls last`,
-    )
-    .limit(limit);
-  return findPostRecords(inArray(postsTable.id, page), { orderBy: chronoOrderBy(), limit });
+  return findHashtagPageAt(hashtag, await chronoCursorBoundary(cursor), limit);
 }
 
 export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
