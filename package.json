@@ -125,7 +125,7 @@
     "metro-transform-plugins": "0.84.5",
     "metro-transform-worker": "0.84.5",
     "ob1": "0.84.5",
-    "@oxy.so/bloom": "catalog:",
+    "@oxy.so/bloom": "10.7.0",
     "@oxy.so/core": "4.5.0",
     "@oxy.so/services": "11.2.0",
     "fast-uri": "3.1.8",
@@ -149,7 +149,8 @@
     "@grpc/grpc-js": "1.14.5",
     "@fastify/busboy": "3.2.2",
     "@oxy.so/protocol": "catalog:",
-    "@oxy.so/mcp": "catalog:"
+    "@oxy.so/mcp": "catalog:",
+    "react-native-css": "3.1.0-rc.0"
   },
   "patchedDependencies": {
     "expo-router@57.0.23": "patches/expo-router@57.0.23.patch",
