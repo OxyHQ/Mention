@@ -2521,5 +2521,17 @@
   "alia.onScreen": "Şu anda {{path}} ekranında.",
   "alia.suggestion.news": "Bugün herkes ne konuşuyor?",
   "alia.suggestion.write": "Bir gönderi yazmama yardım et",
-  "alia.suggestion.discover": "Takip edilecek hesaplar ve konular öner"
+  "alia.suggestion.discover": "Takip edilecek hesaplar ve konular öner",
+  "homiio": {
+    "loading": "Homiio vakası yükleniyor…",
+    "unavailable": "Bu Homiio vakası kullanılamıyor",
+    "open": "Vakayı Homiio’da aç",
+    "status": {
+      "upcoming": "Yaklaşan",
+      "stopped": "Durduruldu",
+      "postponed": "Ertelendi",
+      "executed": "Gerçekleştirildi",
+      "cancelled": "İptal edildi"
+    }
+  }
 }

@@ -1,0 +1,3 @@
+ALTER TABLE "post_attachments" DROP CONSTRAINT "post_attachments_type_check";--> statement-breakpoint
+ALTER TABLE "posts" ADD COLUMN "content_homiio_case_id" text;--> statement-breakpoint
+ALTER TABLE "post_attachments" ADD CONSTRAINT "post_attachments_type_check" CHECK ("post_attachments"."type" in ('media', 'poll', 'article', 'event', 'location', 'sources', 'room', 'podcast', 'homiioCase', 'job'));

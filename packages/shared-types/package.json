@@ -138,6 +138,11 @@
       "types": "./dist/realtime.d.ts",
       "import": "./dist/realtime.js",
       "require": "./dist/realtime.js"
+    },
+    "./homiio": {
+      "types": "./dist/homiio.d.ts",
+      "import": "./dist/homiio.js",
+      "require": "./dist/homiio.js"
     }
   },
   "scripts": {
@@ -162,7 +167,8 @@
     "@clarity.surf/sdk": "^0.4.0",
     "@oxy.so/contracts": "catalog:",
     "@oxy.so/utils": "catalog:",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@homiio/contracts": "file:../../vendor/homiio-contracts-0.1.0.tgz"
   },
   "devDependencies": {
     "typescript": "catalog:",

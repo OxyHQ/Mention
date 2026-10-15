@@ -2521,5 +2521,17 @@
   "alia.onScreen": "Dia sedang berada di layar {{path}}.",
   "alia.suggestion.news": "Apa yang sedang dibicarakan semua orang hari ini?",
   "alia.suggestion.write": "Bantu aku menulis sebuah kiriman",
-  "alia.suggestion.discover": "Sarankan akun dan topik untuk diikuti"
+  "alia.suggestion.discover": "Sarankan akun dan topik untuk diikuti",
+  "homiio": {
+    "loading": "Memuat kasus Homiio…",
+    "unavailable": "Kasus Homiio ini tidak tersedia",
+    "open": "Buka kasus di Homiio",
+    "status": {
+      "upcoming": "Mendatang",
+      "stopped": "Dihentikan",
+      "postponed": "Ditunda",
+      "executed": "Dilaksanakan",
+      "cancelled": "Dibatalkan"
+    }
+  }
 }

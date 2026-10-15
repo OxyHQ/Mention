@@ -789,3 +789,34 @@ describe('list reads', () => {
     expect(page.map((record) => record.id)).toEqual([newer.id, older.id]);
   });
 });
+
+describe('Homiio case references', () => {
+  it('stores only an opaque ID and round-trips it without provider facts', async () => {
+    const untrusted = { caseId: 'case-1', title: 'Not authoritative', address: 'Never store me' };
+    const record = await create({ content: { homiioCase: untrusted } });
+    expect(record.content.homiioCase).toEqual({ caseId: 'case-1' });
+    const reloaded = await loadPostRecord(record.id);
+    expect(reloaded?.content.homiioCase).toEqual({ caseId: 'case-1' });
+    const [row] = await db.select().from(posts).where(eq(posts.id, record.id));
+    expect(row.contentHomiioCaseId).toBe('case-1');
+    expect(JSON.stringify(row)).not.toContain('Never store me');
+    expect(JSON.stringify(row)).not.toContain('Not authoritative');
+  });
+
+  it('attaches a pasted case link, replaces it on edit, and removes it with the link', async () => {
+    const record = await create({
+      content: {
+        variants: [{ source: 'author', tag: 'en', text: 'https://homiio.com/evictions/case-1' }],
+      },
+    });
+    expect(record.content.homiioCase).toEqual({ caseId: 'case-1' });
+    await replacePostContent(record.id, {
+      variants: [{ source: 'author', tag: 'en', text: 'https://homiio.com/evictions/case-2' }],
+    });
+    expect((await loadPostRecord(record.id))?.content.homiioCase).toEqual({ caseId: 'case-2' });
+    await replacePostContent(record.id, {
+      variants: [{ source: 'author', tag: 'en', text: 'Removed' }],
+    });
+    expect((await loadPostRecord(record.id))?.content.homiioCase).toBeUndefined();
+  });
+});

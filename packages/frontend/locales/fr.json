@@ -2552,5 +2552,17 @@
   "alia.onScreen": "Elle est sur l'écran {{path}}.",
   "alia.suggestion.news": "De quoi parle tout le monde aujourd'hui ?",
   "alia.suggestion.write": "Aide-moi à écrire une publication",
-  "alia.suggestion.discover": "Suggère-moi des comptes et des sujets à suivre"
+  "alia.suggestion.discover": "Suggère-moi des comptes et des sujets à suivre",
+  "homiio": {
+    "loading": "Chargement du dossier Homiio…",
+    "unavailable": "Ce dossier Homiio est indisponible",
+    "open": "Ouvrir le dossier dans Homiio",
+    "status": {
+      "upcoming": "À venir",
+      "stopped": "Suspendu",
+      "postponed": "Reporté",
+      "executed": "Exécuté",
+      "cancelled": "Annulé"
+    }
+  }
 }

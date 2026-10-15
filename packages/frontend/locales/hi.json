@@ -2521,5 +2521,17 @@
   "alia.onScreen": "वह अभी {{path}} स्क्रीन पर है।",
   "alia.suggestion.news": "आज सब किस बारे में बात कर रहे हैं?",
   "alia.suggestion.write": "पोस्ट लिखने में मेरी मदद करो",
-  "alia.suggestion.discover": "फ़ॉलो करने के लिए खाते और विषय सुझाओ"
+  "alia.suggestion.discover": "फ़ॉलो करने के लिए खाते और विषय सुझाओ",
+  "homiio": {
+    "loading": "Homiio मामला लोड हो रहा है…",
+    "unavailable": "यह Homiio मामला उपलब्ध नहीं है",
+    "open": "Homiio में मामला खोलें",
+    "status": {
+      "upcoming": "आगामी",
+      "stopped": "रोका गया",
+      "postponed": "स्थगित",
+      "executed": "कार्यान्वित",
+      "cancelled": "रद्द"
+    }
+  }
 }

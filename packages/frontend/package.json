@@ -178,7 +178,8 @@
     "tailwindcss-animate": "^1.0.7",
     "web-vitals": "^6.2.3",
     "zod": "catalog:",
-    "zustand": "^5.0.14"
+    "zustand": "^5.0.14",
+    "@homiio/sdk": "file:../../vendor/homiio-sdk-0.1.0.tgz"
   },
   "devDependencies": {
     "@expo/ngrok": "^4.1.3",

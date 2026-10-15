@@ -2521,5 +2521,17 @@
   "alia.onScreen": "他们当前所在的页面是 {{path}}。",
   "alia.suggestion.news": "今天大家都在聊什么？",
   "alia.suggestion.write": "帮我写一条帖子",
-  "alia.suggestion.discover": "推荐一些值得关注的账号和话题"
+  "alia.suggestion.discover": "推荐一些值得关注的账号和话题",
+  "homiio": {
+    "loading": "正在加载 Homiio 案件…",
+    "unavailable": "此 Homiio 案件不可用",
+    "open": "在 Homiio 中打开案件",
+    "status": {
+      "upcoming": "即将进行",
+      "stopped": "已停止",
+      "postponed": "已延期",
+      "executed": "已执行",
+      "cancelled": "已取消"
+    }
+  }
 }

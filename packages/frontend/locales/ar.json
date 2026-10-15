@@ -2631,5 +2631,17 @@
   "alia.onScreen": "هو الآن في الشاشة {{path}}.",
   "alia.suggestion.news": "عمَّ يتحدث الجميع اليوم؟",
   "alia.suggestion.write": "ساعدني في كتابة منشور",
-  "alia.suggestion.discover": "اقترح حسابات ومواضيع للمتابعة"
+  "alia.suggestion.discover": "اقترح حسابات ومواضيع للمتابعة",
+  "homiio": {
+    "loading": "جارٍ تحميل قضية Homiio…",
+    "unavailable": "قضية Homiio هذه غير متاحة",
+    "open": "فتح القضية في Homiio",
+    "status": {
+      "upcoming": "قادم",
+      "stopped": "متوقف",
+      "postponed": "مؤجل",
+      "executed": "تم التنفيذ",
+      "cancelled": "ملغى"
+    }
+  }
 }

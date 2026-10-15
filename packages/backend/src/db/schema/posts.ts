@@ -504,6 +504,9 @@ export const posts = pgTable(
     contentRoomHost: text(),
 
     /** A Syra podcast show. Cross-service id — no foreign key. */
+    /** Opaque Homiio case reference. No address, snapshot, or foreign key. */
+    contentHomiioCaseId: text(),
+
     contentPodcastSyraId: text(),
     contentPodcastTitle: text(),
     contentPodcastAuthor: text(),

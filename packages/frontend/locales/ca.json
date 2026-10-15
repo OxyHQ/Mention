@@ -2549,5 +2549,17 @@
   "alia.onScreen": "És a la pantalla {{path}}.",
   "alia.suggestion.news": "De què parla tothom avui?",
   "alia.suggestion.write": "Ajuda'm a escriure una publicació",
-  "alia.suggestion.discover": "Suggereix-me comptes i temes per seguir"
+  "alia.suggestion.discover": "Suggereix-me comptes i temes per seguir",
+  "homiio": {
+    "loading": "Carregant el cas de Homiio…",
+    "unavailable": "Aquest cas de Homiio no està disponible",
+    "open": "Obre el cas a Homiio",
+    "status": {
+      "upcoming": "Proper",
+      "stopped": "Aturat",
+      "postponed": "Ajornat",
+      "executed": "Executat",
+      "cancelled": "Cancel·lat"
+    }
+  }
 }

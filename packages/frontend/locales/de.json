@@ -2521,5 +2521,17 @@
   "alia.onScreen": "Sie befindet sich auf dem Bildschirm {{path}}.",
   "alia.suggestion.news": "Worüber spricht heute alle Welt?",
   "alia.suggestion.write": "Hilf mir, einen Beitrag zu schreiben",
-  "alia.suggestion.discover": "Schlage mir Konten und Themen zum Folgen vor"
+  "alia.suggestion.discover": "Schlage mir Konten und Themen zum Folgen vor",
+  "homiio": {
+    "loading": "Homiio-Fall wird geladen…",
+    "unavailable": "Dieser Homiio-Fall ist nicht verfügbar",
+    "open": "Fall in Homiio öffnen",
+    "status": {
+      "upcoming": "Bevorstehend",
+      "stopped": "Gestoppt",
+      "postponed": "Verschoben",
+      "executed": "Durchgeführt",
+      "cancelled": "Abgesagt"
+    }
+  }
 }

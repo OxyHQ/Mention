@@ -2521,5 +2521,17 @@
   "alia.onScreen": "তিনি এখন {{path}} স্ক্রিনে আছেন।",
   "alia.suggestion.news": "আজ সবাই কী নিয়ে কথা বলছে?",
   "alia.suggestion.write": "একটি পোস্ট লিখতে আমাকে সাহায্য করো",
-  "alia.suggestion.discover": "অনুসরণ করার জন্য অ্যাকাউন্ট ও বিষয় সুপারিশ করো"
+  "alia.suggestion.discover": "অনুসরণ করার জন্য অ্যাকাউন্ট ও বিষয় সুপারিশ করো",
+  "homiio": {
+    "loading": "Homiio কেস লোড হচ্ছে…",
+    "unavailable": "এই Homiio কেসটি উপলব্ধ নয়",
+    "open": "Homiio-তে কেস খুলুন",
+    "status": {
+      "upcoming": "আসন্ন",
+      "stopped": "স্থগিত",
+      "postponed": "পিছিয়ে দেওয়া হয়েছে",
+      "executed": "কার্যকর হয়েছে",
+      "cancelled": "বাতিল"
+    }
+  }
 }

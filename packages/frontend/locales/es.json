@@ -2549,5 +2549,17 @@
   "alia.onScreen": "Está en la pantalla {{path}}.",
   "alia.suggestion.news": "¿De qué habla todo el mundo hoy?",
   "alia.suggestion.write": "Ayúdame a escribir una publicación",
-  "alia.suggestion.discover": "Sugiéreme cuentas y temas para seguir"
+  "alia.suggestion.discover": "Sugiéreme cuentas y temas para seguir",
+  "homiio": {
+    "loading": "Cargando caso de Homiio…",
+    "unavailable": "Este caso de Homiio no está disponible",
+    "open": "Abrir caso en Homiio",
+    "status": {
+      "upcoming": "Próximo",
+      "stopped": "Paralizado",
+      "postponed": "Aplazado",
+      "executed": "Ejecutado",
+      "cancelled": "Cancelado"
+    }
+  }
 }

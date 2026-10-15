@@ -509,3 +509,10 @@ export function useVideoPlayback({
 
   return { shouldPlay, claimActive, reportVisibility };
 }
+
+/** List viewability for non-video cards; shares the native feed's measured row set. */
+export function useNativeRowVisibility(key?: string): boolean {
+  const source = useContext(VideoViewabilityContext);
+  const rank = useKeyRank(source, key);
+  return resolveNativeVisibility(source, rank).visible;
+}

@@ -2577,5 +2577,17 @@
   "alia.onScreen": "Сейчас он на экране {{path}}.",
   "alia.suggestion.news": "О чём сегодня все говорят?",
   "alia.suggestion.write": "Помоги написать публикацию",
-  "alia.suggestion.discover": "Предложи аккаунты и темы для подписки"
+  "alia.suggestion.discover": "Предложи аккаунты и темы для подписки",
+  "homiio": {
+    "loading": "Загрузка дела Homiio…",
+    "unavailable": "Это дело Homiio недоступно",
+    "open": "Открыть дело в Homiio",
+    "status": {
+      "upcoming": "Предстоит",
+      "stopped": "Приостановлено",
+      "postponed": "Отложено",
+      "executed": "Исполнено",
+      "cancelled": "Отменено"
+    }
+  }
 }

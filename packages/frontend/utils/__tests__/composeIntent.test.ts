@@ -558,3 +558,20 @@ describe('buildQuoteFallbackUrl', () => {
     expect(buildQuoteFallbackUrl('abc123')).toBe('https://mention.earth/p/abc123');
   });
 });
+
+describe('Homiio share intent', () => {
+  it('prefills a canonical case reference URL without provider facts', () => {
+    const intent = parseComposeIntent({
+      homiioCaseId: 'opaque-case',
+      title: 'untrusted',
+      address: 'private address',
+    });
+    expect(intent).toEqual({ url: 'https://homiio.com/evictions/opaque-case' });
+    expect(hasIntentContent(intent)).toBe(true);
+    expect(buildComposeText(intent)).toBe('https://homiio.com/evictions/opaque-case');
+  });
+  it('ignores invalid references while retaining ordinary text', () => {
+    expect(parseComposeIntent({ homiioCaseId: '', text: 'hello' })).toEqual({ text: 'hello' });
+    expect(parseComposeIntent({ homiioCaseId: 'x'.repeat(201) })).toEqual({});
+  });
+});

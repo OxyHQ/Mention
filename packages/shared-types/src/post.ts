@@ -1,3 +1,4 @@
+import type { HomiioCaseReference } from './homiio';
 /**
  * Post-related types for Mention social network
  */
@@ -184,6 +185,7 @@ export type PostAttachmentType =
   | 'event'
   | 'room'
   | 'podcast'
+  | 'homiioCase'
   | 'job';
 
 export interface PostAttachmentDescriptor {
@@ -355,6 +357,7 @@ export interface StoredPostContent {
   sources?: PostSourceLink[];
   event?: PostEventContent;
   room?: PostRoomContent;
+  homiioCase?: HomiioCaseReference;
   podcast?: PostPodcastContent;
   job?: PostJobContent;
   attachments?: PostAttachmentDescriptor[];
@@ -402,6 +405,7 @@ export interface PostContent {
   article?: PostArticleContent; // Long-form, resolved for this reader
   event?: PostEventContent; // Optional event content
   room?: PostRoomContent; // Optional room content
+  homiioCase?: HomiioCaseReference;
   podcast?: PostPodcastContent; // Optional Syra podcast show attached to the post
   job?: PostJobContent; // Optional Mention job listing attached to the post
   attachments?: PostAttachmentDescriptor[]; // Ordered attachments for rendering (media, poll, article, event, etc.)
@@ -1114,6 +1118,7 @@ export interface PostAttachmentBundle {
   location?: GeoJSONPoint;
   event?: PostEventContent;
   room?: PostRoomContent;
+  homiioCase?: HomiioCaseReference;
   podcast?: PostPodcastContent;
   job?: PostJobContent;
 }

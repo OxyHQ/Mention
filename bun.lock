@@ -82,6 +82,7 @@
         "@alia.onl/sdk": "^13.2.0",
         "@babel/plugin-transform-export-namespace-from": "^8.0.1",
         "@expo/vector-icons": "^15.1.1",
+        "@homiio/sdk": "file:../../vendor/homiio-sdk-0.1.0.tgz",
         "@livekit/react-native": "^3.0.0",
         "@livekit/react-native-expo-plugin": "^1.0.3",
         "@livekit/react-native-webrtc": "^144.2.0",
@@ -221,6 +222,7 @@
       "version": "1.0.0",
       "dependencies": {
         "@clarity.surf/sdk": "^0.4.0",
+        "@homiio/contracts": "file:../../vendor/homiio-contracts-0.1.0.tgz",
         "@oxy.so/contracts": "catalog:",
         "@oxy.so/utils": "catalog:",
         "zod": "catalog:",
@@ -243,6 +245,7 @@
     "@expo/log-box": "57.0.4",
     "@fastify/busboy": "3.2.2",
     "@grpc/grpc-js": "1.14.5",
+    "@homiio/contracts": "file:./vendor/homiio-contracts-0.1.0.tgz",
     "@modelcontextprotocol/sdk": "1.32.1",
     "@oxy.so/bloom": "catalog:",
     "@oxy.so/contracts": "catalog:",
@@ -740,6 +743,10 @@
     "@grpc/grpc-js": ["@grpc/grpc-js@1.14.5", "", { "dependencies": { "@grpc/proto-loader": "^0.8.0", "@js-sdsl/ordered-map": "^4.4.2" } }, "sha512-7VZM+SVdEcUUqSQeNI3zM8Qs/BhQKZndPo2h5VkYkAM8Iz0wJIa8mKV5ekQGqG8UUsnkQ0NMxIxwkIHYvj0qOw=="],
 
     "@grpc/proto-loader": ["@grpc/proto-loader@0.8.1", "", { "dependencies": { "lodash.camelcase": "^4.3.0", "long": "^5.0.0", "protobufjs": "^7.5.5", "yargs": "^17.7.2" }, "bin": { "proto-loader-gen-types": "build/bin/proto-loader-gen-types.js" } }, "sha512-wtF6h+DY6M3YaDBPAmvuuA6jV8Sif9MjtOI5euKFWRgCDl5PeDpPsHR9u2l6St5ceY8AZgoNDww5+HvEsXFsGg=="],
+
+    "@homiio/contracts": ["@homiio/contracts@./vendor/homiio-contracts-0.1.0.tgz", { "dependencies": { "zod": "^4.3.6" } }, "sha512-IX/ApG8DlJ0EPBrWmjg6gMtf3t1oJGmytZYlbUqugB0u/KFgVAl5WvrRDBK1RTMtZbvolpBAwLBi+JqKf0svlQ=="],
+
+    "@homiio/sdk": ["@homiio/sdk@../../vendor/homiio-sdk-0.1.0.tgz", { "dependencies": { "@homiio/contracts": "0.1.0" } }, "sha512-JbxPaEorblUKnMJFGBhHL9w6VtugH28ESsgpuLPXzsiXxHeg0NdMsaZJppfxrx/L2guozcivAGiJD89MzWM0wg=="],
 
     "@hono/node-server": ["@hono/node-server@1.19.14", "", { "peerDependencies": { "hono": "^4" } }, "sha512-GwtvgtXxnWsucXvbQXkRgqksiH2Qed37H9xHZocE5sA3N8O8O8/8FA3uclQXxXVzc9XBZuEOMK7+r02FmSpHtw=="],
 
