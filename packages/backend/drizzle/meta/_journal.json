@@ -498,6 +498,13 @@
       "when": 1792051437640,
       "tag": "0070_post_owner_authorships",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1792056402382,
+      "tag": "0071_post_hashtags",
+      "breakpoints": true
     }
   ]
 }
