@@ -265,6 +265,10 @@ export const postContentVariants = pgTable(
      * the one-argument `to_tsvector` reads
      * `default_text_search_config` at runtime and is therefore STABLE, which
      * Postgres refuses in a generated column.
+     *
+     * Its statistics target is 1000, not the default 100 (migration 0066 —
+     * drizzle has no way to declare it): at 100 the planner estimated every
+     * rare word at ~2,400 matches and walked the oldest search window for it.
      */
     searchVector: tsvector().generatedAlwaysAs(sql`to_tsvector('english', coalesce(body, ''))`),
   },
