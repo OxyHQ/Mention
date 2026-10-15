@@ -16,7 +16,7 @@ try {
   await cp(join(root, 'vendor'), join(fixture, 'vendor'), { recursive: true });
   await cp(join(root, 'package.json'), join(fixture, 'package.json'));
   await symlink(join(root, 'node_modules'), join(fixture, 'node_modules'), 'dir');
-  for (const name of ['backend', 'frontend', 'shared-types', 'mcp', 'e2e']) {
+  for (const name of ['backend', 'frontend', 'shared-types', 'mcp', 'e2e', 'contracts', 'sdk']) {
     await mkdir(join(fixture, 'packages', name), { recursive: true });
     await cp(
       join(root, 'packages', name, 'package.json'),
