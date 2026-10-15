@@ -140,4 +140,35 @@ describe('clarityHostedDocument', () => {
     expect(result).not.toHaveProperty('faviconUrl');
     expect(result.canonicalUrl).toBe(base.canonicalUrl);
   });
+
+  it('drops the extracted article body and keeps what a card shows', () => {
+    const result = clarityHostedDocument({
+      ...base,
+      title: 'The people holding up the internet',
+      description: 'Four billion phones ask one text file what time it is.',
+      publisher: 'sheets.works',
+      content: 'x'.repeat(17_000),
+    } as never);
+    expect(result).not.toHaveProperty('content');
+    expect(result).toMatchObject({
+      canonicalUrl: base.canonicalUrl,
+      title: 'The people holding up the internet',
+      description: 'Four billion phones ask one text file what time it is.',
+      publisher: 'sheets.works',
+    });
+  });
+
+  it('drops the body from every resolved document', async () => {
+    resolve.mockResolvedValue({
+      data: [
+        {
+          url: 'https://site.example/a',
+          status: 'indexed',
+          document: { ...base, content: 'article body' },
+        },
+      ],
+    });
+    const result = await resolveClarityDocuments(['https://site.example/a']);
+    expect(result.documents.get('https://site.example/a')).not.toHaveProperty('content');
+  });
 });
