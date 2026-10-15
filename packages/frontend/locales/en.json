@@ -2924,5 +2924,14 @@
   "alia.suggestion.discover": "Suggest accounts and topics to follow",
   "profile.actions.askAlia": "Ask Alia about @{{handle}}",
   "profile.askAlia.prompt": "Tell me about @{{handle}} on Mention: who they are, what they post about and what they are known for.",
-  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering."
+  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering.",
+  "safety": {
+    "contentUnavailable": "This content is unavailable",
+    "unavailableTitle": "Unavailable for this account",
+    "unavailableDescription": "This feature is not available for supervised accounts yet. You can continue reading reviewed posts in your feed.",
+    "checkFailed": "Could not check account availability",
+    "retryDescription": "Try again to load the current account protections.",
+    "privatePost": "Only your guardian and approved contacts can read your posts.",
+    "pendingAssessment": "This content is not available until its safety review is complete."
+  }
 }

@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AccountMember } from '@oxy.so/core';
 import type { OxyAuthRequest } from '@oxy.so/core/server';
@@ -53,6 +54,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: vi.fn(() => ({})),
   // The caller's own bearer-scoped Oxy client, which is what the gate reads
   // membership with. One shared spy so the call COUNT across the whole request is
@@ -141,6 +143,7 @@ function makeRes(): MockRes {
 
 function req(body: Record<string, unknown>): OxyAuthRequest {
   return {
+    accessToken: 'test-viewer-session',
     user: { id: CALLER },
     query: {},
     headers: {},
@@ -399,7 +402,7 @@ describe("the side effects follow the ENTRY's author, not the caller", () => {
     expect(createMentionNotifications.mock.calls[0][2]).toBe(CHANNEL);
   });
 
-  it("emits the following-feed update under the first entry's author", async () => {
+  it("invalidates the following feed without revealing an author's identity", async () => {
     const res = makeRes();
     await createThread(
       req({
@@ -416,7 +419,7 @@ describe("the side effects follow the ENTRY's author, not the caller", () => {
     const following = emit.mock.calls.find(
       ([, payload]: [string, { type?: string }]) => payload?.type === 'following',
     );
-    expect(following?.[1]).toMatchObject({ authorId: ORGANIZATION });
+    expect(following?.[1]).toEqual({ type: 'following', timestamp: expect.any(String) });
   });
 
   it('CONTROL: an ordinary batch still attributes both to the caller', async () => {
@@ -431,7 +434,7 @@ describe("the side effects follow the ENTRY's author, not the caller", () => {
     const following = emit.mock.calls.find(
       ([, payload]: [string, { type?: string }]) => payload?.type === 'following',
     );
-    expect(following?.[1]).toMatchObject({ authorId: CALLER });
+    expect(following?.[1]).toEqual({ type: 'following', timestamp: expect.any(String) });
   });
 });
 

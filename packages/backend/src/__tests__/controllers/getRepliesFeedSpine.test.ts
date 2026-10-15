@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * {@link FeedController.getRepliesFeed}'s self-thread spine expansion
  * (Bluesky-style replies), against REAL ROWS.
@@ -47,6 +48,7 @@ const oxyMocks = vi.hoisted(() => ({
 }));
 oxyMocks.createScopedOxyClient.mockReturnValue(oxyMocks.scopedClient);
 vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: oxyMocks.createScopedOxyClient,
 }));
 

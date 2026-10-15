@@ -207,6 +207,13 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     why: 'Shadow claims and results belong to the post. `ON DELETE CASCADE` also removes their topic probabilities.',
   },
   {
+    table: 'post_safety_assessments',
+    column: 'postId',
+    scope: 'channel-posts',
+    action: 'database',
+    why: 'A safety assessment is bound to the post material. `ON DELETE CASCADE` removes it with the post.',
+  },
+  {
     table: 'post_recent_repliers',
     column: 'postId',
     scope: 'channel-posts',

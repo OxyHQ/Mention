@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * `hashtags` on the other two native post writes.
  *
@@ -36,6 +37,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: vi.fn(() => ({})),
   createUserScopedOxyServices: vi.fn(() => undefined),
   getRuntimeOxyClient: vi.fn(() => ({})),
@@ -83,7 +85,14 @@ async function call(
 ) {
   const { res, captured } = buildResponse();
   await handler(
-    { user: { id: AUTHOR }, query: {}, headers: {}, acceptsLanguages: () => [], body } as never,
+    {
+      accessToken: 'test-viewer-session',
+      user: { id: AUTHOR },
+      query: {},
+      headers: {},
+      acceptsLanguages: () => [],
+      body,
+    } as never,
     res as never,
   );
   return captured;

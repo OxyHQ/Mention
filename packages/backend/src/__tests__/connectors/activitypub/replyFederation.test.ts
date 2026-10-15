@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -57,7 +58,7 @@ vi.mock('../../../utils/mediaResolver', () => ({
 }));
 vi.mock('../../../services/fediverseSharing', () => ({ isFediverseSharingEnabled }));
 vi.mock('../../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ users: { get: getUserById } }),
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture(), users: { get: getUserById } }),
 }));
 
 import { closePostgres, connectPostgres } from '../../../db/postgres';
@@ -85,7 +86,7 @@ function replyPost(parentPostId: string | undefined): {
   visibility: string;
 } {
   return {
-    id: 'reply1',
+    id: 'reply-federation-reply1',
     ...(parentPostId ? { parentPostId } : {}),
     content: { variants: [{ source: 'author', text: 'threaded response', tag: 'en' }] },
     createdAt: ISO,
@@ -132,6 +133,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   vi.clearAllMocks();
   await clearFederationScope(scope);
+  await seedPost(scope, { id: 'reply-federation-reply1', oxyUserId: USER_REPLIER_OXY });
   enqueueDelivery.mockResolvedValue(true);
   isFediverseSharingEnabled.mockResolvedValue(true);
   getUserById.mockResolvedValue({ id: 'u', username: 'bob' });
@@ -229,9 +231,9 @@ describe('federateNewPost — reply to a LOCAL parent', () => {
 
 describe('federateNewPost — top-level (non-reply) post', () => {
   it('emits a Note with NO inReplyTo and never looks up a parent', async () => {
-    const followerInbox = await seedFollowerWithInbox(scope, USER_AUTHOR_OXY, { username: 'x' });
+    const followerInbox = await seedFollowerWithInbox(scope, USER_REPLIER_OXY, { username: 'x' });
 
-    await followService.federateNewPost(replyPost(undefined), USER_AUTHOR_OXY, 'alice');
+    await followService.federateNewPost(replyPost(undefined), USER_REPLIER_OXY, 'alice');
 
     const activity = deliveredActivity();
     expect(activity.type).toBe('Create');

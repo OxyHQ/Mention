@@ -11,7 +11,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   redisGet: vi.fn(),
+  revalidate: vi.fn(async (value) => value),
   redisSetEx: vi.fn(),
+}));
+
+vi.mock('../../services/revalidateAnonymousFeed', () => ({
+  revalidateAnonymousFeed: mocks.revalidate,
 }));
 
 vi.mock('../../utils/redis', () => ({

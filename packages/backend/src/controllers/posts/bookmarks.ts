@@ -18,6 +18,7 @@ import {
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
 import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
+import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { queryInt, queryString } from '../../utils/queryParams';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { emitPostEngagement, POST_ENGAGEMENT_EVENTS } from '../../services/postEngagementBroadcast';
@@ -195,6 +196,7 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
 
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
       viewerId: userId,
+      safetyRequester: safetyRequesterFor(req),
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,

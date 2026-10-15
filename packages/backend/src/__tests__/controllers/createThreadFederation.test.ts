@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -52,6 +53,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: vi.fn(() => ({})),
   createUserScopedOxyServices: vi.fn(() => undefined),
 }));
@@ -84,6 +86,7 @@ import { createThread } from '../../controllers/posts/createThread';
 
 function buildRequest(body: Record<string, unknown>) {
   return {
+    accessToken: 'test-viewer-session',
     user: { id: 'ctf-author-1' },
     query: {},
     acceptsLanguages: () => [] as string[],

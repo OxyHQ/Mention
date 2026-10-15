@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * An edit drops the post's machine translations whenever it changes what they
  * were translated FROM — the primary body, the ALT text of the media the primary
@@ -23,6 +24,7 @@ const hoisted = vi.hoisted(() => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: hoisted.createScopedOxyClient,
   createUserScopedOxyServices: vi.fn(() => undefined),
 }));
@@ -92,6 +94,7 @@ async function seedTarget(): Promise<void> {
 
 function buildRequest(body: Record<string, unknown>) {
   return {
+    accessToken: 'test-viewer-session',
     params: { id: POST_ID },
     query: {},
     headers: {},

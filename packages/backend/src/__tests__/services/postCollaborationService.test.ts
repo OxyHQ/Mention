@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -31,6 +32,7 @@ const { federateNewPost, createNotification } = vi.hoisted(() => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: vi.fn(() => ({
+    safety: adultSafetyFixture(),
     users: {
       getMany: vi.fn(async (ids: string[]) =>
         ids.map((id) => ({ id, type: 'local', username: id, name: { displayName: id } })),

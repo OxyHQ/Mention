@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -48,6 +49,7 @@ const hoisted = vi.hoisted(() => ({
 // currently thinks they are. Every PERSON_ID case edits its own post and never
 // reaches this.
 vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: hoisted.createScopedOxyClient,
   createUserScopedOxyServices: vi.fn(() => ({
     accounts: { members: { list: hoisted.listAccountMembers } },
@@ -177,6 +179,7 @@ async function storedSummary(): Promise<{ correctionCount: number; lastCorrected
 
 function buildRequest(body: Record<string, unknown>, userId: string) {
   return {
+    accessToken: 'test-viewer-session',
     params: { id: POST_ID },
     query: {},
     headers: {},

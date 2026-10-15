@@ -1,3 +1,23 @@
+vi.mock('@oxy.so/core', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core')>()),
+  OxyServices: class {
+    session = { setAccessToken: vi.fn() };
+    assets = {
+      access: vi.fn(async (files: { fileId: string }[]) => ({
+        results: Object.fromEntries(
+          files.map(({ fileId }) => [
+            fileId,
+            { allowed: true, visibility: 'public', url: `https://cdn.test/${fileId}` },
+          ]),
+        ),
+      })),
+    };
+  },
+}));
+vi.mock('../../db/posts/postSafetyRepository', () => ({
+  loadPostSafetyAssessments: vi.fn(async () => new Map()),
+}));
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * The machine-translation cache, against real rows.
  *
@@ -40,6 +60,7 @@ vi.mock('../../runtime/oxyClient', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     getUsersByIds,
     getClarityDocuments: vi.fn(async () => ({})),
     getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
@@ -210,6 +231,7 @@ describe('machine translation cache', () => {
   /** Hydrate a FRESH read of the post for a reader whose request carries `languages`. */
   async function hydrate(postId: string, languages: string[]) {
     const [dto] = await hydration.hydratePosts([await fresh(postId)], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       viewerId: undefined,
       requestLanguages: languages,
       oxyClient: {

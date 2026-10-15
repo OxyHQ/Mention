@@ -13,6 +13,7 @@ import {
   memUpsertPosts,
   memGetPostById,
   memGetPostsByIds,
+  memGetPostIdsReferencing,
   memUpdatePost,
   memDeletePost,
 } from './memoryStore';
@@ -207,6 +208,26 @@ export function getPostById(id: string): FeedItem | null {
   if (!db) return null;
   const row = db.getFirstSync<PostRow>('SELECT * FROM posts WHERE id = ?', id);
   return row ? rowToFeedItem(row) : null;
+}
+
+/** Read each relationship cohort in bounded batches before deleting its targets. */
+export function getPostIdsReferencing(ids: readonly string[]): string[] {
+  if (ids.length === 0) return [];
+  if (!isDbAvailable()) return memGetPostIdsReferencing(ids);
+  const db = getDb();
+  if (!db) return [];
+  const result = new Set<string>();
+  for (let offset = 0; offset < ids.length; offset += 400) {
+    const batch = ids.slice(offset, offset + 400);
+    const placeholders = batch.map(() => '?').join(',');
+    const rows = db.getAllSync<Pick<PostRow, 'id'>>(
+      `SELECT id FROM posts WHERE original_post_id IN (${placeholders}) OR quoted_post_id IN (${placeholders})`,
+      ...batch,
+      ...batch,
+    );
+    for (const row of rows) result.add(row.id);
+  }
+  return [...result];
 }
 
 /**

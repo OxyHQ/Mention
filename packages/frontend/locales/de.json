@@ -2596,5 +2596,14 @@
   "alia.suggestion.discover": "Schlage mir Konten und Themen zum Folgen vor",
   "profile.actions.askAlia": "Alia zu @{{handle}} fragen",
   "profile.askAlia.prompt": "Erzähl mir von @{{handle}} auf Mention: wer das ist, worüber die Person postet und wofür sie bekannt ist.",
-  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering."
+  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering.",
+  "safety": {
+    "contentUnavailable": "Dieser Inhalt ist nicht verfügbar",
+    "unavailableTitle": "Für dieses Konto nicht verfügbar",
+    "unavailableDescription": "Diese Funktion ist für beaufsichtigte Konten noch nicht verfügbar. Du kannst weiterhin geprüfte Beiträge in deinem Feed lesen.",
+    "checkFailed": "Die Verfügbarkeit für das Konto konnte nicht geprüft werden",
+    "retryDescription": "Versuche es erneut, um die aktuellen Schutzeinstellungen des Kontos zu laden.",
+    "privatePost": "Nur deine erziehungsberechtigte Person und genehmigte Kontakte können deine Beiträge lesen.",
+    "pendingAssessment": "Dieser Inhalt ist erst verfügbar, wenn seine Sicherheitsprüfung abgeschlossen ist."
+  }
 }

@@ -1,3 +1,7 @@
+jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
+jest.mock('@/hooks/useSupervisionState', () => ({
+  useSupervisionState: () => ({ ready: true, supervised: false, isError: false }),
+}));
 import type React from 'react';
 import { Text, View } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';

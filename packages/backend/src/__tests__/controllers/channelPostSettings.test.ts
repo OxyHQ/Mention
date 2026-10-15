@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -42,7 +43,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => ({})),
   createUserScopedOxyServices: vi.fn(() => undefined),
-  getServiceOxyClient: vi.fn(() => ({})),
+  getServiceOxyClient: vi.fn(() => ({ safety: adultSafetyFixture() })),
 }));
 
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
@@ -130,7 +131,12 @@ describe('PATCH /posts/:id/settings — replyPermission on a channel post', () =
    * channel, so reaching this guard at all means asking as the channel.
    */
   function req(callerId: string, postId: string, body: Record<string, unknown>): OxyAuthRequest {
-    return { user: { id: callerId }, params: { id: postId }, body } as unknown as OxyAuthRequest;
+    return {
+      accessToken: 'test-viewer-session',
+      user: { id: callerId },
+      params: { id: postId },
+      body,
+    } as unknown as OxyAuthRequest;
   }
 
   it('400s a replyPermission change on a channel post', async () => {
@@ -196,7 +202,11 @@ describe('PATCH /posts/:id/settings — replyPermission on a channel post', () =
 
 describe('POST /posts/thread — one placement per mode, and only one', () => {
   function req(body: Record<string, unknown>): OxyAuthRequest {
-    return { user: { id: USER_ID }, body } as unknown as OxyAuthRequest;
+    return {
+      accessToken: 'test-viewer-session',
+      user: { id: USER_ID },
+      body,
+    } as unknown as OxyAuthRequest;
   }
 
   it('400s a batch-level publishAsOxyUserId in BEAST mode — the per-entry field is the only way to say it', async () => {

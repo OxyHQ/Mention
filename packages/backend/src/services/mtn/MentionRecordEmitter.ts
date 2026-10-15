@@ -1,3 +1,6 @@
+import { loadPostRecord } from '../../db/posts/postRepository';
+import { filterFederatablePosts } from '../federation/publicationPolicy';
+import { authorsMayFederate, postAuthorIds } from '../postPublicationPolicy';
 /**
  * MTN dual-write emitter — the ONE place that decides WHETHER and WHAT to emit
  * for each native write, so every call site is a clean, isolated one-liner.
@@ -117,6 +120,7 @@ export async function emitPostCreated(
   if (!isLocalAuthored(post) || !isPublicPublishedPost(post)) return;
   const authorOxyUserId = post.oxyUserId;
   await isolate('emitPostCreated', async () => {
+    if (!(await authorsMayFederate(postAuthorIds(post)))) return;
     // Resolve every media item the post references — the shared set and each
     // author variant's override — to content-addressed blob refs (fileId →
     // sha256), in one batched lookup. Fail-soft inside the resolver: a lookup
@@ -142,10 +146,12 @@ export async function emitRepostCreated(
   repostedPostId: string,
   repostedPostOwnerOxyUserId: string | undefined,
 ): Promise<void> {
-  if (!isLocalAuthored(boost) || !repostedPostOwnerOxyUserId) return;
+  if (!isLocalAuthored(boost) || !isPublicPublishedPost(boost) || !repostedPostOwnerOxyUserId)
+    return;
   const boosterOxyUserId = boost.oxyUserId;
   const ownerOxyUserId = repostedPostOwnerOxyUserId;
   await isolate('emitRepostCreated', async () => {
+    if (!(await authorsMayFederate([...postAuthorIds(boost), repostedPostOwnerOxyUserId]))) return;
     await signAndAppend(
       boosterOxyUserId,
       MENTION_REPOST_COLLECTION,
@@ -184,6 +190,13 @@ export async function emitLikeCreatedStrict(
 ): Promise<void> {
   const likedPostOwnerOxyUserId = args.likedPostOwnerOxyUserId;
   if (!likedPostOwnerOxyUserId) return;
+  const likedPost = await loadPostRecord(args.likedPostId);
+  if (
+    !likedPost ||
+    (await filterFederatablePosts([likedPost])).length === 0 ||
+    !(await authorsMayFederate([args.likerOxyUserId]))
+  )
+    return;
   await requireAppend('emitLikeCreated', () =>
     signAndAppend(
       args.likerOxyUserId,
@@ -267,6 +280,7 @@ export async function emitBookmarkCreatedStrict(
 ): Promise<void> {
   const bookmarkedPostOwnerOxyUserId = args.bookmarkedPostOwnerOxyUserId;
   if (!bookmarkedPostOwnerOxyUserId) return;
+  if (!(await authorsMayFederate([args.ownerOxyUserId, bookmarkedPostOwnerOxyUserId]))) return;
   await requireAppend('emitBookmarkCreated', () =>
     signAndAppend(
       args.ownerOxyUserId,

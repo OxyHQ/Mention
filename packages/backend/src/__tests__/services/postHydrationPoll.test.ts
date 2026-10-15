@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * A poll created by the composer must come back on the post's DTO.
  *
@@ -43,6 +44,7 @@ vi.mock('../../runtime/oxyClient', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     getUsersByIds,
     getClarityDocuments: vi.fn(async () => ({})),
     getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,

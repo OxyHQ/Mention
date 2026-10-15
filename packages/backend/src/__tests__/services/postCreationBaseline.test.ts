@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -47,7 +48,7 @@ vi.mock('../../utils/notificationUtils', () => ({
 }));
 
 vi.mock('../../services/serviceRegistry', () => ({
-  getPostFederator: () => ({ federateNewPost: vi.fn().mockResolvedValue(undefined) }),
+  getPostFederator: () => ({ federateNewPost: vi.fn().mockResolvedValue(true) }),
   registerPostCreator: vi.fn(),
 }));
 
@@ -60,7 +61,10 @@ vi.mock('../../services/PostHydrationService', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ getUsersByIds: vi.fn().mockResolvedValue([]) }),
+  getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
+    getUsersByIds: vi.fn().mockResolvedValue([]),
+  }),
 }));
 
 import { closePostgres, connectPostgres } from '../../db/postgres';

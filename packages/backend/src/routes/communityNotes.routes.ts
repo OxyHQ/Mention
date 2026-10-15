@@ -23,6 +23,7 @@ import {
   type NoteSubjectRefusal,
 } from '../services/communityNotes/communityNoteSubjects';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
+import { safetyRequesterFor } from '../utils/safetyRequester';
 import { logger } from '../utils/logger';
 import { requestLanguageCandidates } from '../utils/viewerLanguage';
 
@@ -176,7 +177,12 @@ router.post('/', async (req: AuthRequest, res: Response) => {
   const { postId, text, sourceUrls, language } = parsed.data;
 
   try {
-    const subject = await resolveNoteSubject(viewerId, postId, createScopedOxyClient(req));
+    const subject = await resolveNoteSubject(
+      viewerId,
+      postId,
+      createScopedOxyClient(req),
+      safetyRequesterFor(req),
+    );
     if (!subject.ok) {
       const refusal = SUBJECT_REFUSALS[subject.refusal];
       return res.status(refusal.status).json({ message: refusal.message });
@@ -250,7 +256,12 @@ router.post('/to-rate', async (req: AuthRequest, res: Response) => {
       requestLanguageCandidates(req),
       assignmentWindowKey(viewerId, new Date()),
     );
-    const entries = await withSubjectPosts(viewerId, createScopedOxyClient(req), drawn);
+    const entries = await withSubjectPosts(
+      viewerId,
+      createScopedOxyClient(req),
+      drawn,
+      safetyRequesterFor(req),
+    );
     const expiryByNote = new Map(drawn.map((entry) => [entry.note.id, entry.expiresAt]));
     return res.json({
       entries: entries.map((entry) => ({ ...entry, expiresAt: expiryByNote.get(entry.note.id) })),
@@ -270,6 +281,7 @@ router.get('/mine', async (req: AuthRequest, res: Response) => {
       viewerId,
       createScopedOxyClient(req),
       await communityNotesWrittenBy(viewerId),
+      safetyRequesterFor(req),
     );
     return res.json({ entries });
   } catch (error: unknown) {
@@ -287,6 +299,7 @@ router.get('/ratings', async (req: AuthRequest, res: Response) => {
       viewerId,
       createScopedOxyClient(req),
       await communityNotesRatedBy(viewerId),
+      safetyRequesterFor(req),
     );
     return res.json({ entries });
   } catch (error: unknown) {

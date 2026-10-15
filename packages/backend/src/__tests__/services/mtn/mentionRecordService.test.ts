@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   verifyEnvelopeSignature,
@@ -221,7 +222,10 @@ vi.mock('../../../services/mtn/MentionRecordStore', () => ({
 }));
 
 vi.mock('../../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ identity: { resolveDid } }),
+  getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
+    identity: { resolveDid },
+  }),
 }));
 
 import { closePostgres, connectPostgres } from '../../../db/postgres';
@@ -572,10 +576,11 @@ describe('MentionRecordService.signAndAppend', () => {
 describe('MentionRecordEmitter dual-write gate', () => {
   it('keeps both envelope and payload time stable across an outbox retry', async () => {
     const createdAt = new Date(Date.now() - 1_000);
+    const targetPost = await seedPost(scope, { oxyUserId: 'owner-1' });
     const args = {
       likerOxyUserId: SUBJECT_OXY_ID,
       likeRkey: 'relation-1',
-      likedPostId: 'post-1',
+      likedPostId: targetPost.id,
       likedPostOwnerOxyUserId: 'owner-1',
       idempotencyKey: 'engagement:post.like:relation-1:v1',
       issuedAt: createdAt,

@@ -171,6 +171,21 @@ describe('sendPushToUser', () => {
 });
 
 describe('formatPushForNotification', () => {
+  it('never puts post text in an out-of-band push preview', async () => {
+    const push = await formatPushForNotification(
+      {
+        id: 'private-notification',
+        type: 'post',
+        entityId: 'restricted-post',
+        entityType: 'post',
+        actorId: 'actor-1',
+      },
+      { actor: async () => ({ name: { displayName: 'Ada' } }) },
+    );
+    expect(push.body).toBe('Ada posted a new update');
+    expect(push.data).not.toHaveProperty('preview');
+  });
+
   it('carries the row id as notificationId — the field that used to read _id', async () => {
     const push = await formatPushForNotification({
       id: 'notification-1',

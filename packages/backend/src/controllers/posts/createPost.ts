@@ -1,3 +1,8 @@
+import {
+  requesterPublicationPolicy,
+  publicationVisibility,
+  PostPublicationPolicyError,
+} from '../../services/postPublicationPolicy';
 /**
  * `POST /posts` — the native single-post create.
  *
@@ -19,6 +24,7 @@ import { metrics } from '../../utils/metrics';
 import { postHydrationService } from '../../services/PostHydrationService';
 import { mergeHashtags } from '../../utils/textProcessing';
 import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
+import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { normalizeMediaItems } from '../../utils/mediaInput';
 import {
@@ -85,6 +91,8 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       laneId,
       publishAsOxyUserId,
     } = req.body;
+
+    const publicationPolicy = await requesterPublicationPolicy(safetyRequesterFor(req));
 
     // Transitional request aliases are measured with a bounded label so their
     // retirement is evidence-based. They never become part of the stored DTO.
@@ -478,9 +486,16 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     // bodies that publish today — and it is why the shared schema reports an
     // unrecognised value instead of assuming one.
     const parsedVisibility = postVisibilitySchema.safeParse(req.body.visibility);
-    const resolvedVisibility = parsedVisibility.success
-      ? parsedVisibility.data
-      : PostVisibility.PUBLIC;
+    const resolvedVisibility = publicationVisibility(
+      publicationPolicy,
+      req.body.visibility,
+      parsedVisibility.success ? parsedVisibility.data : PostVisibility.PUBLIC,
+    );
+    if (
+      !publicationPolicy.collaborationAllowed &&
+      (publishAsOxyUserId || collaboratorIds?.length || collaboratorHandles?.length)
+    )
+      throw new PostPublicationPolicyError(403, 'Collaboration is unavailable for this account');
 
     // `replyPermission` reaches a `text[]` column guarded by
     // `posts_reply_permission_check`, and used to reach it as `x || ['anyone']` —
@@ -504,7 +519,8 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     const autoAcceptCollaboratorIds = resolveMcpAutoAcceptIds(req, invitedCollaboratorIds);
 
     // Post media renders from the public CDN, and uploads arrive private.
-    await ensurePostMediaPublic(createPostMediaOwnerClient(req), postContent);
+    if (resolvedVisibility === PostVisibility.PUBLIC && publicationPolicy.requiredAudience === null)
+      await ensurePostMediaPublic(createPostMediaOwnerClient(req), postContent);
 
     const post = await postCreationService.create({
       oxyUserId: userId,
@@ -595,10 +611,12 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     trackBackgroundWork(warmClarityDocumentForText(resolveVariant(post.content).text));
 
     const [hydratedPost] = await postHydrationService.hydratePosts([post], {
+      manageOwnPostIds: post.oxyUserId === userId ? [post.id] : [],
       // Written or changed by this very request, so there is no community note to
       // look up — and asking would put a CrowdSource round trip on this path.
       includeCommunityNotes: false,
       viewerId: userId,
+      safetyRequester: safetyRequesterFor(req),
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
@@ -617,6 +635,10 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
     res.status(201).json({ success: true, post: hydratedPost });
   } catch (error) {
+    if (error instanceof PostPublicationPolicyError)
+      return res
+        .status(error.status)
+        .json({ code: 'PUBLICATION_UNAVAILABLE', message: error.message });
     if (error instanceof CollabValidationError) {
       return res.status(400).json({ message: error.message });
     }

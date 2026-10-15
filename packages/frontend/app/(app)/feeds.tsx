@@ -1,3 +1,4 @@
+import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, RefreshControl, Platform } from 'react-native';
@@ -591,4 +592,10 @@ const styles = StyleSheet.create({
   },
 });
 
-export default FeedsScreen;
+export default function AvailableFeedsScreen() {
+  return (
+    <SupervisedFeatureGate>
+      <FeedsScreen />
+    </SupervisedFeatureGate>
+  );
+}

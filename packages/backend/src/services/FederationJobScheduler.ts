@@ -1,3 +1,4 @@
+import { DeliveryAuthorizationDeniedError } from '@oxy.so/federation/node';
 import { findErasedAccountUsernames } from '../db/accountErasures/accountErasureRepository';
 import { logger } from '../utils/logger';
 import { FEDERATION_ENABLED } from '../connectors/activitypub/constants';
@@ -868,10 +869,15 @@ class FederationJobScheduler {
           }
         } catch (err) {
           logger.debug('Delivery retry failed', err);
+          const nextAttempt =
+            err instanceof DeliveryAuthorizationDeniedError
+              ? null
+              : getNextRetryTime(delivery.attempts + 1);
           await recordDeliveryAttempt(delivery.id, {
             lastAttemptAt: now,
             error: err instanceof Error ? err.message : String(err),
             incrementAttempts: true,
+            ...(nextAttempt ? { nextAttemptAt: nextAttempt } : { status: 'failed' }),
           });
         }
       }

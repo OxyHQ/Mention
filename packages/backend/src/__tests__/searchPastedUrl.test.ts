@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from './helpers/adultSafety';
 /**
  * `GET /search` — a pasted URL, a handle typed alone, and a query that runs out
  * of time. Against REAL rows.
@@ -58,7 +59,10 @@ vi.mock('../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (rows: object[]) => rows) },
 }));
 
-vi.mock('../utils/oxyHelpers', () => ({ createScopedOxyClient: vi.fn(() => ({})) }));
+vi.mock('../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
+  createScopedOxyClient: vi.fn(() => ({})),
+}));
 
 vi.mock('../runtime/oxyClient', () => ({
   getRuntimeOxyClient: vi.fn(() => ({ getProfileByUsername: vi.fn(async () => null) })),

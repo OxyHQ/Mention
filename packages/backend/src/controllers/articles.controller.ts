@@ -4,7 +4,8 @@ import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { getDb } from '../db/postgres';
 import { articles } from '../db/schema/articles';
 import { postHydrationService } from '../services/PostHydrationService';
-import { createUserScopedOxyServices } from '../utils/oxyHelpers';
+import { createScopedOxyClient, createUserScopedOxyServices } from '../utils/oxyHelpers';
+import { safetyRequesterFor } from '../utils/safetyRequester';
 import { logger } from '../utils/logger';
 
 /**
@@ -64,6 +65,8 @@ export const getArticle = async (req: AuthRequest, res: Response) => {
             // The gate can only tell the editors from a departed writer by
             // asking Oxy who currently runs the channel, and it only asks when
             // the post is withheld and an account authored it.
+            safetyRequester: safetyRequesterFor(req),
+            oxyClient: createScopedOxyClient(req),
             operatedAccountReader: createUserScopedOxyServices(req),
           })
         : viewerId !== '' && viewerId === article.createdBy;

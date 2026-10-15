@@ -17,7 +17,6 @@ import {
   sendPushToTokens,
   type PushLookups,
 } from './push';
-import { loadPostRecord } from '../db/posts/postRepository';
 import { logger } from './logger';
 import type { PostAuthorshipEntry } from '@mention/shared-types';
 import { getNotificationRecipients, normalizeAuthorship } from './postAuthorship';
@@ -243,7 +242,7 @@ const SYSTEM_ACTOR: NotificationActorProfile = {
 };
 
 /**
- * The actor and post lookups for ONE fan-out, memoized. Every notification of a
+ * The actor lookups for ONE fan-out, memoized. Every notification of a
  * fan-out is about the same actor (and usually the same post), and the socket
  * payload and the push body both need the actor: without the memo, a post to 200
  * subscribers asked Oxy for its author 400 times. A failure resolves to `null`
@@ -253,7 +252,6 @@ function createDeliveryLookups(): PushLookups & {
   actor(actorId: string): Promise<NotificationActorProfile | null>;
 } {
   const actors = new Map<string, Promise<NotificationActorProfile | null>>();
-  const posts = new Map<string, ReturnType<PushLookups['post']>>();
   return {
     actor(actorId) {
       if (actorId === 'system') return Promise.resolve(SYSTEM_ACTOR);
@@ -264,14 +262,6 @@ function createDeliveryLookups(): PushLookups & {
           .then((user): NotificationActorProfile | null => user ?? null)
           .catch(() => null);
         actors.set(actorId, pending);
-      }
-      return pending;
-    },
-    post(postId) {
-      let pending = posts.get(postId);
-      if (!pending) {
-        pending = loadPostRecord(postId).catch(() => null);
-        posts.set(postId, pending);
       }
       return pending;
     },

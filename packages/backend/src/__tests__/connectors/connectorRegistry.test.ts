@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -9,6 +10,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   loggerError: vi.fn(),
   isFediverseSharingEnabled: vi.fn(),
+}));
+
+vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
+}));
+vi.mock('../../db/posts/postRepository', () => ({
+  loadPostRecord: async (id: string) =>
+    id === 'p1'
+      ? { id, oxyUserId: 'oxy-1', status: 'published', visibility: 'public', authorship: [] }
+      : null,
 }));
 
 vi.mock('../../utils/logger', () => ({
@@ -88,7 +99,7 @@ describe('ConnectorRegistry.federateNewPost', () => {
       makeConnector('atproto', otherOkDeliver),
     ]);
 
-    await expect(registry.federateNewPost(POST, 'oxy-1', 'alice')).resolves.toBeUndefined();
+    await expect(registry.federateNewPost(POST, 'oxy-1', 'alice')).resolves.toBe(true);
 
     expect(failDeliver).toHaveBeenCalledTimes(1);
     expect(okDeliver).toHaveBeenCalledTimes(1);
@@ -213,6 +224,7 @@ describe('ConnectorRegistry extra audiences', () => {
         actorUsername: 'alice',
       },
       ['oxy-2'],
+      { durable: true },
     );
     expect(plain).not.toHaveBeenCalled();
   });
@@ -256,5 +268,21 @@ describe('ConnectorRegistry extra audiences', () => {
 
     expect(plain).not.toHaveBeenCalled();
     expect(widened).not.toHaveBeenCalled();
+  });
+});
+
+describe('publication dispatch result', () => {
+  it('reports suppression without dispatching or marking a delivery', async () => {
+    mocks.isFediverseSharingEnabled.mockResolvedValue(false);
+    const deliver = vi.fn();
+    const registry = new ConnectorRegistry([makeConnector('activitypub', deliver)]);
+    expect(await registry.federateNewPost(POST, 'oxy-1', 'alice')).toBe(false);
+    expect(deliver).not.toHaveBeenCalled();
+  });
+  it('reports all transient connector failures as undispatched while remaining best effort', async () => {
+    const registry = new ConnectorRegistry([
+      makeConnector('activitypub', vi.fn().mockRejectedValue(new Error('temporarily unavailable'))),
+    ]);
+    expect(await registry.federateNewPost(POST, 'oxy-1', 'alice')).toBe(false);
   });
 });

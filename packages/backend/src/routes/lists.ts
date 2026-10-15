@@ -1,3 +1,5 @@
+import { createScopedOxyClient } from '../utils/oxyHelpers';
+import { safetyRequesterFor } from '../utils/safetyRequester';
 import express, { type Response } from 'express';
 import { z } from 'zod';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
@@ -773,7 +775,12 @@ router.get('/:id/timeline', ...timelineRateLimiters, async (req: AuthRequest, re
     const toReturn = hasMore ? docs.slice(0, limit) : docs;
     const anchor = hasMore ? toReturn[limit - 1] : undefined;
     const nextCursor = anchor ? ChronoCursor.build(anchor.id, anchor.createdAt) : undefined;
-    const transformed = await feedController.transformPostsWithProfiles(toReturn, userId);
+    const transformed = await feedController.transformPostsWithProfiles(
+      toReturn,
+      userId,
+      createScopedOxyClient(req),
+      { safetyRequester: safetyRequesterFor(req), rethrow: true },
+    );
     // Date lives on the hydrated post's `metadata` (HydratedPost has no top-level
     // `date`); the previous `p.date` read was always undefined under the loose cast.
     res.json({

@@ -1,3 +1,9 @@
+import { loadPostSafetyDecisions } from '../services/postSafetyAccess';
+import {
+  requesterPublicationPolicy,
+  PostPublicationPolicyError,
+} from '../services/postPublicationPolicy';
+import { safetyRequesterFor } from '../utils/safetyRequester';
 import type { Response } from 'express';
 import { eq } from 'drizzle-orm';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
@@ -70,6 +76,33 @@ export const getPostEditSource = async (
       return res.status(refusal.status).json({ message: refusal.message });
     }
 
+    const requester = safetyRequesterFor(req);
+    const policy = await requesterPublicationPolicy(requester);
+    if (!policy.collaborationAllowed && post.oxyUserId !== userId)
+      return res.status(403).json({
+        code: 'PUBLICATION_UNAVAILABLE',
+        message: 'Collaboration is unavailable for this account',
+      });
+    const decisions = await loadPostSafetyDecisions(
+      [post],
+      requester,
+      new Map([
+        [
+          post.id,
+          {
+            applicationAudienceAllowed: true,
+            applicationResourceGrant: true,
+            operation: post.oxyUserId === userId ? 'manage_own' : 'read',
+          },
+        ],
+      ]),
+    );
+    if (!decisions.get(post.id)?.allowed)
+      return res.status(403).json({
+        code: 'CONTENT_UNAVAILABLE',
+        message: 'This content is unavailable for this account',
+      });
+
     const authorKind = await resolveAccountKind(post.oxyUserId);
 
     const variants = authorVariants(post.content);
@@ -88,6 +121,10 @@ export const getPostEditSource = async (
         return summary && !isFallbackUserSummary(summary.user) ? [summary.user] : [];
       });
     } catch (error) {
+      if (error instanceof PostPublicationPolicyError)
+        return res
+          .status(error.status)
+          .json({ code: 'PUBLICATION_UNAVAILABLE', message: error.message });
       // The stable ids and placeholders are sufficient to preserve the edit.
       // Identity resolution only improves display and must never make the source
       // unreadable during an Oxy/Redis outage.
@@ -123,6 +160,10 @@ export const getPostEditSource = async (
     };
     return res.json(response);
   } catch (error) {
+    if (error instanceof PostPublicationPolicyError)
+      return res
+        .status(error.status)
+        .json({ code: 'PUBLICATION_UNAVAILABLE', message: error.message });
     logger.error('Error fetching post edit source', { postId, error });
     return res.status(500).json({ message: 'Error fetching post edit source' });
   }

@@ -1,3 +1,5 @@
+import { getServiceOxyClient } from '../../utils/oxyHelpers';
+import { revalidateAnonymousFeed } from '../../services/revalidateAnonymousFeed';
 /**
  * MTN Feed Controller
  *
@@ -51,6 +53,7 @@ import { logger } from '../../utils/logger';
 import { getRuntimeOxyClient } from '../../runtime/oxyClient';
 import { extractFollowingIds, type OxyClient } from '../../utils/privacyHelpers';
 import { createScopedOxyClient } from '../../utils/oxyHelpers';
+import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { findActorsByUris } from '../../db/federation/actorRepository';
 import { distinctRemoteActorUris } from '../../db/federation/followRepository';
 import { listSubscriptionService } from '../../services/ListSubscriptionService';
@@ -396,7 +399,7 @@ class MtnFeedController {
           })
         : undefined;
       if (anonCacheKey) {
-        const cached = await anonFeedCache.read(anonCacheKey);
+        const cached = await anonFeedCache.read(anonCacheKey, requestLanguages);
         if (cached) {
           res.json({ success: true, data: cached });
           return;
@@ -405,7 +408,10 @@ class MtnFeedController {
         if (build.role === 'join') {
           const shared = await build.result;
           if (shared) {
-            res.json({ success: true, data: shared });
+            res.json({
+              success: true,
+              data: await revalidateAnonymousFeed(shared, requestLanguages),
+            });
             return;
           }
         } else {
@@ -495,6 +501,7 @@ class MtnFeedController {
       ]);
 
       context.privacyOxyClient = requestOxyClient;
+      context.safetyRequester = safetyRequesterFor(req);
       // Thread the privacy lists this request already paid for into hydration,
       // which otherwise re-asks Oxy for both on every hydration call the page
       // makes — and a For You page hydrates more than once. Same arrangement as
@@ -599,7 +606,15 @@ class MtnFeedController {
       //
       // Authenticated viewers only: slots are personalized (they key off the
       // viewer's graph), and an anonymous page is shared via `anonFeedCache`.
-      if (currentUserId) {
+      if (
+        currentUserId &&
+        (
+          await getServiceOxyClient().safety.contentAccess(
+            { resourceId: 'feed:recommendation-cards', classification: 'unrated' },
+            safetyRequesterFor(req),
+          )
+        ).allowed
+      ) {
         response.interstitials = planInterstitials({
           descriptor,
           slices: response.slices,

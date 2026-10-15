@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -45,6 +46,7 @@ const hoisted = vi.hoisted(() => ({
  * silently un-rescheduled thread looks like.
  */
 vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: hoisted.createScopedOxyClient,
   // A real member reader, because the CHANNEL case below is authorized through
   // `postManagementRefusal` rather than by owning the row. Every other case in
@@ -146,7 +148,7 @@ function buildRequest(
     headers: {},
     acceptsLanguages: () => [] as string[],
     body,
-    ...(user ? { user } : {}),
+    ...(user ? { user, accessToken: 'test-viewer-session' } : {}),
   };
 }
 

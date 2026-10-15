@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * `GET /notifications` — the two per-viewer safety gates, end to end.
  *
@@ -55,6 +56,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   // omits is `undefined is not a function` on every request.
   createUserScopedOxyServices: () => undefined,
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     users: { getMany: mocks.getUsersByIds },
     assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
     getClarityDocuments: vi.fn(async () => ({})),
@@ -204,6 +206,7 @@ function makeApp(viewer: string) {
   const app = express();
   app.use((req, _res, next) => {
     (req as typeof req & { user: { id: string } }).user = { id: viewer };
+    req.headers.authorization = req.user ? 'Bearer test-viewer-session' : undefined;
     next();
   });
   app.use('/', notificationsRouter);

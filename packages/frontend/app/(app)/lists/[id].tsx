@@ -1,3 +1,4 @@
+import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type React from 'react';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
@@ -71,7 +72,7 @@ const TABS_CONFIG = [
   { id: 'members', labelKey: 'lists.tabs.members' },
 ];
 
-export default function ListDetailScreen() {
+function ListDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const theme = useTheme();
@@ -526,5 +527,13 @@ function ListMembers({
         </View>
       )}
     </ScrollView>
+  );
+}
+
+export default function AvailableListDetailScreen() {
+  return (
+    <SupervisedFeatureGate>
+      <ListDetailScreen />
+    </SupervisedFeatureGate>
   );
 }

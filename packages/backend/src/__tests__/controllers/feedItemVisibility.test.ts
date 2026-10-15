@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const hoisted = vi.hoisted(() => ({
@@ -9,6 +10,7 @@ vi.mock('../../services/postDetailCache', () => ({
   getOrLoadPostRecord: (id: string) => hoisted.loadPost(id),
 }));
 vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: vi.fn(() => undefined),
   createUserScopedOxyServices: vi.fn(() => undefined),
 }));

@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from './helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, describe, it, expect, vi } from 'vitest';
 import { and, inArray } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
@@ -14,6 +15,7 @@ import {
 
 vi.mock('../utils/oxyHelpers', () => ({
   getServiceOxyClient: vi.fn(() => ({
+    safety: adultSafetyFixture(),
     users: {
       getMany: vi.fn(async (ids: string[]) =>
         ids.map((id) => ({ id, type: 'local', username: id, name: { displayName: id } })),

@@ -2596,5 +2596,14 @@
   "alia.suggestion.discover": "推荐一些值得关注的账号和话题",
   "profile.actions.askAlia": "向 Alia 询问 @{{handle}}",
   "profile.askAlia.prompt": "介绍一下 Mention 上的 @{{handle}}：他们是谁、发布什么内容、以什么闻名。",
-  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering."
+  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering.",
+  "safety": {
+    "contentUnavailable": "此内容暂不可用",
+    "unavailableTitle": "此账号无法使用",
+    "unavailableDescription": "此功能暂不适用于受监护账号。你可以继续阅读动态中已审核的帖子。",
+    "checkFailed": "无法检查此账号的功能可用性",
+    "retryDescription": "请重试以加载账号当前的保护设置。",
+    "privatePost": "只有你的监护人和获准联系人可以阅读你的帖子。",
+    "pendingAssessment": "此内容在完成安全审核前不可用。"
+  }
 }

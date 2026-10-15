@@ -191,7 +191,7 @@ export function postToRow(post: FeedItem): PostRow {
     user_id: post.user.id,
     type: 'text',
     parent_post_id: post.parentPostId ?? null,
-    original_post_id: post.originalPost?.id ?? null,
+    original_post_id: post.originalPost?.id ?? post.boost?.originalPost?.id ?? null,
     quoted_post_id: post.quotedPost?.id ?? null,
     content_json: safeJsonStringify(post.content) || '{"text":""}',
     attachments_json: safeJsonStringify(post.attachments),

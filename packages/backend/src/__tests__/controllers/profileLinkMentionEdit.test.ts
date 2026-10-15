@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -60,7 +61,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => ({})),
   createUserScopedOxyServices: vi.fn(() => undefined),
-  getServiceOxyClient: vi.fn(() => ({})),
+  getServiceOxyClient: vi.fn(() => ({ safety: adultSafetyFixture() })),
 }));
 
 vi.mock('../../utils/notificationUtils', () => ({
@@ -113,6 +114,7 @@ const ALICE_OXY_ID = scope.user('alice-local');
 
 function buildRequest(postId: string, body: Record<string, unknown>) {
   return {
+    accessToken: 'test-viewer-session',
     params: { id: postId },
     query: {},
     headers: {},

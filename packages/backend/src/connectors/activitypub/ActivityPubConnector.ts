@@ -281,6 +281,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
   async deliverToExtraAudiences(
     event: LocalNetworkEvent<PostContent>,
     audienceOxyUserIds: string[],
+    options: { durable?: boolean } = {},
   ): Promise<void> {
     if (event.kind !== 'post.create') {
       await this.deliver(event);
@@ -293,7 +294,10 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
       toNoteSource(event.post),
       event.actorOxyUserId,
       event.actorUsername,
-      { extraAudienceOxyUserIds: audienceOxyUserIds },
+      {
+        extraAudienceOxyUserIds: audienceOxyUserIds,
+        ...(options.durable ? { throwOnError: true } : {}),
+      },
     );
   }
 
@@ -304,6 +308,19 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
    */
   async deliverDurably(event: LocalNetworkEvent<PostContent>): Promise<void> {
     switch (event.kind) {
+      case 'post.create':
+        await followService.federateNewPost(
+          toNoteSource(event.post),
+          event.actorOxyUserId,
+          event.actorUsername,
+          { throwOnError: true },
+        );
+        return;
+      case 'post.boost':
+        await followService.federateBoost(event.boost, event.actorOxyUserId, event.actorUsername, {
+          throwOnError: true,
+        });
+        return;
       case 'post.like':
         await followService.federateLikeStrict(
           event.like,

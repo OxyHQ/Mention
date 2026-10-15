@@ -22,6 +22,7 @@ export async function loadPendingPostDocuments(
   ids: readonly string[],
   viewer: Pick<
     HydrationOptions,
+    | 'safetyRequester'
     | 'viewerId'
     | 'oxyClient'
     | 'viewerPrivacy'

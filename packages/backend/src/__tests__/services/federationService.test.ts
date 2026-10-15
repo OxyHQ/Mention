@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { PassThrough } from 'node:stream';
 import type { ResolveExternalIdentityResponse } from '@oxy.so/contracts';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -359,6 +360,7 @@ beforeEach(async () => {
     },
   );
   mocks.getServiceOxyClient.mockReturnValue({
+    safety: adultSafetyFixture(),
     serviceRequest: mocks.serviceRequest,
     getUserById: vi.fn(async (id: string) => ({ id, username: 'someone' })),
     getUsersByIds: vi.fn(async () => []),
@@ -379,7 +381,12 @@ describe('federationService.deliverActivity', () => {
     });
 
     const delivered = await federationService.deliverActivity(
-      { type: 'Follow', id: 'https://mention.earth/ap/users/alice/follows/1' },
+      {
+        type: 'Follow',
+        id: 'https://mention.earth/ap/users/alice/follows/1',
+        actor: 'https://mention.earth/ap/users/alice',
+        object: 'https://remote.example/users/bob',
+      },
       'https://remote.example/users/bob/inbox',
       'oxy_alice',
       'alice',
@@ -406,7 +413,12 @@ describe('federationService.deliverActivity', () => {
     mocks.fetchUpstreamSingleHop.mockRejectedValueOnce(new Error('literal ip in blocked range'));
 
     const delivered = await federationService.deliverActivity(
-      { type: 'Follow', id: 'https://mention.earth/ap/users/alice/follows/2' },
+      {
+        type: 'Follow',
+        id: 'https://mention.earth/ap/users/alice/follows/2',
+        actor: 'https://mention.earth/ap/users/alice',
+        object: 'https://remote.example/users/bob',
+      },
       'http://127.0.0.1/internal-admin/inbox',
       'oxy_alice',
       'alice',

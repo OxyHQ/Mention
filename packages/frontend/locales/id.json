@@ -2596,5 +2596,14 @@
   "alia.suggestion.discover": "Sarankan akun dan topik untuk diikuti",
   "profile.actions.askAlia": "Tanya Alia tentang @{{handle}}",
   "profile.askAlia.prompt": "Ceritakan tentang @{{handle}} di Mention: siapa mereka, apa yang mereka posting, dan dikenal karena apa.",
-  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering."
+  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering.",
+  "safety": {
+    "contentUnavailable": "Konten ini tidak tersedia",
+    "unavailableTitle": "Tidak tersedia untuk akun ini",
+    "unavailableDescription": "Fitur ini belum tersedia untuk akun yang diawasi. Anda dapat terus membaca postingan yang telah ditinjau di linimasa Anda.",
+    "checkFailed": "Tidak dapat memeriksa ketersediaan untuk akun",
+    "retryDescription": "Coba lagi untuk memuat perlindungan akun saat ini.",
+    "privatePost": "Hanya wali dan kontak yang disetujui yang dapat membaca postingan Anda.",
+    "pendingAssessment": "Konten ini tidak tersedia sampai tinjauan keamanannya selesai."
+  }
 }

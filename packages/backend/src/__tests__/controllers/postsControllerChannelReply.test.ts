@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OxyAuthRequest } from '@oxy.so/core/server';
 
@@ -52,7 +53,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => ({})),
   createUserScopedOxyServices: vi.fn(() => ({ listAccountMembers: vi.fn(async () => []) })),
-  getServiceOxyClient: vi.fn(() => ({})),
+  getServiceOxyClient: vi.fn(() => ({ safety: adultSafetyFixture() })),
 }));
 
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
@@ -106,6 +107,7 @@ function makeRes(): MockRes {
 
 function req(body: Record<string, unknown>): OxyAuthRequest {
   return {
+    accessToken: 'test-viewer-session',
     user: { id: OPERATOR },
     query: {},
     headers: {},

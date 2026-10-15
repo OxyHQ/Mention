@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from './helpers/adultSafety';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 /**
@@ -76,6 +77,7 @@ vi.mock('../mtn/UserPrivacyManager', () => ({
 }));
 
 vi.mock('../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: vi.fn((_req?: unknown): unknown => ({
     getBlockedUsers: vi.fn(async () => []),
     getRestrictedUsers: vi.fn(async () => []),

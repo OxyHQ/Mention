@@ -1,3 +1,4 @@
+import type { SafetyRequester } from '@oxy.so/contracts';
 /**
  * FeedAPI Interface
  *
@@ -28,6 +29,7 @@ export interface FeedFetchOptions {
 }
 
 export interface FeedContext {
+  safetyRequester?: SafetyRequester;
   currentUserId?: string;
   followingIds?: string[];
   /**

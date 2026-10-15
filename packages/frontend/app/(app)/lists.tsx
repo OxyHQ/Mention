@@ -1,3 +1,4 @@
+import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import { useCallback, useEffect } from 'react';
 import { View, Text, Platform } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -42,7 +43,7 @@ function toListCardData(list: MentionList): ListCardData {
   };
 }
 
-export default function ListsScreen() {
+function ListsScreen() {
   const { t } = useTranslation();
   const safeBack = useSafeBack();
   const { canUsePrivateApi, user } = useAuth();
@@ -208,5 +209,13 @@ export default function ListsScreen() {
         </SignInRequired>
       </View>
     </>
+  );
+}
+
+export default function AvailableListsScreen() {
+  return (
+    <SupervisedFeatureGate>
+      <ListsScreen />
+    </SupervisedFeatureGate>
   );
 }
