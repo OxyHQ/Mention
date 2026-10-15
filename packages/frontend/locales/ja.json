@@ -2521,5 +2521,8 @@
   "alia.onScreen": "いま表示している画面は {{path}} です。",
   "alia.suggestion.news": "今日はみんな何について話している？",
   "alia.suggestion.write": "投稿を書くのを手伝って",
-  "alia.suggestion.discover": "フォローするアカウントやトピックを提案して"
+  "alia.suggestion.discover": "フォローするアカウントやトピックを提案して",
+  "profile.actions.askAlia": "@{{handle}} についてAliaに聞く",
+  "profile.askAlia.prompt": "Mention の @{{handle}} について教えて。どんな人で、何を投稿していて、何で知られているか。",
+  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering."
 }

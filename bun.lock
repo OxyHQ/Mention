@@ -79,7 +79,7 @@
       "name": "@mention/frontend",
       "version": "2.0.0",
       "dependencies": {
-        "@alia.onl/sdk": "^13.2.0",
+        "@alia.onl/sdk": "^15.2.1",
         "@babel/plugin-transform-export-namespace-from": "^8.0.1",
         "@expo/vector-icons": "^15.1.1",
         "@livekit/react-native": "^3.0.0",
@@ -132,7 +132,6 @@
         "expo-router": "57.0.23",
         "expo-secure-store": "~57.0.4",
         "expo-share-intent": "^8.0.1",
-        "expo-speech-recognition": "~57.1.0",
         "expo-splash-screen": "~57.0.9",
         "expo-sqlite": "~57.0.3",
         "expo-status-bar": "~57.0.1",
@@ -149,6 +148,7 @@
         "react-dom": "19.2.3",
         "react-i18next": "^17.0.16",
         "react-native": "0.86.3",
+        "react-native-audio-api": "^0.13.6",
         "react-native-compressor": "^2.0.3",
         "react-native-css": "3.1.0-rc.0",
         "react-native-gesture-handler": "~2.32.0",
@@ -317,7 +317,7 @@
     "zod": "^4.6.5",
   },
   "packages": {
-    "@alia.onl/sdk": ["@alia.onl/sdk@13.2.0", "", { "dependencies": { "clsx": "^2.1.1", "react-native-markdown-display": "^7.0.2", "tailwind-merge": "^3.7.0", "zustand": "^5.0.15" }, "peerDependencies": { "@expo/vector-icons": "^15.1.1", "@oxy.so/bloom": ">=10.4.0", "@oxy.so/core": ">=3.0.0", "@oxy.so/services": ">=8.0.0", "@react-native-async-storage/async-storage": "^2.2.0", "expo-audio": "^57.0.0", "expo-blur": "^57.0.0", "expo-clipboard": "^57.0.0", "expo-document-picker": "^57.0.0", "expo-file-system": "^57.0.0", "expo-haptics": "^57.0.0", "expo-image": "^57.0.0", "expo-image-picker": "^57.0.2", "expo-speech-recognition": "^57.1.0", "nativewind": "^5.0.0-preview.3", "react": "^19.2.3", "react-native": "^0.86.0", "react-native-gesture-handler": "^2.32.0", "react-native-keyboard-controller": "^1.21.9", "react-native-reanimated": "^4.5.0", "react-native-safe-area-context": "^5.8.0", "react-native-svg": "^15.15.5" }, "optionalPeers": ["expo-clipboard", "nativewind"] }, "sha512-M2Kt4Y4PFRPB/vpgljoPKAGHg8+tL04qzTV/SnY2zG4asRX0huScVQNByrnz2kcNY+J3e4pVs8KeN1nAaminOw=="],
+    "@alia.onl/sdk": ["@alia.onl/sdk@15.2.1", "", { "dependencies": { "clsx": "^2.1.1", "react-native-markdown-display": "^7.0.2", "socket.io-client": "^4.8.3", "tailwind-merge": "^3.7.0", "zustand": "^5.0.15" }, "peerDependencies": { "@expo/vector-icons": "^15.1.1", "@oxy.so/bloom": ">=10.4.0", "@oxy.so/core": ">=3.0.0", "@oxy.so/services": ">=8.0.0", "@react-native-async-storage/async-storage": "^2.2.0", "expo-audio": "^57.0.0", "expo-blur": "^57.0.0", "expo-clipboard": "^57.0.0", "expo-document-picker": "^57.0.0", "expo-file-system": "^57.0.0", "expo-haptics": "^57.0.0", "expo-image": "^57.0.0", "expo-image-picker": "^57.0.2", "nativewind": "^5.0.0-preview.3", "react": "^19.2.3", "react-native": "^0.86.0", "react-native-audio-api": "^0.13.6", "react-native-gesture-handler": "^2.32.0", "react-native-keyboard-controller": "^1.21.9", "react-native-reanimated": "^4.5.0", "react-native-safe-area-context": "^5.8.0", "react-native-svg": "^15.15.5" }, "optionalPeers": ["expo-clipboard", "nativewind", "react-native-audio-api"] }, "sha512-IDVwCBqvUbm/EBnIXmUbW4A1KGHMwv/J651KtyeBJPN2tucHiWAUDWOWWK2TGZYmmZZblVL4i/YZzPbn1viEgw=="],
 
     "@alloc/quick-lru": ["@alloc/quick-lru@5.2.0", "", {}, "sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw=="],
 
@@ -1915,8 +1915,6 @@
 
     "expo-share-intent": ["expo-share-intent@8.0.1", "", { "dependencies": { "@expo/config-plugins": "~57.0.2", "expo-constants": "~57.0.3", "expo-linking": "~57.0.1" }, "peerDependencies": { "expo": "^57", "react": "*", "react-native": "*" } }, "sha512-VOHzutKhiEuVW9ygWCfBlseVqR5Zs8+8GAOGdg42bm7yzHALmYBclrTL+6oCIv34q+CHxf/lCt/67qeZrORfVQ=="],
 
-    "expo-speech-recognition": ["expo-speech-recognition@57.1.0", "", { "peerDependencies": { "expo": "*", "react": "*", "react-native": "*" } }, "sha512-eUiODNPb3CNeQB8Rzro79Dsf+dWzFNdyDRxzorfh2SNwXeCQkC5yh8goPNmCO+d1JyaYmV89F4jcGu52p3uW6w=="],
-
     "expo-splash-screen": ["expo-splash-screen@57.0.9", "", { "dependencies": { "@expo/config-plugins": "~57.0.9", "@expo/image-utils": "^0.11.5", "xml2js": "0.6.0" }, "peerDependencies": { "expo": "*" } }, "sha512-7cKDn7uBwg0RkcmY015/5j9st4msWJ4zQiPmQdVZoppW3cFSbv05n7xhM6CjUU466Tx4VRTqDF21HuIHkmnEtA=="],
 
     "expo-sqlite": ["expo-sqlite@57.0.3", "", { "dependencies": { "await-lock": "^2.2.2" }, "peerDependencies": { "expo": "*", "react": "*", "react-native": "*" } }, "sha512-gbu9Nwm76DNpSK+MEhCjjjF3/EMyFE96IEDSlfO9jPiF4q48a7bef5EXnWVrwW8rvqCZKYAfSGqSpYNhhhpgIg=="],
@@ -2762,6 +2760,8 @@
     "react-is": ["react-is@19.2.7", "", {}, "sha512-kZFnouyVv7eP/Phmrlo9FK+zcAdriZJvzxXHF1Sl1P377WSGe2G/JxVolhTrB/jeV47lKImhNUsijjHAAbcl/A=="],
 
     "react-native": ["react-native@0.86.3", "", { "dependencies": { "@react-native/assets-registry": "0.86.3", "@react-native/codegen": "0.86.3", "@react-native/community-cli-plugin": "0.86.3", "@react-native/gradle-plugin": "0.86.3", "@react-native/js-polyfills": "0.86.3", "@react-native/normalize-colors": "0.86.3", "@react-native/virtualized-lists": "0.86.3", "abort-controller": "^3.0.0", "anser": "^1.4.9", "ansi-regex": "^5.0.0", "babel-plugin-syntax-hermes-parser": "0.36.0", "base64-js": "^1.5.1", "commander": "^12.0.0", "flow-enums-runtime": "^0.0.6", "hermes-compiler": "250829098.0.17", "invariant": "^2.2.4", "memoize-one": "^5.0.0", "metro-runtime": "^0.84.3", "metro-source-map": "^0.84.3", "nullthrows": "^1.1.1", "pretty-format": "^29.7.0", "promise": "^8.3.0", "react-devtools-core": "^6.1.5", "react-refresh": "^0.14.0", "regenerator-runtime": "^0.13.2", "scheduler": "0.27.0", "semver": "^7.1.3", "stacktrace-parser": "^0.1.10", "tinyglobby": "^0.2.15", "whatwg-fetch": "^3.0.0", "ws": "^7.5.10", "yargs": "^17.6.2" }, "peerDependencies": { "@react-native/jest-preset": "0.86.3", "@types/react": "^19.1.1", "react": "^19.2.3" }, "optionalPeers": ["@react-native/jest-preset", "@types/react"], "bin": { "react-native": "cli.js" } }, "sha512-JR5s3bM9ezud+Mw24GlNXNfthqPIKwrQgPPJcam+L97t2sKjjEavhCzBn+fyqZZRcM5+XlhYxpTxVkK7e1n38Q=="],
+
+    "react-native-audio-api": ["react-native-audio-api@0.13.6", "", { "dependencies": { "semver": "^7.7.3" }, "peerDependencies": { "react": "*", "react-native": "*", "react-native-worklets": ">= 0.7.0" }, "optionalPeers": ["react-native-worklets"], "bin": { "setup-rn-audio-api-web": "scripts/setup-rn-audio-api-web.js" } }, "sha512-055JlxTaajdzcJCzyd+xnH1pJawNkt2NZ3RNoI2vv1QxYRh257W/dcDky/qf4/VMEFdpZFuFfVW1hv75OEh3gA=="],
 
     "react-native-compressor": ["react-native-compressor@2.0.3", "", { "peerDependencies": { "react": "*", "react-native": "*", "react-native-nitro-modules": ">=0.35.0" } }, "sha512-T+wEEFpPkS4ewd4LLRmxBOro2e5TztDy2lmsC+8ThwzSnIguR98fHUEay3UYOKOKDB+zuFWRq7DO4JWjqKqWNg=="],
 
