@@ -116,13 +116,15 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
       'USING btree (federation_activity_id) WHERE (federation_activity_id IS NOT NULL)',
   },
   {
-    name: 'posts_federation_actor_uri_idx',
+    name: 'posts_federation_actor_author_idx',
     table: 'posts',
     serves:
-      'source identity projection and cache inspection — avoid scanning all posts for each immutable source actor',
+      'source identity projection and cache inspection — avoid scanning all posts for each immutable ' +
+      "source actor; `oxy_user_id` in the key lets the projection find the source's posts that do not " +
+      'carry its author yet from the index entries, instead of one heap page per post (0069)',
     definition:
-      'CREATE INDEX posts_federation_actor_uri_idx ON public.posts ' +
-      'USING btree (federation_actor_uri) WHERE (federation_actor_uri IS NOT NULL)',
+      'CREATE INDEX posts_federation_actor_author_idx ON public.posts ' +
+      'USING btree (federation_actor_uri, oxy_user_id) WHERE (federation_actor_uri IS NOT NULL)',
   },
   {
     name: 'posts_federation_url_idx',
@@ -938,6 +940,59 @@ it('bounds source index creation, restores prior timeouts and serves exact actor
     );
     expect(rows.map((row) => row['QUERY PLAN']).join('\n')).toContain(
       'posts_federation_actor_uri_idx',
+    );
+  });
+});
+
+it('replaces the source index with one keyed by author, building before it drops', async () => {
+  const read = (file: string) =>
+    readFileSync(path.resolve(__dirname, `../../../drizzle/${file}`), 'utf8');
+  const before = read('0039_source_identity_projection_index.sql');
+  const migration = read('0069_posts_federation_actor_author_idx.sql');
+  await db.transaction(async (tx) => {
+    // A private table shadows public.posts only on this transaction's connection.
+    await tx.execute(
+      sql`create temp table posts (federation_actor_uri text, oxy_user_id text) on commit drop`,
+    );
+    await tx.execute(
+      sql`insert into posts select case when n % 4 = 0 then null else 'https://fixture.invalid/' || (n % 200)::text end, 'current' from generate_series(1, 2000) n`,
+    );
+    for (const statement of before.split('--> statement-breakpoint')) {
+      await tx.execute(sql.raw(statement));
+    }
+    await tx.execute(sql`set local lock_timeout = '750ms'`);
+    await tx.execute(sql`set local statement_timeout = '90s'`);
+    const order: string[] = [];
+    for (const statement of migration.split('--> statement-breakpoint')) {
+      const ddl = /^\s*(?:--.*\n)*\s*(CREATE INDEX|DROP INDEX)/.exec(statement)?.[1];
+      if (ddl) {
+        const [settings] = await tx.execute<{ lock_timeout: string; statement_timeout: string }>(
+          sql`select current_setting('lock_timeout') lock_timeout, current_setting('statement_timeout') statement_timeout`,
+        );
+        expect(settings).toEqual({ lock_timeout: '5s', statement_timeout: '1min' });
+        order.push(ddl);
+      }
+      await tx.execute(sql.raw(statement));
+    }
+    // DROP INDEX holds ACCESS EXCLUSIVE on posts until commit; built first, the
+    // new index is never absent and reads are never blocked for the build.
+    expect(order).toEqual(['CREATE INDEX', 'DROP INDEX']);
+    const [restored] = await tx.execute<{ lock_timeout: string; statement_timeout: string }>(
+      sql`select current_setting('lock_timeout') lock_timeout, current_setting('statement_timeout') statement_timeout`,
+    );
+    expect(restored).toEqual({ lock_timeout: '750ms', statement_timeout: '90s' });
+
+    const indexes = await tx.execute<{ indexname: string }>(
+      sql`select indexname from pg_indexes where tablename = 'posts' and schemaname like 'pg_temp%' order by 1`,
+    );
+    expect(indexes.map((row) => row.indexname)).toEqual(['posts_federation_actor_author_idx']);
+
+    await tx.execute(sql`analyze posts`);
+    const rows = await tx.execute<{ 'QUERY PLAN': string }>(
+      sql`explain (costs off) select distinct oxy_user_id from posts where federation_actor_uri = 'https://fixture.invalid/101' and oxy_user_id is distinct from 'current'`,
+    );
+    expect(rows.map((row) => row['QUERY PLAN']).join('\n')).toContain(
+      'posts_federation_actor_author_idx',
     );
   });
 });

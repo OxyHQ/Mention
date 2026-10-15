@@ -235,6 +235,7 @@ describe('resolving @zuck@kilogram.makeup', () => {
       actorUri: 'https://kilogram.makeup/users/zuck',
       oxyUserId: 'oxy-zuck',
       networkAcct: 'zuck@instagram.com',
+      check: 'refresh',
     });
   });
 
