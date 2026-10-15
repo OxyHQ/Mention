@@ -2524,5 +2524,14 @@
   "alia.suggestion.discover": "फ़ॉलो करने के लिए खाते और विषय सुझाओ",
   "profile.actions.askAlia": "@{{handle}} के बारे में Alia से पूछें",
   "profile.askAlia.prompt": "Mention पर @{{handle}} के बारे में बताओ: वे कौन हैं, क्या पोस्ट करते हैं और किसके लिए जाने जाते हैं।",
-  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering."
+  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering.",
+  "safety": {
+    "contentUnavailable": "यह सामग्री उपलब्ध नहीं है",
+    "unavailableTitle": "इस खाते के लिए उपलब्ध नहीं है",
+    "unavailableDescription": "यह सुविधा निगरानी वाले खातों के लिए अभी उपलब्ध नहीं है। आप अपनी फ़ीड में समीक्षा की गई पोस्ट पढ़ना जारी रख सकते हैं।",
+    "checkFailed": "खाते के लिए उपलब्धता की जाँच नहीं हो सकी",
+    "retryDescription": "खाते की वर्तमान सुरक्षा सेटिंग लोड करने के लिए फिर से कोशिश करें।",
+    "privatePost": "केवल आपके अभिभावक और स्वीकृत संपर्क आपकी पोस्ट पढ़ सकते हैं।",
+    "pendingAssessment": "सुरक्षा समीक्षा पूरी होने तक यह सामग्री उपलब्ध नहीं होगी।"
+  }
 }

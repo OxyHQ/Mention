@@ -67,14 +67,14 @@ export const useShareIntentRouter = ({
       const uploaded: PendingShareMediaItem[] = [];
       for (const file of mediaFiles) {
         try {
-          // Post media renders from the public CDN, which 404s a private asset.
+          // Upload privately; the authorized publication path decides its audience.
           const result = (await oxyServices.assets.upload(
             {
               uri: file.path,
               type: file.mimeType,
               name: file.fileName ?? undefined,
             },
-            { visibility: 'public' },
+            { visibility: 'private' },
           )) as { file?: { id?: unknown; contentType?: unknown } } | undefined;
           const id = result?.file?.id;
           if (typeof id === 'string' && id.length > 0) {

@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /** Actual controller + PostgreSQL: a claim sees one committed native revision. */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -11,6 +12,7 @@ const hoisted = vi.hoisted(() => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: hoisted.createScopedOxyClient,
   createUserScopedOxyServices: vi.fn(() => undefined),
 }));
@@ -98,6 +100,7 @@ async function waiters(n: number) {
 async function edit(text = newText) {
   let status = 200;
   const req = {
+    accessToken: 'test-viewer-session',
     params: { id },
     query: {},
     headers: {},

@@ -1,3 +1,4 @@
+import { revalidateAnonymousFeed } from './revalidateAnonymousFeed';
 import { createHash } from 'node:crypto';
 import type { FeedResponse, SlicedFeedResponse } from '@mention/shared-types';
 import { createCache } from '../utils/cache';
@@ -119,8 +120,9 @@ class AnonFeedCache {
   }
 
   /** Read a cached anon page, or `null` on miss / any Redis failure. */
-  async read(key: string): Promise<CacheableFeedResponse | null> {
-    return (await cache.get<CacheableFeedResponse>(key)) ?? null;
+  async read(key: string, requestLanguages?: string[]): Promise<CacheableFeedResponse | null> {
+    const cached = await cache.get<CacheableFeedResponse>(key);
+    return cached ? revalidateAnonymousFeed(cached, requestLanguages) : null;
   }
 
   /** Persist an anon page. Fail-soft: a write error is logged and swallowed. */

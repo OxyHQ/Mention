@@ -1,3 +1,8 @@
+import { loadPostSafetyAssessments } from '../../db/posts/postSafetyRepository';
+import {
+  postSafetyClassification,
+  postSafetyMaterial,
+} from '../../services/contentClassification/safetyAssessment';
 import * as evaluationRepository from '../../db/posts/postEvaluationRepository';
 import {
   claimPostEvaluation,
@@ -103,7 +108,13 @@ vi.mock('../../services/TopicService', () => ({
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { postImports } from '../../db/schema/imports';
 import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
-import { insertPostRecord, lockPostContent, updatePostRecord } from '../../db/posts/postRepository';
+import {
+  deletePostRecord,
+  insertPostRecord,
+  lockPostContent,
+  updatePostAndContent,
+  updatePostRecord,
+} from '../../db/posts/postRepository';
 import { logger } from '../../utils/logger';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import {
@@ -138,6 +149,7 @@ interface AiResult {
   intent: string;
   scores: Record<string, number>;
   confidence: number;
+  safety?: { classification: 'general' | 'mature' | 'unrated' };
 }
 
 /** A neutral, schema-valid inference result — what a filler post gets. */
@@ -215,7 +227,11 @@ async function padBatch(subjectCount: number): Promise<void> {
 }
 
 /** The batch the edge was handed, as the service serialized it. */
-function inferencePayload(): Array<{ postIndex: number; text: string }> {
+function inferencePayload(): Array<{
+  postIndex: number;
+  text: string;
+  safetyMaterial: string | null;
+}> {
   const [messages] = inferenceJSON.mock.calls[0] as [Array<{ role: string; content: string }>];
   const user = messages.find((message) => message.role === 'user');
   if (!user) throw new Error('no user message was sent to the inference edge');
@@ -281,6 +297,92 @@ afterEach(async () => {
 
 afterAll(async () => {
   await closePostgres();
+});
+
+describe('PostClassificationService — trusted safety assessments', () => {
+  it('stores explicit revision-bound evidence and deletes it with the post', async () => {
+    const post = await seedSubject('A sunny afternoon in the garden.');
+    await padBatch(1);
+    respondWith([{ ...neutralResult(0), safety: { classification: 'general' } }]);
+
+    await postClassificationService.processQueue();
+    expectBatchWasOurs();
+    expect(inferenceJSON.mock.calls[0][1]).toMatchObject({ maxTokens: 8000 });
+    const assessment = (await loadPostSafetyAssessments([post.id, post.id])).get(post.id);
+    expect(assessment).toMatchObject({
+      materialDigest: postSafetyMaterial(post).digest,
+      rating: 'general',
+      assessmentVersion: 1,
+    });
+    expect(postSafetyClassification(post, assessment)).toBe('general');
+    await deletePostRecord(post.id, undefined);
+    expect((await loadPostSafetyAssessments([post.id])).size).toBe(0);
+  });
+
+  it('does not turn omitted verdicts or unassessed media into general', async () => {
+    const missing = await seedSubject('An author may not provide their own safety verdict.', {
+      classification: { sensitive: false },
+    });
+    const media = await seedSubject('A caption cannot assess the attached image.');
+    await updatePostAndContent(
+      media.id,
+      {},
+      { ...media.content, media: [{ id: 'unassessed-image', type: 'image' }] },
+      [],
+    );
+    await padBatch(2);
+    respondWith([neutralResult(0), { ...neutralResult(1), safety: { classification: 'general' } }]);
+
+    await postClassificationService.processQueue();
+    expectBatchWasOurs();
+    const assessments = await loadPostSafetyAssessments([missing.id, media.id]);
+    expect(assessments.get(missing.id)?.rating).toBe('unrated');
+    expect(assessments.get(media.id)?.rating).toBe('unrated');
+    expect(inferencePayload()[1].safetyMaterial).toBeNull();
+    // Ordinary ranking remains functional, independently of safety uncertainty.
+    expect((await classificationOf(missing.id)).status).toBe('classified');
+    expect((await classificationOf(media.id)).status).toBe('classified');
+  });
+
+  it('refuses an approval when the author edits while inference is in flight', async () => {
+    const post = await seedSubject('The original material sent for assessment.');
+    await padBatch(1);
+    inferenceJSON.mockImplementation(async () => {
+      await updatePostAndContent(
+        post.id,
+        { postClassification: { status: 'pending', attempts: 0 } },
+        { variants: [{ source: 'author', text: 'Different material after assessment began.' }] },
+        [],
+      );
+      return Array.from({ length: BATCH_SIZE }, (_, index) => ({
+        ...neutralResult(index),
+        safety: { classification: 'general' },
+      }));
+    });
+
+    await postClassificationService.processQueue();
+    expectBatchWasOurs();
+    const current = await readPost(post.id);
+    if (!current) throw new Error('post unexpectedly missing');
+    const assessment = (await loadPostSafetyAssessments([post.id])).get(post.id);
+    expect(assessment).toBeUndefined();
+    expect(postSafetyClassification(current, assessment)).toBe('unrated');
+    expect(current.postClassification.status).toBe('pending');
+  });
+
+  it('rejects ambiguous duplicate verdicts instead of choosing an approval', async () => {
+    const post = await seedSubject('A result must identify each post exactly once.');
+    await padBatch(1);
+    inferenceJSON.mockResolvedValue([
+      { ...neutralResult(0), safety: { classification: 'mature' } },
+      { ...neutralResult(0), safety: { classification: 'general' } },
+    ]);
+
+    await postClassificationService.processQueue();
+    expectBatchWasOurs();
+    expect((await loadPostSafetyAssessments([post.id])).size).toBe(0);
+    expect((await classificationOf(post.id)).status).not.toBe('classified');
+  });
 });
 
 describe('PostClassificationService — category classification', () => {
@@ -1172,7 +1274,7 @@ describe('PostClassificationService — the batch selector reads the body’s RE
     expect(inferencePayload().some((entry) => entry.text.includes('ordinary sentence'))).toBe(true);
   });
 
-  it('sends the PRIMARY rendition’s body to the classifier, never a machine translation', async () => {
+  it('ranks the primary rendition while safety assesses every visible rendition', async () => {
     // Classifying a machine translation would feed the classifier our own output;
     // a second author language would say the same thing twice.
     seedClock += 1;
@@ -1216,7 +1318,8 @@ describe('PostClassificationService — the batch selector reads the body’s RE
     await postClassificationService.processQueue();
     expectBatchWasOurs();
 
-    const sent = JSON.stringify(inferencePayload());
+    const sent = JSON.stringify(inferencePayload().map((entry) => entry.text));
+    expect(inferencePayload()[0].safetyMaterial).toContain('must NOT be classified');
     expect(sent).toContain('el cuerpo primario que hay que clasificar');
     expect(sent).not.toContain('must NOT be classified');
     expect((await classificationOf(post.id)).status).toBe('classified');

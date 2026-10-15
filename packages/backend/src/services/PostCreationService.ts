@@ -1,3 +1,4 @@
+import { assertAuthorsCanPublish, assertStoredPostCanPublish } from './postPublicationPolicy';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { postSubscriptions } from '../db/schema/engagement';
@@ -38,7 +39,6 @@ import { getRuntimeSocketServer } from '../runtime/socketServer';
 import { trackBackgroundWork } from '../runtime/backgroundWork';
 import { getPostFederator, registerPostCreator } from './serviceRegistry';
 import { baselineContentClassifier } from './BaselineContentClassifier';
-import { postHydrationService } from './PostHydrationService';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { emitPostCreated, emitRepostCreated } from './mtn/MentionRecordEmitter';
 import type { ReplyContext } from './mtn/mentionRecordBuilders';
@@ -470,6 +470,15 @@ class PostCreationService {
       memberReader: params.memberReader,
     });
     const publishedAsAccount = authorId !== null && authorId !== params.oxyUserId;
+    if (params.federation == null) {
+      await assertAuthorsCanPublish(
+        [authorId, params.oxyUserId, ...(params.collaboratorIds ?? [])].filter((id): id is string =>
+          Boolean(id),
+        ),
+        params.visibility ?? PostVisibility.PUBLIC,
+        publishedAsAccount || Boolean(params.collaboratorIds?.length),
+      );
+    }
 
     // The continuation claim is verified AFTER the publish-as gate, because what
     // it has to prove is about the RESOLVED author — the account the post will
@@ -758,6 +767,10 @@ class PostCreationService {
       return null;
     }
 
+    const candidate = await loadPostRecord(params.postId);
+    if (!candidate) return null;
+    await assertStoredPostCanPublish(candidate);
+
     const claimed = await claimUnpublishedPost(params.postId, params.ownerId, params.from);
     if (!claimed) {
       return null;
@@ -781,6 +794,7 @@ class PostCreationService {
    * never sinks the batch.
    */
   async publishScheduledPost(post: PostRecord): Promise<PostRecord> {
+    await assertStoredPostCanPublish(post);
     await updatePostRecord(post.id, { status: 'published' });
     const published: PostRecord = { ...post, status: 'published' };
     await recordRecentReplierForPost(published);
@@ -921,7 +935,7 @@ class PostCreationService {
       // from under this one — and readers would miss the update for every post
       // created in the second before a task stops, on every deploy. The awaited
       // version got that for free from the HTTP drain.
-      trackBackgroundWork(this.broadcastCreatedPost(post, oxyUserId));
+      trackBackgroundWork(this.broadcastCreatedPost());
     }
 
     // Federation is published-only: a draft never fans out even if a username is
@@ -1081,41 +1095,14 @@ class PostCreationService {
    * site instead of hiding a `void (async () => {...})()` in the middle of the
    * side-effect sequence.
    */
-  private async broadcastCreatedPost(post: PostRecord, oxyUserId: string | null): Promise<void> {
+  private async broadcastCreatedPost(): Promise<void> {
     try {
       const io = getRuntimeSocketServer();
       if (io) {
-        // Emit the canonical hydrated DTO (author summary, resolved
-        // name.displayName, engagement shape, and embedded boosted original)
-        // so the post renders correctly in real time instead of as a raw,
-        // unhydrated document. Mirrors createThread's post-create emit.
-        // maxDepth:1 is REQUIRED so a created boost embeds its boostOf target
-        // (a boost has an intentionally empty body and renders blank otherwise).
-        const [hydratedPost] = await postHydrationService.hydratePosts([post], {
-          // Written or changed by this very request, so there is no community note to
-          // look up — and asking would put a CrowdSource round trip on this path.
-          includeCommunityNotes: false,
-          // This DTO is broadcast to all sockets, so hydrate as an anonymous
-          // viewer. Nested quote/boost references that are not publicly
-          // visible are omitted instead of leaking via a creator-specific ACL.
-          viewerId: undefined,
-          oxyClient: getServiceOxyClient(),
-          maxDepth: 1,
-          includeLinkMetadata: true,
-        });
-        if (hydratedPost) {
-          io.emit('feed:updated', {
-            type: 'for_you',
-            post: hydratedPost,
-            timestamp: new Date().toISOString(),
-          });
-          io.emit('feed:updated', {
-            type: 'following',
-            post: hydratedPost,
-            authorId: oxyUserId,
-            timestamp: new Date().toISOString(),
-          });
-        }
+        // Every viewer refetches through current profile/content policy. A global
+        // socket payload cannot contain a body authorized only for an adult.
+        for (const type of ['for_you', 'following'])
+          io.emit('feed:updated', { type, timestamp: new Date().toISOString() });
       }
     } catch (socketError) {
       logger.warn('PostCreationService: failed to emit socket event', socketError);
@@ -1168,12 +1155,13 @@ class PostCreationService {
 
     try {
       // Late-bound accessor avoids a circular import with the connector registry.
-      await getPostFederator().federateNewPost(
+      const dispatched = await getPostFederator().federateNewPost(
         post,
         ctx.oxyUserId,
         federationUsername,
         ctx.alsoDeliverToAudiencesOf,
       );
+      if (!dispatched) return null;
       await updatePostRecord(post.id, { metadata: { federationDelivered: true } });
       return { ...post, metadata: { ...post.metadata, federationDelivered: true } };
     } catch (fedError) {

@@ -1,3 +1,4 @@
+import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
@@ -135,7 +136,7 @@ const MarketplaceFeedCard = React.memo(function MarketplaceFeedCard({
   );
 });
 
-export default function FeedMarketplaceScreen() {
+function FeedMarketplaceScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const safeBack = useSafeBack();
@@ -535,3 +536,11 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 4,
   },
 });
+
+export default function AvailableFeedMarketplaceScreen() {
+  return (
+    <SupervisedFeatureGate>
+      <FeedMarketplaceScreen />
+    </SupervisedFeatureGate>
+  );
+}

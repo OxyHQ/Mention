@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -24,6 +25,7 @@ const hoisted = vi.hoisted(() => ({
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: vi.fn(() => undefined),
   // The reader `listOperatedChannelIds` is asked with. No channels by default,
   // so the read collapses to the caller's own drafts; the channel half is the
@@ -72,6 +74,7 @@ function buildRequest(userId: string | undefined, params: Record<string, string>
   // the way into hydration — omitting it throws inside the handler's try/catch
   // and turns every assertion below into a silent 500.
   return {
+    accessToken: 'test-viewer-session',
     user: userId ? { id: userId } : undefined,
     params,
     query: {},

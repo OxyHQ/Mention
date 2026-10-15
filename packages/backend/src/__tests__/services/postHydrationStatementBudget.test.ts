@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * What ONE hydration costs the database, measured rather than reasoned about.
  *
@@ -49,6 +50,7 @@ vi.mock('../../runtime/oxyClient', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     users: { getMany: getUsersByIds },
     assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
     getClarityDocuments: vi.fn(async () => ({})),
@@ -154,6 +156,7 @@ afterEach(async () => {
 
 function hydrate(posts: object[]) {
   return new PostHydrationService().hydratePosts(posts, {
+    safetyRequester: { accessToken: 'test-viewer-session' },
     viewerId: VIEWER_ID,
     maxDepth: 2,
     oxyClient: {
@@ -220,11 +223,12 @@ describe('one hydration reads user_settings once', () => {
 });
 
 describe('the statement budget for one cold hydration', () => {
-  it('costs eight round trips for one post, and the same for twenty', async () => {
+  it('costs nine round trips for one post, and the same for twenty', async () => {
     /**
      * The budget, and what each entry is. Change a number here only together
      * with the read that moved it.
      *
+     *  `post_safety_assessments` 1 — current revision safety evidence for the complete batch.
      *  `user_settings`        1 — author privacy + profile visibility, batched.
      *  `posts`                1 — which of these posts the viewer has boosted.
      *  `likes`                1 — the viewer's like/downvote state.
@@ -249,6 +253,7 @@ describe('the statement budget for one cold hydration', () => {
      */
     const expected = new Map([
       ['user_settings', 1],
+      ['post_safety_assessments', 1],
       ['posts', 1],
       ['likes', 1],
       ['bookmarks', 1],

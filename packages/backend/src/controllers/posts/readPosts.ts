@@ -16,6 +16,7 @@ import type { PostCorrectionsResponse } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
 import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
+import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { queryInt, queryString } from '../../utils/queryParams';
 import { topicSlugSql } from '../../utils/postTopicMatch';
 import { notCollapsedCrosspostSql } from '../../utils/feedQueryBuilder';
@@ -43,6 +44,7 @@ export const getPosts = async (req: AuthRequest, res: Response) => {
 
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
       viewerId: currentUserId,
+      safetyRequester: safetyRequesterFor(req),
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
@@ -90,6 +92,7 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
 
     const hydrated = await postHydrationService.hydratePosts([post], {
       viewerId: currentUserId,
+      safetyRequester: safetyRequesterFor(req),
       oxyClient,
       viewerPrivacy: viewerContext?.viewerPrivacy,
       viewerGraph: viewerContext?.viewerGraph,
@@ -146,6 +149,7 @@ export const getPostCorrections = async (req: AuthRequest, res: Response) => {
 
     const hydrated = await postHydrationService.hydratePosts([post], {
       viewerId: req.user?.id,
+      safetyRequester: safetyRequesterFor(req),
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
       // The trail is exactly as readable as the post, so it has to be able to
@@ -211,6 +215,7 @@ export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
 
     const hydratedPosts = await postHydrationService.hydratePosts(postsToReturn, {
       viewerId: req.user?.id,
+      safetyRequester: safetyRequesterFor(req),
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
@@ -267,6 +272,7 @@ export const getPostsByTopic = async (req: AuthRequest, res: Response) => {
 
     const hydratedPosts = await postHydrationService.hydratePosts(postsToReturn, {
       viewerId: req.user?.id,
+      safetyRequester: safetyRequesterFor(req),
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,

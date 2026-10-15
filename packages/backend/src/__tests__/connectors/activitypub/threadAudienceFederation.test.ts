@@ -1,3 +1,7 @@
+vi.mock('../../../db/posts/postSafetyRepository', () => ({
+  loadPostSafetyAssessments: async () => new Map(),
+}));
+import { adultSafetyFixture } from '../../helpers/adultSafety';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -66,7 +70,17 @@ vi.mock('../../../db/federation/deliveryQueueRepository', () => ({
   insertDelivery: vi.fn(),
 }));
 vi.mock('../../../db/posts/postRepository', () => ({
-  loadPostRecord: () => postFindByIdLean(),
+  loadPostRecord: (id: string) =>
+    id === 'entry2'
+      ? Promise.resolve({
+          id,
+          oxyUserId: 'alice-oxy',
+          authorship: [],
+          visibility: 'public',
+          status: 'published',
+          content: { variants: [] },
+        })
+      : postFindByIdLean(),
 }));
 vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
 vi.mock('@oxy.so/core/server', async (importOriginal) => ({
@@ -77,7 +91,9 @@ vi.mock('../../../utils/mediaResolver', () => ({
   resolveMediaRef: (ref: string) => ({ url: `https://cloud.oxy.so/${ref}` }),
 }));
 vi.mock('../../../services/fediverseSharing', () => ({ isFediverseSharingEnabled }));
-vi.mock('../../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ getUserById }) }));
+vi.mock('../../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture(), getUserById }),
+}));
 
 import { followService } from '../../../connectors/activitypub/follow.service';
 
@@ -88,7 +104,7 @@ const ORG_INBOX = 'https://org-side.example/inbox';
 
 /** A thread continuation exactly as the batch path hands it over. */
 const ENTRY = {
-  _id: 'entry2',
+  id: 'entry2',
   parentPostId: 'entry1',
   content: { variants: [{ source: 'author' as const, text: 'the second voice', tag: 'en' }] },
   createdAt: '2024-05-06T07:08:09.000Z',

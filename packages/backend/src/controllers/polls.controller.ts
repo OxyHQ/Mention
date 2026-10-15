@@ -1,3 +1,5 @@
+import { createScopedOxyClient } from '../utils/oxyHelpers';
+import { safetyRequesterFor } from '../utils/safetyRequester';
 import type { Response, NextFunction } from 'express';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
@@ -177,10 +179,17 @@ function validationError(res: Response, message: string) {
  * creator; once attached, the post gate covers status, visibility, follows,
  * blocks, profile privacy, and collaborators in one place.
  */
-async function canViewerAccessPoll(poll: PollHeader, viewerId: string): Promise<boolean> {
+async function canViewerAccessPoll(
+  poll: PollHeader,
+  viewerId: string,
+  req: AuthRequest,
+): Promise<boolean> {
   if (poll.postId === null) return poll.createdBy === viewerId;
   try {
-    return await postHydrationService.canViewerReadPostId(poll.postId, viewerId);
+    return await postHydrationService.canViewerReadPostId(poll.postId, viewerId, {
+      safetyRequester: safetyRequesterFor(req),
+      oxyClient: createScopedOxyClient(req),
+    });
   } catch (error) {
     // Fails CLOSED, the same way `ContentRoomLifecycle` treats this gate: it
     // needs the viewer's blocks from Oxy, so an Oxy outage makes the question
@@ -356,7 +365,7 @@ class PollsController {
       // The ACL runs off the header alone — a refused viewer costs one
       // indexed row lookup, not every option's vote count.
       const header = await loadPollHeader(getDb(), id);
-      if (!header || !(await canViewerAccessPoll(header, viewerId))) return pollNotFound(res);
+      if (!header || !(await canViewerAccessPoll(header, viewerId, req))) return pollNotFound(res);
 
       const poll = await loadPollSummary(getDb(), id, viewerId);
       if (!poll) return pollNotFound(res);
@@ -395,7 +404,7 @@ class PollsController {
       // used to hydrate every voter on the poll just to decide whether the
       // caller may even see it.
       const header = await loadPollHeader(getDb(), id);
-      if (!header || !(await canViewerAccessPoll(header, userId))) return pollNotFound(res);
+      if (!header || !(await canViewerAccessPoll(header, userId, req))) return pollNotFound(res);
 
       // Record the vote through the shared service (the SAME atomic dedup path the
       // inbound ActivityPub poll-vote handler uses), then map its result to HTTP.
@@ -441,7 +450,7 @@ class PollsController {
       if (!viewerId) return pollNotFound(res);
 
       const header = await loadPollHeader(getDb(), id);
-      if (!header || !(await canViewerAccessPoll(header, viewerId))) return pollNotFound(res);
+      if (!header || !(await canViewerAccessPoll(header, viewerId, req))) return pollNotFound(res);
 
       const poll = await loadPollSummary(getDb(), id, viewerId);
       if (!poll) return pollNotFound(res);

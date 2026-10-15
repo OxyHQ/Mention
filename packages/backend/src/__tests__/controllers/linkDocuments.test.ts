@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * `POST /posts/documents` and `POST /posts/link-previews` — the two ways the app
  * gets link cards without ever talking to Clarity itself.
@@ -37,6 +38,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: () => oxyClient,
   createUserScopedOxyServices: () => undefined,
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     users: { getMany: getUsersByIds },
     assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
   }),
@@ -83,6 +85,7 @@ function document(url: string, title: string) {
 
 function makeReq(body: unknown, userId: string | undefined = VIEWER) {
   return {
+    accessToken: 'test-viewer-session',
     user: userId ? { id: userId } : undefined,
     params: {},
     query: {},

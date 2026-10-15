@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * WHO MAY MANAGE A CHANNEL'S POST — asked of EVERY management route, once each.
  *
@@ -51,6 +52,7 @@ const oxy = vi.hoisted(() => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: () => undefined,
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     users: { getMany: vi.fn(async () => []) },
     getClarityDocuments: vi.fn(async () => ({})),
     assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
@@ -148,6 +150,7 @@ function drive(
   // their reply through it — a request double without it 500s AFTER the gate has
   // already allowed the call, which reads exactly like a refusal that isn't one.
   const req = {
+    accessToken: 'test-viewer-session',
     user: { id: WRITER },
     params,
     query: {},

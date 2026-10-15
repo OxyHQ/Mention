@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -29,7 +30,9 @@ vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async () => []) },
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
-vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: vi.fn(() => ({})) }));
+vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: vi.fn(() => ({ safety: adultSafetyFixture() })),
+}));
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
 vi.mock('../../services/MediaMetadataService', () => ({
   mediaMetadataService: { enrichFromOxy: vi.fn(async (media: unknown[]) => media) },

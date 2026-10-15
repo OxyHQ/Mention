@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../../helpers/adultSafety';
 import express from 'express';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -55,6 +56,17 @@ const mocks = vi.hoisted(() => ({
   getServiceOxyClient: vi.fn(),
   getUserFollowers: vi.fn(),
   getUserFollowing: vi.fn(),
+  profileAccess: vi.fn(),
+  publicationPolicies: vi.fn(),
+  cachedJrd: vi.fn(),
+}));
+
+vi.mock('../../../utils/redis', () => ({
+  getRedisClient: () => ({
+    isReady: true,
+    get: mocks.cachedJrd,
+    setEx: vi.fn(async () => undefined),
+  }),
 }));
 
 vi.mock('express-rate-limit', () => ({
@@ -120,7 +132,7 @@ import { userSettings } from '../../../db/schema/userProfile';
 import { clearFederationScope, federationScope, seedPost } from '../../helpers/federationFixtures';
 import type { PostRecord } from '../../../db/posts/postRecord';
 import apRoutes from '../../../connectors/activitypub/routes/ap.routes';
-import { actorRouter } from '../../../connectors/activitypub/routes/engine.routes';
+import { actorRouter, webfingerRouter } from '../../../connectors/activitypub/routes/engine.routes';
 import { AP_CONTEXT } from '@oxy.so/federation';
 
 const app = express();
@@ -128,6 +140,7 @@ app.use(express.json());
 // The engine router (actor GET, followers/following) + Mention's content router
 // (outbox/featured/dereference) on the SAME `/ap` prefix, as in `app.ts`.
 app.use('/ap', actorRouter);
+app.use('/.well-known', webfingerRouter);
 app.use('/ap', apRoutes);
 
 const scope = federationScope('ap-routes');
@@ -169,7 +182,16 @@ beforeEach(() => {
   });
   mocks.resolveAvatarUrl.mockReturnValue(undefined);
   // The follow collections read the Oxy follow graph through the service client.
+  const safety = adultSafetyFixture();
+  mocks.profileAccess.mockImplementation(safety.profileAccess);
+  mocks.publicationPolicies.mockImplementation(safety.publicationPolicies);
+  mocks.cachedJrd.mockResolvedValue(null);
   mocks.getServiceOxyClient.mockReturnValue({
+    safety: {
+      ...safety,
+      profileAccess: mocks.profileAccess,
+      publicationPolicies: mocks.publicationPolicies,
+    },
     follows: {
       followers: mocks.getUserFollowers,
       following: mocks.getUserFollowing,
@@ -192,6 +214,72 @@ beforeEach(() => {
   // single-post dereference resolver returns null (serves a Note with no quote).
   mocks.resolveQuoteContext.mockResolvedValue(null);
   mocks.resolveQuoteContextByPost.mockResolvedValue(new Map());
+});
+
+describe('current public federation identity authorization', () => {
+  beforeEach(() =>
+    mocks.resolveOxyUser.mockResolvedValue({
+      id: ALICE,
+      name: { displayName: 'Private biography' },
+    }),
+  );
+  it('refuses a profile after privacy revocation even when discovery is cached', async () => {
+    mocks.cachedJrd.mockResolvedValue(
+      JSON.stringify({
+        subject: 'acct:alice@mention.earth',
+        links: [{ rel: 'self', href: 'https://mention.earth/ap/users/alice' }],
+      }),
+    );
+    const visible = await request(app)
+      .get('/.well-known/webfinger')
+      .query({ resource: 'acct:alice@mention.earth' });
+    expect(visible.status).toBe(200);
+    expect(visible.headers['cache-control']).toBe('no-store');
+    mocks.profileAccess.mockResolvedValue({
+      allowed: false,
+      reason: 'private',
+      policyVersion: '2',
+    });
+    expect(
+      (
+        await request(app)
+          .get('/.well-known/webfinger')
+          .query({ resource: 'acct:alice@mention.earth' })
+      ).status,
+    ).toBe(404);
+    const actor = await request(app).get('/ap/users/alice').set('Accept', AP_ACCEPT);
+    expect(actor.status).toBe(404);
+    expect(JSON.stringify(actor.body)).not.toContain('Private biography');
+  });
+  it('does not serve a warm JRD when policy is unavailable', async () => {
+    mocks.cachedJrd.mockResolvedValue(
+      JSON.stringify({ subject: 'acct:alice@mention.earth', links: [] }),
+    );
+    mocks.profileAccess.mockRejectedValue(new Error('authority unavailable'));
+    const response = await request(app)
+      .get('/.well-known/webfinger')
+      .query({ resource: 'acct:alice@mention.earth' });
+    expect(response.status).toBe(500);
+    expect(response.body.subject).toBeUndefined();
+    expect(mocks.cachedJrd).not.toHaveBeenCalled();
+  });
+  it('refuses a historical public actor when the live publication policy forbids federation', async () => {
+    mocks.publicationPolicies.mockResolvedValue({
+      items: [
+        {
+          authorAccountId: ALICE,
+          policy: {
+            publicationAllowed: true,
+            requiredAudience: 'private',
+            collaborationAllowed: false,
+            federationAllowed: false,
+            policyVersion: '2',
+          },
+        },
+      ],
+    });
+    expect((await request(app).get('/ap/users/alice').set('Accept', AP_ACCEPT)).status).toBe(404);
+  });
 });
 
 describe('GET /ap/users/:username — actor image (banner)', () => {

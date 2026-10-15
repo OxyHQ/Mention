@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * `GET /notifications` — post privacy, against real notification AND post rows.
  *
@@ -43,6 +44,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   // omits is `undefined is not a function` on every request.
   createUserScopedOxyServices: () => undefined,
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     users: { getMany: mocks.getUsersByIds },
     getClarityDocuments: vi.fn(async () => ({})),
     assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
@@ -169,6 +171,7 @@ function makeApp(viewer: string) {
   const app = express();
   app.use((req, _res, next) => {
     (req as typeof req & { user: { id: string } }).user = { id: viewer };
+    req.headers.authorization = 'Bearer notification-viewer-session';
     next();
   });
   app.use('/', notificationsRouter);
@@ -208,10 +211,8 @@ describe('GET /notifications post privacy', () => {
 
     const response = await request(makeApp(viewer)).get('/').expect(200);
 
-    // The notification survives — the viewer still learns someone engaged.
-    expect(response.body.notifications).toHaveLength(1);
-    expect(response.body.notifications[0].preview).toBeUndefined();
-    expect(response.body.notifications[0].post).toBeUndefined();
+    // Neither the preview nor the existence of a protected post is disclosed.
+    expect(response.body.notifications).toHaveLength(0);
     expect(JSON.stringify(response.body)).not.toContain(RAW_PRIVATE_TEXT);
   });
 
@@ -283,16 +284,13 @@ describe('GET /notifications post privacy', () => {
   });
 
   it('resolves no preview at all for a like whose post was deleted', async () => {
-    // A dangling `entityId` is ordinary: `deletePost` does not rewrite the
-    // notifications that pointed at it. The row must survive with no preview
-    // rather than 500 the page.
+    // A deleted target is omitted without failing the notification page.
     const viewer = viewerId();
     await seedNotification(viewer, '019616a0-0000-7000-8000-0000deadbeef');
 
     const response = await request(makeApp(viewer)).get('/').expect(200);
 
-    expect(response.body.notifications).toHaveLength(1);
-    expect(response.body.notifications[0].preview).toBeUndefined();
+    expect(response.body.notifications).toHaveLength(0);
   });
 });
 

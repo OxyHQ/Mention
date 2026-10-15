@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -36,7 +37,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => ({})),
-  getServiceOxyClient: vi.fn(() => ({})),
+  getServiceOxyClient: vi.fn(() => ({ safety: adultSafetyFixture() })),
 }));
 
 vi.mock('../../utils/notificationUtils', () => ({
@@ -180,6 +181,7 @@ describe('POST /feed/reply', () => {
 
     await feedController.createReply(
       {
+        accessToken: 'test-viewer-session',
         body: { postId: parent.id, content: { text: 'nice post' } },
         user: { id: USER_ID },
       } as never,
@@ -209,6 +211,7 @@ describe('POST /feed/reply', () => {
 
     await feedController.createReply(
       {
+        accessToken: 'test-viewer-session',
         body: { postId: parent.id, content: { text: `agreed, https://${OWN_HOST}/@alice` } },
         user: { id: USER_ID },
       } as never,
@@ -233,7 +236,11 @@ describe('POST /feed/boost', () => {
     const { res, captured } = buildResponse();
 
     await feedController.createBoost(
-      { body: { originalPostId: original.id }, user: { id: USER_ID } } as never,
+      {
+        accessToken: 'test-viewer-session',
+        body: { originalPostId: original.id },
+        user: { id: USER_ID },
+      } as never,
       res as never,
     );
     expect(captured.status).toBe(201);
@@ -257,7 +264,11 @@ describe('POST /feed/boost', () => {
 
     const first = buildResponse();
     await feedController.createBoost(
-      { body: { originalPostId: original.id }, user: { id: USER_ID } } as never,
+      {
+        accessToken: 'test-viewer-session',
+        body: { originalPostId: original.id },
+        user: { id: USER_ID },
+      } as never,
       first.res as never,
     );
     expect(first.captured.status).toBe(201);
@@ -266,7 +277,11 @@ describe('POST /feed/boost', () => {
 
     const second = buildResponse();
     await feedController.createBoost(
-      { body: { originalPostId: original.id }, user: { id: USER_ID } } as never,
+      {
+        accessToken: 'test-viewer-session',
+        body: { originalPostId: original.id },
+        user: { id: USER_ID },
+      } as never,
       second.res as never,
     );
     expect(second.captured.status).toBe(400);

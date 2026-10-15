@@ -1,3 +1,5 @@
+import { assertAuthorsCanPublish, assertStoredPostCanPublish } from './postPublicationPolicy';
+import { PostVisibility } from '@mention/shared-types';
 import type { PostAuthorshipEntry } from '@mention/shared-types';
 import {
   loadPostRecord,
@@ -7,7 +9,6 @@ import {
 import type { PostRecord } from '../db/posts/postRecord';
 import { createNotification } from '../utils/notificationUtils';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
-import { postHydrationService } from './PostHydrationService';
 import { logger } from '../utils/logger';
 import { getRuntimeSocketServer } from '../runtime/socketServer';
 import {
@@ -85,6 +86,7 @@ class PostCollaborationService {
       throw new CollabValidationError(err instanceof Error ? err.message : 'Invalid collaborators');
     }
     if (uniqueIds.length === 0) return [];
+    await assertAuthorsCanPublish([ownerId, ...uniqueIds], PostVisibility.PRIVATE, true);
 
     const oxy = getServiceOxyClient();
     const users = await oxy.users.getMany(uniqueIds);
@@ -254,6 +256,7 @@ class PostCollaborationService {
     if (!ownerId) return post;
 
     try {
+      await assertStoredPostCanPublish(post);
       const owner = await getServiceOxyClient().users.get(ownerId);
       if (!owner.username) return post;
       await getPostFederator().federateNewPost(post, ownerId, owner.username);
@@ -276,22 +279,8 @@ class PostCollaborationService {
     try {
       const io = getRuntimeSocketServer();
       if (!io) return;
-      const [hydratedPost] = await postHydrationService.hydratePosts([post], {
-        // Written or changed by this very request, so there is no community note to
-        // look up — and asking would put a CrowdSource round trip on this path.
-        includeCommunityNotes: false,
-        viewerId: undefined,
-        oxyClient: getServiceOxyClient(),
-        maxDepth: 1,
-        includeLinkMetadata: true,
-      });
-      if (hydratedPost) {
-        io.emit('feed:updated', {
-          type: 'for_you',
-          post: hydratedPost,
-          timestamp: new Date().toISOString(),
-        });
-      }
+      if (post.status === 'published' && post.visibility === 'public')
+        io.emit('feed:updated', { type: 'for_you', timestamp: new Date().toISOString() });
     } catch (err) {
       logger.warn('PostCollaborationService: feed:updated emit failed', { error: err });
     }
@@ -319,6 +308,7 @@ class PostCollaborationService {
       throw new CollabStateError(notFoundMessage);
     }
 
+    if (to === 'accepted') await assertStoredPostCanPublish(post);
     entry.status = to;
     entry.respondedAt = new Date().toISOString();
     await replacePostAuthorship(post.id, authorship);

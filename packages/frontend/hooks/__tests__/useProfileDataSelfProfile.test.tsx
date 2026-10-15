@@ -21,10 +21,14 @@ import type { User } from '@oxy.so/core';
  * EMPTY, which is the only way the skeleton can appear at all.
  */
 
+const mockSupervision = { ready: true, supervised: false, isError: false };
+jest.mock('@/hooks/useSupervisionState', () => ({ useSupervisionState: () => mockSupervision }));
+
 const mockViewer: { current: User | null } = { current: null };
 const mockFetchProfile = jest.fn<Promise<User | null>, [string | null]>();
 const mockLoadAppearance = jest.fn();
 const mockResolveProfile = jest.fn();
+const mockPeople = jest.fn();
 const mockDocumentProfile = jest.fn<User | null, [string]>(() => null);
 
 jest.mock('@/lib/documentBootstrap', () => ({
@@ -45,7 +49,7 @@ jest.mock('@oxy.so/services/ui/client', () => {
   return {
     useAuth: () => ({
       user: mockViewer.current,
-      oxyServices: { users: { resolveHandle: mockResolveProfile } },
+      oxyServices: { users: { resolveHandle: mockResolveProfile }, safety: { people: mockPeople } },
     }),
     queryKeys: { users: { byUsername } },
     // The SDK hook's own options, verbatim — a 5-minute `staleTime`, a
@@ -419,6 +423,49 @@ describe('useProfileData — the profile the document was served for', () => {
     const renderer = mountProbe('bob', sink);
 
     expect(sink[0]).toEqual({ loading: true, displayName: null });
+    act(() => renderer.unmount());
+  });
+});
+
+describe('supervised minimal profile identity', () => {
+  beforeEach(() => {
+    mockSupervision.ready = true;
+    mockSupervision.supervised = true;
+    mockViewer.current = user('child-1', 'child', 'Child');
+    mockFetchProfile.mockReset();
+    mockLoadAppearance.mockReset();
+    mockPeople.mockReset();
+    mockDocumentProfile.mockReturnValue({
+      ...user('ada-1', 'ada', 'Ada'),
+      bio: 'Unrated biography',
+    });
+  });
+  afterEach(() => {
+    mockSupervision.supervised = false;
+  });
+
+  it('gets a minimal identity from the canonical safety API without fetching full profile text', async () => {
+    mockPeople.mockResolvedValue({
+      items: [{ accountId: 'ada-1', username: 'ada', displayName: 'Ada' }],
+    });
+    const sink: Snapshot[] = [];
+    const renderer = mountProbe('ada', sink);
+    await settle();
+    expect(mockPeople).toHaveBeenCalledWith({ query: 'ada' });
+    expect(mockFetchProfile).not.toHaveBeenCalled();
+    expect(mockLoadAppearance).not.toHaveBeenCalled();
+    expect(sink.at(-1)).toEqual({ loading: false, displayName: 'Ada' });
+    act(() => renderer.unmount());
+  });
+
+  it('does not fall back to a full document identity when the safety API is unavailable', async () => {
+    mockPeople.mockRejectedValue(new Error('authority unavailable'));
+    const sink: Snapshot[] = [];
+    const renderer = mountProbe('ada', sink);
+    await settle();
+    expect(sink.at(-1)).toEqual({ loading: false, displayName: null });
+    expect(mockFetchProfile).not.toHaveBeenCalled();
+    expect(mockLoadAppearance).not.toHaveBeenCalled();
     act(() => renderer.unmount());
   });
 });

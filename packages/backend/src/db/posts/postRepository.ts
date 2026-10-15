@@ -1839,7 +1839,8 @@ export type MachineVariantWrite =
  * any other media id could never be read back.
  *
  * A machine variant is APPENDED after the author's own — `variants[0]` stays the
- * primary — and it never touches the body, the hashtags or the classification.
+ * primary — and it never changes the body, hashtags or existing ranking evidence.
+ * Its new material queues a fresh safety assessment; the prior digest no longer matches.
  */
 export async function storeMachineVariant(
   postId: string,
@@ -1930,6 +1931,10 @@ export async function storeMachineVariant(
       article: variant.article,
       createdAt: variant.createdAt,
     });
+    await tx
+      .update(posts)
+      .set({ classificationStatus: 'pending', classificationAttempts: 0 })
+      .where(eq(posts.id, postId));
     return { kind: 'stored', variant: stored };
   });
 

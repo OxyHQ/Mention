@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -38,7 +39,11 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => ({})),
-  getServiceOxyClient: () => ({ getUserById: vi.fn(), getUsersByIds: vi.fn(async () => []) }),
+  getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
+    getUserById: vi.fn(),
+    getUsersByIds: vi.fn(async () => []),
+  }),
   // `undefined` = no membership reader, which is exactly what a caller who names
   // no account gets. These batches name none, so the publish-as gate answers
   // "the caller" without asking Oxy anything.
@@ -53,7 +58,7 @@ vi.mock('../../utils/notificationUtils', () => ({
 }));
 
 vi.mock('../../services/serviceRegistry', () => ({
-  getPostFederator: () => ({ federateNewPost: vi.fn().mockResolvedValue(undefined) }),
+  getPostFederator: () => ({ federateNewPost: vi.fn().mockResolvedValue(true) }),
   registerPostCreator: vi.fn(),
 }));
 
@@ -79,6 +84,7 @@ const AUTHOR = scope.user('thread-author');
  */
 function buildRequest(body: Record<string, unknown>) {
   return {
+    accessToken: 'test-viewer-session',
     user: { id: AUTHOR },
     query: {},
     acceptsLanguages: () => [] as string[],

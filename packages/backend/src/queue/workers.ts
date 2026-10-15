@@ -1,3 +1,4 @@
+import { DeliveryAuthorizationDeniedError } from '@oxy.so/federation/node';
 import { Worker, type Job, UnrecoverableError } from 'bullmq';
 import { getQueueConnection, isQueueEnabled, closeQueueConnection } from './connection';
 import { closeQueues } from './queues';
@@ -141,12 +142,19 @@ export async function processDeliveryJob(job: Job<DeliveryJobData>): Promise<voi
     throw new UnrecoverableError('Sender user not found');
   }
 
-  const delivered = await activityPubConnector.deliverActivity(
-    activityJson,
-    targetInbox,
-    senderOxyUserId,
-    username,
-  );
+  let delivered: boolean;
+  try {
+    delivered = await activityPubConnector.deliverActivity(
+      activityJson,
+      targetInbox,
+      senderOxyUserId,
+      username,
+    );
+  } catch (error) {
+    if (error instanceof DeliveryAuthorizationDeniedError)
+      throw new UnrecoverableError(error.message);
+    throw error;
+  }
 
   if (!delivered) {
     // Soft failure (remote 4xx/5xx, timeout). Throw so BullMQ retries with the

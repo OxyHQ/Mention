@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -15,6 +16,16 @@ const mocks = vi.hoisted(() => ({
   loggerError: vi.fn(),
   loggerDebug: vi.fn(),
   isFediverseSharingEnabled: vi.fn(),
+}));
+
+vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
+}));
+vi.mock('../../db/posts/postRepository', () => ({
+  loadPostRecord: async (id: string) =>
+    id === 'p1'
+      ? { id, oxyUserId: 'u1', status: 'published', visibility: 'public', authorship: [] }
+      : null,
 }));
 
 vi.mock('../../utils/logger', () => ({

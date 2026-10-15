@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -37,6 +38,7 @@ const hoisted = vi.hoisted(() => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: hoisted.createScopedOxyClient,
   // The reader `listOperatedChannelIds` is asked with. This file is about the
   // PERSONAL half of the read, so the forest is empty by default and the union
@@ -83,6 +85,7 @@ async function seedScheduled(
 }
 
 function buildRequest(overrides: Record<string, unknown> = {}) {
+  if (overrides.user) overrides = { accessToken: 'test-viewer-session', ...overrides };
   // `acceptsLanguages` is Express's, and `requestLanguageCandidates` calls it on
   // the way into hydration — omitting it throws inside the handler's try/catch
   // and turns every assertion below into a silent 500.

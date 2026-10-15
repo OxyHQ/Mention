@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * What `POST /posts` and `POST /posts/thread` accept, in both directions.
  *
@@ -44,6 +45,7 @@ vi.mock('../../services/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
 vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: vi.fn(() => ({})),
   createUserScopedOxyServices: vi.fn(() => undefined),
 }));
@@ -108,6 +110,7 @@ const createdPollIds: string[] = [];
 
 function buildRequest(body: Record<string, unknown>) {
   return {
+    accessToken: 'test-viewer-session',
     user: { id: AUTHOR },
     query: {},
     acceptsLanguages: () => [] as string[],

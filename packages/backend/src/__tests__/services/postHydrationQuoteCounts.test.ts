@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * `engagement.quotes` — the one engagement counter Mention does NOT denormalize
  * onto `post.stats`. It is counted on read off the `quote_of` index, so the whole
@@ -39,6 +40,7 @@ vi.mock('../../runtime/oxyClient', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     getUsersByIds,
     getClarityDocuments: vi.fn(async () => ({})),
     getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,

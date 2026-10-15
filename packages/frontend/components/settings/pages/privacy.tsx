@@ -1,3 +1,4 @@
+import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type { BloomIcon } from '@/components/settings/RowIcon';
 import { useSettingsRouter } from '@/context/MentionSettingsContext';
 import {
@@ -63,7 +64,7 @@ const FILTER_TOGGLES: {
   },
 ];
 
-export default function PrivacySettingsScreen() {
+function PrivacySettingsScreen() {
   const router = useSettingsRouter();
   const { t } = useTranslation();
 
@@ -383,5 +384,13 @@ export default function PrivacySettingsScreen() {
         </SettingsSection>
       </View>
     </View>
+  );
+}
+
+export default function AvailablePrivacySettingsScreen() {
+  return (
+    <SupervisedFeatureGate>
+      <PrivacySettingsScreen />
+    </SupervisedFeatureGate>
   );
 }

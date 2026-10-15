@@ -1,3 +1,4 @@
+import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { Switch } from '@oxy.so/bloom/switch';
@@ -21,7 +22,7 @@ import type { User } from '@oxy.so/core';
 
 type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 
-export default function CreateListScreen() {
+function CreateListScreen() {
   const { oxyServices } = useAuth();
   const { t } = useTranslation();
   const safeBack = useSafeBack();
@@ -193,5 +194,13 @@ export default function CreateListScreen() {
         </ScrollView>
       </SignInRequired>
     </View>
+  );
+}
+
+export default function AvailableCreateListScreen() {
+  return (
+    <SupervisedFeatureGate>
+      <CreateListScreen />
+    </SupervisedFeatureGate>
   );
 }

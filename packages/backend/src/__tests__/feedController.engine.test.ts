@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from './helpers/adultSafety';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 /**
@@ -53,6 +54,7 @@ const oxyHelpers = vi.hoisted(() => ({
   createScopedOxyClient: vi.fn((_req?: unknown): unknown => undefined),
 }));
 vi.mock('../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: oxyHelpers.createScopedOxyClient,
 }));
 vi.mock('../services/ListSubscriptionService', () => ({
@@ -159,6 +161,7 @@ describe('MtnFeedController.getFeed → engine', () => {
     };
     oxyHelpers.createScopedOxyClient.mockReturnValueOnce(scopedOxyClient);
     const req = {
+      accessToken: 'test-viewer-session',
       query: { descriptor: 'for_you' },
       user: { id: 'viewer1' },
       headers: { authorization: 'Bearer viewer-token' },
@@ -195,7 +198,11 @@ describe('MtnFeedController.getFeed → federated profile sync-on-view', () => {
   it('syncs the author and marks the page pending when a profile feed comes back empty', async () => {
     engineReturnsEmpty();
     syncOnProfileView.mockResolvedValueOnce(true);
-    const req = { query: { descriptor: 'author|fed1' }, user: { id: 'viewer1' } } as never;
+    const req = {
+      accessToken: 'test-viewer-session',
+      query: { descriptor: 'author|fed1' },
+      user: { id: 'viewer1' },
+    } as never;
     const res = makeRes();
 
     await mtnFeedController.getFeed(req, res as never);
@@ -207,7 +214,11 @@ describe('MtnFeedController.getFeed → federated profile sync-on-view', () => {
 
   it('passes the author id through for a tab-scoped descriptor', async () => {
     engineReturnsEmpty();
-    const req = { query: { descriptor: 'author|fed1|media' }, user: { id: 'viewer1' } } as never;
+    const req = {
+      accessToken: 'test-viewer-session',
+      query: { descriptor: 'author|fed1|media' },
+      user: { id: 'viewer1' },
+    } as never;
     const res = makeRes();
 
     await mtnFeedController.getFeed(req, res as never);
@@ -218,7 +229,11 @@ describe('MtnFeedController.getFeed → federated profile sync-on-view', () => {
   it('leaves the page un-pending when the author has nothing left to sync', async () => {
     engineReturnsEmpty();
     syncOnProfileView.mockResolvedValueOnce(false);
-    const req = { query: { descriptor: 'author|local1' }, user: { id: 'viewer1' } } as never;
+    const req = {
+      accessToken: 'test-viewer-session',
+      query: { descriptor: 'author|local1' },
+      user: { id: 'viewer1' },
+    } as never;
     const res = makeRes();
 
     await mtnFeedController.getFeed(req, res as never);
@@ -228,7 +243,11 @@ describe('MtnFeedController.getFeed → federated profile sync-on-view', () => {
   });
 
   it('does not sync when the profile feed already has posts', async () => {
-    const req = { query: { descriptor: 'author|fed1' }, user: { id: 'viewer1' } } as never;
+    const req = {
+      accessToken: 'test-viewer-session',
+      query: { descriptor: 'author|fed1' },
+      user: { id: 'viewer1' },
+    } as never;
     const res = makeRes();
 
     await mtnFeedController.getFeed(req, res as never);
@@ -239,6 +258,7 @@ describe('MtnFeedController.getFeed → federated profile sync-on-view', () => {
   it('does not sync on a later page — an empty page 2 is just the end of the feed', async () => {
     engineReturnsEmpty();
     const req = {
+      accessToken: 'test-viewer-session',
       query: { descriptor: 'author|fed1', cursor: '123:abc' },
       user: { id: 'viewer1' },
     } as never;
@@ -251,7 +271,11 @@ describe('MtnFeedController.getFeed → federated profile sync-on-view', () => {
 
   it('does not sync for a non-author descriptor', async () => {
     engineReturnsEmpty();
-    const req = { query: { descriptor: 'for_you' }, user: { id: 'viewer1' } } as never;
+    const req = {
+      accessToken: 'test-viewer-session',
+      query: { descriptor: 'for_you' },
+      user: { id: 'viewer1' },
+    } as never;
     const res = makeRes();
 
     await mtnFeedController.getFeed(req, res as never);
@@ -267,7 +291,11 @@ describe('MtnFeedController.getFeed → federated profile sync-on-view', () => {
     // unconditionally, which costs an Oxy `getUserById` per profile view.
     engineReturnsEmpty();
     laneExists.mockResolvedValueOnce(true);
-    const req = { query: { descriptor: 'author|local1' }, user: { id: 'viewer1' } } as never;
+    const req = {
+      accessToken: 'test-viewer-session',
+      query: { descriptor: 'author|local1' },
+      user: { id: 'viewer1' },
+    } as never;
     const res = makeRes();
 
     await mtnFeedController.getFeed(req, res as never);
@@ -302,7 +330,7 @@ describe('MtnFeedController.getFeed → anonymous cache', () => {
     expect(anonCache.buildKey).toHaveBeenCalledWith(
       expect.objectContaining({ namespace: 'mtn', type: 'for_you' }),
     );
-    expect(anonCache.read).toHaveBeenCalledWith('anon-key');
+    expect(anonCache.read).toHaveBeenCalledWith('anon-key', expect.any(Array));
     expect(engineRun).toHaveBeenCalledOnce();
     // The freshly built page is persisted for the next anonymous viewer.
     expect(anonCache.write).toHaveBeenCalledWith(
@@ -419,7 +447,11 @@ describe('MtnFeedController.getFeed → anonymous cache', () => {
   });
 
   it('never reads or writes the anon cache for an authenticated viewer', async () => {
-    const req = { query: { descriptor: 'for_you' }, user: { id: 'viewer1' } } as never;
+    const req = {
+      accessToken: 'test-viewer-session',
+      query: { descriptor: 'for_you' },
+      user: { id: 'viewer1' },
+    } as never;
     const res = makeRes();
 
     await mtnFeedController.getFeed(req, res as never);

@@ -1,3 +1,4 @@
+import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
@@ -644,7 +645,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
   );
 });
 
-export default function CustomFeedTimelineScreen() {
+function CustomFeedTimelineScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const safeBack = useSafeBack();
@@ -931,3 +932,11 @@ const reviewStyles = StyleSheet.create({
     justifyContent: 'center',
   },
 });
+
+export default function AvailableCustomFeedTimelineScreen() {
+  return (
+    <SupervisedFeatureGate>
+      <CustomFeedTimelineScreen />
+    </SupervisedFeatureGate>
+  );
+}

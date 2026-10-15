@@ -1,3 +1,7 @@
+import { createHash } from 'node:crypto';
+import type { OxyAuthRequest } from '@oxy.so/core/server';
+import { getServiceOxyClient } from '../utils/oxyHelpers';
+import { safetyRequesterFor } from '../utils/safetyRequester';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import type { IncomingMessage } from 'node:http';
 import rateLimit from 'express-rate-limit';
@@ -40,6 +44,27 @@ import { classifyUpstreamStatus } from './mediaProxyStatus';
 import { verifyGifMediaRequest } from '../services/gifLibrary/gifMediaProxy';
 
 const router = express.Router();
+
+// This proxy has no trusted media assessment. A supervised request must not
+// recover an excluded attachment by bypassing the post DTO and asking for bytes.
+router.use(async (req: OxyAuthRequest, res: Response, next: NextFunction) => {
+  if (!req.headers.authorization) return next();
+  try {
+    const resourceId = `media:${createHash('sha256').update(req.originalUrl).digest('hex')}`;
+    const decision = await getServiceOxyClient().safety.contentAccess(
+      { resourceId, classification: 'unrated' },
+      safetyRequesterFor(req),
+    );
+    if (!decision.allowed) {
+      res.setHeader('Cache-Control', 'private, no-store');
+      return res.status(403).json({ code: 'CONTENT_UNAVAILABLE', reason: decision.reason });
+    }
+    return next();
+  } catch {
+    res.setHeader('Cache-Control', 'private, no-store');
+    return res.status(503).json({ code: 'CONTENT_POLICY_UNAVAILABLE' });
+  }
+});
 
 // --- Tunables (named constants — no inline magic numbers) -------------------
 
@@ -393,6 +418,10 @@ function relayHeader(res: Response, name: string, value: string | string[] | und
  * auth, so we widen access to `*` for any embedding origin — but `*` is invalid
  * alongside `Allow-Credentials: true`, so that header is removed here.
  */
+function mediaCacheControl(res: Response, publicDirective: string): string {
+  return res.req.headers.authorization ? 'private, no-store' : publicDirective;
+}
+
 function setPublicMediaCors(res: Response): void {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.removeHeader('Access-Control-Allow-Credentials');
@@ -598,7 +627,7 @@ async function serveRewrittenHlsManifest(
     'Content-Type',
     source.response.headers['content-type'] ?? HLS_MANIFEST_CONTENT_TYPE,
   );
-  res.setHeader('Cache-Control', HLS_MANIFEST_CACHE_CONTROL);
+  res.setHeader('Cache-Control', mediaCacheControl(res, HLS_MANIFEST_CACHE_CONTROL));
   setPublicMediaCors(res);
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Content-Disposition', MEDIA_CONTENT_DISPOSITION);
@@ -672,7 +701,7 @@ async function tryServeFromCache(
       // Bump access in the background; do not delay the redirect on the write.
       void bumpAccess(remoteUrl);
       setPublicMediaCors(res);
-      res.setHeader('Cache-Control', MEDIA_CACHE_CONTROL);
+      res.setHeader('Cache-Control', mediaCacheControl(res, MEDIA_CACHE_CONTROL));
       res.redirect(HTTP_STATUS.FOUND, oxyUrl);
       return true;
     }
@@ -717,7 +746,7 @@ async function tryServePosterFromCache(remoteUrl: string, res: Response): Promis
     const oxyUrl = cachedMediaCdnUrl(row.posterFileId);
     void bumpAccess(remoteUrl);
     setPublicMediaCors(res);
-    res.setHeader('Cache-Control', POSTER_CACHE_CONTROL);
+    res.setHeader('Cache-Control', mediaCacheControl(res, POSTER_CACHE_CONTROL));
     res.redirect(HTTP_STATUS.FOUND, oxyUrl);
     return true;
   } catch (error) {
@@ -911,7 +940,7 @@ router.get(
       response.resume();
       relayHeader(res, 'ETag', response.headers.etag);
       relayHeader(res, 'Last-Modified', response.headers['last-modified']);
-      res.setHeader('Cache-Control', MEDIA_CACHE_CONTROL);
+      res.setHeader('Cache-Control', mediaCacheControl(res, MEDIA_CACHE_CONTROL));
       setPublicMediaCors(res);
       res.status(HTTP_STATUS.NOT_MODIFIED).end();
       return;
@@ -996,7 +1025,10 @@ router.get(
     // bytes under a URL that will start resolving to a sized render.
     res.setHeader(
       'Cache-Control',
-      requestedVariant ? MEDIA_UNSIZED_VARIANT_CACHE_CONTROL : MEDIA_CACHE_CONTROL,
+      mediaCacheControl(
+        res,
+        requestedVariant ? MEDIA_UNSIZED_VARIANT_CACHE_CONTROL : MEDIA_CACHE_CONTROL,
+      ),
     );
     setPublicMediaCors(res);
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -1180,7 +1212,7 @@ router.get(
     }
 
     res.setHeader('Content-Type', POSTER_CONTENT_TYPE);
-    res.setHeader('Cache-Control', POSTER_CACHE_CONTROL);
+    res.setHeader('Cache-Control', mediaCacheControl(res, POSTER_CACHE_CONTROL));
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Disposition', MEDIA_CONTENT_DISPOSITION);
     res.setHeader('Content-Length', poster.jpeg.length);
@@ -1266,7 +1298,7 @@ router.get('/gif', gifMediaRateLimiter, async (req: Request, res: Response): Pro
     response.resume();
     relayHeader(res, 'ETag', response.headers.etag);
     relayHeader(res, 'Last-Modified', response.headers['last-modified']);
-    res.setHeader('Cache-Control', GIF_MEDIA_CACHE_CONTROL);
+    res.setHeader('Cache-Control', mediaCacheControl(res, GIF_MEDIA_CACHE_CONTROL));
     setPublicMediaCors(res);
     res.status(HTTP_STATUS.NOT_MODIFIED).end();
     return;
@@ -1302,7 +1334,7 @@ router.get('/gif', gifMediaRateLimiter, async (req: Request, res: Response): Pro
   // We only ever sign Klipy `.mp4` variants, so force the correct type rather
   // than relaying Klipy's occasional `application/octet-stream`.
   res.setHeader('Content-Type', GIF_MEDIA_CONTENT_TYPE);
-  res.setHeader('Cache-Control', GIF_MEDIA_CACHE_CONTROL);
+  res.setHeader('Cache-Control', mediaCacheControl(res, GIF_MEDIA_CACHE_CONTROL));
   setPublicMediaCors(res);
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Content-Disposition', MEDIA_CONTENT_DISPOSITION);

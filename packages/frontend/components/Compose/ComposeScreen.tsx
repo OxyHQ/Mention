@@ -1,3 +1,5 @@
+import { useSupervisionState } from '@/hooks/useSupervisionState';
+import { usePrivateMediaUrls } from '@/hooks/usePrivateMediaUrls';
 import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { View, Text, TouchableOpacity, Pressable, ScrollView } from 'react-native';
 // Imported under the name every call site in this file already uses, because
@@ -30,7 +32,11 @@ import { toast } from '@oxy.so/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import type { CreatePostRequest, HydratedPost } from '@mention/shared-types';
-import { MAX_POST_COLLABORATORS, MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
+import {
+  MAX_POST_COLLABORATORS,
+  MEDIA_VARIANT_AVATAR,
+  PostVisibility,
+} from '@mention/shared-types/post';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useHaptics } from '@oxy.so/bloom/hooks';
 import { Switch } from '@oxy.so/bloom/switch';
@@ -210,6 +216,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const intentConflictControl = useDialogControl();
   const translateOverwriteControl = useDialogControl();
   const { user, showBottomSheet, oxyServices } = useAuth();
+  const supervision = useSupervisionState();
   const mentionSearchCache = useCreateMentionSearchCache();
   const { createPost, createThread, createReply, cachePosts, boostPost } = usePostsStore();
   const queryClient = useQueryClient();
@@ -566,7 +573,11 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
    * panel that will not render.
    */
   const collaboratorsEligible =
-    !replyToPostId && threadItems.length === 0 && (!isEditMode || editCollabEligible);
+    supervision.ready &&
+    !supervision.supervised &&
+    !replyToPostId &&
+    threadItems.length === 0 &&
+    (!isEditMode || editCollabEligible);
 
   /**
    * Whether any post written here can be put on a lane at all.
@@ -607,7 +618,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
    * The third exclusion used to be "a thread", which is now a per-box question
    * rather than a composer-wide one — see the two predicates below.
    */
-  const publishAsEligible = !replyToPostId && !isEditMode;
+  const publishAsEligible =
+    supervision.ready && !supervision.supervised && !replyToPostId && !isEditMode;
 
   /**
    * Whether a box may name its own account, answered per POSTING MODE.
@@ -1256,7 +1268,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   };
 
   const handlePost = async (options?: { publishNow?: boolean }) => {
-    if (isPosting || !user) return;
+    if (isPosting || !user || !supervision.ready) return;
 
     // Editing a scheduled post: "Post now" is explicit, and so is clearing the
     // schedule — the post then has no time left to wait for, so Save publishes
@@ -1377,6 +1389,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         publishAsOxyUserId: effectiveMainPublishAs?.accountId,
         variantContent: mainVariantContent,
       });
+      if (supervision.supervised) mainPost.visibility = PostVisibility.PRIVATE;
       allPosts.push(mainPost);
 
       // Add thread items if any. Each item is its own post, so it carries its own
@@ -1400,6 +1413,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             // mode is a 400 that refuses every post in the composer.
             threadLaneEligible && item.laneId ? item.laneId : undefined,
           );
+          if (supervision.supervised) threadPost.visibility = PostVisibility.PRIVATE;
           allPosts.push(threadPost);
         }
       });
@@ -1748,6 +1762,20 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
    * description of that same image. The primary language's alt rides on the media
    * item itself; every other language's goes into `variant.alt[mediaId]`.
    */
+  const composeMediaFileIds = useMemo(
+    () => [
+      ...mediaIds.map((item) => item.id),
+      ...threadItems.flatMap((item) => item.mediaIds.map((media) => media.id)),
+      ...Object.values(variants.entries).flatMap((items) =>
+        Object.values(items).flatMap((item) =>
+          item.media.mode === 'override' ? item.media.media.map((media) => media.id) : [],
+        ),
+      ),
+    ],
+    [mediaIds, threadItems, variants.entries],
+  );
+  const getFileDownloadUrl = usePrivateMediaUrls(composeMediaFileIds);
+
   const openSharedAltTextSheet = useCallback(
     (itemId: string, mediaItem: ComposerMediaItem) => {
       const primaryTag = variants.primaryTag;
@@ -1769,7 +1797,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       bottomSheet.setBottomSheetContent(
         <Suspense fallback={null}>
           <AltTextSheet
-            imageUrl={oxyServices.assets.publicUrl(mediaItem.id)}
+            imageUrl={getFileDownloadUrl(mediaItem.id)}
             languageTags={allTags(variants)}
             initialTag={activeTag}
             getAlt={readAlt}
@@ -1790,7 +1818,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     },
     [
       bottomSheet,
-      oxyServices,
+      getFileDownloadUrl,
       variants,
       activeTag,
       setMediaAlt,
@@ -2029,13 +2057,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     [bottomSheet, loadDraft, variantTextInputRefs, threadTextInputRefs],
   );
 
-  const getFileDownloadUrl = useCallback(
-    (id: string) => {
-      return oxyServices.assets.publicUrl(id);
-    },
-    [oxyServices],
-  );
-
   const { t: tCompose } = useTranslation();
 
   const anyoneCanInteract = useMemo(
@@ -2226,7 +2247,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       bottomSheet.setBottomSheetContent(
         <Suspense fallback={null}>
           <AltTextSheet
-            imageUrl={oxyServices.assets.publicUrl(mediaItem.id)}
+            imageUrl={getFileDownloadUrl(mediaItem.id)}
             languageTags={[tag]}
             initialTag={tag}
             getAlt={() => mediaItem.alt ?? ''}
@@ -2239,7 +2260,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       );
       bottomSheet.openBottomSheet(true);
     },
-    [bottomSheet, oxyServices, activeTag, setVariantMediaAlt],
+    [bottomSheet, getFileDownloadUrl, activeTag, setVariantMediaAlt],
   );
 
   const handleMainEmojiPress = useCallback(() => {
@@ -2770,6 +2791,9 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           screen edge and has to clear the gesture area itself. */}
       <SafeAreaView className="flex-1 bg-card" edges={['top', 'bottom']}>
         <StatusBar style="light" />
+        {supervision.supervised && (
+          <Text className="px-4 py-3 text-sm text-muted-foreground">{t('safety.privatePost')}</Text>
+        )}
 
         {/* keyboard-controller's view, not React Native's: under its
             `KeyboardProvider` Android runs edge-to-edge, the window is never
@@ -3355,7 +3379,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                   const mediaId = getMediaIdFromAttachmentKey(key);
                                   const mediaItem = mediaIds.find((m) => m.id === mediaId);
                                   if (!mediaItem) return null;
-                                  const mediaUrl = oxyServices.assets.publicUrl(mediaItem.id);
+                                  const mediaUrl = getFileDownloadUrl(mediaItem.id);
                                   return (
                                     <AttachmentCarouselItem
                                       key={key}
@@ -3868,7 +3892,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                     appearance="outline"
                     tone="neutral"
                     onPress={() => handlePost({ publishNow: true })}
-                    disabled={!isPostButtonEnabled || isPosting}
+                    disabled={!isPostButtonEnabled || isPosting || !supervision.ready}
                     testID="compose-publish-now"
                   >
                     {t('compose.scheduled.publishNow', { defaultValue: 'Post now' })}
@@ -3877,7 +3901,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                 <Button
                   tone="action"
                   onPress={() => handlePost()}
-                  disabled={!isPostButtonEnabled}
+                  disabled={!isPostButtonEnabled || !supervision.ready}
                   loading={isPosting}
                   testID="compose-submit"
                 >

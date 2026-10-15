@@ -2552,5 +2552,14 @@
   "alia.suggestion.discover": "Sugira contas e assuntos para seguir",
   "profile.actions.askAlia": "Perguntar à Alia sobre @{{handle}}",
   "profile.askAlia.prompt": "Conta-me sobre @{{handle}} no Mention: quem é, sobre o que publica e pelo que é conhecido.",
-  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering."
+  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering.",
+  "safety": {
+    "contentUnavailable": "Este conteúdo não está disponível",
+    "unavailableTitle": "Indisponível para esta conta",
+    "unavailableDescription": "Este recurso ainda não está disponível para contas supervisionadas. Você pode continuar lendo as publicações revisadas no seu feed.",
+    "checkFailed": "Não foi possível verificar a disponibilidade para a conta",
+    "retryDescription": "Tente novamente para carregar as proteções atuais da conta.",
+    "privatePost": "Somente seu responsável e os contatos aprovados podem ler suas publicações.",
+    "pendingAssessment": "Este conteúdo não estará disponível até que a análise de segurança seja concluída."
+  }
 }

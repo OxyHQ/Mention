@@ -8,6 +8,7 @@ import { findPostSearchPage } from '../services/search/postSearch';
 import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
+import { safetyRequesterFor } from '../utils/safetyRequester';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { config } from '../config';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
@@ -472,6 +473,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       const scopedOxyClient = createScopedOxyClient(req);
       const transformedPosts = await postHydrationService.hydratePosts(postsToReturn, {
         viewerId: currentUserId,
+        safetyRequester: safetyRequesterFor(req),
         oxyClient: scopedOxyClient,
         maxDepth: 1,
         includeLinkMetadata: true,

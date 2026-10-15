@@ -2524,5 +2524,14 @@
   "alia.suggestion.discover": "フォローするアカウントやトピックを提案して",
   "profile.actions.askAlia": "@{{handle}} についてAliaに聞く",
   "profile.askAlia.prompt": "Mention の @{{handle}} について教えて。どんな人で、何を投稿していて、何で知られているか。",
-  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering."
+  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering.",
+  "safety": {
+    "contentUnavailable": "このコンテンツは利用できません",
+    "unavailableTitle": "このアカウントでは利用できません",
+    "unavailableDescription": "この機能は見守り対象のアカウントではまだ利用できません。フィードでは確認済みの投稿を引き続き読むことができます。",
+    "checkFailed": "アカウントでの利用可否を確認できませんでした",
+    "retryDescription": "もう一度試して、現在のアカウント保護設定を読み込んでください。",
+    "privatePost": "あなたの投稿を読めるのは、保護者と承認済みの連絡先だけです。",
+    "pendingAssessment": "このコンテンツは安全性の確認が完了するまで利用できません。"
+  }
 }

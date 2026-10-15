@@ -1,3 +1,7 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
+vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
+}));
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**

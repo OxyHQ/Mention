@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -44,7 +45,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => ({})),
   createUserScopedOxyServices: vi.fn(() => undefined),
-  getServiceOxyClient: vi.fn(() => ({})),
+  getServiceOxyClient: vi.fn(() => ({ safety: adultSafetyFixture() })),
 }));
 
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
@@ -147,6 +148,7 @@ afterAll(async () => {
 describe('site 1 — feed.controller.createReply', () => {
   function replyReq(postId: string, callerId: string = USER_ID): OxyAuthRequest {
     return {
+      accessToken: 'test-viewer-session',
       user: { id: callerId },
       body: { postId, content: 'a reply' },
     } as unknown as OxyAuthRequest;
@@ -208,6 +210,7 @@ describe('site 1 — feed.controller.createReply', () => {
 describe('site 2 — POST /posts carrying a parent id', () => {
   function postReq(body: Record<string, unknown>): OxyAuthRequest {
     return {
+      accessToken: 'test-viewer-session',
       user: { id: USER_ID },
       body: { content: { text: 'a reply' }, ...body },
     } as unknown as OxyAuthRequest;

@@ -1,3 +1,4 @@
+import { DeliveryAuthorizationDeniedError } from '@oxy.so/federation/node';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { UnrecoverableError, type Job } from 'bullmq';
 
@@ -80,6 +81,20 @@ describe('processInboxJob', () => {
 });
 
 describe('processDeliveryJob', () => {
+  it('permanently fails a suppressed job without claiming delivery success', async () => {
+    mocks.deliverActivity.mockRejectedValueOnce(new DeliveryAuthorizationDeniedError());
+    await expect(
+      processDeliveryJob(deliveryJob({ type: 'Create' }, 'https://remote/inbox', 'oxy_alice')),
+    ).rejects.toBeInstanceOf(UnrecoverableError);
+  });
+  it('leaves authority outages retryable', async () => {
+    const outage = new Error('authority unavailable');
+    mocks.deliverActivity.mockRejectedValueOnce(outage);
+    await expect(
+      processDeliveryJob(deliveryJob({ type: 'Create' }, 'https://remote/inbox', 'oxy_alice')),
+    ).rejects.toBe(outage);
+  });
+
   const activity = { id: 'https://local/activity/1', type: 'Create' };
 
   it('resolves the sender username and delivers the activity', async () => {

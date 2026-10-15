@@ -33,6 +33,7 @@ export * from './mtn';
 export * from './outbox';
 export * from './postContent';
 export * from './postEvaluations';
+export * from './postSafety';
 export * from './posts';
 export * from './polls';
 export * from './userProfile';

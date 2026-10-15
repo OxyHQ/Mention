@@ -2552,5 +2552,14 @@
   "alia.suggestion.discover": "Suggereix-me comptes i temes per seguir",
   "profile.actions.askAlia": "Pregunta a l'Alia sobre @{{handle}}",
   "profile.askAlia.prompt": "Explica'm qui és @{{handle}} a Mention: de què publica i per què és conegut.",
-  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering."
+  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering.",
+  "safety": {
+    "contentUnavailable": "Aquest contingut no està disponible",
+    "unavailableTitle": "No disponible per a aquest compte",
+    "unavailableDescription": "Aquesta funció encara no està disponible per als comptes supervisats. Pots continuar llegint les publicacions revisades al teu canal.",
+    "checkFailed": "No s’ha pogut comprovar la disponibilitat per al compte",
+    "retryDescription": "Torna-ho a provar per carregar les proteccions actuals del compte.",
+    "privatePost": "Només el teu tutor i els contactes aprovats poden llegir les teves publicacions.",
+    "pendingAssessment": "Aquest contingut no estarà disponible fins que se n’hagi completat la revisió de seguretat."
+  }
 }
