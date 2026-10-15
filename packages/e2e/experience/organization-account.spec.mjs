@@ -50,6 +50,15 @@ test('shared account UI claims existing identities and adds neutral directory en
   await manage(page);
   await page.getByText('Create account', { exact: true }).click();
   await page.getByText('Organization', { exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Organization directory', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      'Create an account you control. It will have its own profile, members, and apps.',
+      { exact: true },
+    ),
+  ).toHaveCount(0);
   await page.getByLabel('Find your organization', { exact: true }).fill('Oxy');
   await page.getByText('https://oxy.so · US · Unclaimed', { exact: true }).click();
   await page.getByLabel('Supporting evidence reference', { exact: true }).fill('private-case-123');
@@ -79,6 +88,15 @@ test('shared account UI claims existing identities and adds neutral directory en
   await page.getByRole('button', { name: 'Manage', exact: true }).click();
   await page.getByText('Create account', { exact: true }).click();
   await page.getByText('Organization', { exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Organization directory', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      'Create an account you control. It will have its own profile, members, and apps.',
+      { exact: true },
+    ),
+  ).toHaveCount(0);
   await page.getByLabel('Find your organization', { exact: true }).fill('Civic Studio & Co.');
   await page.getByText('Civic Studio & Co.', { exact: true }).click();
   await page.screenshot({
