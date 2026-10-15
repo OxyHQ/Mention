@@ -10,7 +10,7 @@
       "packages/*"
     ],
     "catalog": {
-      "@oxy.so/bloom": "10.4.0",
+      "@oxy.so/bloom": "10.7.0",
       "@oxy.so/contracts": "4.12.0",
       "@oxy.so/core": "4.5.0",
       "@oxy.so/mcp": "1.1.0",
@@ -149,7 +149,8 @@
     "@grpc/grpc-js": "1.14.5",
     "@fastify/busboy": "3.2.2",
     "@oxy.so/protocol": "catalog:",
-    "@oxy.so/mcp": "catalog:"
+    "@oxy.so/mcp": "catalog:",
+    "react-native-css": "3.1.0-rc.0"
   },
   "patchedDependencies": {
     "expo-router@57.0.23": "patches/expo-router@57.0.23.patch",

@@ -1,12 +1,12 @@
 import { Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { AliaAvatarIcon } from '@alia.onl/sdk/avatar';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { AppShellMenuButton } from '@oxy.so/bloom/app-shell';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
-import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import { LogoIcon } from '@/assets/logo';
 import { useAskAlia } from '@/context/AskAliaContext';
 import { useNavigateOrReselect } from '@/hooks/useNavigateOrReselect';
@@ -41,7 +41,7 @@ export function MentionHomeHeader() {
             accessibilityLabel={t('Search')}
             onPress={() => router.push('/search')}
           />
-          <ButtonGroupItem leadingIcon={RiSparklingLine} onPress={() => askAlia.open()}>
+          <ButtonGroupItem leadingIcon={AliaAvatarIcon} onPress={() => askAlia.open()}>
             {t('header.askAlia')}
           </ButtonGroupItem>
           <ButtonGroupItem
