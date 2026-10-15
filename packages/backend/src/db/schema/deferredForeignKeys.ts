@@ -464,6 +464,11 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
   },
   {
     table: posts,
+    column: posts.contentHomiioCaseId,
+    reason: 'Opaque Homiio-owned case reference; no cross-service foreign key.',
+  },
+  {
+    table: posts,
     column: posts.contentPodcastSyraId,
     reason: 'A Syra podcast-show id. Syra owns the catalog.',
   },

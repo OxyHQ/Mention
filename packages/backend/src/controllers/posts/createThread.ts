@@ -1,4 +1,4 @@
-import { sanitizeHomiioCase } from '@mention/shared-types/homiio';
+import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
 /**
  * `POST /posts/thread` — the native multi-post create.
  *
@@ -117,6 +117,21 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
     if (!Array.isArray(posts) || posts.length === 0) {
       return res.status(400).json({ message: 'Posts array is required and cannot be empty' });
+    }
+
+    // Validate the entire batch before any post is committed.
+    for (const entry of posts) {
+      const event = entry?.content?.event;
+      if (
+        event &&
+        (!sanitizeEventData(event) ||
+          sanitizeHomiioCase(entry?.content?.homiioCase) ||
+          homiioCaseFromText(entry?.content?.text ?? ''))
+      ) {
+        return res
+          .status(400)
+          .json({ message: 'Invalid native event or mixed Homiio participation' });
+      }
     }
 
     // WHO PUBLISHES WHAT, in both modes.
@@ -462,6 +477,10 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
       // Handle event data
       const threadSanitizedEvent = sanitizeEventData(content?.event);
+      if (content?.event && !threadSanitizedEvent)
+        return res.status(400).json({ message: 'Invalid event' });
+      if (threadSanitizedEvent && postContent.homiioCase)
+        return res.status(400).json({ message: 'Homiio participation belongs in Homiio' });
       if (threadSanitizedEvent && threadSanitizedEvent.name && threadSanitizedEvent.date) {
         postContent.event =
           threadSanitizedEvent as import('@mention/shared-types').PostEventContent;

@@ -24,7 +24,7 @@ import {
   type CrosspostVariantRow,
 } from './PostEquivalenceService';
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm';
-import { getDb } from '../db/postgres';
+import { getDb, type DatabaseOrTransaction } from '../db/postgres';
 import { bookmarks as bookmarksTable, likes as likesTable } from '../db/schema/engagement';
 import { pollOptions, pollVotes, polls as pollsTable } from '../db/schema/polls';
 import { lanes as lanesTable } from '../db/schema/channels';
@@ -394,8 +394,11 @@ interface ExtendedViewerContext extends ViewerContext {
  * gate stops gating rather than erroring. The parent's body is never rendered
  * from here; it is thrown away the moment its author id is taken.
  */
-async function loadReplyParents(postIds: readonly string[]): Promise<RawPost[]> {
-  const records = await loadPostRecords([...postIds]);
+async function loadReplyParents(
+  postIds: readonly string[],
+  db?: DatabaseOrTransaction,
+): Promise<RawPost[]> {
+  const records = await loadPostRecords([...postIds], db);
   return records as unknown as RawPost[];
 }
 
@@ -1367,6 +1370,7 @@ export class PostHydrationService {
     posts: object[],
     viewerId?: string,
     options?: HydrationOptions,
+    accessDb?: DatabaseOrTransaction,
   ): Promise<ExtendedViewerContext> {
     const context: ExtendedViewerContext = {
       viewerId,
@@ -1401,7 +1405,9 @@ export class PostHydrationService {
     // Privacy rejection still rejects hydration before any post is emitted.
     await Promise.all([
       (async () => {
-        context.languageCandidates = await this.buildLanguageCandidates(viewerId, options);
+        // Access checks do not render translations or need identity-summary DB reads.
+        if (!accessDb)
+          context.languageCandidates = await this.buildLanguageCandidates(viewerId, options);
       })(),
       (async () => {
         // Load ALL author settings in one query (profile visibility + engagement privacy)
@@ -1419,7 +1425,7 @@ export class PostHydrationService {
         // shown on someone else's.
         if (authorIds.length > 0) {
           try {
-            const allAuthorSettings = await this.loadPrivacySettings(authorIds);
+            const allAuthorSettings = await this.loadPrivacySettings(authorIds, accessDb);
 
             // Pre-populate author privacy map for reuse in buildAuthorPrivacyMap
             const authorPrivacyCache = new Map<string, typeof DEFAULT_PRIVACY>();
@@ -1451,6 +1457,8 @@ export class PostHydrationService {
 
             context._authorPrivacyCache = authorPrivacyCache;
           } catch (error) {
+            // Authorization must fail closed if local privacy cannot be read.
+            if (accessDb) throw error;
             logger.warn('[PostHydration] Failed to load author settings:', error);
           }
         }
@@ -1464,8 +1472,8 @@ export class PostHydrationService {
         const [blockedIds, restrictedIds] = threadedPrivacy
           ? [threadedPrivacy.blockedIds, threadedPrivacy.restrictedIds]
           : await Promise.all([
-              getBlockedUserIds(client, viewerId),
-              getRestrictedUserIds(client, viewerId),
+              getBlockedUserIds(client, accessDb ? undefined : viewerId),
+              getRestrictedUserIds(client, accessDb ? undefined : viewerId),
             ]);
 
         blockedIds.forEach((id) => context.blockedIds.add(String(id)));
@@ -1488,14 +1496,20 @@ export class PostHydrationService {
           try {
             const oxyForFollows = client || getRuntimeOxyClient();
             const [followingIds, followerIds] = await Promise.all([
-              getFollowingIds(viewerId, oxyForFollows).catch((error: unknown) => {
+              getFollowingIds(
+                viewerId,
+                oxyForFollows,
+                accessDb ? { fresh: true } : undefined,
+              ).catch((error: unknown) => {
                 logger.warn('[PostHydration] getUserFollowing failed:', error);
                 return [];
               }),
-              getFollowerIds(viewerId, oxyForFollows).catch((error: unknown) => {
-                logger.warn('[PostHydration] getUserFollowers failed:', error);
-                return [];
-              }),
+              getFollowerIds(viewerId, oxyForFollows, accessDb ? { fresh: true } : undefined).catch(
+                (error: unknown) => {
+                  logger.warn('[PostHydration] getUserFollowers failed:', error);
+                  return [];
+                },
+              ),
             ]);
 
             followingIds.forEach((id) => context.follows.add(String(id)));
@@ -1740,7 +1754,10 @@ export class PostHydrationService {
    * A row's ABSENCE is meaningful — it means "never saved settings" — so the
    * caller applies `DEFAULT_PRIVACY` rather than this returning a padded map.
    */
-  private async loadPrivacySettings(oxyUserIds: string[]): Promise<
+  private async loadPrivacySettings(
+    oxyUserIds: string[],
+    db: DatabaseOrTransaction = getDb(),
+  ): Promise<
     Array<{
       oxyUserId: string;
       profileVisibility: string | null;
@@ -1751,7 +1768,7 @@ export class PostHydrationService {
     }>
   > {
     if (oxyUserIds.length === 0) return [];
-    return getDb()
+    return db
       .select({
         oxyUserId: userSettings.oxyUserId,
         profileVisibility: userSettings.privacyProfileVisibility,
@@ -2341,8 +2358,9 @@ export class PostHydrationService {
     postId: string,
     viewerId: string,
     options?: Pick<HydrationOptions, 'oxyClient' | 'operatedAccountReader'>,
+    db: DatabaseOrTransaction = getDb(),
   ): Promise<boolean> {
-    const [post] = await loadReplyParents([postId]);
+    const [post] = await loadReplyParents([postId], db);
     if (!post) return false;
 
     const isFederatedPost = !!post.federation;
@@ -2351,7 +2369,7 @@ export class PostHydrationService {
     // a federated orphan is public by definition and keeps the federated path.
     if (!authorId) return isFederatedPost;
 
-    const viewerContext = await this.buildViewerContext([post], viewerId, options);
+    const viewerContext = await this.buildViewerContext([post], viewerId, options, db);
     if (viewerContext.blockedIds.has(authorId)) return false;
 
     return this.canViewerReadPost(

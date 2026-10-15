@@ -22,7 +22,11 @@ export async function deleteFederatedPostSubtree(
 ): Promise<'deleted' | 'not-found' | 'too-large'> {
   let deletion: Awaited<ReturnType<typeof deletePostSubtree>>;
   try {
-    deletion = await deletePostSubtree(postId, eq(posts.federationActorUri, actorUri));
+    deletion = await deletePostSubtree(
+      postId,
+      eq(posts.federationActorUri, actorUri),
+      'privileged-removal',
+    );
   } catch (error) {
     if (error instanceof PostDeletionTooLargeError) {
       logger.warn('[Federation] refused oversized federated post deletion', {

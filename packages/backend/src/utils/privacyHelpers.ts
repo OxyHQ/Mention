@@ -341,8 +341,9 @@ export async function getRestrictedUserIds(
 export async function getFollowingIds(
   viewerId: string | undefined,
   client: OxyClient,
+  options?: { fresh?: boolean },
 ): Promise<string[]> {
-  return cachedRelation('following', viewerId, async () =>
+  return cachedRelation('following', options?.fresh ? undefined : viewerId, async () =>
     extractFollowingIds(await client.follows.following(viewerId ?? '')),
   );
 }
@@ -351,8 +352,9 @@ export async function getFollowingIds(
 export async function getFollowerIds(
   viewerId: string | undefined,
   client: OxyClient,
+  options?: { fresh?: boolean },
 ): Promise<string[]> {
-  return cachedRelation('followers', viewerId, async () =>
+  return cachedRelation('followers', options?.fresh ? undefined : viewerId, async () =>
     extractFollowersIds(await client.follows.followers(viewerId ?? '')),
   );
 }

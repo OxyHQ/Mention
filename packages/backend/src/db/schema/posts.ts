@@ -495,6 +495,9 @@ export const posts = pgTable(
     contentEventDate: timestamptz(),
     contentEventLocation: text(),
     contentEventDescription: text(),
+    contentEventCapacity: integer(),
+    contentEventCancelled: boolean().notNull().default(false),
+    contentEventRevision: integer().notNull().default(0),
 
     /** A Syra live room. Cross-service id (Syra owns rooms) — no foreign key. */
     contentRoomId: text(),
@@ -617,6 +620,11 @@ export const posts = pgTable(
      * cannot occur there, and a check nobody can name the failure for is the
      * kind that gets deleted by whoever next hits it.
      */
+    check(
+      'posts_event_capacity_check',
+      sql`${t.contentEventCapacity} is null or ${t.contentEventCapacity} >= 1`,
+    ),
+    check('posts_event_revision_check', sql`${t.contentEventRevision} >= 0`),
     check(
       'posts_created_at_ms_precision_check',
       sql`${t.createdAt} = date_trunc('milliseconds', ${t.createdAt})`,

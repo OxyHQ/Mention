@@ -207,6 +207,9 @@ export interface PostArticleContent {
 }
 
 export interface PostEventContent {
+  capacity?: number | null;
+  cancelled?: boolean;
+  revision?: number;
   eventId?: string;
   name: string;
   date: string; // ISO date string

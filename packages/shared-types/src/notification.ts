@@ -3,6 +3,8 @@
  */
 
 export enum NotificationType {
+  EVENT_UPDATED = 'event_updated',
+  EVENT_CANCELLED = 'event_cancelled',
   LIKE = 'like',
   BOOST = 'boost',
   COMMENT = 'comment',

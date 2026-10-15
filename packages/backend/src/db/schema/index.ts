@@ -34,5 +34,6 @@ export * from './outbox';
 export * from './postContent';
 export * from './postEvaluations';
 export * from './posts';
+export * from './events';
 export * from './polls';
 export * from './userProfile';

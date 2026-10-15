@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 
 export interface EventData {
+  capacity?: number | null;
   name: string;
   date: string; // ISO date string
   location?: string;
@@ -10,12 +11,14 @@ export interface EventData {
 export const useEventManager = () => {
   const [event, setEvent] = useState<EventData | null>(null);
   const [isEventEditorVisible, setIsEventEditorVisible] = useState(false);
+  const [eventDraftCapacity, setEventDraftCapacity] = useState('');
   const [eventDraftName, setEventDraftName] = useState('');
   const [eventDraftDate, setEventDraftDate] = useState('');
   const [eventDraftLocation, setEventDraftLocation] = useState('');
   const [eventDraftDescription, setEventDraftDescription] = useState('');
 
   const openEventEditor = useCallback(() => {
+    setEventDraftCapacity(event?.capacity ? String(event.capacity) : '');
     setEventDraftName(event?.name || '');
     setEventDraftDate(event?.date || new Date().toISOString());
     setEventDraftLocation(event?.location || '');
@@ -34,6 +37,7 @@ export const useEventManager = () => {
       setEvent(null);
     } else {
       setEvent({
+        capacity: eventDraftCapacity.trim() ? Number(eventDraftCapacity) : null,
         name,
         date,
         location: eventDraftLocation.trim() || undefined,
@@ -41,7 +45,13 @@ export const useEventManager = () => {
       });
     }
     setIsEventEditorVisible(false);
-  }, [eventDraftName, eventDraftDate, eventDraftLocation, eventDraftDescription]);
+  }, [
+    eventDraftName,
+    eventDraftDate,
+    eventDraftLocation,
+    eventDraftDescription,
+    eventDraftCapacity,
+  ]);
 
   const removeEvent = useCallback(() => {
     setEvent(null);
@@ -65,6 +75,8 @@ export const useEventManager = () => {
   }, []);
 
   return {
+    eventDraftCapacity,
+    setEventDraftCapacity,
     event,
     setEvent,
     isEventEditorVisible,

@@ -1,3 +1,4 @@
+import { eventAttendance } from '../../db/schema/events';
 /**
  * THE STEPS: the one place an erasure-map entry's Postgres shape is written down.
  *
@@ -456,6 +457,12 @@ export const ERASURE_STEPS: Readonly<Record<string, ErasureStep>> = {
     postMentions,
     postMentions.id,
     accountIs(postMentions.oxyUserId),
+  ),
+  'event_attendance.oxyUserId': deleteRows(
+    'account',
+    eventAttendance,
+    eventAttendance.id,
+    accountIs(eventAttendance.oxyUserId),
   ),
   'post_subscriptions.subscriberId': deleteRows(
     'account',

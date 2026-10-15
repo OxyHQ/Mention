@@ -946,7 +946,11 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
             name={event?.name || ''}
             date={event?.date || ''}
             location={event?.location}
-            onPress={onEventPress || undefined}
+            onPress={
+              postId && !homiioCase
+                ? () => router.push(`/events/${encodeURIComponent(postId)}`)
+                : onEventPress || undefined
+            }
             className={isSingleItem ? 'w-full' : `w-[240px] ${rowCellClass}`}
           />
         );
