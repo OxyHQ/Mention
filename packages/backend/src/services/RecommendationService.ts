@@ -6,7 +6,9 @@
  *  - Serve a per-viewer Redis cache (never shared between anon and authed).
  *  - Rank via {@link OxyRankingClient}, forwarding the viewer for personalization.
  *  - Fail loudly: a ranking failure is logged with the round trip that failed
- *    and thrown, so the client retries instead of caching an empty page.
+ *    and thrown, so the client retries instead of caching an empty page. Oxy
+ *    timing out or answering 5xx is a warning (the 503 is the designed
+ *    degradation); anything else is an error.
  *
  * Hydration: the ranking client already maps each item to Mention's frontend
  * DTO (final avatar URL, canonical `name.displayName`), so this service does not
@@ -137,6 +139,20 @@ function clampOffset(offset?: number): number {
     return 0;
   }
   return Math.min(Math.floor(offset), MAX_RECOMMENDATION_OFFSET);
+}
+
+/**
+ * Whether a ranking failure is Oxy being slow or unreachable — the SDK's own
+ * timeout, no answer at all (`status: 0`), or a 5xx — rather than a request Oxy
+ * refused or a bug on this side. The ranking endpoint is a scorer that routinely
+ * takes seconds, so the first kind is an expected degradation the route's 503
+ * already absorbs; only the second needs someone to act.
+ */
+function isOxyUnavailable(error: unknown): boolean {
+  const failure = error instanceof ForegroundRankingError ? error.failure : error;
+  if (!isRecord(failure)) return false;
+  const { status, timeout } = failure;
+  return timeout === true || (typeof status === 'number' && (status === 0 || status >= 500));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -390,10 +406,15 @@ export class RecommendationService {
       if (!viewerId) await this.writeCache(cacheKey, result);
       return result;
     } catch (error) {
-      logger.error('[RecommendationService] ranking failed', {
+      const context = {
         reason: error instanceof Error ? error.message : 'unknown',
         ...(error instanceof ForegroundRankingError ? error.failure : {}),
-      });
+      };
+      if (isOxyUnavailable(error)) {
+        logger.warn('[RecommendationService] ranking failed', context);
+      } else {
+        logger.error('[RecommendationService] ranking failed', context);
+      }
       throw new RecommendationsUnavailableError();
     }
   }
