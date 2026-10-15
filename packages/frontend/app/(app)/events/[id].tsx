@@ -83,6 +83,7 @@ function EventDetail({ id, viewerId, signIn }: { id: string; viewerId?: string; 
   });
   const text = (key: string, defaultValue: string) => t(`events.${key}`, { defaultValue });
   const busy = mutation.isPending;
+  const closed = !!event && (event.cancelled || new Date(event.date).getTime() <= Date.now());
   const startEditing = () => {
     if (event) {
       setEditing(event);
@@ -126,7 +127,7 @@ function EventDetail({ id, viewerId, signIn }: { id: string; viewerId?: string; 
               <Button onPress={signIn}>{text('signIn', 'Sign in to register')}</Button>
             ) : (
               <>
-                {!event.cancelled && new Date(event.date).getTime() > Date.now() && (
+                {(!closed || event.viewerAttendance?.public) && (
                   <>
                     <Text className="text-muted-foreground">
                       {text(
@@ -138,7 +139,7 @@ function EventDetail({ id, viewerId, signIn }: { id: string; viewerId?: string; 
                       <Switch
                         accessibilityLabel={text('public', 'Show me publicly')}
                         value={publiclyVisible ?? event.viewerAttendance?.public ?? false}
-                        onValueChange={setPubliclyVisible}
+                        onValueChange={(value) => setPubliclyVisible(closed ? false : value)}
                       />
                       <Text className="text-foreground">{text('public', 'Show me publicly')}</Text>
                     </View>
@@ -149,7 +150,12 @@ function EventDetail({ id, viewerId, signIn }: { id: string; viewerId?: string; 
                             ? text('visible', 'Your attendance is public.')
                             : text('private', 'Your attendance is private.')}
                         </Text>
-                        <Button disabled={busy} onPress={() => mutation.mutate('visibility')}>
+                        <Button
+                          disabled={
+                            busy || (closed && (publiclyVisible ?? event.viewerAttendance.public))
+                          }
+                          onPress={() => mutation.mutate('visibility')}
+                        >
                           {text('saveVisibility', 'Save visibility choice')}
                         </Button>
                       </>
