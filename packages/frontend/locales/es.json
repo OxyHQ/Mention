@@ -2448,7 +2448,9 @@
         "public_body": "Organismo público",
         "community": "Comunidad",
         "other": "Otra"
-      }
+      },
+      "years_many": "{{count}} años",
+      "months_many": "{{count}} meses"
     }
   },
   "post": {

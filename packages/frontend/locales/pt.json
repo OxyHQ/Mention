@@ -2376,7 +2376,81 @@
       "empty": "No jobs yet"
     },
     "tabs": {
-      "jobs": "Jobs"
+      "jobs": "Jobs",
+      "experience": "Experiência"
+    },
+    "experience": {
+      "add": "Adicionar experiência",
+      "edit": "Editar experiência",
+      "editRole": "Editar {{title}}",
+      "empty": "Ainda sem experiência",
+      "emptyOwner": "Adicione os seus cargos e partilhe o seu percurso profissional.",
+      "emptyVisitor": "Esta pessoa ainda não adicionou experiências.",
+      "loadError": "Não foi possível carregar a experiência. Tente novamente.",
+      "saveError": "Não foi possível guardar as alterações. Tente novamente.",
+      "deleteError": "Não foi possível eliminar esta experiência. Tente novamente.",
+      "present": "Atualmente",
+      "years_one": "{{count}} ano",
+      "years_other": "{{count}} anos",
+      "months_one": "{{count}} mês",
+      "months_other": "{{count}} meses",
+      "current": "Trabalho aqui atualmente",
+      "publicHint": "A sua experiência segue as definições de privacidade do seu perfil Oxy. As alterações também aparecem no Clarity.",
+      "dateHint": "Introduza as datas como ano-mês, por exemplo 2022-10.",
+      "companyHint": "Pesquise no diretório partilhado de organizações e selecione o seu empregador.",
+      "companySearchError": "O diretório de organizações está indisponível. Tente novamente.",
+      "unspecified": "Não especificado",
+      "deleteTitle": "Eliminar esta experiência?",
+      "deleteDescription": "Este cargo será removido dos seus perfis Mention e Clarity.",
+      "fields": {
+        "title": "Cargo *",
+        "employmentType": "Tipo de emprego",
+        "location": "Localização",
+        "startDate": "Data de início *",
+        "endDate": "Data de fim *",
+        "description": "Descrição",
+        "employerOxyAccountId": "Empresa ou organização *"
+      },
+      "validation": {
+        "title": "Introduza um cargo com até 200 caracteres.",
+        "location": "Utilize até 300 caracteres.",
+        "startDate": "Introduza um mês válido no formato YYYY-MM, não posterior ao mês atual.",
+        "endDate": "Introduza um mês válido no formato YYYY-MM, igual ou posterior à data de início.",
+        "description": "Utilize até 5.000 caracteres.",
+        "employerOxyAccountId": "Selecione uma organização disponível no diretório."
+      },
+      "employment": {
+        "full-time": "Tempo inteiro",
+        "part-time": "Tempo parcial",
+        "self-employed": "Trabalho independente",
+        "freelance": "Freelance",
+        "contract": "Contrato",
+        "internship": "Estágio",
+        "apprenticeship": "Aprendizagem",
+        "seasonal": "Trabalho sazonal"
+      },
+      "limitReached": "Pode adicionar até 100 cargos. Remova um cargo existente antes de adicionar outro.",
+      "unavailableEmployer": "Organização indisponível",
+      "loadingEmployer": "A carregar organização…",
+      "employerLoadError": "Não foi possível carregar os detalhes da organização. A sua experiência continua visível.",
+      "changeEmployer": "Alterar organização",
+      "addOrganization": "Falta uma organização? Adicione-a",
+      "createOrganization": "Adicionar ao diretório",
+      "neutralOrganizationHint": "Isto adiciona uma organização ainda não reivindicada ao diretório partilhado. Não lhe atribui a propriedade nem verifica o seu emprego.",
+      "organizationType": "Tipo de organização",
+      "website": "Site (opcional)",
+      "country": "Código do país (opcional, p. ex. PT)",
+      "organizationInvalid": "Verifique o nome, o URL do site e o código do país de duas letras.",
+      "organizationCreateError": "Não foi possível adicionar a organização. Tente novamente.",
+      "organizationTypes": {
+        "business": "Empresa",
+        "nonprofit": "Organização sem fins lucrativos",
+        "public_body": "Organismo público",
+        "community": "Comunidade",
+        "other": "Outro"
+      },
+      "years_many": "{{count}} anos",
+      "months_many": "{{count}} meses"
     }
   },
   "post": {

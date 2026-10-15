@@ -2349,7 +2349,79 @@
       "empty": "No jobs yet"
     },
     "tabs": {
-      "jobs": "Jobs"
+      "jobs": "Jobs",
+      "experience": "Deneyim"
+    },
+    "experience": {
+      "add": "Deneyim ekle",
+      "edit": "Deneyimi düzenle",
+      "editRole": "{{title}} görevini düzenle",
+      "empty": "Henüz deneyim yok",
+      "emptyOwner": "Görevlerinizi ekleyin ve mesleki geçmişinizi paylaşın.",
+      "emptyVisitor": "Bu kişi henüz deneyim eklememiş.",
+      "loadError": "Deneyim yüklenemedi. Tekrar deneyin.",
+      "saveError": "Değişiklikleriniz kaydedilemedi. Tekrar deneyin.",
+      "deleteError": "Bu deneyim silinemedi. Tekrar deneyin.",
+      "present": "Günümüz",
+      "years_one": "{{count}} yıl",
+      "years_other": "{{count}} yıl",
+      "months_one": "{{count}} ay",
+      "months_other": "{{count}} ay",
+      "current": "Hâlen burada çalışıyorum",
+      "publicHint": "Deneyiminiz Oxy profilinizin gizlilik ayarlarına tabidir. Değişiklikler Clarity’de de görünür.",
+      "dateHint": "Tarihleri yıl-ay biçiminde girin, örneğin 2022-10.",
+      "companyHint": "Ortak kuruluş dizininde arama yapın ve işvereninizi seçin.",
+      "companySearchError": "Kuruluş dizini kullanılamıyor. Tekrar deneyin.",
+      "unspecified": "Belirtilmedi",
+      "deleteTitle": "Bu deneyim silinsin mi?",
+      "deleteDescription": "Bu görev Mention ve Clarity profillerinizden kaldırılacak.",
+      "fields": {
+        "title": "Unvan *",
+        "employmentType": "Çalışma türü",
+        "location": "Konum",
+        "startDate": "Başlangıç tarihi *",
+        "endDate": "Bitiş tarihi *",
+        "description": "Açıklama",
+        "employerOxyAccountId": "Şirket veya kuruluş *"
+      },
+      "validation": {
+        "title": "En fazla 200 karakterlik bir unvan girin.",
+        "location": "En fazla 300 karakter kullanın.",
+        "startDate": "YYYY-MM biçiminde, bu aydan sonraki bir ay olmayacak şekilde geçerli bir ay girin.",
+        "endDate": "YYYY-MM biçiminde, başlangıç tarihiyle aynı veya daha sonraki geçerli bir ay girin.",
+        "description": "En fazla 5.000 karakter kullanın.",
+        "employerOxyAccountId": "Dizinden kullanılabilir bir kuruluş seçin."
+      },
+      "employment": {
+        "full-time": "Tam zamanlı",
+        "part-time": "Yarı zamanlı",
+        "self-employed": "Kendi hesabına çalışan",
+        "freelance": "Serbest çalışan",
+        "contract": "Sözleşmeli",
+        "internship": "Staj",
+        "apprenticeship": "Çıraklık",
+        "seasonal": "Mevsimlik"
+      },
+      "limitReached": "En fazla 100 görev ekleyebilirsiniz. Yeni bir görev eklemeden önce mevcut bir görevi kaldırın.",
+      "unavailableEmployer": "Kuruluş kullanılamıyor",
+      "loadingEmployer": "Kuruluş yükleniyor…",
+      "employerLoadError": "Kuruluş bilgileri yüklenemedi. Deneyiminiz görüntülenmeye devam ediyor.",
+      "changeEmployer": "Kuruluşu değiştir",
+      "addOrganization": "Kuruluş eksik mi? Ekleyin",
+      "createOrganization": "Dizine ekle",
+      "neutralOrganizationHint": "Bu işlem ortak dizine henüz sahiplenilmemiş bir kuruluş ekler. Size sahiplik vermez ve bu kuruluşta çalıştığınızı doğrulamaz.",
+      "organizationType": "Kuruluş türü",
+      "website": "Web sitesi (isteğe bağlı)",
+      "country": "Ülke kodu (isteğe bağlı, ör. TR)",
+      "organizationInvalid": "Adı, web sitesi URL’sini ve iki harfli ülke kodunu kontrol edin.",
+      "organizationCreateError": "Kuruluş eklenemedi. Tekrar deneyin.",
+      "organizationTypes": {
+        "business": "İşletme",
+        "nonprofit": "Kâr amacı gütmeyen kuruluş",
+        "public_body": "Kamu kurumu",
+        "community": "Topluluk",
+        "other": "Diğer"
+      }
     }
   },
   "post": {

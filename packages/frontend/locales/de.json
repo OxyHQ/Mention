@@ -2349,7 +2349,79 @@
       "empty": "No jobs yet"
     },
     "tabs": {
-      "jobs": "Jobs"
+      "jobs": "Jobs",
+      "experience": "Berufserfahrung"
+    },
+    "experience": {
+      "add": "Berufserfahrung hinzufügen",
+      "edit": "Berufserfahrung bearbeiten",
+      "editRole": "{{title}} bearbeiten",
+      "empty": "Noch keine Berufserfahrung",
+      "emptyOwner": "Füge deine Stellen hinzu und teile deinen beruflichen Werdegang.",
+      "emptyVisitor": "Diese Person hat noch keine Berufserfahrung hinzugefügt.",
+      "loadError": "Die Berufserfahrung konnte nicht geladen werden. Versuche es erneut.",
+      "saveError": "Deine Änderungen konnten nicht gespeichert werden. Versuche es erneut.",
+      "deleteError": "Diese Berufserfahrung konnte nicht gelöscht werden. Versuche es erneut.",
+      "present": "Heute",
+      "years_one": "{{count}} Jahr",
+      "years_other": "{{count}} Jahre",
+      "months_one": "{{count}} Monat",
+      "months_other": "{{count}} Monate",
+      "current": "Ich arbeite derzeit hier",
+      "publicHint": "Für deine Berufserfahrung gelten die Datenschutzeinstellungen deines Oxy-Profils. Änderungen erscheinen auch in Clarity.",
+      "dateHint": "Gib Daten als Jahr-Monat ein, zum Beispiel 2022-10.",
+      "companyHint": "Suche im gemeinsamen Organisationsverzeichnis und wähle deinen Arbeitgeber aus.",
+      "companySearchError": "Das Organisationsverzeichnis ist nicht verfügbar. Versuche es erneut.",
+      "unspecified": "Nicht angegeben",
+      "deleteTitle": "Diese Berufserfahrung löschen?",
+      "deleteDescription": "Diese Stelle wird aus deinen Mention- und Clarity-Profilen entfernt.",
+      "fields": {
+        "title": "Stellenbezeichnung *",
+        "employmentType": "Beschäftigungsart",
+        "location": "Ort",
+        "startDate": "Startdatum *",
+        "endDate": "Enddatum *",
+        "description": "Beschreibung",
+        "employerOxyAccountId": "Unternehmen oder Organisation *"
+      },
+      "validation": {
+        "title": "Gib eine Stellenbezeichnung mit höchstens 200 Zeichen ein.",
+        "location": "Verwende höchstens 300 Zeichen.",
+        "startDate": "Gib einen gültigen Monat im Format YYYY-MM ein, spätestens den aktuellen Monat.",
+        "endDate": "Gib einen gültigen Monat im Format YYYY-MM ein, der nicht vor dem Startdatum liegt.",
+        "description": "Verwende höchstens 5.000 Zeichen.",
+        "employerOxyAccountId": "Wähle eine verfügbare Organisation aus dem Verzeichnis aus."
+      },
+      "employment": {
+        "full-time": "Vollzeit",
+        "part-time": "Teilzeit",
+        "self-employed": "Selbstständig",
+        "freelance": "Freiberuflich",
+        "contract": "Vertragstätigkeit",
+        "internship": "Praktikum",
+        "apprenticeship": "Ausbildung",
+        "seasonal": "Saisonarbeit"
+      },
+      "limitReached": "Du kannst bis zu 100 Stellen hinzufügen. Entferne eine vorhandene Stelle, bevor du eine weitere hinzufügst.",
+      "unavailableEmployer": "Organisation nicht verfügbar",
+      "loadingEmployer": "Organisation wird geladen…",
+      "employerLoadError": "Die Organisationsdaten konnten nicht geladen werden. Deine Berufserfahrung wird weiterhin angezeigt.",
+      "changeEmployer": "Organisation ändern",
+      "addOrganization": "Organisation fehlt? Füge sie hinzu",
+      "createOrganization": "Zum Verzeichnis hinzufügen",
+      "neutralOrganizationHint": "Dadurch wird eine noch nicht beanspruchte Organisation zum gemeinsamen Verzeichnis hinzugefügt. Du erhältst dadurch keine Eigentumsrechte und deine Beschäftigung wird nicht bestätigt.",
+      "organizationType": "Organisationsart",
+      "website": "Website (optional)",
+      "country": "Ländercode (optional, z. B. DE)",
+      "organizationInvalid": "Prüfe den Namen, die Website-URL und den zweistelligen Ländercode.",
+      "organizationCreateError": "Die Organisation konnte nicht hinzugefügt werden. Versuche es erneut.",
+      "organizationTypes": {
+        "business": "Unternehmen",
+        "nonprofit": "Gemeinnützige Organisation",
+        "public_body": "Öffentliche Einrichtung",
+        "community": "Gemeinschaft",
+        "other": "Sonstige"
+      }
     }
   },
   "post": {

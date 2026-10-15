@@ -2376,7 +2376,81 @@
       "empty": "No jobs yet"
     },
     "tabs": {
-      "jobs": "Jobs"
+      "jobs": "Jobs",
+      "experience": "Esperienza"
+    },
+    "experience": {
+      "add": "Aggiungi esperienza",
+      "edit": "Modifica esperienza",
+      "editRole": "Modifica {{title}}",
+      "empty": "Nessuna esperienza ancora",
+      "emptyOwner": "Aggiungi i tuoi ruoli e condividi il tuo percorso professionale.",
+      "emptyVisitor": "Questa persona non ha ancora aggiunto esperienze.",
+      "loadError": "Impossibile caricare l’esperienza. Riprova.",
+      "saveError": "Impossibile salvare le modifiche. Riprova.",
+      "deleteError": "Impossibile eliminare questa esperienza. Riprova.",
+      "present": "Presente",
+      "years_one": "{{count}} anno",
+      "years_other": "{{count}} anni",
+      "months_one": "{{count}} mese",
+      "months_other": "{{count}} mesi",
+      "current": "Attualmente lavoro qui",
+      "publicHint": "La tua esperienza segue le impostazioni di privacy del tuo profilo Oxy. Le modifiche appaiono anche in Clarity.",
+      "dateHint": "Inserisci le date come anno-mese, ad esempio 2022-10.",
+      "companyHint": "Cerca nella directory condivisa delle organizzazioni e seleziona il tuo datore di lavoro.",
+      "companySearchError": "La directory delle organizzazioni non è disponibile. Riprova.",
+      "unspecified": "Non specificato",
+      "deleteTitle": "Eliminare questa esperienza?",
+      "deleteDescription": "Questo ruolo verrà rimosso dai tuoi profili Mention e Clarity.",
+      "fields": {
+        "title": "Ruolo *",
+        "employmentType": "Tipo di impiego",
+        "location": "Luogo",
+        "startDate": "Data di inizio *",
+        "endDate": "Data di fine *",
+        "description": "Descrizione",
+        "employerOxyAccountId": "Azienda o organizzazione *"
+      },
+      "validation": {
+        "title": "Inserisci un ruolo di massimo 200 caratteri.",
+        "location": "Usa massimo 300 caratteri.",
+        "startDate": "Inserisci un mese valido nel formato YYYY-MM, non successivo al mese corrente.",
+        "endDate": "Inserisci un mese valido nel formato YYYY-MM, uguale o successivo alla data di inizio.",
+        "description": "Usa massimo 5.000 caratteri.",
+        "employerOxyAccountId": "Seleziona un’organizzazione disponibile nella directory."
+      },
+      "employment": {
+        "full-time": "Tempo pieno",
+        "part-time": "Tempo parziale",
+        "self-employed": "Lavoro autonomo",
+        "freelance": "Libera professione",
+        "contract": "Contratto",
+        "internship": "Tirocinio",
+        "apprenticeship": "Apprendistato",
+        "seasonal": "Lavoro stagionale"
+      },
+      "limitReached": "Puoi aggiungere fino a 100 ruoli. Rimuovi un ruolo esistente prima di aggiungerne un altro.",
+      "unavailableEmployer": "Organizzazione non disponibile",
+      "loadingEmployer": "Caricamento dell’organizzazione…",
+      "employerLoadError": "Impossibile caricare i dettagli dell’organizzazione. La tua esperienza resta visibile.",
+      "changeEmployer": "Cambia organizzazione",
+      "addOrganization": "Manca un’organizzazione? Aggiungila",
+      "createOrganization": "Aggiungi alla directory",
+      "neutralOrganizationHint": "Questa azione aggiunge un’organizzazione non rivendicata alla directory condivisa. Non ti conferisce la proprietà e non verifica il tuo impiego.",
+      "organizationType": "Tipo di organizzazione",
+      "website": "Sito web (facoltativo)",
+      "country": "Codice paese (facoltativo, ad es. IT)",
+      "organizationInvalid": "Controlla il nome, l’URL del sito e il codice paese di due lettere.",
+      "organizationCreateError": "Impossibile aggiungere l’organizzazione. Riprova.",
+      "organizationTypes": {
+        "business": "Azienda",
+        "nonprofit": "Organizzazione senza scopo di lucro",
+        "public_body": "Ente pubblico",
+        "community": "Comunità",
+        "other": "Altro"
+      },
+      "years_many": "{{count}} anni",
+      "months_many": "{{count}} mesi"
     }
   },
   "post": {

@@ -2379,7 +2379,81 @@
       "empty": "No jobs yet"
     },
     "tabs": {
-      "jobs": "Jobs"
+      "jobs": "Jobs",
+      "experience": "Expérience"
+    },
+    "experience": {
+      "add": "Ajouter une expérience",
+      "edit": "Modifier l’expérience",
+      "editRole": "Modifier {{title}}",
+      "empty": "Aucune expérience pour le moment",
+      "emptyOwner": "Ajoutez vos postes et partagez votre parcours professionnel.",
+      "emptyVisitor": "Cette personne n’a pas encore ajouté d’expérience.",
+      "loadError": "Impossible de charger l’expérience. Réessayez.",
+      "saveError": "Impossible d’enregistrer vos modifications. Réessayez.",
+      "deleteError": "Impossible de supprimer cette expérience. Réessayez.",
+      "present": "Aujourd’hui",
+      "years_one": "{{count}} an",
+      "years_other": "{{count}} ans",
+      "months_one": "{{count}} mois",
+      "months_other": "{{count}} mois",
+      "current": "J’occupe actuellement ce poste",
+      "publicHint": "Votre expérience respecte les paramètres de confidentialité de votre profil Oxy. Les modifications apparaissent aussi dans Clarity.",
+      "dateHint": "Saisissez les dates au format année-mois, par exemple 2022-10.",
+      "companyHint": "Recherchez votre employeur dans l’annuaire partagé des organisations et sélectionnez-le.",
+      "companySearchError": "L’annuaire des organisations est indisponible. Réessayez.",
+      "unspecified": "Non précisé",
+      "deleteTitle": "Supprimer cette expérience ?",
+      "deleteDescription": "Ce poste sera supprimé de vos profils Mention et Clarity.",
+      "fields": {
+        "title": "Intitulé du poste *",
+        "employmentType": "Type d’emploi",
+        "location": "Lieu",
+        "startDate": "Date de début *",
+        "endDate": "Date de fin *",
+        "description": "Description",
+        "employerOxyAccountId": "Entreprise ou organisation *"
+      },
+      "validation": {
+        "title": "Saisissez un intitulé de 200 caractères maximum.",
+        "location": "Utilisez 300 caractères maximum.",
+        "startDate": "Saisissez un mois valide au format YYYY-MM, au plus tard le mois en cours.",
+        "endDate": "Saisissez un mois valide au format YYYY-MM, égal ou postérieur à la date de début.",
+        "description": "Utilisez 5 000 caractères maximum.",
+        "employerOxyAccountId": "Sélectionnez une organisation disponible dans l’annuaire."
+      },
+      "employment": {
+        "full-time": "Temps plein",
+        "part-time": "Temps partiel",
+        "self-employed": "Travail indépendant",
+        "freelance": "Freelance",
+        "contract": "Contrat",
+        "internship": "Stage",
+        "apprenticeship": "Apprentissage",
+        "seasonal": "Emploi saisonnier"
+      },
+      "limitReached": "Vous pouvez ajouter jusqu’à 100 postes. Supprimez un poste existant avant d’en ajouter un autre.",
+      "unavailableEmployer": "Organisation indisponible",
+      "loadingEmployer": "Chargement de l’organisation…",
+      "employerLoadError": "Impossible de charger les informations de l’organisation. Votre expérience reste affichée.",
+      "changeEmployer": "Changer d’organisation",
+      "addOrganization": "Organisation introuvable ? Ajoutez-la",
+      "createOrganization": "Ajouter à l’annuaire",
+      "neutralOrganizationHint": "Une organisation non revendiquée sera ajoutée à l’annuaire partagé. Cela ne vous en attribue pas la propriété et ne confirme pas votre emploi.",
+      "organizationType": "Type d’organisation",
+      "website": "Site web (facultatif)",
+      "country": "Code pays (facultatif, p. ex. FR)",
+      "organizationInvalid": "Vérifiez le nom, l’URL du site et le code pays à deux lettres.",
+      "organizationCreateError": "Impossible d’ajouter l’organisation. Réessayez.",
+      "organizationTypes": {
+        "business": "Entreprise",
+        "nonprofit": "Organisme à but non lucratif",
+        "public_body": "Organisme public",
+        "community": "Communauté",
+        "other": "Autre"
+      },
+      "years_many": "{{count}} ans",
+      "months_many": "{{count}} mois"
     }
   },
   "post": {

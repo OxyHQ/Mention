@@ -2376,7 +2376,81 @@
       "empty": "No jobs yet"
     },
     "tabs": {
-      "jobs": "Jobs"
+      "jobs": "Jobs",
+      "experience": "Experiència"
+    },
+    "experience": {
+      "add": "Afegeix experiència",
+      "edit": "Edita l’experiència",
+      "editRole": "Edita {{title}}",
+      "empty": "Encara no hi ha experiència",
+      "emptyOwner": "Afegeix els teus càrrecs i comparteix la teva trajectòria professional.",
+      "emptyVisitor": "Aquesta persona encara no ha afegit cap experiència.",
+      "loadError": "No s’ha pogut carregar l’experiència. Torna-ho a provar.",
+      "saveError": "No s’han pogut desar els canvis. Torna-ho a provar.",
+      "deleteError": "No s’ha pogut eliminar aquesta experiència. Torna-ho a provar.",
+      "present": "Actualitat",
+      "years_one": "{{count}} any",
+      "years_other": "{{count}} anys",
+      "months_one": "{{count}} mes",
+      "months_other": "{{count}} mesos",
+      "current": "Actualment treballo aquí",
+      "publicHint": "La teva experiència segueix la configuració de privadesa del teu perfil d’Oxy. Els canvis també apareixen a Clarity.",
+      "dateHint": "Introdueix les dates com a any-mes, per exemple 2022-10.",
+      "companyHint": "Cerca al directori compartit d’organitzacions i selecciona el teu ocupador.",
+      "companySearchError": "El directori d’organitzacions no està disponible. Torna-ho a provar.",
+      "unspecified": "No especificat",
+      "deleteTitle": "Vols eliminar aquesta experiència?",
+      "deleteDescription": "Aquest càrrec s’eliminarà dels teus perfils de Mention i Clarity.",
+      "fields": {
+        "title": "Càrrec *",
+        "employmentType": "Tipus de feina",
+        "location": "Ubicació",
+        "startDate": "Data d’inici *",
+        "endDate": "Data de finalització *",
+        "description": "Descripció",
+        "employerOxyAccountId": "Empresa o organització *"
+      },
+      "validation": {
+        "title": "Introdueix un càrrec de fins a 200 caràcters.",
+        "location": "Fes servir fins a 300 caràcters.",
+        "startDate": "Introdueix un mes vàlid en format YYYY-MM, com a màxim el mes actual.",
+        "endDate": "Introdueix un mes vàlid en format YYYY-MM, igual o posterior a la data d’inici.",
+        "description": "Fes servir fins a 5.000 caràcters.",
+        "employerOxyAccountId": "Selecciona una organització disponible al directori."
+      },
+      "employment": {
+        "full-time": "Jornada completa",
+        "part-time": "Jornada parcial",
+        "self-employed": "Autònom",
+        "freelance": "Professional independent",
+        "contract": "Contracte",
+        "internship": "Pràctiques",
+        "apprenticeship": "Aprenentatge",
+        "seasonal": "Feina de temporada"
+      },
+      "limitReached": "Pots afegir fins a 100 càrrecs. Elimina’n un d’existent abans d’afegir-ne un altre.",
+      "unavailableEmployer": "Organització no disponible",
+      "loadingEmployer": "S’està carregant l’organització…",
+      "employerLoadError": "No s’han pogut carregar les dades de l’organització. La teva experiència continua visible.",
+      "changeEmployer": "Canvia d’organització",
+      "addOrganization": "Falta una organització? Afegeix-la",
+      "createOrganization": "Afegeix al directori",
+      "neutralOrganizationHint": "Això afegeix una organització no reclamada al directori compartit. No te n’atorga la propietat ni verifica la teva feina.",
+      "organizationType": "Tipus d’organització",
+      "website": "Lloc web (opcional)",
+      "country": "Codi de país (opcional, p. ex. ES)",
+      "organizationInvalid": "Comprova el nom, l’URL del lloc web i el codi de país de dues lletres.",
+      "organizationCreateError": "No s’ha pogut afegir l’organització. Torna-ho a provar.",
+      "organizationTypes": {
+        "business": "Empresa",
+        "nonprofit": "Entitat sense ànim de lucre",
+        "public_body": "Organisme públic",
+        "community": "Comunitat",
+        "other": "Altres"
+      },
+      "years_many": "{{count}} anys",
+      "months_many": "{{count}} mesos"
     }
   },
   "post": {

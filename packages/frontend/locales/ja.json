@@ -2349,7 +2349,79 @@
       "empty": "No jobs yet"
     },
     "tabs": {
-      "jobs": "Jobs"
+      "jobs": "Jobs",
+      "experience": "職歴"
+    },
+    "experience": {
+      "add": "職歴を追加",
+      "edit": "職歴を編集",
+      "editRole": "{{title}}を編集",
+      "empty": "職歴はまだありません",
+      "emptyOwner": "役職を追加して、これまでの経歴を共有しましょう。",
+      "emptyVisitor": "このユーザーはまだ職歴を追加していません。",
+      "loadError": "職歴を読み込めませんでした。もう一度お試しください。",
+      "saveError": "変更を保存できませんでした。もう一度お試しください。",
+      "deleteError": "この職歴を削除できませんでした。もう一度お試しください。",
+      "present": "現在",
+      "years_one": "{{count}}年",
+      "years_other": "{{count}}年",
+      "months_one": "{{count}}か月",
+      "months_other": "{{count}}か月",
+      "current": "現在もここで働いています",
+      "publicHint": "職歴にはOxyプロフィールのプライバシー設定が適用されます。変更はClarityにも反映されます。",
+      "dateHint": "日付は年-月の形式で入力してください。例：2022-10。",
+      "companyHint": "共通の組織ディレクトリで勤務先を検索し、選択してください。",
+      "companySearchError": "組織ディレクトリを利用できません。もう一度お試しください。",
+      "unspecified": "未指定",
+      "deleteTitle": "この職歴を削除しますか？",
+      "deleteDescription": "この役職はMentionとClarityのプロフィールから削除されます。",
+      "fields": {
+        "title": "役職名 *",
+        "employmentType": "雇用形態",
+        "location": "所在地",
+        "startDate": "開始年月 *",
+        "endDate": "終了年月 *",
+        "description": "説明",
+        "employerOxyAccountId": "会社・組織 *"
+      },
+      "validation": {
+        "title": "役職名を200文字以内で入力してください。",
+        "location": "300文字以内で入力してください。",
+        "startDate": "今月以前の有効な年月をYYYY-MM形式で入力してください。",
+        "endDate": "開始年月以降の有効な年月をYYYY-MM形式で入力してください。",
+        "description": "5,000文字以内で入力してください。",
+        "employerOxyAccountId": "ディレクトリから利用可能な組織を選択してください。"
+      },
+      "employment": {
+        "full-time": "フルタイム",
+        "part-time": "パートタイム",
+        "self-employed": "自営業",
+        "freelance": "フリーランス",
+        "contract": "契約勤務",
+        "internship": "インターンシップ",
+        "apprenticeship": "実習・見習い",
+        "seasonal": "季節雇用"
+      },
+      "limitReached": "追加できる役職は100件までです。新たに追加するには既存の役職を削除してください。",
+      "unavailableEmployer": "組織を利用できません",
+      "loadingEmployer": "組織を読み込み中…",
+      "employerLoadError": "組織の詳細を読み込めませんでした。職歴は引き続き表示されます。",
+      "changeEmployer": "組織を変更",
+      "addOrganization": "組織が見つかりませんか？追加する",
+      "createOrganization": "ディレクトリに追加",
+      "neutralOrganizationHint": "管理者が未確認の組織を共通ディレクトリに追加します。組織の所有権が付与されたり、在籍が確認されたりするわけではありません。",
+      "organizationType": "組織の種類",
+      "website": "ウェブサイト（任意）",
+      "country": "国コード（任意、例：JP）",
+      "organizationInvalid": "名前、ウェブサイトのURL、2文字の国コードを確認してください。",
+      "organizationCreateError": "組織を追加できませんでした。もう一度お試しください。",
+      "organizationTypes": {
+        "business": "企業",
+        "nonprofit": "非営利団体",
+        "public_body": "公的機関",
+        "community": "コミュニティ",
+        "other": "その他"
+      }
     }
   },
   "post": {
