@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
+import { rejectionOf } from './helpers/rejection';
 
 /**
  * For You must rank thread ROOTS, not replies — enforced against a REAL database.
@@ -365,18 +366,20 @@ describe('For You candidate pool — the fixture universe', () => {
    * regardless of length and this insert SUCCEEDS, which is the failure.
    */
   it('refuses to store an empty inReplyTo, so no reader has to interpret it', async () => {
-    await expect(
-      insertPostRecord({
-        oxyUserId: OTHER_AUTHOR,
-        authorship: [{ oxyUserId: OTHER_AUTHOR, role: 'owner', status: 'accepted' }],
-        type: PostType.TEXT,
-        visibility: PostVisibility.PUBLIC,
-        status: 'published',
-        content: { variants: [{ source: 'author', text: 'empty iri' }] },
-        federation: { inReplyTo: '' },
-      }),
+    expect(
+      await rejectionOf(
+        insertPostRecord({
+          oxyUserId: OTHER_AUTHOR,
+          authorship: [{ oxyUserId: OTHER_AUTHOR, role: 'owner', status: 'accepted' }],
+          type: PostType.TEXT,
+          visibility: PostVisibility.PUBLIC,
+          status: 'published',
+          content: { variants: [{ source: 'author', text: 'empty iri' }] },
+          federation: { inReplyTo: '' },
+        }),
+      ),
       // The constraint name is on the CAUSE, not on drizzle's wrapper message.
-    ).rejects.toSatisfy((error: unknown) =>
+    ).toSatisfy((error: unknown) =>
       JSON.stringify(error instanceof Error ? (error.cause ?? error) : error).includes(
         'posts_federated_reply_discriminator_check',
       ),

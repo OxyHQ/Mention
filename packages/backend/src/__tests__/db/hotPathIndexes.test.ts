@@ -67,7 +67,7 @@
  * pin the predicate while saying nothing about whether anything can still use it.
  */
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';

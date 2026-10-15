@@ -21,7 +21,7 @@
  *     primary, and the media gallery keeps the author's arrangement.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { and, eq, sql } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import type { StoredPostContent } from '@mention/shared-types';
@@ -277,13 +277,17 @@ describe('authorship', () => {
   it('refuses a second owner on one post', async () => {
     // The invariant `getOwnerId` has always assumed and the legacy store could not state.
     const record = await create();
+    // Promise.resolve runs the drizzle builder: bun:test's `rejects` wants a real
+    // promise, and a builder is a lazy thenable that executes only on `then`.
     await expect(
-      db.insert(postAuthorships).values({
-        postId: record.id,
-        oxyUserId: COLLABORATOR,
-        role: 'owner',
-        status: 'accepted',
-      }),
+      Promise.resolve(
+        db.insert(postAuthorships).values({
+          postId: record.id,
+          oxyUserId: COLLABORATOR,
+          role: 'owner',
+          status: 'accepted',
+        }),
+      ),
     ).rejects.toThrow();
   });
 

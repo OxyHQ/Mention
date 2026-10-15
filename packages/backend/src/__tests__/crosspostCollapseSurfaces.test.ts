@@ -28,7 +28,7 @@
  * decision on the record rather than an omission the next reader of
  * `feedQueryBuilder.ts` tidies away.
  */
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { and, inArray, type SQL } from 'drizzle-orm';
 import { MtnConfig, PostType, PostVisibility } from '@mention/shared-types';
 

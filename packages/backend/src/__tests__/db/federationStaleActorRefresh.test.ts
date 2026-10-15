@@ -22,7 +22,7 @@
  * comparison that exists to find it), and above the threshold.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { findStaleActorsForRefresh } from '../../db/federation/actorRepository';

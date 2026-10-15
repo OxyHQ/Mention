@@ -54,7 +54,7 @@
  * deliberately disagree, and only on that one.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { eq } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import type { StoredPostContent } from '@mention/shared-types';

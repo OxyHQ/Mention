@@ -47,7 +47,7 @@
  * the stored expression and the query's to parse the same.
  */
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { and, eq, sql } from 'drizzle-orm';
 
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
