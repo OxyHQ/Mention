@@ -20,7 +20,14 @@ jest.mock('@oxy.so/bloom/avatar', () => ({ Avatar: 'avatar' }));
 jest.mock('@oxy.so/bloom/button', () => ({ Button: 'button' }));
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: 'loading' }));
 jest.mock('@oxy.so/bloom/item', () => ({ Item: 'item' }));
-jest.mock('@oxy.so/bloom/dialog', () => ({ Dialog: 'dialog', useDialogControl: () => require('react').useMemo(() => ({ open: jest.fn(), close: (callback?: () => void) => callback?.() }), []) }));
+jest.mock('@oxy.so/bloom/dialog', () => ({
+  Dialog: 'dialog',
+  useDialogControl: () =>
+    require('react').useMemo(
+      () => ({ open: jest.fn(), close: (callback?: () => void) => callback?.() }),
+      [],
+    ),
+}));
 jest.mock('@oxy.so/bloom/switch', () => ({ Switch: 'switch' }));
 jest.mock('@oxy.so/bloom/text-field', () => ({
   TextField: 'field',
