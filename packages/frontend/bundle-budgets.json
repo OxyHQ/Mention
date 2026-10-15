@@ -18,6 +18,6 @@
     "The settings dialog and its pages load on the first open request": "/packages/frontend/components/settings/(MentionSettingsModal|settingsPages)\\.tsx$",
     "LiveKit and the Syra rooms engine load with the first live-room request (LiveFeatureProviders)": "/node_modules/(livekit-client/|@syra\\.fm/sdk/lib/module/live/)",
     "Bloom's settings dialog loads with Mention's (screens outside it use settings-modal/rows)": "/node_modules/@oxy\\.so/bloom/lib/module/settings-modal/SettingsModal\\.js$",
-    "zod loads with the notification validators (lib/notificationValidation), its one way in; @syra.fm/sdk 0.17+ checks responses without it": "^/node_modules/zod/"
+    "zod loads with the notification validators (lib/notificationValidation), its one way in; @syra.fm/sdk 0.18+ checks responses without it": "^/node_modules/zod/"
   }
 }

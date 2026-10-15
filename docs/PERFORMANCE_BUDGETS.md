@@ -188,14 +188,14 @@ of those chunks loads — so the cost is the download and parse of ~490 KiB raw.
 
 ### zod out of startup (2026-10-15)
 
-Fixed at the root, in the SDK: `@syra.fm/sdk` 0.17 checks its responses (the
+Fixed at the root, in the SDK: `@syra.fm/sdk` 0.18 checks its responses (the
 client and the live-rooms engine) in plain TypeScript and serves its Zod
 schemas only from `@syra.fm/sdk/schemas`, for server consumers (OxyHQ/Syra).
 That leaves Mention's notification validators (`types/validation.ts`, behind
 `lib/notificationValidation.ts`'s one `import()`) as zod's only way in, so zod
 and its locales stay in that async chunk and leave `__common`. No Mention code
 changed. Measured on one `expo export --platform web` (tree shaking on) of the
-same commit, `@syra.fm/sdk` 0.16.2 vs 0.17.0:
+same commit, `@syra.fm/sdk` 0.16.2 vs 0.18.0:
 
 | Signal | Before | After | Δ |
 | --- | --- | --- | --- |

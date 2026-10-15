@@ -308,7 +308,7 @@
     "@oxy.so/protocol": "1.2.2",
     "@oxy.so/services": "11.3.1",
     "@oxy.so/utils": "^1.2.0",
-    "@syra.fm/sdk": "^0.16.2",
+    "@syra.fm/sdk": "^0.18.0",
     "@types/bun": "1.4.2",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.6.2",
@@ -1147,7 +1147,7 @@
 
     "@socket.io/redis-adapter": ["@socket.io/redis-adapter@8.3.0", "", { "dependencies": { "debug": "~4.3.1", "notepack.io": "~3.0.1", "uid2": "1.0.0" }, "peerDependencies": { "socket.io-adapter": "^2.5.4" } }, "sha512-ly0cra+48hDmChxmIpnESKrc94LjRL80TEmZVscuQ/WWkRP81nNj8W8cCGMqbI4L6NCuAaPRSzZF1a9GlAxxnA=="],
 
-    "@syra.fm/sdk": ["@syra.fm/sdk@0.16.2", "", { "dependencies": { "zod": "^4.4.3" }, "peerDependencies": { "@expo/vector-icons": "^15.0.2", "@livekit/react-native": "^2.11.1", "@oxy.so/services": "^8.0.0 || ^9.0.0 || ^10.0.0", "expo-audio": "~56.0.12", "expo-blur": "~56.0.3", "expo-image-picker": "~56.0.18", "livekit-client": "^2.20.0", "react": "^19.2.3", "react-native": "^0.85.3", "react-native-reanimated": "^4.3.1", "react-native-safe-area-context": "^5.7.0", "react-native-svg": "15.15.4", "socket.io-client": "^4.8.1" }, "optionalPeers": ["@expo/vector-icons", "@livekit/react-native", "@oxy.so/services", "expo-audio", "expo-blur", "expo-image-picker", "livekit-client", "react", "react-native", "react-native-reanimated", "react-native-safe-area-context", "react-native-svg", "socket.io-client"] }, "sha512-IkitJfWPsQmdUaCYueQXvkd38Bw7hx7G08MXMHM1VBNdazpE9OOIuXjhm7+IK7S4D7a0Ey/EyBuH/hpu7/lcNw=="],
+    "@syra.fm/sdk": ["@syra.fm/sdk@0.18.0", "", { "dependencies": { "zod": "^4.4.3" }, "peerDependencies": { "@expo/vector-icons": "^15.0.2", "@livekit/react-native": "^2.11.1", "@oxy.so/services": "^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0", "expo-audio": "~56.0.12", "expo-blur": "~56.0.3", "expo-image-picker": "~56.0.18", "livekit-client": "^2.20.0", "react": "^19.2.3", "react-native": "^0.85.3", "react-native-reanimated": "^4.3.1", "react-native-safe-area-context": "^5.7.0", "react-native-svg": "15.15.4", "socket.io-client": "^4.8.1" }, "optionalPeers": ["@expo/vector-icons", "@livekit/react-native", "@oxy.so/services", "expo-audio", "expo-blur", "expo-image-picker", "livekit-client", "react", "react-native", "react-native-reanimated", "react-native-safe-area-context", "react-native-svg", "socket.io-client"] }, "sha512-Y250GJubD0zUdfEeOgnLUMbJt0hqhaQ4LeK2OIArmsDNwWXaeMwlmA9SFlO7Y2nYQgWBwbl2e6X8ccOvj7QwfA=="],
 
     "@szmarczak/http-timer": ["@szmarczak/http-timer@4.0.6", "", { "dependencies": { "defer-to-connect": "^2.0.0" } }, "sha512-4BAffykYOgO+5nzBWYwE3W90sBgLJoUPRWWcL8wlyiM8IB8ipJz3UMJ9KXQd1RKQXpKp8Tutn80HZtWsu2u76w=="],
 
