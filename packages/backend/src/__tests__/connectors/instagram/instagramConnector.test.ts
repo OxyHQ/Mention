@@ -219,6 +219,7 @@ describe('caching an instagram-graph actor', () => {
       actorUri: GRAPH_ACTOR,
       oxyUserId: 'oxy-zuck',
       networkAcct: 'zuck@instagram.com',
+      check: 'refresh',
     });
   });
 

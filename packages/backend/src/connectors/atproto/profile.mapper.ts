@@ -286,6 +286,7 @@ export async function upsertAtprotoActor(
     actorUri: did,
     oxyUserId: resolved.user.id,
     networkAcct: resolved.externalIdentity.canonicalAcct,
+    check: 'refresh',
   });
   if (projection.refusal) return { ...actor, oxyUserId: undefined };
   return {

@@ -484,6 +484,13 @@
       "when": 1792043533560,
       "tag": "0068_author_post_counts",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1792049288045,
+      "tag": "0069_posts_federation_actor_author_idx",
+      "breakpoints": true
     }
   ]
 }

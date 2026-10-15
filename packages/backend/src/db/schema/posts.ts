@@ -703,9 +703,11 @@ export const posts = pgTable(
 
     // Source identity projection reads all posts for one immutable actor URI.
     // Keep local posts out of the index; reconciliation must not scan every
-    // post twice for each resolved source actor.
-    index('posts_federation_actor_uri_idx')
-      .on(t.federationActorUri)
+    // post twice for each resolved source actor. `oxy_user_id` rides in the key
+    // (migration 0069) so the projection's "posts not yet carrying this author"
+    // read is answered from the index entries instead of one heap page per post.
+    index('posts_federation_actor_author_idx')
+      .on(t.federationActorUri, t.oxyUserId)
       .where(sql`${t.federationActorUri} is not null`),
 
     // A remote note's web URL → our copy of it (`resolvePostIdFromNoteUrl`, the
