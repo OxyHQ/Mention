@@ -115,8 +115,6 @@ const OXY_RUNTIME_SINGLETONS = ['@oxy.so/bloom', '@oxy.so/core', '@oxy.so/servic
  * too, so this cannot rot into a list of claims nothing tests.
  */
 const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
-  'markdown-it -> linkify-it@^2.0.0':
-    'linkify-it is held at one copy for hardened link matching; markdown-it works against the newer API.',
   '@tailwindcss/node -> lightningcss@1.32.0':
     'lightningcss is pinned to 1.30.1 so its linux-x64 gnu/musl native binaries stay on a single version through the image build.',
   'vite -> lightningcss@^1.32.0': 'Same single-copy native-binary pin as @tailwindcss/node.',
