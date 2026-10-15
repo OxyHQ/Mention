@@ -222,32 +222,12 @@ export interface PostRoomContent {
   host?: string;
 }
 
-/**
- * A Syra podcast SHOW attached to a post (or pinned on a profile). The metadata
- * is denormalized server-side from the Syra catalog (via @syra.fm/sdk getPodcast)
- * at write time — never trusted from the client. The card opens the show in Syra
- * via `showUrl`.
- */
+/** A Syra show reference. Facts belong to Syra and are resolved only while visible. */
 export interface PostPodcastContent {
   syraPodcastId: string;
-  title: string;
-  author?: string;
-  artworkUrl?: string;
-  showUrl: string;
-  /**
-   * The specific episode the post is about, when it names one. Its presence
-   * switches the card to the episode layout (episode title over the show name),
-   * and a `videoUrl` switches it to the video layout.
-   */
-  episode?: PostPodcastEpisode;
-  /**
-   * Background of the card, as a CSS color. Absent → the client derives one from
-   * the artwork.
-   */
-  accentColor?: string;
 }
 
-/** One episode of a {@link PostPodcastContent} show. */
+/** Presentational episode facts from current provider reads, never post storage. */
 export interface PostPodcastEpisode {
   title: string;
   /** Video rendition of the episode, when the show publishes one. */
@@ -258,14 +238,8 @@ export interface PostPodcastEpisode {
   durationSec?: number;
 }
 
-/**
- * What a CLIENT sends when attaching a podcast: only the Syra show id. The
- * server resolves + denormalizes the rest (title/author/artwork/showUrl) via
- * @syra.fm/sdk, so the client never supplies — and is never trusted for — them.
- */
-export interface PostPodcastInput {
-  syraPodcastId: string;
-}
+/** Input and storage both contain only the opaque Syra show reference. */
+export type PostPodcastInput = PostPodcastContent;
 
 /**
  * A Mention-authored job shared as an ordinary post — see {@link PostJobContent}

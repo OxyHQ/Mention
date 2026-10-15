@@ -38,7 +38,7 @@ import {
   cacheAccountMemberReads,
   PublishAsAccessError,
 } from '../../services/publishAsAccount';
-import { sanitizePodcast, resolvePodcastContent } from '../../utils/syraPodcast';
+import { sanitizePodcast } from '../../utils/podcastReference';
 import { sanitizeJobInput, resolveJobContent } from '../../utils/jobPostAttachment';
 import { federatePostBatchDetached } from '../../connectors/threadFederation';
 import {
@@ -475,22 +475,8 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
       postContent.homiioCase = sanitizeHomiioCase(content?.homiioCase);
 
-      // Handle podcast data: verify + denormalize the Syra show server-side (as
-      // in createPost). The thread path is best-effort and never aborts the loop
-      // mid-creation, so an unresolvable show is dropped (logged) rather than
-      // 400'd — matching how the article/event/room attachments behave here.
-      const threadSanitizedPodcast = sanitizePodcast(content?.podcast);
-      if (threadSanitizedPodcast) {
-        try {
-          postContent.podcast = await resolvePodcastContent(threadSanitizedPodcast.syraPodcastId);
-        } catch (podcastError) {
-          logger.warn('Failed to resolve Syra podcast for thread post; dropping', {
-            userId,
-            syraPodcastId: threadSanitizedPodcast.syraPodcastId,
-            error: podcastError,
-          });
-        }
-      }
+      // Persist only a reference; provider availability never blocks publication.
+      postContent.podcast = sanitizePodcast(content?.podcast) ?? undefined;
 
       // Handle a Mention job attachment: same untrusted-reference treatment as
       // podcast, and the same drop-and-log-rather-than-400 policy every other

@@ -94,7 +94,7 @@ describe('one item takes the full width', () => {
   it('a podcast card spans the row', () => {
     const alone = render({ podcast });
     expect(of(alone, 'podcast').width).toBe('100%');
-    expect(of(alone, 'podcast').height).toBeUndefined();
+    expect(of(alone, 'podcast').height).toBe(200);
   });
 
   it('an image is the hero form', () => {

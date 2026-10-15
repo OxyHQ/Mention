@@ -69,10 +69,20 @@ const ALLOWED_REGISTRY_HOSTS = ['registry.npmjs.org'];
  */
 const ALLOWED_NON_REGISTRY_PROTOCOLS = ['workspace:'];
 
-// Temporary review artifacts from the owning Homiio repository. This is an
+// Temporary review artifacts from the owning Homiio and Syra repositories. This is an
 // exact package/path/content exception, not permission for arbitrary file deps.
 // Remove after the SDK release; provenance and release order: vendor/README.md.
 const VENDORED_REVIEW_ARTIFACTS = {
+  '@syra.fm/contracts': {
+    spec: './vendor/syra.fm-contracts-0.1.0.tgz',
+    path: 'vendor/syra.fm-contracts-0.1.0.tgz',
+    sha256: 'ea1a6cec84cec093109e270ba98aa57c40db948882637e9074117ad3ea3c8438',
+  },
+  '@syra.fm/sdk': {
+    spec: '../../vendor/syra.fm-sdk-0.17.0.tgz',
+    path: 'vendor/syra.fm-sdk-0.17.0.tgz',
+    sha256: '776a21054fe54e2c19520f891548462f0285fd65178ce93318cb5ef8b0add7d6',
+  },
   '@homiio/contracts': {
     spec: './vendor/homiio-contracts-0.1.0.tgz',
     path: 'vendor/homiio-contracts-0.1.0.tgz',

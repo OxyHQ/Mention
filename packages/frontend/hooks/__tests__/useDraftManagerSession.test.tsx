@@ -168,7 +168,7 @@ describe('a draft keeps what the author attached', () => {
       article: { title: 'Long read', body: 'Body' },
       event: EVENT,
       room,
-      podcast: { syraPodcastId: 'pod-1', title: 'Show' },
+      podcast: { syraPodcastId: 'pod-1' },
       attachmentOrder: ['room', 'event', 'article', 'podcast', 'sources'],
     });
     await act(async () => {
@@ -350,7 +350,7 @@ describe('"Discard" removes the session draft', () => {
 });
 
 describe('a draft round-trips every field it keeps', () => {
-  it('keeps the root job, a full podcast, the schedule and the posting mode', async () => {
+  it('keeps the root job, a podcast reference, the schedule and the posting mode', async () => {
     const job = {
       mentionJobId: 'job-1',
       title: 'Engineer',
@@ -389,7 +389,8 @@ describe('a draft round-trips every field it keeps', () => {
       mentionJobId: 'job-1',
       location: { countryCode: 'ES', city: 'Barcelona' },
     });
-    expect(restored.podcast).toEqual(podcast);
+    expect([...stored.values()][0].podcast).toEqual({ syraPodcastId: 'pod-1' });
+    expect(restored.podcast).toEqual({ syraPodcastId: 'pod-1' });
     expect(restored.scheduledAt).toEqual(scheduledAt);
     expect(restored.postingMode).toBe('beast');
     expect(restored.showPollCreator).toBe(true);

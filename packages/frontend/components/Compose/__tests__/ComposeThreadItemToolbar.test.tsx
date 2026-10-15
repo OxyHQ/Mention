@@ -149,9 +149,9 @@ jest.mock('@/components/Compose/InteractionSettingsPills', () => {
   return { __esModule: true, default: RNView };
 });
 
-jest.mock('@/components/Podcast/PodcastCard', () => {
+jest.mock('@/components/Podcast/PostPodcastAttachment', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { PodcastCard: RNView };
+  return { PostPodcastAttachment: RNView };
 });
 
 jest.mock('@/components/Post/PostArticlePreview', () => {
@@ -312,7 +312,7 @@ describe('ComposeThreadItem — the per-entry controls a continuation carries', 
 
   it("tints the podcast control for the box's OWN show, not a shared one", () => {
     const withShow = renderItem('beast', {
-      item: { ...baseItem, podcast: { syraPodcastId: 'show-2', title: 'A show' } },
+      item: { ...baseItem, podcast: { syraPodcastId: 'show-2' } },
     });
     expect(iconColor(withShow, 'RiMic2Line')).toBe('#7c3aed');
     act(() => withShow.unmount());

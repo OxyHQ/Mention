@@ -512,18 +512,9 @@ function assembleContent(row: PostRow, children: PostChildRows): StoredPostConte
         })
       : undefined;
 
-  const podcast =
-    row.contentPodcastSyraId !== null &&
-    row.contentPodcastTitle !== null &&
-    row.contentPodcastShowUrl !== null
-      ? compact({
-          syraPodcastId: row.contentPodcastSyraId,
-          title: row.contentPodcastTitle,
-          author: optional(row.contentPodcastAuthor),
-          artworkUrl: optional(row.contentPodcastArtworkUrl),
-          showUrl: row.contentPodcastShowUrl,
-        })
-      : undefined;
+  const podcast = row.contentPodcastSyraId
+    ? { syraPodcastId: row.contentPodcastSyraId }
+    : undefined;
 
   // GeoJSON, rebuilt from the NAMED coordinate columns in `[longitude, latitude]`
   // order. The generated `content_geo` point is the same fact and is never read
@@ -953,10 +944,10 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
       homiioCaseFromText(content.variants?.[0]?.text ?? '')?.caseId ??
       null,
     contentPodcastSyraId: content.podcast?.syraPodcastId ?? null,
-    contentPodcastTitle: content.podcast?.title ?? null,
-    contentPodcastAuthor: content.podcast?.author ?? null,
-    contentPodcastArtworkUrl: content.podcast?.artworkUrl ?? null,
-    contentPodcastShowUrl: content.podcast?.showUrl ?? null,
+    contentPodcastTitle: null,
+    contentPodcastAuthor: null,
+    contentPodcastArtworkUrl: null,
+    contentPodcastShowUrl: null,
 
     // `[longitude, latitude]`, stated once. The generated geography point reads
     // these two columns, so a transposition here is a wrong point rather than a
@@ -1772,10 +1763,10 @@ export async function replacePostContent(
           homiioCaseFromText(content.variants?.[0]?.text ?? '')?.caseId ??
           null,
         contentPodcastSyraId: content.podcast?.syraPodcastId ?? null,
-        contentPodcastTitle: content.podcast?.title ?? null,
-        contentPodcastAuthor: content.podcast?.author ?? null,
-        contentPodcastArtworkUrl: content.podcast?.artworkUrl ?? null,
-        contentPodcastShowUrl: content.podcast?.showUrl ?? null,
+        contentPodcastTitle: null,
+        contentPodcastAuthor: null,
+        contentPodcastArtworkUrl: null,
+        contentPodcastShowUrl: null,
         contentLocationLongitude: content.location?.coordinates[0] ?? null,
         contentLocationLatitude: content.location?.coordinates[1] ?? null,
         contentLocationAddress: content.location?.address ?? null,

@@ -1,3 +1,4 @@
+import { sanitizePodcast } from '../utils/podcastReference';
 import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
 import { createHash } from 'node:crypto';
 import {
@@ -233,7 +234,7 @@ export function toStoredContent(
     room: content.room,
     homiioCase:
       sanitizeHomiioCase(content.homiioCase) ?? homiioCaseFromText(variants[0]?.text ?? ''),
-    podcast: content.podcast,
+    podcast: sanitizePodcast(content.podcast) ?? undefined,
     attachments: content.attachments,
   };
 }

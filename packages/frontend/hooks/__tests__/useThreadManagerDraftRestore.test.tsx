@@ -124,7 +124,7 @@ describe('useThreadManager draft restore', () => {
     expect(restored.article).toEqual(persistedThreadItem.article);
     expect(restored.event).toEqual(persistedThreadItem.event);
     expect(restored.room).toEqual(persistedThreadItem.room);
-    expect(restored.podcast).toEqual(persistedThreadItem.podcast);
+    expect(restored.podcast).toEqual({ syraPodcastId: persistedThreadItem.podcast.syraPodcastId });
     expect(restored.attachmentOrder).toEqual(['event', 'media:file-1']);
   });
 });
