@@ -45,6 +45,8 @@ import {
   MAX_RECOMMENDATION_OFFSET,
   RecommendationsUnavailableError,
 } from '../../services/RecommendationService';
+import { ForegroundRankingError } from '../../services/ForegroundOxyProfileClient';
+import { logger } from '../../utils/logger';
 
 const rankingClient = { rank: mocks.rank };
 const affinityService = { getContentCandidates: mocks.getContentCandidates };
@@ -432,6 +434,67 @@ describe('RecommendationService.getRecommendations', () => {
       service.getRecommendations({ viewerId: 'self_1', limit: 10 }),
     ).rejects.toBeInstanceOf(RecommendationsUnavailableError);
     expect(mocks.redisSet).not.toHaveBeenCalled();
+  });
+
+  it('warns, not errors, when Oxy times out (the 503 is the designed degradation)', async () => {
+    // The SDK's own timeout error shape.
+    mocks.rank.mockRejectedValue(
+      Object.assign(new Error('Request timed out after 5000ms'), {
+        status: 0,
+        code: 'TIMEOUT',
+        timeout: true,
+      }),
+    );
+
+    await expect(makeService().getRecommendations({ limit: 10 })).rejects.toBeInstanceOf(
+      RecommendationsUnavailableError,
+    );
+    expect(logger.warn).toHaveBeenCalledWith('[RecommendationService] ranking failed', {
+      reason: 'Request timed out after 5000ms',
+    });
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it('warns when the foreground lane fails on an Oxy 5xx', async () => {
+    mocks.rank.mockRejectedValue(
+      new ForegroundRankingError('FOREGROUND_PROFILE_READ_REFUSED', {
+        stage: 'invoke',
+        status: 503,
+      }),
+    );
+
+    await expect(
+      makeService().getRecommendations({ viewerId: 'self_1', limit: 10 }),
+    ).rejects.toBeInstanceOf(RecommendationsUnavailableError);
+    expect(logger.warn).toHaveBeenCalledWith('[RecommendationService] ranking failed', {
+      reason: 'FOREGROUND_PROFILE_READ_REFUSED',
+      stage: 'invoke',
+      status: 503,
+    });
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it('still errors when Oxy refuses the request or the failure is our own', async () => {
+    mocks.rank.mockRejectedValueOnce(
+      new ForegroundRankingError('FOREGROUND_TICKET_REFUSED', {
+        stage: 'ticket',
+        code: 'claims_mismatch',
+      }),
+    );
+    mocks.rank.mockRejectedValueOnce(Object.assign(new Error('Bad Request'), { status: 400 }));
+    mocks.rank.mockRejectedValueOnce(new TypeError('items is not iterable'));
+
+    const service = makeService();
+    for (let i = 0; i < 3; i++) {
+      await expect(
+        service.getRecommendations({ viewerId: 'self_1', limit: 10 }),
+      ).rejects.toBeInstanceOf(RecommendationsUnavailableError);
+    }
+    expect(logger.error).toHaveBeenCalledTimes(3);
+    expect(logger.warn).not.toHaveBeenCalledWith(
+      '[RecommendationService] ranking failed',
+      expect.anything(),
+    );
   });
 });
 
