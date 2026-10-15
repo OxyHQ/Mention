@@ -8,6 +8,8 @@ import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { ProfileButton } from '@oxy.so/services/ui/client';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
+import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
+import { RiSparklingFill } from '@oxy.so/bloom/icons/RiSparklingFill';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { LogoIcon } from '@/assets/logo';
@@ -27,6 +29,14 @@ import { Bell, BellActive } from '@/assets/icons/bell-icon';
 
 function LiveRoomsIcon({ size = 24, color }: { size?: number; color?: string }) {
   return <RiBroadcastLine width={size} height={size} fill={color} />;
+}
+
+function AskAliaIcon({ size = 24, color }: { size?: number; color?: string }) {
+  return <RiSparklingLine width={size} height={size} fill={color} />;
+}
+
+function AskAliaIconActive({ size = 24, color }: { size?: number; color?: string }) {
+  return <RiSparklingFill width={size} height={size} fill={color} />;
 }
 
 function paintNavigationIcon(icon: React.ReactNode, width?: number, fill?: string) {
@@ -118,6 +128,18 @@ export function useMentionSidebar(): SidebarProps {
         iconActive: <SearchActive />,
         route: '/explore',
       },
+      // Alia answers the reader's Oxy session, so the row is not offered to an
+      // anonymous visitor.
+      ...(user
+        ? [
+            {
+              title: t('sidebar.askAlia'),
+              icon: <AskAliaIcon />,
+              iconActive: <AskAliaIconActive />,
+              route: '/ai' as const,
+            },
+          ]
+        : []),
       {
         title: t('sidebar.notifications'),
         icon: <Bell />,

@@ -279,7 +279,7 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
               content={label}
               color="default"
               variant="outlined"
-              size="small"
+              size="sm"
             />
           ))}
         </View>

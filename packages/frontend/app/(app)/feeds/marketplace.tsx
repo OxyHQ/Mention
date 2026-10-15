@@ -114,7 +114,7 @@ const MarketplaceFeedCard = React.memo(function MarketplaceFeedCard({
           {averageRating > 0 && (
             <Rating
               variant="stars"
-              size="small"
+              size="sm"
               value={averageRating.toFixed(1)}
               fillValue={averageRating}
               count={reviewCount > 0 ? formatCompactNumber(reviewCount) : undefined}

@@ -132,7 +132,7 @@ const JobApplicationDetailSheet = ({
           content={application.status}
           color={STATUS_TONE[application.status]}
           variant="subtle"
-          size="small"
+          size="sm"
         />
       </View>
 

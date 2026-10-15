@@ -200,7 +200,7 @@ export default function JobApplicationsScreen() {
                     content={item.status}
                     color={STATUS_TONE[item.status]}
                     variant="subtle"
-                    size="small"
+                    size="sm"
                   />
                 </View>
                 {item.contactMethod ? (

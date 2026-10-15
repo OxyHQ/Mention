@@ -313,6 +313,20 @@ module.exports = (_config) => {
           ],
           'expo-audio',
           [
+            // Dictation and voice calls with Alia (`@alia.onl/sdk`) recognise
+            // speech on the device. The plugin writes the two iOS purpose
+            // strings; Android's RECORD_AUDIO is declared above.
+            //
+            // `android/` and `ios/` are gitignored (CNG), so this lands at the
+            // next prebuild / EAS build — it does NOT ship over OTA.
+            'expo-speech-recognition',
+            {
+              microphonePermission:
+                'Allow $(PRODUCT_NAME) to hear what you dictate and say in voice calls with Alia.',
+              speechRecognitionPermission: 'Allow $(PRODUCT_NAME) to turn your speech into text.',
+            },
+          ],
+          [
             'expo-secure-store',
             {
               configureAndroidBackup: true,

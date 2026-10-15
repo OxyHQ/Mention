@@ -604,7 +604,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
                   <View className="flex-row items-center gap-2">
                     <Rating
                       variant="stars"
-                      size="small"
+                      size="sm"
                       value={review.rating || 0}
                       starColor={theme.colors.primary}
                     />

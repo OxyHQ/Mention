@@ -242,7 +242,7 @@ export default function MyJobsScreen() {
                         content={job.status}
                         color={STATUS_TONE[job.status]}
                         variant="subtle"
-                        size="small"
+                        size="sm"
                       />
                     }
                     onPress={() => editJob(job)}

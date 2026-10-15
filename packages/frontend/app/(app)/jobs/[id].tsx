@@ -219,7 +219,7 @@ export default function JobDetailScreen() {
               content={job.status}
               color={STATUS_TONE[job.status]}
               variant="subtle"
-              size="small"
+              size="sm"
             />
           </View>
         ) : null}
@@ -236,7 +236,7 @@ export default function JobDetailScreen() {
         {badges.length > 0 ? (
           <View className="flex-row flex-wrap gap-2 mt-3">
             {badges.map((label) => (
-              <Badge key={label} content={label} color="default" variant="outlined" size="small" />
+              <Badge key={label} content={label} color="default" variant="outlined" size="sm" />
             ))}
           </View>
         ) : null}

@@ -109,7 +109,7 @@ interface ProfileCardProps {
   accessory?: ReactNode;
   /** Bottom hairline. Off for the last row inside an already-bordered container. */
   showDivider?: boolean;
-  size?: 'small' | 'medium';
+  size?: 'sm' | 'md';
   horizontalInset?: number;
 }
 
@@ -178,7 +178,7 @@ export function ProfileCard({
   meta,
   accessory,
   showDivider = true,
-  size = 'medium',
+  size = 'md',
   horizontalInset = 12,
 }: ProfileCardProps) {
   const { resolved, handle, nameLabel, press } = useResolvedProfileIdentity(profile, onPress);
@@ -199,7 +199,7 @@ export function ProfileCard({
         avatarSlot={
           <Avatar
             source={resolved.avatar || undefined}
-            size={size === 'small' ? 36 : 44}
+            size={size === 'sm' ? 36 : 44}
             variant={MEDIA_VARIANT_AVATAR}
             verified={resolved.verified}
             placeholderColor={getUserPlaceholderColor(resolved)}
@@ -248,7 +248,7 @@ export function ProfileCard({
 }
 
 interface ProfileCardSkeletonProps {
-  size?: 'small' | 'medium';
+  size?: 'sm' | 'md';
   horizontalInset?: number;
   /** Reserve the follow-button pill, matching the row this stands in for. */
   showFollowButton?: boolean;
@@ -266,7 +266,7 @@ interface ProfileCardSkeletonProps {
 export function ProfileCardSkeleton({
   showFollowButton = false,
   showDivider = true,
-  size = 'medium',
+  size = 'md',
   horizontalInset = 12,
 }: ProfileCardSkeletonProps) {
   return (
@@ -277,7 +277,7 @@ export function ProfileCardSkeleton({
       )}
       style={{ paddingLeft: horizontalInset, paddingRight: horizontalInset }}
     >
-      <Skeleton.Circle size={size === 'small' ? 36 : 44} />
+      <Skeleton.Circle size={size === 'sm' ? 36 : 44} />
       <Skeleton.Col style={{ flex: 1, gap: 6 }}>
         <Skeleton.Text style={{ width: 140, fontSize: 16, lineHeight: 20 }} />
         <Skeleton.Text style={{ width: 100, fontSize: 14, lineHeight: 18 }} />

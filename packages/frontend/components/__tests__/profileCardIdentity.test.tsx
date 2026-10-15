@@ -188,7 +188,7 @@ describe('ProfileCard follows the identity it names', () => {
       mounted = TestRenderer.create(
         <ProfileCard
           profile={{ id: PERSON_ID, username: 'ada' }}
-          size="small"
+          size="sm"
           horizontalInset={0}
           showFollowButton
           onFollowChange={onFollowChange}
