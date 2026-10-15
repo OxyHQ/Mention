@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
+import { postAuthorships } from '../../db/schema/postContent';
 import {
   clearFederationScope,
   federationScope,
@@ -363,6 +364,25 @@ describe('federatedProfileSync author backfill', () => {
     await runSyncAndAwaitBackfill('fed1', mine);
 
     expect(await ownerOf(sibling)).toBeNull();
+  });
+
+  it('claims a post through its owner authorship row, which hydration resolves the author by', async () => {
+    // Setting `posts.oxy_user_id` alone left a post with an author and no owner
+    // row: hydration found no author, and the web shell served its page as a 503.
+    await seedCachedActor(federatedActor());
+    const mine = await seedOrphan(`${AP_ACTOR_URI}/statuses/1`);
+
+    await runSyncAndAwaitBackfill('fed1', mine);
+
+    const authorship = await getDb()
+      .select({
+        oxyUserId: postAuthorships.oxyUserId,
+        role: postAuthorships.role,
+        status: postAuthorships.status,
+      })
+      .from(postAuthorships)
+      .where(eq(postAuthorships.postId, mine));
+    expect(authorship).toEqual([{ oxyUserId: 'fed1', role: 'owner', status: 'accepted' }]);
   });
 
   it('treats a dot in the actor URI as literal text, never a wildcard', async () => {

@@ -25,6 +25,7 @@ import { and, isNull } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { activityIdUnderActor } from './activitypub/helpers';
 import { posts } from '../db/schema/posts';
+import { replacePostAuthorship } from '../db/posts/postRepository';
 import type { FederatedActorRecord } from '../db/federation/actorRecord';
 import {
   claimAtprotoGraphSync,
@@ -366,11 +367,28 @@ class FederatedProfileSync {
         // `activityIdUnderActor`, which is also why it is not a range and not a
         // pattern. `@bob` cannot claim `@bobsmith`'s orphaned posts because the
         // prefix carries the separator.
+        //
+        // Through `replacePostAuthorship`, not a bare UPDATE of `posts`: the
+        // column is the projection of the post's owner authorship row, and
+        // hydration resolves the author THROUGH that row. Setting the column
+        // alone left 259 public posts with an author and no owner row, each
+        // rendered with a nameless placeholder author and served by the web
+        // shell as a 503 (production, 2026-10-15; repaired by migration 0070).
         if (syncedCount > 0) {
-          await getDb()
-            .update(posts)
-            .set({ oxyUserId: syncUserId })
-            .where(and(activityIdUnderActor(actor.uri), isNull(posts.oxyUserId)));
+          await getDb().transaction(async (tx) => {
+            const orphans = await tx
+              .select({ id: posts.id })
+              .from(posts)
+              .where(and(activityIdUnderActor(actor.uri), isNull(posts.oxyUserId)))
+              .for('update');
+            for (const { id } of orphans) {
+              await replacePostAuthorship(
+                id,
+                [{ oxyUserId: syncUserId, role: 'owner', status: 'accepted' }],
+                tx,
+              );
+            }
+          });
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

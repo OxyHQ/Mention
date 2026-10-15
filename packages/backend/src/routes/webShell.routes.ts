@@ -143,7 +143,12 @@ async function fetchProfile(handle: string): Promise<OxyProfileData | null> {
         signal: controller.signal,
       }),
     );
-    if (response.status === 404) return null;
+    // A 400 is Oxy refusing the handle itself — shorter or longer than any
+    // username can be (`usernameParams`, `MIN/MAX_USERNAME_LENGTH`). It names no
+    // profile and never will, so it is a 404 page like any other unknown handle,
+    // cached negatively like one. Treating it as an outage made it a 503 that
+    // invited the crawler back: 19 of the 74 web-shell 503s on 2026-10-14.
+    if (response.status === 404 || response.status === 400) return null;
     if (!response.ok) throw new Error(`Oxy profile lookup failed (${response.status})`);
     const json = (await response.json()) as { data?: OxyProfileData };
     return json?.data ?? null;

@@ -12,7 +12,7 @@
  *
  * HOW IT WALKS. Bridge actors (`federated_actors.domain = 'kilogram.makeup'`) by
  * primary key, {@link ACTOR_BATCH} at a time; for each, its posts through
- * `posts_federation_actor_uri_idx` (one indexed range per actor — never a scan
+ * `posts_federation_actor_author_idx` (one indexed range per actor — never a scan
  * of `posts`), inserting the keys of those that have none in one short
  * statement per actor with `ON CONFLICT DO NOTHING`. It pauses
  * {@link PAUSE_MS} between actor batches so the request path keeps its I/O.

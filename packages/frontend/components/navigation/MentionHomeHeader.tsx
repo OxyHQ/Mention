@@ -41,7 +41,7 @@ export function MentionHomeHeader() {
             accessibilityLabel={t('Search')}
             onPress={() => router.push('/search')}
           />
-          <ButtonGroupItem leadingIcon={RiSparklingLine} onPress={askAlia.open}>
+          <ButtonGroupItem leadingIcon={RiSparklingLine} onPress={() => askAlia.open()}>
             {t('header.askAlia')}
           </ButtonGroupItem>
           <ButtonGroupItem

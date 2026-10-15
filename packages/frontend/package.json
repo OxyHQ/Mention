@@ -88,7 +88,7 @@
     }
   },
   "dependencies": {
-    "@alia.onl/sdk": "^13.2.0",
+    "@alia.onl/sdk": "^15.2.1",
     "@babel/plugin-transform-export-namespace-from": "^8.0.1",
     "@expo/vector-icons": "^15.1.1",
     "@livekit/react-native": "^3.0.0",
@@ -141,7 +141,6 @@
     "expo-router": "57.0.23",
     "expo-secure-store": "~57.0.4",
     "expo-share-intent": "^8.0.1",
-    "expo-speech-recognition": "~57.1.0",
     "expo-splash-screen": "~57.0.9",
     "expo-sqlite": "~57.0.3",
     "expo-status-bar": "~57.0.1",
@@ -158,6 +157,7 @@
     "react-dom": "19.2.3",
     "react-i18next": "^17.0.16",
     "react-native": "0.86.3",
+    "react-native-audio-api": "^0.13.6",
     "react-native-compressor": "^2.0.3",
     "react-native-css": "3.1.0-rc.0",
     "react-native-gesture-handler": "~2.32.0",

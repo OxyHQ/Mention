@@ -13,8 +13,10 @@ import { RiMailLine } from '@oxy.so/bloom/icons/RiMailLine';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { RiNotification3Fill } from '@oxy.so/bloom/icons/RiNotification3Fill';
 import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
+import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import { RiUpload2Line } from '@oxy.so/bloom/icons/RiUpload2Line';
 
+import { useAskAlia } from '@/context/AskAliaContext';
 import { usePostsStore } from '@/stores/postsStore';
 import { lanesService } from '@/services/lanesService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -152,6 +154,7 @@ export function usePersonProfileView({
   const routedCanonicalHref = useProfileCanonicalHref({ routedFamily: 'person', account });
   const { user: currentUser, oxyServices, canUsePrivateApi } = useAuth();
   const { t } = useTranslation();
+  const askAlia = useAskAlia();
 
   /**
    * The whole of "do nothing while a non-tab sibling is showing", in one place.
@@ -557,6 +560,28 @@ export function usePersonProfileView({
           accessibilityLabel={t('profile.actions.openOnInstance', {
             handle,
             defaultValue: 'Open @{{handle}} on their home instance',
+          })}
+        />
+      )}
+      {!isOwnProfile && profileData && (
+        <Button
+          appearance="subtle"
+          tone="neutral"
+          iconOnly
+          leadingIcon={RiSparklingLine}
+          onPress={() =>
+            askAlia.open({
+              prompt: t('profile.askAlia.prompt', { handle }),
+              context: t('profile.askAlia.context', {
+                name: profileData.design.displayName,
+                handle,
+                id: profileData.id,
+              }),
+            })
+          }
+          accessibilityLabel={t('profile.actions.askAlia', {
+            handle,
+            defaultValue: 'Ask Alia about @{{handle}}',
           })}
         />
       )}

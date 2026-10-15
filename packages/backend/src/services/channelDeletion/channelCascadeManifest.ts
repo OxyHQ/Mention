@@ -230,6 +230,13 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
       'rows go with its posts: `ON DELETE CASCADE` on `topic_affinity_posts.post_id` → `posts.id`.',
   },
   {
+    table: 'post_hashtags',
+    column: 'postId',
+    scope: 'channel-posts',
+    action: 'database',
+    why: 'A trigger-maintained hashtag index row for a destroyed post. `ON DELETE CASCADE` on `posts.id`.',
+  },
+  {
     table: 'post_corrections',
     column: 'postId',
     scope: 'channel-posts',
