@@ -1,12 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { PostAttachmentBundle, PostContent, PostPodcastContent } from '@mention/shared-types';
+import type { PostAttachmentBundle, PostContent } from '@mention/shared-types';
 import { resolveVariant } from '../../services/postVariants';
 
 /**
  * Unit test for the podcast branch of {@link PostHydrationService.buildAttachments}:
- * a post whose `content.podcast` carries a server-denormalized Syra show must
- * surface that show on the hydrated `attachments.podcast` bundle, and a post
- * without one must leave `attachments.podcast` absent.
+ * old post/cache objects can carry provider snapshots, but hydration must expose
+ * only the opaque reference. A post without a reference omits the attachment.
  *
  * `buildAttachments` is private, so it is exercised through a precise structural
  * interface (no `as any`). It performs no DB / network I/O for the podcast
@@ -60,8 +59,8 @@ describe('PostHydrationService.buildAttachments — podcast', () => {
     service = new PostHydrationService();
   });
 
-  it('surfaces a denormalized Syra podcast show on the attachment bundle', () => {
-    const podcast: PostPodcastContent = {
+  it('projects legacy metadata to a reference on the attachment bundle', () => {
+    const podcast = {
       syraPodcastId: 'show-123',
       title: 'The Syra Show',
       author: 'Jane Doe',
@@ -71,7 +70,7 @@ describe('PostHydrationService.buildAttachments — podcast', () => {
 
     const attachments = buildBundle(service, { podcast });
 
-    expect(attachments.podcast).toEqual(podcast);
+    expect(attachments.podcast).toEqual({ syraPodcastId: 'show-123' });
   });
 
   it('omits podcast from the bundle when the post has no podcast', () => {

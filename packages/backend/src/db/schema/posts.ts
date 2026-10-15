@@ -508,6 +508,8 @@ export const posts = pgTable(
     contentHomiioCaseId: text(),
 
     contentPodcastSyraId: text(),
+    // Compatibility columns are always NULL, enforced by posts_podcast_reference_only.
+    // Retained until the previous application image is retired.
     contentPodcastTitle: text(),
     contentPodcastAuthor: text(),
     contentPodcastArtworkUrl: text(),

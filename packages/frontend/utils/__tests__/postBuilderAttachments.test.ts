@@ -93,7 +93,7 @@ describe('buildThreadPost attachments', () => {
       box({
         event: EVENT,
         room: ROOM,
-        podcast: { syraPodcastId: 'pod-1', title: 'Show' },
+        podcast: { syraPodcastId: 'pod-1' },
         mediaIds: [{ id: 'm1', type: 'image' }],
       }),
     );

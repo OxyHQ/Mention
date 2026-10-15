@@ -605,12 +605,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
     // strip rather than a skyline. A poll or a video podcast cannot say anything
     // useful in the standard height, so a row holding one grows for all its items.
     const isSingleItem = items.length === 1;
-    const rowHeight = items.some(
-      (item) =>
-        item.type === 'poll' || (item.type === 'podcast' && Boolean(podcast?.episode?.videoUrl)),
-    )
-      ? TALL_ROW_HEIGHT
-      : ROW_HEIGHT;
+    const rowHeight = items.some((item) => item.type === 'poll') ? TALL_ROW_HEIGHT : ROW_HEIGHT;
     const rowItemHeight = isSingleItem ? undefined : rowHeight;
     const isTallRow = rowHeight === TALL_ROW_HEIGHT;
     // The same two heights as classes, for the cells that take their size from
@@ -988,8 +983,9 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
           <PostPodcastAttachment
             key={`podcast-${idx}`}
             podcast={podcast}
-            width={isSingleItem ? '100%' : podcast.episode?.videoUrl ? 300 : 340}
-            height={rowItemHeight}
+            postId={postId}
+            width={isSingleItem ? '100%' : 340}
+            height={rowHeight}
           />
         );
       }

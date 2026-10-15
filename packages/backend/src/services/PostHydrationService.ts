@@ -1,3 +1,4 @@
+import { sanitizePodcast } from '../utils/podcastReference';
 import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
 import {
   type FeedPostSlice,
@@ -3081,15 +3082,7 @@ export class PostHydrationService {
     attachments.homiioCase =
       sanitizeHomiioCase(content.homiioCase) ?? homiioCaseFromText(resolved.text ?? '');
 
-    if (content.podcast) {
-      attachments.podcast = {
-        syraPodcastId: content.podcast.syraPodcastId,
-        title: content.podcast.title,
-        author: content.podcast.author,
-        artworkUrl: content.podcast.artworkUrl,
-        showUrl: content.podcast.showUrl,
-      };
-    }
+    attachments.podcast = sanitizePodcast(content.podcast) ?? undefined;
 
     if (content.job) {
       attachments.job = {

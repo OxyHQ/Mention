@@ -337,7 +337,7 @@ describe('the content graph', () => {
       location: 'Barcelona',
     },
     room: { roomId: 'r1', title: 'Room', status: 'live', topic: 'Topic', host: 'host' },
-    podcast: { syraPodcastId: 'p1', title: 'Show', author: 'Host', showUrl: 'https://syra.fm/p1' },
+    podcast: { syraPodcastId: 'p1' },
     location: { type: 'Point', coordinates: [2.1734, 41.3851], address: 'Barcelona' },
   };
 
@@ -417,9 +417,6 @@ describe('the content graph', () => {
     });
     expect(reloaded?.content.podcast).toEqual({
       syraPodcastId: 'p1',
-      title: 'Show',
-      author: 'Host',
-      showUrl: 'https://syra.fm/p1',
     });
   });
 
@@ -518,7 +515,7 @@ describe('the batch insert', () => {
     expect(results.map((result) => result.status)).toEqual(inputs.map(() => 'fulfilled'));
     results.forEach((result, index) => {
       if (result.status !== 'fulfilled') return;
-      expect(result.value.id).toBe(inputs[index].id);
+      expect(result.value.id).toBe(inputs[index].id ?? 'missing batch input ID');
       expect(result.value.content.variants?.[0]?.text).toBe(`batch ${index}`);
       expect(result.value.mentions).toEqual([`oxy-batch-mentioned-${index}`]);
       expect(result.value.authorship).toHaveLength(1);
@@ -810,13 +807,21 @@ describe('Homiio case references', () => {
       },
     });
     expect(record.content.homiioCase).toEqual({ caseId: 'case-1' });
-    await replacePostContent(record.id, {
-      variants: [{ source: 'author', tag: 'en', text: 'https://homiio.com/evictions/case-2' }],
-    });
+    await replacePostContent(
+      record.id,
+      {
+        variants: [{ source: 'author', tag: 'en', text: 'https://homiio.com/evictions/case-2' }],
+      },
+      [],
+    );
     expect((await loadPostRecord(record.id))?.content.homiioCase).toEqual({ caseId: 'case-2' });
-    await replacePostContent(record.id, {
-      variants: [{ source: 'author', tag: 'en', text: 'Removed' }],
-    });
+    await replacePostContent(
+      record.id,
+      {
+        variants: [{ source: 'author', tag: 'en', text: 'Removed' }],
+      },
+      [],
+    );
     expect((await loadPostRecord(record.id))?.content.homiioCase).toBeUndefined();
   });
 });

@@ -70,7 +70,7 @@ import {
   emitTombstone,
   repostRecordUri,
 } from '../services/mtn/MentionRecordEmitter';
-import { sanitizePodcast, resolvePodcastContent } from '../utils/syraPodcast';
+import { sanitizePodcast } from '../utils/podcastReference';
 import { sanitizeJobInput, resolveJobContent } from '../utils/jobPostAttachment';
 import { recordRecentReplierForPost } from '../services/PostRecentReplierService';
 import { postCreationService } from '../services/PostCreationService';
@@ -309,9 +309,8 @@ class FeedController {
     try {
       const { postId, content, mentions, hashtags } = req.body as CreateReplyRequest;
       // Accept content as either a string or an object; normalize to PostContent shape
-      // The persisted reply content is the OUTPUT shape: the client-supplied podcast
-      // is only `{ syraPodcastId }` (input), so we drop it here and re-attach the
-      // server-denormalized show below; everything else carries over.
+      // Project provider input below before storing it. Jobs are resolved by
+      // Mention; podcasts remain opaque references even when a client sends a snapshot.
       const replyContent: PostContent =
         typeof content === 'string'
           ? { text: content }
@@ -473,28 +472,12 @@ class FeedController {
         foldedMentions.mentions,
       );
 
-      // A reply may attach a single Syra podcast show. Like createPost, the
-      // client's reference is untrusted: re-resolve + denormalize the show
-      // server-side so a reply can never persist fabricated podcast metadata. An
-      // unresolvable show — or any podcast missing a usable id — is dropped.
-      const replySanitizedPodcast = sanitizePodcast(
-        typeof content === 'string' ? undefined : content?.podcast,
-      );
-      if (replySanitizedPodcast) {
-        try {
-          replyContent.podcast = await resolvePodcastContent(replySanitizedPodcast.syraPodcastId);
-        } catch (podcastError) {
-          logger.warn('createReply: failed to resolve Syra podcast; dropping', {
-            userId: currentUserId,
-            syraPodcastId: replySanitizedPodcast.syraPodcastId,
-            error: podcastError,
-          });
-        }
-      }
+      // Persist only a reference; provider availability never blocks publication.
+      replyContent.podcast =
+        sanitizePodcast(typeof content === 'string' ? undefined : content?.podcast) ?? undefined;
 
       // A reply may attach a Mention job listing, same untrusted-reference
-      // treatment as podcast: only the id crosses the boundary, the card is
-      // denormalized server-side.
+      // input projection as podcasts; the job itself belongs to Mention.
       const replySanitizedJob = sanitizeJobInput(
         typeof content === 'string' ? undefined : content?.job,
       );
@@ -735,10 +718,8 @@ class FeedController {
 
       // Create boost
       const mergedTags = mergeHashtags(content?.text || '', parsedHashtags);
-      // `CreateBoostRequest.content` is the client's INPUT shape, whose `podcast`
-      // and `job` carry only an id. A boost never denormalizes a show or a job
-      // card (the boosted original owns its own attachments), so both fields
-      // are dropped rather than half-resolved.
+      // The boosted original owns its own attachments; the boost carries its
+      // author's commentary without adding separate podcast or job cards.
       const boostContent: PostContent = {
         ...(content ?? { text: '' }),
         podcast: undefined,

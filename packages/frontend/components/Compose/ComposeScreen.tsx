@@ -22,7 +22,7 @@ import { useComposeExit, type ComposePresentation } from './useComposeExit';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
-import { PodcastCard } from '@/components/Podcast/PodcastCard';
+import { PostPodcastAttachment } from '@/components/Podcast/PostPodcastAttachment';
 import RoomCard from '@/components/RoomCard';
 import ComposeToolbar from '@/components/ComposeToolbar';
 import { formatScheduledShort } from '@/utils/dateUtils';
@@ -3256,13 +3256,12 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                         },
                                       ]}
                                     >
-                                      <PodcastCard
-                                        variant="card"
-                                        title={podcast.title}
-                                        author={podcast.author}
-                                        artworkUrl={podcast.artworkUrl}
+                                      <PostPodcastAttachment
+                                        podcast={podcast}
+                                        width={320}
+                                        height={120}
+                                        showSaveButton={false}
                                         onPress={openPodcastPicker}
-                                        style={styles.articleAttachmentPreview}
                                       />
                                     </AttachmentCarouselItem>
                                   );
