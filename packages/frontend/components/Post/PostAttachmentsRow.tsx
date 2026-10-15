@@ -1,3 +1,5 @@
+import { type HomiioCaseReference, parseHomiioCaseUrl } from '@mention/shared-types/homiio';
+import { HomiioCaseCard } from './Attachments/HomiioCaseCard';
 import React, { useRef, useMemo, useCallback, useEffect } from 'react';
 import {
   ScrollView,
@@ -108,6 +110,7 @@ interface Props {
     host?: string;
   } | null;
   onRoomPress?: (() => void) | null;
+  homiioCase?: HomiioCaseReference | null;
   podcast?: PostPodcastContent | null;
   /** Denormalized Mention job attachment — see `PostJobContent`. */
   job?: PostJobContent | null;
@@ -135,6 +138,7 @@ type AttachmentItem =
   | { type: 'article' }
   | { type: 'event' }
   | { type: 'room' }
+  | { type: 'homiioCase' }
   | { type: 'podcast' }
   | { type: 'job' }
   | {
@@ -241,6 +245,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
     room,
     onRoomPress,
     podcast,
+    homiioCase,
     job,
     text,
     documents,
@@ -270,10 +275,14 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
     );
     const hasEvent = useMemo(() => Boolean(event && event.name?.trim?.()), [event]);
     const hasRoom = useMemo(() => Boolean(room?.roomId), [room]);
+    const hasHomiioCase = Boolean(homiioCase?.caseId);
     const hasPodcast = useMemo(() => Boolean(podcast?.syraPodcastId), [podcast]);
     const hasJob = useMemo(() => Boolean(job?.mentionJobId), [job]);
     const linkItems = useMemo<AttachmentItem[]>(() => {
-      const resolved = (documents ?? []).filter((document) => Boolean(document?.canonicalUrl));
+      const resolved = (documents ?? []).filter(
+        (document) =>
+          Boolean(document?.canonicalUrl) && parseHomiioCaseUrl(document.canonicalUrl) === null,
+      );
       const byUrl = new Map<string, ClarityDocument>();
       for (const document of resolved) {
         byUrl.set(normalizedLinkUrl(document.canonicalUrl), document);
@@ -282,7 +291,9 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
       // The cap precedes the profile filter, matching hydration and the composer.
       const sourceUrls = extractUrls(text ?? '')
         .slice(0, MAX_POST_DOCUMENTS)
-        .filter((url) => ownProfileLinkHandle(url) === undefined);
+        .filter(
+          (url) => ownProfileLinkHandle(url) === undefined && parseHomiioCaseUrl(url) === null,
+        );
       const seen = new Set<string>();
       const cards: AttachmentItem[] = [];
       for (const sourceUrl of [
@@ -506,6 +517,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
       if (hasPodcast && !results.some((item) => item.type === 'podcast')) {
         results.push({ type: 'podcast' });
       }
+      if (hasHomiioCase) results.push({ type: 'homiioCase' });
       if (hasJob && !results.some((item) => item.type === 'job')) {
         results.push({ type: 'job' });
       }
@@ -539,6 +551,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
       hasEvent,
       hasRoom,
       hasPodcast,
+      hasHomiioCase,
       hasJob,
       linkItems,
       resolveMediaSrc,
@@ -957,6 +970,18 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
           />
         );
       }
+      if (item.type === 'homiioCase') {
+        return homiioCase ? (
+          <HomiioCaseCard
+            key={`homiio-${idx}`}
+            caseId={homiioCase.caseId}
+            postId={postId}
+            width={isSingleItem ? '100%' : 340}
+            height={rowHeight}
+          />
+        ) : null;
+      }
+
       if (item.type === 'podcast') {
         if (!podcast) return null;
         return (
@@ -1127,6 +1152,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
       prevProps.onEventPress === nextProps.onEventPress &&
       prevProps.room === nextProps.room &&
       prevProps.onRoomPress === nextProps.onRoomPress &&
+      prevProps.homiioCase?.caseId === nextProps.homiioCase?.caseId &&
       prevProps.podcast === nextProps.podcast &&
       prevProps.job === nextProps.job &&
       prevProps.text === nextProps.text &&

@@ -1,3 +1,4 @@
+import { sanitizeHomiioCase, getHomiioCaseUrl } from '@mention/shared-types/homiio';
 /**
  * Parser for compose intent URLs.
  *
@@ -299,6 +300,11 @@ export const parseComposeIntent = (raw: ComposeIntentRawParams): ComposeIntent =
   if (urlValue !== undefined) {
     intent.url = urlValue;
   }
+
+  // Sharing a case is a removable canonical link. Drafts and publishing use the
+  // same reference extraction as a pasted link; no provider metadata is copied.
+  const homiioCase = sanitizeHomiioCase({ caseId: firstString(raw.homiioCaseId) });
+  if (homiioCase) intent.url = getHomiioCaseUrl(homiioCase.caseId);
 
   const mediaUrlValue = validateHttpUrl(firstString(raw.mediaUrl));
   if (mediaUrlValue !== undefined) {

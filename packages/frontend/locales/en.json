@@ -2852,5 +2852,17 @@
   "alia.suggestion.discover": "Suggest accounts and topics to follow",
   "profile.actions.askAlia": "Ask Alia about @{{handle}}",
   "profile.askAlia.prompt": "Tell me about @{{handle}} on Mention: who they are, what they post about and what they are known for.",
-  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering."
+  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering.",
+  "homiio": {
+    "loading": "Loading Homiio case…",
+    "unavailable": "This Homiio case is unavailable",
+    "open": "Open case in Homiio",
+    "status": {
+      "upcoming": "Upcoming",
+      "stopped": "Stopped",
+      "postponed": "Postponed",
+      "executed": "Executed",
+      "cancelled": "Cancelled"
+    }
+  }
 }

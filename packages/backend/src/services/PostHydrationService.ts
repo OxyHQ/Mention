@@ -1,3 +1,4 @@
+import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
 import {
   type FeedPostSlice,
   type FeedSliceItem,
@@ -3003,6 +3004,8 @@ export class PostHydrationService {
       location: baseContent.location,
       event: baseContent.event,
       room: baseContent.room,
+      homiioCase:
+        sanitizeHomiioCase(baseContent.homiioCase) ?? homiioCaseFromText(resolved.text ?? ''),
       attachments: Array.isArray(baseContent.attachments) ? baseContent.attachments : undefined,
     };
   }
@@ -3074,6 +3077,9 @@ export class PostHydrationService {
         host: roomData.host,
       };
     }
+
+    attachments.homiioCase =
+      sanitizeHomiioCase(content.homiioCase) ?? homiioCaseFromText(resolved.text ?? '');
 
     if (content.podcast) {
       attachments.podcast = {

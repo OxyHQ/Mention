@@ -1,3 +1,4 @@
+import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
 /**
  * `PUT /posts/:id` — the author's edit of a published or draft post, including
  * the correction record an edit to a published post leaves behind.
@@ -208,6 +209,9 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
 
     // Support both flat body fields and nested content object from frontend
     const contentObj = req.body.content;
+    if (contentObj && Object.hasOwn(contentObj, 'homiioCase')) {
+      content.homiioCase = sanitizeHomiioCase(contentObj.homiioCase);
+    }
     const media = contentObj?.media ?? req.body.media;
     const { hashtags, mentions, contentLocation, postLocation, sources } = req.body;
 
@@ -255,6 +259,10 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       return res
         .status(400)
         .json({ message: `Post text exceeds maximum length of ${MAX_TEXT_LENGTH} characters` });
+    }
+
+    if (typeof text === 'string' && !Object.hasOwn(contentObj ?? {}, 'homiioCase')) {
+      content.homiioCase = homiioCaseFromText(text);
     }
 
     const textChanged = text !== undefined && currentText !== text;

@@ -1,3 +1,4 @@
+import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
 /**
  * The ONLY module that knows a post is nine tables.
  *
@@ -549,6 +550,7 @@ function assembleContent(row: PostRow, children: PostChildRows): StoredPostConte
     event,
     room,
     podcast,
+    homiioCase: sanitizeHomiioCase({ caseId: row.contentHomiioCaseId }),
     attachments: attachments.length > 0 ? attachments : undefined,
   });
 }
@@ -946,6 +948,10 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
     contentRoomTopic: content.room?.topic ?? null,
     contentRoomHost: content.room?.host ?? null,
 
+    contentHomiioCaseId:
+      sanitizeHomiioCase(content.homiioCase)?.caseId ??
+      homiioCaseFromText(content.variants?.[0]?.text ?? '')?.caseId ??
+      null,
     contentPodcastSyraId: content.podcast?.syraPodcastId ?? null,
     contentPodcastTitle: content.podcast?.title ?? null,
     contentPodcastAuthor: content.podcast?.author ?? null,
@@ -1761,6 +1767,10 @@ export async function replacePostContent(
         contentRoomStatus: content.room?.status ?? null,
         contentRoomTopic: content.room?.topic ?? null,
         contentRoomHost: content.room?.host ?? null,
+        contentHomiioCaseId:
+          sanitizeHomiioCase(content.homiioCase)?.caseId ??
+          homiioCaseFromText(content.variants?.[0]?.text ?? '')?.caseId ??
+          null,
         contentPodcastSyraId: content.podcast?.syraPodcastId ?? null,
         contentPodcastTitle: content.podcast?.title ?? null,
         contentPodcastAuthor: content.podcast?.author ?? null,

@@ -47,7 +47,7 @@
     "test:frontend": "bun run --cwd packages/frontend test",
     "test:e2e": "bun run --cwd packages/e2e test",
     "validate:workflows": "bun ./scripts/validate-workflows.mjs",
-    "validate:lockfile": "bun ./scripts/validate-lockfile.mjs",
+    "validate:lockfile": "bun ./scripts/validate-lockfile.mjs && bun ./scripts/test-validate-lockfile-vendor.mjs",
     "validate:i18n": "bun ./scripts/validate-i18n.mjs && bun ./scripts/test-validate-i18n.mjs",
     "validate:logger": "bun ./scripts/validate-logger-error-args.mjs && bun ./scripts/test-validate-logger-error-args.mjs",
     "validate:id-shape": "bun ./scripts/validate-id-shape.mjs && bun ./scripts/test-validate-id-shape.mjs",
@@ -149,7 +149,8 @@
     "@grpc/grpc-js": "1.14.5",
     "@fastify/busboy": "3.2.2",
     "@oxy.so/protocol": "catalog:",
-    "@oxy.so/mcp": "catalog:"
+    "@oxy.so/mcp": "catalog:",
+    "@homiio/contracts": "file:./vendor/homiio-contracts-0.1.0.tgz"
   },
   "patchedDependencies": {
     "expo-router@57.0.23": "patches/expo-router@57.0.23.patch",

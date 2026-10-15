@@ -1,3 +1,5 @@
+import { homiioCaseFromText } from '@mention/shared-types/homiio';
+import { HomiioCaseCard } from '@/components/Post/Attachments/HomiioCaseCard';
 import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { View, Text, TouchableOpacity, Pressable, ScrollView } from 'react-native';
 // Imported under the name every call site in this file already uses, because
@@ -478,6 +480,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     mentions: [],
   });
   const postContent = mainMentionState.text;
+  const homiioCase = homiioCaseFromText(postContent);
   const mentions = mainMentionState.mentions;
   const setPostContent = useCallback(
     (next: React.SetStateAction<string>) => {
@@ -3025,6 +3028,11 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                           />
                         </ComposeIdentityHeader>
 
+                        {homiioCase ? (
+                          <View style={styles.mediaPreviewContainer}>
+                            <HomiioCaseCard caseId={homiioCase.caseId} />
+                          </View>
+                        ) : null}
                         {/* Attachments row (poll + article + media + link) */}
                         {attachmentOrder.length > 0 ? (
                           <View style={[styles.timelineForeground, styles.mediaPreviewContainer]}>

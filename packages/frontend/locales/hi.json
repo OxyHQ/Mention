@@ -2524,5 +2524,17 @@
   "alia.suggestion.discover": "फ़ॉलो करने के लिए खाते और विषय सुझाओ",
   "profile.actions.askAlia": "@{{handle}} के बारे में Alia से पूछें",
   "profile.askAlia.prompt": "Mention पर @{{handle}} के बारे में बताओ: वे कौन हैं, क्या पोस्ट करते हैं और किसके लिए जाने जाते हैं।",
-  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering."
+  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering.",
+  "homiio": {
+    "loading": "Homiio मामला लोड हो रहा है…",
+    "unavailable": "यह Homiio मामला उपलब्ध नहीं है",
+    "open": "Homiio में मामला खोलें",
+    "status": {
+      "upcoming": "आगामी",
+      "stopped": "रोका गया",
+      "postponed": "स्थगित",
+      "executed": "कार्यान्वित",
+      "cancelled": "रद्द"
+    }
+  }
 }

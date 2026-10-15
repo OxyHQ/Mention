@@ -30,6 +30,7 @@ jest.mock('../Attachments', () => ({
   PostAttachmentEvent: capture('event'),
   PostAttachmentRoom: capture('room'),
 }));
+jest.mock('../Attachments/HomiioCaseCard', () => ({ HomiioCaseCard: capture('homiio') }));
 jest.mock('@/components/Podcast/PostPodcastAttachment', () => ({
   PostPodcastAttachment: capture('podcast'),
 }));
@@ -240,5 +241,17 @@ describe('source link cards before and after metadata arrives', () => {
     expect(refreshed).toHaveLength(1);
     expect(refreshed[0].props.title).toBe('Updated article title');
     act(() => renderer?.unmount());
+  });
+});
+
+describe('Homiio reference cards', () => {
+  it('reserves the same fixed height for an unresolved reference and omits old Clarity content', () => {
+    const row = render({
+      homiioCase: { caseId: 'case-1' },
+      text: 'https://homiio.com/evictions/case-1',
+      documents: [{ canonicalUrl: 'https://homiio.com/evictions/case-1', title: 'Old snapshot' }],
+    });
+    expect(of(row, 'homiio')).toMatchObject({ caseId: 'case-1', width: '100%', height: 200 });
+    expect(row.some((item) => item.kind === 'link')).toBe(false);
   });
 });

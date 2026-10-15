@@ -1,3 +1,4 @@
+import { sanitizeHomiioCase } from '@mention/shared-types/homiio';
 /**
  * `POST /posts` — the native single-post create.
  *
@@ -257,6 +258,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     // (nothing stores a second copy of the body).
     const postContent: PostContent = {
       text: text || '',
+      homiioCase: sanitizeHomiioCase(content?.homiioCase),
       media: normalizedMedia,
       ...(authorLanguageVariants.length > 0 ? { variants: authorLanguageVariants } : {}),
     };

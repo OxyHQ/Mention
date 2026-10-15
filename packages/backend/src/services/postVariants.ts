@@ -1,3 +1,4 @@
+import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
 import { createHash } from 'node:crypto';
 import {
   MAX_AUTHOR_VARIANTS,
@@ -230,6 +231,8 @@ export function toStoredContent(
     sources: content.sources,
     event: content.event,
     room: content.room,
+    homiioCase:
+      sanitizeHomiioCase(content.homiioCase) ?? homiioCaseFromText(variants[0]?.text ?? ''),
     podcast: content.podcast,
     attachments: content.attachments,
   };

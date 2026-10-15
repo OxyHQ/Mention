@@ -14,6 +14,7 @@ vi.mock('../../utils/clarityClient', () => ({
 
 import {
   CLARITY_RESOLVE_BATCH,
+  previewableUrls,
   clarityHostedDocument,
   resolveClarityDocuments,
 } from '../../utils/clarityDocuments';
@@ -171,4 +172,14 @@ describe('clarityHostedDocument', () => {
     const result = await resolveClarityDocuments(['https://site.example/a']);
     expect(result.documents.get('https://site.example/a')).not.toHaveProperty('content');
   });
+});
+
+it('never asks Clarity for a Homiio case or uses a snapshot fallback', async () => {
+  resolve.mockReset();
+  const url = 'https://homiio.com/evictions/case-1';
+  expect(previewableUrls(url)).toEqual([]);
+  const result = await resolveClarityDocuments([url]);
+  expect(resolve).not.toHaveBeenCalled();
+  expect(result.documents.size).toBe(0);
+  expect(result.pending.size).toBe(0);
 });

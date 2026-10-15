@@ -97,6 +97,7 @@ export const POST_ATTACHMENT_TYPES = [
   'sources',
   'room',
   'podcast',
+  'homiioCase',
   'job',
 ] as const;
 

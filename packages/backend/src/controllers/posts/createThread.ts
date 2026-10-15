@@ -1,3 +1,4 @@
+import { sanitizeHomiioCase } from '@mention/shared-types/homiio';
 /**
  * `POST /posts/thread` — the native multi-post create.
  *
@@ -471,6 +472,8 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       if (threadSanitizedRoom) {
         postContent.room = threadSanitizedRoom as import('@mention/shared-types').PostRoomContent;
       }
+
+      postContent.homiioCase = sanitizeHomiioCase(content?.homiioCase);
 
       // Handle podcast data: verify + denormalize the Syra show server-side (as
       // in createPost). The thread path is best-effort and never aborts the loop
