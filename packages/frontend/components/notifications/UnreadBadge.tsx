@@ -50,7 +50,7 @@ const UnreadBadgeComponent: React.FC<UnreadBadgeProps> = ({
       accessibilityRole="image"
       accessibilityLabel={accessibilityLabel}
     >
-      <Badge content={count} max={MAX_DISPLAY_COUNT} color="primary" variant="solid" size="small" />
+      <Badge content={count} max={MAX_DISPLAY_COUNT} color="primary" variant="solid" size="sm" />
     </View>
   );
 };

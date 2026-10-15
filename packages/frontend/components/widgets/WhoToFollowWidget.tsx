@@ -15,7 +15,7 @@ import { useRecommendations } from '@/hooks/useRecommendations';
 import type { ProfileData } from '@/lib/recommendations';
 
 const MAX_DISPLAY_USERS = 5;
-/** Height of the small plain "Show more" button (Bloom `Button size="small"`). */
+/** Height of the small plain "Show more" button (Bloom `Button size="sm"`). */
 const SHOW_MORE_HEIGHT = 32;
 
 export function WhoToFollowWidget({ divider }: { divider?: boolean }) {
@@ -45,7 +45,7 @@ export function WhoToFollowWidget({ divider }: { divider?: boolean }) {
           <ProfileCardSkeletonList
             count={MAX_DISPLAY_USERS}
             showFollowButton
-            size="small"
+            size="sm"
             horizontalInset={0}
             showDivider={false}
           />
@@ -109,7 +109,7 @@ const FollowRowComponent = React.memo(
         profile={profile}
         showFollowButton
         showDivider={showBorder}
-        size="small"
+        size="sm"
         horizontalInset={0}
       />
     );

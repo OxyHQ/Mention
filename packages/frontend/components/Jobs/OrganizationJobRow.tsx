@@ -111,19 +111,14 @@ const OrganizationJobRow = memo(function OrganizationJobRow({ job }: Organizatio
           {job.title}
         </BloomText>
         {!isPublished ? (
-          <Badge
-            content={job.status}
-            color={STATUS_TONE[job.status]}
-            variant="subtle"
-            size="small"
-          />
+          <Badge content={job.status} color={STATUS_TONE[job.status]} variant="subtle" size="sm" />
         ) : null}
       </View>
 
       {badges.length > 0 ? (
         <View className="flex-row flex-wrap gap-1.5 mt-2">
           {badges.map((label) => (
-            <Badge key={label} content={label} color="default" variant="outlined" size="small" />
+            <Badge key={label} content={label} color="default" variant="outlined" size="sm" />
           ))}
         </View>
       ) : null}

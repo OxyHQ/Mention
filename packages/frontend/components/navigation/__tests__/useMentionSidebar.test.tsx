@@ -62,6 +62,13 @@ it('treats the logo as the Home link', () => {
   expect(mockNavigateOrReselect).toHaveBeenCalledWith('/');
 });
 
+it('offers Ask Alia as a primary destination that opens the chat', () => {
+  const askAlia = sidebar.items?.find((item) => item.key === '/ai');
+  expect(askAlia?.label).toBe('sidebar.askAlia');
+  act(() => askAlia?.onPress?.());
+  expect(mockNavigateOrReselect).toHaveBeenCalledWith('/ai');
+});
+
 it('keeps settings a sheet, not a page to reselect', () => {
   const settings = sidebar.items?.find((item) => item.key === '/settings');
   act(() => settings?.onPress?.());

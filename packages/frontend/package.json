@@ -88,7 +88,7 @@
     }
   },
   "dependencies": {
-    "@alia.onl/sdk": "10.1.1",
+    "@alia.onl/sdk": "^13.1.0",
     "@babel/plugin-transform-export-namespace-from": "^8.0.1",
     "@expo/vector-icons": "^15.1.1",
     "@livekit/react-native": "^3.0.0",
@@ -141,6 +141,7 @@
     "expo-router": "57.0.23",
     "expo-secure-store": "~57.0.4",
     "expo-share-intent": "^8.0.1",
+    "expo-speech-recognition": "~57.1.0",
     "expo-splash-screen": "~57.0.9",
     "expo-sqlite": "~57.0.3",
     "expo-status-bar": "~57.0.1",

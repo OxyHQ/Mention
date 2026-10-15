@@ -116,7 +116,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, className = 'w-[280px]' }) => {
             content={STATUS_LABELS[job.status] ?? job.status}
             color={isNegativeStatus ? 'error' : 'warning'}
             variant="subtle"
-            size="small"
+            size="sm"
           />
         ) : null}
       </View>
@@ -134,7 +134,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, className = 'w-[280px]' }) => {
       {metaBadges.length > 0 ? (
         <View className="flex-row flex-wrap gap-1.5 mt-2.5">
           {metaBadges.map((label) => (
-            <Badge key={label} content={label} color="default" variant="outlined" size="small" />
+            <Badge key={label} content={label} color="default" variant="outlined" size="sm" />
           ))}
         </View>
       ) : null}

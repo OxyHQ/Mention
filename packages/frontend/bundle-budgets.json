@@ -3,8 +3,8 @@
   "budgets": {
     "totalBytes": 21823488,
     "javascriptBytes": 17249075,
-    "initialJavascriptBytes": 7235174,
-    "initialJavascriptGzipBytes": 1866465,
+    "initialJavascriptBytes": 7444890,
+    "initialJavascriptGzipBytes": 1908408,
     "fontBytes": 4194304,
     "largestFileBytes": 7864320
   },

@@ -118,7 +118,7 @@ const JobPickerSheet = memo(function JobPickerSheet({
                     content={item.status}
                     color={STATUS_TONE[item.status]}
                     variant="subtle"
-                    size="small"
+                    size="sm"
                   />
                 }
               />
