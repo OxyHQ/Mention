@@ -445,6 +445,8 @@ describe('createApp', () => {
       .slice(1);
 
     expect(connectSources).toContain('https://api.alia.onl');
+    // Exact tokens, never substrings: the avatar runtime's data and wasm origin.
+    expect(connectSources).toContain('https://alia.onl');
     expect(connectSources).not.toContain('https:');
 
     // Stickers animate on the web through WebAssembly: compiling it is allowed,
@@ -455,6 +457,9 @@ describe('createApp', () => {
       ?.split(/\s+/)
       .slice(1);
     expect(scriptSources).toContain("'wasm-unsafe-eval'");
+    // Ask Alia imports its avatar runtime module from this exact origin.
+    expect(scriptSources).toContain('https://alia.onl');
+    expect(scriptSources).not.toContain('https:');
     expect(scriptSources).not.toContain("'unsafe-eval'");
   });
 });
