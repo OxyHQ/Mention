@@ -97,7 +97,7 @@
     "@lottiefiles/dotlottie-react": "^0.20.0",
     "@lottiefiles/dotlottie-web": "0.81.0",
     "@mention/shared-types": "workspace:*",
-    "@oxy.so/bloom": "^10.7.0",
+    "@oxy.so/bloom": "catalog:",
     "@oxy.so/contracts": "catalog:",
     "@oxy.so/core": "catalog:",
     "@oxy.so/services": "catalog:",

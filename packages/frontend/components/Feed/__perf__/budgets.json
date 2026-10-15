@@ -1,5 +1,5 @@
 {
-  "$comment": "Structural budgets for the feed row-cost harness (issue #1103). Exact counts, not timings: they are deterministic, so they can gate CI. Lower a ceiling when an optimization lands; raising one is a decision to write down in the PR. Bloom 7.31 + react-native-css 3.1.0-rc.0 (inline video on iPhone Safari): text hostNodes 52.125 -> 53.125 because Bloom 7.9.2 gives the avatar placeholder image its own positioned wrapper so it paints above the absolute shape fill on web; linkPreview contextReads 53 -> 55 because react-native-css 3.1.0-rc.0 re-runs an interop component's rule effect after commit (its StrictMode-safe subscription), so the link card's interop Pressable reads its two CSS contexts twice on mount.",
+  "$comment": "Structural budgets for the feed row-cost harness (issue #1103). Exact counts, not timings: they are deterministic, so they can gate CI. Lower a ceiling when an optimization lands; raising one is a decision to write down in the PR. Bloom 7.31 + react-native-css 3.1.0-rc.0 (inline video on iPhone Safari): text hostNodes 52.125 -> 53.125 because Bloom 7.9.2 gives the avatar placeholder image its own positioned wrapper so it paints above the absolute shape fill on web; linkPreview contextReads 53 -> 55 because react-native-css 3.1.0-rc.0 re-runs an interop component's rule effect after commit (its StrictMode-safe subscription), so the link card's interop Pressable reads its two CSS contexts twice on mount. Bloom 10.7.0 (Alia's live avatar on the Ask Alia button): linkPreview contextReads 55 -> 56 because Bloom's Avatar now also calls useMessages(AGENT_AVATAR_MESSAGES) for its character-face label, a second LocaleContext read on every Avatar even when it draws no character (every avatar row gains one; only linkPreview had no headroom). Bloom can read that catalog only in the character branch and give this back.",
   "hostNodesPerRow": {
     "text": 53.125,
     "textAvatar": 51,
@@ -42,7 +42,7 @@
     "image": 42,
     "multiImage": 48,
     "video": 43,
-    "linkPreview": 55,
+    "linkPreview": 56,
     "quote": 57,
     "repost": 43,
     "poll": 40,
