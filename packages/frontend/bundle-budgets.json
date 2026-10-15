@@ -3,8 +3,8 @@
   "budgets": {
     "totalBytes": 20709376,
     "javascriptBytes": 15990784,
-    "initialJavascriptBytes": 6710886,
-    "initialJavascriptGzipBytes": 1751122,
+    "initialJavascriptBytes": 5976883,
+    "initialJavascriptGzipBytes": 1625293,
     "fontBytes": 4194304,
     "largestFileBytes": 7864320
   },
@@ -17,6 +17,7 @@
     "The insights dashboard loads when /insights or /c/<handle>/insights opens (LazyInsightsView)": "/packages/frontend/components/insights/InsightsView\\.tsx$",
     "The settings dialog and its pages load on the first open request": "/packages/frontend/components/settings/(MentionSettingsModal|settingsPages)\\.tsx$",
     "LiveKit and the Syra rooms engine load with the first live-room request (LiveFeatureProviders)": "/node_modules/(livekit-client/|@syra\\.fm/sdk/lib/module/live/)",
-    "Bloom's settings dialog loads with Mention's (screens outside it use settings-modal/rows)": "/node_modules/@oxy\\.so/bloom/lib/module/settings-modal/SettingsModal\\.js$"
+    "Bloom's settings dialog loads with Mention's (screens outside it use settings-modal/rows)": "/node_modules/@oxy\\.so/bloom/lib/module/settings-modal/SettingsModal\\.js$",
+    "zod loads with the notification validators (lib/notificationValidation), its one way in; @syra.fm/sdk 0.17+ checks responses without it": "^/node_modules/zod/"
   }
 }

@@ -6,6 +6,11 @@
  * realtime socket bridge, which mounts on every page but validates nothing until
  * the first event arrives, so the module stays out of the startup path. This is
  * its one `import()`: a second one would make Metro share it between chunks.
+ *
+ * It is also zod's only way into the app (`@syra.fm/sdk` checks its responses
+ * without zod since 0.17), which is what keeps zod out of `__common`; the
+ * `deferredSources` entry in `bundle-budgets.json` fails the build if zod
+ * reaches the startup JavaScript again.
  */
 export type NotificationValidation = typeof import('@/types/validation');
 
