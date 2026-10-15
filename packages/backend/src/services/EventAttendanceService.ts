@@ -1,5 +1,5 @@
 import { and, asc, eq, gt, sql } from 'drizzle-orm';
-import { EventDetails, type EventEdit, type EventState } from '@mention/contracts';
+import { EventDetails, type EventEdit, type EventState } from '@oxy.so/mention-contracts';
 import { getDb, type Transaction } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { eventAttendance } from '../db/schema/events';

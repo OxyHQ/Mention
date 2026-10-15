@@ -20,7 +20,6 @@
         "@clarity.surf/sdk": "^0.4.0",
         "@crowdsource.you/contracts": "1.1.0",
         "@crowdsource.you/core": "3.0.0",
-        "@mention/contracts": "workspace:*",
         "@mention/shared-types": "workspace:*",
         "@mercaria.co/sdk": "^0.2.0",
         "@oxy.so/contracts": "catalog:",
@@ -28,6 +27,7 @@
         "@oxy.so/db": "^1.0.0",
         "@oxy.so/federation": "^2.2.1",
         "@oxy.so/mcp": "catalog:",
+        "@oxy.so/mention-contracts": "workspace:*",
         "@oxy.so/protocol": "catalog:",
         "@oxy.so/utils": "catalog:",
         "@socket.io/redis-adapter": "^8.3.0",
@@ -68,7 +68,7 @@
       },
     },
     "packages/contracts": {
-      "name": "@mention/contracts",
+      "name": "@oxy.so/mention-contracts",
       "version": "0.1.2",
       "dependencies": {
         "zod": "catalog:",
@@ -96,11 +96,11 @@
         "@livekit/react-native-webrtc": "^144.2.0",
         "@lottiefiles/dotlottie-react": "^0.20.0",
         "@lottiefiles/dotlottie-web": "0.81.0",
-        "@mention/contracts": "workspace:*",
         "@mention/shared-types": "workspace:*",
         "@oxy.so/bloom": "catalog:",
         "@oxy.so/contracts": "catalog:",
         "@oxy.so/core": "catalog:",
+        "@oxy.so/mention-contracts": "workspace:*",
         "@oxy.so/services": "catalog:",
         "@oxy.so/stickers": "^0.1.1",
         "@oxy.so/utils": "catalog:",
@@ -227,10 +227,10 @@
       },
     },
     "packages/sdk": {
-      "name": "@mention/sdk",
+      "name": "@oxy.so/mention-sdk",
       "version": "0.1.2",
       "dependencies": {
-        "@mention/contracts": "^0.1.1",
+        "@oxy.so/mention-contracts": "workspace:0.1.2",
       },
     },
     "packages/shared-types": {
@@ -916,15 +916,11 @@
 
     "@mention/backend": ["@mention/backend@workspace:packages/backend"],
 
-    "@mention/contracts": ["@mention/contracts@workspace:packages/contracts"],
-
     "@mention/e2e": ["@mention/e2e@workspace:packages/e2e"],
 
     "@mention/frontend": ["@mention/frontend@workspace:packages/frontend"],
 
     "@mention/mcp": ["@mention/mcp@workspace:packages/mcp"],
-
-    "@mention/sdk": ["@mention/sdk@workspace:packages/sdk"],
 
     "@mention/shared-types": ["@mention/shared-types@workspace:packages/shared-types"],
 
@@ -971,6 +967,10 @@
     "@oxy.so/federation": ["@oxy.so/federation@2.2.1", "", { "dependencies": { "@oxy.so/contracts": "^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0", "@oxy.so/core": "^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0" }, "peerDependencies": { "express": "^4.18.0 || ^5.0.0" }, "optionalPeers": ["express"] }, "sha512-v2KpvCD0fI4E0Mih0LtX//kHiWrKesEFzULOT1DdRu/7/ChvMEOsInSJDAGrlucEqGnEktyDmIVex80wyA2bnQ=="],
 
     "@oxy.so/mcp": ["@oxy.so/mcp@1.1.0", "", { "dependencies": { "@modelcontextprotocol/sdk": "^1.30.0", "@oxy.so/contracts": "^4.9.0", "zod": "^4.5.4" } }, "sha512-dVue2Ug50d7Zwl2wZv8x6yYBOAAWUXcdh2yz1Su2ufcST+ahv/ode6zVX887zWCyoADUWiWNhc2bYZwTsdBqjQ=="],
+
+    "@oxy.so/mention-contracts": ["@oxy.so/mention-contracts@workspace:packages/contracts"],
+
+    "@oxy.so/mention-sdk": ["@oxy.so/mention-sdk@workspace:packages/sdk"],
 
     "@oxy.so/protocol": ["@oxy.so/protocol@1.2.2", "", { "dependencies": { "@noble/curves": "^1.9.7", "@oxy.so/contracts": "^4.9.0", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "<3.0.0", "expo-crypto": "<58.0.0", "expo-modules-core": "<58.0.0", "expo-secure-store": "<58.0.0", "express": "^4.18.0 || ^5.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-6PlaD/GwG0CKvA1kZ0HVB5xM8JMKBms0dYmgAngGIk5lkPRz8x6hu7JkpvGGFef1yAvcxv8F19wW2pf3+YrEoQ=="],
 

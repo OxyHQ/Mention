@@ -20,7 +20,7 @@ import {
   registerForEvent,
   type EventAccess,
 } from '../../services/EventAttendanceService';
-import { EventRegistration } from '@mention/contracts';
+import { EventRegistration } from '@oxy.so/mention-contracts';
 import { sanitizeEventData } from '../../controllers/posts/composeInput';
 vi.mock('../../utils/notificationUtils', async (original) => ({
   ...(await original<typeof import('../../utils/notificationUtils')>()),

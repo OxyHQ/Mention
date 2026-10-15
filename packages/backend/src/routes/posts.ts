@@ -1,4 +1,4 @@
-import { eventOpenApi } from '@mention/contracts';
+import { eventOpenApi } from '@oxy.so/mention-contracts';
 import {
   readEvent,
   eventAttendees,

@@ -9,7 +9,7 @@ import { PageHeader } from '@oxy.so/bloom/page-header';
 import { EventEditor } from '@/components/Compose/EventEditor';
 import { eventsService } from '@/services/eventsService';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import type { EventState } from '@mention/contracts';
+import type { EventState } from '@oxy.so/mention-contracts';
 
 /** Viewer-scoped data stays on the detail screen and never in the feed cache. */
 export default function EventScreen() {

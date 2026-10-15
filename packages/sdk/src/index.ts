@@ -1,4 +1,4 @@
-import { MentionIdentity, MentionPublishInput, MentionPublishResponse } from '@mention/contracts';
+import { MentionIdentity, MentionPublishInput, MentionPublishResponse } from '@oxy.so/mention-contracts';
 
 export class MentionPublishingError extends Error {
   constructor(

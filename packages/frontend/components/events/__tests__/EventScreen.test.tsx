@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { EventState } from '@mention/contracts';
+import type { EventState } from '@oxy.so/mention-contracts';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Switch } from 'react-native';

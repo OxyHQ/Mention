@@ -120,7 +120,7 @@ process exit. These notices contain no private attendee roster.
 
 Migration `0072_ecosystem_references_and_events` adds attendance and event state without
 rewriting existing events. Apply it before the new image. The backend image
-builds and ships `@mention/contracts`; new clients need the corresponding API.
+builds and ships `@oxy.so/mention-contracts`; new clients need the corresponding API.
 The generated contract is `packages/contracts/openapi.events.json`, served at
 `GET /posts/events/openapi.json`; `bun scripts/event-openapi.ts --check` verifies
 freshness. Oxy membership and push provider behavior are tested through fixtures,

@@ -1,5 +1,5 @@
 {
-  "name": "@mention/contracts",
+  "name": "@oxy.so/mention-contracts",
   "version": "0.1.2",
   "type": "commonjs",
   "main": "./dist/index.js",
