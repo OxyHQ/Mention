@@ -154,4 +154,20 @@ describe('posts search planning', () => {
 
     expect(genericPlans).toBeGreaterThan(0);
   }, 60_000);
+
+  it('keeps statistics fine enough to estimate a rare word', async () => {
+    // Migration 0066. The plan a window gets follows the estimated match count,
+    // and a word missing from ANALYZE's most-common-lexeme list is estimated at
+    // half the list's smallest frequency. At the default target (100) that was
+    // ~2,400 renditions for any rare word in production, and the oldest window
+    // walked 761k posts for one matching 30 — a 503. Like an index, its absence
+    // returns the same rows and only changes the latency, so it is asserted
+    // here rather than discovered there.
+    const [{ target }] = await getDb().execute<{ target: number | null }>(sql`
+      select attstattarget::int as target from pg_attribute
+      where attrelid = 'post_content_variants'::regclass and attname = 'search_vector'
+    `);
+
+    expect(target).toBe(1000);
+  });
 });

@@ -26,6 +26,13 @@
  * step over everything newer than the window before reaching it — measured on
  * 1.2M synthetic posts, an older window went from 1.9M buffers to 7k with it.
  *
+ * Which of a window's two plans is cheaper — read the matches, or walk `posts`
+ * newest-first — depends on how many renditions match, and the planner reads
+ * that from the column's statistics. Those are kept at a target of 1000
+ * (migration 0066): at the default, every rare word was estimated at ~2,400
+ * matches, the oldest window walked 761k posts for "elevenlabs" (30 matches)
+ * and timed out (2026-10-15).
+ *
  * ## Why this query needs its own planner settings (issue #1140)
  *
  * postgres.js PREPARES every statement, and after five executions on a

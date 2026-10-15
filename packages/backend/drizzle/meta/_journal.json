@@ -463,6 +463,13 @@
       "when": 1791791189623,
       "tag": "0065_topic_affinity_posts",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1792039752180,
+      "tag": "0066_post_search_vector_statistics",
+      "breakpoints": true
     }
   ]
 }
