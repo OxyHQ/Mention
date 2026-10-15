@@ -19,10 +19,10 @@ past any of:
 
 | Budget | Ceiling |
 | --- | --- |
-| Total bytes | 20.8125 MiB |
-| JavaScript bytes | 16.45 MiB |
-| Initial JavaScript bytes | 6.9 MiB |
-| Initial JavaScript gzip bytes | 1.78 MiB (target: 1.6 MiB) |
+| Total bytes | 19.75 MiB |
+| JavaScript bytes | 15.25 MiB |
+| Initial JavaScript bytes | 6.4 MiB |
+| Initial JavaScript gzip bytes | 1.67 MiB (target: 1.6 MiB) |
 | Font bytes | 4 MiB |
 | Largest single file | 7.5 MiB |
 
@@ -128,6 +128,39 @@ moved OUT of the initial JavaScript, where every reader downloaded the strings
 of all fifteen languages for the families on the page, INTO fourteen language
 chunks of which a reader downloads one (56–190 KB minified, ~20 KB brotli). The
 initial ceilings did not move; the initial JavaScript fell.
+
+### Tree shaking (2026-10-15)
+
+The web export is built with Expo's Metro tree shaking
+(`EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 EXPO_UNSTABLE_TREE_SHAKING=1`, set on the
+`build` and `build:analyze` scripts in `packages/frontend/package.json`, so CI's
+budget export and the deploy export are the same build). Without it Metro keeps
+every export of every module it reaches, so a barrel import pulls in the whole
+barrel: `@oxy.so/core` and `@oxy.so/services` import `@oxy.so/contracts` from its
+root, which carried every contract into startup — Kaana's inference schemas
+among them (393 KiB of `@oxy.so/contracts` in `__common` before, 109 KiB after).
+Bloom (1204 → 962 KiB), gesture-handler, keyboard-controller and the SDKs shrink
+the same way. Measured on one `expo export --platform web` of the same commit:
+
+| Signal | Before | After | Δ |
+| --- | --- | --- | --- |
+| Initial JavaScript bytes | 6.98 MiB | 6.10 MiB | −0.88 MiB (−12.5 %) |
+| Initial JavaScript gzip bytes | 1.80 MiB | 1.59 MiB | −216 KiB (−11.7 %) |
+| Initial JavaScript brotli bytes | 1.37 MiB | 1.21 MiB | −162 KiB (−11.5 %) |
+| JavaScript bytes (all chunks) | 16.29 MiB | 14.96 MiB | −1.33 MiB |
+| Total bytes | 20.71 MiB | 19.38 MiB | −1.33 MiB |
+
+The long-term initial gzip target (1.6 MiB) is met. The ceilings moved down to
+~5 % above the build (initial) and ~2 % (totals).
+
+It is NOT a fix for everything Metro cannot split, and two of the largest
+remaining startup costs survive it: zod 4's `export * as locales` namespace
+(270 KiB of error-message translations for 40+ languages) is kept whole because
+the namespace object is itself an export, and `@lottiefiles/dotlottie-web`
+(160 KiB) is reached through Bloom's synchronous `require` (see the sticker note
+above). zod enters startup through `@syra.fm/sdk/client`'s response schemas,
+reached from two async chunks (the podcast-save client and the live runtime),
+which `extractCommonChunk` hoists into `__common`.
 
 ### Real-browser release gate
 
