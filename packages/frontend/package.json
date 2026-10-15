@@ -178,7 +178,8 @@
     "tailwindcss-animate": "^1.0.7",
     "web-vitals": "^6.2.3",
     "zod": "catalog:",
-    "zustand": "^5.0.14"
+    "zustand": "^5.0.14",
+    "@clarity.surf/sdk": "0.5.0"
   },
   "devDependencies": {
     "@expo/ngrok": "^4.1.3",

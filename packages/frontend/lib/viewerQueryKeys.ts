@@ -360,6 +360,19 @@ export const viewerQueryKeys = {
    * to keep one visitor's cached page from being served to another employer's
    * tab, not re-derive the authority split itself.
    */
+  profileExperience: (
+    viewerId: ViewerId,
+    profileId: string,
+    isAuthenticated: boolean,
+    canUsePrivateApi: boolean,
+  ) =>
+    [
+      ...viewerQueryKeys.all(viewerId),
+      'profile-experience',
+      profileId,
+      isAuthenticated,
+      canUsePrivateApi,
+    ] as const,
   organizationJobs: (viewerId: ViewerId, employerOxyUserId: string) =>
     [...viewerQueryKeys.all(viewerId), 'jobs', 'organization', employerOxyUserId] as const,
   /**

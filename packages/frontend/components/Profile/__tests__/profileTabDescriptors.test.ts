@@ -1,6 +1,7 @@
 import {
   CHANNEL_ONLY_TAB_NAMES,
   ORGANIZATION_ONLY_TAB_NAMES,
+  PERSONAL_ONLY_TAB_NAMES,
   TAB_NAMES,
   buildProfileTabDescriptors,
   laneTabKey,
@@ -10,10 +11,12 @@ import {
 } from '@/components/Profile/types';
 
 const LABELS: Record<ProfileTab, string> = Object.fromEntries(
-  [...TAB_NAMES, ...CHANNEL_ONLY_TAB_NAMES, ...ORGANIZATION_ONLY_TAB_NAMES].map((tab) => [
-    tab,
-    `label:${tab}`,
-  ]),
+  [
+    ...TAB_NAMES,
+    ...CHANNEL_ONLY_TAB_NAMES,
+    ...ORGANIZATION_ONLY_TAB_NAMES,
+    ...PERSONAL_ONLY_TAB_NAMES,
+  ].map((tab) => [tab, `label:${tab}`]),
 ) as Record<ProfileTab, string>;
 
 /**
@@ -26,7 +29,7 @@ const LABELS: Record<ProfileTab, string> = Object.fromEntries(
 describe('profile tab descriptors', () => {
   it('is exactly the static strip when the publisher has no lanes', () => {
     const descriptors = buildProfileTabDescriptors(LABELS);
-    expect(descriptors.map((d) => d.key)).toEqual([...TAB_NAMES]);
+    expect(descriptors.map((d) => d.key)).toEqual([...TAB_NAMES, 'experience']);
     expect(descriptors.every((d) => d.laneId === undefined)).toBe(true);
   });
 
@@ -110,12 +113,9 @@ describe('profile tab descriptors', () => {
     expect(profileTabsForAccountKind('channel')).toContain('mentions');
   });
 
-  it.each(['personal', 'bot', undefined] as const)(
-    'leaves the full strip alone for kind %s',
-    (kind) => {
-      expect(profileTabsForAccountKind(kind)).toEqual([...TAB_NAMES]);
-    },
-  );
+  it.each(['bot'] as const)('leaves the full strip alone for kind %s', (kind) => {
+    expect(profileTabsForAccountKind(kind)).toEqual([...TAB_NAMES]);
+  });
 
   /**
    * `organization` and `project` (OxyHQ/Mention#952) are the one case that
@@ -193,7 +193,7 @@ describe('profile tab descriptors', () => {
   it('never gives a person a writers tab, however the disclosure flag is set', () => {
     for (const disclosed of [true, false]) {
       const descriptors = buildProfileTabDescriptors(LABELS, [], 'personal', disclosed);
-      expect(descriptors.map((d) => d.key)).toEqual([...TAB_NAMES]);
+      expect(descriptors.map((d) => d.key)).toEqual([...TAB_NAMES, 'experience']);
     }
   });
 
@@ -218,3 +218,13 @@ describe('profile tab descriptors', () => {
     expect(profileTabIndex(descriptors, laneTabKey('lane-a'))).toBe(1);
   });
 });
+
+it.each(['personal', undefined] as const)('adds experience to personal kind %s', (kind) => {
+  expect(profileTabsForAccountKind(kind)).toEqual([...TAB_NAMES, 'experience']);
+});
+it.each(['organization', 'project', 'channel', 'bot'] as const)(
+  'does not add experience to %s',
+  (kind) => {
+    expect(profileTabsForAccountKind(kind)).not.toContain('experience');
+  },
+);
