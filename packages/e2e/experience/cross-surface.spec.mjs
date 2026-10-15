@@ -14,7 +14,10 @@ test('the same role can be edited and removed across Mention and Clarity', async
     timeout: 60000,
   });
   await expect(mention.getByText('Creative Director. Video', { exact: true })).toBeVisible();
-  await mention.screenshot({ path: testInfo.outputPath('mention-desktop.png') });
+  await mention.screenshot({
+    animations: 'disabled',
+    path: testInfo.outputPath('mention-desktop.png'),
+  });
   await mention.getByRole('button', { name: 'Add experience', exact: true }).click();
 
   await mention.getByLabel('Title *', { exact: true }).fill('Staff Designer');
@@ -36,7 +39,10 @@ test('the same role can be edited and removed across Mention and Clarity', async
   await expect(clarity.getByText('Staff Designer', { exact: true })).toBeVisible({
     timeout: 60000,
   });
-  await clarity.screenshot({ path: testInfo.outputPath('clarity-desktop.png') });
+  await clarity.screenshot({
+    animations: 'disabled',
+    path: testInfo.outputPath('clarity-desktop.png'),
+  });
   await clarity.getByRole('button', { name: 'Edit Staff Designer', exact: true }).click();
   await clarity.getByLabel('Title *', { exact: true }).fill('Principal Designer');
   await clarity.getByRole('button', { name: 'Save', exact: true }).click();
@@ -56,9 +62,15 @@ test('the same role can be edited and removed across Mention and Clarity', async
       return bounds !== null && bounds.x >= 0 && bounds.x + bounds.width <= 390;
     })
     .toBe(true);
-  await mention.screenshot({ path: testInfo.outputPath('mention-mobile.png') });
+  await mention.screenshot({
+    animations: 'disabled',
+    path: testInfo.outputPath('mention-mobile.png'),
+  });
   await mention.getByRole('button', { name: 'Edit Principal Designer', exact: true }).click();
-  await mention.screenshot({ path: testInfo.outputPath('editor-mobile.png') });
+  await mention.screenshot({
+    animations: 'disabled',
+    path: testInfo.outputPath('editor-mobile.png'),
+  });
   await mention.getByRole('button', { name: 'Delete', exact: true }).click();
   await mention.getByRole('button', { name: 'Delete', exact: true }).last().click();
   await expect(mention.getByText('Principal Designer', { exact: true })).toHaveCount(0);
@@ -66,5 +78,8 @@ test('the same role can be edited and removed across Mention and Clarity', async
   await expect(clarity.getByText('Principal Designer', { exact: true })).toHaveCount(0);
   await clarity.setViewportSize({ width: 390, height: 844 });
   await expect(clarity.getByRole('button', { name: 'Add experience', exact: true })).toBeVisible();
-  await clarity.screenshot({ path: testInfo.outputPath('clarity-mobile.png') });
+  await clarity.screenshot({
+    animations: 'disabled',
+    path: testInfo.outputPath('clarity-mobile.png'),
+  });
 });
