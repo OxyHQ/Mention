@@ -735,6 +735,30 @@ describe('webShell routes (integration)', () => {
     });
   });
 
+  it('answers a handle Oxy refuses as malformed with a 404, not a 503', async () => {
+    // Oxy answers 400 for a lookup key no username can be (too short, too long).
+    // That is a permanent "no such profile", and a 503 invited crawlers back to it.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL) => {
+        if (String(url).includes('/profiles/username/')) {
+          return { ok: false, status: 400, json: async () => ({}) } as Response;
+        }
+        return { ok: true, text: async () => SHELL } as unknown as Response;
+      }),
+    );
+    const warn = vi.spyOn(logger, 'warn');
+
+    const res = await request(makeApp()).get('/@ab').set('User-Agent', 'Googlebot/2.1');
+
+    expect(res.status).toBe(404);
+    expect(res.text).toContain('<title data-mention-seo="true">Profile not found</title>');
+    expect(warn).not.toHaveBeenCalledWith(
+      '[webShell] Profile page resolution failed',
+      expect.anything(),
+    );
+  });
+
   it('serves the shell with post OG for a crawler /p/:id request', async () => {
     stubPublicAuthor();
     const postId = await seedOgPost();
