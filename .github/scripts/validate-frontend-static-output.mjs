@@ -76,6 +76,18 @@ if (await exists(indexPath)) {
   failures.push(...(await checkFontPreloads(outputDirectory)));
 }
 
+// The route layout preloads are written by `packages/frontend/scripts/
+// web-layout-preload.mjs` after `expo export`, and checked here for the same
+// reason: an export without them boots fine, its layouts just go back to
+// waiting for the whole common chunk. The check also proves every layout under
+// `app/` is preloaded and each href is a chunk in this export.
+if (await exists(indexPath)) {
+  const { checkLayoutPreloads } = await import(
+    '../../packages/frontend/scripts/web-layout-preload.mjs'
+  );
+  failures.push(...(await checkLayoutPreloads(outputDirectory)));
+}
+
 if (failures.length > 0) {
   console.error(`Frontend static output validation failed for ${outputDirectory}:\n`);
   for (const failure of failures) console.error(`- ${failure}`);

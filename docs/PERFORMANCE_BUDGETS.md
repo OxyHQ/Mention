@@ -162,6 +162,86 @@ above). zod enters startup through `@syra.fm/sdk/client`'s response schemas,
 reached from two async chunks (the podcast-save client and the live runtime),
 which `extractCommonChunk` hoists into `__common`.
 
+Neither half has a fix in Mention, measured on 2026-10-15:
+
+- **The locales cannot be shaken by changing imports.** zod's own
+  `v4/classic/schemas.js` (and `v4/mini`) does `import * as core from
+  "../core/index.js"`, and `core/index.js` itself re-exports `locales`. Metro's
+  tree shaker treats a namespace import as a use of every export, so ANY zod 4
+  schema in the graph carries all locales, whatever the app or an SDK writes.
+  An export with all three consumers switched to `import * as z from 'zod'`
+  (Mention's `types/validation.ts` and both Syra SDK files patched locally)
+  still had every locale module in `__common` (62 source files, 91 zod modules
+  against 92 before). This is why the Syra SDK's
+  `import * as z` change, which esbuild confirms, did not move Mention's bundle.
+- **zod has THREE async consumers, not two.** Besides the Syra client chunk
+  (`lib/syraPodcasts.ts`) and the live runtime (`LiveFeatureRuntime`, via the
+  SDK's `live/validation.js`), Mention's own notification validators
+  (`types/validation.ts`, loaded by `lib/notificationValidation.ts`) import it.
+  Routing both Syra features through one lazy module would leave zod shared by
+  two chunks and still in `__common`, while making a podcast save download
+  LiveKit. zod leaves `__common` only when one chunk is its sole way in.
+
+None of it RUNS at startup — the factories are defined, not required, until one
+of those chunks loads — so the cost is the download and parse of ~490 KiB raw.
+
+### Layout chunk preloads (2026-10-15)
+
+`asyncRoutes` splits every route file into its own chunk, the eight `_layout`
+files included, and expo-router requires every layout while it builds the route
+tree — on every URL, before anything renders (8 of 8 requested on `/`, `/@user`
+and `/p/<id>` alike). Only the startup JavaScript names them, so they were a
+second round trip that began once `__common` and `entry` had downloaded and run
+(~2.3 s into a cold load). `scripts/web-layout-preload.mjs` now writes one
+`<link rel="preload" as="script">` per layout chunk into the exported
+`index.html` (after `web-font-preload.mjs`, on `build` and `build:analyze`), so
+the preload scanner fetches them beside the scripts. Page chunks (`index`,
+`[id]`, …) are per-URL and this shell serves every path, so they are left alone.
+
+Gates: `validate-frontend-static-output.mjs` fails an export whose `index.html`
+does not preload exactly the layout chunks the startup JavaScript names, one per
+directory under `app/` that holds a `_layout` (a Metro or expo-router naming
+change fails the build instead of silently preloading part of the set);
+`web-layout-preload:selftest` mutation-tests that; `e2e/tests/layout-preload.spec.ts`
+asserts in a browser that the page requests exactly the preloaded layouts, each
+once and through its preload (a mismatched URL or CORS mode would download it
+twice).
+
+Measured with no byte change, local export of the same commit with and without
+the preloads (headless Chromium, 430×932, 4x CPU, 150 ms RTT, ~9 Mbit/s, cold
+cache, median of 7 interleaved loads; profile and post median of 5–7):
+
+| Page | LCP before | LCP after | Δ |
+| --- | --- | --- | --- |
+| `/` | 4.44 s | 4.14 s | −0.30 s |
+| `/p/<id>` | 4.48 s | 4.24 s | −0.24 s |
+| `/@gargron@mastodon.social` | 5.82 s | 5.59 s | −0.23 s |
+
+Layout chunks finish at ~0.58 s instead of ~2.28 s. FCP moves only ~40 ms:
+first paint is bound by downloading and running `__common` (1.3 MB brotli,
+~2.0 s on this profile) and the ~0.8 s of CPU after it, not by the layouts. With
+Alia's avatar runtime blocked (it competes for bandwidth on `/`) the home gain
+is the same (−0.34 s).
+
+### Measured startup costs still open (2026-10-15)
+
+- **Alia's live avatar on the home header's Ask Alia button** (`AliaAvatarIcon`,
+  drawn by Bloom's character runtime from `alia.onl/bloom-character/`) starts as
+  soon as it is visible, ~3.1 s into a cold load, and for a 20 px icon fetches
+  **7.8 MiB** in 20 requests (fur, geometry and accessory binaries of 1–2.5 MB
+  each) — half of everything `/` downloads in its first 15 s — while the feed
+  request and its images are in flight. Blocking it cut home long-task time by
+  ~0.75 s (2.22 → 1.47 s) and LCP by ~0.09 s. Its assets are content-hashed but
+  served `max-age=0, must-revalidate`. The fix belongs in Bloom's runtime (a
+  size-aware level of detail, or a still for icon sizes) and in alia.onl's
+  caching, not in Mention.
+- **Theme tokens.** Bloom's `BloomThemeProvider` solved the same preset's tokens
+  twice on its first render (~50 ms each at 4x CPU) — fixed in Bloom 10.8.2
+  (OxyHQ/Bloom#361), which Mention picks up with its next Bloom bump. The splash
+  (`AppSplashScreen`) resolves the full DARK token set for one gradient stop,
+  another ~50 ms before first paint on a light-mode device, where the theme
+  never uses that set.
+
 ### Real-browser release gate
 
 `packages/e2e` drives the candidate web build at the production origin
