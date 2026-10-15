@@ -3,6 +3,7 @@ import { MtnConfig } from '@mention/shared-types';
 import {
   clearsFloors,
   rankTrendCandidates,
+  resolveTrendFirstSeenAt,
   resolveTrendStartedAt,
   scoreTrendCandidate,
   topUpWithPopular,
@@ -197,6 +198,33 @@ describe('resolveTrendStartedAt', () => {
     const ascending = [minutesAgo(90), minutesAgo(60), minutesAgo(30)];
     const shuffled = [minutesAgo(30), minutesAgo(90), minutesAgo(60)];
     expect(resolveTrendStartedAt(shuffled, now)).toEqual(resolveTrendStartedAt(ascending, now));
+  });
+});
+
+describe('resolveTrendFirstSeenAt', () => {
+  const now = new Date('2026-08-01T12:00:00Z');
+  const hoursAgo = (hours: number) => new Date(now.getTime() - hours * 60 * 60_000);
+
+  it('returns now for a term with no history', () => {
+    expect(resolveTrendFirstSeenAt([], now)).toEqual(now);
+  });
+
+  it('reaches past every gap to the earliest appearance, in any order', () => {
+    const appearances = [hoursAgo(1), hoursAgo(50), hoursAgo(8)];
+    expect(resolveTrendFirstSeenAt(appearances, now)).toEqual(hoursAgo(50));
+  });
+
+  it('ignores a timestamp after the batch being computed', () => {
+    expect(resolveTrendFirstSeenAt([new Date(now.getTime() + 60_000)], now)).toEqual(now);
+  });
+
+  // The production shape behind the fix: `us` trended all week, dropped off the
+  // five-slot list for four hours and returned. That is a new RUN — its age
+  // label restarts — but the term is not new, so `new` must not relight.
+  it('stays old for a perennial term whose run just restarted', () => {
+    const appearances = [hoursAgo(30), hoursAgo(29.5), hoursAgo(4.5), hoursAgo(0.5)];
+    expect(resolveTrendStartedAt(appearances, now)).toEqual(hoursAgo(0.5));
+    expect(resolveTrendFirstSeenAt(appearances, now)).toEqual(hoursAgo(30));
   });
 });
 

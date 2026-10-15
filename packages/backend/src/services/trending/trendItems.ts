@@ -25,7 +25,7 @@ import {
   TREND_LABEL_VERSION,
   type TrendLabel,
 } from './trendLabeling';
-import { resolveTrendStartedAt, type ScoredTrend } from './trendScoring';
+import { resolveTrendFirstSeenAt, resolveTrendStartedAt, type ScoredTrend } from './trendScoring';
 import type { TermCandidate } from './trendDetection';
 import type { TrendCategory, TrendScope, TrendStatus } from '@mention/shared-types';
 import { conceptLabels, resolveTrendConcept } from './conceptRegistry';
@@ -46,6 +46,8 @@ export interface TrendItem {
   authorCount: number;
   momentum: number;
   startedAt: Date;
+  /** First appearance within the onset lookback — what `new` is measured from. */
+  firstSeenAt: Date;
   status?: TrendStatus;
   actorIds: string[];
   languages: string[];
@@ -103,6 +105,9 @@ export async function buildTrendItems(
   const startedAt = new Map(
     terms.map((term) => [term, resolveTrendStartedAt(appearances.get(term) ?? [], calculatedAt)]),
   );
+  const firstSeenAt = new Map(
+    terms.map((term) => [term, resolveTrendFirstSeenAt(appearances.get(term) ?? [], calculatedAt)]),
+  );
 
   // Only terms the CLASSIFIER produced are looked up in the topic registry.
   // `resolveNames` is a write-through registry call, so handing it arbitrary
@@ -140,6 +145,7 @@ export async function buildTrendItems(
       authorCount: trend.authorCount,
       momentum: trend.momentum,
       startedAt: startedAt.get(trend.term) ?? calculatedAt,
+      firstSeenAt: firstSeenAt.get(trend.term) ?? calculatedAt,
       ...(trend.status ? { status: trend.status } : {}),
       actorIds: candidate?.actorIds ?? [],
       languages,
@@ -165,7 +171,8 @@ export function resolveTrendScope(
 
 /**
  * The batch timestamps each term has appeared in, within the onset lookback —
- * the input {@link resolveTrendStartedAt} reconstructs a run from.
+ * the input {@link resolveTrendStartedAt} reconstructs a run from, and
+ * {@link resolveTrendFirstSeenAt} reads the first appearance from.
  *
  * Served by the `(name, calculated_at, type)` unique index (an exact prefix),
  * the same one the sparkline's range scan uses. Fail-soft: without history

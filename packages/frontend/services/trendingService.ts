@@ -29,6 +29,8 @@ export interface TrendingTopic {
   momentum: number;
   /** ISO onset of the current run. Absent on rows that predate onset tracking. */
   startedAt?: string;
+  /** ISO first appearance this week, across runs. Absent on rows that predate the field. */
+  firstSeenAt?: string;
   status?: TrendStatus;
   /** Server-resolved faces. Absent when none resolved. */
   actors?: PostUser[];
