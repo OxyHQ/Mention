@@ -8,11 +8,9 @@ import {
   and,
   arrayOverlaps,
   eq,
-  exists,
   inArray,
   isNull,
   lt,
-  notExists,
   notInArray,
   or,
   sql,
@@ -248,31 +246,33 @@ export const trendTermsSource: SourceModule = {
     const term = typeof params.term === 'string' ? params.term.trim().toLowerCase() : '';
     if (!term) return [];
 
+    // A story with curated members shows exactly those; one without falls
+    // back to the term match. The branch is decided HERE, not in SQL: as
+    // `exists(member) OR (not exists(any member) AND term match)` the planner
+    // could use neither the membership index nor the term GINs, and walked
+    // `posts` newest-first probing every row — 60–95s per page in production,
+    // past the client's 15s timeout, for every signed-in reader (anonymous
+    // pages come from `anonFeedCache`, which hid it).
+    //
+    // The member ids are read FIRST (an index-only scan of
+    // `trend_story_posts_trend_id_post_id_key`) and handed to the page query as
+    // one array parameter, so the page is primary-key lookups over a known,
+    // window-bounded set. A subquery in their place would leave the planner
+    // free to pick the newest-first walk again.
     const story = await resolveTrendStory(term);
-    const membership = story.trendId
-      ? (or(
-          exists(
-            getDb()
-              .select({ one: sql`1` })
-              .from(trendStoryPosts)
-              .where(
-                and(
-                  eq(trendStoryPosts.trendId, story.trendId),
-                  eq(trendStoryPosts.postId, posts.id),
-                ),
-              ),
-          ),
-          and(
-            notExists(
-              getDb()
-                .select({ one: sql`1` })
-                .from(trendStoryPosts)
-                .where(eq(trendStoryPosts.trendId, story.trendId)),
-            ),
-            trendTermMatchSql(story.terms),
-          ),
-        ) as SQL)
-      : trendTermMatchSql(story.terms);
+    const members =
+      story.trendId && story.hasMembers
+        ? await getDb()
+            .select({ postId: trendStoryPosts.postId })
+            .from(trendStoryPosts)
+            .where(eq(trendStoryPosts.trendId, story.trendId))
+        : [];
+    // Empty also covers members pruned since `hasMembers` was cached: the
+    // story then has none, which is the term-match case.
+    const membership =
+      members.length > 0
+        ? sql`${posts.id} = any(${sql.param(members.map((m) => m.postId))}::text[])`
+        : trendTermMatchSql(story.terms);
 
     return fetchChrono(
       [
