@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { APP_COLOR_NAMES, type AppColorName, type PersistedThemeState } from '@oxy.so/bloom/theme';
-import { getPresetVars } from '@oxy.so/bloom/preset-vars';
+import { getPresetBackground } from '@oxy.so/bloom/preset-vars';
 import { LogoIcon } from '@/assets/logo';
 import { Loading } from '@oxy.so/bloom/loading';
 import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersistence';
@@ -37,9 +37,13 @@ const DARK_STOP = '#1A1A1A';
  * `--background` for the preset (a very dark, preset-tinted surface), stop 2 is
  * near-black, so the white logo/spinner always stay clearly visible regardless of
  * preset. Falls back to the safe literal when the preset can't be resolved.
+ *
+ * `getPresetBackground` resolves that one token, not the whole dark set: on a
+ * light-mode device nothing else ever reads the dark set, and solving it cost
+ * ~50 ms (4x-throttled mobile profile) before the first paint.
  */
 function buildDarkGradient(presetName: AppColorName): readonly [string, string] {
-  const darkBackground = getPresetVars(presetName, 'dark')['--background'];
+  const darkBackground = getPresetBackground(presetName, 'dark');
   if (!darkBackground) return FALLBACK_GRADIENT;
   return [darkBackground, DARK_STOP];
 }
