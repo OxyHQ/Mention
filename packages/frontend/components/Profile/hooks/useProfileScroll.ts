@@ -143,9 +143,23 @@ export function useProfileScroll({
       // and it must page the tab's OWN feed: `videos` is the author `videos`
       // descriptor, with its own cursor.
       if (Platform.OS !== 'web' && isVirtualizedProfileGridTab(currentTab)) return;
+      // On WEB the grids are the ONLY tabs this pager serves. Every other author
+      // tab renders a `<Feed>`, which pages itself (its IntersectionObserver
+      // sentinel) out of its own React Query cache — not the `user:<id>:<tab>`
+      // slice written here, which nothing on a web feed tab reads. Paging it here
+      // too sent every page of the profile twice: on a cold load the window's
+      // first scroll event lands while the document is still short, so the
+      // first page went out twice before anything rendered (measured on
+      // mention.earth: two identical `descriptor=author|…|posts` requests).
+      if (Platform.OS === 'web' && !isVirtualizedProfileGridTab(currentTab)) return;
 
       const slice = getUserSliceRef.current(profileId, currentTab);
-      if (slice && slice.hasMore && !slice.isLoading) {
+      // A load-more is the page AFTER one the list already holds. With no cursor
+      // nothing has landed yet (an unwritten key reads as `hasMore: true`), and
+      // the first page is the list's own request — sending it from here as well
+      // restarted that request (`fetchUserFeed` aborts an in-flight read of the
+      // same page) instead of adding anything.
+      if (slice?.hasMore && slice.nextCursor && !slice.isLoading) {
         loadingMoreRef.current = true;
         const fetchUserFeed = fetchUserFeedRef.current;
         void (async () => {
