@@ -409,8 +409,11 @@ Keep the indexes that earn their keep, drop the ones that do not, add the ones
 a query needs.
 
 - **Ported by name** where the manifest named them (`post_public_chrono_v1`,
-  `post_replies_chrono_v1`, `post_links_chrono_v1`), so a DBA reading
-  `pg_indexes` and a developer reading the migration see the same names.
+  `post_replies_chrono_v1`), so a DBA reading `pg_indexes` and a developer
+  reading the migration see the same names.
+- **Dropped when production never reads them:** `pg_stat_user_indexes.idx_scan`
+  has never been reset on production, so an index at zero scans has not served
+  a query since the table was created. Migration 0073 removed four such indexes from `posts` (490 MB).
 - **Dropped as redundant:** a standalone `{userId: 1}` alongside a compound
   unique that already leads with it — a btree serves any leading prefix.
 - **Multikey → GIN**, not btree: `hashtags`, `classification_topics`,

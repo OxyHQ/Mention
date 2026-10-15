@@ -512,6 +512,13 @@
       "when": 1792061023315,
       "tag": "0072_trending_first_seen_at",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1792077037792,
+      "tag": "0073_posts_unused_indexes",
+      "breakpoints": true
     }
   ]
 }
