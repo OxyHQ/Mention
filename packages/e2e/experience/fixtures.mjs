@@ -132,6 +132,7 @@ async function setup(context, authenticated = true, viewer = owner) {
           'access-control-allow-headers': '*',
         },
       });
+    if (path === '/safety/supervision') return json({ self: null, children: [], invitations: [] });
     if (path.startsWith('/auth/oauth/client/'))
       return json({
         application: {

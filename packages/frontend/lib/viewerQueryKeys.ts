@@ -74,8 +74,12 @@ export const publicQueryKeys = {
     [...PUBLIC_ROOT, 'trend-graph', language ?? 'all', region ?? 'all'] as const,
 };
 
-/** Oxy directory queries share one prefix so canonical organization writes invalidate every view. */
+/** Full directory views share invalidation; bearer-scoped minimal identities never reuse full DTOs. */
 export const organizationDirectoryQueryKeys = {
+  minimalBatch: (ids: readonly string[], viewerId: ViewerId, privateReady: boolean) =>
+    ['oxy', 'safety', 'organizations', 'batch', ids, viewerId, privateReady] as const,
+  minimalSearch: (query: string, viewerId: ViewerId, privateReady: boolean) =>
+    ['oxy', 'safety', 'organizations', 'search', query, viewerId, privateReady] as const,
   all: () => ['oxy', 'organizations'] as const,
   batch: (ids: readonly string[], viewerId: ViewerId, authenticated: boolean) =>
     [...organizationDirectoryQueryKeys.all(), 'batch', ids, viewerId, authenticated] as const,

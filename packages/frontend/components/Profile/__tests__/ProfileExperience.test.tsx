@@ -3,11 +3,18 @@ import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Experience } from '@clarity.surf/sdk/experience';
 
+const mockSupervision = { ready: true, supervised: false, isError: false, refetch: jest.fn() };
+jest.mock('@/hooks/useSupervisionState', () => ({ useSupervisionState: () => mockSupervision }));
+jest.mock('@/components/common/EmptyState', () => ({ EmptyState: 'empty-state' }));
+
 const mockAuth = {
   user: { id: 'person' },
   isAuthenticated: true,
   canUsePrivateApi: true,
-  oxyServices: { organizations: { batch: jest.fn(), search: jest.fn(), create: jest.fn() } },
+  oxyServices: {
+    organizations: { batch: jest.fn(), search: jest.fn(), create: jest.fn() },
+    safety: { organizations: jest.fn() },
+  },
 };
 jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => mockAuth }));
 jest.mock('@/hooks/useCachedUser', () => ({ useCachedUserSnapshot: () => undefined }));
@@ -70,6 +77,10 @@ jest.mock('@/utils/alerts', () => ({ confirmDialog: jest.fn().mockResolvedValue(
 import { experienceService } from '@/services/experienceService';
 import { confirmDialog } from '@/utils/alerts';
 import { ProfileExperience } from '../ProfileExperience';
+import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
+import { EmptyState } from '@/components/common/EmptyState';
+import { Avatar } from '@oxy.so/bloom/avatar';
+import { Item } from '@oxy.so/bloom/item';
 import { ExperienceEditor } from '../ExperienceEditor';
 import type { Organization } from '@oxy.so/contracts';
 
@@ -133,6 +144,7 @@ async function press(label: string) {
 }
 beforeEach(() => {
   jest.clearAllMocks();
+  Object.assign(mockSupervision, { ready: true, supervised: false, isError: false });
   mockAuth.user = { id: 'person' };
   mockAuth.isAuthenticated = true;
   mockAuth.canUsePrivateApi = true;
@@ -140,6 +152,20 @@ beforeEach(() => {
   jest.mocked(experienceService.create).mockResolvedValue(entry);
   jest.mocked(experienceService.update).mockResolvedValue(entry);
   jest.mocked(experienceService.remove).mockResolvedValue();
+  mockAuth.oxyServices.safety.organizations.mockResolvedValue({
+    items: [
+      {
+        requestedAccountId: organization.accountId,
+        organization: {
+          accountId: organization.accountId,
+          username: organization.username,
+          name: organization.name,
+          organizationType: organization.organizationType,
+        },
+      },
+    ],
+    missingIds: [],
+  });
   mockAuth.oxyServices.organizations.batch.mockResolvedValue({
     items: [{ requestedAccountId: 'org-apple', organization }],
     missingIds: [],
@@ -300,6 +326,20 @@ describe('central employer identity', () => {
   });
 
   it('preserves career history when an employer is unavailable without exposing a saved name', async () => {
+    mockAuth.oxyServices.safety.organizations.mockResolvedValue({
+      items: [
+        {
+          requestedAccountId: organization.accountId,
+          organization: {
+            accountId: organization.accountId,
+            username: organization.username,
+            name: organization.name,
+            organizationType: organization.organizationType,
+          },
+        },
+      ],
+      missingIds: [],
+    });
     mockAuth.oxyServices.organizations.batch.mockResolvedValue({
       items: [],
       missingIds: ['org-apple'],
@@ -356,4 +396,82 @@ describe('central employer identity', () => {
     expect(button('Organization missing? Add it')).toBeUndefined();
     expect(button('Try again')).toBeDefined();
   });
+});
+
+it('withholds unrated history until current supervision permits it and hides cached content on revocation', async () => {
+  const element = () => (
+    <SupervisedFeatureGate>
+      <ProfileExperience profileId="person" isOwnProfile />
+    </SupervisedFeatureGate>
+  );
+  mockSupervision.ready = false;
+  await render(element());
+  expect(experienceService.list).not.toHaveBeenCalled();
+  expect(mockAuth.oxyServices.organizations.batch).not.toHaveBeenCalled();
+  mockSupervision.ready = true;
+  await act(async () => {
+    renderer.update(<QueryClientProvider client={client}>{element()}</QueryClientProvider>);
+  });
+  await settle();
+  expect(JSON.stringify(renderer.toJSON())).toContain('Designer');
+  expect(button('Add experience')).toBeDefined();
+  mockSupervision.supervised = true;
+  await act(async () => {
+    renderer.update(<QueryClientProvider client={client}>{element()}</QueryClientProvider>);
+  });
+  expect(JSON.stringify(renderer.toJSON())).not.toContain('Designer');
+  expect(button('Add experience')).toBeUndefined();
+  expect(renderer.root.findByType(EmptyState).props.title).toBe('Unavailable for this account');
+  mockSupervision.isError = true;
+  await act(async () => {
+    renderer.update(<QueryClientProvider client={client}>{element()}</QueryClientProvider>);
+  });
+  expect(JSON.stringify(renderer.toJSON())).not.toContain('Designer');
+  expect(renderer.root.findByType(EmptyState).props.error.title).toBe(
+    'Could not check account availability',
+  );
+});
+
+it('manages its own roles using minimal employer identities and never loads the public directory', async () => {
+  mockSupervision.supervised = true;
+  await render(
+    <SupervisedFeatureGate allowSupervised>
+      <ProfileExperience profileId="person" isOwnProfile />
+    </SupervisedFeatureGate>,
+  );
+  expect(JSON.stringify(renderer.toJSON())).toContain('Designer');
+  expect(JSON.stringify(renderer.toJSON())).toContain('Apple');
+  expect(mockAuth.oxyServices.safety.organizations).toHaveBeenCalledWith({ ids: ['org-apple'] });
+  expect(mockAuth.oxyServices.organizations.batch).not.toHaveBeenCalled();
+  expect(renderer.root.findAllByType(Avatar).every((avatar) => !avatar.props.source)).toBe(true);
+  await press('Add experience');
+  await act(async () => {
+    input('Company or organization *').props.onChangeText('Apple');
+  });
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 330));
+  });
+  await settle();
+  expect(mockAuth.oxyServices.safety.organizations).toHaveBeenCalledWith({
+    query: 'Apple',
+    limit: 20,
+  });
+  expect(mockAuth.oxyServices.organizations.search).not.toHaveBeenCalled();
+  expect(button('Organization missing? Add it')).toBeUndefined();
+  expect(renderer.root.findAllByType(Item).every((item) => !item.props.subtitle)).toBe(true);
+  const company = renderer.root
+    .findAllByType(Item)
+    .find((item) => item.props.onPress && item.props.title === 'Apple')!;
+  await act(async () => {
+    company.props.onPress();
+  });
+  await act(async () => {
+    input('Title *').props.onChangeText('Researcher');
+    input('Start date *').props.onChangeText('2024-01');
+  });
+  await press('Save');
+  expect(experienceService.create).toHaveBeenCalledWith(
+    expect.objectContaining({ title: 'Researcher', employerOxyAccountId: 'org-apple' }),
+  );
+  expect(mockAuth.oxyServices.organizations.create).not.toHaveBeenCalled();
 });

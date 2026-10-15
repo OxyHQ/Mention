@@ -23,7 +23,7 @@ import {
   type Experience,
   type ExperienceInput,
 } from '@clarity.surf/sdk/experience';
-import type { Organization } from '@oxy.so/contracts';
+import type { Organization, SafetyOrganizationIdentity } from '@oxy.so/contracts';
 import { ExperienceEmployerField } from './ExperienceEmployerField';
 import { confirmDialog } from '@/utils/alerts';
 
@@ -36,7 +36,7 @@ export function ExperienceEditor({
 }: {
   entry?: Experience;
   ownerId: string;
-  employer?: Organization;
+  employer?: Organization | SafetyOrganizationIdentity;
   onClose: () => void;
   onSaved: () => void;
 }) {
