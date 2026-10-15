@@ -186,6 +186,20 @@ export function useFeedQuery({
   const options = useMemo(() => feedQueryOptions(feed), [feed]);
   const { queryKey } = options;
 
+  // A cold feed asks for its first page HERE, while the screen around it is
+  // still rendering, not from the observer's subscription below — which React
+  // only makes once the whole screen has rendered and committed. On a cold load
+  // of `/` that put the feed request ~130 ms (4x-throttled mobile profile) after
+  // the feed itself had rendered, with the main thread then idle waiting for
+  // it. This is TanStack's own `usePrefetchInfiniteQuery`, gated on `active`
+  // (it takes no `enabled`): it fires only when the query has no state at all,
+  // so a cached, in-flight or failed read is left to the observer, and the
+  // observer joins this read rather than starting another.
+  if (active && !queryClient.getQueryState(queryKey)) {
+    // Never rejects: a failure is the query's state, which the observer reads.
+    void queryClient.prefetchInfiniteQuery(options);
+  }
+
   const { data, error, isFetching, hasNextPage, fetchNextPage, dataUpdatedAt } = useInfiniteQuery({
     ...options,
     enabled: active,
