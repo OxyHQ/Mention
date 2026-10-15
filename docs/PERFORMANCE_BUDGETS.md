@@ -165,8 +165,8 @@ which `extractCommonChunk` hoists into `__common`.
 Neither half has a fix in Mention, measured on 2026-10-15:
 
 - **The locales cannot be shaken by changing imports.** zod's own
-  `v4/classic/schemas.js` (and `v4/mini`) does `import * as core from
-  "../core/index.js"`, and `core/index.js` itself re-exports `locales`. Metro's
+  classic schemas module (and zod/mini's) imports zod's core as a namespace
+  (`import * as core`), and that core module itself re-exports `locales`. Metro's
   tree shaker treats a namespace import as a use of every export, so ANY zod 4
   schema in the graph carries all locales, whatever the app or an SDK writes.
   An export with all three consumers switched to `import * as z from 'zod'`
@@ -176,7 +176,7 @@ Neither half has a fix in Mention, measured on 2026-10-15:
   `import * as z` change, which esbuild confirms, did not move Mention's bundle.
 - **zod has THREE async consumers, not two.** Besides the Syra client chunk
   (`lib/syraPodcasts.ts`) and the live runtime (`LiveFeatureRuntime`, via the
-  SDK's `live/validation.js`), Mention's own notification validators
+  SDK's live-engine validation module), Mention's own notification validators
   (`types/validation.ts`, loaded by `lib/notificationValidation.ts`) import it.
   Routing both Syra features through one lazy module would leave zod shared by
   two chunks and still in `__common`, while making a podcast save download
