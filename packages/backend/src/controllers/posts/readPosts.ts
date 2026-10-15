@@ -7,10 +7,17 @@
  */
 
 import type { Response } from 'express';
-import { and, arrayContains, eq, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { posts as postsTable } from '../../db/schema/posts';
+import { postHashtags } from '../../db/schema/postContent';
+import { getDb } from '../../db/postgres';
 import { CHRONO_DESC, findPostRecords, loadPostRecord } from '../../db/posts/postRepository';
-import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../mtn/feed/CursorBuilder';
+import {
+  ChronoCursor,
+  chronoCursorBoundary,
+  chronoCursorSql,
+  chronoOrderBy,
+} from '../../mtn/feed/CursorBuilder';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import type { PostCorrectionsResponse } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
@@ -173,23 +180,58 @@ export const getPostCorrections = async (req: AuthRequest, res: Response) => {
   }
 };
 
+/** The tag rows a hashtag page reads: stored tags are lowercase. */
+function hashtagRows(hashtag: string): SQL {
+  return eq(postHashtags.tag, hashtag.toLowerCase());
+}
+
 /**
- * The hashtag discovery predicate.
+ * The hashtag discovery predicate: the posts `post_hashtags` lists under the tag.
+ *
+ * That table holds a row only while its post is public, published and not a
+ * collapsed crosspost variant — the triggers of migration 0071 apply the scope
+ * this predicate used to spell out — so membership IS the scope.
  *
  * Exported (with {@link buildPostsByTopicFilter}) so the visibility scope can be
- * asserted without booting the controller's server import chain. Both return a
- * predicate only — the cursor is applied by the handler, because the chronological
- * keyset needs an `await` (a legacy cursor carrying no timestamp is resolved by
- * one primary-key lookup) and a pure builder cannot make it.
+ * asserted without booting the controller's server import chain. The page itself
+ * does not use it: see {@link findHashtagPage}.
  */
 export function buildPostsByHashtagFilter(hashtag: string): SQL {
-  return and(
-    // `@>` on the `text[]`, GIN-indexed — array membership by element equality.
-    arrayContains(postsTable.hashtags, [hashtag.toLowerCase()]),
-    eq(postsTable.status, 'published'),
-    eq(postsTable.visibility, 'public'),
-    notCollapsedCrosspostSql(),
-  ) as SQL;
+  return inArray(
+    postsTable.id,
+    getDb().select({ id: postHashtags.postId }).from(postHashtags).where(hashtagRows(hashtag)),
+  );
+}
+
+/**
+ * One chronological page of a hashtag: `limit` posts after `cursor`.
+ *
+ * The page is chosen in `post_hashtags`, as one range of
+ * `post_hashtags_tag_recent_idx` (tag, created_at desc, post_id desc) exactly as
+ * long as the page, and only those posts are then read from `posts`. On
+ * `posts.hashtags` the GIN index could find a tag's posts but not order them: a
+ * common tag walked the public chronological index (17,881 rows for 21 kept,
+ * 1.1 s cold) and a less common one sorted every match (1,061 heap pages,
+ * 0.73 s cold; production, 2026-10-15). The rows copy their post's `created_at`,
+ * so the cursor bounds the same order either side.
+ */
+export async function findHashtagPage(hashtag: string, cursor: string | undefined, limit: number) {
+  const boundary = await chronoCursorBoundary(cursor);
+  // A row comparison, so the bound is part of the index range rather than a
+  // filter over every row of the tag newer than the cursor.
+  const keyset = boundary
+    ? sql`(${postHashtags.createdAt}, ${postHashtags.postId}) < (${boundary.at.toISOString()}::timestamptz, ${boundary.id})`
+    : undefined;
+  const page = getDb()
+    .select({ id: postHashtags.postId })
+    .from(postHashtags)
+    .where(and(hashtagRows(hashtag), keyset))
+    .orderBy(
+      sql`${postHashtags.createdAt} desc nulls last`,
+      sql`${postHashtags.postId} desc nulls last`,
+    )
+    .limit(limit);
+  return findPostRecords(inArray(postsTable.id, page), { orderBy: chronoOrderBy(), limit });
 }
 
 export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
@@ -198,11 +240,7 @@ export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
     const cursor = queryString(req.query.cursor);
     const limit = Math.min(queryInt(req.query.limit) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
 
-    const keyset = await chronoCursorSql(cursor);
-    const posts = await findPostRecords(
-      keyset ? and(buildPostsByHashtagFilter(hashtag), keyset) : buildPostsByHashtagFilter(hashtag),
-      { orderBy: chronoOrderBy(), limit: limit + 1 },
-    );
+    const posts = await findHashtagPage(hashtag, cursor, limit + 1);
 
     const hasMore = posts.length > limit;
     const postsToReturn = hasMore ? posts.slice(0, limit) : posts;

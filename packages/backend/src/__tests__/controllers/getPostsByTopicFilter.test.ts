@@ -39,7 +39,9 @@ import { chronoCursorSql } from '../../mtn/feed/CursorBuilder';
 import {
   buildPostsByHashtagFilter,
   buildPostsByTopicFilter,
+  findHashtagPage,
 } from '../../controllers/posts/readPosts';
+import { ChronoCursor } from '../../mtn/feed/CursorBuilder';
 
 const AUTHOR = 'oxy-topic-author';
 const created: string[] = [];
@@ -154,5 +156,43 @@ describe('buildPostsByHashtagFilter — hashtag discovery visibility scope', () 
 
     expect(matched).toEqual(new Set([older]));
     expect(matched.has(privatePost)).toBe(false);
+  });
+});
+
+describe('findHashtagPage — the page read from post_hashtags', () => {
+  it('pages newest first through the tag, continuing from a cursor, never a private post', async () => {
+    const oldest = await seed({
+      hashtags: ['paging'],
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+    });
+    const middle = await seed({
+      hashtags: ['paging'],
+      createdAt: new Date('2026-02-01T00:00:00Z'),
+    });
+    const newest = await seed({
+      hashtags: ['paging'],
+      createdAt: new Date('2026-03-01T00:00:00Z'),
+    });
+    await seed({
+      hashtags: ['paging'],
+      visibility: PostVisibility.PRIVATE,
+      createdAt: new Date('2026-02-15T00:00:00Z'),
+    });
+    await seed({ hashtags: ['elsewhere'], createdAt: new Date('2026-02-20T00:00:00Z') });
+
+    const first = await findHashtagPage('Paging', undefined, 2);
+    expect(first.map((post) => post.id)).toEqual([newest, middle]);
+
+    const anchor = first[first.length - 1];
+    const second = await findHashtagPage(
+      'paging',
+      ChronoCursor.build(anchor.id, anchor.createdAt),
+      2,
+    );
+    expect(second.map((post) => post.id)).toEqual([oldest]);
+
+    // A legacy cursor carries only the id; its created_at is recovered.
+    const legacy = await findHashtagPage('paging', middle, 2);
+    expect(legacy.map((post) => post.id)).toEqual([oldest]);
   });
 });
