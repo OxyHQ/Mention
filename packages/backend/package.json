@@ -37,7 +37,7 @@
     "@oxy.so/protocol": "catalog:",
     "@oxy.so/utils": "catalog:",
     "@socket.io/redis-adapter": "^8.3.0",
-    "@syra.fm/sdk": "file:../../vendor/syra.fm-sdk-0.17.0.tgz",
+    "@syra.fm/sdk": "0.17.0",
     "bullmq": "^6.3.12",
     "compression": "^1.8.2",
     "drizzle-orm": "0.45.4",

@@ -31,7 +31,7 @@
         "@oxy.so/protocol": "catalog:",
         "@oxy.so/utils": "catalog:",
         "@socket.io/redis-adapter": "^8.3.0",
-        "@syra.fm/sdk": "file:../../vendor/syra.fm-sdk-0.17.0.tgz",
+        "@syra.fm/sdk": "0.17.0",
         "bullmq": "^6.3.12",
         "compression": "^1.8.2",
         "drizzle-orm": "0.45.4",
@@ -90,7 +90,6 @@
         "@alia.onl/sdk": "^15.2.1",
         "@babel/plugin-transform-export-namespace-from": "^8.0.1",
         "@expo/vector-icons": "^15.1.1",
-        "@homiio/sdk": "file:../../vendor/homiio-sdk-0.1.0.tgz",
         "@livekit/react-native": "^3.0.0",
         "@livekit/react-native-expo-plugin": "^1.0.3",
         "@livekit/react-native-webrtc": "^144.2.0",
@@ -100,6 +99,7 @@
         "@oxy.so/bloom": "catalog:",
         "@oxy.so/contracts": "catalog:",
         "@oxy.so/core": "catalog:",
+        "@oxy.so/homiio-sdk": "0.1.0",
         "@oxy.so/mention-contracts": "workspace:*",
         "@oxy.so/services": "catalog:",
         "@oxy.so/stickers": "^0.1.1",
@@ -107,7 +107,7 @@
         "@react-native-async-storage/async-storage": "^2.2.0",
         "@react-native-community/netinfo": "^12.0.1",
         "@shopify/flash-list": "2.3.2",
-        "@syra.fm/sdk": "file:../../vendor/syra.fm-sdk-0.17.0.tgz",
+        "@syra.fm/sdk": "0.17.0",
         "@tanstack/query-async-storage-persister": "^5.104.1",
         "@tanstack/react-query": "^5.104.1",
         "@tanstack/react-query-persist-client": "^5.104.1",
@@ -238,8 +238,8 @@
       "version": "1.0.0",
       "dependencies": {
         "@clarity.surf/sdk": "^0.4.0",
-        "@homiio/contracts": "file:../../vendor/homiio-contracts-0.1.0.tgz",
         "@oxy.so/contracts": "catalog:",
+        "@oxy.so/homiio-contracts": "0.1.0",
         "@oxy.so/utils": "catalog:",
         "zod": "catalog:",
       },
@@ -261,18 +261,18 @@
     "@expo/log-box": "57.0.4",
     "@fastify/busboy": "3.2.2",
     "@grpc/grpc-js": "1.14.5",
-    "@homiio/contracts": "file:./vendor/homiio-contracts-0.1.0.tgz",
     "@modelcontextprotocol/sdk": "1.32.1",
     "@oxy.so/bloom": "catalog:",
     "@oxy.so/contracts": "catalog:",
     "@oxy.so/core": "4.5.0",
+    "@oxy.so/homiio-contracts": "0.1.0",
     "@oxy.so/mcp": "catalog:",
     "@oxy.so/protocol": "catalog:",
     "@oxy.so/services": "11.2.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native/babel-preset": "0.86.3",
     "@react-native/metro-babel-transformer": "0.86.3",
-    "@syra.fm/contracts": "file:./vendor/syra.fm-contracts-0.1.0.tgz",
+    "@syra.fm/contracts": "0.1.0",
     "@tanstack/query-async-storage-persister": "5.103.2",
     "@tanstack/query-core": "5.103.2",
     "@tanstack/query-persist-client-core": "5.103.2",
@@ -760,10 +760,6 @@
 
     "@grpc/proto-loader": ["@grpc/proto-loader@0.8.1", "", { "dependencies": { "lodash.camelcase": "^4.3.0", "long": "^5.0.0", "protobufjs": "^7.5.5", "yargs": "^17.7.2" }, "bin": { "proto-loader-gen-types": "build/bin/proto-loader-gen-types.js" } }, "sha512-wtF6h+DY6M3YaDBPAmvuuA6jV8Sif9MjtOI5euKFWRgCDl5PeDpPsHR9u2l6St5ceY8AZgoNDww5+HvEsXFsGg=="],
 
-    "@homiio/contracts": ["@homiio/contracts@./vendor/homiio-contracts-0.1.0.tgz", { "dependencies": { "zod": "^4.3.6" } }, "sha512-IX/ApG8DlJ0EPBrWmjg6gMtf3t1oJGmytZYlbUqugB0u/KFgVAl5WvrRDBK1RTMtZbvolpBAwLBi+JqKf0svlQ=="],
-
-    "@homiio/sdk": ["@homiio/sdk@../../vendor/homiio-sdk-0.1.0.tgz", { "dependencies": { "@homiio/contracts": "0.1.0" } }, "sha512-JbxPaEorblUKnMJFGBhHL9w6VtugH28ESsgpuLPXzsiXxHeg0NdMsaZJppfxrx/L2guozcivAGiJD89MzWM0wg=="],
-
     "@hono/node-server": ["@hono/node-server@1.19.14", "", { "peerDependencies": { "hono": "^4" } }, "sha512-GwtvgtXxnWsucXvbQXkRgqksiH2Qed37H9xHZocE5sA3N8O8O8/8FA3uclQXxXVzc9XBZuEOMK7+r02FmSpHtw=="],
 
     "@humanfs/core": ["@humanfs/core@0.19.2", "", { "dependencies": { "@humanfs/types": "^0.15.0" } }, "sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA=="],
@@ -965,6 +961,10 @@
     "@oxy.so/doctor": ["@oxy.so/doctor@1.1.0", "", { "bin": { "oxy-doctor": "src/cli.mjs" } }, "sha512-o5uDvU2c6f7Z+8jpiRyFILimouEwm7GY0pqMEfMNgCJ3/Q10ot2ccm9OpGnRlx9T2MLaWdDh/4hU4TLPq+OC8g=="],
 
     "@oxy.so/federation": ["@oxy.so/federation@2.2.1", "", { "dependencies": { "@oxy.so/contracts": "^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0", "@oxy.so/core": "^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0" }, "peerDependencies": { "express": "^4.18.0 || ^5.0.0" }, "optionalPeers": ["express"] }, "sha512-v2KpvCD0fI4E0Mih0LtX//kHiWrKesEFzULOT1DdRu/7/ChvMEOsInSJDAGrlucEqGnEktyDmIVex80wyA2bnQ=="],
+
+    "@oxy.so/homiio-contracts": ["@oxy.so/homiio-contracts@0.1.0", "", { "dependencies": { "zod": "^4.3.6" } }, "sha512-nn2t2fn3WYPq/jNK9BS+vayHNZT0vunstVR9HXl9RN4niOmjQwDK3VmB6DZGo5nRHYvZA7BStqsyM3jSB2PJtg=="],
+
+    "@oxy.so/homiio-sdk": ["@oxy.so/homiio-sdk@0.1.0", "", { "dependencies": { "@oxy.so/homiio-contracts": "0.1.0" } }, "sha512-tnfngNHZLD1ucoI2igeFADEBK/h4JbLrd/Ju58vT84uBIWt3KFrP+pWdMJrRtkn6WcAqt8wTytI4BEzXlPoEXQ=="],
 
     "@oxy.so/mcp": ["@oxy.so/mcp@1.1.0", "", { "dependencies": { "@modelcontextprotocol/sdk": "^1.30.0", "@oxy.so/contracts": "^4.9.0", "zod": "^4.5.4" } }, "sha512-dVue2Ug50d7Zwl2wZv8x6yYBOAAWUXcdh2yz1Su2ufcST+ahv/ode6zVX887zWCyoADUWiWNhc2bYZwTsdBqjQ=="],
 
@@ -1174,9 +1174,9 @@
 
     "@socket.io/redis-adapter": ["@socket.io/redis-adapter@8.3.0", "", { "dependencies": { "debug": "~4.3.1", "notepack.io": "~3.0.1", "uid2": "1.0.0" }, "peerDependencies": { "socket.io-adapter": "^2.5.4" } }, "sha512-ly0cra+48hDmChxmIpnESKrc94LjRL80TEmZVscuQ/WWkRP81nNj8W8cCGMqbI4L6NCuAaPRSzZF1a9GlAxxnA=="],
 
-    "@syra.fm/contracts": ["@syra.fm/contracts@./vendor/syra.fm-contracts-0.1.0.tgz", { "dependencies": { "zod": "^4.4.3" } }, "sha512-K0pU2EHS7G+kCTSs77oXBwEJyQPXyY1F3YN0JGjzHpVZTU7ioggfZNShWp+rmvpyc5omVFwZucjjEtkPVLVGUA=="],
+    "@syra.fm/contracts": ["@syra.fm/contracts@0.1.0", "", { "dependencies": { "zod": "^4.4.3" } }, "sha512-U/BydIk6i9N4anXlfk7veb1INw1CLXhVLkj9KYvba1Skzayv8aSU4IMl+5f7NNnhi441CVMOHlHfqOLp1xn/mw=="],
 
-    "@syra.fm/sdk": ["@syra.fm/sdk@../../vendor/syra.fm-sdk-0.17.0.tgz", { "dependencies": { "@syra.fm/contracts": "0.1.0", "zod": "^4.4.3" }, "peerDependencies": { "@expo/vector-icons": "^15.0.2", "@livekit/react-native": "^2.11.1", "@oxy.so/services": "^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0", "expo-audio": "~56.0.12", "expo-blur": "~56.0.3", "expo-image-picker": "~56.0.18", "livekit-client": "^2.20.0", "react": "^19.2.3", "react-native": "^0.85.3", "react-native-reanimated": "^4.3.1", "react-native-safe-area-context": "^5.7.0", "react-native-svg": "15.15.4", "socket.io-client": "^4.8.1" }, "optionalPeers": ["@expo/vector-icons", "@livekit/react-native", "@oxy.so/services", "expo-audio", "expo-blur", "expo-image-picker", "livekit-client", "react", "react-native", "react-native-reanimated", "react-native-safe-area-context", "react-native-svg", "socket.io-client"] }, "sha512-snfZG4HIEL2XhEoBWVewXK2kMe+BaGlBkS0cgy4zoAqXS/aiJcjF6aRHPVdqtXf9W7dhxk0/RoioOkJmzQt1ng=="],
+    "@syra.fm/sdk": ["@syra.fm/sdk@0.17.0", "", { "dependencies": { "@syra.fm/contracts": "0.1.0", "zod": "^4.4.3" }, "peerDependencies": { "@expo/vector-icons": "^15.0.2", "@livekit/react-native": "^2.11.1", "@oxy.so/services": "^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0", "expo-audio": "~56.0.12", "expo-blur": "~56.0.3", "expo-image-picker": "~56.0.18", "livekit-client": "^2.20.0", "react": "^19.2.3", "react-native": "^0.85.3", "react-native-reanimated": "^4.3.1", "react-native-safe-area-context": "^5.7.0", "react-native-svg": "15.15.4", "socket.io-client": "^4.8.1" }, "optionalPeers": ["@expo/vector-icons", "@livekit/react-native", "@oxy.so/services", "expo-audio", "expo-blur", "expo-image-picker", "livekit-client", "react", "react-native", "react-native-reanimated", "react-native-safe-area-context", "react-native-svg", "socket.io-client"] }, "sha512-lZa0WtE8g9lBPCx+zIdNW6EvPqlo7RLapcIhHVZjYom/2BodkyMkDxM/UU1XeuKZ+poZ+DKmdC2vv0YtV08MSQ=="],
 
     "@szmarczak/http-timer": ["@szmarczak/http-timer@4.0.6", "", { "dependencies": { "defer-to-connect": "^2.0.0" } }, "sha512-4BAffykYOgO+5nzBWYwE3W90sBgLJoUPRWWcL8wlyiM8IB8ipJz3UMJ9KXQd1RKQXpKp8Tutn80HZtWsu2u76w=="],
 

@@ -30,7 +30,7 @@
     "dev:frontend": "bun run --no-orphans --cwd packages/frontend dev",
     "dev:backend": "bun run --no-orphans --cwd packages/backend dev",
     "build": "bun run build:shared-types && bun run build:publishing && bun run --cwd packages/backend build && bun run --cwd packages/mcp build",
-    "build:shared-types": "bun run --cwd packages/shared-types build",
+    "build:shared-types": "bun run --cwd packages/contracts build && bun run --cwd packages/shared-types build",
     "build:frontend": "bun run --cwd packages/frontend build",
     "build:backend": "bun run build:shared-types && bun run --cwd packages/backend build",
     "audit:security": "bun ./scripts/audit-security.mjs",
@@ -46,7 +46,7 @@
     "test:frontend": "bun run --cwd packages/frontend test",
     "test:e2e": "bun run --cwd packages/e2e test",
     "validate:workflows": "bun ./scripts/validate-workflows.mjs",
-    "validate:lockfile": "bun ./scripts/validate-lockfile.mjs && bun ./scripts/test-validate-lockfile-vendor.mjs",
+    "validate:lockfile": "bun ./scripts/validate-lockfile.mjs",
     "validate:i18n": "bun ./scripts/validate-i18n.mjs && bun ./scripts/test-validate-i18n.mjs",
     "validate:logger": "bun ./scripts/validate-logger-error-args.mjs && bun ./scripts/test-validate-logger-error-args.mjs",
     "validate:id-shape": "bun ./scripts/validate-id-shape.mjs && bun ./scripts/test-validate-id-shape.mjs",
@@ -150,8 +150,8 @@
     "@fastify/busboy": "3.2.2",
     "@oxy.so/protocol": "catalog:",
     "@oxy.so/mcp": "catalog:",
-    "@homiio/contracts": "file:./vendor/homiio-contracts-0.1.0.tgz",
-    "@syra.fm/contracts": "file:./vendor/syra.fm-contracts-0.1.0.tgz"
+    "@oxy.so/homiio-contracts": "0.1.0",
+    "@syra.fm/contracts": "0.1.0"
   },
   "patchedDependencies": {
     "expo-router@57.0.23": "patches/expo-router@57.0.23.patch",

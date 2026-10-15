@@ -168,7 +168,7 @@
     "@oxy.so/contracts": "catalog:",
     "@oxy.so/utils": "catalog:",
     "zod": "catalog:",
-    "@homiio/contracts": "file:../../vendor/homiio-contracts-0.1.0.tgz"
+    "@oxy.so/homiio-contracts": "0.1.0"
   },
   "devDependencies": {
     "typescript": "catalog:",

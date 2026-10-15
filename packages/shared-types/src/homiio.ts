@@ -1,4 +1,4 @@
-import { caseIdSchema, getHomiioCaseUrl, parseHomiioCaseUrl } from '@homiio/contracts';
+import { caseIdSchema, getHomiioCaseUrl, parseHomiioCaseUrl } from '@oxy.so/homiio-contracts';
 import { scanTextEntities, toOpenableUrl, trimUrlTrailingPunctuation } from './textEntities';
 
 export { getHomiioCaseUrl, parseHomiioCaseUrl };

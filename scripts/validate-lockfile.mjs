@@ -44,7 +44,6 @@
  */
 
 import { existsSync } from 'node:fs';
-import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -68,32 +67,6 @@ const ALLOWED_REGISTRY_HOSTS = ['registry.npmjs.org'];
  * integrity entirely, so each one has to be added here deliberately.
  */
 const ALLOWED_NON_REGISTRY_PROTOCOLS = ['workspace:'];
-
-// Temporary review artifacts from the owning Homiio and Syra repositories. This is an
-// exact package/path/content exception, not permission for arbitrary file deps.
-// Remove after the SDK release; provenance and release order: vendor/README.md.
-const VENDORED_REVIEW_ARTIFACTS = {
-  '@syra.fm/contracts': {
-    spec: './vendor/syra.fm-contracts-0.1.0.tgz',
-    path: 'vendor/syra.fm-contracts-0.1.0.tgz',
-    sha256: 'ea1a6cec84cec093109e270ba98aa57c40db948882637e9074117ad3ea3c8438',
-  },
-  '@syra.fm/sdk': {
-    spec: '../../vendor/syra.fm-sdk-0.17.0.tgz',
-    path: 'vendor/syra.fm-sdk-0.17.0.tgz',
-    sha256: '776a21054fe54e2c19520f891548462f0285fd65178ce93318cb5ef8b0add7d6',
-  },
-  '@homiio/contracts': {
-    spec: './vendor/homiio-contracts-0.1.0.tgz',
-    path: 'vendor/homiio-contracts-0.1.0.tgz',
-    sha256: 'af24ab13dd786180484731030dcf219dcf669f4ed5830b2015d1ae66272a29ec',
-  },
-  '@homiio/sdk': {
-    spec: '../../vendor/homiio-sdk-0.1.0.tgz',
-    path: 'vendor/homiio-sdk-0.1.0.tgz',
-    sha256: '2cc359a18fc874b3264934f943dc979cd6aadf499e869315c92483d901abfd3e',
-  },
-};
 
 /**
  * Aliases (`"alias": ["real-package@1.0.0", ...]`) that are known and accepted.
@@ -274,23 +247,6 @@ for (const [key, entry] of Object.entries(packages)) {
     failures.push(
       `${key}: resolves to a differently named package (${entry[0]}) — add "${installed}:${name}" to ALLOWED_PACKAGE_NAME_ALIASES if that alias is intended`,
     );
-  }
-
-  const artifact = VENDORED_REVIEW_ARTIFACTS[name];
-  if (artifact && spec === artifact.spec) {
-    try {
-      const bytes = await readFile(resolve(repositoryRoot, artifact.path));
-      const sha256 = createHash('sha256').update(bytes).digest('hex');
-      const integrity = `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
-      if (sha256 !== artifact.sha256 || entry.at(-1) !== integrity) {
-        failures.push(
-          `${key}: vendored artifact integrity differs from its reviewed content or lockfile`,
-        );
-      }
-    } catch {
-      failures.push(`${key}: reviewed vendored artifact is missing`);
-    }
-    continue;
   }
 
   const protocol = ALLOWED_NON_REGISTRY_PROTOCOLS.find((candidate) => spec.startsWith(candidate));
@@ -632,7 +588,7 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `Validated ${packageCount} bun.lock resolutions (registry or reviewed artifact, https, integrity-pinned, no unexpected aliases), ` +
+  `Validated ${packageCount} bun.lock resolutions (registry-only, https, integrity-pinned, no aliases), ` +
     `${workspacePaths.length} workspace records against their manifests, ` +
     `${auditedInstalls} frozen installs across ${dockerfileNames.length} Dockerfiles, and ` +
     `${auditedOverrideEdges} edges against the ${overriddenPackages.size} overridden packages ` +

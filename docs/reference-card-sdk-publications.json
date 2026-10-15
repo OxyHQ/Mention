@@ -1,0 +1,34 @@
+[
+  {
+    "repo": "Homiio",
+    "sourceHead": "4fca9605a8088c2c8b41ab8c7e5dc11b3774c034",
+    "name": "@oxy.so/homiio-contracts",
+    "version": "0.1.0",
+    "sha256": "de0173c90b3ef5b46bf5161af157d509bd75a0c2aece1c6225c38b6a9655d1d9",
+    "integrity": "sha512-nn2t2fn3WYPq/jNK9BS+vayHNZT0vunstVR9HXl9RN4niOmjQwDK3VmB6DZGo5nRHYvZA7BStqsyM3jSB2PJtg=="
+  },
+  {
+    "repo": "Homiio",
+    "sourceHead": "4fca9605a8088c2c8b41ab8c7e5dc11b3774c034",
+    "name": "@oxy.so/homiio-sdk",
+    "version": "0.1.0",
+    "sha256": "41325975ca96eab1f90db9a005ce4700a94d4954e9a1314de9dbe201f982eb48",
+    "integrity": "sha512-tnfngNHZLD1ucoI2igeFADEBK/h4JbLrd/Ju58vT84uBIWt3KFrP+pWdMJrRtkn6WcAqt8wTytI4BEzXlPoEXQ=="
+  },
+  {
+    "repo": "Syra",
+    "sourceHead": "5eb8fe444cae3f2b91eac7ccf82853fbc915ec25",
+    "name": "@syra.fm/contracts",
+    "version": "0.1.0",
+    "sha256": "5b2ccd255f1e49cf32437f662bd61d3b2c74e028a982404aff5a260b7770beca",
+    "integrity": "sha512-U/BydIk6i9N4anXlfk7veb1INw1CLXhVLkj9KYvba1Skzayv8aSU4IMl+5f7NNnhi441CVMOHlHfqOLp1xn/mw=="
+  },
+  {
+    "repo": "Syra",
+    "sourceHead": "5eb8fe444cae3f2b91eac7ccf82853fbc915ec25",
+    "name": "@syra.fm/sdk",
+    "version": "0.17.0",
+    "sha256": "962dc8b122c606e9b14bf229c7a3c3e6ff46be308bc1a9656bbe3653835f1dc4",
+    "integrity": "sha512-lZa0WtE8g9lBPCx+zIdNW6EvPqlo7RLapcIhHVZjYom/2BodkyMkDxM/UU1XeuKZ+poZ+DKmdC2vv0YtV08MSQ=="
+  }
+]

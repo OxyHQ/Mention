@@ -11,7 +11,6 @@ WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml tsconfig.json ./
 COPY patches/ patches/
-COPY vendor/ vendor/
 COPY packages/shared-types/package.json packages/shared-types/
 COPY packages/backend/package.json packages/backend/
 COPY packages/mcp/package.json packages/mcp/
