@@ -27,12 +27,14 @@ import {
 import { invalidateEngagementLists } from '@/stores/engagementInvalidation';
 import { invalidateProfileCounts } from '@/stores/profileCountsInvalidation';
 import { queryClient } from '@/lib/queryClient';
+import { normalizeApiError } from '@/utils/apiError';
 
 // ── Database imports ─────────────────────────────────────────────
 import {
   upsertPost as dbUpsertPost,
   upsertPosts as dbUpsertPosts,
   getPostById as dbGetPostById,
+  getPostIdsReferencing as dbGetPostIdsReferencing,
   updatePost as dbUpdatePost,
   deletePost as dbDeletePost,
   pruneOldPosts as dbPruneOldPosts,
@@ -1540,6 +1542,17 @@ export const usePostsStore = create<PostsStoreState>()(
       } catch (error) {
         if (abortController.signal.aborted || !isCurrentViewerStateEpoch(operationEpoch))
           return null;
+        const { status } = normalizeApiError(error);
+        if (status === 403 || status === 404) {
+          const revoked = new Set([postId]);
+          let cohort = [postId];
+          while (cohort.length > 0) {
+            const references = dbGetPostIdsReferencing(cohort).filter((id) => !revoked.has(id));
+            for (const id of references) revoked.add(id);
+            cohort = references;
+          }
+          for (const id of revoked) get().removePostEverywhere(id);
+        }
         const errorMessage = error instanceof Error ? error.message : 'Failed to revalidate post';
         logger.debug('revalidatePostById failed', { postId, error: errorMessage });
         return null;

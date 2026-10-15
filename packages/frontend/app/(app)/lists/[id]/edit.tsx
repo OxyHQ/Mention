@@ -1,3 +1,4 @@
+import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
@@ -46,7 +47,7 @@ const SEARCH_DEBOUNCE_MS = 300;
  * via `listsService.addMembers`/`removeMembers`, which broadcasts the change so
  * the list-backed feed (and the list detail screen) refresh automatically.
  */
-export default function EditListMembersScreen() {
+function EditListMembersScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const listId = String(id);
   const { oxyServices } = useAuth();
@@ -364,5 +365,13 @@ export default function EditListMembersScreen() {
         )}
       </ScrollView>
     </View>
+  );
+}
+
+export default function AvailableEditListMembersScreen() {
+  return (
+    <SupervisedFeatureGate>
+      <EditListMembersScreen />
+    </SupervisedFeatureGate>
   );
 }

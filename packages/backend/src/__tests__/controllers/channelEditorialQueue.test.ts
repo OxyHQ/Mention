@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * THE SHARED EDITORIAL QUEUE — `GET /posts/scheduled` for a channel's members.
  *
@@ -71,6 +72,7 @@ vi.mock('../../runtime/oxyClient', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     users: { getMany: getUsersByIds },
     getClarityDocuments: vi.fn(async () => ({})),
     assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
@@ -297,7 +299,7 @@ function buildRequest(viewerId?: string) {
     query: {},
     headers: {},
     acceptsLanguages: () => [] as string[],
-    ...(viewerId ? { user: { id: viewerId } } : {}),
+    ...(viewerId ? { user: { id: viewerId }, accessToken: 'test-viewer-session' } : {}),
   };
 }
 
@@ -628,6 +630,7 @@ describe('the hydration ACL on an unpublished channel post', () => {
   async function hydrateAs(viewerId: string | undefined) {
     const post = await seedQueued();
     return service.hydratePosts([post], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       viewerId,
       maxDepth: 0,
       operatedAccountReader: readerFor(viewerId),
@@ -681,7 +684,13 @@ describe('the hydration ACL on an unpublished channel post', () => {
     // default would serve it to someone who left.
     const post = await seedQueued();
 
-    expect(await service.hydratePosts([post], { viewerId: WRITER, maxDepth: 0 })).toHaveLength(0);
+    expect(
+      await service.hydratePosts([post], {
+        safetyRequester: { accessToken: 'test-viewer-session' },
+        viewerId: WRITER,
+        maxDepth: 0,
+      }),
+    ).toHaveLength(0);
     expect(listAccounts).not.toHaveBeenCalled();
   });
 
@@ -692,6 +701,7 @@ describe('the hydration ACL on an unpublished channel post', () => {
     const post = await seedQueued();
 
     const hydrated = await service.hydratePosts([post], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       viewerId: WRITER,
       maxDepth: 0,
       operatedAccountIds: [],
@@ -724,6 +734,7 @@ describe('the hydration ACL on an unpublished channel post', () => {
       });
 
       const hydrated = await service.hydratePosts([published], {
+        safetyRequester: { accessToken: 'test-viewer-session' },
         viewerId: COLLEAGUE,
         maxDepth: 0,
         operatedAccountReader: readerFor(COLLEAGUE),
@@ -736,6 +747,7 @@ describe('the hydration ACL on an unpublished channel post', () => {
       // status withheld DOES ask, so the zero above is a decision and not a
       // reader that was never wired up.
       await service.hydratePosts([await seedQueued()], {
+        safetyRequester: { accessToken: 'test-viewer-session' },
         viewerId: COLLEAGUE,
         maxDepth: 0,
         operatedAccountReader: readerFor(COLLEAGUE),
@@ -754,6 +766,7 @@ describe('the hydration ACL on an unpublished channel post', () => {
       // Admitted for free by the id comparison, with nothing asked of Oxy.
       expect(
         await service.hydratePosts([draft], {
+          safetyRequester: { accessToken: 'test-viewer-session' },
           viewerId: COLLEAGUE,
           maxDepth: 0,
           operatedAccountReader: readerFor(COLLEAGUE),
@@ -767,6 +780,7 @@ describe('the hydration ACL on an unpublished channel post', () => {
 
       expect(
         await service.hydratePosts(page, {
+          safetyRequester: { accessToken: 'test-viewer-session' },
           viewerId: COLLEAGUE,
           maxDepth: 0,
           operatedAccountReader: readerFor(COLLEAGUE),

@@ -39,6 +39,7 @@ import { classifyQuery } from './resolve';
 import type { NetworkConnector } from '@oxy.so/federation';
 import { postHydrationService } from '../services/PostHydrationService';
 import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
+import { safetyRequesterFor } from '../utils/safetyRequester';
 import { extractBearerToken } from '@oxy.so/mcp';
 import type { OxyAuthRequestWithMcp } from '../mcp/middleware/mcpAuth';
 import { invalidateViewerRelations } from '../utils/privacyHelpers';
@@ -804,6 +805,7 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
     // REQUIRED so federated boosts (empty body, hydrated via boostOf) render.
     const hydrated = await postHydrationService.hydratePosts(sliced, {
       viewerId: req.user?.id,
+      safetyRequester: safetyRequesterFor(req),
       oxyClient: createScopedOxyClient(req),
       maxDepth: 1,
       publicReferencesOnly: true,

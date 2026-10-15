@@ -1,4 +1,5 @@
 import type { Request } from 'express';
+import { authorsMayFederate } from '../../../services/postPublicationPolicy';
 import rateLimit from 'express-rate-limit';
 import type { User } from '@oxy.so/core';
 import {
@@ -95,23 +96,42 @@ async function fetchFollowPage(
   };
 }
 
+/** Public identity reads must recheck current privacy and supervision, even on a cached JRD. */
+async function resolvePublicFederatingUser(username: string) {
+  const user = await resolveOxyUser(username);
+  if (!user) return null;
+  const accountId = String(user.id || user._id);
+  const [profile, publish] = await Promise.all([
+    getServiceOxyClient().safety.profileAccess(
+      { subjectAccountId: accountId },
+      { accessToken: null },
+    ),
+    authorsMayFederate([accountId]),
+  ]);
+  return profile.allowed && publish ? user : null;
+}
+
 /** WebFinger + host-meta discovery router. */
 export const webfingerRouter = createWebfingerRouter({
   domain: FEDERATION_DOMAIN,
   federationEnabled: FEDERATION_ENABLED,
+  httpCacheTtlSeconds: 0,
   urls: federationUrls,
-  resolveUser: (username) => resolveOxyUser(username),
+  resolveUser: resolvePublicFederatingUser,
   consent: {
     isSharingEnabledFromUser: (user) => isFediverseSharingEnabledFromUser(user),
     getSharingStateByUsername: (username) => getFediverseSharingStateByUsername(username),
   },
   cache: {
     get: async (username) => {
+      if (!(await resolvePublicFederatingUser(username))) return null;
       const redis = getRedisClient();
       if (!redis?.isReady) return null;
       try {
         const cached = await redis.get(webfingerCacheKey(username));
-        return cached ? (JSON.parse(cached) as WebfingerJrd) : null;
+        if (!cached) return null;
+        // Keep authority errors outside the Redis fail-soft block below.
+        return JSON.parse(cached) as WebfingerJrd;
       } catch {
         // Redis unavailable / malformed entry — treat as a cache miss.
         return null;
@@ -133,11 +153,12 @@ export const webfingerRouter = createWebfingerRouter({
 export const actorRouter = createActorRouter({
   domain: FEDERATION_DOMAIN,
   federationEnabled: FEDERATION_ENABLED,
+  httpCacheTtlSeconds: 0,
   apContentType: AP_CONTENT_TYPE,
   urls: federationUrls,
   wantsActivityPub: (accept) => isActivityPubAccept(accept),
   getPublicKey: (username) => getPublicKey(username),
-  resolveUser: (username) => resolveOxyUser(username),
+  resolveUser: resolvePublicFederatingUser,
   consent: {
     isSharingEnabledFromUser: (user) => isFediverseSharingEnabledFromUser(user),
     getSharingStateByUsername: (username) => getFediverseSharingStateByUsername(username),

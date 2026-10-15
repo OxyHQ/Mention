@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import type { Socket } from 'socket.io';
 import { postEngagementRoom, feedRoom } from '@mention/shared-types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,6 +14,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 const createScopedOxyClient = vi.fn(() => undefined);
 vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: (...args: unknown[]) => createScopedOxyClient(...args),
 }));
 

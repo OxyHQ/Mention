@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -41,7 +42,11 @@ const hoisted = vi.hoisted(() => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: hoisted.createScopedOxyClient,
-  getServiceOxyClient: () => ({ getUserById: vi.fn(), getUsersByIds: vi.fn(async () => []) }),
+  getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
+    getUserById: vi.fn(),
+    getUsersByIds: vi.fn(async () => []),
+  }),
   // `getSavedPosts` hands hydration a way to resolve the viewer's channels,
   // because bookmarks are selected by id alone and can therefore hold a post the
   // ACL withholds. Irrelevant to the SELECTION this suite is about — hydration
@@ -77,6 +82,7 @@ const scope = serviceScope('post-likes-bookmarks');
 const VIEWER = scope.user('viewer');
 
 function buildRequest(overrides: Record<string, unknown> = {}) {
+  if (overrides.user) overrides = { accessToken: 'test-viewer-session', ...overrides };
   return {
     params: {},
     query: {},
@@ -323,7 +329,10 @@ describe('getBookmarkFolders', () => {
 describe('createBookmarkFolder', () => {
   async function create(body: unknown, user: unknown = { id: VIEWER }) {
     const { res, captured } = buildResponse();
-    await createBookmarkFolder(buildRequest({ user, body }) as never, res as never);
+    await createBookmarkFolder(
+      buildRequest({ accessToken: 'test-viewer-session', user, body }) as never,
+      res as never,
+    );
     return captured;
   }
 
@@ -364,7 +373,10 @@ describe('getSavedPosts', () => {
 
   async function saved(query: Record<string, string> = {}): Promise<string[]> {
     const { res, captured } = buildResponse();
-    await getSavedPosts(buildRequest({ user: { id: VIEWER }, query }) as never, res as never);
+    await getSavedPosts(
+      buildRequest({ accessToken: 'test-viewer-session', user: { id: VIEWER }, query }) as never,
+      res as never,
+    );
     const body = captured.body as { posts: Array<{ id: string }> };
     return body.posts.map((post) => post.id);
   }

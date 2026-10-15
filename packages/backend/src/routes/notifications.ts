@@ -19,6 +19,7 @@ import {
   createUserScopedOxyServices,
   getServiceOxyClient,
 } from '../utils/oxyHelpers';
+import { safetyRequesterFor } from '../utils/safetyRequester';
 import { resolveNotificationInboxIds } from '../services/notificationInbox';
 import { queryInt, queryString } from '../utils/queryParams';
 import { apiRateLimiter } from '../middleware/rateLimiter';
@@ -61,7 +62,6 @@ export const NOTIFICATION_PAGE_ORDER: SQL[] = [
 /** Notification list page size (`GET /notifications`). */
 const DEFAULT_NOTIFICATIONS_PAGE_SIZE = 20;
 const MAX_NOTIFICATIONS_PAGE_SIZE = 50;
-const POST_PREVIEW_TYPES = new Set(['like', 'reply', 'mention', 'boost', 'quote']);
 
 // Rate-limit every notification endpoint (200 req/min, keyed by user with IP
 // fallback). Covers the GET list/DB-access handlers flagged by CodeQL
@@ -279,17 +279,12 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     const referencedPostIds = Array.from(
       new Set(
         notificationsRaw
-          .filter(
-            (n) =>
-              n.entityId &&
-              ((n.type === 'post' && n.entityType === 'post') ||
-                (POST_PREVIEW_TYPES.has(n.type) &&
-                  (n.entityType === 'post' || n.entityType === 'reply'))),
-          )
+          .filter((n) => n.entityId && (n.entityType === 'post' || n.entityType === 'reply'))
           .map((n) => n.entityId),
       ),
     );
 
+    const deniedPostIds = new Set(referencedPostIds);
     const postPreviewMap = new Map<string, string>();
     const postMap = new Map<string, HydratedPost>();
     /** Referenced posts the viewer muted — their notifications are dropped below. */
@@ -315,6 +310,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       // privacy-authority outage indistinguishable from authorization success.
       const hydratedPosts = await postHydrationService.hydratePosts(posts, {
         viewerId: userId,
+        safetyRequester: safetyRequesterFor(req),
         oxyClient: scopedOxyClient,
         maxDepth: 1,
         includeLinkMetadata: true,
@@ -336,6 +332,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
         : NO_FOLLOWED_AUTHORS;
 
       for (const post of hydratedPosts) {
+        deniedPostIds.delete(post.id);
         // BOTH gates protect the viewer from OTHER people's content, so neither applies
         // to a post the viewer wrote: a sensitive post is no surprise to its own author,
         // and hiding "someone liked your post" because the post uses a word THEY muted
@@ -391,7 +388,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     // still counts a dropped notification — muting is evaluated at read time, against
     // the rules as they stand now, rather than stamped onto the row when it was written.
     const notificationList = notificationsToReturn
-      .filter((n) => !mutedPostIds.has(n.entityId))
+      .filter((n) => !mutedPostIds.has(n.entityId) && !deniedPostIds.has(n.entityId))
       .map((n) => {
         const actor = profilesMap.get(n.actorId);
         // `preview` now covers post + like/reply/mention/boost/quote (any type

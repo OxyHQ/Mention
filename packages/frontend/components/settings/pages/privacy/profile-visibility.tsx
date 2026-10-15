@@ -1,3 +1,4 @@
+import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type { BloomIcon } from '@/components/settings/RowIcon';
 import { SettingsSelect } from '@/components/settings/SettingsSelect';
 import { useSettingsBack as useSafeBack } from '@/context/MentionSettingsContext';
@@ -28,7 +29,7 @@ interface VisibilityOptionConfig {
   icon: BloomIcon;
 }
 
-export default function ProfileVisibilityScreen() {
+function ProfileVisibilityScreen() {
   const { t } = useTranslation();
   const safeBack = useSafeBack();
   const { isAuthenticated, isAuthResolved, canUsePrivateApi, isPrivateApiPending, user } =
@@ -194,5 +195,13 @@ export default function ProfileVisibilityScreen() {
         },
       ]}
     />
+  );
+}
+
+export default function AvailableProfileVisibilityScreen() {
+  return (
+    <SupervisedFeatureGate>
+      <ProfileVisibilityScreen />
+    </SupervisedFeatureGate>
   );
 }

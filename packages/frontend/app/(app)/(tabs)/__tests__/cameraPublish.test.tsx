@@ -170,7 +170,7 @@ describe('posting a capture', () => {
     expect(mockCreatePost).toHaveBeenCalledTimes(1);
   });
 
-  it('uploads the capture public, because the CDN that renders post media 404s a private asset', async () => {
+  it('keeps the capture private until publication authorizes its audience', async () => {
     mockCreatePost.mockResolvedValue({ id: 'post_1' });
     mountWithCapture();
     await pressPublishAndSettle();
@@ -180,7 +180,7 @@ describe('posting a capture', () => {
     };
     expect(oxyServices.assets.upload).toHaveBeenLastCalledWith(
       expect.objectContaining({ uri: 'file:///tmp/shot.jpg', type: 'image/jpeg' }),
-      { visibility: 'public' },
+      { visibility: 'private' },
     );
   });
 

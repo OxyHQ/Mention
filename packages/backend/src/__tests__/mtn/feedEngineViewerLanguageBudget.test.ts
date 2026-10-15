@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * Statement budget: an engine run resolves the viewer's identity ONCE.
  *
@@ -31,6 +32,7 @@ const scope = federationScope('feed-engine-viewer-language-budget');
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     users: {
       getMany: vi.fn(async (ids: string[]) =>
         ids.map((id) => ({ id, username: `u${id.slice(-6)}`, name: {}, languages: ['es-ES'] })),
@@ -111,6 +113,7 @@ describe('FeedEngine — viewer-language hydration budget', () => {
       filters: [],
     };
     const context: FeedEngineContext = {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       currentUserId: viewerId,
       followingIds: [],
       followerIds: [],

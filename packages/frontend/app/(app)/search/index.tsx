@@ -1,3 +1,4 @@
+import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -442,7 +443,7 @@ function toStarterPackCardData(pack: SearchStarterPackResult): StarterPackCardDa
   };
 }
 
-export default function SearchIndex() {
+function SearchIndex() {
   const { t } = useTranslation();
   const theme = useTheme();
   const safeBack = useSafeBack();
@@ -1496,5 +1497,13 @@ export default function SearchIndex() {
         </View>
       </View>
     </>
+  );
+}
+
+export default function AvailableSearchIndex() {
+  return (
+    <SupervisedFeatureGate>
+      <SearchIndex />
+    </SupervisedFeatureGate>
   );
 }

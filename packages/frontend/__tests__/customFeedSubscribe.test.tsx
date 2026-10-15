@@ -1,3 +1,6 @@
+jest.mock('@/hooks/useSupervisionState', () => ({
+  useSupervisionState: () => ({ ready: true, supervised: false, isError: false }),
+}));
 jest.mock('@oxy.so/bloom/layout', () => ({ useBottomEdgeInset: () => 0 }));
 import type React from 'react';
 import { Text, TouchableOpacity } from 'react-native';

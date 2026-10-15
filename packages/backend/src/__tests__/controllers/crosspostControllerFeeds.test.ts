@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * The three hand-built controller feeds that page over `posts`, and what each
  * one does with a Meta cross-post.
@@ -130,6 +131,7 @@ describe('the quotes feed', () => {
     const { res, payload } = buildResponse();
     await feedController.getQuotesFeed(
       {
+        accessToken: 'test-viewer-session',
         query: {},
         params: { postId: anchor.id },
         user: { id: scope.user('viewer') },
@@ -160,6 +162,7 @@ describe('the nearby-posts map', () => {
     const { res, payload } = buildResponse();
     await getNearbyPosts(
       {
+        accessToken: 'test-viewer-session',
         query: { lat: String(LAT), lng: String(LNG), radius: '500' },
         user: { id: scope.user('viewer') },
         headers: {},
@@ -183,6 +186,7 @@ describe('the replies feed', () => {
     const { res, payload } = buildResponse();
     await feedController.getRepliesFeed(
       {
+        accessToken: 'test-viewer-session',
         query: { sort: 'oldest' },
         params: { parentId: parent.id },
         user: { id: scope.user('viewer') },

@@ -3,14 +3,10 @@
 import { cert, initializeApp, type ServiceAccount } from 'firebase-admin/app';
 import { getMessaging, type MulticastMessage } from 'firebase-admin/messaging';
 import { and, eq, inArray } from 'drizzle-orm';
-import { normalizeInlineText } from '@oxy.so/core';
 import { getFirebaseConfig } from '../config';
 import { getDb } from '../db/postgres';
 import { pushTokens, type NOTIFICATION_TYPES } from '../db/schema/discovery';
 import { userSettings } from '../db/schema/userProfile';
-import { resolveVariant } from '../services/postVariants';
-import { loadPostRecord } from '../db/posts/postRepository';
-import type { PostRecord } from '../db/posts/postRecord';
 import { getServiceOxyClient } from './oxyHelpers';
 import { logger } from './logger';
 import { chunk } from '@oxy.so/utils/text';
@@ -45,21 +41,6 @@ export type PushPayload = {
   body: string;
   data?: Record<string, string>;
 };
-
-/**
- * Build the concise single-line preview of a post body for a push notification.
- *
- * The whitespace collapse is the canonical `normalizeInlineText` — a push body is
- * a ONE-LINE label, and the post text feeding it can be a federated body carrying
- * the remote markup's newlines and indentation. Truncation and the ellipsis are
- * NOT part of normalization: they are this surface's own product rule (a push
- * body has a length budget), so they stay here.
- */
-export function buildPreview(text: string, limit: number = 200): string {
-  const preview = normalizeInlineText(text || '');
-  if (!preview) return '';
-  return preview.length > limit ? `${preview.slice(0, limit)}…` : preview;
-}
 
 /** True when FCM is configured and initialized — nothing below does any work otherwise. */
 export function isPushAvailable(): boolean {
@@ -241,17 +222,15 @@ export interface PushNotificationSource {
 
 /**
  * What {@link formatPushForNotification} reads besides the row. A fan-out passes
- * memoized lookups so the actor and the post are resolved ONCE for every
+ * memoized lookups so the actor is resolved ONCE for every
  * recipient — the actor of a 200-subscriber post is the same person 200 times.
  */
 export interface PushLookups {
   actor(actorId: string): Promise<{ name?: { displayName?: string | null } | null } | null>;
-  post(postId: string): Promise<PostRecord | null>;
 }
 
 const directPushLookups: PushLookups = {
   actor: (actorId) => getServiceOxyClient().users.get(actorId),
-  post: (postId) => loadPostRecord(postId),
 };
 
 export async function formatPushForNotification(
@@ -289,26 +268,9 @@ export async function formatPushForNotification(
     welcome: { title: 'Welcome to Mention', body: 'Thanks for joining!' },
     post: { title: 'New post', body: `${actorName} posted a new update` },
   };
-  let f = map[n.type] || { title: 'Notification', body: 'You have a new notification' };
-  let preview: string | undefined;
-  // For post notifications, try to include a short preview in the push body.
-  // Best-effort: a preview is a nicety, so every failure below is swallowed and
-  // logged at debug. A push with a generic body is better than no push.
-  try {
-    if (n.type === 'post' && n.entityType === 'post' && n.entityId) {
-      const post = await lookups.post(String(n.entityId));
-      if (post) {
-        // The primary rendition — a push has no viewer language context.
-        const text: string = resolveVariant(post.content).text;
-        preview = buildPreview(text, 200);
-        if (preview) {
-          f = { title: 'New post', body: `${actorName} posted: ${preview}` };
-        }
-      }
-    }
-  } catch (error) {
-    logger.debug('[Push] Failed to build post preview for notification', { error });
-  }
+  const f = map[n.type] || { title: 'Notification', body: 'You have a new notification' };
+  // Push delivery has no live recipient bearer and can outlive a policy change.
+  // Bodies are read only after opening the authenticated notification surface.
   const data: Record<string, string> = {
     type: String(n.type || ''),
     entityId: String(n.entityId || ''),
@@ -316,6 +278,5 @@ export async function formatPushForNotification(
     actorId: String(n.actorId || ''),
     notificationId: String(n.id || ''),
   };
-  if (preview) data.preview = preview;
   return { title: f.title, body: f.body, data };
 }

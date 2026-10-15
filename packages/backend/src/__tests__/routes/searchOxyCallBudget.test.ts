@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * Oxy call budget for one `GET /search` request — the RECORDED BASELINE.
  *
@@ -78,6 +79,7 @@ const calls = {
 
 /** The namespaced Oxy client the search path sees, wired to the counters above. */
 const oxyClient = {
+  safety: adultSafetyFixture(),
   follows: { following: calls.getUserFollowing, followers: calls.getUserFollowers },
   privacy: { blocked: calls.getBlockedUsers, restricted: calls.getRestrictedUsers },
   users: { getMany: calls.getUsersByIds },
@@ -105,6 +107,7 @@ beforeAll(async () => {
   app.use(express.json());
   app.use((req, _res, next) => {
     (req as express.Request & { user?: { id: string } }).user = { id: VIEWER };
+    req.headers.authorization = req.user ? 'Bearer test-viewer-session' : undefined;
     next();
   });
   app.use('/search', searchRoutes);

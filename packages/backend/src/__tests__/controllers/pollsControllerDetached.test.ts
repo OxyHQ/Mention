@@ -132,7 +132,11 @@ describe('polls controller called the way Express calls it', () => {
 
     // Detached on purpose — this is the registration the router uses.
     const { getPoll } = pollsController;
-    const { captured, next } = await call(getPoll, { params: { id: poll.id }, user: { id: 'u1' } });
+    const { captured, next } = await call(getPoll, {
+      accessToken: 'test-viewer-session',
+      params: { id: poll.id },
+      user: { id: 'u1' },
+    });
 
     expect(next).not.toHaveBeenCalled();
     const body = captured.body as { success: boolean; data: Record<string, unknown> };
@@ -146,7 +150,11 @@ describe('polls controller called the way Express calls it', () => {
     // 'u1' voted for choices[0]; that is THEIR own selection, not the fact
     // that 'u2' also voted there.
     expect(body.data.viewerSelectedOptionIds).toEqual([choices[0].id]);
-    expect(acl).toHaveBeenCalledWith(postId, 'u1');
+    expect(acl).toHaveBeenCalledWith(
+      postId,
+      'u1',
+      expect.objectContaining({ safetyRequester: { accessToken: 'test-viewer-session' } }),
+    );
   });
 
   it('POST /polls/:id/vote answers instead of 500-ing after recording the vote', async () => {
@@ -157,6 +165,7 @@ describe('polls controller called the way Express calls it', () => {
 
     const { vote } = pollsController;
     const { captured, next } = await call(vote, {
+      accessToken: 'test-viewer-session',
       params: { id: poll.id },
       body: { optionId: choices[0].id },
       user: { id: 'u1' },
@@ -183,6 +192,7 @@ describe('polls controller called the way Express calls it', () => {
 
     const { getPoll } = pollsController;
     const { captured } = await call(getPoll, {
+      accessToken: 'test-viewer-session',
       params: { id: poll.id },
       user: { id: 'intruder' },
     });
@@ -199,6 +209,7 @@ describe('polls controller called the way Express calls it', () => {
 
     const { vote } = pollsController;
     const { captured } = await call(vote, {
+      accessToken: 'test-viewer-session',
       params: { id: poll.id },
       body: { optionId: choices[0].id },
       user: { id: 'intruder' },
@@ -217,6 +228,7 @@ describe('the id guards — a documented 400, widened to both live shapes', () =
   ])('%s answers 400 for a malformed id', async (_label, key) => {
     const handler = pollsController[key];
     const { captured } = await call(handler, {
+      accessToken: 'test-viewer-session',
       params: { id: 'definitely-not-an-id' },
       user: { id: 'u1' },
     });
@@ -228,7 +240,11 @@ describe('the id guards — a documented 400, widened to both live shapes', () =
     // created after the cutover carries a uuid v7 and must not be rejected as
     // malformed.
     const { getPoll } = pollsController;
-    const { captured } = await call(getPoll, { params: { id: uuidv7() }, user: { id: 'u1' } });
+    const { captured } = await call(getPoll, {
+      accessToken: 'test-viewer-session',
+      params: { id: uuidv7() },
+      user: { id: 'u1' },
+    });
     expect(captured.status).toBe(404);
   });
 });
@@ -240,6 +256,7 @@ describe('createPoll', () => {
 
     const { createPoll } = pollsController;
     const { captured, next } = await call(createPoll, {
+      accessToken: 'test-viewer-session',
       body: { question: 'Tabs or spaces?', options: ['Tabs', 'Spaces'], postId },
       user: { id: author },
     });
@@ -280,6 +297,7 @@ describe('createPoll', () => {
     const author = `author-${randomUUID()}`;
     const { createPoll } = pollsController;
     const { captured } = await call(createPoll, {
+      accessToken: 'test-viewer-session',
       body: { question: 'Q', options: ['a', 'b'], postId: `temp_${randomUUID()}` },
       user: { id: author },
     });
@@ -300,6 +318,7 @@ describe('createPoll', () => {
     // 404, which is the more useful of the two answers.
     const { createPoll } = pollsController;
     const { captured } = await call(createPoll, {
+      accessToken: 'test-viewer-session',
       body: { question: 'Q', options: ['a', 'b'], postId: 'not-a-real-post' },
       user: { id: `author-${randomUUID()}` },
     });
@@ -311,6 +330,7 @@ describe('createPoll', () => {
     const postId = await seedPost(owner);
     const { createPoll } = pollsController;
     const { captured } = await call(createPoll, {
+      accessToken: 'test-viewer-session',
       body: { question: 'Q', options: ['a', 'b'], postId },
       user: { id: `intruder-${randomUUID()}` },
     });
@@ -332,7 +352,11 @@ describe('createPoll', () => {
      * keep the same 400 out the front.
      */
     const { createPoll } = pollsController;
-    const { captured } = await call(createPoll, { body, user: { id: `author-${randomUUID()}` } });
+    const { captured } = await call(createPoll, {
+      accessToken: 'test-viewer-session',
+      body,
+      user: { id: `author-${randomUUID()}` },
+    });
     expect(captured.status).toBe(400);
     expect(captured.body).toMatchObject({ error: 'Validation Error' });
   });
@@ -353,6 +377,7 @@ describe('getResults', () => {
     // turning into an Oxy round trip nothing here can serve.
     const { getResults } = pollsController;
     const { captured } = await call(getResults, {
+      accessToken: 'test-viewer-session',
       params: { id: poll.id },
       user: { id: author },
     });
@@ -380,6 +405,7 @@ describe('getResults', () => {
 
     const { getResults } = pollsController;
     const { captured } = await call(getResults, {
+      accessToken: 'test-viewer-session',
       params: { id: poll.id },
       user: { id: 'intruder' },
     });
@@ -398,6 +424,7 @@ describe('getResults', () => {
 
     const { getResults } = pollsController;
     const { captured } = await call(getResults, {
+      accessToken: 'test-viewer-session',
       params: { id: poll.id },
       user: { id: 'intruder' },
     });
@@ -417,6 +444,7 @@ describe('deletePoll', () => {
 
     const { deletePoll } = pollsController;
     const { captured } = await call(deletePoll, {
+      accessToken: 'test-viewer-session',
       params: { id: poll.id },
       user: { id: author },
     });
@@ -441,7 +469,11 @@ describe('deletePoll', () => {
     const { poll } = await seedPoll({ createdBy: author, postId: null });
 
     const { deletePoll } = pollsController;
-    const { captured } = await call(deletePoll, { params: { id: poll.id }, user: { id: author } });
+    const { captured } = await call(deletePoll, {
+      accessToken: 'test-viewer-session',
+      params: { id: poll.id },
+      user: { id: author },
+    });
 
     expect(captured.status).toBe(200);
     expect(await db.select().from(polls).where(eq(polls.id, poll.id))).toEqual([]);
@@ -453,6 +485,7 @@ describe('deletePoll', () => {
     const { poll } = await seedPoll({ createdBy: author });
     const { deletePoll } = pollsController;
     const { captured } = await call(deletePoll, {
+      accessToken: 'test-viewer-session',
       params: { id: poll.id },
       user: { id: `stranger-${randomUUID()}` },
     });
@@ -469,6 +502,7 @@ describe('updatePollPostId', () => {
 
     const { updatePollPostId } = pollsController;
     const { captured } = await call(updatePollPostId, {
+      accessToken: 'test-viewer-session',
       params: { id: poll.id },
       body: { postId },
       user: { id: author },
@@ -495,6 +529,7 @@ describe('updatePollPostId', () => {
     const { poll } = await seedPoll({ createdBy: author });
     const { updatePollPostId } = pollsController;
     const { captured } = await call(updatePollPostId, {
+      accessToken: 'test-viewer-session',
       params: { id: poll.id },
       body: { postId: 'nope' },
       user: { id: author },

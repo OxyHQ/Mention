@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FeedPostSlice, HydratedPost } from '@mention/shared-types';
 import type { CachedUserSummary } from '../../services/userSummaryCache';
@@ -33,6 +34,7 @@ vi.mock('../../runtime/oxyClient', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     users: { getMany: getUsersByIds },
     getClarityDocuments: vi.fn(async () => ({})),
     assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
@@ -173,7 +175,10 @@ describe('PostHydrationService — reply context under the viewer ACL', () => {
   });
 
   it('names the parent author on the reply when the parent survives the ACL', async () => {
-    const [slice] = await service.hydrateSlices([makeReplyContextSlice()], { viewerId: VIEWER_ID });
+    const [slice] = await service.hydrateSlices([makeReplyContextSlice()], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
+      viewerId: VIEWER_ID,
+    });
 
     expect(slice.items.map((item) => item.post.id)).toEqual([PARENT_ID, REPLY_ID]);
     expect(slice.reason?.type).toBe('replyContext');
@@ -190,6 +195,7 @@ describe('PostHydrationService — reply context under the viewer ACL', () => {
     'names nobody, but still reports a reply, when the ACL drops %s',
     async (_label, parentOverrides) => {
       const [slice] = await service.hydrateSlices([makeReplyContextSlice(parentOverrides)], {
+        safetyRequester: { accessToken: 'test-viewer-session' },
         viewerId: VIEWER_ID,
       });
 

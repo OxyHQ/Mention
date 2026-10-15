@@ -79,7 +79,7 @@ export function toFederationPostPayload<T extends FederatablePost>(
   };
 }
 
-/** The subset of the connector registry that `PostCreationService` depends on. */
+/** The post-creation federation seam. False means suppressed; never mark it dispatched. */
 export interface PostFederator {
   federateNewPost(
     post: FederatablePost,
@@ -94,7 +94,7 @@ export interface PostFederator {
      * audience" means on its own network.
      */
     alsoDeliverToAudiencesOf?: string[],
-  ): Promise<void>;
+  ): Promise<boolean>;
 }
 
 let postCreator: PostCreator | null = null;

@@ -12,6 +12,7 @@ import { asc, inArray } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { pollOptions, pollVotes, polls } from '../../db/schema/polls';
 import { AP_CONTEXT } from '@oxy.so/federation';
+import { DeliveryAuthorizationDeniedError } from '@oxy.so/federation/node';
 import {
   FEDERATION_DOMAIN,
   FEDERATION_ENABLED,
@@ -701,12 +702,21 @@ export class FollowService {
     senderUsername: string,
     options: { throwOnError?: boolean; extraAudienceOxyUserIds?: string[] } = {},
   ): Promise<void> {
-    if (!FEDERATION_ENABLED) return;
+    if (!FEDERATION_ENABLED) {
+      if (options.throwOnError) throw new DeliveryAuthorizationDeniedError();
+      return;
+    }
     // Defensive: the `ConnectorRegistry` outbound seam already gates every
     // event on `fediverseSharing` before it reaches a connector. This
     // duplicate check protects any other caller that might reach
     // `federateNewPost` directly, bypassing the registry.
-    if (!(await isFediverseSharingEnabled(senderOxyUserId))) return;
+    if (
+      !(await isFediverseSharingEnabled(senderOxyUserId)) ||
+      post.visibility !== PostVisibility.PUBLIC
+    ) {
+      if (options.throwOnError) throw new DeliveryAuthorizationDeniedError();
+      return;
+    }
 
     // A boost carries an intentionally EMPTY body. It must NEVER federate as a
     // `Create(Note)` — that would push a blank status to every remote follower.
@@ -718,11 +728,10 @@ export class FollowService {
         { _id: post.id, boostOf: String(post.boostOf), createdAt: post.createdAt },
         senderOxyUserId,
         senderUsername,
+        { throwOnError: options.throwOnError },
       );
       return;
     }
-
-    if (post.visibility !== PostVisibility.PUBLIC) return;
 
     try {
       // A reply carries `inReplyTo` + a parent-author `Mention`, and is ALSO
@@ -1241,16 +1250,23 @@ export class FollowService {
     boost: LocalBoostEventPayload,
     boosterOxyUserId: string,
     boosterUsername: string,
+    options: { throwOnError?: boolean } = {},
   ): Promise<void> {
-    if (!FEDERATION_ENABLED) return;
-    if (!(await isFediverseSharingEnabled(boosterOxyUserId))) return;
+    if (!FEDERATION_ENABLED || !(await isFediverseSharingEnabled(boosterOxyUserId))) {
+      if (options.throwOnError) throw new DeliveryAuthorizationDeniedError();
+      return;
+    }
     const boostOf = boost.boostOf ? String(boost.boostOf) : undefined;
-    if (!boostOf) return;
+    if (!boostOf) {
+      if (options.throwOnError) throw new DeliveryAuthorizationDeniedError();
+      return;
+    }
 
     try {
       const target = await this.resolveFederationTarget(boostOf);
       if (!target) {
         logger.warn('[FedDeliver] cannot federate boost with unresolved original');
+        if (options.throwOnError) throw new DeliveryAuthorizationDeniedError();
         return;
       }
       const activity = this.buildAnnounceActivity(
@@ -1265,6 +1281,7 @@ export class FollowService {
       });
     } catch (err) {
       logger.error('Failed to federate boost:', err);
+      if (options.throwOnError) throw err;
     }
   }
 

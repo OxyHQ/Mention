@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
+import type { ContentAccessInput, SafetyRequester } from '@oxy.so/contracts';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
@@ -47,18 +48,21 @@ const BOOSTER_OXY_ID = scope.user('booster');
 const ORIGINAL_AUTHOR_OXY_ID = scope.user('original-author');
 const VIEWER_ID = scope.user('viewer');
 
-const { getUserById, getUsersByIds, getUserFollowing, cacheStore } = vi.hoisted(() => ({
-  getUserById: vi.fn(),
-  getUsersByIds: vi.fn(),
-  /**
-   * The viewer's following list as OXY answers it. The two followers-only cases
-   * below used to fake a follow by stubbing `extractFollowingIds`, an internal
-   * of `privacyHelpers`; stating it here instead means the ACL under test is
-   * reached the way production reaches it, through the graph read.
-   */
-  getUserFollowing: vi.fn(async () => [] as unknown[]),
-  cacheStore: new Map<string, CachedUserSummary>(),
-}));
+const { getUserById, getUsersByIds, getUserFollowing, contentAccessBatch, cacheStore } = vi.hoisted(
+  () => ({
+    contentAccessBatch: vi.fn(),
+    getUserById: vi.fn(),
+    getUsersByIds: vi.fn(),
+    /**
+     * The viewer's following list as OXY answers it. The two followers-only cases
+     * below used to fake a follow by stubbing `extractFollowingIds`, an internal
+     * of `privacyHelpers`; stating it here instead means the ACL under test is
+     * reached the way production reaches it, through the graph read.
+     */
+    getUserFollowing: vi.fn(async () => [] as unknown[]),
+    cacheStore: new Map<string, CachedUserSummary>(),
+  }),
+);
 
 vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({
@@ -72,6 +76,7 @@ vi.mock('../../runtime/oxyClient', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
+    safety: { contentAccessBatch },
     users: { getMany: getUsersByIds },
     assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
   }),
@@ -163,6 +168,17 @@ describe('PostHydrationService — boost original embedding is deterministic', (
 
   beforeEach(async () => {
     cacheStore.clear();
+    contentAccessBatch.mockReset();
+    contentAccessBatch.mockImplementation(async ({ items }: { items: ContentAccessInput[] }) => ({
+      items: items.map((item) => ({
+        resourceId: item.resourceId,
+        decision: {
+          allowed: item.applicationAudienceAllowed !== false,
+          reason: item.applicationAudienceAllowed === false ? 'private' : 'allowed',
+          policyVersion: '2',
+        },
+      })),
+    }));
     getUserById.mockReset();
     getUsersByIds.mockReset();
 
@@ -181,11 +197,123 @@ describe('PostHydrationService — boost original embedding is deterministic', (
   async function hydrate(post: PostRecord, viewerId?: string, maxDepth = 1) {
     return service.hydratePosts([post], {
       viewerId,
+      safetyRequester: { accessToken: viewerId ? 'viewer-session' : null },
       maxDepth,
       includeLinkMetadata: false,
       includeFullMetadata: false,
     });
   }
+
+  it('serves a new private supervised post to its approved adult contact without a follow', async () => {
+    const original = await seedOriginal({ visibility: PostVisibility.PRIVATE });
+    getUserFollowing.mockResolvedValue([]);
+    contentAccessBatch.mockImplementation(
+      async ({ items }: { items: ContentAccessInput[] }, proof: SafetyRequester) => ({
+        items: items.map((item) => ({
+          resourceId: item.resourceId,
+          decision: {
+            allowed: 'accessToken' in proof && proof.accessToken === 'viewer-session',
+            reason: 'allowed',
+            policyVersion: '2',
+          },
+        })),
+      }),
+    );
+    const [visible] = await hydrate(original, VIEWER_ID);
+    expect(visible?.id).toBe(original.id);
+    expect(contentAccessBatch).toHaveBeenCalledWith(
+      {
+        items: [
+          expect.objectContaining({
+            authorAccountId: ORIGINAL_AUTHOR_OXY_ID,
+            audience: 'private',
+            applicationAudienceAllowed: false,
+            applicationResourceGrant: false,
+          }),
+        ],
+      },
+      { accessToken: 'viewer-session' },
+    );
+    expect(await hydrate(original)).toEqual([]);
+    // The private result never becomes a positive authorization cache entry.
+    contentAccessBatch.mockResolvedValue({
+      items: [
+        {
+          resourceId: original.id,
+          decision: {
+            allowed: false,
+            reason: 'contact_not_approved',
+            policyVersion: '2',
+          },
+        },
+      ],
+    });
+    expect(await hydrate(original, VIEWER_ID)).toEqual([]);
+  });
+
+  it('omits unreviewed remote byline images and preserves the reviewed text', async () => {
+    const original = await seedOriginal();
+    getUsersByIds.mockResolvedValue([
+      {
+        ...makeOxyUser(ORIGINAL_AUTHOR_OXY_ID, 'author', 'Author'),
+        avatar: 'https://remote.test/unreviewed.jpg',
+      },
+    ]);
+    contentAccessBatch.mockImplementation(async ({ items }: { items: ContentAccessInput[] }) => ({
+      items: items.map((item) => ({
+        resourceId: item.resourceId,
+        decision: {
+          allowed: item.resourceId !== 'post-attachments:unrated',
+          reason: 'allowed',
+          policyVersion: '2',
+        },
+      })),
+    }));
+    const [visible] = await hydrate(original, VIEWER_ID);
+    expect(visible.content.text).toBe('the original note body');
+    expect(visible.user.avatar).toBeUndefined();
+    expect(JSON.stringify(visible)).not.toContain('https://remote.test/unreviewed.jpg');
+  });
+
+  it('does not let contact approval disclose an unpublished draft', async () => {
+    const original = await seedOriginal({ visibility: PostVisibility.PRIVATE, status: 'draft' });
+    contentAccessBatch.mockImplementation(async ({ items }: { items: ContentAccessInput[] }) => ({
+      items: items.map((item) => ({
+        resourceId: item.resourceId,
+        decision: { allowed: true, reason: 'allowed', policyVersion: '2' },
+      })),
+    }));
+    expect(await hydrate(original, VIEWER_ID)).toEqual([]);
+    expect(contentAccessBatch).not.toHaveBeenCalled();
+  });
+
+  it('never applies own management to a nested original or restores a denied body', async () => {
+    const original = await seedOriginal();
+    const boost = await seedBoost(original.id);
+    contentAccessBatch.mockImplementation(async ({ items }: { items: ContentAccessInput[] }) => ({
+      items: items.map((item) => ({
+        resourceId: item.resourceId,
+        decision: {
+          allowed: item.resourceId === boost.id,
+          reason: item.resourceId === boost.id ? 'owner' : 'mature_content',
+          policyVersion: '2',
+        },
+      })),
+    }));
+    const result = await service.hydratePosts([boost], {
+      viewerId: BOOSTER_OXY_ID,
+      safetyRequester: { accessToken: 'child-session' },
+      manageOwnPostIds: [boost.id, original.id],
+      includeLinkMetadata: false,
+    });
+    expect(JSON.stringify(result)).not.toContain('the original note body');
+    expect(contentAccessBatch.mock.calls[0][0].items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ resourceId: boost.id, operation: 'manage_own' }),
+        expect.objectContaining({ resourceId: original.id, operation: 'read' }),
+      ]),
+    );
+  });
 
   it('embeds the boosted original on EVERY repeated anonymous fetch', async () => {
     const original = await seedOriginal();
@@ -526,6 +654,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     try {
       const [broadcast] = await service.hydratePosts([boost], {
         viewerId: follower,
+        safetyRequester: { accessToken: 'follower-session' },
         maxDepth: 1,
         publicReferencesOnly: true,
         includeLinkMetadata: false,
@@ -538,6 +667,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
       // invisible: the SAME viewer, without `publicReferencesOnly`, does see it.
       const [personal] = await service.hydratePosts([boost], {
         viewerId: follower,
+        safetyRequester: { accessToken: 'follower-session' },
         maxDepth: 1,
         includeLinkMetadata: false,
         includeFullMetadata: false,

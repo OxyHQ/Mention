@@ -100,13 +100,20 @@ export function prependFeedPost(data: FeedQueryData, post: HydratedPost): FeedQu
  * any more; `foldFeedPages` drops it.
  */
 export function removeFeedPost(data: FeedQueryData, postId: string): FeedQueryData {
+  const containsPost = (post: HydratedPost) =>
+    [
+      getItemKey(post),
+      post.originalPost?.id,
+      post.quotedPost?.id,
+      post.boost?.originalPost?.id,
+    ].includes(postId);
   let changed = false;
   const pages = data.pages.map((page) => {
-    const items = page.items.filter((item) => getItemKey(item) !== postId);
+    const items = page.items.filter((item) => !containsPost(item));
     let slicesChanged = false;
     const slices = page.slices
       ?.map((slice) => {
-        const sliceItems = slice.items.filter((sliceItem) => getItemKey(sliceItem.post) !== postId);
+        const sliceItems = slice.items.filter((sliceItem) => !containsPost(sliceItem.post));
         if (sliceItems.length === slice.items.length) return slice;
         slicesChanged = true;
         return { ...slice, items: sliceItems };

@@ -1,3 +1,7 @@
+vi.mock('../../db/posts/postSafetyRepository', () => ({
+  loadPostSafetyAssessments: vi.fn(async () => new Map()),
+}));
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { CachedUserSummary } from '../../services/userSummaryCache';
 
@@ -41,6 +45,7 @@ vi.mock('../../runtime/oxyClient', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     getUsersByIds,
     getClarityDocuments: vi.fn(async () => ({})),
     getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
@@ -91,6 +96,7 @@ function scheduledRow() {
 /** Mirror getScheduledPosts: hydrate the row as one particular viewer. */
 async function hydrateAs(service: PostHydrationService, viewerId: string | undefined) {
   return service.hydratePosts([scheduledRow()], {
+    safetyRequester: { accessToken: 'test-viewer-session' },
     viewerId,
     oxyClient: {
       getUsersByIds,
@@ -158,6 +164,7 @@ describe('scheduled-post ACL — only the owner can obtain a scheduled post', ()
   it('omits scheduledFor entirely on an ordinary published post', async () => {
     const published = { ...scheduledRow(), status: 'published', scheduledFor: undefined };
     const result = await service.hydratePosts([published], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       viewerId: undefined,
       oxyClient: {
         getUsersByIds,
@@ -174,6 +181,7 @@ describe('scheduled-post ACL — only the owner can obtain a scheduled post', ()
   it('answers undefined rather than throwing when scheduledFor is unparseable', async () => {
     const broken = { ...scheduledRow(), scheduledFor: 'not-a-date' };
     const result = await service.hydratePosts([broken], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       viewerId: AUTHOR_ID,
       oxyClient: {
         getUsersByIds,

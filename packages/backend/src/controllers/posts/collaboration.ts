@@ -1,3 +1,4 @@
+import { PostPublicationPolicyError } from '../../services/postPublicationPolicy';
 /**
  * The collaborator-invite replies on a post: accept, decline, and the author
  * stopping an accepted collaboration. The state machine itself is
@@ -9,6 +10,7 @@ import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
 import { createScopedOxyClient } from '../../utils/oxyHelpers';
+import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import {
   postCollaborationService,
@@ -27,6 +29,7 @@ export const acceptCollabInvite = async (req: AuthRequest, res: Response) => {
       // look up — and asking would put a CrowdSource round trip on this path.
       includeCommunityNotes: false,
       viewerId: userId,
+      safetyRequester: safetyRequesterFor(req),
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
@@ -34,6 +37,10 @@ export const acceptCollabInvite = async (req: AuthRequest, res: Response) => {
     });
     return res.status(200).json({ success: true, post: hydratedPost ?? null });
   } catch (error) {
+    if (error instanceof PostPublicationPolicyError)
+      return res
+        .status(error.status)
+        .json({ code: 'PUBLICATION_UNAVAILABLE', message: error.message });
     if (error instanceof CollabStateError) {
       return res.status(400).json({ message: error.message });
     }
@@ -58,6 +65,7 @@ export const declineCollabInvite = async (req: AuthRequest, res: Response) => {
       // look up — and asking would put a CrowdSource round trip on this path.
       includeCommunityNotes: false,
       viewerId: userId,
+      safetyRequester: safetyRequesterFor(req),
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
@@ -65,6 +73,10 @@ export const declineCollabInvite = async (req: AuthRequest, res: Response) => {
     });
     return res.status(200).json({ success: true, post: hydratedPost ?? null });
   } catch (error) {
+    if (error instanceof PostPublicationPolicyError)
+      return res
+        .status(error.status)
+        .json({ code: 'PUBLICATION_UNAVAILABLE', message: error.message });
     if (error instanceof CollabStateError) {
       return res.status(400).json({ message: error.message });
     }
@@ -84,6 +96,7 @@ export const stopCollabSharing = async (req: AuthRequest, res: Response) => {
       // look up — and asking would put a CrowdSource round trip on this path.
       includeCommunityNotes: false,
       viewerId: userId,
+      safetyRequester: safetyRequesterFor(req),
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
@@ -91,6 +104,10 @@ export const stopCollabSharing = async (req: AuthRequest, res: Response) => {
     });
     return res.status(200).json({ success: true, post: hydratedPost ?? null });
   } catch (error) {
+    if (error instanceof PostPublicationPolicyError)
+      return res
+        .status(error.status)
+        .json({ code: 'PUBLICATION_UNAVAILABLE', message: error.message });
     if (error instanceof CollabStateError) {
       return res.status(400).json({ message: error.message });
     }

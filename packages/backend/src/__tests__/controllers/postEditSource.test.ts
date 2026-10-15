@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * `GET /posts/:id/edit-source`, against real rows.
  *
@@ -44,6 +45,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 // globally in `__tests__/setup.ts`.
 vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../utils/oxyHelpers')>()),
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createUserScopedOxyServices: () => ({ accounts: { members: { list: listAccountMembers } } }),
 }));
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
@@ -67,6 +69,7 @@ function responseDouble() {
 
 function request(postId: string, userId?: string): OxyAuthRequest {
   return {
+    accessToken: 'test-viewer-session',
     params: { id: postId },
     user: userId ? { id: userId } : undefined,
   } as unknown as OxyAuthRequest;

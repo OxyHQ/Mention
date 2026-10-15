@@ -1,3 +1,4 @@
+import type { SafetyRequester } from '@oxy.so/contracts';
 import type { Response } from 'express';
 import { and, desc, eq, inArray, isNotNull, notInArray, sql, type SQL } from 'drizzle-orm';
 import {
@@ -62,6 +63,7 @@ import { postIsAuthoredByChannel } from '../utils/channelReplyGate';
 import { baselineContentClassifier } from '../services/BaselineContentClassifier';
 import { toStoredContent } from '../services/postVariants';
 import { createScopedOxyClient, createUserScopedOxyServices } from '../utils/oxyHelpers';
+import { safetyRequesterFor } from '../utils/safetyRequester';
 import type { OperatedAccountReader } from '../services/publishAsAccount';
 import { federateAsResolvedActor } from '../connectors/outboundFederation';
 import {
@@ -162,6 +164,7 @@ class FeedController {
     // supplies an operated-account reader — see `HydrationOptions` for what
     // decides whether that reader is ever actually asked anything.
     options: {
+      safetyRequester?: SafetyRequester;
       includeQuoteCounts?: boolean;
       operatedAccountReader?: OperatedAccountReader;
       // Threaded by a caller that already resolved these (e.g. `getFeedItemById`
@@ -186,6 +189,7 @@ class FeedController {
       // Feed items don't need nested context - only detail views need depth 1
       const hydrated = await postHydrationService.hydratePosts(posts, {
         viewerId: currentUserId,
+        safetyRequester: options.safetyRequester,
         oxyClient,
         maxDepth: 0, // Reduced from 1 for feed performance - saves ~30-50ms per request
         includeLinkMetadata: true,
@@ -622,6 +626,7 @@ class FeedController {
       // of a raw `.toObject()`.
       const [hydratedReply] = await postHydrationService.hydratePosts([reply], {
         viewerId: currentUserId,
+        safetyRequester: safetyRequesterFor(req),
         oxyClient: createScopedOxyClient(req),
         maxDepth: 1,
         includeLinkMetadata: true,
@@ -819,6 +824,7 @@ class FeedController {
       // shape — matching the feed/detail DTO instead of a raw `.toObject()`.
       const [hydratedBoost] = await postHydrationService.hydratePosts([boost], {
         viewerId: currentUserId,
+        safetyRequester: safetyRequesterFor(req),
         oxyClient: createScopedOxyClient(req),
         maxDepth: 1,
         includeLinkMetadata: true,
@@ -1065,6 +1071,7 @@ class FeedController {
       // performance, so hydrate directly here.
       const hydratedReplies = await postHydrationService.hydratePosts(filteredPosts, {
         viewerId: currentUserId,
+        safetyRequester: safetyRequesterFor(req),
         oxyClient: requestOxyClient,
         maxDepth: 1,
         includeLinkMetadata: true,
@@ -1117,6 +1124,7 @@ class FeedController {
       }
       const [visibleAnchor] = await postHydrationService.hydratePosts([anchorPost], {
         viewerId: currentUserId,
+        safetyRequester: safetyRequesterFor(req),
         oxyClient: requestOxyClient,
         maxDepth: 0,
       });
@@ -1158,6 +1166,7 @@ class FeedController {
       // nested original each one renders as a bare comment with no context.
       const hydrated = await postHydrationService.hydratePosts(filteredPosts, {
         viewerId: currentUserId,
+        safetyRequester: safetyRequesterFor(req),
         oxyClient: requestOxyClient,
         maxDepth: 1,
         publicReferencesOnly: true,
@@ -1229,6 +1238,7 @@ class FeedController {
       // on a continuation renders.
       const hydrated = await postHydrationService.hydratePosts(continuations, {
         viewerId: currentUserId,
+        safetyRequester: safetyRequesterFor(req),
         oxyClient: createScopedOxyClient(req),
         maxDepth: 1,
         includeLinkMetadata: true,
@@ -1272,6 +1282,7 @@ class FeedController {
         currentUserId,
         oxyClient,
         {
+          safetyRequester: safetyRequesterFor(req),
           includeQuoteCounts: true,
           operatedAccountReader: createUserScopedOxyServices(req),
           viewerPrivacy: viewerContext?.viewerPrivacy,
@@ -1358,6 +1369,7 @@ class FeedController {
 
       const [hydrated] = await postHydrationService.hydratePosts([pinnedPost], {
         viewerId: currentUserId,
+        safetyRequester: safetyRequesterFor(req),
         oxyClient: createScopedOxyClient(req),
         maxDepth: 1,
         includeLinkMetadata: true,

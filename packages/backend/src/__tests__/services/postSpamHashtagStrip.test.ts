@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -38,7 +39,7 @@ vi.mock('../../utils/notificationUtils', () => ({
 }));
 
 vi.mock('../../services/serviceRegistry', () => ({
-  getPostFederator: () => ({ federateNewPost: vi.fn().mockResolvedValue(undefined) }),
+  getPostFederator: () => ({ federateNewPost: vi.fn().mockResolvedValue(true) }),
   registerPostCreator: vi.fn(),
 }));
 
@@ -92,7 +93,10 @@ vi.mock('../../runtime/socketServer', () => ({
 // others still.
 vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../utils/oxyHelpers')>()),
-  getServiceOxyClient: () => ({ getUsersByIds: vi.fn().mockResolvedValue([]) }),
+  getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
+    getUsersByIds: vi.fn().mockResolvedValue([]),
+  }),
   createScopedOxyClient: () => undefined,
   createUserScopedOxyServices: () => undefined,
 }));
@@ -144,6 +148,7 @@ async function edit(postId: string, userId: string, body: Record<string, unknown
   hoisted.hydratePosts.mockImplementation(async () => [{ id: postId }]);
   await updatePost(
     {
+      accessToken: 'test-viewer-session',
       params: { id: postId },
       query: {},
       headers: {},

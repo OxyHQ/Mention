@@ -1,3 +1,7 @@
+vi.mock('../../db/posts/postSafetyRepository', () => ({
+  loadPostSafetyAssessments: vi.fn(async () => new Map()),
+}));
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { CachedUserSummary } from '../../services/userSummaryCache';
 import type { ClarityDocument } from '@oxy.so/contracts';
@@ -39,7 +43,11 @@ vi.mock('../../runtime/oxyClient', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ getUsersByIds, getCloudURL: () => 'https://cloud.oxy.so' }),
+  getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
+    getUsersByIds,
+    getCloudURL: () => 'https://cloud.oxy.so',
+  }),
 }));
 
 vi.mock('../../utils/clarityClient', () => ({
@@ -118,6 +126,7 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
 
   async function hydrate(text?: string) {
     const [hydrated] = await service.hydratePosts([postRow(text)], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       viewerId: undefined,
       maxDepth: 0,
       includeLinkMetadata: true,
@@ -350,6 +359,7 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
     mockDocuments({ [POST_URL]: resolvedPreview(POST_URL, 'First') });
 
     await service.hydratePosts([postRow()], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       viewerId: undefined,
       maxDepth: 0,
       includeLinkMetadata: true,
@@ -363,6 +373,7 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
     resolveDocuments.mockResolvedValue({ data: [] });
 
     await service.hydratePosts([postRow()], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       viewerId: undefined,
       maxDepth: 0,
       includeLinkMetadata: false,

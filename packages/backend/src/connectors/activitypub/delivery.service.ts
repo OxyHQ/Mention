@@ -1,3 +1,4 @@
+import { authorizeFederationDelivery } from '../../services/federation/publicationPolicy';
 import { createDeliveryService, type DeliveryService } from '@oxy.so/federation/node';
 import { assertSafePublicUrl } from '@oxy.so/core/server';
 import { logger } from '../../utils/logger';
@@ -44,6 +45,7 @@ import { isFediverseSharingEnabled } from '../../services/fediverseSharing';
  */
 export const deliveryService: DeliveryService = createDeliveryService<EngineFederatedActorRecord>({
   federationEnabled: FEDERATION_ENABLED,
+  authorizeDelivery: authorizeFederationDelivery,
   userAgent: USER_AGENT,
   apContentType: AP_CONTENT_TYPE,
   // The SAME predicate inbound dispatch and actor resolution use, not a second

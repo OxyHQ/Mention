@@ -65,6 +65,18 @@ export function memGetPostsByIds(ids: string[]): Record<string, FeedItem> {
   return result;
 }
 
+/** Roots embedding any revoked original or quote. */
+export function memGetPostIdsReferencing(ids: readonly string[]): string[] {
+  const revoked = new Set(ids);
+  return [...posts.values()]
+    .filter((post) =>
+      [post.originalPost?.id, post.quotedPost?.id, post.boost?.originalPost?.id].some(
+        (id) => id !== undefined && revoked.has(id),
+      ),
+    )
+    .map((post) => post.id);
+}
+
 /**
  * Read-modify-write for a single post. Returns the updated item or null when
  * the post is absent or the updater declines the change.

@@ -1,3 +1,5 @@
+import { authorsMayFederate, postAuthorIds } from '../services/postPublicationPolicy';
+import { loadPostRecord } from '../db/posts/postRepository';
 import type { PostContent } from '@mention/shared-types';
 import type {
   LocalNetworkEvent,
@@ -35,6 +37,7 @@ type AudienceAwareNetworkConnector = NetworkConnector<PostContent> & {
   deliverToExtraAudiences?: (
     event: LocalNetworkEvent<PostContent>,
     audienceOxyUserIds: string[],
+    options?: { durable?: boolean },
   ) => Promise<void>;
 };
 
@@ -106,24 +109,41 @@ export class ConnectorRegistry implements PostFederator {
   private async deliverToEnabledConnectors(
     event: LocalNetworkEvent<PostContent>,
     options: { durable?: boolean; alsoDeliverToAudiencesOf?: string[] },
-  ): Promise<unknown[]> {
+  ): Promise<{ failures: unknown[]; dispatched: boolean }> {
     const actorOxyUserId = actingOxyUserId(event);
+    if (!this.connectors.length) return { failures: [], dispatched: false };
+    const removal = ['post.delete', 'post.unboost', 'post.unlike', 'follow.remove'].includes(
+      event.kind,
+    );
+    if (!removal) {
+      const authorIds = [actorOxyUserId];
+      if (event.kind === 'post.create' || event.kind === 'post.update') {
+        const post = await loadPostRecord(String(event.post._id));
+        if (!post || post.visibility !== 'public' || post.status !== 'published')
+          return { failures: [], dispatched: false };
+        authorIds.push(...postAuthorIds(post));
+      }
+      if (!(await authorsMayFederate(authorIds))) return { failures: [], dispatched: false };
+    }
+
     if (!(await isFediverseSharingEnabled(actorOxyUserId))) {
       logger.debug('[Connectors] sharing disabled; skipping federation');
-      return [];
+      return { failures: [], dispatched: false };
     }
 
     const extraAudiences = options.alsoDeliverToAudiencesOf ?? [];
 
     const results = await Promise.allSettled(
       this.connectors.map((connector) => {
+        const audienceConnector = connector as AudienceAwareNetworkConnector;
+        if (extraAudiences.length > 0 && audienceConnector.deliverToExtraAudiences) {
+          return audienceConnector.deliverToExtraAudiences(event, extraAudiences, {
+            durable: options.durable,
+          });
+        }
         const durableConnector = connector as DurableNetworkConnector;
         if (options.durable && durableConnector.deliverDurably) {
           return durableConnector.deliverDurably(event);
-        }
-        const audienceConnector = connector as AudienceAwareNetworkConnector;
-        if (extraAudiences.length > 0 && audienceConnector.deliverToExtraAudiences) {
-          return audienceConnector.deliverToExtraAudiences(event, extraAudiences);
         }
         return connector.deliver(event);
       }),
@@ -139,7 +159,7 @@ export class ConnectorRegistry implements PostFederator {
         });
       }
     });
-    return failures;
+    return { failures, dispatched: results.some((result) => result.status === 'fulfilled') };
   }
 
   async deliver(event: LocalNetworkEvent<PostContent>): Promise<void> {
@@ -151,7 +171,7 @@ export class ConnectorRegistry implements PostFederator {
    * rejection is surfaced after fan-out so the event can be retried.
    */
   async deliverStrict(event: LocalNetworkEvent<PostContent>): Promise<void> {
-    const failures = await this.deliverToEnabledConnectors(event, { durable: true });
+    const { failures } = await this.deliverToEnabledConnectors(event, { durable: true });
     if (failures.length > 0) {
       const error = new Error(`Connector delivery failed for ${event.kind}`);
       (error as Error & { failures: unknown[] }).failures = failures;
@@ -172,16 +192,17 @@ export class ConnectorRegistry implements PostFederator {
     senderOxyUserId: string,
     senderUsername: string,
     alsoDeliverToAudiencesOf?: string[],
-  ): Promise<void> {
-    await this.deliverToEnabledConnectors(
+  ): Promise<boolean> {
+    const result = await this.deliverToEnabledConnectors(
       {
         kind: 'post.create',
         post: toFederationPostPayload(post),
         actorOxyUserId: senderOxyUserId,
         actorUsername: senderUsername,
       },
-      { alsoDeliverToAudiencesOf },
+      { alsoDeliverToAudiencesOf, durable: true },
     );
+    return result.dispatched;
   }
 
   /**

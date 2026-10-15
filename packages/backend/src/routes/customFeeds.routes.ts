@@ -42,6 +42,7 @@ import { requestLanguageCandidates } from '../utils/viewerLanguage';
 import { feedEngine } from '../mtn/feed/engine/FeedEngine';
 import { resolveUserSummaries, degradedActorSummary } from '../services/PostHydrationService';
 import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
+import { safetyRequesterFor } from '../utils/safetyRequester';
 import type { CachedUserSummary } from '../services/userSummaryCache';
 import { FEED_CATEGORIES, type PostUser } from '@mention/shared-types';
 import { logger } from '../utils/logger';
@@ -929,6 +930,7 @@ router.get('/:id/timeline', validateObjectId('id'), async (req: AuthRequest, res
       requestLanguageCandidates(req),
     );
     context.privacyOxyClient = requestOxyClient;
+    context.safetyRequester = safetyRequesterFor(req);
     const response = await feedEngine.run(definition, context, { cursor, limit });
 
     // The frontend Feed component expects `items` to be posts directly.

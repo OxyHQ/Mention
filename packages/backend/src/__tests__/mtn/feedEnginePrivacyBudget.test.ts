@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * Oxy call budget: an engine run asks Oxy for the viewer's blocked/restricted
  * lists ZERO times, on every path that hydrates.
@@ -40,6 +41,7 @@ const scope = federationScope('feed-engine-privacy-budget');
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     users: {
       getMany: vi.fn(async (ids: string[]) =>
         ids.map((id) => ({ id, username: `u${id.slice(-6)}`, name: {}, languages: ['en-US'] })),
@@ -137,6 +139,7 @@ describe('FeedEngine — viewer-privacy Oxy call budget', () => {
     const response = await engine.run(
       definition,
       {
+        safetyRequester: { accessToken: 'test-viewer-session' },
         currentUserId: scope.user('ranked-viewer'),
         followingIds: [],
         followerIds: [],
@@ -187,6 +190,7 @@ describe('FeedEngine — viewer-privacy Oxy call budget', () => {
         },
       } satisfies FeedDefinition,
       {
+        safetyRequester: { accessToken: 'test-viewer-session' },
         currentUserId: scope.user('fallback-viewer'),
         followingIds: [],
         followerIds: [],
@@ -222,6 +226,7 @@ describe('FeedEngine — viewer-privacy Oxy call budget', () => {
     const response = await engine.run(
       definition,
       {
+        safetyRequester: { accessToken: 'test-viewer-session' },
         currentUserId: scope.user('unthreaded-viewer'),
         followingIds: [],
         followerIds: [],

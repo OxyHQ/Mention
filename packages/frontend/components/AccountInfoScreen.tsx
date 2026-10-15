@@ -1,3 +1,4 @@
+import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
@@ -53,6 +54,14 @@ import { Loading } from '@oxy.so/bloom/loading';
  * about page rather than at the top of the profile.
  */
 export function AccountInfoScreen({ routedFamily }: { routedFamily: ProfileRouteFamily }) {
+  return (
+    <SupervisedFeatureGate>
+      <AccountInfoScreenContent routedFamily={routedFamily} />
+    </SupervisedFeatureGate>
+  );
+}
+
+function AccountInfoScreenContent({ routedFamily }: { routedFamily: ProfileRouteFamily }) {
   const account = useProfileAccount(useRoutedProfileUsername());
   const { profileData, loading: profileLoading, notFound, refresh, colorName } = account;
   const canonicalHref = useProfileCanonicalHref({ routedFamily, account, subpath: 'about' });

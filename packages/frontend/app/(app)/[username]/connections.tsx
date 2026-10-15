@@ -1,3 +1,4 @@
+import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Text } from '@oxy.so/bloom/typography';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
@@ -121,6 +122,13 @@ function toProfileCardData(item: ConnectionUser): ProfileCardData | null {
 }
 
 export default function ConnectionsScreen() {
+  return (
+    <SupervisedFeatureGate>
+      <AuthorizedConnectionsScreen />
+    </SupervisedFeatureGate>
+  );
+}
+function AuthorizedConnectionsScreen() {
   const { username } = useLocalSearchParams<{ username: string }>();
   const cleanUsername = username?.startsWith('@') ? username.slice(1) : username || '';
   const {

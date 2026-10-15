@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -43,6 +44,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: vi.fn(() => ({})),
   createUserScopedOxyServices: vi.fn(() => undefined),
 }));
@@ -115,6 +117,7 @@ async function seedThread(): Promise<void> {
 
 function buildRequest(id: string, userId: string | undefined = AUTHOR) {
   return {
+    accessToken: 'test-viewer-session',
     user: userId ? { id: userId } : undefined,
     params: { id },
     query: {},

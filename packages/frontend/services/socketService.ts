@@ -1,3 +1,5 @@
+import { feedService } from './feedService';
+import { toFeedItem } from '@/db/feedItem';
 import { API_URL_SOCKET } from '@/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
@@ -74,8 +76,6 @@ function readEngagementCounts(data: PostEngagementCountsPayload): EngagementCoun
 
 interface FeedUpdateData {
   type?: string;
-  posts?: FeedItem[];
-  post?: FeedItem;
 }
 
 interface PresenceUpdateData {
@@ -98,8 +98,11 @@ class SocketService {
   private currentToken?: string;
   private appStateSubscription: { remove: () => void } | null = null;
   // recentActions handled by echoGuard
+  private invalidatedFeeds = new Set<FeedType>();
+  private feedAccessEpoch = 0;
+  private feedRefreshes = new Set<FeedType>();
   private feedUpdateQueue: Map<string, FeedItem[]> = new Map(); // Queue for batched feed updates
-  private feedUpdateTimer: ReturnType<typeof setTimeout> | null = null;
+  private feedInvalidationTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly FEED_UPDATE_DEBOUNCE_MS = 500; // Batch updates every 500ms
   private readonly MAX_BATCH_SIZE = 50; // Maximum items per batch
   // Subscription to flush queued feed updates when loading completes
@@ -270,11 +273,6 @@ class SocketService {
       previouslyLoading = currentlyLoading;
 
       if (hasJustFinished) {
-        // Clear any pending debounce timer to avoid race conditions
-        if (this.feedUpdateTimer) {
-          clearTimeout(this.feedUpdateTimer);
-          this.feedUpdateTimer = null;
-        }
         // Process immediately when loading completes to avoid losing queued updates
         this.processFeedUpdateQueue();
       }
@@ -292,11 +290,9 @@ class SocketService {
       this.socket = null;
     }
     this.isConnected = false;
-    // Process any pending feed updates before disconnecting
-    if (this.feedUpdateTimer) {
-      clearTimeout(this.feedUpdateTimer);
-      this.processFeedUpdateQueue();
-      this.feedUpdateTimer = null;
+    if (this.feedInvalidationTimer) {
+      clearTimeout(this.feedInvalidationTimer);
+      this.feedInvalidationTimer = null;
     }
     // Process any pending engagement updates before disconnecting
     if (this.engagementUpdateTimer) {
@@ -319,6 +315,9 @@ class SocketService {
       this.feedLoadingUnsubscribe = null;
     }
     // Clear queues
+    this.feedAccessEpoch += 1;
+    this.invalidatedFeeds.clear();
+    this.feedRefreshes.clear();
     this.feedUpdateQueue.clear();
     this.engagementUpdateQueue.clear();
     // A full teardown ends every subscription: `disconnect()` runs on sign-out
@@ -560,40 +559,47 @@ class SocketService {
    * Optimized to handle multiple posts efficiently with debouncing
    */
   private handleFeedUpdate(data: FeedUpdateData) {
-    const { type, posts, post } = data || {};
-
-    // Handle both single post and array of posts
-    const postsArray = Array.isArray(posts) ? posts : post ? [post] : [];
-
-    // Type-safe feed type check
-    if (!type || postsArray.length === 0) {
-      return;
-    }
-
-    // Validate that type is a valid FeedType before casting
-    if (!VALID_FEED_TYPES.includes(type)) {
-      logger.warn('Invalid feed type', { feedType: type });
-      return;
-    }
-
-    // Queue updates for batching
-    const feedType = type as FeedType;
-    const existingQueue = this.feedUpdateQueue.get(feedType);
-    const queue = existingQueue ?? [];
-    if (!existingQueue) {
-      this.feedUpdateQueue.set(feedType, queue);
-    }
-    queue.push(...postsArray);
-
-    // Clear existing timer
-    if (this.feedUpdateTimer) {
-      clearTimeout(this.feedUpdateTimer);
-    }
-
-    // Debounce updates - batch process after a short delay
-    this.feedUpdateTimer = setTimeout(() => {
-      this.processFeedUpdateQueue();
+    const type = data?.type;
+    if (!type || !VALID_FEED_TYPES.includes(type)) return;
+    this.invalidatedFeeds.add(type as FeedType);
+    if (this.feedInvalidationTimer) clearTimeout(this.feedInvalidationTimer);
+    this.feedInvalidationTimer = setTimeout(() => {
+      this.feedInvalidationTimer = null;
+      void this.refreshInvalidatedFeeds();
     }, this.FEED_UPDATE_DEBOUNCE_MS);
+  }
+
+  /** Fetch once per burst; authorization belongs to HTTP, never a broadcast DTO. */
+  private async refreshInvalidatedFeeds(): Promise<void> {
+    const epoch = this.feedAccessEpoch;
+    const feeds = [...this.invalidatedFeeds];
+    this.invalidatedFeeds.clear();
+    await Promise.all(
+      feeds.map(async (type) => {
+        if (!usePostsStore.getState().feedUI[type]) return;
+        if (this.feedRefreshes.has(type)) {
+          this.invalidatedFeeds.add(type);
+          return;
+        }
+        this.feedRefreshes.add(type);
+        try {
+          const response = await feedService.getFeed({ type, limit: this.MAX_BATCH_SIZE });
+          if (epoch !== this.feedAccessEpoch) return;
+          this.feedUpdateQueue.set(
+            type,
+            (response.items ?? []).map((post) => toFeedItem(post)),
+          );
+        } catch (error) {
+          logger.warn('Could not refresh invalidated feed', { type, error });
+        } finally {
+          if (epoch === this.feedAccessEpoch) {
+            this.feedRefreshes.delete(type);
+            if (this.invalidatedFeeds.has(type)) this.handleFeedUpdate({ type });
+          }
+        }
+      }),
+    );
+    if (epoch === this.feedAccessEpoch) this.processFeedUpdateQueue();
   }
 
   /**
@@ -654,9 +660,6 @@ class SocketService {
       // Clear queue for this feed type
       this.feedUpdateQueue.delete(feedType);
     });
-
-    // Clear timer
-    this.feedUpdateTimer = null;
   }
 
   /**

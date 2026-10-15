@@ -1,3 +1,5 @@
+import { posts as fixturePosts } from '../../db/schema/posts';
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * The notifications list opens on the NEWEST notification, for an account whose
  * rows straddle the cutover.
@@ -52,7 +54,10 @@ vi.mock('../../utils/oxyHelpers', () => ({
   // the inbox covers is `notificationsChannelInbox.test.ts`'s subject; held at
   // "just the viewer" here so these cases stay about pagination and ordering.
   createUserScopedOxyServices: () => undefined,
-  getServiceOxyClient: () => ({ getUsersByIds: mocks.getUsersByIds }),
+  getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
+    getUsersByIds: mocks.getUsersByIds,
+  }),
 }));
 vi.mock('../../utils/push', () => ({
   loadPushTargets: vi.fn(
@@ -72,6 +77,14 @@ import { notifications } from '../../db/schema/discovery';
 import notificationsRouter, { NOTIFICATION_PAGE_ORDER } from '../../routes/notifications';
 
 let db: Database;
+const createdPostIds = new Set<string>();
+async function seedVisiblePost(id: string, author: string) {
+  await db
+    .insert(fixturePosts)
+    .values({ id, oxyUserId: author, status: 'published', visibility: 'public' })
+    .onConflictDoNothing();
+  createdPostIds.add(id);
+}
 const createdRecipientIds: string[] = [];
 
 /**
@@ -106,6 +119,7 @@ function objectIdShaped(index: number): string {
 
 /** One notification, with the id shape and the instant both pinned by the case. */
 async function seed(recipient: string, id: string, createdAt: Date, entity: string) {
+  await seedVisiblePost(entity, `oxy-${NAMESPACE}-actor`);
   await db.insert(notifications).values({
     id,
     recipientId: recipient,
@@ -122,6 +136,7 @@ function makeApp(viewer: string) {
   app.use(express.json());
   app.use((req, _res, next) => {
     (req as typeof req & { user: { id: string } }).user = { id: viewer };
+    req.headers.authorization = req.user ? 'Bearer test-viewer-session' : undefined;
     next();
   });
   app.use('/', notificationsRouter);
@@ -167,10 +182,19 @@ beforeEach(() => {
   mocks.getUsersByIds.mockResolvedValue([]);
   mocks.createScopedOxyClient.mockReturnValue({ scope: 'viewer' });
   mocks.loadFollowedAuthorIds.mockResolvedValue(new Set<string>());
-  mocks.hydratePosts.mockResolvedValue([]);
+  mocks.hydratePosts.mockImplementation(async (rows: { id: string; oxyUserId: string }[]) =>
+    rows.map((row) => ({
+      id: row.id,
+      user: { id: row.oxyUserId },
+      content: { text: 'fixture post' },
+    })),
+  );
 });
 
 afterEach(async () => {
+  if (createdPostIds.size)
+    await db.delete(fixturePosts).where(inArray(fixturePosts.id, [...createdPostIds]));
+  createdPostIds.clear();
   if (createdRecipientIds.length > 0) {
     await db.delete(notifications).where(inArray(notifications.recipientId, createdRecipientIds));
     createdRecipientIds.length = 0;
@@ -260,6 +284,8 @@ describe('GET /notifications — a migrated account sees its newest notification
     const viewer = viewerId();
     const sameInstant = new Date('2026-05-05T05:05:05.000Z');
     const ids = [objectIdShaped(11), objectIdShaped(12), uuidv7(), uuidv7()];
+    for (const [index] of ids.entries())
+      await seedVisiblePost(`${NAMESPACE}-tied-${index}`, `oxy-${NAMESPACE}-actor`);
     await db.transaction(async (tx) => {
       for (const [index, id] of ids.entries()) {
         await tx.insert(notifications).values({

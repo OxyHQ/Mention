@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -33,6 +34,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: vi.fn(() => ({})),
   // `undefined` = no membership reader, which is exactly what a caller who names
   // no account gets. These batches name none, so the publish-as gate answers
@@ -83,6 +85,7 @@ const PAST = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
 function buildRequest(body: Record<string, unknown>) {
   return {
+    accessToken: 'test-viewer-session',
     user: { id: 'author_1' },
     query: {},
     acceptsLanguages: () => [] as string[],

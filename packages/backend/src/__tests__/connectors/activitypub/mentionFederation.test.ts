@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -60,7 +61,10 @@ vi.mock('../../../utils/mediaResolver', () => ({
 }));
 vi.mock('../../../services/fediverseSharing', () => ({ isFediverseSharingEnabled }));
 vi.mock('../../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ users: { getMany: getUsersByIds, get: getUserById } }),
+  getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
+    users: { getMany: getUsersByIds, get: getUserById },
+  }),
 }));
 
 import { closePostgres, connectPostgres } from '../../../db/postgres';
@@ -68,6 +72,7 @@ import {
   clearFederationScope,
   federationScope,
   seedActor,
+  seedPost,
   seedFollowerWithInbox,
 } from '../../helpers/federationFixtures';
 import {
@@ -95,7 +100,7 @@ function mentionPost(
   mentions: string[],
   hashtags?: string[],
 ): {
-  _id: string;
+  id: string;
   content: { variants: Array<{ source: 'author'; text: string; tag: string }> };
   mentions: string[];
   hashtags?: string[];
@@ -103,7 +108,7 @@ function mentionPost(
   visibility: string;
 } {
   return {
-    _id: 'post1',
+    id: 'mention-federation-post1',
     content: { variants: [{ source: 'author', text, tag: 'en' }] },
     mentions,
     ...(hashtags ? { hashtags } : {}),
@@ -130,6 +135,7 @@ beforeEach(async () => {
   await clearFederationScope(scope);
   enqueueDelivery.mockResolvedValue(true);
   isFediverseSharingEnabled.mockResolvedValue(true);
+  await seedPost(scope, { id: 'mention-federation-post1', oxyUserId: AUTHOR });
   followerInbox = await seedFollowerWithInbox(scope, AUTHOR, { username: 'x' });
   postFindByIdLean.mockResolvedValue(null);
   getUsersByIds.mockResolvedValue([]);
@@ -264,7 +270,7 @@ describe('buildCreateNoteActivity — mention/reply Mention dedup', () => {
 
     const activity = followService.buildCreateNoteActivity(
       {
-        _id: 'p1',
+        id: 'p1',
         content: {
           variants: [{ source: 'author', text: 'reply to [mention:remote-oxy-id]', tag: 'en' }],
         },

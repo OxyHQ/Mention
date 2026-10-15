@@ -89,6 +89,13 @@ export const organizationDirectoryQueryKeys = {
  * gives account transitions one precise namespace to cancel and remove.
  */
 export const viewerQueryKeys = {
+  minimalProfile: (viewerId: ViewerId, handle: string) =>
+    ['mention', 'viewer', viewerCacheId(viewerId), 'minimal-profile', handle] as const,
+  postAccess: (viewerId: ViewerId, postId: string) =>
+    ['mention', 'viewer', viewerCacheId(viewerId), 'post-access', postId] as const,
+  composeMedia: (viewerId: ViewerId, privateReady: boolean, ids: readonly string[]) =>
+    ['mention', 'viewer', viewerCacheId(viewerId), 'compose-media', privateReady, ids] as const,
+
   all: (viewerId: ViewerId) => ['viewer', viewerCacheId(viewerId)] as const,
   /**
    * The viewer's central Mention personalization permission (mono colour).

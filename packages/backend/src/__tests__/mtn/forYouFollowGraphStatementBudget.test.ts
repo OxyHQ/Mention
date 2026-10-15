@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * Statement budget: the viewer's accepted OUTBOUND federated follows are read
  * ONCE per authenticated For You request.
@@ -72,6 +73,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   // The viewer must RESOLVE, or `resolveUserSummaries` falls into its federated
   // repair path and adds reads that have nothing to do with this budget.
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     users: {
       getMany: vi.fn(async (ids: string[]) =>
         ids.map((id) => ({ id, username: `u${id.slice(-6)}`, name: {}, languages: ['en-US'] })),
@@ -158,7 +160,11 @@ describe('For You feed — federated follow-graph statement budget', () => {
     // The duplication only existed because For You resolves mutuals at all.
     expect(forYouUsesSocialProof()).toBe(true);
 
-    const req = { query: { descriptor: 'for_you' }, user: { id: VIEWER } } as never;
+    const req = {
+      accessToken: 'test-viewer-session',
+      query: { descriptor: 'for_you' },
+      user: { id: VIEWER },
+    } as never;
     const res = makeRes();
     await mtnFeedController.getFeed(req, res as never);
 

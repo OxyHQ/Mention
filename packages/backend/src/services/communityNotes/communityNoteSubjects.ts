@@ -1,3 +1,4 @@
+import type { SafetyRequester } from '@oxy.so/contracts';
 import type { HydratedPost } from '@mention/shared-types';
 import { PostVisibility } from '@mention/shared-types';
 import { loadPostRecords } from '../../db/posts/postRepository';
@@ -59,6 +60,7 @@ export async function resolveNoteSubject(
   viewerId: string,
   postId: string,
   oxyClient: ScopedOxyClient,
+  safetyRequester?: SafetyRequester,
 ): Promise<NoteSubject> {
   const [post] = await loadPostRecords([postId]);
   if (!post) return { ok: false, refusal: 'not_found' };
@@ -69,6 +71,7 @@ export async function resolveNoteSubject(
 
   const [visible] = await postHydrationService.hydratePosts([post], {
     viewerId,
+    safetyRequester,
     oxyClient,
     maxDepth: 0,
     includeLinkMetadata: false,
@@ -96,12 +99,14 @@ export async function withSubjectPosts(
   viewerId: string,
   oxyClient: ScopedOxyClient,
   entries: CommunityNoteWithSubject[],
+  safetyRequester?: SafetyRequester,
 ): Promise<{ post: HydratedPost; note: CommunityNoteSummary }[]> {
   if (entries.length === 0) return [];
   const postIds = [...new Set(entries.map((entry) => entry.postId))];
   const posts = await loadPostRecords(postIds);
   const hydrated = await postHydrationService.hydratePosts(posts, {
     viewerId,
+    safetyRequester,
     oxyClient,
     maxDepth: 1,
     includeLinkMetadata: true,

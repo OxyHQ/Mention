@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * `customFeeds.routes` against REAL Postgres rows.
  *
@@ -71,7 +72,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 }));
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => undefined),
-  getServiceOxyClient: vi.fn(() => ({})),
+  getServiceOxyClient: vi.fn(() => ({ safety: adultSafetyFixture() })),
 }));
 vi.mock('../../mtn/feed/feedContext', () => ({
   loadViewerFeedContext: vi.fn(async () => ({ followingIds: [] })),
@@ -110,6 +111,7 @@ const app = express();
 app.use(express.json());
 app.use((req, _res, next) => {
   if (viewer) (req as express.Request & { user?: { id: string } }).user = { id: viewer };
+  req.headers.authorization = req.user ? 'Bearer test-viewer-session' : undefined;
   next();
 });
 app.use('/feeds', customFeedsRoutes);

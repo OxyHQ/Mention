@@ -14,6 +14,7 @@ import { postCreationService } from '../../services/PostCreationService';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
 import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
+import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { listOperatedChannelIds } from '../../services/publishAsAccount';
 import { postManagementRefusal } from '../../services/postManagementAccess';
@@ -58,6 +59,7 @@ export const getDrafts = async (req: AuthRequest, res: Response) => {
       // about one.
       includeCommunityNotes: false,
       viewerId: userId,
+      safetyRequester: safetyRequesterFor(req),
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
@@ -201,6 +203,7 @@ export const publishScheduledPostNow = async (req: AuthRequest, res: Response) =
       // look up — and asking would put a CrowdSource round trip on this path.
       includeCommunityNotes: false,
       viewerId: userId,
+      safetyRequester: safetyRequesterFor(req),
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
@@ -296,6 +299,7 @@ export const getScheduledPosts = async (req: AuthRequest, res: Response) => {
       // about one.
       includeCommunityNotes: false,
       viewerId: userId,
+      safetyRequester: safetyRequesterFor(req),
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,

@@ -50,14 +50,14 @@ export function useCaptureUpload() {
     setBusy(true);
     setFailed(false);
     try {
-      // Post media renders from the public CDN, which 404s a private asset.
+      // Upload privately; the authorized publication path decides its audience.
       const response = (await oxyServices.assets.upload(
         {
           uri: capture.uri,
           type: capture.mimeType,
           name: capture.uri.split('/').pop() ?? undefined,
         },
-        { visibility: 'public' },
+        { visibility: 'private' },
       )) as { file?: { id?: unknown; contentType?: unknown } } | undefined;
 
       const id = response?.file?.id;

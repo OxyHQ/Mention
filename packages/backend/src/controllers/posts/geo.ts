@@ -17,6 +17,7 @@ import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
 import { config } from '../../config';
 import { createScopedOxyClient } from '../../utils/oxyHelpers';
+import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { queryString } from '../../utils/queryParams';
 import { notCollapsedCrosspostSql } from '../../utils/feedQueryBuilder';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
@@ -90,6 +91,7 @@ export const getNearbyPosts = async (req: AuthRequest, res: Response) => {
 
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
       viewerId: req.user?.id,
+      safetyRequester: safetyRequesterFor(req),
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
@@ -160,6 +162,7 @@ export const getPostsInArea = async (req: AuthRequest, res: Response) => {
 
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
       viewerId: req.user?.id,
+      safetyRequester: safetyRequesterFor(req),
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
@@ -215,6 +218,7 @@ export const getNearbyPostsBothLocations = async (req: AuthRequest, res: Respons
     const currentUserId = req.user?.id;
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
       viewerId: currentUserId,
+      safetyRequester: safetyRequesterFor(req),
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,

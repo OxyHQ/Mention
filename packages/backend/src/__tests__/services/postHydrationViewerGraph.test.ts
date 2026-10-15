@@ -1,3 +1,7 @@
+vi.mock('../../db/posts/postSafetyRepository', () => ({
+  loadPostSafetyAssessments: vi.fn(async () => new Map()),
+}));
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { CachedUserSummary } from '../../services/userSummaryCache';
 
@@ -39,6 +43,7 @@ vi.mock('../../runtime/oxyClient', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     users: { getMany: getUsersByIds },
     getClarityDocuments: vi.fn(async () => ({})),
     assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
@@ -132,6 +137,7 @@ describe('PostHydrationService — viewer-graph threading', () => {
     const client = makeSpyClient();
 
     const [hydrated] = await service.hydratePosts([makePostRow()], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       viewerId: VIEWER_ID,
       oxyClient: client as never,
       viewerGraph: { followingIds: [AUTHOR_OXY_ID], followerIds: ['someone'] },
@@ -147,6 +153,7 @@ describe('PostHydrationService — viewer-graph threading', () => {
     const client = makeSpyClient();
 
     const [hydrated] = await service.hydratePosts([makePostRow()], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       viewerId: VIEWER_ID,
       oxyClient: client as never,
     });

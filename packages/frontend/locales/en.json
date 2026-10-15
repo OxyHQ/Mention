@@ -2972,5 +2972,14 @@
   "podcast": {
     "loading": "Loading podcast…",
     "unavailable": "Podcast unavailable"
+  },
+  "safety": {
+    "contentUnavailable": "This content is unavailable",
+    "unavailableTitle": "Unavailable for this account",
+    "unavailableDescription": "This feature is not available for supervised accounts yet. You can continue reading reviewed posts in your feed.",
+    "checkFailed": "Could not check account availability",
+    "retryDescription": "Try again to load the current account protections.",
+    "privatePost": "Only your guardian and approved contacts can read your posts.",
+    "pendingAssessment": "This content is not available until its safety review is complete."
   }
 }

@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * One boost per account per post, enforced where it can actually be enforced.
  *
@@ -49,7 +50,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 }));
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => ({})),
-  getServiceOxyClient: vi.fn(() => ({})),
+  getServiceOxyClient: vi.fn(() => ({ safety: adultSafetyFixture() })),
 }));
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
 
@@ -113,6 +114,7 @@ function makeRes(): Response & CapturedResponse {
 
 function makeReq(viewer: string, originalPostId: string): AuthRequest {
   return {
+    accessToken: 'test-viewer-session',
     user: { id: viewer },
     body: { originalPostId },
     params: {},
@@ -229,6 +231,7 @@ describe('boosting the same post twice at once', () => {
     const removed = makeRes();
     await feedController.unboostItem(
       {
+        accessToken: 'test-viewer-session',
         user: { id: viewer },
         params: { postId: original },
         body: {},

@@ -19,6 +19,7 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { profileAccountFacts } from '@/utils/profileAccountFacts';
 import { isNotFoundError } from '@/utils/apiError';
 import { bootstrapProfileFor } from '@/lib/documentBootstrap';
+import { useSupervisionState } from './useSupervisionState';
 
 const PROFILE_STALE_TIME = 5 * 60 * 1000; // 5 minutes
 const PROFILE_GC_TIME = 30 * 60 * 1000; // 30 minutes
@@ -187,6 +188,8 @@ export function useProfileData(username?: string): {
 } {
   const { oxyServices, user } = useAuth();
   const viewerId = user?.id ?? '';
+  const supervision = useSupervisionState();
+  const allowUnrated = supervision.ready && !supervision.supervised;
 
   const handle = username ?? '';
   const isFederated = handle.includes('@');
@@ -234,7 +237,26 @@ export function useProfileData(username?: string): {
   const documentProfile = handle ? bootstrapProfileFor(handle) : null;
 
   // Local profiles — SDK hook, shares the singleton React Query cache.
-  const localQuery = useUserByUsername(isFederated ? null : handle || null);
+  const localQuery = useUserByUsername(!allowUnrated || isFederated ? null : handle || null);
+  const minimalQuery = useQuery({
+    queryKey: viewerQueryKeys.minimalProfile(viewerId, normalizedHandle),
+    queryFn: async () => {
+      const response = await oxyServices.safety.people({ query: normalizedHandle });
+      return (
+        response.items.find((person) => person.username?.toLowerCase() === normalizedHandle) ?? null
+      );
+    },
+    enabled:
+      supervision.ready &&
+      supervision.supervised &&
+      !sessionProfile &&
+      !isFederated &&
+      normalizedHandle.length >= 2 &&
+      normalizedHandle.length <= 100,
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
+  });
 
   // Federated profiles — server-side WebFinger resolution.
   //
@@ -249,7 +271,7 @@ export function useProfileData(username?: string): {
   const federatedQuery = useQuery<User | null>({
     queryKey: viewerQueryKeys.federatedProfile(viewerId, handle),
     queryFn: () => oxyServices.users.resolveHandle(handle),
-    enabled: isFederated && handle.length > 0,
+    enabled: allowUnrated && isFederated && handle.length > 0,
     staleTime: PROFILE_STALE_TIME,
     gcTime: PROFILE_GC_TIME,
   });
@@ -285,18 +307,52 @@ export function useProfileData(username?: string): {
   const appearanceQuery = useQuery<UserAppearance | null>({
     queryKey: viewerQueryKeys.appearanceForUser(viewerId, userId),
     queryFn: () => loadForUser(userId),
-    enabled: userId.length > 0,
+    enabled: allowUnrated && userId.length > 0,
     staleTime: PROFILE_STALE_TIME,
     gcTime: PROFILE_GC_TIME,
   });
   const appearance = appearanceQuery.data ?? null;
 
   const refresh = useCallback(async () => {
+    if (!allowUnrated) {
+      if (!sessionProfile && !isFederated) await minimalQuery.refetch();
+      return;
+    }
     const profileRequest = isFederated ? federatedQuery.refetch() : localQuery.refetch();
     await Promise.all([profileRequest, ...(userId ? [appearanceQuery.refetch()] : [])]);
-  }, [appearanceQuery, federatedQuery, isFederated, localQuery, userId]);
+  }, [
+    appearanceQuery,
+    federatedQuery,
+    isFederated,
+    localQuery,
+    userId,
+    allowUnrated,
+    sessionProfile,
+    minimalQuery,
+  ]);
 
   const profileData = useMemo<ProfileData | null>(() => {
+    if (!supervision.ready) return null;
+    if (!allowUnrated) {
+      const minimal = sessionProfile
+        ? {
+            accountId: sessionProfile.id,
+            username: sessionProfile.username,
+            displayName: sessionProfile.name?.displayName,
+          }
+        : minimalQuery.isFetchedAfterMount && !minimalQuery.isError
+          ? minimalQuery.data
+          : null;
+      if (!minimal) return null;
+      return {
+        id: minimal.accountId,
+        username: minimal.username || '',
+        name: { displayName: minimal.displayName || '' },
+        design: {
+          displayName: displayNameOrHandle(minimal.displayName || '', minimal.username || ''),
+        },
+      };
+    }
     if (!profile) return null;
 
     const design = computeDesign(profile, appearance, oxyServices);
@@ -369,7 +425,17 @@ export function useProfileData(username?: string): {
       design,
       privacy: appearance?.privacy,
     };
-  }, [profile, appearance, oxyServices]);
+  }, [
+    profile,
+    appearance,
+    oxyServices,
+    supervision.ready,
+    allowUnrated,
+    sessionProfile,
+    minimalQuery.data,
+    minimalQuery.isFetchedAfterMount,
+    minimalQuery.isError,
+  ]);
 
   // Loading only while there is NOTHING TO SHOW — a query that has not answered
   // AND no session copy standing in for it. Readers render a full-page skeleton
@@ -377,8 +443,16 @@ export function useProfileData(username?: string): {
   // screen refreshes underneath itself rather than collapsing back to
   // placeholders. Not-found (resolved with no data) surfaces as an error so the
   // UI can show its empty state instead of an indefinite skeleton.
-  const loading = Boolean(handle) && isPending && !profile;
-  const error = isError || (Boolean(handle) && !isPending && !profile);
+  if (supervision.ready && supervision.supervised) {
+    const supported =
+      !isFederated && normalizedHandle.length >= 2 && normalizedHandle.length <= 100;
+    const loading = !sessionProfile && supported && minimalQuery.isPending;
+    const error = !loading && !profileData;
+    return { data: profileData, loading, error, notFound: error && !minimalQuery.isError, refresh };
+  }
+  const loading =
+    (!supervision.ready && !supervision.isError) || (Boolean(handle) && isPending && !profile);
+  const error = supervision.isError || isError || (Boolean(handle) && !isPending && !profile);
   const notFound = error && !profile && (!isError || isNotFoundError(queryError));
 
   return { data: profileData, loading, error, notFound, refresh };

@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../../helpers/adultSafety';
 import crypto from 'node:crypto';
 import express from 'express';
 import request from 'supertest';
@@ -202,6 +203,7 @@ beforeEach(() => {
   mocks.resolveMediaRef.mockReturnValue({ url: undefined });
   // The follow collections read the Oxy follow graph through the service client.
   mocks.getServiceOxyClient.mockReturnValue({
+    safety: adultSafetyFixture(),
     getUserFollowers: mocks.getUserFollowers,
     getUserFollowing: mocks.getUserFollowing,
   });

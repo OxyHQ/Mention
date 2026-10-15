@@ -1,3 +1,5 @@
+import { clearPostScope, postScope, seedPost } from '../../helpers/postFixtures';
+import { adultSafetyFixture } from '../../helpers/adultSafety';
 /**
  * The engagement outbox's MTN append, end to end against real rows, on the
  * chain shape that stalled it in production.
@@ -22,6 +24,7 @@ import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 
 vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     resolveDid: vi.fn(async () => ({ verificationMethod: [] })),
   }),
 }));
@@ -86,7 +89,9 @@ async function importedRow(
   });
 }
 
-function like(owner: string, relation: string, createdAt: Date) {
+const targetScope = postScope('mentionRecordChainRepair-targets');
+async function like(owner: string, relation: string, createdAt: Date) {
+  await seedPost(targetScope, { id: `post-${relation}`, oxyUserId: 'post-owner' });
   return {
     likerOxyUserId: owner,
     likeRkey: relation,
@@ -109,6 +114,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  await clearPostScope(targetScope);
   delete process.env.MENTION_DID;
   delete process.env.MENTION_PRIVATE_KEY;
   delete process.env.MENTION_PUBLIC_KEY;
@@ -134,11 +140,15 @@ describe('a like on a chain the cutover left inconsistent', () => {
       );
     }
     // The post-cutover genesis: no head existed, so it opened a new chain at 0.
-    await emitLikeCreatedStrict(like(owner, `${NAMESPACE}-first`, new Date(Date.now() - 60_000)));
+    await emitLikeCreatedStrict(
+      await like(owner, `${NAMESPACE}-first`, new Date(Date.now() - 60_000)),
+    );
 
     // The append that failed in production — the outbox retried it ~3,000 times.
     await expect(
-      emitLikeCreatedStrict(like(owner, `${NAMESPACE}-second`, new Date(Date.now() - 30_000))),
+      emitLikeCreatedStrict(
+        await like(owner, `${NAMESPACE}-second`, new Date(Date.now() - 30_000)),
+      ),
     ).resolves.toBeUndefined();
 
     const [head] = await db
@@ -172,8 +182,8 @@ describe('a like on a chain the cutover left inconsistent', () => {
   it('treats a redelivered event as the append it already made', async () => {
     const owner = chainOwner();
     await importedRow(owner, 1, `${NAMESPACE}-lost`, `${NAMESPACE}-orphan-${owner}`);
-    await emitLikeCreatedStrict(like(owner, `${NAMESPACE}-a`, new Date(Date.now() - 60_000)));
-    const event = like(owner, `${NAMESPACE}-b`, new Date(Date.now() - 30_000));
+    await emitLikeCreatedStrict(await like(owner, `${NAMESPACE}-a`, new Date(Date.now() - 60_000)));
+    const event = await like(owner, `${NAMESPACE}-b`, new Date(Date.now() - 30_000));
 
     await emitLikeCreatedStrict(event);
     await emitLikeCreatedStrict(event);

@@ -1,3 +1,6 @@
+jest.mock('@/hooks/useSupervisionState', () => ({
+  useSupervisionState: () => ({ ready: true, supervised: false, isError: false }),
+}));
 import type React from 'react';
 import TestRenderer, { type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 
