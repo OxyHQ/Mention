@@ -153,9 +153,13 @@ Three things prevent it, and none is sufficient alone:
   Worker's ETag, and drops it the moment the apex proxy sees a hashed chunk the
   Worker no longer has.
 - **The previous release's hashed files ship with the next one.**
-  `carry-previous-static.sh` copies them in before promotion, from the previous
-  successful release's own build output (so N ships N and N-1, never N-2). It is
-  best-effort: with nothing to carry, the release ships only its own assets.
+  `capture-live-static.sh` reads the release live on the Worker (the document,
+  then every chunk name in every script, transitively) and
+  `carry-previous-static.sh` copies it in before promotion (so N ships N and
+  N-1, never N-2). The source is the live origin, not a stored artifact: an
+  artifact that was never kept left the carry empty and the smoke failed on the
+  old document's stylesheet. It is best-effort: with nothing live, the release
+  ships only its own assets.
 - **The post-deploy smoke checks the promise, not a sample of it.**
   `smoke-frontend.sh` samples the document repeatedly and requires every
   `/_expo/static/` script and stylesheet any sample names to answer 200, not
