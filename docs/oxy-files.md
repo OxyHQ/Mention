@@ -1,6 +1,6 @@
 # Oxy Files: who owns a file, who uses it, when it goes away
 
-Mention's side of Oxy's ADR 0041, *Who owns a file, who uses it, and when it
+Mention's side of Oxy's ADR 0043, *Who owns a file, who uses it, and when it
 goes away* (in the Oxy repository's `docs/adr/`).
 Oxy owns every file; Mention says which ones it USES, owns the files no person
 owns (the GIF library, report evidence), and reacts when Oxy takes a file away.
@@ -47,7 +47,7 @@ client temp id, and the federated media cache's own files.
 
 ## How references follow the data
 
-1. **Triggers mark** (migration 0075). An insert, delete or id change on any
+1. **Triggers mark** (migration 0077). An insert, delete or id change on any
    table above calls `mention_mark_file_reference(file, type, entity)`, which
    upserts a dirty row in `oxy_file_reference_sync` in the writing transaction.
    That covers every path, including `ON DELETE CASCADE` from `posts` (account
@@ -143,7 +143,7 @@ name, validated by `.github/scripts/optional-task-bindings.sh`).
 
 ## Rollout
 
-1. Oxy API with ADR 0041 stages 1–4b deployed (report evidence is adopted
+1. Oxy API with ADR 0043 stages 1–4b deployed (report evidence is adopted
    through stage 4b's `adoptAppFile`); `@oxy.so/core` 4.15.0, `@oxy.so/contracts`
    4.19.0 and `@oxy.so/services` 11.8.0 published.
 2. Staff grant the Mention application `files:app:write` and

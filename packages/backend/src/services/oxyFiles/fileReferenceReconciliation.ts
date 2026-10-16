@@ -23,7 +23,7 @@ import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { describeOxyError } from './oxyErrors';
 
 /**
- * The nightly reference reconciliation (ADR 0041 D6) — the safety net under the
+ * The nightly reference reconciliation (ADR 0043 D6) — the safety net under the
  * reference drain, and how Mention's existing data first enters Oxy's model.
  *
  * For every Oxy entity type Mention registers (`post.00` … `post.31`, `gif`,

@@ -103,7 +103,7 @@ an evidence file unless the reporting application (or its organization's
 account) owns it and it holds the declared SHA-256, and a post's media is its
 author's. `services/moderation/reportEvidence.ts` has Oxy give the Mention
 application its own `unlisted` file of the post file's bytes (`adoptAppFile`,
-ADR 0041 stage 4b: the stored object is shared — nothing is downloaded or
+ADR 0043 stage 4b: the stored object is shared — nothing is downloaded or
 uploaded again — and the copy outlives the author deleting theirs) and declares
 the `sha256` Oxy reports for the copy, which is the source's. The copies are made once, at the report's
 first delivery attempt, and stored in `moderation_report_evidence_files`;

@@ -401,7 +401,7 @@ const environmentSchema = z
     GIF_LIBRARY_WRITE_ENABLED: booleanFromEnv(true),
 
     /**
-     * Oxy file references (ADR 0041, `docs/oxy-files.md`). ON by default: an
+     * Oxy file references (ADR 0043, `docs/oxy-files.md`). ON by default: an
      * application file nobody references is collected by Oxy, so the GIF
      * library depends on it. `false` PAUSES the reference drain only — the
      * triggers keep marking, nothing is lost, and federated deletions of files

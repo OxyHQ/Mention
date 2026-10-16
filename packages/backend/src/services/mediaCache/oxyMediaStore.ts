@@ -501,7 +501,7 @@ export async function deleteCachedMedia(oxyFileId: string): Promise<void> {
 
 /**
  * Delete a file the GIF library left in the federation media cache namespace
- * when it moved to application-owned files (ADR 0041;
+ * when it moved to application-owned files (ADR 0043;
  * `scripts/migrateGifLibraryToApplicationFiles.ts`). The cache's delete route
  * is the only one that reaches that namespace.
  *

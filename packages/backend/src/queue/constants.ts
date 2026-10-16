@@ -147,7 +147,7 @@ export const PERIODIC_INSTAGRAM_GRAPH_SYNC = 'federation:instagram-graph-sync';
 export const PERIODIC_FEDERATED_MEDIA_DELETIONS = 'federation:federated-media-deletions';
 /** Mirror federated accounts' banners into Oxy (retrying, see services/federatedBannerMirror.ts). */
 export const PERIODIC_FEDERATED_BANNER_MIRRORS = 'federation:federated-banner-mirrors';
-/** Tell Oxy which files Mention uses (ADR 0041; services/oxyFiles/fileReferenceSync.ts). */
+/** Tell Oxy which files Mention uses (ADR 0043; services/oxyFiles/fileReferenceSync.ts). */
 export const PERIODIC_OXY_FILE_REFERENCE_SYNC = 'oxy-files:reference-sync';
 
 /**

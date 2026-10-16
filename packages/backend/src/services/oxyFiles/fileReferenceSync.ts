@@ -28,7 +28,7 @@ import { describeOxyError, oxyErrorStatus } from './oxyErrors';
 
 /**
  * Drain `oxy_file_reference_sync`: tell Oxy which files Mention uses
- * (ADR 0041 D4; `docs/oxy-files.md`).
+ * (ADR 0043 D4; `docs/oxy-files.md`).
  *
  * Each due row is a pair the triggers marked. The drain asks the entity
  * registry whether the pair is in use NOW, compares that with what Oxy was last

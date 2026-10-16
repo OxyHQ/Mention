@@ -1,5 +1,5 @@
 /**
- * Oxy's file events (ADR 0041 D9/D10), against REAL rows: the signed route and
+ * Oxy's file events (ADR 0043 D9/D10), against REAL rows: the signed route and
  * what an event does to the posts, GIFs and banners that use the file.
  *
  * Every event names a file this file created, so the shared database is safe.

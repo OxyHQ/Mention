@@ -449,7 +449,7 @@ function deriveUploadName(candidate: GifImportCandidate, role: 'mp4' | 'preview.
 
 /**
  * Bring one GIF source into Oxy as a public file the Mention APPLICATION owns
- * (ADR 0041), and return its id — or null (never throws).
+ * (ADR 0043), and return its id — or null (never throws).
  *
  * Oxy fetches the URL itself (`importAppFile`: its SSRF-safe fetcher, and an
  * import of a URL it already holds for Mention answers the existing file

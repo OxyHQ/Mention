@@ -242,12 +242,12 @@ export const REPORT_EVIDENCE_MEDIA_TYPES = ['image', 'video', 'gif'] as const;
 
 /**
  * `moderation_report_evidence_files` — the media a report sends CrowdSource as
- * evidence, one row per item of the reported post (ADR 0041; CrowdSource
+ * evidence, one row per item of the reported post (ADR 0043; CrowdSource
  * refuses an evidence file unless the reporting APPLICATION owns it and it
  * holds the declared SHA-256).
  *
  * `evidence_file_id` is a copy the Mention application owns (`unlisted`),
- * adopted from the post's file (`adoptAppFile`, ADR 0041 stage 4b) — the stored
+ * adopted from the post's file (`adoptAppFile`, ADR 0043 stage 4b) — the stored
  * bytes are shared, not duplicated or re-downloaded. NULL with
  * `unavailable_reason` when Oxy could not make one (the file is gone, taken
  * down or private): the item is then only
@@ -256,7 +256,7 @@ export const REPORT_EVIDENCE_MEDIA_TYPES = ['image', 'video', 'gif'] as const;
  * re-made per attempt could differ and turn a retry into a permanent 409.
  *
  * Each copy is referenced as entity `moderation_report` while its report exists
- * (trigger, migration 0075); CrowdSource references it as its `case`.
+ * (trigger, migration 0077); CrowdSource references it as its `case`.
  */
 export const moderationReportEvidenceFiles = pgTable(
   'moderation_report_evidence_files',

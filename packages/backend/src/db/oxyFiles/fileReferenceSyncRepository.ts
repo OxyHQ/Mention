@@ -29,7 +29,7 @@ export interface DueFileReference extends FileReferenceKey {
 
 /**
  * Mark pairs dirty from application code, through the SAME function the
- * triggers call (`mention_mark_file_reference`, migration 0075), so the
+ * triggers call (`mention_mark_file_reference`, migration 0077), so the
  * ignore rule and the re-arm rule cannot differ between the two.
  */
 export async function markFileReferences(

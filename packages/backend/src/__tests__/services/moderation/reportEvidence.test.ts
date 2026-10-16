@@ -106,7 +106,7 @@ describe('media evidence', () => {
 
     const input = await buildModerationReportInput(report);
 
-    // Adopted by file id (ADR 0041 stage 4b): no URL, no re-download.
+    // Adopted by file id (ADR 0043 stage 4b): no URL, no re-download.
     expect(h.adoptAppFile).toHaveBeenCalledTimes(2);
     expect(h.adoptAppFile).toHaveBeenCalledWith(a, { visibility: 'unlisted' });
     expect(h.importAppFile).not.toHaveBeenCalled();

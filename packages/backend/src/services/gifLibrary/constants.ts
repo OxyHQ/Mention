@@ -4,7 +4,7 @@ import { config } from '../../config';
  * Tunables for the native GIF library (full import, local-first search).
  *
  * The library is NOT a TTL cache: every GIF we surface is imported into Oxy once,
- * as public files the Mention APPLICATION owns (ADR 0041), and kept for as long
+ * as public files the Mention APPLICATION owns (ADR 0043), and kept for as long
  * as its `gifs` row references them. These constants bound the import work
  * (size, concurrency, search-term storage) and carry the kill-switch.
  */

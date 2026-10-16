@@ -81,7 +81,7 @@ void _orientationsCoverTheContract;
 
 /**
  * `MediaItem.withheld` — why Oxy no longer serves a media item's file
- * (ADR 0041 D9/D10). The precedence a file event applies is the order here:
+ * (ADR 0043 D9/D10). The precedence a file event applies is the order here:
  * `deleted` is terminal, `blocked` is a takedown only Oxy lifts, `trashed` and
  * `private` are the owner's own and lifted by the owner.
  */
@@ -375,7 +375,7 @@ export const postMedia = pgTable(
      *    on every row with this media id when a file starts or stops being
      *    withheld;
      *  - the `*_withheld_from_file_state` BEFORE INSERT trigger (migration
-     *    0075) copies it onto every new row, so an edit — which deletes and
+     *    0077) copies it onto every new row, so an edit — which deletes and
      *    re-inserts the whole media set — can never un-withhold an item, and a
      *    new post cannot show a file Oxy took down.
      *

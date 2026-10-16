@@ -16,7 +16,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 const h = vi.hoisted(() => ({
   deleteFederatedMedia: vi.fn(),
   tombstoneFailure: null as Error | null,
-  // Mention's own Oxy references (ADR 0041), removed before every delete.
+  // Mention's own Oxy references (ADR 0043), removed before every delete.
   referencesAdd: vi.fn(),
   referencesRemove: vi.fn(),
   calls: [] as string[],
@@ -195,7 +195,7 @@ describe('deleting a federated post deletes its re-hosted media', () => {
   });
 });
 
-describe("Mention's own Oxy references go before the delete (ADR 0041)", () => {
+describe("Mention's own Oxy references go before the delete (ADR 0043)", () => {
   // A re-hosted file is owned by the federated actor's Oxy account, and Oxy
   // refuses to delete an account's file another application references.
 

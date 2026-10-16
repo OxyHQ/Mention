@@ -18,7 +18,7 @@ import { invalidate as invalidatePostDetailCache } from '../postDetailCache';
 
 /**
  * What Mention does when Oxy says a file it uses or owns changed
- * (ADR 0041 D9/D10; the route is `routes/oxyFileEvents.routes.ts`).
+ * (ADR 0043 D9/D10; the route is `routes/oxyFileEvents.routes.ts`).
  *
  * ## One rule: the file's state decides
  *

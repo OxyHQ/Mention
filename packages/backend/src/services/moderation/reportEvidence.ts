@@ -9,14 +9,14 @@ import { describeOxyError, oxyErrorCode, oxyErrorStatus } from '../oxyFiles/oxyE
 import type { ModerationResource } from './subjects/types';
 
 /**
- * A reported post's media, as CrowdSource evidence (ADR 0041;
+ * A reported post's media, as CrowdSource evidence (ADR 0043;
  * `docs/oxy-files.md`).
  *
  * CrowdSource accepts an evidence file only when the reporting APPLICATION owns
  * it (or its organization's account does) and it holds exactly the declared
  * SHA-256. A post's media belongs to its author, so Mention sends a COPY it
  * owns: Oxy gives the Mention application its own `unlisted` file of the post
- * file's bytes (`adoptAppFile`, ADR 0041 stage 4b). The stored object is
+ * file's bytes (`adoptAppFile`, ADR 0043 stage 4b). The stored object is
  * SHARED — nothing is downloaded or uploaded again — and the copy outlives the
  * author deleting theirs; Oxy answers the copy's `sha256` itself, so the
  * declared digest is Oxy's own record of the bytes, the source's exactly.
@@ -40,7 +40,7 @@ import type { ModerationResource } from './subjects/types';
  * outbox retries the delivery.
  *
  * Each copy is referenced as entity `moderation_report` while its report exists
- * (trigger, migration 0075), and CrowdSource references it as its `case`; once
+ * (trigger, migration 0077), and CrowdSource references it as its `case`; once
  * neither does, Oxy collects it.
  */
 

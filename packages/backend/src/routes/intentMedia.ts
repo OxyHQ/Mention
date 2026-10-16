@@ -18,7 +18,7 @@ import { MEDIA_REJECTED_TYPES } from '../services/mediaCache/mediaTypes';
  *
  * Authenticated. Accepts either:
  *  - `{ url }` — imported BY OXY into the requesting user's files
- *    (`importUserMedia`, ADR 0041 D7: Oxy's own SSRF-safe fetcher; the bytes
+ *    (`importUserMedia`, ADR 0043 D7: Oxy's own SSRF-safe fetcher; the bytes
  *    never pass through Mention) — compose intent / MCP
  *  - `{ base64, mimeType, filename? }` — inline bytes (MCP / Claude)
  *
@@ -133,7 +133,7 @@ function importRefusal(error: unknown): { status: number; message: string } {
 }
 
 /**
- * Import a remote image or video into the user's own Oxy files (ADR 0041 D7):
+ * Import a remote image or video into the user's own Oxy files (ADR 0043 D7):
  * Oxy fetches it with its SSRF-safe fetcher (https on every hop, public
  * addresses only, bounded redirects, size and time), stores it public — post
  * media renders from the CDN, which 404s a private asset — and answers the

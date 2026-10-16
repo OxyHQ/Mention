@@ -1,6 +1,6 @@
 /**
  * Oxy file references follow Mention's data in the writing transaction
- * (migration 0075's triggers) and the entity registry answers "is this pair in
+ * (migration 0077's triggers) and the entity registry answers "is this pair in
  * use" the way the triggers mark it (`db/oxyFiles/fileReferenceEntities.ts`).
  *
  * Every way a file id enters or leaves a watched column is driven against real

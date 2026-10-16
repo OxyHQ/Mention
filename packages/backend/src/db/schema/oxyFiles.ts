@@ -1,5 +1,5 @@
 /**
- * Mention's side of Oxy Files' ownership and usage model (ADR 0041,
+ * Mention's side of Oxy Files' ownership and usage model (ADR 0043,
  * `docs/oxy-files.md`).
  *
  * Oxy owns the files; Mention says which of them it USES. Every use is an Oxy
@@ -8,7 +8,7 @@
  * own data without a write path that can forget one:
  *
  *  - `oxy_file_reference_sync` — the durable outbox. Database TRIGGERS on every
- *    table that stores an Oxy file id (migration 0075) mark a
+ *    table that stores an Oxy file id (migration 0077) mark a
  *    `(file, entity type, entity)` pair dirty in the writing transaction; the
  *    drain recomputes whether the pair is still in use and tells Oxy.
  *  - `oxy_file_reference_reconciliations` — the nightly reconciliation's run
@@ -147,7 +147,7 @@ export const FILE_REFERENCE_RECONCILIATION_RETENTION_SECONDS = 90 * 24 * 60 * 60
 
 /**
  * `oxy_file_reference_reconciliations` — one row per Oxy entity type per
- * nightly reconciliation (ADR 0041 D6). The run history IS the schedule: the
+ * nightly reconciliation (ADR 0043 D6). The run history IS the schedule: the
  * job asks "when did the last run start" every few minutes, so a nightly run
  * still happens on a service that redeploys more often than nightly.
  */

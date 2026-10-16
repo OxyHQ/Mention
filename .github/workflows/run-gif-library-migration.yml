@@ -2,14 +2,14 @@ name: Run GIF library migration
 
 # Drives `migrateGifLibraryToApplicationFiles` — the one-shot that moves the GIF
 # library out of Oxy's federation media cache into files the Mention
-# APPLICATION owns (ADR 0041, docs/oxy-files.md).
+# APPLICATION owns (ADR 0043, docs/oxy-files.md).
 #
-# WHY IT EXISTS. Before ADR 0041 an application could own no file, so every GIF
+# WHY IT EXISTS. Before ADR 0043 an application could own no file, so every GIF
 # was uploaded into the platform's evictable federation cache and kept only by
 # the convention that Mention never evicted one. New imports already write
 # application files; this moves the rows written before (`gifs.storage =
 # 'federation_cache'`), rewrites every post naming an old file, and deletes the
-# old cache files nothing uses any more. Needs the Oxy API with ADR 0041 stage 3
+# old cache files nothing uses any more. Needs the Oxy API with ADR 0043 stage 3
 # deployed and the scopes `files:app:write` + `files:references:write` granted
 # to the Mention application.
 #

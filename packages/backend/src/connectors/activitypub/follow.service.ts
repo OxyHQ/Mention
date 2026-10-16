@@ -558,7 +558,7 @@ export class FollowService {
     // localized) and the tag it is written in — all from the one resolver.
     const primary = resolveVariant(post.content);
 
-    // A withheld item (Oxy no longer serves its file — ADR 0041) is not
+    // A withheld item (Oxy no longer serves its file — ADR 0043) is not
     // federated: a remote server would fetch, cache and show it.
     const attachments = Array.isArray(primary.media)
       ? primary.media

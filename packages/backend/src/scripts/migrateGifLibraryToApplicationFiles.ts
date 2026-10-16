@@ -1,8 +1,8 @@
 /**
  * One-shot move of the GIF library out of Oxy's federation media cache into
- * files the Mention APPLICATION owns (ADR 0041; `docs/oxy-files.md`).
+ * files the Mention APPLICATION owns (ADR 0043; `docs/oxy-files.md`).
  *
- * WHY. Until ADR 0041 an application could not own a file, so the library was
+ * WHY. Until ADR 0043 an application could not own a file, so the library was
  * uploaded into the platform's federation media cache — a namespace owned by
  * nobody, kept only by the convention that Mention never evicted a GIF there.
  * New imports already go to application files (`gifLibraryService.importGif`,

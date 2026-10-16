@@ -14,7 +14,7 @@ import { logger } from '../utils/logger';
 
 /**
  * `POST /webhooks/oxy/files`: Oxy telling Mention that a file it uses or owns
- * was deleted, taken down, trashed, restored or changed visibility (ADR 0041
+ * was deleted, taken down, trashed, restored or changed visibility (ADR 0043
  * D9/D10). What is done about it: `services/oxyFiles/fileEvents.ts`.
  *
  * ## The signature is the authentication

@@ -135,7 +135,7 @@ export function startSchedulers(): void {
     logger.warn('Failed to start blocklist proposal scheduler', error);
   }
 
-  // Nightly Oxy file-reference reconciliation (leader-gated, ADR 0041 D6):
+  // Nightly Oxy file-reference reconciliation (leader-gated, ADR 0043 D6):
   // sends every entity type's full inventory of file uses so Oxy's references
   // cannot drift from Mention's data. A dry run until
   // OXY_FILE_REFERENCE_RECONCILE_MODE=apply; due-ness lives in its run history.

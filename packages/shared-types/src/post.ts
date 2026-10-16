@@ -142,7 +142,7 @@ export interface MediaItem {
    * Why Oxy no longer serves this item's file, when it does not: the file was
    * `deleted`, `blocked` (a rights or privacy takedown), moved to `trashed` by
    * its owner, or made `private` by its owner. Set by the backend from Oxy's
-   * file events (ADR 0041 D9/D10); the row is kept so the item comes back when
+   * file events (ADR 0043 D9/D10); the row is kept so the item comes back when
    * the file does. Stored bookkeeping like `remoteUrl`: a withheld item is
    * dropped from every DTO and every federated copy, never rendered.
    */

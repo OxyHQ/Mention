@@ -1,6 +1,6 @@
 /**
  * Importing a GIF into the library makes Mention-APPLICATION-owned public files
- * (ADR 0041), not files in the evictable federation cache: Oxy fetches the
+ * (ADR 0043), not files in the evictable federation cache: Oxy fetches the
  * Klipy URL itself, a Klipy mp4 served as `application/octet-stream` (Oxy's 415)
  * is uploaded declaring `video/mp4`, and nothing but a Klipy host is imported.
  * The row's own insert marks both files as used by the `gif` entity.

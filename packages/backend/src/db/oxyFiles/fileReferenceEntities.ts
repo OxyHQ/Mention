@@ -1,6 +1,6 @@
 /**
  * The kinds of Mention entity that use an Oxy file — the ONE definition of
- * "entity E uses file F" (ADR 0041 D4/D6, `docs/oxy-files.md`).
+ * "entity E uses file F" (ADR 0043 D4/D6, `docs/oxy-files.md`).
  *
  * Three consumers read it, and they must agree, which is why it is one table:
  *
@@ -12,7 +12,7 @@
  *  - the federated-media deletion drain asks {@link filesInUseByFederatedMedia}
  *    whether Mention still shows a re-hosted file before deleting it.
  *
- * The triggers of migration 0075 are the fourth reader of the same facts (which
+ * The triggers of migration 0077 are the fourth reader of the same facts (which
  * column holds the file id and which the entity id); a new entity type is a new
  * entry here, a new trigger, and a new value in `FILE_REFERENCE_ENTITY_TYPES`.
  *

@@ -181,7 +181,7 @@ export const AUTHOR_FOLLOWER_SNAPSHOT_RETENTION_SECONDS = 30 * 24 * 60 * 60;
 export const GIF_SOURCES = ['klipy'] as const;
 
 /**
- * Where a `gifs` row's two files live (ADR 0041).
+ * Where a `gifs` row's two files live (ADR 0043).
  *
  * - `application`: files OWNED BY THE MENTION APPLICATION, imported by URL
  *   (`OxyServer.assets.importAppFile`) and kept alive by Mention's `gif`
@@ -527,9 +527,9 @@ export const authorFollowerSnapshots = pgTable(
 /**
  * `gifs` — a GIF fully IMPORTED into Mention's own library, not a TTL cache.
  *
- * The bytes are files the Mention APPLICATION owns in Oxy (`storage`, ADR 0041),
+ * The bytes are files the Mention APPLICATION owns in Oxy (`storage`, ADR 0043),
  * each referenced as entity type `gif` while this row exists (the
- * `gifs_file_references` trigger, migration 0075): Oxy collects an application
+ * `gifs_file_references` trigger, migration 0077): Oxy collects an application
  * file nobody references, so deleting a row is how its files go. The row is the
  * deduped index keyed by the provider id, so a GIF posted by N users maps to one
  * row and one pair of shared file ids (each post referencing them as `post`).

@@ -153,7 +153,7 @@ function buildEmbedFromMedia(
   const items: MtnEmbedMediaItem[] = [];
   for (const m of media) {
     if (!isOxyFileId(m?.id)) continue;
-    // Withheld: Oxy no longer serves the file (ADR 0041). Never signed onto
+    // Withheld: Oxy no longer serves the file (ADR 0043). Never signed onto
     // the chain, where it could not be taken back.
     if (m.withheld) continue;
     const meta = metadataByFileId.get(m.id);

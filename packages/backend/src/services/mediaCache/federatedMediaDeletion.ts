@@ -21,7 +21,7 @@ import {
  * Drain `federated_media_deletions`: delete from Oxy the re-hosted federated
  * files no post (or variant, or banner) references any more.
  *
- * "References" has two halves since ADR 0041. Whether Mention still SHOWS the
+ * "References" has two halves since ADR 0043. Whether Mention still SHOWS the
  * file is decided here, under locks, from the file-reference registry
  * (`db/oxyFiles/fileReferenceEntities.ts`); then every Oxy reference Mention
  * registered for it is removed (`clearFileReferencesBeforeDelete`) BEFORE the

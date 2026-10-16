@@ -5,7 +5,7 @@ import { federatedMediaCache } from '../schema/federation';
 import { gifCacheFileRetirements } from '../schema/oxyFiles';
 
 /**
- * The GIF library's move out of the federation media cache (ADR 0041): which
+ * The GIF library's move out of the federation media cache (ADR 0043): which
  * old cache file each GIF file replaced, and what is still owed for it. Used by
  * `scripts/migrateGifLibraryToApplicationFiles.ts` and by the post insert.
  */

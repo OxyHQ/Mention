@@ -382,7 +382,7 @@ function persistedGeometry(item: MediaItem): Partial<MediaItem> {
  * resolution) and its persisted {@link persistedGeometry}. Items without an
  * `id` are dropped.
  *
- * Items Oxy no longer serves (`withheld`, ADR 0041) are dropped like items with
+ * Items Oxy no longer serves (`withheld`, ADR 0043) are dropped like items with
  * no id.
  *
  * Because each return site builds a fresh object, this list IS the public shape
