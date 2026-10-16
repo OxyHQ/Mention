@@ -128,9 +128,10 @@ not live credentials. Native-device behavior has not been validated in this chan
 
 `packages/contracts` and `packages/sdk` are published to npm as
 `@oxy.so/mention-contracts` and `@oxy.so/mention-sdk` (Schedio's publishing
-client: `POST /posts` with an `Idempotency-Key`, `GET /mcp/bundles/me`). Publish
-them by hand from a clean checkout of the merged main commit, contracts first:
-the SDK pins the same contracts version.
+client: `POST /posts` with an `Idempotency-Key`, `GET /mcp/bundles/me`). They are
+released only through Actions → Release packages (`release-packages.yml`), contracts
+first: the SDK pins the same contracts version. Each package's `prepublishOnly` is
+its gate.
 
 Ordinary post or thread deletion refuses an attended event until it has been
 cancelled, under the same parent lock as registration. After cancellation,

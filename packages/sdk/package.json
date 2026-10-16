@@ -16,7 +16,8 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "bun test src"
+    "test": "bun test src",
+    "prepublishOnly": "bun run build && bun test src"
   },
   "dependencies": {
     "@oxy.so/mention-contracts": "workspace:0.1.3"

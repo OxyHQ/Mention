@@ -15,7 +15,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "bun run build && bun ../../scripts/event-openapi.ts --check"
   },
   "dependencies": {
     "zod": "catalog:"
