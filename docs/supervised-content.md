@@ -30,7 +30,7 @@ Endpoint/database tests cover private publication, guardian/contact access witho
 
 Release requires the canonical Oxy Kids API (oxy ADR 0041) and the registry packages `@oxy.so/contracts` 4.21.0, `@oxy.so/core` 4.17.0, `@oxy.so/services` 11.8.0 and `@oxy.so/federation` 2.4.0. No staged tarball, local module override or permissive policy fallback belongs in the release lockfile.
 
-Oxy provisioning comes before the backend deploy, through oxy's `packages/api/scripts/provision-safety-consumer.ts` with `SAFETY_CONSUMER=mention`:
+Oxy provisioning comes before the backend deploy, through the `provision-safety-consumer.ts` script in the OxyHQ/oxy API package, with `SAFETY_CONSUMER=mention`:
 
 1. `SAFETY_STAGE=base` gives both Mention workloads (`oxy-mention-task`, `oxy-mention-mcp-task`) the `safety:decide` scope. Every hydration, adult and anonymous included, asks Oxy for content decisions with a token narrowed to that scope, so without it feeds and post reads fail.
 2. `SAFETY_STAGE=capability SAFETY_ACTIONS=content-publication` lets the background `publicationPolicies` lane answer. Oxy refuses that lane to a consumer without `safety:content-publication:v1` for every author, adults included, so without it federation and MTN records stop for everyone.

@@ -458,6 +458,37 @@ describe('supervised minimal profile identity', () => {
     act(() => renderer.unmount());
   });
 
+  it('shows its own session identity and refreshes another person only through the safety API', async () => {
+    mockPeople.mockResolvedValue({
+      items: [{ accountId: 'ada-1', username: 'ada', displayName: 'Ada' }],
+    });
+    const own: Snapshot[] = [];
+    const ownRenderer = mountProbe('child', own);
+    await settle();
+    expect(own.at(-1)).toEqual({ loading: false, displayName: 'Child' });
+    expect(mockPeople).not.toHaveBeenCalled();
+    act(() => ownRenderer.unmount());
+
+    function RefreshProbe() {
+      return <RefreshTrigger onRefresh={useProfileData('ada').refresh} />;
+    }
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+    act(() => {
+      renderer = TestRenderer.create(
+        <QueryClientProvider client={new QueryClient()}>
+          <RefreshProbe />
+        </QueryClientProvider>,
+      );
+    });
+    await settle();
+    await act(async () => {
+      await renderer?.root.findByType(RefreshTrigger).props.onRefresh();
+    });
+    expect(mockPeople).toHaveBeenCalledTimes(2);
+    expect(mockFetchProfile).not.toHaveBeenCalled();
+    act(() => renderer?.unmount());
+  });
+
   it('does not fall back to a full document identity when the safety API is unavailable', async () => {
     mockPeople.mockRejectedValue(new Error('authority unavailable'));
     const sink: Snapshot[] = [];

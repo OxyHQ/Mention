@@ -2135,10 +2135,13 @@ describe('PostClassificationService — shadow fanout', () => {
           },
           { timeout: 250, interval: 5 },
         );
+        // The lock is held until `finally`, so an unbounded wait never finishes.
+        // The deadline only has to exceed the 300 ms bound plus the baseline
+        // write, which now serializes each post with its content lock.
         const done = await Promise.race([
           cycle.then(() => true),
           new Promise<boolean>((resolve) => {
-            timer = setTimeout(() => resolve(false), 1200);
+            timer = setTimeout(() => resolve(false), 3000);
           }),
         ]);
         expect(done).toBe(true);
