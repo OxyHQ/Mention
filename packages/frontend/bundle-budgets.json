@@ -12,6 +12,7 @@
     "initialJavascriptGzipBytes": 1677722
   },
   "deferredSources": {
+    "The experience history and editor load only when the profile Experience tab opens": "/packages/frontend/components/Profile/(ProfileExperience|ExperienceEditor)\\.tsx$",
     "The composer loads when /compose or /write opens (LazyComposeScreen)": "/packages/frontend/components/Compose/ComposeScreen\\.tsx$",
     "The video replies panel loads when a video is open (LazyVideoReplies)": "/packages/frontend/components/videos/VideoReplies\\.tsx$",
     "The insights dashboard loads when /insights or /c/<handle>/insights opens (LazyInsightsView)": "/packages/frontend/components/insights/InsightsView\\.tsx$",

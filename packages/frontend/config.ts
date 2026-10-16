@@ -27,6 +27,10 @@ export const API_URL_SOCKET =
 export const SYRA_API_URL = process.env.EXPO_PUBLIC_SYRA_API_URL || 'https://api.syra.fm/api';
 export const SYRA_SOCKET_URL = process.env.EXPO_PUBLIC_SYRA_SOCKET_URL || 'wss://api.syra.fm';
 
+// Clarity owns personal work experience; edits use the current Oxy session.
+export const CLARITY_API_URL =
+  process.env.EXPO_PUBLIC_CLARITY_API_URL || 'https://api.clarity.surf';
+
 // Oxy is ALWAYS the production identity provider — there is deliberately no
 // localhost fallback here, unlike `API_URL` above. Oxy owns the account, and a
 // build that quietly points identity at a port nothing is listening on does not

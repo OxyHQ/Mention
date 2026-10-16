@@ -82,6 +82,7 @@
       "dependencies": {
         "@alia.onl/sdk": "^15.8.0",
         "@babel/plugin-transform-export-namespace-from": "^8.0.1",
+        "@clarity.surf/sdk": "0.6.0",
         "@expo/vector-icons": "^15.1.1",
         "@livekit/react-native": "^3.0.0",
         "@livekit/react-native-expo-plugin": "^1.0.3",
@@ -3548,6 +3549,8 @@
     "@livekit/components-core/loglevel": ["loglevel@1.9.1", "", {}, "sha512-hP3I3kCrDIMuRwAwHltphhDM1r8i55H33GgqjXbrisuJhF4kRhW1dNuxsRklp4bXl8DSdLaNLuiL4A/LWRfxvg=="],
 
     "@livekit/react-native-webrtc/debug": ["debug@4.3.4", "", { "dependencies": { "ms": "2.1.2" }, "peerDependencies": { "supports-color": "*" }, "optionalPeers": ["supports-color"] }, "sha512-PRWFHuSU3eDtQJPvnNY7Jcket1j0t5OuOsFzPPzsekD52Zl8qUfFIPEiswXqIvHWGVHOgX+7G/vCNNhehwxfkQ=="],
+
+    "@mention/frontend/@clarity.surf/sdk": ["@clarity.surf/sdk@0.6.0", "", {}, "sha512-Zxgc2PzHYKdv1RHx+j4V4ANxMl52/MpTP0K/o+gEpRmIJA1a6/YMrcYp127191HIxDRappxMAb/ai4y++KzYgw=="],
 
     "@modelcontextprotocol/sdk/ajv": ["ajv@8.20.0", "", { "dependencies": { "fast-deep-equal": "^3.1.3", "fast-uri": "^3.0.1", "json-schema-traverse": "^1.0.0", "require-from-string": "^2.0.2" } }, "sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA=="],
 

@@ -56,6 +56,29 @@ group (#1371): main sat 4 KiB under the ceiling and the group's patch releases
 (TanStack Query, dotlottie, LiveKit and others) add 7.17 KiB, every other
 ceiling unchanged and initial JavaScript +2.83 KiB.
 
+The canonical Experience feature (#1408, 2026-10-16) moves no ceiling. Measured
+on one `expo export --platform web` each of main `fa91c8947` and the merged
+branch, same analyzer, Clarity SDK 0.6.0:
+
+| Signal | Main | With Experience | Change |
+| --- | --- | --- | --- |
+| Total bytes | 20,047,386 | 20,166,957 | +119,571 |
+| JavaScript bytes | 15,413,519 | 15,532,984 | +119,465 |
+| Initial JavaScript bytes | 5,465,353 | 5,469,574 | +4,221 |
+| Initial JavaScript gzip bytes | 1,515,738 | 1,517,174 | +1,436 |
+
+The history, the editor and the Clarity client load behind one lazy boundary,
+only when the profile Experience tab opens; the `deferredSources` gate asserts
+they stay out of the initial chunk. Most of the deferred growth is the new copy
+in the 15 per-locale catalogues.
+
+Clarity SDK 0.5.0 checked its responses with Zod 4. That made the Experience
+chunk zod's second async consumer, which `extractCommonChunk` hoisted back into
+`__common` with every locale: +586,016 initial JavaScript bytes and +102,396
+gzip, and the zod `deferredSources` gate failed as designed. SDK 0.6.0
+(OxyHQ/Clarity#116) checks Experience in plain TypeScript and no longer depends
+on zod, so the notification validators stay its one way in.
+
 The JavaScript-bytes ceiling was raised from 13 MiB by
 `4ca5f1e feat(i18n): translate all fourteen locales` — the locale catalogues are
 2.3 MB on disk but are correctly per-locale `import()`s (`lib/i18n.ts`), so they

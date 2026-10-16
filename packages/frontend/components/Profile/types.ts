@@ -59,10 +59,14 @@ export const CHANNEL_ONLY_TAB_NAMES = ['writers'] as const;
  */
 export const ORGANIZATION_ONLY_TAB_NAMES = ['jobs'] as const;
 
+/** Career history belongs to personal accounts; organizations publish jobs. */
+export const PERSONAL_ONLY_TAB_NAMES = ['experience'] as const;
+
 export type ProfileTab =
   | (typeof TAB_NAMES)[number]
   | (typeof CHANNEL_ONLY_TAB_NAMES)[number]
-  | (typeof ORGANIZATION_ONLY_TAB_NAMES)[number];
+  | (typeof ORGANIZATION_ONLY_TAB_NAMES)[number]
+  | (typeof PERSONAL_ONLY_TAB_NAMES)[number];
 
 /**
  * The static tabs a CHANNEL account's profile does NOT get.
@@ -142,6 +146,7 @@ export function profileTabsForAccountKind(kind: AccountKind | undefined): readon
   if (kind === 'organization' || kind === 'project') {
     return [...TAB_NAMES, ...ORGANIZATION_ONLY_TAB_NAMES];
   }
+  if (kind === 'personal' || kind === undefined) return [...TAB_NAMES, ...PERSONAL_ONLY_TAB_NAMES];
   if (kind !== 'channel') return TAB_NAMES;
   const excluded = CHANNEL_EXCLUDED_TABS as readonly ProfileTab[];
   return [...TAB_NAMES.filter((tab) => !excluded.includes(tab)), ...CHANNEL_ONLY_TAB_NAMES];

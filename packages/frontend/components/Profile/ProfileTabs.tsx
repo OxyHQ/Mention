@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { lazy, memo, Suspense } from 'react';
 import { View, Text, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -36,6 +36,10 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Button } from '@oxy.so/bloom/button';
 import { useReselectReloadKey } from '@/context/ScreenReselectContext';
+
+const ProfileExperience = lazy(() =>
+  import('./ProfileExperience').then((module) => ({ default: module.ProfileExperience })),
+);
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -138,6 +142,14 @@ export const ProfileTabs = memo(function ProfileTabs({
   if (tab === 'jobs') {
     return (
       <ProfileJobs employerOxyUserId={profileId} isOwnProfile={isOwnProfile} viewerId={user?.id} />
+    );
+  }
+
+  if (tab === 'experience') {
+    return (
+      <Suspense fallback={<Loading />}>
+        <ProfileExperience profileId={profileId} isOwnProfile={isOwnProfile} />
+      </Suspense>
     );
   }
 

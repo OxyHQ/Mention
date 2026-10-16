@@ -218,6 +218,7 @@ export function usePersonProfileView({
           // Same contract, for the organization/project-only `jobs` tab
           // (OxyHQ/Mention#952) — most profiles here never render it either.
           jobs: t('profile.tabs.jobs', { defaultValue: 'Jobs' }),
+          experience: t('profile.tabs.experience', { defaultValue: 'Experience' }),
         },
         laneTabs,
         profileData?.kind,

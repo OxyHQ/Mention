@@ -159,6 +159,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
           // grants it only to `organization`/`project`) — same
           // every-`ProfileTab`-covered contract as `writers` above.
           jobs: t('profile.tabs.jobs', { defaultValue: 'Jobs' }),
+          experience: t('profile.tabs.experience', { defaultValue: 'Experience' }),
         },
         laneTabs,
         'channel',

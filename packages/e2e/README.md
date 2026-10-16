@@ -254,3 +254,20 @@ inspection after another browser search and compare these positive counts to
 prove row-count idempotence; browser ID equality alone does not prove this.
 A failed cold attempt consumes that candidate's zero state: retain the evidence,
 fix the cause, and inspect a new candidate instead of retrying it as cold.
+
+## Cross-product Experience smoke
+
+`bun x playwright test -c playwright.experience.config.ts` runs the real Mention
+and Clarity web apps against deterministic HTTP fixtures. Build both products
+for production and serve their SPA outputs first; set
+`MENTION_EXPERIENCE_ORIGIN` (default `http://localhost:8107`) and
+`CLARITY_EXPERIENCE_ORIGIN` (default `http://localhost:8108`) to those previews.
+This suite is separate from the live release gate: it proves owner interactions,
+shared role IDs, canonical employer selection, logo resolution, responsive
+layout and refresh behavior without making writes to production accounts.
+Backend authorization/ownership and PostgreSQL atomic erasure have separate tests.
+
+The logo fixture is Oxy's public directory avatar, asset
+`69b85ff8a08af16d4b87155e`, fetched through `cloud.oxy.so` on 2026-10-15. The
+fixture supplies its bare ID and checks the image loaded through the application's
+normal Oxy/Bloom image resolver, rather than supplying a pre-resolved URL.

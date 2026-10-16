@@ -2349,7 +2349,79 @@
       "empty": "No jobs yet"
     },
     "tabs": {
-      "jobs": "Jobs"
+      "jobs": "Jobs",
+      "experience": "工作经历"
+    },
+    "experience": {
+      "add": "添加工作经历",
+      "edit": "编辑工作经历",
+      "editRole": "编辑{{title}}",
+      "empty": "暂无工作经历",
+      "emptyOwner": "添加职位，分享你的职业历程。",
+      "emptyVisitor": "此用户尚未添加工作经历。",
+      "loadError": "无法加载工作经历，请重试。",
+      "saveError": "无法保存更改，请重试。",
+      "deleteError": "无法删除此工作经历，请重试。",
+      "present": "至今",
+      "years_one": "{{count}}年",
+      "years_other": "{{count}}年",
+      "months_one": "{{count}}个月",
+      "months_other": "{{count}}个月",
+      "current": "我目前仍在这里工作",
+      "publicHint": "工作经历遵循你的Oxy个人资料隐私设置。更改也会显示在Clarity中。",
+      "dateHint": "请按年-月格式输入日期，例如2022-10。",
+      "companyHint": "在共享组织目录中搜索并选择你的雇主。",
+      "companySearchError": "组织目录暂不可用，请重试。",
+      "unspecified": "未指定",
+      "deleteTitle": "删除此工作经历？",
+      "deleteDescription": "此职位将从你的Mention和Clarity个人资料中移除。",
+      "fields": {
+        "title": "职位名称 *",
+        "employmentType": "就业类型",
+        "location": "地点",
+        "startDate": "开始日期 *",
+        "endDate": "结束日期 *",
+        "description": "描述",
+        "employerOxyAccountId": "公司或组织 *"
+      },
+      "validation": {
+        "title": "请输入职位名称，最多200个字符。",
+        "location": "最多使用300个字符。",
+        "startDate": "请输入YYYY-MM格式的有效月份，不能晚于本月。",
+        "endDate": "请输入YYYY-MM格式的有效月份，不能早于开始日期。",
+        "description": "最多使用5,000个字符。",
+        "employerOxyAccountId": "请从目录中选择可用的组织。"
+      },
+      "employment": {
+        "full-time": "全职",
+        "part-time": "兼职",
+        "self-employed": "自雇",
+        "freelance": "自由职业",
+        "contract": "合同工作",
+        "internship": "实习",
+        "apprenticeship": "学徒",
+        "seasonal": "季节性工作"
+      },
+      "limitReached": "最多可添加100个职位。请先移除已有职位，再添加新职位。",
+      "unavailableEmployer": "组织不可用",
+      "loadingEmployer": "正在加载组织…",
+      "employerLoadError": "无法加载组织详情。你的工作经历仍会显示。",
+      "changeEmployer": "更换组织",
+      "addOrganization": "找不到组织？添加组织",
+      "createOrganization": "添加到目录",
+      "neutralOrganizationHint": "这会将一个尚未认领的组织添加到共享目录中，不会授予你所有权，也不会验证你的任职情况。",
+      "organizationType": "组织类型",
+      "website": "网站（可选）",
+      "country": "国家代码（可选，例如CN）",
+      "organizationInvalid": "请检查名称、网站网址和两位字母国家代码。",
+      "organizationCreateError": "无法添加组织，请重试。",
+      "organizationTypes": {
+        "business": "企业",
+        "nonprofit": "非营利组织",
+        "public_body": "公共机构",
+        "community": "社区",
+        "other": "其他"
+      }
     }
   },
   "post": {

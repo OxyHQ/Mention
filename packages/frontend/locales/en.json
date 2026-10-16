@@ -2719,7 +2719,79 @@
       "empty": "No jobs yet"
     },
     "tabs": {
-      "jobs": "Jobs"
+      "jobs": "Jobs",
+      "experience": "Experience"
+    },
+    "experience": {
+      "add": "Add experience",
+      "edit": "Edit experience",
+      "editRole": "Edit {{title}}",
+      "empty": "No experience yet",
+      "emptyOwner": "Add your roles and share your professional journey.",
+      "emptyVisitor": "This person hasn’t added any experience yet.",
+      "loadError": "Experience could not be loaded. Please try again.",
+      "saveError": "Your changes could not be saved. Please try again.",
+      "deleteError": "This experience could not be deleted. Please try again.",
+      "present": "Present",
+      "years_one": "{{count}} yr",
+      "years_other": "{{count}} yrs",
+      "months_one": "{{count}} mo",
+      "months_other": "{{count}} mos",
+      "current": "I currently work here",
+      "publicHint": "Your experience follows your Oxy profile privacy settings. Changes also appear in Clarity.",
+      "dateHint": "Enter dates as year-month, for example 2022-10.",
+      "companyHint": "Search the shared organization directory and select your employer.",
+      "companySearchError": "The organization directory is unavailable. Please try again.",
+      "unspecified": "Not specified",
+      "deleteTitle": "Delete this experience?",
+      "deleteDescription": "This role will be removed from your Mention and Clarity profiles.",
+      "fields": {
+        "title": "Title *",
+        "employmentType": "Employment type",
+        "location": "Location",
+        "startDate": "Start date *",
+        "endDate": "End date *",
+        "description": "Description",
+        "employerOxyAccountId": "Company or organization *"
+      },
+      "validation": {
+        "title": "Enter a title (up to 200 characters).",
+        "location": "Use up to 300 characters.",
+        "startDate": "Enter a valid month in YYYY-MM format, no later than this month.",
+        "endDate": "Enter a valid month in YYYY-MM format, on or after the start date.",
+        "description": "Use up to 5,000 characters.",
+        "employerOxyAccountId": "Select an available organization from the directory."
+      },
+      "employment": {
+        "full-time": "Full-time",
+        "part-time": "Part-time",
+        "self-employed": "Self-employed",
+        "freelance": "Freelance",
+        "contract": "Contract",
+        "internship": "Internship",
+        "apprenticeship": "Apprenticeship",
+        "seasonal": "Seasonal"
+      },
+      "limitReached": "You can add up to 100 roles. Remove an existing role before adding another.",
+      "unavailableEmployer": "Organization unavailable",
+      "loadingEmployer": "Loading organization…",
+      "employerLoadError": "Organization details could not be loaded. Your experience is still shown.",
+      "changeEmployer": "Change organization",
+      "addOrganization": "Organization missing? Add it",
+      "createOrganization": "Add to directory",
+      "neutralOrganizationHint": "This adds an unclaimed organization to the shared directory. It does not grant you ownership or verify your employment.",
+      "organizationType": "Organization type",
+      "website": "Website (optional)",
+      "country": "Country code (optional, e.g. US)",
+      "organizationInvalid": "Check the name, website URL and two-letter country code.",
+      "organizationCreateError": "The organization could not be added. Please try again.",
+      "organizationTypes": {
+        "business": "Business",
+        "nonprofit": "Nonprofit",
+        "public_body": "Public body",
+        "community": "Community",
+        "other": "Other"
+      }
     }
   },
   "communityNotes.about.title": "About this note",

@@ -2376,7 +2376,81 @@
       "empty": "No jobs yet"
     },
     "tabs": {
-      "jobs": "Jobs"
+      "jobs": "Jobs",
+      "experience": "Experiencia"
+    },
+    "experience": {
+      "add": "Añadir experiencia",
+      "edit": "Editar experiencia",
+      "editRole": "Editar {{title}}",
+      "empty": "Sin experiencia todavía",
+      "emptyOwner": "Añade tus puestos y comparte tu trayectoria profesional.",
+      "emptyVisitor": "Esta persona aún no ha añadido experiencia.",
+      "loadError": "No se ha podido cargar la experiencia. Inténtalo de nuevo.",
+      "saveError": "No se han podido guardar los cambios. Inténtalo de nuevo.",
+      "deleteError": "No se ha podido eliminar esta experiencia. Inténtalo de nuevo.",
+      "present": "Actualidad",
+      "years_one": "{{count}} año",
+      "years_other": "{{count}} años",
+      "months_one": "{{count}} mes",
+      "months_other": "{{count}} meses",
+      "current": "Actualmente trabajo aquí",
+      "publicHint": "Tu experiencia respeta la privacidad de tu perfil de Oxy. Los cambios también aparecen en Clarity.",
+      "dateHint": "Introduce las fechas como año-mes, por ejemplo 2022-10.",
+      "companyHint": "Busca en el directorio compartido de organizaciones y selecciona tu empresa.",
+      "companySearchError": "El directorio de organizaciones no está disponible. Inténtalo de nuevo.",
+      "unspecified": "Sin especificar",
+      "deleteTitle": "¿Eliminar esta experiencia?",
+      "deleteDescription": "Este puesto se eliminará de tus perfiles de Mention y Clarity.",
+      "fields": {
+        "title": "Puesto *",
+        "employmentType": "Tipo de empleo",
+        "location": "Ubicación",
+        "startDate": "Fecha de inicio *",
+        "endDate": "Fecha de finalización *",
+        "description": "Descripción",
+        "employerOxyAccountId": "Empresa u organización *"
+      },
+      "validation": {
+        "title": "Introduce un puesto (hasta 200 caracteres).",
+        "location": "Usa un máximo de 300 caracteres.",
+        "startDate": "Introduce un mes válido con formato AAAA-MM, no posterior al mes actual.",
+        "endDate": "Introduce un mes válido con formato AAAA-MM, igual o posterior a la fecha de inicio.",
+        "description": "Usa un máximo de 5000 caracteres.",
+        "employerOxyAccountId": "Selecciona una organización disponible del directorio."
+      },
+      "employment": {
+        "full-time": "Jornada completa",
+        "part-time": "Jornada parcial",
+        "self-employed": "Autónomo",
+        "freelance": "Freelance",
+        "contract": "Por contrato",
+        "internship": "Prácticas",
+        "apprenticeship": "Formación",
+        "seasonal": "De temporada"
+      },
+      "limitReached": "Puedes añadir hasta 100 puestos. Elimina uno antes de añadir otro.",
+      "unavailableEmployer": "Organización no disponible",
+      "loadingEmployer": "Cargando organización…",
+      "employerLoadError": "No se han podido cargar los datos de las organizaciones. Tu experiencia sigue visible.",
+      "changeEmployer": "Cambiar organización",
+      "addOrganization": "¿Falta la organización? Añádela",
+      "createOrganization": "Añadir al directorio",
+      "neutralOrganizationHint": "Se añadirá una organización sin reclamar al directorio compartido. Esto no te concede su propiedad ni verifica tu relación laboral.",
+      "organizationType": "Tipo de organización",
+      "website": "Sitio web (opcional)",
+      "country": "Código de país (opcional, p. ej. ES)",
+      "organizationInvalid": "Revisa el nombre, la URL y el código de país de dos letras.",
+      "organizationCreateError": "No se ha podido añadir la organización. Inténtalo de nuevo.",
+      "organizationTypes": {
+        "business": "Empresa",
+        "nonprofit": "Sin ánimo de lucro",
+        "public_body": "Organismo público",
+        "community": "Comunidad",
+        "other": "Otra"
+      },
+      "years_many": "{{count}} años",
+      "months_many": "{{count}} meses"
     }
   },
   "post": {

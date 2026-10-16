@@ -2349,7 +2349,79 @@
       "empty": "No jobs yet"
     },
     "tabs": {
-      "jobs": "Jobs"
+      "jobs": "Jobs",
+      "experience": "Pengalaman"
+    },
+    "experience": {
+      "add": "Tambah pengalaman",
+      "edit": "Edit pengalaman",
+      "editRole": "Edit {{title}}",
+      "empty": "Belum ada pengalaman",
+      "emptyOwner": "Tambahkan jabatan dan bagikan perjalanan profesional Anda.",
+      "emptyVisitor": "Orang ini belum menambahkan pengalaman.",
+      "loadError": "Pengalaman tidak dapat dimuat. Coba lagi.",
+      "saveError": "Perubahan tidak dapat disimpan. Coba lagi.",
+      "deleteError": "Pengalaman ini tidak dapat dihapus. Coba lagi.",
+      "present": "Sekarang",
+      "years_one": "{{count}} tahun",
+      "years_other": "{{count}} tahun",
+      "months_one": "{{count}} bulan",
+      "months_other": "{{count}} bulan",
+      "current": "Saya masih bekerja di sini",
+      "publicHint": "Pengalaman Anda mengikuti pengaturan privasi profil Oxy Anda. Perubahan juga muncul di Clarity.",
+      "dateHint": "Masukkan tanggal dalam format tahun-bulan, misalnya 2022-10.",
+      "companyHint": "Cari di direktori organisasi bersama dan pilih pemberi kerja Anda.",
+      "companySearchError": "Direktori organisasi tidak tersedia. Coba lagi.",
+      "unspecified": "Tidak ditentukan",
+      "deleteTitle": "Hapus pengalaman ini?",
+      "deleteDescription": "Jabatan ini akan dihapus dari profil Mention dan Clarity Anda.",
+      "fields": {
+        "title": "Jabatan *",
+        "employmentType": "Jenis pekerjaan",
+        "location": "Lokasi",
+        "startDate": "Tanggal mulai *",
+        "endDate": "Tanggal selesai *",
+        "description": "Deskripsi",
+        "employerOxyAccountId": "Perusahaan atau organisasi *"
+      },
+      "validation": {
+        "title": "Masukkan jabatan hingga 200 karakter.",
+        "location": "Gunakan hingga 300 karakter.",
+        "startDate": "Masukkan bulan yang valid dalam format YYYY-MM, paling lambat bulan ini.",
+        "endDate": "Masukkan bulan yang valid dalam format YYYY-MM, sama dengan atau setelah tanggal mulai.",
+        "description": "Gunakan hingga 5.000 karakter.",
+        "employerOxyAccountId": "Pilih organisasi yang tersedia dari direktori."
+      },
+      "employment": {
+        "full-time": "Penuh waktu",
+        "part-time": "Paruh waktu",
+        "self-employed": "Wiraswasta",
+        "freelance": "Pekerja lepas",
+        "contract": "Kontrak",
+        "internship": "Magang",
+        "apprenticeship": "Pemagangan kejuruan",
+        "seasonal": "Musiman"
+      },
+      "limitReached": "Anda dapat menambahkan hingga 100 jabatan. Hapus jabatan yang ada sebelum menambahkan yang lain.",
+      "unavailableEmployer": "Organisasi tidak tersedia",
+      "loadingEmployer": "Memuat organisasi…",
+      "employerLoadError": "Detail organisasi tidak dapat dimuat. Pengalaman Anda tetap ditampilkan.",
+      "changeEmployer": "Ganti organisasi",
+      "addOrganization": "Organisasi belum ada? Tambahkan",
+      "createOrganization": "Tambahkan ke direktori",
+      "neutralOrganizationHint": "Ini menambahkan organisasi yang belum diklaim ke direktori bersama. Ini tidak memberi Anda kepemilikan atau memverifikasi pekerjaan Anda.",
+      "organizationType": "Jenis organisasi",
+      "website": "Situs web (opsional)",
+      "country": "Kode negara (opsional, misalnya ID)",
+      "organizationInvalid": "Periksa nama, URL situs web, dan kode negara dua huruf.",
+      "organizationCreateError": "Organisasi tidak dapat ditambahkan. Coba lagi.",
+      "organizationTypes": {
+        "business": "Bisnis",
+        "nonprofit": "Nirlaba",
+        "public_body": "Badan publik",
+        "community": "Komunitas",
+        "other": "Lainnya"
+      }
     }
   },
   "post": {

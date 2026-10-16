@@ -2455,7 +2455,87 @@
       "empty": "No jobs yet"
     },
     "tabs": {
-      "jobs": "Jobs"
+      "jobs": "Jobs",
+      "experience": "الخبرة"
+    },
+    "experience": {
+      "add": "إضافة خبرة",
+      "edit": "تعديل الخبرة",
+      "editRole": "تعديل {{title}}",
+      "empty": "لا توجد خبرات بعد",
+      "emptyOwner": "أضف وظائفك وشارك مسيرتك المهنية.",
+      "emptyVisitor": "لم يضف هذا الشخص أي خبرة بعد.",
+      "loadError": "تعذّر تحميل الخبرات. حاول مرة أخرى.",
+      "saveError": "تعذّر حفظ الخبرة. حاول مرة أخرى.",
+      "deleteError": "تعذّر حذف الخبرة. حاول مرة أخرى.",
+      "present": "حتى الآن",
+      "years_one": "{{count}} سنة",
+      "years_other": "{{count}} سنة",
+      "months_one": "{{count}} شهر",
+      "months_other": "{{count}} شهر",
+      "current": "أعمل هنا حاليًا",
+      "publicHint": "تتبع خبرتك إعدادات خصوصية ملفك الشخصي في Oxy. وتظهر التغييرات أيضًا في Clarity.",
+      "dateHint": "أدخل التواريخ بصيغة السنة والشهر، مثل 2022-10.",
+      "companyHint": "ابحث في دليل المؤسسات المشترك واختر جهة عملك.",
+      "companySearchError": "دليل المؤسسات غير متاح. حاول مرة أخرى.",
+      "unspecified": "غير محدد",
+      "deleteTitle": "حذف الخبرة؟",
+      "deleteDescription": "ستُحذف هذه الوظيفة من ملفيك الشخصيين في Mention وClarity.",
+      "fields": {
+        "title": "المسمى الوظيفي *",
+        "employmentType": "نوع التوظيف",
+        "location": "الموقع",
+        "startDate": "تاريخ البدء *",
+        "endDate": "تاريخ الانتهاء *",
+        "description": "الوصف",
+        "employerOxyAccountId": "الشركة أو المؤسسة *"
+      },
+      "validation": {
+        "title": "أدخل مسمى وظيفيًا لا يتجاوز 200 حرف.",
+        "location": "استخدم 300 حرف كحد أقصى.",
+        "startDate": "أدخل شهرًا صالحًا بصيغة YYYY-MM، لا يتجاوز الشهر الحالي.",
+        "endDate": "أدخل شهرًا صالحًا بصيغة YYYY-MM، يوافق تاريخ البدء أو يأتي بعده.",
+        "description": "استخدم 5,000 حرف كحد أقصى.",
+        "employerOxyAccountId": "اختر مؤسسة متاحة من الدليل."
+      },
+      "employment": {
+        "full-time": "دوام كامل",
+        "part-time": "دوام جزئي",
+        "self-employed": "عمل لحسابك الخاص",
+        "freelance": "عمل حر",
+        "contract": "عقد",
+        "internship": "تدريب عملي",
+        "apprenticeship": "تلمذة مهنية",
+        "seasonal": "عمل موسمي"
+      },
+      "limitReached": "يمكنك إضافة ما يصل إلى 100 وظيفة. احذف وظيفة موجودة قبل إضافة أخرى.",
+      "unavailableEmployer": "جهة العمل غير متاحة",
+      "loadingEmployer": "جارٍ تحميل جهة العمل…",
+      "employerLoadError": "تعذّر تحميل تفاصيل المؤسسة. لا تزال خبرتك معروضة.",
+      "changeEmployer": "تغيير جهة العمل",
+      "addOrganization": "المؤسسة غير موجودة؟ أضفها",
+      "createOrganization": "إضافة إلى الدليل",
+      "neutralOrganizationHint": "يضيف هذا مؤسسة غير مُطالب بملكيتها إلى الدليل المشترك. ولا يمنحك ملكيتها أو يُثبت توظيفك لديها.",
+      "organizationType": "نوع المؤسسة",
+      "website": "الموقع الإلكتروني (اختياري)",
+      "country": "رمز البلد (اختياري، مثل SA)",
+      "organizationInvalid": "تحقق من الاسم وعنوان الموقع الإلكتروني ورمز البلد المكوّن من حرفين.",
+      "organizationCreateError": "تعذّرت إضافة المؤسسة. حاول مرة أخرى.",
+      "organizationTypes": {
+        "business": "شركة",
+        "nonprofit": "مؤسسة غير ربحية",
+        "public_body": "جهة عامة",
+        "community": "مجتمع",
+        "other": "أخرى"
+      },
+      "years_zero": "{{count}} سنة",
+      "years_two": "سنتان",
+      "years_few": "{{count}} سنوات",
+      "years_many": "{{count}} سنة",
+      "months_zero": "{{count}} شهر",
+      "months_two": "شهران",
+      "months_few": "{{count}} أشهر",
+      "months_many": "{{count}} شهر"
     }
   },
   "post": {
