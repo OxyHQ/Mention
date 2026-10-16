@@ -1,0 +1,342 @@
+name: Run the bridged X history import
+
+# ONE-SHOT: import an X account's history through the bird.makeup bridge — its
+# own posts, and its retweets as boosts of the originals (which also brings each
+# original's author into Oxy). bird.makeup serves no outbox history, only single
+# statuses by id, so the ids ship as a committed, reviewed fixture beside the
+# script (`packages/backend/src/scripts/fixtures/xHistory<Account>.json`). The
+# script is `packages/backend/src/scripts/importBridgedXHistory.ts` and its
+# docblock is the authority on what it does. Manual only.
+#
+# WHY IT IS SHAPED LIKE THIS (the same two constraints as every other one-shot
+# in this directory, and the reason they are all copies of each other):
+#
+# 1. The database is on a PRIVATE VPC address, unreachable from a GitHub runner,
+#    so the script has to run as an ECS task INSIDE the VPC ("Fargate one-shot").
+#
+# 2. It can only run code from `main`. The task reuses the live service's runtime
+#    role, secrets, subnets and security groups, so allowing an arbitrary ref
+#    here would turn a branch workflow into production code execution.
+#
+# The import is IDEMPOTENT: a post is matched by its bridge activity id and a
+# boost by its minted one before anything is fetched, so a re-run imports only
+# what is still missing. bird.makeup answers 404 intermittently, so a run that
+# leaves failures exits 75 — re-run it until it exits 0.
+#
+# ALWAYS run dry FIRST (`dry_run=true`, the default). A dry run validates the
+# fixture and reports how many items are already held, fetching and writing
+# nothing. Then re-run with dry_run=false.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Report what WOULD be published, write nothing'
+        required: true
+        type: boolean
+        default: true
+      confirm_write:
+        description: 'For a real write, enter: IMPORT X HISTORY'
+        required: false
+        type: string
+      account:
+        description: 'The fixture to import (fixtures/xHistory<Account>.json)'
+        required: true
+        type: choice
+        options:
+          - enricdurang
+
+concurrency:
+  # Two concurrent runs would fetch the same statuses and race the same inserts.
+  group: import-bridged-x-history
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-west-2
+  APP: mention
+  CLUSTER: oxy-cluster
+  SERVICE: mention
+  DEPLOY_SHA: ${{ github.sha }}
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  import:
+    if: github.ref == 'refs/heads/main'
+    # Same arch as the deployed image — the service runs linux/arm64.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          fetch-depth: 2
+
+      - name: Verify current main before building
+        run: bash .github/scripts/require-current-main.sh
+
+      - name: Configure AWS credentials (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # Production builds only what the owner reviewed: the Dockerfile, context,
+      # target and both .dockerignore files must match the ONE pin in
+      # .github/scripts/reviewed-images.json, or nothing is built or pushed.
+      # The build takes its Dockerfile, context and labels from these outputs.
+      # CI runs the same check on every pull request and merge group
+      # (`reviewed-image.py check`, ci.yml job "Build, lint and typecheck").
+      - name: Refuse unreviewed image build inputs
+        id: reviewed
+        run: python3 -B .github/scripts/reviewed-image.py guard --recipe mention
+
+      - name: Build and push the import image (its own tag; never `latest`)
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ steps.reviewed.outputs.context }}
+          file: ${{ steps.reviewed.outputs.dockerfile }}
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/oxy/${{ env.APP }}:import-xhistory-${{ env.DEPLOY_SHA }}
+          cache-from: type=gha,scope=mention-backend
+          provenance: true
+          sbom: true
+          labels: |-
+            org.opencontainers.image.revision=${{ env.DEPLOY_SHA }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            io.oxy.source.tree=${{ steps.reviewed.outputs.source_tree }}
+            io.oxy.build-inputs.sha256=${{ steps.reviewed.outputs.build_inputs_sha256 }}
+
+      - name: Audit final import runtime image
+        env:
+          IMAGE_URI: ${{ steps.ecr.outputs.registry }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
+          EXPECTED_RUNTIME_ENTRY: packages/backend/dist/server.js
+          EXPECTED_WORKSPACE_PACKAGES: '@mention/backend,@mention/shared-types'
+          EXPECTED_RUNTIME_COMMANDS: 'bun,busybox'
+        run: bash .github/scripts/audit-runtime-image.sh
+
+      - name: Re-verify current main before the production one-shot
+        run: bash .github/scripts/require-current-main.sh
+
+      - name: Run the import as an ECS one-shot task
+        env:
+          IMAGE: ${{ steps.ecr.outputs.registry }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          CONFIRM_WRITE: ${{ inputs.confirm_write }}
+          ACCOUNT: ${{ inputs.account }}
+        run: |
+          set -euo pipefail
+          MAX_WAIT_SECS=3600
+          POLL_INTERVAL=15
+          IMPORT_TASK_DEF=""
+          TASK_ARN=""
+          TASK_STOPPED=true
+
+          cleanup() {
+            local exit_status=$?
+            trap - EXIT
+            if [[ "$TASK_STOPPED" != "true" && -n "$TASK_ARN" ]]; then
+              echo "::warning::Import task $TASK_ARN may still be running; the deploy role cannot call ecs:StopTask. Verify it in ECS."
+            fi
+            if [[ -n "$IMPORT_TASK_DEF" ]]; then
+              aws ecs deregister-task-definition \
+                --task-definition "$IMPORT_TASK_DEF" \
+                >/dev/null 2>&1 || true
+            fi
+            exit "$exit_status"
+          }
+          trap cleanup EXIT
+
+          if [[ "$DRY_RUN" != "true" &&
+                "$CONFIRM_WRITE" != "IMPORT X HISTORY" ]]; then
+            echo "::error::A write run requires the exact confirmation phrase."
+            exit 1
+          fi
+
+          # Take the task definition and network config from the LIVE service, so
+          # the one-shot runs with the same secrets, roles, subnets and security
+          # groups the backend already runs with. Nothing is hardcoded, and nothing
+          # drifts when the service is redeployed. The federation signing key and the
+          # Oxy service identity the script needs come from exactly there.
+          SERVICE_JSON=$(aws ecs describe-services \
+            --cluster "$CLUSTER" --services "$SERVICE" \
+            --query 'services[0]' --output json)
+          if [[ "$(jq -r '.status // "NONE"' <<<"$SERVICE_JSON")" != "ACTIVE" ]]; then
+            echo "::error::The production ECS service is not active."
+            exit 1
+          fi
+
+          LIVE_TASK_DEF=$(echo "$SERVICE_JSON" | jq -r '.taskDefinition')
+          SUBNETS=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.subnets | join(",")')
+          SEC_GROUPS=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.securityGroups | join(",")')
+          # Mirror the service's public-IP setting: the cluster's subnets are
+          # public with NO NAT gateway, so a task without a public IP cannot
+          # even pull its image from ECR.
+          ASSIGN_IP=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.assignPublicIp')
+
+          echo "live task definition: $LIVE_TASK_DEF"
+
+          # A throwaway revision that differs from the live one ONLY by the image.
+          # The service keeps running its own revision; this one exists so the task
+          # can run a branch image without touching the live service.
+          aws ecs describe-task-definition --task-definition "$LIVE_TASK_DEF" \
+            --query 'taskDefinition' --output json > live-taskdef.json
+
+          CONTAINER=$(jq -r '.containerDefinitions[0].name' live-taskdef.json)
+
+          # Image AND memory, as `run-quoted-posts-backfill.yml` and for the same
+          # measured reason: every import pulls the post's media and its author's
+          # avatar through the shared media store, and that work was OOM-killed at
+          # the service's 1 GB. 4096 MB keeps CPU at 512, so no extra vCPU quota.
+          jq --arg img "$IMAGE" '
+            .containerDefinitions[0].image = $img
+            | .memory = "4096"
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                  .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)
+          ' live-taskdef.json > import-taskdef.json
+
+          IMPORT_TASK_DEF=$(aws ecs register-task-definition \
+            --cli-input-json file://import-taskdef.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          echo "import task definition: $IMPORT_TASK_DEF"
+
+          OVERRIDES=$(jq -nc \
+            --arg name "$CONTAINER" \
+            --arg dry "$DRY_RUN" \
+            --arg account "$ACCOUNT" \
+            '{containerOverrides:[{
+               name: $name,
+               command: [
+                 "busybox","timeout","-s","TERM","-k","30","3300",
+                 "bun","packages/backend/dist/src/scripts/importBridgedXHistory.js"
+               ],
+               environment: [
+                 {name:"IMPORT_DRY_RUN", value:$dry},
+                 {name:"IMPORT_ACCOUNT", value:$account},
+                 {
+                   name:"CONFIRM_ADMIN_MUTATION",
+                   value:"importBridgedXHistory"
+                 }
+               ]
+             }]}')
+
+          RUN_TASK_JSON=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$IMPORT_TASK_DEF" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SEC_GROUPS],assignPublicIp=$ASSIGN_IP}" \
+            --overrides "$OVERRIDES" \
+            --started-by "gh-import-x-history")
+
+          if [[ "$(jq '.failures | length' <<<"$RUN_TASK_JSON")" != "0" ]]; then
+            echo "::error::ECS refused to start the import task."
+            jq '.failures' <<<"$RUN_TASK_JSON"
+            exit 1
+          fi
+          TASK_ARN=$(jq -r '.tasks[0].taskArn // empty' <<<"$RUN_TASK_JSON")
+          if [[ -z "$TASK_ARN" ]]; then
+            echo "::error::ECS returned no import task ARN."
+            exit 1
+          fi
+          TASK_STOPPED=false
+
+          echo "task: $TASK_ARN"
+          echo "Waiting for the task to stop…"
+          ELAPSED=0
+          while (( ELAPSED < MAX_WAIT_SECS )); do
+            LAST_STATUS=$(aws ecs describe-tasks \
+              --cluster "$CLUSTER" \
+              --tasks "$TASK_ARN" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+            echo "($ELAPSED s) import task status=$LAST_STATUS"
+            if [[ "$LAST_STATUS" == "STOPPED" ]]; then
+              TASK_STOPPED=true
+              break
+            fi
+            sleep "$POLL_INTERVAL"
+            ELAPSED=$((ELAPSED + POLL_INTERVAL))
+          done
+
+          if [[ "$TASK_STOPPED" != "true" ]]; then
+            echo "::error::Import exceeded ${MAX_WAIT_SECS}s. The deploy role cannot call ecs:StopTask; task $TASK_ARN may still be running and must be checked in ECS."
+            exit 1
+          fi
+
+          TASK_ID="${TASK_ARN##*/}"
+          LOG_OPTS=$(jq -r '.containerDefinitions[0].logConfiguration.options' live-taskdef.json)
+          LOG_GROUP=$(echo "$LOG_OPTS" | jq -r '."awslogs-group"')
+          LOG_PREFIX=$(echo "$LOG_OPTS" | jq -r '."awslogs-stream-prefix"')
+
+          echo "──────── import output ────────"
+          aws logs get-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "$LOG_PREFIX/$CONTAINER/$TASK_ID" \
+            --start-from-head \
+            --query 'events[].message' --output text || echo "(no logs retrieved)"
+          echo "───────────────────────────────"
+
+          EXIT_CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+          REASON=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].stoppedReason' --output text)
+
+          echo "exit code: $EXIT_CODE  (stopped reason: $REASON)"
+
+          # The verdict comes from the exit code, NOT from grepping the log:
+          # retrieval above is best-effort, so an unavailable log stream would
+          # otherwise read as the comfortable answer.
+          case "$EXIT_CODE" in
+            0)
+              echo "::notice::Import COMPLETE — every item in the fixture is held."
+              {
+                echo "### X history import: COMPLETE"
+                echo ""
+                echo "Mode: \`dry_run=$DRY_RUN\`, account \`$ACCOUNT\`. The \`[XHistory] plan\` line above carries"
+                echo "\`items\`, \`alreadyHeld\` and \`pending\`; \`[XHistory] complete\` carries \`imported\`."
+                echo ""
+                echo "On a dry run nothing was fetched or written — \`pending\` is what a real run WOULD import."
+              } >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            75)
+              # EXIT_INCOMPLETE in importBridgedXHistory.ts.
+              echo "::warning::Import FINISHED with items still failing. Everything imported is committed; re-run to retry the rest."
+              {
+                echo "### X history import: INCOMPLETE"
+                echo ""
+                echo "bird.makeup answers 404 intermittently, so some statuses could not be fetched in this run."
+                echo "Every item that did import is committed and the import is idempotent: re-run it."
+                echo "\`failedItems\` on the \`[XHistory] complete\` line names what is still missing."
+              } >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            143)
+              echo "::warning::Import was stopped at its 3300s bound — whatever it imported is committed. Re-run; it skips what is held."
+              {
+                echo "### X history import: PARTIAL (hit the time bound)"
+                echo ""
+                echo "The container's own \`timeout\` stopped the run. Every item it imported is committed, and a"
+                echo "re-run imports only what is still missing. Read the \`[XHistory] progress\` lines above."
+              } >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              echo "::error::Import task exited with $EXIT_CODE — a real failure. Any code other than 0, 75 or 143 (including 'None', meaning the task stopped without reporting one) means the script threw or the task never ran; check ECS."
+              {
+                echo "### X history import: FAILED"
+                echo ""
+                echo "Exit code \`$EXIT_CODE\`. Stopped reason: \`$REASON\`."
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+              ;;
+          esac

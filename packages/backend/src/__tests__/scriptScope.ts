@@ -184,6 +184,13 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
       'passes a fresh employerOxyUserId per test, so its creates and its skips both stay inside ' +
       'an account no other file has heard of.',
   },
+  importBridgedXHistory: {
+    scope: 'caller-scoped',
+    reason:
+      'The driving select is `inArray(federation_activity_id, <the fixture keys>)` — the import ' +
+      'only ever asks whether the items it was handed are already held. The suite mints a fresh ' +
+      'handle per test, so every key it looks up names statuses no other file has seeded.',
+  },
   assertPostgresPopulated: {
     scope: 'caller-scoped',
     reason:
