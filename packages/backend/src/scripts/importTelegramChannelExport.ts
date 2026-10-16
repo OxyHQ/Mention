@@ -80,6 +80,10 @@ const manifestSchema = z.strictObject({
         sourceId: z.string().regex(TELEGRAM_SOURCE_ID),
         /** The message's permalink, `https://t.me/c/<channel id>/<message id>`. */
         sourceUrl: z.string().regex(TELEGRAM_PERMALINK),
+        /** The Telegram channel id, without Telegram's `-100` prefix. */
+        sourceAccountId: z.string().regex(/^\d+$/),
+        /** The message id within that channel (an album's first message). */
+        sourceItemId: z.string().regex(/^\d+$/),
         createdAt: z.string().datetime(),
         text: z.string(),
         media: z
@@ -117,8 +121,11 @@ export function parseManifest(raw: unknown): TelegramManifest {
   const seen = new Set<string>();
   for (const item of manifest.items) {
     if (seen.has(item.sourceId)) throw new Error(`duplicate sourceId ${item.sourceId}`);
-    if (item.sourceUrl !== `https://t.me/c/${item.sourceId}`) {
-      throw new Error(`item ${item.sourceId} names another message's link`);
+    // The key, the link and the structured ids are three spellings of ONE
+    // message; a manifest where they disagree is refused, not repaired.
+    const key = `${item.sourceAccountId}/${item.sourceItemId}`;
+    if (item.sourceId !== key || item.sourceUrl !== `https://t.me/c/${key}`) {
+      throw new Error(`item ${item.sourceId} names another message's link or ids`);
     }
     seen.add(item.sourceId);
     if (!item.text.trim() && item.media.length === 0) {
@@ -212,6 +219,8 @@ export async function importTelegramChannelExport(
         items.push({
           sourceId: item.sourceId,
           sourceUrl: item.sourceUrl,
+          sourceAccountId: item.sourceAccountId,
+          sourceItemId: item.sourceItemId,
           createdAt: new Date(item.createdAt),
           text: item.text,
           language: 'es',

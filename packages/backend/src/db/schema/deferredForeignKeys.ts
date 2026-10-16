@@ -730,6 +730,22 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
   },
   {
     table: postImports,
+    column: postImports.sourceAccountId,
+    reason:
+      'The account the imported item belonged to on ANOTHER PLATFORM (a Telegram ' +
+      'channel id, a Mastodon actor URI, a Bluesky DID). A foreign-namespace ' +
+      'identifier, recorded as provenance; it names nothing in this database.',
+  },
+  {
+    table: postImports,
+    column: postImports.sourceItemId,
+    reason:
+      "The imported item's own id within that foreign account (a Telegram " +
+      'message id, a Mastodon status id, a Bluesky record key). Provenance only; ' +
+      'it names nothing in this database.',
+  },
+  {
+    table: postImports,
     column: postImports.importBatchId,
     reason:
       "Oxy Move's job id — a grouping token with no parent row in this " +

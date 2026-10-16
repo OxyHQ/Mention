@@ -73,6 +73,8 @@ const platformSchema = z.enum(
 const itemSchema = z.object({
   sourceId: opaqueId('sourceId'),
   sourceUrl: httpUrl('sourceUrl'),
+  sourceAccountId: opaqueId('sourceAccountId').optional(),
+  sourceItemId: opaqueId('sourceItemId').optional(),
   // ISO 8601 with an offset. Stored at millisecond precision — a JS Date cannot
   // hold more, and the feed cursor is millisecond-precise (0002 migration).
   createdAt: z.iso.datetime({ offset: true, message: 'createdAt must be an ISO 8601 date-time' }),

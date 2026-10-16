@@ -72,6 +72,10 @@ export type ImportVisibility = PostVisibility.PUBLIC | PostVisibility.FOLLOWERS_
 export interface ImportItemInput {
   sourceId: string;
   sourceUrl: string;
+  /** The account the item belonged to on its platform (see `post_imports.source_account_id`). */
+  sourceAccountId?: string;
+  /** The item's own id within that account (see `post_imports.source_item_id`). */
+  sourceItemId?: string;
   createdAt: Date;
   text: string;
   contentWarning?: string;
@@ -395,6 +399,8 @@ class PostImportService {
         platform,
         sourceId: item.sourceId,
         sourceUrl: item.sourceUrl,
+        sourceAccountId: item.sourceAccountId ?? null,
+        sourceItemId: item.sourceItemId ?? null,
         contentWarning: contentWarning ?? null,
         importBatchId: batchId,
       });

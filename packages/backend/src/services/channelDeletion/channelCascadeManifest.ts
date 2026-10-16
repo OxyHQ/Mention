@@ -1389,6 +1389,11 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
   ['post_imports.importBatchId', 'an Oxy Move job id, a grouping token'],
   ['post_imports.sourceId', "the imported item's id on another platform"],
   [
+    'post_imports.sourceAccountId',
+    'the account the imported item belonged to on another platform (a Telegram channel id, not ours)',
+  ],
+  ['post_imports.sourceItemId', "the imported item's own id within that foreign account"],
+  [
     'post_media.mediaId',
     'an Oxy file id, or a remote URL for federated media the cache never rewrote',
   ],

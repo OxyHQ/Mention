@@ -1,5 +1,5 @@
 {
-  "id": "9103d222-65ca-4291-a4d6-f5631ed057c0",
+  "id": "c6656112-f017-4850-a30a-4373efab799d",
   "prevId": "733b9a6e-bc5c-46a9-8f61-72a0cb74a7f7",
   "version": "7",
   "dialect": "postgresql",
@@ -6393,6 +6393,18 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "source_account_id": {
+          "name": "source_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_item_id": {
+          "name": "source_item_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "content_warning": {
           "name": "content_warning",

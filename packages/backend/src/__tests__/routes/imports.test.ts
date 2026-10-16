@@ -621,6 +621,8 @@ describe('an import authored by a channel', () => {
         {
           sourceId: '1/1',
           sourceUrl: 'https://t.me/c/1/1',
+          sourceAccountId: '1',
+          sourceItemId: '1',
           createdAt: new Date('2024-05-20T13:18:52Z'),
           text: 'from the channel',
           visibility: PostVisibility.PUBLIC,
@@ -640,6 +642,17 @@ describe('an import authored by a channel', () => {
     const channelPost = await readPost(channelResult.postId as string);
     expect(channelPost?.oxyUserId).toBe(CHANNEL);
     expect(channelPost?.replyPermission).toEqual(['nobody']);
+    const [ledger] = await getDb()
+      .select()
+      .from(postImports)
+      .where(eq(postImports.postId, channelResult.postId as string));
+    expect(ledger).toMatchObject({
+      platform: 'telegram',
+      sourceId: '1/1',
+      sourceUrl: 'https://t.me/c/1/1',
+      sourceAccountId: '1',
+      sourceItemId: '1',
+    });
     expect((await readPost(personalResult.postId))?.replyPermission).toEqual(['anyone']);
   });
 });

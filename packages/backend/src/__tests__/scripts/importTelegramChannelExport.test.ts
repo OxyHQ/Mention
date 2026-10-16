@@ -40,6 +40,8 @@ function item(id: string, overrides: Record<string, unknown> = {}) {
   return {
     sourceId: `1/${id}`,
     sourceUrl: `https://t.me/c/1/${id}`,
+    sourceAccountId: '1',
+    sourceItemId: id,
     createdAt: '2024-05-20T13:18:52Z',
     text: `post ${id}`,
     media: [],
@@ -91,6 +93,7 @@ describe('the manifest', () => {
   it('rejects a duplicate and an empty item', () => {
     expect(() => manifest([item('1'), item('1')])).toThrow(/duplicate/);
     expect(() => manifest([item('3', { sourceId: '3' })])).toThrow();
+    expect(() => manifest([item('6', { sourceItemId: '7' })])).toThrow(/link or ids/);
     expect(() => manifest([item('4', { sourceUrl: 'https://t.me/c/1/5' })])).toThrow(
       /another message/,
     );
@@ -148,6 +151,10 @@ describe('importTelegramChannelExport', () => {
     // Oldest first.
     expect(call.items.map((entry) => entry.sourceId)).toEqual(['1/10', '1/20']);
     expect(call.items[1]).toMatchObject({
+      sourceId: '1/20',
+      sourceUrl: 'https://t.me/c/1/20',
+      sourceAccountId: '1',
+      sourceItemId: '20',
       createdAt: new Date('2025-03-07T10:36:19Z'),
       media: [{ assetId: 'asset-1' }],
       language: 'es',
@@ -164,6 +171,8 @@ describe('importTelegramChannelExport', () => {
       platform: 'telegram',
       sourceId: '1/30',
       sourceUrl: 'https://t.me/c/1/30',
+      sourceAccountId: '1',
+      sourceItemId: '30',
       contentWarning: null,
       importBatchId: 'earlier',
     });
