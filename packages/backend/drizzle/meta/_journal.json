@@ -519,6 +519,13 @@
       "when": 1792077037792,
       "tag": "0073_posts_unused_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1792140982053,
+      "tag": "0074_telegram_import_platform",
+      "breakpoints": true
     }
   ]
 }

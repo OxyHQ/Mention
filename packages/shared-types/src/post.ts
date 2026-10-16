@@ -1399,6 +1399,7 @@ export const IMPORT_PLATFORMS = [
   'facebook',
   'medium',
   'substack',
+  'telegram',
 ] as const;
 
 export type ImportPlatform = (typeof IMPORT_PLATFORMS)[number];
@@ -1416,6 +1417,7 @@ export const IMPORT_PLATFORM_LABELS: Record<ImportPlatform, string> = {
   facebook: 'Facebook',
   medium: 'Medium',
   substack: 'Substack',
+  telegram: 'Telegram',
 };
 
 /**

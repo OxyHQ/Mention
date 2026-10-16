@@ -191,6 +191,13 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
       'only ever asks whether the items it was handed are already held. The suite mints a fresh ' +
       'handle per test, so every key it looks up names statuses no other file has seeded.',
   },
+  importTelegramChannelExport: {
+    scope: 'caller-scoped',
+    reason:
+      'The driving select is findImportsBySourceIds(targetOxyUserId, telegram, <manifest ids>) — ' +
+      'the import only asks which of the items it was handed the target already holds. The ' +
+      'suite mints a fresh target account per test, so no other file can see its ledger rows.',
+  },
   assertPostgresPopulated: {
     scope: 'caller-scoped',
     reason:
