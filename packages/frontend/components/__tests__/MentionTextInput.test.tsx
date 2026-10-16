@@ -259,6 +259,10 @@ describe('MentionTextInput typed handles', () => {
 
     it('moves the highlight with the arrows, wrapping, and Enter takes it', async () => {
       const renderer = await openPicker();
+      const setNativeProps = jest.spyOn(
+        renderer.root.findByType(TextInput).instance,
+        'setNativeProps',
+      );
 
       expect(press(renderer, 'ArrowDown')).toHaveBeenCalled();
       expect(mockPickerProps?.activeIndex).toBe(1);
@@ -272,6 +276,11 @@ describe('MentionTextInput typed handles', () => {
         text: 'Hi [mention:alicia-id] ',
         mentions: [{ userId: 'alicia-id', username: 'alicia', displayName: 'alicia' }],
       });
+      // The caret lands after the mention and its space, once the field holds the new text.
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      });
+      expect(setNativeProps).toHaveBeenLastCalledWith({ selection: { start: 11, end: 11 } });
     });
 
     it('closes the list on Escape and leaves every key to the field when no list is open', async () => {
