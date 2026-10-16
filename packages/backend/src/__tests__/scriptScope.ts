@@ -199,6 +199,10 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
       'Every select and write is keyed on the one account id the caller passes (ERASE_OXY_USER_ID); ' +
       'the rows it updates on other accounts are the ones whose arrays or pointers name that id.',
   },
+  expandFederatedTcoLinks: {
+    scope: 'caller-scoped',
+    reason: 'and(..., inArray(posts.id, postIds)) when given, and the suite always passes postIds.',
+  },
   backfillFederatedBoostCounts: {
     scope: 'caller-scoped',
     reason:

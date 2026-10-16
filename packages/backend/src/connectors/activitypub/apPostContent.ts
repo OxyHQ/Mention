@@ -16,6 +16,7 @@ import { extractApHashtags, extractApMedia } from './helpers';
 import { extractApLinkPreviews, type RemoteLinkPreview } from './apLinkPreview';
 import { extractApLanguage, getApContentMap } from './apLanguage';
 import { primaryApType } from './apSchemas';
+import { expandVariantTcoLinks } from './tcoLinks';
 import { metrics } from '../../utils/metrics';
 
 /**
@@ -536,12 +537,8 @@ async function assembleFederatedNoteContent(
   // is already a hydrated placeholder, and the shared scanner classifies it as a
   // different entity — so this cannot double-qualify or disturb one.
   const qualifiedText = ctx.identityDomain ? qualifyBareHandles(text, ctx.identityDomain) : text;
-  const variants = buildApAuthorVariants(
-    source,
-    primaryTag,
-    qualifiedText,
-    media.length > 0,
-    customEmojiNames,
+  const variants = await expandVariantTcoLinks(
+    buildApAuthorVariants(source, primaryTag, qualifiedText, media.length > 0, customEmojiNames),
   );
 
   return {
@@ -714,7 +711,9 @@ export async function buildFederatedNoteContentForEdit(
  * the outbox sync), applies the mention placeholders to it, then re-derives the
  * body here to `$set content.variants` — WITHOUT re-materializing media (which
  * would issue an extra remote fetch). The stored media state is reused via
- * `hasMedia`, which only feeds the all-hashtag restore. Pure / no network fetch.
+ * `hasMedia`, which only feeds the all-hashtag restore. Its only network use is
+ * the `t.co` expansion every body gets, so a re-derived body never brings the
+ * wrapper back.
  *
  * Returns an EMPTY array for a note with no storable body (media-only / CW-only);
  * the caller must never blank an existing post's body on an empty result.
@@ -722,7 +721,7 @@ export async function buildFederatedNoteContentForEdit(
 export function buildFederatedNoteVariants(
   object: Record<string, unknown>,
   hasMedia: boolean,
-): PostContentVariant[] {
+): Promise<PostContentVariant[]> {
   const source = rewriteHashtagAnchorsInObject(object);
   const customEmojiNames = extractDeclaredCustomEmojiNames(source);
   const primaryHtml = extractApContentHtml(source);
@@ -736,5 +735,7 @@ export function buildFederatedNoteVariants(
     text = rawText;
   }
   const primaryTag = resolveApPrimaryTag(source, primaryHtml);
-  return buildApAuthorVariants(source, primaryTag, text, hasMedia, customEmojiNames);
+  return expandVariantTcoLinks(
+    buildApAuthorVariants(source, primaryTag, text, hasMedia, customEmojiNames),
+  );
 }
