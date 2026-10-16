@@ -57,6 +57,7 @@ export const STAGING_PATH_PREFIX = '/staging/telegram-import/';
 
 const MAX_MEDIA_BYTES = 100 * 1024 * 1024;
 
+const TELEGRAM_SOURCE_ID = /^\d+\/\d+$/;
 const TELEGRAM_PERMALINK = /^https:\/\/t\.me\/c\/\d+\/\d+$/;
 const MAX_MANIFEST_BYTES = 10 * 1024 * 1024;
 
@@ -71,12 +72,13 @@ const manifestSchema = z.strictObject({
     .array(
       z.strictObject({
         /**
-         * The message's permalink, `https://t.me/c/<channel>/<message>` — also its
-         * `sourceUrl`. Never the bare message id: the ledger dedupes on
-         * (author, platform, source id), and message ids restart in every channel,
-         * so two channels imported into one account would collide on a bare id.
+         * `<channel id>/<message id>` — the item's stable key in the ledger, which
+         * dedupes on (author, platform, source id). Never the bare message id:
+         * message ids restart in every channel, so two channels imported into one
+         * account would collide on it.
          */
-        sourceId: z.string().regex(TELEGRAM_PERMALINK),
+        sourceId: z.string().regex(TELEGRAM_SOURCE_ID),
+        /** The message's permalink, `https://t.me/c/<channel id>/<message id>`. */
         sourceUrl: z.string().regex(TELEGRAM_PERMALINK),
         createdAt: z.string().datetime(),
         text: z.string(),
@@ -115,6 +117,9 @@ export function parseManifest(raw: unknown): TelegramManifest {
   const seen = new Set<string>();
   for (const item of manifest.items) {
     if (seen.has(item.sourceId)) throw new Error(`duplicate sourceId ${item.sourceId}`);
+    if (item.sourceUrl !== `https://t.me/c/${item.sourceId}`) {
+      throw new Error(`item ${item.sourceId} names another message's link`);
+    }
     seen.add(item.sourceId);
     if (!item.text.trim() && item.media.length === 0) {
       throw new Error(`item ${item.sourceId} has neither text nor media`);

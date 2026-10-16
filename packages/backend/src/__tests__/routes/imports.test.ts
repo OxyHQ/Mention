@@ -619,7 +619,7 @@ describe('an import authored by a channel', () => {
       batchId: newBatchId(),
       items: [
         {
-          sourceId: 'https://t.me/c/1/1',
+          sourceId: '1/1',
           sourceUrl: 'https://t.me/c/1/1',
           createdAt: new Date('2024-05-20T13:18:52Z'),
           text: 'from the channel',
