@@ -2,6 +2,7 @@ import {
   lookupExternalIdentitiesResponseSchema,
   resolveExternalIdentityResponseSchema,
   type ExternalIdentityProtocol,
+  type ResolveExternalIdentityResponse,
 } from '@oxy.so/contracts';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 
@@ -10,7 +11,7 @@ export async function resolveOxyIdentity(
   input:
     | { handle: string }
     | { actorUri: string; transportAcct?: string; protocol: ExternalIdentityProtocol },
-) {
+): Promise<ResolveExternalIdentityResponse> {
   const response = await getServiceOxyClient().serviceRequest<unknown>(
     'POST',
     '/federation/identities/resolve',
