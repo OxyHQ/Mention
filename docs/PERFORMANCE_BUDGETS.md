@@ -56,34 +56,28 @@ group (#1371): main sat 4 KiB under the ceiling and the group's patch releases
 (TanStack Query, dotlottie, LiveKit and others) add 7.17 KiB, every other
 ceiling unchanged and initial JavaScript +2.83 KiB.
 
-The canonical Experience feature (#1408, 2026-10-15) raises only the two
-aggregate ceilings to the next KiB above its measured production export:
-total +81,920 bytes and JavaScript +22,733 bytes. The export comparison uses
-main `db5f552f7` and the same source-map analyzer with official registry
-Bloom 10.6.1, Oxy core 4.8.0/services 11.3.0/contracts 4.14.0 and Clarity SDK
-0.5.0. No initial-load, font, largest-file ceiling or long-term target moves.
+The canonical Experience feature (#1408, 2026-10-16) moves no ceiling. Measured
+on one `expo export --platform web` each of main `fa91c8947` and the merged
+branch, same analyzer, Clarity SDK 0.6.0:
 
-| Signal | Main | Experience after lazy loading | Change |
+| Signal | Main | With Experience | Change |
 | --- | --- | --- | --- |
-| Total bytes | 21,738,829 | 21,904,776 | +165,947 |
-| JavaScript bytes | 17,105,947 | 17,271,788 | +165,841 |
-| Initial JavaScript bytes | 7,317,050 | 7,343,972 | +26,922 |
-| Initial JavaScript gzip bytes | 1,885,295 | 1,891,064 | +5,769 |
+| Total bytes | 20,047,386 | 20,166,957 | +119,571 |
+| JavaScript bytes | 15,413,519 | 15,532,984 | +119,465 |
+| Initial JavaScript bytes | 5,465,353 | 5,469,574 | +4,221 |
+| Initial JavaScript gzip bytes | 1,515,738 | 1,517,174 | +1,436 |
 
-Source-map attribution identifies 72,497 added source bytes in the 15 Mention
-locale catalogues. Other additions are the Experience list/editor/employer
-selector and the canonical organization SDK/shared account UI. Services 11.3 uses Color 5;
-Expo Router still requires Color 4, accounting for about 14 KiB of the initial
-isolated-gzip source increase. Their incompatible major versions remain intact.
-Source bytes and isolated gzip are attribution signals, not additive measures
-of the minified output in the table.
+The history, the editor and the Clarity client load behind one lazy boundary,
+only when the profile Experience tab opens; the `deferredSources` gate asserts
+they stay out of the initial chunk. Most of the deferred growth is the new copy
+in the 15 per-locale catalogues.
 
-Experience previously loaded with every profile. Its single lazy boundary now
-removes 39,752 JavaScript bytes from the initial load, with the history, editor
-and Clarity client downloaded only when that tab opens. The `deferredSources`
-gate asserts the history/editor stay out of the initial chunk, alongside all
-existing deferred features. All 15 translations remain available; production
-browser checks cover owner edits, visitor access and the shared directory.
+Clarity SDK 0.5.0 checked its responses with Zod 4. That made the Experience
+chunk zod's second async consumer, which `extractCommonChunk` hoisted back into
+`__common` with every locale: +586,016 initial JavaScript bytes and +102,396
+gzip, and the zod `deferredSources` gate failed as designed. SDK 0.6.0
+(OxyHQ/Clarity#116) checks Experience in plain TypeScript and no longer depends
+on zod, so the notification validators stay its one way in.
 
 The JavaScript-bytes ceiling was raised from 13 MiB by
 `4ca5f1e feat(i18n): translate all fourteen locales` — the locale catalogues are
