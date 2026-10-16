@@ -27,6 +27,15 @@ vi.mock('../../../connectors/shared/federatedMedia', () => ({
   materializeFederatedMedia: h.materializeFederatedMedia,
 }));
 
+// The only t.co link these tests resolve; every other upstream answers 404.
+vi.mock('../../../utils/safeUpstreamFetch', () => ({
+  fetchUpstreamSingleHop: async (url: string) => ({
+    response: { destroy: () => undefined },
+    status: url === 'https://t.co/abc123' ? 301 : 404,
+    headers: url === 'https://t.co/abc123' ? { location: 'https://example.com/' } : {},
+  }),
+}));
+
 import {
   buildFederatedNoteContent,
   buildFederatedNoteContentForEdit,
@@ -45,6 +54,17 @@ beforeEach(() => {
     media,
     attachments,
   }));
+});
+
+describe('t.co links', () => {
+  it('stores the link a t.co wrapper points to', async () => {
+    const built = await buildFederatedNoteContent({
+      content: '<p>read <a href="https://t.co/abc123">https://t.co/abc123</a></p>',
+    });
+
+    if (built.skip) throw new Error(built.reason);
+    expect(built.variants[0].text).toBe('read https://example.com/');
+  });
 });
 
 describe('extractApContentHtml', () => {

@@ -1266,7 +1266,7 @@ export class OutboxSyncService {
     // keeping the stored body and `mentions` in lockstep exactly like the inbox
     // Update path — without re-materializing media or re-fetching anything.
     const noteObject = applyMentionPlaceholders(candidate.note, resolved.anchorMap);
-    const variants = buildFederatedNoteVariants(noteObject, candidate.hasMedia);
+    const variants = await buildFederatedNoteVariants(noteObject, candidate.hasMedia);
     // A note that re-derives to an empty body (media-only / CW-only) must never
     // blank an existing post's body — leave it untouched.
     if (variants.length === 0) return false;

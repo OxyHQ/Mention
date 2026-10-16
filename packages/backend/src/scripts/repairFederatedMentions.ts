@@ -795,7 +795,7 @@ async function prepareRepair(
   const noteObject = applyMentionPlaceholders(fetched.object, resolved.anchorMap);
   // Re-derive the body ONLY (no media I/O — the stored media state is reused via
   // `hasMedia`), exactly like the live outbox self-heal.
-  const freshVariants = buildFederatedNoteVariants(noteObject, post.hasMedia);
+  const freshVariants = await buildFederatedNoteVariants(noteObject, post.hasMedia);
   if (
     resolved.ids.length === 0 &&
     !freshVariants.some((variant) =>
