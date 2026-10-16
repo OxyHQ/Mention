@@ -134,6 +134,19 @@ export function startSchedulers(): void {
   } catch (error) {
     logger.warn('Failed to start blocklist proposal scheduler', error);
   }
+
+  // Nightly Oxy file-reference reconciliation (leader-gated, ADR 0041 D6):
+  // sends every entity type's full inventory of file uses so Oxy's references
+  // cannot drift from Mention's data. A dry run until
+  // OXY_FILE_REFERENCE_RECONCILE_MODE=apply; due-ness lives in its run history.
+  try {
+    const {
+      fileReferenceReconciliationScheduler,
+    } = require('../services/oxyFiles/fileReferenceReconciliation');
+    fileReferenceReconciliationScheduler.start();
+  } catch (error) {
+    logger.warn('Failed to start Oxy file reference reconciliation', error);
+  }
 }
 
 /**
@@ -241,5 +254,14 @@ export function stopSchedulers(): void {
     blocklistProposalScheduler.stop();
   } catch (error) {
     logger.warn('Failed to stop blocklist proposal scheduler', error);
+  }
+
+  try {
+    const {
+      fileReferenceReconciliationScheduler,
+    } = require('../services/oxyFiles/fileReferenceReconciliation');
+    fileReferenceReconciliationScheduler.stop();
+  } catch (error) {
+    logger.warn('Failed to stop Oxy file reference reconciliation', error);
   }
 }

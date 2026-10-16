@@ -40,6 +40,7 @@ function createRoutes(): AppRoutes {
     media: passThrough,
     crowdSourceWebhook: passThrough,
     oxyAccountEvents: passThrough,
+    oxyFileEvents: passThrough,
     mcpOAuth: passThrough,
     webShell: routerWith('/@alice', 'web-shell'),
     apexProxy,
@@ -294,6 +295,32 @@ describe('createApp', () => {
       .set('Host', 'api.mention.earth')
       .set('Content-Type', 'application/secevent+jwt')
       .send('a.b.c')
+      .expect(200, { parsedBodyType: 'undefined', readableEnded: false });
+    expect(requireAuth).not.toHaveBeenCalled();
+  });
+
+  it('mounts the Oxy file-event webhook ahead of every body parser and auth layer', async () => {
+    const { createApp } = await import('../app');
+    const deps = createDependencies();
+    const webhook = express.Router();
+    webhook.post('/oxy/files', (req, res) => {
+      // The HMAC covers the bytes that arrived: a JSON parser ahead of this
+      // route would have consumed them (`routes/oxyFileEvents.routes.ts`).
+      res.json({ parsedBodyType: typeof req.body, readableEnded: req.readableEnded });
+    });
+    deps.routes.oxyFileEvents = webhook;
+    const requireAuth = vi.fn((_req: express.Request, res: express.Response) => {
+      res.status(401).end();
+    });
+    deps.routes.requireAuth = requireAuth;
+
+    const app = createApp(deps);
+
+    await request(app)
+      .post('/webhooks/oxy/files')
+      .set('Host', 'api.mention.earth')
+      .set('Content-Type', 'application/json')
+      .send('{"type":"file.deleted"}')
       .expect(200, { parsedBodyType: 'undefined', readableEnded: false });
     expect(requireAuth).not.toHaveBeenCalled();
   });

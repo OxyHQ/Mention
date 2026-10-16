@@ -86,6 +86,11 @@ const DEFINITIONS = {
     help: 'Federated media deletions still owed after many attempts (Oxy keeps failing to answer)',
     labelNames: [],
   },
+  oxy_file_reference_stuck: {
+    kind: 'gauge',
+    help: 'Oxy file references still owed after many attempts (Oxy keeps failing to answer)',
+    labelNames: [],
+  },
   federated_actor_upsert_failed_total: {
     kind: 'counter',
     help: 'Federated actor cache rows that could not be written, by protocol and refusing constraint',

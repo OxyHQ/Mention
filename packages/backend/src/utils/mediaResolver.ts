@@ -382,6 +382,9 @@ function persistedGeometry(item: MediaItem): Partial<MediaItem> {
  * resolution) and its persisted {@link persistedGeometry}. Items without an
  * `id` are dropped.
  *
+ * Items Oxy no longer serves (`withheld`, ADR 0041) are dropped like items with
+ * no id.
+ *
  * Because each return site builds a fresh object, this list IS the public shape
  * of a media cell — a property with two edges. It is what let the geometry go
  * missing silently, and it is also the boundary that keeps ingest bookkeeping
@@ -397,7 +400,10 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
   return items
     .filter(
       (item): item is MediaItem =>
-        Boolean(item) && typeof item.id === 'string' && item.id.length > 0,
+        // A WITHHELD item is one Oxy no longer serves (deleted, taken down,
+        // trashed or made private by its owner): it is never rendered, so it
+        // is not on the wire at all — see `MediaItem.withheld`.
+        Boolean(item) && typeof item.id === 'string' && item.id.length > 0 && !item.withheld,
     )
     .map((item) => {
       const resolved = resolveMediaRef(item.id);

@@ -99,7 +99,7 @@ function resolveSigningKey(): Buffer | null {
 }
 
 /** True when `rawUrl` is an http(s) URL whose host is a Klipy-owned domain. */
-function isAllowedKlipyHost(rawUrl: string): boolean {
+export function isAllowedKlipyHost(rawUrl: string): boolean {
   if (!URL.canParse(rawUrl)) return false;
   const url = new URL(rawUrl);
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;

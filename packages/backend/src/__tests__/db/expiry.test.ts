@@ -95,6 +95,14 @@ describe('the sweep registry', () => {
       // never claimed again, so nothing else will ever remove one.
       'moderation_outbox',
       'notifications',
+      // Oxy file events: the takedown audit and the redelivery dedupe.
+      'oxy_file_events',
+      // A nightly run history, read only for its latest start.
+      'oxy_file_reference_reconciliations',
+      // The reference outbox: every settled pair, kept a week for the replay.
+      'oxy_file_reference_sync',
+      // Released file states, kept a month to order late redeliveries.
+      'oxy_file_states',
       // A trigger-maintained 30-day read model; the triggers only ever add.
       'topic_affinity_posts',
       // The largest rows in the schema — a whole batch of nodes and edges in two

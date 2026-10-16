@@ -82,6 +82,7 @@ function createTestApp() {
     media: passThrough,
     crowdSourceWebhook: passThrough,
     oxyAccountEvents: passThrough,
+    oxyFileEvents: passThrough,
     mcpOAuth: passThrough,
     webShell: passThrough,
     apexProxy,

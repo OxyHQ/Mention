@@ -325,17 +325,22 @@ jobs:
           # Set: validated against the backend's config schema and rendered.
           # Unset: REMOVED from the revision, so the code default applies —
           # Instagram off, Graph v23.0, backfill 50, federated media deletion
-          # ON. The Instagram connector additionally stays inert until both
-          # credentials are present.
+          # ON, Oxy file references ON, their nightly reconciliation a DRY RUN
+          # (docs/oxy-files.md). The Instagram connector additionally stays
+          # inert until both credentials are present.
           OPTIONAL_TASK_ENV: >-
             INSTAGRAM_GRAPH_ENABLED
             META_GRAPH_API_VERSION
             INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT
             FEDERATED_MEDIA_DELETE_ENABLED
+            OXY_FILE_REFERENCES_ENABLED
+            OXY_FILE_REFERENCE_RECONCILE_MODE
           OPTIONAL_ENV_INSTAGRAM_GRAPH_ENABLED: ${{ vars.INSTAGRAM_GRAPH_ENABLED }}
           OPTIONAL_ENV_META_GRAPH_API_VERSION: ${{ vars.META_GRAPH_API_VERSION }}
           OPTIONAL_ENV_INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT: ${{ vars.INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT }}
           OPTIONAL_ENV_FEDERATED_MEDIA_DELETE_ENABLED: ${{ vars.FEDERATED_MEDIA_DELETE_ENABLED }}
+          OPTIONAL_ENV_OXY_FILE_REFERENCES_ENABLED: ${{ vars.OXY_FILE_REFERENCES_ENABLED }}
+          OPTIONAL_ENV_OXY_FILE_REFERENCE_RECONCILE_MODE: ${{ vars.OXY_FILE_REFERENCE_RECONCILE_MODE }}
           # A standing absence assertion: every revision is derived from the
           # live one, so merely stopping the GitHub-to-SSM sync would otherwise
           # keep injecting this retired provider credential forever.

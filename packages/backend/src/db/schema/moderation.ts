@@ -24,7 +24,18 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { boolean, check, index, integer, jsonb, pgTable, text, unique } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  check,
+  doublePrecision,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  unique,
+} from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
 
 /** `ReportedType` — the API contract, deliberately WIDER than what is delivered. */
@@ -167,6 +178,23 @@ export const reports = pgTable(
     contentSnapshotHash: text(),
     /** Last delivery failure, truncated. Never carries reported material. */
     lastDeliveryError: text(),
+    /**
+     * Which envelope shape this report is delivered with, fixed at the first
+     * delivery attempt that reads it and never changed after: CrowdSource
+     * fingerprints the whole envelope, so a retry composed differently from an
+     * earlier attempt is a permanent 409 (§10.5).
+     *
+     * `1` — the envelope before media evidence: no attachments,
+     * `evidenceAttachmentsSupported: false`. Chosen for a report already
+     *       attempted by an image that predates evidence (it carries a delivery
+     *       failure, a receipt, or an outbox attempt beyond the current one).
+     * `2` — media evidence as application-owned copies
+     *       (`services/moderation/reportEvidence.ts`). Every other report.
+     *
+     * NULL until the first attempt under this code decides
+     * (`resolveReportEnvelopeVersion`).
+     */
+    envelopeVersion: integer(),
 
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -191,6 +219,10 @@ export const reports = pgTable(
         and ${t.categories} <@ array[${sql.raw(inList(REPORT_CATEGORIES))}]::text[]`,
     ),
     check(
+      'reports_envelope_version_check',
+      sql`${t.envelopeVersion} is null or ${t.envelopeVersion} in (1, 2)`,
+    ),
+    check(
       'reports_decision_revision_check',
       sql`${t.decisionRevision} is null or ${t.decisionRevision} >= 1`,
     ),
@@ -202,6 +234,68 @@ export const reports = pgTable(
       .where(sql`${t.crowdSourceCaseId} is not null`),
     // The reconciliation sweep scans by delivery state, oldest first (§14.4).
     index('reports_local_status_chrono_idx').on(t.localStatus, t.createdAt),
+  ],
+);
+
+/** `moderation_report_evidence_files.media_type` — `MediaItem.type`. */
+export const REPORT_EVIDENCE_MEDIA_TYPES = ['image', 'video', 'gif'] as const;
+
+/**
+ * `moderation_report_evidence_files` — the media a report sends CrowdSource as
+ * evidence, one row per item of the reported post (ADR 0041; CrowdSource
+ * refuses an evidence file unless the reporting APPLICATION owns it and it
+ * holds the declared SHA-256).
+ *
+ * `evidence_file_id` is a copy the Mention application owns (`unlisted`),
+ * imported by Oxy from the post's file — content-addressed, so the bytes are
+ * shared, not duplicated. NULL with `unavailable_reason` when Oxy could not
+ * make one (the file is gone, taken down or private): the item is then only
+ * DECLARED. Written once, at the report's first delivery attempt, and read by
+ * every later attempt: CrowdSource fingerprints the whole envelope, so evidence
+ * re-made per attempt could differ and turn a retry into a permanent 409.
+ *
+ * Each copy is referenced as entity `moderation_report` while its report exists
+ * (trigger, migration 0075); CrowdSource references it as its `case`.
+ */
+export const moderationReportEvidenceFiles = pgTable(
+  'moderation_report_evidence_files',
+  {
+    reportId: text()
+      .notNull()
+      .references(() => reports.id, { onDelete: 'cascade' }),
+    position: integer().notNull(),
+    /** The post media item's file id. */
+    sourceFileId: text().notNull(),
+    /** The application-owned copy, or NULL when none could be made. */
+    evidenceFileId: text(),
+    mediaType: text({ enum: REPORT_EVIDENCE_MEDIA_TYPES }).notNull(),
+    mimeType: text(),
+    sha256: text(),
+    sizeBytes: integer(),
+    width: integer(),
+    height: integer(),
+    durationSeconds: doublePrecision(),
+    /** Where a federated item came from — provenance only, never fetched. */
+    sourceUrl: text(),
+    /** Why no copy exists (Oxy's error code), when `evidence_file_id` is NULL. */
+    unavailableReason: text(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({
+      name: 'moderation_report_evidence_files_pkey',
+      columns: [t.reportId, t.position],
+    }),
+    check(
+      'moderation_report_evidence_files_media_type_check',
+      sql`${t.mediaType} in (${sql.raw(inList(REPORT_EVIDENCE_MEDIA_TYPES))})`,
+    ),
+    check(
+      'moderation_report_evidence_files_copy_check',
+      sql`(${t.evidenceFileId} is not null and ${t.sha256} is not null and ${t.mimeType} is not null)
+        or (${t.evidenceFileId} is null and ${t.unavailableReason} is not null)`,
+    ),
+    check('moderation_report_evidence_files_position_check', sql`${t.position} >= 0`),
   ],
 );
 

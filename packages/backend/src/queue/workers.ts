@@ -246,6 +246,9 @@ async function processPeriodicJob(job: Job<PeriodicJobData>): Promise<void> {
     case 'runFederatedBannerMirrors':
       await federationJobScheduler.runFederatedBannerMirrors();
       break;
+    case 'syncOxyFileReferences':
+      await federationJobScheduler.syncOxyFileReferences();
+      break;
     default: {
       // Exhaustiveness guard: an unknown task is a programming error, not a
       // transient failure — fail permanently rather than retry forever.

@@ -181,6 +181,20 @@ export const AUTHOR_FOLLOWER_SNAPSHOT_RETENTION_SECONDS = 30 * 24 * 60 * 60;
 export const GIF_SOURCES = ['klipy'] as const;
 
 /**
+ * Where a `gifs` row's two files live (ADR 0041).
+ *
+ * - `application`: files OWNED BY THE MENTION APPLICATION, imported by URL
+ *   (`OxyServer.assets.importAppFile`) and kept alive by Mention's `gif`
+ *   references. What every import writes, explicitly.
+ * - `federation_cache`: the library's original home — files in Oxy's
+ *   platform-owned federation media cache, owned by nobody and kept only by
+ *   the convention that Mention never evicted them. The column DEFAULT, so a
+ *   row a previous image inserts during a deploy is classified correctly;
+ *   `scripts/migrateGifLibraryToApplicationFiles.ts` moves each one.
+ */
+export const GIF_STORAGES = ['federation_cache', 'application'] as const;
+
+/**
  * `trending` — one row per (name, type) per batch.
  *
  * The unique key is `(name, calculated_at, type)` in that ORDER, and the order
@@ -513,8 +527,12 @@ export const authorFollowerSnapshots = pgTable(
 /**
  * `gifs` — a GIF fully IMPORTED into Mention's own library, not a TTL cache.
  *
- * The bytes live in Oxy S3; the row is the deduped index keyed by the provider
- * id, so a GIF posted by N users maps to one row and one pair of shared file ids.
+ * The bytes are files the Mention APPLICATION owns in Oxy (`storage`, ADR 0041),
+ * each referenced as entity type `gif` while this row exists (the
+ * `gifs_file_references` trigger, migration 0075): Oxy collects an application
+ * file nobody references, so deleting a row is how its files go. The row is the
+ * deduped index keyed by the provider id, so a GIF posted by N users maps to one
+ * row and one pair of shared file ids (each post referencing them as `post`).
  *
  * Text search over `searchTerms` + `title` is a GENERATED
  * `tsvector` + GIN. The 5:1 `searchTerms`:`title` ratio is applied by
@@ -562,6 +580,8 @@ export const gifs = pgTable(
     mp4FileId: text().notNull(),
     /** Oxy file id of the small mp4 preview — the picker grid tile. */
     previewFileId: text().notNull(),
+    /** See {@link GIF_STORAGES}. */
+    storage: text({ enum: GIF_STORAGES }).notNull().default('federation_cache'),
     useCount: integer().notNull().default(0),
     searchHitCount: integer().notNull().default(0),
     lastUsedAt: timestamptz().notNull().defaultNow(),
@@ -574,6 +594,7 @@ export const gifs = pgTable(
   },
   (t) => [
     check('gifs_source_check', sql`${t.source} in (${sql.raw(inList(GIF_SOURCES))})`),
+    check('gifs_storage_check', sql`${t.storage} in (${sql.raw(inList(GIF_STORAGES))})`),
     check('gifs_dimensions_check', sql`${t.width} > 0 and ${t.height} > 0`),
     check('gifs_counts_check', sql`${t.useCount} >= 0 and ${t.searchHitCount} >= 0`),
     index('gifs_search_gin').using('gin', t.searchVector),

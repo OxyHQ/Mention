@@ -139,6 +139,15 @@ export interface MediaItem {
   /** True when this item's id was rewritten from a remote URL to an Oxy asset. */
   cachedFromFederation?: boolean;
   /**
+   * Why Oxy no longer serves this item's file, when it does not: the file was
+   * `deleted`, `blocked` (a rights or privacy takedown), moved to `trashed` by
+   * its owner, or made `private` by its owner. Set by the backend from Oxy's
+   * file events (ADR 0041 D9/D10); the row is kept so the item comes back when
+   * the file does. Stored bookkeeping like `remoteUrl`: a withheld item is
+   * dropped from every DTO and every federated copy, never rendered.
+   */
+  withheld?: 'deleted' | 'blocked' | 'trashed' | 'private';
+  /**
    * Final, ready-to-render media URL resolved server-side (CDN or our media
    * proxy). Backends populate this so the frontend never computes URLs from `id`.
    */

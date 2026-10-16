@@ -27,6 +27,7 @@ import {
 import { runCacheWorkerOnce } from './mediaCache/cacheWorker';
 import { runEvictionOnce } from './mediaCache/evictionJob';
 import { drainFederatedMediaDeletions } from './mediaCache/federatedMediaDeletion';
+import { drainFileReferenceSync } from './oxyFiles/fileReferenceSync';
 import { runFederatedBannerMirrors } from './federatedBannerMirror';
 import { isMediaCacheEnabled } from './mediaCache/oxyMediaStore';
 import {
@@ -50,6 +51,8 @@ import {
   FEDERATED_MEDIA_DELETIONS_INTERVAL_MS,
   PERIODIC_FEDERATED_BANNER_MIRRORS,
   FEDERATED_BANNER_MIRRORS_INTERVAL_MS,
+  PERIODIC_OXY_FILE_REFERENCE_SYNC,
+  OXY_FILE_REFERENCE_SYNC_INTERVAL_MS,
   REFRESH_STALE_ACTORS_INTERVAL_MS,
   SYNC_FOLLOWED_OUTBOX_INTERVAL_MS,
   RECENT_OUTBOX_BACKFILL_INTERVAL_MS,
@@ -105,6 +108,7 @@ class FederationJobScheduler {
   private affinityEventsInterval: ReturnType<typeof setInterval> | null = null;
   private instagramGraphSyncInterval: ReturnType<typeof setInterval> | null = null;
   private federatedMediaDeletionsInterval: ReturnType<typeof setInterval> | null = null;
+  private oxyFileReferenceSyncInterval: ReturnType<typeof setInterval> | null = null;
   private federatedBannerMirrorsInterval: ReturnType<typeof setInterval> | null = null;
 
   // Startup delay timeout handles (cleared in stop())
@@ -121,6 +125,7 @@ class FederationJobScheduler {
   private isFlushAffinityEventsRunning = false;
   private isInstagramGraphSyncRunning = false;
   private isFederatedMediaDeletionsRunning = false;
+  private isOxyFileReferenceSyncRunning = false;
   private isFederatedBannerMirrorsRunning = false;
 
   /** True when this scheduler registered BullMQ repeatable jobs (queue mode). */
@@ -249,6 +254,15 @@ class FederationJobScheduler {
     }, FEDERATED_MEDIA_DELETIONS_INTERVAL_MS);
     this.federatedMediaDeletionsInterval.unref?.();
 
+    // Oxy file references — ALWAYS armed (the drain itself honours its pause
+    // switch): an application file Oxy sees unreferenced for a day is collected.
+    this.oxyFileReferenceSyncInterval = setInterval(() => {
+      this.syncOxyFileReferences().catch((err) =>
+        logger.error('Oxy file reference drain failed:', err),
+      );
+    }, OXY_FILE_REFERENCE_SYNC_INTERVAL_MS);
+    this.oxyFileReferenceSyncInterval.unref?.();
+
     // Instagram Graph sync — armed only when the connector is configured, for
     // the same reason as the media-cache timers: a disabled job would no-op
     // every tick, and enabling it requires a redeploy anyway.
@@ -348,6 +362,12 @@ class FederationJobScheduler {
       PERIODIC_FEDERATED_MEDIA_DELETIONS,
       FEDERATED_MEDIA_DELETIONS_INTERVAL_MS,
       'drainFederatedMediaDeletions',
+    );
+
+    await upsert(
+      PERIODIC_OXY_FILE_REFERENCE_SYNC,
+      OXY_FILE_REFERENCE_SYNC_INTERVAL_MS,
+      'syncOxyFileReferences',
     );
 
     if (instagramGraphConnector.enabled) {
@@ -481,6 +501,10 @@ class FederationJobScheduler {
       clearInterval(this.federatedMediaDeletionsInterval);
       this.federatedMediaDeletionsInterval = null;
     }
+    if (this.oxyFileReferenceSyncInterval) {
+      clearInterval(this.oxyFileReferenceSyncInterval);
+      this.oxyFileReferenceSyncInterval = null;
+    }
     if (this.federatedBannerMirrorsInterval) {
       clearInterval(this.federatedBannerMirrorsInterval);
       this.federatedBannerMirrorsInterval = null;
@@ -512,6 +536,7 @@ class FederationJobScheduler {
       PERIODIC_INSTAGRAM_GRAPH_SYNC,
       PERIODIC_FEDERATED_MEDIA_DELETIONS,
       PERIODIC_FEDERATED_BANNER_MIRRORS,
+      PERIODIC_OXY_FILE_REFERENCE_SYNC,
     ];
 
     await Promise.allSettled(ids.map((id) => queue.removeJobScheduler(id)));
@@ -1009,6 +1034,17 @@ class FederationJobScheduler {
       await drainFederatedMediaDeletions();
     } finally {
       this.isFederatedMediaDeletionsRunning = false;
+    }
+  }
+
+  /** Drain the Oxy file-reference outbox (`services/oxyFiles/fileReferenceSync.ts`). */
+  async syncOxyFileReferences(): Promise<void> {
+    if (this.isOxyFileReferenceSyncRunning) return;
+    this.isOxyFileReferenceSyncRunning = true;
+    try {
+      await drainFileReferenceSync();
+    } finally {
+      this.isOxyFileReferenceSyncRunning = false;
     }
   }
 

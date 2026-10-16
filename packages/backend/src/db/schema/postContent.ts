@@ -80,6 +80,26 @@ void _orientationsMatchTheContract;
 void _orientationsCoverTheContract;
 
 /**
+ * `MediaItem.withheld` — why Oxy no longer serves a media item's file
+ * (ADR 0041 D9/D10). The precedence a file event applies is the order here:
+ * `deleted` is terminal, `blocked` is a takedown only Oxy lifts, `trashed` and
+ * `private` are the owner's own and lifted by the owner.
+ */
+export const MEDIA_WITHHELD_REASONS = ['deleted', 'blocked', 'trashed', 'private'] as const;
+
+/** Pinned to `@mention/shared-types` both ways, like the two vocabularies above. */
+const _withheldMatchesTheContract: readonly NonNullable<MediaItem['withheld']>[] =
+  MEDIA_WITHHELD_REASONS;
+const _withheldCoversTheContract: readonly (typeof MEDIA_WITHHELD_REASONS)[number][] = [
+  'deleted',
+  'blocked',
+  'trashed',
+  'private',
+] satisfies readonly NonNullable<MediaItem['withheld']>[];
+void _withheldMatchesTheContract;
+void _withheldCoversTheContract;
+
+/**
  * `PostAttachmentType`.
  *
  * EIGHT values, not the seven the old model enum declared: `models/Post.ts`
@@ -347,6 +367,24 @@ export const postMedia = pgTable(
     remoteUrl: text(),
     cachedFromFederation: boolean(),
     /**
+     * Why Oxy no longer serves this file (`MEDIA_WITHHELD_REASONS`), or NULL
+     * while it does. A COPY of `oxy_file_states.withheld` for this media id,
+     * kept so readers filter on the row they already hold:
+     *
+     *  - the file-event webhook (`services/oxyFiles/fileEvents.ts`) rewrites it
+     *    on every row with this media id when a file starts or stops being
+     *    withheld;
+     *  - the `*_withheld_from_file_state` BEFORE INSERT trigger (migration
+     *    0075) copies it onto every new row, so an edit — which deletes and
+     *    re-inserts the whole media set — can never un-withhold an item, and a
+     *    new post cannot show a file Oxy took down.
+     *
+     * The row itself stays: the post still uses the file (and keeps its Oxy
+     * reference, which is how `file.unblocked` / `file.restored` reach Mention).
+     * `resolveMediaItems` and the ActivityPub serializer drop withheld items.
+     */
+    withheld: text({ enum: MEDIA_WITHHELD_REASONS }),
+    /**
      * A copy of `posts.created_at`, for the same single reason its twin on
      * `post_authorships` exists: an index cannot span two tables.
      *
@@ -393,6 +431,10 @@ export const postMedia = pgTable(
         and (${t.aspectRatio} is null or ${t.aspectRatio} > 0)`,
     ),
     check('post_media_position_check', sql`${t.position} >= 0`),
+    check(
+      'post_media_withheld_check',
+      sql`${t.withheld} is null or ${t.withheld} in (${sql.raw(inList(MEDIA_WITHHELD_REASONS))})`,
+    ),
     unique('post_media_post_id_position_key').on(t.postId, t.position),
     // The videos feed's `$elemMatch` on (type, orientation, durationSec) plus a
     // width/height floor. Leading with `type` because every such query fixes it.
@@ -419,7 +461,8 @@ export const postMedia = pgTable(
       t.postCreatedAt.desc(),
       t.postId.desc(),
     ),
-    // "Which post is this media on" — the media-cache rewrite path.
+    // "Which posts use this file": the federated-media deletion check and the
+    // file-event webhook's withholding rewrite (`services/oxyFiles/`).
     index('post_media_media_id_idx').on(t.mediaId),
   ],
 );
@@ -453,6 +496,8 @@ export const postVariantMedia = pgTable(
     hlsReadyAt: timestamptz(),
     remoteUrl: text(),
     cachedFromFederation: boolean(),
+    /** Same contract as `post_media.withheld` — see the doc there. */
+    withheld: text({ enum: MEDIA_WITHHELD_REASONS }),
   },
   (t) => [
     check('post_variant_media_type_check', sql`${t.type} in (${sql.raw(inList(MEDIA_TYPES))})`),
@@ -469,6 +514,10 @@ export const postVariantMedia = pgTable(
         and (${t.aspectRatio} is null or ${t.aspectRatio} > 0)`,
     ),
     check('post_variant_media_position_check', sql`${t.position} >= 0`),
+    check(
+      'post_variant_media_withheld_check',
+      sql`${t.withheld} is null or ${t.withheld} in (${sql.raw(inList(MEDIA_WITHHELD_REASONS))})`,
+    ),
     unique('post_variant_media_variant_id_position_key').on(t.variantId, t.position),
     // The federated-media deletion drain's reference check ("does any variant
     // still use this file?"), run under per-file advisory locks — without it, a

@@ -78,8 +78,11 @@ contains_word() {
 validate_env_value() {
   local name="$1" value="$2"
   case "$name" in
-    INSTAGRAM_GRAPH_ENABLED | FEDERATED_MEDIA_DELETE_ENABLED)
+    INSTAGRAM_GRAPH_ENABLED | FEDERATED_MEDIA_DELETE_ENABLED | OXY_FILE_REFERENCES_ENABLED)
       [[ "$value" == "true" || "$value" == "false" ]]
+      ;;
+    OXY_FILE_REFERENCE_RECONCILE_MODE)
+      [[ "$value" == "off" || "$value" == "dry_run" || "$value" == "apply" ]]
       ;;
     META_GRAPH_API_VERSION)
       [[ "$value" =~ ^v[0-9]{1,3}\.[0-9]{1,3}$ ]]

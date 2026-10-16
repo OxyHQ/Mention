@@ -5,6 +5,7 @@ import { REPORT_TAXONOMY_VERSION, allegationsForCategories } from './reportTaxon
 import { subjectProviderFor } from './subjects/registry';
 import type { ModerationSubjectSnapshot } from './subjects/types';
 import type { ReportRecord } from '../../db/moderation/reportRepository';
+import { ensureReportEvidence } from './reportEvidence';
 import { logger } from '../../utils/logger';
 
 /**
@@ -148,8 +149,22 @@ export async function buildModerationReportInput(
   const provider = subjectProviderFor(report.reportedType);
   if (!provider) throw new ModerationSubjectUnsupportedError(report.reportedType);
 
-  const snapshot = await provider.snapshot(report.reportedId, report.reporter);
-  if (!snapshot) return null;
+  const provided = await provider.snapshot(report.reportedId, report.reporter);
+  if (!provided) return null;
+
+  // Media evidence: application-owned copies, made once per report and read
+  // back on every attempt (`reportEvidence.ts`), so a retry composes the
+  // envelope it composed the first time.
+  const { evidenceMedia, ...described } = provided;
+  const evidence =
+    evidenceMedia && evidenceMedia.length > 0
+      ? await ensureReportEvidence(report.id, evidenceMedia)
+      : [];
+  const attachments = [...(described.attachments ?? []), ...evidence];
+  const snapshot: ModerationSubjectSnapshot = {
+    ...described,
+    ...(attachments.length > 0 ? { attachments } : {}),
+  };
 
   const allegationCodes = allegationsForCategories(report.categories);
   const details = report.details?.trim();
@@ -208,11 +223,13 @@ export async function buildModerationReportInput(
         taxonomyVersion: REPORT_TAXONOMY_VERSION,
         categories: [...report.categories].sort().join(','),
         /**
-         * Declared, because it cannot yet be attached — see `postSubject.ts`. A
-         * jury that can see material exists which it was not given can answer
-         * `insufficient_context` for the right reason.
+         * Media is attached as application-owned evidence copies
+         * (`reportEvidence.ts`); an item that could not be copied is still
+         * declared in the subject's media summary, so a jury can see material
+         * exists which it was not given and answer `insufficient_context` for
+         * the right reason.
          */
-        evidenceAttachmentsSupported: false,
+        evidenceAttachmentsSupported: true,
       },
     },
     snapshotHash: snapshotHash(snapshot),

@@ -399,6 +399,34 @@ const environmentSchema = z
     FEDERATED_MEDIA_DELETE_ENABLED: booleanFromEnv(true),
 
     GIF_LIBRARY_WRITE_ENABLED: booleanFromEnv(true),
+
+    /**
+     * Oxy file references (ADR 0041, `docs/oxy-files.md`). ON by default: an
+     * application file nobody references is collected by Oxy, so the GIF
+     * library depends on it. `false` PAUSES the reference drain only — the
+     * triggers keep marking, nothing is lost, and federated deletions of files
+     * Mention referenced wait for it.
+     */
+    OXY_FILE_REFERENCES_ENABLED: booleanFromEnv(true),
+    /**
+     * The nightly reference reconciliation. `dry_run` (the default, and the
+     * first deployment) asks Oxy what a reconciliation WOULD add and remove and
+     * records the counts; `apply` lets it; `off` skips it. Read the
+     * `oxy_file_reference_reconciliations` dry runs before switching to apply.
+     */
+    OXY_FILE_REFERENCE_RECONCILE_MODE: z.preprocess(
+      emptyAsUndefined,
+      z.enum(['off', 'dry_run', 'apply']).default('dry_run'),
+    ),
+    /**
+     * The signing secret Oxy returned when Mention's file-events endpoint was
+     * set (`PUT /applications/:id/files-webhook`, shown once). Without it the
+     * route still answers Oxy's endpoint challenge — which is how the secret is
+     * obtained in the first place — and refuses every event with 503, which Oxy
+     * retries. `…_PREVIOUS` is accepted too, for a rotation.
+     */
+    OXY_FILES_WEBHOOK_SECRET: optionalString(16),
+    OXY_FILES_WEBHOOK_SECRET_PREVIOUS: optionalString(16),
     KLIPY_MEDIA_HOSTS: commaSeparatedDomains(['klipy.com']),
     GIF_MEDIA_PROXY_SECRET: optionalString(32),
     KLIPY_APP_KEY: trimmedOptionalString,
@@ -872,6 +900,12 @@ export const config = {
     appViewHost: environment.ATPROTO_APPVIEW,
     plcDirectoryHost: environment.ATPROTO_PLC_DIRECTORY,
     bridgeEnabled: environment.ATPROTO_BRIDGE_ENABLED,
+  },
+  oxyFiles: {
+    referencesEnabled: environment.OXY_FILE_REFERENCES_ENABLED,
+    reconcileMode: environment.OXY_FILE_REFERENCE_RECONCILE_MODE,
+    webhookSecret: environment.OXY_FILES_WEBHOOK_SECRET,
+    webhookPreviousSecret: environment.OXY_FILES_WEBHOOK_SECRET_PREVIOUS,
   },
   gif: {
     libraryWriteEnabled: environment.GIF_LIBRARY_WRITE_ENABLED,

@@ -219,6 +219,8 @@ const HTTP_OK = 200;
 const HTTP_CREATED = 201;
 /** A successful delete may answer 200 or 204 (no content). */
 const HTTP_NO_CONTENT = 204;
+/** The file is not there (any more). */
+const HTTP_NOT_FOUND = 404;
 /** Oxy's answer when this app's media-write budget for the window is spent. */
 const HTTP_TOO_MANY_REQUESTS = 429;
 /**
@@ -388,29 +390,6 @@ export async function uploadCachedMedia(source: CachedMediaSource): Promise<Uplo
   return uploadMediaToOxy(OXY_ASSET_CACHE_PATH, source);
 }
 
-/**
- * Upload an OWNED GIF-library media object (full mp4 or small mp4 preview) to Oxy
- * via the SAME service-token streaming upload path the federated media cache uses
- * (`POST /assets/service/cache`). Reuses the exact streaming + 401-retry transport
- * of {@link uploadCachedMedia} — it does NOT invent a second S3 write path.
- *
- * Two deliberate differences from {@link uploadCachedMedia}:
- *  - It is gated by the GIF library's own `GIF_LIBRARY_WRITE_ENABLED` switch
- *    (checked by the caller in `services/gifLibrary`), NOT by the federated
- *    media-cache `isMediaCacheEnabled()` flag, so GIF imports stay on even when
- *    the federated media cache is off (the GIF library defaults ON).
- *  - The GIF library OWNS these objects: it never calls the cache eviction
- *    DELETE (`/assets/service/cache/:id`) on a GIF file id, and GIF files are not
- *    tracked in `FederatedMediaCache`, so the activity-based eviction job never
- *    enumerates them. They are therefore durable despite sharing the reserved
- *    cache namespace, which is exactly what `Gif` rows (referenced by persisted
- *    posts) require.
- */
-export async function uploadGifLibraryMedia(source: CachedMediaSource): Promise<UploadedAsset> {
-  assertWriteBudget('upload');
-  return uploadMediaToOxy(OXY_ASSET_CACHE_PATH, source);
-}
-
 export interface FederatedMediaSource extends CachedMediaSource {
   ownerUserId: string;
   metadata?: Record<string, unknown>;
@@ -517,7 +496,34 @@ export async function deleteCachedMedia(oxyFileId: string): Promise<void> {
   if (!isMediaCacheEnabled()) {
     throw new MediaStoreUnavailableError('delete');
   }
+  await deleteFromCacheNamespace(oxyFileId);
+}
 
+/**
+ * Delete a file the GIF library left in the federation media cache namespace
+ * when it moved to application-owned files (ADR 0041;
+ * `scripts/migrateGifLibraryToApplicationFiles.ts`). The cache's delete route
+ * is the only one that reaches that namespace.
+ *
+ * NOT gated on {@link isMediaCacheEnabled}: those files were never the media
+ * cache's (the library wrote there whatever that flag said), and finishing the
+ * move must not depend on it. `not_found` when Oxy no longer has the file.
+ */
+export async function deleteRetiredGifCacheFile(
+  oxyFileId: string,
+): Promise<'deleted' | 'not_found'> {
+  try {
+    await deleteFromCacheNamespace(oxyFileId);
+    return 'deleted';
+  } catch (error) {
+    if (error instanceof OxyMediaStoreRequestError && error.statusCode === HTTP_NOT_FOUND) {
+      return 'not_found';
+    }
+    throw error;
+  }
+}
+
+async function deleteFromCacheNamespace(oxyFileId: string): Promise<void> {
   assertWriteBudget('delete');
 
   const target = new URL(

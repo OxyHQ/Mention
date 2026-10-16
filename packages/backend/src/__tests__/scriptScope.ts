@@ -77,6 +77,10 @@ export interface ScriptScopeDeclaration {
  */
 export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
   // ── Whole-table. Every one of these has a file in ISOLATED_DATABASE_FILES. ──
+  migrateGifLibraryToApplicationFiles: {
+    scope: 'whole-table',
+    reason: "Every gifs row with storage = 'federation_cache', and every post naming its files.",
+  },
   backfillFederatedThreadLinks: {
     scope: 'whole-table',
     reason: 'and(isNotNull(federation_in_reply_to), isNull(parent_post_id)) over all posts.',

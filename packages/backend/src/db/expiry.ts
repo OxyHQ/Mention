@@ -106,6 +106,14 @@ import {
 // deadline). Importing them here would imply a second, independent window.
 import { moderationEvents, moderationOutbox } from './schema/moderation';
 import { engagementOutbox } from './schema/outbox';
+import {
+  FILE_REFERENCE_RECONCILIATION_RETENTION_SECONDS,
+  OXY_FILE_EVENT_RETENTION_SECONDS,
+  oxyFileEvents,
+  oxyFileReferenceReconciliations,
+  oxyFileReferenceSync,
+  oxyFileStates,
+} from './schema/oxyFiles';
 
 /**
  * Every table whose rows expire. A table with an expiry column but no
@@ -220,6 +228,44 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'this deletes it at 90 days — which is the documented intent, but it is ' +
       'the reason the reconciliation sweep COUNTS dead-lettered rows rather ' +
       'than assuming they persist.',
+  },
+  {
+    table: oxyFileReferenceSync,
+    column: oxyFileReferenceSync.expiresAt,
+    retentionSeconds: 0,
+    reason:
+      'The column is set only when Oxy has ANSWERED for the pair (synced or ' +
+      'refused) and is NULL while it is pending, so the sweep can never delete ' +
+      'owed work. A settled row is kept a week for the reconciliation replay and ' +
+      'for diagnosis; after that the source tables say everything it did.',
+  },
+  {
+    table: oxyFileReferenceReconciliations,
+    column: oxyFileReferenceReconciliations.startedAt,
+    retentionSeconds: FILE_REFERENCE_RECONCILIATION_RETENTION_SECONDS,
+    reason:
+      "The nightly reconciliation's run history. Only the LATEST start is read " +
+      '(is a run due); ninety days of counts is for comparing dry runs with what ' +
+      'an applied run later did.',
+  },
+  {
+    table: oxyFileEvents,
+    column: oxyFileEvents.createdAt,
+    retentionSeconds: OXY_FILE_EVENT_RETENTION_SECONDS,
+    reason:
+      "Both the dedupe record of Oxy's file events (redeliveries stop within " +
+      'days) and the audit of what Mention withheld, removed or cleared for a ' +
+      'takedown — kept past any counter-notice window. Deleting it changes no ' +
+      'state: `oxy_file_states` holds what is still withheld.',
+  },
+  {
+    table: oxyFileStates,
+    column: oxyFileStates.expiresAt,
+    retentionSeconds: 0,
+    reason:
+      'Set only when a file stops being withheld (a CHECK forbids it on a ' +
+      'withholding row), so a withheld file is never forgotten. A released row ' +
+      'is kept a month to order a late redelivery against it.',
   },
   {
     table: engagementOutbox,
