@@ -144,7 +144,7 @@ jobs:
         env:
           IMAGE_URI: ${{ steps.ecr.outputs.registry }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
           EXPECTED_RUNTIME_ENTRY: packages/backend/dist/server.js
-          EXPECTED_WORKSPACE_PACKAGES: '@mention/backend,@mention/shared-types'
+          EXPECTED_WORKSPACE_PACKAGES: '@mention/backend,@mention/shared-types,@oxy.so/mention-contracts'
           EXPECTED_RUNTIME_COMMANDS: 'bun,busybox'
         run: bash .github/scripts/audit-runtime-image.sh
 

@@ -55,7 +55,7 @@ COPY --from=manifests /app/packages/sdk/package.json packages/sdk/
 RUN --mount=type=cache,target=/root/.bun/install/cache \
   bun install --frozen-lockfile --omit=dev --omit=peer --omit=optional --ignore-scripts \
     --filter @mention/shared-types --filter @mention/backend
-RUN rm -rf packages/frontend packages/mcp packages/e2e
+RUN rm -rf packages/frontend packages/mcp packages/e2e packages/sdk
 
 COPY --from=builder /app/packages/shared-types/dist/ packages/shared-types/dist/
 COPY --from=builder /app/packages/backend/dist/ packages/backend/dist/
