@@ -24,11 +24,14 @@ export async function hydratePostMedia(
     ),
   ];
   if (!ids.length) return;
-  // Session-only asset ACLs must never inherit Mention's service identity.
-  // Adult MCP reads retain public assets; its connection proof is not a session.
+  // Oxy's batch ACL answers only for a signed-in session, and it must never
+  // inherit Mention's service identity. A reader without one (anonymous, or an
+  // adult MCP connection, whose proof is not a session) keeps the stored URLs:
+  // Oxy's stream enforces the file's visibility on every byte, so a private file
+  // stays unreadable to them. Supervised readers always present a session.
+  if (!('accessToken' in requester) || !requester.accessToken) return;
   const client = new OxyServices({ baseURL: config.oxyApiUrl });
-  if ('accessToken' in requester && requester.accessToken)
-    client.session.setAccessToken(requester.accessToken);
+  client.session.setAccessToken(requester.accessToken);
   const access = new Map<string, BatchFileAccessEntry>();
   for (let index = 0; index < ids.length; index += 100) {
     const result = await client.assets.access(
