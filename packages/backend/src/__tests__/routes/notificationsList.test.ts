@@ -1,3 +1,5 @@
+import { posts as fixturePosts } from '../../db/schema/posts';
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * `/notifications` against real rows — pagination, read state, and push tokens.
  *
@@ -50,7 +52,10 @@ vi.mock('../../utils/oxyHelpers', () => ({
   // the inbox covers is `notificationsChannelInbox.test.ts`'s subject; held at
   // "just the viewer" here so these cases stay about pagination and ordering.
   createUserScopedOxyServices: () => undefined,
-  getServiceOxyClient: () => ({ getUsersByIds: mocks.getUsersByIds }),
+  getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
+    getUsersByIds: mocks.getUsersByIds,
+  }),
 }));
 
 vi.mock('../../utils/mediaResolver', () => ({
@@ -77,6 +82,14 @@ import { notifications, pushTokens } from '../../db/schema/discovery';
 import notificationsRouter from '../../routes/notifications';
 
 let db: Database;
+const createdPostIds = new Set<string>();
+async function seedVisiblePost(id: string, author: string) {
+  await db
+    .insert(fixturePosts)
+    .values({ id, oxyUserId: author, status: 'published', visibility: 'public' })
+    .onConflictDoNothing();
+  createdPostIds.add(id);
+}
 const createdRecipientIds: string[] = [];
 const createdTokens: string[] = [];
 
@@ -113,6 +126,11 @@ interface SeedOptions {
  * with a shared entity is a duplicate, not a fixture.
  */
 async function seed(recipient: string, options: SeedOptions) {
+  if (options.entityType !== 'profile')
+    await seedVisiblePost(
+      options.entityId ?? `post-${options.id}`,
+      options.actorId ?? 'oxy-actor-1',
+    );
   const [row] = await db
     .insert(notifications)
     .values({
@@ -136,6 +154,7 @@ function makeApp(viewer: string | undefined, emitted: unknown[] = []) {
   });
   app.use((req, _res, next) => {
     if (viewer) (req as typeof req & { user: { id: string } }).user = { id: viewer };
+    req.headers.authorization = req.user ? 'Bearer test-viewer-session' : undefined;
     next();
   });
   app.use('/', notificationsRouter);
@@ -151,10 +170,19 @@ beforeEach(() => {
   mocks.getUsersByIds.mockResolvedValue([]);
   mocks.createScopedOxyClient.mockReturnValue({ scope: 'viewer' });
   mocks.loadFollowedAuthorIds.mockResolvedValue(new Set<string>());
-  mocks.hydratePosts.mockResolvedValue([]);
+  mocks.hydratePosts.mockImplementation(async (rows: { id: string; oxyUserId: string }[]) =>
+    rows.map((row) => ({
+      id: row.id,
+      user: { id: row.oxyUserId },
+      content: { text: 'fixture post' },
+    })),
+  );
 });
 
 afterEach(async () => {
+  if (createdPostIds.size)
+    await db.delete(fixturePosts).where(inArray(fixturePosts.id, [...createdPostIds]));
+  createdPostIds.clear();
   if (createdRecipientIds.length > 0) {
     await db.delete(notifications).where(inArray(notifications.recipientId, createdRecipientIds));
     createdRecipientIds.length = 0;

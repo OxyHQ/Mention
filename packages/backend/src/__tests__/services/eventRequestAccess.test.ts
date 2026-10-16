@@ -5,10 +5,12 @@ import { insertPostRecord, deletePostRecord } from '../../db/posts/postRepositor
 import { eventAccessFor } from '../../services/eventRequestAccess';
 import { listEventAttendees, registerForEvent } from '../../services/EventAttendanceService';
 import type { OxyAuthRequest } from '@oxy.so/core/server';
+import { adultSafetyFixture } from '../helpers/adultSafety';
 const state = vi.hoisted(() => ({ members: [] as unknown[], readable: true }));
 vi.mock('../../utils/oxyHelpers', async (original) => ({
   ...(await original<Record<string, unknown>>()),
   createScopedOxyClient: () => ({}),
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createUserScopedOxyServices: () => ({
     accounts: { members: { list: async () => state.members } },
   }),
@@ -32,7 +34,7 @@ afterAll(async () => {
   await closePostgres();
 });
 function request(id: string) {
-  return { user: { id } } as OxyAuthRequest;
+  return { user: { id }, accessToken: `token-${id}` } as OxyAuthRequest;
 }
 it('full roster follows live account membership, not original writer identity; a removed operator is denied on the next request', async () => {
   const post = await insertPostRecord({
@@ -88,6 +90,7 @@ it('generic post edit refuses event changes with an explicit management handoff'
   await updatePost(
     {
       user: { id: 'personal-owner' },
+      accessToken: 'token-personal-owner',
       params: { id: post.id },
       body: { content: { event: { name: 'Bypass' } } },
     } as never,

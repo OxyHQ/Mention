@@ -2644,5 +2644,14 @@
   "podcast": {
     "loading": "Loading podcast…",
     "unavailable": "Podcast unavailable"
+  },
+  "safety": {
+    "contentUnavailable": "Bu içerik kullanılamıyor",
+    "unavailableTitle": "Bu hesap için kullanılamıyor",
+    "unavailableDescription": "Bu özellik, gözetim altındaki hesaplar için henüz kullanılamıyor. Akışınızda incelenmiş gönderileri okumaya devam edebilirsiniz.",
+    "checkFailed": "Hesap için kullanılabilirlik kontrol edilemedi",
+    "retryDescription": "Hesabın mevcut korumalarını yüklemek için tekrar deneyin.",
+    "privatePost": "Gönderilerinizi yalnızca veliniz ve onaylanmış kişiler okuyabilir.",
+    "pendingAssessment": "Bu içerik, güvenlik incelemesi tamamlanana kadar kullanılamaz."
   }
 }

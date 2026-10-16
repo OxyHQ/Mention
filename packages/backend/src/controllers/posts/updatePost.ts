@@ -1,4 +1,9 @@
 import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
+import {
+  requesterPublicationPolicy,
+  PostPublicationPolicyError,
+  assertStoredPostCanPublish,
+} from '../../services/postPublicationPolicy';
 /**
  * `PUT /posts/:id` — the author's edit of a published or draft post, including
  * the correction record an edit to a published post leaves behind.
@@ -35,6 +40,7 @@ import { postHydrationService } from '../../services/PostHydrationService';
 import { mergeHashtags, reconcileMentionIdsForPost } from '../../utils/textProcessing';
 import { foldProfileLinkMentions } from '../../services/profileLinkMentions';
 import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
+import { safetyRequesterFor } from '../../utils/safetyRequester';
 import {
   createPostMediaOwnerClient,
   ensurePostMediaPublic,
@@ -136,6 +142,15 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     if (editRefusal) {
       return res.status(editRefusal.status).json({ message: editRefusal.message });
     }
+
+    const publicationPolicy = await requesterPublicationPolicy(safetyRequesterFor(req));
+    if (
+      !publicationPolicy.collaborationAllowed &&
+      (loaded.oxyUserId !== userId ||
+        loaded.authorship.some((entry) => entry.role === 'collaborator'))
+    )
+      throw new PostPublicationPolicyError(403, 'Collaboration is unavailable for this account');
+    await assertStoredPostCanPublish(loaded);
 
     // The 30-minute edit window exists because READERS have already seen a
     // published post: rewriting one indefinitely is a trust problem, so the
@@ -563,7 +578,8 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // become visible together. Check the unpublished carve-out AFTER taking the
     // same content/row locks used by shadow claims and content writers.
     // Post media renders from the public CDN, and uploads arrive private.
-    await ensurePostMediaPublic(createPostMediaOwnerClient(req), content);
+    if (loaded.visibility === PostVisibility.PUBLIC && publicationPolicy.requiredAudience === null)
+      await ensurePostMediaPublic(createPostMediaOwnerClient(req), content);
 
     const written = await updatePostAndContent(
       post.id,
@@ -714,10 +730,12 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // display name and break the profile-identity contract). If hydration fails
     // for this just-saved, owner-scoped post, treat it as a server-side error.
     const hydrated = await postHydrationService.hydratePosts([edited], {
+      manageOwnPostIds: edited.oxyUserId === userId ? [edited.id] : [],
       // Written or changed by this very request, so there is no community note to
       // look up — and asking would put a CrowdSource round trip on this path.
       includeCommunityNotes: false,
       viewerId: userId,
+      safetyRequester: safetyRequesterFor(req),
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
       // `postManagementRefusal` above already let this caller edit the post, and
@@ -732,6 +750,10 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     }
     res.json(hydrated[0]);
   } catch (error) {
+    if (error instanceof PostPublicationPolicyError)
+      return res
+        .status(error.status)
+        .json({ code: 'PUBLICATION_UNAVAILABLE', message: error.message });
     if (error instanceof CollabValidationError) {
       return res.status(400).json({ message: error.message });
     }

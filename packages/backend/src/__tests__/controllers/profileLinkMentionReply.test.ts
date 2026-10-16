@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -47,7 +48,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => ({})),
-  getServiceOxyClient: vi.fn(() => ({})),
+  getServiceOxyClient: vi.fn(() => ({ safety: adultSafetyFixture() })),
 }));
 
 vi.mock('../../utils/notificationUtils', () => ({
@@ -191,6 +192,7 @@ describe('createReply — a pasted profile link becomes a real mention', () => {
 
     await feedController.createReply(
       {
+        accessToken: 'test-viewer-session',
         body: { postId: parent.id, content: { text: `agreed, https://${OWN_HOST}/@alice` } },
         user: { id: USER_ID },
       } as never,
@@ -210,6 +212,7 @@ describe('createReply — a pasted profile link becomes a real mention', () => {
 
     await feedController.createReply(
       {
+        accessToken: 'test-viewer-session',
         body: { postId: parent.id, content: { text: 'see https://mastodon.social/@a-stranger' } },
         user: { id: USER_ID },
       } as never,
@@ -231,6 +234,7 @@ describe('createReply — a handle typed by hand is a mention', () => {
 
     await feedController.createReply(
       {
+        accessToken: 'test-viewer-session',
         body: { postId: parent.id, content: { text: 'agreed, @alice.' } },
         user: { id: USER_ID },
       } as never,
@@ -252,6 +256,7 @@ describe('createBoost — the comment on a boost is a body like any other', () =
 
     await feedController.createBoost(
       {
+        accessToken: 'test-viewer-session',
         body: {
           originalPostId: original.id,
           content: { text: `look, https://${OWN_HOST}/@alice` },

@@ -10,6 +10,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   getOrFetchActor: vi.fn(),
   syncOutboxPostsDetailed: vi.fn(),
+  federateNewPost: vi.fn(),
+  federateBoost: vi.fn(),
   federateLike: vi.fn(),
   federateLikeStrict: vi.fn(),
   federateUndoLike: vi.fn(),
@@ -43,6 +45,8 @@ vi.mock('../../../connectors/activitypub/outbox.service', () => ({
 
 vi.mock('../../../connectors/activitypub/follow.service', () => ({
   followService: {
+    federateNewPost: mocks.federateNewPost,
+    federateBoost: mocks.federateBoost,
     federateLike: mocks.federateLike,
     federateLikeStrict: mocks.federateLikeStrict,
     federateUndoLike: mocks.federateUndoLike,
@@ -228,5 +232,41 @@ describe('ActivityPubConnector follow delivery', () => {
     });
 
     expect(mocks.sendUndoFollow).toHaveBeenCalledWith('local-1', 'mention', NUMERIC_ACTOR_URI);
+  });
+});
+
+describe('ActivityPubConnector strict post dispatch', () => {
+  const post = { _id: 'post1', content: { variants: [] }, visibility: 'public' };
+  const event = {
+    kind: 'post.create' as const,
+    post,
+    actorOxyUserId: 'owner',
+    actorUsername: 'alice',
+  };
+  it('uses strict new-post dispatch without extra audiences and propagates refusal', async () => {
+    const denied = new Error('delivery authorization denied');
+    mocks.federateNewPost.mockRejectedValueOnce(denied);
+    await expect(activityPubConnector.deliverDurably(event)).rejects.toBe(denied);
+    expect(mocks.federateNewPost).toHaveBeenCalledWith({ ...post, id: 'post1' }, 'owner', 'alice', {
+      throwOnError: true,
+    });
+    mocks.federateNewPost.mockResolvedValueOnce(undefined);
+    await expect(activityPubConnector.deliverDurably(event)).resolves.toBeUndefined();
+  });
+  it('uses strict boost dispatch so a refused Announce is not accepted', async () => {
+    const denied = new Error('delivery authorization denied');
+    const boost = { _id: 'boost1', boostOf: 'original' };
+    mocks.federateBoost.mockRejectedValueOnce(denied);
+    await expect(
+      activityPubConnector.deliverDurably({
+        kind: 'post.boost',
+        boost,
+        actorOxyUserId: 'owner',
+        actorUsername: 'alice',
+      }),
+    ).rejects.toBe(denied);
+    expect(mocks.federateBoost).toHaveBeenCalledWith(boost, 'owner', 'alice', {
+      throwOnError: true,
+    });
   });
 });

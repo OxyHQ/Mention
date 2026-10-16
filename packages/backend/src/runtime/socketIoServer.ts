@@ -141,7 +141,7 @@ export function createSocketNamespaces(
   // Use oxy.middleware.socket() which validates tokens via jwtDecode + Oxy API session validation.
   // This matches how oxy.middleware.auth() works for HTTP — no local JWT_SECRET needed.
   // `publicNamespace` is intentionally absent from this list; see its doc comment.
-  const oxySocketAuth = oxy.middleware.socket();
+  const oxySocketAuth = oxy.middleware.socket({ supervisedAction: 'content' });
   const authTargets: Array<Namespace | SocketIOServer> = [
     notificationsNamespace,
     postsNamespace,

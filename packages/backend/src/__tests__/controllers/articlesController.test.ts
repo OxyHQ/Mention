@@ -26,11 +26,34 @@
  *    decided without asking Oxy at all.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
+import { afterAll, afterEach, beforeAll, describe, expect, it, mock } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { inArray } from 'drizzle-orm';
 
-import { getArticle } from '../../controllers/articles.controller';
+import * as oxyHelpers from '../../utils/oxyHelpers';
+// Explicit ordinary-adult policy authority; real post visibility gates remain active.
+mock.module('../../utils/oxyHelpers', () => ({
+  ...oxyHelpers,
+  getServiceOxyClient: () => ({
+    safety: {
+      contentAccessBatch: async ({
+        items,
+      }: {
+        items: { resourceId: string; applicationAudienceAllowed?: boolean }[];
+      }) => ({
+        items: items.map((item) => ({
+          resourceId: item.resourceId,
+          decision: {
+            allowed: item.applicationAudienceAllowed !== false,
+            reason: 'allowed',
+            policyVersion: '2',
+          },
+        })),
+      }),
+    },
+  }),
+}));
+const { getArticle } = await import('../../controllers/articles.controller');
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { uuidv7 } from '@oxy.so/db';
 import { articles } from '../../db/schema/articles';

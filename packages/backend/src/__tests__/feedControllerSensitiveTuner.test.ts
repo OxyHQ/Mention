@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from './helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 
@@ -42,6 +43,7 @@ vi.mock('../mtn/UserPrivacyManager', () => ({
   },
 }));
 vi.mock('../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: vi.fn((_req?: unknown): unknown => undefined),
 }));
 vi.mock('../services/ListSubscriptionService', () => ({
@@ -164,7 +166,11 @@ describe('MtnFeedController.getFeed → sensitive content tuner (viewer preferen
     await updateUserSettings(id, { set: { 'privacy.showSensitiveContent': false } });
     engineRun.mockResolvedValueOnce(sensitiveAndCleanResponse());
 
-    const req = { query: { descriptor: 'for_you' }, user: { id } } as never;
+    const req = {
+      accessToken: 'test-viewer-session',
+      query: { descriptor: 'for_you' },
+      user: { id },
+    } as never;
     const res = makeRes();
     await mtnFeedController.getFeed(req, res as never);
 
@@ -178,7 +184,11 @@ describe('MtnFeedController.getFeed → sensitive content tuner (viewer preferen
     await updateUserSettings(id, { set: { 'privacy.showSensitiveContent': true } });
     engineRun.mockResolvedValueOnce(sensitiveAndCleanResponse());
 
-    const req = { query: { descriptor: 'for_you' }, user: { id } } as never;
+    const req = {
+      accessToken: 'test-viewer-session',
+      query: { descriptor: 'for_you' },
+      user: { id },
+    } as never;
     const res = makeRes();
     await mtnFeedController.getFeed(req, res as never);
 
@@ -192,7 +202,11 @@ describe('MtnFeedController.getFeed → sensitive content tuner (viewer preferen
     // viewer has no row, matching an account that has never opened settings.
     engineRun.mockResolvedValueOnce(sensitiveAndCleanResponse());
 
-    const req = { query: { descriptor: 'for_you' }, user: { id } } as never;
+    const req = {
+      accessToken: 'test-viewer-session',
+      query: { descriptor: 'for_you' },
+      user: { id },
+    } as never;
     const res = makeRes();
     await mtnFeedController.getFeed(req, res as never);
 
@@ -211,7 +225,11 @@ describe('MtnFeedController.getFeed → sensitive content tuner (viewer preferen
     await closePostgres();
     engineRun.mockResolvedValueOnce(sensitiveAndCleanResponse());
 
-    const req = { query: { descriptor: 'for_you' }, user: { id } } as never;
+    const req = {
+      accessToken: 'test-viewer-session',
+      query: { descriptor: 'for_you' },
+      user: { id },
+    } as never;
     const res = makeRes();
     try {
       await mtnFeedController.getFeed(req, res as never);

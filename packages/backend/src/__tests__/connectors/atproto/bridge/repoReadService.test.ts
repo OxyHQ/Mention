@@ -1,3 +1,7 @@
+import { adultSafetyFixture } from '../../../helpers/adultSafety';
+vi.mock('../../../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
+}));
 /**
  * The atproto bridge's repo READ, against real ledger rows.
  *

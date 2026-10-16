@@ -6,7 +6,7 @@ import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { PostUser } from '@mention/shared-types';
-import { oxyServices } from '@/lib/oxyServices';
+import { usePrivateMediaUrls } from '@/hooks/usePrivateMediaUrls';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { Draft } from '@/hooks/useDrafts';
 import { draftToPreviewPost } from '@/utils/draftPreview';
@@ -47,14 +47,21 @@ const DraftPreview: React.FC<DraftPreviewProps> = ({ draft, onBack, onEdit }) =>
     [user],
   );
 
+  const resolveMediaUrl = usePrivateMediaUrls([
+    ...draft.mediaIds.map((item) => item.id),
+    ...(draft.languages?.languages.flatMap((language) =>
+      language.items.flatMap((item) => item.media?.map((media) => media.id) ?? []),
+    ) ?? []),
+  ]);
+
   const { post, remainingThreadItems } = useMemo(
     () =>
       draftToPreviewPost({
         draft,
         author,
-        resolveMediaUrl: (fileId) => oxyServices.assets.publicUrl(fileId),
+        resolveMediaUrl,
       }),
-    [draft, author],
+    [draft, author, resolveMediaUrl],
   );
 
   return (

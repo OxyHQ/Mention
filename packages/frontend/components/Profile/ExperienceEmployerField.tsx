@@ -8,6 +8,7 @@ import {
   ORGANIZATION_TYPES,
   createOrganizationSchema,
   type Organization,
+  type SafetyOrganizationIdentity,
   type OrganizationType,
 } from '@oxy.so/contracts';
 import { Avatar } from '@oxy.so/bloom/avatar';
@@ -24,6 +25,7 @@ import {
 } from '@oxy.so/bloom/select';
 import { TextField, TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
 import { useTranslation } from 'react-i18next';
+import { useSupervisionState } from '@/hooks/useSupervisionState';
 
 /** Selection and neutral creation both address Oxy's one organization directory. */
 export function ExperienceEmployerField({
@@ -34,15 +36,18 @@ export function ExperienceEmployerField({
   onChange,
 }: {
   value: string;
-  initialEmployer?: Organization;
+  initialEmployer?: Organization | SafetyOrganizationIdentity;
   disabled: boolean;
   invalid: boolean;
-  onChange: (organization: Organization | null) => void;
+  onChange: (organization: Organization | SafetyOrganizationIdentity | null) => void;
 }) {
   const { t } = useTranslation();
   const { user, isAuthenticated, canUsePrivateApi, oxyServices } = useAuth();
   const queryClient = useQueryClient();
-  const [selected, setSelected] = useState(initialEmployer);
+  const supervision = useSupervisionState();
+  const [selected, setSelected] = useState<Organization | SafetyOrganizationIdentity | undefined>(
+    initialEmployer,
+  );
   const [query, setQuery] = useState(initialEmployer?.name ?? '');
   const [debounced, setDebounced] = useState(query);
   const [creating, setCreating] = useState(false);
@@ -55,18 +60,36 @@ export function ExperienceEmployerField({
     return () => clearTimeout(timer);
   }, [query]);
   const results = useInfiniteQuery({
-    queryKey: organizationDirectoryQueryKeys.search(debounced, user?.id, isAuthenticated),
-    queryFn: ({ pageParam }) =>
-      oxyServices.organizations.search({
+    queryKey: supervision.supervised
+      ? organizationDirectoryQueryKeys.minimalSearch(debounced, user?.id, canUsePrivateApi)
+      : organizationDirectoryQueryKeys.search(debounced, user?.id, isAuthenticated),
+    queryFn: async ({
+      pageParam,
+    }): Promise<{
+      items: (Organization | SafetyOrganizationIdentity)[];
+      nextCursor: string | null;
+    }> => {
+      if (supervision.supervised) {
+        const result = await oxyServices.safety.organizations({ query: debounced, limit: 20 });
+        return { items: result.items.map((item) => item.organization), nextCursor: null };
+      }
+      return oxyServices.organizations.search({
         query: debounced,
         limit: 20,
         ...(pageParam ? { cursor: pageParam } : {}),
-      }),
+      });
+    },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page) => page.nextCursor ?? undefined,
-    enabled: !value && debounced.length >= 2 && !disabled,
+    enabled:
+      !value &&
+      debounced.length >= 2 &&
+      !disabled &&
+      supervision.ready &&
+      (!supervision.supervised || canUsePrivateApi),
+    gcTime: 0,
   });
-  function select(organization: Organization) {
+  function select(organization: Organization | SafetyOrganizationIdentity) {
     setSelected(organization);
     setQuery(organization.name);
     setCreating(false);
@@ -74,7 +97,8 @@ export function ExperienceEmployerField({
   }
   const create = useMutation({
     mutationFn: () => {
-      if (!canUsePrivateApi || disabled) throw new Error('A personal session is required');
+      if (!canUsePrivateApi || disabled || !supervision.ready || supervision.supervised)
+        throw new Error('A personal session is required');
       return oxyServices.organizations.create(
         createOrganizationSchema.parse({
           name: query.trim(),
@@ -103,13 +127,27 @@ export function ExperienceEmployerField({
           <Item
             leading={
               <Avatar
-                source={employer?.avatar}
+                source={
+                  !supervision.supervised &&
+                  employer &&
+                  'avatar' in employer &&
+                  typeof employer.avatar === 'string'
+                    ? employer.avatar
+                    : undefined
+                }
                 name={employer?.name ?? t('profile.experience.unavailableEmployer')}
                 size={32}
               />
             }
             title={employer?.name ?? t('profile.experience.unavailableEmployer')}
-            subtitle={employer?.websiteUrl ?? undefined}
+            subtitle={
+              !supervision.supervised &&
+              employer &&
+              'websiteUrl' in employer &&
+              typeof employer.websiteUrl === 'string'
+                ? (employer.websiteUrl ?? undefined)
+                : undefined
+            }
           />
           <Button
             appearance="plain"
@@ -131,7 +169,7 @@ export function ExperienceEmployerField({
             <TextFieldInput
               label={label}
               value={query}
-              maxLength={ORGANIZATION_NAME_MAX_LENGTH}
+              maxLength={supervision.supervised ? 100 : ORGANIZATION_NAME_MAX_LENGTH}
               onChangeText={(text) => {
                 setQuery(text);
                 setCreating(false);
@@ -169,12 +207,24 @@ export function ExperienceEmployerField({
                         key={organization.accountId}
                         disabled={disabled}
                         leading={
-                          <Avatar source={organization.avatar} name={organization.name} size={32} />
+                          <Avatar
+                            source={
+                              !supervision.supervised && 'avatar' in organization
+                                ? organization.avatar
+                                : undefined
+                            }
+                            name={organization.name}
+                            size={32}
+                          />
                         }
                         title={organization.name}
-                        subtitle={[organization.websiteUrl, organization.countryCode]
-                          .filter(Boolean)
-                          .join(' · ')}
+                        subtitle={
+                          !supervision.supervised && 'websiteUrl' in organization
+                            ? [organization.websiteUrl, organization.countryCode]
+                                .filter(Boolean)
+                                .join(' · ')
+                            : undefined
+                        }
                         onPress={() => select(organization)}
                       />
                     ))}
@@ -189,20 +239,22 @@ export function ExperienceEmployerField({
                       {t('common.loadMore', { defaultValue: 'Load more' })}
                     </Button>
                   ) : null}
-                  <Button
-                    appearance="plain"
-                    tone="neutral"
-                    size="sm"
-                    disabled={!canUsePrivateApi || disabled}
-                    onPress={() => setCreating(true)}
-                  >
-                    {t('profile.experience.addOrganization')}
-                  </Button>
+                  {!supervision.supervised ? (
+                    <Button
+                      appearance="plain"
+                      tone="neutral"
+                      size="sm"
+                      disabled={!canUsePrivateApi || disabled}
+                      onPress={() => setCreating(true)}
+                    >
+                      {t('profile.experience.addOrganization')}
+                    </Button>
+                  ) : null}
                 </>
               )}
             </View>
           ) : null}
-          {creating ? (
+          {creating && !supervision.supervised ? (
             <View className="gap-3 rounded-xl border border-border p-3">
               <Text className="text-foreground font-semibold">{query.trim()}</Text>
               <Text className="text-muted-foreground text-sm">

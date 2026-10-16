@@ -118,6 +118,7 @@ export function createAppRoutes({ oxy, optionalAuth }: CreateAppRoutesDependenci
   publicApi.use(mentionCapabilityRateLimiter);
   publicApi.use(createOptionalMentionCapabilityAuth());
   publicApi.use(createOptionalMcpAuth());
+  publicApi.use(optionalAuth);
   if (config.deployment) {
     publicApi.use(optionalAuth, createDeploymentAdmission(config.deployment, true));
   }
@@ -214,7 +215,7 @@ export function createAppRoutes({ oxy, optionalAuth }: CreateAppRoutesDependenci
     atprotoBridge: atprotoBridgeRoutes,
     atprotoBridgeMeta: atprotoBridgeMetaRoutes,
     wellKnownBridge: wellKnownBridgeRouter,
-    media: mediaRoutes,
+    media: express.Router().use(createOptionalMcpAuth(), optionalAuth, mediaRoutes),
     crowdSourceWebhook: createCrowdSourceWebhookRoutes(),
     oxyAccountEvents: createOxyAccountEventsRoutes(),
     mcpOAuth: createMcpOAuthRoutes(),

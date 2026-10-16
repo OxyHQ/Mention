@@ -1,3 +1,4 @@
+import { supervisedActionForRequest } from '../../middleware/supervisedAction';
 import { mentionCapabilityRequirementsForRequest } from '@mention/shared-types/mcpCapabilities';
 import type { OxyAuthRequest, OxyServer } from '@oxy.so/core/server';
 import { extractBearerToken, introspectOxyMcpAccessToken } from '@oxy.so/mcp';
@@ -178,8 +179,6 @@ export function createOptionalMcpAuth(): RequestHandler {
 
 /** Require either a capability-scoped MCP token or a normal Oxy session. */
 export function createRequireMcpOrOxyAuth(oxy: OxyServer): RequestHandler {
-  const oxyAuth = oxy.middleware.auth();
-
   return async (req: Request, res: Response, next: NextFunction) => {
     if ((req as OxyAuthRequest).user?.id) {
       const mcp = (req as OxyAuthRequestWithMcp).mcp;
@@ -209,6 +208,6 @@ export function createRequireMcpOrOxyAuth(oxy: OxyServer): RequestHandler {
       return;
     }
 
-    oxyAuth(req, res, next);
+    oxy.middleware.auth({ supervisedAction: supervisedActionForRequest(req) })(req, res, next);
   };
 }

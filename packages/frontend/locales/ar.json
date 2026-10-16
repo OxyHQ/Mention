@@ -2766,5 +2766,14 @@
   "podcast": {
     "loading": "Loading podcast…",
     "unavailable": "Podcast unavailable"
+  },
+  "safety": {
+    "contentUnavailable": "هذا المحتوى غير متاح",
+    "unavailableTitle": "غير متاح لهذا الحساب",
+    "unavailableDescription": "هذه الميزة غير متاحة للحسابات الخاضعة للإشراف بعد. يمكنك متابعة قراءة المنشورات التي تمت مراجعتها في خلاصتك.",
+    "checkFailed": "تعذّر التحقق من إتاحة الميزات للحساب",
+    "retryDescription": "حاول مرة أخرى لتحميل وسائل الحماية الحالية للحساب.",
+    "privatePost": "لا يمكن قراءة منشوراتك إلا لوصيّك وجهات الاتصال المعتمدة.",
+    "pendingAssessment": "هذا المحتوى غير متاح حتى تكتمل مراجعته من حيث السلامة."
   }
 }

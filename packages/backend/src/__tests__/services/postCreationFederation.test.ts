@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -29,7 +30,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  */
 
 const { federateNewPost, getUserById } = vi.hoisted(() => ({
-  federateNewPost: vi.fn().mockResolvedValue(undefined),
+  federateNewPost: vi.fn().mockResolvedValue(true),
   getUserById: vi.fn(),
 }));
 
@@ -53,6 +54,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     users: { get: getUserById, getMany: vi.fn().mockResolvedValue([]) },
   }),
 }));
@@ -246,5 +248,19 @@ describe('PostCreationService — immediate-create federation username sourcing'
         expect.objectContaining({ oxyUserId: scope.user('invitee'), status: 'pending' }),
       ]),
     );
+  });
+});
+
+describe('suppressed federation has no durable success stamp', () => {
+  it('keeps the stored marker false when the current policy suppresses dispatch', async () => {
+    federateNewPost.mockResolvedValueOnce(false);
+    const post = await createAndReload({
+      oxyUserId: AUTHOR,
+      content: { text: 'public adult post before a policy change' },
+      visibility: PostVisibility.PUBLIC,
+      skipSocketEmit: true,
+    });
+    expect(federateNewPost).toHaveBeenCalled();
+    expect(post.metadata.federationDelivered).not.toBe(true);
   });
 });

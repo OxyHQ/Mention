@@ -1,5 +1,6 @@
 import { getDb, isDbAvailable } from '../database';
-import { updatePost } from '../postQueries';
+import { getPostIdsReferencing, updatePost } from '../postQueries';
+import { memClearAll, memUpsertPosts } from '../memoryStore';
 import { postToRow, type FeedItem, type PostRow } from '../schema';
 
 jest.mock('../database', () => ({
@@ -91,5 +92,34 @@ describe('native post updates', () => {
     const postWrite = runSync.mock.calls.find(([sql]) => String(sql).includes('INTO posts'));
     expect(postWrite?.[0]).toContain('ON CONFLICT(id) DO UPDATE SET');
     expect(postWrite?.[0]).not.toContain('INSERT OR REPLACE');
+  });
+});
+
+describe('posts referencing revoked posts', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    memClearAll();
+  });
+
+  it('finds every embedding post in SQLite and in the memory store', () => {
+    mockIsDbAvailable.mockReturnValue(true);
+    const getAllSync = jest.fn(() => [{ id: 'boost' }, { id: 'quote' }]);
+    mockGetDb.mockReturnValue({ getAllSync });
+    expect(getPostIdsReferencing(['post-1'])).toEqual(['boost', 'quote']);
+    expect(getAllSync).toHaveBeenCalledWith(
+      expect.stringContaining('quoted_post_id IN (?)'),
+      'post-1',
+      'post-1',
+    );
+    expect(getPostIdsReferencing([])).toEqual([]);
+
+    mockIsDbAvailable.mockReturnValue(false);
+    const original = makePost();
+    memUpsertPosts([
+      original,
+      { ...makePost(), id: 'quote', quotedPost: original } as FeedItem,
+      { ...makePost(), id: 'unrelated' } as FeedItem,
+    ]);
+    expect(getPostIdsReferencing(['post-1'])).toEqual(['quote']);
   });
 });

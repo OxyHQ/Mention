@@ -1,3 +1,4 @@
+import type { RequestSafetyContext } from './safetyRequester';
 import { OxyServices } from '@oxy.so/core';
 import { OxyServer } from '@oxy.so/core/server';
 import { ForegroundOxyProfileClient } from '../services/ForegroundOxyProfileClient';
@@ -11,14 +12,6 @@ import { instrumentOxyEgress, measureOxyFetch } from './oxyMetrics';
 const OXY_BASE_URL = config.oxyApiUrl;
 const OXY_MCP_CONNECTION_VIEWER_GRAPH_PATH = '/auth/mcp/oauth/connections/viewer-graph';
 
-interface ScopedOxyRequest {
-  user?: { id: string } | null;
-  accessToken?: string;
-  headers?: { authorization?: string | readonly string[] };
-  mcp?: { activeUserId?: string };
-  capability?: { claims?: { resource?: { effectiveAccountId?: string } } };
-}
-
 /**
  * Create the Oxy client appropriate for the verified request identity.
  *
@@ -30,7 +23,7 @@ interface ScopedOxyRequest {
  * for the served account's privacy lists. A capability request has no such
  * proof, so its privacy reads fail closed.
  */
-export function createScopedOxyClient(req: ScopedOxyRequest): OxyClient | undefined {
+export function createScopedOxyClient(req: RequestSafetyContext): OxyClient | undefined {
   const delegatedUserId = (
     req.mcp?.activeUserId ?? req.capability?.claims?.resource?.effectiveAccountId
   )?.trim();
@@ -66,7 +59,7 @@ export function createScopedOxyClient(req: ScopedOxyRequest): OxyClient | undefi
  * membership list.
  */
 export function createUserScopedOxyServices(
-  req: ScopedOxyRequest,
+  req: RequestSafetyContext,
   options: { requestTimeout?: number } = {},
 ): OxyServices | undefined {
   if (req.mcp || req.capability) return undefined;
@@ -79,7 +72,7 @@ export function createUserScopedOxyServices(
 
 /** Already verified HTTP request only; an MCP or attribution proof is not a session. */
 export function createForegroundOxyProfileClient(
-  req: ScopedOxyRequest,
+  req: RequestSafetyContext,
 ): ForegroundOxyProfileClient | undefined {
   if (!req.user || req.mcp || req.capability) return undefined;
   const token = req.accessToken;

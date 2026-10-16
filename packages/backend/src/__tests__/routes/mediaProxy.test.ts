@@ -57,10 +57,18 @@ vi.mock('../../services/mediaCache/cacheStore', () => ({
  * redirect production never once performed — the resolver they stood in for
  * failed 481 times out of 481 against the live API.
  */
+const { contentAccess } = vi.hoisted(() => ({ contentAccess: vi.fn() }));
 vi.mock('../../utils/oxyHelpers', async () => {
-  const { OxyServices } = await vi.importActual<typeof import('@oxy.so/core')>('@oxy.so/core');
-  const client = new OxyServices({ baseURL: 'http://oxy.test' });
-  return { getServiceOxyClient: () => client };
+  const { OxyServer } =
+    await vi.importActual<typeof import('@oxy.so/core/server')>('@oxy.so/core/server');
+  const client = new OxyServer({ baseURL: 'http://oxy.test' });
+  vi.spyOn(client.safety, 'contentAccess').mockImplementation(contentAccess);
+  return {
+    getServiceOxyClient: () => client,
+    safetyRequesterFor: (req: { headers: { authorization: string } }) => ({
+      accessToken: req.headers.authorization.replace(/^Bearer /, ''),
+    }),
+  };
 });
 
 /**
@@ -574,5 +582,34 @@ describe('GET /media/proxy — sized variants', () => {
     const res = await request(app).get('/media/proxy').query({ url: REMOTE });
 
     expect(res.headers['cache-control']).toBe('public, max-age=86400, immutable');
+  });
+});
+
+describe('supervised direct media boundary', () => {
+  it('rejects unrated bytes before touching upstream or the public media cache', async () => {
+    contentAccess.mockResolvedValueOnce({
+      allowed: false,
+      reason: 'unrated_content',
+      policyVersion: '2',
+    });
+    fetchUpstreamFollowingRedirects.mockClear();
+    const response = await request(app)
+      .get('/media/proxy')
+      .query({ url: REMOTE })
+      .set('Authorization', 'Bearer child-session');
+    expect(response.status).toBe(403);
+    expect(response.body).toMatchObject({ code: 'CONTENT_UNAVAILABLE', reason: 'unrated_content' });
+    expect(response.headers['cache-control']).toBe('private, no-store');
+    expect(cacheStore.lookupCacheRow).not.toHaveBeenCalled();
+    expect(fetchUpstreamFollowingRedirects).not.toHaveBeenCalled();
+  });
+  it('does not use public cached media when its current policy is unavailable', async () => {
+    contentAccess.mockRejectedValueOnce(new Error('authority unavailable'));
+    const response = await request(app)
+      .get('/media/proxy')
+      .query({ url: REMOTE })
+      .set('Authorization', 'Bearer child-session');
+    expect(response.status).toBe(503);
+    expect(cacheStore.lookupCacheRow).not.toHaveBeenCalled();
   });
 });

@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * Anonymous-viewer ACL proof for `GET /posts/:id` (getPostById).
  *
@@ -38,6 +39,7 @@ vi.mock('../../runtime/oxyClient', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     getUsersByIds,
     getClarityDocuments: vi.fn(async () => ({})),
     getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,

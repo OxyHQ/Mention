@@ -1,4 +1,9 @@
 import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
+import {
+  requesterPublicationPolicy,
+  publicationVisibility,
+  PostPublicationPolicyError,
+} from '../../services/postPublicationPolicy';
 /**
  * `POST /posts/thread` — the native multi-post create.
  *
@@ -21,6 +26,7 @@ import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
 import { mergeHashtags } from '../../utils/textProcessing';
 import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
+import { safetyRequesterFor } from '../../utils/safetyRequester';
 import {
   createPostMediaOwnerClient,
   ensurePostMediaPublic,
@@ -64,6 +70,8 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     if (!userId) {
       return res.status(401).json({ message: 'Unauthorized' });
     }
+
+    const publicationPolicy = await requesterPublicationPolicy(safetyRequesterFor(req));
 
     // Both modes are schedulable, and they are schedulable for different
     // reasons. Beast posts are independent — nothing chains to anything — so
@@ -367,9 +375,11 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         if (!parsed.success) {
           return res.status(400).json({ message: parseFailureMessage(parsed.error) });
         }
-        entryVisibility.push(parsed.data);
+        entryVisibility.push(
+          publicationVisibility(publicationPolicy, entry.visibility, parsed.data),
+        );
       } else {
-        entryVisibility.push(undefined);
+        entryVisibility.push(publicationVisibility(publicationPolicy, undefined));
       }
 
       if (entry?.replyPermission) {
@@ -575,7 +585,11 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       // EXACT pre-existing side-effect behavior (the response is byte-identical).
       const isThreadContinuation = mode === 'thread' && i > 0 && Boolean(previousPostId);
       // Post media renders from the public CDN, and uploads arrive private.
-      await ensurePostMediaPublic(mediaOwnerClient, postContent);
+      if (
+        entryVisibility[i] === PostVisibility.PUBLIC &&
+        publicationPolicy.requiredAudience === null
+      )
+        await ensurePostMediaPublic(mediaOwnerClient, postContent);
 
       const post = await postCreationService.create({
         oxyUserId: userId,
@@ -726,10 +740,14 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     );
 
     const createdPosts = await postHydrationService.hydratePosts(createdPostObjects, {
+      manageOwnPostIds: createdPostObjects
+        .filter((post) => post.oxyUserId === userId)
+        .map((post) => post.id),
       // Written or changed by this very request, so there is no community note to
       // look up — and asking would put a CrowdSource round trip on this path.
       includeCommunityNotes: false,
       viewerId: userId,
+      safetyRequester: safetyRequesterFor(req),
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
@@ -750,23 +768,10 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     try {
       const io = getRuntimeSocketServer();
       if (io && !threadScheduledFor && createdPosts.length > 0) {
-        // Emit the first post (main post) to feeds
-        const mainPost = createdPosts[0];
-        io.emit('feed:updated', {
-          type: 'for_you',
-          post: mainPost,
-          timestamp: new Date().toISOString(),
-        });
-        io.emit('feed:updated', {
-          type: 'following',
-          post: mainPost,
-          // The FIRST entry's author, which is who a following feed would have to
-          // follow to see it — the account when that entry was published as one.
-          // Naming the caller would push an account's post into the feeds of the
-          // caller's followers, who may not follow the account at all.
-          authorId: entryAuthorIds[0] ?? userId,
-          timestamp: new Date().toISOString(),
-        });
+        // Send no creator-authorized DTO or actor ID to other viewers. The
+        // signal triggers one debounced, authenticated feed refresh per type.
+        for (const type of ['for_you', 'following'])
+          io.emit('feed:updated', { type, timestamp: new Date().toISOString() });
       }
     } catch (socketError) {
       logger.warn('Failed to emit socket event for new thread', socketError);
@@ -774,6 +779,10 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
     res.status(201).json({ success: true, posts: createdPosts });
   } catch (error) {
+    if (error instanceof PostPublicationPolicyError)
+      return res
+        .status(error.status)
+        .json({ code: 'PUBLICATION_UNAVAILABLE', message: error.message });
     logger.error('Error creating thread', error);
     res.status(500).json({ message: 'Error creating thread' });
   }

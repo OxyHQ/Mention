@@ -36,6 +36,7 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Button } from '@oxy.so/bloom/button';
 import { useReselectReloadKey } from '@/context/ScreenReselectContext';
+import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 
 const ProfileExperience = lazy(() =>
   import('./ProfileExperience').then((module) => ({ default: module.ProfileExperience })),
@@ -132,7 +133,13 @@ export const ProfileTabs = memo(function ProfileTabs({
   // Starter Packs tab
   if (tab === 'starter_packs') {
     return (
-      <ProfileStarterPacks profileId={profileId} isOwnProfile={isOwnProfile} viewerId={user?.id} />
+      <SupervisedFeatureGate>
+        <ProfileStarterPacks
+          profileId={profileId}
+          isOwnProfile={isOwnProfile}
+          viewerId={user?.id}
+        />
+      </SupervisedFeatureGate>
     );
   }
 
@@ -141,32 +148,52 @@ export const ProfileTabs = memo(function ProfileTabs({
   // the account is eligible.
   if (tab === 'jobs') {
     return (
-      <ProfileJobs employerOxyUserId={profileId} isOwnProfile={isOwnProfile} viewerId={user?.id} />
+      <SupervisedFeatureGate>
+        <ProfileJobs
+          employerOxyUserId={profileId}
+          isOwnProfile={isOwnProfile}
+          viewerId={user?.id}
+        />
+      </SupervisedFeatureGate>
     );
   }
 
   if (tab === 'experience') {
     return (
-      <Suspense fallback={<Loading />}>
-        <ProfileExperience profileId={profileId} isOwnProfile={isOwnProfile} />
-      </Suspense>
+      <SupervisedFeatureGate allowSupervised={isOwnProfile && user?.id === profileId}>
+        <Suspense fallback={<Loading />}>
+          <ProfileExperience profileId={profileId} isOwnProfile={isOwnProfile} />
+        </Suspense>
+      </SupervisedFeatureGate>
     );
   }
 
   // Lists tab
   if (tab === 'lists') {
-    return <ProfileLists profileId={profileId} isOwnProfile={isOwnProfile} viewerId={user?.id} />;
+    return (
+      <SupervisedFeatureGate>
+        <ProfileLists profileId={profileId} isOwnProfile={isOwnProfile} viewerId={user?.id} />
+      </SupervisedFeatureGate>
+    );
   }
 
   // Feeds tab
   if (tab === 'feeds') {
-    return <ProfileFeeds profileId={profileId} isOwnProfile={isOwnProfile} viewerId={user?.id} />;
+    return (
+      <SupervisedFeatureGate>
+        <ProfileFeeds profileId={profileId} isOwnProfile={isOwnProfile} viewerId={user?.id} />
+      </SupervisedFeatureGate>
+    );
   }
 
   // Writers tab — a channel's masthead. The strip only carries it for a channel
   // that names its writers, so reaching here already means the list exists.
   if (tab === 'writers') {
-    return <ProfileWriters channelOxyUserId={profileId} />;
+    return (
+      <SupervisedFeatureGate>
+        <ProfileWriters channelOxyUserId={profileId} />
+      </SupervisedFeatureGate>
+    );
   }
 
   // Media grid

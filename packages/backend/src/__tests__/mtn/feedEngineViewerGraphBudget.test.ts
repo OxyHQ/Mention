@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * Oxy call budget: an engine run asks Oxy for the viewer's social graph ZERO
  * times, on every path that hydrates — the never-blank popular fallback included.
@@ -47,6 +48,7 @@ const scope = federationScope('feed-engine-viewer-graph-budget');
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     users: {
       getMany: vi.fn(async (ids: string[]) =>
         ids.map((id) => ({ id, username: `u${id.slice(-6)}`, name: {}, languages: ['en-US'] })),
@@ -154,6 +156,7 @@ describe('FeedEngine — viewer-graph Oxy call budget', () => {
 
     const oxy = makeGraphCountingOxyClient();
     const context: FeedEngineContext = {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       currentUserId: viewerId,
       // Both lists present, which is what `viewerGraphOption` requires before it
       // will thread anything. `loadViewerFeedContext` always sets them.
@@ -210,6 +213,7 @@ describe('FeedEngine — viewer-graph Oxy call budget', () => {
     const response = await engine.run(
       definition,
       {
+        safetyRequester: { accessToken: 'test-viewer-session' },
         currentUserId: viewerId,
         followingIds: [],
         followerIds: [],
@@ -263,6 +267,7 @@ describe('FeedEngine — viewer-graph Oxy call budget', () => {
         filters: [],
       } satisfies FeedDefinition,
       {
+        safetyRequester: { accessToken: 'test-viewer-session' },
         currentUserId: viewerId,
         followingIds: [],
         // `followerIds` deliberately absent — the peek path's shape.

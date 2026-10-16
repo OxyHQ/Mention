@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { CachedUserSummary } from '../../services/userSummaryCache';
 
@@ -61,6 +62,7 @@ vi.mock('../../runtime/oxyClient', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     users: { getMany: getUsersByIds },
     getClarityDocuments: vi.fn(async () => ({})),
     assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
@@ -524,6 +526,7 @@ describe('PostHydrationService — who may manage a channel post', () => {
 
   it('gives the WRITER the menu, though authorship names only the channel', async () => {
     const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       maxDepth: 0,
       viewerId: WRITER_ID,
     });
@@ -542,6 +545,7 @@ describe('PostHydrationService — who may manage a channel post', () => {
     userSettingsSelect.mockReturnValue([{ oxyUserId: CHANNEL_ID, signPosts: false }]);
 
     const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       maxDepth: 0,
       viewerId: WRITER_ID,
     });
@@ -552,6 +556,7 @@ describe('PostHydrationService — who may manage a channel post', () => {
 
   it('gives NOBODY ELSE the menu on that post', async () => {
     const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       maxDepth: 0,
       viewerId: PERSON_ID,
     });
@@ -564,12 +569,14 @@ describe('PostHydrationService — who may manage a channel post', () => {
     // Without this the two assertions above would pass on a predicate that had
     // simply stopped granting anybody anything.
     const [mine] = await service.hydratePosts([postRow(PERSON_ID)], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       maxDepth: 0,
       viewerId: PERSON_ID,
     });
     expect(mine.viewerState?.isOwner).toBe(true);
 
     const [theirs] = await service.hydratePosts([postRow(PERSON_ID)], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       maxDepth: 0,
       viewerId: WRITER_ID,
     });
@@ -580,6 +587,7 @@ describe('PostHydrationService — who may manage a channel post', () => {
     // Granting the menu must not become a second way to leak the column the
     // anonymity rule keeps off the wire.
     const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       maxDepth: 0,
       viewerId: WRITER_ID,
     });

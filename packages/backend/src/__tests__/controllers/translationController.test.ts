@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { OxyInferenceError } from '@oxy.so/core/inference';
 import type { OxyAuthRequest } from '@oxy.so/core/server';
 import type { Response } from 'express';
@@ -44,6 +45,7 @@ vi.mock('../../services/PostTranslationService', () => {
 });
 
 vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: vi.fn(),
   createUserScopedOxyServices: vi.fn(),
 }));
@@ -73,6 +75,7 @@ function response(): Response {
 
 function request(): OxyAuthRequest {
   return {
+    accessToken: 'test-viewer-session',
     params: { id: 'post-1' },
     body: { targetLanguage: 'es-ES' },
     user: { id: 'user-1' },

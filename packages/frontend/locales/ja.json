@@ -2644,5 +2644,14 @@
   "podcast": {
     "loading": "Loading podcast…",
     "unavailable": "Podcast unavailable"
+  },
+  "safety": {
+    "contentUnavailable": "このコンテンツは利用できません",
+    "unavailableTitle": "このアカウントでは利用できません",
+    "unavailableDescription": "この機能は見守り対象のアカウントではまだ利用できません。フィードでは確認済みの投稿を引き続き読むことができます。",
+    "checkFailed": "アカウントでの利用可否を確認できませんでした",
+    "retryDescription": "もう一度試して、現在のアカウント保護設定を読み込んでください。",
+    "privatePost": "あなたの投稿を読めるのは、保護者と承認済みの連絡先だけです。",
+    "pendingAssessment": "このコンテンツは安全性の確認が完了するまで利用できません。"
   }
 }

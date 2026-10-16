@@ -10,6 +10,7 @@ import { loadPendingPostDocuments } from '../../services/postDocuments';
 import { isOwnProfileLink, resolveClarityDocuments } from '../../utils/clarityDocuments';
 import { logger } from '../../utils/logger';
 import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
+import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { resolveViewerPrivacyAndGraph } from '../../utils/privacyHelpers';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 
@@ -49,6 +50,7 @@ export const getPostDocuments = async (req: AuthRequest, res: Response) => {
     const viewerContext = await resolveViewerPrivacyAndGraph(req.user?.id, oxyClient);
     const response = await loadPendingPostDocuments(ids, {
       viewerId: req.user?.id,
+      safetyRequester: safetyRequesterFor(req),
       oxyClient,
       viewerPrivacy: viewerContext?.viewerPrivacy,
       viewerGraph: viewerContext?.viewerGraph,

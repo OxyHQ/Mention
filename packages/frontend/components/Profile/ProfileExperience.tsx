@@ -11,13 +11,29 @@ import { useTranslation } from 'react-i18next';
 import type { Experience } from '@clarity.surf/sdk/experience';
 import { organizationDirectoryQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { useScreenReselect } from '@/context/ScreenReselectContext';
-import type { Organization } from '@oxy.so/contracts';
+import type { Organization, SafetyOrganizationIdentity } from '@oxy.so/contracts';
+import { useSupervisionState } from '@/hooks/useSupervisionState';
 import { ExperienceEditor } from './ExperienceEditor';
 import { experienceMonthLabel, experienceMonths, groupExperience } from './experiencePresentation';
 
-function CompanyLogo({ company, name }: { company?: Organization; name: string }) {
-  const avatar = <Avatar source={company?.avatar} name={name} size={48} shape="squircle" />;
-  return company?.username ? (
+function CompanyLogo({
+  company,
+  name,
+  showDetails,
+}: {
+  company?: Organization | SafetyOrganizationIdentity;
+  name: string;
+  showDetails: boolean;
+}) {
+  const avatar = (
+    <Avatar
+      source={showDetails && company && 'avatar' in company ? company.avatar : undefined}
+      name={name}
+      size={48}
+      shape="squircle"
+    />
+  );
+  return showDetails && company?.username ? (
     <Link href={`/@${company.username}`} accessibilityLabel={name}>
       {avatar}
     </Link>
@@ -26,8 +42,16 @@ function CompanyLogo({ company, name }: { company?: Organization; name: string }
   );
 }
 
-function CompanyName({ company, name }: { company?: Organization; name: string }) {
-  return company?.username ? (
+function CompanyName({
+  company,
+  name,
+  showDetails,
+}: {
+  company?: Organization | SafetyOrganizationIdentity;
+  name: string;
+  showDetails: boolean;
+}) {
+  return showDetails && company?.username ? (
     <Link href={`/@${company.username}`}>{name}</Link>
   ) : (
     <Text>{name}</Text>
@@ -44,6 +68,7 @@ export function ProfileExperience({
   const { t, i18n } = useTranslation();
   const { user, isAuthenticated, canUsePrivateApi, oxyServices } = useAuth();
   const queryClient = useQueryClient();
+  const supervision = useSupervisionState();
   const [editing, setEditing] = useState<Experience | 'new' | null>(null);
   const canEdit = isOwnProfile && Boolean(profileId && user?.id === profileId) && canUsePrivateApi;
   const queryKey = viewerQueryKeys.profileExperience(
@@ -63,9 +88,16 @@ export function ProfileExperience({
     ...new Set((query.data ?? []).map((entry) => entry.employerOxyAccountId)),
   ].sort();
   const employers = useQuery({
-    queryKey: organizationDirectoryQueryKeys.batch(employerIds, user?.id, isAuthenticated),
-    queryFn: () => oxyServices.organizations.batch({ ids: employerIds }),
-    enabled: employerIds.length > 0,
+    queryKey: supervision.supervised
+      ? organizationDirectoryQueryKeys.minimalBatch(employerIds, user?.id, canUsePrivateApi)
+      : organizationDirectoryQueryKeys.batch(employerIds, user?.id, isAuthenticated),
+    queryFn: () =>
+      supervision.supervised
+        ? oxyServices.safety.organizations({ ids: employerIds })
+        : oxyServices.organizations.batch({ ids: employerIds }),
+    enabled:
+      employerIds.length > 0 && supervision.ready && (!supervision.supervised || canUsePrivateApi),
+    gcTime: 0,
   });
   const companies = new Map(
     (employers.data?.items ?? []).map(({ requestedAccountId, organization }) => [
@@ -141,6 +173,7 @@ export function ProfileExperience({
             <Text className="text-foreground text-base mt-0.5">
               {!grouped ? (
                 <CompanyName
+                  showDetails={!supervision.supervised}
                   company={companyFor(entry.employerOxyAccountId)}
                   name={companyName(entry.employerOxyAccountId)}
                 />
@@ -220,6 +253,7 @@ export function ProfileExperience({
           >
             <View className="flex-row gap-4">
               <CompanyLogo
+                showDetails={!supervision.supervised}
                 company={companyFor(group.employerOxyAccountId)}
                 name={companyName(group.employerOxyAccountId)}
               />
@@ -230,6 +264,7 @@ export function ProfileExperience({
                   <Text className="text-foreground text-lg font-semibold">
                     {
                       <CompanyName
+                        showDetails={!supervision.supervised}
                         company={companyFor(group.employerOxyAccountId)}
                         name={companyName(group.employerOxyAccountId)}
                       />

@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * A channel's notifications, at the surface an operator actually reads.
  *
@@ -75,6 +76,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
     accounts: { list: async () => mocks.listAccounts(req.user?.id) },
   }),
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     users: { getMany: mocks.getUsersByIds },
     getClarityDocuments: vi.fn(async () => ({})),
     assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
@@ -306,6 +308,7 @@ function makeApp(viewerId: string, emitted: { event: string; payload: unknown }[
   });
   app.use((req, _res, next) => {
     (req as typeof req & { user: { id: string } }).user = { id: viewerId };
+    req.headers.authorization = req.user ? 'Bearer test-viewer-session' : undefined;
     next();
   });
   app.use('/', notificationsRouter);

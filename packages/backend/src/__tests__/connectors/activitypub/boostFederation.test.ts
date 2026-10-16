@@ -1,3 +1,5 @@
+import { DeliveryAuthorizationDeniedError } from '@oxy.so/federation/node';
+import { adultSafetyFixture } from '../../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -51,7 +53,7 @@ vi.mock('../../../utils/mediaResolver', () => ({
 }));
 vi.mock('../../../services/fediverseSharing', () => ({ isFediverseSharingEnabled }));
 vi.mock('../../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ users: { get: getUserById } }),
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture(), users: { get: getUserById } }),
 }));
 
 import { closePostgres, connectPostgres } from '../../../db/postgres';
@@ -140,9 +142,19 @@ describe('deliverToFollowers — addressing extension', () => {
   it('unions a follower shared inbox and an explicit extra inbox, delivering each once', async () => {
     const followerInbox = await seedFollowerWithInbox(scope, USER_SENDER, { username: 'f' });
 
-    await deliveryService.deliverToFollowers({ type: 'X' }, USER_SENDER, 'alice', {
-      extraInboxes: [EXTRA_INBOX],
-    });
+    await deliveryService.deliverToFollowers(
+      {
+        type: 'Follow',
+        id: `${ALICE_ACTOR}/follows/fixture`,
+        actor: ALICE_ACTOR,
+        object: ORIGIN_ACTOR,
+      },
+      USER_SENDER,
+      'alice',
+      {
+        extraInboxes: [EXTRA_INBOX],
+      },
+    );
 
     expect(deliveredInboxes().sort()).toEqual([EXTRA_INBOX, followerInbox].sort());
     expect(enqueueDelivery).toHaveBeenCalledTimes(2);
@@ -151,9 +163,19 @@ describe('deliverToFollowers — addressing extension', () => {
   it('dedupes an explicit inbox that coincides with a follower shared inbox (delivers once)', async () => {
     const followerInbox = await seedFollowerWithInbox(scope, USER_SENDER, { username: 'f' });
 
-    await deliveryService.deliverToFollowers({ type: 'X' }, USER_SENDER, 'alice', {
-      extraInboxes: [followerInbox],
-    });
+    await deliveryService.deliverToFollowers(
+      {
+        type: 'Follow',
+        id: `${ALICE_ACTOR}/follows/fixture`,
+        actor: ALICE_ACTOR,
+        object: ORIGIN_ACTOR,
+      },
+      USER_SENDER,
+      'alice',
+      {
+        extraInboxes: [followerInbox],
+      },
+    );
 
     expect(deliveredInboxes()).toEqual([followerInbox]);
     expect(enqueueDelivery).toHaveBeenCalledTimes(1);
@@ -161,9 +183,19 @@ describe('deliverToFollowers — addressing extension', () => {
 
   it('delivers to an explicit inbox even when the sender has zero followers', async () => {
     // No follower rows seeded at all — the sender genuinely has none.
-    await deliveryService.deliverToFollowers({ type: 'X' }, USER_SENDER, 'alice', {
-      extraInboxes: ['https://only.example/inbox'],
-    });
+    await deliveryService.deliverToFollowers(
+      {
+        type: 'Follow',
+        id: `${ALICE_ACTOR}/follows/fixture`,
+        actor: ALICE_ACTOR,
+        object: ORIGIN_ACTOR,
+      },
+      USER_SENDER,
+      'alice',
+      {
+        extraInboxes: ['https://only.example/inbox'],
+      },
+    );
 
     expect(deliveredInboxes()).toEqual(['https://only.example/inbox']);
   });
@@ -293,11 +325,12 @@ describe('federateNewPost — boost regression guard (POST /posts boost_of)', ()
 
   it('still federates a normal (non-boost) post as a Create(Note)', async () => {
     const buildNoteSpy = vi.spyOn(followService, 'buildCreateNoteActivity');
+    await seedPost(scope, { id: 'boost-federation-post1', oxyUserId: USER_AUTHOR_OXY });
     await seedFollowerWithInbox(scope, USER_AUTHOR_OXY, { username: 'x' });
 
     await followService.federateNewPost(
       {
-        _id: 'post1',
+        id: 'boost-federation-post1',
         content: { variants: [{ source: 'author', text: 'hello world', tag: 'en' }] },
         createdAt: ISO,
         visibility: 'public',
@@ -311,5 +344,76 @@ describe('federateNewPost — boost regression guard (POST /posts boost_of)', ()
     expect(activity.type).toBe('Create');
     expect((activity.object as Record<string, unknown>).type).toBe('Note');
     buildNoteSpy.mockRestore();
+  });
+});
+
+describe('strict new-post dispatch records only accepted federation', () => {
+  const post = {
+    id: 'boost-federation-strict',
+    content: { variants: [{ source: 'author' as const, text: 'hello', tag: 'en' }] },
+    visibility: 'public',
+    createdAt: ISO,
+  };
+  it('reports sharing disabled and private posts as typed suppression, including boosts', async () => {
+    isFediverseSharingEnabled.mockResolvedValueOnce(false);
+    await expect(
+      followService.federateNewPost(post, USER_AUTHOR_OXY, 'alice', { throwOnError: true }),
+    ).rejects.toBeInstanceOf(DeliveryAuthorizationDeniedError);
+    await expect(
+      followService.federateNewPost(
+        { ...post, visibility: 'private', boostOf: 'original' },
+        USER_AUTHOR_OXY,
+        'alice',
+        { throwOnError: true },
+      ),
+    ).rejects.toBeInstanceOf(DeliveryAuthorizationDeniedError);
+    expect(enqueueDelivery).not.toHaveBeenCalled();
+  });
+  it('propagates late denial and transient errors, while accepting an ordinary post', async () => {
+    await seedPost(scope, { id: post.id, oxyUserId: USER_AUTHOR_OXY });
+    await seedFollowerWithInbox(scope, USER_AUTHOR_OXY, { username: 'strict' });
+    const deliver = vi.spyOn(deliveryService, 'deliverToFollowers');
+    deliver.mockRejectedValueOnce(new DeliveryAuthorizationDeniedError());
+    await expect(
+      followService.federateNewPost(post, USER_AUTHOR_OXY, 'alice', { throwOnError: true }),
+    ).rejects.toBeInstanceOf(DeliveryAuthorizationDeniedError);
+    const outage = new Error('authority unavailable');
+    deliver.mockRejectedValueOnce(outage);
+    await expect(
+      followService.federateNewPost(post, USER_AUTHOR_OXY, 'alice', { throwOnError: true }),
+    ).rejects.toBe(outage);
+    expect(enqueueDelivery).not.toHaveBeenCalled();
+    await expect(
+      followService.federateNewPost(post, USER_AUTHOR_OXY, 'alice', { throwOnError: true }),
+    ).resolves.toBeUndefined();
+    expect(deliveredActivity().type).toBe('Create');
+    deliver.mockRestore();
+  });
+  it('propagates boost refusal through new-post dispatch and preserves the accepted Announce', async () => {
+    await expect(
+      followService.federateNewPost(
+        { ...post, boostOf: 'missing-original' },
+        USER_BOOSTER_OXY,
+        'alice',
+        { throwOnError: true },
+      ),
+    ).rejects.toBeInstanceOf(DeliveryAuthorizationDeniedError);
+    const original = await seedFederatedOriginal();
+    const boost = { ...post, boostOf: original.id };
+    isFediverseSharingEnabled.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    await expect(
+      followService.federateNewPost(boost, USER_BOOSTER_OXY, 'alice', { throwOnError: true }),
+    ).rejects.toBeInstanceOf(DeliveryAuthorizationDeniedError);
+    expect(enqueueDelivery).not.toHaveBeenCalled();
+    const deliver = vi.spyOn(deliveryService, 'deliverToFollowers');
+    deliver.mockRejectedValueOnce(new DeliveryAuthorizationDeniedError());
+    await expect(
+      followService.federateNewPost(boost, USER_BOOSTER_OXY, 'alice', { throwOnError: true }),
+    ).rejects.toBeInstanceOf(DeliveryAuthorizationDeniedError);
+    await expect(
+      followService.federateNewPost(boost, USER_BOOSTER_OXY, 'alice', { throwOnError: true }),
+    ).resolves.toBeUndefined();
+    expect(deliveredActivity().type).toBe('Announce');
+    deliver.mockRestore();
   });
 });

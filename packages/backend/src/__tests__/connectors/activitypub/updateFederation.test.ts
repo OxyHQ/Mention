@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -51,7 +52,9 @@ vi.mock('../../../utils/mediaResolver', () => ({
   resolveAvatarUrl: (ref: string) => `https://cloud.oxy.so/${ref}`,
 }));
 vi.mock('../../../services/fediverseSharing', () => ({ isFediverseSharingEnabled }));
-vi.mock('../../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ getUserById }) }));
+vi.mock('../../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture(), getUserById }),
+}));
 
 import { closePostgres, connectPostgres } from '../../../db/postgres';
 import {
@@ -78,7 +81,7 @@ function editedPost(overrides: Record<string, unknown> = {}): {
   boostOf?: string;
 } {
   return {
-    id: 'post1',
+    id: 'update-federation-post1',
     content: { variants: [{ source: 'author', text: 'edited body', tag: 'en' }] },
     createdAt: ISO,
     visibility: 'public',
@@ -135,6 +138,7 @@ describe('federateUpdate — top-level edit', () => {
   it('emits an Update(Note) with an `updated` stamp and no inReplyTo', async () => {
     const followerInbox = await seedFollowerWithInbox(scope, USER_AUTHOR_OXY, { username: 'x' });
 
+    await seedPost(scope, { id: 'update-federation-post1', oxyUserId: USER_AUTHOR_OXY });
     await followService.federateUpdate(editedPost(), USER_AUTHOR_OXY, 'alice');
 
     const activity = deliveredActivity();
@@ -144,7 +148,9 @@ describe('federateUpdate — top-level edit', () => {
     expect(activity.to).toEqual([AP_PUBLIC]);
     expect(activity.cc).toEqual([ALICE_FOLLOWERS]);
     // The edit activity id is the Note id with a unique `#updates/<ts>` fragment.
-    expect(String(activity.id)).toMatch(new RegExp(`^${ALICE_ACTOR}/posts/post1#updates/\\d+$`));
+    expect(String(activity.id)).toMatch(
+      new RegExp(`^${ALICE_ACTOR}/posts/update-federation-post1#updates/\\d+$`),
+    );
 
     const note = deliveredNote();
     expect(note.type).toBe('Note');
@@ -174,6 +180,7 @@ describe('federateUpdate — reply edit to a FEDERATED parent', () => {
     });
     const followerInbox = await seedFollowerWithInbox(scope, USER_REPLIER_OXY, { username: 'x' });
 
+    await seedPost(scope, { id: 'update-federation-post1', oxyUserId: USER_REPLIER_OXY });
     await followService.federateUpdate(
       editedPost({ parentPostId: parent.id }),
       USER_REPLIER_OXY,
@@ -207,6 +214,7 @@ describe('federateUpdate — skipped cases', () => {
   });
 
   it('skips a non-public post', async () => {
+    await seedPost(scope, { id: 'update-federation-post1', oxyUserId: USER_REPLIER_OXY });
     await followService.federateUpdate(
       editedPost({ visibility: 'private' }),
       USER_AUTHOR_OXY,
@@ -219,6 +227,7 @@ describe('federateUpdate — skipped cases', () => {
   it('skips entirely when sharing is disabled', async () => {
     isFediverseSharingEnabled.mockResolvedValue(false);
 
+    await seedPost(scope, { id: 'update-federation-post1', oxyUserId: USER_AUTHOR_OXY });
     await followService.federateUpdate(editedPost(), USER_AUTHOR_OXY, 'alice');
 
     expect(enqueueDelivery).not.toHaveBeenCalled();

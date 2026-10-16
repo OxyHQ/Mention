@@ -2675,5 +2675,14 @@
   "podcast": {
     "loading": "Loading podcast…",
     "unavailable": "Podcast unavailable"
+  },
+  "safety": {
+    "contentUnavailable": "Questo contenuto non è disponibile",
+    "unavailableTitle": "Non disponibile per questo account",
+    "unavailableDescription": "Questa funzione non è ancora disponibile per gli account supervisionati. Puoi continuare a leggere i post verificati nel tuo feed.",
+    "checkFailed": "Impossibile verificare la disponibilità per l’account",
+    "retryDescription": "Riprova per caricare le protezioni attuali dell’account.",
+    "privatePost": "Solo il tuo tutore e i contatti approvati possono leggere i tuoi post.",
+    "pendingAssessment": "Questo contenuto non sarà disponibile finché la verifica di sicurezza non sarà completata."
   }
 }

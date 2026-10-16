@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * Statement budget: gathering For You candidates must cost NOTHING in
  * child-table statements, however many candidates are gathered — only the
@@ -44,6 +45,7 @@ vi.mock('../../runtime/oxyClient', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     getUsersByIds,
     getClarityDocuments: vi.fn(async () => ({})),
     getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
@@ -182,7 +184,10 @@ describe('For You candidate gathering — statement budget', () => {
     const smallPage = smallPool.slice(0, PAGE_SIZE);
 
     metrics.reset();
-    await new PostHydrationService().hydrateSlices(toSlice(smallPage), { viewerId: VIEWER });
+    await new PostHydrationService().hydrateSlices(toSlice(smallPage), {
+      viewerId: VIEWER,
+      safetyRequester: { accessToken: 'test-viewer-session' },
+    });
     const smallPageCounts = await childTableStatementCounts();
 
     // The page actually got assembled — a (0, 0, ...) map would pass the
@@ -197,7 +202,10 @@ describe('For You candidate gathering — statement budget', () => {
     const largePage = largePool.slice(0, PAGE_SIZE);
 
     metrics.reset();
-    await new PostHydrationService().hydrateSlices(toSlice(largePage), { viewerId: VIEWER });
+    await new PostHydrationService().hydrateSlices(toSlice(largePage), {
+      viewerId: VIEWER,
+      safetyRequester: { accessToken: 'test-viewer-session' },
+    });
     const largePageCounts = await childTableStatementCounts();
 
     expect(largePageCounts).toEqual(smallPageCounts);

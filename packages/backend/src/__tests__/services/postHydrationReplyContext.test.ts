@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CachedUserSummary } from '../../services/userSummaryCache';
 
@@ -58,6 +59,7 @@ vi.mock('../../runtime/oxyClient', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     users: { getMany: getUsersByIds },
     getClarityDocuments: vi.fn(async () => ({})),
     assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
@@ -207,7 +209,10 @@ describe('PostHydrationService — reply context on the flat (slice-free) path',
   it('names the parent author on a reply whose parent is not on the page', async () => {
     const reply = makePostRow(REPLY_ID, REPLY_AUTHOR_ID, { parentPostId: PARENT_ID });
 
-    const [hydrated] = await service.hydratePosts([reply], { viewerId: VIEWER_ID });
+    const [hydrated] = await service.hydratePosts([reply], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
+      viewerId: VIEWER_ID,
+    });
 
     expect(hydrated.replyContext).toBeDefined();
     expect(hydrated.replyContext?.parentAuthor?.id).toBe(PARENT_AUTHOR_ID);
@@ -233,7 +238,10 @@ describe('PostHydrationService — reply context on the flat (slice-free) path',
       },
     });
 
-    const [hydrated] = await service.hydratePosts([federatedReply], { viewerId: VIEWER_ID });
+    const [hydrated] = await service.hydratePosts([federatedReply], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
+      viewerId: VIEWER_ID,
+    });
 
     // Present, so the row still declares itself a reply…
     expect(hydrated.replyContext).toBeDefined();
@@ -255,7 +263,10 @@ describe('PostHydrationService — reply context on the flat (slice-free) path',
       },
     });
 
-    const [hydrated] = await service.hydratePosts([federatedReply], { viewerId: VIEWER_ID });
+    const [hydrated] = await service.hydratePosts([federatedReply], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
+      viewerId: VIEWER_ID,
+    });
 
     expect(hydrated.replyContext).toEqual({});
     expect(hydrated.replyContext).not.toBeUndefined();
@@ -266,7 +277,10 @@ describe('PostHydrationService — reply context on the flat (slice-free) path',
     // would put "Replying to @themselves" on every post of every self-thread.
     const continuation = makePostRow(REPLY_ID, REPLY_AUTHOR_ID, { parentPostId: SELF_PARENT_ID });
 
-    const [hydrated] = await service.hydratePosts([continuation], { viewerId: VIEWER_ID });
+    const [hydrated] = await service.hydratePosts([continuation], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
+      viewerId: VIEWER_ID,
+    });
 
     expect(hydrated.replyContext).toBeUndefined();
   });
@@ -286,6 +300,7 @@ describe('PostHydrationService — reply context on the flat (slice-free) path',
     const realReply = makePostRow(realReplyId, REPLY_AUTHOR_ID, { parentPostId: PARENT_ID });
 
     const hydrated = await service.hydratePosts([ownParent, continuation, realReply], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       viewerId: VIEWER_ID,
     });
 
@@ -323,6 +338,7 @@ describe('PostHydrationService — reply context on the flat (slice-free) path',
     });
 
     const [hydrated] = await service.hydratePosts([unlinkedSelfContinuation], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       viewerId: VIEWER_ID,
     });
 
@@ -342,7 +358,10 @@ describe('PostHydrationService — reply context on the flat (slice-free) path',
       },
     });
 
-    const [hydrated] = await service.hydratePosts([continuation], { viewerId: VIEWER_ID });
+    const [hydrated] = await service.hydratePosts([continuation], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
+      viewerId: VIEWER_ID,
+    });
 
     expect(hydrated.replyContext).toBeUndefined();
   });
@@ -353,7 +372,10 @@ describe('PostHydrationService — reply context on the flat (slice-free) path',
       threadId: 'thread-1',
     });
 
-    const [hydrated] = await service.hydratePosts([root], { viewerId: VIEWER_ID });
+    const [hydrated] = await service.hydratePosts([root], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
+      viewerId: VIEWER_ID,
+    });
 
     expect(hydrated.replyContext).toBeUndefined();
   });
@@ -363,7 +385,10 @@ describe('PostHydrationService — reply context on the flat (slice-free) path',
     // extra round trip to learn that nothing on the page is a reply.
     const root = makePostRow(ROOT_ID, REPLY_AUTHOR_ID, { parentPostId: null });
 
-    await service.hydratePosts([root], { viewerId: VIEWER_ID });
+    await service.hydratePosts([root], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
+      viewerId: VIEWER_ID,
+    });
 
     expect(parentLookupIds()).toEqual([]);
   });
@@ -372,7 +397,10 @@ describe('PostHydrationService — reply context on the flat (slice-free) path',
     const parent = makePostRow(PARENT_ID, PARENT_AUTHOR_ID);
     const reply = makePostRow(REPLY_ID, REPLY_AUTHOR_ID, { parentPostId: PARENT_ID });
 
-    const hydrated = await service.hydratePosts([parent, reply], { viewerId: VIEWER_ID });
+    const hydrated = await service.hydratePosts([parent, reply], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
+      viewerId: VIEWER_ID,
+    });
 
     const hydratedReply = hydrated.find((post) => post.id === REPLY_ID);
     expect(hydratedReply?.replyContext?.parentAuthor?.username).toBe('parenthandle');

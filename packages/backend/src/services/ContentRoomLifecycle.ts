@@ -8,6 +8,7 @@ import {
 } from '@mention/shared-types';
 import { postHydrationService } from './PostHydrationService';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
+import { safetyRequesterFor } from '../utils/safetyRequester';
 import { logger } from '../utils/logger';
 
 export interface AuthenticatedContentSocket extends Socket {
@@ -73,6 +74,10 @@ async function joinPostRoom(
       // The socket carries the same bearer the HTTP client uses; the viewer's
       // block and restriction lists are readable only under their own identity.
       oxyClient: createScopedOxyClient({ accessToken: readHandshakeToken(socket) }),
+      safetyRequester: safetyRequesterFor({
+        user: { id: viewerId },
+        accessToken: readHandshakeToken(socket),
+      }),
     });
   } catch (error) {
     logger.warn('Refusing post room join: visibility check failed', {

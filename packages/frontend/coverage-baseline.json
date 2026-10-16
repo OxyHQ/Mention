@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 45.17,
-      "covered": 12267,
-      "total": 27156
+      "pct": 45.55,
+      "covered": 12454,
+      "total": 27336
     },
     "branches": {
-      "pct": 40.4,
-      "covered": 7971,
-      "total": 19728
+      "pct": 40.96,
+      "covered": 8170,
+      "total": 19946
     },
     "functions": {
-      "pct": 40.35,
-      "covered": 2830,
-      "total": 7012
+      "pct": 40.64,
+      "covered": 2873,
+      "total": 7068
     },
     "lines": {
-      "pct": 45.89,
-      "covered": 11166,
-      "total": 24332
+      "pct": 46.29,
+      "covered": 11333,
+      "total": 24478
     }
   },
   "pins": {
@@ -150,10 +150,10 @@
       "lines": 1
     },
     "db/memoryStore.ts": {
-      "statements": 48,
-      "branches": 38,
-      "functions": 61,
-      "lines": 56
+      "statements": 50,
+      "branches": 39,
+      "functions": 68,
+      "lines": 59
     },
     "db/migrations.ts": {
       "statements": 93,
@@ -168,14 +168,14 @@
       "lines": 100
     },
     "db/postQueries.ts": {
-      "statements": 38,
-      "branches": 31,
-      "functions": 75,
-      "lines": 43
+      "statements": 45,
+      "branches": 35,
+      "functions": 80,
+      "lines": 48
     },
     "db/schema.ts": {
       "statements": 79,
-      "branches": 63,
+      "branches": 64,
       "functions": 84,
       "lines": 82
     },
@@ -497,6 +497,12 @@
       "functions": 100,
       "lines": 100
     },
+    "hooks/usePostReadAccess.ts": {
+      "statements": 90,
+      "branches": 92,
+      "functions": 100,
+      "lines": 100
+    },
     "hooks/usePostShare.ts": {
       "statements": 0,
       "branches": 0,
@@ -521,11 +527,17 @@
       "functions": 40,
       "lines": 29
     },
+    "hooks/usePrivateMediaUrls.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "hooks/useProfileData.ts": {
-      "statements": 91,
+      "statements": 92,
       "branches": 84,
-      "functions": 87,
-      "lines": 91
+      "functions": 90,
+      "lines": 93
     },
     "hooks/useProfileLinkMentions.ts": {
       "statements": 100,
@@ -670,6 +682,12 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
+    },
+    "hooks/useSupervisionState.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "hooks/useThreadManager.ts": {
       "statements": 26,
@@ -1236,10 +1254,10 @@
       "lines": 77
     },
     "services/socketService.ts": {
-      "statements": 48,
-      "branches": 28,
-      "functions": 46,
-      "lines": 50
+      "statements": 60,
+      "branches": 42,
+      "functions": 57,
+      "lines": 63
     },
     "services/starterPacksService.ts": {
       "statements": 0,
@@ -1356,10 +1374,10 @@
       "lines": 98
     },
     "stores/postsStore.ts": {
-      "statements": 63,
-      "branches": 44,
-      "functions": 63,
-      "lines": 69
+      "statements": 65,
+      "branches": 45,
+      "functions": 64,
+      "lines": 71
     },
     "stores/privacyStore.ts": {
       "statements": 52,

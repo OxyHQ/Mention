@@ -1,3 +1,6 @@
+import { authorsMayFederate } from '../../../services/postPublicationPolicy';
+import { filterFederatablePosts } from '../../../services/federation/publicationPolicy';
+import { loadPostRecords } from '../../../db/posts/postRepository';
 /**
  * Atproto bridge repo READ service (Phase C4).
  *
@@ -247,7 +250,10 @@ async function filterPublicPublishedPosts(
         eq(posts.visibility, PostVisibility.PUBLIC),
       ),
     );
-  const publicPostIds = new Set(publicPosts.map((post) => post.id));
+  const allowed = await filterFederatablePosts(
+    await loadPostRecords(publicPosts.map((post) => post.id)),
+  );
+  const publicPostIds = new Set(allowed.map((post) => post.id));
   return records.filter((record) => publicPostIds.has(record.rkey));
 }
 
@@ -267,6 +273,7 @@ async function materializeCollection(
   const mtnCollection = BSKY_TO_MTN_COLLECTION[bskyCollection];
   if (!mtnCollection) return [];
 
+  if (!(await authorsMayFederate([oxyUserId]))) return [];
   const rows = await readLiveRows(oxyUserId, mtnCollection);
   const records = reduceLiveRecords(rows, oxyUserId, bskyCollection, mtnCollection);
   return bskyCollection === BSKY_POST_COLLECTION
@@ -330,6 +337,7 @@ export async function getRecord(
   const mtnCollection = BSKY_TO_MTN_COLLECTION[bskyCollection];
   if (!mtnCollection) return null;
 
+  if (!(await authorsMayFederate([oxyUserId]))) return null;
   const rows = await readLiveRows(oxyUserId, mtnCollection, rkey);
   const liveRecords = reduceLiveRecords(rows, oxyUserId, bskyCollection, mtnCollection);
   const records =

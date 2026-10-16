@@ -351,6 +351,7 @@ export class FeedEngine {
     const [hydrated] = await postHydrationService.hydratePosts([newest], {
       viewerId: ctx.currentUserId,
       oxyClient: ctx.oxyClient,
+      safetyRequester: ctx.safetyRequester,
       maxDepth: exec.hydrateMaxDepth ?? 0,
       viewerGraph: this.viewerGraphOption(ctx),
       viewerPrivacy: this.viewerPrivacyOption(ctx),
@@ -796,6 +797,7 @@ export class FeedEngine {
     const hydratedSlices = await postHydrationService.hydrateSlices(pageSlices, {
       viewerId: ctx.currentUserId,
       oxyClient: ctx.oxyClient,
+      safetyRequester: ctx.safetyRequester,
       maxDepth: exec.hydrateMaxDepth ?? 0,
       includeLinkMetadata: true,
       viewerGraph: this.viewerGraphOption(ctx),
@@ -905,6 +907,7 @@ export class FeedEngine {
     const hydratedSlices = await postHydrationService.hydrateSlices(rawSlices, {
       viewerId: ctx.currentUserId,
       oxyClient: ctx.oxyClient,
+      safetyRequester: ctx.safetyRequester,
       maxDepth: exec.hydrateMaxDepth ?? 0,
       includeLinkMetadata: true,
       viewerGraph: this.viewerGraphOption(ctx),
@@ -952,6 +955,7 @@ export class FeedEngine {
     const hydrated = await postHydrationService.hydratePosts(page, {
       viewerId: ctx.currentUserId,
       oxyClient: ctx.oxyClient,
+      safetyRequester: ctx.safetyRequester,
       maxDepth: exec.hydrateMaxDepth ?? 0,
       includeLinkMetadata: true,
       viewerGraph: this.viewerGraphOption(ctx),
@@ -1077,6 +1081,7 @@ export class FeedEngine {
       // in the fallback page.
       viewerId: ctx.currentUserId,
       oxyClient: ctx.oxyClient,
+      safetyRequester: ctx.safetyRequester,
       maxDepth: exec.hydrateMaxDepth ?? 0,
       includeLinkMetadata: true,
       // Thread the graph `loadViewerFeedContext` already resolved, exactly as the

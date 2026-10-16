@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import request from 'supertest';
 import { generateKeyPairSync, sign } from 'node:crypto';
@@ -80,6 +81,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     users: {
       get: mocks.getUserById,
       getMany: vi.fn().mockResolvedValue([]),

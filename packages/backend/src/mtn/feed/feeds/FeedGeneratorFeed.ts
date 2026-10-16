@@ -75,6 +75,7 @@ export class FeedGeneratorFeed implements FeedAPI {
       const [hydrated] = await postHydrationService.hydratePosts([ordered[0]], {
         viewerId: context.currentUserId,
         oxyClient: context.oxyClient,
+        safetyRequester: context.safetyRequester,
         maxDepth: HYDRATE_MAX_DEPTH,
         viewerGraph: this.viewerGraph(context),
       });
@@ -114,6 +115,7 @@ export class FeedGeneratorFeed implements FeedAPI {
       const items = await postHydrationService.hydratePosts(ordered, {
         viewerId: context.currentUserId,
         oxyClient: context.oxyClient,
+        safetyRequester: context.safetyRequester,
         maxDepth: HYDRATE_MAX_DEPTH,
         includeLinkMetadata: true,
         viewerGraph: this.viewerGraph(context),

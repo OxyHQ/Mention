@@ -50,7 +50,25 @@ vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
   emitRepostCreated: vi.fn(async () => undefined),
 }));
 
-vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: vi.fn(() => ({})) }));
+const { publicationPolicies } = vi.hoisted(() => ({ publicationPolicies: vi.fn() }));
+vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: { publicationPolicies } }),
+}));
+const adultPolicy = {
+  publicationAllowed: true,
+  requiredAudience: null,
+  collaborationAllowed: true,
+  federationAllowed: true,
+  policyVersion: '2',
+};
+beforeEach(() => {
+  publicationPolicies.mockReset();
+  publicationPolicies.mockImplementation(
+    async ({ authorAccountIds }: { authorAccountIds: string[] }) => ({
+      items: authorAccountIds.map((authorAccountId) => ({ authorAccountId, policy: adultPolicy })),
+    }),
+  );
+});
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
 vi.mock('../../services/MediaMetadataService', () => ({
   mediaMetadataService: { enrichFromOxy: vi.fn(async (media: unknown[]) => media) },
@@ -582,5 +600,91 @@ describe('PostCreationService.create — one operated account answering another'
     ).rejects.toMatchObject({ status: 400 });
 
     expect(await writtenPosts()).toHaveLength(0);
+  });
+});
+
+describe('live publication constraints', () => {
+  it('refuses a supervised public write before persisting any post', async () => {
+    publicationPolicies.mockImplementation(
+      async ({ authorAccountIds }: { authorAccountIds: string[] }) => ({
+        items: authorAccountIds.map((authorAccountId) => ({
+          authorAccountId,
+          policy: {
+            ...adultPolicy,
+            requiredAudience: 'private',
+            collaborationAllowed: false,
+            federationAllowed: false,
+          },
+        })),
+      }),
+    );
+    const before = await readScopePosts(scope);
+    await expect(
+      postCreationService.create({
+        oxyUserId: WRITER,
+        content: { text: 'Private childhood update' },
+        visibility: PostVisibility.PUBLIC,
+      }),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(await readScopePosts(scope)).toHaveLength(before.length);
+  });
+  it('persists a protected private post without public publication', async () => {
+    publicationPolicies.mockImplementation(
+      async ({ authorAccountIds }: { authorAccountIds: string[] }) => ({
+        items: authorAccountIds.map((authorAccountId) => ({
+          authorAccountId,
+          policy: {
+            ...adultPolicy,
+            requiredAudience: 'private',
+            collaborationAllowed: false,
+            federationAllowed: false,
+          },
+        })),
+      }),
+    );
+    const created = await postCreationService.create({
+      oxyUserId: WRITER,
+      content: { text: 'A private family update' },
+      visibility: PostVisibility.PRIVATE,
+      skipNotifications: true,
+    });
+    expect((await readPost(created.id))?.visibility).toBe(PostVisibility.PRIVATE);
+    await deletePostRecord(created.id);
+  });
+  it('leaves an old public scheduled row unpublished after protection activates', async () => {
+    const scheduled = await seedPost(scope, {
+      oxyUserId: WRITER,
+      content: { text: 'Scheduled before enrollment' },
+      visibility: PostVisibility.PUBLIC,
+      status: 'scheduled',
+      scheduledFor: new Date(Date.now() - 1000),
+    });
+    publicationPolicies.mockImplementation(
+      async ({ authorAccountIds }: { authorAccountIds: string[] }) => ({
+        items: authorAccountIds.map((authorAccountId) => ({
+          authorAccountId,
+          policy: {
+            ...adultPolicy,
+            requiredAudience: 'private',
+            collaborationAllowed: false,
+            federationAllowed: false,
+          },
+        })),
+      }),
+    );
+    await expect(
+      postCreationService.claimAndPublishScheduledPost({ postId: scheduled.id }),
+    ).rejects.toMatchObject({ status: 403 });
+    expect((await readPost(scheduled.id))?.status).toBe('scheduled');
+  });
+  it('fails closed before writing when the current policy authority is unavailable', async () => {
+    publicationPolicies.mockRejectedValueOnce(new Error('authority down'));
+    await expect(
+      postCreationService.create({
+        oxyUserId: WRITER,
+        content: { text: 'Never published during outage' },
+        visibility: PostVisibility.PUBLIC,
+      }),
+    ).rejects.toMatchObject({ status: 503 });
   });
 });

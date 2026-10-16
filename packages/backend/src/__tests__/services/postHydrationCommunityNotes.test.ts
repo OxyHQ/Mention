@@ -1,3 +1,7 @@
+vi.mock('../../db/posts/postSafetyRepository', () => ({
+  loadPostSafetyAssessments: vi.fn(async () => new Map()),
+}));
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { CachedUserSummary } from '../../services/userSummaryCache';
 
@@ -37,6 +41,7 @@ vi.mock('../../runtime/oxyClient', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     getUsersByIds,
     getClarityDocuments: vi.fn(async () => ({})),
     getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
@@ -125,6 +130,7 @@ describe('PostHydrationService — community notes', () => {
     loadShownNotes.mockResolvedValue(new Map([[POST_ID, note]]));
 
     const [hydrated] = await service.hydratePosts([makePostRow()], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       viewerId: VIEWER_ID,
       oxyClient: makeClient() as never,
     });
@@ -135,6 +141,7 @@ describe('PostHydrationService — community notes', () => {
 
   it('leaves a post without one alone', async () => {
     const [hydrated] = await service.hydratePosts([makePostRow()], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       viewerId: VIEWER_ID,
       oxyClient: makeClient() as never,
     });
@@ -145,6 +152,7 @@ describe('PostHydrationService — community notes', () => {
 
   it('asks about nothing when the caller just wrote the post', async () => {
     await service.hydratePosts([makePostRow()], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       viewerId: VIEWER_ID,
       oxyClient: makeClient() as never,
       includeCommunityNotes: false,
@@ -157,6 +165,7 @@ describe('PostHydrationService — community notes', () => {
     loadShownNotes.mockResolvedValue(new Map());
 
     const [hydrated] = await service.hydratePosts([makePostRow()], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
       viewerId: VIEWER_ID,
       oxyClient: makeClient() as never,
     });

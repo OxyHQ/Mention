@@ -7,6 +7,8 @@ import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { RiEqualizerLine } from '@oxy.so/bloom/icons/RiEqualizerLine';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
+import { usePostReadAccess } from '@/hooks/usePostReadAccess';
+import { EmptyState } from '@/components/common/EmptyState';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PostItem from '@/components/Feed/PostItem';
 import Feed from '@/components/Feed/Feed';
@@ -51,7 +53,7 @@ const FEED_BOTTOM_PADDING = 16;
 // (a handful of hops); this is purely a safety ceiling.
 const MAX_ANCESTOR_DEPTH = 30;
 
-const PostDetailScreen: React.FC = () => {
+const AuthorizedPostDetailScreen = ({ requiresFreshReads }: { requiresFreshReads: boolean }) => {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const safeBack = useSafeBack();
@@ -80,9 +82,13 @@ const PostDetailScreen: React.FC = () => {
   // The full ancestor chain above the focused post, ordered ROOT FIRST … the
   // immediate parent LAST. Rendered as one connected thread above the focused
   // post (Bluesky-style). Empty for a root post (no parent).
-  const [ancestors, setAncestors] = useState<PostDetailEntity[]>(
-    () =>
-      getCachedAncestorChain(id ? String(id) : '', cachedPost?.parentPostId) as PostDetailEntity[],
+  const [ancestors, setAncestors] = useState<PostDetailEntity[]>(() =>
+    requiresFreshReads
+      ? []
+      : (getCachedAncestorChain(
+          id ? String(id) : '',
+          cachedPost?.parentPostId,
+        ) as PostDetailEntity[]),
   );
   // The author's self-thread continuation spine BELOW the focused post, ordered
   // root-first (c1 … cN). Populated only when the focused post is a self-thread
@@ -211,10 +217,12 @@ const PostDetailScreen: React.FC = () => {
     // state initializer already put it there, and resetting to `[]` here would
     // blank it for a frame before the async walk put the same rows back.
     setAncestors(
-      getCachedAncestorChain(
-        postId,
-        usePostsStore.getState().getPostFromDb(postId)?.parentPostId,
-      ) as PostDetailEntity[],
+      requiresFreshReads
+        ? []
+        : (getCachedAncestorChain(
+            postId,
+            usePostsStore.getState().getPostFromDb(postId)?.parentPostId,
+          ) as PostDetailEntity[]),
     );
     // Likewise drop the previous post's continuation spine.
     setContinuations([]);
@@ -281,10 +289,14 @@ const PostDetailScreen: React.FC = () => {
         if (visited.has(nextId)) break; // cycle guard
         visited.add(nextId);
 
-        let ancestor = usePostsStore.getState().getPostFromDb(nextId) as PostDetailEntity | null;
+        let ancestor: PostDetailEntity | null = requiresFreshReads
+          ? null
+          : usePostsStore.getState().getPostFromDb(nextId);
         if (!ancestor) {
           try {
-            ancestor = await getPostById(nextId);
+            ancestor = await (requiresFreshReads
+              ? revalidatePostById(nextId)
+              : getPostById(nextId));
           } catch {
             // Missing/deleted ancestor — stop and keep what we have.
             break;
@@ -311,7 +323,17 @@ const PostDetailScreen: React.FC = () => {
         const cached = usePostsStore.getState().getPostFromDb(postId);
         loadContinuations(cached);
         loadAncestors(cached?.parentPostId);
+        // The supervised entry gate has already read this post with current authority.
+        if (requiresFreshReads) return;
         revalidatePostById(postId).then((fresh) => {
+          if (cancelled) return;
+          if (!fresh && !usePostsStore.getState().getPostFromDb(postId)) {
+            setFetchedPost(null);
+            setAncestors([]);
+            setContinuations([]);
+            setError(t('safety.contentUnavailable'));
+            return;
+          }
           // A post is never re-parented, so the revalidated copy almost
           // always names the parent the walk above already started from —
           // and re-walking it re-issues a fetch for every uncached hop for
@@ -345,7 +367,15 @@ const PostDetailScreen: React.FC = () => {
               setLoading(false);
               loadContinuations(widgetPost);
               loadAncestors(widgetPost.parentPostId);
-              void revalidatePostById(postId);
+              void revalidatePostById(postId).then((fresh) => {
+                if (cancelled) return;
+                if (!fresh && !usePostsStore.getState().getPostFromDb(postId)) {
+                  setFetchedPost(null);
+                  setAncestors([]);
+                  setContinuations([]);
+                  setError(t('safety.contentUnavailable'));
+                }
+              });
               return;
             }
           } catch (error) {
@@ -371,7 +401,7 @@ const PostDetailScreen: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [id, getPostById, revalidatePostById, user]);
+  }, [id, getPostById, revalidatePostById, user, requiresFreshReads, t]);
 
   const handleBack = () => {
     safeBack();
@@ -598,4 +628,20 @@ const PostDetailScreen: React.FC = () => {
   );
 };
 
-export default PostDetailScreen;
+export default function PostDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { t } = useTranslation();
+  const access = usePostReadAccess(id ? String(id) : '');
+  if (access.failed)
+    return (
+      <EmptyState
+        error={{
+          title: t('safety.contentUnavailable'),
+          message: t('safety.retryDescription'),
+          onRetry: access.retry,
+        }}
+      />
+    );
+  if (!access.allowed) return <Loading />;
+  return <AuthorizedPostDetailScreen requiresFreshReads={access.supervised} />;
+}

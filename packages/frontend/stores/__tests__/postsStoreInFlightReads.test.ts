@@ -27,6 +27,14 @@ jest.mock('@/db', () => ({
     for (const post of posts) if (post.id) mockPosts.set(post.id, post);
   },
   getPostById: (postId: string) => mockPosts.get(postId) ?? null,
+  getPostIdsReferencing: (ids: string[]) =>
+    [...mockPosts.values()]
+      .filter((post) =>
+        [post.originalPost?.id, post.quotedPost?.id, post.boost?.originalPost?.id].some(
+          (id) => id && ids.includes(id),
+        ),
+      )
+      .map((post) => post.id),
   updatePost: () => null,
   deletePost: (postId: string) => {
     mockPosts.delete(postId);
@@ -105,6 +113,36 @@ describe('postsStore single-post reads', () => {
     mockPosts.clear();
     mockGetPostById.mockReset();
     usePostsStore.getState().resetViewerState({ clearCachedData: true });
+  });
+
+  it.each([403, 404])('evicts every embedded copy when revalidation returns %s', async (status) => {
+    const privatePost = makePost('private');
+    const quote = { ...makePost('quote'), quotedPost: privatePost };
+    const boost = { ...makePost('boost'), originalPost: quote };
+    for (const post of [privatePost, quote, boost]) mockPosts.set(post.id, post);
+    mockGetPostById.mockRejectedValueOnce(Object.assign(new Error('unavailable'), { status }));
+    expect(await usePostsStore.getState().revalidatePostById('private')).toBeNull();
+    expect([...mockPosts.keys()]).toEqual([]);
+  });
+
+  it('preserves the cache on transport failures for callers with known adult access', async () => {
+    mockPosts.set('cached', makePost('cached'));
+    mockGetPostById.mockRejectedValueOnce(
+      Object.assign(new Error('authority unavailable'), { status: 503 }),
+    );
+    expect(await usePostsStore.getState().revalidatePostById('cached')).toBeNull();
+    expect(mockPosts.has('cached')).toBe(true);
+  });
+
+  it('does not evict the new viewer cache when the previous viewer receives a denial', async () => {
+    const request = deferred('cached');
+    mockGetPostById.mockReturnValueOnce(request.promise);
+    const beforeSwitch = usePostsStore.getState().revalidatePostById('cached');
+    usePostsStore.getState().resetViewerState({ clearCachedData: true });
+    mockPosts.set('cached', makePost('cached'));
+    request.fail(Object.assign(new Error('revoked'), { status: 403 }));
+    await beforeSwitch;
+    expect(mockPosts.has('cached')).toBe(true);
   });
 
   it('issues one request when the same post is read twice while in flight', async () => {

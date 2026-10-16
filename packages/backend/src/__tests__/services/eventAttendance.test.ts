@@ -22,6 +22,11 @@ import {
 } from '../../services/EventAttendanceService';
 import { EventRegistration } from '@oxy.so/mention-contracts';
 import { sanitizeEventData } from '../../controllers/posts/composeInput';
+import { adultSafetyFixture } from '../helpers/adultSafety';
+vi.mock('../../utils/oxyHelpers', async (original) => ({
+  ...(await original<typeof import('../../utils/oxyHelpers')>()),
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
+}));
 vi.mock('../../utils/notificationUtils', async (original) => ({
   ...(await original<typeof import('../../utils/notificationUtils')>()),
   deliverEventNotifications: vi.fn(async () => {}),

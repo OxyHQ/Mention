@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import express, { type NextFunction, type Response } from 'express';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -43,7 +44,10 @@ vi.mock('../../db/posts/postRepository', () => ({ loadPostRecords: posts.loadPos
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: posts.hydratePosts },
 }));
-vi.mock('../../utils/oxyHelpers', () => ({ createScopedOxyClient: () => ({}) }));
+vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
+  createScopedOxyClient: () => ({}),
+}));
 
 import { CommunityNotesUnavailableError } from '../../services/communityNotes/CommunityNotesService';
 import communityNotesRouter from '../../routes/communityNotes.routes';
@@ -55,6 +59,7 @@ function appFor(viewerId: string | undefined) {
   app.use(express.json());
   app.use((req: OxyAuthRequest, _res: Response, next: NextFunction) => {
     if (viewerId) req.user = { id: viewerId };
+    req.headers.authorization = req.user ? 'Bearer test-viewer-session' : undefined;
     next();
   });
   app.use('/community-notes', communityNotesRouter);

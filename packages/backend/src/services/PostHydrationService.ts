@@ -1,5 +1,8 @@
 import { sanitizePodcast } from '../utils/podcastReference';
 import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
+import { hydratePostMedia } from './hydratePostMedia';
+import type { SafetyRequester, SafetyDecision } from '@oxy.so/contracts';
+import { loadPostSafetyDecisions, type PostSafetyApplicationAccess } from './postSafetyAccess';
 import {
   type FeedPostSlice,
   type FeedSliceItem,
@@ -149,7 +152,7 @@ interface RawPost {
    * Stage-A classification subdoc. Only the canonical multi-language array is
    * read during hydration (surfaced to the DTO as `metadata.languages`).
    */
-  postClassification?: { languages?: string[] };
+  postClassification?: { languages?: string[]; sensitive?: boolean };
   stats?: {
     likesCount?: number;
     downvotesCount?: number;
@@ -192,6 +195,10 @@ interface RawPost {
 }
 
 export interface HydrationOptions {
+  /** Original requester proof, independent of display/ranking viewer IDs. */
+  safetyRequester?: SafetyRequester;
+  /** Only create/edit-source responses: nested references remain ordinary reads. */
+  manageOwnPostIds?: readonly string[];
   viewerId?: string;
   oxyClient?: OxyClient; // Per-request OxyServices instance with user's auth token
   maxDepth?: number;
@@ -375,6 +382,7 @@ interface ViewerContext {
 }
 
 interface ExtendedViewerContext extends ViewerContext {
+  _channelAuthorityResolved?: boolean;
   includeFullArticleBody?: boolean;
   includeFullMetadata?: boolean;
   _authorPrivacyCache?: Map<string, typeof DEFAULT_PRIVACY>;
@@ -1051,7 +1059,72 @@ export class PostHydrationService {
     // references). Used by `attachNestedContext` to tell a GENUINELY-MISSING boost
     // original (never fetched → not here) from one dropped by an ACL check.
     const collectedPostIds = new Set(postIds);
-    const postsForHydration = Array.from(graph.values());
+    const collectedPosts = Array.from(graph.values());
+    if (options.viewerId && !options.safetyRequester)
+      throw new Error('Authenticated hydration requires an explicit safety requester');
+    const parentIds = [
+      ...new Set(
+        collectedPosts.flatMap(({ post }) =>
+          post.parentPostId ? [String(post.parentPostId)] : [],
+        ),
+      ),
+    ].filter((id) => !graph.has(id));
+    const preloadedReplyParents = parentIds.length ? await loadReplyParents(parentIds) : [];
+    const policyPosts = [
+      ...Array.from(graph, ([id, { post }]) => ({ ...post, id })),
+      ...preloadedReplyParents.map((post) => ({ ...post, id: this.resolveId(post) })),
+    ];
+    await this.resolveCurrentChannelAuthority(policyPosts, viewerContext, options);
+    const applicationAccess = new Map<string, PostSafetyApplicationAccess>();
+    const managementIds = new Set(options.manageOwnPostIds ?? []);
+    const eligiblePosts = policyPosts.filter((post) => {
+      const authorId = post.oxyUserId ?? '';
+      const authorship = normalizeAuthorship(post.authorship);
+      const resourceGrant = viewerOwnsPost(authorId, authorship, viewerContext);
+      // Contact approval only decides a published post's audience. It cannot
+      // disclose an unpublished draft or override an application restriction.
+      if (
+        viewerContext.blockedIds.has(authorId) ||
+        (((post.status ?? 'published') !== 'published' ||
+          viewerContext.restrictedIds.has(authorId)) &&
+          !resourceGrant)
+      )
+        return false;
+      applicationAccess.set(post.id, {
+        applicationAudienceAllowed: this.canViewerReadPost(
+          post,
+          authorId,
+          authorship,
+          viewerContext,
+        ),
+        applicationResourceGrant: resourceGrant,
+        operation:
+          managementIds.has(post.id) && graph.get(post.id)?.depth === 0 ? 'manage_own' : 'read',
+      });
+      return true;
+    });
+    const safetyDecisions = await loadPostSafetyDecisions(
+      eligiblePosts,
+      options.safetyRequester ?? { accessToken: null },
+      applicationAccess,
+    );
+    const postsForHydration = collectedPosts.filter(
+      ({ post }) => safetyDecisions.get(this.resolveId(post) ?? '')?.allowed === true,
+    );
+
+    if (!postsForHydration.length) return [];
+    const attachmentDecision = await getServiceOxyClient().safety.contentAccessBatch(
+      {
+        items: [
+          {
+            resourceId: 'post-attachments:unrated',
+            classification: 'unrated',
+          },
+        ],
+      },
+      options.safetyRequester ?? { accessToken: null },
+    );
+    const allowUnratedAttachments = attachmentDecision.items[0]?.decision.allowed === true;
 
     // Resolve each post's localized rendition for THIS viewer, once. Everything
     // downstream — the body, the media (with its localized alt), the article, and
@@ -1093,7 +1166,7 @@ export class PostHydrationService {
         // resolved at all. An undisclosed writer is never even looked up.
         const [replierAggResult, replyParents, signingIds] = await Promise.all([
           this.loadRecentReplierProjection(postIds),
-          this.buildReplyParentAuthorMap(postsForHydration, viewerContext),
+          this.buildReplyParentAuthorMap(postsForHydration, preloadedReplyParents, safetyDecisions),
           this.buildSigningChannelIds(postsForHydration),
         ]);
         const extraUserIds = new Set(replierAggResult.allReplierIds);
@@ -1166,8 +1239,27 @@ export class PostHydrationService {
         }),
       ),
     );
+    await hydratePostMedia(
+      summaries.filter((summary): summary is HydratedPostSummary => summary !== null),
+      options.safetyRequester ?? { accessToken: null },
+    );
     for (const summary of summaries) {
       if (summary) {
+        if (!allowUnratedAttachments) {
+          // A reviewed post does not review its mutable byline images, lane
+          // title, fetched cards, or other independently authored attachments.
+          summary.user = { ...summary.user, avatar: undefined };
+          summary.authors = summary.authors.map((author) => ({ ...author, avatar: undefined }));
+          summary.engagement.recentReplierAvatars = [];
+          if (summary.replyContext?.parentAuthor)
+            summary.replyContext = {
+              ...summary.replyContext,
+              parentAuthor: { ...summary.replyContext.parentAuthor, avatar: undefined },
+            };
+          delete summary.lane;
+          delete summary.documents;
+          delete summary.documentsPending;
+        }
         summaryMap.set(summary.id, summary);
       }
     }
@@ -1195,7 +1287,7 @@ export class PostHydrationService {
     // After the ACL, not before: a note is attached to the posts this viewer
     // actually receives, so a post dropped by `attachNestedContext` never costs
     // a lookup and a note never travels attached to a post that did not survive.
-    await this.attachCommunityNotes(hydratedResults, options);
+    if (allowUnratedAttachments) await this.attachCommunityNotes(hydratedResults, options);
 
     return hydratedResults;
   }
@@ -1579,7 +1671,7 @@ export class PostHydrationService {
     context: ExtendedViewerContext,
     options: HydrationOptions | undefined,
   ): Promise<void> {
-    if (!context.viewerId) return;
+    if (!context.viewerId || context._channelAuthorityResolved) return;
     if (options?.operatedAccountIds !== undefined) return;
     const reader = options?.operatedAccountReader;
     if (!reader) return;
@@ -1588,6 +1680,7 @@ export class PostHydrationService {
     for (const accountId of await listOperatedChannelIds(reader)) {
       context.operatedAccountIds.add(accountId);
     }
+    context._channelAuthorityResolved = true;
   }
 
   // A boost-of-boost chain (Announce of an Announce) is collected one extra hop
@@ -2357,27 +2450,45 @@ export class PostHydrationService {
   async canViewerReadPostId(
     postId: string,
     viewerId: string,
-    options?: Pick<HydrationOptions, 'oxyClient' | 'operatedAccountReader'>,
+    options?: Pick<HydrationOptions, 'oxyClient' | 'operatedAccountReader' | 'safetyRequester'>,
     db: DatabaseOrTransaction = getDb(),
   ): Promise<boolean> {
     const [post] = await loadReplyParents([postId], db);
     if (!post) return false;
 
-    const isFederatedPost = !!post.federation;
-    const authorId = post.oxyUserId ? String(post.oxyUserId) : undefined;
-    // A native post with no author is a data error hydration refuses to render;
-    // a federated orphan is public by definition and keeps the federated path.
-    if (!authorId) return isFederatedPost;
-
+    if (viewerId && !options?.safetyRequester)
+      throw new Error('Authenticated post access requires an explicit safety requester');
+    const authorId = post.oxyUserId ?? '';
+    if (!authorId && !post.federation) return false;
     const viewerContext = await this.buildViewerContext([post], viewerId, options, db);
-    if (viewerContext.blockedIds.has(authorId)) return false;
-
-    return this.canViewerReadPost(
-      post,
-      authorId,
-      normalizeAuthorship(post.authorship as PostAuthorshipEntry[] | undefined),
-      viewerContext,
+    const authorship = normalizeAuthorship(post.authorship);
+    const resourceGrant = viewerOwnsPost(authorId, authorship, viewerContext);
+    if (
+      viewerContext.blockedIds.has(authorId) ||
+      (((post.status ?? 'published') !== 'published' ||
+        viewerContext.restrictedIds.has(authorId)) &&
+        !resourceGrant)
+    )
+      return false;
+    const decisions = await loadPostSafetyDecisions(
+      [{ ...post, id: postId }],
+      options?.safetyRequester ?? { accessToken: null },
+      new Map([
+        [
+          postId,
+          {
+            applicationAudienceAllowed: this.canViewerReadPost(
+              post,
+              authorId,
+              authorship,
+              viewerContext,
+            ),
+            applicationResourceGrant: resourceGrant,
+          },
+        ],
+      ]),
     );
+    return decisions.get(postId)?.allowed === true;
   }
 
   /**
@@ -2448,7 +2559,8 @@ export class PostHydrationService {
    */
   private async buildReplyParentAuthorMap(
     nodes: HydratedGraphNode[],
-    viewerContext: ViewerContext,
+    additionalParents: RawPost[],
+    safetyDecisions: Map<string, SafetyDecision>,
   ): Promise<{
     parentAuthorIdByPostId: Map<string, string>;
     parentAuthorIds: Set<string>;
@@ -2489,23 +2601,14 @@ export class PostHydrationService {
       if (id) knownById.set(id, post);
     }
 
-    const missingIds = [...new Set(parentIdByPostId.values())].filter((id) => !knownById.has(id));
-    if (missingIds.length > 0) {
-      try {
-        const parents = await loadReplyParents(missingIds);
-        for (const parent of parents) {
-          const id = this.resolveId(parent);
-          if (id) knownById.set(id, parent);
-        }
-      } catch (error) {
-        // Soft-fail: replies still report themselves as replies, just unnamed.
-        logger.warn('[PostHydration] Failed to load reply parents:', error);
-      }
+    for (const parent of additionalParents) {
+      const id = this.resolveId(parent);
+      if (id) knownById.set(id, parent);
     }
 
     for (const [postId, parentId] of parentIdByPostId) {
       const parent = knownById.get(parentId);
-      if (!parent) continue;
+      if (!parent || !safetyDecisions.get(parentId)?.allowed) continue;
 
       const parentAuthorId = parent.oxyUserId ? String(parent.oxyUserId) : '';
       // An orphan federated parent carries no Oxy author link, so there is
@@ -2524,14 +2627,6 @@ export class PostHydrationService {
         selfContinuationPostIds.add(postId);
         continue;
       }
-
-      const readable = this.canViewerReadPost(
-        parent,
-        parentAuthorId,
-        normalizeAuthorship(parent.authorship as PostAuthorshipEntry[] | undefined),
-        viewerContext,
-      );
-      if (!readable) continue;
 
       parentAuthorIdByPostId.set(postId, parentAuthorId);
       parentAuthorIds.add(parentAuthorId);
@@ -2639,10 +2734,6 @@ export class PostHydrationService {
     }
 
     const authorship = normalizeAuthorship(post.authorship as PostAuthorshipEntry[] | undefined);
-
-    if (!this.canViewerReadPost(post, authorId, authorship, viewerContext)) {
-      return null;
-    }
 
     // `resolveUserSummaries` always populates an entry for every requested id
     // (a real user or the degraded fallback), so this default is defensive — but

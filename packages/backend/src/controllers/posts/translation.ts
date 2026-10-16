@@ -11,6 +11,7 @@ import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
 import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
+import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import {
   postTranslationService,
@@ -80,6 +81,7 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
       // CrowdSource round trip for a field nothing here reads.
       includeCommunityNotes: false,
       viewerId: req.user?.id,
+      safetyRequester: safetyRequesterFor(req),
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
       maxDepth: 0,
@@ -103,6 +105,23 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
       { force: force === true, delegatedUserId: req.user?.id },
     );
 
+    // A stored translation changes the assessed material. Recheck the current
+    // revision before serving model output; the worker will assess it again.
+    const current = await loadPostRecord(post.id);
+    if (
+      !current ||
+      !(await postHydrationService.canViewerReadPostId(post.id, req.user?.id ?? '', {
+        safetyRequester: safetyRequesterFor(req),
+        oxyClient: createScopedOxyClient(req),
+        operatedAccountReader: createUserScopedOxyServices(req),
+      }))
+    ) {
+      res.status(403).json({
+        code: 'CONTENT_UNAVAILABLE',
+        message: 'This translation is not available for this account',
+      });
+      return;
+    }
     res.json({
       translatedText: translated.text,
       tag: translated.tag,

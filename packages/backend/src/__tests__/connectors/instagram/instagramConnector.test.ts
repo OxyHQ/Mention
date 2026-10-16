@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../../helpers/adultSafety';
 import express from 'express';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -42,6 +43,7 @@ vi.mock('../../../config', async (importOriginal) => {
 vi.mock('../../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(),
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     serviceRequest: h.serviceRequest,
     users: { get: vi.fn(), getMany: vi.fn(async () => []) },
   }),

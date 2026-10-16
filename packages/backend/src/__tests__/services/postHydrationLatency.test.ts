@@ -1,3 +1,7 @@
+vi.mock('../../db/posts/postSafetyRepository', () => ({
+  loadPostSafetyAssessments: vi.fn(async () => new Map()),
+}));
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { CachedUserSummary } from '../../services/userSummaryCache';
@@ -13,7 +17,10 @@ const { getMany, getUser, blocked, restricted, following, followers, cache } = v
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ users: { getMany, get: getUser } }),
+  getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
+    users: { getMany, get: getUser },
+  }),
 }));
 vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({ users: { get: getUser } }),
@@ -73,10 +80,14 @@ beforeEach(() => {
 describe('feed hydration latency', () => {
   it.each([
     ['anonymous', {}],
-    ['authenticated', { viewerId: scope.user('viewer') }],
+    [
+      'authenticated',
+      { safetyRequester: { accessToken: 'test-viewer-session' }, viewerId: scope.user('viewer') },
+    ],
     [
       'preloaded feed context',
       {
+        safetyRequester: { accessToken: 'test-viewer-session' },
         viewerId: scope.user('viewer'),
         viewerLanguages: [],
         viewerPrivacy: { blockedIds: [], restrictedIds: [] },
@@ -142,7 +153,10 @@ describe('feed hydration latency', () => {
       return [post.oxyUserId];
     });
     let settled = false;
-    const result = service.hydratePosts([post], { viewerId: scope.user('viewer') });
+    const result = service.hydratePosts([post], {
+      safetyRequester: { accessToken: 'test-viewer-session' },
+      viewerId: scope.user('viewer'),
+    });
     void result.then(
       () => {
         settled = true;
@@ -175,6 +189,7 @@ describe('feed hydration latency', () => {
     blocked.mockRejectedValue(new Error('privacy unavailable'));
     await expect(
       service.hydratePosts([post], {
+        safetyRequester: { accessToken: 'test-viewer-session' },
         viewerId: scope.user('viewer'),
         viewerLanguages: [],
         viewerGraph: { followingIds: [], followerIds: [] },

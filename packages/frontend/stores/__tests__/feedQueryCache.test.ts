@@ -121,6 +121,26 @@ describe('removeFeedPost', () => {
     expect(after.pages[2]).toBe(before.pages[2]);
   });
 
+  it('removes embedded quotes and originals from pages and slices', () => {
+    const quote = { ...post('quote'), quotedPost: post('revoked') };
+    const boost = { ...post('boost'), originalPost: post('revoked') };
+    const before = data({
+      ...feedPage([]),
+      items: [quote, boost, post('safe')],
+      slices: [
+        {
+          ...slice('quote-slice'),
+          items: [
+            { post: quote, isThreadParent: false, isThreadChild: false, isThreadLastChild: false },
+          ],
+        },
+      ],
+    });
+    const after = removeFeedPost(before, 'revoked');
+    expect(itemIds(after)).toEqual([['safe']]);
+    expect(after.pages[0].slices).toEqual([]);
+  });
+
   it('returns the same data when the post is not there', () => {
     const before = data(feedPage(['a'], { slices: [slice('s-a', 'a')] }));
     expect(removeFeedPost(before, 'gone')).toBe(before);

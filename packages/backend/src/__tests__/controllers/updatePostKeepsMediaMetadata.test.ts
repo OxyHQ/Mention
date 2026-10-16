@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * An edit keeps the derived metadata of the media the post keeps.
  *
@@ -18,6 +19,7 @@ const hoisted = vi.hoisted(() => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: hoisted.createScopedOxyClient,
   createUserScopedOxyServices: vi.fn(() => undefined),
 }));
@@ -90,6 +92,7 @@ async function edit(body: Record<string, unknown>): Promise<number | undefined> 
   };
   await updatePost(
     {
+      accessToken: 'test-viewer-session',
       params: { id: POST_ID },
       query: {},
       headers: {},

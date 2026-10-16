@@ -1,3 +1,4 @@
+import { supervisedActionForRequest } from './supervisedAction';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import type { OxyAuthRequest as AuthRequest, OxyServer } from '@oxy.so/core/server';
 import { bearerLooksLikeMcpToken } from '../mcp/middleware/mcpAuth';
@@ -6,9 +7,8 @@ import { logger } from '../utils/logger';
 /**
  * Best-effort Oxy authentication for public read routes.
  *
- * MCP bearer tokens are resolved by the preceding MCP middleware and must not
- * be sent through Oxy authentication. Invalid Oxy sessions degrade to an
- * anonymous request without rejecting the public read.
+ * MCP bearer tokens are resolved by the preceding MCP middleware. A supplied
+ * session must be verified; an outage cannot turn a supervised reader anonymous.
  */
 export function createOptionalAuth(oxy: OxyServer): RequestHandler {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -25,14 +25,11 @@ export function createOptionalAuth(oxy: OxyServer): RequestHandler {
       return next();
     }
 
-    const authMiddleware = oxy.middleware.auth();
+    const authMiddleware = oxy.middleware.auth({
+      supervisedAction: supervisedActionForRequest(req),
+    });
     return authMiddleware(req, res, (error?: unknown) => {
-      if (error) {
-        logger.debug('Optional auth: authentication failed; continuing as unauthenticated', {
-          error,
-        });
-        (req as AuthRequest).user = undefined;
-      }
+      if (error) return next(error);
       next();
     });
   };

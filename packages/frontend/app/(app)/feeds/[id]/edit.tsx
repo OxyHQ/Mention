@@ -1,3 +1,4 @@
+import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import { View, Text } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -16,7 +17,7 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
  * ownership (the detail-screen Edit entry point already gates on it), and hands
  * the stored definition to the shared {@link FeedBuilder}.
  */
-export default function EditFeedScreen() {
+function EditFeedScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const feedId = String(id);
   const { t } = useTranslation();
@@ -65,4 +66,12 @@ export default function EditFeedScreen() {
   }
 
   return <FeedBuilder feedId={feedId} initialFeed={feed} />;
+}
+
+export default function AvailableEditFeedScreen() {
+  return (
+    <SupervisedFeatureGate>
+      <EditFeedScreen />
+    </SupervisedFeatureGate>
+  );
 }

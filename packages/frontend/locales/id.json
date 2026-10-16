@@ -2644,5 +2644,14 @@
   "podcast": {
     "loading": "Loading podcast…",
     "unavailable": "Podcast unavailable"
+  },
+  "safety": {
+    "contentUnavailable": "Konten ini tidak tersedia",
+    "unavailableTitle": "Tidak tersedia untuk akun ini",
+    "unavailableDescription": "Fitur ini belum tersedia untuk akun yang diawasi. Anda dapat terus membaca postingan yang telah ditinjau di linimasa Anda.",
+    "checkFailed": "Tidak dapat memeriksa ketersediaan untuk akun",
+    "retryDescription": "Coba lagi untuk memuat perlindungan akun saat ini.",
+    "privatePost": "Hanya wali dan kontak yang disetujui yang dapat membaca postingan Anda.",
+    "pendingAssessment": "Konten ini tidak tersedia sampai tinjauan keamanannya selesai."
   }
 }

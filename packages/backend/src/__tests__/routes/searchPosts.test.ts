@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * `GET /search?type=posts` — the post-search query, against REAL ROWS.
  *
@@ -50,7 +51,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: () => ({ follows: { following: mocks.getUserFollowing } }),
-  getServiceOxyClient: () => undefined,
+  getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
 }));
 
 vi.mock('../../runtime/oxyClient', () => ({
@@ -110,6 +111,7 @@ const TERM = 'zorblattic';
 const app = express();
 app.use((req, _res, next) => {
   (req as express.Request & { user?: { id: string } }).user = { id: VIEWER };
+  req.headers.authorization = req.user ? 'Bearer test-viewer-session' : undefined;
   next();
 });
 app.use('/search', searchRoutes);

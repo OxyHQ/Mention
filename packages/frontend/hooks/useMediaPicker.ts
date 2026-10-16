@@ -31,10 +31,9 @@ export const useMediaPicker = ({ showBottomSheet, t }: UseMediaPickerProps) => {
           multiSelect: true,
           disabledMimeTypes: ['audio/', 'application/pdf'],
           afterSelect: 'back',
-          // Post media renders from the public CDN (`cloud.oxy.so/<id>`), which
-          // 404s a private asset. Uploads here are post media, so they start
-          // public; the backend also promotes them when the post is written.
-          defaultVisibility: 'public',
+          // Keep unpublished media private; previews use Oxy's scoped URLs.
+          // Publication applies the author's current audience policy.
+          defaultVisibility: 'private',
           onSelect: async (file: FileMetadata) => {
             const isImage = file?.contentType?.startsWith?.('image/');
             const isVideo = file?.contentType?.startsWith?.('video/');

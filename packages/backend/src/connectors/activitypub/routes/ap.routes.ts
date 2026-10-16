@@ -1,3 +1,5 @@
+import { authorsMayFederate } from '../../../services/postPublicationPolicy';
+import { filterFederatablePosts } from '../../../services/federation/publicationPolicy';
 import { Router, type Request, type Response } from 'express';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { logger } from '../../../utils/logger';
@@ -92,6 +94,8 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
     }
 
     const userId = String(user._id || user.id);
+    if (!(await authorsMayFederate([userId])))
+      return res.status(404).json({ error: 'User not found' });
     const [totals] = await getDb()
       .select({ count: sql<number>`count(*)::int` })
       .from(posts)
@@ -132,7 +136,9 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
     });
 
     const hasNext = overfetched.length > PAGE_SIZE;
-    const pagePosts = hasNext ? overfetched.slice(0, PAGE_SIZE) : overfetched;
+    const pagePosts = await filterFederatablePosts(
+      hasNext ? overfetched.slice(0, PAGE_SIZE) : overfetched,
+    );
 
     // Reuse the SINGLE Note builder that push delivery uses, so outbox backfill
     // (Mastodon ≥4.4 imports up to 20 items on discovery) carries the same
@@ -172,7 +178,7 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
     };
 
     if (hasNext) {
-      const lastPost = pagePosts[pagePosts.length - 1];
+      const lastPost = overfetched[PAGE_SIZE - 1];
       const nextCursor = ChronoCursor.build(lastPost.id, lastPost.createdAt);
       pageResponse.next = `${outboxUrl(username)}?page=true&cursor=${encodeURIComponent(nextCursor)}`;
     }
@@ -217,15 +223,19 @@ router.get('/users/:username/collections/featured', async (req: Request, res: Re
     }
 
     const userId = String(user._id || user.id);
+    if (!(await authorsMayFederate([userId])))
+      return res.status(404).json({ error: 'User not found' });
 
     // Only PUBLIC + PUBLISHED top-level pinned posts are exposed — identical
     // ownership/visibility filter to the outbox, narrowed to pinned. Mastodon
     // caps featured display at ~5, but we serve all pinned posts newest-first;
     // FEATURED_LIMIT is a defensive upper bound.
     const FEATURED_LIMIT = 20;
-    const pinnedPosts = await findPostRecords(
-      and(outboxScope(userId), eq(posts.metadataIsPinned, true)),
-      { orderBy: [desc(posts.createdAt), desc(posts.id)], limit: FEATURED_LIMIT },
+    const pinnedPosts = await filterFederatablePosts(
+      await findPostRecords(and(outboxScope(userId), eq(posts.metadataIsPinned, true)), {
+        orderBy: [desc(posts.createdAt), desc(posts.id)],
+        limit: FEATURED_LIMIT,
+      }),
     );
 
     // Build via the shared Note path (batch-resolving @mentions for the whole
@@ -300,6 +310,8 @@ router.get('/users/:username/posts/:id', async (req: Request, res: Response) => 
     }
 
     const userId = String(user._id || user.id);
+    if (!(await authorsMayFederate([userId])))
+      return res.status(404).json({ error: 'User not found' });
 
     // No id-shape guard: `posts.id` is `text`, so an arbitrary path segment is a
     // parameter that matches no row rather than a cast that throws — the 404 the
@@ -312,7 +324,8 @@ router.get('/users/:username/posts/:id', async (req: Request, res: Response) => 
       !post ||
       post.oxyUserId !== userId ||
       post.visibility !== 'public' ||
-      post.status !== 'published'
+      post.status !== 'published' ||
+      (await filterFederatablePosts([post])).length === 0
     ) {
       return res.status(404).json({ error: 'Post not found' });
     }

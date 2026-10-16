@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -51,6 +52,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 }));
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     users: {
       get: vi.fn(async (id: string) => ({ id, username: 'author' })),
       getMany: vi.fn(async () => []),

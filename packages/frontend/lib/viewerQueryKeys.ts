@@ -74,8 +74,12 @@ export const publicQueryKeys = {
     [...PUBLIC_ROOT, 'trend-graph', language ?? 'all', region ?? 'all'] as const,
 };
 
-/** Oxy directory queries share one prefix so canonical organization writes invalidate every view. */
+/** Full directory views share invalidation; bearer-scoped minimal identities never reuse full DTOs. */
 export const organizationDirectoryQueryKeys = {
+  minimalBatch: (ids: readonly string[], viewerId: ViewerId, privateReady: boolean) =>
+    ['oxy', 'safety', 'organizations', 'batch', ids, viewerId, privateReady] as const,
+  minimalSearch: (query: string, viewerId: ViewerId, privateReady: boolean) =>
+    ['oxy', 'safety', 'organizations', 'search', query, viewerId, privateReady] as const,
   all: () => ['oxy', 'organizations'] as const,
   batch: (ids: readonly string[], viewerId: ViewerId, authenticated: boolean) =>
     [...organizationDirectoryQueryKeys.all(), 'batch', ids, viewerId, authenticated] as const,
@@ -89,6 +93,13 @@ export const organizationDirectoryQueryKeys = {
  * gives account transitions one precise namespace to cancel and remove.
  */
 export const viewerQueryKeys = {
+  minimalProfile: (viewerId: ViewerId, handle: string) =>
+    ['mention', 'viewer', viewerCacheId(viewerId), 'minimal-profile', handle] as const,
+  postAccess: (viewerId: ViewerId, postId: string) =>
+    ['mention', 'viewer', viewerCacheId(viewerId), 'post-access', postId] as const,
+  composeMedia: (viewerId: ViewerId, privateReady: boolean, ids: readonly string[]) =>
+    ['mention', 'viewer', viewerCacheId(viewerId), 'compose-media', privateReady, ids] as const,
+
   all: (viewerId: ViewerId) => ['viewer', viewerCacheId(viewerId)] as const,
   /**
    * The viewer's central Mention personalization permission (mono colour).

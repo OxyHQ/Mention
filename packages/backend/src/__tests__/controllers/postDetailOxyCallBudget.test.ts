@@ -1,3 +1,4 @@
+import { adultSafetyFixture } from '../helpers/adultSafety';
 /**
  * `GET /posts/:id` must resolve the viewer's block/restrict list and follow
  * graph exactly ONCE per request.
@@ -40,6 +41,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: () => oxyClient,
   createUserScopedOxyServices: () => undefined,
   getServiceOxyClient: () => ({
+    safety: adultSafetyFixture(),
     users: { getMany: getUsersByIds },
     getClarityDocuments: vi.fn(async () => ({})),
     assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
@@ -92,7 +94,12 @@ afterEach(async () => {
 });
 
 function makeReq(postId: string) {
-  return { user: { id: VIEWER }, params: { id: postId }, query: {} } as never;
+  return {
+    accessToken: 'test-viewer-session',
+    user: { id: VIEWER },
+    params: { id: postId },
+    query: {},
+  } as never;
 }
 
 function makeRes() {
