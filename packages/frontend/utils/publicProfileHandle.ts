@@ -1,4 +1,4 @@
-import { externalIdentityReferenceSchema } from '@oxy.so/contracts';
+import { checkContract, externalIdentityReferenceCheck } from '@oxy.so/contracts/client';
 
 function normalizeHandle(raw: string): string {
   return raw.trim().replace(/^@+/, '').trim().toLowerCase();
@@ -24,10 +24,14 @@ export function isPublicProfileHandle(
     !('externalIdentities' in resolvedProfile)
   )
     return false;
-  const aliases = externalIdentityReferenceSchema
-    .array()
-    .safeParse(resolvedProfile.externalIdentities);
+  // The client entry checks without Zod, which keeps Zod out of the startup
+  // chunk. Same contract as `externalIdentityReferenceSchema.array()`: every
+  // alias must pass, or none counts.
+  const listed = resolvedProfile.externalIdentities;
+  if (!Array.isArray(listed)) return false;
+  const aliases = listed.map((alias) => checkContract(externalIdentityReferenceCheck, alias));
   return (
-    aliases.success && aliases.data.some((alias) => normalizeHandle(alias.canonicalAcct) === routed)
+    aliases.every((alias) => alias !== null) &&
+    aliases.some((alias) => alias !== null && normalizeHandle(alias.canonicalAcct) === routed)
   );
 }
