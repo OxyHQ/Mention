@@ -115,6 +115,16 @@ an Oxy outage throws and the outbox retries. Each copy is referenced as Oxy
 entity `moderation_report` while its report exists, and by CrowdSource as its
 `case` (see [Oxy Files](./oxy-files.md)).
 
+**A report keeps the envelope it was first sent with.** Media evidence changed
+the envelope (attachments, `evidenceAttachmentsSupported`, the media-only
+subject's `evidenceAttached`), and a retry that differs from an earlier attempt
+is a permanent 409. `reports.envelope_version` is decided once per report, at
+its first delivery attempt under this code, from durable state
+(`resolveReportEnvelopeVersion`): a report that already carries a delivery
+failure, a receipt, or an outbox attempt beyond the current one was attempted
+before evidence existed and stays on version `1` (the old envelope, field for
+field); every other report is `2`. Never decided from deploy time.
+
 ## Known gaps (deliberate, not oversights)
 
 - **Mention only SENDS FOR REVIEW the objects it owns — `post`, `comment`,

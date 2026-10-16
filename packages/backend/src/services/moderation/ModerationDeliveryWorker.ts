@@ -3,11 +3,13 @@ import {
   findReportById,
   markReportDeliveryFailed,
   markReportSubmitted,
+  resolveReportEnvelopeVersion,
 } from '../../db/moderation/reportRepository';
 import { logger } from '../../utils/logger';
 import { metrics } from '../../utils/metrics';
 import { getCrowdSourceClient } from './crowdSourceClient';
 import { buildModerationReportInput } from './EvidenceSnapshotService';
+import { subjectProviderFor } from './subjects/registry';
 import type { ModerationOutboxEvent } from '../../db/moderation/moderationOutboxRepository';
 
 /**
@@ -84,6 +86,13 @@ export async function deliverReportOutboxEvent(event: ModerationOutboxEvent): Pr
    * Catching it and writing a local state would put the report somewhere nothing
    * alerts on.
    */
+  // Fixed once per report from durable state: a report first sent before
+  // media evidence is retried with the envelope it was first sent with.
+  // Only for a type that can be described: a report with no provider is
+  // dead-lettered below without being touched.
+  const envelopeVersion = subjectProviderFor(report.reportedType)
+    ? await resolveReportEnvelopeVersion(reportId, event.attempts)
+    : undefined;
   const input = await buildModerationReportInput(
     report,
     /**
@@ -93,6 +102,7 @@ export async function deliverReportOutboxEvent(event: ModerationOutboxEvent): Pr
      * re-measured here would make the second attempt a permanent 409 (§10.5).
      */
     event.payload.urgency,
+    envelopeVersion,
   );
 
   if (input === null) {

@@ -30,6 +30,7 @@ import {
   type REPORT_CATEGORIES,
   type REPORT_LOCAL_STATUSES,
   type REPORT_STATUSES,
+  moderationReportEvidenceFiles,
   reports,
 } from '../schema/moderation';
 
@@ -157,6 +158,69 @@ export async function findReportById(
 ): Promise<ReportRecord | undefined> {
   const [row] = await db.select().from(reports).where(eq(reports.id, id)).limit(1);
   return row ? toRecord(row) : undefined;
+}
+
+/**
+ * The envelope shape a report is delivered with — `reports.envelope_version`,
+ * decided ONCE per report and stored, so every attempt composes the same
+ * envelope (CrowdSource answers a retry that differs from an earlier attempt
+ * with a permanent 409, §10.5).
+ *
+ * Decided from durable state, never from the clock or a deploy: a report
+ * already attempted by an image that predates media evidence (version `1`)
+ * carries one of
+ *  - a recorded delivery failure (`last_delivery_error`, `delivery_failed`),
+ *  - a CrowdSource receipt (`crowd_source_report_id`, `submitted`),
+ *  - an outbox attempt beyond the one now running (`eventAttempts > 1`: the
+ *    claim counts the current attempt, and a lease that expired mid-request
+ *    leaves no other trace),
+ * and keeps the envelope it was first sent with. A report with evidence rows
+ * was decided `2` by an attempt whose write was lost; anything else is new: `2`.
+ *
+ * The first writer wins (`where envelope_version is null`); the value read
+ * back is what every caller uses.
+ */
+export async function resolveReportEnvelopeVersion(
+  reportId: string,
+  eventAttempts: number,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<1 | 2> {
+  const [row] = await db
+    .select({
+      envelopeVersion: reports.envelopeVersion,
+      lastDeliveryError: reports.lastDeliveryError,
+      localStatus: reports.localStatus,
+      crowdSourceReportId: reports.crowdSourceReportId,
+    })
+    .from(reports)
+    .where(eq(reports.id, reportId))
+    .limit(1);
+  if (!row) throw new Error(`No report ${reportId}`);
+  if (row.envelopeVersion === 1 || row.envelopeVersion === 2) return row.envelopeVersion;
+
+  const [evidence] = await db
+    .select({ one: sql<number>`1` })
+    .from(moderationReportEvidenceFiles)
+    .where(eq(moderationReportEvidenceFiles.reportId, reportId))
+    .limit(1);
+  const attemptedBefore =
+    row.lastDeliveryError !== null ||
+    row.localStatus === 'delivery_failed' ||
+    row.localStatus === 'submitted' ||
+    row.crowdSourceReportId !== null ||
+    eventAttempts > 1;
+  const decided: 1 | 2 = evidence || !attemptedBefore ? 2 : 1;
+
+  await db
+    .update(reports)
+    .set({ envelopeVersion: decided })
+    .where(and(eq(reports.id, reportId), isNull(reports.envelopeVersion)));
+  const [stored] = await db
+    .select({ envelopeVersion: reports.envelopeVersion })
+    .from(reports)
+    .where(eq(reports.id, reportId))
+    .limit(1);
+  return stored?.envelopeVersion === 1 ? 1 : 2;
 }
 
 /** Close a report there is genuinely nothing left to do about. */
