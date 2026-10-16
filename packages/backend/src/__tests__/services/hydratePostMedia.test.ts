@@ -60,12 +60,15 @@ describe('canonical asset access for a hydrated graph', () => {
     expect(duplicate.url).toBe(privateMedia.url);
     expect(publicMedia.thumbUrl).toContain('variant=thumb');
   });
-  it('never uses a connection proof as an asset bearer or substitutes service identity', async () => {
-    access.mockResolvedValue({ results: {} });
-    const post = { content: { media: [media('private-file')] }, attachments: {} };
-    await hydratePostMedia([post], { connectionToken: 'adult-mcp-proof' });
+  it('asks no session ACL for a reader without a session and never substitutes service identity', async () => {
+    for (const requester of [{ connectionToken: 'adult-mcp-proof' }, { accessToken: null }]) {
+      const stored = media('stored-file');
+      const post = { content: { media: [stored] }, attachments: {} };
+      await hydratePostMedia([post], requester);
+      expect(post.content.media).toEqual([stored]);
+    }
     expect(setAccessToken).not.toHaveBeenCalled();
-    expect(post.content.media).toEqual([]);
+    expect(access).not.toHaveBeenCalled();
   });
   it('bounds 201 unique files to three calls and refuses an authority outage', async () => {
     access.mockResolvedValue({ results: {} });
@@ -76,7 +79,7 @@ describe('canonical asset access for a hydrated graph', () => {
           attachments: {},
         },
       ],
-      { accessToken: null },
+      { accessToken: 'viewer' },
     );
     expect(access.mock.calls.map(([batch]) => batch.length)).toEqual([100, 100, 1]);
     access.mockRejectedValueOnce(new Error('Oxy unavailable'));
