@@ -32,7 +32,7 @@
     "@mercaria.co/sdk": "^0.2.0",
     "@oxy.so/contracts": "catalog:",
     "@oxy.so/core": "catalog:",
-    "@oxy.so/db": "^1.0.0",
+    "@oxy.so/db": "^1.1.0",
     "@oxy.so/federation": "^2.2.1",
     "@oxy.so/mcp": "catalog:",
     "@oxy.so/protocol": "catalog:",
