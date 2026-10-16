@@ -44,10 +44,28 @@ export const postImports = pgTable(
      */
     oxyUserId: text().notNull(),
     platform: text({ enum: IMPORT_PLATFORMS }).notNull(),
-    /** The item's id on its platform (a Mastodon status id, an at-uri, …). */
+    /**
+     * The item's DEDUPE KEY on its platform: unique among everything that
+     * platform can produce (an AS2 object id, an at-uri, …). Where the platform's
+     * own item id is only unique within one account — a Telegram message id
+     * restarts in every channel — it is `<sourceAccountId>/<sourceItemId>`.
+     */
     sourceId: text().notNull(),
     /** The item's public permalink on its platform. */
     sourceUrl: text().notNull(),
+    /**
+     * The account or container the item belonged to on its platform, as that
+     * platform names it: a Telegram channel id, a Mastodon actor URI, a Bluesky
+     * DID. Structured provenance only — never part of the dedupe key, which
+     * {@link sourceId} already answers. Null on rows written before it existed.
+     */
+    sourceAccountId: text(),
+    /**
+     * The item's own id within {@link sourceAccountId}, as the platform names it:
+     * a Telegram message id, a Mastodon status id, a Bluesky record key.
+     * Null on rows written before it existed.
+     */
+    sourceItemId: text(),
     /**
      * The content warning the item carried on its platform, verbatim.
      *

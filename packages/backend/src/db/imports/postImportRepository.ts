@@ -19,6 +19,8 @@ export interface PostImportRow {
   platform: ImportPlatform;
   sourceId: string;
   sourceUrl: string;
+  sourceAccountId: string | null;
+  sourceItemId: string | null;
   contentWarning: string | null;
   importBatchId: string;
   importedAt: Date;
@@ -48,6 +50,8 @@ export async function findImportsBySourceIds(
       platform: postImports.platform,
       sourceId: postImports.sourceId,
       sourceUrl: postImports.sourceUrl,
+      sourceAccountId: postImports.sourceAccountId,
+      sourceItemId: postImports.sourceItemId,
       contentWarning: postImports.contentWarning,
       importBatchId: postImports.importBatchId,
       importedAt: postImports.importedAt,

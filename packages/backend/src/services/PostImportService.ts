@@ -47,6 +47,7 @@ import { logger } from '../utils/logger';
 import { mergeHashtags } from '../utils/textProcessing';
 import { normalizeAltInput } from '../utils/mediaInput';
 import { mediaMetadataService } from './MediaMetadataService';
+import { resolveAccountKind } from './publishAsAccount';
 import { postCreationService } from './PostCreationService';
 import { deleteAuthoredPost } from './PostDeletionService';
 import { collapseImportedCopies } from './PostEquivalenceService';
@@ -71,6 +72,10 @@ export type ImportVisibility = PostVisibility.PUBLIC | PostVisibility.FOLLOWERS_
 export interface ImportItemInput {
   sourceId: string;
   sourceUrl: string;
+  /** The account the item belonged to on its platform (see `post_imports.source_account_id`). */
+  sourceAccountId?: string;
+  /** The item's own id within that account (see `post_imports.source_item_id`). */
+  sourceItemId?: string;
   createdAt: Date;
   text: string;
   contentWarning?: string;
@@ -163,6 +168,14 @@ class PostImportService {
   }): Promise<ImportItemResult[]> {
     const { oxyUserId, platform, batchId, items } = params;
 
+    // A post authored by a CHANNEL takes no replies. The server enforces that
+    // from the author's kind (`utils/channelReplyGate`), and a channel's native
+    // posts are also PERSISTED with `replyPermission: ['nobody']` so the client
+    // hides the reply control (`PostCreationService`). An import into a channel
+    // is persisted the same way, decided once per batch from the same cached
+    // identity read the reply gate uses.
+    const authorIsChannel = (await resolveAccountKind(oxyUserId)) === 'channel';
+
     // ONE ledger read for every source id the batch names — its items and the
     // items they reply to or quote. Kept current as items are created, so a
     // later item finds an earlier one without another query.
@@ -208,7 +221,15 @@ class PostImportService {
         continue;
       }
       try {
-        const result = await this.importItem({ oxyUserId, platform, batchId, item, known, assets });
+        const result = await this.importItem({
+          oxyUserId,
+          platform,
+          batchId,
+          item,
+          known,
+          assets,
+          authorIsChannel,
+        });
         if (result.postId) known.set(item.sourceId, result.postId);
         results.push(result);
       } catch (error) {
@@ -259,6 +280,7 @@ class PostImportService {
     platform: ImportPlatform;
     batchId: string;
     item: ImportItemInput;
+    authorIsChannel: boolean;
     known: ReadonlyMap<string, string>;
     assets: ReadonlyMap<
       string,
@@ -354,6 +376,7 @@ class PostImportService {
       // `sensitive`), and the label itself is rendered from the ledger row.
       ...(contentWarning ? { metadata: { isSensitive: true } } : {}),
       createdAt: item.createdAt,
+      ...(ctx.authorIsChannel ? { replyPermission: ['nobody'] } : {}),
       skipNotifications: true,
       skipSocketEmit: true,
       skipFederationDelivery: true,
@@ -376,6 +399,8 @@ class PostImportService {
         platform,
         sourceId: item.sourceId,
         sourceUrl: item.sourceUrl,
+        sourceAccountId: item.sourceAccountId ?? null,
+        sourceItemId: item.sourceItemId ?? null,
         contentWarning: contentWarning ?? null,
         importBatchId: batchId,
       });

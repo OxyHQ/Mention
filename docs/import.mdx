@@ -52,6 +52,8 @@ Imports up to **50** items, in the order sent.
     {
       "sourceId": "109876543210",
       "sourceUrl": "https://mastodon.social/@alice/109876543210",
+      "sourceAccountId": "https://mastodon.social/users/alice",
+      "sourceItemId": "109876543210",
       "createdAt": "2019-03-04T05:06:07.123Z",
       "text": "Plain text body",
       "contentWarning": "spoilers",
@@ -68,8 +70,23 @@ Imports up to **50** items, in the order sent.
 ```
 
 - `platform` is one of `mastodon`, `bluesky`, `threads`, `instagram`, `x`,
-  `facebook`, `medium` or `substack`.
+  `facebook`, `medium`, `substack` or `telegram`.
 - `batchId` is the unit that undo deletes. Use Move's job id.
+- `sourceId` is the item's **dedupe key**: unique among everything its platform
+  can produce. Where the platform's own item id is only unique within one
+  account (a Telegram message id restarts in every channel), send
+  `<sourceAccountId>/<sourceItemId>`.
+- `sourceAccountId` and `sourceItemId` (optional) record where the item came
+  from in structured form, as the platform names it:
+
+  | Platform | `sourceAccountId` | `sourceItemId` |
+  | --- | --- | --- |
+  | Telegram | channel id (no `-100` prefix) | message id |
+  | Mastodon | actor URI | status id |
+  | Bluesky | DID | record key |
+
+  They are stored in `post_imports.source_account_id` / `source_item_id` and are
+  provenance only, never part of the dedupe key.
 - `createdAt` is ISO 8601 with an offset. It is stored to the millisecond, and
   anything finer is dropped. A date more than one hour in the future is refused.
 - `text` is plain text, up to 25,000 characters with the appended links.
@@ -244,3 +261,26 @@ id, replies, likes and moderation. It differs in these ways:
 | Variable | Meaning |
 | --- | --- |
 | `MOVE_APPLICATION_ID` | Oxy application id of Oxy Move. Empty means imports are disabled. |
+
+## A Telegram channel export
+
+A channel cannot be imported by Move: a channel is never the subject of a
+delegation (`isDelegatedActAsEligibleKind`), and Move imports by acting as the
+user. Until that exists, a Telegram Desktop channel export is imported by the
+operator-run one-shot `packages/backend/src/scripts/importTelegramChannelExport.ts`
+(workflow `.github/workflows/run-telegram-channel-import.yml`):
+
+1. Convert the export into a manifest: one item per post, an album folded into
+   one post, dates from `date_unixtime` (the export's `date` is the exporting
+   machine's local time).
+2. Stage the manifest and its media under the private prefix
+   `s3://oxy-mention-media-usw2-237343248947/staging/telegram-import/<run>/` and
+   presign them. Mention's task role calls no AWS API, so the task reads them
+   through the presigned URLs, and refuses any URL outside that prefix. The
+   content never goes to GitHub.
+3. Run the workflow dry, then live. Each media file becomes an asset owned by
+   the target account, and every post goes through the same `ingestBatch` as the
+   ingest API, so dedupe, undo (`DELETE /imports/v1/batches/<batch>`) and the
+   "Originally posted on Telegram" label work unchanged.
+4. Delete the staging prefix.
+

@@ -63,8 +63,19 @@ vi.mock('../../services/serviceRegistry', () => ({
   registerPostCreator: vi.fn(),
 }));
 
+// Account kinds come from the identity summary. Only the channel fixture
+// reports a kind, so every other author reads as an ordinary account.
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn().mockResolvedValue([]) },
+  resolveUserSummaries: vi.fn(async (ids: string[]) => {
+    const summaries = new Map<string, unknown>();
+    for (const id of ids) {
+      if (id === 'oxy-content-imports-channel') {
+        summaries.set(id, { user: { id, username: 'channel', kind: 'channel' } });
+      }
+    }
+    return summaries;
+  }),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -124,10 +135,12 @@ import {
   trackPost,
 } from '../helpers/serviceFixtures';
 import importsRouter from '../../routes/imports';
+import { postImportService } from '../../services/PostImportService';
 
 const scope = serviceScope('content-imports');
 const ALICE = scope.user('alice');
 const BOB = scope.user('bob');
+const CHANNEL = scope.user('channel');
 
 function serviceToken(appId: string, tier: 'internal' | 'external' = 'internal'): string {
   const now = Math.floor(Date.now() / 1000);
@@ -595,6 +608,52 @@ describe('POST /imports/v1/posts:batch', () => {
       'empty',
       'created_at_in_future',
     ]);
+  });
+});
+
+describe('an import authored by a channel', () => {
+  it('is persisted taking no replies, as a channel post written natively is', async () => {
+    const [channelResult] = await postImportService.ingestBatch({
+      oxyUserId: CHANNEL,
+      platform: 'telegram',
+      batchId: newBatchId(),
+      items: [
+        {
+          sourceId: '1/1',
+          sourceUrl: 'https://t.me/c/1/1',
+          sourceAccountId: '1',
+          sourceItemId: '1',
+          createdAt: new Date('2024-05-20T13:18:52Z'),
+          text: 'from the channel',
+          visibility: PostVisibility.PUBLIC,
+          media: [],
+        },
+      ],
+    });
+    const [personalResult] = (
+      await postBatch({
+        platform: 'mastodon',
+        batchId: newBatchId(),
+        items: [item('personal-replies')],
+      })
+    ).body.results;
+
+    expect(channelResult.status).toBe('created');
+    const channelPost = await readPost(channelResult.postId as string);
+    expect(channelPost?.oxyUserId).toBe(CHANNEL);
+    expect(channelPost?.replyPermission).toEqual(['nobody']);
+    const [ledger] = await getDb()
+      .select()
+      .from(postImports)
+      .where(eq(postImports.postId, channelResult.postId as string));
+    expect(ledger).toMatchObject({
+      platform: 'telegram',
+      sourceId: '1/1',
+      sourceUrl: 'https://t.me/c/1/1',
+      sourceAccountId: '1',
+      sourceItemId: '1',
+    });
+    expect((await readPost(personalResult.postId))?.replyPermission).toEqual(['anyone']);
   });
 });
 
