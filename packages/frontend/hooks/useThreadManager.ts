@@ -1,3 +1,4 @@
+import { podcastReference } from '@/utils/podcastReference';
 import { useState, useCallback } from 'react';
 import {
   mergeMentionData,
@@ -464,7 +465,9 @@ export const useThreadManager = () => {
   const setThreadPodcast = useCallback(
     (threadId: string, podcast: PodcastAttachmentData | null) => {
       setThreadItems((prev) =>
-        prev.map((item) => (item.id === threadId ? { ...item, podcast } : item)),
+        prev.map((item) =>
+          item.id === threadId ? { ...item, podcast: podcastReference(podcast) } : item,
+        ),
       );
     },
     [],
@@ -547,7 +550,7 @@ export const useThreadManager = () => {
         article: thread.article,
         event: thread.event,
         room: thread.room,
-        podcast: thread.podcast,
+        podcast: podcastReference(thread.podcast),
         attachmentOrder: thread.attachmentOrder,
         // A draft never persisted the lane, so a restored box starts on none.
         laneId: null,

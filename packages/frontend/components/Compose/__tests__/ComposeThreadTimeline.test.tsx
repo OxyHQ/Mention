@@ -21,6 +21,11 @@ import type { ThreadItem } from '@/hooks/useThreadManager';
 const CONNECTOR_ABOVE = { __marker: 'connector-above' } as const;
 const CONNECTOR_BELOW = { __marker: 'connector-below' } as const;
 
+// The podcast preview reaches the ESM-only Oxy client; the timeline does not need it.
+jest.mock('@/components/Podcast/PostPodcastAttachment', () => ({
+  PostPodcastAttachment: () => null,
+}));
+
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key,

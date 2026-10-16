@@ -1,3 +1,4 @@
+import { parseHomiioCaseUrl } from '@mention/shared-types/homiio';
 import type { ClarityDocument } from '@mention/shared-types';
 import { ownProfileUrlHandle } from '@mention/shared-types/profileUrls';
 
@@ -64,7 +65,9 @@ export function isOwnProfileLink(url: string): boolean {
  * five links in one body to reach.
  */
 export function previewableUrls(text: string): string[] {
-  return extractUrls(text).filter((url) => !isOwnProfileLink(url));
+  return extractUrls(text).filter(
+    (url) => !isOwnProfileLink(url) && parseHomiioCaseUrl(url) === null,
+  );
 }
 
 /**
@@ -155,7 +158,7 @@ export async function resolveClarityDocuments(
 ): Promise<ResolvedClarityDocuments> {
   const documents = new Map<string, ClarityDocument>();
   const pending = new Set<string>();
-  const unique = [...new Set(urls)];
+  const unique = [...new Set(urls)].filter((url) => parseHomiioCaseUrl(url) === null);
   if (unique.length === 0) return { documents, pending };
 
   const batches: string[][] = [];

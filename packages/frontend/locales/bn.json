@@ -2595,5 +2595,54 @@
   "alia.suggestion.discover": "অনুসরণ করার জন্য অ্যাকাউন্ট ও বিষয় সুপারিশ করো",
   "profile.actions.askAlia": "@{{handle}} সম্পর্কে Alia-কে জিজ্ঞাসা করুন",
   "profile.askAlia.prompt": "Mention-এ @{{handle}} সম্পর্কে বলো: তিনি কে, কী পোস্ট করেন এবং কীসের জন্য পরিচিত।",
-  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering."
+  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering.",
+  "homiio": {
+    "loading": "Homiio কেস লোড হচ্ছে…",
+    "unavailable": "এই Homiio কেসটি উপলব্ধ নয়",
+    "open": "Homiio-তে কেস খুলুন",
+    "status": {
+      "upcoming": "আসন্ন",
+      "stopped": "স্থগিত",
+      "postponed": "পিছিয়ে দেওয়া হয়েছে",
+      "executed": "কার্যকর হয়েছে",
+      "cancelled": "বাতিল"
+    }
+  },
+  "events": {
+    "title": "Event",
+    "loading": "Loading event…",
+    "unavailable": "This event is unavailable.",
+    "retry": "Try again",
+    "cancelled": "This event has been cancelled.",
+    "signIn": "Sign in to register",
+    "privacy": "Attendance is private by default. Organizers can see the complete attendee list.",
+    "public": "Show me publicly",
+    "visible": "Your attendance is public.",
+    "private": "Your attendance is private.",
+    "saveVisibility": "Save visibility choice",
+    "register": "Register",
+    "withdraw": "Cancel my attendance",
+    "fullRoster": "View all attendees (organizers only)",
+    "publicRoster": "View public attendees",
+    "rosterFailed": "Could not load attendees.",
+    "attendee": "Attendee",
+    "privateLabel": "Private",
+    "more": "Load more",
+    "edit": "Edit event",
+    "cancel": "Cancel event",
+    "cancelWarning": "Cancellation is permanent. Attendees will be notified.",
+    "confirmCancel": "Confirm cancellation",
+    "keep": "Keep event",
+    "failed": "Could not save. The event may be full, closed, or changed. Refresh and try again.",
+    "noticeUpdated": "updated an event you are attending",
+    "noticeCancelled": "cancelled an event you are attending",
+    "capacity": "Capacity (leave empty for unlimited)",
+    "manage": "Manage event details and attendance",
+    "attendance_one": "{{count}} attending",
+    "attendance_other": "{{count}} attending"
+  },
+  "podcast": {
+    "loading": "Loading podcast…",
+    "unavailable": "Podcast unavailable"
+  }
 }

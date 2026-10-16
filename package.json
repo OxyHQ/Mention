@@ -16,7 +16,7 @@
       "@oxy.so/mcp": "1.1.0",
       "@oxy.so/services": "11.6.0",
       "@oxy.so/utils": "^1.2.0",
-      "@syra.fm/sdk": "^0.18.0",
+      "@syra.fm/sdk": "0.19.0",
       "@types/bun": "1.4.2",
       "@types/jsonwebtoken": "^9.0.10",
       "@types/node": "^26.6.2",
@@ -30,8 +30,8 @@
     "dev": "bun run --no-orphans --filter '*' dev",
     "dev:frontend": "bun run --no-orphans --cwd packages/frontend dev",
     "dev:backend": "bun run --no-orphans --cwd packages/backend dev",
-    "build": "bun run build:shared-types && bun run --cwd packages/backend build && bun run --cwd packages/mcp build",
-    "build:shared-types": "bun run --cwd packages/shared-types build",
+    "build": "bun run build:shared-types && bun run build:publishing && bun run --cwd packages/backend build && bun run --cwd packages/mcp build",
+    "build:shared-types": "bun run --cwd packages/contracts build && bun run --cwd packages/shared-types build",
     "build:frontend": "bun run --cwd packages/frontend build",
     "build:backend": "bun run build:shared-types && bun run --cwd packages/backend build",
     "audit:security": "bun ./scripts/audit-security.mjs",
@@ -80,7 +80,8 @@
     "start:mcp:http": "bun run --cwd packages/mcp start:http",
     "dev:mcp": "bun run --no-orphans --cwd packages/mcp dev",
     "dev:mcp:http": "bun run --no-orphans --cwd packages/mcp dev:http",
-    "postinstall": "bun run build:shared-types"
+    "postinstall": "bun run build:shared-types && bun run build:publishing",
+    "build:publishing": "bun run --cwd packages/sdk build"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

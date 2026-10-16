@@ -174,4 +174,31 @@ describe('useDrafts viewer isolation', () => {
       renderer!.unmount();
     });
   });
+  it('restores legacy root/thread podcasts as references and never writes their snapshots again', async () => {
+    const copied = {
+      syraPodcastId: 'show-1',
+      title: 'Stale title',
+      artworkUrl: 'https://old.invalid/art',
+    };
+    const legacy = {
+      ...draft('legacy', 1),
+      podcast: copied,
+      threadItems: [{ ...draft('thread', 1), text: 'reply', podcast: copied }],
+    };
+    mockStorageGet.mockResolvedValue([legacy]);
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(<Probe />);
+    });
+    expect(latestResult!.drafts[0].podcast).toEqual({ syraPodcastId: 'show-1' });
+    expect(latestResult!.drafts[0].threadItems[0].podcast).toEqual({ syraPodcastId: 'show-1' });
+    await act(async () => {
+      await latestResult!.saveDraft(legacy);
+    });
+    const saved = mockStorageSet.mock.calls.at(-1)?.[1];
+    expect(JSON.stringify(saved)).not.toContain('Stale title');
+    expect(JSON.stringify(saved)).not.toContain('old.invalid');
+    expect(JSON.stringify(saved)).toContain('show-1');
+    act(() => renderer!.unmount());
+  });
 });

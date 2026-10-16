@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 44.91,
-      "covered": 12095,
-      "total": 26927
+      "pct": 45.17,
+      "covered": 12267,
+      "total": 27156
     },
     "branches": {
-      "pct": 40.06,
-      "covered": 7809,
-      "total": 19493
+      "pct": 40.4,
+      "covered": 7971,
+      "total": 19728
     },
     "functions": {
-      "pct": 40.15,
-      "covered": 2783,
-      "total": 6930
+      "pct": 40.35,
+      "covered": 2830,
+      "total": 7012
     },
     "lines": {
-      "pct": 45.63,
-      "covered": 11012,
-      "total": 24130
+      "pct": 45.89,
+      "covered": 11166,
+      "total": 24332
     }
   },
   "pins": {
@@ -258,10 +258,10 @@
       "lines": 96
     },
     "hooks/useDrafts.ts": {
-      "statements": 57,
-      "branches": 47,
-      "functions": 56,
-      "lines": 59
+      "statements": 58,
+      "branches": 50,
+      "functions": 61,
+      "lines": 60
     },
     "hooks/useDraftsList.ts": {
       "statements": 56,
@@ -385,7 +385,7 @@
     },
     "hooks/useLinkDetection.ts": {
       "statements": 95,
-      "branches": 78,
+      "branches": 80,
       "functions": 100,
       "lines": 95
     },
@@ -593,6 +593,12 @@
       "functions": 100,
       "lines": 100
     },
+    "hooks/useReferenceVisibility.ts": {
+      "statements": 46,
+      "branches": 52,
+      "functions": 45,
+      "lines": 54
+    },
     "hooks/useReloadOnFeedRuleChange.ts": {
       "statements": 100,
       "branches": 100,
@@ -724,6 +730,12 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
+    },
+    "hooks/useVisibleReference.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "hooks/useVoteStyle.ts": {
       "statements": 0,
@@ -923,6 +935,24 @@
       "functions": 0,
       "lines": 0
     },
+    "lib/references/VisibleReferenceStore.ts": {
+      "statements": 97,
+      "branches": 91,
+      "functions": 100,
+      "lines": 100
+    },
+    "lib/references/homiioCases.ts": {
+      "statements": 33,
+      "branches": 100,
+      "functions": 0,
+      "lines": 33
+    },
+    "lib/references/syraPodcastCards.ts": {
+      "statements": 0,
+      "branches": 100,
+      "functions": 0,
+      "lines": 0
+    },
     "lib/seoHandoff.ts": {
       "statements": 100,
       "branches": 100,
@@ -1066,6 +1096,12 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
+    },
+    "services/eventsService.ts": {
+      "statements": 93,
+      "branches": 62,
+      "functions": 85,
+      "lines": 92
     },
     "services/experienceService.ts": {
       "statements": 94,
@@ -1630,6 +1666,12 @@
       "branches": 100,
       "functions": 0,
       "lines": 0
+    },
+    "utils/podcastReference.ts": {
+      "statements": 100,
+      "branches": 81,
+      "functions": 100,
+      "lines": 100
     },
     "utils/postBuilder.ts": {
       "statements": 91,

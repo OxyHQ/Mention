@@ -13,6 +13,8 @@ import { formatTimeInput } from '@/utils/dateUtils';
 const TIME_PATTERN = /^([01]?\d|2[0-3]):([0-5]\d)$/;
 
 interface EventEditorProps {
+  capacity?: string;
+  onCapacityChange?: (value: string) => void;
   visible: boolean;
   name: string;
   date: string; // ISO date string
@@ -45,6 +47,8 @@ interface EventEditorProps {
  * nothing, which read as a saved event that then could not be posted.
  */
 export const EventEditor: React.FC<EventEditorProps> = ({
+  capacity,
+  onCapacityChange,
   visible,
   name,
   date,
@@ -58,6 +62,10 @@ export const EventEditor: React.FC<EventEditorProps> = ({
   onClose,
 }) => {
   const { t } = useTranslation();
+  const invalidCapacity =
+    capacity !== undefined &&
+    capacity.trim() !== '' &&
+    (!/^\d+$/.test(capacity) || Number(capacity) < 1 || Number(capacity) > 1000000);
   const missingName = name.trim().length === 0;
   const eventDate = React.useMemo(() => {
     const parsed = date ? new Date(date) : new Date();
@@ -113,16 +121,16 @@ export const EventEditor: React.FC<EventEditorProps> = ({
   );
 
   const handleSave = React.useCallback(() => {
-    if (missingName || timeInvalid) return;
+    if (missingName || timeInvalid || invalidCapacity) return;
     onSave();
-  }, [missingName, timeInvalid, onSave]);
+  }, [missingName, timeInvalid, invalidCapacity, onSave]);
 
   const saveAction = (
     <Button
       appearance="solid"
       tone="accent"
       size="sm"
-      disabled={missingName || timeInvalid}
+      disabled={missingName || timeInvalid || invalidCapacity}
       onPress={handleSave}
       testID="eventEditorSave"
     >
@@ -145,6 +153,17 @@ export const EventEditor: React.FC<EventEditorProps> = ({
       testID="eventEditorDialog"
     >
       <View className="gap-4 pb-6">
+        {onCapacityChange && (
+          <TextField>
+            <TextFieldInput
+              label={t('events.capacity', { defaultValue: 'Capacity (leave empty for unlimited)' })}
+              value={capacity}
+              onChangeText={onCapacityChange}
+              keyboardType="number-pad"
+              testID="eventEditorCapacity"
+            />
+          </TextField>
+        )}
         <View>
           <TextField>
             <TextFieldInput

@@ -958,6 +958,20 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
       'a folder go while a bookmark still names it.',
   },
   {
+    table: 'event_attendance',
+    column: 'oxyUserId',
+    scope: 'channel-account',
+    action: 'delete-entry',
+    why: 'Remove attendance owned by the deleted account.',
+  },
+  {
+    table: 'event_attendance',
+    column: 'postId',
+    scope: 'channel-posts',
+    action: 'database',
+    why: 'ON DELETE CASCADE on posts.id removes attendance with its event post.',
+  },
+  {
     table: 'post_subscriptions',
     column: 'subscriberId',
     scope: 'channel-account',
@@ -1403,6 +1417,7 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
   ['post_variant_media.variantId', 'the language rendition the media belongs to'],
   ['posts.contentArticleId', 'the Article row the post owns, removed by `articles.post_id`'],
   ['posts.contentEventId', 'an event attachment id'],
+  ['posts.contentHomiioCaseId', 'a Homiio case id, owned by Homiio'],
   ['posts.contentPodcastSyraId', 'a Syra podcast id, owned by Syra'],
   ['posts.contentPollId', 'the Poll row the post owns, removed by `polls.post_id`'],
   ['posts.contentRoomId', 'a Syra live-room id, owned by Syra'],

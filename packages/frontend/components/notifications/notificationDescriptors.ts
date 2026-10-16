@@ -78,6 +78,20 @@ const DEFAULT_DESCRIPTOR: NotificationDescriptor = {
  * (mention/follow/quote/post/collab/welcome) -> primary.
  */
 const DESCRIPTORS: Record<string, NotificationDescriptor> = {
+  event_updated: {
+    icon: 'calendar',
+    colorToken: 'primary',
+    hasPreview: true,
+    actionPhrase: (t) =>
+      t('events.noticeUpdated', { defaultValue: 'updated an event you are attending' }),
+  },
+  event_cancelled: {
+    icon: 'calendar',
+    colorToken: 'warning',
+    hasPreview: true,
+    actionPhrase: (t) =>
+      t('events.noticeCancelled', { defaultValue: 'cancelled an event you are attending' }),
+  },
   like: {
     icon: 'heart',
     iconComponent: HeartIconActive,

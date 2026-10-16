@@ -273,6 +273,7 @@ export const sanitizeArticle = (input: unknown): { title?: string; body?: string
 export const sanitizeEventData = (
   eventData: unknown,
 ): {
+  capacity?: number | null;
   eventId?: string;
   name?: string;
   date?: string;
@@ -282,7 +283,20 @@ export const sanitizeEventData = (
   if (!eventData || typeof eventData !== 'object') return null;
   const obj = eventData as Record<string, unknown>;
 
+  if (
+    obj.capacity !== undefined &&
+    obj.capacity !== null &&
+    (typeof obj.capacity !== 'number' ||
+      !Number.isSafeInteger(obj.capacity) ||
+      obj.capacity < 1 ||
+      obj.capacity > 1000000)
+  )
+    return null;
   const sanitized = {
+    capacity:
+      typeof obj.capacity === 'number' && Number.isSafeInteger(obj.capacity) && obj.capacity > 0
+        ? obj.capacity
+        : undefined,
     eventId: typeof obj.eventId === 'string' ? obj.eventId.trim() : undefined,
     name:
       typeof obj.name === 'string' ? obj.name.trim().slice(0, MAX_EVENT_NAME_LENGTH) : undefined,

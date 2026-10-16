@@ -1,3 +1,4 @@
+import { podcastReference } from '@/utils/podcastReference';
 import { useState, useCallback, useRef } from 'react';
 import { reconcileMentionData, type MentionData } from '@/utils/mentions';
 import { logger } from '@oxy.so/core/logger';
@@ -8,7 +9,6 @@ import {
   attachmentKeysOf,
   hasArticleContent,
   hasDraftContent,
-  hasPodcastContent,
   hasPollOption,
   hasRoomContent,
   isCompleteEvent,
@@ -19,7 +19,6 @@ import type { ArticleData } from './useArticleManager';
 import type { Draft, DraftBox, DraftInput } from './useDrafts';
 import type { EventData } from './useEventManager';
 import type { LocationData } from './useLocationManager';
-import type { PodcastAttachmentData } from './usePodcastManager';
 import type { JobAttachmentData } from './useJobAttachmentManager';
 import type { RoomAttachmentData } from './useRoomManager';
 import type { Source } from './useSourcesManager';
@@ -126,16 +125,7 @@ const readArticle = (value: unknown): ArticleData | null => {
   return hasArticleContent(article) ? article : null;
 };
 
-const readPodcast = (value: unknown): PodcastAttachmentData | null => {
-  if (!isRecord(value)) return null;
-  const podcast = {
-    syraPodcastId: readString(value.syraPodcastId) ?? '',
-    title: readString(value.title) ?? '',
-    author: readString(value.author),
-    artworkUrl: readString(value.artworkUrl),
-  };
-  return hasPodcastContent(podcast) ? podcast : null;
-};
+const readPodcast = podcastReference;
 
 const readEvent = (value: unknown): EventData | null => {
   if (!isRecord(value)) return null;
@@ -206,14 +196,7 @@ const writeBox = (box: LiveBox, variants: ComposeVariantsState): DraftBox => ({
     : null,
   event: box.event ? { ...box.event } : null,
   room: box.room ? { ...box.room } : null,
-  podcast: box.podcast
-    ? {
-        syraPodcastId: box.podcast.syraPodcastId,
-        title: box.podcast.title,
-        ...(box.podcast.author ? { author: box.podcast.author } : {}),
-        ...(box.podcast.artworkUrl ? { artworkUrl: box.podcast.artworkUrl } : {}),
-      }
-    : null,
+  podcast: podcastReference(box.podcast),
   attachmentOrder: box.attachmentOrder,
 });
 

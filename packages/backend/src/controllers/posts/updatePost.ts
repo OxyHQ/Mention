@@ -1,3 +1,4 @@
+import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
 /**
  * `PUT /posts/:id` — the author's edit of a published or draft post, including
  * the correction record an edit to a published post leaves behind.
@@ -67,6 +68,7 @@ import {
   hashtagsSchema,
   parseFailureMessage,
   sanitizeArticle,
+  sanitizeEventData,
   sanitizeSources,
 } from './composeInput';
 
@@ -208,6 +210,27 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
 
     // Support both flat body fields and nested content object from frontend
     const contentObj = req.body.content;
+    if (
+      loaded.content.event &&
+      !editingUnpublishedPost &&
+      (req.body.event !== undefined || contentObj?.event !== undefined)
+    ) {
+      return res.status(409).json({
+        message: 'Use the event management screen to change this event and notify attendees',
+      });
+    }
+    if (contentObj && Object.hasOwn(contentObj, 'homiioCase')) {
+      content.homiioCase = sanitizeHomiioCase(contentObj.homiioCase);
+    }
+    if (
+      editingUnpublishedPost &&
+      (req.body.event !== undefined || contentObj?.event !== undefined)
+    ) {
+      const raw = contentObj?.event ?? req.body.event;
+      const event = sanitizeEventData(raw);
+      if (raw && !event) return res.status(400).json({ message: 'Invalid event' });
+      content.event = event as StoredPostContent['event'];
+    }
     const media = contentObj?.media ?? req.body.media;
     const { hashtags, mentions, contentLocation, postLocation, sources } = req.body;
 
@@ -257,6 +280,12 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         .json({ message: `Post text exceeds maximum length of ${MAX_TEXT_LENGTH} characters` });
     }
 
+    if (typeof text === 'string' && !Object.hasOwn(contentObj ?? {}, 'homiioCase')) {
+      content.homiioCase = homiioCaseFromText(text);
+    }
+
+    if (content.event && content.homiioCase)
+      return res.status(409).json({ message: 'A Mention event cannot attach a Homiio case' });
     const textChanged = text !== undefined && currentText !== text;
 
     // Save the old primary body to edit history before modifying

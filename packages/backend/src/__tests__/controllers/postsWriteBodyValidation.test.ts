@@ -533,3 +533,19 @@ describe('the refusals stay behind the 401', () => {
     }
   });
 });
+
+it('refuses an invalid event on a later thread entry before publishing the root', async () => {
+  const event = { name: 'Event', date: new Date(Date.now() + 86400000).toISOString(), capacity: 0 };
+  const response = await call(createThread, thread({ content: { text: 'tail', event } }));
+  expect(response.status).toBe(400);
+  expect(created).toHaveLength(0);
+});
+it('refuses native event plus Homiio participation before writing a thread', async () => {
+  const event = { name: 'Event', date: new Date(Date.now() + 86400000).toISOString() };
+  const response = await call(
+    createThread,
+    thread({ content: { text: 'tail', event, homiioCase: { caseId: 'case' } } }),
+  );
+  expect(response.status).toBe(400);
+  expect(created).toHaveLength(0);
+});

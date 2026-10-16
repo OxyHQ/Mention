@@ -495,6 +495,9 @@ export const posts = pgTable(
     contentEventDate: timestamptz(),
     contentEventLocation: text(),
     contentEventDescription: text(),
+    contentEventCapacity: integer(),
+    contentEventCancelled: boolean().notNull().default(false),
+    contentEventRevision: integer().notNull().default(0),
 
     /** A Syra live room. Cross-service id (Syra owns rooms) — no foreign key. */
     contentRoomId: text(),
@@ -503,8 +506,14 @@ export const posts = pgTable(
     contentRoomTopic: text(),
     contentRoomHost: text(),
 
+    /** Opaque Homiio case reference. No address, snapshot, or foreign key. */
+    contentHomiioCaseId: text(),
+
     /** A Syra podcast show. Cross-service id — no foreign key. */
     contentPodcastSyraId: text(),
+    // Legacy copies of Syra's show facts. Nothing reads them and every write
+    // stores NULL; rows written before the reference-only change keep theirs
+    // until a contract migration clears and drops the columns.
     contentPodcastTitle: text(),
     contentPodcastAuthor: text(),
     contentPodcastArtworkUrl: text(),
@@ -612,6 +621,11 @@ export const posts = pgTable(
      * cannot occur there, and a check nobody can name the failure for is the
      * kind that gets deleted by whoever next hits it.
      */
+    check(
+      'posts_event_capacity_check',
+      sql`${t.contentEventCapacity} is null or ${t.contentEventCapacity} >= 1`,
+    ),
+    check('posts_event_revision_check', sql`${t.contentEventRevision} >= 0`),
     check(
       'posts_created_at_ms_precision_check',
       sql`${t.createdAt} = date_trunc('milliseconds', ${t.createdAt})`,

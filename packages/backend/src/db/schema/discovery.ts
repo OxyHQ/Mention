@@ -114,6 +114,8 @@ export const NOTIFICATION_TYPES = [
   'collab_invite',
   'collab_accepted',
   'collab_declined',
+  'event_updated',
+  'event_cancelled',
   // `'channel_invite'` was here and is gone, and it needed no production
   // reading to remove — which is worth stating, because the sibling column
   // below DID.

@@ -1,3 +1,4 @@
+import { podcastReference } from '@/utils/podcastReference';
 import { useState, useEffect, useCallback } from 'react';
 import { Storage } from '@/utils/storage';
 import { createLogger } from '@oxy.so/core/logger';
@@ -28,7 +29,7 @@ export interface DraftBox {
   article?: { title?: string; body?: string } | null;
   event?: EventData | null;
   room?: RoomAttachmentData | null;
-  podcast?: { syraPodcastId: string; title: string; author?: string; artworkUrl?: string } | null;
+  podcast?: { syraPodcastId: string } | null;
   attachmentOrder?: string[];
 }
 
@@ -66,10 +67,23 @@ const DRAFTS_STORAGE_KEY = '@mention_drafts:v2';
 export const getDraftsStorageKey = (viewerId: string): string =>
   viewerStorageKey(DRAFTS_STORAGE_KEY, viewerId);
 
+/** Preserve user-authored draft fields while discarding provider-owned snapshots. */
+function referenceOnlyDraft(draft: Draft): Draft {
+  return {
+    ...draft,
+    ...(draft.podcast === undefined ? {} : { podcast: podcastReference(draft.podcast) }),
+    threadItems:
+      draft.threadItems?.map((item) => ({
+        ...item,
+        ...(item.podcast === undefined ? {} : { podcast: podcastReference(item.podcast) }),
+      })) ?? [],
+  };
+}
+
 /** The viewer's drafts as stored — never a list held in some component's state. */
 async function readStoredDrafts(viewerId: string): Promise<Draft[]> {
   const stored = await Storage.get<Draft[]>(getDraftsStorageKey(viewerId));
-  return Array.isArray(stored) ? stored : [];
+  return Array.isArray(stored) ? stored.map(referenceOnlyDraft) : [];
 }
 
 export const useDrafts = () => {
@@ -124,9 +138,12 @@ export const useDrafts = () => {
         throw new Error('An authenticated viewer is required to save drafts');
       }
       try {
-        await Storage.set(getDraftsStorageKey(operationViewerId), newDrafts);
+        await Storage.set(
+          getDraftsStorageKey(operationViewerId),
+          newDrafts.map(referenceOnlyDraft),
+        );
         if (viewerIdRef.current === operationViewerId) {
-          setDrafts(newDrafts);
+          setDrafts(newDrafts.map(referenceOnlyDraft));
         }
       } catch (error) {
         logger.error('Error saving drafts', error);

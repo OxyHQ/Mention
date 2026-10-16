@@ -2625,5 +2625,55 @@
   "alia.suggestion.discover": "Sugiéreme cuentas y temas para seguir",
   "profile.actions.askAlia": "Preguntar a Alia sobre @{{handle}}",
   "profile.askAlia.prompt": "Cuéntame sobre @{{handle}} en Mention: quién es, sobre qué publica y por qué es conocido.",
-  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering."
+  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering.",
+  "homiio": {
+    "loading": "Cargando caso de Homiio…",
+    "unavailable": "Este caso de Homiio no está disponible",
+    "open": "Abrir caso en Homiio",
+    "status": {
+      "upcoming": "Próximo",
+      "stopped": "Paralizado",
+      "postponed": "Aplazado",
+      "executed": "Ejecutado",
+      "cancelled": "Cancelado"
+    }
+  },
+  "events": {
+    "title": "Evento",
+    "loading": "Cargando evento…",
+    "unavailable": "Este evento no está disponible.",
+    "retry": "Volver a intentar",
+    "cancelled": "Este evento se ha cancelado.",
+    "signIn": "Inicia sesión para inscribirte",
+    "privacy": "La asistencia es privada por defecto. Los organizadores pueden ver la lista completa.",
+    "public": "Mostrarme públicamente",
+    "visible": "Tu asistencia es pública.",
+    "private": "Tu asistencia es privada.",
+    "saveVisibility": "Guardar visibilidad",
+    "register": "Inscribirme",
+    "withdraw": "Cancelar mi asistencia",
+    "fullRoster": "Ver todos los asistentes (solo organizadores)",
+    "publicRoster": "Ver asistentes públicos",
+    "rosterFailed": "No se pudieron cargar los asistentes.",
+    "attendee": "Asistente",
+    "privateLabel": "Privado",
+    "more": "Cargar más",
+    "edit": "Editar evento",
+    "cancel": "Cancelar evento",
+    "cancelWarning": "La cancelación es permanente. Se avisará a los asistentes.",
+    "confirmCancel": "Confirmar cancelación",
+    "keep": "Mantener evento",
+    "failed": "No se pudo guardar. El evento puede estar completo, cerrado o modificado. Actualiza y vuelve a intentarlo.",
+    "noticeUpdated": "ha modificado un evento al que asistes",
+    "noticeCancelled": "ha cancelado un evento al que asistes",
+    "capacity": "Cupo (vacío para ilimitado)",
+    "manage": "Gestionar evento y asistencia",
+    "attendance_one": "{{count}} asistente",
+    "attendance_other": "{{count}} asistentes",
+    "attendance_many": "{{count}} asistentes"
+  },
+  "podcast": {
+    "loading": "Cargando pódcast…",
+    "unavailable": "Pódcast no disponible"
+  }
 }

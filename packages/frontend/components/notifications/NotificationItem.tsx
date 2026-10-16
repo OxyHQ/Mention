@@ -520,13 +520,15 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
 
   const handlePress = useCallback(() => {
     markRead();
-    if (item.entityType === 'post' || item.entityType === 'reply') {
+    if (item.type === 'event_updated' || item.type === 'event_cancelled') {
+      router.push(`/events/${item.entityId}`);
+    } else if (item.entityType === 'post' || item.entityType === 'reply') {
       router.push(`/p/${item.entityId}`);
     } else if (item.entityType === 'profile') {
       const href = profileHrefForUser(resolvedPrimary);
       if (href) router.push(href);
     }
-  }, [markRead, item.entityType, item.entityId, resolvedPrimary, router]);
+  }, [markRead, item.type, item.entityType, item.entityId, resolvedPrimary, router]);
 
   // Long-press opens a small action sheet offering "Mark as read" (only when the
   // row is unread) and a destructive "Delete". Dismissing the sheet is the

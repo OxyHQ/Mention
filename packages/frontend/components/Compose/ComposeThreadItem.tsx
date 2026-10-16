@@ -11,7 +11,7 @@ import {
 import type { AccountNode } from '@oxy.so/core';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
-import { PodcastCard } from '@/components/Podcast/PodcastCard';
+import { PostPodcastAttachment } from '@/components/Podcast/PostPodcastAttachment';
 import RoomCard from '@/components/RoomCard';
 import ComposeToolbar from '@/components/ComposeToolbar';
 import MentionTextInput, { type MentionTextInputHandle } from '@/components/MentionTextInput';
@@ -633,13 +633,12 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                 {itemHasPodcast && item.podcast && (
                   <View style={styles.pollAttachmentWrapper}>
                     <View className="border-border bg-card" style={styles.articleAttachmentWrapper}>
-                      <PodcastCard
-                        variant="card"
-                        title={item.podcast.title}
-                        author={item.podcast.author}
-                        artworkUrl={item.podcast.artworkUrl}
+                      <PostPodcastAttachment
+                        podcast={item.podcast}
+                        width={320}
+                        height={120}
+                        showSaveButton={false}
                         onPress={handlePodcastPress}
-                        style={styles.articleAttachmentPreview}
                       />
                     </View>
                     <TouchableOpacity

@@ -1,3 +1,4 @@
+import { parseHomiioCaseUrl } from '@mention/shared-types/homiio';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { MAX_POST_DOCUMENTS } from '@mention/shared-types/post';
 import { feedService } from '@/services/feedService';
@@ -102,7 +103,9 @@ export const useLinkDetection = (text: string) => {
       // post does not have.
       const urls = extractUrls(text)
         .slice(0, MAX_POST_DOCUMENTS)
-        .filter((url) => ownProfileLinkHandle(url) === undefined);
+        .filter(
+          (url) => ownProfileLinkHandle(url) === undefined && parseHomiioCaseUrl(url) === null,
+        );
 
       if (urls.length === 0) {
         setDetectedLinks([]);

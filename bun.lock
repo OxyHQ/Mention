@@ -28,6 +28,7 @@
         "@oxy.so/db": "^1.0.0",
         "@oxy.so/federation": "^2.3.0",
         "@oxy.so/mcp": "catalog:",
+        "@oxy.so/mention-contracts": "workspace:*",
         "@oxy.so/protocol": "catalog:",
         "@oxy.so/utils": "catalog:",
         "@socket.io/redis-adapter": "^8.3.0",
@@ -67,6 +68,13 @@
         "vitest": "^5.0.3",
       },
     },
+    "packages/contracts": {
+      "name": "@oxy.so/mention-contracts",
+      "version": "0.1.3",
+      "dependencies": {
+        "zod": "catalog:",
+      },
+    },
     "packages/e2e": {
       "name": "@mention/e2e",
       "version": "1.0.0",
@@ -93,6 +101,8 @@
         "@oxy.so/bloom": "catalog:",
         "@oxy.so/contracts": "catalog:",
         "@oxy.so/core": "catalog:",
+        "@oxy.so/homiio-sdk": "0.1.2",
+        "@oxy.so/mention-contracts": "workspace:*",
         "@oxy.so/services": "catalog:",
         "@oxy.so/stickers": "^0.1.1",
         "@oxy.so/utils": "catalog:",
@@ -218,12 +228,20 @@
         "typescript": "catalog:",
       },
     },
+    "packages/sdk": {
+      "name": "@oxy.so/mention-sdk",
+      "version": "0.1.3",
+      "dependencies": {
+        "@oxy.so/mention-contracts": "workspace:0.1.3",
+      },
+    },
     "packages/shared-types": {
       "name": "@mention/shared-types",
       "version": "1.0.0",
       "dependencies": {
         "@clarity.surf/sdk": "^0.4.0",
         "@oxy.so/contracts": "catalog:",
+        "@oxy.so/homiio-contracts": "0.1.1",
         "@oxy.so/utils": "catalog:",
         "zod": "catalog:",
       },
@@ -311,7 +329,7 @@
     "@oxy.so/protocol": "1.3.0",
     "@oxy.so/services": "11.6.0",
     "@oxy.so/utils": "^1.2.0",
-    "@syra.fm/sdk": "^0.18.0",
+    "@syra.fm/sdk": "0.19.0",
     "@types/bun": "1.4.2",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.6.2",
@@ -946,7 +964,15 @@
 
     "@oxy.so/federation": ["@oxy.so/federation@2.3.0", "", { "dependencies": { "@oxy.so/contracts": "^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0 || 4.11.0-oxy-one.0", "@oxy.so/core": "^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0" }, "peerDependencies": { "express": "^4.18.0 || ^5.0.0" }, "optionalPeers": ["express"] }, "sha512-O8GmZJ6Vl4cgVv4K/9u5NBXqdsKaBhR9hO9/Y/pn+sVf6wy7dnYITTUuE0aOOTldR/POSBs4sVkR00Z9h9+Vuw=="],
 
+    "@oxy.so/homiio-contracts": ["@oxy.so/homiio-contracts@0.1.1", "", { "dependencies": { "zod": "^4.3.6" } }, "sha512-SOP3xvOPDqAuQfTB+0EKF93vgRvgT7OY6tj2dQIpigRMBa/hUKkDdGOWqSMkEsAwhrTKfiGoERJkjsXxQ4xXkA=="],
+
+    "@oxy.so/homiio-sdk": ["@oxy.so/homiio-sdk@0.1.2", "", { "dependencies": { "@oxy.so/homiio-contracts": "0.1.1" } }, "sha512-UAYcHVdlCQ9QpDisE0t8TTTPeLj/6VKhwJItobkk2VcKVDjkQ8Sg/1gXqiauRS8jb8UfWs/EvXNk1i7MMvHJEw=="],
+
     "@oxy.so/mcp": ["@oxy.so/mcp@1.1.0", "", { "dependencies": { "@modelcontextprotocol/sdk": "^1.30.0", "@oxy.so/contracts": "^4.9.0", "zod": "^4.5.4" } }, "sha512-dVue2Ug50d7Zwl2wZv8x6yYBOAAWUXcdh2yz1Su2ufcST+ahv/ode6zVX887zWCyoADUWiWNhc2bYZwTsdBqjQ=="],
+
+    "@oxy.so/mention-contracts": ["@oxy.so/mention-contracts@workspace:packages/contracts"],
+
+    "@oxy.so/mention-sdk": ["@oxy.so/mention-sdk@workspace:packages/sdk"],
 
     "@oxy.so/protocol": ["@oxy.so/protocol@1.3.0", "", { "dependencies": { "@noble/curves": "^1.9.7", "@oxy.so/contracts": "^4.17.0", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "<3.0.0", "expo-crypto": "<58.0.0", "expo-modules-core": "<58.0.0", "expo-secure-store": "<58.0.0", "express": "^4.18.0 || ^5.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-7oiFHZVSmjWcZvXP21kqitG4ccn+apJj50CqzT0MHjCwVrH4UJ7LFJEJUAnsZBsvOpeRj5uEZAL4iORKuZ0V/A=="],
 
@@ -1150,7 +1176,7 @@
 
     "@socket.io/redis-adapter": ["@socket.io/redis-adapter@8.3.0", "", { "dependencies": { "debug": "~4.3.1", "notepack.io": "~3.0.1", "uid2": "1.0.0" }, "peerDependencies": { "socket.io-adapter": "^2.5.4" } }, "sha512-ly0cra+48hDmChxmIpnESKrc94LjRL80TEmZVscuQ/WWkRP81nNj8W8cCGMqbI4L6NCuAaPRSzZF1a9GlAxxnA=="],
 
-    "@syra.fm/sdk": ["@syra.fm/sdk@0.18.0", "", { "dependencies": { "zod": "^4.4.3" }, "peerDependencies": { "@expo/vector-icons": "^15.0.2", "@livekit/react-native": "^2.11.1", "@oxy.so/services": "^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0", "expo-audio": "~56.0.12", "expo-blur": "~56.0.3", "expo-image-picker": "~56.0.18", "livekit-client": "^2.20.0", "react": "^19.2.3", "react-native": "^0.85.3", "react-native-reanimated": "^4.3.1", "react-native-safe-area-context": "^5.7.0", "react-native-svg": "15.15.4", "socket.io-client": "^4.8.1" }, "optionalPeers": ["@expo/vector-icons", "@livekit/react-native", "@oxy.so/services", "expo-audio", "expo-blur", "expo-image-picker", "livekit-client", "react", "react-native", "react-native-reanimated", "react-native-safe-area-context", "react-native-svg", "socket.io-client"] }, "sha512-Y250GJubD0zUdfEeOgnLUMbJt0hqhaQ4LeK2OIArmsDNwWXaeMwlmA9SFlO7Y2nYQgWBwbl2e6X8ccOvj7QwfA=="],
+    "@syra.fm/sdk": ["@syra.fm/sdk@0.19.0", "", { "dependencies": { "zod": "^4.4.3" }, "peerDependencies": { "@expo/vector-icons": "^15.0.2", "@livekit/react-native": "^2.11.1", "@oxy.so/services": "^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0", "expo-audio": "~56.0.12", "expo-blur": "~56.0.3", "expo-image-picker": "~56.0.18", "livekit-client": "^2.20.0", "react": "^19.2.3", "react-native": "^0.85.3", "react-native-reanimated": "^4.3.1", "react-native-safe-area-context": "^5.7.0", "react-native-svg": "15.15.4", "socket.io-client": "^4.8.1" }, "optionalPeers": ["@expo/vector-icons", "@livekit/react-native", "@oxy.so/services", "expo-audio", "expo-blur", "expo-image-picker", "livekit-client", "react", "react-native", "react-native-reanimated", "react-native-safe-area-context", "react-native-svg", "socket.io-client"] }, "sha512-6Z46UKKpCDrPDfVOrglODM231By6qpfa88QsvFgXL4m/3u18mNQ+NjXN+YkKO8U4PNoGdaaung194/13IqyW0A=="],
 
     "@szmarczak/http-timer": ["@szmarczak/http-timer@4.0.6", "", { "dependencies": { "defer-to-connect": "^2.0.0" } }, "sha512-4BAffykYOgO+5nzBWYwE3W90sBgLJoUPRWWcL8wlyiM8IB8ipJz3UMJ9KXQd1RKQXpKp8Tutn80HZtWsu2u76w=="],
 
