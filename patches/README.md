@@ -92,3 +92,27 @@ In Mention only the profile passes a non-zero offset: `useHeaderDockInset()` is
 0 outside its `HeaderDockProvider`. Present since `offset` was introduced in
 2.2.0, and still in 2.3.2. Remove the patch when FlashList separates the sticky
 offset from a content inset.
+
+# react-native-gesture-handler 2.32.0
+
+Gesture Handler reaches Reanimated through `reanimatedWrapper.js`, which loads it
+with `require('react-native-reanimated')` inside a `try` (Reanimated is an
+optional peer upstream). A CommonJS `require` hands the bundler the whole
+module, so Metro's tree shaking (`EXPO_UNSTABLE_TREE_SHAKING`, the web export)
+has to keep EVERY Reanimated export: all ~100 layout-animation presets (Zoom,
+Flip, Bounce, Rotate, Lightspeed, Roll, Stretch, Pinwheel, …), the screen
+transitions and the rest, none of which Mention or Bloom uses, in the startup
+`__common` chunk of every page load.
+
+The patch imports by name the four members Gesture Handler reads
+(`useSharedValue`, `useEvent`, `setGestureState` and the default export's
+`createAnimatedComponent`). Mention always installs Reanimated, so the
+optional-peer fallback has nothing to fall back from. Only `lib/module` is
+patched: it is what the web export resolves, and native bundles are not tree
+shaken. Measured on one `expo export --platform web` of the same commit:
+`__common` −230,769 bytes raw (4,590,570 → 4,359,801), −25.8 KB gzip;
+`react-native-reanimated` in `__common` 722 → 500 KiB (layout animations
+241 → 101 KiB; what stays is Reanimated's own web layout-animation runtime,
+which every animated component imports, and the Fade and Slide presets Bloom
+and the app use). Still `require()` in 2.33.0 and 3.3.0; remove the patch when
+upstream imports Reanimated statically.

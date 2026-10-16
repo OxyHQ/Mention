@@ -206,6 +206,39 @@ describe('useFeedState memory mode: one feed query', () => {
     jest.useRealTimers();
   });
 
+  describe('cold start', () => {
+    it('asks for the first page while it renders, before anything commits', async () => {
+      getFeedMock.mockResolvedValueOnce(page(['p1'], undefined));
+      let requestsDuringFirstRender: number | undefined;
+      function RenderPhaseProbe() {
+        useFeedState(explore);
+        requestsDuringFirstRender ??= getFeedMock.mock.calls.length;
+        return null;
+      }
+      let renderer!: TestRenderer.ReactTestRenderer;
+      await act(async () => {
+        renderer = TestRenderer.create(
+          <QueryClientProvider client={queryClient}>
+            <RenderPhaseProbe />
+          </QueryClientProvider>,
+        );
+      });
+      open.add(renderer);
+      await flush();
+
+      // In flight by the end of the first render — not from the observer's
+      // subscription, which only happens after the whole screen commits…
+      expect(requestsDuringFirstRender).toBe(1);
+      // …and the observer joins that read instead of making its own.
+      expect(getFeedMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('asks for nothing while the viewer is still resolving', async () => {
+      await mount({ ...explore, currentUserId: undefined });
+      expect(getFeedMock).not.toHaveBeenCalled();
+    });
+  });
+
   describe('warm start', () => {
     it('renders every loaded page on the FIRST paint of a remount, and requests nothing', async () => {
       const first = await loadTwoPages();
