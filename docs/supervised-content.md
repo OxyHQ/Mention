@@ -16,7 +16,7 @@ The profile header for a supervised viewer uses Oxy's minimal people contract. F
 
 `post_safety_assessments` records trusted classification-worker verdicts bound to the complete bounded material digest. The existing classification worker includes the verdict in its inference request; no inference runs during feed reads. Sensitive/CW material is mature. Media, links, incomplete material, uncertain verdicts and a mismatched revision remain unrated. Articles and polls can be general only when their complete material was assessed. Existing topic labels or `sensitive: false` are not evidence of a general rating.
 
-Edits invalidate the assessment and reads verify the current digest. The existing bounded reclassification queue may reassess older text; this release does not launch a paid bulk backfill. Migration 0072 adds assessment storage and preserves existing posts and product data.
+Edits invalidate the assessment and reads verify the current digest. The existing bounded reclassification queue may reassess older text; this release does not launch a paid bulk backfill. Migration 0076 adds assessment storage and preserves existing posts and product data.
 
 ## Live updates and federation
 
@@ -28,4 +28,12 @@ The shared federation delivery hook checks the trusted persisted sender and loca
 
 Endpoint/database tests cover private publication, guardian/contact access without follows, current revision ratings, delegated proof, direct media, notifications, cached feeds, public protocol identity, typed delivery suppression and transient failures. Frontend tests cover account changes, revoked nested copies, unknown supervision and adult offline detail behavior. `playwright.kids.config.ts` runs the production web bundle at 390 and 1280 pixels with real shared UI/SDK and deterministic HTTP fixtures: owner library, multipart private upload, scoped preview and private submit, plus own Experience CRUD with minimal employers and refusal to load foreign history. Adult cross-product Experience and organization flows also run on the combined build. These browser fixtures verify actual transport shapes and UI behavior; they are not a live Oxy consent/deployment proof.
 
-Release requires the canonical Oxy Kids API and reviewed Mention content/background-publication capabilities, registry core/contracts/services packages and federation 2.3.0. No staged tarball, local module override or permissive policy fallback belongs in the release lockfile. Enable the application capability only after API and client rollout checks succeed.
+Release requires the canonical Oxy Kids API (oxy ADR 0041) and the registry packages `@oxy.so/contracts` 4.21.0, `@oxy.so/core` 4.17.0, `@oxy.so/services` 11.8.0 and `@oxy.so/federation` 2.4.0. No staged tarball, local module override or permissive policy fallback belongs in the release lockfile.
+
+Oxy provisioning comes before the backend deploy, through oxy's `packages/api/scripts/provision-safety-consumer.ts` with `SAFETY_CONSUMER=mention`:
+
+1. `SAFETY_STAGE=base` gives both Mention workloads (`oxy-mention-task`, `oxy-mention-mcp-task`) the `safety:decide` scope. Every hydration, adult and anonymous included, asks Oxy for content decisions with a token narrowed to that scope, so without it feeds and post reads fail.
+2. `SAFETY_STAGE=capability SAFETY_ACTIONS=content-publication` lets the background `publicationPolicies` lane answer. Oxy refuses that lane to a consumer without `safety:content-publication:v1` for every author, adults included, so without it federation and MTN records stop for everyone.
+3. `SAFETY_STAGE=capability SAFETY_ACTIONS=content` is what lets a supervised account use the reviewed routes under the policy. Until it is granted, Oxy refuses supervised credentials on every Mention route and ordinary accounts are unaffected. Grant it only after the adult rollout checks succeed in production.
+
+Each step is a dry run first; `APPLY=1` needs the observed plan hash, an actor and a reason, and removing a capability reverses it.

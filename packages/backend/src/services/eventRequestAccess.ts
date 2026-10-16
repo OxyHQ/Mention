@@ -1,6 +1,7 @@
 import type { OxyAuthRequest } from '@oxy.so/core/server';
 import { loadPostRecord } from '../db/posts/postRepository';
 import { createScopedOxyClient, createUserScopedOxyServices } from '../utils/oxyHelpers';
+import { safetyRequesterFor } from '../utils/safetyRequester';
 import { postHydrationService } from './PostHydrationService';
 import { membershipAuthorizesActingFor, resolveAccountKind } from './publishAsAccount';
 import { EventError, type EventAccess } from './EventAttendanceService';
@@ -55,7 +56,11 @@ export function eventAccessFor(req: OxyAuthRequest, postId: string): EventAccess
       postHydrationService.canViewerReadPostId(
         postId,
         viewerId,
-        { oxyClient: createScopedOxyClient(req), operatedAccountReader: reader },
+        {
+          oxyClient: createScopedOxyClient(req),
+          operatedAccountReader: reader,
+          safetyRequester: safetyRequesterFor(req),
+        },
         tx,
       ),
     manage: async (row) => {

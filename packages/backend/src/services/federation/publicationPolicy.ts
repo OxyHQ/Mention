@@ -3,7 +3,7 @@ import { AP_CONTEXT } from '@oxy.so/federation';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import type { DeliveryAuthorizationContext } from '@oxy.so/federation/node';
 import { loadPostRecord } from '../../db/posts/postRepository';
-import { FEDERATION_DOMAIN } from '../../connectors/activitypub/constants';
+import { config } from '../../config';
 import { authorsMayFederate } from '../postPublicationPolicy';
 import type { PostRecord } from '../../db/posts/postRecord';
 import { authorPublicationPolicies, postAuthorIds } from '../postPublicationPolicy';
@@ -121,7 +121,7 @@ export async function authorizeFederationDelivery({
     return false;
   }
   const isPostWrite = activity.type === 'Create' || activity.type === 'Update';
-  if (url.hostname !== FEDERATION_DOMAIN) return !isPostWrite;
+  if (url.hostname !== config.federation.domain) return !isPostWrite;
   const match = /^\/ap\/users\/[^/]+\/posts\/([^/]+)$/.exec(url.pathname);
   if (!match) return false;
   const post = await loadPostRecord(decodeURIComponent(match[1]));

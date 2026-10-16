@@ -59,8 +59,9 @@ vi.mock('../../services/mediaCache/cacheStore', () => ({
  */
 const { contentAccess } = vi.hoisted(() => ({ contentAccess: vi.fn() }));
 vi.mock('../../utils/oxyHelpers', async () => {
-  const { OxyServices } = await vi.importActual<typeof import('@oxy.so/core')>('@oxy.so/core');
-  const client = new OxyServices({ baseURL: 'http://oxy.test' });
+  const { OxyServer } =
+    await vi.importActual<typeof import('@oxy.so/core/server')>('@oxy.so/core/server');
+  const client = new OxyServer({ baseURL: 'http://oxy.test' });
   vi.spyOn(client.safety, 'contentAccess').mockImplementation(contentAccess);
   return {
     getServiceOxyClient: () => client,
