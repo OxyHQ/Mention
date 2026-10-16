@@ -1421,8 +1421,8 @@ export const IMPORT_PLATFORM_LABELS: Record<ImportPlatform, string> = {
 };
 
 /**
- * Where an IMPORTED post was first published — what the card renders as
- * "Originally posted on Mastodon".
+ * Where an IMPORTED post was first published. Carried on the DTO; the app does
+ * not render it, so an imported post reads as an ordinary post of its account.
  *
  * An imported post is an ordinary native post of its author: it has its own
  * Mention id, replies, likes and moderation state. This only records where it

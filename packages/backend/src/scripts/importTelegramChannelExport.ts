@@ -13,8 +13,8 @@
  * ingest API uses (`docs/import.mdx`): it is an ordinary native post of the
  * target account, dated with its original `createdAt`, recorded in the
  * `post_imports` ledger as platform `telegram` — which is what dedupes a re-run,
- * makes the batch undoable (`DELETE /imports/v1/batches/:batchId`), and renders
- * "Originally posted on Telegram". Each media file is uploaded to Oxy first as an
+ * makes the batch undoable (`DELETE /imports/v1/batches/:batchId`), and
+ * records where each post came from. Each media file is uploaded to Oxy first as an
  * asset OWNED BY the target account, the ownership the ingest requires.
  *
  * WHY A SCRIPT AND NOT MOVE. The target is a channel, and a channel can never be

@@ -241,10 +241,11 @@ id, replies, likes and moderation. It differs in these ways:
     the original date. Remote servers that backfill see them where they belong.
   - An imported content warning federates as `sensitive: true` only, because
     native posts have no `summary` text.
-- **Provenance.** The post DTO carries `importedFrom: { platform, sourceUrl }`,
-  and the app shows "Originally posted on Mastodon", which links to the
-  original. An imported content warning becomes `metadata.spoilerText` and
-  gates the body the same way a federated one does.
+- **Provenance.** The post DTO carries `importedFrom: { platform, sourceUrl }`.
+  The app deliberately does NOT render it: an imported post reads as an
+  ordinary post of its account (the owner's call, 2026-10-16), and the ledger
+  keeps where it came from. An imported content warning becomes
+  `metadata.spoilerText` and gates the body the same way a federated one does.
 - **Idempotency.** `(oxy_user_id, platform, source_id)` is unique.
   - Resending an item returns `existing` and writes nothing.
   - If two sends of the same item race, the losing one deletes its duplicate
@@ -281,6 +282,6 @@ operator-run one-shot `packages/backend/src/scripts/importTelegramChannelExport.
 3. Run the workflow dry, then live. Each media file becomes an asset owned by
    the target account, and every post goes through the same `ingestBatch` as the
    ingest API, so dedupe, undo (`DELETE /imports/v1/batches/<batch>`) and the
-   "Originally posted on Telegram" label work unchanged.
+   recorded provenance work unchanged.
 4. Delete the staging prefix.
 

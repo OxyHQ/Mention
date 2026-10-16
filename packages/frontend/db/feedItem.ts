@@ -131,8 +131,9 @@ export function toFeedItem(
     // one. That is the same failure this converter's own docblock records as
     // having bitten twice.
     crosspost: post.crosspost,
-    // "Originally posted on Mastodon" — carried for the same reason as
-    // `crosspost` above, with the same `SCHEMA_VERSION` bump (v12).
+    // Import provenance (where an imported post first appeared). Not rendered
+    // today, but part of the DTO, so the cache carries it for the same reason
+    // as `crosspost` above, with the same `SCHEMA_VERSION` bump (v12).
     importedFrom: post.importedFrom,
     originalPost,
     quotedPost,
