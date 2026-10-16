@@ -1,7 +1,5 @@
 import express from 'express';
 import request from 'supertest';
-import { Readable } from 'node:stream';
-import type { IncomingMessage } from 'node:http';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../middleware/rateLimitStore', () => ({
@@ -18,21 +16,10 @@ vi.mock('../../middleware/rateLimitStore', () => ({
   },
 }));
 
-const fetchUpstreamFollowingRedirects = vi.fn();
-vi.mock('../../utils/safeUpstreamFetch', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/safeUpstreamFetch')>(
-    '../../utils/safeUpstreamFetch',
-  );
-  return {
-    ...actual,
-    fetchUpstreamFollowingRedirects: (...args: unknown[]) =>
-      fetchUpstreamFollowingRedirects(...args),
-  };
-});
-
-const { assetUploadMock, uploadServiceUserMediaMock } = vi.hoisted(() => ({
+const { assetUploadMock, uploadServiceUserMediaMock, importUserMediaMock } = vi.hoisted(() => ({
   assetUploadMock: vi.fn(),
   uploadServiceUserMediaMock: vi.fn(),
+  importUserMediaMock: vi.fn(),
 }));
 vi.mock('@oxy.so/core', async () => {
   const actual = await vi.importActual<typeof import('@oxy.so/core')>('@oxy.so/core');
@@ -47,7 +34,7 @@ vi.mock('@oxy.so/core', async () => {
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    assets: { metadataByIds: vi.fn().mockResolvedValue([]) },
+    assets: { metadataByIds: vi.fn().mockResolvedValue([]), importUserMedia: importUserMediaMock },
   }),
   uploadServiceUserMedia: (...args: unknown[]) => uploadServiceUserMediaMock(...args),
 }));
@@ -65,16 +52,9 @@ app.use((req, _res, next) => {
 });
 app.use('/', intentMediaRoutes);
 
-function fakeImageResponse(body: Buffer): IncomingMessage {
-  const stream = Readable.from([body]) as IncomingMessage;
-  stream.statusCode = 200;
-  stream.headers = { 'content-type': 'image/jpeg', 'content-length': String(body.length) };
-  return stream;
-}
-
 describe('POST /posts/intent-media', () => {
   beforeEach(() => {
-    fetchUpstreamFollowingRedirects.mockReset();
+    importUserMediaMock.mockReset();
     assetUploadMock.mockReset();
     uploadServiceUserMediaMock.mockReset();
     assetUploadMock.mockResolvedValue({ file: { id: 'oxy-file-1' } });
@@ -131,18 +111,41 @@ describe('POST /posts/intent-media', () => {
     expect(res.status).toBe(400);
   });
 
-  it('rejects non-media content types with 415', async () => {
-    const response = fakeImageResponse(Buffer.from('html'));
-    response.headers = { 'content-type': 'text/html' };
-    fetchUpstreamFollowingRedirects.mockResolvedValue({
-      response,
-      finalUrl: 'https://example.com/page.html',
+  it("has Oxy import a URL into the user's own files, public", async () => {
+    importUserMediaMock.mockResolvedValue({
+      file: { id: 'imported-1', mime: 'image/jpeg', status: 'active' },
+      outcome: 'downloaded',
     });
 
-    const res = await request(app).post('/').send({ url: 'https://example.com/page.html' });
+    const res = await request(app).post('/').send({ url: 'https://example.com/a.jpg' });
 
-    expect(res.status).toBe(415);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ fileId: 'imported-1', contentType: 'image/jpeg' });
+    expect(importUserMediaMock).toHaveBeenCalledWith('user-1', 'https://example.com/a.jpg', {
+      visibility: 'public',
+      signal: expect.any(AbortSignal),
+    });
+    // The bytes never pass through Mention.
     expect(assetUploadMock).not.toHaveBeenCalled();
+    expect(uploadServiceUserMediaMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [400, 'INVALID_SOURCE_URL', 400],
+    [422, 'SOURCE_URL_REFUSED', 403],
+    [415, 'UNSUPPORTED_MEDIA_TYPE', 415],
+    [413, 'PAYLOAD_TOO_LARGE', 413],
+    [451, 'CONTENT_BLOCKED', 451],
+    [502, 'SOURCE_FETCH_FAILED', 502],
+    [504, 'SOURCE_FETCH_TIMEOUT', 502],
+    [503, undefined, 502],
+  ])('answers Oxy %i (%s) with %i', async (status, code, expected) => {
+    importUserMediaMock.mockRejectedValue(Object.assign(new Error('refused'), { status, code }));
+
+    const res = await request(app).post('/').send({ url: 'https://example.com/a.jpg' });
+
+    expect(res.status).toBe(expected);
+    expect(typeof res.body.error).toBe('string');
   });
 
   it('rejects oversized base64 before decode', async () => {

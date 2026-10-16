@@ -1,5 +1,4 @@
 import { Router, type Response } from 'express';
-import type { IncomingMessage } from 'node:http';
 import rateLimit from 'express-rate-limit';
 import { OxyServices } from '@oxy.so/core';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
@@ -10,25 +9,22 @@ import { hashedIpKey } from '../utils/ipKey';
 import { getServiceOxyClient, uploadServiceUserMedia } from '../utils/oxyHelpers';
 import type { OxyAuthRequestWithMcp } from '../mcp/middleware/mcpAuth';
 import { config } from '../config';
-import { SsrfRejection } from '@oxy.so/core/server';
-import {
-  type UpstreamResult,
-  contentTypeFamily,
-  contentTypeFamilyFromString,
-  fetchUpstreamFollowingRedirects,
-} from '../utils/safeUpstreamFetch';
+import { contentTypeFamilyFromString } from '../utils/safeUpstreamFetch';
+import { describeOxyError, oxyErrorStatus } from '../services/oxyFiles/oxyErrors';
 import { MEDIA_REJECTED_TYPES } from '../services/mediaCache/mediaTypes';
 
 /**
  * POST /posts/intent-media
  *
  * Authenticated. Accepts either:
- *  - `{ url }` — SSRF-safe remote fetch (compose intent / MCP)
+ *  - `{ url }` — imported BY OXY into the requesting user's files
+ *    (`importUserMedia`, ADR 0041 D7: Oxy's own SSRF-safe fetcher; the bytes
+ *    never pass through Mention) — compose intent / MCP
  *  - `{ base64, mimeType, filename? }` — inline bytes (MCP / Claude)
  *
- * Uploads to Oxy as an asset owned by the requesting user and returns `fileId`.
- * Oxy-session callers use `assetUpload` with the user bearer; MCP JWT callers
- * use the service-token `POST /assets/service/user-media` path.
+ * Stores an asset owned by the requesting user and returns `fileId`. Inline
+ * bytes from an Oxy-session caller use `assetUpload` with the user bearer; from
+ * an MCP JWT caller, the service-token `POST /assets/service/user-media` path.
  */
 
 const router = Router();
@@ -40,8 +36,7 @@ const RATE_LIMIT_MAX = 20;
 const MAX_URL_LENGTH = 2048;
 const MAX_MEDIA_BYTES = 40 * 1024 * 1024;
 const MAX_BASE64_LENGTH = Math.ceil((MAX_MEDIA_BYTES * 4) / 3) + 256;
-const REQUEST_DEADLINE_MS = 25_000;
-const UPSTREAM_SOCKET_TIMEOUT_MS = 20_000;
+const IMPORT_DEADLINE_MS = 75_000;
 const ALLOWED_MEDIA_PREFIXES = ['image/', 'video/'] as const;
 
 const HTTP_STATUS = {
@@ -51,7 +46,10 @@ const HTTP_STATUS = {
   FORBIDDEN: 403,
   UNSUPPORTED_MEDIA_TYPE: 415,
   PAYLOAD_TOO_LARGE: 413,
+  UNPROCESSABLE: 422,
+  UNAVAILABLE_FOR_LEGAL_REASONS: 451,
   BAD_GATEWAY: 502,
+  GATEWAY_TIMEOUT: 504,
 } as const;
 
 class PayloadTooLargeError extends Error {
@@ -79,51 +77,6 @@ const intentMediaRateLimiter = rateLimit({
 function isComposerMediaType(family: string): boolean {
   if (MEDIA_REJECTED_TYPES.has(family)) return false;
   return ALLOWED_MEDIA_PREFIXES.some((prefix) => family.startsWith(prefix));
-}
-
-function readFullBodyBounded(response: IncomingMessage, maxBytes: number): Promise<Buffer> {
-  return new Promise<Buffer>((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let total = 0;
-    let settled = false;
-
-    const finish = (buf: Buffer): void => {
-      if (settled) return;
-      settled = true;
-      resolve(buf);
-    };
-    const fail = (error: Error): void => {
-      if (settled) return;
-      settled = true;
-      if (!response.destroyed) response.destroy();
-      reject(error);
-    };
-
-    response.setTimeout(UPSTREAM_SOCKET_TIMEOUT_MS, () => {
-      fail(new Error('upstream socket idle timeout'));
-    });
-
-    response.on('data', (chunk: Buffer) => {
-      total += chunk.length;
-      if (total > maxBytes) {
-        fail(new PayloadTooLargeError());
-        return;
-      }
-      chunks.push(chunk);
-    });
-    response.on('end', () => finish(Buffer.concat(chunks, total)));
-    response.on('error', (error: Error) => fail(error));
-  });
-}
-
-function deriveFileName(finalUrl: string): string {
-  try {
-    const last = new URL(finalUrl).pathname.split('/').filter(Boolean).pop();
-    if (last && last.length > 0) return decodeURIComponent(last).slice(0, 200);
-  } catch {
-    // fall through
-  }
-  return 'shared-media';
 }
 
 function extensionForMime(mime: string): string {
@@ -156,74 +109,54 @@ function decodeBase64Payload(raw: string): Buffer {
   return Buffer.from(payload, 'base64');
 }
 
-async function fetchRemoteMediaBuffer(
+/** Oxy's refusal of a source, as this route answers it. */
+function importRefusal(error: unknown): { status: number; message: string } {
+  const status = oxyErrorStatus(error);
+  switch (status) {
+    case HTTP_STATUS.BAD_REQUEST:
+      return { status: HTTP_STATUS.BAD_REQUEST, message: 'Invalid media URL' };
+    case HTTP_STATUS.UNPROCESSABLE:
+      // `SOURCE_URL_REFUSED`: not https, a private address, credentials in it.
+      return { status: HTTP_STATUS.FORBIDDEN, message: 'URL not permitted' };
+    case HTTP_STATUS.UNSUPPORTED_MEDIA_TYPE:
+      return { status, message: 'URL is not a supported image or video' };
+    case HTTP_STATUS.PAYLOAD_TOO_LARGE:
+      return { status, message: 'Media is too large' };
+    case HTTP_STATUS.UNAVAILABLE_FOR_LEGAL_REASONS:
+      return { status, message: 'This media was removed after a legal claim' };
+    case HTTP_STATUS.BAD_GATEWAY:
+    case HTTP_STATUS.GATEWAY_TIMEOUT:
+      return { status: HTTP_STATUS.BAD_GATEWAY, message: 'Could not fetch the media URL' };
+    default:
+      return { status: HTTP_STATUS.BAD_GATEWAY, message: 'Could not save the media' };
+  }
+}
+
+/**
+ * Import a remote image or video into the user's own Oxy files (ADR 0041 D7):
+ * Oxy fetches it with its SSRF-safe fetcher (https on every hop, public
+ * addresses only, bounded redirects, size and time), stores it public — post
+ * media renders from the CDN, which 404s a private asset — and answers the
+ * same file for the same URL again without fetching. One fetcher for every
+ * Oxy product instead of a copy here, and the bytes never pass through
+ * Mention. The route already verified the caller IS `ownerUserId`, which is
+ * what the service import's authority rests on (the same as the MCP upload).
+ */
+async function importRemoteMedia(
+  ownerUserId: string,
   rawUrl: string,
-  abortSignal: AbortSignal,
-): Promise<{
-  buffer: Buffer;
-  contentType: string;
-  fileName: string;
-}> {
-  let upstream: UpstreamResult;
-  try {
-    upstream = await fetchUpstreamFollowingRedirects(rawUrl, {}, abortSignal);
-  } catch (error) {
-    if (error instanceof SsrfRejection) {
-      throw Object.assign(new Error('URL not permitted'), { status: HTTP_STATUS.FORBIDDEN });
-    }
-    throw Object.assign(new Error('Could not fetch the media URL'), {
+  signal: AbortSignal,
+): Promise<{ fileId: string; contentType: string }> {
+  const imported = await getServiceOxyClient().assets.importUserMedia(ownerUserId, rawUrl, {
+    visibility: 'public',
+    signal,
+  });
+  if (imported.file.status !== 'active') {
+    throw Object.assign(new Error('The imported file is not active'), {
       status: HTTP_STATUS.BAD_GATEWAY,
     });
   }
-
-  const { response, finalUrl } = upstream;
-  const status = response.statusCode ?? HTTP_STATUS.BAD_GATEWAY;
-  if (status !== HTTP_STATUS.OK) {
-    response.resume();
-    throw Object.assign(new Error('Could not fetch the media URL'), {
-      status: HTTP_STATUS.BAD_GATEWAY,
-    });
-  }
-
-  const family = contentTypeFamily(response.headers);
-  if (!isComposerMediaType(family)) {
-    response.destroy();
-    throw Object.assign(new Error('URL is not a supported image or video'), {
-      status: HTTP_STATUS.UNSUPPORTED_MEDIA_TYPE,
-    });
-  }
-
-  const declaredLength = Number(response.headers['content-length']);
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_MEDIA_BYTES) {
-    response.destroy();
-    throw Object.assign(new Error('Media is too large'), { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
-  }
-
-  let buffer: Buffer;
-  try {
-    buffer = await readFullBodyBounded(response, MAX_MEDIA_BYTES);
-  } catch (error) {
-    if (error instanceof PayloadTooLargeError) {
-      throw Object.assign(new Error('Media is too large'), {
-        status: HTTP_STATUS.PAYLOAD_TOO_LARGE,
-      });
-    }
-    throw Object.assign(new Error('Could not fetch the media URL'), {
-      status: HTTP_STATUS.BAD_GATEWAY,
-    });
-  }
-
-  if (buffer.length === 0) {
-    throw Object.assign(new Error('Could not fetch the media URL'), {
-      status: HTTP_STATUS.BAD_GATEWAY,
-    });
-  }
-
-  return {
-    buffer,
-    contentType: family,
-    fileName: deriveFileName(finalUrl),
-  };
+  return { fileId: imported.file.id, contentType: imported.file.mime };
 }
 
 async function uploadWithOxySession(
@@ -296,8 +229,9 @@ router.post('/', intentMediaRateLimiter, async (req: AuthRequest, res: Response)
     return;
   }
 
-  const abortController = new AbortController();
-  const deadline = setTimeout(() => abortController.abort(), REQUEST_DEADLINE_MS);
+  // Oxy's fetch is bounded at 60 s; give it that, plus the store.
+  const importAbort = new AbortController();
+  const deadline = setTimeout(() => importAbort.abort(), IMPORT_DEADLINE_MS);
 
   try {
     let buffer: Buffer;
@@ -305,23 +239,23 @@ router.post('/', intentMediaRateLimiter, async (req: AuthRequest, res: Response)
     let fileName: string;
 
     if (hasUrl) {
+      let imported: { fileId: string; contentType: string };
       try {
-        const fetched = await fetchRemoteMediaBuffer(rawUrl, abortController.signal);
-        buffer = fetched.buffer;
-        contentType = fetched.contentType;
-        fileName = fetched.fileName;
+        imported = await importRemoteMedia(userId, rawUrl, importAbort.signal);
       } catch (error) {
-        const status =
-          typeof error === 'object' && error !== null && 'status' in error
-            ? Number((error as { status: number }).status)
-            : HTTP_STATUS.BAD_GATEWAY;
-        const message = error instanceof Error ? error.message : 'Could not fetch the media URL';
-        if (status === HTTP_STATUS.FORBIDDEN) {
-          logger.warn('[IntentMedia] Rejected target', { reason: message });
+        const refusal = importRefusal(error);
+        if (refusal.status === HTTP_STATUS.FORBIDDEN) {
+          logger.warn('[IntentMedia] Rejected target', { reason: describeOxyError(error) });
+        } else if (refusal.status === HTTP_STATUS.BAD_GATEWAY) {
+          logger.warn('[IntentMedia] Import failed', { reason: describeOxyError(error) });
         }
-        res.status(status).json({ error: message });
+        res.status(refusal.status).json({ error: refusal.message });
         return;
       }
+      res
+        .status(HTTP_STATUS.OK)
+        .json(await enrichUploadResponse(imported.fileId, imported.contentType));
+      return;
     } else {
       if (rawBase64.length > MAX_BASE64_LENGTH) {
         res.status(HTTP_STATUS.PAYLOAD_TOO_LARGE).json({ error: 'Media is too large' });

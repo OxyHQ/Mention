@@ -122,6 +122,14 @@ federated media cache holds the same bytes (`kept`). The post insert maps a
 retired id to its replacement, so a client that fetched a GIF before the move
 cannot write a dangling one.
 
+## Media from a URL
+
+`POST /posts/intent-media` with `{ url }` (compose intents, the MCP
+`upload-media-from-url` tool) no longer fetches anything itself: Oxy imports the
+URL into the requesting person's own files (`importUserMedia`, public, Oxy's
+SSRF-safe fetcher — https only), and the same URL imported again answers the
+same file. Inline `base64` bytes are still uploaded as before.
+
 ## Configuration
 
 | Variable | Default | Meaning |
