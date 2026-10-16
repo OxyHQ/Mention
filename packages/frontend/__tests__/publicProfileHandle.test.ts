@@ -77,6 +77,13 @@ describe('Oxy-proven aliases', () => {
       false,
     );
   });
+  it('rejects alias metadata that is not a list', () => {
+    expect(
+      isPublicProfileHandle('freshperson@threads.net', 'freshperson@instagram.com', {
+        externalIdentities: profile.externalIdentities[0],
+      }),
+    ).toBe(false);
+  });
   it('rejects malformed alias metadata rather than adopting its handle', () => {
     expect(
       isPublicProfileHandle('freshperson@threads.net', 'freshperson@instagram.com', {
