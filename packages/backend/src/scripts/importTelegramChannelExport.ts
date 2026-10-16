@@ -56,6 +56,8 @@ export const STAGING_HOST = 'oxy-mention-media-usw2-237343248947.s3.us-west-2.am
 export const STAGING_PATH_PREFIX = '/staging/telegram-import/';
 
 const MAX_MEDIA_BYTES = 100 * 1024 * 1024;
+
+const TELEGRAM_PERMALINK = /^https:\/\/t\.me\/c\/\d+\/\d+$/;
 const MAX_MANIFEST_BYTES = 10 * 1024 * 1024;
 
 const stagedUrl = z
@@ -68,8 +70,14 @@ const manifestSchema = z.strictObject({
   items: z
     .array(
       z.strictObject({
-        sourceId: z.string().regex(/^\d+$/),
-        sourceUrl: z.string().url(),
+        /**
+         * The message's permalink, `https://t.me/c/<channel>/<message>` — also its
+         * `sourceUrl`. Never the bare message id: the ledger dedupes on
+         * (author, platform, source id), and message ids restart in every channel,
+         * so two channels imported into one account would collide on a bare id.
+         */
+        sourceId: z.string().regex(TELEGRAM_PERMALINK),
+        sourceUrl: z.string().regex(TELEGRAM_PERMALINK),
         createdAt: z.string().datetime(),
         text: z.string(),
         media: z

@@ -38,7 +38,7 @@ function manifest(items: unknown[]) {
 
 function item(id: string, overrides: Record<string, unknown> = {}) {
   return {
-    sourceId: id,
+    sourceId: `https://t.me/c/1/${id}`,
     sourceUrl: `https://t.me/c/1/${id}`,
     createdAt: '2024-05-20T13:18:52Z',
     text: `post ${id}`,
@@ -90,6 +90,7 @@ describe('the manifest', () => {
 
   it('rejects a duplicate and an empty item', () => {
     expect(() => manifest([item('1'), item('1')])).toThrow(/duplicate/);
+    expect(() => manifest([item('3', { sourceId: '3' })])).toThrow();
     expect(() => manifest([item('2', { text: ' ' })])).toThrow(/neither text nor media/);
   });
 });
@@ -142,7 +143,10 @@ describe('importTelegramChannelExport', () => {
     ];
     expect(call).toMatchObject({ oxyUserId: target, platform: 'telegram', batchId: 'batch-1' });
     // Oldest first.
-    expect(call.items.map((entry) => entry.sourceId)).toEqual(['10', '20']);
+    expect(call.items.map((entry) => entry.sourceId)).toEqual([
+      'https://t.me/c/1/10',
+      'https://t.me/c/1/20',
+    ]);
     expect(call.items[1]).toMatchObject({
       createdAt: new Date('2025-03-07T10:36:19Z'),
       media: [{ assetId: 'asset-1' }],
@@ -158,7 +162,7 @@ describe('importTelegramChannelExport', () => {
       postId: post.id,
       oxyUserId: target,
       platform: 'telegram',
-      sourceId: '30',
+      sourceId: 'https://t.me/c/1/30',
       sourceUrl: 'https://t.me/c/1/30',
       contentWarning: null,
       importBatchId: 'earlier',
@@ -180,7 +184,7 @@ describe('importTelegramChannelExport', () => {
     const [call] = deps.ingestBatch.mock.calls[0] as unknown as [
       { items: Array<{ sourceId: string }> },
     ];
-    expect(call.items.map((entry) => entry.sourceId)).toEqual(['31']);
+    expect(call.items.map((entry) => entry.sourceId)).toEqual(['https://t.me/c/1/31']);
   });
 
   it('reports an item whose media could not be staged, and imports the rest', async () => {
@@ -196,6 +200,6 @@ describe('importTelegramChannelExport', () => {
       { targetOxyUserId: scope.user('channel-fail'), batchId: 'b', dryRun: false },
       deps as unknown as TelegramImportDeps,
     );
-    expect(result).toMatchObject({ created: 1, failed: 1, failedItems: ['40'] });
+    expect(result).toMatchObject({ created: 1, failed: 1, failedItems: ['https://t.me/c/1/40'] });
   });
 });
