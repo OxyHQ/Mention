@@ -1,3 +1,4 @@
+import { withAliaSdkCsp } from '@alia.onl/sdk/csp';
 import type { PublicDeploymentInfo } from '@mention/shared-types/deployment';
 import { createOxySecurityHeaders, type OxyCspExtensions } from '@oxy.so/core/server';
 import compression from 'compression';
@@ -31,8 +32,10 @@ export interface CreateAppDependencies {
 /**
  * Mention's additions to the Oxy CSP baseline (`@oxy.so/core/server`). Additive
  * only: the baseline already carries `'self'`, the Cloudflare Insights beacon
- * hosts, the Oxy API/CDN origins, inline styles and `data:` images/fonts, so
- * nothing it provides is restated here — only what is specific to Mention.
+ * hosts, the Oxy API/CDN origins, inline styles and `data:` images/fonts, and
+ * what the embedded Alia SDK loads (its API and voice socket, the avatar runtime,
+ * the voice worklets) is the SDK's own declaration (`withAliaSdkCsp` below), so
+ * nothing either provides is restated here — only what is specific to Mention.
  */
 // `satisfies`, not an annotation: the type check against `OxyCspExtensions` is
 // the same, but the inferred type keeps `connectSrc` a DEFINITE array. Under an
@@ -43,10 +46,6 @@ const MENTION_CSP_EXTENSIONS = {
   connectSrc: [
     'blob:',
     'data:',
-    // The embedded Alia SDK reads its model catalogue and streams chat here.
-    'https://api.alia.onl',
-    // Alia's shared avatar runtime fetches its WebAssembly and data files here.
-    'https://alia.onl',
     // Live rooms are served by Syra's backend and LiveKit, not api.mention.earth.
     'https://api.syra.fm',
     'wss://api.syra.fm',
@@ -75,11 +74,7 @@ const MENTION_CSP_EXTENSIONS = {
   // ThorVG compiled to WebAssembly; the binary is served from this origin
   // (`frontend/lib/lottieWeb.web.ts`), so no script source is added. Without
   // it Bloom's `Sticker` still works — it shows the still image.
-  //
-  // `https://alia.onl` is the one script origin: Ask Alia's avatar is a module
-  // imported from `https://alia.onl/bloom-character/runtime.mjs`. It starts no
-  // Worker, so `worker-src` is untouched.
-  scriptSrc: ["'wasm-unsafe-eval'", 'https://alia.onl'],
+  scriptSrc: ["'wasm-unsafe-eval'"],
 } satisfies OxyCspExtensions;
 
 /**
@@ -148,14 +143,14 @@ export function createApp(deps: CreateAppDependencies): express.Express {
   // Dropping it from package.json uninstalls it and this call throws at boot.
   app.use(
     createOxySecurityHeaders({
-      csp: {
+      csp: withAliaSdkCsp({
         ...MENTION_CSP_EXTENSIONS,
         connectSrc: [
           ...MENTION_CSP_EXTENSIONS.connectSrc,
           deps.deployment?.apiBaseUrl ?? 'https://api.mention.earth',
           (deps.deployment?.apiBaseUrl ?? 'https://api.mention.earth').replace(/^https:/, 'wss:'),
         ],
-      },
+      }),
       helmet: {
         crossOriginResourcePolicy: { policy: 'cross-origin' },
         // Match the baseline's `frame-ancestors 'none'`; helmet's SAMEORIGIN
