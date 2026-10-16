@@ -144,8 +144,10 @@ name, validated by `.github/scripts/optional-task-bindings.sh`).
 ## Rollout
 
 1. Oxy API with ADR 0043 stages 1–4b deployed (report evidence is adopted
-   through stage 4b's `adoptAppFile`); `@oxy.so/core` 4.15.0, `@oxy.so/contracts`
-   4.19.0 and `@oxy.so/services` 11.8.0 published.
+   through stage 4b's `adoptAppFile`); `@oxy.so/contracts` 4.24.0,
+   `@oxy.so/core` 4.21.0 and `@oxy.so/services` 11.12.0 published (the stage 4c
+   SDK). Nothing here calls a stage 4c endpoint, so Mention deploys whether or
+   not the 4c API is out.
 2. Staff grant the Mention application `files:app:write` and
    `files:references:write` (staff-only for a `first_party` application).
 3. Deploy Mention. References start draining; the reconciliation runs nightly
