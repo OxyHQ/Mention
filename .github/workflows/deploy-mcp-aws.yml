@@ -234,8 +234,12 @@ jobs:
         if: steps.current_release.outputs.current == 'true'
         env:
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
+          # The smoke also requires `/_oxy/mcp` to be bound: each task registers
+          # the catalogue it serves with Oxy at startup (`catalog-registration.ts`)
+          # and binds Alia's lane to that registration. There is no separate
+          # post-deploy registration task any more — it was a second source of
+          # the catalogue, and the binding it should have produced was never set.
           POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-mcp.sh
-          POST_DEPLOY_TASK_COMMAND_JSON: '["bun","packages/mcp/dist/register-capability-catalog.js"]'
           # OXY_SERVICE_API_KEY/SECRET leave, and the order this took is the
           # whole lesson.
           #
@@ -245,8 +249,8 @@ jobs:
           # image older than the code those deploys carried. #1086 took them out
           # of the removals, deliberately keeping the injection, because removing
           # them then would have cost `catalogs:write` — the scope
-          # `POST /capabilities/catalogs/register` requires, which is this
-          # workflow's own POST_DEPLOY_TASK_COMMAND_JSON above. The backend
+          # `POST /capabilities/catalogs/register` requires, which the task
+          # itself calls at startup to bind `/_oxy/mcp`. The backend
           # learned that the expensive way: its pair came off at task revision
           # 384 and its federation worker failed every ~6 minutes with `Missing
           # required scope: federation:write` until revision 389 put it back.
@@ -260,8 +264,8 @@ jobs:
           #   "clarity:search","clarity:sites:manage","federation:write",
           #   "files:read","files:write","signals:write","user:read"]
           #
-          # `catalogs:write` included, so the post-deploy catalogue registration
-          # keeps working without the pair. The injection goes too: a name in
+          # `catalogs:write` included, so the task's own catalogue registration
+          # at startup works without the pair. The injection goes too: a name in
           # both lists is what broke this workflow in the first place, and the
           # gate in `validate-workflows.mjs` now refuses that combination.
           #

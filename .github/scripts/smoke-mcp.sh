@@ -149,4 +149,19 @@ if ! tr -d '\r' <"$smoke_dir/invalid-token.headers" \
   exit 1
 fi
 
+# Alia's lane. The task registers its catalogue with Oxy at startup and binds
+# `/_oxy/mcp` to that registration; until it has, the route answers 503 and
+# every Alia call to Mention fails. Bound, an unauthenticated call is a 401 for
+# the missing Capability ticket. (curl retries a 503 while the task registers.)
+internal_status="$(capture_response \
+  internal \
+  --request POST \
+  --header 'Content-Type: application/json' \
+  --data '{"jsonrpc":"2.0","id":"smoke","method":"tools/list"}' \
+  "$MCP_ORIGIN/_oxy/mcp")"
+if [[ "$internal_status" != "401" ]] || ! jq -e '.error.code == -32001' "$smoke_dir/internal.body" >/dev/null; then
+  echo "::error::Mention internal MCP is not bound to its catalogue registration (HTTP $internal_status, expected 401 for a missing Capability ticket)."
+  exit 1
+fi
+
 echo "Mention MCP and central OAuth post-deploy smoke checks passed."

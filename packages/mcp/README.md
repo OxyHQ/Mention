@@ -56,8 +56,12 @@ Alia → Capability ticket → mcp.mention.earth/_oxy/mcp
                               ↘ live reauthorization + audit ↗ api.oxy.so
 ```
 
-`/_oxy/mcp` refuses requests when its catalog binding is absent. A failure does
-not fall back to the retained HTTP capability endpoint. The catalog still
+Each task registers the catalogue it serves with Oxy at startup
+(`packages/mcp/lib/catalog-registration.ts`; Oxy upserts on app, version and digest) and binds
+`/_oxy/mcp` to the registration it gets back, so the binding is never copied into
+configuration. Until that succeeds the route answers 503, logs why, and retries;
+the post-deploy smoke fails the deploy on it. A failure does not fall back to the
+retained HTTP capability endpoint. The catalog still
 advertises `/_oxy/capabilities/:tool`, which remains mounted for existing
 capability consumers and uses the same domain handlers. Removing it requires a
 coordinated catalog/version and caller migration; the presence of the internal
