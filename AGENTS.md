@@ -21,6 +21,10 @@ bun run lint:fix / format   # Biome; config in biome.jsonc
 
 See the repository [README](./README.md) for setup and local development.
 
+npm releases: only Actions → Release packages (`release-packages.yml`, Oxy's shared
+workflow, OIDC); a package's gates are its `prepublishOnly`. Never publish from a laptop —
+`~/Oxy/docs/npm-releases.md`.
+
 ## Documentation
 
 Everything else — architecture, API, federation, lanes and channels, feed
