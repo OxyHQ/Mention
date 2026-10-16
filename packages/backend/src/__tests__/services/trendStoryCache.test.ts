@@ -43,11 +43,14 @@ vi.mock('../../utils/redis', () => ({
 
 import { config } from '../../config';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
-import { trending } from '../../db/schema/discovery';
+import { posts } from '../../db/schema/posts';
+import { trending, trendStoryPosts } from '../../db/schema/discovery';
+import { insertPostRecord } from '../../db/posts/postRepository';
 import { metrics } from '../../utils/metrics';
 import { resolveTrendStory } from '../../services/trendStoryCache';
 
 const seededIds: string[] = [];
+const seededPostIds: string[] = [];
 let previousInstrumentationSetting = false;
 
 beforeAll(async () => {
@@ -70,14 +73,34 @@ afterEach(async () => {
   if (ids.length > 0) {
     await getDb().delete(trending).where(inArray(trending.id, ids));
   }
+  const postIds = seededPostIds.splice(0);
+  if (postIds.length > 0) {
+    await getDb().delete(posts).where(inArray(posts.id, postIds));
+  }
 });
 
-async function seedTrend(name: string, terms: string[]): Promise<void> {
+async function seedTrend(name: string, terms: string[]): Promise<string> {
   const [row] = await getDb()
     .insert(trending)
     .values({ type: 'entity', name, terms, score: 1, rank: 0, calculatedAt: new Date() })
     .returning({ id: trending.id });
   seededIds.push(row.id);
+  return row.id;
+}
+
+async function seedMember(trendId: string, name: string): Promise<void> {
+  const author = `story-cache-author-${Date.now()}`;
+  const post = await insertPostRecord({
+    oxyUserId: author,
+    authorship: [{ oxyUserId: author, role: 'owner', status: 'accepted' }],
+    status: 'published',
+    visibility: 'public',
+    content: { variants: [{ source: 'author', text: name }] },
+  });
+  seededPostIds.push(post.id);
+  await getDb()
+    .insert(trendStoryPosts)
+    .values({ trendId, postId: post.id, relevance: 1, matchedTerms: [name] });
 }
 
 async function trendingSelectCount(): Promise<number> {
@@ -115,6 +138,20 @@ describe('resolveTrendStory caching', () => {
     expect(storyA.terms).toEqual([termA, 'alias-a']);
     expect(storyB.terms).toEqual([termB, 'alias-b']);
     expect(storyA.trendId).not.toBe(storyB.trendId);
+  });
+
+  it('reports whether the story has members, and caches that answer too', async () => {
+    const withMembers = `story-cache-members-${Date.now()}`;
+    const without = `story-cache-memberless-${Date.now()}`;
+    await seedMember(await seedTrend(withMembers, [withMembers]), withMembers);
+    await seedTrend(without, [without]);
+
+    expect((await resolveTrendStory(withMembers)).hasMembers).toBe(true);
+    expect((await resolveTrendStory(without)).hasMembers).toBe(false);
+
+    // Cached: a member added inside the TTL is not seen until it expires.
+    await seedMember(seededIds[seededIds.length - 1], without);
+    expect((await resolveTrendStory(without)).hasMembers).toBe(false);
   });
 
   it('falls back to the bare term, uncached, when no row exists', async () => {

@@ -91,8 +91,9 @@ export function normalizeTrendCategory(value: string | undefined | null): TrendC
  *
  * One value, not a scale: `hot` is a claim that something is happening right
  * now, and its absence is the ordinary case. The client derives everything else
- * it shows (a `new` badge, an age) from the trend's `startedAt` — a second
- * stored status would be a second thing that can disagree with the timestamp.
+ * it shows from the trend's timestamps — a `new` badge from `firstSeenAt`, an
+ * age from `startedAt` — and a second stored status would be a second thing
+ * that can disagree with them.
  */
 export type TrendStatus = 'hot';
 

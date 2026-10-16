@@ -35,7 +35,7 @@ import {
 import { createMentionCapabilityAuthority } from './lib/capability-authority.js';
 import { handleMentionCapabilityRequest } from './lib/capability-http.js';
 
-import { createMentionInternalMcp } from './lib/internal-capability-mcp.js';
+import { createMentionInternalMcpReceiver } from './lib/internal-capability-mcp.js';
 
 const config = loadConfiguration();
 const PORT = config.port;
@@ -45,7 +45,9 @@ const MCP_PUBLIC_URL = config.publicUrl;
 const OAUTH_AS_URL = config.oxyApiUrl;
 const introspectCentralToken = createCentralTokenIntrospector(config);
 const capabilityAuthority = createMentionCapabilityAuthority(config);
-const internalMcp = createMentionInternalMcp(config);
+const internalMcp = createMentionInternalMcpReceiver(config);
+// At startup, so a task that cannot bind says so in its first lines of log.
+void internalMcp.bound();
 
 /** Canonical protected-resource metadata URL advertised in 401 challenges. */
 const RESOURCE_METADATA_URL = `${MCP_PUBLIC_URL}/.well-known/oauth-protected-resource`;
@@ -380,11 +382,12 @@ async function main() {
       }
 
       if (pathname === '/_oxy/mcp') {
-        if (!internalMcp) {
-          sendJsonRpcError(res, 503, -32000, 'Internal MCP catalogue binding is not configured.');
+        const bound = await internalMcp.bound();
+        if (!bound) {
+          sendJsonRpcError(res, 503, -32000, 'Internal MCP catalogue is not registered with Oxy.');
           return;
         }
-        await internalMcp.handleMcp(req, res);
+        await bound.handleMcp(req, res);
         return;
       }
 

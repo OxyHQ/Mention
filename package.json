@@ -10,13 +10,13 @@
       "packages/*"
     ],
     "catalog": {
-      "@oxy.so/bloom": "10.6.1",
+      "@oxy.so/bloom": "10.10.0",
       "@oxy.so/contracts": "4.14.0",
-      "@oxy.so/core": "4.8.0",
+      "@oxy.so/core": "4.9.1",
       "@oxy.so/mcp": "1.1.0",
-      "@oxy.so/services": "11.3.0",
+      "@oxy.so/services": "11.3.1",
       "@oxy.so/utils": "^1.2.0",
-      "@syra.fm/sdk": "^0.16.2",
+      "@syra.fm/sdk": "^0.18.0",
       "@types/bun": "1.4.2",
       "@types/jsonwebtoken": "^9.0.10",
       "@types/node": "^26.6.2",
@@ -126,11 +126,10 @@
     "metro-transform-worker": "0.84.5",
     "ob1": "0.84.5",
     "@oxy.so/bloom": "catalog:",
-    "@oxy.so/core": "4.8.0",
-    "@oxy.so/services": "11.3.0",
+    "@oxy.so/core": "4.9.1",
+    "@oxy.so/services": "11.3.1",
     "fast-uri": "3.1.8",
     "fast-xml-parser": "5.11.1",
-    "linkify-it": "5.0.2",
     "ioredis": "6.0.0",
     "postcss": "8.5.28",
     "lightningcss": "1.30.1",
@@ -149,13 +148,15 @@
     "@grpc/grpc-js": "1.14.5",
     "@fastify/busboy": "3.2.2",
     "@oxy.so/protocol": "catalog:",
-    "@oxy.so/mcp": "catalog:"
+    "@oxy.so/mcp": "catalog:",
+    "react-native-css": "3.1.0-rc.0"
   },
   "patchedDependencies": {
     "expo-router@57.0.23": "patches/expo-router@57.0.23.patch",
     "expo-video@57.0.5": "patches/expo-video@57.0.5.patch",
     "react-native-screens@4.26.2": "patches/react-native-screens@4.26.2.patch",
     "react-native-reanimated@4.5.1": "patches/react-native-reanimated@4.5.1.patch",
-    "@shopify/flash-list@2.3.2": "patches/@shopify%2Fflash-list@2.3.2.patch"
+    "@shopify/flash-list@2.3.2": "patches/@shopify%2Fflash-list@2.3.2.patch",
+    "react-native-gesture-handler@2.32.0": "patches/react-native-gesture-handler@2.32.0.patch"
   }
 }

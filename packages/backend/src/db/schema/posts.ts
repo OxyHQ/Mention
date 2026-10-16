@@ -738,13 +738,12 @@ export const posts = pgTable(
       t.createdAt.desc(),
       t.id.desc(),
     ),
-    index('post_links_chrono_v1').on(
-      t.hasLinks,
-      t.visibility,
-      t.status,
-      t.createdAt.desc(),
-      t.id.desc(),
-    ),
+    // No index serves `has_links` or `type` (both dropped by 0073, unscanned in
+    // production). A quarter of posts carry links and nearly a fifth are images
+    // or videos, so search's `filter:links` and the Media feed fill a page from
+    // the first few hundred entries of `post_public_chrono_v1` (0.1 ms and 28 ms
+    // in production), and the Media feed's `type` test sits in an OR with two
+    // EXISTS that no index can drive.
     index('posts_owner_chrono_idx').on(
       t.oxyUserId,
       t.visibility,
@@ -752,7 +751,6 @@ export const posts = pgTable(
       t.createdAt.desc(),
       t.id.desc(),
     ),
-    index('posts_type_chrono_idx').on(t.type, t.visibility, t.status, t.createdAt.desc()),
     index('posts_created_at_idx').on(t.createdAt.desc()),
     /**
      * Which accounts published publicly inside a recent window — the question
@@ -770,34 +768,6 @@ export const posts = pgTable(
     index('posts_public_author_recent_idx')
       .on(t.createdAt, t.oxyUserId)
       .where(sql`${t.visibility} = 'public' and ${t.status} = 'published'`),
-    /**
-     * Recent public posts that carry classified topics, newest first, with the
-     * author and the topics in the key (migration 0064). It serves the query
-     * that builds `topic_affinity_posts` (0065), which topic affinity
-     * (`ContentAffinityService.computeTopicAffinity`) reads on the For You and
-     * who-to-follow request paths; the view's refresh is one window scan every
-     * few minutes instead of one per viewer.
-     *
-     * Without it that query was a GIN bitmap over every post that ever matched
-     * the viewer's topics, ANDed with a 30-day `created_at` bitmap, lossy at the
-     * default `work_mem`: ~29k buffers per call, 0.7 s cold on an idle database
-     * and 30-96 s on a busy one (production, 2026-10-11/12), run per viewer
-     * every two minutes. With it: an index-only walk that stops at the row cap,
-     * ~1k buffers, under 15 ms cold on a copy of production's posts.
-     *
-     * PARTIAL on `cardinality(classification_topics) > 0` because ~92% of posts
-     * carry an empty list; the query spells that predicate out so Postgres can
-     * prove it (it cannot derive it from `&&`). `oxy_user_id` and
-     * `classification_topics` ride as trailing key columns rather than INCLUDE,
-     * which drizzle cannot declare; `id` is unique, so they never affect order.
-     * `classification_topics` already has a GIN index, so its one post-insert
-     * write (classification) was never a HOT update to begin with.
-     */
-    index('posts_public_topic_recent_idx')
-      .on(t.createdAt.desc(), t.id.desc(), t.oxyUserId, t.classificationTopics)
-      .where(
-        sql`${t.visibility} = 'public' and ${t.status} = 'published' and ${t.type} <> 'boost' and ${t.oxyUserId} is not null and cardinality(${t.classificationTopics}) > 0`,
-      ),
     /**
      * The self-thread spine — `(thread_id, author)`, oldest first.
      *
@@ -967,34 +937,13 @@ export const posts = pgTable(
     index('posts_classification_region_idx')
       .on(t.classificationRegion, t.createdAt.desc())
       .where(sql`${t.classificationRegion} is not null`),
-    /**
-     * The classification batch queue drains oldest-first within one status.
-     *
-     * PARTIAL on `classification_status = 'pending'`, which is the whole set the
-     * queue is: `PostClassificationService` holds ONE predicate on this column
-     * (`UNCLASSIFIED`, `eq(…, 'pending')`), shared by `markEmptyPosts` and by
-     * `classifyBatch` — the `order by created_at asc, id asc limit 25` this
-     * index exists for. `'baseline'`, `'classified'` and `'failed'` are read only
-     * off an already-hydrated record (`contentClassification/trustedScores.ts`,
-     * `ranking/signals/optIn.ts`), which is memory, not a query, and cannot reach
-     * an index either way.
-     *
-     * The leading column stays even though the predicate pins it — `eq` is
-     * strict, so Postgres proves the implication, and the entry it costs is
-     * paid on the pending set rather than on the table.
-     *
-     * Measured on 300k seeded posts with a drained queue (3% pending): 11 MB
-     * rebuilt (21 MB as the inserts grew it) → 296 kB, with both queries still
-     * on `posts_classification_queue_idx` — an Index Scan for `classifyBatch`
-     * that no longer even rechecks the status, and a Bitmap Index Scan for
-     * `markEmptyPosts`. The half worth checking rather than asserting: a
-     * predicate on any OTHER status now falls off it onto a parallel sequential
-     * scan. That is the trade, and the census in
-     * `__tests__/db/hotPathIndexes.test.ts` is what keeps it licensed.
-     */
-    index('posts_classification_queue_idx')
-      .on(t.classificationStatus, t.createdAt)
-      .where(sql`${t.classificationStatus} = 'pending'`),
+    // NO index serves the Stage-B classification queue (`PostClassificationService`):
+    // the baseline worker is off in production (`POST_CLASSIFICATION_ENABLED`
+    // unset), so every post stays `pending` and the old partial index on the
+    // pending set held all of `posts` without ever being scanned (dropped by 0073).
+    // Turning the worker on means adding back
+    // `(classification_status, created_at) where classification_status = 'pending'`
+    // in the same change.
 
     // `curated` is SPARSE. A partial index keeps
     // the index the size of the curated set rather than the whole table.

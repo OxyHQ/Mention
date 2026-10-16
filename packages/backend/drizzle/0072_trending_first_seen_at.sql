@@ -1,0 +1,15 @@
+-- When a trend's term first appeared within the onset lookback, across runs.
+--
+-- The client's `new` badge read `started_at`, the onset of the CURRENT run, and
+-- a run restarts whenever a term is off the list for longer than the 90-minute
+-- gap tolerance. On a five-slot list perennial terms do that constantly: in
+-- production (2026-10-12..15) `us` restarted 8 times and `trump` 6, each time
+-- after a few hours away and with ~200-300 earlier rows in the week, and every
+-- restart showed `new` for two hours. `first_seen_at` is the fact `new` is
+-- actually about; `started_at` keeps meaning the run (summaries and label reuse
+-- are scoped to it).
+--
+-- Nullable, no default: a metadata-only ALTER that rewrites no row. Rows written
+-- before it stay NULL and the client falls back to `started_at` for them; the
+-- live list is replaced by the next batch within 30 minutes.
+ALTER TABLE "trending" ADD COLUMN "first_seen_at" timestamp with time zone;

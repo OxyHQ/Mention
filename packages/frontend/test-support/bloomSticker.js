@@ -13,4 +13,6 @@ function Sticker(props) {
   return React.createElement(View, { ...props, testID: props.testID ?? 'bloom-sticker' });
 }
 
-module.exports = { Sticker };
+function setLottieWasmUrl() {}
+
+module.exports = { Sticker, setLottieWasmUrl };

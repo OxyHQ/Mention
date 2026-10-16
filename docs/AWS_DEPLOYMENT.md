@@ -19,8 +19,9 @@ nothing, and an API error is a red run rather than a skip.
 
 CI answers the same question (`merge-queue-verified.sh`) on every push to main.
 A queue-verified push runs only the bundle baseline that pull requests restore
-and `CI complete`, which then accepts the tests, e2e, quality and lockfile jobs
-as skipped because they already passed on this exact tree. Any other push runs
+and `CI complete`, which then accepts the tests, e2e and quality jobs (the
+lockfile check is a step of quality) as skipped because they already passed on
+this exact tree. Any other push runs
 the full suite, and if the question cannot be answered, the full suite runs.
 
 A release whose SHA is no longer main's head ends **green with a notice**, not

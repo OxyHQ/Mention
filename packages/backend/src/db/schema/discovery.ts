@@ -256,9 +256,16 @@ export const trending = pgTable(
     /**
      * When the CURRENT run of this trend began — reconstructed from the batches
      * it has appeared in, not from when this row was written. Drives the client's
-     * `new` badge and its age label. NULL on pre-onset rows.
+     * age label. NULL on pre-onset rows.
      */
     startedAt: timestamptz(),
+    /**
+     * The earliest batch within the onset lookback the term appeared in — when
+     * it first trended this week, across every run. Drives the client's `new`
+     * badge: a term that drops out of the list for a few hours and returns starts
+     * a new RUN but is not a new TREND. NULL on rows written before the field.
+     */
+    firstSeenAt: timestamptz(),
     /** Present only while the trend is bursting hard enough to be called out. */
     status: text({ enum: TREND_STATUSES }),
     /**

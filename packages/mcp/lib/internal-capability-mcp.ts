@@ -10,13 +10,14 @@ import { MENTION_CAPABILITY_CATALOG, MENTION_TOOL_REGISTRY } from './mention-cat
 import { requestContext } from './context.js';
 import { oxyServiceClient } from './oxy-service-client.js';
 import { createMentionCapabilityAuthority } from './capability-authority.js';
-import { logWarn } from './logger.js';
+import { logError, logInfo, logWarn } from './logger.js';
 import type { McpHttpConfig } from './config.js';
+import type { CapabilityCatalogBinding } from '@oxy.so/contracts';
+import { describeRegistrationFailure, registerMentionCatalog } from './catalog-registration.js';
 
 const keyHeaderSchema = z.object({ kid: z.string().min(1).max(256) });
 
-export function createMentionInternalMcp(config: McpHttpConfig) {
-  if (!config.internalCatalogBinding) return undefined;
+export function createMentionInternalMcp(config: McpHttpConfig, binding: CapabilityCatalogBinding) {
   const oxy = oxyServiceClient(config);
   const audit = createMentionCapabilityAuthority(config);
   const resolveKey = createOxyJwksKeyResolver({
@@ -99,7 +100,7 @@ export function createMentionInternalMcp(config: McpHttpConfig) {
   );
   return createInternalCatalogMcpHttpService({
     catalog: MENTION_CAPABILITY_CATALOG,
-    binding: config.internalCatalogBinding,
+    binding,
     handlers,
     verifyTicket,
     allowedOrigins: [...config.allowedOrigins],
@@ -118,4 +119,60 @@ export function createMentionInternalMcp(config: McpHttpConfig) {
         : { allowed: false, reason: 'account_resource_mismatch' };
     },
   });
+}
+
+type MentionInternalMcp = ReturnType<typeof createMentionInternalMcp>;
+
+/** How long a failed registration waits before the next request retries it. */
+const REGISTRATION_RETRY_MS = 30_000;
+
+/**
+ * `/_oxy/mcp`, bound to the catalogue registration this process obtains from
+ * Oxy (`catalog-registration.ts`), never to a binding copied into config.
+ *
+ * Bound once and kept; `bound()` is called at startup so a failure is in the
+ * log the moment the task starts, not when Alia first calls. Until it binds,
+ * `bound()` answers `undefined` (the route answers 503) and a later request
+ * retries — an Oxy outage at boot must not leave the receiver dead for the
+ * task's whole life, nor take down the external OAuth MCP on the same server.
+ */
+export function createMentionInternalMcpReceiver(
+  config: McpHttpConfig,
+  register: () => Promise<CapabilityCatalogBinding> = () =>
+    registerMentionCatalog({ oxy: oxyServiceClient(config), oxyApiUrl: config.oxyApiUrl }),
+  now: () => number = Date.now,
+) {
+  let service: MentionInternalMcp | undefined;
+  let pending: Promise<MentionInternalMcp | undefined> | undefined;
+  let retryAt = 0;
+  return {
+    bound(): Promise<MentionInternalMcp | undefined> {
+      if (service) return Promise.resolve(service);
+      if (pending) return pending;
+      if (now() < retryAt) return Promise.resolve(undefined);
+      pending = register()
+        .then((binding) => {
+          // Throws when the registration is not this catalogue's: caught below.
+          service = createMentionInternalMcp(config, binding);
+          logInfo('Mention internal MCP bound to its catalogue registration', {
+            registrationId: binding.registrationId,
+            version: binding.version,
+          });
+          return service;
+        })
+        .catch((error: unknown) => {
+          retryAt = now() + REGISTRATION_RETRY_MS;
+          logError(
+            'Mention internal MCP could not bind its catalogue registration; /_oxy/mcp answers 503 until it does',
+            error,
+            { reason: describeRegistrationFailure(error) },
+          );
+          return undefined;
+        })
+        .finally(() => {
+          pending = undefined;
+        });
+      return pending;
+    },
+  };
 }

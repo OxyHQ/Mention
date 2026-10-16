@@ -7,7 +7,8 @@
 # npm/yarn/pnpm lockfile ("Dependabot detected that Bun is misconfigured ...
 # Set `package-ecosystem: "bun"`"). Before that it only SURFACED versions,
 # because it could not write `bun.lock`, and every PR it opened was red at the
-# `Lockfile resolves cleanly from the base` gate.
+# `Lockfile resolves cleanly from the base` gate (now a step of CI's
+# `Build, lint and typecheck` job).
 #
 # The `bun` ecosystem runs `bun update` and commits the regenerated `bun.lock`
 # with the manifest, so its PRs can pass that gate. The gate stays the

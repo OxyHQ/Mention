@@ -158,8 +158,14 @@ for (const workflowName of workflowNames) {
 
       // deployment-scope.sh diffs the candidate against the `deployed/<target>`
       // marker and silently degrades to the single-commit diff when the marker
-      // is absent, so the checkout must actually deliver the tag and history,
-      // and a green rollout must move the marker forward.
+      // is absent, so the job must actually deliver the tag and history before
+      // that step, and a green rollout must move the marker forward.
+      //
+      // Delivered one of two ways: a checkout with fetch-depth: 0 and
+      // fetch-tags: true, or a shallow checkout (the no-op run of every commit
+      // stays cheap) followed by a `git fetch --unshallow --tags` step that runs
+      // BEFORE the scope step and under EXACTLY its condition — a fetch gated
+      // more narrowly than the diff it feeds would let the diff run shallow.
       const jobs = Object.entries(workflow?.jobs || {});
       const stepRuns = (job) =>
         (job?.steps || []).map((step) => (typeof step?.run === 'string' ? step.run : ''));
@@ -173,12 +179,32 @@ for (const workflowName of workflowNames) {
         );
       } else {
         const [scopeName, job] = scopeJob;
-        const checkout = (job?.steps || []).find(
+        const steps = job?.steps || [];
+        const checkout = steps.find(
           (step) => typeof step?.uses === 'string' && step.uses.startsWith('actions/checkout@'),
         );
-        if (checkout?.with?.['fetch-depth'] !== 0 || checkout?.with?.['fetch-tags'] !== true) {
+        const fullCheckout =
+          checkout?.with?.['fetch-depth'] === 0 && checkout?.with?.['fetch-tags'] === true;
+        const scopeIndex = steps.findIndex(
+          (step) => typeof step?.run === 'string' && step.run.includes('deployment-scope.sh'),
+        );
+        const historyIndex = steps.findIndex((step) => {
+          if (typeof step?.run !== 'string') return false;
+          const words = step.run.split(/\s+/);
+          return (
+            words.includes('git') &&
+            words.includes('fetch') &&
+            words.includes('--unshallow') &&
+            words.includes('--tags')
+          );
+        });
+        const historyFetch =
+          historyIndex >= 0 &&
+          historyIndex < scopeIndex &&
+          String(steps[historyIndex]?.if ?? '') === String(steps[scopeIndex]?.if ?? '');
+        if (!fullCheckout && !historyFetch) {
           failures.push(
-            `${workflowName}: ${scopeName} must check out with fetch-depth: 0 and fetch-tags: true, otherwise the deployed/<target> marker is missing and the scope silently narrows to one commit`,
+            `${workflowName}: ${scopeName} must check out with fetch-depth: 0 and fetch-tags: true, or fetch with --unshallow --tags before deployment-scope.sh under the same condition, otherwise the deployed/<target> marker is missing and the scope silently narrows to one commit`,
           );
         }
       }
@@ -481,7 +507,7 @@ for (const workflowName of workflowNames) {
         );
       }
       const completeNeeds = workflow?.jobs?.['ci-complete']?.needs ?? [];
-      for (const job of ['provenance', 'quality', 'lockfile', 'tests', 'backend-test', 'e2e']) {
+      for (const job of ['provenance', 'quality', 'tests', 'backend-test', 'e2e']) {
         if (!completeNeeds.includes(job)) {
           failures.push(`${workflowName}: CI complete must need ${job}`);
         }
@@ -504,7 +530,7 @@ for (const workflowName of workflowNames) {
       if (String(provenance?.if ?? '') !== "github.event_name == 'push'") {
         failures.push(`${workflowName}: the provenance job must run on push alone`);
       }
-      for (const job of ['quality', 'lockfile', 'tests', 'backend-test', 'e2e']) {
+      for (const job of ['quality', 'tests', 'backend-test', 'e2e']) {
         const condition = String(workflow?.jobs?.[job]?.if ?? '');
         if (condition !== "${{ !cancelled() && needs.provenance.outputs.verified != 'true' }}") {
           failures.push(
@@ -513,7 +539,71 @@ for (const workflowName of workflowNames) {
         }
       }
 
-      const suiteIndex = source.indexOf('Run complete package test suite');
+      /**
+       * The lockfile gate is a step of `quality`, not a job: deleting it
+       * would remove the gate with every check still green. It must run on a
+       * full history (it reads the base revision's bun.lock), and under
+       * `!cancelled()` so a failure earlier in `quality` cannot hide it.
+       */
+      const qualitySteps = workflow?.jobs?.quality?.steps || [];
+      const lockfileStep = qualitySteps.find(
+        (step) => typeof step?.run === 'string' && step.run.includes('verify-lockfile.sh'),
+      );
+      const qualityCheckout = qualitySteps.find(
+        (step) => typeof step?.uses === 'string' && step.uses.startsWith('actions/checkout@'),
+      );
+      if (!lockfileStep) {
+        failures.push(
+          `${workflowName}: quality must run .github/scripts/verify-lockfile.sh — it is the only gate that the committed bun.lock is a clean resolve`,
+        );
+      } else {
+        if (!String(lockfileStep.if ?? '').includes('!cancelled()')) {
+          failures.push(
+            `${workflowName}: the lockfile step must run under !cancelled(), or a failure earlier in quality hides its verdict`,
+          );
+        }
+        if (qualityCheckout?.with?.['fetch-depth'] !== 0) {
+          failures.push(
+            `${workflowName}: quality must check out with fetch-depth: 0, or the lockfile step cannot read the base revision's bun.lock`,
+          );
+        }
+      }
+
+      /**
+       * Every package suite ci-scope.sh can answer for is run by exactly one
+       * `tests` matrix entry, and by a step gated on THAT scope's answer. Two
+       * legs now share a runner, so a suite dropped from the matrix or gated on
+       * the wrong scope would leave a green leg running nothing.
+       */
+      const testEntries = workflow?.jobs?.tests?.strategy?.matrix?.include || [];
+      const testSteps = workflow?.jobs?.tests?.steps || [];
+      const scopeOwners = new Map();
+      for (const entry of testEntries) {
+        for (const scope of String(entry?.scopes ?? '')
+          .split(/\s+/)
+          .filter(Boolean)) {
+          scopeOwners.set(scope, (scopeOwners.get(scope) ?? 0) + 1);
+        }
+      }
+      for (const scope of ['frontend', 'shared-types', 'mcp']) {
+        if (scopeOwners.get(scope) !== 1) {
+          failures.push(
+            `${workflowName}: exactly one tests matrix entry must list ${scope} in its scopes (found ${scopeOwners.get(scope) ?? 0})`,
+          );
+        }
+        const runner = testSteps.find(
+          (step) =>
+            String(step?.name ?? '') === `Run complete package test suite (${scope})` &&
+            String(step?.if ?? '').includes(`steps.scope.outputs.${scope} == 'true'`),
+        );
+        if (!runner) {
+          failures.push(
+            `${workflowName}: tests must have a "Run complete package test suite (${scope})" step gated on steps.scope.outputs.${scope}`,
+          );
+        }
+      }
+
+      const suiteIndex = source.indexOf('Run complete package test suite (frontend)');
       const policyIndex = source.indexOf('Enforce the frontend coverage policy');
       if (policyIndex < 0) {
         failures.push(

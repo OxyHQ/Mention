@@ -229,7 +229,6 @@ beforeAll(async () => {
   };
   const { createMentionInternalMcp } = await import('../../../../mcp/lib/internal-capability-mcp');
   const config: McpHttpConfig = {
-    internalCatalogBinding: binding,
     port: 0,
     maxRequestBodyBytes: 4096,
     maxSessions: 1,
@@ -241,7 +240,7 @@ beforeAll(async () => {
     jwtSecret: '',
     allowedOrigins: new Set(),
   };
-  receiver = createMentionInternalMcp(config);
+  receiver = createMentionInternalMcp(config, binding);
 });
 
 beforeEach(async () => {

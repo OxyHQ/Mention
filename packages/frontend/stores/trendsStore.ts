@@ -28,6 +28,8 @@ interface TrendApiItem {
   category?: Trend['category'];
   /** ISO onset of the current run. Absent on rows that predate onset tracking. */
   startedAt?: string;
+  /** ISO first appearance this week, across runs. Absent on rows that predate the field. */
+  firstSeenAt?: string;
   status?: Trend['status'];
   authorCount?: number;
   actors?: Trend['actors'];
@@ -174,6 +176,7 @@ export const useTrendsStore = create<TrendsStore>()((set, get) => ({
           displayName: item.displayName?.trim() || item.name,
           ...(item.category ? { category: item.category } : {}),
           ...(item.startedAt ? { startedAt: item.startedAt } : {}),
+          ...(item.firstSeenAt ? { firstSeenAt: item.firstSeenAt } : {}),
           ...(item.status ? { status: item.status } : {}),
           ...(typeof item.authorCount === 'number' ? { authorCount: item.authorCount } : {}),
           ...(item.actors?.length ? { actors: item.actors } : {}),

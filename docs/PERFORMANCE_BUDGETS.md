@@ -19,10 +19,10 @@ past any of:
 
 | Budget | Ceiling |
 | --- | --- |
-| Total bytes | 21,905,408 bytes (20.891 MiB) |
-| JavaScript bytes | 17,271,808 bytes (16.473 MiB) |
-| Initial JavaScript bytes | 7.10 MiB |
-| Initial JavaScript gzip bytes | 1.82 MiB (target: 1.6 MiB) |
+| Total bytes | 19.5 MiB |
+| JavaScript bytes | 15 MiB |
+| Initial JavaScript bytes | 5.45 MiB |
+| Initial JavaScript gzip bytes | 1.5 MiB (target: 1.6 MiB) |
 | Font bytes | 4 MiB |
 | Largest single file | 7.5 MiB |
 
@@ -157,6 +157,219 @@ moved OUT of the initial JavaScript, where every reader downloaded the strings
 of all fifteen languages for the families on the page, INTO fourteen language
 chunks of which a reader downloads one (56–190 KB minified, ~20 KB brotli). The
 initial ceilings did not move; the initial JavaScript fell.
+
+### Tree shaking (2026-10-15)
+
+The web export is built with Expo's Metro tree shaking
+(`EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 EXPO_UNSTABLE_TREE_SHAKING=1`, set on the
+`build` and `build:analyze` scripts in `packages/frontend/package.json`, so CI's
+budget export and the deploy export are the same build). Without it Metro keeps
+every export of every module it reaches, so a barrel import pulls in the whole
+barrel: `@oxy.so/core` and `@oxy.so/services` import `@oxy.so/contracts` from its
+root, which carried every contract into startup — Kaana's inference schemas
+among them (393 KiB of `@oxy.so/contracts` in `__common` before, 109 KiB after).
+Bloom (1204 → 962 KiB), gesture-handler, keyboard-controller and the SDKs shrink
+the same way. Measured on one `expo export --platform web` of the same commit:
+
+| Signal | Before | After | Δ |
+| --- | --- | --- | --- |
+| Initial JavaScript bytes | 6.98 MiB | 6.10 MiB | −0.88 MiB (−12.5 %) |
+| Initial JavaScript gzip bytes | 1.80 MiB | 1.59 MiB | −216 KiB (−11.7 %) |
+| Initial JavaScript brotli bytes | 1.37 MiB | 1.21 MiB | −162 KiB (−11.5 %) |
+| JavaScript bytes (all chunks) | 16.29 MiB | 14.96 MiB | −1.33 MiB |
+| Total bytes | 20.71 MiB | 19.38 MiB | −1.33 MiB |
+
+The long-term initial gzip target (1.6 MiB) is met. The ceilings moved down to
+~5 % above the build (initial) and ~2 % (totals).
+
+It is NOT a fix for everything Metro cannot split, and two of the largest
+remaining startup costs survive it: zod 4's `export * as locales` namespace
+(270 KiB of error-message translations for 40+ languages) is kept whole because
+the namespace object is itself an export, and `@lottiefiles/dotlottie-web`
+(160 KiB) is reached through Bloom's synchronous `require` (see the sticker note
+above). zod enters startup through `@syra.fm/sdk/client`'s response schemas,
+reached from two async chunks (the podcast-save client and the live runtime),
+which `extractCommonChunk` hoists into `__common`.
+
+Neither half has a fix in Mention, measured on 2026-10-15 (the fix landed in
+the SDK — see the next section):
+
+- **The locales cannot be shaken by changing imports.** zod's own
+  classic schemas module (and zod/mini's) imports zod's core as a namespace
+  (`import * as core`), and that core module itself re-exports `locales`. Metro's
+  tree shaker treats a namespace import as a use of every export, so ANY zod 4
+  schema in the graph carries all locales, whatever the app or an SDK writes.
+  An export with all three consumers switched to `import * as z from 'zod'`
+  (Mention's `types/validation.ts` and both Syra SDK files patched locally)
+  still had every locale module in `__common` (62 source files, 91 zod modules
+  against 92 before). This is why the Syra SDK's
+  `import * as z` change, which esbuild confirms, did not move Mention's bundle.
+- **zod has THREE async consumers, not two.** Besides the Syra client chunk
+  (`lib/syraPodcasts.ts`) and the live runtime (`LiveFeatureRuntime`, via the
+  SDK's live-engine validation module), Mention's own notification validators
+  (`types/validation.ts`, loaded by `lib/notificationValidation.ts`) import it.
+  Routing both Syra features through one lazy module would leave zod shared by
+  two chunks and still in `__common`, while making a podcast save download
+  LiveKit. zod leaves `__common` only when one chunk is its sole way in.
+
+None of it RUNS at startup — the factories are defined, not required, until one
+of those chunks loads — so the cost is the download and parse of ~490 KiB raw.
+
+### zod out of startup (2026-10-15)
+
+Fixed at the root, in the SDK: `@syra.fm/sdk` 0.18 checks its responses (the
+client and the live-rooms engine) in plain TypeScript and serves its Zod
+schemas only from `@syra.fm/sdk/schemas`, for server consumers (OxyHQ/Syra).
+That leaves Mention's notification validators (`types/validation.ts`, behind
+`lib/notificationValidation.ts`'s one `import()`) as zod's only way in, so zod
+and its locales stay in that async chunk and leave `__common`. No Mention code
+changed. Measured on one `expo export --platform web` (tree shaking on) of the
+same commit, `@syra.fm/sdk` 0.16.2 vs 0.18.0:
+
+| Signal | Before | After | Δ |
+| --- | --- | --- | --- |
+| Initial JavaScript bytes | 6,275,398 (5.98 MiB) | 5,695,652 (5.43 MiB) | −579,746 (−9.2 %) |
+| Initial JavaScript gzip bytes | 1,641,225 (1.57 MiB) | 1,540,839 (1.47 MiB) | −100,386 (−6.1 %) |
+| Initial JavaScript brotli bytes | 1,257,560 (1.20 MiB) | 1,177,799 (1.12 MiB) | −79,761 (−6.3 %) |
+| `__common` bytes | 5,170,316 | 4,590,570 | −579,746 |
+| JavaScript bytes (all chunks) | 15,645,157 | 15,648,050 | +2,893 |
+
+The ceilings moved down to ~5 % above the build (5.7 MiB initial, 1.55 MiB
+gzip). `bundle-budgets.json` lists `^/node_modules/zod/` under
+`deferredSources`, so a second async consumer of zod — which would hoist it
+straight back into `__common` — fails `analyze-bundle --ci` instead of costing
+~560 KiB unnoticed. (`@oxy.so/contracts` still bundles its own zod 3 copy under
+`@oxy.so/contracts/node_modules/zod/`, which that pattern deliberately does not
+match; it is counted under `@oxy.so/contracts`.)
+
+### Layout chunk preloads (2026-10-15)
+
+`asyncRoutes` splits every route file into its own chunk, the eight `_layout`
+files included, and expo-router requires every layout while it builds the route
+tree — on every URL, before anything renders (8 of 8 requested on `/`, `/@user`
+and `/p/<id>` alike). Only the startup JavaScript names them, so they were a
+second round trip that began once `__common` and `entry` had downloaded and run
+(~2.3 s into a cold load). `scripts/web-layout-preload.mjs` now writes one
+`<link rel="preload" as="script">` per layout chunk into the exported
+`index.html` (after `web-font-preload.mjs`, on `build` and `build:analyze`), so
+the preload scanner fetches them beside the scripts. Page chunks (`index`,
+`[id]`, …) are per-URL and this shell serves every path, so they are left alone.
+
+Gates: `validate-frontend-static-output.mjs` fails an export whose `index.html`
+does not preload exactly the layout chunks the startup JavaScript names, one per
+directory under `app/` that holds a `_layout` (a Metro or expo-router naming
+change fails the build instead of silently preloading part of the set);
+`web-layout-preload:selftest` mutation-tests that; `e2e/tests/layout-preload.spec.ts`
+asserts in a browser that the page requests exactly the preloaded layouts, each
+once and through its preload (a mismatched URL or CORS mode would download it
+twice).
+
+Measured with no byte change, local export of the same commit with and without
+the preloads (headless Chromium, 430×932, 4x CPU, 150 ms RTT, ~9 Mbit/s, cold
+cache, median of 7 interleaved loads; profile and post median of 5–7):
+
+| Page | LCP before | LCP after | Δ |
+| --- | --- | --- | --- |
+| `/` | 4.44 s | 4.14 s | −0.30 s |
+| `/p/<id>` | 4.48 s | 4.24 s | −0.24 s |
+| `/@gargron@mastodon.social` | 5.82 s | 5.59 s | −0.23 s |
+
+Layout chunks finish at ~0.58 s instead of ~2.28 s. FCP moves only ~40 ms:
+first paint is bound by downloading and running `__common` (1.3 MB brotli,
+~2.0 s on this profile) and the ~0.8 s of CPU after it, not by the layouts. With
+Alia's avatar runtime blocked (it competes for bandwidth on `/`) the home gain
+is the same (−0.34 s).
+
+### Reanimated's layout animations and the feed's first request (2026-10-15)
+
+Two root causes, each measured on its own export of the same commit
+(headless Chromium, 430×932, 4x CPU, 150 ms RTT, ~9 Mbit/s, cold cache).
+
+**Gesture Handler kept all of Reanimated.** Its Reanimated wrapper (`src/handlers/gestures/reanimatedWrapper`, patched by `patches/react-native-gesture-handler@2.32.0.patch`) loads
+Reanimated with `require('react-native-reanimated')` (an optional peer
+upstream). A CommonJS `require` hands Metro the whole module, so tree shaking
+has to keep every Reanimated export — ~100 layout-animation presets (Zoom,
+Flip, Bounce, Rotate, …), the screen transitions and the rest — none of which
+Mention or Bloom uses. A bun patch (`patches/react-native-gesture-handler@2.32.0.patch`,
+documented in `patches/README.md`) imports by name the four members it reads.
+What stays of the layout animations (101 KiB) is Reanimated's own web
+layout-animation runtime, which every animated component imports, and the
+Fade and Slide presets the app and Bloom use.
+
+| Signal | Before | After | Δ |
+| --- | --- | --- | --- |
+| Initial JavaScript bytes | 5,695,652 | 5,464,883 | −230,769 (−4.1 %) |
+| Initial JavaScript gzip bytes | 1,540,839 | 1,515,556 | −25,283 |
+| Initial JavaScript brotli bytes | 1,177,799 | 1,158,657 | −19,142 |
+| Reanimated in `__common` | 722 KiB | 500 KiB | −222 KiB |
+
+**The feed's first request waited for the whole screen.** A cold feed's first
+page left from the React Query observer's subscription, which React makes only
+after the whole screen has rendered and committed: on `/` the request went out
+~130 ms after the feed itself had rendered, with the main thread then idle for
+most of the response. `useFeedQuery` now starts the read during render (TanStack's
+`usePrefetchInfiniteQuery` pattern, gated on the observer's own `active`), and
+the observer joins it. Preloading the home page chunk as well was measured and
+NOT kept: the chunk then arrives at ~0.35 s instead of ~2.9 s, but the request
+leaves at the same moment, because rendering the shell above the feed — not the
+chunk — is what it waits for.
+
+Both together, against the export before them (median of 9 interleaved cold
+loads on `/`, 5 on a post and a profile; production API):
+
+| Page | FCP | LCP | First feed request | First row | Long tasks |
+| --- | --- | --- | --- | --- | --- |
+| `/` | 2.67 → 2.63 s | 4.08 → 3.96 s | 3.21 → 3.06 s | 3.97 → 3.84 s | 1.43 → 1.42 s |
+| `/p/<id>` | 2.64 → 2.62 s | 4.19 → 4.07 s | 3.48 → 3.37 s | 3.89 → 3.86 s | 1.25 → 1.23 s |
+| `/@gargron@mastodon.social` | 2.63 → 2.60 s | 4.71 → 4.76 s | 3.49 → 3.43 s | 4.38 → 4.34 s | 1.59 → 1.59 s |
+
+The profile's LCP is its banner image, which neither change touches; its
+difference is inside the run-to-run spread.
+
+### Measured startup costs still open (2026-10-15)
+
+- **Alia's live avatar on the home header's Ask Alia button** (`AliaAvatarIcon`,
+  drawn by Bloom's character runtime from `alia.onl/bloom-character/`) starts as
+  soon as it is visible, ~3.1 s into a cold load, and for a 20 px icon fetches
+  **7.8 MiB** in 20 requests (fur, geometry and accessory binaries of 1–2.5 MB
+  each) — half of everything `/` downloads in its first 15 s — while the feed
+  request and its images are in flight. Blocking it cut home long-task time by
+  ~0.75 s (2.22 → 1.47 s) and LCP by ~0.09 s. Its assets are content-hashed but
+  served `max-age=0, must-revalidate`. The fix belongs in Bloom's runtime (a
+  size-aware level of detail, or a still for icon sizes) and in alia.onl's
+  caching, not in Mention.
+- **Theme tokens.** Bloom's `BloomThemeProvider` solved the same preset's tokens
+  twice on its first render — fixed in Bloom 10.8.2 (OxyHQ/Bloom#361). The
+  splash (`AppSplashScreen`) resolves the full DARK token set for one gradient
+  stop, which a light-mode device never uses otherwise: Bloom 10.10.0
+  (OxyHQ/Bloom#363) adds `getPresetBackground`, the one token for one tone
+  solve, and the splash moves to it with that bump. Measured with the Bloom
+  build: colour-engine CPU before 2.9 s 143 → 99 ms (4x CPU, 3 profiles each);
+  the splash's own share 5 ms. What is left is the ONE light set the theme
+  needs (~90 ms at 4x on its first, unwarmed call); precomputing every built-in
+  preset instead would ship 64 presets × 2 modes, 40 KB gzip, to every reader.
+- **`@oxy.so/contracts` and its zod 3 copy** — 122.8 KB raw, 24.5 KB gzip,
+  19.1 KB brotli of `__common`, and ~20 ms of module evaluation at 4x CPU
+  (schemas are built when their module loads). Not a fix to make in Mention or
+  by moving imports: `@oxy.so/core` validates its responses with these schemas
+  at runtime, the startup session path included, and every API namespace is a
+  static import of `OxyServices`, so a subpath import reaches the same modules.
+  The copy is also the SMALLEST zod there is: the app's own zod 4 would bring
+  its locales (~490 KiB) into `__common` with it. The root fix is in the SDK —
+  core checking its responses without zod on the client, as `@syra.fm/sdk` 0.18
+  does, or namespaces whose schemas load with their first call.
+- **Identity crypto** (`@oxy.so/core/crypto`, `@noble/*`, `@scure/bip39`'s
+  wordlist, `buffer`, `@oxy.so/protocol`): ~105 KB raw, ~32 KB gzip of
+  `__common`. `OxyContext` and core's cold boot (`identitySession`) import it
+  statically; a signed-out web reader never signs anything.
+- **Module evaluation is diffuse.** ~2,800 modules initialise before first
+  paint (~530 ms of factory time at 4x CPU, plus ~280 ms of the Metro
+  runtime's own `loadModuleImplementation`): react-native-web ~100 ms, Bloom
+  ~90 ms (no family above ~10 ms), expo-router ~70 ms, app code ~60 ms across
+  ~460 modules (none above 4 ms). The largest subtree a page does not need is the
+  profile chrome under `app/(app)/[username]/_layout.tsx` (~40 ms, evaluated on
+  every URL because expo-router requires every layout to build the route
+  tree); deferring it would put a chunk round trip in front of every profile.
 
 ### Real-browser release gate
 

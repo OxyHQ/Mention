@@ -7,10 +7,19 @@
  */
 
 import type { Response } from 'express';
-import { and, arrayContains, eq, type SQL } from 'drizzle-orm';
+import { and, eq, type SQL } from 'drizzle-orm';
 import { posts as postsTable } from '../../db/schema/posts';
 import { CHRONO_DESC, findPostRecords, loadPostRecord } from '../../db/posts/postRepository';
-import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../mtn/feed/CursorBuilder';
+import {
+  findHashtagPage as findHashtagPageAt,
+  postsListedUnderHashtagSql,
+} from '../../db/posts/postHashtagRepository';
+import {
+  ChronoCursor,
+  chronoCursorBoundary,
+  chronoCursorSql,
+  chronoOrderBy,
+} from '../../mtn/feed/CursorBuilder';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import type { PostCorrectionsResponse } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
@@ -174,22 +183,27 @@ export const getPostCorrections = async (req: AuthRequest, res: Response) => {
 };
 
 /**
- * The hashtag discovery predicate.
+ * The hashtag discovery predicate: the posts `post_hashtags` lists under the tag.
+ *
+ * That table holds a row only while its post is public, published and not a
+ * collapsed crosspost variant — the triggers of migration 0071 apply the scope
+ * this predicate used to spell out — so membership IS the scope.
  *
  * Exported (with {@link buildPostsByTopicFilter}) so the visibility scope can be
- * asserted without booting the controller's server import chain. Both return a
- * predicate only — the cursor is applied by the handler, because the chronological
- * keyset needs an `await` (a legacy cursor carrying no timestamp is resolved by
- * one primary-key lookup) and a pure builder cannot make it.
+ * asserted without booting the controller's server import chain. The page itself
+ * does not use it: see {@link findHashtagPage}.
  */
 export function buildPostsByHashtagFilter(hashtag: string): SQL {
-  return and(
-    // `@>` on the `text[]`, GIN-indexed — array membership by element equality.
-    arrayContains(postsTable.hashtags, [hashtag.toLowerCase()]),
-    eq(postsTable.status, 'published'),
-    eq(postsTable.visibility, 'public'),
-    notCollapsedCrosspostSql(),
-  ) as SQL;
+  return postsListedUnderHashtagSql(hashtag);
+}
+
+/**
+ * One chronological page of a hashtag: `limit` posts after `cursor`. The read is
+ * `postHashtagRepository.findHashtagPage`; this resolves the cursor (a legacy
+ * one carrying no timestamp costs one primary-key lookup) into its boundary.
+ */
+export async function findHashtagPage(hashtag: string, cursor: string | undefined, limit: number) {
+  return findHashtagPageAt(hashtag, await chronoCursorBoundary(cursor), limit);
 }
 
 export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
@@ -198,11 +212,7 @@ export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
     const cursor = queryString(req.query.cursor);
     const limit = Math.min(queryInt(req.query.limit) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
 
-    const keyset = await chronoCursorSql(cursor);
-    const posts = await findPostRecords(
-      keyset ? and(buildPostsByHashtagFilter(hashtag), keyset) : buildPostsByHashtagFilter(hashtag),
-      { orderBy: chronoOrderBy(), limit: limit + 1 },
-    );
+    const posts = await findHashtagPage(hashtag, cursor, limit + 1);
 
     const hasMore = posts.length > limit;
     const postsToReturn = hasMore ? posts.slice(0, limit) : posts;

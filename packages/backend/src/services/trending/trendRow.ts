@@ -98,6 +98,7 @@ export interface SerializedTrend {
   burstScore?: number;
   momentum: number;
   startedAt?: Date;
+  firstSeenAt?: Date;
   status?: TrendStatus;
   actorIds?: string[];
   rank: number;
@@ -126,6 +127,7 @@ export function serializeTrend(row: typeof trending.$inferSelect): SerializedTre
     ...(row.burstScore === null ? {} : { burstScore: row.burstScore }),
     momentum: row.momentum,
     ...(row.startedAt === null ? {} : { startedAt: row.startedAt }),
+    ...(row.firstSeenAt === null ? {} : { firstSeenAt: row.firstSeenAt }),
     ...(row.status === null ? {} : { status: row.status }),
     ...(row.actorIds === null ? {} : { actorIds: row.actorIds }),
     rank: row.rank,

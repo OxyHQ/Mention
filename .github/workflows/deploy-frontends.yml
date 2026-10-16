@@ -80,14 +80,18 @@ jobs:
     outputs:
       deploy: ${{ steps.filter.outputs.deploy }}
     steps:
+      # Shallow and sparse: one commit, `.github/scripts` only. Every step up
+      # to the scope diff reads nothing else — the provenance answer comes from
+      # the GitHub API and the current-main guard compares SHAs — and every
+      # commit starts this job twice (push and CI's workflow_run), with one of
+      # the two always releasing nothing. A full clone with every tag was ~6s
+      # of the ~8s that no-op spent. The history the scope diff needs is
+      # fetched below, only on the run that is about to use it.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.sha }}
-          # The scope diff runs from the `deployed/frontend` marker to the
-          # candidate, so this job needs the marker tags and the history that
-          # connects them to the candidate.
-          fetch-depth: 0
-          fetch-tags: true
+          fetch-depth: 1
+          sparse-checkout: .github/scripts
       - name: Verify manual release source and CI
         if: github.event_name == 'workflow_dispatch'
         env:
@@ -121,6 +125,15 @@ jobs:
         env:
           STALE_RELEASE: skip
         run: bash .github/scripts/require-current-main.sh
+      # The scope diff runs from the `deployed/frontend` marker to the
+      # candidate, so it needs the marker tags and the history that connects
+      # them to the candidate — what `fetch-depth: 0` + `fetch-tags: true` gave
+      # the checkout before. Same condition as the scope step, so the diff never
+      # runs against a shallow clone; a failed fetch is a red run, never a
+      # narrowed scope.
+      - name: Fetch the history and markers the scope diff needs
+        if: steps.current.outputs.current == 'true'
+        run: git fetch --unshallow --tags --no-recurse-submodules origin
       - name: Detect frontend deployment scope
         id: filter
         if: steps.current.outputs.current == 'true'
