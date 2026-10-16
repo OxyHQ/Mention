@@ -15,10 +15,11 @@ import type { ModerationResource } from './subjects/types';
  * CrowdSource accepts an evidence file only when the reporting APPLICATION owns
  * it (or its organization's account does) and it holds exactly the declared
  * SHA-256. A post's media belongs to its author, so Mention sends a COPY it
- * owns: Oxy imports the post's file from its own CDN as an `unlisted` file of
- * the Mention application (`importAppFile`). Content-addressed storage means the
- * bytes are shared, not stored twice; Oxy answers the copy's `sha256` itself,
- * so the declared digest is Oxy's own record of the bytes.
+ * owns: Oxy gives the Mention application its own `unlisted` file of the post
+ * file's bytes (`adoptAppFile`, ADR 0041 stage 4b). The stored object is
+ * SHARED — nothing is downloaded or uploaded again — and the copy outlives the
+ * author deleting theirs; Oxy answers the copy's `sha256` itself, so the
+ * declared digest is Oxy's own record of the bytes, the source's exactly.
  *
  * ## Once per report
  *
@@ -32,7 +33,8 @@ import type { ModerationResource } from './subjects/types';
  *
  * An item becomes an `AssetRef` only when Oxy made the copy. A federated item
  * the media cache never re-hosted (its id is a URL), an item Mention withholds,
- * and a file Oxy refuses to import (gone, taken down, private: a 4xx) are stored
+ * and a file Oxy refuses to adopt (gone: 404; taken down: 451; private, which an
+ * `unlisted` copy would widen: 400 `VISIBILITY_WIDER_THAN_SOURCE`) are stored
  * with an `unavailable_reason` and sent as nothing — the post's media summary
  * already declares them. Anything else (Oxy down, 5xx, 429) throws, and the
  * outbox retries the delivery.
@@ -42,7 +44,7 @@ import type { ModerationResource } from './subjects/types';
  * neither does, Oxy collects it.
  */
 
-/** Items per report: a post carries a handful; a bound keeps one report's imports bounded. */
+/** Items per report: a post carries a handful; a bound keeps one report's adoptions bounded. */
 export const MAX_EVIDENCE_ITEMS = 10;
 
 type EvidenceRow = typeof moderationReportEvidenceFiles.$inferSelect;
@@ -81,17 +83,16 @@ async function copyOne(
   if (!isOxyFileId(item.id)) return { ...base, unavailableReason: 'not_rehosted' };
   if (item.withheld) return { ...base, unavailableReason: `withheld:${item.withheld}` };
 
-  const client = getServiceOxyClient();
   try {
-    const imported = await client.assets.importAppFile(client.assets.publicUrl(item.id), {
+    const adopted = await getServiceOxyClient().assets.adoptAppFile(item.id, {
       visibility: 'unlisted',
     });
     return {
       ...base,
-      evidenceFileId: imported.file.id,
-      mimeType: imported.file.mime,
-      sha256: imported.file.sha256,
-      sizeBytes: Number.isFinite(imported.file.size) ? imported.file.size : null,
+      evidenceFileId: adopted.file.id,
+      mimeType: adopted.file.mime,
+      sha256: adopted.file.sha256,
+      sizeBytes: Number.isFinite(adopted.file.size) ? adopted.file.size : null,
       width: item.width ?? null,
       height: item.height ?? null,
       durationSeconds: item.durationSec ?? null,

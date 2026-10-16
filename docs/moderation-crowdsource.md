@@ -101,15 +101,17 @@ A reported post's media travels as `image`/`video` attachments whose
 `AssetRef.fileId` is a copy the Mention APPLICATION owns — CrowdSource refuses
 an evidence file unless the reporting application (or its organization's
 account) owns it and it holds the declared SHA-256, and a post's media is its
-author's. `services/moderation/reportEvidence.ts` has Oxy import the post's file
-from its own CDN as an `unlisted` application file (`importAppFile`;
-content-addressed, so the bytes are shared, not stored twice) and declares the
-`sha256` Oxy reports for the copy. The copies are made once, at the report's
+author's. `services/moderation/reportEvidence.ts` has Oxy give the Mention
+application its own `unlisted` file of the post file's bytes (`adoptAppFile`,
+ADR 0041 stage 4b: the stored object is shared — nothing is downloaded or
+uploaded again — and the copy outlives the author deleting theirs) and declares
+the `sha256` Oxy reports for the copy, which is the source's. The copies are made once, at the report's
 first delivery attempt, and stored in `moderation_report_evidence_files`;
 every later attempt reads them back, because CrowdSource fingerprints the whole
 envelope and a re-made copy would turn a retry into a permanent 409. The
 digests are in the snapshot hash. An item with no Oxy file (a federated one the
-cache never re-hosted), a withheld one, or one Oxy refuses to copy (a 4xx) is
+cache never re-hosted), a withheld one, or one Oxy refuses to adopt (a 4xx:
+gone, taken down, or private, which an `unlisted` copy would widen) is
 stored with its reason and stays DECLARED in the subject's media summary only;
 an Oxy outage throws and the outbox retries. Each copy is referenced as Oxy
 entity `moderation_report` while its report exists, and by CrowdSource as its

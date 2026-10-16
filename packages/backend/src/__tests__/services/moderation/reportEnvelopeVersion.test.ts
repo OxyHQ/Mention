@@ -17,7 +17,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 const h = vi.hoisted(() => ({
   create: vi.fn(),
-  importAppFile: vi.fn(),
+  adoptAppFile: vi.fn(),
 }));
 
 vi.mock('../../../services/moderation/crowdSourceClient', () => ({
@@ -29,7 +29,7 @@ vi.mock('../../../utils/oxyHelpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../utils/oxyHelpers')>()),
   getServiceOxyClient: () => ({
     assets: {
-      importAppFile: h.importAppFile,
+      adoptAppFile: h.adoptAppFile,
       publicUrl: (id: string) => `https://cloud.oxy.so/${id}`,
     },
   }),
@@ -126,11 +126,12 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
-  h.importAppFile.mockReset();
-  h.importAppFile.mockImplementation(async (url: string) => {
-    const source = url.split('/').pop() as string;
-    return { file: { id: `copy-${source}`, sha256: 'a'.repeat(64), size: 10, mime: 'image/png' } };
-  });
+  h.adoptAppFile.mockReset();
+  h.adoptAppFile.mockImplementation(async (source: string) => ({
+    file: { id: `copy-${source}`, sha256: 'a'.repeat(64), size: 10, mime: 'image/png' },
+    outcome: 'adopted',
+    deduplicated: true,
+  }));
 });
 
 afterAll(async () => {
@@ -157,7 +158,7 @@ describe('a report first attempted before media evidence', () => {
     });
     expect(retry.metadata).toMatchObject({ evidenceAttachmentsSupported: false });
     expect(again).toEqual(retry);
-    expect(h.importAppFile).not.toHaveBeenCalled();
+    expect(h.adoptAppFile).not.toHaveBeenCalled();
     expect(await envelopeVersionOf(id)).toBe(1);
     await deletePostRecord(postId);
   });
@@ -190,7 +191,7 @@ describe('a new report', () => {
       data: { bodyText: 'absent', mediaItems: 2, mediaKinds: 'image' },
     });
     expect(second).toEqual(first);
-    expect(h.importAppFile).toHaveBeenCalledTimes(2);
+    expect(h.adoptAppFile).toHaveBeenCalledTimes(2);
     expect(await envelopeVersionOf(id)).toBe(2);
     await deletePostRecord(postId);
   });

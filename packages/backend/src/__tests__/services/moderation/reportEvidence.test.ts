@@ -9,12 +9,15 @@
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const h = vi.hoisted(() => ({ importAppFile: vi.fn() }));
+const h = vi.hoisted(() => ({ adoptAppFile: vi.fn(), importAppFile: vi.fn() }));
 
 vi.mock('../../../utils/oxyHelpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../utils/oxyHelpers')>()),
   getServiceOxyClient: () => ({
     assets: {
+      adoptAppFile: h.adoptAppFile,
+      // Present ON PURPOSE: the copy shares the stored bytes, so a re-download
+      // through an import would be a regression the test must see.
       importAppFile: h.importAppFile,
       publicUrl: (id: string) => `https://cloud.oxy.so/${id}`,
     },
@@ -36,24 +39,24 @@ const REPORTER = 'oxy-evidence-reporter';
 const fid = (label: string) => `oev-${label}-${randomUUID().slice(0, 8)}`;
 const sha = (id: string) => `${Buffer.from(id).toString('hex').padEnd(64, '0').slice(0, 64)}`;
 
-/** Oxy copies a file to a Mention-owned id derived from the source. */
+/** Oxy adopts a file as a Mention-owned id derived from the source, same bytes. */
 function oxyCopies() {
-  h.importAppFile.mockImplementation(async (url: string) => {
-    const source = url.split('/').pop() as string;
-    return {
-      file: {
-        id: `copy-${source}`,
-        sha256: sha(source),
-        size: 1234,
-        mime: 'image/webp',
-        status: 'active',
-        visibility: 'unlisted',
-      },
-      outcome: 'downloaded',
-      deduplicated: false,
-      source: { host: 'cloud.oxy.so', fetchedAt: new Date().toISOString() },
-    };
-  });
+  h.adoptAppFile.mockImplementation(async (source: string) => ({
+    file: {
+      id: `copy-${source}`,
+      sha256: sha(source),
+      size: 1234,
+      mime: 'image/webp',
+      ext: 'webp',
+      ownerApplicationId: 'mention',
+      status: 'active',
+      visibility: 'unlisted',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+    outcome: 'adopted',
+    deduplicated: true,
+  }));
 }
 
 async function reportedPost(media: MediaItem[]) {
@@ -82,6 +85,7 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
+  h.adoptAppFile.mockReset();
   h.importAppFile.mockReset();
   oxyCopies();
 });
@@ -102,10 +106,10 @@ describe('media evidence', () => {
 
     const input = await buildModerationReportInput(report);
 
-    expect(h.importAppFile).toHaveBeenCalledTimes(2);
-    expect(h.importAppFile).toHaveBeenCalledWith(`https://cloud.oxy.so/${a}`, {
-      visibility: 'unlisted',
-    });
+    // Adopted by file id (ADR 0041 stage 4b): no URL, no re-download.
+    expect(h.adoptAppFile).toHaveBeenCalledTimes(2);
+    expect(h.adoptAppFile).toHaveBeenCalledWith(a, { visibility: 'unlisted' });
+    expect(h.importAppFile).not.toHaveBeenCalled();
     expect(input?.reportInput.attachments).toEqual([
       {
         type: 'image',
@@ -158,11 +162,11 @@ describe('media evidence', () => {
     const { postId, report } = await reportedPost([{ id: a, type: 'image' }]);
 
     const first = await buildModerationReportInput(report);
-    h.importAppFile.mockRejectedValue(new Error('must not be called'));
+    h.adoptAppFile.mockRejectedValue(new Error('must not be called'));
     const second = await buildModerationReportInput(report);
 
     expect(second).toEqual(first);
-    expect(h.importAppFile).toHaveBeenCalledTimes(1);
+    expect(h.adoptAppFile).toHaveBeenCalledTimes(1);
     await deletePostRecord(postId);
   });
 
@@ -171,8 +175,10 @@ describe('media evidence', () => {
     const one = await reportedPost([{ id: a, type: 'image' }]);
     const two = await reportedPost([{ id: a, type: 'image' }]);
     const first = await buildModerationReportInput(one.report);
-    h.importAppFile.mockImplementation(async () => ({
+    h.adoptAppFile.mockImplementation(async () => ({
       file: { id: 'copy-other', sha256: 'f'.repeat(64), size: 1, mime: 'image/png' },
+      outcome: 'adopted',
+      deduplicated: true,
     }));
     const second = await buildModerationReportInput(two.report);
     expect(first?.snapshotHash).not.toBe(second?.snapshotHash);
@@ -180,12 +186,12 @@ describe('media evidence', () => {
     await deletePostRecord(two.postId);
   });
 
-  it('declares a file Oxy refuses to copy, and retries an Oxy outage', async () => {
+  it('declares a file Oxy refuses to adopt, and retries an Oxy outage', async () => {
     const gone = fid('gone');
     const down = fid('down');
     const refused = await reportedPost([{ id: gone, type: 'image' }]);
-    h.importAppFile.mockRejectedValue(
-      Object.assign(new Error('missing'), { status: 404, code: 'SOURCE_FETCH_FAILED' }),
+    h.adoptAppFile.mockRejectedValue(
+      Object.assign(new Error('missing'), { status: 404, code: 'FILE_NOT_FOUND' }),
     );
     const input = await buildModerationReportInput(refused.report);
     expect(input?.reportInput.attachments).toBeUndefined();
@@ -193,10 +199,27 @@ describe('media evidence', () => {
       .select()
       .from(moderationReportEvidenceFiles)
       .where(eq(moderationReportEvidenceFiles.reportId, refused.report.id));
-    expect(row).toMatchObject({ evidenceFileId: null, unavailableReason: 'SOURCE_FETCH_FAILED' });
+    expect(row).toMatchObject({ evidenceFileId: null, unavailableReason: 'FILE_NOT_FOUND' });
+
+    // A private source cannot become an `unlisted` copy: Oxy refuses the
+    // widening, and the item stays declared.
+    const hidden = fid('private');
+    const narrow = await reportedPost([{ id: hidden, type: 'image' }]);
+    h.adoptAppFile.mockRejectedValue(
+      Object.assign(new Error('wider'), { status: 400, code: 'VISIBILITY_WIDER_THAN_SOURCE' }),
+    );
+    await buildModerationReportInput(narrow.report);
+    const [narrowRow] = await getDb()
+      .select()
+      .from(moderationReportEvidenceFiles)
+      .where(eq(moderationReportEvidenceFiles.reportId, narrow.report.id));
+    expect(narrowRow).toMatchObject({
+      evidenceFileId: null,
+      unavailableReason: 'VISIBILITY_WIDER_THAN_SOURCE',
+    });
 
     const outage = await reportedPost([{ id: down, type: 'image' }]);
-    h.importAppFile.mockRejectedValue(Object.assign(new Error('unavailable'), { status: 503 }));
+    h.adoptAppFile.mockRejectedValue(Object.assign(new Error('unavailable'), { status: 503 }));
     await expect(buildModerationReportInput(outage.report)).rejects.toThrow('unavailable');
     const stored = await getDb()
       .select()
@@ -207,6 +230,7 @@ describe('media evidence', () => {
     const recovered = await buildModerationReportInput(outage.report);
     expect(recovered?.reportInput.attachments).toHaveLength(1);
     await deletePostRecord(refused.postId);
+    await deletePostRecord(narrow.postId);
     await deletePostRecord(outage.postId);
   });
 
@@ -219,7 +243,7 @@ describe('media evidence', () => {
       .set({ withheld: 'blocked' })
       .where(eq(postMedia.postId, postId));
     const input = await buildModerationReportInput(report);
-    expect(h.importAppFile).not.toHaveBeenCalled();
+    expect(h.adoptAppFile).not.toHaveBeenCalled();
     expect(input?.reportInput.attachments).toBeUndefined();
     await deletePostRecord(postId);
   });

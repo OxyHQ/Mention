@@ -247,9 +247,10 @@ export const REPORT_EVIDENCE_MEDIA_TYPES = ['image', 'video', 'gif'] as const;
  * holds the declared SHA-256).
  *
  * `evidence_file_id` is a copy the Mention application owns (`unlisted`),
- * imported by Oxy from the post's file — content-addressed, so the bytes are
- * shared, not duplicated. NULL with `unavailable_reason` when Oxy could not
- * make one (the file is gone, taken down or private): the item is then only
+ * adopted from the post's file (`adoptAppFile`, ADR 0041 stage 4b) — the stored
+ * bytes are shared, not duplicated or re-downloaded. NULL with
+ * `unavailable_reason` when Oxy could not make one (the file is gone, taken
+ * down or private): the item is then only
  * DECLARED. Written once, at the report's first delivery attempt, and read by
  * every later attempt: CrowdSource fingerprints the whole envelope, so evidence
  * re-made per attempt could differ and turn a retry into a permanent 409.
