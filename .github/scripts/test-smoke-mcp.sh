@@ -106,6 +106,14 @@ case "$url" in
       status=200
     fi
     ;;
+  https://mcp.mention.test/_oxy/mcp)
+    status=401
+    body='{"jsonrpc":"2.0","error":{"code":-32001,"message":"Capability authentication required."},"id":null}'
+    if [[ "${BROKEN_CASE:-}" == "internal-unregistered" ]]; then
+      status=503
+      body='{"jsonrpc":"2.0","error":{"code":-32000,"message":"Internal MCP catalogue is not registered with Oxy."},"id":null}'
+    fi
+    ;;
   *)
     echo "Unexpected fake curl URL: $url" >&2
     exit 2
@@ -146,7 +154,8 @@ for broken_case in \
   wrong-resource \
   wrong-scopes \
   missing-challenge \
-  inactive-token-accepted; do
+  inactive-token-accepted \
+  internal-unregistered; do
   if run_smoke "$broken_case" >"$test_directory/$broken_case.log" 2>&1; then
     echo "Smoke gate accepted broken fixture: $broken_case" >&2
     exit 1

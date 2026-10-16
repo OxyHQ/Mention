@@ -37,14 +37,14 @@ describe('MCP HTTP resource server', () => {
       });
 
       // The dedicated lane is mounted before the general body parser and
-      // cannot quietly use external OAuth when its binding is absent.
+      // cannot quietly use external OAuth before it has registered its catalogue.
       const internalDisabled = await fetch(`${baseUrl}/_oxy/mcp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: '{not-json',
       });
       expect(internalDisabled.status).toBe(503);
-      expect(JSON.stringify(await internalDisabled.json())).toContain('not configured');
+      expect(JSON.stringify(await internalDisabled.json())).toContain('not registered with Oxy');
 
       const challenge = await fetch(`${baseUrl}/`);
       expect(challenge.status).toBe(401);
