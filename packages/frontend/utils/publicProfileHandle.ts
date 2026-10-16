@@ -29,9 +29,9 @@ export function isPublicProfileHandle(
   // alias must pass, or none counts.
   const listed = resolvedProfile.externalIdentities;
   if (!Array.isArray(listed)) return false;
-  const aliases = listed.map((alias) => checkContract(externalIdentityReferenceCheck, alias));
-  return (
-    aliases.every((alias) => alias !== null) &&
-    aliases.some((alias) => alias !== null && normalizeHandle(alias.canonicalAcct) === routed)
-  );
+  const aliases = listed
+    .map((alias) => checkContract(externalIdentityReferenceCheck, alias))
+    .filter((alias) => alias !== null);
+  if (aliases.length !== listed.length) return false;
+  return aliases.some((alias) => normalizeHandle(alias.canonicalAcct) === routed);
 }
