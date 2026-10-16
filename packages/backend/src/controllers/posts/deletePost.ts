@@ -18,6 +18,7 @@ import { createUserScopedOxyServices } from '../../utils/oxyHelpers';
 import { postManagementRefusal } from '../../services/postManagementAccess';
 import {
   PostDeletionTooLargeError,
+  EventCancellationRequiredError,
   type DeletedPostSubtree,
 } from '../../services/PostDeletionCascade';
 import { deleteAuthoredPost } from '../../services/PostDeletionService';
@@ -116,6 +117,8 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
       // `deleteAuthoredPost` and never turns the deletion into a 500.
       deletion = await deleteAuthoredPost(String(req.params.id), authorId);
     } catch (error) {
+      if (error instanceof EventCancellationRequiredError)
+        return res.status(409).json({ message: error.message });
       if (error instanceof PostDeletionTooLargeError) {
         logger.error('Post deletion refused: too many dependent rows', {
           postId: String(req.params.id),

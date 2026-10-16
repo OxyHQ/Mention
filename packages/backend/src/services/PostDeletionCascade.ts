@@ -1,3 +1,4 @@
+import { eventAttendance } from '../db/schema/events';
 /**
  * Everything that has to happen when a `Post` row is deleted, for the LIVE
  * delete path — the route every user hits, not an administrative sweep.
@@ -57,12 +58,12 @@
  * **Fail-soft is fine, silent is not.**
  */
 
-import { and, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, ne, or, sql, type SQL } from 'drizzle-orm';
 import { enqueueFederatedMediaDeletionsForPosts } from '../db/federation/mediaDeletionRepository';
 import { PostType } from '@mention/shared-types';
 import { getDb, type DatabaseOrTransaction } from '../db/postgres';
 import { posts } from '../db/schema/posts';
-import { deletePostRecord } from '../db/posts/postRepository';
+import { deletePostRecord, lockPostContent } from '../db/posts/postRepository';
 import type { PostRecord } from '../db/posts/postRecord';
 import { notifications } from '../db/schema/discovery';
 import { contentLabels } from '../db/schema/moderation';
@@ -119,6 +120,8 @@ type ReferenceDisposition =
 const POST_REFERENCE_DISPOSITION: Record<PostReferenceProbeName, ReferenceDisposition> = {
   'post_evaluations.post_id': 'database',
   // Polymorphic by a type column, so no foreign key can carry them.
+  // Ordinary deletion retains minimal event_cancelled notices until normal inbox expiry.
+  // Privileged erasure/admin paths still remove every notification.
   'notifications.entity_id': 'cascade',
   'content_labels.target_id(post)': 'cascade',
   // `post_id` is plain `text()` — a gate is upserted on `post_uri` without
@@ -357,6 +360,7 @@ interface CascadeLeg {
 function referenceLegs(
   targets: readonly CascadedPostRow[],
   tx: DatabaseOrTransaction,
+  preserveCancellationNotices = false,
 ): CascadeLeg[] {
   const ids = [...new Set(targets.map((row) => row.id))];
   // Both keys a post can be named by: its id, and the AP identifiers a
@@ -377,6 +381,7 @@ function referenceLegs(
             and(
               inArray(notifications.entityType, ['post', 'reply']),
               inArray(notifications.entityId, ids),
+              preserveCancellationNotices ? ne(notifications.type, 'event_cancelled') : undefined,
             ),
           ),
     },
@@ -428,9 +433,10 @@ function referenceLegs(
 export async function cascadePostReferences(
   targets: readonly CascadedPostRow[],
   tx: DatabaseOrTransaction,
+  preserveCancellationNotices = false,
 ): Promise<void> {
   if (targets.length === 0) return;
-  for (const leg of referenceLegs(targets, tx)) {
+  for (const leg of referenceLegs(targets, tx, preserveCancellationNotices)) {
     try {
       await leg.run();
     } catch (error) {
@@ -508,9 +514,18 @@ export interface DeletedPostSubtree {
  * author asking where their post went. `reevaluateClusters` swallows its own
  * failures, so this keeps the guarantee the paragraph above makes.
  */
+export class EventCancellationRequiredError extends Error {
+  constructor() {
+    super(
+      'Cancel attended events from their event management screen before deleting this post or thread. Attendees must be notified first.',
+    );
+  }
+}
+
 export async function deletePostSubtree(
   postId: string,
   ownership: SQL | undefined,
+  eventPolicy: 'require-cancellation' | 'privileged-removal' = 'require-cancellation',
 ): Promise<DeletedPostSubtree | null> {
   let result: DeletedPostSubtree | null = null;
   let equivalenceClusterIds: string[] = [];
@@ -520,6 +535,32 @@ export async function deletePostSubtree(
       if (!collected) return;
 
       const all = allDeletionTargets(collected);
+      const ids = all.map((row) => row.id).sort();
+      // Same lock order as event registration/edit. No attendee can register
+      // between this check and the DELETE. Bulk/thread closures share the gate.
+      for (const id of ids) await lockPostContent(tx, id);
+      await tx
+        .select({ id: posts.id })
+        .from(posts)
+        .where(inArray(posts.id, ids))
+        .orderBy(posts.id)
+        .for('update');
+      const [authorizedRoot] = await tx
+        .select({ id: posts.id })
+        .from(posts)
+        .where(and(eq(posts.id, postId), ownership))
+        .limit(1);
+      if (!authorizedRoot) return;
+      if (eventPolicy === 'require-cancellation') {
+        const [active] = await tx
+          .select({ id: posts.id })
+          .from(posts)
+          .innerJoin(eventAttendance, eq(eventAttendance.postId, posts.id))
+          .where(and(inArray(posts.id, ids), eq(posts.contentEventCancelled, false)))
+          .limit(1);
+        if (active) throw new EventCancellationRequiredError();
+      }
+
       // Read before anything is deleted — see the docblock.
       equivalenceClusterIds = await findClusterIdsForPosts(
         all.map((row) => row.id),
@@ -530,7 +571,7 @@ export async function deletePostSubtree(
         all.map((row) => row.id),
         tx,
       );
-      await cascadePostReferences(all, tx);
+      await cascadePostReferences(all, tx, eventPolicy === 'require-cancellation');
 
       if (collected.replies.length > 0) {
         await tx.delete(posts).where(
@@ -628,12 +669,33 @@ export async function repairSurvivingCounters(
 export async function reportResidue(
   targets: readonly CascadedPostRow[],
   postId: string,
+  preserveCancellationNotices = false,
 ): Promise<void> {
   const probeTargets: PostDeletionTarget[] = targets.map((row) => ({
     id: row.id,
     uris: postUris(row),
   }));
-  const residue = await collectPostCascadeResidue(probeTargets, CASCADED_POST_REFERENCES);
+  const references = preserveCancellationNotices
+    ? CASCADED_POST_REFERENCES.filter((name) => name !== 'notifications.entity_id')
+    : CASCADED_POST_REFERENCES;
+  const residue = await collectPostCascadeResidue(probeTargets, references);
+  if (preserveCancellationNotices && targets.length) {
+    const [unexpected] = await getDb()
+      .select({ id: notifications.id })
+      .from(notifications)
+      .where(
+        and(
+          inArray(notifications.entityType, ['post', 'reply']),
+          inArray(
+            notifications.entityId,
+            targets.map((row) => row.id),
+          ),
+          ne(notifications.type, 'event_cancelled'),
+        ),
+      )
+      .limit(1);
+    if (unexpected) residue.push('notifications.entity_id');
+  }
   if (residue.length === 0) return;
   logger.error('Post deletion cascade left references behind', { postId, residue });
 }

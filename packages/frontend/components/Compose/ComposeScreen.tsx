@@ -1,3 +1,5 @@
+import { homiioCaseFromText } from '@mention/shared-types/homiio';
+import { HomiioCaseCard } from '@/components/Post/Attachments/HomiioCaseCard';
 import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { View, Text, TouchableOpacity, Pressable, ScrollView } from 'react-native';
 // Imported under the name every call site in this file already uses, because
@@ -15,12 +17,12 @@ import * as ExpoLocation from 'expo-location';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useQueryClient } from '@tanstack/react-query';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useComposeExit, type ComposePresentation } from './useComposeExit';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
-import { PodcastCard } from '@/components/Podcast/PodcastCard';
+import { PostPodcastAttachment } from '@/components/Podcast/PostPodcastAttachment';
 import RoomCard from '@/components/RoomCard';
 import ComposeToolbar from '@/components/ComposeToolbar';
 import { formatScheduledShort } from '@/utils/dateUtils';
@@ -244,6 +246,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   // Also server-decided. It has no window either, and saving keeps it a draft —
   // it is published from the drafts sheet — so the notice has to say so, and a
   // save has to refresh that sheet's list.
+  const [editingHasEvent, setEditingHasEvent] = useState(false);
   const [editingServerDraft, setEditingServerDraft] = useState(false);
   // The post under edit belongs to a CHANNEL. A channel is a publication: its
   // posts stay editable for their whole life, so the banner must not promise a
@@ -391,6 +394,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     setEventDraftDate,
     eventDraftLocation,
     setEventDraftLocation,
+    eventDraftCapacity,
+    setEventDraftCapacity,
     eventDraftDescription,
     setEventDraftDescription,
     openEventEditor,
@@ -478,6 +483,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     mentions: [],
   });
   const postContent = mainMentionState.text;
+  const homiioCase = homiioCaseFromText(postContent);
   const mentions = mainMentionState.mentions;
   const setPostContent = useCallback(
     (next: React.SetStateAction<string>) => {
@@ -1097,6 +1103,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             displayName: mentionUser?.name?.displayName?.trim() || username,
           };
         });
+        setEditingHasEvent(Boolean(source.content.event));
         const primaryText = primaryTextFromPost(source.content);
         const authorVariantTexts = (source.content.variants ?? [])
           .filter((variant) => variant.source === 'author')
@@ -3025,6 +3032,11 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                           />
                         </ComposeIdentityHeader>
 
+                        {homiioCase ? (
+                          <View style={styles.mediaPreviewContainer}>
+                            <HomiioCaseCard caseId={homiioCase.caseId} />
+                          </View>
+                        ) : null}
                         {/* Attachments row (poll + article + media + link) */}
                         {attachmentOrder.length > 0 ? (
                           <View style={[styles.timelineForeground, styles.mediaPreviewContainer]}>
@@ -3248,13 +3260,12 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                         },
                                       ]}
                                     >
-                                      <PodcastCard
-                                        variant="card"
-                                        title={podcast.title}
-                                        author={podcast.author}
-                                        artworkUrl={podcast.artworkUrl}
+                                      <PostPodcastAttachment
+                                        podcast={podcast}
+                                        width={320}
+                                        height={120}
+                                        showSaveButton={false}
                                         onPress={openPodcastPicker}
-                                        style={styles.articleAttachmentPreview}
                                       />
                                     </AttachmentCarouselItem>
                                   );
@@ -3903,8 +3914,17 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           onClose={closeArticleEditor}
           onSave={handleArticleSave}
         />
+        {editPostId && editingHasEvent && !editingScheduledPost && !editingServerDraft && (
+          <Button onPress={() => router.push(`/events/${encodeURIComponent(editPostId)}`)}>
+            {t('events.manage', { defaultValue: 'Manage event details and attendance' })}
+          </Button>
+        )}
         <EventEditor
-          visible={isEventEditorVisible}
+          capacity={eventDraftCapacity}
+          onCapacityChange={setEventDraftCapacity}
+          visible={
+            isEventEditorVisible && (!editPostId || editingScheduledPost || editingServerDraft)
+          }
           name={eventDraftName}
           date={eventDraftDate}
           location={eventDraftLocation}

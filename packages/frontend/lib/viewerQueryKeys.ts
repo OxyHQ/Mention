@@ -119,6 +119,14 @@ export const viewerQueryKeys = {
   pinnedPost: (viewerId: ViewerId, profileId: string) =>
     [...viewerQueryKeys.postsRoot(viewerId), 'pinned', profileId] as const,
   /**
+   * One native event as THIS viewer sees it: their own attendance, whether they
+   * may manage it, and (for an organizer) the private roster under `attendees`.
+   */
+  event: (viewerId: ViewerId, postId: string) =>
+    [...viewerQueryKeys.postsRoot(viewerId), 'event', postId] as const,
+  eventAttendees: (viewerId: ViewerId, postId: string, canManage: boolean) =>
+    [...viewerQueryKeys.event(viewerId, postId), 'attendees', canManage] as const,
+  /**
    * The not-yet-published posts this viewer can act on — their own, plus the
    * shared editorial queue of every channel they operate.
    *

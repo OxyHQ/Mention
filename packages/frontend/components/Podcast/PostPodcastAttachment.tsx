@@ -1,59 +1,59 @@
-import { useCallback } from 'react';
-import { StyleSheet, type DimensionValue } from 'react-native';
+import { Text, View, type DimensionValue } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import type { PostPodcastContent } from '@mention/shared-types/post';
-import VideoPlayer from '@/components/common/VideoPlayer';
-import { openExternalLink } from '@/utils/openExternalLink';
+import { useReferenceVisibility } from '@/hooks/useReferenceVisibility';
+import { useVisibleReference } from '@/hooks/useVisibleReference';
+import { syraPodcastCards } from '@/lib/references/syraPodcastCards';
 import { PodcastCard } from './PodcastCard';
 import { PodcastSaveButton } from './PodcastSaveButton';
 
-interface PostPodcastAttachmentProps {
+/** Even cached pre-migration feed objects contribute ONLY their ID. */
+export function PostPodcastAttachment({
+  podcast,
+  postId,
+  width,
+  height = 200,
+  showSaveButton = true,
+  onPress,
+}: {
   podcast: PostPodcastContent;
+  postId?: string;
   width: DimensionValue;
-  /** The shared row height, when the podcast is one of several attachments. */
   height?: number;
-}
-
-/**
- * A podcast attached to a post: the card, plus what only a published post has —
- * the save button (the viewer's Syra subscription) and, for an episode with a
- * video rendition, the autoplaying video on top.
- */
-export function PostPodcastAttachment({ podcast, width, height }: PostPodcastAttachmentProps) {
-  const videoUrl = podcast.episode?.videoUrl;
-  const { showUrl } = podcast;
-  const openShow = useCallback(() => {
-    if (showUrl) openExternalLink(showUrl);
-  }, [showUrl]);
-
+  showSaveButton?: boolean;
+  onPress?: () => void;
+}) {
+  const { t } = useTranslation();
+  const { nativeID, visible } = useReferenceVisibility(postId);
+  const state = useVisibleReference(syraPodcastCards, podcast.syraPodcastId, visible);
+  const value = state.status === 'ready' ? state.value : undefined;
   return (
-    <PodcastCard
-      variant={videoUrl ? 'video' : 'card'}
-      title={podcast.title}
-      author={podcast.author}
-      artworkUrl={podcast.artworkUrl}
-      showUrl={showUrl}
-      episode={podcast.episode}
-      accentColor={podcast.accentColor}
-      width={width}
-      height={height}
-      saveButton={<PodcastSaveButton podcastId={podcast.syraPodcastId} />}
-      video={
-        videoUrl ? (
-          <VideoPlayer
-            src={videoUrl}
-            poster={podcast.episode?.posterUrl}
-            style={styles.fill}
-            contentFit="cover"
-            autoPlay
-            loop
-            onPress={openShow}
-          />
-        ) : undefined
-      }
-    />
+    <View
+      nativeID={nativeID}
+      testID="syra-podcast-card"
+      style={{ width, height }}
+      className="rounded-2xl overflow-hidden"
+    >
+      {value ? (
+        <PodcastCard
+          title={value.title}
+          author={value.author}
+          artworkUrl={value.artworkUrl}
+          showUrl={value.showUrl}
+          width="100%"
+          height={height}
+          onPress={onPress}
+          saveButton={showSaveButton ? <PodcastSaveButton podcastId={value.id} /> : undefined}
+        />
+      ) : (
+        <View className="flex-1 justify-center bg-card p-4">
+          <Text accessibilityLiveRegion="polite" className="text-muted-foreground">
+            {state.status === 'loading'
+              ? t('podcast.loading', { defaultValue: 'Loading Syra podcast…' })
+              : t('podcast.unavailable', { defaultValue: 'This Syra podcast is unavailable' })}
+          </Text>
+        </View>
+      )}
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  fill: { width: '100%', height: '100%' },
-});

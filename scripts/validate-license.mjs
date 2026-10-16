@@ -2,8 +2,9 @@
 
 /**
  * Mention is licensed under the Breathe License 1.0 (source available, not
- * open source — see `LICENSE`) and every workspace package is `private: true`,
- * never published to npm. The org's canonical table
+ * open source — see `LICENSE`). Every workspace package is `private: true`
+ * except the two published publishing packages (`packages/contracts`,
+ * `packages/sdk`). The org's canonical table
  * (OxyHQ/.github `licensing/README.md` § License identifier) says a private
  * Breathe package's `package.json` `license` field is `"UNLICENSED"`.
  *
@@ -31,8 +32,10 @@ import { fileURLToPath } from 'node:url';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** The one value every package.json in this repo must declare. */
+/** The value every private package.json in this repo must declare. */
 const EXPECTED_LICENSE = 'UNLICENSED';
+/** npm's spelling for a published Breathe package (OxyHQ/.github `licensing/README.md`). */
+const PUBLISHED_LICENSE = 'SEE LICENSE IN LICENSE';
 
 /**
  * Phrases that assert "this repository is MIT licensed" — the specific wrong
@@ -66,6 +69,7 @@ function trackedFiles() {
 }
 
 const tracked = trackedFiles();
+const rootLicense = await readFile(resolve(repositoryRoot, 'LICENSE'), 'utf8');
 const manifests = tracked.filter(
   (path) => MANIFEST_FILE.test(path) && !path.includes('/node_modules/'),
 );
@@ -87,14 +91,25 @@ for (const path of manifests) {
     continue;
   }
   if (manifest.private !== true) {
-    // A package meant to be published to npm is out of scope for this guard —
-    // it would take "SEE LICENSE IN LICENSE" (npm's spelling), not
-    // "UNLICENSED", and this repo publishes nothing today. Recording it as a
-    // finding rather than silently skipping keeps that assumption checkable.
-    findings.push({
-      file: path,
-      rule: `declares "private": ${JSON.stringify(manifest.private)} — this guard only knows the private-package rule`,
-    });
+    // A package published to npm (`@oxy.so/mention-contracts`, `@oxy.so/mention-sdk`)
+    // takes npm's spelling, "SEE LICENSE IN LICENSE", and ships the repository's
+    // LICENSE beside its manifest, so the tarball names the Breathe License too.
+    if (manifest.license !== PUBLISHED_LICENSE) {
+      findings.push({
+        file: path,
+        rule: `is published (no "private": true) and its license is ${JSON.stringify(manifest.license)}, expected ${JSON.stringify(PUBLISHED_LICENSE)}`,
+      });
+    }
+    const licensePath = path.replace(MANIFEST_FILE, (match) =>
+      match.replace('package.json', 'LICENSE'),
+    );
+    const shipped = await readFile(resolve(repositoryRoot, licensePath), 'utf8').catch(() => null);
+    if (shipped !== rootLicense) {
+      findings.push({
+        file: path,
+        rule: `is published, so ${licensePath} must be a copy of LICENSE`,
+      });
+    }
     continue;
   }
   if (manifest.license !== EXPECTED_LICENSE) {
@@ -143,9 +158,10 @@ if (findings.length > 0 || failures.length > 0) {
   }
   for (const failure of failures) console.error(`  ${failure}`);
   console.error(
-    `\n  Mention is licensed under the Breathe License 1.0 (LICENSE) and every workspace\n` +
-      `  package is private. Every package.json "license" field must read\n` +
-      `  ${JSON.stringify(EXPECTED_LICENSE)}, and no first-party doc may claim MIT.\n`,
+    `\n  Mention is licensed under the Breathe License 1.0 (LICENSE). A private\n` +
+      `  package.json "license" field must read ${JSON.stringify(EXPECTED_LICENSE)}, a published\n` +
+      `  one ${JSON.stringify(PUBLISHED_LICENSE)} beside a copy of LICENSE, and no first-party\n` +
+      `  doc may claim MIT.\n`,
   );
   process.exit(1);
 }

@@ -240,8 +240,8 @@
     "one defensible line at a time, and a bound cannot tell growth from shrinkage."
   ],
   "expectedCounts": {
-    "domainFiles": 286,
-    "pins": 283,
+    "domainFiles": 293,
+    "pins": 290,
     "unenforceable": 3,
     "belowBarExemptions": 9,
     "criticalPaths": 35,

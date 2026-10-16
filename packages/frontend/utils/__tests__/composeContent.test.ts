@@ -47,9 +47,7 @@ describe('hasPublishableContent', () => {
 
   it('accepts every other attachment a post can be made of', () => {
     expect(hasPublishableContent({ ...empty, room: { roomId: 'r', title: 'Room' } })).toBe(true);
-    expect(
-      hasPublishableContent({ ...empty, podcast: { syraPodcastId: 'p', title: 'Show' } }),
-    ).toBe(true);
+    expect(hasPublishableContent({ ...empty, podcast: { syraPodcastId: 'p' } })).toBe(true);
     expect(hasPublishableContent({ ...empty, article: { title: 'Title', body: '' } })).toBe(true);
     expect(hasPublishableContent({ ...empty, pollOptions: ['', 'yes'] })).toBe(true);
     expect(hasPublishableContent({ ...empty, location: { latitude: 1, longitude: 2 } })).toBe(true);

@@ -81,3 +81,61 @@ post is classified and ranked once it exists.
   cached.
 - Valid profile URLs: `/@username` and `/@username@domain`. A duplicate
   suffix (`/@user@domain@domain`) is a handle-normalization bug.
+
+## Native event attendance
+
+A published Mention-native event opens `/events/<postId>`. Attendance defaults to
+private; the attendee may opt into the public roster. Organizers (the author or
+people currently authorized by Oxy to publish as that authoring account) can read
+the full roster. Post hydration and the feed contain no attendee identities.
+The detail and roster endpoints are `private, no-store`, scoped to the viewer;
+profile labels are resolved in one Oxy batch after the roster is authorized.
+The shared post ACL reads local privacy through the event transaction after the
+lock, and reads Oxy relations without the feed cache; current account authority
+is also checked after waiting. Identity summaries are resolved before the
+transaction so they cannot exhaust the pool with nested connections.
+
+`PUT /posts/:id/event/attendance` registers or updates visibility, and `DELETE`
+on that path withdraws without revealing the event, including after read access
+has been revoked. A parent row lock serializes capacity checks and cancellation.
+There is no waitlist. Canceling attendance releases the seat. A capacity cannot
+be reduced below current attendance. Registration closes at the event time or
+when the organizer cancels it. Existing attendees can still hide their public
+attendance through the API or withdraw using the detail screen. Homiio references, federated posts and unpublished
+posts cannot use this participation surface.
+
+`PUT /posts/:id/event` requires the event's current revision; `POST` to its
+`/cancel` child cancels permanently. These event operations remain available
+beyond the post-body edit window. Generic post edits cannot rewrite published
+native-event fields or graft a Homiio reference onto them: the canonical content
+replacement preserves event facts under the same lock, including stale writes
+from enrichment. Draft and scheduled events can still be edited before publication.
+
+A meaningful event change and its attendee inbox notices commit in one database
+transaction. The inbox consolidates the latest notice per event, organizer and
+kind, marking it unread only on a new revision. A lost-response retry of the same
+change does not refresh a read notice or create another one. Existing socket and
+push delivery remains best effort after commit; the durable inbox survives a
+process exit. These notices contain no private attendee roster.
+
+Migration `0075_ecosystem_references_and_events` adds attendance and event state without
+rewriting existing events. Apply it before the new image. The backend image
+builds and ships `@oxy.so/mention-contracts`; new clients need the corresponding API.
+The generated contract is `packages/contracts/openapi.events.json`, served at
+`GET /posts/events/openapi.json`; `bun scripts/event-openapi.ts --check` verifies
+freshness. Oxy membership and push provider behavior are tested through fixtures,
+not live credentials. Native-device behavior has not been validated in this change.
+
+`packages/contracts` and `packages/sdk` are published to npm as
+`@oxy.so/mention-contracts` and `@oxy.so/mention-sdk` (Schedio's publishing
+client: `POST /posts` with an `Idempotency-Key`, `GET /mcp/bundles/me`). Publish
+them by hand from a clean checkout of the merged main commit, contracts first:
+the SDK pins the same contracts version.
+
+Ordinary post or thread deletion refuses an attended event until it has been
+cancelled, under the same parent lock as registration. After cancellation,
+ordinary deletion retains only the existing `event_cancelled` inbox notice
+(actor, recipient and opaque post reference; no event facts or attendee roster)
+until normal notification expiry. Account erasure, channel removal and
+privileged federation/admin removal retain their existing removal semantics
+and do not require an attendee workflow to complete.

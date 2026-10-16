@@ -401,3 +401,34 @@ describe('EventEditor name requirement', () => {
     act(() => tree.unmount());
   });
 });
+
+it.each(['0', '-1', '2.5', '1000001'])('refuses invalid optional capacity %s', (capacity) => {
+  const save = jest.fn();
+  let tree!: TestRenderer.ReactTestRenderer;
+  act(() => {
+    tree = TestRenderer.create(
+      <EventEditor
+        visible
+        name="Meeting"
+        date={new Date(Date.now() + 86400000).toISOString()}
+        location=""
+        description=""
+        capacity={capacity}
+        onCapacityChange={() => {}}
+        onNameChange={() => {}}
+        onDateChange={() => {}}
+        onLocationChange={() => {}}
+        onDescriptionChange={() => {}}
+        onSave={save}
+        onClose={() => {}}
+      />,
+    );
+  });
+  const header = mockDialogProps[mockDialogProps.length - 1].header as {
+    right: React.ReactElement<{ disabled: boolean; onPress(): void }>;
+  };
+  expect(header.right.props.disabled).toBe(true);
+  act(() => header.right.props.onPress());
+  expect(save).not.toHaveBeenCalled();
+  act(() => tree.unmount());
+});

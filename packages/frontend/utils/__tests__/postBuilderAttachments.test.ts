@@ -93,7 +93,7 @@ describe('buildThreadPost attachments', () => {
       box({
         event: EVENT,
         room: ROOM,
-        podcast: { syraPodcastId: 'pod-1', title: 'Show' },
+        podcast: { syraPodcastId: 'pod-1' },
         mediaIds: [{ id: 'm1', type: 'image' }],
       }),
     );
@@ -108,4 +108,11 @@ describe('buildThreadPost attachments', () => {
       buildThreadPost(box({ text: 'x', event: { name: 'Launch', date: '' } })).content.event,
     ).toBeUndefined();
   });
+});
+
+it('carries capacity through root and thread event payloads', () => {
+  expect(main({ event: { ...EVENT, capacity: 12 } }).content.event?.capacity).toBe(12);
+  expect(buildThreadPost(box({ event: { ...EVENT, capacity: 7 } })).content.event?.capacity).toBe(
+    7,
+  );
 });

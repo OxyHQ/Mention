@@ -1,3 +1,4 @@
+import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
 /**
  * The ONLY module that knows a post is nine tables.
  *
@@ -497,6 +498,9 @@ function assembleContent(row: PostRow, children: PostChildRows): StoredPostConte
           date: row.contentEventDate.toISOString(),
           location: optional(row.contentEventLocation),
           description: optional(row.contentEventDescription),
+          capacity: row.contentEventCapacity,
+          cancelled: row.contentEventCancelled,
+          revision: row.contentEventRevision,
         })
       : undefined;
 
@@ -511,18 +515,9 @@ function assembleContent(row: PostRow, children: PostChildRows): StoredPostConte
         })
       : undefined;
 
-  const podcast =
-    row.contentPodcastSyraId !== null &&
-    row.contentPodcastTitle !== null &&
-    row.contentPodcastShowUrl !== null
-      ? compact({
-          syraPodcastId: row.contentPodcastSyraId,
-          title: row.contentPodcastTitle,
-          author: optional(row.contentPodcastAuthor),
-          artworkUrl: optional(row.contentPodcastArtworkUrl),
-          showUrl: row.contentPodcastShowUrl,
-        })
-      : undefined;
+  const podcast = row.contentPodcastSyraId
+    ? { syraPodcastId: row.contentPodcastSyraId }
+    : undefined;
 
   // GeoJSON, rebuilt from the NAMED coordinate columns in `[longitude, latitude]`
   // order. The generated `content_geo` point is the same fact and is never read
@@ -549,6 +544,7 @@ function assembleContent(row: PostRow, children: PostChildRows): StoredPostConte
     event,
     room,
     podcast,
+    homiioCase: sanitizeHomiioCase({ caseId: row.contentHomiioCaseId }),
     attachments: attachments.length > 0 ? attachments : undefined,
   });
 }
@@ -939,6 +935,7 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
     contentEventDate: content.event?.date ? new Date(content.event.date) : null,
     contentEventLocation: content.event?.location ?? null,
     contentEventDescription: content.event?.description ?? null,
+    contentEventCapacity: content.event?.capacity ?? null,
 
     contentRoomId: content.room?.roomId ?? null,
     contentRoomTitle: content.room?.title ?? null,
@@ -946,11 +943,15 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
     contentRoomTopic: content.room?.topic ?? null,
     contentRoomHost: content.room?.host ?? null,
 
+    contentHomiioCaseId:
+      sanitizeHomiioCase(content.homiioCase)?.caseId ??
+      homiioCaseFromText(content.variants?.[0]?.text ?? '')?.caseId ??
+      null,
     contentPodcastSyraId: content.podcast?.syraPodcastId ?? null,
-    contentPodcastTitle: content.podcast?.title ?? null,
-    contentPodcastAuthor: content.podcast?.author ?? null,
-    contentPodcastArtworkUrl: content.podcast?.artworkUrl ?? null,
-    contentPodcastShowUrl: content.podcast?.showUrl ?? null,
+    contentPodcastTitle: null,
+    contentPodcastAuthor: null,
+    contentPodcastArtworkUrl: null,
+    contentPodcastShowUrl: null,
 
     // `[longitude, latitude]`, stated once. The generated geography point reads
     // these two columns, so a transposition here is a wrong point rather than a
@@ -1708,6 +1709,25 @@ export async function replacePostContent(
 ): Promise<void> {
   const write = async (tx: DatabaseOrTransaction): Promise<void> => {
     await lockPostContent(tx, postId);
+    const [eventOwner] = await tx.select().from(posts).where(eq(posts.id, postId)).for('update');
+    const managedEvent =
+      eventOwner?.status === 'published' &&
+      eventOwner.contentEventName !== null &&
+      eventOwner.contentEventDate !== null &&
+      !eventOwner.federationActorUri;
+    if (managedEvent && eventOwner) {
+      content = {
+        ...content,
+        homiioCase: undefined,
+        event: {
+          name: eventOwner.contentEventName!,
+          date: eventOwner.contentEventDate!.toISOString(),
+          location: eventOwner.contentEventLocation ?? undefined,
+          description: eventOwner.contentEventDescription ?? undefined,
+          eventId: eventOwner.contentEventId ?? undefined,
+        },
+      };
+    }
     // The re-hosted federated files the OLD content references: an edit that
     // drops one queues it for deletion (below), or the file leaks in Oxy.
     const before = await federatedMediaIdsOfPost(tx, postId);
@@ -1756,16 +1776,22 @@ export async function replacePostContent(
         contentEventDate: content.event?.date ? new Date(content.event.date) : null,
         contentEventLocation: content.event?.location ?? null,
         contentEventDescription: content.event?.description ?? null,
+        ...(managedEvent ? {} : { contentEventCapacity: content.event?.capacity ?? null }),
         contentRoomId: content.room?.roomId ?? null,
         contentRoomTitle: content.room?.title ?? null,
         contentRoomStatus: content.room?.status ?? null,
         contentRoomTopic: content.room?.topic ?? null,
         contentRoomHost: content.room?.host ?? null,
+        contentHomiioCaseId: managedEvent
+          ? null
+          : (sanitizeHomiioCase(content.homiioCase)?.caseId ??
+            homiioCaseFromText(content.variants?.[0]?.text ?? '')?.caseId ??
+            null),
         contentPodcastSyraId: content.podcast?.syraPodcastId ?? null,
-        contentPodcastTitle: content.podcast?.title ?? null,
-        contentPodcastAuthor: content.podcast?.author ?? null,
-        contentPodcastArtworkUrl: content.podcast?.artworkUrl ?? null,
-        contentPodcastShowUrl: content.podcast?.showUrl ?? null,
+        contentPodcastTitle: null,
+        contentPodcastAuthor: null,
+        contentPodcastArtworkUrl: null,
+        contentPodcastShowUrl: null,
         contentLocationLongitude: content.location?.coordinates[0] ?? null,
         contentLocationLatitude: content.location?.coordinates[1] ?? null,
         contentLocationAddress: content.location?.address ?? null,

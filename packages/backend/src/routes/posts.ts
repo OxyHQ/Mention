@@ -1,3 +1,12 @@
+import { eventOpenApi } from '@oxy.so/mention-contracts';
+import {
+  readEvent,
+  eventAttendees,
+  registerEvent,
+  withdrawEvent,
+  updateEvent,
+  cancelEvent,
+} from '../controllers/posts/events';
 import { Router, type Response } from 'express';
 import { createPost } from '../controllers/posts/createPost';
 import { createThread } from '../controllers/posts/createThread';
@@ -113,6 +122,7 @@ const linkPreviewRateLimiters = config.runtime.isProduction ? [linkPreviewRateLi
  * ahead of `/:id`.
  */
 export const publicPostsRouter = Router();
+publicPostsRouter.get('/events/openapi.json', (_req, res) => res.json(eventOpenApi()));
 
 // Genuinely public, anon-safe reads.
 publicPostsRouter.get('/hashtag/:hashtag', getPostsByHashtag);
@@ -151,6 +161,8 @@ publicPostsRouter.get('/:id/corrections', getPostCorrections);
 // posts from public-profile authors; PostHydrationService returns 404 for
 // private / followers-only / unpublished / private-profile posts when the viewer
 // is anonymous.
+publicPostsRouter.get('/:id/event', ...postViewRateLimiters, readEvent);
+publicPostsRouter.get('/:id/event/attendees', ...postViewRateLimiters, eventAttendees);
 publicPostsRouter.get('/:id', getPostById);
 
 // Protected routes - specific routes first (must be before parameterized routes)
@@ -186,6 +198,10 @@ router.get('/:id/boosts', getPostBoosts);
 router.post('/:id/collaborators/accept', acceptCollabInvite);
 router.post('/:id/collaborators/decline', declineCollabInvite);
 router.post('/:id/collaborators/stop-sharing', stopCollabSharing);
+router.put('/:id/event/attendance', ...postWriteRateLimiters, registerEvent);
+router.delete('/:id/event/attendance', ...postWriteRateLimiters, withdrawEvent);
+router.put('/:id/event', ...postWriteRateLimiters, updateEvent);
+router.post('/:id/event/cancel', ...postWriteRateLimiters, cancelEvent);
 router.put('/:id', ...postWriteRateLimiters, updatePost);
 router.patch('/:id/settings', ...postWriteRateLimiters, updatePostSettings);
 // Moving a post between the author's own lanes is NOT an edit — no edit window

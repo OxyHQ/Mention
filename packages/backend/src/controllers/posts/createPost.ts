@@ -1,3 +1,4 @@
+import { sanitizeHomiioCase } from '@mention/shared-types/homiio';
 /**
  * `POST /posts` — the native single-post create.
  *
@@ -32,7 +33,7 @@ import { validatePublicShareTarget } from '../../utils/postAccessControl';
 import { LaneAssignmentError } from '../../utils/laneAssignment';
 import { assertParentAcceptsReplies, ChannelReplyError } from '../../utils/channelReplyGate';
 import { PublishAsAccessError } from '../../services/publishAsAccount';
-import { sanitizePodcast, resolvePodcastContent } from '../../utils/syraPodcast';
+import { sanitizePodcast } from '../../utils/podcastReference';
 import { sanitizeJobInput, resolveJobContent } from '../../utils/jobPostAttachment';
 import {
   postCollaborationService,
@@ -257,6 +258,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     // (nothing stores a second copy of the body).
     const postContent: PostContent = {
       text: text || '',
+      homiioCase: sanitizeHomiioCase(content?.homiioCase),
       media: normalizedMedia,
       ...(authorLanguageVariants.length > 0 ? { variants: authorLanguageVariants } : {}),
     };
@@ -348,6 +350,9 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     // Handle event data
     const eventData = content?.event || req.body.event;
     const sanitizedEvent = sanitizeEventData(eventData);
+    if (eventData && !sanitizedEvent) return res.status(400).json({ message: 'Invalid event' });
+    if (sanitizedEvent && postContent.homiioCase)
+      return res.status(400).json({ message: 'Homiio participation belongs in Homiio' });
     if (sanitizedEvent && sanitizedEvent.name && sanitizedEvent.date) {
       postContent.event = sanitizedEvent as import('@mention/shared-types').PostEventContent;
     }
@@ -359,23 +364,8 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       postContent.room = sanitizedRoom as import('@mention/shared-types').PostRoomContent;
     }
 
-    // Handle podcast data: a single Syra podcast show attached to the post. The
-    // client only sends an untrusted `{ syraPodcastId }` reference; the canonical
-    // title/author/artwork and show URL are resolved + denormalized server-side
-    // from the Syra catalog via @syra.fm/sdk — never trusted from the client.
-    const sanitizedPodcast = sanitizePodcast(content?.podcast || req.body.podcast);
-    if (sanitizedPodcast) {
-      try {
-        postContent.podcast = await resolvePodcastContent(sanitizedPodcast.syraPodcastId);
-      } catch (podcastError) {
-        logger.warn('Failed to resolve Syra podcast for post', {
-          userId,
-          syraPodcastId: sanitizedPodcast.syraPodcastId,
-          error: podcastError,
-        });
-        return res.status(400).json({ message: 'Unable to resolve the selected podcast' });
-      }
-    }
+    // Persist only a reference; provider availability never blocks publication.
+    postContent.podcast = sanitizePodcast(content?.podcast || req.body.podcast) ?? undefined;
 
     // Handle a Mention job attachment: the client only sends an untrusted
     // `{ mentionJobId }` reference, the card is resolved + denormalized

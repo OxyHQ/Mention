@@ -51,6 +51,8 @@ const MENTION_CSP_EXTENSIONS = {
     'wss://api.syra.fm',
     'https://livekit.oxy.so',
     'wss://livekit.oxy.so',
+    // Homiio case cards: `@oxy.so/homiio-sdk` reads its public batch API directly.
+    'https://api.homiio.com',
   ],
   // Federated media is user-supplied and lives on arbitrary remote instances.
   imgSrc: ['blob:', 'https:'],

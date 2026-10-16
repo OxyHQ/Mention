@@ -84,9 +84,6 @@ const PodcastPickerSheet = memo(function PodcastPickerSheet({
     (result: PodcastSearchResult) => {
       onSelect({
         syraPodcastId: result.syraPodcastId,
-        title: result.title,
-        author: result.author,
-        artworkUrl: result.artworkUrl,
       });
       onClose();
     },

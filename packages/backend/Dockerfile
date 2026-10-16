@@ -16,6 +16,8 @@ COPY packages/backend/package.json packages/backend/
 COPY packages/mcp/package.json packages/mcp/
 COPY packages/frontend/package.json packages/frontend/
 COPY packages/e2e/package.json packages/e2e/
+COPY packages/contracts/package.json packages/contracts/
+COPY packages/sdk/package.json packages/sdk/
 RUN bun install --frozen-lockfile --ignore-scripts --lockfile-only
 
 FROM manifests AS builder
@@ -25,8 +27,10 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
 
 COPY packages/shared-types/ packages/shared-types/
 COPY packages/backend/ packages/backend/
+COPY packages/contracts/ packages/contracts/
 
 RUN bun run --cwd packages/shared-types build
+RUN bun run --cwd packages/contracts build
 RUN bun run --cwd packages/backend build
 
 FROM oven/bun:1.4.3-alpine@sha256:629e17411f1f129dbec3af78d5af9c9f2a937435c80349437206c6b0b7422373 AS runtime
@@ -45,6 +49,8 @@ COPY --from=manifests /app/packages/backend/package.json packages/backend/
 COPY --from=manifests /app/packages/mcp/package.json packages/mcp/
 COPY --from=manifests /app/packages/frontend/package.json packages/frontend/
 COPY --from=manifests /app/packages/e2e/package.json packages/e2e/
+COPY --from=manifests /app/packages/contracts/package.json packages/contracts/
+COPY --from=manifests /app/packages/sdk/package.json packages/sdk/
 
 RUN --mount=type=cache,target=/root/.bun/install/cache \
   bun install --frozen-lockfile --omit=dev --omit=peer --omit=optional --ignore-scripts \
@@ -53,6 +59,7 @@ RUN rm -rf packages/frontend packages/mcp packages/e2e
 
 COPY --from=builder /app/packages/shared-types/dist/ packages/shared-types/dist/
 COPY --from=builder /app/packages/backend/dist/ packages/backend/dist/
+COPY --from=builder /app/packages/contracts/dist/ packages/contracts/dist/
 # The SQL migrations, next to the compiled migrator that applies them
 # (`dist/src/db/migrate.js`, run as a one-shot ECS task). Without this the
 # migrator finds no journal and refuses to run rather than reporting a clean

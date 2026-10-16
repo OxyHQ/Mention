@@ -337,7 +337,7 @@ describe('the content graph', () => {
       location: 'Barcelona',
     },
     room: { roomId: 'r1', title: 'Room', status: 'live', topic: 'Topic', host: 'host' },
-    podcast: { syraPodcastId: 'p1', title: 'Show', author: 'Host', showUrl: 'https://syra.fm/p1' },
+    podcast: { syraPodcastId: 'p1' },
     location: { type: 'Point', coordinates: [2.1734, 41.3851], address: 'Barcelona' },
   };
 
@@ -407,6 +407,9 @@ describe('the content graph', () => {
       name: 'Launch',
       date: '2026-03-01T10:00:00.000Z',
       location: 'Barcelona',
+      capacity: null,
+      cancelled: false,
+      revision: 0,
     });
     expect(reloaded?.content.room).toEqual({
       roomId: 'r1',
@@ -417,9 +420,6 @@ describe('the content graph', () => {
     });
     expect(reloaded?.content.podcast).toEqual({
       syraPodcastId: 'p1',
-      title: 'Show',
-      author: 'Host',
-      showUrl: 'https://syra.fm/p1',
     });
   });
 
@@ -518,7 +518,7 @@ describe('the batch insert', () => {
     expect(results.map((result) => result.status)).toEqual(inputs.map(() => 'fulfilled'));
     results.forEach((result, index) => {
       if (result.status !== 'fulfilled') return;
-      expect(result.value.id).toBe(inputs[index].id);
+      expect(result.value.id).toBe(inputs[index].id ?? 'missing batch input ID');
       expect(result.value.content.variants?.[0]?.text).toBe(`batch ${index}`);
       expect(result.value.mentions).toEqual([`oxy-batch-mentioned-${index}`]);
       expect(result.value.authorship).toHaveLength(1);
@@ -787,5 +787,44 @@ describe('list reads', () => {
       { orderBy: CHRONO_DESC, limit: 10 },
     );
     expect(page.map((record) => record.id)).toEqual([newer.id, older.id]);
+  });
+});
+
+describe('Homiio case references', () => {
+  it('stores only an opaque ID and round-trips it without provider facts', async () => {
+    const untrusted = { caseId: 'case-1', title: 'Not authoritative', address: 'Never store me' };
+    const record = await create({ content: { homiioCase: untrusted } });
+    expect(record.content.homiioCase).toEqual({ caseId: 'case-1' });
+    const reloaded = await loadPostRecord(record.id);
+    expect(reloaded?.content.homiioCase).toEqual({ caseId: 'case-1' });
+    const [row] = await db.select().from(posts).where(eq(posts.id, record.id));
+    expect(row.contentHomiioCaseId).toBe('case-1');
+    expect(JSON.stringify(row)).not.toContain('Never store me');
+    expect(JSON.stringify(row)).not.toContain('Not authoritative');
+  });
+
+  it('attaches a pasted case link, replaces it on edit, and removes it with the link', async () => {
+    const record = await create({
+      content: {
+        variants: [{ source: 'author', tag: 'en', text: 'https://homiio.com/evictions/case-1' }],
+      },
+    });
+    expect(record.content.homiioCase).toEqual({ caseId: 'case-1' });
+    await replacePostContent(
+      record.id,
+      {
+        variants: [{ source: 'author', tag: 'en', text: 'https://homiio.com/evictions/case-2' }],
+      },
+      [],
+    );
+    expect((await loadPostRecord(record.id))?.content.homiioCase).toEqual({ caseId: 'case-2' });
+    await replacePostContent(
+      record.id,
+      {
+        variants: [{ source: 'author', tag: 'en', text: 'Removed' }],
+      },
+      [],
+    );
+    expect((await loadPostRecord(record.id))?.content.homiioCase).toBeUndefined();
   });
 });

@@ -1,22 +1,16 @@
 import { useState, useCallback } from 'react';
 
-/**
- * The podcast show the composer has attached. Only `syraPodcastId` is sent to the
- * backend (it denormalizes the rest at write time); the other fields are kept
- * locally to render the compose attachment card without a round-trip.
- */
-export interface PodcastAttachmentData {
-  syraPodcastId: string;
-  title: string;
-  author?: string;
-  artworkUrl?: string;
-}
+import type { PostPodcastContent } from '@mention/shared-types/post';
+import { podcastReference } from '@/utils/podcastReference';
+
+/** The composer keeps an opaque reference; visible SDK cards own current facts. */
+export type PodcastAttachmentData = PostPodcastContent;
 
 export const usePodcastManager = () => {
   const [podcast, setPodcast] = useState<PodcastAttachmentData | null>(null);
 
   const savePodcast = useCallback((next: PodcastAttachmentData) => {
-    setPodcast(next);
+    setPodcast(podcastReference(next));
   }, []);
 
   const removePodcast = useCallback(() => {
@@ -24,7 +18,7 @@ export const usePodcastManager = () => {
   }, []);
 
   const loadPodcastFromDraft = useCallback((draftPodcast: PodcastAttachmentData | null) => {
-    setPodcast(draftPodcast);
+    setPodcast(podcastReference(draftPodcast));
   }, []);
 
   const clearPodcast = useCallback(() => {
