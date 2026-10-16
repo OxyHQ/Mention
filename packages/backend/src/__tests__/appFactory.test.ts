@@ -60,6 +60,7 @@ function createDependencies(): CreateAppDependencies {
     logger: { debug: vi.fn() },
     middleware: {
       requestObservability: passThrough,
+      contentAccessScope: passThrough,
       rateLimiter: passThrough,
       bruteForceProtection: passThrough,
       globalErrorHandler: errorHandler,

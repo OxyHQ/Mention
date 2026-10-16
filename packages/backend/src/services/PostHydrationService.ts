@@ -2,7 +2,12 @@ import { sanitizePodcast } from '../utils/podcastReference';
 import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
 import { hydratePostMedia } from './hydratePostMedia';
 import type { SafetyRequester, SafetyDecision } from '@oxy.so/contracts';
-import { loadPostSafetyDecisions, type PostSafetyApplicationAccess } from './postSafetyAccess';
+import {
+  loadPostSafetyDecisions,
+  postSafetyItems,
+  type PostSafetyApplicationAccess,
+} from './postSafetyAccess';
+import { decideContentAccess, UNRATED_MATERIAL_ITEM } from './contentAccessBatcher';
 import {
   type FeedPostSlice,
   type FeedSliceItem,
@@ -1103,28 +1108,23 @@ export class PostHydrationService {
       });
       return true;
     });
-    const safetyDecisions = await loadPostSafetyDecisions(
-      eligiblePosts,
-      options.safetyRequester ?? { accessToken: null },
-      applicationAccess,
+    // The graph's posts and the generic unrated-material question go to Oxy as
+    // ONE batch; a decision this request already has costs no call at all.
+    const safetyRequester = options.safetyRequester ?? { accessToken: null };
+    const safetyItems = await postSafetyItems(eligiblePosts, applicationAccess);
+    // Nothing eligible means nothing is shown; there is no question to ask.
+    if (!safetyItems.length) return [];
+    const safetyDecisions = await decideContentAccess(
+      [...safetyItems, UNRATED_MATERIAL_ITEM],
+      safetyRequester,
     );
     const postsForHydration = collectedPosts.filter(
       ({ post }) => safetyDecisions.get(this.resolveId(post) ?? '')?.allowed === true,
     );
 
     if (!postsForHydration.length) return [];
-    const attachmentDecision = await getServiceOxyClient().safety.contentAccessBatch(
-      {
-        items: [
-          {
-            resourceId: 'post-attachments:unrated',
-            classification: 'unrated',
-          },
-        ],
-      },
-      options.safetyRequester ?? { accessToken: null },
-    );
-    const allowUnratedAttachments = attachmentDecision.items[0]?.decision.allowed === true;
+    const allowUnratedAttachments =
+      safetyDecisions.get(UNRATED_MATERIAL_ITEM.resourceId)?.allowed === true;
 
     // Resolve each post's localized rendition for THIS viewer, once. Everything
     // downstream — the body, the media (with its localized alt), the article, and
@@ -1241,7 +1241,7 @@ export class PostHydrationService {
     );
     await hydratePostMedia(
       summaries.filter((summary): summary is HydratedPostSummary => summary !== null),
-      options.safetyRequester ?? { accessToken: null },
+      safetyRequester,
     );
     for (const summary of summaries) {
       if (summary) {

@@ -114,6 +114,7 @@ vi.mock('../../services/userSummaryCache', () => ({
 }));
 
 import { PostHydrationService } from '../../services/PostHydrationService';
+import { UNRATED_MATERIAL_ITEM } from '../../services/contentAccessBatcher';
 
 function makeOxyUser(id: string, username: string, displayName: string) {
   return {
@@ -230,6 +231,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
             applicationAudienceAllowed: false,
             applicationResourceGrant: false,
           }),
+          UNRATED_MATERIAL_ITEM,
         ],
       },
       { accessToken: 'viewer-session' },
@@ -263,7 +265,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
       items: items.map((item) => ({
         resourceId: item.resourceId,
         decision: {
-          allowed: item.resourceId !== 'post-attachments:unrated',
+          allowed: item.resourceId !== UNRATED_MATERIAL_ITEM.resourceId,
           reason: 'allowed',
           policyVersion: '2',
         },
