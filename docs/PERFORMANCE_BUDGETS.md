@@ -256,7 +256,7 @@ is the same (−0.34 s).
 Two root causes, each measured on its own export of the same commit
 (headless Chromium, 430×932, 4x CPU, 150 ms RTT, ~9 Mbit/s, cold cache).
 
-**Gesture Handler kept all of Reanimated.** Its `reanimatedWrapper.js` loads
+**Gesture Handler kept all of Reanimated.** Its Reanimated wrapper (`src/handlers/gestures/reanimatedWrapper`, patched by `patches/react-native-gesture-handler@2.32.0.patch`) loads
 Reanimated with `require('react-native-reanimated')` (an optional peer
 upstream). A CommonJS `require` hands Metro the whole module, so tree shaking
 has to keep every Reanimated export — ~100 layout-animation presets (Zoom,
