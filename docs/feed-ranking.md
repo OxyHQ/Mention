@@ -116,17 +116,17 @@ measures without filtering, `experiment` enforces for the stable authenticated
 cover BOTH profiles — naming a module it lacks stops the process booting, and
 `presetDefinitions.test.ts` asserts the two lists agree.
 
-**The shadow measurement does not currently go anywhere durable, so plan for
-that before scheduling a decision.** `feed_discovery_gated_total` lives in the
-in-process Prometheus registry (`utils/metrics.ts`), which is exposed only by the
-IP-restricted `GET /internal/metrics`. Request traffic reaches Oxy's shared
-ecosystem telemetry (`runtime/platformActivity.ts`), which carries nothing from
-that registry, and the cluster runs no scraper — verified against the account on 2026-09-19, where
-`DISCOVERY_GATE_ROLLOUT` is set in neither SSM nor the `oxy-mention` task
-definition, so production has been on the `shadow` default since the gate shipped
-in July. The counters therefore reset on every deploy and no history exists. A
-rollout that says "watch the counters for a week" needs them scraped somewhere
-first, or the week produces nothing to read.
+**The shadow measurement is retained in CloudWatch.** `feed_discovery_gated_total`
+and every other metric in `utils/metrics.ts` is published once a minute as
+CloudWatch EMF (namespace `Mention/Backend`, `@oxy.so/telemetry/metrics`): the
+metric total is a CloudWatch metric with history, and its labels (`reason`,
+`source`, `shadow`) are properties of the log line in `/oxy/ecs`, broken down in
+Logs Insights with `filter ispresent(feed_discovery_gated_total) | stats
+sum(feed_discovery_gated_total) by reason, source, shadow`. Until 2026-10-17 the
+registry was prom-client, exposed only by an IP-restricted endpoint nothing
+scraped, so no history exists before that date. `DISCOVERY_GATE_ROLLOUT` is set
+in neither SSM nor the `oxy-mention` task definition, so production runs the
+`shadow` default.
 
 A gate filter may declare `needsAuthor`. The engine then runs it in a SECOND pass
 over the merged pool, after resolving that pool's authors in one batch — the same

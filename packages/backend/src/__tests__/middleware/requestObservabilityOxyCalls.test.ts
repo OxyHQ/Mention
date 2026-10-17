@@ -108,11 +108,12 @@ describe('per-request Oxy accounting', () => {
   it('publishes the count and the Oxy time under the route template', async () => {
     await request(app).get('/feed/item/abc').expect(200);
 
-    const exposition = await metrics.getPrometheusFormat();
-    expect(exposition).toContain('oxy_request_calls_count{method="GET",route="/feed/item/:id"} 1');
-    expect(exposition).toContain('oxy_request_calls_sum{method="GET",route="/feed/item/:id"} 2');
-    expect(exposition).toContain(
-      'oxy_request_duration_ms_count{method="GET",route="/feed/item/:id"} 1',
-    );
+    const labels = { method: 'GET', route: '/feed/item/:id' };
+    expect(metrics.getSeries('oxy_request_calls')).toEqual([
+      expect.objectContaining({ labels, count: 1, sum: 2 }),
+    ]);
+    expect(metrics.getSeries('oxy_request_duration_ms')).toEqual([
+      expect.objectContaining({ labels, count: 1 }),
+    ]);
   });
 });

@@ -50,14 +50,13 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-/** Count of a `db_query_duration_ms` series in the registry's own output. */
+/** Count of a `db_query_duration_ms` series in the registry. */
 async function observedQueries(operation: string, table: string): Promise<number> {
-  const exposition = await metrics.getPrometheusFormat();
-  const line = new RegExp(
-    `^db_query_duration_ms_count\\{operation="${operation}",table="${table}"\\} (\\d+)$`,
-    'm',
-  ).exec(exposition);
-  return line ? Number(line[1]) : 0;
+  return (
+    metrics
+      .getSeries('db_query_duration_ms')
+      .find(({ labels }) => labels.operation === operation && labels.table === table)?.count ?? 0
+  );
 }
 
 describe('describeStatement', () => {
@@ -140,10 +139,10 @@ describe('statement timing', () => {
     await db.select({ id: posts.id }).from(posts).limit(1);
 
     expect(await observedQueries('select', 'posts')).toBe(1);
-    const exposition = await metrics.getPrometheusFormat();
-    expect(exposition).toMatch(
-      /^db_query_duration_ms_sum\{operation="select",table="posts"\} \d+(?:\.\d+)?$/m,
-    );
+    const [series] = metrics
+      .getSeries('db_query_duration_ms')
+      .filter(({ labels }) => labels.operation === 'select' && labels.table === 'posts');
+    expect(series?.sum).toBeGreaterThanOrEqual(0);
   });
 
   /**
@@ -173,8 +172,9 @@ describe('statement timing', () => {
   it('counts a rejected statement without letting the rejection escape', async () => {
     await expect(db.execute(sql`select * from "table_that_does_not_exist"`)).rejects.toThrow();
 
-    const exposition = await metrics.getPrometheusFormat();
-    expect(exposition).toMatch(/^db_query_errors_total\{operation="select",table="other"\} 1$/m);
+    expect(
+      metrics.getCounter('db_query_errors_total', { operation: 'select', table: 'other' }),
+    ).toBe(1);
   });
 });
 

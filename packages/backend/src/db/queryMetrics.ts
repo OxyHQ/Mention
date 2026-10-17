@@ -144,7 +144,7 @@ export interface QueryDescriptor {
  *
  * Exported because it is the part worth testing directly — the labels are the
  * difference between a useful metric and a cardinality incident, and they are
- * decided here rather than by prom-client.
+ * decided here rather than by the metrics registry.
  */
 /**
  * Memoised descriptors, keyed by the statement text.

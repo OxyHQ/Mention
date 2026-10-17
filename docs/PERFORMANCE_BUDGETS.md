@@ -395,13 +395,14 @@ it does not currently assert on timing. Worth knowing before assuming
 
 ## What is instrumented but not held to a budget
 
-`packages/backend/src/utils/metrics.ts` defines a real `prom-client`
-registry — `http_request_duration_ms` (histogram, labeled by method/route/
-status), `feed_ranking_duration_ms`, and real-user `web_vital_lcp_ms` /
-`web_vital_inp_ms` / `web_vital_cls_ratio` histograms (fed by
-`routes/webTelemetry.routes.ts`) all exist and are computed correctly today.
-`routes/internalMetrics.routes.ts` exposes them in Prometheus text format,
-IP-allowlisted and token-gated.
+`packages/backend/src/utils/metrics.ts` defines a bounded registry —
+`http_request_duration_ms` (distribution, labeled by method/route/status),
+`feed_ranking_duration_ms`, and real-user `web_vital_lcp_ms` /
+`web_vital_inp_ms` / `web_vital_cls_ratio` distributions (fed by
+`routes/webTelemetry.routes.ts`). Since 2026-10-17 it publishes to CloudWatch
+(`Mention/Backend`) as EMF through `@oxy.so/telemetry/metrics`: one billed metric
+per name with `Service` as its only dimension, so CloudWatch keeps SampleCount
+and p50/p99 history per metric, and the labels are Logs Insights properties.
 
 ### Where a request's time goes: Postgres, or Oxy
 
@@ -548,17 +549,11 @@ The frontend now runs the All tab as one query per source
 `__tests__/searchScreenProgressive.test.tsx` holds the posts source open and
 asserts People is on screen.
 
-**Nothing scrapes it.** There is no Prometheus, Grafana, or CloudWatch
-metrics pipeline for Mention in `oxy-infra/terraform-uswest2` (checked
-directly, not inferred) — `/internal/metrics` is a live snapshot an operator
-can `curl` by hand, not a time series anything retains. That means:
-
-- No p50/p95/p99 for any backend path survives past the current process.
-- No dashboard, no alert, and no way to answer "did this regress since last
-  week" from data — only "what is it right now."
-- A numeric SLO written against `http_request_duration_ms` today would be a
-  budget nothing enforces, which is the exact failure mode this document
-  opens by naming.
+**Retained since 2026-10-17, not yet budgeted.** The registry is published to
+CloudWatch as EMF (above), so p50/p99 of every metric now survive the process
+that recorded them; per-route percentiles come from the `HTTP request
+completed` log line (`oxy-infra` `logs-insights-mention.tf`). No numeric SLO
+is enforced against them yet; write one only after a few weeks of history.
 
 This covers every backend path #703 asked for (following/For You/profile
 feed, search, post create/update, notifications, ActivityPub inbox and
@@ -566,9 +561,8 @@ delivery-queue age, websocket propagation, background worker queue age) in
 the sense that request-level latency for anything routed through Express is
 already in `http_request_duration_ms` by route label, and feed ranking has
 its own histogram. The gap is uniformly the pipeline, not per-path
-instrumentation — fixing it once (standing up scraping + retention for
-`/internal/metrics`) unlocks a budget for all of them at once, rather than
-needing a bespoke solution per path.
+instrumentation — retaining the registry once unlocks a budget for all of
+them at once, rather than needing a bespoke solution per path.
 
 ### Web navigation latency
 
@@ -779,13 +773,8 @@ LCP is covered by the real-user web vitals above.
 
 ## Recommended next step, not taken in this pass
 
-Wire `/internal/metrics` into a retained time series. Request traffic already
-reports to Oxy's shared ecosystem telemetry (`runtime/platformActivity.ts`,
-`createEcosystemTraffic` from `@oxy.so/core/server`). That shared pipeline
-replaces app-specific CloudWatch custom metrics, which is why Mention's own
-`Mention/Backend` EMF namespace was removed. Retaining latency percentiles is
-an infrastructure decision for `oxy-infra`'s own owners, not a Mention code
-change, and is why it is a recommendation here rather than a PR. Once a
-metric survives longer than the process that emitted it, come back and
-write a real p95/p99 number against it — a number chosen before that lands
-would be a guess wearing an SLO's clothes.
+Write real p95/p99 budgets against the retained metrics. Since 2026-10-17 the
+registry in `utils/metrics.ts` reaches CloudWatch (`Mention/Backend`) through
+the shared EMF publisher in `@oxy.so/telemetry/metrics`, so a metric now
+survives the process that emitted it. Give it a few weeks of history first — a
+number chosen before that would be a guess wearing an SLO's clothes.

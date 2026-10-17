@@ -69,7 +69,6 @@ function createTestApp() {
   });
   const routes: AppRoutes = {
     health: passThrough,
-    internalMetrics: passThrough,
     webTelemetry: passThrough,
     legacyRoot: passThrough,
     webfinger: passThrough,

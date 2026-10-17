@@ -1,14 +1,28 @@
 import {
-  Counter,
-  Gauge,
-  Histogram,
-  Registry,
-  collectDefaultMetrics,
-  type CounterConfiguration,
-  type GaugeConfiguration,
-  type HistogramConfiguration,
-} from 'prom-client';
+  createEmfPublisher,
+  type EmfPublisher,
+  type MetricDefinition as EmfMetricDefinition,
+} from '@oxy.so/telemetry/metrics';
 import { logger } from './logger';
+
+/**
+ * Mention's operational metrics, published to CloudWatch (`Mention/Backend`)
+ * through the shared Oxy EMF publisher (`@oxy.so/telemetry/metrics`).
+ *
+ * This used to be a prom-client registry that nothing scraped: the only reader
+ * was an IP-locked `/internal/metrics`, so every counter reset on every deploy
+ * and no history existed anywhere (the discovery gate's shadow measurement
+ * among them). Now each metric is aggregated in memory and written once a
+ * minute as CloudWatch EMF on stdout, which the task's `awslogs` driver already
+ * ships, so it has history with no agent, sidecar or scraper.
+ *
+ * Every metric is ONE billed CloudWatch metric (dimension `Service` only), and
+ * its labels are free properties of the log line: break a metric down in Logs
+ * Insights, e.g. `filter ispresent(feed_discovery_gated_total) | stats
+ * sum(feed_discovery_gated_total) by reason, source, shadow`. Route x method as
+ * dimensions once cost ~80 % of the account's CloudWatch bill (#1334), which
+ * is why no label here is promoted to a dimension.
+ */
 
 export interface MetricLabels {
   [key: string]: string | number;
@@ -20,7 +34,6 @@ interface MetricDefinition {
   kind: MetricKind;
   help: string;
   labelNames: readonly string[];
-  buckets?: readonly number[];
   /**
    * Series ceiling for this metric alone, when {@link MAX_SERIES_PER_METRIC} is
    * the wrong bound.
@@ -156,11 +169,6 @@ const DEFINITIONS = {
     help: 'HTTP request latency by normalized route and result',
     labelNames: ['method', 'route', 'status'],
   },
-  http_requests_total: {
-    kind: 'counter',
-    help: 'HTTP requests by normalized route and result',
-    labelNames: ['method', 'route', 'status'],
-  },
   legacy_post_payload_total: {
     kind: 'counter',
     help: 'Bounded use of transitional post-create request aliases',
@@ -170,31 +178,26 @@ const DEFINITIONS = {
     kind: 'histogram',
     help: 'Real-user Largest Contentful Paint in milliseconds',
     labelNames: ['route', 'rating', 'navigation'],
-    buckets: [250, 500, 1_000, 1_500, 2_000, 2_500, 4_000, 6_000, 10_000, 30_000],
   },
   web_vital_inp_ms: {
     kind: 'histogram',
     help: 'Real-user Interaction to Next Paint in milliseconds',
     labelNames: ['route', 'rating', 'navigation'],
-    buckets: [25, 50, 100, 150, 200, 300, 500, 1_000, 2_500, 10_000],
   },
   web_vital_cls_ratio: {
     kind: 'histogram',
     help: 'Real-user Cumulative Layout Shift score',
     labelNames: ['route', 'rating', 'navigation'],
-    buckets: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10],
   },
   web_shell_fetch_ms: {
     kind: 'histogram',
     help: 'Fetching the SPA shell from its origin (only on a cold or stale process cache)',
     labelNames: ['status'],
-    buckets: [25, 50, 100, 250, 500, 1_000, 2_500, 5_000],
   },
   web_boot_milestone_ms: {
     kind: 'histogram',
     help: 'Real-user milliseconds from navigation start to each step of a document load',
     labelNames: ['milestone', 'route', 'navigation'],
-    buckets: [250, 500, 1_000, 1_500, 2_000, 2_500, 3_000, 4_000, 6_000, 10_000, 30_000],
   },
   web_runtime_events_total: {
     kind: 'counter',
@@ -249,10 +252,6 @@ const DEFINITIONS = {
     kind: 'histogram',
     help: 'Database statement latency in milliseconds, by operation and primary table',
     labelNames: ['operation', 'table'],
-    // A statement is an order of magnitude faster than an HTTP request, so the
-    // shared millisecond buckets start too coarse to separate a 0.4 ms index
-    // lookup from a 4 ms one — which is the whole distinction this metric is for.
-    buckets: [0.25, 0.5, 1, 2.5, 5, 10, 25, 50, 100, 250, 500, 1_000, 2_500],
     maxSeries: 1_024,
   },
   db_query_errors_total: {
@@ -265,7 +264,6 @@ const DEFINITIONS = {
     kind: 'histogram',
     help: 'Database statements issued while serving one HTTP request',
     labelNames: ['method', 'route'],
-    buckets: [1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233],
   },
   db_request_duration_ms: {
     kind: 'histogram',
@@ -288,17 +286,10 @@ const DEFINITIONS = {
     labelNames: ['method', 'route', 'status'],
     maxSeries: 1_024,
   },
-  oxy_calls_total: {
-    kind: 'counter',
-    help: 'Oxy API calls issued, by route template and status class',
-    labelNames: ['method', 'route', 'status'],
-    maxSeries: 1_024,
-  },
   oxy_request_calls: {
     kind: 'histogram',
     help: 'Oxy API calls issued while serving one HTTP request',
     labelNames: ['method', 'route'],
-    buckets: [1, 2, 3, 5, 8, 13, 21, 34],
   },
   oxy_request_duration_ms: {
     kind: 'histogram',
@@ -340,20 +331,12 @@ const ALLOWED_LEGACY_POST_VARIANTS = new Set([
 ]);
 const MAX_SERIES_PER_METRIC = 256;
 const LABEL_VALUE_PATTERN = /^[a-zA-Z0-9_.:-]{1,64}$/;
-const HISTOGRAM_BUCKETS_MS = [5, 10, 25, 50, 100, 250, 500, 1_000, 2_500, 5_000];
-
-type PromMetric = Counter<string> | Gauge<string> | Histogram<string>;
 
 function seriesKey(labels: Record<string, string>): string {
   return Object.entries(labels)
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([key, value]) => `${key}=${value}`)
     .join('|');
-}
-
-function summaryKey(metricName: string, labels: Record<string, string>): string {
-  const key = seriesKey(labels);
-  return key ? `${metricName}{${key}}` : metricName;
 }
 
 function boundedLabelValue(label: string, rawValue: string): string {
@@ -387,28 +370,38 @@ function boundedLabelValue(label: string, rawValue: string): string {
   return LABEL_VALUE_PATTERN.test(value) ? value : 'other';
 }
 
-class MetricsCollector {
-  readonly registry = new Registry();
-  readonly contentType = this.registry.contentType;
+/** One label set of one metric, as recorded since the last {@link MetricsCollector.reset}. */
+export interface MetricSeries {
+  metric: MetricName;
+  labels: Readonly<Record<string, string>>;
+  /** Observations (histogram) or increments (counter) recorded. */
+  count: number;
+  /** Sum of the observed values or increments. */
+  sum: number;
+  /** Last value set (gauge) or observed. */
+  value: number;
+}
 
-  private readonly collectors = new Map<string, PromMetric>();
+function emfDefinition(metricName: MetricName, definition: MetricDefinition): EmfMetricDefinition {
+  if (definition.kind === 'counter') return { name: metricName, unit: 'Count', kind: 'sum' };
+  if (definition.kind === 'gauge') return { name: metricName, unit: 'None', kind: 'gauge' };
+  return {
+    name: metricName,
+    unit: metricName.endsWith('_ms') ? 'Milliseconds' : 'None',
+    kind: 'distribution',
+  };
+}
+
+export class MetricsCollector {
+  private readonly emfDefinitions = new Map<MetricName, EmfMetricDefinition>();
   private readonly series = new Map<string, Set<string>>();
-  private readonly counterValues = new Map<string, number>();
-  private readonly gaugeValues = new Map<string, number>();
+  private readonly recorded = new Map<MetricName, Map<string, MetricSeries>>();
 
-  constructor() {
-    collectDefaultMetrics({
-      register: this.registry,
-      prefix: 'mention_',
-    });
-  }
+  constructor(private readonly publisher: EmfPublisher | null) {}
 
   recordLatency(metricName: MetricName, durationMs: number, labels?: MetricLabels): void {
     if (!Number.isFinite(durationMs) || durationMs < 0) return;
-    const definition = this.definitionFor(metricName, 'histogram');
-    const normalized = this.normalizeLabels(metricName, definition, labels);
-    const histogram = this.collectorFor(metricName, definition) as Histogram<string>;
-    histogram.observe(normalized, durationMs);
+    const normalized = this.observe(metricName, 'histogram', durationMs, labels);
 
     if (durationMs > 1_000) {
       logger.warn('Slow operation detected', {
@@ -429,55 +422,90 @@ class MetricsCollector {
    */
   observeValue(metricName: MetricName, value: number, labels?: MetricLabels): void {
     if (!Number.isFinite(value) || value < 0) return;
-    const definition = this.definitionFor(metricName, 'histogram');
-    const normalized = this.normalizeLabels(metricName, definition, labels);
-    const histogram = this.collectorFor(metricName, definition) as Histogram<string>;
-    histogram.observe(normalized, value);
+    this.observe(metricName, 'histogram', value, labels);
   }
 
   incrementCounter(metricName: MetricName, value = 1, labels?: MetricLabels): void {
     if (!Number.isFinite(value) || value < 0) return;
-    const definition = this.definitionFor(metricName, 'counter');
-    const normalized = this.normalizeLabels(metricName, definition, labels);
-    const counter = this.collectorFor(metricName, definition) as Counter<string>;
-    counter.inc(normalized, value);
-
-    const key = summaryKey(metricName, normalized);
-    this.counterValues.set(key, (this.counterValues.get(key) ?? 0) + value);
+    this.observe(metricName, 'counter', value, labels);
   }
 
   setGauge(metricName: MetricName, value: number, labels?: MetricLabels): void {
     if (!Number.isFinite(value)) return;
-    const definition = this.definitionFor(metricName, 'gauge');
-    const normalized = this.normalizeLabels(metricName, definition, labels);
-    const gauge = this.collectorFor(metricName, definition) as Gauge<string>;
-    gauge.set(normalized, value);
-    this.gaugeValues.set(summaryKey(metricName, normalized), value);
+    this.observe(metricName, 'gauge', value, labels);
   }
 
   /** Test-only synchronous view of a bounded counter series. */
   getCounter(metricName: MetricName, labels?: MetricLabels): number {
-    const definition = this.definitionFor(metricName, 'counter');
-    const normalized = this.normalizeLabels(metricName, definition, labels, false);
-    return this.counterValues.get(summaryKey(metricName, normalized)) ?? 0;
+    return this.lookup(metricName, 'counter', labels)?.sum ?? 0;
   }
 
   /** Test-only synchronous view of a bounded gauge series. */
   getGauge(metricName: MetricName, labels?: MetricLabels): number {
-    const definition = this.definitionFor(metricName, 'gauge');
-    const normalized = this.normalizeLabels(metricName, definition, labels, false);
-    return this.gaugeValues.get(summaryKey(metricName, normalized)) ?? 0;
+    return this.lookup(metricName, 'gauge', labels)?.value ?? 0;
   }
 
-  async getPrometheusFormat(): Promise<string> {
-    return this.registry.metrics();
+  /** Every label set recorded since the last reset, for one metric or all (tests). */
+  getSeries(metricName?: MetricName): MetricSeries[] {
+    const metricsToRead = metricName ? [metricName] : [...this.recorded.keys()];
+    return metricsToRead.flatMap((name) =>
+      [...(this.recorded.get(name)?.values() ?? [])].map((entry) => ({
+        ...entry,
+        labels: { ...entry.labels },
+      })),
+    );
   }
 
   reset(): void {
-    this.registry.resetMetrics();
-    this.counterValues.clear();
-    this.gaugeValues.clear();
+    this.recorded.clear();
     this.series.clear();
+  }
+
+  /** Flush the last interval during graceful shutdown. */
+  stop(): void {
+    this.publisher?.stop();
+  }
+
+  private observe(
+    metricName: MetricName,
+    kind: MetricKind,
+    value: number,
+    labels: MetricLabels | undefined,
+  ): Record<string, string> {
+    const definition = this.definitionFor(metricName, kind);
+    const normalized = this.normalizeLabels(metricName, definition, labels);
+    const key = seriesKey(normalized);
+    const byLabels = this.recorded.get(metricName) ?? new Map<string, MetricSeries>();
+    this.recorded.set(metricName, byLabels);
+    const entry = byLabels.get(key) ?? {
+      metric: metricName,
+      labels: normalized,
+      count: 0,
+      sum: 0,
+      value: 0,
+    };
+    entry.count += 1;
+    entry.sum += value;
+    entry.value = value;
+    byLabels.set(key, entry);
+
+    let emf = this.emfDefinitions.get(metricName);
+    if (!emf) {
+      emf = emfDefinition(metricName, definition);
+      this.emfDefinitions.set(metricName, emf);
+    }
+    this.publisher?.record(emf, value, normalized);
+    return normalized;
+  }
+
+  private lookup(
+    metricName: MetricName,
+    kind: MetricKind,
+    labels: MetricLabels | undefined,
+  ): MetricSeries | undefined {
+    const definition = this.definitionFor(metricName, kind);
+    const normalized = this.normalizeLabels(metricName, definition, labels, false);
+    return this.recorded.get(metricName)?.get(seriesKey(normalized));
   }
 
   private definitionFor(metricName: MetricName, expectedKind: MetricKind): MetricDefinition {
@@ -516,31 +544,14 @@ class MetricsCollector {
     this.series.set(metricName, knownSeries);
     return normalized;
   }
-
-  private collectorFor(metricName: MetricName, definition: MetricDefinition): PromMetric {
-    const existing = this.collectors.get(metricName);
-    if (existing) return existing;
-
-    let collector: PromMetric;
-    const common = {
-      name: metricName,
-      help: definition.help,
-      labelNames: [...definition.labelNames],
-      registers: [this.registry],
-    };
-    if (definition.kind === 'counter') {
-      collector = new Counter(common as CounterConfiguration<string>);
-    } else if (definition.kind === 'gauge') {
-      collector = new Gauge(common as GaugeConfiguration<string>);
-    } else {
-      collector = new Histogram({
-        ...common,
-        buckets: definition.buckets ? [...definition.buckets] : HISTOGRAM_BUCKETS_MS,
-      } as HistogramConfiguration<string>);
-    }
-    this.collectors.set(metricName, collector);
-    return collector;
-  }
 }
 
-export const metrics = new MetricsCollector();
+/**
+ * Published only on ECS, where CloudWatch extracts EMF from the task's
+ * `awslogs` stream; anywhere else the lines would be noise in a terminal.
+ */
+export const metrics = new MetricsCollector(
+  process.env.ECS_CONTAINER_METADATA_URI_V4
+    ? createEmfPublisher({ namespace: 'Mention/Backend', service: 'mention' })
+    : null,
+);

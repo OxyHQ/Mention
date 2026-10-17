@@ -49,7 +49,6 @@ import mediaRoutes from './routes/media';
 import recommendationsRoutes from './routes/recommendations';
 import mtnNodesRoutes from './routes/mtn-nodes.routes';
 import webShellRoutes from './routes/webShell.routes';
-import internalMetricsRoutes from './routes/internalMetrics.routes';
 import webTelemetryRoutes from './routes/webTelemetry.routes';
 import importsRoutes from './routes/imports';
 import {
@@ -78,7 +77,6 @@ import atprotoBridgeRoutes, {
 
 export interface AppRoutes {
   health: RequestHandler;
-  internalMetrics: RequestHandler;
   webTelemetry: RequestHandler;
   legacyRoot: RequestHandler;
   webfinger: RequestHandler;
@@ -212,7 +210,6 @@ export function createAppRoutes({ oxy, optionalAuth }: CreateAppRoutesDependenci
 
   return {
     health: healthRoutes,
-    internalMetrics: internalMetricsRoutes,
     webTelemetry: webTelemetryRoutes,
     legacyRoot: legacyApiRootReadiness,
     webfinger: webfingerRouter,

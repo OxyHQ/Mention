@@ -20,9 +20,9 @@ import { adultSafetyFixture } from '../helpers/adultSafety';
  *
  * ## Why a spy here, and not the metrics registry
  *
- * The sibling budgets read `db_query_duration_ms` out of the Prometheus text
+ * The sibling budgets read `db_query_duration_ms` out of the metrics registry
  * because a spy on a repository would keep passing if the duplication moved
- * elsewhere in the path. The equivalent series exists for Oxy (`oxy_calls_total`,
+ * elsewhere in the path. The equivalent series exists for Oxy (`oxy_call_duration_ms`,
  * `utils/oxyMetrics.ts`) but it is recorded from a patch on `HttpService`'s
  * PROTOTYPE, reached through a real `OxyServices` making a real HTTP request —
  * so under a mocked client it records nothing, and a budget read from it would

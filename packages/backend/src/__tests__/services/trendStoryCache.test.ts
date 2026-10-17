@@ -104,12 +104,10 @@ async function seedMember(trendId: string, name: string): Promise<void> {
 }
 
 async function trendingSelectCount(): Promise<number> {
-  let total = 0;
-  for (const line of (await metrics.getPrometheusFormat()).split('\n')) {
-    const match = /^db_query_duration_ms_count\{[^}]*table="trending"[^}]*\}\s+(\d+)/.exec(line);
-    if (match) total += Number(match[1]);
-  }
-  return total;
+  return metrics
+    .getSeries('db_query_duration_ms')
+    .filter(({ labels }) => labels.table === 'trending')
+    .reduce((total, { count }) => total + count, 0);
 }
 
 describe('resolveTrendStory caching', () => {

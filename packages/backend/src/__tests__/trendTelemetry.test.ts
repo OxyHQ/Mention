@@ -8,6 +8,7 @@ import {
   resolveTrendFreshness,
 } from '../services/trending/trendTelemetry';
 import { metrics } from '../utils/metrics';
+import { recordedMetricsText } from './helpers/recordedMetrics';
 
 const VALID_BODY: TrendEventInput = {
   event: 'click',
@@ -188,7 +189,7 @@ describe('recordTrendEvent', () => {
       CURRENT_REC_ID,
     );
 
-    const exported = await metrics.getPrometheusFormat();
+    const exported = recordedMetricsText();
     expect(exported).toContain(TREND_EVENT_METRIC);
     // The token is high-cardinality by construction AND attacker-supplied; the
     // rank is per-position. Neither may reach the label space.

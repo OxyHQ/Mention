@@ -6,6 +6,7 @@ import {
   normalizeWebTelemetryRoute,
 } from '../routes/webTelemetry.routes';
 import { metrics } from '../utils/metrics';
+import { recordedMetricsText } from './helpers/recordedMetrics';
 
 describe('web RUM telemetry', () => {
   const app = express();
@@ -40,7 +41,7 @@ describe('web RUM telemetry', () => {
       })
       .expect(204);
 
-    const output = await metrics.getPrometheusFormat();
+    const output = recordedMetricsText();
     expect(output).toContain('web_vital_lcp_ms');
     expect(output).toContain('route="/post"');
     expect(output).toContain('route="/profile"');
@@ -82,7 +83,7 @@ describe('web RUM telemetry', () => {
       )
       .expect(204);
 
-    const output = await metrics.getPrometheusFormat();
+    const output = recordedMetricsText();
     expect(output).toContain('web_runtime_events_total');
     expect(output).toContain('route="/post"');
     expect(output).not.toContain('private-id');
@@ -147,7 +148,7 @@ describe('web RUM telemetry', () => {
       })
       .expect(204);
 
-    const output = await metrics.getPrometheusFormat();
+    const output = recordedMetricsText();
     expect(output).toContain('web_vital_cls_ratio');
     expect(output).toContain('web_vital_inp_ms');
     expect(output).not.toContain('120001');
@@ -178,7 +179,7 @@ describe('web RUM telemetry', () => {
       })
       .expect(204);
 
-    const output = await metrics.getPrometheusFormat();
+    const output = recordedMetricsText();
     expect(output).toContain('web_boot_milestone_ms');
     expect(output).toContain('milestone="content-ready"');
     expect(output).toContain('route="/profile"');

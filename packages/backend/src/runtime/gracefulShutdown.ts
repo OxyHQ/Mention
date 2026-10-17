@@ -7,6 +7,7 @@ import { leaderElection } from '../services/LeaderElection';
 import { moderationOutboxDispatcher } from '../services/moderation/ModerationOutboxDispatcher';
 import { closeRedisConnection } from '../utils/redis';
 import { logger } from '../utils/logger';
+import { metrics } from '../utils/metrics';
 import { markRuntimeShuttingDown } from '../utils/runtimeHealth';
 import type { PresenceRegistry } from './presenceRegistry';
 import { drainBackgroundWork } from './backgroundWork';
@@ -112,6 +113,8 @@ export function registerGracefulShutdown(deps: GracefulShutdownDeps): void {
       ]);
 
       await deps.stopActivity?.();
+      // Last: the final interval includes everything the drain above recorded.
+      metrics.stop();
       clearTimeout(hardTimeout);
       logger.info('HTTP, sockets, queues, Redis and PostgreSQL closed');
       process.exit(0);

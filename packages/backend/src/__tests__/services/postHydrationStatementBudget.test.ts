@@ -101,15 +101,14 @@ const VIEWER_ID = scope.user('viewer');
 /**
  * Statements the instrumentation timed, by primary table.
  *
- * Read out of the Prometheus text rather than a private field: the `_count`
- * series of `db_query_duration_ms` IS the number of statements observed under
- * those labels, and it is the same series production reads.
+ * Read from the registry's recorded series rather than a private field: the
+ * count of `db_query_duration_ms` IS the number of statements observed under
+ * those labels, and it is the same series production publishes.
  */
 async function statementsByTable(): Promise<Map<string, number>> {
   const counts = new Map<string, number>();
-  for (const line of (await metrics.getPrometheusFormat()).split('\n')) {
-    const match = /^db_query_duration_ms_count\{[^}]*table="([^"]+)"[^}]*\}\s+(\d+)/.exec(line);
-    if (match) counts.set(match[1], (counts.get(match[1]) ?? 0) + Number(match[2]));
+  for (const { labels, count } of metrics.getSeries('db_query_duration_ms')) {
+    counts.set(labels.table, (counts.get(labels.table) ?? 0) + count);
   }
   return counts;
 }

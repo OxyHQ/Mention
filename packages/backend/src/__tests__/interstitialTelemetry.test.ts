@@ -6,6 +6,7 @@ import {
   recordInterstitialEvent,
 } from '../mtn/feed/interstitials/interstitialTelemetry';
 import { metrics } from '../utils/metrics';
+import { recordedMetricsText } from './helpers/recordedMetrics';
 
 const VALID_BODY: FeedInterstitialEventInput = {
   feedDescriptor: 'for_you',
@@ -149,7 +150,7 @@ describe('recordInterstitialEvent', () => {
   it('emits nothing that identifies the viewer, the slot or the target', async () => {
     recordInterstitialEvent({ ...VALID_BODY, slotKey: 'int:suggestedUsers:slice-8', position: 4 });
 
-    const exported = await metrics.getPrometheusFormat();
+    const exported = recordedMetricsText();
     expect(exported).toContain(INTERSTITIAL_EVENT_METRIC);
     expect(exported).not.toContain('slice-8');
     expect(exported).not.toContain('position');

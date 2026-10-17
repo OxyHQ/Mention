@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'bun:test';
-import { metrics } from '../../utils/metrics';
+import type { EmfPublisher } from '@oxy.so/telemetry/metrics';
+import { MetricsCollector, metrics } from '../../utils/metrics';
 
 afterEach(() => {
   metrics.reset();
@@ -21,12 +22,35 @@ describe('bounded metrics registry', () => {
       });
     }
 
-    const output = await metrics.getPrometheusFormat();
-    const series = output
-      .split('\n')
-      .filter((line) => line.startsWith('feed_discovery_gated_total{'));
+    const series = metrics.getSeries('feed_discovery_gated_total');
 
     expect(series.length).toBeLessThanOrEqual(256);
-    expect(series.some((line) => line.includes('reason="other"'))).toBe(true);
+    expect(series.some(({ labels }) => labels.reason === 'other')).toBe(true);
+  });
+
+  it('publishes each observation to CloudWatch EMF with its labels as properties', () => {
+    const published: unknown[] = [];
+    const publisher: EmfPublisher = {
+      record: (metric, value, labels) => published.push({ metric, value, labels }),
+      flush: () => {},
+      stop: () => {},
+    };
+    const collector = new MetricsCollector(publisher);
+
+    collector.incrementCounter('trending_calculation_total', 1, { result: 'success' });
+    collector.recordLatency('feed_ranking_duration_ms', 12);
+
+    expect(published).toEqual([
+      {
+        metric: { name: 'trending_calculation_total', unit: 'Count', kind: 'sum' },
+        value: 1,
+        labels: { result: 'success' },
+      },
+      {
+        metric: { name: 'feed_ranking_duration_ms', unit: 'Milliseconds', kind: 'distribution' },
+        value: 12,
+        labels: {},
+      },
+    ]);
   });
 });

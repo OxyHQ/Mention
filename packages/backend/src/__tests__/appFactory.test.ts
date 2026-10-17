@@ -27,7 +27,6 @@ function createRoutes(): AppRoutes {
 
   return {
     health: routerWith('/health/live', 'live'),
-    internalMetrics: passThrough,
     webTelemetry: passThrough,
     legacyRoot: passThrough,
     webfinger: routerWith('/webfinger', 'federation'),

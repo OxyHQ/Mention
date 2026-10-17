@@ -126,18 +126,10 @@ beforeEach(async () => {
 
 /** How many statements the registry recorded against one table. */
 async function statementsAgainst(table: string): Promise<number> {
-  const exposition = await metrics.getPrometheusFormat();
-  const pattern = new RegExp(
-    `^db_query_duration_ms_count\\{operation="[a-z]+",table="${table}"\\} (\\d+)$`,
-    'gm',
-  );
-  let total = 0;
-  let match = pattern.exec(exposition);
-  while (match) {
-    total += Number(match[1]);
-    match = pattern.exec(exposition);
-  }
-  return total;
+  return metrics
+    .getSeries('db_query_duration_ms')
+    .filter(({ labels }) => labels.table === table)
+    .reduce((total, { count }) => total + count, 0);
 }
 
 function makeRes() {
