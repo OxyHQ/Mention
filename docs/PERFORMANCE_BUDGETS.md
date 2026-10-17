@@ -419,9 +419,9 @@ report per request, on the `HTTP request completed` log line that
 `slowQueryCount` / `failedQueryCount` and `failedOxyCallCount` sit beside them.
 The matching histograms — `db_request_queries`, `db_request_duration_ms`,
 `oxy_request_calls`, `oxy_request_duration_ms`, plus per-call
-`oxy_call_duration_ms` and `oxy_calls_total` by templated route — are in the
-registry too, but **the log line is the one that survives the process**, for
-the reason immediately below.
+`oxy_call_duration_ms` by templated route (its SampleCount is the call count)
+— reach CloudWatch too, but only as aggregates; **the log line is the one that
+keeps a single request's numbers together**.
 
 Read them together. `postHydrationStatementBudget.test.ts` pins one hydration
 at seven statements whether it hydrates one post or twenty, so a route that is

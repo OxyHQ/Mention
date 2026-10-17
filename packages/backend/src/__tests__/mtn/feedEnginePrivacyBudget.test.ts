@@ -19,7 +19,7 @@ import { adultSafetyFixture } from '../helpers/adultSafety';
  *
  * ## Why a spy here, and not the metrics registry
  *
- * Same reason the graph budget gives: `oxy_calls_total` is recorded from a patch
+ * Same reason the graph budget gives: `oxy_call_duration_ms` is recorded from a patch
  * on `HttpService`'s prototype reached through a real HTTP request, so under a
  * mocked client it records nothing and a budget read from it would pass at zero
  * however many calls the engine made. The spy is sound because hydration reaches
