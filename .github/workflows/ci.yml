@@ -184,6 +184,12 @@ jobs:
       # floor in the script — would have reported "no changes" as success.
       - name: Verify schema and migrations agree
         run: bash .github/scripts/check-schema-migration-parity.sh
+      # Every Oxy app shares one Postgres: a new migration may not hold a lock
+      # that stalls a hot table (NOT VALID constraints validated later, hot-table
+      # DDL alone in its migration). The rules are @oxy.so/db's; the baseline and
+      # hot tables are in packages/backend's db:check-locks script.
+      - name: Verify every new migration keeps its locks short
+        run: bun run --cwd packages/backend db:check-locks
       - name: Verify CI and deployment safeguards
         run: |
           bash -n .github/scripts/*.sh
