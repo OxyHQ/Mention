@@ -38,7 +38,7 @@ import { adultSafetyFixture } from '../helpers/adultSafety';
  *
  * ## Why a spy on the client, and not the metrics registry
  *
- * Same reason `feedEngineViewerGraphBudget.test.ts` gives: `oxy_calls_total` is
+ * Same reason `feedEngineViewerGraphBudget.test.ts` gives: `oxy_call_duration_ms` is
  * recorded from a patch on `HttpService`'s prototype, reached only through a
  * real `OxyServices` making a real request, so under a mocked client it records
  * nothing and a budget read from it would pass at zero whatever the route did.

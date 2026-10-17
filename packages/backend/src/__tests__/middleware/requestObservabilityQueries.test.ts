@@ -79,11 +79,13 @@ describe('per-request query accounting', () => {
   it('publishes the count and the database time under the route template', async () => {
     await request(app).get('/posts/abc').expect(200);
 
-    const exposition = await metrics.getPrometheusFormat();
-    expect(exposition).toMatch(/^db_request_queries_sum\{method="GET",route="\/posts\/:id"\} 2$/m);
-    expect(exposition).toMatch(
-      /^db_request_duration_ms_count\{method="GET",route="\/posts\/:id"\} 1$/m,
-    );
+    const labels = { method: 'GET', route: '/posts/:id' };
+    expect(metrics.getSeries('db_request_queries')).toEqual([
+      expect.objectContaining({ labels, sum: 2 }),
+    ]);
+    expect(metrics.getSeries('db_request_duration_ms')).toEqual([
+      expect.objectContaining({ labels, count: 1 }),
+    ]);
   });
 
   it('reports zero for a request that never touched the database', async () => {
@@ -118,6 +120,6 @@ describe('per-request query accounting', () => {
     expect(context).not.toHaveProperty('queryCount');
     // The request's own telemetry is untouched by the switch.
     expect(context).toMatchObject({ route: '/static', statusCode: 200 });
-    expect(await metrics.getPrometheusFormat()).not.toContain('db_request_queries_count');
+    expect(metrics.getSeries('db_request_queries')).toHaveLength(0);
   });
 });

@@ -51,10 +51,9 @@ const CHILD_TABLES = [
 
 async function childTableStatementCounts(): Promise<Map<string, number>> {
   const counts = new Map<string, number>();
-  for (const line of (await metrics.getPrometheusFormat()).split('\n')) {
-    const match = /^db_query_duration_ms_count\{[^}]*table="([^"]+)"[^}]*\}\s+(\d+)/.exec(line);
-    if (match && (CHILD_TABLES as readonly string[]).includes(match[1])) {
-      counts.set(match[1], (counts.get(match[1]) ?? 0) + Number(match[2]));
+  for (const { labels, count } of metrics.getSeries('db_query_duration_ms')) {
+    if ((CHILD_TABLES as readonly string[]).includes(labels.table)) {
+      counts.set(labels.table, (counts.get(labels.table) ?? 0) + count);
     }
   }
   return counts;

@@ -156,8 +156,8 @@ function reportInstrumentationFault(error: unknown): void {
 function record(method: string, route: string, status: string, durationMs: number): void {
   try {
     const labels = { method, route, status };
+    // Its count is the call count: there is no separate calls counter.
     metrics.recordLatency('oxy_call_duration_ms', durationMs, labels);
-    metrics.incrementCounter('oxy_calls_total', 1, labels);
     const tally = requestTally.getStore();
     if (tally) {
       tally.count += 1;

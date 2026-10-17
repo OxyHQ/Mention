@@ -112,29 +112,6 @@ const commaSeparatedDomains = (fallback: readonly string[] = []) =>
       .filter(Boolean);
   }, z.array(domain));
 
-const exactIpList = z.preprocess(
-  (value) => {
-    if (value === undefined || value === null || value === '') return [];
-    if (Array.isArray(value)) return value;
-    return String(value)
-      .split(',')
-      .map((entry) => entry.trim().replace(/^::ffff:/, ''))
-      .filter(Boolean);
-  },
-  z.array(
-    z
-      .string()
-      .refine(
-        (value) => /^(?:\d{1,3}\.){3}\d{1,3}$/.test(value) || /^[0-9a-f:]+$/i.test(value),
-        'must be an IPv4 or IPv6 address',
-      )
-      .refine((value) => {
-        if (value.includes(':')) return value.length <= 45;
-        return value.split('.').every((part) => Number(part) >= 0 && Number(part) <= 255);
-      }, 'must be a valid IP address'),
-  ),
-);
-
 const feedToggle = z.preprocess(
   emptyAsUndefined,
   z
@@ -507,19 +484,6 @@ const environmentSchema = z
       emptyAsUndefined,
       z.enum(['observe', 'manual', 'automatic']).default('observe'),
     ),
-
-    /**
-     * There is no `INTERNAL_METRICS_ENABLED`, and it is not coming back.
-     *
-     * The route already answers 404 without a token — deliberately, so the
-     * surface is hidden rather than advertised — so a flag beside the token
-     * could only ever say "on" while the thing stayed off, or "off" while a
-     * token sat there doing nothing. The deploy script made that plain: it set
-     * the flag to `true` exactly when it wired the token, which is a condition
-     * the code can read for itself.
-     */
-    INTERNAL_METRICS_TOKEN: optionalString(32),
-    METRICS_ALLOWED_IPS: exactIpList,
   })
   .superRefine((environment, context) => {
     if (
@@ -925,12 +889,6 @@ export const config = {
      * application, internal ones included.
      */
     moveApplicationId: environment.MOVE_APPLICATION_ID,
-  },
-  internalMetrics: {
-    /** Holding the token IS being enabled; see the schema for why. */
-    enabled: Boolean(environment.INTERNAL_METRICS_TOKEN),
-    token: environment.INTERNAL_METRICS_TOKEN,
-    allowedIps: environment.METRICS_ALLOWED_IPS,
   },
   cache: {
     userTTL: environment.CACHE_USER_TTL,

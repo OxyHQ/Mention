@@ -68,8 +68,9 @@ Production migrations run only as the deployment one-shot. Do not run
 - `GET /health/ready` requires completed startup, Postgres connectivity, applied
   migrations, Redis, and the
   expected migration version.
-- `GET /internal/metrics` is disabled unless configured and additionally
-  requires an allowed network source plus a service bearer token.
+- Metrics (`src/utils/metrics.ts`) are published to CloudWatch namespace
+  `Mention/Backend` as EMF log lines through `@oxy.so/telemetry/metrics`; there
+  is no scrape endpoint. Labels are Logs Insights properties, not dimensions.
 - `POST /telemetry/web` accepts bounded anonymous browser RUM events; it must
   remain before authenticated API middleware and never carries user IDs.
 

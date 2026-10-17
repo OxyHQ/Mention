@@ -30,7 +30,6 @@ Post responses are hydrated by `PostHydrationService` and use contracts from
 | --- | --- | --- | --- |
 | GET | `/health/live` | Public | `200` while the process can answer HTTP |
 | GET | `/health/ready` | Public | `200` only after startup, migrations, and PostgreSQL; otherwise `503` |
-| GET | `/internal/metrics` | Service-only | Prometheus output after network and bearer-token checks |
 | POST | `/telemetry/web` | Trusted browser origin | Bounded web-vitals/runtime batch; returns `204` |
 
 A ready response reports the runtime phase and PostgreSQL, migration, and Redis

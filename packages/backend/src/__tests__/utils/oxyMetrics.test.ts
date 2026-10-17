@@ -57,8 +57,20 @@ function clientThatResolves(): { http: FakeHttpService } {
   return { http: new FakeHttpService(async () => ({ ok: true })) };
 }
 
-async function exposition(): Promise<string> {
-  return metrics.getPrometheusFormat();
+/** Calls recorded under exactly these labels (`oxy_call_duration_ms`'s count). */
+function callsRecorded(labels: Record<string, string>): number {
+  return (
+    metrics
+      .getSeries('oxy_call_duration_ms')
+      .find((series) =>
+        Object.entries(labels).every(([key, value]) => series.labels[key] === value),
+      )?.count ?? 0
+  );
+}
+
+/** Every label value the registry holds for Oxy calls, for privacy assertions. */
+function recordedLabels(): string {
+  return JSON.stringify(metrics.getSeries('oxy_call_duration_ms').map(({ labels }) => labels));
 }
 
 describe('templateOxyRoute', () => {
@@ -103,9 +115,7 @@ describe('instrumentOxyEgress', () => {
       url: '/users/650000000000000000000010/following',
     });
 
-    expect(await exposition()).toContain(
-      'oxy_calls_total{method="GET",route="/users/:id/following",status="2xx"} 1',
-    );
+    expect(callsRecorded({ method: 'GET', route: '/users/:id/following', status: '2xx' })).toBe(1);
   });
 
   it('never lets an identifier or a media token reach the registry', async () => {
@@ -119,8 +129,8 @@ describe('instrumentOxyEgress', () => {
       url: '/assets/650000000000000000000010/stream?mt=secret-media-token',
     });
 
-    const text = await exposition();
-    expect(text).toContain('route="/assets/:id/stream"');
+    const text = recordedLabels();
+    expect(text).toContain('"route":"/assets/:id/stream"');
     expect(text).not.toContain('650000000000000000000010');
     expect(text).not.toContain('secret-media-token');
   });
@@ -138,9 +148,7 @@ describe('instrumentOxyEgress', () => {
       'forbidden',
     );
 
-    expect(await exposition()).toContain(
-      'oxy_calls_total{method="GET",route="/users/me/graph",status="4xx"} 1',
-    );
+    expect(callsRecorded({ method: 'GET', route: '/users/me/graph', status: '4xx' })).toBe(1);
   });
 
   it('counts every call of one request against one tally', async () => {
@@ -171,9 +179,7 @@ describe('instrumentOxyEgress', () => {
     // `first`'s prototype — and it must still be measured, exactly once.
     await second.http.request({ method: 'GET', url: '/users/me/graph' });
 
-    expect(await exposition()).toContain(
-      'oxy_calls_total{method="GET",route="/users/me/graph",status="2xx"} 1',
-    );
+    expect(callsRecorded({ method: 'GET', route: '/users/me/graph', status: '2xx' })).toBe(1);
   });
 
   it('leaves the prototype untouched when the flag is off', async () => {
@@ -193,9 +199,7 @@ describe('instrumentOxyEgress', () => {
       expect(Object.getPrototypeOf(client.http).request).toBe(before);
 
       await client.http.request({ method: 'GET', url: '/users/me/graph' });
-      // The metric FAMILY stays registered by earlier cases in this file, so the
-      // invariant is that no sample was written — not that the name is absent.
-      expect(await exposition()).not.toMatch(/^oxy_calls_total\{/m);
+      expect(metrics.getSeries('oxy_call_duration_ms')).toHaveLength(0);
     } finally {
       config.oxy.requestMetricsEnabled = true;
     }
@@ -219,9 +223,8 @@ describe('instrumentOxyEgress', () => {
 
       expect(tally.count).toBe(2);
       expect(tally.errorCount).toBe(1);
-      const output = await metrics.getPrometheusFormat();
-      expect(output).toContain('oxy_calls_total');
-      expect(output).not.toContain('alice');
+      expect(metrics.getSeries('oxy_call_duration_ms').length).toBeGreaterThan(0);
+      expect(recordedLabels()).not.toContain('alice');
     });
 
     it('counts a rejected fetch as a 5xx and rethrows it', async () => {

@@ -24,11 +24,15 @@ describe('requestObservability', () => {
 
     expect(response.headers['x-request-id']).toBe('request-safe-123');
     expect(
-      metrics.getCounter('http_requests_total', {
-        method: 'GET',
-        route: '/posts/:id',
-        status: '2xx',
-      }),
+      metrics.getSeries('http_request_duration_ms').find(
+        ({ labels }) =>
+          JSON.stringify(labels) ===
+          JSON.stringify({
+            method: 'GET',
+            route: '/posts/:id',
+            status: '2xx',
+          }),
+      )?.count,
     ).toBe(1);
     expect(logger.info).toHaveBeenCalledWith(
       'HTTP request completed',
@@ -41,11 +45,15 @@ describe('requestObservability', () => {
     await request(app).get('/private-user-alice').expect(404);
 
     expect(
-      metrics.getCounter('http_requests_total', {
-        method: 'GET',
-        route: '/unmatched',
-        status: '4xx',
-      }),
+      metrics.getSeries('http_request_duration_ms').find(
+        ({ labels }) =>
+          JSON.stringify(labels) ===
+          JSON.stringify({
+            method: 'GET',
+            route: '/unmatched',
+            status: '4xx',
+          }),
+      )?.count,
     ).toBe(1);
   });
 });

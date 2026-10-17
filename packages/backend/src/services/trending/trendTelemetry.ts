@@ -182,8 +182,8 @@ export function parseTrendEvent(body: unknown): ParsedTrendEvent {
 
 /**
  * Count a trend event. Synchronous and I/O-free by design: the counter lives in
- * the in-process metrics registry and is scraped from the protected
- * `/internal/metrics` endpoint, so reporting a press can never add latency.
+ * the in-process metrics registry, flushed to CloudWatch once a minute off the
+ * request path, so reporting a press can never add latency.
  *
  * `currentRecId` is the token of the batch that is current right now — the
  * caller resolves it (a cached read on the server) so this function stays pure.

@@ -104,15 +104,10 @@ async function seedSummary(name: string, displayName: string, calculatedAt: Date
 }
 
 async function readStatementCount(): Promise<number> {
-  let total = 0;
-  for (const line of (await metrics.getPrometheusFormat()).split('\n')) {
-    const match =
-      /^db_query_duration_ms_count\{[^}]*table="(?:trending|trend_batches)"[^}]*\}\s+(\d+)/.exec(
-        line,
-      );
-    if (match) total += Number(match[1]);
-  }
-  return total;
+  return metrics
+    .getSeries('db_query_duration_ms')
+    .filter(({ labels }) => labels.table === 'trending' || labels.table === 'trend_batches')
+    .reduce((total, { count }) => total + count, 0);
 }
 
 describe('getTrendSummary caching', () => {

@@ -141,7 +141,6 @@ export function createApp(deps: CreateAppDependencies): express.Express {
   });
 
   app.use(routes.health);
-  app.use(routes.internalMetrics);
 
   // `helmet` must stay a DIRECT dependency of this package even though nothing
   // here imports it: `@oxy.so/core` requires it at runtime but declares it as an

@@ -243,7 +243,6 @@ jobs:
         env:
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
           RUN_MIGRATIONS: 'true'
-          INTERNAL_METRICS_PARAMETER: /oxy/mention/INTERNAL_METRICS_TOKEN
           # Normally EMPTY, and empty is the safe value: the deploy then refuses
           # a service scaled to zero, which is what a lost-capacity incident
           # looks like.
@@ -374,18 +373,21 @@ jobs:
           # revision — the render derives from the RUNNING one.
           #
           # workload-scopes-bound: 2026-09-20
+          # INTERNAL_METRICS_TOKEN guarded /internal/metrics, which is gone:
+          # metrics are CloudWatch EMF now (utils/metrics.ts), so nothing reads it.
           TASK_SECRET_REMOVALS: >-
             ALIA_API_KEY
             OXY_SERVICE_TOKEN
             OXY_SERVICE_API_KEY
             OXY_SERVICE_API_SECRET
+            INTERNAL_METRICS_TOKEN
           # Variables that now say what the code already decides, and would
           # otherwise ride every future revision forward: the render derives from
           # the RUNNING task definition, so deleting a line here removes nothing.
           #
           # ATPROTO_ENABLED and FEDERATION_MEDIA_CACHE_WRITE_ENABLED are on by
-          # default; INTERNAL_METRICS_ENABLED is gone entirely (holding the token
-          # is being enabled, and this deploy is what wires the token);
+          # default; INTERNAL_METRICS_ENABLED is gone entirely (and so is the
+          # endpoint it switched; metrics are CloudWatch EMF now);
           # OXY_ECOSYSTEM_ACTIVITY_ENABLED is gone too (a deployed process knows
           # it is deployed); POST_CLASSIFICATION_ENABLED was set to the code's own
           # default, which is a line that can only ever drift; and

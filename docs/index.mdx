@@ -19,7 +19,7 @@ The frontend uses React Native 0.86, React 19, Expo Router, Bloom,
 NativeWind/Tailwind, TanStack Query, Zustand, Socket.IO, and lazy-loaded
 Syra/LiveKit room support. The backend uses Express 5, PostgreSQL through
 Drizzle ORM, Valkey-compatible Redis clients, BullMQ, Socket.IO, Zod, and
-Prometheus instrumentation.
+CloudWatch EMF metrics.
 
 ## Data ownership
 
@@ -77,7 +77,8 @@ AWS is the only application runtime deployment target.
 - `/health/live` is process liveness.
 - `/health/ready` requires startup, schema migrations, and PostgreSQL.
 - Redis/Valkey is reported as degraded without making HTTP readiness fail.
-- `/internal/metrics` is protected by a service token and network restriction.
+- Metrics are published to CloudWatch (`Mention/Backend`) as EMF log lines;
+  there is no scrape endpoint.
 - `/telemetry/web` accepts bounded Core Web Vitals and browser runtime events.
 
 Request metrics and structured logs use route templates and bounded labels.

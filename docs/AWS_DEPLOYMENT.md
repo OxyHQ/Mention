@@ -176,7 +176,8 @@ Three things prevent it, and none is sufficient alone:
 - GitHub authenticates to AWS with OIDC. Runtime secrets are stored in SSM and
   injected by ECS; no long-lived AWS key is required by the deployment
   workflows.
-- `/internal/metrics` requires its service token and an allowed network source.
+- Metrics reach CloudWatch (`Mention/Backend`) as EMF lines on stdout, which the
+  `awslogs` driver already ships; there is no metrics endpoint or scraper.
 
 Run migrations only through the deployment one-shot in production. Do not run
 them from web-process startup or from a developer workstation.

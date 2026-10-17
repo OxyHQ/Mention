@@ -59,8 +59,8 @@ function reportRequest(
     route,
     status: statusClass(res.statusCode),
   };
+  // Its count is the request count: there is no separate requests counter.
   metrics.recordLatency('http_request_duration_ms', durationMs, labels);
-  metrics.incrementCounter('http_requests_total', 1, labels);
 
   const perRequestLabels = { method: labels.method, route };
   if (tally) {
