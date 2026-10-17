@@ -41,10 +41,23 @@ import { drainFileReferenceSync } from '../../../services/oxyFiles/fileReference
 import {
   FileReferenceReconciliationScheduler,
   isReconciliationDue,
+  pacedInventory,
+  RECONCILE_PAGE_ITEMS,
+  RECONCILE_PAGE_PAUSE_MS,
+  RECONCILE_RATE_LIMIT_ATTEMPTS,
+  RECONCILE_RATE_LIMIT_WAIT_MS,
   runFileReferenceReconciliation,
 } from '../../../services/oxyFiles/fileReferenceReconciliation';
 
 type Item = { fileId: string; entityId: string };
+type Inventory = Iterable<Item> | AsyncIterable<Item>;
+
+/** The inventory as Oxy reads it: the service hands the SDK a paced async stream. */
+async function collect(items: Inventory): Promise<Item[]> {
+  const list: Item[] = [];
+  for await (const item of items) list.push(item);
+  return list;
+}
 type Reference = { fileId: string; entityType: string; entityId: string };
 
 const AUTHOR = 'oxy-file-ref-reconcile-author';
@@ -78,8 +91,8 @@ beforeEach(async () => {
   h.onCommit = null;
   h.reconcile.mockReset();
   h.reconcile.mockImplementation(
-    async (entityType: string, items: Iterable<Item>, options: { dryRun?: boolean }) => {
-      const list = [...items];
+    async (entityType: string, items: Inventory, options: { dryRun?: boolean }) => {
+      const list = await collect(items);
       h.inventories.set(entityType, list);
       if (h.onCommit) await h.onCommit(entityType);
       return {
@@ -170,8 +183,8 @@ describe('a dry run', () => {
   });
 
   it('records a failed entity type and still reconciles the rest', async () => {
-    h.reconcile.mockImplementation(async (entityType: string, items: Iterable<Item>) => {
-      const list = [...items];
+    h.reconcile.mockImplementation(async (entityType: string, items: Inventory) => {
+      const list = await collect(items);
       if (entityType === 'gif') {
         throw Object.assign(new Error('busy'), { status: 409, code: 'RECONCILIATION_IN_PROGRESS' });
       }
@@ -197,6 +210,75 @@ describe('a dry run', () => {
       .where(eq(oxyFileReferenceReconciliations.oxyEntityType, 'gif'));
     expect(row.outcome).toBe('failed');
     expect(result.entityTypes).toHaveLength(EXPECTED_ENTITY_TYPES);
+  });
+
+  it('waits out a 429 and tries the entity type again', async () => {
+    let refusals = 0;
+    h.reconcile.mockImplementation(async (entityType: string, items: Inventory) => {
+      const list = await collect(items);
+      if (entityType === 'gif' && refusals < 2) {
+        refusals += 1;
+        throw Object.assign(new Error('slow down'), { status: 429 });
+      }
+      return {
+        sessionId: 's',
+        entityType,
+        dryRun: true,
+        added: list.length,
+        removed: 0,
+        unchanged: 0,
+        refused: 0,
+      };
+    });
+    const pause = vi.fn(async (_ms: number) => undefined);
+
+    const result = await runFileReferenceReconciliation('dry_run', { pause });
+
+    expect(result.entityTypes.every((entry) => entry.ok)).toBe(true);
+    expect(h.reconcile.mock.calls.filter(([entityType]) => entityType === 'gif')).toHaveLength(3);
+    expect(pause.mock.calls.filter(([ms]) => ms === RECONCILE_RATE_LIMIT_WAIT_MS)).toHaveLength(2);
+  });
+
+  it('gives up on an entity type Oxy keeps refusing with 429', async () => {
+    h.reconcile.mockImplementation(async (entityType: string, items: Inventory) => {
+      const list = await collect(items);
+      if (entityType === 'gif') throw Object.assign(new Error('slow down'), { status: 429 });
+      return {
+        sessionId: 's',
+        entityType,
+        dryRun: true,
+        added: list.length,
+        removed: 0,
+        unchanged: 0,
+        refused: 0,
+      };
+    });
+
+    const result = await runFileReferenceReconciliation('dry_run', {
+      pause: async () => undefined,
+    });
+
+    const failed = result.entityTypes.filter((entry) => !entry.ok);
+    expect(failed.map((entry) => entry.oxyEntityType)).toEqual(['gif']);
+    expect(failed[0].error).toContain('429');
+    expect(h.reconcile.mock.calls.filter(([entityType]) => entityType === 'gif')).toHaveLength(
+      RECONCILE_RATE_LIMIT_ATTEMPTS,
+    );
+  });
+});
+
+describe('pacing', () => {
+  it('pauses between pages, never before the first', async () => {
+    const items = Array.from({ length: RECONCILE_PAGE_ITEMS * 2 + 1 }, (_, index) => ({
+      fileId: `f${index}`,
+      entityId: `e${index}`,
+    }));
+    const pause = vi.fn(async (_ms: number) => undefined);
+
+    const streamed = await collect(pacedInventory(items, pause));
+
+    expect(streamed).toEqual(items);
+    expect(pause.mock.calls).toEqual([[RECONCILE_PAGE_PAUSE_MS], [RECONCILE_PAGE_PAUSE_MS]]);
   });
 });
 
