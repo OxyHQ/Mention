@@ -19,15 +19,22 @@ import { federatedMediaCache } from '../../db/schema/federation';
 import { gifCacheFileRetirements, oxyFileReferenceSync } from '../../db/schema/oxyFiles';
 import { postMedia } from '../../db/schema/postContent';
 import {
+  IMPORT_PAUSE_MS,
   migrateGifLibraryToApplicationFiles,
+  RATE_LIMIT_WAIT_MS,
+  type GifFileImport,
   type GifLibraryMigrationDeps,
 } from '../../scripts/migrateGifLibraryToApplicationFiles';
+import { OxyMediaStoreThrottledError } from '../../services/mediaCache/oxyMediaStore';
 
 const AUTHOR = 'oxy-gif-migration-author';
 const fid = (label: string) => `ogm-${label}-${randomUUID().slice(0, 8)}`;
 
+const importOne = (url: string) => ({ ok: true as const, fileId: `app-${url.split('/').pop()}` });
 const deps = {
-  importFile: vi.fn(async (url: string) => `app-${url.split('/').pop()}`),
+  importFiles: vi.fn(
+    async (urls: readonly string[]): Promise<GifFileImport[]> => urls.map(importOne),
+  ),
   publicUrl: (id: string) => `https://cloud.oxy.so/${id}`,
   deleteCacheFile: vi.fn(async (_id: string) => 'deleted' as const),
   invalidatePost: vi.fn(async (_id: string) => undefined),
@@ -68,7 +75,8 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
-  deps.importFile.mockClear();
+  deps.importFiles.mockClear();
+  deps.importFiles.mockImplementation(async (urls: readonly string[]) => urls.map(importOne));
   deps.deleteCacheFile.mockClear();
   deps.invalidatePost.mockClear();
 });
@@ -87,7 +95,7 @@ describe('migrateGifLibraryToApplicationFiles', () => {
 
     expect(result.gifsSeen).toBeGreaterThanOrEqual(1);
     expect(result.postMediaToRewrite).toBeGreaterThanOrEqual(1);
-    expect(deps.importFile).not.toHaveBeenCalled();
+    expect(deps.importFiles).not.toHaveBeenCalled();
     const [row] = await getDb().select().from(gifs).where(eq(gifs.id, gif.id));
     expect(row.storage).toBe('federation_cache');
     await deletePostRecord(postId);
@@ -102,8 +110,11 @@ describe('migrateGifLibraryToApplicationFiles', () => {
 
     const result = await migrateGifLibraryToApplicationFiles({ dryRun: false, deps });
 
-    expect(deps.importFile).toHaveBeenCalledWith(`https://cloud.oxy.so/${mp4}`);
-    expect(deps.importFile).toHaveBeenCalledWith(`https://cloud.oxy.so/${preview}`);
+    // One batch request carries both files.
+    const sent = deps.importFiles.mock.calls.flatMap(([urls]) => [...urls]);
+    expect(sent).toContain(`https://cloud.oxy.so/${mp4}`);
+    expect(sent).toContain(`https://cloud.oxy.so/${preview}`);
+    expect(deps.importFiles.mock.calls.every(([urls]) => urls.length <= 50)).toBe(true);
     const [row] = await getDb().select().from(gifs).where(eq(gifs.id, gif.id));
     expect(row).toMatchObject({
       storage: 'application',
@@ -142,9 +153,9 @@ describe('migrateGifLibraryToApplicationFiles', () => {
     expect(result.retirementsFailed).toBe(0);
 
     // A re-run moves nothing again.
-    deps.importFile.mockClear();
+    deps.importFiles.mockClear();
     await migrateGifLibraryToApplicationFiles({ dryRun: false, deps });
-    expect(deps.importFile).not.toHaveBeenCalled();
+    expect(deps.importFiles).not.toHaveBeenCalled();
     await deletePostRecord(postId);
   });
 
@@ -172,7 +183,9 @@ describe('migrateGifLibraryToApplicationFiles', () => {
   it('leaves a GIF whose import fails as it was, and fails the run', async () => {
     const mp4 = fid('fails');
     const gif = await cacheGif(mp4);
-    deps.importFile.mockRejectedValueOnce(Object.assign(new Error('down'), { status: 503 }));
+    deps.importFiles.mockImplementationOnce(async (urls: readonly string[]) =>
+      urls.map(() => ({ ok: false as const, reason: 'HTTP 502 SOURCE_FETCH_FAILED' })),
+    );
 
     const result = await migrateGifLibraryToApplicationFiles({ dryRun: false, deps });
 
@@ -183,5 +196,43 @@ describe('migrateGifLibraryToApplicationFiles', () => {
     // The next run moves it.
     const again = await migrateGifLibraryToApplicationFiles({ dryRun: false, deps });
     expect(again.gifsMoved).toBe(1);
+  });
+
+  it('waits out a 429 on the import batch and sends it again', async () => {
+    const mp4 = fid('throttled');
+    const gif = await cacheGif(mp4);
+    deps.importFiles.mockRejectedValueOnce(Object.assign(new Error('slow down'), { status: 429 }));
+    const pause = vi.fn(async (_ms: number) => undefined);
+
+    const result = await migrateGifLibraryToApplicationFiles({
+      dryRun: false,
+      deps: { ...deps, pause },
+    });
+
+    expect(result.gifsFailed).toBe(0);
+    expect(pause).toHaveBeenCalledWith(RATE_LIMIT_WAIT_MS);
+    expect(pause).toHaveBeenCalledWith(IMPORT_PAUSE_MS);
+    const [row] = await getDb().select().from(gifs).where(eq(gifs.id, gif.id));
+    expect(row).toMatchObject({ storage: 'application', mp4FileId: `app-${mp4}` });
+  });
+
+  it("waits out the cache's delete cooldown and asks again", async () => {
+    const mp4 = fid('delete-cooldown');
+    await cacheGif(mp4);
+    deps.deleteCacheFile.mockRejectedValueOnce(new OxyMediaStoreThrottledError('delete', 2000));
+    const pause = vi.fn(async (_ms: number) => undefined);
+
+    const result = await migrateGifLibraryToApplicationFiles({
+      dryRun: false,
+      deps: { ...deps, pause },
+    });
+
+    expect(result.retirementsFailed).toBe(0);
+    expect(pause).toHaveBeenCalledWith(3000);
+    const [retirement] = await getDb()
+      .select({ state: gifCacheFileRetirements.state })
+      .from(gifCacheFileRetirements)
+      .where(eq(gifCacheFileRetirements.oldFileId, mp4));
+    expect(retirement.state).toBe('deleted');
   });
 });

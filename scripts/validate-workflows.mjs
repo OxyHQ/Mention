@@ -772,6 +772,58 @@ for (const workflowName of workflowNames) {
   }
 }
 
+/**
+ * Every audit of the BACKEND image expects the workspaces the deploy expects.
+ *
+ * Each one-shot (`run-*.yml`) builds the same reviewed backend image as
+ * `deploy-aws.yml` and audits it with its OWN copy of
+ * `EXPECTED_WORKSPACE_PACKAGES`. When the image gained
+ * `@oxy.so/mention-contracts`, the deploy and most one-shots were updated and
+ * `run-gif-library-migration.yml` was not: its first production dispatch built
+ * and pushed the image, then died in the audit — after the build, before
+ * anything ran. A stale list is invisible until somebody needs the workflow.
+ */
+{
+  const backendAudits = [];
+  for (const workflowName of workflowNames) {
+    const source = await readFile(resolve(workflowsDirectory, workflowName), 'utf8');
+    const document = parseDocument(source, { uniqueKeys: true });
+    if (document.errors.length > 0) continue;
+    for (const job of Object.values(document.toJS()?.jobs || {})) {
+      for (const step of job?.steps || []) {
+        const env = step?.env;
+        if (env?.EXPECTED_RUNTIME_ENTRY !== 'packages/backend/dist/server.js') continue;
+        backendAudits.push({
+          workflowName,
+          packages: String(env.EXPECTED_WORKSPACE_PACKAGES ?? ''),
+        });
+      }
+    }
+  }
+  const normalize = (list) =>
+    list
+      .split(',')
+      .map((name) => name.trim())
+      .filter(Boolean)
+      .sort()
+      .join(',');
+  const deploy = backendAudits.find((audit) => audit.workflowName === 'deploy-aws.yml');
+  if (!deploy) {
+    failures.push(
+      'deploy-aws.yml no longer audits the backend image; the workspace check has nothing to compare against',
+    );
+  } else {
+    for (const audit of backendAudits) {
+      if (normalize(audit.packages) !== normalize(deploy.packages)) {
+        failures.push(
+          `${audit.workflowName}: EXPECTED_WORKSPACE_PACKAGES '${audit.packages}' differs from deploy-aws.yml's ` +
+            `'${deploy.packages}' — the image is the same, so its audit fails after the build`,
+        );
+      }
+    }
+  }
+}
+
 if (failures.length > 0) {
   console.error('GitHub Actions YAML validation failed:\n');
   for (const failure of failures) console.error(`- ${failure}`);

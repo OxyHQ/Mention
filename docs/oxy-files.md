@@ -8,7 +8,7 @@ owns (the GIF library, report evidence), and reacts when Oxy takes a file away.
 The code is `packages/backend/src/db/oxyFiles/` and
 `packages/backend/src/services/oxyFiles/`; the schema is
 `packages/backend/src/db/schema/oxyFiles.ts` and migration
-`0075_oxy_file_references`.
+`0077_oxy_file_references`.
 
 ## Who owns what
 
@@ -68,6 +68,13 @@ client temp id, and the federated media cache's own files.
    ended while the inventory was being read is re-added by the commit, so after
    an applied commit every removal answered since the read began is sent again,
    and a federated deletion Oxy kept as `in_use` for those files is re-opened.
+   Every reconciliation request counts toward Oxy's 240 a minute per
+   application, and the SDK sends a session's pages back to back, so the
+   inventory is handed to it as a paced stream (a 500 ms pause between pages);
+   an entity type Oxy still answers 429 is tried again after a minute.
+   `.github/workflows/run-file-reference-reconciliation.yml`
+   (`scripts/reconcileOxyFileReferences.ts`, `mode: dry_run` first) runs the
+   same function on demand; the scheduler counts it as that night's run.
 
 ### Federated media deletion
 
@@ -115,7 +122,10 @@ Rows from before (`storage = 'federation_cache'`, also the column default, so a
 row the previous image writes during the deploy is classified right) are moved
 by `scripts/migrateGifLibraryToApplicationFiles.ts`
 (`.github/workflows/run-gif-library-migration.yml`, dry run first): Oxy imports
-each file from its own CDN as an application file; one transaction points the
+each file from its own CDN as an application file, 25 GIFs per
+`importAppFiles` batch (one request of Oxy's 30 imports a minute per
+application, which the live picker shares; batches are 10 s apart and one
+answered 429 is sent again after a minute); one transaction points the
 row and every post at the new ids and records the old id in
 `gif_cache_file_retirements`; the old cache file is then deleted unless the
 federated media cache holds the same bytes (`kept`). The post insert maps a
@@ -152,8 +162,10 @@ name, validated by `.github/scripts/optional-task-bindings.sh`).
    `files:references:write` (staff-only for a `first_party` application).
 3. Deploy Mention. References start draining; the reconciliation runs nightly
    as a dry run.
-4. Read the dry runs (`oxy_file_reference_reconciliations`), then set
-   `OXY_FILE_REFERENCE_RECONCILE_MODE=apply`. The first applied run is how
+4. Read a dry run (`oxy_file_reference_reconciliations`; the nightly one, or
+   `run-file-reference-reconciliation.yml` with `mode: dry_run`), make the
+   first applied run (the same workflow, `mode: apply`), then set
+   `OXY_FILE_REFERENCE_RECONCILE_MODE=apply` so the nightly run commits. The first applied run is how
    existing posts, banners and GIFs enter Oxy's model — it must run before Oxy
    switches its lifecycle sweep to `enforce`, or the GIF library reads as unused.
 5. Run the GIF library migration (dry run, then apply).

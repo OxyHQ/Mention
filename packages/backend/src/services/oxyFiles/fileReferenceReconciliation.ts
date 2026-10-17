@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { ServiceReferenceReconcileResult } from '@oxy.so/core';
 import { desc, eq, sql } from 'drizzle-orm';
 import { config } from '../../config';
 import {
@@ -11,6 +12,7 @@ import {
   oxyEntityTypeName,
   shardSql,
   type FileReferenceEntity,
+  type FileReferencePair,
 } from '../../db/oxyFiles/fileReferenceEntities';
 import {
   findRemovalsAnsweredSince,
@@ -20,7 +22,7 @@ import { getDb } from '../../db/postgres';
 import { oxyFileReferenceReconciliations, oxyFileReferenceSync } from '../../db/schema/oxyFiles';
 import { logger } from '../../utils/logger';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
-import { describeOxyError } from './oxyErrors';
+import { describeOxyError, oxyErrorStatus } from './oxyErrors';
 
 /**
  * The nightly reference reconciliation (ADR 0043 D6) — the safety net under the
@@ -47,9 +49,50 @@ import { describeOxyError } from './oxyErrors';
  * commit, every removal Oxy answered at or after T1 for that entity type (and
  * shard) is sent again, and any federated deletion Oxy kept as `in_use` for
  * those files is re-opened to be asked again.
+ *
+ * ## Oxy's request budget
+ *
+ * Every reconciliation request — begin, each page, commit, release — counts
+ * toward Oxy's 240 a minute per application (`rl:asset-app:reconcile:`), and a
+ * 429 past it fails the entity type. The SDK sends a session's pages back to
+ * back and retries no 4xx, and the post shards alone are hundreds of pages, so
+ * the inventory is handed to it as a paced stream ({@link pacedInventory}: one
+ * pause between pages, at most ~120 pages a minute), and an entity type Oxy
+ * still answers 429 is tried again once its one-minute window has passed.
  */
 
 export type ReconcileMode = 'dry_run' | 'apply';
+
+/** Items per reconciliation page — the SDK's `SERVICE_RECONCILE_PAGE_SIZE`. */
+export const RECONCILE_PAGE_ITEMS = 1000;
+/** The pause between two pages of one session: keeps a run near half of Oxy's 240/min. */
+export const RECONCILE_PAGE_PAUSE_MS = 500;
+/** On a 429, how long to wait before trying the entity type again: Oxy's window is one minute. */
+export const RECONCILE_RATE_LIMIT_WAIT_MS = 61_000;
+/** Attempts per entity type when Oxy answers 429. */
+export const RECONCILE_RATE_LIMIT_ATTEMPTS = 4;
+
+export interface ReconcileOptions {
+  /** Waits between pages and after a 429; injectable so tests do not sleep. */
+  pause?: (ms: number) => Promise<void>;
+}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * The inventory as the SDK reads it, with a pause before every page after the
+ * first: the SDK flushes a page as its 1000th item arrives, so the pause sits
+ * between two page requests.
+ */
+export async function* pacedInventory(
+  items: readonly FileReferencePair[],
+  pause: (ms: number) => Promise<void>,
+): AsyncGenerator<FileReferencePair> {
+  for (let index = 0; index < items.length; index += 1) {
+    if (index > 0 && index % RECONCILE_PAGE_ITEMS === 0) await pause(RECONCILE_PAGE_PAUSE_MS);
+    yield items[index];
+  }
+}
 
 export interface ReconciledEntityType {
   oxyEntityType: string;
@@ -75,6 +118,7 @@ async function reconcileOne(
   mode: ReconcileMode,
   entity: FileReferenceEntity,
   shard: number,
+  pause: (ms: number) => Promise<void>,
 ): Promise<ReconciledEntityType> {
   const oxyEntityType = oxyEntityTypeName(entity, shard);
   const [record] = await getDb()
@@ -94,9 +138,26 @@ async function reconcileOne(
       );
     }
 
-    const result = await getServiceOxyClient().assets.references.reconcile(oxyEntityType, items, {
-      dryRun: mode === 'dry_run',
-    });
+    // A retry after a 429 sends the same inventory; T1 stays the first read's,
+    // which only widens the removals replayed below.
+    let result: ServiceReferenceReconcileResult;
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        result = await getServiceOxyClient().assets.references.reconcile(
+          oxyEntityType,
+          pacedInventory(items, pause),
+          { dryRun: mode === 'dry_run' },
+        );
+        break;
+      } catch (error) {
+        if (oxyErrorStatus(error) !== 429 || attempt >= RECONCILE_RATE_LIMIT_ATTEMPTS) throw error;
+        logger.warn('[FileReferences] Oxy rate-limited a reconciliation; trying again', {
+          oxyEntityType,
+          attempt,
+        });
+        await pause(RECONCILE_RATE_LIMIT_WAIT_MS);
+      }
+    }
 
     let replayed = 0;
     if (mode === 'apply') {
@@ -150,12 +211,13 @@ async function reconcileOne(
  */
 export async function runFileReferenceReconciliation(
   mode: ReconcileMode,
+  { pause = sleep }: ReconcileOptions = {},
 ): Promise<FileReferenceReconciliationResult> {
   const runId = randomUUID();
   const entityTypes: ReconciledEntityType[] = [];
   for (const entity of FILE_REFERENCE_ENTITIES) {
     for (let shard = 0; shard < Math.max(1, entity.shards); shard += 1) {
-      entityTypes.push(await reconcileOne(runId, mode, entity, shard));
+      entityTypes.push(await reconcileOne(runId, mode, entity, shard, pause));
     }
   }
   return { runId, mode, entityTypes };

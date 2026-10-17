@@ -10,10 +10,12 @@
  * (`gifs.storage = 'federation_cache'`, which is also the column default, so a
  * row the previous image wrote during the deploy is moved too).
  *
- * WHAT, PER GIF (`moveGifToApplicationFiles`):
- *  1. Oxy imports each of the row's files from its own public CDN URL as a
- *     public application file (`importAppFile`: same bytes, one fetch, and a
- *     re-run answers the file it already made).
+ * WHAT, PER PAGE OF GIFS:
+ *  1. Oxy imports every file of the page from its own public CDN URL as a
+ *     public application file, in ONE batch request (`importAppFiles`: same
+ *     bytes, one fetch each, and a re-run answers the file it already made).
+ *
+ * THEN, PER GIF (`moveGifToApplicationFiles`), when both its files imported:
  *  2. ONE transaction records each old cache id as owed a delete
  *     (`gif_cache_file_retirements`), points the row at the new ids, and
  *     rewrites every post naming an old id — shared media, variant media,
@@ -28,6 +30,14 @@
  * deleted from the cache namespace — unless a GIF row still uses it (retried on
  * the next run) or a federated media-cache entry holds the same bytes (`kept`:
  * the cache's own eviction owns it from there).
+ *
+ * OXY'S BUDGETS. Imports share Oxy's 30 requests a minute per application
+ * (`rl:asset-app:upload:`) with the live GIF picker, and a batch of up to 50
+ * counts as one request — so a page is one request, pages are spaced
+ * {@link IMPORT_PAUSE_MS} apart, and a batch Oxy answers 429 is sent again once
+ * the window has passed instead of failing the page. Old-file deletes share the
+ * cache's 240 a minute with the eviction job; a delete refused for the budget
+ * waits out the cooldown and is asked again.
  *
  * SAFETY:
  *  1. `DRY_RUN` defaults to `true`: counts the GIFs, the posts that would be
@@ -55,8 +65,11 @@ import {
   type CacheGif,
 } from '../db/oxyFiles/gifCacheRetirementRepository';
 import { connectPostgres, getDb } from '../db/postgres';
-import { deleteRetiredGifCacheFile } from '../services/mediaCache/oxyMediaStore';
-import { describeOxyError } from '../services/oxyFiles/oxyErrors';
+import {
+  deleteRetiredGifCacheFile,
+  isMediaStoreThrottled,
+} from '../services/mediaCache/oxyMediaStore';
+import { describeOxyError, oxyErrorStatus } from '../services/oxyFiles/oxyErrors';
 import { invalidate as invalidatePostDetailCache } from '../services/postDetailCache';
 import { logger } from '../utils/logger';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
@@ -65,15 +78,30 @@ import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 
 const SCRIPT_NAME = 'migrateGifLibraryToApplicationFiles';
 
-/** GIFs per page. Each costs one or two Oxy imports. */
-const BATCH_SIZE = 50;
+/** GIFs per page: each has at most two files, so a page fits Oxy's 50-item import batch. */
+export const BATCH_SIZE = 25;
 
-/** Pause between Oxy calls, so the run stays far inside Oxy's per-app budget. */
-const PAUSE_MS = 250;
+/** Pause after each import batch: at most 6 of Oxy's 30 import requests a minute. */
+export const IMPORT_PAUSE_MS = 10_000;
+
+/** Pause after each old-file delete: 120 a minute, half the cache's delete budget. */
+export const DELETE_PAUSE_MS = 500;
+
+/** On a 429, how long to wait before sending the batch again: Oxy's window is one minute. */
+export const RATE_LIMIT_WAIT_MS = 61_000;
+
+/** Attempts per batch, or per delete, while Oxy answers that its budget is spent. */
+export const RATE_LIMIT_ATTEMPTS = 5;
+
+/** One URL's import: the new file, or why it was not made. */
+export type GifFileImport = { ok: true; fileId: string } | { ok: false; reason: string };
 
 export interface GifLibraryMigrationDeps {
-  /** Import one public file by URL as Mention's; returns the new file id. */
-  importFile(sourceUrl: string): Promise<string>;
+  /**
+   * Import public files by URL as Mention's, in one request; one answer per
+   * URL, in order. Throws when the request itself fails (a 429 included).
+   */
+  importFiles(sourceUrls: readonly string[]): Promise<GifFileImport[]>;
   /** The public URL Oxy serves an existing file at. */
   publicUrl(fileId: string): string;
   /** Delete an old cache-namespace file. */
@@ -83,11 +111,20 @@ export interface GifLibraryMigrationDeps {
 }
 
 const defaultDeps: GifLibraryMigrationDeps = {
-  async importFile(sourceUrl) {
-    const imported = await getServiceOxyClient().assets.importAppFile(sourceUrl, {
-      visibility: 'public',
-    });
-    return imported.file.id;
+  async importFiles(sourceUrls) {
+    const results = await getServiceOxyClient().assets.importAppFiles(
+      sourceUrls.map((sourceUrl) => ({ sourceUrl, visibility: 'public' as const })),
+    );
+    const answers: GifFileImport[] = sourceUrls.map(() => ({
+      ok: false,
+      reason: 'no answer for this item',
+    }));
+    for (const result of results) {
+      answers[result.index] = result.ok
+        ? { ok: true, fileId: result.file.id }
+        : { ok: false, reason: `HTTP ${result.error.status} ${result.error.code}` };
+    }
+    return answers;
   },
   publicUrl: (fileId) => getServiceOxyClient().assets.publicUrl(fileId),
   deleteCacheFile: deleteRetiredGifCacheFile,
@@ -135,35 +172,94 @@ function emptyResult(): GifLibraryMigrationResult {
   };
 }
 
-async function moveOne(
-  gif: CacheGif,
+/** Import a page's files, sending the batch again while Oxy answers 429. */
+async function importWithBudget(
+  sourceUrls: readonly string[],
+  deps: GifLibraryMigrationDeps,
+): Promise<GifFileImport[]> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await deps.importFiles(sourceUrls);
+    } catch (error) {
+      if (oxyErrorStatus(error) !== 429 || attempt >= RATE_LIMIT_ATTEMPTS) throw error;
+      logger.warn(`[${SCRIPT_NAME}] Oxy's import budget is spent; sending the batch again`, {
+        attempt,
+      });
+      await deps.pause(RATE_LIMIT_WAIT_MS);
+    }
+  }
+}
+
+/** Move one page of GIFs: one import batch, then one transaction per GIF. */
+async function movePage(
+  page: readonly CacheGif[],
   deps: GifLibraryMigrationDeps,
   result: GifLibraryMigrationResult,
 ): Promise<void> {
+  const fileIds = [...new Set(page.flatMap((gif) => [gif.mp4FileId, gif.previewFileId]))];
+  let imported: Map<string, GifFileImport>;
   try {
-    const newMp4 = await deps.importFile(deps.publicUrl(gif.mp4FileId));
-    await deps.pause(PAUSE_MS);
-    let newPreview = newMp4;
-    if (gif.previewFileId !== gif.mp4FileId) {
-      newPreview = await deps.importFile(deps.publicUrl(gif.previewFileId));
-      await deps.pause(PAUSE_MS);
-    }
-    const rewrite = await moveGifToApplicationFiles(gif, newMp4, newPreview);
-    if (!rewrite) return; // moved by a concurrent run
-    result.gifsMoved += 1;
-    result.postMediaRewritten += rewrite.postMedia;
-    result.variantMediaRewritten += rewrite.variantMedia;
-    result.altTextsRewritten += rewrite.altTexts;
-    result.attachmentsRewritten += rewrite.attachments;
-    for (const postId of rewrite.postIds) {
-      await deps.invalidatePost(postId).catch(() => undefined);
-    }
+    const answers = await importWithBudget(
+      fileIds.map((fileId) => deps.publicUrl(fileId)),
+      deps,
+    );
+    imported = new Map(fileIds.map((fileId, index) => [fileId, answers[index]]));
   } catch (error) {
-    result.gifsFailed += 1;
-    logger.warn(`[${SCRIPT_NAME}] GIF not moved; the next run retries it`, {
-      gifId: gif.id,
+    result.gifsFailed += page.length;
+    logger.warn(`[${SCRIPT_NAME}] import batch failed; the next run retries its GIFs`, {
+      gifs: page.length,
       reason: describeOxyError(error),
     });
+    return;
+  } finally {
+    await deps.pause(IMPORT_PAUSE_MS);
+  }
+
+  for (const gif of page) {
+    const mp4 = imported.get(gif.mp4FileId);
+    const preview = imported.get(gif.previewFileId);
+    if (!mp4?.ok || !preview?.ok) {
+      result.gifsFailed += 1;
+      const failure = [mp4, preview].find((answer) => answer && !answer.ok);
+      logger.warn(`[${SCRIPT_NAME}] GIF not moved; the next run retries it`, {
+        gifId: gif.id,
+        reason: failure && !failure.ok ? failure.reason : 'no answer',
+      });
+      continue;
+    }
+    try {
+      const rewrite = await moveGifToApplicationFiles(gif, mp4.fileId, preview.fileId);
+      if (!rewrite) continue; // moved by a concurrent run
+      result.gifsMoved += 1;
+      result.postMediaRewritten += rewrite.postMedia;
+      result.variantMediaRewritten += rewrite.variantMedia;
+      result.altTextsRewritten += rewrite.altTexts;
+      result.attachmentsRewritten += rewrite.attachments;
+      for (const postId of rewrite.postIds) {
+        await deps.invalidatePost(postId).catch(() => undefined);
+      }
+    } catch (error) {
+      result.gifsFailed += 1;
+      logger.warn(`[${SCRIPT_NAME}] GIF not moved; the next run retries it`, {
+        gifId: gif.id,
+        reason: describeOxyError(error),
+      });
+    }
+  }
+}
+
+/** Delete one old cache file, waiting out the cache's write cooldown when Oxy says it is spent. */
+async function deleteWithBudget(
+  oldFileId: string,
+  deps: GifLibraryMigrationDeps,
+): Promise<'deleted' | 'not_found'> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await deps.deleteCacheFile(oldFileId);
+    } catch (error) {
+      if (!isMediaStoreThrottled(error) || attempt >= RATE_LIMIT_ATTEMPTS) throw error;
+      await deps.pause(error.retryAfterMs + 1000);
+    }
   }
 }
 
@@ -202,11 +298,11 @@ async function retireOldFiles(
           result.retirementsKept += 1;
           continue;
         }
-        const outcome = await deps.deleteCacheFile(row.oldFileId);
+        const outcome = await deleteWithBudget(row.oldFileId, deps);
         await settleRetirement(row.oldFileId, outcome);
         if (outcome === 'deleted') result.retirementsDeleted += 1;
         else result.retirementsNotFound += 1;
-        await deps.pause(PAUSE_MS);
+        await deps.pause(DELETE_PAUSE_MS);
       } catch (error) {
         result.retirementsFailed += 1;
         const reason = describeOxyError(error);
@@ -244,7 +340,7 @@ export async function migrateGifLibraryToApplicationFiles({
       result.postMediaToRewrite += Number(row?.n ?? 0);
       continue;
     }
-    for (const gif of page) await moveOne(gif, deps, result);
+    await movePage(page, deps, result);
   }
 
   if (dryRun) {
