@@ -9,6 +9,8 @@ import { createAppAssociationRouter, wellKnownNotFound } from './routes/appAssoc
 export interface AppMiddleware {
   activity?: RequestHandler;
   requestObservability: RequestHandler;
+  /** Request-scoped Oxy content decisions (`services/contentAccessBatcher`). */
+  contentAccessScope: RequestHandler;
   rateLimiter: RequestHandler;
   bruteForceProtection: RequestHandler;
   globalErrorHandler: ErrorRequestHandler;
@@ -93,6 +95,8 @@ export function createApp(deps: CreateAppDependencies): express.Express {
   if (middleware.activity) app.use(middleware.activity);
   app.set('trust proxy', 1);
   app.use(middleware.requestObservability);
+  // One content-decision scope per request: its Oxy policy questions batch together.
+  app.use(middleware.contentAccessScope);
 
   // CORS must precede every route so failures (including 429/500) carry it.
   app.use((req, res, next) => {

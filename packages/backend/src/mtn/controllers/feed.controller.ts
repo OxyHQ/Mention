@@ -1,4 +1,4 @@
-import { getServiceOxyClient } from '../../utils/oxyHelpers';
+import { canSeeUnratedMaterial } from '../../services/contentAccessBatcher';
 import { revalidateAnonymousFeed } from '../../services/revalidateAnonymousFeed';
 /**
  * MTN Feed Controller
@@ -606,15 +606,10 @@ class MtnFeedController {
       //
       // Authenticated viewers only: slots are personalized (they key off the
       // viewer's graph), and an anonymous page is shared via `anonFeedCache`.
-      if (
-        currentUserId &&
-        (
-          await getServiceOxyClient().safety.contentAccess(
-            { resourceId: 'feed:recommendation-cards', classification: 'unrated' },
-            safetyRequesterFor(req),
-          )
-        ).allowed
-      ) {
+      //
+      // The cards are unrated material, so they ride the decision this request's
+      // hydration already received for exactly that question — no extra call.
+      if (currentUserId && (await canSeeUnratedMaterial(safetyRequesterFor(req)))) {
         response.interstitials = planInterstitials({
           descriptor,
           slices: response.slices,

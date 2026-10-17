@@ -99,6 +99,7 @@ function createTestApp() {
     logger: { debug: mock() },
     middleware: {
       requestObservability: passThrough,
+      contentAccessScope: passThrough,
       rateLimiter: passThrough,
       bruteForceProtection: passThrough,
       globalErrorHandler: errorHandler,

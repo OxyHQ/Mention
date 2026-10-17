@@ -9,6 +9,7 @@ import { RedisStore } from './middleware/rateLimitStore';
 import { bruteForceProtection } from './middleware/security';
 import { createOptionalAuth } from './middleware/optionalAuth';
 import { requestObservability } from './middleware/requestObservability';
+import { contentAccessScope } from './services/contentAccessBatcher';
 import { count, sql } from 'drizzle-orm';
 import { getDb } from './db/postgres';
 import { posts } from './db/schema/posts';
@@ -111,6 +112,7 @@ export function createRuntimeApp(activity?: RequestHandler) {
     middleware: {
       activity,
       requestObservability,
+      contentAccessScope,
       rateLimiter,
       bruteForceProtection,
       globalErrorHandler,
