@@ -9,6 +9,7 @@ import {
   tombstoneUnreferenced,
 } from '../../db/federation/mediaDeletionRepository';
 import { logger } from '../../utils/logger';
+import { clearFileReferencesBeforeDelete } from '../oxyFiles/fileReferenceSync';
 import {
   deleteFederatedMedia,
   FEDERATED_MEDIA_DELETE_BATCH_MAX,
@@ -19,6 +20,14 @@ import {
 /**
  * Drain `federated_media_deletions`: delete from Oxy the re-hosted federated
  * files no post (or variant, or banner) references any more.
+ *
+ * "References" has two halves since ADR 0043. Whether Mention still SHOWS the
+ * file is decided here, under locks, from the file-reference registry
+ * (`db/oxyFiles/fileReferenceEntities.ts`); then every Oxy reference Mention
+ * registered for it is removed (`clearFileReferencesBeforeDelete`) BEFORE the
+ * delete is asked for, because Oxy refuses to delete a federated actor's file
+ * while another application references it. A file whose references cannot be
+ * settled yet is retried, never deleted around them.
  *
  * DURABLE, not fire-and-forget: the rows are written in the same transaction
  * that deleted the posts, and a row leaves the live states only when Oxy has
@@ -109,10 +118,38 @@ async function drainOneBatch(
     });
     return result;
   }
-  const toDelete = [
+  const tombstones = [
     ...due.filter((row) => row.state === 'deleting').map((row) => row.oxyFileId),
     ...tombstoned,
   ];
+  if (tombstones.length === 0) return result;
+
+  // Mention's own Oxy references to these files go first: Oxy keeps an
+  // account's file another application references (`in_use`), so a reference
+  // still registered — or a removal still queued — would keep it forever.
+  let toDelete: string[];
+  try {
+    const clear = await clearFileReferencesBeforeDelete(tombstones);
+    toDelete = tombstones.filter((id) => clear.has(id));
+  } catch (err) {
+    toDelete = [];
+    logger.warn('[MediaDelete] could not settle Mention references; backing off', {
+      reason: describe(err),
+    });
+  }
+  const unsettled = tombstones.filter((id) => !toDelete.includes(id));
+  if (unsettled.length > 0) {
+    const attempts = Math.max(
+      0,
+      ...due.filter((row) => unsettled.includes(row.oxyFileId)).map((row) => row.attempts),
+    );
+    await retryMediaDeletions(
+      unsettled,
+      mediaDeletionBackoffMs(attempts),
+      'Mention references not yet removed in Oxy',
+    ).catch(() => undefined);
+    result.retried += unsettled.length;
+  }
   if (toDelete.length === 0) return result;
 
   const attempts = Math.max(

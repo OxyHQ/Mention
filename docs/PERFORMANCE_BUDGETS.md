@@ -20,7 +20,7 @@ past any of:
 | Budget | Ceiling |
 | --- | --- |
 | Total bytes | 19.5 MiB |
-| JavaScript bytes | 15 MiB |
+| JavaScript bytes | 15.125 MiB |
 | Initial JavaScript bytes | 5.45 MiB |
 | Initial JavaScript gzip bytes | 1.5 MiB (target: 1.6 MiB) |
 | Font bytes | 4 MiB |
@@ -93,6 +93,26 @@ Bloom's are static imports carrying all fifteen languages, so the ones for the
 families Mention imports ship whole. The fix that gives this back belongs in
 Bloom — load only the active language, as `lib/i18n.ts` does here — and is
 recorded there as a follow-up.
+
+It was raised from 15 to 15.125 MiB (+128 KiB) by the Oxy Files SDK
+(`@oxy.so/contracts` 4.24.0, `@oxy.so/core` 4.21.0, `@oxy.so/services`
+11.12.0, OxyHQ/Mention#1430). Measured on one `expo export --platform web`
+each of main `f064dbe89` (contracts 4.21.0, core 4.17.0, services 11.8.0) and
+the branch, same analyzer:
+
+| Signal | Main | With the SDK | Change |
+| --- | --- | --- | --- |
+| Total bytes | 20,305,797 | 20,383,811 | +78,014 |
+| JavaScript bytes | 15,671,388 | 15,749,026 | +77,638 |
+| Initial JavaScript bytes | 5,390,065 | 5,418,632 | +28,567 |
+| Initial JavaScript gzip bytes | 1,491,227 | 1,498,756 | +7,529 |
+
+Every byte is the SDK's own: core +58 KiB (its assets and apps clients and the file,
+trash and app-access strings in each of its locale catalogues), services
++45 KiB (the app-assertion manager, the file trash screen and its actions,
+the per-file application access section, the display-currency selector),
+contracts +6 KiB (the app-assertion client). Main sat 56 KiB under the old
+ceiling; no other ceiling moves, and initial JavaScript stays inside its own.
 
 The total ceiling was raised from 19.8 to 20.5 MiB by the empty feed's
 sticker (Oxy's shared catalogue, drawn by Bloom's `Sticker`): measured 20.32

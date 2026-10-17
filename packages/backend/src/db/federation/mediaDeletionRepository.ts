@@ -2,7 +2,8 @@ import { and, asc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import { postContentVariants, postMedia, postVariantMedia } from '../schema/postContent';
 import { federatedMediaDeletions, federatedMediaPosters } from '../schema/federation';
-import { userSettings } from '../schema/userProfile';
+import { filesInUseByFederatedMedia } from '../oxyFiles/fileReferenceEntities';
+import { markFileReferences } from '../oxyFiles/fileReferenceSyncRepository';
 
 /**
  * The outbox for deleting Oxy files Mention re-hosted from a federated source
@@ -196,6 +197,39 @@ export async function enqueueFederatedMediaDeletions(
   return written.length;
 }
 
+/**
+ * Re-open deletions Oxy answered `in_use` for these files — the
+ * reconciliation calls it after re-sending removals its commit may have undone
+ * (`services/oxyFiles/fileReferenceReconciliation.ts`): a Mention reference
+ * re-added there is exactly what makes Oxy answer `in_use` for a file only
+ * Mention used. Only `in_use` rows: a file with no row was never this drain's,
+ * and a tombstone stays as it is.
+ */
+export async function rearmInUseFederatedMediaDeletions(
+  fileIds: readonly string[],
+  db: DatabaseOrTransaction = getDb(),
+): Promise<number> {
+  if (fileIds.length === 0) return 0;
+  const rearmed = await db
+    .update(federatedMediaDeletions)
+    .set({
+      state: 'pending',
+      attempts: 0,
+      nextAttemptAt: sql`now()`,
+      lastError: null,
+      settledAt: null,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        inArray(federatedMediaDeletions.oxyFileId, [...fileIds]),
+        eq(federatedMediaDeletions.state, 'in_use'),
+      ),
+    )
+    .returning({ id: federatedMediaDeletions.id });
+  return rearmed.length;
+}
+
 /** Record the poster frame Oxy-hosted for a re-hosted video (idempotent). */
 export async function recordFederatedPoster(
   videoFileId: string,
@@ -238,69 +272,6 @@ export async function findDueMediaDeletions(
 }
 
 /**
- * Which of `fileIds` Mention still references anywhere: a post's media, a
- * variant's media, a federated profile banner — or, for a poster, a still
- * referenced video it belongs to. Batched: one statement per table.
- */
-async function referencedFileIds(
-  tx: DatabaseOrTransaction,
-  fileIds: readonly string[],
-): Promise<Set<string>> {
-  const ids = [...fileIds];
-  const used = new Set<string>();
-  const add = (rows: Array<{ id: string | null }>) =>
-    rows.forEach((row) => row.id && used.add(row.id));
-
-  add(
-    await tx
-      .select({ id: postMedia.mediaId })
-      .from(postMedia)
-      .where(inArray(postMedia.mediaId, ids)),
-  );
-  add(
-    await tx
-      .select({ id: postVariantMedia.mediaId })
-      .from(postVariantMedia)
-      .where(inArray(postVariantMedia.mediaId, ids)),
-  );
-  add(
-    await tx
-      .select({ id: userSettings.profileHeaderImage })
-      .from(userSettings)
-      .where(inArray(userSettings.profileHeaderImage, ids)),
-  );
-
-  // A poster is in use while ANY video it belongs to is.
-  const posterOf = await tx
-    .select({
-      poster: federatedMediaPosters.posterFileId,
-      video: federatedMediaPosters.videoFileId,
-    })
-    .from(federatedMediaPosters)
-    .where(inArray(federatedMediaPosters.posterFileId, ids));
-  if (posterOf.length > 0) {
-    const videos = [...new Set(posterOf.map((row) => row.video))];
-    const liveVideos = new Set<string>();
-    const addVideo = (rows: Array<{ id: string | null }>) =>
-      rows.forEach((row) => row.id && liveVideos.add(row.id));
-    addVideo(
-      await tx
-        .select({ id: postMedia.mediaId })
-        .from(postMedia)
-        .where(inArray(postMedia.mediaId, videos)),
-    );
-    addVideo(
-      await tx
-        .select({ id: postVariantMedia.mediaId })
-        .from(postVariantMedia)
-        .where(inArray(postVariantMedia.mediaId, videos)),
-    );
-    for (const row of posterOf) if (liveVideos.has(row.video)) used.add(row.poster);
-  }
-  return used;
-}
-
-/**
  * Decide the `pending` rows of a batch under their locks: still referenced →
  * `in_use`; otherwise → `deleting` (the tombstone), and the video's posters are
  * queued in turn. Returns the ids now tombstoned.
@@ -322,7 +293,12 @@ export async function tombstoneUnreferenced(fileIds: readonly string[]): Promise
     const pending = rows.map((row) => row.oxyFileId);
     if (pending.length === 0) return [];
 
-    const used = await referencedFileIds(tx, pending);
+    // "Does Mention still show this file" is the file-reference registry's
+    // question (posts, variants, banners, posters), asked here under the
+    // locks the post insert also takes. Oxy's own reference record cannot
+    // stand in for it: it trails this database by the reference drain, so
+    // a post committed a moment ago is invisible to it.
+    const used = await filesInUseByFederatedMedia(tx, pending);
     const inUse = pending.filter((id) => used.has(id));
     const unused = pending.filter((id) => !used.has(id));
     if (inUse.length > 0) {
@@ -337,10 +313,23 @@ export async function tombstoneUnreferenced(fileIds: readonly string[]): Promise
         .set({ state: 'deleting', nextAttemptAt: sql`now()`, updatedAt: new Date() })
         .where(inArray(federatedMediaDeletions.oxyFileId, unused));
       const posters = await tx
-        .select({ poster: federatedMediaPosters.posterFileId })
+        .select({
+          poster: federatedMediaPosters.posterFileId,
+          video: federatedMediaPosters.videoFileId,
+        })
         .from(federatedMediaPosters)
         .where(inArray(federatedMediaPosters.videoFileId, unused));
       await enqueueFederatedMediaDeletions([...new Set(posters.map((row) => row.poster))], tx);
+      // A poster is used while its video is; the video's last use just ended
+      // without touching a row the reference triggers watch, so say so here.
+      await markFileReferences(
+        posters.map((row) => ({
+          fileId: row.poster,
+          entityType: 'video_poster' as const,
+          entityId: row.video,
+        })),
+        tx,
+      );
     }
     return unused;
   });

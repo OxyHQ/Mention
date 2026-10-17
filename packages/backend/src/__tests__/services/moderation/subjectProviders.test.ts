@@ -172,14 +172,15 @@ describe('post subject provider', () => {
 
     /**
      * The contract refuses an empty text resource, and rightly. A `metadata`
-     * resource says what the post consisted of without pretending to carry it —
-     * so a jury can answer `insufficient_context` for the right reason while
-     * Mention cannot yet ship the bytes (see `postSubject.ts`).
+     * resource says what the post consisted of; the media itself is named as
+     * evidence, which the envelope builder sends as application-owned copies
+     * (see `postSubject.ts`, `reportEvidence.ts`).
      */
     expect(snapshot?.content).toMatchObject({
       type: 'metadata',
-      data: { bodyText: 'absent', mediaItems: 2, mediaKinds: 'image', evidenceAttached: false },
+      data: { bodyText: 'absent', mediaItems: 2, mediaKinds: 'image' },
     });
+    expect(snapshot?.evidenceMedia?.map((item) => item.id)).toEqual(['file_1', 'file_2']);
   });
 
   it('carries the parent as context, with the right relation', async () => {

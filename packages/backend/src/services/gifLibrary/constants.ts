@@ -3,8 +3,9 @@ import { config } from '../../config';
 /**
  * Tunables for the native GIF library (full import, local-first search).
  *
- * The library is NOT a TTL cache: every GIF we surface is copied into Oxy S3 once
- * and owned forever (no eviction in MVP). These constants bound the import work
+ * The library is NOT a TTL cache: every GIF we surface is imported into Oxy once,
+ * as public files the Mention APPLICATION owns (ADR 0043), and kept for as long
+ * as its `gifs` row references them. These constants bound the import work
  * (size, concurrency, search-term storage) and carry the kill-switch.
  */
 
@@ -15,7 +16,7 @@ const MS_PER_SECOND = 1000;
  * MASTER kill-switch for the GIF library WRITE side (imports + `Gif` rows).
  *
  * Defaults ON — only the literal string `'false'` disables it. When disabled the
- * routes are a pure Klipy passthrough: no downloads, no Oxy uploads, no `Gif`
+ * routes are a pure Klipy passthrough: no imports, no Oxy files, no `Gif`
  * writes, and `POST /use` returns the Klipy mp4 url with an empty `fileId` (the
  * documented safety-valve; the client must keep its old upload path in that case,
  * which is out of scope since the default is on).
@@ -23,16 +24,18 @@ const MS_PER_SECOND = 1000;
 export const GIF_LIBRARY_WRITE_ENABLED = config.gif.libraryWriteEnabled;
 
 /**
- * Content-type forced on every GIF mp4 we upload. Klipy occasionally serves mp4
- * bytes under a generic `application/octet-stream`, which the oxy-api cache
- * endpoint rejects (415). We only ever fetch `.mp4` variant URLs, so we declare
- * the true type and keep uploads accepted.
+ * Content-type declared when a GIF mp4 has to be uploaded rather than imported
+ * by URL. Klipy occasionally serves mp4 bytes under a generic
+ * `application/octet-stream`, which Oxy's import fetcher refuses (415); we only
+ * ever fetch `.mp4` variant URLs, so the fallback downloads them and declares
+ * the true type.
  */
 export const GIF_UPLOAD_CONTENT_TYPE = 'video/mp4';
 
 /**
- * Maximum size of a single GIF mp4 (full or preview) we will import. GIFs-as-mp4
- * are tiny; a generous cap still bounds an abusive/oversized source.
+ * Maximum size of a single GIF mp4 (full or preview) the upload fallback will
+ * download (Oxy's importer applies its own 40 MiB cap). GIFs-as-mp4 are tiny; a
+ * generous cap still bounds an abusive/oversized source.
  */
 export const GIF_IMPORT_MAX_BYTES = 16 * BYTES_PER_MIB;
 

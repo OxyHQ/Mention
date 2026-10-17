@@ -216,6 +216,8 @@ export class FeedQueryBuilder {
       or(gte(postMedia.durationSec, minDurationSec), isNull(postMedia.durationSec)) as SQL,
       gt(postMedia.width, 0),
       gt(postMedia.height, 0),
+      // A video Oxy no longer serves (ADR 0043) is no video to watch.
+      isNull(postMedia.withheld),
     ];
 
     // `'all'` is the one setting whose NAME promises no filtering, so it must
@@ -287,6 +289,8 @@ export class FeedQueryBuilder {
       or(gte(postMedia.durationSec, minDurationSec), isNull(postMedia.durationSec)) as SQL,
       gt(postMedia.width, 0),
       gt(postMedia.height, 0),
+      // Same rule as the `EXISTS` form: a withheld video is no video to watch.
+      isNull(postMedia.withheld),
     ];
 
     // `'all'` is the one setting whose NAME promises no filtering, so it must

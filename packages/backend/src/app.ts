@@ -216,6 +216,9 @@ export function createApp(deps: CreateAppDependencies): express.Express {
   // the same reasoning: the body is a signed token read raw, the token is the
   // authentication, and no session, admission or CSRF layer may stand in front.
   app.use('/webhooks', routes.oxyAccountEvents);
+  // Oxy's file events (ADR 0043 D9): an HMAC over the raw body is the
+  // authentication, so the same position for the same reason.
+  app.use('/webhooks', routes.oxyFileEvents);
 
   app.use(
     express.json({

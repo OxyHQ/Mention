@@ -5,6 +5,7 @@ import { REPORT_TAXONOMY_VERSION, allegationsForCategories } from './reportTaxon
 import { subjectProviderFor } from './subjects/registry';
 import type { ModerationSubjectSnapshot } from './subjects/types';
 import type { ReportRecord } from '../../db/moderation/reportRepository';
+import { ensureReportEvidence } from './reportEvidence';
 import { logger } from '../../utils/logger';
 
 /**
@@ -115,6 +116,21 @@ function contractUrgency(stored: unknown): CaseUrgency | undefined {
   return undefined;
 }
 
+/**
+ * A version-1 subject, byte for byte: before media evidence, a post with no
+ * body was described as `{ bodyText, mediaItems, mediaKinds, evidenceAttached:
+ * false }`. The key is gone from the provider (the media now travels as
+ * evidence), so a report first sent with it gets it back here — CrowdSource
+ * fingerprints the envelope, and a retry without it would be a 409.
+ */
+function legacyContent(
+  content: ModerationSubjectSnapshot['content'],
+): ModerationSubjectSnapshot['content'] {
+  if (typeof content === 'string' || content.type !== 'metadata') return content;
+  if (content.data.bodyText !== 'absent') return content;
+  return { ...content, data: { ...content.data, evidenceAttached: false } };
+}
+
 export interface ModerationReportInput {
   /** What the SDK delivers. */
   readonly reportInput: ReportInput;
@@ -144,12 +160,36 @@ export async function buildModerationReportInput(
    * `contractUrgency` validates it on the way out.
    */
   storedUrgency?: unknown,
+  /**
+   * The report's envelope shape, `reports.envelope_version` — decided once per
+   * report by `resolveReportEnvelopeVersion` from durable state. `1` composes
+   * exactly what the code before media evidence composed, for a report already
+   * attempted with that shape: no attachments, `evidenceAttachmentsSupported:
+   * false`, and a media-only subject still saying `evidenceAttached: false`.
+   */
+  envelopeVersion: 1 | 2 = 2,
 ): Promise<ModerationReportInput | null> {
   const provider = subjectProviderFor(report.reportedType);
   if (!provider) throw new ModerationSubjectUnsupportedError(report.reportedType);
 
-  const snapshot = await provider.snapshot(report.reportedId, report.reporter);
-  if (!snapshot) return null;
+  const provided = await provider.snapshot(report.reportedId, report.reporter);
+  if (!provided) return null;
+
+  // Media evidence: application-owned copies, made once per report and read
+  // back on every attempt (`reportEvidence.ts`), so a retry composes the
+  // envelope it composed the first time.
+  const { evidenceMedia, ...described } = provided;
+  const legacy = envelopeVersion === 1;
+  const evidence =
+    !legacy && evidenceMedia && evidenceMedia.length > 0
+      ? await ensureReportEvidence(report.id, evidenceMedia)
+      : [];
+  const attachments = [...(described.attachments ?? []), ...evidence];
+  const snapshot: ModerationSubjectSnapshot = {
+    ...described,
+    ...(legacy ? { content: legacyContent(described.content) } : {}),
+    ...(attachments.length > 0 ? { attachments } : {}),
+  };
 
   const allegationCodes = allegationsForCategories(report.categories);
   const details = report.details?.trim();
@@ -208,11 +248,13 @@ export async function buildModerationReportInput(
         taxonomyVersion: REPORT_TAXONOMY_VERSION,
         categories: [...report.categories].sort().join(','),
         /**
-         * Declared, because it cannot yet be attached — see `postSubject.ts`. A
-         * jury that can see material exists which it was not given can answer
-         * `insufficient_context` for the right reason.
+         * Media is attached as application-owned evidence copies
+         * (`reportEvidence.ts`); an item that could not be copied is still
+         * declared in the subject's media summary, so a jury can see material
+         * exists which it was not given and answer `insufficient_context` for
+         * the right reason.
          */
-        evidenceAttachmentsSupported: false,
+        evidenceAttachmentsSupported: !legacy,
       },
     },
     snapshotHash: snapshotHash(snapshot),

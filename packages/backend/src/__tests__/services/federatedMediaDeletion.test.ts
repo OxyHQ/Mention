@@ -16,6 +16,17 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 const h = vi.hoisted(() => ({
   deleteFederatedMedia: vi.fn(),
   tombstoneFailure: null as Error | null,
+  // Mention's own Oxy references (ADR 0043), removed before every delete.
+  referencesAdd: vi.fn(),
+  referencesRemove: vi.fn(),
+  calls: [] as string[],
+}));
+
+vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../utils/oxyHelpers')>()),
+  getServiceOxyClient: () => ({
+    assets: { references: { add: h.referencesAdd, remove: h.referencesRemove } },
+  }),
 }));
 
 vi.mock('../../services/mediaCache/oxyMediaStore', async (importOriginal) => ({
@@ -110,9 +121,23 @@ async function stateOf(id: string): Promise<string | undefined> {
 
 /** Oxy answers `deleted` for every id it is asked about. */
 function oxyDeletesEverything() {
-  h.deleteFederatedMedia.mockImplementation(async (ids: string[]) =>
-    ids.map((id) => ({ id, result: 'deleted' })),
+  h.deleteFederatedMedia.mockImplementation(async (ids: string[]) => {
+    h.calls.push(`delete:${ids.join(',')}`);
+    return ids.map((id) => ({ id, result: 'deleted' }));
+  });
+}
+
+type Reference = { fileId: string; entityType: string; entityId: string };
+
+/** Oxy takes every reference change it is sent. */
+function oxyTakesReferences() {
+  h.referencesAdd.mockImplementation(async (refs: Reference[]) =>
+    refs.map((ref) => ({ ...ref, result: 'created' })),
   );
+  h.referencesRemove.mockImplementation(async (refs: Reference[]) => {
+    h.calls.push(`remove:${refs.map((ref) => ref.fileId).join(',')}`);
+    return refs.map((ref) => ({ ...ref, result: 'removed' }));
+  });
 }
 
 beforeAll(async () => {
@@ -121,7 +146,11 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   h.deleteFederatedMedia.mockReset();
+  h.referencesAdd.mockReset();
+  h.referencesRemove.mockReset();
+  h.calls.length = 0;
   oxyDeletesEverything();
+  oxyTakesReferences();
 });
 
 afterAll(async () => {
@@ -163,6 +192,69 @@ describe('deleting a federated post deletes its re-hosted media', () => {
     expect(calls.findIndex((ids) => ids.includes(video))).toBeLessThan(
       calls.findIndex((ids) => ids.includes(poster)),
     );
+  });
+});
+
+describe("Mention's own Oxy references go before the delete (ADR 0043)", () => {
+  // A re-hosted file is owned by the federated actor's Oxy account, and Oxy
+  // refuses to delete an account's file another application references.
+
+  it('removes the post reference, THEN asks Oxy to delete the file', async () => {
+    const x = fileId();
+    const post = await federatedPost([rehosted(x)]);
+    await deletePostRecord(post, undefined);
+
+    await drainFederatedMediaDeletions();
+
+    expect(h.calls).toEqual([`remove:${x}`, `delete:${x}`]);
+    const [removed] = h.referencesRemove.mock.calls[0][0] as Reference[];
+    expect(removed).toMatchObject({ fileId: x, entityId: post });
+    expect(removed.entityType).toMatch(/^post\.\d{2}$/);
+    expect(await stateOf(x)).toBe('deleted');
+  });
+
+  it("removes a deleted video's poster reference before the poster's delete", async () => {
+    const video = fileId();
+    const poster = fileId();
+    await recordFederatedPoster(video, poster);
+    const post = await federatedPost([rehosted(video, 'video')]);
+    await deletePostRecord(post, undefined);
+
+    await drainFederatedMediaDeletions();
+
+    const posterRemoval = h.calls.findIndex(
+      (call) => call.startsWith('remove:') && call.split(':')[1].split(',').includes(poster),
+    );
+    const posterDelete = h.calls.findIndex(
+      (call) => call.startsWith('delete:') && call.split(':')[1].split(',').includes(poster),
+    );
+    expect(posterRemoval).toBeGreaterThanOrEqual(0);
+    expect(posterRemoval).toBeLessThan(posterDelete);
+    const sent = h.referencesRemove.mock.calls.flatMap(([refs]) => refs as Reference[]);
+    expect(sent).toContainEqual({ fileId: poster, entityType: 'video_poster', entityId: video });
+    expect(await stateOf(poster)).toBe('deleted');
+  });
+
+  it('holds the delete back while Oxy does not answer the reference removal', async () => {
+    const x = fileId();
+    const post = await federatedPost([rehosted(x)]);
+    await deletePostRecord(post, undefined);
+    h.referencesRemove.mockRejectedValue(Object.assign(new Error('down'), { status: 503 }));
+
+    await drainFederatedMediaDeletions();
+
+    expect(h.deleteFederatedMedia).not.toHaveBeenCalled();
+    expect(await stateOf(x)).toBe('deleting');
+
+    // Oxy recovers; the deletion is due again (its backoff elapsed).
+    oxyTakesReferences();
+    await getDb()
+      .update(federatedMediaDeletions)
+      .set({ nextAttemptAt: sql`now()` })
+      .where(eq(federatedMediaDeletions.oxyFileId, x));
+    await drainFederatedMediaDeletions();
+    expect(h.deleteFederatedMedia).toHaveBeenCalledWith([x]);
+    expect(await stateOf(x)).toBe('deleted');
   });
 });
 

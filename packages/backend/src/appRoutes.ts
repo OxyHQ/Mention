@@ -41,6 +41,7 @@ import reportsRoutes from './routes/reports.routes';
 import communityNotesRoutes from './routes/communityNotes.routes';
 import { createCrowdSourceWebhookRoutes } from './routes/crowdSourceWebhook.routes';
 import { createOxyAccountEventsRoutes } from './routes/oxyAccountEvents.routes';
+import { createOxyFileEventsRoutes } from './routes/oxyFileEvents.routes';
 import trendingRoutes from './routes/trending.routes';
 import topicsRoutes from './routes/topics.routes';
 import entityFollowRoutes from './routes/entity-follow.routes';
@@ -99,6 +100,12 @@ export interface AppRoutes {
    * is its authentication (`routes/oxyAccountEvents.routes.ts`).
    */
   oxyAccountEvents: RequestHandler;
+  /**
+   * `POST /webhooks/oxy/files`. Same position and reasoning: Oxy's file events
+   * are authenticated by an HMAC over the raw body
+   * (`routes/oxyFileEvents.routes.ts`).
+   */
+  oxyFileEvents: RequestHandler;
   mcpOAuth: RequestHandler;
   webShell: RequestHandler;
   apexProxy: RequestHandler;
@@ -218,6 +225,7 @@ export function createAppRoutes({ oxy, optionalAuth }: CreateAppRoutesDependenci
     media: express.Router().use(createOptionalMcpAuth(), optionalAuth, mediaRoutes),
     crowdSourceWebhook: createCrowdSourceWebhookRoutes(),
     oxyAccountEvents: createOxyAccountEventsRoutes(),
+    oxyFileEvents: createOxyFileEventsRoutes(),
     mcpOAuth: createMcpOAuthRoutes(),
     webShell: webShellRoutes,
     apexProxy: apexFrontendProxy,

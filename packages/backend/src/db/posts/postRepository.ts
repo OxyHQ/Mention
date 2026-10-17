@@ -101,6 +101,7 @@ import {
 // `services/postDetailCache.ts`'s own doc comment for what it does and does not
 // invalidate.
 import { invalidate as invalidatePostDetailCache } from '../../services/postDetailCache';
+import { findRetiredGifFileRedirects } from '../oxyFiles/gifCacheRetirementRepository';
 
 type PostRow = typeof posts.$inferSelect;
 type PostInsert = typeof posts.$inferInsert;
@@ -190,6 +191,7 @@ function toMediaItem(row: MediaRow | VariantMediaRow): MediaItem {
     hlsReadyAt: row.hlsReadyAt ? row.hlsReadyAt.toISOString() : undefined,
     remoteUrl: optional(row.remoteUrl),
     cachedFromFederation: optional(row.cachedFromFederation),
+    withheld: optional(row.withheld),
   });
 }
 
@@ -1082,6 +1084,43 @@ function withoutGoneMedia(
 }
 
 /**
+ * Replace media ids by `replacements` everywhere a post names them: its media,
+ * each variant's media and alt-text keys, and the media attachment pointers —
+ * together, or an alt text or attachment would point at an id no item carries.
+ */
+function withMediaIdsReplaced(
+  content: StoredPostContent,
+  replacements: ReadonlyMap<string, string>,
+): StoredPostContent {
+  const swap = (id: string): string => replacements.get(id) ?? id;
+  const swapItems = (items: MediaItem[] | undefined): MediaItem[] | undefined =>
+    items?.map((item) => (replacements.has(item.id) ? { ...item, id: swap(item.id) } : item));
+  return {
+    ...content,
+    media: swapItems(content.media),
+    variants: content.variants?.map((variant) => ({
+      ...variant,
+      ...(variant.media ? { media: swapItems(variant.media) } : {}),
+      ...(variant.alt
+        ? {
+            alt: Object.fromEntries(
+              Object.entries(variant.alt).map(([mediaId, description]) => [
+                swap(mediaId),
+                description,
+              ]),
+            ),
+          }
+        : {}),
+    })),
+    attachments: content.attachments?.map((attachment) =>
+      attachment.type === 'media' && attachment.id && replacements.has(attachment.id)
+        ? { ...attachment, id: swap(attachment.id) }
+        : attachment,
+    ),
+  };
+}
+
+/**
  * Write every child row a post owns.
  *
  * Shared by insert and by the content-replacing half of {@link updatePostContent}
@@ -1126,7 +1165,15 @@ async function insertChildRows(
     ].map((item) => item.id),
   );
   if (gone.size > 0 && goneMedia === 'refuse') throw new FederatedMediaGoneError([...gone]);
-  const content = gone.size > 0 ? withoutGoneMedia(requestedContent, gone) : requestedContent;
+  const kept = gone.size > 0 ? withoutGoneMedia(requestedContent, gone) : requestedContent;
+  // A GIF file id from before the library moved to application-owned files
+  // (a composer left open across the move) names a cache file the move
+  // deletes: store its replacement instead.
+  const redirects = await findRetiredGifFileRedirects(tx, [
+    ...(kept.media ?? []).map((item) => item.id),
+    ...(kept.variants ?? []).flatMap((variant) => (variant.media ?? []).map((item) => item.id)),
+  ]);
+  const content = redirects.size > 0 ? withMediaIdsReplaced(kept, redirects) : kept;
 
   const variants = content.variants ?? [];
   if (variants.length > 0) {

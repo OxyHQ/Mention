@@ -342,6 +342,29 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       'mid-assertion.',
   },
   {
+    path: 'src/__tests__/services/oxyFiles/fileReferenceSync.test.ts',
+    jobEntryPoint: 'drainFileReferenceSync',
+    reason:
+      "Drains the WHOLE `oxy_file_reference_sync` outbox — every pair any suite's post, " +
+      'GIF or banner write marked — deciding and settling rows, so on a shared database it ' +
+      "would settle other suites' marks and count their calls as its own.",
+  },
+  {
+    path: 'src/__tests__/services/oxyFiles/fileReferenceReconciliation.test.ts',
+    jobEntryPoint: 'runFileReferenceReconciliation',
+    reason:
+      'Sends every entity type’s WHOLE inventory (every post’s media in a shard, every GIF, ' +
+      'every banner) and replays every removal answered since it began, so its counts are ' +
+      "other suites' rows and its replay re-marks their pairs.",
+  },
+  {
+    path: 'src/__tests__/scripts/migrateGifLibraryToApplicationFiles.test.ts',
+    jobEntryPoint: 'migrateGifLibraryToApplicationFiles',
+    reason:
+      'Moves every GIF still stored in the federation cache and rewrites every post naming ' +
+      "its old files, so a GIF another suite inserted would be moved under that suite's feet.",
+  },
+  {
     path: 'src/__tests__/services/federatedMediaDeletion.test.ts',
     jobEntryPoint: 'drainFederatedMediaDeletions',
     reason:

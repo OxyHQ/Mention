@@ -1,5 +1,5 @@
 import { createWriteStream } from 'node:fs';
-import { mkdtemp, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -13,7 +13,9 @@ import { gifs } from '../../db/schema/discovery';
 import { logger } from '../../utils/logger';
 import { SsrfRejection } from '@oxy.so/core/server';
 import { fetchUpstreamFollowingRedirects } from '../../utils/safeUpstreamFetch';
-import { uploadGifLibraryMedia } from '../mediaCache/oxyMediaStore';
+import { getServiceOxyClient } from '../../utils/oxyHelpers';
+import { describeOxyError, oxyErrorStatus } from '../oxyFiles/oxyErrors';
+import { isAllowedKlipyHost } from './gifMediaProxy';
 import type { KlipyGifItem } from '../gifService';
 import {
   GIF_DEFAULT_DIMENSION,
@@ -31,6 +33,8 @@ import {
 
 /** HTTP status that carries a full body we can import. */
 const HTTP_OK = 200;
+/** Oxy's answer to a source whose declared type is not an image or video. */
+const HTTP_UNSUPPORTED_MEDIA_TYPE = 415;
 
 /** One row of the owned GIF library, exactly as the database stores it. */
 export type GifRecord = typeof gifs.$inferSelect;
@@ -371,7 +375,8 @@ interface DownloadedMedia {
 
 /**
  * Stream a remote GIF source URL to a temp file, SSRF-guarded and size-capped.
- * Never throws — returns null on any failure (best-effort import path).
+ * Never throws — returns null on any failure (best-effort import path). Only
+ * the fallback of {@link importGifFile} downloads here; Oxy fetches the rest.
  */
 async function downloadToTempFile(url: string, dir: string): Promise<DownloadedMedia | null> {
   const abortController = new AbortController();
@@ -443,11 +448,78 @@ function deriveUploadName(candidate: GifImportCandidate, role: 'mp4' | 'preview.
 }
 
 /**
+ * Bring one GIF source into Oxy as a public file the Mention APPLICATION owns
+ * (ADR 0043), and return its id — or null (never throws).
+ *
+ * Oxy fetches the URL itself (`importAppFile`: its SSRF-safe fetcher, and an
+ * import of a URL it already holds for Mention answers the existing file
+ * without fetching). One fallback, for one known Klipy quirk: some mp4s are
+ * served as `application/octet-stream`, which Oxy's fetcher refuses (415)
+ * because it only accepts a declared image or video type. Those are downloaded
+ * here and uploaded declaring `video/mp4` (we only ever ask for `.mp4`
+ * variants), so a GIF the picker showed can still be posted.
+ *
+ * Not referenced here: the `gifs` row is the use, and the
+ * `gifs_file_references` trigger marks both files in the row's own insert. A
+ * crash in between leaves an application file nothing references, which Oxy
+ * collects (D5) — the outcome wanted for an import that never became a row.
+ *
+ * The source must be a Klipy host: `/gifs/use` takes the URLs from the client,
+ * and a GIF is an APPLICATION file, published under Mention's name.
+ */
+async function importGifFile(
+  url: string,
+  candidate: GifImportCandidate,
+  role: 'mp4' | 'preview.mp4',
+  dir: string,
+): Promise<string | null> {
+  if (!isAllowedKlipyHost(url)) {
+    logger.warn('[GifLibrary] Refusing a GIF source that is not a Klipy host', {
+      klipyId: candidate.klipyId,
+      role,
+    });
+    return null;
+  }
+  const client = getServiceOxyClient();
+  try {
+    const imported = await client.assets.importAppFile(url, { visibility: 'public' });
+    return imported.file.id;
+  } catch (error) {
+    if (oxyErrorStatus(error) !== HTTP_UNSUPPORTED_MEDIA_TYPE) {
+      logger.warn('[GifLibrary] Oxy could not import the GIF source', {
+        klipyId: candidate.klipyId,
+        role,
+        reason: describeOxyError(error),
+      });
+      return null;
+    }
+  }
+
+  const downloaded = await downloadToTempFile(url, dir);
+  if (!downloaded) return null;
+  try {
+    const uploaded = await client.assets.uploadAppFile(
+      await readFile(downloaded.filePath),
+      GIF_UPLOAD_CONTENT_TYPE,
+      { visibility: 'public', originalName: deriveUploadName(candidate, role) },
+    );
+    return uploaded.file.id;
+  } catch (error) {
+    logger.warn('[GifLibrary] Oxy refused the GIF upload', {
+      klipyId: candidate.klipyId,
+      role,
+      reason: describeOxyError(error),
+    });
+    return null;
+  }
+}
+
+/**
  * Actually import a not-yet-owned GIF: re-check the DB (it may have been imported
- * since the caller looked), download the full mp4 + small preview, upload BOTH to
- * the shared `gif-library` namespace on Oxy S3, and create the `Gif` row. Best
- * effort: returns null (never throws) on any failure; tolerates a concurrent
- * cross-process import via the unique-key race handler.
+ * since the caller looked), bring the full mp4 + small preview into Oxy as
+ * Mention-owned files, and create the `Gif` row. Best effort: returns null (never
+ * throws) on any failure; tolerates a concurrent cross-process import via the
+ * unique-key race handler.
  */
 async function importGif(
   candidate: GifImportCandidate,
@@ -465,32 +537,16 @@ async function importGif(
 
   const dir = await mkdtemp(join(tmpdir(), GIF_TEMP_DIR_PREFIX));
   try {
-    const full = await downloadToTempFile(candidate.mp4Url, dir);
-    if (!full) return null;
-
-    const mp4 = await uploadGifLibraryMedia({
-      filePath: full.filePath,
-      contentType: GIF_UPLOAD_CONTENT_TYPE,
-      originalName: deriveUploadName(candidate, 'mp4'),
-      sizeBytes: full.sizeBytes,
-    });
-    const mp4FileId = mp4.oxyFileId;
+    const mp4FileId = await importGifFile(candidate.mp4Url, candidate, 'mp4', dir);
+    if (!mp4FileId) return null;
 
     // Preview: best-effort small mp4. Fall back to the full mp4 file id so the
-    // picker tile always has a usable source even if the preview download fails
+    // picker tile always has a usable source even if the preview import fails
     // or the provider only gave us one size.
     let previewFileId = mp4FileId;
     if (candidate.previewUrl && candidate.previewUrl !== candidate.mp4Url) {
-      const preview = await downloadToTempFile(candidate.previewUrl, dir);
-      if (preview) {
-        const uploadedPreview = await uploadGifLibraryMedia({
-          filePath: preview.filePath,
-          contentType: GIF_UPLOAD_CONTENT_TYPE,
-          originalName: deriveUploadName(candidate, 'preview.mp4'),
-          sizeBytes: preview.sizeBytes,
-        });
-        previewFileId = uploadedPreview.oxyFileId;
-      }
+      previewFileId =
+        (await importGifFile(candidate.previewUrl, candidate, 'preview.mp4', dir)) ?? mp4FileId;
     }
 
     const [created] = await getDb()
@@ -505,6 +561,7 @@ async function importGif(
         height: candidate.height || GIF_DEFAULT_DIMENSION,
         mp4FileId,
         previewFileId,
+        storage: 'application',
         useCount: 0,
         searchHitCount: 1,
         lastUsedAt: new Date(),

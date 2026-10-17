@@ -31,6 +31,7 @@ export * from './mcp';
 export * from './moderation';
 export * from './mtn';
 export * from './outbox';
+export * from './oxyFiles';
 export * from './postContent';
 export * from './postEvaluations';
 export * from './postSafety';

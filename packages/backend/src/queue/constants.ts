@@ -147,6 +147,8 @@ export const PERIODIC_INSTAGRAM_GRAPH_SYNC = 'federation:instagram-graph-sync';
 export const PERIODIC_FEDERATED_MEDIA_DELETIONS = 'federation:federated-media-deletions';
 /** Mirror federated accounts' banners into Oxy (retrying, see services/federatedBannerMirror.ts). */
 export const PERIODIC_FEDERATED_BANNER_MIRRORS = 'federation:federated-banner-mirrors';
+/** Tell Oxy which files Mention uses (ADR 0043; services/oxyFiles/fileReferenceSync.ts). */
+export const PERIODIC_OXY_FILE_REFERENCE_SYNC = 'oxy-files:reference-sync';
 
 /**
  * Recommendation-signal scheduler ids. These pipe Mention curation + engagement
@@ -213,6 +215,14 @@ export const FEDERATED_MEDIA_DELETIONS_INTERVAL_MS = MS_PER_MINUTE;
  * indexed read.
  */
 export const FEDERATED_BANNER_MIRRORS_INTERVAL_MS = 2 * MS_PER_MINUTE;
+
+/**
+ * Oxy file-reference drain cadence. Each run decides at most 2,000 marked pairs
+ * in ≤ 40 Oxy calls of 100; a pair that failed waits out its own backoff, so an
+ * idle tick is one indexed read. Frequent because an APPLICATION file (a GIF)
+ * Oxy sees unreferenced for a day is collected.
+ */
+export const OXY_FILE_REFERENCE_SYNC_INTERVAL_MS = 30 * MS_PER_SECOND;
 
 /** Concurrency for the periodic worker. MUST be 1 so a repeatable job never overlaps itself. */
 export const PERIODIC_WORKER_CONCURRENCY = 1;

@@ -1,3 +1,4 @@
+import type { MediaItem } from '@mention/shared-types';
 /**
  * The seam that makes this integration copyable.
  *
@@ -70,6 +71,14 @@ export interface ModerationSubjectSnapshot {
   readonly content: string | ModerationResource;
   /** Media carried BY the subject. */
   readonly attachments?: readonly ModerationResource[];
+  /**
+   * The subject's media to send as EVIDENCE. Not resources yet: CrowdSource
+   * takes only files the reporting application owns, so
+   * `EvidenceSnapshotService` turns these into application-owned copies once per
+   * report (`services/moderation/reportEvidence.ts`) and appends them to
+   * `attachments`.
+   */
+  readonly evidenceMedia?: readonly MediaItem[];
   /**
    * Surrounding material a jury needs to judge fairly — the parent of a reply,
    * the post a quote is about. Context, not extra exposure: §9.1 keeps a

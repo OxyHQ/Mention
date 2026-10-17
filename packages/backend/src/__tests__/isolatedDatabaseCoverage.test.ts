@@ -166,6 +166,12 @@ const JOB_ENTRY_POINTS: readonly JobEntryPoint[] = [
   { name: 'queueFederatedBannerMirrors', call: /\bqueueFederatedBannerMirrors\s*\(/ },
   { name: 'repairInstagramReelPosters', call: /\brepairInstagramReelPosters\s*\(/ },
   { name: 'drainFederatedMediaDeletions', call: /\bdrainFederatedMediaDeletions\s*\(/ },
+  { name: 'drainFileReferenceSync', call: /\bdrainFileReferenceSync\s*\(/ },
+  { name: 'runFileReferenceReconciliation', call: /\brunFileReferenceReconciliation\s*\(/ },
+  {
+    name: 'migrateGifLibraryToApplicationFiles',
+    call: /\bmigrateGifLibraryToApplicationFiles\s*\(/,
+  },
   { name: 'backfillMediaMetadata', call: /\bbackfillMediaMetadata\s*\(/ },
   { name: 'backfillPostLanguages', call: /\bbackfillPostLanguages\s*\(/ },
   { name: 'backfillCustomFeedDefinitions', call: /\bbackfillCustomFeedDefinitions\s*\(/ },

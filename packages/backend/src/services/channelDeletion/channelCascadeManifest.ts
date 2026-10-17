@@ -1364,6 +1364,30 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
     'mention_job_applications.resumeFileId',
     'an Oxy S3 file id for the uploaded resume, not an account',
   ],
+  ['gif_cache_file_retirements.oldFileId', 'an Oxy file id the GIF library retired'],
+  ['gif_cache_file_retirements.newFileId', 'an Oxy file id the GIF library moved to'],
+  [
+    'gif_cache_file_retirements.gifId',
+    'the GIF library row; SET NULL when it goes, never an account or a post',
+  ],
+  [
+    'moderation_report_evidence_files.reportId',
+    'the report the evidence belongs to; it cascades from the report',
+  ],
+  ['moderation_report_evidence_files.sourceFileId', 'an Oxy file id (or a remote URL)'],
+  ['moderation_report_evidence_files.evidenceFileId', "an Oxy file id Mention's application owns"],
+  ['oxy_file_events.eventId', 'an Oxy file-event id'],
+  ['oxy_file_events.fileId', 'an Oxy file id'],
+  ['oxy_file_states.fileId', 'an Oxy file id'],
+  ['oxy_file_states.lastEventId', 'an Oxy file-event id'],
+  ['oxy_file_reference_reconciliations.runId', 'a reconciliation run, not an account'],
+  ['oxy_file_reference_sync.fileId', 'an Oxy file id'],
+  [
+    'oxy_file_reference_sync.entityId',
+    'the entity a file reference is owed for — a channel post among them, but the row is the ' +
+      'removal its deletion owes Oxy (written by the media triggers on that deletion), so it ' +
+      'must outlive the post, never cascade with it',
+  ],
   [
     'mention_job_daily_metrics.jobId',
     'the MentionJob row a metrics day belongs to; it cascades from the job',

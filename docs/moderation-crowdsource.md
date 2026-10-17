@@ -95,21 +95,40 @@ turns a legitimate outbox retry into a permanent 409, silently, days later,
 as a report stuck in a queue. Hence: `submittedAt` is the report's own
 `createdAt`, allegation codes are sorted, and resource order is positional.
 
+## Media evidence
+
+A reported post's media travels as `image`/`video` attachments whose
+`AssetRef.fileId` is a copy the Mention APPLICATION owns — CrowdSource refuses
+an evidence file unless the reporting application (or its organization's
+account) owns it and it holds the declared SHA-256, and a post's media is its
+author's. `services/moderation/reportEvidence.ts` has Oxy give the Mention
+application its own `unlisted` file of the post file's bytes (`adoptAppFile`,
+ADR 0043 stage 4b: the stored object is shared — nothing is downloaded or
+uploaded again — and the copy outlives the author deleting theirs) and declares
+the `sha256` Oxy reports for the copy, which is the source's. The copies are made once, at the report's
+first delivery attempt, and stored in `moderation_report_evidence_files`;
+every later attempt reads them back, because CrowdSource fingerprints the whole
+envelope and a re-made copy would turn a retry into a permanent 409. The
+digests are in the snapshot hash. An item with no Oxy file (a federated one the
+cache never re-hosted), a withheld one, or one Oxy refuses to adopt (a 4xx:
+gone, taken down, or private, which an `unlisted` copy would widen) is
+stored with its reason and stays DECLARED in the subject's media summary only;
+an Oxy outage throws and the outbox retries. Each copy is referenced as Oxy
+entity `moderation_report` while its report exists, and by CrowdSource as its
+`case` (see [Oxy Files](./oxy-files.md)).
+
+**A report keeps the envelope it was first sent with.** Media evidence changed
+the envelope (attachments, `evidenceAttachmentsSupported`, the media-only
+subject's `evidenceAttached`), and a retry that differs from an earlier attempt
+is a permanent 409. `reports.envelope_version` is decided once per report, at
+its first delivery attempt under this code, from durable state
+(`resolveReportEnvelopeVersion`): a report that already carries a delivery
+failure, a receipt, or an outbox attempt beyond the current one was attempted
+before evidence existed and stays on version `1` (the old envelope, field for
+field); every other report is `2`. Never decided from deploy time.
+
 ## Known gaps (deliberate, not oversights)
 
-- **Media evidence is declared, not attached.** A post with no text gets a
-  `metadata` subject resource saying what it consisted of, so a jury can
-  answer `insufficient_context` for the right reason. `AssetRef` is
-  `{ fileId, url?, mimeType, sha256, sizeBytes?, width?, height?,
-  durationSeconds? }` — bytes go through the Oxy media chokepoint, and `url`
-  is provenance no reviewer client ever dereferences. Mention already holds
-  all of it: `MediaItem.id` IS the `fileId` (federated too, once the media
-  cache rewrote it), and one batched `getServiceAssetMetadataByIds` returns
-  the rest field-for-field. No byte fetching required. Closing it: one
-  function in `postSubject.ts` + flip `evidenceAttachmentsSupported`. Two
-  traps: the digest must enter the snapshot hash, and a federated item the
-  cache never rewrote has a URL in `id` and no file id, so it must stay
-  declared-only.
 - **Mention only SENDS FOR REVIEW the objects it owns — `post`, `comment`,
   `user` — but it ACCEPTS every type in the enum.** Two questions, two
   authorities, and conflating them was tried and reverted: `ReportedType` is
