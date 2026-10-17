@@ -16,7 +16,7 @@ import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
 import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import { RiUpload2Line } from '@oxy.so/bloom/icons/RiUpload2Line';
 
-import { useAskAlia } from '@/context/AskAliaContext';
+import { useAskAgent } from '@alia.onl/sdk/ask';
 import { usePostsStore } from '@/stores/postsStore';
 import { lanesService } from '@/services/lanesService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -154,7 +154,7 @@ export function usePersonProfileView({
   const routedCanonicalHref = useProfileCanonicalHref({ routedFamily: 'person', account });
   const { user: currentUser, oxyServices, canUsePrivateApi } = useAuth();
   const { t } = useTranslation();
-  const askAlia = useAskAlia();
+  const { ask: askAlia } = useAskAgent();
 
   /**
    * The whole of "do nothing while a non-tab sibling is showing", in one place.
@@ -570,16 +570,7 @@ export function usePersonProfileView({
           tone="neutral"
           iconOnly
           leadingIcon={RiSparklingLine}
-          onPress={() =>
-            askAlia.open({
-              prompt: t('profile.askAlia.prompt', { handle }),
-              context: t('profile.askAlia.context', {
-                name: profileData.design.displayName,
-                handle,
-                id: profileData.id,
-              }),
-            })
-          }
+          onPress={() => askAlia(undefined, { text: t('profile.askAlia.prompt', { handle }) })}
           accessibilityLabel={t('profile.actions.askAlia', {
             handle,
             defaultValue: 'Ask Alia about @{{handle}}',

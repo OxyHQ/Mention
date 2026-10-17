@@ -2628,7 +2628,6 @@
   "alia.suggestion.discover": "Suggère-moi des comptes et des sujets à suivre",
   "profile.actions.askAlia": "Demander à Alia à propos de @{{handle}}",
   "profile.askAlia.prompt": "Parle-moi de @{{handle}} sur Mention : qui est cette personne, de quoi elle parle et pour quoi elle est connue.",
-  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering.",
   "homiio": {
     "loading": "Chargement du dossier Homiio…",
     "unavailable": "Ce dossier Homiio est indisponible",

@@ -118,6 +118,8 @@ const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
   '@tailwindcss/node -> lightningcss@1.32.0':
     'lightningcss is pinned to 1.30.1 so its linux-x64 gnu/musl native binaries stay on a single version through the image build.',
   'vite -> lightningcss@^1.32.0': 'Same single-copy native-binary pin as @tailwindcss/node.',
+  '@alia.onl/sdk -> react-native-css@^3.0.7':
+    'The override installs 3.1.0-rc.0, the release candidate of the next 3.x minor, which semver ranges exclude only because it is a prerelease. It is the single copy nativewind 5.0.0-rc.0 needs and the exact version @oxy.so/bloom 10.17 depends on, so the SDK draws through the same react-native-css as the rest of the app.',
 };
 
 /**

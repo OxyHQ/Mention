@@ -16,7 +16,7 @@ import { NotificationPermissionGate } from '@/components/NotificationPermissionG
 import { SEOHandoff } from '@/components/SEOHandoff';
 import { PwaHead } from '@/components/PwaHead';
 import { AppProviders } from '@/components/providers/AppProviders';
-import { AskAliaProvider } from '@/context/AskAliaContext';
+import { MentionAskProvider } from '@/context/MentionAskProvider';
 import { MentionSettingsProvider } from '@/components/settings/MentionSettingsProvider';
 import { AuthRouter } from '@/components/providers/AuthRouter';
 import { OverlayInertBoundary, PortalOutlet, PortalProvider } from '@oxy.so/bloom/portal';
@@ -190,14 +190,14 @@ export default function RootLayout() {
                       and makes it inert on web. The surfaces render at the
                       outlet below, so wrapping the outlet would hide them
                       too (#1126). */}
-                  {/* Alia's chat sheet: one instance for the whole app, mounted
-                      on first use. It sits beside the inert boundary, not in
-                      it, and portals into the outlet below. */}
-                  <AskAliaProvider>
+                  {/* Alia's one sheet for the whole app, loaded on first use. It
+                      sits beside the inert boundary, not in it, and portals into
+                      the outlet below. */}
+                  <MentionAskProvider>
                     <OverlayInertBoundary>
                       <AuthRouter />
                     </OverlayInertBoundary>
-                  </AskAliaProvider>
+                  </MentionAskProvider>
                   <PortalOutlet />
                   {/* The shared media surface that carries a playing video across a
                       route change. Renders null whenever nothing is in flight, so it

@@ -2595,7 +2595,6 @@
   "alia.suggestion.discover": "Sarankan akun dan topik untuk diikuti",
   "profile.actions.askAlia": "Tanya Alia tentang @{{handle}}",
   "profile.askAlia.prompt": "Ceritakan tentang @{{handle}} di Mention: siapa mereka, apa yang mereka posting, dan dikenal karena apa.",
-  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering.",
   "homiio": {
     "loading": "Memuat kasus Homiio…",
     "unavailable": "Kasus Homiio ini tidak tersedia",

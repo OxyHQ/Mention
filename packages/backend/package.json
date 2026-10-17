@@ -25,7 +25,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@alia.onl/sdk": "^15.8.0",
+    "@alia.onl/sdk": "^20.2.0",
     "@clarity.surf/sdk": "^0.4.0",
     "@crowdsource.you/contracts": "1.1.0",
     "@crowdsource.you/core": "3.0.2",
