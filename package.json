@@ -150,6 +150,7 @@
     "@fastify/busboy": "3.2.2",
     "@oxy.so/protocol": "catalog:",
     "@oxy.so/mcp": "catalog:",
+    "@oxy.so/telemetry": "2.1.0",
     "react-native-css": "3.1.0-rc.0"
   },
   "patchedDependencies": {
