@@ -203,6 +203,9 @@ export class MentionToolRegistry implements MentionToolRegistrar {
         description: definition.description,
         inputSchema,
         ...definition.policy,
+        // The catalogue contract requires an invocation on every tool. Mention's
+        // transport is `internalTransport: 'mcp'`, so nothing serves this path:
+        // it is a template, not an address. Changing it changes the digest.
         invocation: {
           method: 'POST',
           path: `/_oxy/capabilities/${definition.name}`,

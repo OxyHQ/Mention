@@ -60,13 +60,10 @@ Each task registers the catalogue it serves with Oxy at startup
 (`packages/mcp/lib/catalog-registration.ts`; Oxy upserts on app, version and digest) and binds
 `/_oxy/mcp` to the registration it gets back, so the binding is never copied into
 configuration. Until that succeeds the route answers 503, logs why, and retries;
-the post-deploy smoke fails the deploy on it. A failure does not fall back to the
-retained HTTP capability endpoint. The catalog still
-advertises `/_oxy/capabilities/:tool`, which remains mounted for existing
-capability consumers and uses the same domain handlers. Removing it requires a
-coordinated catalog/version and caller migration; the presence of the internal
-MCP route alone does not make the HTTP contract unreachable. Neither native
-path uses an external OAuth connection token. See the
+the post-deploy smoke fails the deploy on it. `/_oxy/mcp` is the only internal
+receiver: the catalogue declares `internalTransport: 'mcp'`, and the per-tool
+`invocation` paths the catalogue contract still requires are templates nothing
+serves. The internal path never uses an external OAuth connection token. See the
 [retirement register](../../docs/COMPATIBILITY_RETIREMENT.md).
 
 | Component | Role |
