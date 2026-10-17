@@ -10,6 +10,7 @@ import { UNRATED_MATERIAL_ITEM } from './contentAccessBatcher';
 import { hydratePostMedia } from './hydratePostMedia';
 import { postRevision, type HydrationRevisions } from './hydrationRevisions';
 import { postHydrationService } from './PostHydrationService';
+import { logger } from '../utils/logger';
 
 /** A cached anonymous page and what it was hydrated from. */
 export interface AnonymousFeedSnapshot<T extends FeedResponse | SlicedFeedResponse>
@@ -52,10 +53,14 @@ export async function revalidateAnonymousFeed<T extends FeedResponse | SlicedFee
     ),
   ];
   const records = await loadPostRecords(graphIds);
-  if (await isUnchanged(snapshot, graphIds, records)) {
+  const stale = await whyStale(snapshot, graphIds, records);
+  if (!stale) {
     await hydratePostMedia(rendered, ANONYMOUS);
     return page;
   }
+  // Expected after an edit, a delete or a revocation. If it is most hits, the
+  // reason says which check keeps failing (no identifiers are logged).
+  logger.info('Anonymous feed cache hit re-hydrated', { reason: stale, posts: graphIds.length });
   const byId = new Map(records.map((record) => [record.id, record]));
   return rehydrate(
     page,
@@ -64,22 +69,27 @@ export async function revalidateAnonymousFeed<T extends FeedResponse | SlicedFee
   );
 }
 
-async function isUnchanged(
+/** Why the cached rendering cannot be served as is, or `null` when it can. */
+async function whyStale(
   snapshot: HydrationRevisions,
   graphIds: readonly string[],
   records: readonly PostRecord[],
-): Promise<boolean> {
-  if (snapshot.unratedMaterialAllowed === undefined) return false;
+): Promise<
+  'unrated-unknown' | 'unrecorded' | 'missing' | 'revision' | 'decision' | 'unrated' | null
+> {
+  if (snapshot.unratedMaterialAllowed === undefined) return 'unrated-unknown';
   const current = new Map(records.map((record) => [record.id, record]));
   for (const id of graphIds) {
     const revision = snapshot.revisions[id];
     const record = current.get(id);
-    if (!revision || !record || postRevision(record) !== revision) return false;
+    if (!revision) return 'unrecorded';
+    if (!record) return 'missing';
+    if (postRevision(record) !== revision) return 'revision';
   }
   const decisions = await postHydrationService.authorizeAnonymousRecords(records);
-  if (!graphIds.every((id) => decisions.get(id)?.allowed === true)) return false;
+  if (!graphIds.every((id) => decisions.get(id)?.allowed === true)) return 'decision';
   const unrated = decisions.get(UNRATED_MATERIAL_ITEM.resourceId)?.allowed === true;
-  return unrated === snapshot.unratedMaterialAllowed;
+  return unrated === snapshot.unratedMaterialAllowed ? null : 'unrated';
 }
 
 /** Every top-level post the page renders, once each. */

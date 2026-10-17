@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
+import type { PostRecord } from '../db/posts/postRecord';
 
 /**
  * What a cached, already-hydrated page was built FROM, so a later read can tell
@@ -13,20 +14,64 @@ import { createHash } from 'node:crypto';
  * loads the current records and compares fingerprints, and any difference sends
  * the read back through full hydration.
  *
- * The fingerprint covers the whole assembled record EXCEPT what moves without
+ * The fingerprint covers every {@link PostRecord} field EXCEPT what moves without
  * changing what a reader is shown:
  *   - `stats` — counters, bumped by every like and every view (the cached page's
  *     counts were already allowed to age out within the cache TTL);
- *   - `updatedAt` — moved by those same counter writes;
- *   - `_`-prefixed keys — ranking scratch the feed engine attaches to a record.
+ *   - `updatedAt` — moved by those same counter writes.
  * Anything else that changes, including a field nobody renders, is a mismatch.
  * That errs toward a fresh hydration, never toward a stale body.
+ *
+ * Only `PostRecord`'s own fields count. The feed engine hands hydration records
+ * carrying ranking extras (`finalScore`, `engagementScore`, `_discovery`, …)
+ * that a record loaded by id never has; fingerprinting those made every cached
+ * page look edited. {@link RENDERED_FIELDS} is exhaustive over `PostRecord` at
+ * compile time, so a field added to the record must be classified here.
  *
  * Authorization is NOT part of this: a fingerprint never grants anything. The
  * cache hit still asks for current content decisions on every read.
  */
 
-const VOLATILE_KEYS = new Set(['stats', 'updatedAt']);
+/** Whether each {@link PostRecord} field is part of a revision. */
+const RENDERED_FIELDS: Record<keyof PostRecord, boolean> = {
+  id: true,
+  oxyUserId: true,
+  authorship: true,
+  type: true,
+  visibility: true,
+  status: true,
+  isReply: true,
+  hasLinks: true,
+  isEdited: true,
+  language: true,
+  curated: true,
+  hashtags: true,
+  editHistory: true,
+  replyPermission: true,
+  reviewReplies: true,
+  quotesDisabled: true,
+  correctionCount: true,
+  lastCorrectedAt: true,
+  boostOf: true,
+  quoteOf: true,
+  parentPostId: true,
+  threadId: true,
+  scheduledFor: true,
+  writtenByOxyUserId: true,
+  laneId: true,
+  content: true,
+  mentions: true,
+  metadata: true,
+  federation: true,
+  postClassification: true,
+  location: true,
+  createdAt: true,
+  stats: false,
+  updatedAt: false,
+};
+const REVISION_FIELDS = (Object.keys(RENDERED_FIELDS) as Array<keyof PostRecord>)
+  .filter((field) => RENDERED_FIELDS[field])
+  .sort();
 
 function stable(value: unknown): unknown {
   if (value instanceof Date) return value.toISOString();
@@ -43,9 +88,9 @@ function stable(value: unknown): unknown {
 /** The revision of one assembled post record, as far as rendering is concerned. */
 export function postRevision(record: object): string {
   const rendered: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(record)) {
-    if (VOLATILE_KEYS.has(key) || key.startsWith('_') || value === undefined) continue;
-    rendered[key] = value;
+  for (const field of REVISION_FIELDS) {
+    const value = (record as Partial<PostRecord>)[field];
+    if (value !== undefined) rendered[field] = value;
   }
   return createHash('sha256')
     .update(JSON.stringify(stable(rendered)))
