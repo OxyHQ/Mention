@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=post
 -- Instagram posts through Meta's Graph API (connectors/instagram/).
 --
 -- 1. `post_source_keys`: one Instagram post reached both through the Graph API

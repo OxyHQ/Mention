@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- `post_media` carries a copy of `posts.created_at`, so ONE index can answer the
 -- global Videos lane's whole question: video media of this orientation, newest
 -- first.

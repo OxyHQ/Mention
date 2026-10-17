@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 CREATE TABLE "account_erasures" (
 	"id" text PRIMARY KEY NOT NULL,
 	"oxy_user_id" text NOT NULL,

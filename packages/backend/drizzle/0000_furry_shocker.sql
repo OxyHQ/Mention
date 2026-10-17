@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- PREREQUISITE: PostGIS must already be installed in this database, and the
 -- application role CANNOT install it.
 --

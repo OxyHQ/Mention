@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- An account can opt its profile and posts out of search engines.
 --
 -- WHY: Mention publishes every public profile and post to search engines (a

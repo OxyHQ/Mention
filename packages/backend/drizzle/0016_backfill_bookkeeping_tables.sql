@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- The backfill's two bookkeeping tables, created HERE and by nothing else.
 --
 -- WHAT THIS DOES NOT DO, stated first because it was written believing the

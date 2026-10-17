@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=post
 -- Drop the plaintext ActivityPub private keys.
 --
 -- `actor_key_pairs.private_key_pem` held the secret half of each local user's

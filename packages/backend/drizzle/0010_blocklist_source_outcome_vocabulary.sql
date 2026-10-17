@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=post
 -- `blocklist_proposal_run_sources.outcome` was constrained to a vocabulary
 -- nothing produces: `published | unavailable | unparseable | empty`. The real
 -- one belongs to the poller (`scripts/reportFederationBlocklistCandidates.ts`,

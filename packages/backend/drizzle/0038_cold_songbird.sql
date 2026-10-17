@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- `array_to_string` is STABLE, not IMMUTABLE (Postgres will not say why on this
 -- build; the conservative classification most likely covers a locale-dependent
 -- separator or element cast in the general case), so it cannot appear directly

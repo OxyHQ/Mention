@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 CREATE TABLE "post_corrections" (
 	"id" text PRIMARY KEY NOT NULL,
 	"post_id" text NOT NULL,

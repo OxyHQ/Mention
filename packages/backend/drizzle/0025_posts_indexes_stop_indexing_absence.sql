@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=post
 DROP INDEX "posts_thread_idx";--> statement-breakpoint
 DROP INDEX "posts_classification_region_idx";--> statement-breakpoint
 DROP INDEX "posts_geo_gist";--> statement-breakpoint

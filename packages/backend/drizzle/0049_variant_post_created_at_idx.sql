@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- The btree the posts search's time windows intersect with the text index
 -- (#1158; see `services/search/postSearch.ts` and 0048).
 --

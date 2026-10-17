@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- `resolvePostIdFromNoteUrl` (the only way a Threads quote resolves) matches
 -- `posts.federation_url` exactly, and nothing indexed it: every call was a
 -- parallel sequential scan of the whole table. Measured in production

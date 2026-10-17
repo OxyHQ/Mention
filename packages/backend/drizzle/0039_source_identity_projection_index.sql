@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- Each projected source previously scanned all posts twice. A partial B-tree
 -- narrows both reads to that immutable actor without indexing local posts.
 -- This uses the existing transactional migrator: CONCURRENTLY is unavailable.

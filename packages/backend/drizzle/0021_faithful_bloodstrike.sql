@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- `post_authorships` carries a copy of `posts.created_at`, so ONE index can
 -- answer the profile feed's whole question: this author, accepted, newest first.
 --

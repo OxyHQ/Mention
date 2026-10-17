@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- `created_at` / `updated_at` default to `date_trunc('milliseconds', now())`
 -- instead of `now()`, and `posts.created_at` gains a CHECK enforcing it.
 --

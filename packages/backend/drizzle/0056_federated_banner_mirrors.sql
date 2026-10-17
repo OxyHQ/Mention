@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- `federated_banner_mirrors`: the durable retry state of mirroring a federated
 -- account's banner into Oxy (services/federatedBannerMirror.ts). One NEW, empty
 -- table and its partial index — no existing table is touched or locked. Rows are

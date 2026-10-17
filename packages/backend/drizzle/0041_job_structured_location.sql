@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=post
 -- Job locations and salary currencies become closed, structured values
 -- (Clarity Jobs' validated ingest contract, @clarity.surf/sdk 0.3.0).
 --

@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- `post_content_variants` carries a copy of `posts.created_at`, so the posts
 -- search can bound its text match by time on the table that holds the text
 -- index (#1158).

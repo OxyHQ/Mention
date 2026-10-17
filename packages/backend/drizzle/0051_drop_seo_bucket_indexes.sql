@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=post
 -- Drop the two per-bucket sitemap indexes 0035 added (#1160).
 --
 -- WHY: they existed so each child sitemap could seek its own hash bucket when

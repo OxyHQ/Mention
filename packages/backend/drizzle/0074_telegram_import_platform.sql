@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=post
 -- Telegram joins the import platforms, and the ledger records WHERE an item
 -- came from in structured form.
 --

@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 CREATE TABLE "mcp_auth_codes" (
 	"id" text PRIMARY KEY NOT NULL,
 	"code" text NOT NULL,

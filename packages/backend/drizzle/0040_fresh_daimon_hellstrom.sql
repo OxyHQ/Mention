@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=post
 CREATE TABLE "mention_job_application_answers" (
 	"id" text PRIMARY KEY NOT NULL,
 	"application_id" text NOT NULL,

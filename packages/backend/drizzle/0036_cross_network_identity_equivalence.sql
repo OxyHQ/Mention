@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 CREATE TABLE "federated_identity_claims" (
 	"id" text PRIMARY KEY NOT NULL,
 	"subject_actor_uri" text NOT NULL,

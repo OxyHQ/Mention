@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=post
 -- Drop Mention's retired identity-authority tables (OxyHQ/oxy#1253, step 8).
 --
 -- Oxy is the single authority for external identities and person equivalence.

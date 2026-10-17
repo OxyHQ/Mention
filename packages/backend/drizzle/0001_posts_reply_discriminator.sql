@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 ALTER TABLE "posts" ADD COLUMN "is_reply" boolean DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE "posts" ADD COLUMN "metadata_collab_federation_deferred" boolean DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE "posts" ADD COLUMN "metadata_federation_delivered" boolean DEFAULT false NOT NULL;--> statement-breakpoint

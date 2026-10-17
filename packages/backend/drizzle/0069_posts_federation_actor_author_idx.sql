@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=post
 -- The source-actor index carries the post's author (`oxy_user_id`) in its key.
 --
 -- `reconcileActorIdentityProjection` runs on every actor refresh. It asks for
