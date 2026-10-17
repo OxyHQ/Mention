@@ -34,7 +34,10 @@ describe('anonymous feed cache authorization boundary', () => {
     authorize.mockResolvedValue(allow('one'));
     const result = await revalidateAnonymousFeed({
       page,
-      revisions: { one: postRevision(row('one', 'Body')) },
+      // Built from a ranked candidate: the engine's scores are not part of the post.
+      revisions: {
+        one: postRevision({ ...row('one', 'Body'), finalScore: 3, engagementScore: 7 }),
+      },
       unratedMaterialAllowed: true,
     });
     expect(authorize).toHaveBeenCalledTimes(1);
