@@ -118,6 +118,8 @@ const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
   '@tailwindcss/node -> lightningcss@1.32.0':
     'lightningcss is pinned to 1.30.1 so its linux-x64 gnu/musl native binaries stay on a single version through the image build.',
   'vite -> lightningcss@^1.32.0': 'Same single-copy native-binary pin as @tailwindcss/node.',
+  '@oxy.so/core -> @oxy.so/telemetry@^1.2.0':
+    'oxy-doctor allows one locked version of a first-party package and the backend needs 2.1.0 (@oxy.so/telemetry/metrics). 2.0.0 only removed the /edge entry point, which core never imports (it uses /socket, /collector, /browser, unchanged in 2.x). Core 5.1.0 declares workspace:^ and so ^2.1.0; drop this with that upgrade.',
 };
 
 /**
