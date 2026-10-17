@@ -21,7 +21,7 @@
       "@types/jsonwebtoken": "^9.0.10",
       "@types/node": "^26.6.2",
       "jsonwebtoken": "^9.0.3",
-      "typescript": "~6.0.3",
+      "typescript": "~7.0.2",
       "zod": "^4.6.5",
       "@oxy.so/protocol": "1.4.0"
     }
