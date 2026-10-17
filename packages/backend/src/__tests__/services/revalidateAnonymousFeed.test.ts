@@ -1,24 +1,51 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
-const { records, hydrate } = vi.hoisted(() => ({ records: vi.fn(), hydrate: vi.fn() }));
+const { records, hydrate, authorize } = vi.hoisted(() => ({
+  records: vi.fn(),
+  hydrate: vi.fn(),
+  authorize: vi.fn(),
+}));
 vi.mock('../../db/posts/postRepository', () => ({ loadPostRecords: records }));
 vi.mock('../../services/PostHydrationService', () => ({
-  postHydrationService: { hydratePosts: hydrate },
+  postHydrationService: { hydratePosts: hydrate, authorizeAnonymousRecords: authorize },
 }));
+import { UNRATED_MATERIAL_ITEM } from '../../services/contentAccessBatcher';
+import { postRevision } from '../../services/hydrationRevisions';
 import { revalidateAnonymousFeed } from '../../services/revalidateAnonymousFeed';
 // Cache fixtures only need the fields exercised by the cache boundary. The real
 // hydrator owns the full DTO and is covered by its database-backed suites.
 const cached = (id: string, text: string): HydratedPost =>
   ({ id, content: { text }, user: { id: `author-${id}` } }) as HydratedPost;
+const row = (id: string, text: string) => ({ id, content: { text }, stats: { likes: 1 } });
+const allow = (...ids: string[]) =>
+  new Map(
+    [...ids, UNRATED_MATERIAL_ITEM.resourceId].map((id) => [
+      id,
+      { allowed: true, reason: 'allowed', policyVersion: '2' },
+    ]),
+  );
 beforeEach(() => {
   vi.clearAllMocks();
-  records.mockResolvedValue([{ id: 'current-row' }]);
 });
 describe('anonymous feed cache authorization boundary', () => {
+  it('serves an unchanged page after current authorization without hydrating it again', async () => {
+    const page = { items: [cached('one', 'Body')], totalCount: 1, hasMore: false };
+    records.mockResolvedValue([{ ...row('one', 'Body'), stats: { likes: 9 } }]);
+    authorize.mockResolvedValue(allow('one'));
+    const result = await revalidateAnonymousFeed({
+      page,
+      revisions: { one: postRevision(row('one', 'Body')) },
+      unratedMaterialAllowed: true,
+    });
+    expect(authorize).toHaveBeenCalledTimes(1);
+    expect(hydrate).not.toHaveBeenCalled();
+    expect(result).toBe(page);
+  });
   it('replaces stale bodies and removes revoked posts and their slice reasons', async () => {
     const hidden = cached('hidden', 'Formerly public private content');
     const old = cached('visible', 'Old body');
     const current = cached('visible', 'Current body');
+    records.mockResolvedValue([row('hidden', 'x'), row('visible', 'Current body')]);
     hydrate.mockResolvedValue([current]);
     const page: SlicedFeedResponse = {
       items: [hidden, old],
@@ -39,10 +66,19 @@ describe('anonymous feed cache authorization boundary', () => {
         },
       ],
     };
-    const result = await revalidateAnonymousFeed(page, ['es']);
-    expect(records).toHaveBeenCalledTimes(1);
+    const result = await revalidateAnonymousFeed(
+      {
+        page,
+        revisions: {
+          hidden: postRevision(row('hidden', 'x')),
+          visible: postRevision(row('visible', 'Old body')),
+        },
+        unratedMaterialAllowed: true,
+      },
+      ['es'],
+    );
     expect(records).toHaveBeenCalledWith(['hidden', 'visible']);
-    expect(hydrate).toHaveBeenCalledWith([{ id: 'current-row' }], {
+    expect(hydrate).toHaveBeenCalledWith([row('hidden', 'x'), row('visible', 'Current body')], {
       safetyRequester: { accessToken: null },
       maxDepth: 2,
       requestLanguages: ['es'],
@@ -55,12 +91,13 @@ describe('anonymous feed cache authorization boundary', () => {
     expect(result.nextCursor).toBe('ranking-cursor');
   });
   it('does not return the cached payload when live authorization fails', async () => {
-    hydrate.mockRejectedValue(new Error('Policy service unavailable'));
+    records.mockResolvedValue([row('one', 'Cached body')]);
+    authorize.mockRejectedValue(new Error('Policy service unavailable'));
     await expect(
       revalidateAnonymousFeed({
-        items: [cached('one', 'Cached body')],
-        totalCount: 1,
-        hasMore: false,
+        page: { items: [cached('one', 'Cached body')], totalCount: 1, hasMore: false },
+        revisions: { one: postRevision(row('one', 'Cached body')) },
+        unratedMaterialAllowed: true,
       }),
     ).rejects.toThrow('Policy service unavailable');
   });

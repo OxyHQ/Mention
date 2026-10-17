@@ -57,7 +57,11 @@ import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { findActorsByUris } from '../../db/federation/actorRepository';
 import { distinctRemoteActorUris } from '../../db/federation/followRepository';
 import { listSubscriptionService } from '../../services/ListSubscriptionService';
-import { anonFeedCache } from '../../services/anonFeedCache';
+import { anonFeedCache, type AnonFeedEntry } from '../../services/anonFeedCache';
+import {
+  captureHydrationRevisions,
+  type HydrationRevisions,
+} from '../../services/hydrationRevisions';
 import { loadMuteWords } from '../../services/safety/viewerSafety';
 import { assignThreadState } from '../../services/ThreadSlicingService';
 
@@ -345,7 +349,7 @@ class MtnFeedController {
     // Set when this request leads the rebuild of an expired anonymous page; see
     // `anonFeedCache.claimBuild`. Settled with the page once built, and with
     // `null` in the `finally` on every other way out.
-    let settleAnonBuild: ((response: SlicedFeedResponse | null) => void) | undefined;
+    let settleAnonBuild: ((entry: AnonFeedEntry | null) => void) | undefined;
     try {
       // Read query params through `queryString`, never through a cast: a tampered
       // `?cursor[]=a&cursor[]=b` arrives as an ARRAY, and the interstitial planner
@@ -539,18 +543,29 @@ class MtnFeedController {
       // the engine. Custom feeds resolve via the viewer context (owner/visibility
       // checked); `feedgen|uri` (external stub) is the only remaining legacy path.
       const definition = await resolveDefinition(descriptor, context);
+      const feedApi = definition ? null : resolveLegacyFeed(descriptor);
+      const runFeed = definition
+        ? () => feedEngine.run(definition, context, { cursor, limit })
+        : feedApi
+          ? () => feedApi.fetch({ cursor, limit }, context)
+          : null;
+      if (!runFeed) {
+        res
+          .status(400)
+          .json({ success: false, error: `Unsupported feed descriptor: ${descriptor}` });
+        return;
+      }
+      // An anonymous page is cached with the record revisions its hydration
+      // rendered from, so a cache hit can re-authorize it without hydrating it
+      // again (see `revalidateAnonymousFeed`).
+      let hydrationRevisions: HydrationRevisions | undefined;
       let response: SlicedFeedResponse;
-      if (definition) {
-        response = await feedEngine.run(definition, context, { cursor, limit });
+      if (anonCacheKey) {
+        const captured = await captureHydrationRevisions(runFeed);
+        response = captured.result;
+        hydrationRevisions = captured;
       } else {
-        const feedApi = resolveLegacyFeed(descriptor);
-        if (!feedApi) {
-          res
-            .status(400)
-            .json({ success: false, error: `Unsupported feed descriptor: ${descriptor}` });
-          return;
-        }
-        response = await feedApi.fetch({ cursor, limit }, context);
+        response = await runFeed();
       }
 
       // Filter out posts from blocked/muted users
@@ -631,8 +646,13 @@ class MtnFeedController {
       // importing" answer, and serving it from cache for the TTL would pin the
       // client in a poll loop against a profile whose posts have already landed.
       if (anonCacheKey && !response.pending) {
-        settleAnonBuild?.(response);
-        await anonFeedCache.write(anonCacheKey, response);
+        const entry: AnonFeedEntry = {
+          page: response,
+          revisions: hydrationRevisions?.revisions ?? {},
+          unratedMaterialAllowed: hydrationRevisions?.unratedMaterialAllowed,
+        };
+        settleAnonBuild?.(entry);
+        await anonFeedCache.write(anonCacheKey, entry);
       }
 
       res.json({
