@@ -2595,7 +2595,6 @@
   "alia.suggestion.discover": "অনুসরণ করার জন্য অ্যাকাউন্ট ও বিষয় সুপারিশ করো",
   "profile.actions.askAlia": "@{{handle}} সম্পর্কে Alia-কে জিজ্ঞাসা করুন",
   "profile.askAlia.prompt": "Mention-এ @{{handle}} সম্পর্কে বলো: তিনি কে, কী পোস্ট করেন এবং কীসের জন্য পরিচিত।",
-  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering.",
   "homiio": {
     "loading": "Homiio কেস লোড হচ্ছে…",
     "unavailable": "এই Homiio কেসটি উপলব্ধ নয়",

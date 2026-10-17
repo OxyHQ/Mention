@@ -2595,7 +2595,6 @@
   "alia.suggestion.discover": "推荐一些值得关注的账号和话题",
   "profile.actions.askAlia": "向 Alia 询问 @{{handle}}",
   "profile.askAlia.prompt": "介绍一下 Mention 上的 @{{handle}}：他们是谁、发布什么内容、以什么闻名。",
-  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering.",
   "homiio": {
     "loading": "正在加载 Homiio 案件…",
     "unavailable": "此 Homiio 案件不可用",

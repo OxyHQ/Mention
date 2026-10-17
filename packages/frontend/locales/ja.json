@@ -2595,7 +2595,6 @@
   "alia.suggestion.discover": "フォローするアカウントやトピックを提案して",
   "profile.actions.askAlia": "@{{handle}} についてAliaに聞く",
   "profile.askAlia.prompt": "Mention の @{{handle}} について教えて。どんな人で、何を投稿していて、何で知られているか。",
-  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering.",
   "homiio": {
     "loading": "Homiioの案件を読み込み中…",
     "unavailable": "このHomiioの案件は利用できません",

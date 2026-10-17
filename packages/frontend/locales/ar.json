@@ -2713,7 +2713,6 @@
   "alia.suggestion.discover": "اقترح حسابات ومواضيع للمتابعة",
   "profile.actions.askAlia": "اسأل Alia عن @{{handle}}",
   "profile.askAlia.prompt": "أخبرني عن @{{handle}} على Mention: من هو، وعمَّ ينشر، وبماذا يُعرف.",
-  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering.",
   "homiio": {
     "loading": "جارٍ تحميل قضية Homiio…",
     "unavailable": "قضية Homiio هذه غير متاحة",

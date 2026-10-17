@@ -2655,7 +2655,6 @@
   "alia.suggestion.discover": "Предложи аккаунты и темы для подписки",
   "profile.actions.askAlia": "Спросить Алию о @{{handle}}",
   "profile.askAlia.prompt": "Расскажи мне о @{{handle}} в Mention: кто это, о чём пишет и чем известен.",
-  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering.",
   "homiio": {
     "loading": "Загрузка дела Homiio…",
     "unavailable": "Это дело Homiio недоступно",

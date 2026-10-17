@@ -2625,7 +2625,6 @@
   "alia.suggestion.discover": "Suggereix-me comptes i temes per seguir",
   "profile.actions.askAlia": "Pregunta a l'Alia sobre @{{handle}}",
   "profile.askAlia.prompt": "Explica'm qui és @{{handle}} a Mention: de què publica i per què és conegut.",
-  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering.",
   "homiio": {
     "loading": "Carregant el cas de Homiio…",
     "unavailable": "Aquest cas de Homiio no està disponible",
