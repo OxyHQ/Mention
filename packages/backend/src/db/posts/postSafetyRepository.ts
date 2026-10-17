@@ -23,8 +23,12 @@ export async function savePostSafetyAssessment(
     .onConflictDoUpdate({ target: postSafetyAssessments.postId, set: values });
 }
 
+export type PostSafetyAssessments = Map<string, typeof postSafetyAssessments.$inferSelect>;
+
 /** One bounded local lookup for a hydrated graph, no per-post remote lookups. */
-export async function loadPostSafetyAssessments(ids: readonly string[]) {
+export async function loadPostSafetyAssessments(
+  ids: readonly string[],
+): Promise<PostSafetyAssessments> {
   const uniqueIds = [...new Set(ids)];
   if (!uniqueIds.length) return new Map<string, typeof postSafetyAssessments.$inferSelect>();
   const rows = await getDb()

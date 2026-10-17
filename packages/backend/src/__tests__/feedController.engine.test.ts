@@ -335,7 +335,10 @@ describe('MtnFeedController.getFeed → anonymous cache', () => {
     // The freshly built page is persisted for the next anonymous viewer.
     expect(anonCache.write).toHaveBeenCalledWith(
       'anon-key',
-      expect.objectContaining({ items: expect.any(Array) }),
+      expect.objectContaining({
+        page: expect.objectContaining({ items: expect.any(Array) }),
+        revisions: expect.any(Object),
+      }),
     );
   });
 
@@ -410,14 +413,16 @@ describe('MtnFeedController.getFeed → anonymous cache', () => {
     );
 
     expect(anonCache.claimBuild).toHaveBeenCalledWith('anon-key');
-    expect(settle).toHaveBeenCalledWith(expect.objectContaining({ items: expect.any(Array) }));
+    expect(settle).toHaveBeenCalledWith(
+      expect.objectContaining({ page: expect.objectContaining({ items: expect.any(Array) }) }),
+    );
   });
 
   it('serves a page another request is already building, without running the engine', async () => {
     const shared = { items: [], slices: [], hasMore: false, totalCount: 0 };
     anonCache.claimBuild.mockReturnValueOnce({
       role: 'join',
-      result: Promise.resolve(shared),
+      result: Promise.resolve({ page: shared, revisions: {} }),
     } as never);
     const res = makeRes();
 

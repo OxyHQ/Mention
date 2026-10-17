@@ -91,6 +91,8 @@ import { userSettings } from '../../db/schema/userProfile';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import { PostHydrationService } from '../../services/PostHydrationService';
 import { metrics } from '../../utils/metrics';
+import { captureHydrationRevisions } from '../../services/hydrationRevisions';
+import { revalidateAnonymousFeed } from '../../services/revalidateAnonymousFeed';
 
 const scope = postScope('statement-budget');
 const AUTHOR_ID = scope.user('author');
@@ -297,5 +299,36 @@ describe('the statement budget for one cold hydration', () => {
 
     expect(hydratedMany).toHaveLength(20);
     expect(await statementsByTable()).toEqual(expected);
+  });
+});
+
+describe('the statement budget for an anonymous feed cache hit', () => {
+  it('re-authorizes an unchanged page from current records without hydrating it again', async () => {
+    /**
+     * A hit loads the current records of the page's graph (posts + its nine
+     * child tables, once for the whole graph), the authors' privacy settings and
+     * the safety evidence, and asks Oxy for current decisions. It does NOT run
+     * the hydration pipeline: no `post_recent_repliers`, `starter_pack_members`,
+     * `post_imports` and no second or third `posts` level.
+     */
+    const parent = await seedPost(scope, { oxyUserId: VIEWER_ID });
+    const reply = await seedPost(scope, { oxyUserId: AUTHOR_ID, parentPostId: parent.id });
+    const built = await captureHydrationRevisions(() =>
+      new PostHydrationService().hydratePosts([reply], {
+        safetyRequester: { accessToken: null },
+        maxDepth: 2,
+      }),
+    );
+    const page = { items: built.result, totalCount: built.result.length, hasMore: false };
+    expect(page.items).toHaveLength(1);
+
+    metrics.reset();
+    const served = await revalidateAnonymousFeed({ ...built, page });
+
+    expect(served).toBe(page);
+    const statements = await statementsByTable();
+    expect(statements.get('posts')).toBe(1);
+    expect(statements.get('post_recent_repliers')).toBeUndefined();
+    expect([...statements.values()].reduce((sum, count) => sum + count, 0)).toBe(12);
   });
 });

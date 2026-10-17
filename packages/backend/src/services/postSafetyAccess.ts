@@ -1,5 +1,8 @@
 import type { ContentAccessInput, SafetyDecision, SafetyRequester } from '@oxy.so/contracts';
-import { loadPostSafetyAssessments } from '../db/posts/postSafetyRepository';
+import {
+  loadPostSafetyAssessments,
+  type PostSafetyAssessments,
+} from '../db/posts/postSafetyRepository';
 import type { FeedSafetyPostShape } from '../mtn/feed/feedSafety';
 import { decideContentAccess } from './contentAccessBatcher';
 import {
@@ -31,10 +34,16 @@ const unavailable: SafetyDecision = {
 export async function postSafetyItems(
   posts: readonly SafetyPost[],
   applicationAccess: ReadonlyMap<string, PostSafetyApplicationAccess> = new Map(),
+  /**
+   * Assessments the caller already started loading for a superset of `posts`,
+   * so the lookup runs beside its other reads instead of after them.
+   */
+  preloadedAssessments?: Promise<PostSafetyAssessments>,
 ): Promise<ContentAccessInput[]> {
   const uniquePosts = [...new Map(posts.map((post) => [post.id, post])).values()];
   if (!uniquePosts.length) return [];
-  const assessments = await loadPostSafetyAssessments(uniquePosts.map((post) => post.id));
+  const assessments = await (preloadedAssessments ??
+    loadPostSafetyAssessments(uniquePosts.map((post) => post.id)));
   return uniquePosts.map((post) => ({
     resourceId: post.id,
     authorAccountId: post.oxyUserId ?? undefined,

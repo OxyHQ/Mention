@@ -8,6 +8,11 @@ import {
   type PostSafetyApplicationAccess,
 } from './postSafetyAccess';
 import { decideContentAccess, UNRATED_MATERIAL_ITEM } from './contentAccessBatcher';
+import { recordHydrationRevisions } from './hydrationRevisions';
+import {
+  loadPostSafetyAssessments,
+  type PostSafetyAssessments,
+} from '../db/posts/postSafetyRepository';
 import {
   type FeedPostSlice,
   type FeedSliceItem,
@@ -1074,50 +1079,25 @@ export class PostHydrationService {
         ),
       ),
     ].filter((id) => !graph.has(id));
-    const preloadedReplyParents = parentIds.length ? await loadReplyParents(parentIds) : [];
+    // The parents and the safety evidence for the whole graph (parents included)
+    // are independent reads, so neither waits for the other.
+    const [preloadedReplyParents, assessments] = await Promise.all([
+      parentIds.length ? loadReplyParents(parentIds) : Promise.resolve<RawPost[]>([]),
+      loadPostSafetyAssessments([...graph.keys(), ...parentIds]),
+    ]);
     const policyPosts = [
       ...Array.from(graph, ([id, { post }]) => ({ ...post, id })),
       ...preloadedReplyParents.map((post) => ({ ...post, id: this.resolveId(post) })),
     ];
-    await this.resolveCurrentChannelAuthority(policyPosts, viewerContext, options);
-    const applicationAccess = new Map<string, PostSafetyApplicationAccess>();
     const managementIds = new Set(options.manageOwnPostIds ?? []);
-    const eligiblePosts = policyPosts.filter((post) => {
-      const authorId = post.oxyUserId ?? '';
-      const authorship = normalizeAuthorship(post.authorship);
-      const resourceGrant = viewerOwnsPost(authorId, authorship, viewerContext);
-      // Contact approval only decides a published post's audience. It cannot
-      // disclose an unpublished draft or override an application restriction.
-      if (
-        viewerContext.blockedIds.has(authorId) ||
-        (((post.status ?? 'published') !== 'published' ||
-          viewerContext.restrictedIds.has(authorId)) &&
-          !resourceGrant)
-      )
-        return false;
-      applicationAccess.set(post.id, {
-        applicationAudienceAllowed: this.canViewerReadPost(
-          post,
-          authorId,
-          authorship,
-          viewerContext,
-        ),
-        applicationResourceGrant: resourceGrant,
-        operation:
-          managementIds.has(post.id) && graph.get(post.id)?.depth === 0 ? 'manage_own' : 'read',
-      });
-      return true;
-    });
-    // The graph's posts and the generic unrated-material question go to Oxy as
-    // ONE batch; a decision this request already has costs no call at all.
     const safetyRequester = options.safetyRequester ?? { accessToken: null };
-    const safetyItems = await postSafetyItems(eligiblePosts, applicationAccess);
-    // Nothing eligible means nothing is shown; there is no question to ask.
-    if (!safetyItems.length) return [];
-    const safetyDecisions = await decideContentAccess(
-      [...safetyItems, UNRATED_MATERIAL_ITEM],
-      safetyRequester,
-    );
+    const safetyDecisions = await this.decideGraphAccess(policyPosts, viewerContext, options, {
+      assessments,
+      operationFor: (id) =>
+        managementIds.has(id) && graph.get(id)?.depth === 0 ? 'manage_own' : 'read',
+    });
+    // Nothing eligible means nothing is shown; there was no question to ask.
+    if (!safetyDecisions) return [];
     const postsForHydration = collectedPosts.filter(
       ({ post }) => safetyDecisions.get(this.resolveId(post) ?? '')?.allowed === true,
     );
@@ -1125,6 +1105,16 @@ export class PostHydrationService {
     if (!postsForHydration.length) return [];
     const allowUnratedAttachments =
       safetyDecisions.get(UNRATED_MATERIAL_ITEM.resourceId)?.allowed === true;
+    // What this hydration rendered from, for a caller caching the result (see
+    // `hydrationRevisions`). The parents are included: whom a reply answers is
+    // read from them.
+    recordHydrationRevisions(
+      [...collectedPosts.map(({ post }) => post), ...preloadedReplyParents].map((post) => ({
+        id: this.resolveId(post),
+        record: post,
+      })),
+      allowUnratedAttachments,
+    );
 
     // Resolve each post's localized rendition for THIS viewer, once. Everything
     // downstream — the body, the media (with its localized alt), the article, and
@@ -1290,6 +1280,97 @@ export class PostHydrationService {
     if (allowUnratedAttachments) await this.attachCommunityNotes(hydratedResults, options);
 
     return hydratedResults;
+  }
+
+  /**
+   * Current content decisions for a graph of post records, exactly as
+   * {@link hydratePosts} makes them for an ANONYMOUS reader, plus the generic
+   * unrated-material decision under {@link UNRATED_MATERIAL_ITEM}'s id — without
+   * hydrating anything.
+   *
+   * For a caller that already holds a hydrated rendering of these records (the
+   * anonymous feed cache) and must re-authorize it on every read. Fails closed:
+   * a failed privacy read or Oxy call rejects. Returns an empty map when no
+   * record is eligible, in which case nothing may be shown.
+   */
+  async authorizeAnonymousRecords(
+    records: readonly object[],
+  ): Promise<Map<string, SafetyDecision>> {
+    const posts = records as RawPost[];
+    if (posts.length === 0) return new Map();
+    const ids = posts.map((post) => this.resolveId(post));
+    // Anonymous only: a signed-in viewer's decisions also depend on blocks,
+    // follows and operated accounts, which this does not load.
+    const options: HydrationOptions = { safetyRequester: { accessToken: null } };
+    const [viewerContext, assessments] = await Promise.all([
+      // The access-check form: no language work, and a privacy read failure
+      // rejects instead of degrading.
+      this.buildViewerContext(posts, undefined, options, getDb()),
+      loadPostSafetyAssessments(ids),
+    ]);
+    return (
+      (await this.decideGraphAccess(
+        posts.map((post, index) => ({ ...post, id: ids[index] })),
+        viewerContext,
+        options,
+        { assessments, operationFor: () => 'read' },
+      )) ?? new Map()
+    );
+  }
+
+  /**
+   * The eligibility filter and ONE Oxy content-access batch for a post graph,
+   * shared by {@link hydratePosts} and {@link authorizeAnonymousRecords} so the two can
+   * never disagree. `null` when no post is eligible (no question was asked).
+   */
+  private async decideGraphAccess(
+    policyPosts: Array<RawPost & { id: string }>,
+    viewerContext: ExtendedViewerContext,
+    options: HydrationOptions,
+    input: {
+      assessments: Promise<PostSafetyAssessments> | PostSafetyAssessments;
+      operationFor: (postId: string) => PostSafetyApplicationAccess['operation'];
+    },
+  ): Promise<Map<string, SafetyDecision> | null> {
+    await this.resolveCurrentChannelAuthority(policyPosts, viewerContext, options);
+    const applicationAccess = new Map<string, PostSafetyApplicationAccess>();
+    const eligiblePosts = policyPosts.filter((post) => {
+      const authorId = post.oxyUserId ?? '';
+      const authorship = normalizeAuthorship(post.authorship);
+      const resourceGrant = viewerOwnsPost(authorId, authorship, viewerContext);
+      // Contact approval only decides a published post's audience. It cannot
+      // disclose an unpublished draft or override an application restriction.
+      if (
+        viewerContext.blockedIds.has(authorId) ||
+        (((post.status ?? 'published') !== 'published' ||
+          viewerContext.restrictedIds.has(authorId)) &&
+          !resourceGrant)
+      )
+        return false;
+      applicationAccess.set(post.id, {
+        applicationAudienceAllowed: this.canViewerReadPost(
+          post,
+          authorId,
+          authorship,
+          viewerContext,
+        ),
+        applicationResourceGrant: resourceGrant,
+        operation: input.operationFor(post.id),
+      });
+      return true;
+    });
+    const safetyItems = await postSafetyItems(
+      eligiblePosts,
+      applicationAccess,
+      Promise.resolve(input.assessments),
+    );
+    if (!safetyItems.length) return null;
+    // The graph's posts and the generic unrated-material question go to Oxy as
+    // ONE batch; a decision this request already has costs no call at all.
+    return decideContentAccess(
+      [...safetyItems, UNRATED_MATERIAL_ITEM],
+      options.safetyRequester ?? { accessToken: null },
+    );
   }
 
   /**

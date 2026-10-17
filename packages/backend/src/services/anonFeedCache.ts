@@ -1,4 +1,4 @@
-import { revalidateAnonymousFeed } from './revalidateAnonymousFeed';
+import { revalidateAnonymousFeed, type AnonymousFeedSnapshot } from './revalidateAnonymousFeed';
 import { createHash } from 'node:crypto';
 import type { FeedResponse, SlicedFeedResponse } from '@mention/shared-types';
 import { createCache } from '../utils/cache';
@@ -25,6 +25,12 @@ import { createCache } from '../utils/cache';
 
 /** The two response shapes the main feed produces; both are plain JSON. */
 type CacheableFeedResponse = FeedResponse | SlicedFeedResponse;
+
+/**
+ * What is stored: the page plus the record revisions it was hydrated from, so a
+ * read can re-authorize it without re-hydrating it (see `revalidateAnonymousFeed`).
+ */
+export type AnonFeedEntry = AnonymousFeedSnapshot<CacheableFeedResponse>;
 
 interface AnonFeedCacheKeyInput {
   /**
@@ -92,7 +98,8 @@ const TTL_SECONDS = 45;
 const cache = createCache({ name: 'AnonFeedCache', ttlSeconds: TTL_SECONDS });
 
 class AnonFeedCache {
-  private readonly KEY_PREFIX = 'anonfeed:v1:';
+  /** v2: entries are {@link AnonFeedEntry}, not bare pages. */
+  private readonly KEY_PREFIX = 'anonfeed:v2:';
 
   /**
    * Build a collision-free cache key. Distinct filters/sort/cursor/limit/languages
@@ -119,15 +126,19 @@ class AnonFeedCache {
     ].join(':');
   }
 
-  /** Read a cached anon page, or `null` on miss / any Redis failure. */
+  /**
+   * Read a cached anon page, re-authorized for this read, or `null` on miss /
+   * any Redis failure. A failed authorization rejects: no cached page is served
+   * without current decisions.
+   */
   async read(key: string, requestLanguages?: string[]): Promise<CacheableFeedResponse | null> {
-    const cached = await cache.get<CacheableFeedResponse>(key);
-    return cached ? revalidateAnonymousFeed(cached, requestLanguages) : null;
+    const cached = await cache.get<AnonFeedEntry>(key);
+    return cached?.page ? revalidateAnonymousFeed(cached, requestLanguages) : null;
   }
 
   /** Persist an anon page. Fail-soft: a write error is logged and swallowed. */
-  async write(key: string, response: CacheableFeedResponse): Promise<void> {
-    await cache.set(key, response);
+  async write(key: string, entry: AnonFeedEntry): Promise<void> {
+    await cache.set(key, entry);
   }
 
   /**
@@ -140,7 +151,7 @@ class AnonFeedCache {
    * handful of instances each building once is the bounded version of the
    * problem.
    */
-  private readonly inFlight = new Map<string, Promise<CacheableFeedResponse | null>>();
+  private readonly inFlight = new Map<string, Promise<AnonFeedEntry | null>>();
 
   /**
    * Claim the rebuild of `key` after a cache miss.
@@ -154,24 +165,24 @@ class AnonFeedCache {
   claimBuild(
     key: string,
   ):
-    | { role: 'lead'; settle: (response: CacheableFeedResponse | null) => void }
-    | { role: 'join'; result: Promise<CacheableFeedResponse | null> } {
+    | { role: 'lead'; settle: (entry: AnonFeedEntry | null) => void }
+    | { role: 'join'; result: Promise<AnonFeedEntry | null> } {
     const existing = this.inFlight.get(key);
     if (existing) return { role: 'join', result: existing };
 
-    let resolve!: (response: CacheableFeedResponse | null) => void;
-    const result = new Promise<CacheableFeedResponse | null>((r) => {
+    let resolve!: (entry: AnonFeedEntry | null) => void;
+    const result = new Promise<AnonFeedEntry | null>((r) => {
       resolve = r;
     });
     this.inFlight.set(key, result);
     let settled = false;
     return {
       role: 'lead',
-      settle: (response) => {
+      settle: (entry) => {
         if (settled) return;
         settled = true;
         if (this.inFlight.get(key) === result) this.inFlight.delete(key);
-        resolve(response);
+        resolve(entry);
       },
     };
   }
