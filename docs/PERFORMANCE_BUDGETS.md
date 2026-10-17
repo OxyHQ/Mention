@@ -56,19 +56,19 @@ group (#1371): main sat 4 KiB under the ceiling and the group's patch releases
 (TanStack Query, dotlottie, LiveKit and others) add 7.17 KiB, every other
 ceiling unchanged and initial JavaScript +2.83 KiB.
 
-Alia SDK 20 with Bloom 10.17 (2026-10-17) moves the total-bytes ceiling 19.5 → 19.6875 MiB and
+Alia SDK 21 with Bloom 10.17 (2026-10-17) moves the total-bytes ceiling 19.5 → 19.6875 MiB and
 the JavaScript ceiling 15.125 → 15.3125 MiB (+192 KiB each); every other ceiling is unchanged.
-Measured on one `expo export --platform web` each of main `a24a8aa64` (Bloom 10.16) and the
-branch:
+Measured on one `expo export --platform web` each of main `b09efb2c9` (Bloom 10.16, SDK 15.8)
+and the branch (SDK 21.2):
 
-| Signal | Main | SDK 20 | Change |
+| Signal | Main | SDK 21 | Change |
 | --- | --- | --- | --- |
-| Total bytes | 20,362,368 | 20,571,081 | +208,713 |
-| JavaScript bytes | 15,727,429 | 15,936,142 | +208,713 |
-| Initial JavaScript bytes | 5,425,145 | 5,458,010 | +32,865 |
-| Initial JavaScript gzip bytes | 1,500,725 | 1,511,991 | +11,266 |
+| Total bytes | 20,362,177 | 20,572,151 | +209,974 |
+| JavaScript bytes | 15,727,238 | 15,937,212 | +209,974 |
+| Initial JavaScript bytes | 5,424,936 | 5,457,887 | +32,951 |
+| Initial JavaScript gzip bytes | 1,500,701 | 1,511,946 | +11,245 |
 
-The growth is the chat that SDK 20 and Bloom 10.17 add (the multi-agent header, host tools and
+The growth is the chat that SDK 21 and Bloom 10.17 add (the multi-agent header, host tools and
 renderers, the sheet's recent conversations, Bloom's Markdown), and almost all of it is deferred:
 the app mounts the SDK's `AliaAskProvider` from `@alia.onl/sdk/ask`, which loads the sheet with
 the first Ask Alia, and the `deferredSources` gate asserts the SDK's `AliaChatSheet` stays out of the

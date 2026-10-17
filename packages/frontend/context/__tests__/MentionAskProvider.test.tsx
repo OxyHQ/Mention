@@ -21,6 +21,7 @@ describe('MentionAskProvider', () => {
       TestRenderer.create(<MentionAskProvider>{null}</MentionAskProvider>);
     });
     const props = mockProvider.mock.calls.at(-1)?.[0] as unknown as Record<string, unknown>;
+    expect(props.app).toBe('mention');
     expect(props.clientContext).toBe('alia.clientContext alia.onScreen /@ada');
     expect(props.welcomeSuggestions).toEqual([
       { id: 'news', text: 'alia.suggestion.news' },
