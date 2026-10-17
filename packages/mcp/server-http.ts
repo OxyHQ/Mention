@@ -32,9 +32,6 @@ import {
   authenticateMcpAccessToken,
   createCentralTokenIntrospector,
 } from './lib/token-authenticator.js';
-import { createMentionCapabilityAuthority } from './lib/capability-authority.js';
-import { handleMentionCapabilityRequest } from './lib/capability-http.js';
-
 import { createMentionInternalMcpReceiver } from './lib/internal-capability-mcp.js';
 
 const config = loadConfiguration();
@@ -44,7 +41,6 @@ const MAX_SESSIONS = config.maxSessions;
 const MCP_PUBLIC_URL = config.publicUrl;
 const OAUTH_AS_URL = config.oxyApiUrl;
 const introspectCentralToken = createCentralTokenIntrospector(config);
-const capabilityAuthority = createMentionCapabilityAuthority(config);
 const internalMcp = createMentionInternalMcpReceiver(config);
 // At startup, so a task that cannot bind says so in its first lines of log.
 void internalMcp.bound();
@@ -391,45 +387,6 @@ async function main() {
         return;
       }
 
-      if (pathname.startsWith('/_oxy/capabilities/')) {
-        let body: unknown;
-        try {
-          body = await readBody(req);
-        } catch (error) {
-          const status = error instanceof BodyTooLargeError ? 413 : 400;
-          res.setHeader('Content-Type', 'application/json');
-          res.writeHead(status);
-          res.end(
-            JSON.stringify({
-              error:
-                error instanceof BodyTooLargeError
-                  ? 'capability_request_too_large'
-                  : 'invalid_capability_json',
-            }),
-          );
-          return;
-        }
-        const result = await handleMentionCapabilityRequest(
-          {
-            method: req.method ?? '',
-            pathname,
-            authorization:
-              typeof req.headers.authorization === 'string' ? req.headers.authorization : undefined,
-            idempotencyKey:
-              typeof req.headers['idempotency-key'] === 'string'
-                ? req.headers['idempotency-key']
-                : undefined,
-            body,
-          },
-          capabilityAuthority,
-        );
-        res.setHeader('Content-Type', 'application/json');
-        res.setHeader('Cache-Control', 'no-store');
-        res.writeHead(result.status);
-        res.end(JSON.stringify(result.body));
-        return;
-      }
-
       if (isMcpPath(pathname)) {
         const method = req.method;
         if (method === 'POST' || method === 'GET' || method === 'DELETE') {
@@ -570,7 +527,6 @@ function normalizedRoute(pathname: string): string {
     return '/.well-known/oauth-protected-resource';
   }
   if (pathname === '/_oxy/mcp') return '/_oxy/mcp';
-  if (pathname.startsWith('/_oxy/capabilities/')) return '/_oxy/capabilities/:tool';
   return 'unmatched';
 }
 

@@ -9,7 +9,7 @@ import { z } from 'zod/v4';
 import { MENTION_CAPABILITY_CATALOG, MENTION_TOOL_REGISTRY } from './mention-catalog.js';
 import { requestContext } from './context.js';
 import { oxyServiceClient } from './oxy-service-client.js';
-import { createMentionCapabilityAuthority } from './capability-authority.js';
+import { createMentionCapabilityAudit } from './capability-audit.js';
 import { logError, logInfo, logWarn } from './logger.js';
 import type { McpHttpConfig } from './config.js';
 import type { CapabilityCatalogBinding } from '@oxy.so/contracts';
@@ -19,7 +19,7 @@ const keyHeaderSchema = z.object({ kid: z.string().min(1).max(256) });
 
 export function createMentionInternalMcp(config: McpHttpConfig, binding: CapabilityCatalogBinding) {
   const oxy = oxyServiceClient(config);
-  const audit = createMentionCapabilityAuthority(config);
+  const audit = createMentionCapabilityAudit(config);
   const resolveKey = createOxyJwksKeyResolver({
     jwksUrl: `${config.oxyApiUrl}/capabilities/.well-known/jwks.json`,
   });
