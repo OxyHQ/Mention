@@ -213,9 +213,13 @@ export class MentionToolRegistry implements MentionToolRegistrar {
     return appCapabilityCatalogSchema.parse({
       schemaVersion: '1',
       appId: this.deployment.appId,
-      version: '1.3.0',
+      version: '1.4.0',
       audience: this.deployment.audience,
       internalBaseUrl: this.deployment.resource,
+      // Alia reaches Mention's internal tools over `/_oxy/mcp`, bound to this
+      // catalogue's own registration (internal-capability-mcp.ts); the catalogue
+      // is the one place that says so (Alia ADR 0020).
+      internalTransport: 'mcp',
       externalMcp: { resource: this.deployment.resource },
       accountResourceType: 'mention_account',
       tools,
