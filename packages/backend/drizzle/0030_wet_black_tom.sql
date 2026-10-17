@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 ALTER TABLE "trending" ADD COLUMN "regions" text[];--> statement-breakpoint
 ALTER TABLE "trending" ADD COLUMN "scope" text;--> statement-breakpoint
 ALTER TABLE "trending" ADD COLUMN "concept_id" text;--> statement-breakpoint

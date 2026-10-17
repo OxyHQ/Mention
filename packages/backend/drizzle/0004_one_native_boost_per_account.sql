@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- One NATIVE boost per account per post — the constraint that makes "have you
 -- already boosted this?" answerable.
 --

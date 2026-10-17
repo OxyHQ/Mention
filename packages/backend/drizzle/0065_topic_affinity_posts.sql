@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- The posts topic affinity reads, as a narrow materialized view.
 --
 -- `ContentAffinityService.computeTopicAffinity` runs on the request path of the

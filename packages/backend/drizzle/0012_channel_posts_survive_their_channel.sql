@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=post
 -- `posts.channel_id` was `ON DELETE CASCADE`, so deleting ONE channel destroyed
 -- every post ever published to it — irreversibly, and including posts written by
 -- other publishers. That contradicts the rule `DELETE /channels/:id` documents at

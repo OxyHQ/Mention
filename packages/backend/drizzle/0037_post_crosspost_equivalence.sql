@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 CREATE TABLE "post_equivalence_clusters" (
 	"id" text PRIMARY KEY NOT NULL,
 	"kind" text DEFAULT 'crosspost' NOT NULL,

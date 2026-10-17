@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=post
 -- Native event attendance and Homiio case references.
 --
 -- 1. `event_attendance`: one row per (event post, Oxy account). NEW and empty;

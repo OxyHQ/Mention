@@ -35,6 +35,37 @@ rehearsal were read as production facts before anyone measured the production
 side. **Create a rehearsal target `OWNER mention`**, or it is testing a
 configuration that will never exist.
 
+## Every migration keeps its locks short
+
+Mention's tables share ONE Postgres with every other Oxy app. The migrator
+(`src/db/migrate.ts`, `@oxy.so/db`'s `runMigrations`) commits each migration on
+its own, runs every statement under `lock_timeout` 3 s and `statement_timeout`
+120 s, and retries a migration that loses a lock race. What the author owes, and
+what `bun run --cwd packages/backend db:check-locks` (`@oxy.so/db`'s
+`oxy-db-check-migration-locks`, run in CI) enforces for every migration after
+0077:
+
+- **A CHECK or FOREIGN KEY on an existing table is added `NOT VALID`** and
+  validated by `ALTER TABLE … VALIDATE CONSTRAINT` in a LATER migration that
+  does nothing else (SHARE UPDATE EXCLUSIVE: reads and writes keep going).
+  `0078` is the model.
+- **Hot-table DDL goes in its own migration.** Nothing slow (UPDATE, DELETE,
+  INSERT … SELECT, an index build on an existing table) shares a file with an
+  ALTER on a hot table; the hot tables are listed in that `db:check-locks`
+  script.
+- **An index on an existing hot table is `CREATE INDEX IF NOT EXISTS`**, built
+  `CONCURRENTLY` out of band first.
+- A statement that needs longer than 120 s says so on one line:
+  `-- oxy:statement-timeout=600s`. A reviewed exception says why:
+  `-- oxy:lock-review=<reason>`.
+- **Every migration declares `-- oxy:deploy-phase=pre|post`.** The deploy still
+  applies all pending migrations BEFORE the rollout, so a `post` (destructive)
+  migration ships in a release after the one that stops reading what it drops.
+
+The full rules and the outage behind them: oxy's
+`packages/api/src/db/MIGRATION-CONTRACT.md` ("Every migration keeps its locks
+short").
+
 ## Where the rest went
 
 The id-remapping decision, the `select: false` replacement, the TTL registry, the

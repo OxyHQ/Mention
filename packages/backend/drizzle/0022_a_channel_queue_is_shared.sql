@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- A CHANNEL'S SCHEDULED QUEUE IS READ BY ITS MEMBERS, NOT BY ITS OWNER.
 --
 -- `GET /posts/scheduled` used to read one account's pending posts. It now reads

@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- The engagement outbox records which side effects of an event already landed.
 --
 -- WHY: `post.like` ran its effects in sequence (MTN record, then the author

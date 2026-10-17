@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- Indexes for the federated-media deletion drain's reference check
 -- (db/federation/mediaDeletionRepository.ts): before asking Oxy to delete a
 -- re-hosted file, the drain looks the id up in `post_media.media_id` (already

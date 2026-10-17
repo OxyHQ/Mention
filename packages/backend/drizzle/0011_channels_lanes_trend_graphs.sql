@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=post
 CREATE TABLE "channel_follows" (
 	"id" text PRIMARY KEY NOT NULL,
 	"channel_id" text NOT NULL,

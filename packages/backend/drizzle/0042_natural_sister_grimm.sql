@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- Three trigram indexes so list, feed and starter-pack search stops scanning.
 --
 -- Each of those listings matched with `ILIKE '%term%'` over its text columns

@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- Recent public posts with classified topics, newest first (topic affinity).
 --
 -- `ContentAffinityService.computeTopicAffinity` asks it for every viewer whose

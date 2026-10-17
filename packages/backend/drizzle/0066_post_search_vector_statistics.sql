@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- Statistics fine enough for the planner to tell a rare search word from a common one.
 --
 -- `GET /search?query=elevenlabs&type=posts` answered 503 (2026-10-15): the

@@ -25,7 +25,7 @@
         "@mercaria.co/sdk": "^0.2.0",
         "@oxy.so/contracts": "catalog:",
         "@oxy.so/core": "catalog:",
-        "@oxy.so/db": "^1.0.0",
+        "@oxy.so/db": "^1.3.0",
         "@oxy.so/federation": "^2.4.0",
         "@oxy.so/mcp": "catalog:",
         "@oxy.so/mention-contracts": "workspace:*",
@@ -323,7 +323,7 @@
     "source-map-js": "1.2.2",
   },
   "catalog": {
-    "@oxy.so/bloom": "10.10.0",
+    "@oxy.so/bloom": "10.16.0",
     "@oxy.so/contracts": "4.24.0",
     "@oxy.so/core": "4.21.0",
     "@oxy.so/mcp": "1.1.0",
@@ -959,13 +959,13 @@
 
     "@oxc-project/types": ["@oxc-project/types@0.137.0", "", {}, "sha512-WT+Gb24i8hmvo85AIv2oEYouEXkRlKAlT9WaCa3TfLgNCN+GhrJOGZuIlMouAh38Qe4QOx26eUOVsq70qXrywA=="],
 
-    "@oxy.so/bloom": ["@oxy.so/bloom@10.10.0", "", { "dependencies": { "@tanstack/react-virtual": "^3.14.3", "react-native-css": "3.1.0-rc.0", "react-remove-scroll-bar": "^2.3.8" }, "peerDependencies": { "@lottiefiles/dotlottie-react": ">=0.13.0", "@react-native-community/netinfo": ">=11.1.0", "expo": "*", "expo-blur": "*", "expo-font": "*", "expo-haptics": "*", "expo-image": "*", "expo-router": ">=3.0.0", "expo-symbols": ">=0.4.5", "expo-video": "*", "lottie-react-native": ">=7.0.0", "nativewind": ">=5.0.0 || 5.0.0-rc.0", "react": ">=18.0.0", "react-dom": ">=18.0.0", "react-native": ">=0.73.0", "react-native-gesture-handler": ">=2.16.1", "react-native-keyboard-controller": ">=1.11.4", "react-native-reanimated": ">=3.13.0", "react-native-safe-area-context": ">=5.0.0", "react-native-screens": ">=3.16.0", "react-native-svg": ">=13.0.0", "react-native-webview": ">=13.0.0" }, "optionalPeers": ["@lottiefiles/dotlottie-react", "@react-native-community/netinfo", "expo", "expo-font", "expo-haptics", "expo-router", "expo-video", "lottie-react-native", "nativewind", "react-dom", "react-native-keyboard-controller", "react-native-webview"] }, "sha512-nqLhkQ3MF1UBQSLmwN0owgNKNmRuK6WY2HzNMhbScdmQxDPlOp7wnaqjPoSIaJCGuIg85whOTtWjrYbiAR4DFg=="],
+    "@oxy.so/bloom": ["@oxy.so/bloom@10.16.0", "", { "dependencies": { "@tanstack/react-virtual": "^3.14.3", "react-native-css": "3.1.0-rc.0", "react-remove-scroll-bar": "^2.3.8" }, "peerDependencies": { "@lottiefiles/dotlottie-react": ">=0.13.0", "@react-native-community/netinfo": ">=11.1.0", "expo": "*", "expo-blur": "*", "expo-font": "*", "expo-haptics": "*", "expo-image": "*", "expo-router": ">=3.0.0", "expo-symbols": ">=0.4.5", "expo-video": "*", "lottie-react-native": ">=7.0.0", "nativewind": ">=5.0.0 || 5.0.0-rc.0", "react": ">=18.0.0", "react-dom": ">=18.0.0", "react-native": ">=0.73.0", "react-native-gesture-handler": ">=2.16.1", "react-native-keyboard-controller": ">=1.11.4", "react-native-reanimated": ">=3.13.0", "react-native-safe-area-context": ">=5.0.0", "react-native-screens": ">=3.16.0", "react-native-svg": ">=13.0.0", "react-native-webview": ">=13.0.0" }, "optionalPeers": ["@lottiefiles/dotlottie-react", "@react-native-community/netinfo", "expo", "expo-font", "expo-haptics", "expo-router", "expo-video", "lottie-react-native", "nativewind", "react-dom", "react-native-keyboard-controller", "react-native-webview"] }, "sha512-fXnIiaeHHIottj8bV2vB7s3MXoNfrtAOBUMJYhHTfeUfkWrEfzhKOLcukFtZFlz1Ok+INXL8CQ3x+lFHZ7i8ag=="],
 
     "@oxy.so/contracts": ["@oxy.so/contracts@4.24.0", "", { "dependencies": { "zod": "^3.25.64" } }, "sha512-ZQvW7N5xdji7H5G61FNmUWwtSw/aLxTnwyxWwsni4XlBrDk+VaW0vdSuMsRZw/pnNaQP+QSP2c3i+NbewowY0g=="],
 
     "@oxy.so/core": ["@oxy.so/core@4.21.0", "", { "dependencies": { "@noble/ciphers": "^1.3.0", "@noble/hashes": "^1.8.0", "@oxy.so/contracts": "4.24.0", "@oxy.so/protocol": "^1.3.0", "@oxy.so/telemetry": "^1.2.0", "@scure/bip39": "^1.6.0", "buffer": "^6.0.3", "express-rate-limit": "^8.6.0", "helmet": "^8.0.0", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.1", "tldts": "^7.4.10", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "<3.0.0", "expo-crypto": "<58.0.0", "expo-secure-store": "<58.0.0", "express": "^4.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-Y3wnmbMMhET0n7Fn0e+MVxFZHon3DDNRpL/doBRmcq8cit/XDy2HhW1u9eMeJa5S1Ayl8dRzKymQAJhNgBxYtQ=="],
 
-    "@oxy.so/db": ["@oxy.so/db@1.0.0", "", { "peerDependencies": { "drizzle-orm": "^0.45.2", "postgres": "^3.4.9" } }, "sha512-5tnH+84QR7cnTRYF7FWIN1rGF7YoE0M+sfUBC2Bdclzp1Hfb7+Msr7cEvFklluZxXMP2Mv8HzPB6/gz3Kndk4Q=="],
+    "@oxy.so/db": ["@oxy.so/db@1.3.0", "", { "peerDependencies": { "drizzle-orm": "^0.45.2", "postgres": "^3.4.9" }, "bin": { "oxy-db-check-migration-locks": "dist/cjs/bin/check-migration-locks.js" } }, "sha512-erRxIElQt6D56kKuEOaiGVs/JkYW+rNepu1vxzuw6FQLhgknM3RAUMyonI14Ms4j2fZGECIW3jIVj1XGEENgPA=="],
 
     "@oxy.so/doctor": ["@oxy.so/doctor@1.1.0", "", { "bin": { "oxy-doctor": "src/cli.mjs" } }, "sha512-o5uDvU2c6f7Z+8jpiRyFILimouEwm7GY0pqMEfMNgCJ3/Q10ot2ccm9OpGnRlx9T2MLaWdDh/4hU4TLPq+OC8g=="],
 

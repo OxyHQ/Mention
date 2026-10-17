@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=post
 -- `notifications_recipient_keyset_idx` becomes `(recipient_id, created_at DESC,
 -- id DESC)` — the axis `GET /notifications` now pages on.
 --

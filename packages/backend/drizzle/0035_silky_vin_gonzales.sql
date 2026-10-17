@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- Stable sitemap partitions must remain cheap as the post archive grows.
 -- Without these expression indexes, opening any one child sitemap requires
 -- hashing every eligible post before PostgreSQL can discard the other 63

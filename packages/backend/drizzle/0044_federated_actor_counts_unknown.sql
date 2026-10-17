@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- A remote actor's followers/following/posts counts become NULLABLE: NULL is
 -- UNKNOWN, and 0 is a real zero.
 --

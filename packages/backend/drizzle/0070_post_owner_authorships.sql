@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- Give every authored post the owner authorship row it is projected from.
 --
 -- `posts.oxy_user_id` is the denormalized projection of the post's `owner` row

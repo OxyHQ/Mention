@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- The import ledger: one row per post a user brought from another platform
 -- through Oxy Move (`routes/imports.ts`, contract in `docs/import.mdx`).
 --

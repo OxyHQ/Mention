@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=post
 -- Retire the Mention-local channel, and re-key `lanes` onto a single owner.
 --
 -- The Postgres half of what `src/migrations/0026-channel-accounts.ts` does to

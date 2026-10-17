@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=post
 -- `post_hashtags`: the newest public posts per hashtag, maintained on write.
 --
 -- `GET /posts/hashtag/:hashtag` (p99 4.2 s, max 9.9 s on 2026-10-14, database

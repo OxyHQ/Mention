@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=post
 -- Drop the two bookkeeping tables `0016_backfill_bookkeeping_tables` created.
 --
 -- They were the data copier's own ledger: where a collection's copy

@@ -1,1 +1,2 @@
+-- oxy:deploy-phase=pre
 ALTER TABLE "moderation_outbox" ADD COLUMN "payload_urgency" jsonb;

@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- When a trend's term first appeared within the onset lookback, across runs.
 --
 -- The client's `new` badge read `started_at`, the onset of the CURRENT run, and

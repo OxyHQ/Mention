@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 CREATE TABLE "blocked_domain_purge_runs" (
 	"id" text PRIMARY KEY NOT NULL,
 	"domain" text NOT NULL,

@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- Which accounts published publicly inside a recent window (#1166).
 --
 -- `followerSnapshotJob.selectAuthorsToSample` asks it every sweep, and nothing

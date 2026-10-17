@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- Remember where a remote account moved.
 --
 -- `moved_to` is the actor URI a remote account announced it moved to, written

@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 CREATE TABLE "post_evaluation_topics" (
 	"id" text PRIMARY KEY NOT NULL,
 	"evaluation_id" text NOT NULL,

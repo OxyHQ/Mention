@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 CREATE TABLE "trend_story_posts" (
 	"id" text PRIMARY KEY NOT NULL,
 	"trend_id" text NOT NULL,

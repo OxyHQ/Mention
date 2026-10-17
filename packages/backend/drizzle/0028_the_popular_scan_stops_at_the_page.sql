@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- The popular/discovery scan's ORDER BY becomes index-satisfiable, so a page
 -- costs a page instead of costing the archive.
 --

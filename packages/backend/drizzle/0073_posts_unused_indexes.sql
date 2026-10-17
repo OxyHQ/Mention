@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=post
 -- Drop four `posts` indexes that production never reads.
 --
 -- Every insert into `posts`, and every update that is not HOT (3.3M of 4.4M so

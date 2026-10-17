@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- WHEN THE ADAPTIVE LADDER FINISHED, OR NOTHING.
 --
 -- The HLS manifest URL is derivable from a media id (`?variant=hls_master`), so

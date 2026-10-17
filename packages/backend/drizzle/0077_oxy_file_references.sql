@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- Oxy Files: who owns a file, who uses it, and when it goes away (ADR 0043,
 -- docs/oxy-files.md).
 --

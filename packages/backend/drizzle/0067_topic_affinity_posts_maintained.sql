@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=post
 -- `topic_affinity_posts`, maintained on write instead of refreshed.
 --
 -- 0065 made it a materialized view that `TopicAffinityRefreshJob` refreshed

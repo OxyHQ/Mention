@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- Link cards a federated post arrived with (FEP-8967, which Mastodon 4.7 emits).
 --
 -- The text of the card the author's server rendered for a link in the body, per

@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- Bookmark folders become rows of their own (OxyHQ/Mention#1124).
 --
 -- A folder used to exist only as a value on `bookmarks.folder`, so an EMPTY

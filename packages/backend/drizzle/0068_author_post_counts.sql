@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 -- `author_post_counts`: an author's public post counts, maintained on write.
 --
 -- The profile page (`GET /profile/design/:userId`) and a profile's structured

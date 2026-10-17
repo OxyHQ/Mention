@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 CREATE TABLE "admin_script_cursors" (
 	"id" text PRIMARY KEY NOT NULL,
 	"script" text NOT NULL,
