@@ -791,6 +791,13 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
       'from `reports.id`, so the delivery job cannot be stranded.',
   },
   {
+    table: 'deck_workspaces',
+    column: 'oxyUserId',
+    scope: 'channel-account',
+    action: 'delete-row',
+    why: 'The private workspace belongs to the deleted account and must not survive its removal.',
+  },
+  {
     table: 'user_settings',
     column: 'oxyUserId',
     scope: 'channel-account',

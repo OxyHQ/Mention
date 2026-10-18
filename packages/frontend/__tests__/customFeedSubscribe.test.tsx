@@ -1,4 +1,3 @@
-jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'));
 jest.mock('@/hooks/useSupervisionState', () => ({
   useSupervisionState: () => ({ ready: true, supervised: false, isError: false }),
 }));

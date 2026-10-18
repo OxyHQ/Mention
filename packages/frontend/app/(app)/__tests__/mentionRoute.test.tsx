@@ -1,4 +1,3 @@
-jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'));
 import TestRenderer, { act } from 'react-test-renderer';
 import MentionRoute from '../mention';
 

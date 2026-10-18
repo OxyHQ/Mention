@@ -1,3 +1,4 @@
+import { deckWorkspaces } from '../../db/schema/deck';
 import { eventAttendance } from '../../db/schema/events';
 /**
  * THE TABLE — the ONE place a manifest step's Postgres shape is written down.
@@ -276,6 +277,11 @@ export const STEP_BINDINGS: Readonly<Record<string, StepBinding>> = {
     phase: 'account',
     table: reports,
     where: accountEq(reports.reporter),
+  },
+  'deck_workspaces.oxyUserId|channel-account': {
+    phase: 'account',
+    table: deckWorkspaces,
+    where: accountEq(deckWorkspaces.oxyUserId),
   },
   'user_settings.oxyUserId|channel-account': {
     phase: 'account',

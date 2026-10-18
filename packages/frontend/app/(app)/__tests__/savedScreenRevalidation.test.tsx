@@ -1,4 +1,3 @@
-jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'));
 jest.mock('@oxy.so/bloom/screen', () => ({
   Screen: ({
     header,

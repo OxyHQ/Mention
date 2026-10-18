@@ -1,4 +1,3 @@
-jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'));
 import { Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 

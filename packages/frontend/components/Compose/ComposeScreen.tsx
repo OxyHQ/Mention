@@ -1223,7 +1223,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
    * Back to a FRESH composer after a publish: the content, and also the
    * per-post choices that belonged to the post just sent — its collaborators,
    * lane, account, audience and warnings — so none of them carries silently into
-   * the next one. The preferred language is re-seeded as on a first open.
+   * the next one. The editor resets to Oxy's current primary locale.
    */
   const resetComposerAfterPublish = () => {
     clearComposerContent();
@@ -1237,7 +1237,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     setIsSensitive(false);
     setPostingMode('thread');
     setFocusedItemId(MAIN_ITEM_ID);
-    preferredSeededRef.current = false;
   };
 
   const handlePost = async (options?: { publishNow?: boolean }) => {

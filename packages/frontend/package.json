@@ -49,7 +49,9 @@
       "^@oxy.so/bloom/icons/(.*)$": "<rootDir>/test-support/bloomIcons.js",
       "^@oxy.so/bloom/empty-state$": "<rootDir>/test-support/bloomEmptyState.js",
       "^@oxy.so/bloom/typography$": "<rootDir>/test-support/bloomTypography.js",
-      "^@oxy.so/bloom/sticker$": "<rootDir>/test-support/bloomSticker.js"
+      "^@oxy.so/bloom/sticker$": "<rootDir>/test-support/bloomSticker.js",
+      "^@oxy.so/bloom/skeleton$": "<rootDir>/test-support/bloomSkeleton.js",
+      "^@oxy.so/bloom/grid$": "<rootDir>/test-support/bloomGrid.js"
     },
     "collectCoverageFrom": [
       "**/*.{ts,tsx}",

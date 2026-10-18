@@ -2772,5 +2772,6 @@
       "saved": "Tu Deck está guardado en tu cuenta.",
       "saving": "Tu espacio está disponible al instante. Guardando en tu cuenta…"
     }
-  }
+  },
+  "insights.dayCount_many": "{{count}} días"
 }

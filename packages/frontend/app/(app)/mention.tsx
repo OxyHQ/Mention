@@ -33,9 +33,9 @@ export default function MentionRoute() {
 
   return (
     <View className="flex-1">
-      <SEO title={t('navigation.profile', { defaultValue: 'Profile' })} robots="noindex,follow" />
+      <SEO title={t('Profile', { defaultValue: 'Profile' })} robots="noindex,follow" />
       <PageHeader
-        title={t('navigation.profile', { defaultValue: 'Profile' })}
+        title={t('Profile', { defaultValue: 'Profile' })}
         onBack={() => safeBack()}
         backLabel={t('common.back', { defaultValue: 'Back' })}
       />

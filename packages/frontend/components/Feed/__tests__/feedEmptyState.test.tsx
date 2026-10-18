@@ -1,4 +1,3 @@
-jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'));
 /**
  * What a reader actually sees when a feed has nothing to show.
  *
