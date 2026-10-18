@@ -19,10 +19,10 @@ past any of:
 
 | Budget | Ceiling |
 | --- | --- |
-| Total bytes | 19.6875 MiB |
-| JavaScript bytes | 15.3125 MiB |
-| Initial JavaScript bytes | 5.45 MiB |
-| Initial JavaScript gzip bytes | 1.5 MiB (target: 1.6 MiB) |
+| Total bytes | 20.1875 MiB |
+| JavaScript bytes | 15.5 MiB |
+| Initial JavaScript bytes | 5.875 MiB |
+| Initial JavaScript gzip bytes | 1.65625 MiB (target: 1.6 MiB) |
 | Font bytes | 4 MiB |
 | Largest single file | 7.5 MiB |
 
@@ -312,6 +312,38 @@ first paint is bound by downloading and running `__common` (1.3 MB brotli,
 ~2.0 s on this profile) and the ~0.8 s of CPU after it, not by the layouts. With
 Alia's avatar runtime blocked (it competes for bandwidth on `/`) the home gain
 is the same (−0.34 s).
+
+### Shared Oxy account surfaces (2026-10-18)
+
+Services 11.15.0, Core 5.5.0, Contracts 4.25.0 and Bloom 11.1.0 replace the
+old account screens with the shared profile editors, storage categories, help,
+and Oxy One catalogue. Account screens now load eagerly so opening and moving
+between them does not wait for a JavaScript chunk. This is an intentional
+startup cost; the subscription catalogue still does not enable purchases.
+
+Measured with production `build:analyze` on main `319ab1dd6` and this integration,
+using the same environment and analyzer (bytes):
+
+| Metric | Main | Shared surfaces | Change |
+| --- | --- | --- | --- |
+| totalBytes | 20,606,564 | 21,103,092 | +496,528 |
+| javascriptBytes | 15,971,625 | 16,180,683 | +209,058 |
+| initialJavascriptBytes | 5,458,316 | 6,091,862 | +633,546 |
+| initialJavascriptGzipBytes | 1,512,325 | 1,696,923 | +184,598 |
+
+Source maps attribute the initial growth to the eager SDK screens and shared
+Bloom controls: country flag artwork alone adds about 44 KiB of isolated gzip;
+usage cards, text fields, profile editing and account navigation also enter the
+initial graph. The video/poster add non-JavaScript assets. The singleton test
+confirms Mention, Alia and Syra resolve one Services/Core/Bloom installation.
+All nine deferred-source assertions still pass, including Alia's chat sheet,
+Mention settings, LiveKit and Zod. No loader or skeleton was added to defer the
+account UI again.
+
+The four affected ceilings above reserve roughly 40–71 KiB beyond this measured
+build. Font and largest-file ceilings stay unchanged, as does the 1.6 MiB initial
+gzip target; this build is still above that target. The CI analyzer and baseline
+comparison remain enabled.
 
 ### Reanimated's layout animations and the feed's first request (2026-10-15)
 

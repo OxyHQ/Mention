@@ -16,7 +16,7 @@ import { NotificationPermissionGate } from '@/components/NotificationPermissionG
 import { SEOHandoff } from '@/components/SEOHandoff';
 import { PwaHead } from '@/components/PwaHead';
 import { AppProviders } from '@/components/providers/AppProviders';
-import { MentionAskProvider } from '@/context/MentionAskProvider';
+import { MentionAskProvider, useMentionAskBridge } from '@/context/MentionAskProvider';
 import { MentionSettingsProvider } from '@/components/settings/MentionSettingsProvider';
 import { AuthRouter } from '@/components/providers/AuthRouter';
 import { OverlayInertBoundary, PortalOutlet, PortalProvider } from '@oxy.so/bloom/portal';
@@ -76,6 +76,7 @@ function resolveImageSource(fileId: string, variant?: string): string | undefine
 }
 
 export default function RootLayout() {
+  const { askRef: aliaRef, openAlia } = useMentionAskBridge();
   // State
   const [appIsReady, setAppIsReady] = useState(false);
   // Global haptics on/off, persisted via the accessibility settings toggle. Passed
@@ -174,7 +175,7 @@ export default function RootLayout() {
         // because the held OS splash is already covering the screen.
         onFontsLoading={Platform.OS === 'web' ? <AppSplashScreen /> : null}
       >
-        <AppProviders oxyServices={oxyServices} queryClient={queryClient}>
+        <AppProviders oxyServices={oxyServices} queryClient={queryClient} onAskAlia={openAlia}>
           {appIsReady ? (
             <>
               {Platform.OS !== 'web' && <NotificationPermissionGate appIsReady={appIsReady} />}
@@ -193,7 +194,7 @@ export default function RootLayout() {
                   {/* Alia's one sheet for the whole app, loaded on first use. It
                       sits beside the inert boundary, not in it, and portals into
                       the outlet below. */}
-                  <MentionAskProvider>
+                  <MentionAskProvider askRef={aliaRef}>
                     <OverlayInertBoundary>
                       <AuthRouter />
                     </OverlayInertBoundary>
