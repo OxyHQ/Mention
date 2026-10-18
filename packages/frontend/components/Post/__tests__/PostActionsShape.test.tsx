@@ -117,7 +117,9 @@ describe('PostActions shape', () => {
   it('counts boosts beside the boost icon, and draws no count at zero', () => {
     const withBoosts = renderBar({ engagement: { replies: 0, likes: 0, boosts: 1 } });
     const boostButton = withBoosts.root.findAll(
-      (node) => String(node.type) === 'PressableScale' && node.props.accessibilityLabel === 'Boost',
+      (node) =>
+        String(node.type) === 'PressableScale' &&
+        node.props.accessibilityLabel === 'Repost options',
     );
     expect(boostButton).toHaveLength(1);
     expect(boostButton[0].findAll((node) => node.children.includes('1'))).not.toHaveLength(0);
@@ -125,7 +127,9 @@ describe('PostActions shape', () => {
 
     const none = renderBar({ engagement: { replies: 0, likes: 0, boosts: 0 } });
     const bare = none.root.findAll(
-      (node) => String(node.type) === 'PressableScale' && node.props.accessibilityLabel === 'Boost',
+      (node) =>
+        String(node.type) === 'PressableScale' &&
+        node.props.accessibilityLabel === 'Repost options',
     );
     expect(bare[0].findAll((node) => node.children.includes('0'))).toHaveLength(0);
     act(() => none.unmount());

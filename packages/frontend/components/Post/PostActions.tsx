@@ -191,7 +191,8 @@ const PostActions: React.FC<Props> = ({
           onBoost();
         }}
         hitSlop={HIT_SLOP_MD}
-        accessibilityLabel={isBoosted ? 'Undo boost' : 'Boost'}
+        accessibilityLabel="Repost options"
+        accessibilityRole="button"
       >
         {isBoosted ? (
           <BoostIconActive size={ICON_SIZE} color={theme.colors.success} />
