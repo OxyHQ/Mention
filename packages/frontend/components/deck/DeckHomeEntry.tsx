@@ -6,5 +6,11 @@ import { useDeckHome } from './useDeckHome';
 export function DeckHomeEntry({ children }: { children: ReactNode }) {
   const deckHome = useDeckHome();
   const pathname = usePathname();
-  return pathname === '/' && deckHome ? <Redirect href="/deck" /> : children;
+  // Expo's navigator must remain mounted while the root destination changes.
+  return (
+    <>
+      {children}
+      {pathname === '/' && deckHome ? <Redirect href="/deck" /> : null}
+    </>
+  );
 }

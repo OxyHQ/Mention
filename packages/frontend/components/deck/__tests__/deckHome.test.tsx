@@ -78,3 +78,26 @@ it('restores account choices independently, including disabling the preference',
   useDeckSettings.getState().setHomeScreen(false);
   expect(home().getByText('Route content')).toBeTruthy();
 });
+it('keeps the Expo navigator mounted while the preference redirects Home', () => {
+  const mounted = jest.fn();
+  const unmounted = jest.fn();
+  function Navigator() {
+    React.useEffect(() => {
+      mounted();
+      return unmounted;
+    }, []);
+    return <Text>Navigator</Text>;
+  }
+  let renderer: TestRenderer.ReactTestRenderer | undefined;
+  act(() => {
+    renderer = TestRenderer.create(
+      <DeckHomeEntry>
+        <Navigator />
+      </DeckHomeEntry>,
+    );
+  });
+  act(() => useDeckSettings.getState().setHomeScreen(true));
+  expect(mounted).toHaveBeenCalledTimes(1);
+  expect(unmounted).not.toHaveBeenCalled();
+  act(() => renderer?.unmount());
+});
