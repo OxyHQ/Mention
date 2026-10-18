@@ -182,3 +182,13 @@ describe('depsShallowEqual', () => {
     expect(depsShallowEqual([{ 0: 'a' }], [['a']])).toBe(false);
   });
 });
+
+describe('interstitial identity in feed dependencies', () => {
+  it('reuses rebuilt slots but invalidates a replacement at the same anchor', () => {
+    const previous = [{ key: 'recommendation-a', afterSliceKey: 'slice-1' }];
+    expect(depsShallowEqual([previous], [[{ ...previous[0] }]])).toBe(true);
+    expect(
+      depsShallowEqual([previous], [[{ key: 'recommendation-b', afterSliceKey: 'slice-1' }]]),
+    ).toBe(false);
+  });
+});

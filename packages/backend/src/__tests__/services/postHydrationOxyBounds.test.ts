@@ -197,6 +197,39 @@ describe('resolveUserSummaries Oxy bounds', () => {
     expect(secondResult.get('flight-b')?.user.username).toBe('user-flight-b');
   });
 
+  it('shares overlapping author reads but returns only the requested identities', async () => {
+    let releaseBulk = () => {};
+    const gate = new Promise<void>((resolve) => {
+      releaseBulk = resolve;
+    });
+    getUsersByIds.mockImplementation(async (ids: string[]) => {
+      await gate;
+      return ids.map(oxyUser);
+    });
+    const first = resolveUserSummaries(['overlap-a', 'overlap-b']);
+    const second = resolveUserSummaries(['overlap-b', 'overlap-c']);
+    const third = resolveUserSummaries(['overlap-b']);
+    await Promise.resolve();
+    await Promise.resolve();
+    releaseBulk();
+    const results = await Promise.all([first, second, third]);
+
+    expect(getUsersByIds.mock.calls.flatMap(([ids]) => ids).sort()).toEqual([
+      'overlap-a',
+      'overlap-b',
+      'overlap-c',
+    ]);
+    expect(results.map((result) => [...result.keys()].sort())).toEqual([
+      ['overlap-a', 'overlap-b'],
+      ['overlap-b', 'overlap-c'],
+      ['overlap-b'],
+    ]);
+    // The mocked persistent cache remains cold: completed flights must be released.
+    await resolveUserSummaries(['overlap-b']);
+    expect(getUsersByIds).toHaveBeenLastCalledWith(['overlap-b']);
+    expect(getUsersByIds).toHaveBeenCalledTimes(3);
+  });
+
   it('bounds non-abortable fallback I/O globally across distinct cohorts', async () => {
     vi.useFakeTimers();
     getUsersByIds.mockResolvedValue([]);

@@ -109,29 +109,17 @@ body,
   background-color: #0b0b0f;
 }
 
-/* Document-level scrolling. Expo / react-native-web automatically inject a
-   "recommended style reset" into the served HTML that locks
-   `html, body { height: 100%; overflow: hidden }` and `#root { height: 100% }`
-   for a native-like fixed viewport. (This is separate from <ScrollViewStyleReset />.)
-   These plain, UNLAYERED rules override it so the DOCUMENT scrolls: the body
-   grows with its content and scrolling works from anywhere, including over the
-   sticky SideBar / RightBar columns. `#root { min-height: 100vh }` is required
-   so the flex root does not collapse to 0 height when `height: auto` is applied.
-   No runtime JS. */
-/* NOTE: `overflow` MUST be `visible` on BOTH axes here. Setting one axis to
-   `hidden`/`clip`/`auto`/`scroll` triggers CSS "overflow promotion" — the other
-   `visible` axis computes to `auto`, turning body into a scroll container (so the
-   inner body scrolls and the DOCUMENT does not). Any wanted horizontal clipping
-   goes on a CHILD, never here. */
+/* Keep the document as the scroll owner. Percentage heights resolve against
+   the available viewport, excluding a classic horizontal scrollbar. Viewport
+   units (100vh/100dvh) include that scrollbar and create vertical overflow in
+   bounded layouts such as Deck. Content in document-flow layouts can still
+   grow beyond this initial height through visible overflow. */
+/* Both axes stay visible: setting only one to auto/hidden promotes the other
+   to auto and creates an unintended body scroller. */
 html,
-body {
-  height: auto !important;
-  min-height: 100% !important;
-  overflow: visible !important;
-}
-
+body,
 #root {
-  height: auto !important;
-  min-height: 100vh !important;
+  height: 100% !important;
+  min-height: 100% !important;
   overflow: visible !important;
 }

@@ -1,7 +1,8 @@
+import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useEffect, useState, useCallback, useContext } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Share } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useQueries } from '@tanstack/react-query';
 import { queryKeys } from '@oxy.so/services/ui/client';
 import type { User } from '@oxy.so/core';
@@ -23,7 +24,6 @@ import { RiShareForwardLine } from '@oxy.so/bloom/icons/RiShareForwardLine';
 import { RiStopFill } from '@oxy.so/bloom/icons/RiStopFill';
 import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
 import { Item } from '@oxy.so/bloom/item';
-import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Text as BloomText } from '@oxy.so/bloom/typography';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -77,7 +77,7 @@ function useRoomAvatarItems(
 }
 
 /** A face in a pile opens that person's profile (and, on web, its hover card links there too). */
-function openRoomMember(item: AvatarGroupItem) {
+function openRoomMember(router: ReturnType<typeof useRouter>, item: AvatarGroupItem) {
   const href = profileHrefForUser({ username: item.username });
   if (href) router.push(href);
 }
@@ -116,6 +116,7 @@ const SectionHeading = ({ children }: { children: React.ReactNode }) => (
 );
 
 const RoomDetailScreen = () => {
+  const router = useRouter();
   const theme = useTheme();
   const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -326,9 +327,7 @@ const RoomDetailScreen = () => {
         />
 
         {loading ? (
-          <View className="flex-1 items-center justify-center">
-            <Loading className="text-primary" />
-          </View>
+          <DetailSkeleton />
         ) : !room ? (
           <EmptyState
             icon={{ name: 'alert-circle-outline' }}
@@ -400,7 +399,7 @@ const RoomDetailScreen = () => {
                     ringColor={theme.colors.background}
                     hoverCard
                     renderItemAction={renderFollowAction}
-                    onPressItem={openRoomMember}
+                    onPressItem={(item) => openRoomMember(router, item)}
                   />
                 ) : (
                   <Text className="text-sm text-muted-foreground">No participants yet</Text>
@@ -419,7 +418,7 @@ const RoomDetailScreen = () => {
                     ringColor={theme.colors.background}
                     hoverCard
                     renderItemAction={renderFollowAction}
-                    onPressItem={openRoomMember}
+                    onPressItem={(item) => openRoomMember(router, item)}
                   />
                 </View>
               )}

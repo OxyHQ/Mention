@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { Platform } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 

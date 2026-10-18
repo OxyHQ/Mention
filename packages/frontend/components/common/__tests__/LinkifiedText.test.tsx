@@ -67,28 +67,6 @@ describe('LinkifiedText', () => {
     mockOpenExternalLink.mockReset();
   });
 
-  it('opens the actual source URL of an unresolved federated mention', () => {
-    const href = 'https://flipboard.com/@forbes/leadership-bs0je34pz';
-    let renderer: TestRenderer.ReactTestRenderer | undefined;
-    act(() => {
-      renderer = TestRenderer.create(
-        <LinkifiedText text={`Posted into Leadership [@@leadership-forbes](${href})`} />,
-      );
-    });
-    if (!renderer) throw new Error('render produced no tree');
-    const link = renderer.root.findAll(
-      (node) =>
-        typeof node.props.onPress === 'function' && node.props.children === '@leadership-forbes',
-    )[0];
-    if (!link) throw new Error('render produced no mention link');
-    const stopPropagation = jest.fn();
-    act(() => link.props.onPress({ stopPropagation }));
-    expect(stopPropagation).toHaveBeenCalled();
-    expect(mockOpenExternalLink).toHaveBeenCalledWith(href);
-    expect(link.props.href).not.toBe(`/@${href}`);
-    act(() => renderer?.unmount());
-  });
-
   it('draws prose with a single text node', () => {
     const nodes = hostNodes(<LinkifiedText text="just some words about nothing" />);
     const texts = nodes.filter((n) => n.type === 'Text');
@@ -111,10 +89,28 @@ describe('LinkifiedText', () => {
   it.each([
     ['a mention', 'hi [@Nate](nate)', 'Nate', '/@nate'],
     [
+      'an unresolved imported mention',
+      'where [@@zackwhittaker](https://mastodon.social/@zackwhittaker) will be attempting to moderate me',
+      '@zackwhittaker',
+      '/mention?uri=https%3A%2F%2Fmastodon.social%2F%40zackwhittaker',
+    ],
+    [
+      'a source mention whose label names somebody else',
+      '[@Misleading label](https://mastodon.social/@zackwhittaker)',
+      'Misleading label',
+      '/mention?uri=https%3A%2F%2Fmastodon.social%2F%40zackwhittaker',
+    ],
+    [
       'a federated handle',
       'hi @gargron@mastodon.social',
       '@gargron@mastodon.social',
       '/@gargron@mastodon.social',
+    ],
+    [
+      'an unresolved Group mention',
+      '[@Leadership](https://flipboard.com/@forbes/leadership-bs0je34pz)',
+      'Leadership',
+      '/mention?uri=https%3A%2F%2Fflipboard.com%2F%40forbes%2Fleadership-bs0je34pz',
     ],
     ['a hashtag', 'hey #expo', '#expo', '/hashtag/expo'],
   ])('makes %s a real link to its page', (_label, text, label, href) => {
@@ -141,6 +137,12 @@ describe('LinkifiedText', () => {
       'nofollow',
     ],
     ['a hydrated mention', 'hi [@Nate](nate)', 'Nate', undefined],
+    [
+      'an unresolved Group mention',
+      '[@Leadership](https://flipboard.com/@forbes/leadership-bs0je34pz)',
+      'Leadership',
+      'nofollow',
+    ],
     ['a hashtag', 'hey #expo', '#expo', undefined],
   ])('tells crawlers whether to follow %s', (_label, text, label, rel) => {
     // A typed handle names an account nobody checked exists; each one naming

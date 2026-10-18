@@ -1,3 +1,4 @@
+import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type React from 'react';
 import { useEffect, useState, useCallback, useMemo } from 'react';
@@ -11,7 +12,6 @@ import {
   TouchableOpacity,
   Pressable,
 } from 'react-native';
-import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
@@ -19,7 +19,7 @@ import { RiLinkM } from '@oxy.so/bloom/icons/RiLinkM';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
 import { RiUserAddFill } from '@oxy.so/bloom/icons/RiUserAddFill';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import * as Clipboard from 'expo-clipboard';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -73,6 +73,7 @@ const TABS_CONFIG = [
 ];
 
 function ListDetailScreen() {
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const theme = useTheme();
@@ -256,6 +257,7 @@ function ListDetailScreen() {
       listId,
       theme.colors.textSecondary,
       t,
+      router,
     ],
   );
 
@@ -310,9 +312,7 @@ function ListDetailScreen() {
           onBack={() => safeBack()}
           backLabel={t('common.back', { defaultValue: 'Back' })}
         />
-        <View className="flex-1 items-center justify-center">
-          <SpinnerIcon size={28} className="text-primary" />
-        </View>
+        <DetailSkeleton />
       </View>
     );
   }
@@ -438,6 +438,7 @@ function ListMembers({
   onRefresh: () => void;
   header?: React.ReactNode;
 }) {
+  const router = useRouter();
   const theme = useTheme();
   const { t } = useTranslation();
   const { oxyServices, user } = useAuth();

@@ -8,7 +8,7 @@ import { PageHeader } from '@oxy.so/bloom/page-header';
 import { listsService, type MentionList } from '@/services/listsService';
 import { entityFollowService } from '@/services/entityFollowService';
 import { subscribeToListChanges } from '@/services/listMutations';
-import { router, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect } from '@/lib/navigation/router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import { SEO } from '@/components/SEO';
@@ -44,6 +44,7 @@ function toListCardData(list: MentionList): ListCardData {
 }
 
 function ListsScreen() {
+  const router = useRouter();
   const { t } = useTranslation();
   const safeBack = useSafeBack();
   const { canUsePrivateApi, user } = useAuth();

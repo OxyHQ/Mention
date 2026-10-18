@@ -1,3 +1,4 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { memo, useCallback, useState } from 'react';
 import { FlatList, Text, View } from 'react-native';
 import { Image } from 'expo-image';
@@ -5,7 +6,6 @@ import { useTranslation } from 'react-i18next';
 import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { Item } from '@oxy.so/bloom/item';
-import { Loading } from '@oxy.so/bloom/loading';
 import { Search } from '@oxy.so/bloom/search';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useInfiniteCatalogSearch, ResultsFooter } from '@/hooks/useInfiniteCatalogSearch';
@@ -106,9 +106,7 @@ const PodcastPickerSheet = memo(function PodcastPickerSheet({
       {/* Results */}
       <View className="mt-2 min-h-[120px]">
         {search.isLoading ? (
-          <View className="items-center justify-center py-10">
-            <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
-          </View>
+          <ListSkeleton />
         ) : search.isError ? (
           <Text className="text-muted-foreground text-[15px] text-center py-10">
             {t('compose.podcast.searchError')}

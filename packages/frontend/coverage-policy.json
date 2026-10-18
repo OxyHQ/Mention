@@ -108,8 +108,7 @@
     "federation-facing UI state": [
       "utils/externalActor.ts",
       "hooks/useExternalActorResolve.ts",
-      "hooks/useMentionNode.ts",
-      "hooks/useFediversePreferredLanguage.ts"
+      "hooks/useMentionNode.ts"
     ],
     "deep links and share intents": [
       "utils/composeIntent.ts",
@@ -163,11 +162,6 @@
       "measured": "0%",
       "reason": "No direct test. Self-hosted node pairing state; low traffic, but it is federation-facing state as the issue defines it."
     },
-    "hooks/useFediversePreferredLanguage.ts": {
-      "since": "2026-08-15",
-      "measured": "0%",
-      "reason": "No direct test. Reads and writes a consent-adjacent Oxy setting."
-    },
     "lib/shareIntent.ts": {
       "since": "2026-08-15",
       "measured": "0% statements",
@@ -203,6 +197,12 @@
     },
     "lib/socketBfcache.web.ts": {
       "reason": "Web-only fork, no direct test; jest resolves lib/socketBfcache.native.ts instead."
+    },
+    "lib/navigation/router.ts": {
+      "reason": "Pure platform export barrel with no executable app logic. Native delegates to Expo Router; web delegates to Bloom panel routing, whose navigation behavior is covered by Bloom tests and Mention Deck browser tests."
+    },
+    "lib/navigation/router.web.ts": {
+      "reason": "Pure platform export barrel with no executable app logic. Native delegates to Expo Router; web delegates to Bloom panel routing, whose navigation behavior is covered by Bloom tests and Mention Deck browser tests."
     }
   },
   "$comment:jestOwnedThresholds": [
@@ -240,11 +240,11 @@
     "one defensible line at a time, and a bound cannot tell growth from shrinkage."
   ],
   "expectedCounts": {
-    "domainFiles": 297,
-    "pins": 294,
-    "unenforceable": 3,
-    "belowBarExemptions": 9,
-    "criticalPaths": 35,
+    "domainFiles": 300,
+    "pins": 295,
+    "unenforceable": 5,
+    "belowBarExemptions": 8,
+    "criticalPaths": 34,
     "allowedBaselineDecreases": 0,
     "snapshotAssertions": 0
   }

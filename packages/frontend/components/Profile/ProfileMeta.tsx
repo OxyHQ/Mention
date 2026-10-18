@@ -1,6 +1,6 @@
 import { memo, useCallback } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { LocationIcon } from '@/assets/icons/location-icon';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
@@ -16,6 +16,7 @@ export const ProfileMeta = memo(function ProfileMeta({
   createdAt,
   aboutHref,
 }: ProfileMetaProps) {
+  const router = useRouter();
   const { t } = useTranslation();
 
   const hasLocation = Boolean(location);
@@ -30,7 +31,7 @@ export const ProfileMeta = memo(function ProfileMeta({
 
   const openAbout = useCallback(() => {
     if (aboutHref) router.push(aboutHref);
-  }, [aboutHref]);
+  }, [aboutHref, router]);
 
   if (!hasLocation && !hasJoinDate) {
     return null;

@@ -13,12 +13,21 @@ for (const viewport of [
     await expect(page.getByText('No video posts yet', { exact: true })).toBeVisible();
     const screen = page.getByTestId('videos-screen');
     const status = page.getByTestId('videos-status');
+    const panel = page.getByTestId('mention-shell-panels-main');
     await expect
-      .poll(async () => (await screen.boundingBox())?.height ?? 0)
-      .toBeGreaterThanOrEqual(viewport.height);
+      .poll(async () => {
+        const area = await panel.boundingBox();
+        const content = await status.boundingBox();
+        return area && content ? Math.abs(area.height - content.height) : Infinity;
+      })
+      .toBeLessThan(2);
     await expect
-      .poll(async () => (await status.boundingBox())?.height ?? 0)
-      .toBeGreaterThanOrEqual(viewport.height);
+      .poll(() =>
+        page.evaluate(
+          () => document.scrollingElement!.scrollHeight - document.scrollingElement!.clientHeight,
+        ),
+      )
+      .toBe(0);
     const bounds = await screen.boundingBox();
     const selector = await page.getByRole('radiogroup').boundingBox();
     expect(bounds).not.toBeNull();

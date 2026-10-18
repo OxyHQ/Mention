@@ -2,9 +2,8 @@ import type React from 'react';
 import { useState, useCallback, useMemo } from 'react';
 import { View, TouchableOpacity } from 'react-native';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
-import { Loading } from '@oxy.so/bloom/loading';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Text } from '@oxy.so/bloom/typography';
@@ -510,15 +509,11 @@ const NotificationsScreen: React.FC = () => {
 
   const renderContent = () => {
     // Auth cold-boot: the SSO restore can take several seconds. Show a
-    // spinner until auth is resolved, then either prompt to sign in or
+    // skeleton until auth is resolved, then either prompt to sign in or
     // render the list — gated on `canUsePrivateApi`, never bare
     // `isAuthenticated` (pattern from settings/fediverse/index.tsx).
     if (!isAuthResolved || isPrivateApiPending) {
-      return (
-        <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
-      );
+      return <NotificationSkeleton />;
     }
 
     if (!canUsePrivateApi) {

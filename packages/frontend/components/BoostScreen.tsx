@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import type React from 'react';
 import { useState, useRef, useEffect } from 'react';

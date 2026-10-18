@@ -1,10 +1,10 @@
+import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView, Platform } from 'react-native';
-import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Text } from '@oxy.so/bloom/typography';
-import { useLocalSearchParams, useFocusEffect, router } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from '@/lib/navigation/router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import { starterPacksService } from '@/services/starterPacksService';
@@ -41,6 +41,7 @@ interface StarterPackDetail {
 }
 
 export default function StarterPackDetailScreen() {
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
   const { user } = useAuth();
@@ -107,7 +108,7 @@ export default function StarterPackDetailScreen() {
 
   const handleEdit = useCallback(() => {
     router.push(`/starter-packs/${String(id)}/edit`);
-  }, [id]);
+  }, [id, router]);
 
   const avatarItems = useMemo<AvatarGroupItem[]>(
     () =>
@@ -236,9 +237,7 @@ export default function StarterPackDetailScreen() {
             <Text className="text-destructive">{error}</Text>
           </View>
         ) : loading ? (
-          <View className="flex-1 items-center justify-center">
-            <SpinnerIcon size={28} className="text-primary" />
-          </View>
+          <DetailSkeleton />
         ) : pack ? (
           // WEB hands scroll to the shared panel/document (no nested scroller that
           // would break sticky rails + window scroll restoration); NATIVE keeps a

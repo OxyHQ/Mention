@@ -1,6 +1,6 @@
 import { View, StyleSheet } from 'react-native';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { Text } from '@oxy.so/bloom/typography';
 import { Avatar } from '@oxy.so/bloom/avatar';

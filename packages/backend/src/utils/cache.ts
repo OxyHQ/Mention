@@ -142,6 +142,9 @@ export interface Cache {
  */
 let nonArrayReplyWarned = false;
 
+/** A cache may cost at most one second of Redis time before using its source of truth. */
+const CACHE_REDIS_DEADLINE_MS = 1_000;
+
 function reportNonArrayMgetReply(name: string, reply: unknown, keyCount: number): void {
   logger.debug(`[${name}] mGet returned a non-array reply; treating as cache miss`, {
     replyType: typeof reply,
@@ -193,17 +196,35 @@ export function createCache(config: CacheConfig): Cache {
    * Run a Redis operation under the fail-open contract. The shared client is
    * connected and recovered by its own supervisor, so a hot path never PINGs,
    * connects, or waits for a cooldown — an unready client is simply a miss.
+   * A ready socket can still stop answering. Bound the whole operation (including
+   * every write batch), then let the supervisor destroy/recover that connection.
+   * node-redis 6's native timeout only covers the send queue and its pipeline
+   * API does not forward commandOptions, so it cannot bound response latency.
    */
   async function withFallback<T>(
     operation: string,
     fallback: T,
-    run: (client: ReturnType<typeof getRedisClient>) => Promise<T>,
+    run: (client: ReturnType<typeof getRedisClient>, signal: AbortSignal) => Promise<T>,
   ): Promise<T> {
     const client = getRedisClient();
     if (!client.isReady) return fallback;
 
+    const controller = new AbortController();
+    let deadline: ReturnType<typeof setTimeout> | undefined;
     try {
-      return await run(client);
+      const expired = new Promise<never>((_, reject) => {
+        deadline = setTimeout(() => {
+          const error = Object.assign(new Error('Redis cache response deadline exceeded'), {
+            code: 'ETIMEDOUT',
+          });
+          // Stop later pipeline batches even if the current batch settles late.
+          // The catch below destroys the supervised socket, releasing all of its
+          // queued/in-flight commands instead of abandoning a live operation.
+          controller.abort(error);
+          reject(error);
+        }, CACHE_REDIS_DEADLINE_MS);
+      });
+      return await Promise.race([run(client, controller.signal), expired]);
     } catch (error: unknown) {
       const reason = error instanceof Error ? error.message : 'unknown';
       if (isRedisConnectionError(error)) {
@@ -213,6 +234,8 @@ export function createCache(config: CacheConfig): Cache {
         logger.warn(`[${name}] ${operation} failed`, { reason });
       }
       return fallback;
+    } finally {
+      if (deadline !== undefined) clearTimeout(deadline);
     }
   }
 
@@ -342,12 +365,13 @@ export function createCache(config: CacheConfig): Cache {
       const pairs = [...entries];
       if (pairs.length === 0) return;
 
-      await withFallback('mSet', undefined, async (client) => {
+      await withFallback('mSet', undefined, async (client, signal) => {
         // Bounded pipelines, never one MULTI: see `setExInBatches`.
         await setExInBatches(
           client,
           pairs.map(([key, value]) => [key, encode(value)] as const),
           ttl,
+          signal,
         );
       });
     },

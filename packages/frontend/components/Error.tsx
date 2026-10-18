@@ -1,5 +1,5 @@
 import { StyleSheet, View, type ViewStyle } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { Button } from '@oxy.so/bloom/button';
 import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

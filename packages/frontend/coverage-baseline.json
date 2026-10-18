@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 45.56,
-      "covered": 12451,
-      "total": 27324
+      "pct": 46.26,
+      "covered": 12875,
+      "total": 27831
     },
     "branches": {
-      "pct": 40.98,
-      "covered": 8174,
-      "total": 19946
+      "pct": 41.75,
+      "covered": 8532,
+      "total": 20432
     },
     "functions": {
-      "pct": 40.65,
-      "covered": 2870,
-      "total": 7060
+      "pct": 41.17,
+      "covered": 2972,
+      "total": 7218
     },
     "lines": {
-      "pct": 46.31,
-      "covered": 11329,
-      "total": 24463
+      "pct": 47.05,
+      "covered": 11707,
+      "total": 24879
     }
   },
   "pins": {
@@ -287,12 +287,6 @@
       "functions": 0,
       "lines": 0
     },
-    "hooks/useFediversePreferredLanguage.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
     "hooks/useFeedModules.ts": {
       "statements": 0,
       "branches": 100,
@@ -449,6 +443,12 @@
       "functions": 0,
       "lines": 0
     },
+    "hooks/useOwnerVirtualizer.web.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "hooks/usePipAspectRatio.ts": {
       "statements": 100,
       "branches": 100,
@@ -552,10 +552,10 @@
       "lines": 100
     },
     "hooks/useProfileScreenColor.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 61,
+      "branches": 50,
+      "functions": 50,
+      "lines": 60
     },
     "hooks/useProfileSongPreview.ts": {
       "statements": 0,
@@ -1134,10 +1134,10 @@
       "lines": 0
     },
     "services/feedService.ts": {
-      "statements": 47,
-      "branches": 37,
-      "functions": 41,
-      "lines": 50
+      "statements": 50,
+      "branches": 40,
+      "functions": 42,
+      "lines": 51
     },
     "services/feedTuningService.ts": {
       "statements": 0,
@@ -1254,10 +1254,10 @@
       "lines": 77
     },
     "services/socketService.ts": {
-      "statements": 60,
-      "branches": 42,
-      "functions": 57,
-      "lines": 63
+      "statements": 62,
+      "branches": 45,
+      "functions": 60,
+      "lines": 65
     },
     "services/starterPacksService.ts": {
       "statements": 0,
@@ -1566,10 +1566,10 @@
       "lines": 96
     },
     "utils/feedUtils.ts": {
-      "statements": 91,
-      "branches": 82,
+      "statements": 92,
+      "branches": 85,
       "functions": 100,
-      "lines": 94
+      "lines": 95
     },
     "utils/forYouTuning.ts": {
       "statements": 100,
@@ -1736,6 +1736,12 @@
     "utils/replyContextRow.ts": {
       "statements": 100,
       "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "utils/resolveMention.ts": {
+      "statements": 91,
+      "branches": 88,
       "functions": 100,
       "lines": 100
     },

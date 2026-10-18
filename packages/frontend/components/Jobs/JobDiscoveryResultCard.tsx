@@ -1,7 +1,7 @@
-import type { Href } from 'expo-router';
+import type { Href } from '@/lib/navigation/router';
 import { memo, useCallback, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Card } from '@oxy.so/bloom/card';
@@ -195,6 +195,7 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
   onToggleSave,
   onReport,
 }: JobDiscoveryResultCardProps) {
+  const router = useRouter();
   const { t } = useTranslation();
   const theme = useTheme();
   const vocabulary = useJobVocabulary();
@@ -210,7 +211,7 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
     void openExternalLink(
       job.source.applyUrl || job.applyUrl || job.source.canonicalUrl || job.canonicalUrl,
     );
-  }, [appPath, job]);
+  }, [appPath, job, router]);
 
   const share = useCallback(() => {
     void shareLink({

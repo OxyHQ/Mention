@@ -1,5 +1,5 @@
+import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import { lazy, Suspense } from 'react';
-import { Loading } from '@oxy.so/bloom/loading';
 import type { VideoRepliesProps } from './VideoReplies';
 
 // The one async boundary for the replies panel. `RightBar` renders on every
@@ -13,7 +13,7 @@ const VideoReplies = lazy(() =>
 
 export function LazyVideoReplies(props: VideoRepliesProps) {
   return (
-    <Suspense fallback={<Loading />}>
+    <Suspense fallback={<FeedSkeleton />}>
       <VideoReplies {...props} />
     </Suspense>
   );

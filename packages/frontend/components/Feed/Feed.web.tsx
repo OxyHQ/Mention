@@ -1,7 +1,9 @@
+import { usePanelScrollContainer } from '@oxy.so/bloom/app-shell/hooks';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, memo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useWindowVirtualizer } from '@tanstack/react-virtual';
+import { useOwnerVirtualizer } from '@/hooks/useOwnerVirtualizer.web';
+import { useScreenViewport } from '@oxy.so/bloom/screen';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
 import { useRevealOwnNewPost } from '@/hooks/useRevealOwnNewPost';
 import { getItemKey } from '@/utils/feedUtils';
@@ -95,9 +97,6 @@ function EmbeddedWebFeed(props: FeedProps) {
  * their page header/tab bar as `listHeaderComponent`, so the document scroll
  * still owns the one virtualized list (mirrors native's `ListHeaderComponent`).
  */
-function scrollWindowToTop(): void {
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
 
 function VirtualizedWebFeed(props: FeedProps) {
   // DECLARED, not inherited. The long note at `getVirtualItems()` below explains
@@ -112,6 +111,12 @@ function VirtualizedWebFeed(props: FeedProps) {
   // way. The ref reads stay exactly as they are; this only makes the intent
   // load-bearing instead of accidental.
   'use no memo';
+  const panel = usePanelScrollContainer<HTMLElement>();
+  const screenViewport = useScreenViewport();
+  const scrollOwnerToTop = useCallback(
+    () => (panel?.current ?? window).scrollTo({ top: 0, behavior: 'smooth' }),
+    [panel],
+  );
 
   const core = useFeedCore(props);
   const {
@@ -145,7 +150,7 @@ function VirtualizedWebFeed(props: FeedProps) {
 
   const count = feedRows.length;
 
-  const virtualizer = useWindowVirtualizer<HTMLDivElement>({
+  const virtualizer = useOwnerVirtualizer<HTMLDivElement>({
     count,
     estimateSize: () => ESTIMATED_ROW_HEIGHT,
     overscan: OVERSCAN_ROWS,
@@ -225,11 +230,11 @@ function VirtualizedWebFeed(props: FeedProps) {
           loadMoreRef.current();
         }
       },
-      { root: null, rootMargin: LOAD_MORE_ROOT_MARGIN },
+      { root: panel?.current ?? null, rootMargin: LOAD_MORE_ROOT_MARGIN },
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [count, hasMore]);
+  }, [count, hasMore, panel]);
 
   // Per-row impression observer. A single IntersectionObserver (threshold 50%)
   // watches every mounted row; crossing the threshold marks the row's post
@@ -254,7 +259,7 @@ function VirtualizedWebFeed(props: FeedProps) {
           }
         }
       },
-      { root: null, threshold: [0, IMPRESSION_VISIBILITY_THRESHOLD, 1] },
+      { root: panel?.current ?? null, threshold: [0, IMPRESSION_VISIBILITY_THRESHOLD, 1] },
     );
     impressionObserverRef.current = observer;
     return () => {
@@ -262,7 +267,7 @@ function VirtualizedWebFeed(props: FeedProps) {
       impressionObserverRef.current = null;
     };
     // trackerRef is a stable ref object; the observer reads `.current` live.
-  }, [trackerRef]);
+  }, [trackerRef, panel]);
 
   // Per-row ref factories. Both return a STABLE callback (cached per row) —
   // stability matters, because a fresh inline arrow each render would make React
@@ -323,7 +328,7 @@ function VirtualizedWebFeed(props: FeedProps) {
   // feeds under one navigation entry. Scope the offset to the same stable
   // viewer/feed identity that owns the retained page cache.
   const { restorePending } = useScrollRestoration('window', {
-    enabled: true,
+    enabled: !screenViewport && !panel,
     key: feedState.feedScrollKey,
   });
 
@@ -334,7 +339,7 @@ function VirtualizedWebFeed(props: FeedProps) {
   useRevealOwnNewPost({
     feedKey: feedState.feedScrollKey,
     enabled: !restorePending && count > 0 && receivesOwnNewPost,
-    scrollToTop: scrollWindowToTop,
+    scrollToTop: scrollOwnerToTop,
   });
 
   return (

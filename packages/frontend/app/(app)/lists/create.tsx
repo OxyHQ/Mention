@@ -12,7 +12,7 @@ import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { listsService } from '@/services/listsService';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { logger } from '@oxy.so/core/logger';
 import { useTranslation } from 'react-i18next';
@@ -23,6 +23,7 @@ import type { User } from '@oxy.so/core';
 type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 
 function CreateListScreen() {
+  const router = useRouter();
   const { oxyServices } = useAuth();
   const { t } = useTranslation();
   const safeBack = useSafeBack();
@@ -85,7 +86,7 @@ function CreateListScreen() {
     } finally {
       setSaving(false);
     }
-  }, [title, description, isPublic, members, t]);
+  }, [title, description, isPublic, members, t, router]);
 
   return (
     <View className="flex-1">

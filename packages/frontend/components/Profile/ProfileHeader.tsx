@@ -1,6 +1,7 @@
+import { useScrollOffset } from '@oxy.so/bloom/layout';
 import { memo, useCallback } from 'react';
 import { View } from 'react-native';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import Animated, {
   useDerivedValue,
   useAnimatedStyle,
@@ -16,7 +17,7 @@ import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
 import { Button } from '@oxy.so/bloom/button';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
-import { FrostedIconButton } from '@oxy.so/bloom/frosted-icon-button';
+import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { RiHand } from '@oxy.so/bloom/icons/RiHand';
 import { RiLineChartLine } from '@oxy.so/bloom/icons/RiLineChartLine';
 import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
@@ -45,9 +46,7 @@ const PROFILE_AVATAR_COLLAPSE_TRANSLATE_Y = 16;
  * receive one; the self view exists because a person can be signed in as
  * themselves. A channel satisfies none of those, and gets `ChannelHeader`.
  */
-// Static header actions hoisted to stable module-level refs: FrostedIconButton is
-// memo'd, so fresh inline handlers/icon elements each render would defeat the memo.
-const goInsights = () => router.push('/insights');
+// Settings is an app-level action with no profile-specific dependencies.
 const goSettings = () => requestSettings('/settings');
 
 export const ProfileHeader = memo(function ProfileHeader({
@@ -60,7 +59,10 @@ export const ProfileHeader = memo(function ProfileHeader({
   actorUri,
   isFollowing: initialIsFollowing,
   FollowButtonComponent,
+  interactionActions,
 }: ProfileHeaderProps) {
+  const router = useRouter();
+  const goInsights = useCallback(() => router.push('/insights'), [router]);
   const { t } = useTranslation();
   // The ring cuts the avatar out of the banner, so it is the colour of the
   // surface the summary sits on — not the theme background, which the profile
@@ -75,10 +77,12 @@ export const ProfileHeader = memo(function ProfileHeader({
   useFederatedFollowSync(profileId, isFederated, actorUri);
 
   // Normalized 0 → 1 collapse driver for the avatar shrink, derived on the UI
-  // thread from the shared scroll offset (fed by both the native ScrollView and
-  // the web window-scroll listener via LayoutScrollContext). Maps the first
+  // thread from the current Bloom viewport, so a previous route cannot leave
+  // this avatar collapsed. Maps the first
   // HEADER_HEIGHT_EXPANDED px of scroll to the full shrink; clamped past that.
-  const { scrollPosition } = useLayoutScroll();
+  const { scrollPosition: legacyScrollPosition } = useLayoutScroll();
+  const ownerScrollPosition = useScrollOffset();
+  const scrollPosition = ownerScrollPosition ?? legacyScrollPosition;
   const avatarCollapseProgress = useDerivedValue(() =>
     interpolate(
       scrollPosition.value,
@@ -167,36 +171,43 @@ export const ProfileHeader = memo(function ProfileHeader({
           />
         )}
       </View>
-      <View className="flex-row items-center">
+      <View className="flex-1 min-w-0 ml-3">
         {isOwnProfile && currentUsername === username ? (
-          <View className="flex-row items-center gap-3">
+          <View className="flex-row flex-wrap justify-end items-center gap-2">
             <Button appearance="subtle" tone="neutral" onPress={openEditProfile}>
               {t('profile.editProfile')}
             </Button>
-            <FrostedIconButton
-              size="md"
-              onPress={goInsights}
-              accessibilityLabel="Analytics"
-              icon={RiLineChartLine}
-            />
-            <FrostedIconButton
-              size="md"
-              onPress={goSettings}
-              accessibilityLabel="Settings"
-              icon={RiSettings3Line}
-            />
+            <ButtonGroup testID="profile-owner-actions">
+              <ButtonGroupItem
+                iconOnly
+                onPress={goInsights}
+                accessibilityLabel="Analytics"
+                leadingIcon={RiLineChartLine}
+              />
+              <ButtonGroupItem
+                iconOnly
+                onPress={goSettings}
+                accessibilityLabel="Settings"
+                leadingIcon={RiSettings3Line}
+              />
+            </ButtonGroup>
           </View>
         ) : profileId ? (
-          <View className="flex-row items-center gap-3">
-            {canPoke && (
-              <FrostedIconButton
-                size="md"
-                onPress={togglePoke}
-                disabled={pokeLoading}
-                checked={poked}
-                accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
-                icon={RiHand}
-              />
+          <View className="flex-row flex-wrap justify-end items-center gap-2">
+            {(canPoke || interactionActions) && (
+              <ButtonGroup testID="profile-interaction-actions">
+                {canPoke && (
+                  <ButtonGroupItem
+                    iconOnly
+                    onPress={togglePoke}
+                    disabled={pokeLoading}
+                    checked={poked}
+                    accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
+                    leadingIcon={RiHand}
+                  />
+                )}
+                {interactionActions}
+              </ButtonGroup>
             )}
             {/* Seed from the profile DTO's authoritative viewer relationship so
                 the button paints correctly on first render. When the DTO omits it,

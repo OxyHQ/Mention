@@ -1,9 +1,9 @@
+import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import { useMemo } from 'react';
-import { useLocalSearchParams } from 'expo-router';
-import { Loading } from '@oxy.so/bloom/loading';
+import { useLocalSearchParams } from '@/lib/navigation/router';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
+import { Screen } from '@oxy.so/bloom/screen';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import Feed from '@/components/Feed/Feed';
@@ -87,9 +87,7 @@ export default function PresetFeedViewScreen() {
       // During the cold-boot SSO restore window the session may still land,
       // so wait it out before showing the anonymous prompt.
       if (isPrivateApiPending) {
-        return (
-          <Loading className="text-primary" size="lg" style={{ flex: undefined, marginTop: 60 }} />
-        );
+        return <FeedSkeleton />;
       }
       return (
         <EmptyState
@@ -108,14 +106,18 @@ export default function PresetFeedViewScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1" edges={['bottom']}>
+    <Screen
+      scroll="auto"
+      header={
+        <PageHeader
+          title={headerTitle}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+        />
+      }
+    >
       <SEO title={headerTitle} description={t('seo.feeds.description')} />
-      <PageHeader
-        title={headerTitle}
-        onBack={() => safeBack()}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-      />
       {renderBody()}
-    </SafeAreaView>
+    </Screen>
   );
 }

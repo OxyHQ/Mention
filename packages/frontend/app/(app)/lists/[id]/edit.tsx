@@ -1,7 +1,8 @@
+import { FormSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from '@/lib/navigation/router';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Avatar } from '@oxy.so/bloom/avatar';
@@ -226,9 +227,7 @@ function EditListMembersScreen() {
     return (
       <View className="flex-1">
         {header}
-        <View className="flex-1 items-center justify-center">
-          <SpinnerIcon size={28} className="text-primary" />
-        </View>
+        <FormSkeleton />
       </View>
     );
   }
@@ -268,11 +267,7 @@ function EditListMembersScreen() {
             onClearText={() => runSearch('')}
           />
         </Field>
-        {searching && (
-          <View className="items-center mb-2.5">
-            <SpinnerIcon size={16} className="text-primary" />
-          </View>
-        )}
+        {searching && <ListSkeleton count={2} />}
 
         {results.length > 0 && (
           <Card appearance="outline" radius="radius-12" style={{ marginBottom: 12 }}>

@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from '@/lib/navigation/router';
 import ProfileScreen from '@/components/ProfileScreen';
 import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedProfileUsername';
 

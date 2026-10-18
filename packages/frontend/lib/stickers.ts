@@ -98,7 +98,7 @@ export const EMPTY_STATE_STICKERS = {
 
   // Collections
   saved: ESCAPE_SIPTEA,
-  lists: CATS_FOCUSED,
+  lists: INTROVERT_WAVE,
   starterPacks: BIRD_PARTYTIME,
   /** 🏃 blob-blah-blah (omw) */
   lanes: '01a0eada-9e38-7428-89a9-bcac44aad7ba',

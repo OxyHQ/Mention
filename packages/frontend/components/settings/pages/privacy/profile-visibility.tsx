@@ -1,3 +1,4 @@
+import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type { BloomIcon } from '@/components/settings/RowIcon';
 import { SettingsSelect } from '@/components/settings/SettingsSelect';
@@ -12,7 +13,6 @@ import { authenticatedClient } from '@/utils/api';
 import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
-import { Loading } from '@oxy.so/bloom/loading';
 import { SettingsGeneralPage } from '@oxy.so/bloom/settings-modal';
 import { logger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
@@ -113,9 +113,7 @@ function ProfileVisibilityScreen() {
   if (!isAuthResolved || isPrivateApiPending) {
     return (
       <View className="gap-4">
-        <View className="flex-1 items-center justify-center">
-          <Loading />
-        </View>
+        <SettingsSkeleton />
       </View>
     );
   }
@@ -138,9 +136,7 @@ function ProfileVisibilityScreen() {
   if (loading) {
     return (
       <View className="gap-4">
-        <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
+        <SettingsSkeleton />
       </View>
     );
   }

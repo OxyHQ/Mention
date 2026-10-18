@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useCallback, useState } from 'react';
 import { View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@oxy.so/bloom/hover-card';
 import { UserHoverCard } from '@oxy.so/bloom/user-hover-card';

@@ -1,6 +1,7 @@
+import { FormSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
@@ -8,7 +9,6 @@ import { Card } from '@oxy.so/bloom/card';
 import { Chip } from '@oxy.so/bloom/chip';
 import { Field } from '@oxy.so/bloom/field';
 import { InputGroup, InputGroupAddon } from '@oxy.so/bloom/input-group';
-import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
@@ -31,6 +31,7 @@ import { jobApplicationsService, getJobErrorMessage } from '@/services/jobApplic
  * summary can never drift from what the edit step actually holds.
  */
 export default function JobApplyScreen() {
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const jobId = String(id);
   const { t } = useTranslation();
@@ -148,9 +149,7 @@ export default function JobApplyScreen() {
     return (
       <View className="flex-1">
         {header}
-        <View className="flex-1 items-center justify-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
+        <FormSkeleton />
       </View>
     );
   }

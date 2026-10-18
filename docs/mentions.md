@@ -152,9 +152,15 @@ For an inbound Note:
 4. Matching anchors in `content` and `contentMap` become internal placeholders,
    and the IDs are stored in `Post.mentions`.
 5. Unresolved mention anchors retain their actual HTTP(S) destination as
-   `[@<label>](<sourceUrl>)`; the label includes the visible `@`. The reader opens
-   that source profile externally, without inventing an Oxy identity. This also
-   covers remote Group actors with profile URLs that differ from their actor URI.
+   `[@<label>](<sourceUrl>)`; the label includes the visible `@`. The reader opens an internal resolution route which uses
+   the existing federation resolver to obtain the canonical Oxy identity and
+   redirect to `/@<canonicalHandle>`. This applies to all source profile shapes,
+   including Group actors and opaque actor URLs. If URL discovery returns no
+   identity, an explicit `/@handle` can supply a WebFinger candidate, which must
+   resolve to an Oxy ID before navigation; opaque IDs and visible labels never
+   supply guessed identities. A missing identity or a failed lookup stays inside
+   the app with the normal unavailable/retry state, never an external redirect.
+   Resolution does not alter the stored notification allowlist.
    Invalid destinations remain ordinary text. These labelled links are atomic
    scanner entities and never become document previews.
 

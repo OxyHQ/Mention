@@ -1,5 +1,5 @@
 import type React from 'react';
-import { Redirect } from 'expo-router';
+import { Redirect } from '@/lib/navigation/router';
 import { useAuth } from '@oxy.so/services/ui/client';
 
 import {

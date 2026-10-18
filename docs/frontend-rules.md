@@ -4,6 +4,89 @@ Conventions for the Expo/React Native app beyond the general Oxy/Bloom
 frontend gotchas in `~/Oxy/AGENTS.md`. React Compiler and web
 virtualization findings specifically: `docs/frontend-compiler-notes.md`.
 
+## Modular panels and Deck
+
+See [Deck workspace](./deck-workspace.md) for account-scoped persistence,
+settings, offline/conflict behavior and backend rollout requirements.
+
+The app shell declares its main and context panels through Bloom's
+`AppShell.panelLayout`. Insights sets `expandedPanel: 'main'`, preserving the
+same outer width; Bloom owns visibility, transitions, scrolling and bottom-bar
+clearance. Do not add another app-specific sidebar breakpoint or width animation.
+
+`/deck` uses the same API in `mode: 'deck'` with four resizable columns.
+Its horizontal scroll belongs to the document; each column owns its vertical
+scroll. Bloom preserves the top and bottom gutters around bounded columns.
+The web host keeps `html`, `body` and `#root` at `height: 100%` with visible
+overflow: bounded panels inherit the usable height, excluding classic horizontal
+scrollbars, while document pages can overflow naturally. Do not use `100vh` as
+the host minimum height; it adds the scrollbar height back into Deck.
+Bloom also owns the final inline gutter and the sticky sidebar overlap surface.
+Its shared CSS responds to document scroll; Mention adds no scroll listener or
+route-specific sidebar paint.
+It is available only on web at Bloom's `lg` breakpoint and above; both the sidebar
+entry and direct route use `useDeckAvailable`. Each column has a Bloom memory
+history for all internal routes, with back/forward and restored scroll positions.
+`lib/navigation/router` binds app links, parameters and navigation hooks to
+Bloom’s panel router when embedded on web, and to Expo otherwise. Native
+imports use Expo directly. Screens and nested layouts come from the same app route tree; profiles keep their chrome mounted
+when changing tabs. Use `useRouter()`, never the global `router` singleton in
+reusable screens. Modified clicks retain canonical URLs for new tabs.
+Virtualized lists use the Bloom scroll owner; only that owner restores a panel’s
+history offset. Column reselect, scroll and profile colors are scoped too.
+Each route declares its chrome through `Screen scroll="auto"`, `header` and
+`bottomBar`. The same screen uses document scroll normally and the column owner
+inside Deck. Header actions from the workspace compose into that header: one
+Back button only when history exists and a panel-settings modal, never a second toolbar. The modal persists feed, resizing, appearance and base recipe per panel;
+controlled `panelLayout.widths` persists changes made with the resize handle.
+Deck roots render the actual Explore, preset-feed viewer and Saved routes through
+`PanelRouteSlot`; do not introduce alternate feed or authentication screens in Deck.
+`panelLayout.trailingAction` supplies the end-of-document create-panel action;
+selecting its new `activePanel` reveals it through Bloom. Panel definitions and
+preferences persist in `deckSettings`; app code does not measure their geometry.
+Live feed refresh is opt-in per panel. `FeedUpdatePolicyProvider` reuses the
+existing authenticated socket's invalidation events and the screen's authorized
+HTTP refresh. Bursts coalesce; reading/hidden-document pauses retain a pending
+refresh. Saved keeps its existing bookmark query synchronization. No panel creates
+its own transport or renders a post body from a broadcast. Feed uses the
+existing owner and keeps its ordinary virtualization and pagination.
+
+Profiles declare `Screen.colorPreset`; Bloom scopes the surface, outer border,
+header and scrollbar to that panel and restores its recipe on exit. Do not
+reintroduce a global screen-color context or route-name checks. HeaderDock reads
+Bloom's owner metrics on web; a listener attached to a previous route's DOM node
+cannot drive the current header. Native lists supply their existing shared offset.
+
+Videos uses Bloom `ScreenPager` for viewport-sized pages and CSS scroll snapping.
+The Screen owns available height and navigation clearance. Do not set document
+snap styles or window-sized item heights in the app. Scrollbars belong to Bloom's
+scroll owners, including the horizontal document scrollbar in Deck.
+
+## Loading screens
+
+Render the screen header and scroll owner immediately. First reads use the matching
+content skeleton (posts, profile, notifications, lists, forms, media or insights),
+composed from Bloom primitives in `components/loading/ContentSkeleton.tsx` and the
+existing domain skeletons. `Skeleton.Region` owns one accessible busy announcement
+and one shared, reduced-motion-aware shimmer; do not add app animation timers.
+Keep cached content on screen while refreshing and append skeleton rows only when
+paging. Authentication gates still wait for a resolved, usable session before
+revealing private content. Spinners belong to actions and media buffering, not
+initial screen reads. The pre-theme font splash retains only the brand mark.
+
+Deck's Metro route context is synchronous: resolve its modules when rendered,
+without wrapping already available screens in `React.lazy`/`Promise.resolve`.
+Actual lazy descendants may still use the panel's Suspense skeleton. The slow-read
+Deck regression holds a topic response, checks the skeleton and working Back
+button, then checks that revisiting renders cached posts without another read.
+
+Feed request deduplication includes viewer generation, page size and normalized
+filters. Scroll identities use the same normalized filters with structured
+serialization, so delimiters inside values and boolean/string values cannot
+confuse separate feeds. A completed request removes only its own in-flight entry;
+older requests cannot erase a newer read after a session change. Caller-owned
+abort signals remain isolated rather than sharing cancellation.
+
 ## Two post-list caches
 
 The saved screen is an ordinary React Query list. Every `<Feed>` surface is a
@@ -32,7 +115,7 @@ and `app/(app)/videos.tsx` both write through the store directly. Client-wide
 - **React Query keys and effect deps MUST include `isAuthenticated` / `user?.id`** — SSO restore takes 5–25 s, and keying on `oxyServices` or `[]` fetches once while anonymous and never recovers. Gate private endpoints on `useAuth().canUsePrivateApi`, not just `isAuthenticated` (`usePrivacyControls`'s infinite-401 pattern). Jest does not reproduce this; verify in a real foregrounded tab.
 - **A virtualized web list must be opted out of the React Compiler EXPLICITLY** (`'use no memo'`) — a stable virtualizer instance's re-renders are internal to the hook, so the compiler freezes `getTotalSize()`/`getVirtualItems()` forever in prod builds only. Do not reason about which shape is safe: compile the file with the app's own `babel-plugin-react-compiler` and read the CompileError/CompileSuccess events. Verify on a PROD build. Detail and the measured `try`/`finally`-bails table: `docs/frontend-compiler-notes.md`.
 - **One feed core, two scrollers.** `Feed.native.tsx` (FlashList) and `Feed.web.tsx` (window virtualizer) differ only in how they virtualize. Data, rows, pagination, retry/refresh, the pinned-post hold, empty/footer states, the header, impression telemetry, the error boundary and memoization live once in `components/Feed/useFeedCore.tsx`. A behaviour change goes there, never into one platform file; `feedCore.test.tsx` fails if a platform file reads feed state, auth or builds rows itself.
-- **`VirtualizedWebFeed`** (`Feed.web.tsx`) is the single scroll-owning path for top-level feed screens, warm-starting a remount from the feed query's cached pages (`hooks/useFeedQuery`); `EmbeddedWebFeed` is for genuinely nested sub-lists only. The `Math.max(totalSize, lastItemEnd)` spacer-size guard stays even though its original cause (a compiler freeze) is gone — cheap insurance. Bloom `AppShell` owns the reading panel, its gutter/masks, document scroll and mobile reveal. `PageHeader` owns route headers; the remaining `PanelStickyFooter` only anchors post-detail replies above shared bottom occupancy. Individual screens own semantic body spacing, never a second page frame.
+- **`VirtualizedWebFeed`** (`Feed.web.tsx`) is the single scroll-owning path for top-level feed screens, warm-starting a remount from the feed query's cached pages (`hooks/useFeedQuery`); `EmbeddedWebFeed` is for genuinely nested sub-lists only. The `Math.max(totalSize, lastItemEnd)` spacer-size guard stays even though its original cause (a compiler freeze) is gone — cheap insurance. Bloom `AppShell` owns the reading panel, its gutter/masks, document scroll and mobile reveal. `Screen.header` owns route headers; `Screen.bottomBar` contains post-detail replies using Bloom `PageFooter`. Individual screens own semantic body spacing, never a second page frame.
 - **ONE retry policy for feed reads, in `utils/feedRetry.ts`.** `services/feedService`
   passes `retry: false` to the SDK linked client and wraps each feed read in
   `withFeedRetry`: 3 requests per failed load, ~500ms/1s with jitter. Do not add

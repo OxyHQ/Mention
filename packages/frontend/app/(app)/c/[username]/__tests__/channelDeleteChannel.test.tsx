@@ -1,3 +1,4 @@
+jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'));
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -81,6 +82,7 @@ jest.mock('@oxy.so/core/logger', () => ({
 }));
 
 jest.mock('expo-router', () => ({
+  useRouter: () => jest.requireMock('expo-router').router,
   useLocalSearchParams: () => ({ username: 'daily' }),
   router: { replace: (...args: unknown[]) => mockReplace(...args) },
 }));

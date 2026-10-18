@@ -1,16 +1,14 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Loading } from '@oxy.so/bloom/loading';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import type {
   FederationBlockCategory,
   FederationBlockSeverity,
   FederationBlocksResponse,
   PublishedFederationBlock,
 } from '@mention/shared-types';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { publicApi } from '@/utils/api';
 import { EmptyState } from '@/components/common/EmptyState';
 
@@ -110,9 +108,8 @@ function BlockCard({ block }: { block: PublishedFederationBlock }) {
   );
 }
 
-export default function TransparencyScreen() {
+export default function TransparencySettingsPage() {
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
 
   const blocksQuery = useQuery({
     queryKey: BLOCKED_DOMAINS_QUERY_KEY,
@@ -126,56 +123,42 @@ export default function TransparencyScreen() {
   const blocks = blocksQuery.data;
 
   return (
-    <View className="flex-1">
-      <PageHeader
-        title={t('transparency.title')}
-        onBack={() => safeBack()}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-      />
+    <View>
+      <Text className="text-2xl font-bold text-foreground">{t('transparency.heading')}</Text>
+      <Paragraph>{t('transparency.intro')}</Paragraph>
+      <Paragraph>{t('transparency.introSource')}</Paragraph>
 
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="px-4 pt-2 pb-12"
-        showsVerticalScrollIndicator={false}
-      >
-        <Text className="text-2xl font-bold text-foreground">{t('transparency.heading')}</Text>
-        <Paragraph>{t('transparency.intro')}</Paragraph>
-        <Paragraph>{t('transparency.introSource')}</Paragraph>
+      <SectionTitle>{t('transparency.whatItDoes.title')}</SectionTitle>
+      <Paragraph>{t('transparency.whatItDoes.body')}</Paragraph>
+      <Paragraph>{t('transparency.whatItDoes.bluntness')}</Paragraph>
+      <Paragraph>{t('transparency.whatItDoes.scope')}</Paragraph>
+      <Paragraph>{t('transparency.whatItDoes.limits')}</Paragraph>
 
-        <SectionTitle>{t('transparency.whatItDoes.title')}</SectionTitle>
-        <Paragraph>{t('transparency.whatItDoes.body')}</Paragraph>
-        <Paragraph>{t('transparency.whatItDoes.bluntness')}</Paragraph>
-        <Paragraph>{t('transparency.whatItDoes.scope')}</Paragraph>
-        <Paragraph>{t('transparency.whatItDoes.limits')}</Paragraph>
+      <SectionTitle>{t('transparency.howWeDecide.title')}</SectionTitle>
+      <Paragraph>{t('transparency.howWeDecide.corroboration')}</Paragraph>
+      <Paragraph>{t('transparency.howWeDecide.judgement')}</Paragraph>
+      <Paragraph>{t('transparency.howWeDecide.audit')}</Paragraph>
 
-        <SectionTitle>{t('transparency.howWeDecide.title')}</SectionTitle>
-        <Paragraph>{t('transparency.howWeDecide.corroboration')}</Paragraph>
-        <Paragraph>{t('transparency.howWeDecide.judgement')}</Paragraph>
-        <Paragraph>{t('transparency.howWeDecide.audit')}</Paragraph>
+      <SectionTitle>{t('transparency.list.title')}</SectionTitle>
 
-        <SectionTitle>{t('transparency.list.title')}</SectionTitle>
-
-        {blocksQuery.isPending ? (
-          <View className="items-center py-10">
-            <Loading />
-          </View>
-        ) : blocksQuery.isError ? (
-          <Paragraph>{t('transparency.list.error')}</Paragraph>
-        ) : blocks && blocks.length > 0 ? (
-          <>
-            <Paragraph>{t('transparency.list.count', { count: blocks.length })}</Paragraph>
-            {blocks.map((block) => (
-              <BlockCard key={block.domain} block={block} />
-            ))}
-          </>
-        ) : (
-          <EmptyState
-            title={t('transparency.list.empty')}
-            sticker="transparency"
-            containerStyle={{ paddingTop: 40 }}
-          />
-        )}
-      </ScrollView>
+      {blocksQuery.isPending ? (
+        <ListSkeleton />
+      ) : blocksQuery.isError ? (
+        <Paragraph>{t('transparency.list.error')}</Paragraph>
+      ) : blocks && blocks.length > 0 ? (
+        <>
+          <Paragraph>{t('transparency.list.count', { count: blocks.length })}</Paragraph>
+          {blocks.map((block) => (
+            <BlockCard key={block.domain} block={block} />
+          ))}
+        </>
+      ) : (
+        <EmptyState
+          title={t('transparency.list.empty')}
+          sticker="transparency"
+          containerStyle={{ paddingTop: 40 }}
+        />
+      )}
     </View>
   );
 }

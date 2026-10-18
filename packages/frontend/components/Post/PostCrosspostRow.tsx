@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import { type GestureResponderEvent, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import Ionicons from '@/components/common/Ionicons';
 import type { CrosspostProvenance } from '@mention/shared-types';
 import { POST_CONTEXT_ROW_HEIGHT } from './postContextRowLayout';

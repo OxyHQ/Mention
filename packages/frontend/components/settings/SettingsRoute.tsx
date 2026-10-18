@@ -1,5 +1,5 @@
 import { useMentionSettings } from '@/context/MentionSettingsContext';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useEffect, useRef } from 'react';
 
 /**

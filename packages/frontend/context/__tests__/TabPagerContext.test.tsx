@@ -42,6 +42,7 @@ const mockRouter = {
 };
 
 jest.mock('expo-router', () => ({
+  useRouter: () => jest.requireMock('expo-router').router,
   usePathname: () => mockPathname,
   get router() {
     return mockRouter;

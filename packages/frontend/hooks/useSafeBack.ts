@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useCallback } from 'react';
 
 export function useSafeBack() {

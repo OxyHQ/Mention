@@ -1,5 +1,5 @@
 import { lazy, Suspense, useContext, useEffect, useMemo } from 'react';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';

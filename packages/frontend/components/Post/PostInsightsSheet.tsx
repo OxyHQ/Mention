@@ -1,25 +1,22 @@
+import { InsightsSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import { Loading } from '@oxy.so/bloom/loading';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { View, StyleSheet, ScrollView } from 'react-native';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Button } from '@oxy.so/bloom/button';
-import { Divider } from '@oxy.so/bloom/divider';
-import { RiChat3Fill } from '@oxy.so/bloom/icons/RiChat3Fill';
+import {
+  BarListCard,
+  ChartCardSurface,
+  ChartHeadline,
+  ChartStatTiles,
+} from '@oxy.so/bloom/chart-cards';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
-import { RiDoubleQuotesL } from '@oxy.so/bloom/icons/RiDoubleQuotesL';
-import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
-import { RiHeartFill } from '@oxy.so/bloom/icons/RiHeartFill';
-import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
-import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
 import { insightsService } from '@/services/insightsService';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/common/EmptyState';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { StatRow } from '@/components/insights/StatRow';
 
 interface PostInsightsSheetProps {
   postId: string | null;
@@ -28,7 +25,6 @@ interface PostInsightsSheetProps {
 
 const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }) => {
   const { t } = useTranslation();
-  const theme = useTheme();
 
   const { user, canUsePrivateApi } = useAuth();
 
@@ -63,9 +59,7 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
     return (
       <View className="flex-1 bg-background">
         {headerEl}
-        <View className="flex-1 justify-center items-center py-12">
-          <Loading className="text-primary" size="lg" />
-        </View>
+        <InsightsSkeleton />
       </View>
     );
   }
@@ -83,8 +77,6 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
   }
 
   const totalInteractions = insights.engagement.totalInteractions;
-  const pct = (n: number) =>
-    totalInteractions > 0 ? `${((n / totalInteractions) * 100).toFixed(1)}%` : undefined;
 
   return (
     <View className="flex-1 bg-background">
@@ -95,111 +87,56 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.contentContainer}
       >
-        {/* Top-line metrics */}
-        <View className="flex-row items-center py-4 mb-2">
-          <View className="flex-1 items-center">
-            <Text
-              className="text-foreground text-[22px] font-extrabold"
-              style={{ letterSpacing: -0.3 }}
-            >
-              {formatCompactNumber(insights.stats.views)}
-            </Text>
-            <Text className="text-muted-foreground text-xs font-medium mt-0.5">
-              {t('insights.post.views')}
-            </Text>
-          </View>
-          <Divider vertical style={styles.metricDivider} />
-          <View className="flex-1 items-center">
-            <Text
-              className="text-foreground text-[22px] font-extrabold"
-              style={{ letterSpacing: -0.3 }}
-            >
-              {insights.engagement.engagementRate.toFixed(1)}%
-            </Text>
-            <Text className="text-muted-foreground text-xs font-medium mt-0.5">
-              {t('insights.post.engagementRate')}
-            </Text>
-          </View>
-          <Divider vertical style={styles.metricDivider} />
-          <View className="flex-1 items-center">
-            <Text
-              className="text-foreground text-[22px] font-extrabold"
-              style={{ letterSpacing: -0.3 }}
-            >
-              {formatCompactNumber(totalInteractions)}
-            </Text>
-            <Text className="text-muted-foreground text-xs font-medium mt-0.5">
-              {t('insights.post.interactions')}
-            </Text>
-          </View>
-        </View>
-
-        {/* Breakdown */}
-        <Text className="text-foreground text-[15px] font-bold mb-3 mt-1">
-          {t('insights.post.interactions')}
-        </Text>
-
-        <StatRow
-          icon={<RiHeartFill width={18} height={18} fill="#FF3040" />}
-          label={t('insights.post.likes')}
-          value={insights.stats.likes}
-          sub={pct(insights.stats.likes)}
-        />
-        <StatRow
-          icon={<RiChat3Fill width={18} height={18} fill={theme.colors.primary} />}
-          label={t('insights.post.replies')}
-          value={insights.stats.replies}
-          sub={pct(insights.stats.replies)}
-        />
-        <StatRow
-          icon={<RiRepeat2Line width={18} height={18} fill={theme.colors.primary} />}
-          label={t('insights.post.boosts')}
-          value={insights.stats.boosts}
-          sub={pct(insights.stats.boosts)}
-        />
-        {insights.stats.shares > 0 && (
-          <StatRow
-            icon={<RiShare2Line width={18} height={18} fill={theme.colors.primary} />}
-            label={t('insights.post.shares')}
-            value={insights.stats.shares}
-            sub={pct(insights.stats.shares)}
+        <ChartCardSurface height="auto" testID="post-insights-summary">
+          <ChartHeadline
+            label={t('insights.post.views')}
+            value={insights.stats.views}
+            format={formatCompactNumber}
           />
-        )}
-        {insights.stats.quotes > 0 && (
-          <StatRow
-            icon={<RiDoubleQuotesL width={18} height={18} fill={theme.colors.primary} />}
-            label={t('insights.post.quotes')}
-            value={insights.stats.quotes}
-            sub={pct(insights.stats.quotes)}
-            showDivider={false}
+          <ChartStatTiles
+            items={[
+              {
+                label: t('insights.post.engagementRate'),
+                value: `${insights.engagement.engagementRate.toFixed(1)}%`,
+              },
+              {
+                label: t('insights.post.interactions'),
+                value: formatCompactNumber(totalInteractions),
+              },
+              ...(insights.engagement.reach > 0
+                ? [
+                    {
+                      label: t('insights.post.reach'),
+                      value: formatCompactNumber(insights.engagement.reach),
+                    },
+                  ]
+                : []),
+            ]}
           />
-        )}
-
-        {insights.engagement.reach > 0 && (
-          <>
-            <Text className="text-foreground text-[15px] font-bold mb-3 mt-5">
-              {t('insights.post.reach')}
-            </Text>
-            <StatRow
-              icon={<RiGroupFill width={18} height={18} fill={theme.colors.primary} />}
-              label={t('insights.post.reach')}
-              value={insights.engagement.reach}
-              showDivider={false}
-            />
-          </>
-        )}
+        </ChartCardSurface>
+        <BarListCard
+          testID="post-insights-interactions"
+          title={t('insights.post.interactions')}
+          metricLabel={t('insights.post.interactions')}
+          metric="value"
+          showShares
+          format={formatCompactNumber}
+          items={[
+            { label: t('insights.post.likes'), value: insights.stats.likes },
+            { label: t('insights.post.replies'), value: insights.stats.replies },
+            { label: t('insights.post.boosts'), value: insights.stats.boosts },
+            { label: t('insights.post.shares'), value: insights.stats.shares },
+            { label: t('insights.post.quotes'), value: insights.stats.quotes },
+          ]}
+        />
       </ScrollView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  // A vertical `Divider` stretches to its row; the figures' rule is shorter.
-  metricDivider: {
-    height: 28,
-    alignSelf: 'center',
-  },
   contentContainer: {
+    gap: 16,
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 24,

@@ -2,7 +2,7 @@ import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { ProfileStats } from '../ProfileStats';
 
-jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));

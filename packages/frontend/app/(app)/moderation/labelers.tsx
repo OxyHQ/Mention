@@ -1,3 +1,4 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -16,7 +17,7 @@ import { PageHeader } from '@oxy.so/bloom/page-header';
 import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
 import { Search } from '@oxy.so/bloom/search';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
@@ -48,6 +49,7 @@ interface LabelerCardProps {
 }
 
 const LabelerCard = React.memo(({ labeler, onSubscribeToggle, subscribing }: LabelerCardProps) => {
+  const router = useRouter();
   const theme = useTheme();
   const { t } = useTranslation();
 
@@ -287,9 +289,7 @@ const LabelersScreen: React.FC = () => {
       </View>
 
       {isLoading ? (
-        <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
+        <ListSkeleton />
       ) : IS_WEB ? (
         // WEB: the document (body) is the scroller — the shell owns scroll, so
         // the list renders in normal flow. A FlatList here would nest a second

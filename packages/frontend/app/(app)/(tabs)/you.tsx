@@ -1,8 +1,7 @@
-import { View } from 'react-native';
+import { ProfileSkeleton } from '@/components/Profile/ProfileSkeleton';
 import { useTranslation } from 'react-i18next';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 
-import { Loading } from '@oxy.so/bloom/loading';
 import ProfileScreen from '@/components/ProfileScreen';
 
 /**
@@ -39,11 +38,7 @@ export default function YouTab() {
   // would flash the sign-in prompt at a viewer whose session is about to
   // return. Same rule as the anon CTA in `app/(app)/_layout.tsx`.
   if (!isAuthResolved) {
-    return (
-      <View className="flex-1 justify-center items-center">
-        <Loading className="text-primary" size="lg" />
-      </View>
-    );
+    return <ProfileSkeleton />;
   }
 
   if (!isAuthenticated || !user?.username) {

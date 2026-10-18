@@ -1,3 +1,4 @@
+import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, FlatList } from 'react-native';
@@ -384,11 +385,7 @@ const DraftsList: React.FC<DraftsListProps> = ({
   );
 
   if (isLoading) {
-    return (
-      <View className="flex-1 justify-center items-center py-12">
-        <Loading className="text-primary" size="lg" />
-      </View>
-    );
+    return <FeedSkeleton />;
   }
 
   // The account half reports beside the rows rather than instead of them: a
@@ -405,9 +402,7 @@ const DraftsList: React.FC<DraftsListProps> = ({
       </Button>
     </View>
   ) : serverLoading ? (
-    <View className="items-center py-4">
-      <Loading className="text-primary" variant="inline" size="sm" style={{ flex: undefined }} />
-    </View>
+    <FeedSkeleton count={2} />
   ) : null;
 
   if (items.length === 0 && serverStatus === null) {

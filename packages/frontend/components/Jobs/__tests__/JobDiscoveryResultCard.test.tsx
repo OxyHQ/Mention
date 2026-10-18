@@ -8,6 +8,7 @@ import type { JobSearchResult } from '@mention/shared-types/job';
 
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
+  useRouter: () => jest.requireMock('expo-router').router,
   router: { push: (...args: unknown[]) => mockPush(...args) },
 }));
 

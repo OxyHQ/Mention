@@ -1,77 +1,34 @@
 import { memo } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { View } from 'react-native';
 
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { present, type SurfaceControls } from '@oxy.so/bloom/surfaces';
 
 import { buildMenuGroups, type ActionMenuAction } from '@/components/common/actionMenuGroups';
-import { cn } from '@/lib/utils';
 
 interface ActionMenuGroupProps {
   actions: ActionMenuAction[];
 }
 
-/**
- * One row of an action menu. Grouped rows share a rounded card: only the first
- * and last corners are round, and a hairline gap separates the rows — the iOS
- * grouped-list shape the post menu established.
- */
-const ActionMenuRow = memo(function ActionMenuRow({
-  action,
-  isFirst,
-  isLast,
-}: {
-  action: ActionMenuAction;
-  isFirst: boolean;
-  isLast: boolean;
-}) {
-  return (
-    <TouchableOpacity
-      className="bg-surface flex-row items-center justify-between py-3 px-3.5"
-      style={{
-        borderTopLeftRadius: isFirst ? 16 : 0,
-        borderTopRightRadius: isFirst ? 16 : 0,
-        borderBottomLeftRadius: isLast ? 16 : 0,
-        borderBottomRightRadius: isLast ? 16 : 0,
-        marginBottom: isLast ? 0 : 4,
-      }}
-      onPress={action.onPress}
-      activeOpacity={0.7}
-      accessibilityRole="button"
-      accessibilityLabel={action.label}
-    >
-      <Text
-        className={cn('text-base font-medium', !action.color && 'text-foreground')}
-        style={action.color ? { color: action.color } : undefined}
-      >
-        {action.label}
-      </Text>
-      <View className="ml-3">{action.icon}</View>
-    </TouchableOpacity>
-  );
-});
-
-/**
- * A group of related actions inside an action menu.
- *
- * The post menu and the profile menu are the same surface and must look it —
- * they used to be two implementations, and the profile one (bare full-width
- * buttons on the sheet background, no grouping) was visibly the poor relation.
- * Compose a menu from one or more groups; each renders as its own card.
- */
+/** Related actions rendered with Bloom's shared grouped-section styling. */
 export const ActionMenuGroup = memo(function ActionMenuGroup({ actions }: ActionMenuGroupProps) {
   if (actions.length === 0) return null;
 
   return (
-    <View className="mb-1">
-      {actions.map((action, index) => (
-        <ActionMenuRow
+    <GroupedSection>
+      {actions.map((action) => (
+        <GroupedSectionItem
           key={action.label}
-          action={action}
-          isFirst={index === 0}
-          isLast={index === actions.length - 1}
+          title={action.label}
+          titleNumberOfLines={0}
+          rightElement={action.icon}
+          showChevron={false}
+          destructive={Boolean(action.color)}
+          onPress={action.onPress}
+          accessibilityLabel={action.label}
         />
       ))}
-    </View>
+    </GroupedSection>
   );
 });
 

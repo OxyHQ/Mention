@@ -14,7 +14,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { Text } from '@oxy.so/bloom/typography';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { formatCompactNumber } from '@/utils/formatNumber';
@@ -71,6 +71,7 @@ const MAX_ROW_AVATARS = 6;
  * - Falls back to the starter-pack mark when no member avatars available
  */
 export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCardProps) {
+  const router = useRouter();
   const theme = useTheme();
   const { user } = useAuth();
 
@@ -87,7 +88,7 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
     if (href && !isOwner) {
       router.push(href);
     }
-  }, [pack.creator?.username, isOwner]);
+  }, [pack.creator?.username, isOwner, router]);
 
   const accessibilityLabel = useMemo(() => {
     const parts = [pack.name];

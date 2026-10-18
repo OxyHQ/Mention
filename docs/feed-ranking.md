@@ -343,3 +343,18 @@ controller and migrated database, with simulated Oxy identities, at 1440 px and
 1026/1011 ms. Both layouts fetched and rendered the next page without script
 errors. This verifies the changed backend's browser integration, not native-device
 or production-network performance.
+
+## Reader languages from Oxy
+
+Authenticated feed requests read the viewer's ordered `languages` through the
+session-scoped SDK `users.me()` call. Oxy's public `/users/by-ids` projection
+omits this preference, so the shared author-summary cache cannot supply it.
+The owner ID must match the feed viewer, and the private response is not stored
+in that public cache. Feed loading, custom feeds and the new-posts check use
+this same reader-language loader.
+
+All account languages participate in discovery eligibility (any base-language
+overlap). The three-language cap applies only to request-header/query fallbacks,
+not the Oxy account list. If the owner read is unavailable, the request languages
+remain the fallback. Following sources intentionally preserve posts from accounts
+the reader follows, regardless of language.

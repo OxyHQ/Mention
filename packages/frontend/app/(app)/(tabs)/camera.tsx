@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { View } from 'react-native';
-import { router, useIsFocused } from 'expo-router';
+import { useRouter, useIsFocused } from '@/lib/navigation/router';
 import { logger } from '@oxy.so/core/logger';
 
 import { CameraCapture } from '@/components/Camera/CameraCapture';
@@ -55,6 +55,7 @@ import { buildCapturePost } from '@/utils/postBuilder';
  * open the composer with something already in it.
  */
 export default function CameraPage() {
+  const router = useRouter();
   const isFocused = useIsFocused();
   const [capture, setCapture] = useState<LocalCapture | null>(null);
   const { upload, busy: uploading, failed: uploadFailed, reset } = useCaptureUpload();
@@ -126,7 +127,7 @@ export default function CameraPage() {
       working.current = false;
       setPublishing(false);
     }
-  }, [capture, upload, clearCapture]);
+  }, [capture, upload, clearCapture, router]);
 
   if (capture) {
     return (

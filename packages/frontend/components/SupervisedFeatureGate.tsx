@@ -1,6 +1,6 @@
+import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Loading } from '@oxy.so/bloom/loading';
 import { EmptyState } from '@/components/common/EmptyState';
 import { useSupervisionState } from '@/hooks/useSupervisionState';
 
@@ -27,7 +27,7 @@ export function SupervisedFeatureGate({
         }}
       />
     );
-  if (!state.ready) return <Loading />;
+  if (!state.ready) return <DetailSkeleton />;
   if (state.supervised && !allowSupervised)
     return (
       <EmptyState

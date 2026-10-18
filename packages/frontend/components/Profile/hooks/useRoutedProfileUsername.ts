@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from '@/lib/navigation/router';
 
 /**
  * The handle the URL names, with its leading `@` stripped.

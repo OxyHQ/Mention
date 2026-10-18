@@ -80,9 +80,7 @@ describe('every route a settings screen navigates to exists', () => {
     // …and the routes they replaced are gone, with no compatibility stub.
     expect(knownRoutes.has('/settings/node')).toBe(false);
 
-    // Transparency stays a public top-level route the hub links to, rather than
-    // a settings subscreen, because it is addressed to people who are not
-    // signed in and gets cited by URL.
-    expect(knownRoutes.has('/transparency')).toBe(true);
+    expect(knownRoutes.has('/settings/fediverse/transparency')).toBe(true);
+    expect(knownRoutes.has('/transparency')).toBe(false);
   });
 });

@@ -1,3 +1,4 @@
+import { FormSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import {
   createContext,
@@ -9,7 +10,6 @@ import {
   useState,
 } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
-import { Loading } from '@oxy.so/bloom/loading';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
@@ -964,9 +964,7 @@ export function FeedBuilder({
         })}
       >
         {catalogLoading || !catalog ? (
-          <View className="flex-1 items-center justify-center">
-            <Loading className="text-primary" size="lg" />
-          </View>
+          <FormSkeleton />
         ) : (
           <ChipDraftContext.Provider value={chipDraftStore}>
             <ScrollView

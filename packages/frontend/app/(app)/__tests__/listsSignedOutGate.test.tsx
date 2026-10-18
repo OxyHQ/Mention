@@ -59,7 +59,11 @@ jest.mock('@/services/entityFollowService', () => ({
   entityFollowService: { getFollowing: jest.fn().mockResolvedValue({ items: [] }) },
 }));
 jest.mock('@/services/listMutations', () => ({ subscribeToListChanges: () => () => {} }));
-jest.mock('expo-router', () => ({ router: { push: jest.fn() }, useFocusEffect: () => {} }));
+jest.mock('expo-router', () => ({
+  useRouter: () => jest.requireMock('expo-router').router,
+  router: { push: jest.fn() },
+  useFocusEffect: () => {},
+}));
 jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({

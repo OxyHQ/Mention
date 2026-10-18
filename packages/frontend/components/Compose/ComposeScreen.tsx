@@ -1,3 +1,4 @@
+import { FeedSkeleton, FormSkeleton } from '@/components/loading/ContentSkeleton';
 import { homiioCaseFromText } from '@mention/shared-types/homiio';
 import { HomiioCaseCard } from '@/components/Post/Attachments/HomiioCaseCard';
 import { useSupervisionState } from '@/hooks/useSupervisionState';
@@ -8,18 +9,17 @@ import { View, Text, TouchableOpacity, Pressable, ScrollView } from 'react-nativ
 // this is a MOVE: the stylesheet left, the several hundred `styles.x` references
 // did not change.
 import { composeStyles as styles } from './ComposeScreen.styles';
-import { Loading } from '@oxy.so/bloom/loading';
 import Ionicons from '@/components/common/Ionicons';
 import { logger } from '@oxy.so/core/logger';
 import { classifyApiError, normalizeApiError, type ApiErrorReason } from '@/utils/apiError';
-import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
+import { OxyAuthPrompt, useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle, type AccountNode, type FileMetadata } from '@oxy.so/core';
 import { StatusBar } from 'expo-status-bar';
 import * as ExpoLocation from 'expo-location';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useQueryClient } from '@tanstack/react-query';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useComposeExit, type ComposePresentation } from './useComposeExit';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
@@ -154,7 +154,6 @@ import {
   canAddLanguage,
   findVariantMissingText,
   getVariantItem,
-  hasVariantWork,
   primaryTextFromPost,
   promoteVariantToPrimary,
   variantTextsForItem,
@@ -163,7 +162,6 @@ import {
   type PromotablePrimary,
 } from '@/utils/composeVariants';
 import { contentLanguageForLocale, describeContentLanguage } from '@/constants/contentLanguages';
-import { useFediversePreferredLanguage } from '@/hooks/useFediversePreferredLanguage';
 import type { ThreadItem } from '@/hooks/useThreadManager';
 import { useQuoteManager } from '@/hooks/useQuoteManager';
 import QuoteCard from '@/components/Compose/QuoteCard';
@@ -208,6 +206,7 @@ export interface ComposeScreenProps {
 }
 
 const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
+  const router = useRouter();
   const theme = useTheme();
   const haptic = useHaptics();
   const { dismiss, leaveAfterPublish } = useComposeExit(presentation);
@@ -222,7 +221,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const mentionSearchCache = useCreateMentionSearchCache();
   const { createPost, createThread, createReply, cachePosts, boostPost } = usePostsStore();
   const queryClient = useQueryClient();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const rawParams = useLocalSearchParams() as ComposeIntentRawParams;
   // Parse once per route entry. Re-running on every param tick would re-apply
   // setters and clobber user edits, so we lock to the first non-empty snapshot.
@@ -423,18 +422,11 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const hasPodcastContent = podcastHasContent(podcast);
   const hasJobContent = jobHasContent(job);
 
-  // The author's saved default primary language, applied to fresh composes below.
-  const { preferredLanguage } = useFediversePreferredLanguage();
-
-  // Multilingual buffer. The composer OPENS on the author's saved preferred
-  // language when set, otherwise the app's UI locale. The UI locale is a
-  // preference, not a declaration, so that default never reaches the wire on its
-  // own (`hasDeclaredLanguages`); an explicit preferred language IS a declaration
-  // and is seeded as chosen below.
-  const defaultPrimaryTag = useMemo(
-    () => contentLanguageForLocale(preferredLanguage ?? i18n.language),
-    [preferredLanguage, i18n.language],
-  );
+  // Oxy owns the ordered account languages and the guest/device fallback.
+  // The first locale seeds the editor, but does not declare what language an
+  // individual post is written in; detection or an explicit post choice does.
+  const { currentLanguages, currentLanguage } = useOxy();
+  const defaultPrimaryTag = contentLanguageForLocale(currentLanguages[0] ?? currentLanguage);
   const {
     variants,
     setActiveTag,
@@ -457,32 +449,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const activeTag = variants.activeTag;
   const isPrimaryTab = activeTag === variants.primaryTag;
   const [translatingItemId, setTranslatingItemId] = useState<string | null>(null);
-
-  // Seed a fresh compose from the author's saved preferred language, ONCE. An
-  // explicit preference is a real declaration, so it is marked chosen (it reaches
-  // the wire even for a single-language post). Edit/reply carry the post's own
-  // language, and a composer the author already touched (declared a language,
-  // added a variant, or wrote variant work) is left untouched — only a pristine
-  // composer is seeded, and only when a preference is actually set.
-  const preferredSeededRef = useRef(false);
-  useEffect(() => {
-    if (preferredSeededRef.current) return;
-    if (editPostId || replyToPostId) {
-      preferredSeededRef.current = true;
-      return;
-    }
-    if (preferredLanguage === undefined) return; // Still resolving.
-    if (preferredLanguage === null) {
-      preferredSeededRef.current = true; // No preference — keep the locale default undeclared.
-      return;
-    }
-    if (variants.primaryChosen || variants.variantTags.length > 0 || hasVariantWork(variants)) {
-      preferredSeededRef.current = true;
-      return;
-    }
-    setPrimaryLanguage(contentLanguageForLocale(preferredLanguage));
-    preferredSeededRef.current = true;
-  }, [preferredLanguage, editPostId, replyToPostId, variants, setPrimaryLanguage]);
 
   // Remaining local state
   const [mainMentionState, setMainMentionState] = useState<MentionTextValue>({
@@ -1257,7 +1223,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
    * Back to a FRESH composer after a publish: the content, and also the
    * per-post choices that belonged to the post just sent — its collaborators,
    * lane, account, audience and warnings — so none of them carries silently into
-   * the next one. The preferred language is re-seeded as on a first open.
+   * the next one.
    */
   const resetComposerAfterPublish = () => {
     clearComposerContent();
@@ -1271,7 +1237,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     setIsSensitive(false);
     setPostingMode('thread');
     setFocusedItemId(MAIN_ITEM_ID);
-    preferredSeededRef.current = false;
   };
 
   const handlePost = async (options?: { publishNow?: boolean }) => {
@@ -2989,12 +2954,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
               {replyToPostId &&
                 (replyLoading ? (
                   <View style={styles.replyPreviewLoading}>
-                    <Loading
-                      className="text-primary"
-                      variant="inline"
-                      size="sm"
-                      style={{ flex: undefined }}
-                    />
+                    <FeedSkeleton count={1} />
                   </View>
                 ) : replyToPost ? (
                   <View className="border-b border-border">
@@ -4141,9 +4101,7 @@ const ComposeScreen = ({ presentation = 'pushed' }: ComposeScreenProps) => {
   if (!isAuthResolved || isPrivateApiPending) {
     return (
       <SafeAreaView className="flex-1 bg-card" edges={['top']}>
-        <View className="flex-1 items-center justify-center">
-          <Loading />
-        </View>
+        <FormSkeleton />
       </SafeAreaView>
     );
   }

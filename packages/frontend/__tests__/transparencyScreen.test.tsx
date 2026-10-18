@@ -1,3 +1,4 @@
+jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'));
 import { Text } from 'react-native';
 import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider, notifyManager } from '@tanstack/react-query';
@@ -6,7 +7,7 @@ import enMessages from '@/locales/en.json';
 
 // `jest.mock` calls are hoisted above this import, so the screen loads with
 // every module boundary below already swapped for its test double.
-import TransparencyScreen from '@/app/(app)/transparency';
+import TransparencyScreen from '@/components/settings/pages/fediverse/transparency';
 
 /**
  * The public moderation transparency page.

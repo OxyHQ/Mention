@@ -1,5 +1,4 @@
 import type React from 'react';
-import { Platform } from 'react-native';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import type { ProfileData } from '@/hooks/useProfileData';
@@ -24,7 +23,6 @@ export function profileTabsOffset(summaryHeight: number): number {
 export function ProfilePageHeader({
   profileData,
   actions,
-  overMedia = true,
   showBack = true,
 }: {
   profileData: ProfileData;
@@ -42,11 +40,6 @@ export function ProfilePageHeader({
       title={<UserName name={profileData.design.displayName} verified={profileData.verified} />}
       titleReveal="onDock"
       presentation="floating"
-      // Native lists paint their viewport above preceding siblings. Bloom's
-      // overlay placement creates the measured native chrome layer so the header
-      // remains above the banner/list; web keeps document overlap for its sticky
-      // flow geometry.
-      placement={overMedia ? (Platform.OS === 'web' ? 'overlap' : 'overlay') : 'inline'}
       testID="profile-page-header"
       onBack={showBack ? safeBack : undefined}
       actions={actions}

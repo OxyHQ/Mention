@@ -1,8 +1,8 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, RefreshControl, Platform } from 'react-native';
-import { Loading } from '@oxy.so/bloom/loading';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
@@ -16,7 +16,7 @@ import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
 import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import { RiUserCommunityLine } from '@oxy.so/bloom/icons/RiUserCommunityLine';
 import { useTranslation } from 'react-i18next';
-import { router, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect } from '@/lib/navigation/router';
 import { PRESET_FEEDS, type PresetFeed } from '@mention/shared-types/mtn/presetFeeds';
 import { useTrendsStore } from '@/stores/trendsStore';
 import { reportTrendEvent } from '@/utils/feedTelemetry';
@@ -266,6 +266,7 @@ const FeedRow = ({
 };
 
 const FeedsScreen: React.FC = () => {
+  const router = useRouter();
   const { t } = useTranslation();
   const theme = useTheme();
   const { isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
@@ -356,19 +357,22 @@ const FeedsScreen: React.FC = () => {
    * Both request the identical descriptor, so they are two presentations of one
    * feed rather than two feeds.
    */
-  const openTrend = useCallback((trend: Trend, rank: number) => {
-    reportTrendEvent({
-      event: 'click',
-      type: trend.type,
-      surface: 'feeds',
-      rank,
-      ...(trend.recId ? { recId: trend.recId } : {}),
-    });
-    router.push({
-      pathname: '/feeds/view',
-      params: { descriptor: `trend|${trend.text}`, title: trend.displayName },
-    });
-  }, []);
+  const openTrend = useCallback(
+    (trend: Trend, rank: number) => {
+      reportTrendEvent({
+        event: 'click',
+        type: trend.type,
+        surface: 'feeds',
+        rank,
+        ...(trend.recId ? { recId: trend.recId } : {}),
+      });
+      router.push({
+        pathname: '/feeds/view',
+        params: { descriptor: `trend|${trend.text}`, title: trend.displayName },
+      });
+    },
+    [router],
+  );
 
   const toggleTrend = useCallback(
     (trend: Trend) => {
@@ -396,7 +400,7 @@ const FeedsScreen: React.FC = () => {
         params: { descriptor: preset.descriptor, title: t(preset.labelKey) },
       });
     },
-    [t],
+    [t, router],
   );
 
   const toggleCustom = useCallback(
@@ -477,7 +481,7 @@ const FeedsScreen: React.FC = () => {
       </View>
 
       {loading && !refreshing && publicFeeds.length === 0 ? (
-        <Loading className="text-primary" size="lg" style={{ flex: undefined, marginTop: 24 }} />
+        <ListSkeleton />
       ) : (
         filteredPublic.map((item) => (
           <FeedRow

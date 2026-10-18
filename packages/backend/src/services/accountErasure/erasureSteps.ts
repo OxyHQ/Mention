@@ -1,3 +1,4 @@
+import { deckWorkspaces } from '../../db/schema/deck';
 import { eventAttendance } from '../../db/schema/events';
 /**
  * THE STEPS: the one place an erasure-map entry's Postgres shape is written down.
@@ -521,6 +522,12 @@ export const ERASURE_STEPS: Readonly<Record<string, ErasureStep>> = {
   },
 
   // --- account ----------------------------------------------------------------
+  'deck_workspaces.oxyUserId': deleteRows(
+    'account',
+    deckWorkspaces,
+    deckWorkspaces.oxyUserId,
+    accountIs(deckWorkspaces.oxyUserId),
+  ),
   'user_settings.oxyUserId': deleteRows(
     'account',
     userSettings,

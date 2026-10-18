@@ -146,6 +146,68 @@ describe('feedService viewer request isolation', () => {
     await expect(requestA).resolves.toEqual(responseA);
   });
 
+  it('keeps concurrent page sizes separate while sharing identical reads', async () => {
+    const pending = deferred<{ data: unknown }>();
+    mockGetAccessToken.mockReturnValue('page-size-token');
+    setFeedViewerRequestScope('page-size-viewer');
+    mockAuthenticatedGet.mockReturnValue(pending.promise);
+
+    const small = feedService.getFeed({ type: 'explore', limit: 5 });
+    const large = feedService.getFeed({ type: 'explore', limit: 30 });
+    const sameSmall = feedService.getFeed({ type: 'explore', limit: 5 });
+    pending.resolve({ data: { items: [], hasMore: false } });
+    await Promise.all([small, large, sameSmall]);
+
+    expect(mockAuthenticatedGet).toHaveBeenCalledTimes(2);
+    expect(
+      mockAuthenticatedGet.mock.calls
+        .map(([, options]) => options.params.limit)
+        .sort((a, b) => a - b),
+    ).toEqual([5, 30]);
+  });
+
+  it.each(['feed', 'descriptor'] as const)(
+    'an old anonymous %s read cannot remove a newer in-flight read after a session change',
+    async (kind) => {
+      const oldResponse = deferred<{ data: unknown }>();
+      const newResponse = deferred<{ data: unknown }>();
+      mockGetAccessToken.mockReturnValue(undefined);
+      mockPublicGet.mockReset();
+      mockPublicGet.mockReturnValueOnce(oldResponse.promise).mockReturnValue(newResponse.promise);
+      const read = () =>
+        kind === 'feed'
+          ? feedService.getFeed({ type: 'explore', limit: 20 })
+          : feedService.getMtnFeed('explore');
+      setFeedViewerRequestScope('restoring-a');
+      const oldRead = read();
+      setFeedViewerRequestScope('restoring-b');
+      const newRead = read();
+      oldResponse.resolve({ data: { items: [], hasMore: false } });
+      await oldRead;
+      const joinedRead = read();
+      newResponse.resolve({ data: { items: [], hasMore: false } });
+      await Promise.all([newRead, joinedRead]);
+      expect(mockPublicGet).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it('loads an encoded topic page anonymously with its cursor and page size', async () => {
+    mockGetAccessToken.mockReturnValue(undefined);
+    const response = { items: [viewerPost('public', false)], hasMore: true };
+    mockPublicGet.mockResolvedValue({ data: response });
+    await expect(
+      feedService.getPostsByTopic('Design & UI/UX', {
+        type: 'topic',
+        cursor: 'next-page',
+        limit: 12,
+      }),
+    ).resolves.toEqual(response);
+    expect(mockPublicGet).toHaveBeenCalledWith('/posts/topic/Design%20%26%20UI%2FUX', {
+      params: { cursor: 'next-page', limit: 12 },
+    });
+    expect(mockAuthenticatedGet).not.toHaveBeenCalled();
+  });
+
   it('propagates a caller-owned AbortSignal through profile feeds', async () => {
     const signal = new AbortController().signal;
     mockGetAccessToken.mockReturnValue('token-a');

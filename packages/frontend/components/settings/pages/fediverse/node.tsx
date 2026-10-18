@@ -1,3 +1,4 @@
+import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { EmptyState } from '@/components/common/EmptyState';
 import type { BloomIcon } from '@/components/settings/RowIcon';
 import { useMentionNode, type MentionNode } from '@/hooks/useMentionNode';
@@ -11,7 +12,6 @@ import { RiBox3Line } from '@oxy.so/bloom/icons/RiBox3Line';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
 import { RiErrorWarningFill } from '@oxy.so/bloom/icons/RiErrorWarningFill';
-import { Loading } from '@oxy.so/bloom/loading';
 import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
@@ -128,9 +128,7 @@ export default function MentionNodeScreen() {
   if (!isAuthResolved || isPrivateApiPending) {
     return (
       <View className="gap-4">
-        <View className="flex-1 items-center justify-center">
-          <Loading />
-        </View>
+        <SettingsSkeleton />
       </View>
     );
   }
@@ -154,9 +152,7 @@ export default function MentionNodeScreen() {
   if (isLoading) {
     return (
       <View className="gap-4">
-        <View className="flex-1 items-center justify-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
+        <SettingsSkeleton />
       </View>
     );
   }

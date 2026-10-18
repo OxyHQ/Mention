@@ -1,3 +1,4 @@
+import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
@@ -15,7 +16,7 @@ import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
 import { RiUserLine } from '@oxy.so/bloom/icons/RiUserLine';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
@@ -261,9 +262,7 @@ const LabelerDetailScreen: React.FC = () => {
           onBack={() => safeBack()}
           backLabel={t('common.back', { defaultValue: 'Back' })}
         />
-        <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
+        <DetailSkeleton />
       </View>
     );
   }
