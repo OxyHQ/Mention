@@ -77,10 +77,10 @@ original. Those validators are not implied to exist merely by this policy; each
 requires its own schema contract, confidence rule, tests, version bump, and
 backfill before a consumer may rely on it.
 
-**Stage B — async AI enrichment** (`PostClassificationService`, Oxy inference
-backed by Kaana). Mention names the reviewed routing profile only by its opaque
-primary key through `OXY_INFERENCE_ROUTING_PROFILE_ID`; a slug, display name,
-list order or "first profile" fallback is never a routing input.
+**Stage B — async AI enrichment** (`PostClassificationService`, Kaana's
+`instant` power level through `@kaana.ai/sdk`). Mention never names a provider,
+deployment or routing profile; Kaana picks the model of the level and Oxy's
+grant applies Mention's policy.
 `updatePostRecord` takes a PARTIAL patch of only the AI-owned fields — the
 Stage-A deterministic fields (languages, region, hashtagsNorm, version,
 sensitive) survive by the patch TYPE, not by convention. Never a whole-subdoc overwrite (would wipe Stage

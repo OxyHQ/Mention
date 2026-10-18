@@ -6,7 +6,6 @@
 
 import type { Response } from 'express';
 import { loadPostRecord } from '../../db/posts/postRepository';
-import { OxyInferenceError } from '@oxy.so/core/inference';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
@@ -18,14 +17,19 @@ import {
   TranslationRequestError,
   TranslationSourceChangedError,
 } from '../../services/PostTranslationService';
+import { classifyInferenceFailure } from '../../utils/inference';
 import { MAX_TEXT_LENGTH } from './composeInput';
 
 /**
  * Map a failed translation onto a response. A {@link TranslationRequestError} is
- * the caller's fault and carries its own status; an Oxy edge refusal carries a
+ * the caller's fault and carries its own status; a Kaana refusal maps onto a
  * typed status so a rate limit or data-plane outage is not reported as our 500.
  */
-const respondTranslationError = (res: Response, error: unknown, context: string): void => {
+const respondTranslationError = async (
+  res: Response,
+  error: unknown,
+  context: string,
+): Promise<void> => {
   if (error instanceof TranslationSourceChangedError) {
     // Typed so a client can tell "ask again" from a refusal.
     res.status(error.status).json({ message: error.message, code: error.code });
@@ -36,13 +40,14 @@ const respondTranslationError = (res: Response, error: unknown, context: string)
     return;
   }
 
-  if (error instanceof OxyInferenceError && error.status === 429) {
+  const failure = await classifyInferenceFailure(error);
+  if (failure === 'rate_limited') {
     logger.warn(`${context}: rate limited`, error);
     res.status(429).json({ message: 'Too many requests. Please try again later.' });
-  } else if (error instanceof OxyInferenceError && error.status === 402) {
+  } else if (failure === 'billing') {
     logger.warn(`${context}: translation credits issue`, error);
     res.status(502).json({ message: 'Translation service unavailable.' });
-  } else if (error instanceof OxyInferenceError) {
+  } else if (failure === 'unavailable') {
     // Authentication, scope, policy, routing and provider refusals are all
     // failures of Mention's configured inference dependency. They are not an
     // unclassified exception in this API and must never surface as our own 500.
@@ -128,7 +133,7 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
       cached: translated.cached,
     });
   } catch (error) {
-    respondTranslationError(res, error, 'translatePost');
+    await respondTranslationError(res, error, 'translatePost');
   }
 };
 
@@ -162,6 +167,6 @@ export const translateDraft = async (req: AuthRequest, res: Response): Promise<v
     });
     res.json({ translatedText: translated.text, tag: translated.tag });
   } catch (error) {
-    respondTranslationError(res, error, 'translateDraft');
+    await respondTranslationError(res, error, 'translateDraft');
   }
 };

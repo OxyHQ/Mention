@@ -1,7 +1,7 @@
 import { buildJevDecisionRequest, FEED_SCORE_LEVELS } from './jevRequest';
 import { createJevReceiptReader, type ShadowReceiptAuthority } from './jevReceipt';
-import { decisionAnswersMatch, decisionSuccessSchema } from '@oxy.so/contracts';
-import type { OxyInferenceClient } from '@oxy.so/core/inference';
+import { decisionAnswersMatch } from '@oxy.so/contracts';
+import type { Kaana } from '@kaana.ai/sdk' with { 'resolution-mode': 'import' };
 import {
   shadowSignalsSchema,
   validateShadowRelease,
@@ -17,15 +17,21 @@ export interface ShadowTopic {
 
 export { FEED_SCORE_LEVELS } from './jevRequest';
 
+/** The part of the Kaana client Jev uses; the receipt read is optional. */
+export interface JevKaanaClient {
+  readonly decisions: Pick<Kaana['decisions'], 'create'>;
+  readonly generations?: Pick<Kaana['generations'], 'getByIdempotencyKey'>;
+}
+
 /**
- * An inert consumer: callers supply an existing SDK client. No credentials,
+ * An inert consumer: callers supply an existing Kaana client. No credentials,
  * transport, provider selection, production binding, or retry policy lives here.
- * The SDK binds the returned requestId to the Oxy response header. That edge ID
- * is distinct from our claim/idempotency key; decisions do not return receiptId.
+ * The SDK validates the response against `@kaana.ai/contracts`. Kaana's
+ * requestId is distinct from our claim/idempotency key; decisions do not return
+ * a receiptId.
  */
 export function createJevShadowEvaluation(
-  client: Pick<OxyInferenceClient, 'decide'> &
-    Partial<Pick<OxyInferenceClient, 'getGenerationRecordByIdempotencyKey'>>,
+  client: JevKaanaClient,
   releaseInput: ShadowRelease,
   topicInput: readonly ShadowTopic[],
   receiptAuthority?: ShadowReceiptAuthority,
@@ -48,15 +54,12 @@ export function createJevShadowEvaluation(
   ) {
     throw new Error('Invalid reviewed shadow question set');
   }
-  const readOriginal = client.getGenerationRecordByIdempotencyKey?.bind(client);
-  if (receiptAuthority !== undefined && !readOriginal)
+  const generations = client.generations;
+  if (receiptAuthority !== undefined && !generations)
     throw new Error('Canonical receipt reader is unavailable');
   const receiptReader =
-    receiptAuthority !== undefined && readOriginal
-      ? createJevReceiptReader(
-          { getGenerationRecordByIdempotencyKey: readOriginal },
-          receiptAuthority,
-        )
+    receiptAuthority !== undefined && generations
+      ? createJevReceiptReader({ generations }, receiptAuthority)
       : undefined;
   return {
     release,
@@ -64,15 +67,13 @@ export function createJevShadowEvaluation(
     async evaluate({ text, languages, idempotencyKey, signal }) {
       const request = buildJevDecisionRequest(release, topics, text, languages);
       // Exactly one dispatch. Any failure is quarantined by the existing worker.
-      const result = decisionSuccessSchema.parse(
-        await client.decide(request, {
-          idempotencyKey,
-          signal,
-          ...(receiptReader?.authority.delegatedUserId === undefined
-            ? {}
-            : { delegatedUserId: receiptReader.authority.delegatedUserId }),
-        }),
-      );
+      const result = await client.decisions.create(request, {
+        idempotencyKey,
+        signal,
+        ...(receiptReader?.authority.delegatedUserId === undefined
+          ? {}
+          : { onBehalfOfUserId: receiptReader.authority.delegatedUserId }),
+      });
       if (
         result.model !== release.model ||
         !decisionAnswersMatch(request, result.data) ||

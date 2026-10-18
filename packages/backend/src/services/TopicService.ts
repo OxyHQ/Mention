@@ -5,7 +5,7 @@ import { asc, desc, gte, sql } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { topicStats } from '../db/schema/discovery';
 import { logger } from '../utils/logger';
-import { inferenceJSON, isInferenceEnabled } from '../utils/oxyInference';
+import { inferenceJSON, isInferenceEnabled } from '../utils/inference';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { z } from 'zod';
 

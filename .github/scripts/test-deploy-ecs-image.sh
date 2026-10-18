@@ -283,8 +283,8 @@ aws() {
           | select(.name == "deploy-test")
           | .environment[]
           | select(
-              .name == "OXY_INFERENCE_ROUTING_PROFILE_ID" and
-              .value == "01a06477-94f5-74f0-bc25-4c5c13b93ccd"
+              .name == "EXTRA_TASK_ENV" and
+              .value == "extra-value"
             )
         ' "$input_json" >/dev/null; then
           printf 'task-env:value\n' >>"$DEPLOY_TEST_LOG"
@@ -441,7 +441,7 @@ run_release() {
   fi
   if [[ "$inject_task_env" == "true" ]]; then
     release_environment+=(
-      TASK_ENV_OVERRIDES_JSON='{"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}'
+      TASK_ENV_OVERRIDES_JSON='{"EXTRA_TASK_ENV":"extra-value"}'
     )
   fi
 

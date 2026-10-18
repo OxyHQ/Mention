@@ -70,24 +70,26 @@ central PostgreSQL pool; handlers do not open a connection per request.
 
 Mention has two different AI paths, and neither owns a provider adapter or
 provider key. Chat, memory, tools and agent behavior go to Alia, which invokes
-inference as `Mention -> Alia -> Oxy -> Kaana`. Bounded point features such as
-post classification go directly through the Oxy inference SDK as
-`Mention -> Oxy -> Kaana`.
+inference as `Mention -> Alia -> Kaana`. Bounded point features (translation,
+summaries, topics, post classification and the Jev shadow lane) call
+`https://kaana.ai/v1` through `@kaana.ai/sdk` as `Mention -> Kaana`, with Oxy
+authorizing and settling each request behind Kaana (Kaana ADR 0002).
 
-For point inference, `OXY_INFERENCE_ROUTING_PROFILE_ID` is the exact opaque
-Oxy routing-profile primary key. Mention never substitutes a slug or display
-name, never chooses the first returned profile and never constructs Kaana's
-route list. Oxy authorizes and orders exact deployments; Kaana executes only
-that signed order. Kaana's only canonical signed origin is
-`https://kaana.ai`, and Mention never calls it directly or through an `oxy.so`
-alias. Upstream provider credentials live only as KMS ciphertext in Kaana's
+The one client lives in `packages/backend/src/utils/kaana.ts`. Its
+credential is Mention's Oxy service token for the `kaana.ai` audience
+(`serviceTokenFor('kaana.ai')`), minted from the ECS task role. Text features
+ask for the `instant` power level, a code constant: Kaana picks the model of
+that class and Oxy's grant applies Mention's policy and economics. Mention never
+names a provider, deployment or Oxy routing profile, never writes the
+`kaana.ai` origin itself (the SDK owns it), and never calls Kaana's
+`/internal/` surface. `scripts/validate-inference-boundary.mjs` enforces this.
+Upstream provider credentials live only as KMS ciphertext in Kaana's
 PostgreSQL store; Mention's Oxy service credential is an application identity,
 not a provider key.
 
-This is the source contract, not proof that production classification is
-enabled. A live cutover additionally requires the exact task-definition
-readback, a real classified post, Oxy attribution and a settled Kaana usage
-receipt.
+This is the source contract, not proof that production inference runs on it.
+A live cutover additionally requires a real request that completes with the
+expected Oxy attribution and Kaana usage record.
 
 Public and authenticated routers are separate. Authentication accepts an Oxy
 access token or an eligible MCP JWT. Public reads may use optional identity for

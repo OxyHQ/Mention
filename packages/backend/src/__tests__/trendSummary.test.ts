@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
   getRedisClient: vi.fn(),
 }));
 
-vi.mock('../utils/oxyInference', () => ({
+vi.mock('../utils/inference', () => ({
   inferenceChat: (...args: unknown[]) => mocks.inferenceChat(...args),
   isInferenceEnabled: () => mocks.isInferenceEnabled(),
 }));

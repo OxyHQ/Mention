@@ -29,6 +29,7 @@
     "@clarity.surf/sdk": "^0.4.0",
     "@crowdsource.you/contracts": "1.1.0",
     "@crowdsource.you/core": "3.0.2",
+    "@kaana.ai/sdk": "3.2.0",
     "@mention/shared-types": "workspace:*",
     "@mercaria.co/sdk": "^0.2.0",
     "@oxy.so/contracts": "catalog:",

@@ -10,7 +10,7 @@ import { posts } from '../db/schema/posts';
 import { postAuthorships, postContentVariants } from '../db/schema/postContent';
 import { userSettings } from '../db/schema/userProfile';
 import { logger } from '../utils/logger';
-import { inferenceChat, isInferenceEnabled } from '../utils/oxyInference';
+import { inferenceChat, isInferenceEnabled } from '../utils/inference';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { userPreferenceService } from '../services/UserPreferenceService';
 import { recordDedupedView } from '../services/feedViewCounter';

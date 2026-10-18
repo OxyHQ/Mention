@@ -27,7 +27,7 @@ in synthetic domain fixtures is never treated as zero cost. Receipt recovery aft
 ambiguous/late results uses only the original key, as described below.
 
 The production singleton now calls `createProductionJevEvaluation`, which uses
-the canonical `OxyInferenceClient` and existing Mention `serviceToken()` path.
+the shared `@kaana.ai/sdk` client and Mention's `serviceTokenFor('kaana.ai')`.
 Its reviewed source approval is absent, so it constructs no active evaluator.
 There is no provider call, manual transport, committed local package override,
 environment bypass, or retry after dispatch. All six existing

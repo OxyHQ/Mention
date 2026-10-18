@@ -1,6 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test';
-import { OxyInferenceClient } from '@oxy.so/core/inference';
-import type { DecisionRequest, DecisionSuccess } from '@oxy.so/contracts';
+import { Kaana } from '@kaana.ai/sdk';
+import type { DecisionRequest, DecisionSuccess } from '@kaana.ai/contracts';
 import { createJevShadowEvaluation } from '../../services/contentClassification/jevSdk';
 
 const release = {
@@ -23,7 +23,7 @@ const input = {
 function response(request: DecisionRequest): DecisionSuccess {
   return {
     schemaVersion: 1,
-    requestId: 'oxy-request',
+    requestId: 'kaana-request',
     model: request.model,
     routingPolicy: { routingPolicyId: release.policyRef, policyVersion: release.policyVersion },
     usage: [
@@ -49,24 +49,24 @@ function fixture(mutate: (result: DecisionSuccess) => unknown = (result) => resu
   const transport = mock(async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
     const request = JSON.parse(String(init?.body)) as DecisionRequest;
     return new Response(JSON.stringify(mutate(response(request))), {
-      headers: { 'Content-Type': 'application/json', 'X-Oxy-Request-Id': 'oxy-request' },
+      headers: { 'Content-Type': 'application/json', 'Kaana-Request-Id': 'kaana-request' },
     });
   });
-  const client = new OxyInferenceClient({ credential: 'synthetic-only', fetch: transport });
+  const client = new Kaana({ credential: 'synthetic-only', fetch: transport, maxRetries: 0 });
   return { transport, evaluation: createJevShadowEvaluation(client, release, topics) };
 }
 
 describe('published Jev SDK consumer', () => {
   it('refuses a configured recovery authority without a canonical reader before any inference', () => {
-    const decide = mock();
+    const create = mock();
     expect(() =>
-      createJevShadowEvaluation({ decide }, release, topics, {
+      createJevShadowEvaluation({ decisions: { create } }, release, topics, {
         applicationId: 'fixture',
         credentialId: 'fixture',
         environment: 'production',
       }),
     ).toThrow('Canonical receipt reader is unavailable');
-    expect(decide).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
   });
 
   it.each([undefined, 'original-delegation'])(
@@ -79,40 +79,37 @@ describe('published Jev SDK consumer', () => {
         ...(delegatedUserId === undefined ? {} : { delegatedUserId }),
       };
       const original = { ...authority };
-      const transport = mock(async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const transport = mock(async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
         const headers = new Headers(init?.headers);
-        expect(headers.get('Idempotency-Key')).toBe(input.idempotencyKey);
         expect(headers.get('X-Oxy-User-Id')).toBe(delegatedUserId ?? null);
-        if (init?.method === 'POST') throw new Error('Synthetic response lost after admission');
+        if (init?.method === 'POST') {
+          expect(headers.get('Idempotency-Key')).toBe(input.idempotencyKey);
+          throw new Error('Synthetic response lost after admission');
+        }
         expect(init?.method).toBe('GET');
+        expect(new URL(String(url)).searchParams.get('idempotency_key')).toBe(input.idempotencyKey);
         return new Response(
           JSON.stringify({
-            data: {
-              ...original,
-              schemaVersion: 2,
-              kind: 'metered_usage',
-              meteredUsageId: 'owned-usage',
-              requestId: 'original-request',
-              economicTreatment: 'internal_metered',
-              economicPolicyVersion: 'fixture',
-              customerCharge: { status: 'not_charged' },
-              tariff: { status: 'unpriced', priceVersionId: null },
-              outcome: 'completed',
-              usageSource: 'provider_reported',
-              units: [{ unit: 'input_tokens', quantity: 17 }],
-              resolvedModelReference: release.model,
-              servingProvider: 'fixture-provider',
-              settledAt: '2026-10-04T00:00:00.000Z',
-            },
+            ...original,
+            schemaVersion: 1,
+            kind: 'metered_usage',
+            meteredUsageId: 'owned-usage',
+            requestId: 'original-request',
+            customerCharge: { status: 'not_charged' },
+            tariff: { status: 'unpriced', priceVersionId: null },
+            outcome: 'completed',
+            usageSource: 'provider_reported',
+            units: [{ unit: 'input_tokens', quantity: 17 }],
+            model: release.model,
+            settledAt: '2026-10-04T00:00:00.000Z',
           }),
+          { headers: { 'Content-Type': 'application/json', 'Kaana-Request-Id': 'lookup' } },
         );
       });
-      const client = new OxyInferenceClient({ credential: 'synthetic-only', fetch: transport });
+      const client = new Kaana({ credential: 'synthetic-only', fetch: transport, maxRetries: 0 });
       const evaluation = createJevShadowEvaluation(client, release, topics, authority);
       authority.delegatedUserId = 'mutated-after-configuration';
-      await expect(evaluation.evaluate(input)).rejects.toThrow(
-        'Synthetic response lost after admission',
-      );
+      await expect(evaluation.evaluate(input)).rejects.toThrow('could not reach Kaana');
       const recovered = await evaluation.receiptReader!.readOriginal(
         input.idempotencyKey,
         release.model,
@@ -138,7 +135,7 @@ describe('published Jev SDK consumer', () => {
       { language: 'es', probability: 0.9 },
     ]);
     expect(result.sdkReceipt).toEqual({
-      requestId: 'oxy-request',
+      requestId: 'kaana-request',
       routingPolicy: { routingPolicyId: 'fixture-policy', policyVersion: 1 },
       usage: [
         { unit: 'requests', quantity: 1 },
@@ -157,13 +154,11 @@ describe('published Jev SDK consumer', () => {
       ['feedScore', 'score'],
     ]);
     expect(new Headers(init?.headers).get('Idempotency-Key')).toBe(input.idempotencyKey);
-    expect(init?.signal).toBe(input.signal);
     expect(transport).toHaveBeenCalledTimes(1);
   });
 
   const invalid: Array<[string, (result: DecisionSuccess) => unknown]> = [
     ['model', (result) => ({ ...result, model: 'synthetic/jev@other' })],
-    ['request ID/header mismatch', (result) => ({ ...result, requestId: 'wrong' })],
     ['empty request ID', (result) => ({ ...result, requestId: '' })],
     [
       'policy ID',
