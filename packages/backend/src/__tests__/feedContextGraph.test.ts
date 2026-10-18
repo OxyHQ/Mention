@@ -67,6 +67,21 @@ beforeEach(() => {
 });
 
 describe('loadViewerFeedContext — viewer-graph resolution', () => {
+  it('uses owner account languages for eligibility and rendition instead of request languages', async () => {
+    const viewer = freshViewer();
+    const { client } = makeOxyClient();
+    client.users = {
+      me: vi.fn(async () => ({
+        id: viewer,
+        languages: ['es-ES', 'en-US', 'ca-ES', 'fr-FR'],
+      })),
+    };
+    const context = await loadViewerFeedContext(viewer, client, undefined, ['de-DE']);
+    expect(context.viewerLanguages).toEqual(['es-ES', 'en-US', 'ca-ES', 'fr-FR']);
+    expect(context.viewerBaseLanguages).toEqual(['es', 'en', 'ca', 'fr']);
+    expect(client.users.me).toHaveBeenCalledOnce();
+  });
+
   it('resolves following and followers exactly once each and threads both onto the context', async () => {
     const { client, getUserFollowing, getUserFollowers } = makeOxyClient();
     const viewer = freshViewer();

@@ -21,6 +21,10 @@ export type ProfileVisibilityType = (typeof ProfileVisibility)[keyof typeof Prof
  * them defensively at the boundary.
  */
 export interface OxyClient {
+  /** Owner-only profile read, available on session-scoped clients. */
+  users?: {
+    me(): Promise<{ id: string; languages?: string[] }>;
+  };
   privacy: {
     blocked(): Promise<unknown[]>;
     restricted(): Promise<unknown[]>;

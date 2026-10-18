@@ -1,79 +1,54 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
-import type { CachedUserSummary } from '../services/userSummaryCache';
-
-/**
- * Viewer-language resolution, and the For You discovery gate.
- *
- * TWO language helpers, answering two different questions in two different units
- * — see the `resolveViewerBaseLanguages` block below for why conflating them is
- * a bug and not a tidiness point:
- *
- *   - `loadViewerLanguages` — the VIEWER's Oxy account locales (canonical BCP-47,
- *     primary first, REGION-SIGNIFICANT), read through the Redis-cached identity
- *     path the feed already uses for post authors, so it adds no new Oxy round
- *     trip and soft-fails to `[]` on any miss or error.
- *   - `resolveViewerBaseLanguages` — the READABILITY set (ISO 639-1 base subtags,
- *     region discarded, capped), resolved from the account else the request. This
- *     is the boundary where every language input is normalized and every bad one
- *     is dropped, which is what lets the SQL predicate and the ranking signals
- *     downstream trust what they are handed.
- *
- * `resolveDiscoveryGate` maps the `FOR_YOU_DISCOVERY_GATE` env flag onto the For
- * You discovery-gate filter set.
- */
-
-const { resolveUserSummaries } = vi.hoisted(() => ({ resolveUserSummaries: vi.fn() }));
-
-// The identity path `loadViewerLanguages` reuses. Mocked so this suite asserts
-// the CONTRACT (cached locales in, fail-soft out) without Redis or Oxy — and so
-// importing feedContext stays free of the hydration module's dependency chain.
-vi.mock('../services/PostHydrationService', () => ({ resolveUserSummaries }));
+import type { OxyClient } from '../utils/privacyHelpers';
 
 import { loadViewerLanguages, resolveViewerBaseLanguages } from '../mtn/feed/feedContext';
 import { resolveDiscoveryGate } from '../mtn/feed/definitions/presets';
 
-/** A cached identity carrying the account's canonical locales. */
-function summaryWith(userId: string, languages?: string[]): CachedUserSummary {
-  return {
-    user: { id: userId, username: 'viewer', name: { displayName: 'Viewer' } },
-    languages,
-  };
-}
-
 describe('loadViewerLanguages', () => {
   const viewerId = 'viewer-1';
-
+  const me = vi.fn();
+  const client: OxyClient = {
+    users: { me },
+    privacy: { blocked: vi.fn(), restricted: vi.fn() },
+    follows: { following: vi.fn(), followers: vi.fn(), viewerGraph: vi.fn() },
+  };
   beforeEach(() => {
-    resolveUserSummaries.mockReset();
+    me.mockReset();
   });
 
-  it("returns the viewer's account locales, primary first", async () => {
-    resolveUserSummaries.mockResolvedValue(
-      new Map([[viewerId, summaryWith(viewerId, ['es-ES', 'en-US'])]]),
-    );
-
-    await expect(loadViewerLanguages(viewerId)).resolves.toEqual(['es-ES', 'en-US']);
-    expect(resolveUserSummaries).toHaveBeenCalledWith([viewerId]);
+  it('reads every ordered account locale from the authenticated owner profile', async () => {
+    me.mockResolvedValue({ id: viewerId, languages: ['es-ES', 'en-US', 'ca-ES', 'fr-FR'] });
+    await expect(loadViewerLanguages(viewerId, client)).resolves.toEqual([
+      'es-ES',
+      'en-US',
+      'ca-ES',
+      'fr-FR',
+    ]);
+    expect(me).toHaveBeenCalledOnce();
   });
 
-  it('returns [] for an anonymous viewer WITHOUT touching the identity path', async () => {
-    await expect(loadViewerLanguages(undefined)).resolves.toEqual([]);
-    expect(resolveUserSummaries).not.toHaveBeenCalled();
+  it('does not fetch an owner profile for an anonymous reader', async () => {
+    await expect(loadViewerLanguages(undefined, client)).resolves.toEqual([]);
+    expect(me).not.toHaveBeenCalled();
   });
 
-  it('returns [] when the account declares no languages', async () => {
-    resolveUserSummaries.mockResolvedValue(new Map([[viewerId, summaryWith(viewerId)]]));
+  it('does not use another account’s languages', async () => {
+    me.mockResolvedValue({ id: 'other', languages: ['de-DE'] });
+    await expect(loadViewerLanguages(viewerId, client)).resolves.toEqual([]);
+  });
+
+  it('returns no preference when the account has none', async () => {
+    me.mockResolvedValue({ id: viewerId });
+    await expect(loadViewerLanguages(viewerId, client)).resolves.toEqual([]);
+  });
+
+  it('supports delegated requests without an owner-profile capability', async () => {
     await expect(loadViewerLanguages(viewerId)).resolves.toEqual([]);
   });
 
-  it('returns [] when the viewer cannot be resolved', async () => {
-    resolveUserSummaries.mockResolvedValue(new Map<string, CachedUserSummary>());
-    await expect(loadViewerLanguages(viewerId)).resolves.toEqual([]);
-  });
-
-  it('is FAIL-SOFT: a lookup error degrades to [] (neutral penalty), never throws', async () => {
-    resolveUserSummaries.mockRejectedValue(new Error('oxy unreachable'));
-    await expect(loadViewerLanguages(viewerId)).resolves.toEqual([]);
+  it('falls back on an Oxy failure', async () => {
+    me.mockRejectedValue(new Error('oxy unreachable'));
+    await expect(loadViewerLanguages(viewerId, client)).resolves.toEqual([]);
   });
 });
 
@@ -125,7 +100,16 @@ describe('resolveViewerBaseLanguages', () => {
    * and the cardinality of the anonymous feed cache, whose key now carries this
    * set.
    */
-  it('caps the set at three', () => {
+  it('preserves every Oxy account language, even beyond the request cap', () => {
+    expect(resolveViewerBaseLanguages(['es-ES', 'en-US', 'ca-ES', 'fr-FR'], ['de'])).toEqual([
+      'es',
+      'en',
+      'ca',
+      'fr',
+    ]);
+  });
+
+  it('caps request languages at three', () => {
     expect(resolveViewerBaseLanguages([], ['es', 'en', 'de', 'fr', 'ja'])).toEqual([
       'es',
       'en',
