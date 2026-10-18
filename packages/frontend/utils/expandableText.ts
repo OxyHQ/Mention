@@ -1,3 +1,5 @@
+import { scanTextEntities } from '@mention/shared-types/textEntities';
+
 /**
  * Pure truncation logic shared by post body text and profile bios. Both
  * "Read more" (post, when the openPost setting is off) and profile bio use
@@ -9,9 +11,42 @@ export function computeExpandableText(
   maxChars: number,
   isExpanded: boolean,
 ): { displayText: string; isTruncated: boolean } {
-  const isTruncated = text.length > maxChars;
+  // Hydrated mentions contain a label and a hidden identity destination. The
+  // preview budget counts the label, never the serialized markup or target.
+  const mentions = scanTextEntities(text, { kinds: ['mentionDisplay'] });
+  const visibleLength = mentions.reduce(
+    (length, mention) => length - mention.raw.length + (mention.label ?? '').length,
+    text.length,
+  );
+  const isTruncated = visibleLength > maxChars;
   if (!isTruncated || isExpanded) {
     return { displayText: text, isTruncated };
   }
-  return { displayText: `${text.slice(0, maxChars).trimEnd()}…`, isTruncated };
+  let remaining = Math.max(0, maxChars);
+  let sourceOffset = 0;
+  let preview = '';
+  for (const mention of mentions) {
+    const prose = text.slice(sourceOffset, mention.start);
+    if (remaining <= prose.length) {
+      return { displayText: `${preview}${prose.slice(0, remaining).trimEnd()}…`, isTruncated };
+    }
+    preview += prose;
+    remaining -= prose.length;
+    const label = mention.label ?? '';
+    if (remaining < label.length) {
+      // Keep valid mention syntax and its complete destination even when only
+      // part of the label is visible. LinkifiedText still renders a real link.
+      return {
+        displayText: `${preview}[@${label.slice(0, remaining).trimEnd()}…](${mention.value})`,
+        isTruncated,
+      };
+    }
+    preview += mention.raw;
+    remaining -= label.length;
+    sourceOffset = mention.end;
+  }
+  return {
+    displayText: `${preview}${text.slice(sourceOffset, sourceOffset + remaining).trimEnd()}…`,
+    isTruncated,
+  };
 }
