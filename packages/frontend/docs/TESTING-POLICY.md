@@ -25,6 +25,17 @@ bun run --cwd packages/frontend coverage:record  # rewrites coverage-baseline.js
 Commit the baseline in the same change. `coverage:record` never lowers anything
 past the base revision — that is the check the ratchet rests on.
 
+## Published Bloom source in Jest
+
+The Expo resolver selects Bloom's public `react-native` export condition, which
+points to TypeScript source (for example `@oxy.so/bloom/grid` resolves to
+`src/grid/index.ts`). Jest therefore allows `@oxy.so/bloom` through the existing
+Expo Babel transform instead of ignoring it as an already compiled dependency.
+Keep the rest of the Expo transform exclusions intact. Run these gates against
+the installed registry package; a source mirror outside `node_modules` can hide
+a missing transform allowlist entry. This preserves real component execution
+without replacing Bloom with test mocks.
+
 ## Why not just raise the global number
 
 Measured on `c96c2764`, before this policy existed: `package.json` declared a
