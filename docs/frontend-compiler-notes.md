@@ -95,12 +95,10 @@ ACCIDENT — which is why `Math.max` has been redundant since. Do not remove
 it; a workaround whose cause is gone is still cheap insurance.
 
 A virtualized web list must therefore be opted out explicitly.
-`ProfileGridList.web.tsx` and `SavedPostsList.web.tsx` carry
-`'use no memo'` with the reason in-source; `Feed.web.tsx` and
-`NotificationsList.web.tsx` are opted out only ACCIDENTALLY, by reading a
-ref during render — `Feed.web.tsx` carries a comment saying so, because
-removing those reads reintroduces the freeze in the most-used screen in the
-app. Symptoms differ by how far the grouping reached: a frozen
+`ProfileGridList.web.tsx`, `SavedPostsList.web.tsx`, `Feed.web.tsx`, and
+`NotificationsList.web.tsx` carry `'use no memo'` with the reason in-source.
+Do not rely on incidental render-phase ref accesses to prevent compilation.
+Symptoms differ by how far the grouping reached: a frozen
 `getTotalSize()` alone means a short spacer and sticky rails that scroll
 away; a frozen `getVirtualItems()` means rows past the first window never
 mount (`ProfileGridList` shipped that way — 8 rows and ~550px of blank
@@ -112,3 +110,19 @@ file with the app's own `babel-plugin-react-compiler` and read the
 CompileError/CompileSuccess events — not a grep of the output, which
 comments like these will match. Always verify virtualization bugs on a PROD
 build (`expo export web`), not the dev server.
+
+### Retained panels and row measurements
+
+A retained Deck screen can move between document and panel scroll owners while
+hidden. `useOwnerVirtualizer` selects a different virtualizer for each owner.
+Pass its stable `measureElement` directly to measurement-only row refs. If a row
+also binds post identity or impression tracking, scope its callback cache to
+`measureElement`; caching solely by row key keeps the previous owner's callback
+and leaves the new owner using estimated heights. Replacement impression
+observers must observe already-mounted post rows as well as future mounts.
+
+The regression test `webListOwnerMeasurement.test.tsx` covers both ownership
+directions and stable-owner renders for feeds and notifications. Production
+verification also delays a Following response until Deck is hidden, then reopens
+Deck: row spacing must use measured content heights, including content taller
+than the initial estimate.
