@@ -6,8 +6,9 @@ import PostContentText from '../PostContentText';
 const mockOpenExternalLink = jest.fn();
 let mockReadMoreAction: 'openPost' | 'expandInline' = 'openPost';
 
-jest.mock('expo-router', () => ({
+jest.mock('@/lib/navigation/router', () => ({
   useRouter: () => ({ push: jest.fn() }),
+  Link: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 jest.mock('react-i18next', () => ({
@@ -67,6 +68,29 @@ describe('PostContentText — truncated link destination', () => {
       expect(link.props.children).not.toBe(FULL_URL);
       act(() => link.props.onPress());
       expect(mockOpenExternalLink).toHaveBeenCalledWith(FULL_URL);
+      act(() => renderer?.unmount());
+    },
+  );
+
+  it.each(['openPost', 'expandInline'] as const)(
+    'renders a clipped mention label with its complete internal link in %s mode',
+    (mode) => {
+      mockReadMoreAction = mode;
+      let renderer: TestRenderer.ReactTestRenderer | undefined;
+      act(() => {
+        renderer = TestRenderer.create(
+          <PostContentText
+            content="Mention, [@Allo](allo) answers too"
+            previewChars={11}
+            postId="post-1"
+          />,
+        );
+      });
+      if (!renderer) throw new Error('render produced no tree');
+      const links = renderer.root.findAll((node) => node.props.href === '/@allo');
+      expect(links.length).toBeGreaterThan(0);
+      expect(links[0]?.props.children.props.children).toBe('Al…');
+      expect(JSON.stringify(renderer.toJSON())).not.toContain('[@');
       act(() => renderer?.unmount());
     },
   );

@@ -37,4 +37,42 @@ describe('computeExpandableText', () => {
     const result = computeExpandableText(text, Infinity, false);
     expect(result).toEqual({ displayText: text, isTruncated: false });
   });
+
+  it('counts labels instead of hidden mention destinations', () => {
+    const text = 'Hello [@Mention](mention@very-long-instance.example)';
+    expect(computeExpandableText(text, 13, false)).toEqual({
+      displayText: text,
+      isTruncated: false,
+    });
+  });
+
+  it.each(['allo', 'allo@example.org', 'https://example.org/users/opaque-id'])(
+    'clips a label and preserves destination %s',
+    (target) => {
+      const text = `Mention, [@Allo](${target}) answers too`;
+      expect(computeExpandableText(text, 11, false)).toEqual({
+        displayText: `Mention, [@Al…](${target})`,
+        isTruncated: true,
+      });
+    },
+  );
+
+  it('keeps earlier mentions intact when a later label crosses the limit', () => {
+    expect(
+      computeExpandableText('[@Mention](mention), [@Allo](allo), [@Oxy](oxy)', 11, false)
+        .displayText,
+    ).toBe('[@Mention](mention), [@Al…](allo)');
+  });
+
+  it('cuts at mention boundaries without exposing markup', () => {
+    const text = 'Hi [@Allo](allo) world';
+    expect(computeExpandableText(text, 3, false).displayText).toBe('Hi…');
+    expect(computeExpandableText(text, 7, false).displayText).toBe('Hi [@Allo](allo)…');
+    expect(computeExpandableText(text, 9, false).displayText).toBe('Hi [@Allo](allo) w…');
+  });
+
+  it('expands the original mention labels and destinations', () => {
+    const text = 'Hi [@Allo](allo) world';
+    expect(computeExpandableText(text, 5, true)).toEqual({ displayText: text, isTruncated: true });
+  });
 });
