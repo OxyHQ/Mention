@@ -27,9 +27,9 @@ past the base revision — that is the check the ratchet rests on.
 
 ## Published Bloom source in Jest
 
-The Expo resolver selects Bloom's public `react-native` export condition, which
-points to TypeScript source (for example `@oxy.so/bloom/grid` resolves to
-`src/grid/index.ts`). Jest therefore allows `@oxy.so/bloom` through the existing
+The Expo resolver selects Bloom's public `react-native` export condition, so
+entries such as `@oxy.so/bloom/grid` resolve to TypeScript source inside the
+installed Bloom package. Jest therefore allows `@oxy.so/bloom` through the existing
 Expo Babel transform instead of ignoring it as an already compiled dependency.
 Keep the rest of the Expo transform exclusions intact. Run these gates against
 the installed registry package; a source mirror outside `node_modules` can hide
