@@ -23,6 +23,14 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { IconButton } from '@oxy.so/bloom/button';
+import { useBottomEdgeInset } from '@oxy.so/bloom/layout';
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+  SegmentedControlItemText,
+} from '@oxy.so/bloom/segmented-control';
+import { resolveBottomEdgeInset } from '@/components/navigation/bottomEdgeInset';
 import { useHaptics } from '@oxy.so/bloom/hooks';
 import { RiHeartFill } from '@oxy.so/bloom/icons/RiHeartFill';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
@@ -63,7 +71,6 @@ import { useVideosRail, type VideosRailActivePost } from '@/context/VideosRailCo
 import { VideoViewabilityProvider } from '@/context/VideoPlaybackContext';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { LazyVideoReplies } from '@/components/videos/LazyVideoReplies';
-import { HIT_SLOP_LG } from '@/styles/hitSlop';
 import { useVideoPipSession } from '@/hooks/useVideoPipSession';
 import { useReelImpressions } from '@/hooks/useReelImpressions';
 import { useMediaSessionTransport, type MediaSessionTrack } from '@/hooks/useMediaSessionTransport';
@@ -87,6 +94,7 @@ import {
   videoPlayerKey,
   type VideoPlayerKey,
 } from '@/stores/videoPlayerRegistry';
+import { loadVideoPagesUntilProgress } from '@/utils/video-feed-pagination';
 import { resolveFeedDescriptor } from '@/utils/feedTelemetry';
 
 // ── Tuning constants ─────────────────────────────────────────────
@@ -212,10 +220,6 @@ const VIEWABILITY_CONFIG = {
   minimumViewTime: 100,
 } as const;
 
-// When a `videos` page yields zero NEW posts but more pages exist, walk forward
-// up to this many extra pages so the reel never dead-ends prematurely.
-const MAX_AUTO_CONTINUE_PAGES = 3;
-
 // Web: pixels-from-bottom at which the document-scroll infinite scroll triggers a
 // `handleLoadMore`, so paging stays ahead of the viewer.
 const WEB_END_REACHED_PX = 1200;
@@ -235,22 +239,6 @@ const WEB_SLIDE_HEIGHT_CLASS = 'web:h-[100dvh]';
 // same height. Wider than the live-player window (and the poster prefetch
 // radius) so nothing the reader can reach in one fling is ever a blank.
 const WEB_RENDER_RADIUS = 6;
-
-// Web: the "For You" / "Following" pill tabs must stay pinned at the top while the
-// document scrolls (TikTok / Reels), so on web they use `position: sticky` instead
-// of the native `position: absolute`. Sticky keeps them in the document flow, which
-// confines them horizontally to the central column's containing block (no
-// viewport-wide `position: fixed` bleed over the sidebars / right rail) while
-// sticking them to the viewport top once scrolled. They carry a negative bottom
-// margin equal to their own height (`TABS_ROW_HEIGHT`) so they contribute ZERO net
-// layout height — the first `100dvh` slide is not pushed down and scroll-snap
-// boundaries stay on clean `innerHeight` multiples. Same overlay-pinning technique
-// the desktop frame + profile chrome use in `app/(app)/_layout.tsx` /
-// `components/ProfileScreen.tsx`. Spelled out as LITERAL class strings so the
-// NativeWind compiler picks them up (it scans source text). Native keeps the
-// StyleSheet `position: absolute` (the native container IS the fixed scene).
-const TABS_ROW_HEIGHT = 34;
-const WEB_TABS_STICKY_CLASS = 'web:sticky web:[margin-bottom:-34px]';
 
 const GRADIENT_COLORS = [
   'transparent',
@@ -1115,47 +1103,25 @@ const ActionButton = memo<ActionButtonProps>(
     hideCount = false,
     accessibilityLabel,
   }) => (
-    <Pressable
-      style={styles.actionButton}
-      onPress={onPress}
-      hitSlop={HIT_SLOP_LG}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-    >
-      {icon}
+    <View className="items-center gap-0.5">
+      <IconButton
+        appearance="plain"
+        size="lg"
+        onPress={onPress}
+        accessibilityLabel={accessibilityLabel}
+        pressed={isActive}
+        renderLeadingIcon={() => icon}
+      />
       {!hideCount && (
         <Text style={[styles.actionCount, isActive && activeColor ? { color: activeColor } : null]}>
           {formatCompactNumber(count)}
         </Text>
       )}
-    </Pressable>
+    </View>
   ),
 );
 
 ActionButton.displayName = 'ActionButton';
-
-// ── Feed tab pill ────────────────────────────────────────────────
-interface FeedTabProps {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-}
-
-const FeedTab = memo<FeedTabProps>(({ label, active, onPress }) => (
-  <Pressable
-    style={[styles.tabPill, active ? styles.tabPillActive : styles.tabPillInactive]}
-    onPress={onPress}
-    accessibilityRole="button"
-    accessibilityState={{ selected: active }}
-    hitSlop={HIT_SLOP_LG}
-  >
-    <Text style={[styles.tabLabel, active ? styles.tabLabelActive : styles.tabLabelInactive]}>
-      {label}
-    </Text>
-  </Pressable>
-));
-
-FeedTab.displayName = 'FeedTab';
 
 // ── Screen ───────────────────────────────────────────────────────
 export default function VideosScreen() {
@@ -1195,6 +1161,10 @@ export default function VideosScreen() {
 
   const [posts, setPosts] = useState<VideoPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasLoadError, setHasLoadError] = useState(false);
+  const loadGenerationRef = useRef(0);
+  const [retryNonce, setRetryNonce] = useState(0);
+  const handleRetry = useCallback(() => setRetryNonce((value) => value + 1), []);
   const [hasMore, setHasMore] = useState(true);
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -1309,9 +1279,11 @@ export default function VideosScreen() {
   }, []);
   const activeRadius = armedIndex === currentVisibleIndex ? ACTIVE_WINDOW_RADIUS : 0;
 
-  const bottomBarHeight = useMemo(
-    () => (Platform.OS === 'web' ? 60 : 60 + insets.bottom),
-    [insets.bottom],
+  const occupiedBottomEdge = useBottomEdgeInset();
+  const bottomBarHeight = resolveBottomEdgeInset(
+    occupiedBottomEdge,
+    insets.bottom,
+    Platform.OS === 'web',
   );
 
   // The raw/original URL — always playable, used as `fallbackVideoUrl`.
@@ -1435,7 +1407,7 @@ export default function VideosScreen() {
   // ref so the callback identity stays stable across tab switches. De-dupes
   // against everything already shown and returns how many NEW posts were appended.
   const fetchVideos = useCallback(
-    async (cursor?: string): Promise<number> => {
+    async (cursor?: string, generation = loadGenerationRef.current) => {
       try {
         const response = await feedService.getFeed({
           type: activeFeedRef.current === 'following' ? 'following' : 'videos',
@@ -1443,13 +1415,16 @@ export default function VideosScreen() {
           limit: FEED_PAGE_LIMIT,
         });
 
+        if (generation !== loadGenerationRef.current) return null;
+        setHasLoadError(false);
+
         // The `following` descriptor returns all post types; both paths run
         // through filterVideoPosts so only video posts reach the reel.
         const videoPosts = filterVideoPosts(response.items ?? []);
         const newPosts = videoPosts.filter((p) => !shownIdsRef.current.has(p.id));
 
         if (newPosts.length > 0) {
-          newPosts.forEach((p) => shownIdsRef.current.add(p.id));
+          for (const post of newPosts) shownIdsRef.current.add(post.id);
           // Seed the SHARED post cache, exactly as `useFeedState` does for
           // every other feed. Without it the reel is invisible to the store:
           // `updatePostEverywhere` is a read-modify-write that returns null
@@ -1469,39 +1444,28 @@ export default function VideosScreen() {
         setHasMore(response.hasMore || false);
         setNextCursor(response.nextCursor);
 
-        return newPosts.length;
+        return {
+          added: newPosts.length,
+          hasMore: response.hasMore,
+          nextCursor: response.nextCursor,
+        };
       } catch {
-        // A failing feed must never clear the target post; degrade gracefully.
+        // feedService logs the failure. Keep any playable posts and offer retry.
+        if (generation !== loadGenerationRef.current) return null;
+        setHasLoadError(true);
         setHasMore(false);
-        return 0;
+        return null;
       }
     },
     [filterVideoPosts, cachePosts],
   );
 
-  // Mirror the latest pagination state into a ref so the auto-continue loop
-  // reads fresh values without re-creating the callback each render.
-  const feedCursorRef = useRef<{ hasMore: boolean; nextCursor?: string }>({
-    hasMore: true,
-    nextCursor: undefined,
-  });
-  feedCursorRef.current = { hasMore, nextCursor };
-
   // Walk forward through `videos` pages until at least one NEW post is added or
   // the feed is exhausted, so a page of pure duplicates doesn't dead-end the reel.
   const fetchVideosUntilProgress = useCallback(
     async (startCursor?: string): Promise<void> => {
-      let cursor = startCursor;
-      let attempts = 0;
-      // The first call always runs; up to MAX_AUTO_CONTINUE_PAGES extra follow-ups.
-      while (attempts <= MAX_AUTO_CONTINUE_PAGES) {
-        const added = await fetchVideos(cursor);
-        if (added > 0) return;
-        const state = feedCursorRef.current;
-        if (!state.hasMore || !state.nextCursor) return;
-        cursor = state.nextCursor;
-        attempts += 1;
-      }
+      const generation = loadGenerationRef.current;
+      await loadVideoPagesUntilProgress((cursor) => fetchVideos(cursor, generation), startCursor);
     },
     [fetchVideos],
   );
@@ -1533,9 +1497,12 @@ export default function VideosScreen() {
   // post is only pinned on the For You tab so a Following reload doesn't re-pin it.
   useEffect(() => {
     let isMounted = true;
+    loadGenerationRef.current += 1;
 
     const load = async () => {
       setIsLoading(true);
+      setHasLoadError(false);
+      setLoadingMore(false);
       shownIdsRef.current = new Set();
       setPosts([]);
       setNextCursor(undefined);
@@ -1565,12 +1532,14 @@ export default function VideosScreen() {
 
     return () => {
       isMounted = false;
+      loadGenerationRef.current += 1;
     };
   }, [
     targetPostId,
     viewerId,
     activeFeed,
     reloadNonce,
+    retryNonce,
     fetchPostById,
     fetchVideosUntilProgress,
     scrollReelToTop,
@@ -1578,11 +1547,12 @@ export default function VideosScreen() {
 
   const handleLoadMore = useCallback(async () => {
     if (loadingMore || !hasMore || !nextCursor) return;
+    const generation = loadGenerationRef.current;
     setLoadingMore(true);
     try {
       await fetchVideosUntilProgress(nextCursor);
     } finally {
-      setLoadingMore(false);
+      if (generation === loadGenerationRef.current) setLoadingMore(false);
     }
   }, [fetchVideosUntilProgress, hasMore, nextCursor, loadingMore]);
 
@@ -2175,37 +2145,38 @@ export default function VideosScreen() {
   return (
     <>
       <SEO title={t('seo.videos.title')} description={t('seo.videos.description')} />
-      <View style={styles.container}>
-        {isLoading && posts.length === 0 && (
-          <View style={styles.initialLoadingContainer}>
-            <SpinnerIcon size={44} className="text-primary-foreground" />
-          </View>
+      <View
+        testID="videos-screen"
+        className={cn(
+          'w-full native:flex-1 web:min-h-[100dvh]',
+          posts.length === 0 ? 'bg-background' : 'bg-black',
         )}
-
-        {/* Immersive pill tabs over the video — top-center, respecting the
-                    safe-area inset. On web they pin to the viewport top via
-                    `position: sticky` (WEB_TABS_STICKY_CLASS) so they stay visible
-                    while the document scrolls, staying confined to the central
-                    column (not full-bleed over the sidebars / right rail). Native
-                    keeps the StyleSheet `position: absolute`. Following is gated on
-                    the private API (auth). */}
+      >
+        {/* A zero-height sticky host overlays the reel without negative margins
+            or coupling the slide geometry to the segmented control's height. */}
         <View
-          className={WEB_TABS_STICKY_CLASS}
-          style={[styles.tabsRow, { top: insets.top + 12 }]}
+          className="absolute web:sticky left-0 right-0 h-0 z-20"
+          style={{ top: insets.top }}
           pointerEvents="box-none"
         >
-          <FeedTab
-            label={t('For You')}
-            active={activeFeed === 'videos'}
-            onPress={() => handleSelectFeed('videos')}
-          />
-          {canUsePrivateApi && (
-            <FeedTab
-              label={t('Following')}
-              active={activeFeed === 'following'}
-              onPress={() => handleSelectFeed('following')}
-            />
-          )}
+          <View className="flex-row justify-center pt-3 px-4" pointerEvents="box-none">
+            <SegmentedControl<VideoFeedTab>
+              label={t('seo.videos.title')}
+              type="radio"
+              size="lg"
+              value={activeFeed}
+              onValueChange={handleSelectFeed}
+            >
+              <SegmentedControlItem value="videos">
+                <SegmentedControlItemText>{t('For You')}</SegmentedControlItemText>
+              </SegmentedControlItem>
+              {canUsePrivateApi && (
+                <SegmentedControlItem value="following">
+                  <SegmentedControlItemText>{t('Following')}</SegmentedControlItemText>
+                </SegmentedControlItem>
+              )}
+            </SegmentedControl>
+          </View>
         </View>
 
         {/* The reel publishes its own viewability (the snapped slide) to the
@@ -2306,22 +2277,34 @@ export default function VideosScreen() {
           </VideoViewabilityProvider>
         )}
 
-        {!isLoading && posts.length === 0 && (
-          <EmptyState
-            title={t('videos.no_video_posts_yet')}
-            subtitle={t('videos.no_posts_found')}
-            sticker="videosTab"
-            containerStyle={styles.emptyState}
-          />
+        {posts.length === 0 && (
+          <View
+            className="native:flex-1 web:min-h-[100dvh] items-center justify-center px-6"
+            style={{ paddingTop: insets.top + 72, paddingBottom: bottomBarHeight + 24 }}
+            testID="videos-status"
+          >
+            {isLoading ? (
+              <SpinnerIcon size={44} className="text-foreground" />
+            ) : (
+              <EmptyState
+                title={t(hasLoadError ? 'videos.load_failed' : 'videos.no_video_posts_yet')}
+                subtitle={t(
+                  hasLoadError ? 'videos.load_failed_description' : 'videos.empty_description',
+                )}
+                sticker={hasLoadError ? 'loadError' : 'videosTab'}
+                action={{ label: t('common.retry'), onPress: handleRetry }}
+              />
+            )}
+          </View>
         )}
 
         {loadingMore && (
-          <View style={styles.loadingMore}>
-            <View style={styles.loadingIndicator}>
-              <Text className="text-sm font-semibold text-muted-foreground">
-                {t('videos.loading')}
-              </Text>
-            </View>
+          <View
+            className="absolute left-0 right-0 items-center"
+            style={{ bottom: bottomBarHeight + 24 }}
+            pointerEvents="none"
+          >
+            <SpinnerIcon size={24} className="text-white" />
           </View>
         )}
       </View>
@@ -2357,8 +2340,6 @@ const TEXT_SHADOW_HANDLE: Pick<
 };
 
 interface VideosStyles {
-  container: ViewStyle;
-  initialLoadingContainer: ViewStyle;
   list: ViewStyle;
   listContent: ViewStyle;
   videoContainer: ViewStyle;
@@ -2379,7 +2360,6 @@ interface VideosStyles {
   overlay: ViewStyle;
   gradientOverlay: ViewStyle;
   rightActions: ViewStyle;
-  actionButton: ViewStyle;
   actionCount: TextStyle;
   bottomInfo: ViewStyle;
   userInfo: ViewStyle;
@@ -2399,31 +2379,9 @@ interface VideosStyles {
   soundRow: ViewStyle;
   soundIcon: TextStyle;
   soundText: TextStyle;
-  tabsRow: ViewStyle;
-  tabPill: ViewStyle;
-  tabPillActive: ViewStyle;
-  tabPillInactive: ViewStyle;
-  tabLabel: TextStyle;
-  tabLabelActive: TextStyle;
-  tabLabelInactive: TextStyle;
-  emptyState: ViewStyle;
-  loadingMore: ViewStyle;
-  loadingIndicator: ViewStyle;
 }
 
 const styles = StyleSheet.create<VideosStyles>({
-  container: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#000000',
-  },
-  initialLoadingContainer: {
-    ...StyleSheet.absoluteFill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1,
-  },
   list: {
     flex: 1,
   },
@@ -2536,21 +2494,14 @@ const styles = StyleSheet.create<VideosStyles>({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 180,
+    height: '100%',
     pointerEvents: 'none',
   },
   rightActions: {
     justifyContent: 'flex-end',
     alignItems: 'center',
-    gap: 10,
+    gap: 16,
     zIndex: 6,
-    paddingRight: 8,
-  },
-  actionButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
-    minWidth: 36,
   },
   actionCount: {
     color: '#FFFFFF',
@@ -2563,11 +2514,8 @@ const styles = StyleSheet.create<VideosStyles>({
   bottomInfo: {
     flex: 1,
     justifyContent: 'flex-end',
-    // Gutter between the caption and the rail. Unaffected by the rail's
-    // compaction: a 36px button plus 8px of padding is the same 44px box the
-    // old 40 + 4 made, so the clearance is exactly what it was.
-    marginRight: 70,
-    maxWidth: '70%',
+    marginRight: 16,
+    minWidth: 0,
     zIndex: 6,
     paddingBottom: 0,
   },
@@ -2583,7 +2531,8 @@ const styles = StyleSheet.create<VideosStyles>({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    flexShrink: 1,
+    flex: 1,
+    minWidth: 0,
   },
   onVideoFollow: {
     flexShrink: 0,
@@ -2600,6 +2549,7 @@ const styles = StyleSheet.create<VideosStyles>({
     gap: 4,
   },
   userFullName: {
+    flexShrink: 1,
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '600',
@@ -2650,68 +2600,5 @@ const styles = StyleSheet.create<VideosStyles>({
     fontWeight: '500',
     flexShrink: 1,
     ...TEXT_SHADOW_STRONG,
-  },
-  tabsRow: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-    zIndex: 12,
-    // Web only: a fixed row height so the `position: sticky` overlay's
-    // negative bottom margin (WEB_TABS_STICKY_CLASS, -TABS_ROW_HEIGHT) nets to
-    // exactly zero layout height. Native sizes to content and stays
-    // `position: absolute` with no layout footprint.
-    ...Platform.select({ web: { height: TABS_ROW_HEIGHT }, default: {} }),
-  },
-  tabPill: {
-    paddingHorizontal: 16,
-    paddingVertical: 7,
-    borderRadius: 18,
-  },
-  tabPillActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  tabPillInactive: {
-    backgroundColor: 'rgba(0, 0, 0, 0.25)',
-  },
-  tabLabel: {
-    fontSize: 15,
-    // Explicit line height makes the pill height deterministic
-    // (paddingVertical 7×2 + 20 = TABS_ROW_HEIGHT) so the web sticky overlay's
-    // negative bottom margin nets to zero.
-    lineHeight: 20,
-    ...TEXT_SHADOW_STRONG,
-  },
-  tabLabelActive: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-  },
-  tabLabelInactive: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontWeight: '600',
-  },
-  emptyState: {
-    flex: 1,
-  },
-  loadingMore: {
-    position: 'absolute',
-    bottom: 40,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-  },
-  loadingIndicator: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
   },
 });
