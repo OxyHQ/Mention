@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 46.26,
-      "covered": 12875,
-      "total": 27831
+      "pct": 46.78,
+      "covered": 13032,
+      "total": 27857
     },
     "branches": {
-      "pct": 41.75,
-      "covered": 8532,
-      "total": 20432
+      "pct": 42.06,
+      "covered": 8604,
+      "total": 20453
     },
     "functions": {
-      "pct": 41.17,
-      "covered": 2972,
-      "total": 7218
+      "pct": 41.6,
+      "covered": 3010,
+      "total": 7235
     },
     "lines": {
-      "pct": 47.05,
-      "covered": 11707,
-      "total": 24879
+      "pct": 47.58,
+      "covered": 11851,
+      "total": 24905
     }
   },
   "pins": {
@@ -276,10 +276,10 @@
       "lines": 0
     },
     "hooks/useExpandableText.ts": {
-      "statements": 53,
-      "branches": 50,
-      "functions": 33,
-      "lines": 63
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "hooks/useExternalActorResolve.ts": {
       "statements": 0,
@@ -1696,6 +1696,12 @@
       "branches": 62,
       "functions": 76,
       "lines": 91
+    },
+    "utils/postInlineMarkdown.ts": {
+      "statements": 100,
+      "branches": 92,
+      "functions": 100,
+      "lines": 100
     },
     "utils/postLanguages.ts": {
       "statements": 96,
