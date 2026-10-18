@@ -21,6 +21,7 @@
         "@clarity.surf/sdk": "^0.4.0",
         "@crowdsource.you/contracts": "1.1.0",
         "@crowdsource.you/core": "3.0.2",
+        "@kaana.ai/sdk": "3.2.0",
         "@mention/shared-types": "workspace:*",
         "@mercaria.co/sdk": "^0.2.0",
         "@oxy.so/contracts": "catalog:",
@@ -896,6 +897,10 @@
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
     "@js-sdsl/ordered-map": ["@js-sdsl/ordered-map@4.4.2", "", {}, "sha512-iUKgm52T8HOE/makSxjqoWhe95ZJA1/G1sYsGev2JDKUSS14KAgg1LHb+Ba+IPow0xflbnSkOsZcO08C7w1gYw=="],
+
+    "@kaana.ai/contracts": ["@kaana.ai/contracts@7.0.0", "", { "dependencies": { "zod": ">=4.4.3 <4.5.0" } }, "sha512-n0WXMmVm5TCj4AaQmrqha0HKlUBJsMK9AAPIJMGOIPVZWgEGzNHBAwh45H9PftlhB1G4FoDIuvRFwCCnefA9tQ=="],
+
+    "@kaana.ai/sdk": ["@kaana.ai/sdk@3.2.0", "", { "dependencies": { "@kaana.ai/contracts": "7.0.0" } }, "sha512-k/6gzfSclJ701ftBvFsph7ohuPeaIP8vQk+8AXbKVzAiNYpD7b2uLEbTyBtTM7O3PPDJ8T8WvmvVyCltz163+Q=="],
 
     "@livekit/components-core": ["@livekit/components-core@0.12.13", "", { "dependencies": { "@floating-ui/dom": "1.7.4", "loglevel": "1.9.1", "rxjs": "7.8.2" }, "peerDependencies": { "livekit-client": "^2.17.2", "tslib": "^2.6.2" } }, "sha512-DQmi84afHoHjZ62wm8y+XPNIDHTwFHAltjd3lmyXj8UZHOY7wcza4vFt1xnghJOD5wLRY58L1dkAgAw59MgWvw=="],
 
@@ -3576,6 +3581,8 @@
     "@jridgewell/gen-mapping/@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.5", "", {}, "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="],
 
     "@jridgewell/trace-mapping/@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.5", "", {}, "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="],
+
+    "@kaana.ai/contracts/zod": ["zod@4.4.3", "", {}, "sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ=="],
 
     "@livekit/components-core/loglevel": ["loglevel@1.9.1", "", {}, "sha512-hP3I3kCrDIMuRwAwHltphhDM1r8i55H33GgqjXbrisuJhF4kRhW1dNuxsRklp4bXl8DSdLaNLuiL4A/LWRfxvg=="],
 

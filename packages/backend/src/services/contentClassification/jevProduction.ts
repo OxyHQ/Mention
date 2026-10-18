@@ -1,11 +1,9 @@
 import { createHash } from 'node:crypto';
 import { createJevReceiptReader, type ShadowReceiptReader } from './jevReceipt';
 import { buildJevDecisionRequest, jevInputSha256 } from './jevRequest';
-import { OxyInferenceClient } from '@oxy.so/core/inference';
-import { config } from '../../config';
 import { canAuthenticateAsService } from '../../runtime/serviceIdentity';
-import { getServiceOxyClient } from '../../utils/oxyHelpers';
-import { createJevShadowEvaluation } from './jevSdk';
+import { kaanaClient } from '../../utils/kaana';
+import { createJevShadowEvaluation, type JevKaanaClient } from './jevSdk';
 import {
   shadowSelectionSchema,
   ShadowAdmissionClosedError,
@@ -20,6 +18,17 @@ import {
 } from './jevProductionApproval';
 
 const reviewedNativeEvaluations = new WeakSet<ShadowEvaluation>();
+
+/** The shared Kaana client, loaded on first use (the SDK is ESM-only). */
+const productionKaana = {
+  decisions: {
+    create: async (request, options) => (await kaanaClient()).decisions.create(request, options),
+  },
+  generations: {
+    getByIdempotencyKey: async (key, options) =>
+      (await kaanaClient()).generations.getByIdempotencyKey(key, options),
+  },
+} satisfies Required<JevKaanaClient>;
 
 /** Only this source-bound factory can admit the selected native operation while broader gates stay closed. */
 export function isReviewedNativeJevEvaluation(evaluation: ShadowEvaluation): boolean {
@@ -54,10 +63,7 @@ export function createProductionJevEvaluation(): ShadowEvaluation | undefined {
   }
   if (expiresAt <= Date.now()) return undefined;
   if (!canAuthenticateAsService()) return undefined;
-  const client = new OxyInferenceClient({
-    baseURL: config.oxyApiUrl,
-    credential: () => getServiceOxyClient().serviceToken(),
-  });
+  const client = productionKaana;
   const selection = Object.freeze({ ...approval.selection });
   const topics = Object.freeze(approval.topics.map((topic) => Object.freeze({ ...topic })));
   const evaluation = createJevShadowEvaluation(client, approval.release, topics, {
@@ -108,10 +114,7 @@ export function createProductionJevEvaluation(): ShadowEvaluation | undefined {
 /** Read-only capability for already-persisted own operations; no source admission or post content. */
 export function createProductionJevReceiptReader(): ShadowReceiptReader | undefined {
   if (!canAuthenticateAsService()) return undefined;
-  const client = new OxyInferenceClient({
-    baseURL: config.oxyApiUrl,
-    credential: () => getServiceOxyClient().serviceToken(),
-  });
+  const client = productionKaana;
   return Object.freeze({
     ...createJevReceiptReader(client, {
       applicationId: MENTION_JEV_APPLICATION_ID,

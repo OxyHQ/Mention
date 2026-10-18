@@ -13,7 +13,7 @@ import {
   usageQuantitySchema,
   usageSourceSchema,
 } from '@oxy.so/contracts';
-import type { OxyInferenceClient } from '@oxy.so/core/inference';
+import type { Kaana } from '@kaana.ai/sdk' with { 'resolution-mode': 'import' };
 
 /** Immutable source lineage, persisted before the original send; not a new permission. */
 export const shadowRecoveryLineageSchema = z
@@ -56,7 +56,6 @@ export const shadowUsageReconciliationSchema = z
     requestId: z.string().min(1),
     authority: shadowReceiptAuthoritySchema,
     model: z.string().min(1),
-    provider: z.string().min(1),
     outcome: z.custom<InferenceRequestOutcome>(
       (value) => inferenceRequestOutcomeSchema.safeParse(value).success,
     ),
@@ -127,7 +126,7 @@ export function sameReceiptAuthority(
 }
 
 export function createJevReceiptReader(
-  client: Pick<OxyInferenceClient, 'getGenerationRecordByIdempotencyKey'>,
+  client: { readonly generations: Pick<Kaana['generations'], 'getByIdempotencyKey'> },
   input: ShadowReceiptAuthority,
 ): ShadowReceiptReader {
   const parsed = shadowReceiptAuthoritySchema.parse(input);
@@ -137,40 +136,39 @@ export function createJevReceiptReader(
     authority,
     async readOriginal(key, model, signal, lineage) {
       // Exactly one read; failures/404 propagate, leaving the original claim intact.
-      const record = await client.getGenerationRecordByIdempotencyKey(key, {
+      const record = await client.generations.getByIdempotencyKey(key, {
         signal,
         ...(authority.delegatedUserId === undefined
           ? {}
-          : { delegatedUserId: authority.delegatedUserId }),
+          : { onBehalfOfUserId: authority.delegatedUserId }),
       });
-      if (!sameReceiptAuthority(authority, record) || record.resolvedModelReference !== model) {
+      if (!sameReceiptAuthority(authority, record) || record.model !== model) {
         throw new Error('Recovered usage does not match the original authority and model');
       }
       if (
         lineage &&
         (lineage.idempotencyKey !== key ||
           lineage.model !== model ||
-          record.servingProvider !== lineage.provider ||
-          (record.schemaVersion === 1
+          (record.kind === 'charge'
             ? record.priceSnapshot.priceVersionId
             : record.tariff.priceVersionId) !== lineage.priceVersionId)
       ) {
         throw new Error('Recovered usage differs from original route metadata');
       }
-      // Public generation records do not attest deployment/policy or the source approval hash.
+      // Public generation records name neither provider nor deployment (Kaana
+      // ADR 0002), nor the policy or the source approval hash.
       return shadowUsageReconciliationSchema.parse({
         status: 'reconciled_result_missing',
         requestId: record.requestId,
         authority,
         model,
-        provider: record.servingProvider,
         outcome: record.outcome,
         usageSource: record.usageSource,
         units: record.units,
         settledAt: record.settledAt,
         providerCost: 'unknown',
         economics:
-          record.schemaVersion === 1
+          record.kind === 'charge'
             ? {
                 kind: 'customer_charge',
                 receiptId: record.receiptId,

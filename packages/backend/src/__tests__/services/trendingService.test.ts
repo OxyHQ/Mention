@@ -23,7 +23,7 @@ import { MtnConfig } from '@mention/shared-types';
 
 // Trending pulls in side-effecting collaborators the aggregation never touches.
 vi.mock('../../utils/socket', () => ({ emitTrendsUpdated: vi.fn() }));
-vi.mock('../../utils/oxyInference', () => ({
+vi.mock('../../utils/inference', () => ({
   inferenceChat: vi.fn(),
   isInferenceEnabled: () => false,
 }));

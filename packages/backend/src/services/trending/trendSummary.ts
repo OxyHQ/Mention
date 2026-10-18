@@ -31,7 +31,7 @@ import { and, eq } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { isUniqueViolation } from '@oxy.so/db';
 import { trendSummaries } from '../../db/schema/discovery';
-import { inferenceChat, isInferenceEnabled } from '../../utils/oxyInference';
+import { inferenceChat, isInferenceEnabled } from '../../utils/inference';
 import { logger } from '../../utils/logger';
 import { metrics } from '../../utils/metrics';
 import { getRedisClient } from '../../utils/redis';

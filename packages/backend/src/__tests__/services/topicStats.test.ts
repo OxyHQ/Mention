@@ -23,7 +23,7 @@ import { randomUUID } from 'node:crypto';
 import { inArray } from 'drizzle-orm';
 
 vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({}) }));
-vi.mock('../../utils/oxyInference', () => ({
+vi.mock('../../utils/inference', () => ({
   inferenceJSON: vi.fn(),
   isInferenceEnabled: () => false,
 }));

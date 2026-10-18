@@ -40,7 +40,7 @@ const { inferenceChat, followingIds } = vi.hoisted(() => ({
   followingIds: { value: [] as string[] },
 }));
 
-vi.mock('../../utils/oxyInference', () => ({ isInferenceEnabled: () => true, inferenceChat }));
+vi.mock('../../utils/inference', () => ({ isInferenceEnabled: () => true, inferenceChat }));
 vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({ users: { get: async () => ({}) } }),
 }));

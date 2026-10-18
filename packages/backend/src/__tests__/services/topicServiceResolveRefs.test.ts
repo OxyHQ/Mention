@@ -23,7 +23,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
 // Oxy inference is imported by the module; stub so it loads purely. `topic_stats` needs
 // no stub — `resolveTopicRefs` issues no query, and the tests that DO write rows
 // live in `topicStats.test.ts` against a real database.
-vi.mock('../../utils/oxyInference', () => ({
+vi.mock('../../utils/inference', () => ({
   inferenceJSON: vi.fn(),
   isInferenceEnabled: () => false,
 }));

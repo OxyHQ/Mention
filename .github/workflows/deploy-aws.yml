@@ -299,10 +299,9 @@ jobs:
              "CROWDSOURCE_WEBHOOK_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/CROWDSOURCE_WEBHOOK_SECRET",
              "META_GRAPH_ACCESS_TOKEN":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/META_GRAPH_ACCESS_TOKEN",
              "META_IG_BUSINESS_ACCOUNT_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/META_IG_BUSINESS_ACCOUNT_ID"}
-          # Provider credentials never enter this task. Mention selects its
-          # reviewed profile by exact opaque primary key; Oxy resolves and signs
-          # concrete Kaana routes. Slugs, display names and row order are not
-          # routing inputs.
+          # Provider credentials never enter this task, and neither does a
+          # routing input: Mention asks Kaana for the `instant` power level, a
+          # code constant (utils/inference.ts), and Oxy's grant decides the rest.
           #
           # WEB_SHELL_ORIGIN is pinned here rather than left to the default in
           # `config/index.ts`, because this revision is derived from the LIVE task
@@ -315,8 +314,7 @@ jobs:
           # caller the `/imports/v1` ingest admits (docs/import.mdx). It is an
           # id, not a secret: the gate is the service token Oxy signs for it.
           TASK_ENV_OVERRIDES_JSON: >-
-            {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd",
-             "WEB_SHELL_ORIGIN":"https://shell.mention.earth",
+            {"WEB_SHELL_ORIGIN":"https://shell.mention.earth",
              "MOVE_APPLICATION_ID":"4bac8f1baed68fd02d65d592"}
           # OPTIONAL environment, merged into the lists above and below by
           # optional-task-bindings.sh (which states the rules in full). A
@@ -390,9 +388,11 @@ jobs:
           # endpoint it switched; metrics are CloudWatch EMF now);
           # OXY_ECOSYSTEM_ACTIVITY_ENABLED is gone too (a deployed process knows
           # it is deployed); POST_CLASSIFICATION_ENABLED was set to the code's own
-          # default, which is a line that can only ever drift; and
+          # default, which is a line that can only ever drift;
           # MENTION_FRONTEND_ORIGIN was set to the value the schema already
-          # defaults to.
+          # defaults to; and OXY_INFERENCE_ROUTING_PROFILE_ID named Oxy's fixed
+          # `kaana-v1` profile, which kaana.ai cannot serve (text features ask
+          # for the `instant` power level in code).
           #
           # A standing list, not a one-off: it is re-applied on every deploy, so a
           # variable somebody re-adds by hand to the live definition does not
@@ -404,6 +404,7 @@ jobs:
             OXY_ECOSYSTEM_ACTIVITY_ENABLED
             POST_CLASSIFICATION_ENABLED
             MENTION_FRONTEND_ORIGIN
+            OXY_INFERENCE_ROUTING_PROFILE_ID
           # DELIBERATELY UNSET, and it must stay that way — this is the variable
           # that used to run `reconcile-engagement-projections.js` after every
           # rollout. `deploy-ecs-image.sh` still supports it; nothing here needs

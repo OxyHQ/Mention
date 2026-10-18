@@ -2,18 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
   config: {
-    oxyApiUrl: 'https://api.oxy.test',
-    inference: {
-      routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd' as string | undefined,
-      timeoutMs: 1_000,
-    },
+    inference: { timeoutMs: 1_000 },
   },
   credentials: {
     apiKey: 'application-id' as string | undefined,
     apiSecret: 'application-secret' as string | undefined,
   },
-  respond: vi.fn(),
-  serviceToken: vi.fn(async () => 'service-token'),
+  create: vi.fn(),
+  credential: undefined as undefined | (() => Promise<string>),
+  serviceTokenFor: vi.fn(async (_audience: string) => 'service-token'),
   logError: vi.fn(),
 }));
 
@@ -23,16 +20,19 @@ vi.mock('../../config', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ serviceToken: state.serviceToken }),
+  getServiceOxyClient: () => ({ serviceTokenFor: state.serviceTokenFor }),
 }));
 
 vi.mock('../../utils/logger', () => ({
   logger: { error: state.logError },
 }));
 
-vi.mock('@oxy.so/core/inference', () => ({
-  OxyInferenceClient: class {
-    respond = state.respond;
+vi.mock('@kaana.ai/sdk', () => ({
+  Kaana: class {
+    responses = { create: state.create };
+    constructor(options: { credential: () => Promise<string> }) {
+      state.credential = options.credential;
+    }
   },
 }));
 
@@ -41,21 +41,20 @@ import {
   inferenceChat,
   inferenceJSON,
   isInferenceEnabled,
-} from '../../utils/oxyInference';
+} from '../../utils/inference';
 
-describe('Oxy inference boundary', () => {
+describe('Kaana inference boundary', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     clearInferenceClient();
-    state.config.inference.routingProfileId = '01a06477-94f5-74f0-bc25-4c5c13b93ccd';
     state.credentials.apiKey = 'application-id';
     state.credentials.apiSecret = 'application-secret';
-    state.respond.mockResolvedValue({
+    state.create.mockResolvedValue({
       output: [{ role: 'assistant', content: [{ type: 'text', text: 'answer' }] }],
     });
   });
 
-  it('submits only the exact routing profile ID and product labels, delegating the end user', async () => {
+  it('asks for the instant power level with product labels, delegating the end user', async () => {
     await expect(
       inferenceChat(
         [
@@ -71,10 +70,10 @@ describe('Oxy inference boundary', () => {
       ),
     ).resolves.toBe('answer');
 
-    expect(state.respond).toHaveBeenCalledOnce();
-    const [request, options] = state.respond.mock.calls[0];
+    expect(state.create).toHaveBeenCalledOnce();
+    const [request, options] = state.create.mock.calls[0];
     expect(request).toEqual({
-      routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
+      model: 'instant',
       input: [
         { role: 'system', content: [{ type: 'text', text: 'Be concise.' }] },
         { role: 'user', content: [{ type: 'text', text: 'Hello' }] },
@@ -83,31 +82,23 @@ describe('Oxy inference boundary', () => {
       temperature: 0.2,
       maxOutputTokens: 128,
     });
-    expect(request).not.toHaveProperty('model');
-    expect(request).not.toHaveProperty('routingProfile');
-    expect(request).not.toHaveProperty('authorizedRoutes');
-    expect(options).toMatchObject({ delegatedUserId: 'user-123' });
+    expect(options).toEqual({ timeoutMs: 1_000, onBehalfOfUserId: 'user-123' });
+    await expect(state.credential?.()).resolves.toBe('service-token');
+    expect(state.serviceTokenFor).toHaveBeenCalledWith('kaana.ai');
   });
 
-  it('fails closed unless both the exact routing profile ID and service identity exist', async () => {
-    state.config.inference.routingProfileId = undefined;
-    expect(isInferenceEnabled()).toBe(false);
-    await expect(
-      inferenceChat([{ role: 'user', content: 'Hello' }], { feature: 'test-feature' }),
-    ).rejects.toThrow('OXY_INFERENCE_ROUTING_PROFILE_ID');
-
-    state.config.inference.routingProfileId = '01a06477-94f5-74f0-bc25-4c5c13b93ccd';
+  it('fails closed without a service identity', async () => {
     state.credentials.apiKey = undefined;
     state.credentials.apiSecret = undefined;
     expect(isInferenceEnabled()).toBe(false);
-
-    state.credentials.apiKey = 'application-id';
-    state.credentials.apiSecret = 'application-secret';
-    expect(isInferenceEnabled()).toBe(true);
+    await expect(
+      inferenceChat([{ role: 'user', content: 'Hello' }], { feature: 'test-feature' }),
+    ).rejects.toThrow('service identity');
+    expect(state.create).not.toHaveBeenCalled();
   });
 
   it('unwraps fenced JSON without weakening parse failures', async () => {
-    state.respond.mockResolvedValueOnce({
+    state.create.mockResolvedValueOnce({
       output: [
         { role: 'assistant', content: [{ type: 'text', text: '```json\n{"ok":true}\n```' }] },
       ],
@@ -119,7 +110,7 @@ describe('Oxy inference boundary', () => {
     ).resolves.toEqual({ ok: true });
 
     const sensitiveOutput = 'private-user-content-that-must-not-leak';
-    state.respond.mockResolvedValueOnce({
+    state.create.mockResolvedValueOnce({
       output: [{ role: 'assistant', content: [{ type: 'text', text: sensitiveOutput }] }],
     });
     await expect(

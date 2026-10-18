@@ -23,7 +23,7 @@ import {
 } from '../db/posts/postRepository';
 import type { PostRecord } from '../db/posts/postRecord';
 import type { PostClassificationScores } from '@mention/shared-types';
-import { inferenceJSON, isInferenceEnabled } from '../utils/oxyInference';
+import { inferenceJSON, isInferenceEnabled } from '../utils/inference';
 import { logger } from '../utils/logger';
 import { config } from '../config';
 import { topicService } from './TopicService';
