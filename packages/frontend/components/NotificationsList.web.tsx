@@ -2,7 +2,7 @@ import { NotificationSkeleton } from '@/components/notifications/NotificationSke
 import { usePanelScrollContainer } from '@oxy.so/bloom/app-shell/hooks';
 import { useScrollMarginOrigin } from '@/components/Feed/useScrollMarginOrigin';
 import type React from 'react';
-import { useCallback, useRef } from 'react';
+import { useRef } from 'react';
 import { View } from 'react-native';
 import { useOwnerVirtualizer } from '@/hooks/useOwnerVirtualizer.web';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
@@ -79,37 +79,9 @@ export function NotificationsList({
     getItemKey: (index) => items[index].key,
   });
 
-  // Per-row ref factory: returns a STABLE callback (cached per row key) that
-  // wires the virtualizer's measurement ref on the row node. Stability matters —
-  // a fresh inline `virtualizer.measureElement` each render makes React
-  // detach/re-attach the ref on every render, tearing down and rebuilding the
-  // ResizeObserver `measureElement` installs. That drops the resize
-  // notification when a grouped row grows from its short first mount (~71px) to
-  // its settled height (~158px), so the next row keeps its stale position and
-  // overlaps the grown row. Caching one callback per key (so the ref only fires
-  // on real mount/unmount, and the ResizeObserver stays attached) is the same
-  // robustness the posts feed uses in `components/Feed/Feed.web.tsx`.
-  // `measureElement` is stable for the lifetime of this virtualizer.
+  // TanStack supplies a stable ref per virtualizer. Passing it directly lets
+  // React reattach mounted rows when their document/panel owner changes.
   const measureElement = virtualizer.measureElement;
-  const rowRefCallbacks = useRef(new Map<string, (node: HTMLDivElement | null) => void>());
-  const getRowRef = useCallback(
-    (key: string) => {
-      const cache = rowRefCallbacks.current;
-      const existing = cache.get(key);
-      if (existing) return existing;
-      // Bound the cache so a long scroll session doesn't accumulate one closure
-      // per row forever. Only rows in the virtual window are ever mounted, so a
-      // modest cap covers the live set; evicting the rest just recreates a
-      // row's callback once on a future re-scroll.
-      if (cache.size > 500) cache.clear();
-      const cb = (node: HTMLDivElement | null) => {
-        measureElement(node);
-      };
-      cache.set(key, cb);
-      return cb;
-    },
-    [measureElement],
-  );
 
   useScrollRestoration('window', { enabled: !panel, key: `notifications-${tabKey}` });
 
@@ -148,10 +120,7 @@ export function NotificationsList({
           return (
             <div
               key={virtualRow.key as React.Key}
-              // Stable per-key ref (cached) so the ResizeObserver
-              // `measureElement` installs survives re-renders and
-              // catches a grouped row growing after first paint.
-              ref={getRowRef(item.key)}
+              ref={measureElement}
               data-index={virtualRow.index}
               style={{
                 position: 'absolute',

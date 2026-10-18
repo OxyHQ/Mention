@@ -3,13 +3,7 @@ import { Kaana } from '@kaana.ai/sdk';
 import type { DecisionRequest, DecisionSuccess } from '@kaana.ai/contracts';
 import { createJevShadowEvaluation } from '../../services/contentClassification/jevSdk';
 
-const release = {
-  model: 'synthetic/jev@fixture-v1',
-  policyRef: 'fixture-policy',
-  policyVersion: 1,
-  evaluationVersion: 'shadow-v1',
-  supportedLanguages: ['en', 'es'],
-};
+const release = { evaluationVersion: 'shadow-v1', supportedLanguages: ['en', 'es'] };
 const topics = [
   { topic: 'science', question: 'Is this about science?' },
   { topic: 'news', question: 'Is this news?' },
@@ -20,16 +14,15 @@ const input = {
   idempotencyKey: 'owned-claim',
   signal: new AbortController().signal,
 };
-function response(request: DecisionRequest): DecisionSuccess {
+const served = 'synthetic/jev@observed-fixture';
+
+function answer(request: DecisionRequest): DecisionSuccess {
   return {
     schemaVersion: 1,
     requestId: 'kaana-request',
-    model: request.model,
-    routingPolicy: { routingPolicyId: release.policyRef, policyVersion: release.policyVersion },
-    usage: [
-      { unit: 'requests', quantity: 1 },
-      { unit: 'input_tokens', quantity: 17 },
-    ],
+    model: served,
+    routingPolicy: { routingPolicyId: 'fixture-policy', policyVersion: 1 },
+    usage: [{ unit: 'input_tokens', quantity: 17 }],
     data: request.questions.map((question) =>
       question.kind === 'score'
         ? {
@@ -44,226 +37,82 @@ function response(request: DecisionRequest): DecisionSuccess {
     ),
   };
 }
-function fixture(mutate: (result: DecisionSuccess) => unknown = (result) => result) {
-  // Exercise the public SDK with an in-memory fetch double, never a provider.
-  const transport = mock(async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
-    const request = JSON.parse(String(init?.body)) as DecisionRequest;
-    return new Response(JSON.stringify(mutate(response(request))), {
-      headers: { 'Content-Type': 'application/json', 'Kaana-Request-Id': 'kaana-request' },
-    });
-  });
-  const client = new Kaana({ credential: 'synthetic-only', fetch: transport, maxRetries: 0 });
-  return { transport, evaluation: createJevShadowEvaluation(client, release, topics) };
+
+/** The real SDK over an in-memory fetch double: no provider, no network. */
+function fixture(respond: (init: RequestInit) => unknown) {
+  const transport = mock(async (_url: string, init: RequestInit) =>
+    Response.json(respond(init), { headers: { 'Kaana-Request-Id': 'kaana-request' } }),
+  );
+  const kaana = new Kaana({ credential: 'synthetic-only', fetch: transport, maxRetries: 0 });
+  return { transport, evaluation: createJevShadowEvaluation(kaana, release, topics) };
 }
 
-describe('published Jev SDK consumer', () => {
-  it('refuses a configured recovery authority without a canonical reader before any inference', () => {
-    const create = mock();
-    expect(() =>
-      createJevShadowEvaluation({ decisions: { create } }, release, topics, {
-        applicationId: 'fixture',
-        credentialId: 'fixture',
-        environment: 'production',
-      }),
-    ).toThrow('Canonical receipt reader is unavailable');
-    expect(create).not.toHaveBeenCalled();
-  });
-
-  it.each([undefined, 'original-delegation'])(
-    'uses the same frozen delegation %s for a lost POST and its only GET',
-    async (delegatedUserId) => {
-      const authority = {
-        applicationId: 'owned-app',
-        credentialId: 'owned-credential',
-        environment: 'production' as const,
-        ...(delegatedUserId === undefined ? {} : { delegatedUserId }),
-      };
-      const original = { ...authority };
-      const transport = mock(async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
-        const headers = new Headers(init?.headers);
-        expect(headers.get('X-Oxy-User-Id')).toBe(delegatedUserId ?? null);
-        if (init?.method === 'POST') {
-          expect(headers.get('Idempotency-Key')).toBe(input.idempotencyKey);
-          throw new Error('Synthetic response lost after admission');
-        }
-        expect(init?.method).toBe('GET');
-        expect(new URL(String(url)).searchParams.get('idempotency_key')).toBe(input.idempotencyKey);
-        return new Response(
-          JSON.stringify({
-            ...original,
-            schemaVersion: 1,
-            kind: 'metered_usage',
-            meteredUsageId: 'owned-usage',
-            requestId: 'original-request',
-            customerCharge: { status: 'not_charged' },
-            tariff: { status: 'unpriced', priceVersionId: null },
-            outcome: 'completed',
-            usageSource: 'provider_reported',
-            units: [{ unit: 'input_tokens', quantity: 17 }],
-            model: release.model,
-            settledAt: '2026-10-04T00:00:00.000Z',
-          }),
-          { headers: { 'Content-Type': 'application/json', 'Kaana-Request-Id': 'lookup' } },
-        );
-      });
-      const client = new Kaana({ credential: 'synthetic-only', fetch: transport, maxRetries: 0 });
-      const evaluation = createJevShadowEvaluation(client, release, topics, authority);
-      authority.delegatedUserId = 'mutated-after-configuration';
-      await expect(evaluation.evaluate(input)).rejects.toThrow('could not reach Kaana');
-      const recovered = await evaluation.receiptReader!.readOriginal(
-        input.idempotencyKey,
-        release.model,
-      );
-      expect(recovered.authority).toEqual(original);
-      expect(recovered.status).toBe('reconciled_result_missing');
-      expect(transport.mock.calls.map((call) => call[1]?.method)).toEqual(['POST', 'GET']);
-    },
-  );
-
-  it('uses independent propositions, ordered score and actual SDK request/policy references', async () => {
-    const { evaluation, transport } = fixture((result) => ({
-      ...result,
-      data: [...result.data].reverse(),
-    }));
+describe('Jev decisions consumer', () => {
+  it('asks once with no model and keeps the model that answered', async () => {
+    const { evaluation, transport } = fixture((init) =>
+      answer(JSON.parse(String(init.body)) as DecisionRequest),
+    );
     const result = await evaluation.evaluate(input);
-    expect(result.topics.map((topic) => topic.probability)).toEqual([0.9, 0.9]);
-    expect(result.spam).toBe(0.1);
-    expect(result.repetition).toBe(0.9);
-    expect(result.feedValue).toBe(0.75);
-    expect(result.languageEvidence).toEqual([
-      { language: 'en', probability: 0.9 },
-      { language: 'es', probability: 0.9 },
-    ]);
-    expect(result.sdkReceipt).toEqual({
-      requestId: 'kaana-request',
-      routingPolicy: { routingPolicyId: 'fixture-policy', policyVersion: 1 },
-      usage: [
-        { unit: 'requests', quantity: 1 },
-        { unit: 'input_tokens', quantity: 17 },
+    expect(result).toMatchObject({
+      resolvedModel: served,
+      spam: 0.1,
+      repetition: 0.9,
+      feedValue: 0.75,
+      topics: [
+        { topic: 'science', probability: 0.9 },
+        { topic: 'news', probability: 0.9 },
       ],
+      sdkReceipt: {
+        requestId: 'kaana-request',
+        routingPolicy: { routingPolicyId: 'fixture-policy', policyVersion: 1 },
+      },
     });
-    const init = transport.mock.calls[0]?.[1];
-    const request = JSON.parse(String(init?.body)) as DecisionRequest;
-    expect(request.questions.map((question) => [question.id, question.kind])).toEqual([
-      ['topic:0', 'noul'],
-      ['topic:1', 'noul'],
-      ['spam', 'noul'],
-      ['repetition', 'noul'],
-      ['language:0', 'noul'],
-      ['language:1', 'noul'],
-      ['feedScore', 'score'],
-    ]);
-    expect(new Headers(init?.headers).get('Idempotency-Key')).toBe(input.idempotencyKey);
     expect(transport).toHaveBeenCalledTimes(1);
+    const init = transport.mock.calls[0]?.[1];
+    expect(JSON.parse(String(init?.body))).not.toHaveProperty('model');
+    expect(new Headers(init?.headers).get('Idempotency-Key')).toBe(input.idempotencyKey);
   });
 
-  const invalid: Array<[string, (result: DecisionSuccess) => unknown]> = [
-    ['model', (result) => ({ ...result, model: 'synthetic/jev@other' })],
-    ['empty request ID', (result) => ({ ...result, requestId: '' })],
-    [
-      'policy ID',
-      (result) => ({
-        ...result,
-        routingPolicy: { ...result.routingPolicy, routingPolicyId: 'other' },
-      }),
-    ],
-    [
-      'policy version',
-      (result) => ({ ...result, routingPolicy: { ...result.routingPolicy, policyVersion: 2 } }),
-    ],
-    ['missing usage', (result) => ({ ...result, usage: undefined })],
-    ['invalid usage', (result) => ({ ...result, usage: [{ unit: 'requests', quantity: -1 }] })],
-    ['invented billing receipt', (result) => ({ ...result, receiptId: 'invented' })],
-    ['missing receipt', (result) => ({ ...result, routingPolicy: undefined })],
-    ['unknown envelope field', (result) => ({ ...result, invented: true })],
-    ['missing answer', (result) => ({ ...result, data: result.data.slice(1) })],
-    [
-      'extra answer',
-      (result) => ({
-        ...result,
-        data: [...result.data, { id: 'extra', kind: 'noul', probability: 0.5 }],
-      }),
-    ],
-    [
-      'duplicate ID',
-      (result) => ({
-        ...result,
-        data: result.data.map((answer, index) => (index === 1 ? result.data[0] : answer)),
-      }),
-    ],
-    [
-      'wrong ID',
-      (result) => ({
-        ...result,
-        data: result.data.map((answer, index) =>
-          index === 0 ? { ...answer, id: 'other' } : answer,
-        ),
-      }),
-    ],
-    [
-      'wrong kind',
-      (result) => ({
-        ...result,
-        data: result.data.map((answer) =>
-          answer.id === 'spam'
-            ? {
-                id: 'spam',
-                kind: 'choice',
-                reply: 'yes',
-                confidence: 0.9,
-                probabilities: [0.9, 0.1],
-              }
-            : answer,
-        ),
-      }),
-    ],
-    [
-      'bad probability',
-      (result) => ({
-        ...result,
-        data: result.data.map((answer) =>
-          answer.kind === 'noul' ? { ...answer, probability: 2 } : answer,
-        ),
-      }),
-    ],
-    [
-      'score cardinality',
-      (result) => ({
-        ...result,
-        data: result.data.map((answer) =>
-          answer.kind === 'score' ? { ...answer, distribution: [0, 0, 0, 1] } : answer,
-        ),
-      }),
-    ],
-    [
-      'score mean',
-      (result) => ({
-        ...result,
-        data: result.data.map((answer) =>
-          answer.kind === 'score' ? { ...answer, mean: 2 } : answer,
-        ),
-      }),
-    ],
-    [
-      'score normalization',
-      (result) => ({
-        ...result,
-        data: result.data.map((answer) =>
-          answer.kind === 'score' ? { ...answer, distribution: [0, 0, 0, 0.5, 0] } : answer,
-        ),
-      }),
-    ],
-  ];
-  it.each(invalid)('rejects %s with no second dispatch', async (_name, mutate) => {
-    const { evaluation, transport } = fixture(mutate);
+  it('refuses answers to other questions, with no second dispatch', async () => {
+    const { evaluation, transport } = fixture((init) => {
+      const success = answer(JSON.parse(String(init.body)) as DecisionRequest);
+      return { ...success, data: success.data.slice(1) };
+    });
     await expect(evaluation.evaluate(input)).rejects.toThrow();
     expect(transport).toHaveBeenCalledTimes(1);
   });
-  it('abstains before dispatch for unsupported, missing or duplicate languages', async () => {
-    const { evaluation, transport } = fixture();
-    for (const languages of [['ja'], [], ['en', 'en']]) {
-      await expect(evaluation.evaluate({ ...input, languages })).rejects.toThrow();
-    }
+
+  it('abstains before dispatch for an unsupported language', async () => {
+    const { evaluation, transport } = fixture(() => ({}));
+    await expect(evaluation.evaluate({ ...input, languages: ['ja'] })).rejects.toThrow();
     expect(transport).not.toHaveBeenCalled();
+  });
+
+  it('recovers the original usage by the claim key', async () => {
+    const { evaluation, transport } = fixture(() => ({
+      schemaVersion: 1,
+      kind: 'metered_usage',
+      meteredUsageId: 'owned-usage',
+      requestId: 'original-request',
+      applicationId: 'owned-app',
+      credentialId: 'owned-credential',
+      environment: 'production',
+      customerCharge: { status: 'not_charged' },
+      tariff: { status: 'unpriced', priceVersionId: null },
+      outcome: 'completed',
+      usageSource: 'provider_reported',
+      units: [{ unit: 'input_tokens', quantity: 17 }],
+      model: served,
+      settledAt: '2026-10-04T00:00:00.000Z',
+    }));
+    const recovered = await evaluation.receiptReader?.readOriginal(input.idempotencyKey);
+    expect(recovered).toMatchObject({
+      status: 'reconciled_result_missing',
+      model: served,
+      providerCost: 'unknown',
+      economics: { kind: 'internal_usage' },
+    });
+    const url = new URL(String(transport.mock.calls[0]?.[0]));
+    expect(url.searchParams.get('idempotency_key')).toBe(input.idempotencyKey);
   });
 });

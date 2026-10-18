@@ -31,3 +31,45 @@ export function kaanaClient(): Promise<Kaana> {
 export function resetKaanaClient(): void {
   kaana = undefined;
 }
+
+/** Refusals that mean "no more today": Oxy's daily cap, quota or spend limits. */
+const EXHAUSTED_CODES: ReadonlySet<string> = new Set([
+  'rate_limited',
+  'quota_exceeded',
+  'insufficient_balance',
+  'spending_limit_exceeded',
+]);
+
+/**
+ * Refusals decided before any provider ran: authentication, Oxy's grant, the
+ * request's own validity, or no route to run it on. Nothing was spent.
+ */
+const REFUSED_CODES: ReadonlySet<string> = new Set([
+  'invalid_request',
+  'authentication_failed',
+  'permission_denied',
+  'insufficient_scope',
+  'model_not_found',
+  'unsupported_modality',
+  'request_too_large',
+  'idempotency_conflict',
+  'policy_violation',
+  'commercial_permission_denied',
+  'no_route_available',
+  'service_unavailable',
+]);
+
+/**
+ * Whether a failed Kaana call was refused before it ran (`exhausted` for the
+ * day, or `refused` outright), or `undefined` when it may have run and its
+ * cost is unknown: a provider error, a timeout, a dropped connection, a
+ * response outside the contract, or anything after output began.
+ */
+export async function kaanaRefusalOf(error: unknown): Promise<'exhausted' | 'refused' | undefined> {
+  const { KaanaError } = await import('@kaana.ai/sdk');
+  if (!(error instanceof KaanaError) || error.status === null || error.afterOutput) {
+    return undefined;
+  }
+  if (EXHAUSTED_CODES.has(error.code)) return 'exhausted';
+  return REFUSED_CODES.has(error.code) ? 'refused' : undefined;
+}

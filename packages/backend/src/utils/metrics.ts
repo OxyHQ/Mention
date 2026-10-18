@@ -270,6 +270,11 @@ const DEFINITIONS = {
     help: 'Milliseconds one HTTP request spent inside database statements',
     labelNames: ['method', 'route'],
   },
+  post_evaluation_total: {
+    kind: 'counter',
+    help: 'Jev shadow evaluations, by outcome and the model that answered (`none` when no model did)',
+    labelNames: ['outcome', 'model'],
+  },
   /**
    * Oxy egress instrumentation (`utils/oxyMetrics.ts`).
    *
@@ -331,6 +336,8 @@ const ALLOWED_LEGACY_POST_VARIANTS = new Set([
 ]);
 const MAX_SERIES_PER_METRIC = 256;
 const LABEL_VALUE_PATTERN = /^[a-zA-Z0-9_.:-]{1,64}$/;
+const MODEL_REFERENCE_PATTERN =
+  /^[a-z0-9][a-z0-9._-]{0,39}\/[a-zA-Z0-9._:-]{1,80}(?:@[a-zA-Z0-9._:-]{1,40})?$/;
 
 function seriesKey(labels: Record<string, string>): string {
   return Object.entries(labels)
@@ -366,6 +373,11 @@ function boundedLabelValue(label: string, rawValue: string): string {
   }
   if (label === 'variant') {
     return ALLOWED_LEGACY_POST_VARIANTS.has(value) ? value : 'other';
+  }
+  if (label === 'model') {
+    // `publisher/model@revision`: a handful per decisions profile, so the
+    // default series cap bounds it; anything else collapses to `other`.
+    return MODEL_REFERENCE_PATTERN.test(value) || value === 'none' ? value : 'other';
   }
   return LABEL_VALUE_PATTERN.test(value) ? value : 'other';
 }

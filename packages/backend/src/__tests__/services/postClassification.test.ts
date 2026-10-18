@@ -10,13 +10,14 @@ import {
 } from '../../db/posts/postEvaluationRepository';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClassificationTopicRef, PostType as PostTypeValue } from '@mention/shared-types';
-import { eq, sql } from 'drizzle-orm';
-import * as productionApproval from '../../services/contentClassification/jevProductionApproval';
+import { eq } from 'drizzle-orm';
 import * as runtimeIdentity from '../../runtime/serviceIdentity';
 import * as oxyHelpers from '../../utils/oxyHelpers';
-import type { DecisionRequest } from '@oxy.so/contracts';
-import * as jevShadow from '../../services/contentClassification/jevShadow';
-import { posts } from '../../db/schema/posts';
+import type { DecisionRequest } from '@kaana.ai/contracts';
+import { KaanaRateLimitError, KaanaUnavailableError } from '@kaana.ai/sdk';
+import { JEV_SHADOW_DAILY_LIMIT } from '../../services/contentClassification/jevLane';
+import { metrics } from '../../utils/metrics';
+import type * as jevShadow from '../../services/contentClassification/jevShadow';
 import { postEvaluations } from '../../db/schema/postEvaluations';
 
 /**
@@ -111,11 +112,9 @@ import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/
 import {
   deletePostRecord,
   insertPostRecord,
-  lockPostContent,
   updatePostAndContent,
   updatePostRecord,
 } from '../../db/posts/postRepository';
-import { logger } from '../../utils/logger';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import {
   createProductionPostClassificationService,
@@ -1522,699 +1521,156 @@ describe('PostClassificationService — imported posts never displace live work'
   });
 });
 
-describe('PostClassificationService — shadow fanout', () => {
+describe('PostClassificationService — Jev shadow lane', () => {
   const release: jevShadow.ShadowRelease = {
-    model: 'synthetic/jev@fixture-v1',
-    policyRef: 'fixture-policy',
-    policyVersion: 1,
     evaluationVersion: 'shadow-v1',
     supportedLanguages: ['en'],
   };
+  const answering = 'synthetic/jev@observed-fixture';
+  const signals: jevShadow.ShadowSignals = {
+    resolvedModel: answering,
+    topics: [],
+    languages: ['en'],
+    languageEvidence: [{ language: 'en', probability: 0.9 }],
+    sdkReceipt: {
+      requestId: 'synthetic-request',
+      routingPolicy: { routingPolicyId: 'fixture-policy', policyVersion: 1 },
+    },
+    spam: 0,
+    repetition: 0,
+    feedValue: 0.5,
+  };
 
-  async function selectionFor(postId: string): Promise<jevShadow.ShadowSelection> {
-    const selection = await evaluationRepository.preparePostEvaluationSelection(
-      postId,
-      release,
-      [],
-      `selected-${postId}`,
-    );
-    if (!selection) throw new Error('Synthetic preparation failed');
-    return selection;
+  /** The lane's candidate list is global; each test hands it only its own posts. */
+  function candidates(...ids: string[]) {
+    vi.spyOn(evaluationRepository, 'listShadowCandidates').mockResolvedValue(ids);
+  }
+  function ledgerOf(postId: string) {
+    return getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, postId));
+  }
+  async function englishSubject(text: string) {
+    return seedSubject(text, { classification: { languages: ['en'] } });
   }
 
-  it.each([true, false])(
-    'connects the reviewed native factory with baseline enabled=%s while broader release gates remain closed',
-    async (baselineEnabled) => {
-      classificationEnabled.value = baselineEnabled;
-      expect(jevShadow.isJevShadowReleased()).toBe(false);
-      const authority = {
-        applicationId: productionApproval.MENTION_JEV_APPLICATION_ID,
-        credentialId: productionApproval.MENTION_JEV_WORKLOAD_CREDENTIAL_ID,
-        environment: 'production' as const,
-      };
-      vi.spyOn(runtimeIdentity, 'canAuthenticateAsService').mockReturnValue(true);
-      const token = vi.fn(async () => 'synthetic-only');
-      vi.spyOn(oxyHelpers, 'getServiceOxyClient').mockReturnValue({
-        serviceTokenFor: token,
-      } as ReturnType<typeof oxyHelpers.getServiceOxyClient>);
-      const native = await seedSubject('Native eligible content', {
-        classification: { languages: ['en'] },
-      });
-      vi.spyOn(productionApproval, 'reviewedMentionJevProduction').mockReturnValue({
-        selection: await selectionFor(native.id),
-        scope: 'native-original-public',
-        ownerAccountId: productionApproval.MENTION_JEV_OWNER_ACCOUNT_ID,
-        reviews: {
-          publishedSdk: 'fixture:sdk',
-          exactPrivateRoute: 'fixture:route',
-          ownAuthorityAndEconomics: 'fixture:authority',
-          privacyAndZdr: 'fixture:privacy',
-          semanticIdentityAndRecovery: 'fixture:recovery',
-        },
-        deploymentId: 'synthetic-only',
-        provider: 'fixture-provider',
-        priceVersionId: 'fixture-price',
-        evidenceRef: 'fixture:only',
-        validUntil: new Date(Date.now() + 60_000).toISOString(),
-        authority,
-        release,
-        topics: [],
-      });
-      const federated = await seedSubject('Remote content remains excluded', {
-        classification: { languages: ['en'] },
-      });
-      await getDb()
-        .update(posts)
-        .set({
-          federationActorUri: 'https://synthetic.invalid/actor',
-          federationActivityId: 'https://synthetic.invalid/post',
-        })
-        .where(eq(posts.id, federated.id));
-      await padBatch(2);
-      respondWith([]);
-      const transport = vi.fn(async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
-        expect(init?.method).toBe('POST');
-        const key = new Headers(init?.headers).get('Idempotency-Key')!;
-        expect(new Headers(init?.headers).get('X-Oxy-User-Id')).toBeNull();
-        const [claimed] = await getDb()
-          .select()
-          .from(postEvaluations)
-          .where(eq(postEvaluations.id, key));
-        expect(claimed).toMatchObject({
-          postId: native.id,
-          state: 'claimed',
-          receiptAuthority: expect.objectContaining(authority),
-        });
-        const request = JSON.parse(String(init?.body)) as DecisionRequest;
-        expect(request.state).toContain('Native eligible content');
-        return new Response(
-          JSON.stringify({
-            schemaVersion: 1,
-            requestId: 'owned-factory-request',
-            model: request.model,
-            routingPolicy: { routingPolicyId: release.policyRef, policyVersion: 1 },
-            usage: [{ unit: 'requests', quantity: 1 }],
-            data: request.questions.map((q) =>
-              q.kind === 'score'
-                ? {
-                    id: q.id,
-                    kind: 'score',
-                    reply: 3,
-                    mean: 3,
-                    confidence: 0.5,
-                    distribution: [0, 0, 0, 1, 0],
-                  }
-                : { id: q.id, kind: 'noul', probability: 0.1 },
-            ),
-          }),
-          { headers: { 'Kaana-Request-Id': 'owned-factory-request' } },
-        );
-      });
-      vi.stubGlobal('fetch', transport);
-      const empty = await seedSubject('An unrelated text-less post');
-      await getDb().execute(sql`DELETE FROM post_content_variants WHERE post_id=${empty.id}`);
-      const worker = createProductionPostClassificationService();
-      await worker.processQueue();
-      expect((await classificationOf(empty.id)).status).toBe(
-        baselineEnabled ? 'classified' : 'pending',
-      );
-      expect(transport).toHaveBeenCalledTimes(1);
-      expect(token).toHaveBeenCalledTimes(1);
-      if (baselineEnabled) expectBatchWasOurs();
-      else expect(inferenceJSON).not.toHaveBeenCalled();
-      expect((await classificationOf(native.id)).status).toBe(
-        baselineEnabled ? 'classified' : 'pending',
-      );
-      expect((await classificationOf(federated.id)).status).toBe(
-        baselineEnabled ? 'classified' : 'pending',
-      );
-      expect(
-        await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, native.id)),
-      ).toEqual([expect.objectContaining({ state: 'completed' })]);
-      expect(
-        await getDb()
-          .select()
-          .from(postEvaluations)
-          .where(eq(postEvaluations.postId, federated.id)),
-      ).toEqual([]);
-      await worker.processQueue();
-      expect(transport).toHaveBeenCalledTimes(1);
-      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
-      const cycle = vi.spyOn(worker, 'processQueue').mockResolvedValue();
-      try {
-        worker.start();
-        await vi.advanceTimersByTimeAsync(30_000);
-        expect(cycle).toHaveBeenCalledTimes(1);
-      } finally {
-        worker.stop();
-        cycle.mockRestore();
-        vi.useRealTimers();
-      }
-    },
-  );
-
-  it.each(['source-off', 'expired', 'foreign-price', 'revoked'] as const)(
-    'recovers a durable own operation after restart with %s and zero new POST',
-    async (mode) => {
-      classificationEnabled.value = false;
-      expect(jevShadow.isJevShadowReleased()).toBe(false);
-      vi.spyOn(runtimeIdentity, 'canAuthenticateAsService').mockReturnValue(true);
-      const token = vi.fn(async () => 'synthetic-only');
-      vi.spyOn(oxyHelpers, 'getServiceOxyClient').mockReturnValue({
-        serviceTokenFor: token,
-      } as ReturnType<typeof oxyHelpers.getServiceOxyClient>);
-      const post = await seedSubject('Synthetic unresolved native operation', {
-        classification: { languages: ['en'] },
-      });
-      const selection = await selectionFor(post.id);
-      const authority = {
-        applicationId: productionApproval.MENTION_JEV_APPLICATION_ID,
-        credentialId: productionApproval.MENTION_JEV_WORKLOAD_CREDENTIAL_ID,
-        environment: 'production' as const,
-      };
-      const candidate: productionApproval.MentionJevProductionApproval = {
-        selection,
-        scope: 'native-original-public',
-        ownerAccountId: productionApproval.MENTION_JEV_OWNER_ACCOUNT_ID,
-        reviews: {
-          publishedSdk: 'fixture:sdk',
-          exactPrivateRoute: 'fixture:route',
-          ownAuthorityAndEconomics: 'fixture:authority',
-          privacyAndZdr: 'fixture:privacy',
-          semanticIdentityAndRecovery: 'fixture:recovery',
-        },
-        deploymentId: 'synthetic-only',
-        provider: 'fixture-provider',
-        priceVersionId: 'fixture-price',
-        evidenceRef: 'fixture:only',
-        validUntil: new Date(Date.now() + 60_000).toISOString(),
-        authority,
-        release,
-        topics: [],
-      };
-      const source = vi
-        .spyOn(productionApproval, 'reviewedMentionJevProduction')
-        .mockReturnValue(candidate);
-      const transport = vi.fn(async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
-        if (init?.method === 'POST') {
-          expect(new Headers(init?.headers).get('Idempotency-Key')).toBe(selection.idempotencyKey);
-          throw new Error('Synthetic response loss after original send');
-        }
-        expect(init?.method).toBe('GET');
-        expect(new URL(String(url)).searchParams.get('idempotency_key')).toBe(
-          selection.idempotencyKey,
-        );
-        if (mode === 'revoked') return new Response('{}', { status: 403 });
-        return new Response(
-          JSON.stringify({
-            ...authority,
-            schemaVersion: 1,
-            kind: 'metered_usage',
-            meteredUsageId: 'owned-meter',
-            requestId: 'owned-edge-request',
-            outcome: 'completed',
-            usageSource: 'provider_reported',
-            units: [{ unit: 'requests', quantity: 1 }],
-            model: release.model,
-            tariff: {
-              status: 'quoted',
-              amount: '0.0001',
-              currency: 'USD',
-              priceVersionId: mode === 'foreign-price' ? 'foreign-price' : 'fixture-price',
-            },
-            customerCharge: { status: 'not_charged' },
-            settledAt: '2026-10-04T00:00:00.000Z',
-          }),
-          { headers: { 'Content-Type': 'application/json', 'Kaana-Request-Id': 'lookup' } },
-        );
-      });
-      vi.stubGlobal('fetch', transport);
-      await padBatch(1);
-      respondWith([]);
-      await createProductionPostClassificationService().processQueue();
-      expect(transport.mock.calls.map((call) => call[1]?.method)).toEqual(['POST']);
-      const [original] = await getDb()
-        .select()
-        .from(postEvaluations)
-        .where(eq(postEvaluations.id, selection.idempotencyKey));
-      expect(original.state).toBe('cost_uncertain');
-      expect(original.receiptAuthority?.recovery).toMatchObject({
-        ownerAccountId: candidate.ownerAccountId,
-        deploymentId: candidate.deploymentId,
-        idempotencyKey: selection.idempotencyKey,
-      });
-      for (const [index, kind] of [
-        'credential',
-        'owner',
-        'legacy',
-        'model',
-        'key',
-        'delegation',
-      ].entries()) {
-        const id = `${selection.idempotencyKey}-${kind}`;
-        const fingerprint = String(index + 1).repeat(64);
-        const recovery = original.receiptAuthority!.recovery!;
-        await getDb()
-          .insert(postEvaluations)
-          .values({
-            ...original,
-            id,
-            fingerprint,
-            receiptAuthority: {
-              ...authority,
-              ...(kind === 'credential' ? { credentialId: 'foreign-credential' } : {}),
-              ...(kind === 'delegation' ? { delegatedUserId: 'foreign-user' } : {}),
-              ...(kind === 'legacy'
-                ? {}
-                : {
-                    recovery: {
-                      ...recovery,
-                      idempotencyKey: id,
-                      fingerprint,
-                      ...(kind === 'owner' ? { ownerAccountId: 'foreign-owner' } : {}),
-                      ...(kind === 'model' ? { model: 'foreign/model@v1' } : {}),
-                      ...(kind === 'key' ? { idempotencyKey: 'foreign-key' } : {}),
-                    },
-                  }),
-            },
-          });
-      }
-      await getDb().update(posts).set({ visibility: 'private' }).where(eq(posts.id, post.id));
-      const [privateBefore] = await getDb().select().from(posts).where(eq(posts.id, post.id));
-      source.mockReturnValue(
-        mode === 'source-off'
-          ? undefined
-          : { ...candidate, validUntil: '2000-01-01T00:00:00.000Z' },
-      );
-      await createProductionPostClassificationService().processQueue();
-      expect(transport.mock.calls.map((call) => call[1]?.method)).toEqual(['POST', 'GET']);
-      const rows = await getDb()
-        .select()
-        .from(postEvaluations)
-        .where(eq(postEvaluations.postId, post.id));
-      const recovered = rows.find(
-        (row) => row.id === selection.idempotencyKey,
-      )?.usageReconciliation;
-      if (mode === 'source-off' || mode === 'expired')
-        expect(recovered).toMatchObject({
-          status: 'reconciled_result_missing',
-          requestId: 'owned-edge-request',
-          providerCost: 'unknown',
-        });
-      else expect(recovered).toBeNull();
-      expect(
-        rows
-          .filter((row) => row.id !== selection.idempotencyKey)
-          .every((row) => row.usageReconciliation === null),
-      ).toBe(true);
-      expect(rows.every((row) => row.state === 'cost_uncertain' && row.sdkReceipt === null)).toBe(
-        true,
-      );
-      expect(await getDb().select().from(posts).where(eq(posts.id, post.id))).toEqual([
-        privateBefore,
-      ]);
-      expect((await classificationOf(post.id)).status).toBe('pending');
-      expect(inferenceJSON).not.toHaveBeenCalled();
-    },
-  );
-
-  it('runs exactly the selected already-classified native revision without reclassifying it', async () => {
-    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
-    const post = await seedSubject('Already classified native content', {
-      classification: { languages: ['en'] },
-    });
-    const selection = await selectionFor(post.id);
-    await getDb()
-      .update(posts)
-      .set({ classificationStatus: 'classified' })
-      .where(eq(posts.id, post.id));
-    const [before] = await getDb().select().from(posts).where(eq(posts.id, post.id));
-    // This worker's baseline is empty in the owned database; never reset the post.
-    const evaluate = vi.fn(
-      async (_input: Parameters<jevShadow.ShadowEvaluation['evaluate']>[0]) => ({
-        topics: [],
-        languages: ['en'],
-        languageEvidence: [{ language: 'en', probability: 1 }],
-        spam: 0,
-        repetition: 0,
-        feedValue: 0.5,
-        sdkReceipt: {
-          requestId: 'selected-request',
-          routingPolicy: { routingPolicyId: release.policyRef, policyVersion: 1 },
-        },
-      }),
-    );
-    const worker = new PostClassificationService({
-      release,
-      evaluate,
-      selectedOperation: {
-        selection,
-        topics: [],
-        expiresAt: new Date(Date.now() + 60_000).toISOString(),
-      },
-    });
-    await worker.processQueue();
-    await worker.processQueue();
-    expect(evaluate).toHaveBeenCalledTimes(1);
-    expect(evaluate.mock.calls[0]?.[0]).toMatchObject({ idempotencyKey: selection.idempotencyKey });
-    expect(
-      await getDb()
-        .select()
-        .from(postEvaluations)
-        .where(eq(postEvaluations.id, selection.idempotencyKey)),
-    ).toEqual([expect.objectContaining({ postId: post.id, state: 'completed' })]);
-    expect(await getDb().select().from(posts).where(eq(posts.id, post.id))).toEqual([before]);
-  });
-
-  it.each(['before-cycle', 'during-claim'] as const)(
-    'does not quarantine unsent work when production approval expires %s',
-    async (phase) => {
-      expect(jevShadow.isJevShadowReleased()).toBe(false);
-      vi.spyOn(runtimeIdentity, 'canAuthenticateAsService').mockReturnValue(true);
-      const token = vi.fn(async () => 'synthetic-only');
-      vi.spyOn(oxyHelpers, 'getServiceOxyClient').mockReturnValue({
-        serviceTokenFor: token,
-      } as ReturnType<typeof oxyHelpers.getServiceOxyClient>);
-      const post = await seedSubject('Native after approval expiry', {
-        classification: { languages: ['en'] },
-      });
-      await padBatch(1);
-      respondWith([]);
-      const expiresAt = Date.now() + 500;
-      vi.spyOn(productionApproval, 'reviewedMentionJevProduction').mockReturnValue({
-        selection: await selectionFor(post.id),
-        scope: 'native-original-public',
-        ownerAccountId: productionApproval.MENTION_JEV_OWNER_ACCOUNT_ID,
-        reviews: {
-          publishedSdk: 'fixture:sdk',
-          exactPrivateRoute: 'fixture:route',
-          ownAuthorityAndEconomics: 'fixture:authority',
-          privacyAndZdr: 'fixture:privacy',
-          semanticIdentityAndRecovery: 'fixture:recovery',
-        },
-        deploymentId: 'synthetic-only',
-        provider: 'fixture-provider',
-        priceVersionId: 'fixture-price',
-        evidenceRef: 'fixture:only',
-        validUntil: new Date(expiresAt).toISOString(),
-        release,
-        topics: [],
-        authority: {
-          applicationId: productionApproval.MENTION_JEV_APPLICATION_ID,
-          credentialId: productionApproval.MENTION_JEV_WORKLOAD_CREDENTIAL_ID,
-          environment: 'production',
-        },
-      });
-      const transport = vi.fn(() => {
-        throw new Error('No transport is permitted after expiry');
-      });
-      vi.stubGlobal('fetch', transport);
-      const worker = createProductionPostClassificationService();
-      if (phase === 'before-cycle') {
-        vi.spyOn(Date, 'now').mockReturnValue(expiresAt);
-        await worker.processQueue();
-      } else {
-        let unlock!: () => void;
-        let locked!: () => void;
-        const ready = new Promise<void>((resolve) => {
-          locked = resolve;
-        });
-        const holder = getDb().transaction(async (tx) => {
-          await lockPostContent(tx, post.id);
-          locked();
-          await new Promise<void>((resolve) => {
-            unlock = resolve;
-          });
-        });
-        await ready;
-        const claim = vi.spyOn(evaluationRepository, 'claimPostEvaluation');
-        const pending = worker.processQueue();
-        try {
-          await vi.waitFor(() => expect(claim).toHaveBeenCalled());
-          await new Promise((resolve) =>
-            setTimeout(resolve, Math.max(0, expiresAt - Date.now()) + 30),
-          );
-        } finally {
-          unlock();
-          await holder;
-          await pending;
-        }
-      }
-      expect(transport).not.toHaveBeenCalled();
-      expect(token).not.toHaveBeenCalled();
-      expect((await classificationOf(post.id)).status).toBe('classified');
-      expect(
-        await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id)),
-      ).toEqual([]);
-    },
-  );
-
-  it('does not let an injected shadow binding enable the disabled baseline or selected admission', async () => {
+  it('runs the production lane with the canonical classifier off and records the answering model', async () => {
     classificationEnabled.value = false;
-    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
-    const post = await seedSubject('Unreviewed selected native content', {
-      classification: { languages: ['en'] },
+    vi.spyOn(runtimeIdentity, 'canAuthenticateAsService').mockReturnValue(true);
+    const token = vi.fn(async (_audience: string) => 'synthetic-only');
+    vi.spyOn(oxyHelpers, 'getServiceOxyClient').mockReturnValue({
+      serviceTokenFor: token,
+    } as unknown as ReturnType<typeof oxyHelpers.getServiceOxyClient>);
+    const post = await englishSubject('Native eligible content');
+    candidates(post.id);
+    const transport = vi.fn(async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const request = JSON.parse(String(init?.body)) as DecisionRequest;
+      expect(request).not.toHaveProperty('model');
+      return Response.json(
+        {
+          schemaVersion: 1,
+          requestId: 'kaana-request',
+          model: answering,
+          routingPolicy: { routingPolicyId: 'decisions-profile', policyVersion: 3 },
+          usage: [{ unit: 'input_tokens', quantity: 17 }],
+          data: request.questions.map((q) =>
+            q.kind === 'score'
+              ? {
+                  id: q.id,
+                  kind: 'score',
+                  reply: 3,
+                  mean: 3,
+                  confidence: 0.5,
+                  distribution: [0, 0, 0, 1, 0],
+                }
+              : { id: q.id, kind: 'noul', probability: 0.1 },
+          ),
+        },
+        { headers: { 'Kaana-Request-Id': 'kaana-request' } },
+      );
     });
-    const evaluate = vi.fn();
-    const selectedOperation = {
-      selection: await selectionFor(post.id),
-      topics: [],
-      expiresAt: new Date(Date.now() + 60_000).toISOString(),
-    };
-    await new PostClassificationService({ release, evaluate, selectedOperation }).processQueue();
-    expect(evaluate).not.toHaveBeenCalled();
+    vi.stubGlobal('fetch', transport);
+    const counter = vi.spyOn(metrics, 'incrementCounter');
+
+    await createProductionPostClassificationService().processQueue();
+
+    expect(token).toHaveBeenCalledWith('kaana.ai');
+    expect(transport).toHaveBeenCalledTimes(1);
+    expect(await ledgerOf(post.id)).toEqual([
+      expect.objectContaining({
+        state: 'completed',
+        model: null,
+        resolvedModel: answering,
+        policyRef: 'decisions-profile',
+        policyVersion: 3,
+      }),
+    ]);
+    expect(counter).toHaveBeenCalledWith('post_evaluation_total', 1, {
+      outcome: 'completed',
+      model: answering,
+    });
     expect(inferenceJSON).not.toHaveBeenCalled();
-    expect(
-      await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id)),
-    ).toEqual([]);
     expect((await classificationOf(post.id)).status).toBe('pending');
   });
 
-  it('keeps the production gate closed even when a projection binding is supplied', async () => {
-    const post = await seedSubject('Synthetic public news', {
-      classification: { languages: ['en'] },
-    });
-    await padBatch(1);
+  it('releases a claim Kaana refused before it ran, and sleeps until the next UTC day once the allowance is spent', async () => {
+    const post = await englishSubject('Refused before it ran');
+    candidates(post.id);
     respondWith([]);
+    await padBatch(1);
+    const evaluate = vi.fn(async () => {
+      throw new KaanaRateLimitError({
+        code: 'rate_limited',
+        message: 'Daily cap reached.',
+        status: 429,
+        requestId: 'kaana-request',
+        retryable: true,
+      });
+    });
+    const worker = new PostClassificationService({ release, evaluate });
+    await worker.processQueue();
+    expect(await ledgerOf(post.id)).toEqual([]);
+    await worker.processQueue();
+    expect(evaluate).toHaveBeenCalledTimes(1);
+  });
+
+  it('quarantines a call that may have run and never sends it again', async () => {
+    const post = await englishSubject('May have run');
+    candidates(post.id);
+    respondWith([]);
+    await padBatch(1);
+    const evaluate = vi.fn(async () => {
+      throw new KaanaUnavailableError({
+        code: 'provider_error',
+        message: 'Upstream failed.',
+        status: 502,
+        requestId: 'kaana-request',
+        retryable: true,
+      });
+    });
+    const worker = new PostClassificationService({ release, evaluate });
+    await worker.processQueue();
+    await worker.processQueue();
+    expect(evaluate).toHaveBeenCalledTimes(1);
+    expect(await ledgerOf(post.id)).toEqual([expect.objectContaining({ state: 'cost_uncertain' })]);
+    expect((await classificationOf(post.id)).attempts).toBe(0);
+  });
+
+  it('sends nothing once the daily limit is reached', async () => {
+    const post = await englishSubject('Over the daily limit');
+    candidates(post.id);
+    respondWith([]);
+    await padBatch(1);
+    vi.spyOn(evaluationRepository, 'countTodaysPostEvaluationClaims').mockResolvedValue(
+      JEV_SHADOW_DAILY_LIMIT,
+    );
     const evaluate = vi.fn();
     await new PostClassificationService({ release, evaluate }).processQueue();
     expect(evaluate).not.toHaveBeenCalled();
-    expect(
-      await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id)),
-    ).toEqual([]);
-    expect((await classificationOf(post.id)).status).toBe('classified');
-  });
-
-  it('continues the ordinary classifier when optional receipt selection fails', async () => {
-    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
-    const selection = vi
-      .spyOn(evaluationRepository, 'listUnreconciledPostEvaluations')
-      .mockRejectedValue(new Error('synthetic receipt selection unavailable'));
-    const post = await seedSubject('Ordinary work survives receipt maintenance failure');
-    await padBatch(1);
-    respondWith([]);
-    const readOriginal = vi.fn();
-    const worker = new PostClassificationService({
-      release,
-      evaluate: vi.fn(),
-      receiptReader: {
-        authority: {
-          applicationId: 'worker-app',
-          credentialId: 'worker-credential',
-          environment: 'production',
-        },
-        readOriginal,
-      },
-    });
-    await worker.processQueue();
-    expect(selection).toHaveBeenCalledTimes(1);
-    expect(readOriginal).not.toHaveBeenCalled();
-    expectBatchWasOurs();
-    expect((await classificationOf(post.id)).status).toBe('classified');
-  });
-
-  it('does not suppress an ordinary classifier failure while containing receipt maintenance', async () => {
-    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
-    vi.spyOn(evaluationRepository, 'listUnreconciledPostEvaluations').mockRejectedValue(
-      new Error('optional selection failed'),
-    );
-    const worker = new PostClassificationService({
-      release,
-      evaluate: vi.fn(),
-      receiptReader: {
-        authority: {
-          applicationId: 'worker-app',
-          credentialId: 'worker-credential',
-          environment: 'production',
-        },
-        readOriginal: vi.fn(),
-      },
-    });
-    const failure = new Error('ordinary classifier unavailable');
-    vi.spyOn(
-      worker as unknown as { markEmptyPosts(): Promise<void> },
-      'markEmptyPosts',
-    ).mockRejectedValue(failure);
-    await expect(worker.processQueue()).rejects.toBe(failure);
-  });
-
-  it.each(['selector', 'row'] as const)(
-    'bounds real SQL %s waiting and continues the baseline without late receipt writes',
-    async (blocked) => {
-      const oldTimeout = config.inference.timeoutMs;
-      config.inference.timeoutMs = 300;
-      // Enable only maintenance; this test does not activate shadow inference.
-      vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValueOnce(true).mockReturnValue(false);
-      const authority = {
-        applicationId: 'bounded-app',
-        credentialId: 'bounded-credential',
-        environment: 'production' as const,
-      };
-      const oldPost = await seedSubject('Synthetic uncertain usage', {
-        classification: { languages: ['en'], status: 'classified' },
-      });
-      const claim = await claimPostEvaluation(oldPost.id, release, authority);
-      if (!claim) throw new Error('Missing owned claim');
-      await markPostEvaluationUncertain(claim);
-      const post = await seedSubject('Ordinary classification while maintenance SQL is blocked');
-      await padBatch(1);
-      respondWith([]);
-      const readOriginal = vi.fn(async () => ({
-        status: 'reconciled_result_missing' as const,
-        requestId: 'owned-original',
-        authority,
-        model: release.model,
-        outcome: 'completed' as const,
-        usageSource: 'provider_reported' as const,
-        units: [{ unit: 'input_tokens' as const, quantity: 17 }],
-        settledAt: '2026-10-04T00:00:00.000Z',
-        providerCost: 'unknown' as const,
-        economics: {
-          kind: 'internal_usage' as const,
-          customerCharge: 'not_charged' as const,
-          tariff: { status: 'unpriced' as const, priceVersionId: null },
-        },
-      }));
-      let unlock!: () => void;
-      let locked!: () => void;
-      const reached = new Promise<void>((resolve) => {
-        locked = resolve;
-      });
-      const held = new Promise<void>((resolve) => {
-        unlock = resolve;
-      });
-      const lock = getDb().transaction(async (tx) => {
-        if (blocked === 'selector')
-          await tx.execute(sql`lock table post_evaluations in access exclusive mode`);
-        else
-          await tx
-            .select()
-            .from(postEvaluations)
-            .where(eq(postEvaluations.id, claim.id))
-            .for('update');
-        locked();
-        await held;
-      });
-      await reached;
-      const worker = new PostClassificationService({
-        release,
-        evaluate: vi.fn(),
-        receiptReader: { authority, readOriginal },
-      });
-      const cycle = worker.processQueue();
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      try {
-        await vi.waitFor(
-          async () => {
-            const [row] = await getDb().execute<{
-              waiting: number;
-            }>(sql`select count(*)::int as waiting from pg_stat_activity
-          where datname=current_database() and wait_event_type='Lock' and query like '%post_evaluations%'`);
-            expect(row.waiting).toBeGreaterThan(0);
-          },
-          { timeout: 250, interval: 5 },
-        );
-        // The lock is held until `finally`, so an unbounded wait never finishes.
-        // The deadline only has to exceed the 300 ms bound plus the baseline
-        // write, which now serializes each post with its content lock.
-        const done = await Promise.race([
-          cycle.then(() => true),
-          new Promise<boolean>((resolve) => {
-            timer = setTimeout(() => resolve(false), 3000);
-          }),
-        ]);
-        expect(done).toBe(true);
-        expectBatchWasOurs();
-        expect((await classificationOf(post.id)).status).toBe('classified');
-        expect(readOriginal).toHaveBeenCalledTimes(blocked === 'selector' ? 0 : 1);
-      } finally {
-        if (timer) clearTimeout(timer);
-        unlock();
-        await lock;
-        await cycle;
-        config.inference.timeoutMs = oldTimeout;
-      }
-      const [after] = await getDb()
-        .select()
-        .from(postEvaluations)
-        .where(eq(postEvaluations.id, claim.id));
-      expect(after.usageReconciliation).toBeNull();
-      expect(after.state).toBe('cost_uncertain');
-    },
-  );
-
-  it('recovers missing usage in the existing cycle without evaluating the original claim again', async () => {
-    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
-    const authority = {
-      applicationId: 'worker-fixture-app',
-      credentialId: 'worker-fixture-credential',
-      environment: 'production' as const,
-    };
-    const post = await seedSubject('Synthetic recovery', {
-      classification: { languages: ['en'], status: 'classified' },
-    });
-    const claim = await claimPostEvaluation(post.id, release, authority);
-    if (!claim) throw new Error('Missing synthetic claim');
-    await markPostEvaluationUncertain(claim);
-    await padBatch(0);
-    respondWith([]);
-    const readOriginal = vi.fn(async (_key: string, _model: string, _signal?: AbortSignal) => ({
-      status: 'reconciled_result_missing' as const,
-      requestId: 'original-usage',
-      authority,
-      model: release.model,
-      outcome: 'completed' as const,
-      usageSource: 'provider_reported' as const,
-      units: [{ unit: 'input_tokens' as const, quantity: 17 }],
-      settledAt: '2026-10-04T00:00:00.000Z',
-      providerCost: 'unknown' as const,
-      economics: {
-        kind: 'internal_usage' as const,
-        customerCharge: 'not_charged' as const,
-        tariff: { status: 'unpriced' as const, priceVersionId: null },
-      },
-    }));
-    await new PostClassificationService({
-      release,
-      evaluate: vi.fn(),
-      receiptReader: { authority, readOriginal },
-    }).processQueue();
-    expect(readOriginal).toHaveBeenCalledTimes(1);
-    expect(readOriginal.mock.calls[0]?.[0]).toBe(claim.id);
-    const [row] = await getDb()
-      .select()
-      .from(postEvaluations)
-      .where(eq(postEvaluations.id, claim.id));
-    expect(row.state).toBe('cost_uncertain');
-    expect(row.sdkReceipt).toBeNull();
-    expect(row.usageReconciliation?.status).toBe('reconciled_result_missing');
+    expect(await ledgerOf(post.id)).toEqual([]);
   });
 
   it('finishes canonical classification while a slow shadow evaluation is still pending', async () => {
-    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
-    const post = await seedSubject('Synthetic slow projection', {
-      classification: { languages: ['en'] },
-    });
+    const post = await englishSubject('Synthetic slow projection');
+    candidates(post.id);
     await padBatch(1);
     respondWith([]);
     let finish: ((value: jevShadow.ShadowSignals) => void) | undefined;
@@ -2224,37 +1680,22 @@ describe('PostClassificationService — shadow fanout', () => {
           finish = resolve;
         }),
     );
-    const worker = new PostClassificationService({ release, evaluate });
-    const pending = worker.processQueue();
+    const pending = new PostClassificationService({ release, evaluate }).processQueue();
     try {
       await vi.waitFor(async () => {
         expect(evaluate).toHaveBeenCalledTimes(1);
         expect((await classificationOf(post.id)).status).toBe('classified');
       });
     } finally {
-      finish?.({
-        topics: [],
-        languages: ['en'],
-        languageEvidence: [{ language: 'en', probability: 0.9 }],
-        sdkReceipt: {
-          requestId: 'synthetic-request',
-          routingPolicy: { routingPolicyId: 'fixture-policy', policyVersion: 1 },
-        },
-        spam: 0,
-        repetition: 0,
-        feedValue: 0.5,
-      });
+      finish?.(signals);
       await pending;
     }
-    await worker.processQueue();
-    expect(evaluate).toHaveBeenCalledTimes(1);
+    expect(await ledgerOf(post.id)).toEqual([expect.objectContaining({ state: 'completed' })]);
   });
 
-  it('releases the worker after a hung evaluator and processes the next batch without retrying it', async () => {
-    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
-    const post = await seedSubject('Synthetic hung projection', {
-      classification: { languages: ['en'] },
-    });
+  it('aborts a hung evaluator at the cycle deadline and keeps its claim cost-uncertain', async () => {
+    const post = await englishSubject('Synthetic hung projection');
+    candidates(post.id);
     await padBatch(1);
     respondWith([]);
     let signal: AbortSignal | undefined;
@@ -2262,146 +1703,57 @@ describe('PostClassificationService — shadow fanout', () => {
       signal = input.signal;
       return new Promise<jevShadow.ShadowSignals>(() => {});
     });
-    const worker = new PostClassificationService({ release, evaluate });
     const originalTimeout = config.inference.timeoutMs;
-    config.inference.timeoutMs = 1_000;
+    config.inference.timeoutMs = 500;
     try {
-      await worker.processQueue();
-      expect(signal?.aborted).toBe(true);
-      expect((await classificationOf(post.id)).status).toBe('classified');
-      expect(
-        await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id)),
-      ).toEqual([expect.objectContaining({ state: 'cost_uncertain' })]);
-      const next = await seedSubject('Next canonical batch');
-      await padBatch(1);
-      await worker.processQueue();
-      expect((await classificationOf(next.id)).status).toBe('classified');
-      expect(evaluate).toHaveBeenCalledTimes(1);
+      await new PostClassificationService({ release, evaluate }).processQueue();
     } finally {
       config.inference.timeoutMs = originalTimeout;
     }
+    expect(signal?.aborted).toBe(true);
+    expect(await ledgerOf(post.id)).toEqual([expect.objectContaining({ state: 'cost_uncertain' })]);
   });
 
-  it('quarantines schema-invalid shadow output without using a legacy attempt', async () => {
-    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
-    const post = await seedSubject('Synthetic invalid projection', {
-      classification: { languages: ['en'] },
-    });
-    await padBatch(1);
+  it('recovers missing usage in the cycle without evaluating the original claim again', async () => {
+    const post = await englishSubject('Synthetic recovery');
+    candidates();
+    const claim = await claimPostEvaluation(post.id, release, new Date(Date.now() + 60_000));
+    if (!claim) throw new Error('Missing synthetic claim');
+    await markPostEvaluationUncertain(claim);
+    await padBatch(0);
     respondWith([]);
-    const evaluate = vi.fn(
-      async (_input: Parameters<jevShadow.ShadowEvaluation['evaluate']>[0]) => ({
-        topics: [],
-        languages: ['en'],
-        languageEvidence: [{ language: 'en', probability: 0.9 }],
-        sdkReceipt: {
-          requestId: 'synthetic-request',
-          routingPolicy: { routingPolicyId: 'fixture-policy', policyVersion: 1 },
-        },
-        spam: NaN,
-        repetition: 0,
-        feedValue: 0.5,
-      }),
-    );
-    await new PostClassificationService({ release, evaluate }).processQueue();
-    expect((await classificationOf(post.id)).status).toBe('classified');
-    expect((await classificationOf(post.id)).attempts).toBe(0);
-    expect(
-      await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id)),
-    ).toEqual([expect.objectContaining({ state: 'cost_uncertain' })]);
-  });
-
-  it('releases, never quarantines, a claim whose deadline ran out before any evaluator call', async () => {
-    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
-    const post = await seedSubject('Synthetic pre-spend deadline', {
-      classification: { languages: ['en'] },
-    });
-    await padBatch(1);
-    respondWith([]);
+    const readOriginal = vi.fn(async (_key: string, _signal?: AbortSignal) => ({
+      status: 'reconciled_result_missing' as const,
+      requestId: 'original-usage',
+      model: answering,
+      attribution: {
+        applicationId: 'worker-app',
+        credentialId: 'worker-credential',
+        environment: 'production' as const,
+      },
+      outcome: 'completed' as const,
+      usageSource: 'provider_reported' as const,
+      units: [{ unit: 'input_tokens', quantity: 17 }],
+      settledAt: '2026-10-04T00:00:00.000Z',
+      providerCost: 'unknown' as const,
+      economics: {
+        kind: 'internal_usage' as const,
+        customerCharge: 'not_charged' as const,
+        tariff: { status: 'unpriced' as const, priceVersionId: null },
+      },
+    }));
     const evaluate = vi.fn();
-    const info = vi.spyOn(logger, 'info');
-    const originalTimeout = config.inference.timeoutMs;
-    config.inference.timeoutMs = 200;
-    let held: (() => void) | undefined;
-    // Holding the post's content lock makes the claim itself outlive the budget.
-    const holder = getDb().transaction(async (tx) => {
-      await lockPostContent(tx, post.id);
-      await new Promise<void>((resolve) => {
-        held = resolve;
-      });
-    });
-    try {
-      await vi.waitFor(() => expect(held).toBeDefined());
-      const pending = new PostClassificationService({ release, evaluate }).processQueue();
-      await new Promise((resolve) => setTimeout(resolve, 400));
-      held?.();
-      await holder;
-      await pending;
-    } finally {
-      held?.();
-      config.inference.timeoutMs = originalTimeout;
-    }
+    await new PostClassificationService({
+      release,
+      evaluate,
+      receiptReader: { readOriginal },
+    }).processQueue();
+    expect(readOriginal).toHaveBeenCalledWith(claim.id, expect.any(AbortSignal));
     expect(evaluate).not.toHaveBeenCalled();
-    expect(info).toHaveBeenCalledWith(
-      expect.stringContaining('released before any evaluator call'),
-      expect.objectContaining({ evaluationId: expect.any(String) }),
-    );
-    expect(
-      await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id)),
-    ).toEqual([]);
-    expect((await classificationOf(post.id)).status).toBe('classified');
-  });
-
-  it('never sends an imported post to shadow evaluation, even from the imported lane', async () => {
-    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
-    const post = await seedSubject('Synthetic imported unlisted', {
-      classification: { languages: ['en'] },
+    expect((await ledgerOf(post.id))[0]).toMatchObject({
+      state: 'cost_uncertain',
+      sdkReceipt: null,
+      usageReconciliation: { status: 'reconciled_result_missing' },
     });
-    await getDb()
-      .insert(postImports)
-      .values({
-        postId: post.id,
-        oxyUserId: AUTHOR,
-        platform: 'mastodon',
-        sourceId: `${scope.name}-shadow-${post.id}`,
-        sourceUrl: `https://mastodon.example/@author/${post.id}`,
-        importBatchId: `${scope.name}-shadow-batch`,
-      });
-    respondWith([]);
-    const evaluate = vi.fn();
-    await new PostClassificationService({ release, evaluate }).processQueue();
-    expect(evaluate).not.toHaveBeenCalled();
-    expect(
-      await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id)),
-    ).toEqual([]);
-    expect((await classificationOf(post.id)).status).toBe('classified');
-  });
-
-  it('claims before synthetic inference, truncates only its input and never retries cost-uncertain work', async () => {
-    // Synthetic domain binding only: production gate and SDK remain closed.
-    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
-    const post = await seedSubject('x'.repeat(1200), { classification: { languages: ['en'] } });
-    await padBatch(1);
-    respondWith([]);
-    const evaluate = vi.fn(async (input: { idempotencyKey: string; text: string }) => {
-      const [claim] = await getDb()
-        .select()
-        .from(postEvaluations)
-        .where(eq(postEvaluations.id, input.idempotencyKey));
-      expect(claim).toMatchObject({ postId: post.id, state: 'claimed', model: release.model });
-      expect(input.text).toHaveLength(1000);
-      throw new Error('Synthetic ambiguous timeout');
-    });
-    const worker = new PostClassificationService({ release, evaluate });
-    await worker.processQueue();
-    expect(evaluate).toHaveBeenCalledTimes(1);
-    expect((await classificationOf(post.id)).status).toBe('classified');
-    expect((await classificationOf(post.id)).attempts).toBe(0);
-    expect(
-      await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id)),
-    ).toEqual([expect.objectContaining({ state: 'cost_uncertain' })]);
-    await updatePostRecord(post.id, { postClassification: { status: 'pending' } });
-    await worker.processQueue();
-    expect(evaluate).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,13 +1,7 @@
-import { MENTION_JEV_OWNER_ACCOUNT_ID } from './contentClassification/jevProductionApproval';
-import type { ShadowReceiptReader } from './contentClassification/jevReceipt';
 import { JEV_MAX_TEXT_LENGTH } from './contentClassification/jevRequest';
 import { postSafetyMaterial, safetyVerdictSchema } from './contentClassification/safetyAssessment';
 import { savePostSafetyAssessment } from '../db/posts/postSafetyRepository';
-import {
-  createProductionJevEvaluation,
-  createProductionJevReceiptReader,
-  isReviewedNativeJevEvaluation,
-} from './contentClassification/jevProduction';
+import { createJevLane, JEV_SHADOW_DAILY_LIMIT } from './contentClassification/jevLane';
 import { withShadowReceiptDatabase } from '../db/posts/shadowReceiptDatabase';
 import { z } from 'zod';
 import { and, asc, eq, exists, isNull, notExists, sql, type SQL } from 'drizzle-orm';
@@ -31,20 +25,31 @@ import { resolveVariant } from './postVariants';
 import type { ClassificationTopicRef } from '@mention/shared-types';
 import {
   evaluateShadowWithDeadline,
-  isJevShadowReleased,
-  ShadowAdmissionClosedError,
   type ShadowEvaluation,
 } from './contentClassification/jevShadow';
 import {
   claimPostEvaluation,
   completePostEvaluation,
-  markPostEvaluationUncertain,
-  releaseUnsentPostEvaluation,
+  countTodaysPostEvaluationClaims,
+  listShadowCandidates,
   listUnreconciledPostEvaluations,
-  listDurableUnreconciledPostEvaluations,
+  markPostEvaluationUncertain,
   reconcilePostEvaluationUsage,
+  releaseUnsentPostEvaluation,
+  utcDayStart,
   type ShadowClaim,
 } from '../db/posts/postEvaluationRepository';
+import { kaanaRefusalOf } from '../utils/kaana';
+import { metrics } from '../utils/metrics';
+
+/** What became of one shadow-lane post, for `post_evaluation_total`. */
+type ShadowOutcome =
+  | 'completed'
+  | 'superseded'
+  | 'cost_uncertain'
+  | 'refused'
+  | 'exhausted'
+  | 'released';
 
 /**
  * AI-powered post classification service.
@@ -182,17 +187,19 @@ function importLedgerRow() {
 }
 
 export class PostClassificationService {
-  // Production factories are wired; the source approval getter remains undefined until independent release reviews are complete.
-  // The published typed SDK consumer is inert until then.
-  constructor(
-    private readonly shadowEvaluation?: ShadowEvaluation,
-    private readonly durableReceiptReader?: ShadowReceiptReader,
-  ) {}
+  /**
+   * `shadowEvaluation` is the Jev shadow lane (`createJevLane()`): present
+   * whenever this process can authenticate as Mention, and run on every cycle
+   * whatever the canonical classifier's switch says.
+   */
+  constructor(private readonly shadowEvaluation?: ShadowEvaluation) {}
 
   private classificationInterval: NodeJS.Timeout | null = null;
   private initialRunTimeout: NodeJS.Timeout | null = null;
   private isClassifying = false;
   private receiptCursor: string | undefined;
+  /** The lane sleeps until the next UTC midnight once the day's allowance is spent. */
+  private shadowPausedUntil = 0;
 
   private readonly CLASSIFICATION_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
   private readonly INITIAL_RUN_DELAY_MS = 30_000;
@@ -209,24 +216,18 @@ export class PostClassificationService {
   // Ranking plus a strict safety verdict needs about 200–250 output tokens per
   // post. Keep headroom for all 25 results rather than truncating the last ones.
   private readonly AI_OUTPUT_TOKENS_PER_POST = 320;
+  /** Shadow-lane candidates per cycle; the cycle deadline and the daily limit bind first. */
+  private readonly SHADOW_BATCH_SIZE = 25;
 
-  /** Only the production factory may admit the source-selected native operation. */
-  private selectedNativeShadow(): ShadowEvaluation | undefined {
-    const evaluation = this.shadowEvaluation;
-    return evaluation?.selectedOperation && isReviewedNativeJevEvaluation(evaluation)
-      ? evaluation
-      : undefined;
-  }
-
-  /** Original receipt recovery never grants admission or opens the baseline queue. */
-  private hasBoundedShadowWork(): boolean {
-    return this.selectedNativeShadow() !== undefined || this.durableReceiptReader !== undefined;
+  /** The canonical classifier runs only when switched on AND inference has an identity. */
+  private canonicalEnabled(): boolean {
+    return config.classification.enabled && isInferenceEnabled();
   }
 
   public start(): void {
-    if (!config.classification.enabled && !this.hasBoundedShadowWork()) {
+    if (!config.classification.enabled && !this.shadowEvaluation) {
       logger.info(
-        '[PostClassification] Baseline disabled and no bounded shadow/recovery work — service not started',
+        '[PostClassification] Baseline disabled and no shadow lane — service not started',
       );
       return;
     }
@@ -270,8 +271,8 @@ export class PostClassificationService {
    */
   public async processQueue(): Promise<void> {
     if (this.isClassifying) return;
-    if ((!config.classification.enabled && !this.hasBoundedShadowWork()) || !isInferenceEnabled())
-      return;
+    const canonical = this.canonicalEnabled();
+    if (!canonical && !this.shadowEvaluation) return;
     this.isClassifying = true;
 
     try {
@@ -282,18 +283,24 @@ export class PostClassificationService {
         // Do not log query details or widen this catch to baseline inference.
         logger.info('[PostClassification] Original usage maintenance unavailable');
       }
-      if (config.classification.enabled) {
-        await this.markEmptyPosts();
-        await this.classifyBatch();
-      } else {
-        // The global classification opt-in stays off. Never enumerate ordinary
-        // posts or mark text-less rows while this single native shadow runs.
-        const selected = this.selectedNativeShadow()?.selectedOperation;
-        if (selected) await this.enrichShadowBatch([{ id: selected.selection.postId }]);
+      // Independent lanes: a shadow error never consumes a canonical attempt,
+      // and the canonical switch never gates the shadow lane. The re-entrancy
+      // guard holds until both finish.
+      const outcomes = await Promise.allSettled([
+        canonical ? this.classifyCanonical() : Promise.resolve(),
+        this.runShadowLane(),
+      ]);
+      for (const outcome of outcomes) {
+        if (outcome.status === 'rejected') throw outcome.reason;
       }
     } finally {
       this.isClassifying = false;
     }
+  }
+
+  private async classifyCanonical(): Promise<void> {
+    await this.markEmptyPosts();
+    await this.classifyBatch();
   }
 
   /**
@@ -360,27 +367,9 @@ export class PostClassificationService {
 
   private async classifyBatch(): Promise<void> {
     const queue = await this.selectQueue();
-
-    // A reviewed one-operation shadow may target an already-classified post.
-    // It never resets or expands the ordinary queue.
-    const shadowQueue = this.shadowEvaluation?.selectedOperation
-      ? [{ id: this.shadowEvaluation.selectedOperation.selection.postId }]
-      : queue;
-    if (queue.length === 0 && shadowQueue.length === 0) return;
-
+    if (queue.length === 0) return;
     logger.info(`[PostClassification] Classifying batch of ${queue.length} posts`);
-
-    // Fan out from the existing live/import worker. A shadow error must not
-    // consume a legacy attempt or prevent canonical enrichment.
-    const outcomes = await Promise.allSettled([
-      queue.length ? this.classifyCanonicalBatch(queue) : Promise.resolve(),
-      this.enrichShadowBatch(shadowQueue),
-    ]);
-    // Keep the cycle's re-entrancy guard until both branches finish, even if a
-    // canonical database write fails while shadow inference is still pending.
-    for (const outcome of outcomes) {
-      if (outcome.status === 'rejected') throw outcome.reason;
-    }
+    await this.classifyCanonicalBatch(queue);
   }
 
   private async classifyCanonicalBatch(queue: QueueDoc[]): Promise<void> {
@@ -539,35 +528,15 @@ export class PostClassificationService {
 
   private async reconcileShadowUsage(): Promise<void> {
     const evaluation = this.shadowEvaluation;
-    const reader =
-      this.durableReceiptReader ??
-      (evaluation && (isJevShadowReleased() || isReviewedNativeJevEvaluation(evaluation))
-        ? evaluation.receiptReader
-        : undefined);
-    if (!reader) return;
+    const reader = evaluation?.receiptReader;
+    if (!evaluation || !reader) return;
+    const version = evaluation.release.evaluationVersion;
     const deadline = Date.now() + config.inference.timeoutMs;
     await withShadowReceiptDatabase(deadline, undefined, async (context) => {
-      const select = (cursor?: string) => {
-        if (this.durableReceiptReader) {
-          return listDurableUnreconciledPostEvaluations(
-            reader.authority,
-            MENTION_JEV_OWNER_ACCOUNT_ID,
-            cursor,
-            context,
-          );
-        }
-        if (!evaluation) return Promise.resolve([]);
-        return listUnreconciledPostEvaluations(
-          evaluation.release,
-          reader.authority,
-          cursor,
-          context,
-        );
-      };
-      let ids = await select(this.receiptCursor);
+      let ids = await listUnreconciledPostEvaluations(version, this.receiptCursor, context);
       if (!ids.length && this.receiptCursor !== undefined) {
         this.receiptCursor = undefined;
-        ids = await select();
+        ids = await listUnreconciledPostEvaluations(version, undefined, context);
       }
       for (const id of ids) {
         context.check();
@@ -584,36 +553,55 @@ export class PostClassificationService {
     });
   }
 
-  private async enrichShadowBatch(queue: readonly Pick<QueueDoc, 'id'>[]): Promise<void> {
+  /** Sleep until the next UTC midnight, when the day's allowance resets. */
+  private pauseShadowLane(reason: string): void {
+    this.shadowPausedUntil = utcDayStart().getTime() + 24 * 60 * 60 * 1000;
+    logger.info('[PostClassification] Shadow lane paused until the next UTC day', {
+      reason,
+      until: new Date(this.shadowPausedUntil).toISOString(),
+    });
+  }
+
+  private recordShadowOutcome(outcome: ShadowOutcome, model = 'none'): void {
+    metrics.incrementCounter('post_evaluation_total', 1, { outcome, model });
+  }
+
+  /**
+   * The continuous Jev shadow lane: recent native public posts, newest first,
+   * each claimed before it is sent, within the cycle's deadline and the daily
+   * limit. A refusal before anything ran releases its claim and ends the
+   * cycle; an exhausted allowance pauses the lane until the next UTC day; any
+   * failure that may have run is `cost_uncertain` and is never resent.
+   */
+  private async runShadowLane(): Promise<void> {
     const evaluation = this.shadowEvaluation;
-    if (!evaluation || (!isJevShadowReleased() && !isReviewedNativeJevEvaluation(evaluation)))
-      return;
+    if (!evaluation || Date.now() < this.shadowPausedUntil) return;
     const deadline = Date.now() + config.inference.timeoutMs;
-    // Bounded by the existing 25 live / 10 imported queue, no second scheduler.
-    for (const post of queue) {
-      if (Date.now() >= deadline || evaluation.isAdmissionOpen?.() === false) break;
+    let claims = await countTodaysPostEvaluationClaims();
+    const candidates = await listShadowCandidates(
+      evaluation.release.evaluationVersion,
+      this.SHADOW_BATCH_SIZE,
+    );
+    for (const postId of candidates) {
+      if (claims >= JEV_SHADOW_DAILY_LIMIT) {
+        this.pauseShadowLane('daily_limit');
+        return;
+      }
+      if (Date.now() >= deadline) return;
       let claim: ShadowClaim | null = null;
       let sent = false;
       try {
-        claim = await claimPostEvaluation(
-          post.id,
-          evaluation.release,
-          evaluation.receiptReader?.authority,
-          evaluation.receiptReader ? new Date(deadline) : undefined,
-          evaluation.selectedOperation,
-        );
-        if (!claim) continue;
-        if (evaluation.isAdmissionOpen?.() === false) {
-          await releaseUnsentPostEvaluation(claim);
-          break;
-        }
+        claim = await claimPostEvaluation(postId, evaluation.release, new Date(deadline));
+        if (!claim) continue; // Abstained, ineligible, or another claim won.
+        claims += 1;
         const primary = claim.snapshot.renditions.find((rendition) => rendition.position === 0);
         if (!primary) throw new Error('Claimed shadow evaluation has no primary rendition');
         const remaining = deadline - Date.now();
         if (remaining <= 0) {
           // The claim itself used the budget: its id never left this process.
           await releaseUnsentPostEvaluation(claim);
-          break;
+          this.recordShadowOutcome('released');
+          return;
         }
         sent = true;
         const signals = await evaluateShadowWithDeadline(
@@ -625,27 +613,45 @@ export class PostClassificationService {
           },
           remaining,
         );
-        const completed = await completePostEvaluation(claim, signals);
-        if (!completed) {
+        if (await completePostEvaluation(claim, signals)) {
+          this.recordShadowOutcome('completed', signals.resolvedModel);
+        } else {
           logger.info(
             '[PostClassification] Shadow result superseded; cost requires reconciliation',
             {
               evaluationId: claim.id,
             },
           );
+          this.recordShadowOutcome('superseded', signals.resolvedModel);
         }
       } catch (error) {
-        logger.warn('[PostClassification] Shadow evaluation failed; no automatic retry', error);
-        if (claim) {
-          try {
-            if (sent && !(error instanceof ShadowAdmissionClosedError))
-              await markPostEvaluationUncertain(claim);
-            else await releaseUnsentPostEvaluation(claim);
-          } catch (ledgerError) {
-            // An abandoned claim is also never reclaimed with a fresh request id.
-            logger.warn('[PostClassification] Shadow claim remains unresolved', ledgerError);
-          }
+        if (!claim) {
+          logger.warn('[PostClassification] Shadow claim failed', error);
+          continue;
         }
+        const refusal = sent ? await kaanaRefusalOf(error) : 'refused';
+        try {
+          if (refusal === undefined) {
+            logger.warn(
+              '[PostClassification] Shadow evaluation failed; cost uncertain, no retry',
+              error,
+            );
+            await markPostEvaluationUncertain(claim);
+            this.recordShadowOutcome('cost_uncertain');
+            continue;
+          }
+          logger.info('[PostClassification] Shadow evaluation refused before it ran', {
+            evaluationId: claim.id,
+            refusal,
+          });
+          await releaseUnsentPostEvaluation(claim);
+          this.recordShadowOutcome(refusal);
+        } catch (ledgerError) {
+          // An abandoned claim is never reclaimed with a fresh request id.
+          logger.warn('[PostClassification] Shadow claim remains unresolved', ledgerError);
+        }
+        if (refusal === 'exhausted') this.pauseShadowLane('allowance_exhausted');
+        return;
       }
     }
   }
@@ -692,10 +698,7 @@ export class PostClassificationService {
 }
 
 export function createProductionPostClassificationService(): PostClassificationService {
-  return new PostClassificationService(
-    createProductionJevEvaluation(),
-    createProductionJevReceiptReader(),
-  );
+  return new PostClassificationService(createJevLane());
 }
 
 export const postClassificationService = createProductionPostClassificationService();
