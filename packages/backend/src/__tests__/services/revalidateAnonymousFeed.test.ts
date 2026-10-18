@@ -78,13 +78,13 @@ describe('anonymous feed cache authorization boundary', () => {
         },
         unratedMaterialAllowed: true,
       },
-      ['es'],
+      { accepted: ['es'] },
     );
     expect(records).toHaveBeenCalledWith(['hidden', 'visible']);
     expect(hydrate).toHaveBeenCalledWith([row('hidden', 'x'), row('visible', 'Current body')], {
       safetyRequester: { accessToken: null },
       maxDepth: 2,
-      requestLanguages: ['es'],
+      requestLanguages: { accepted: ['es'] },
     });
     expect(result.items).toEqual([current]);
     expect(result.slices[0].items.map((item) => item.post)).toEqual([current]);

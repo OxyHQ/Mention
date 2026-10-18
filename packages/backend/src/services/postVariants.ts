@@ -40,10 +40,12 @@ import { normalizePostHashtags } from '../utils/textProcessing';
  * Spanish alt text was edited silently keeps the stale English copy. "I do not
  * override it" has to mean *it is literally the same image*.
  *
- * Resolution ladder (see {@link resolveViewerTag}): explicit tag → Accept-Language
- * → the viewer's Oxy account locales → the post's primary. Within EVERY step:
- * exact tag → any variant sharing the base subtag → next step. So a reader on
- * `es-MX` sees an `es-ES` post in Spanish; never English when Spanish exists.
+ * Resolution ladder (see {@link resolveViewerTag}): explicit tag → the viewer's
+ * Oxy account locales → Accept-Language → the post's primary. The AUTHOR's words
+ * in any ladder language win, in ladder order; a MACHINE translation is served
+ * only for the reader's first (primary) language. Within each language: exact
+ * tag → any variant sharing the base subtag. So a reader on `es-MX` sees an
+ * `es-ES` post in Spanish; never English when Spanish exists.
  *
  * Within a locale, the author beats the machine: a machine translation never
  * displaces words the author wrote in THAT locale. Across regions the exact
@@ -296,20 +298,43 @@ function localizeAlt(
 
 /**
  * The tag the viewer should be served, resolved down the ladder. `candidates` is
- * the ordered preference list (explicit request tag, then Accept-Language, then
- * the viewer's Oxy account locales); an empty list — an anonymous reader, a
- * crawler, the OG renderer, MCP — resolves to the primary.
+ * the ordered preference list (`languageLadder`: explicit `?lang`, then the
+ * viewer's Oxy account locales, then Accept-Language); an empty list — an
+ * anonymous reader, a crawler, the OG renderer, MCP — resolves to the primary.
+ *
+ *   1. An AUTHOR rendition in any ladder language, in ladder order: the reader
+ *      understands it, and it is the author's own words.
+ *   2. Otherwise a MACHINE rendition, but only for the FIRST candidate — the
+ *      reader's primary. A cached translation into a secondary language they
+ *      also read must not be served: they would read Catalan where they asked
+ *      for Spanish, and since Catalan is a language they read, the translate
+ *      icon would never appear to get them Spanish.
+ *   3. Otherwise the post's primary (the original).
+ *
+ * Within the primary language the per-tag precedence of
+ * {@link selectVariantForTag} still holds once the author covers it at all, so a
+ * cached `es-MX` translation still beats the author's `es-ES` for an `es-MX`
+ * reader.
  */
 export function resolveViewerTag(
   candidates: readonly string[],
   content: StoredPostContent,
 ): string | undefined {
   const variants = variantsOf(content);
+  const authors = variants.filter((variant) => variant.source === 'author');
+  const [primary] = candidates;
+
   for (const candidate of candidates) {
-    const match = selectVariantForTag(variants, candidate);
+    const authored = selectVariantForTag(authors, candidate);
+    if (!authored?.tag) continue;
+    // The primary language: keep the full precedence (an exact machine locale
+    // over another region's author rendition).
+    const match = candidate === primary ? selectVariantForTag(variants, candidate) : authored;
     if (match?.tag) return match.tag;
   }
-  return getPrimaryVariant(content)?.tag;
+
+  const machine = primary === undefined ? undefined : selectVariantForTag(variants, primary);
+  return machine?.tag ?? getPrimaryVariant(content)?.tag;
 }
 
 /**

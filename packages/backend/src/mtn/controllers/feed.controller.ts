@@ -31,7 +31,7 @@ import {
   loadViewerLanguages,
   resolveViewerBaseLanguages,
 } from '../feed/feedContext';
-import { requestLanguageCandidates } from '../../utils/viewerLanguage';
+import { requestLanguageCandidates, requestLanguageList } from '../../utils/viewerLanguage';
 import { mergeFederatedFollowIds } from '../../services/viewerFollowGraph';
 import { resolveDiscoveryGateBucket } from '../feed/discoveryGateExperiment';
 import { FeedGeneratorFeed } from '../feed/feeds/FeedGeneratorFeed';
@@ -382,6 +382,7 @@ class MtnFeedController {
       // synchronously — the anon cache key is built before the context load and
       // has to name the languages the page was actually built for.
       const requestLanguages = requestLanguageCandidates(req);
+      const requestLanguageTags = requestLanguageList(requestLanguages);
 
       // Anonymous feeds are shared across logged-out viewers (no per-user
       // following/blocked/muted/seen state — see loadViewerFeedContext), so the
@@ -398,7 +399,7 @@ class MtnFeedController {
             type: descriptor,
             limit,
             cursor,
-            languages: resolveViewerBaseLanguages([], requestLanguages),
+            languages: resolveViewerBaseLanguages([], requestLanguageTags),
             ...(videoFilters ? { filters: videoFilters as Record<string, unknown> } : {}),
           })
         : undefined;
@@ -494,7 +495,7 @@ class MtnFeedController {
           currentUserId,
           feedOxyClient,
           acceptedOutboundFollowUris,
-          requestLanguages,
+          requestLanguageTags,
         ),
         // `computeMutualIds` soft-fails each branch to `[]`, so a lookup failure
         // never breaks the feed.
@@ -690,7 +691,7 @@ class MtnFeedController {
 
       // `?lang=` then `Accept-Language`. Synchronous; the account rung below wins
       // when it has anything.
-      const requestLanguages = requestLanguageCandidates(req);
+      const requestLanguages = requestLanguageList(requestLanguageCandidates(req));
 
       let followingIds: string[] = [];
       let subscribedListMemberIds: string[] = [];

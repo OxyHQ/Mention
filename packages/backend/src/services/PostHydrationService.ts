@@ -101,6 +101,7 @@ import {
 } from './postVariants';
 import { loadRecentReplierIds } from './PostRecentReplierService';
 import { previewableUrls, resolveClarityDocuments } from '../utils/clarityDocuments';
+import { languageLadder, type RequestLanguages } from '../utils/viewerLanguage';
 import {
   findPostLinkPreviews,
   type StoredLinkPreview,
@@ -267,14 +268,16 @@ export interface HydrationOptions {
    */
   viewerPrivacy?: ViewerPrivacyContext;
   /**
-   * The language preference carried by the REQUEST — an explicit `?lang=` the
-   * reader picked, then `Accept-Language` — most-preferred first, from
-   * {@link requestLanguageCandidates}. It leads the variant-resolution ladder;
-   * the viewer's Oxy account locales follow. A caller with no request context
-   * (the OG renderer, MCP, a socket broadcast) omits it and gets the post's
-   * primary language, which is what those surfaces should show.
+   * The language preference carried by the REQUEST, from
+   * {@link requestLanguageCandidates}: an explicit `?lang=` the reader picked,
+   * which leads the variant-resolution ladder, and `Accept-Language`, which
+   * comes LAST — below the viewer's Oxy account locales, so a device default
+   * never outranks what a signed-in reader declared ({@link languageLadder}). A
+   * caller with no request context (the OG renderer, MCP, a socket broadcast)
+   * omits it and gets the post's primary language, which is what those surfaces
+   * should show.
    */
-  requestLanguages?: string[];
+  requestLanguages?: RequestLanguages;
   /**
    * The viewer's Oxy account locales, when the caller already resolved them (the
    * feed does, in `loadViewerFeedContext`). Absent → {@link buildViewerContext}
@@ -366,8 +369,8 @@ interface HydratedGraphNode {
 interface ViewerContext {
   viewerId?: string;
   /**
-   * The viewer's ordered language preference — the request's tags (explicit
-   * `?lang`, then `Accept-Language`) followed by the Oxy account locales. This is
+   * The viewer's ordered language preference — an explicit `?lang`, then the Oxy
+   * account locales, then `Accept-Language` ({@link languageLadder}). This is
    * the ladder `resolveViewerTag` walks to pick which localized rendition of each
    * post to serve. Empty for an anonymous reader with no header (a crawler), which
    * resolves every post to its primary language.
@@ -1504,19 +1507,17 @@ export class PostHydrationService {
   }
 
   /**
-   * The viewer's ordered language preference: the request's tags first (an
-   * explicit `?lang`, then `Accept-Language`), then the viewer's Oxy account
-   * locales — which the feed already resolved and threads in, and which every
-   * other caller reads here from the Redis-cached identity (the same batched
-   * lookup hydration uses for authors, so it costs no Oxy round trip on a hit).
+   * The viewer's ordered language preference ({@link languageLadder}): an
+   * explicit `?lang`, then the viewer's Oxy account locales — which the feed
+   * already resolved and threads in, and which every other caller reads here
+   * from the Redis-cached identity (the same batched lookup hydration uses for
+   * authors, so it costs no Oxy round trip on a hit) — then `Accept-Language`.
    * Fail-soft: an unresolvable viewer simply contributes no account locales.
    */
   private async buildLanguageCandidates(
     viewerId: string | undefined,
     options: HydrationOptions | undefined,
   ): Promise<string[]> {
-    const candidates = [...(options?.requestLanguages ?? [])];
-
     let accountLanguages = options?.viewerLanguages;
     if (accountLanguages === undefined && viewerId) {
       try {
@@ -1528,13 +1529,7 @@ export class PostHydrationService {
       }
     }
 
-    for (const tag of accountLanguages ?? []) {
-      if (!candidates.includes(tag)) {
-        candidates.push(tag);
-      }
-    }
-
-    return candidates;
+    return languageLadder(options?.requestLanguages, accountLanguages ?? []);
   }
 
   private async buildViewerContext(
