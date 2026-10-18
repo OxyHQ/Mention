@@ -19,6 +19,13 @@ jest.mock('expo-router', () => ({
     return <Text>{`Redirect ${href}`}</Text>;
   },
 }));
+const mountedTrees = new Set<TestRenderer.ReactTestRenderer>();
+afterEach(() => {
+  act(() => {
+    for (const tree of mountedTrees) tree.unmount();
+  });
+  mountedTrees.clear();
+});
 function home() {
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
@@ -30,10 +37,15 @@ function home() {
   });
   if (!renderer) throw new Error('Renderer was not created');
   const tree = renderer;
+  mountedTrees.add(tree);
   return {
     getByText: (text: string) =>
       tree.root.findAllByType(Text).find((node) => node.props.children === text),
-    unmount: () => act(() => tree.unmount()),
+    unmount: () =>
+      act(() => {
+        tree.unmount();
+        mountedTrees.delete(tree);
+      }),
   };
 }
 beforeEach(() => {
