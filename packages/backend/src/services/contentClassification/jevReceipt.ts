@@ -1,67 +1,32 @@
 import { z } from 'zod';
-import type {
-  InferenceEnvironment,
-  InferenceRequestOutcome,
-  UsageQuantity,
-  UsageSource,
-} from '@oxy.so/contracts';
-import {
-  currencyCodeSchema,
-  exactDecimalSchema,
-  inferenceEnvironmentSchema,
-  inferenceRequestOutcomeSchema,
-  usageQuantitySchema,
-  usageSourceSchema,
-} from '@oxy.so/contracts';
 import type { Kaana } from '@kaana.ai/sdk' with { 'resolution-mode': 'import' };
 
-/** Immutable source lineage, persisted before the original send; not a new permission. */
-export const shadowRecoveryLineageSchema = z
-  .object({
-    version: z.literal(1),
-    ownerAccountId: z.string().min(1),
-    deploymentId: z.string().min(1),
-    model: z.string().min(1),
-    policyRef: z.string().min(1),
-    policyVersion: z.number().int().positive(),
-    evaluationVersion: z.string().min(1),
-    provider: z.string().min(1),
-    priceVersionId: z.string().min(1),
-    sourceApprovalSha256: z.string().regex(/^[a-f0-9]{64}$/),
-    inputSha256: z.string().regex(/^[a-f0-9]{64}$/),
-    idempotencyKey: z.string().min(1),
-    fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
-  })
-  .strict();
-export type ShadowRecoveryLineage = z.infer<typeof shadowRecoveryLineageSchema>;
+const decimal = z.string().regex(/^\d+(?:\.\d+)?$/);
+const currency = z.string().regex(/^[A-Z]{3}$/);
 
-/** Original public attribution only; never a bearer or provider credential. */
-export const shadowReceiptAuthoritySchema = z
-  .object({
-    applicationId: z.string().min(1),
-    credentialId: z.string().min(1),
-    recovery: shadowRecoveryLineageSchema.optional(),
-    environment: z.custom<InferenceEnvironment>(
-      (value) => inferenceEnvironmentSchema.safeParse(value).success,
-    ),
-    delegatedUserId: z.string().min(1).optional(),
-  })
-  .strict();
-export type ShadowReceiptAuthority = z.infer<typeof shadowReceiptAuthoritySchema>;
-
-/** Storage projection of usage evidence, deliberately separate from answers. */
+/**
+ * Storage projection of a generation record recovered by idempotency key,
+ * deliberately separate from answers. The SDK has validated the record against
+ * `@kaana.ai/contracts`; this is what Mention keeps of it.
+ */
 export const shadowUsageReconciliationSchema = z
   .object({
     status: z.literal('reconciled_result_missing'),
     requestId: z.string().min(1),
-    authority: shadowReceiptAuthoritySchema,
+    /** The model that served the original request. */
     model: z.string().min(1),
-    outcome: z.custom<InferenceRequestOutcome>(
-      (value) => inferenceRequestOutcomeSchema.safeParse(value).success,
-    ),
-    usageSource: z.custom<UsageSource>((value) => usageSourceSchema.safeParse(value).success),
+    /** Whose request it was, as Oxy attributed it; Kaana reads only the caller's own. */
+    attribution: z
+      .object({
+        applicationId: z.string().min(1),
+        credentialId: z.string().min(1),
+        environment: z.enum(['development', 'staging', 'production']),
+      })
+      .strict(),
+    outcome: z.enum(['completed', 'partial', 'failed', 'cancelled']),
+    usageSource: z.enum(['provider_reported', 'oxy_measured', 'estimated']),
     units: z
-      .array(z.custom<UsageQuantity>((value) => usageQuantitySchema.safeParse(value).success))
+      .array(z.object({ unit: z.string().min(1), quantity: z.number().min(0) }).strict())
       .refine((units) => new Set(units.map((unit) => unit.unit)).size === units.length),
     settledAt: z.string().datetime(),
     // Provider invoiced cost is not part of either generation-record variant.
@@ -71,8 +36,8 @@ export const shadowUsageReconciliationSchema = z
         .object({
           kind: z.literal('customer_charge'),
           receiptId: z.string().min(1),
-          amount: z.custom<string>((value) => exactDecimalSchema.safeParse(value).success),
-          currency: z.custom<string>((value) => currencyCodeSchema.safeParse(value).success),
+          amount: decimal,
+          currency,
           priceVersionId: z.string().min(1),
           platformFeeOnly: z.boolean(),
         })
@@ -85,8 +50,8 @@ export const shadowUsageReconciliationSchema = z
             z
               .object({
                 status: z.literal('quoted'),
-                amount: z.custom<string>((value) => exactDecimalSchema.safeParse(value).success),
-                currency: z.custom<string>((value) => currencyCodeSchema.safeParse(value).success),
+                amount: decimal,
+                currency,
                 priceVersionId: z.string().min(1),
               })
               .strict(),
@@ -103,65 +68,27 @@ export const shadowUsageReconciliationSchema = z
   })
   .strict();
 export type ShadowUsageReconciliation = z.infer<typeof shadowUsageReconciliationSchema>;
+
 export interface ShadowReceiptReader {
-  readonly authority: ShadowReceiptAuthority;
-  readonly recoveryOwnerAccountId?: string;
-  readOriginal(
-    key: string,
-    model: string,
-    signal?: AbortSignal,
-    lineage?: ShadowRecoveryLineage,
-  ): Promise<ShadowUsageReconciliation>;
-}
-export function sameReceiptAuthority(
-  a: ShadowReceiptAuthority,
-  b: ShadowReceiptAuthority,
-): boolean {
-  return (
-    a.applicationId === b.applicationId &&
-    a.credentialId === b.credentialId &&
-    a.environment === b.environment &&
-    a.delegatedUserId === b.delegatedUserId
-  );
+  readOriginal(key: string, signal?: AbortSignal): Promise<ShadowUsageReconciliation>;
 }
 
-export function createJevReceiptReader(
-  client: { readonly generations: Pick<Kaana['generations'], 'getByIdempotencyKey'> },
-  input: ShadowReceiptAuthority,
-): ShadowReceiptReader {
-  const parsed = shadowReceiptAuthoritySchema.parse(input);
-  if (parsed.recovery) Object.freeze(parsed.recovery);
-  const authority = Object.freeze(parsed);
+export function createJevReceiptReader(client: {
+  readonly generations: Pick<Kaana['generations'], 'getByIdempotencyKey'>;
+}): ShadowReceiptReader {
   return {
-    authority,
-    async readOriginal(key, model, signal, lineage) {
+    async readOriginal(key, signal) {
       // Exactly one read; failures/404 propagate, leaving the original claim intact.
-      const record = await client.generations.getByIdempotencyKey(key, {
-        signal,
-        ...(authority.delegatedUserId === undefined
-          ? {}
-          : { onBehalfOfUserId: authority.delegatedUserId }),
-      });
-      if (!sameReceiptAuthority(authority, record) || record.model !== model) {
-        throw new Error('Recovered usage does not match the original authority and model');
-      }
-      if (
-        lineage &&
-        (lineage.idempotencyKey !== key ||
-          lineage.model !== model ||
-          (record.kind === 'charge'
-            ? record.priceSnapshot.priceVersionId
-            : record.tariff.priceVersionId) !== lineage.priceVersionId)
-      ) {
-        throw new Error('Recovered usage differs from original route metadata');
-      }
-      // Public generation records name neither provider nor deployment (Kaana
-      // ADR 0002), nor the policy or the source approval hash.
+      const record = await client.generations.getByIdempotencyKey(key, { signal });
       return shadowUsageReconciliationSchema.parse({
         status: 'reconciled_result_missing',
         requestId: record.requestId,
-        authority,
-        model,
+        model: record.model,
+        attribution: {
+          applicationId: record.applicationId,
+          credentialId: record.credentialId,
+          environment: record.environment,
+        },
         outcome: record.outcome,
         usageSource: record.usageSource,
         units: record.units,

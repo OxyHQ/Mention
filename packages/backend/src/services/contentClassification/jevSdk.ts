@@ -1,7 +1,6 @@
-import { buildJevDecisionRequest, FEED_SCORE_LEVELS } from './jevRequest';
-import { createJevReceiptReader, type ShadowReceiptAuthority } from './jevReceipt';
-import { decisionAnswersMatch } from '@oxy.so/contracts';
 import type { Kaana } from '@kaana.ai/sdk' with { 'resolution-mode': 'import' };
+import { createJevReceiptReader } from './jevReceipt';
+import { buildJevDecisionRequest, FEED_SCORE_LEVELS } from './jevRequest';
 import {
   shadowSignalsSchema,
   validateShadowRelease,
@@ -25,16 +24,14 @@ export interface JevKaanaClient {
 
 /**
  * An inert consumer: callers supply an existing Kaana client. No credentials,
- * transport, provider selection, production binding, or retry policy lives here.
- * The SDK validates the response against `@kaana.ai/contracts`. Kaana's
- * requestId is distinct from our claim/idempotency key; decisions do not return
- * a receiptId.
+ * transport, provider selection or retry policy lives here. The SDK validates
+ * the response against `@kaana.ai/contracts` and refuses answers that do not
+ * answer these questions; Kaana's requestId is distinct from our claim key.
  */
 export function createJevShadowEvaluation(
   client: JevKaanaClient,
   releaseInput: ShadowRelease,
   topicInput: readonly ShadowTopic[],
-  receiptAuthority?: ShadowReceiptAuthority,
 ): ShadowEvaluation {
   validateShadowRelease(releaseInput);
   const release = Object.freeze({
@@ -45,43 +42,20 @@ export function createJevShadowEvaluation(
   if (
     topics.length > 64 ||
     new Set(topics.map((topic) => topic.topic)).size !== topics.length ||
-    topics.some(
-      (topic) => !topic.topic.trim() || topic.topic.length > 60 || !topic.question.trim(),
-    ) ||
-    !release.supportedLanguages.length ||
-    new Set(release.supportedLanguages).size !== release.supportedLanguages.length ||
-    release.supportedLanguages.some((language) => language.length < 2 || language.length > 35)
+    topics.some((topic) => !topic.topic.trim() || topic.topic.length > 60 || !topic.question.trim())
   ) {
     throw new Error('Invalid reviewed shadow question set');
   }
   const generations = client.generations;
-  if (receiptAuthority !== undefined && !generations)
-    throw new Error('Canonical receipt reader is unavailable');
-  const receiptReader =
-    receiptAuthority !== undefined && generations
-      ? createJevReceiptReader({ generations }, receiptAuthority)
-      : undefined;
   return {
     release,
-    ...(receiptReader === undefined ? {} : { receiptReader }),
+    ...(generations === undefined
+      ? {}
+      : { receiptReader: createJevReceiptReader({ generations }) }),
     async evaluate({ text, languages, idempotencyKey, signal }) {
       const request = buildJevDecisionRequest(release, topics, text, languages);
-      // Exactly one dispatch. Any failure is quarantined by the existing worker.
-      const result = await client.decisions.create(request, {
-        idempotencyKey,
-        signal,
-        ...(receiptReader?.authority.delegatedUserId === undefined
-          ? {}
-          : { onBehalfOfUserId: receiptReader.authority.delegatedUserId }),
-      });
-      if (
-        result.model !== release.model ||
-        !decisionAnswersMatch(request, result.data) ||
-        result.routingPolicy.routingPolicyId !== release.policyRef ||
-        result.routingPolicy.policyVersion !== release.policyVersion
-      ) {
-        throw new Error('Shadow SDK response does not match the reviewed request and policy');
-      }
+      // Exactly one dispatch. Any failure is settled by the worker, never retried.
+      const result = await client.decisions.create(request, { idempotencyKey, signal });
       const probability = (id: string): number => {
         const answer = result.data.find((candidate) => candidate.id === id);
         if (answer?.kind !== 'noul') throw new Error('Missing independent shadow proposition');
@@ -90,6 +64,7 @@ export function createJevShadowEvaluation(
       const score = result.data.find((answer) => answer.id === 'feedScore');
       if (score?.kind !== 'score') throw new Error('Missing ordered feed score');
       return shadowSignalsSchema.parse({
+        resolvedModel: result.model,
         topics: topics.map((topic, index) => ({
           topic: topic.topic,
           probability: probability(`topic:${index}`),
