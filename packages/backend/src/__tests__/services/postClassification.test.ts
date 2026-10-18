@@ -14,7 +14,11 @@ import { eq } from 'drizzle-orm';
 import * as runtimeIdentity from '../../runtime/serviceIdentity';
 import * as oxyHelpers from '../../utils/oxyHelpers';
 import type { DecisionRequest } from '@kaana.ai/contracts';
-import { KaanaRateLimitError, KaanaUnavailableError } from '@kaana.ai/sdk';
+import {
+  KaanaInvalidRequestError,
+  KaanaRateLimitError,
+  KaanaUnavailableError,
+} from '@kaana.ai/sdk';
 import { JEV_SHADOW_DAILY_LIMIT } from '../../services/contentClassification/jevLane';
 import { metrics } from '../../utils/metrics';
 import type * as jevShadow from '../../services/contentClassification/jevShadow';
@@ -1632,26 +1636,55 @@ describe('PostClassificationService — Jev shadow lane', () => {
     expect(evaluate).toHaveBeenCalledTimes(1);
   });
 
-  it('quarantines a call that may have run and never sends it again', async () => {
-    const post = await englishSubject('May have run');
+  it.each([
+    ['a provider error', 'provider_error', 502],
+    ['a gateway page in front of Kaana', 'service_unavailable', 502],
+  ] as const)(
+    'quarantines a call that may have run (%s) and never sends it again',
+    async (_name, code, status) => {
+      const post = await englishSubject(`May have run: ${code}`);
+      candidates(post.id);
+      respondWith([]);
+      await padBatch(1);
+      const evaluate = vi.fn(async () => {
+        throw new KaanaUnavailableError({
+          code,
+          message: 'Upstream failed.',
+          status,
+          requestId: 'kaana-request',
+          retryable: true,
+        });
+      });
+      const worker = new PostClassificationService({ release, evaluate });
+      await worker.processQueue();
+      await worker.processQueue();
+      expect(evaluate).toHaveBeenCalledTimes(1);
+      expect(await ledgerOf(post.id)).toEqual([
+        expect.objectContaining({ state: 'cost_uncertain' }),
+      ]);
+      expect((await classificationOf(post.id)).attempts).toBe(0);
+    },
+  );
+
+  it('keeps a request Kaana refused on its own merits and never sends it again', async () => {
+    const post = await englishSubject('Refused on its own merits');
     candidates(post.id);
     respondWith([]);
     await padBatch(1);
     const evaluate = vi.fn(async () => {
-      throw new KaanaUnavailableError({
-        code: 'provider_error',
-        message: 'Upstream failed.',
-        status: 502,
+      throw new KaanaInvalidRequestError({
+        code: 'invalid_request',
+        message: 'The request cannot be served as asked.',
+        status: 400,
         requestId: 'kaana-request',
-        retryable: true,
+        retryable: false,
       });
     });
     const worker = new PostClassificationService({ release, evaluate });
     await worker.processQueue();
     await worker.processQueue();
     expect(evaluate).toHaveBeenCalledTimes(1);
-    expect(await ledgerOf(post.id)).toEqual([expect.objectContaining({ state: 'cost_uncertain' })]);
-    expect((await classificationOf(post.id)).attempts).toBe(0);
+    expect(await ledgerOf(post.id)).toEqual([expect.objectContaining({ state: 'rejected' })]);
   });
 
   it('sends nothing once the daily limit is reached', async () => {

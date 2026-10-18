@@ -350,8 +350,20 @@ export async function markPostEvaluationUncertain(claim: ShadowClaim): Promise<v
 }
 
 /**
+ * Kaana refused this request itself before it ran (its content, size or key):
+ * nothing was spent, and sending it again would be refused again. Terminal for
+ * this revision and version, so one post cannot take a call every cycle.
+ */
+export async function markPostEvaluationRejected(claim: ShadowClaim): Promise<void> {
+  await getDb()
+    .update(postEvaluations)
+    .set({ state: 'rejected', finishedAt: new Date() })
+    .where(and(eq(postEvaluations.id, claim.id), eq(postEvaluations.state, 'claimed')));
+}
+
+/**
  * Only for a claim nothing was spent on: its id never reached Kaana, or Kaana
- * refused it before anything ran. The revision may be claimed again later
+ * refused the lane (credential, grant, route) before anything ran. The revision may be claimed again later
  * under a new id. A call that may have run is `cost_uncertain`, never released.
  */
 export async function releaseUnsentPostEvaluation(claim: ShadowClaim): Promise<void> {

@@ -20,6 +20,8 @@ export const POST_EVALUATION_STATES = [
   'abstained',
   'cancelled',
   'cost_uncertain',
+  /** Kaana refused this request before it ran; nothing spent, never resent. */
+  'rejected',
 ] as const;
 export const POST_EVALUATION_FOLLOW_STATES = ['accepted', 'not_followed', 'unknown'] as const;
 export const POST_EVALUATION_ABSTENTIONS = [
