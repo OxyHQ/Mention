@@ -4,6 +4,7 @@ import { ProfileGridList, type ProfileGridEntry } from '../ProfileGridList.web';
 const mockUseWindowVirtualizer = jest.fn();
 
 jest.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: () => ({}),
   useWindowVirtualizer: (options: unknown) => mockUseWindowVirtualizer(options),
 }));
 

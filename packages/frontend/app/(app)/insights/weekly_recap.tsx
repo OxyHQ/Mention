@@ -1,339 +1,78 @@
-import type React from 'react';
-import { View, Text, ScrollView } from 'react-native';
+import { InsightsSkeleton } from '@/components/loading/ContentSkeleton';
+import { View, ScrollView, Platform } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-import { Loading } from '@oxy.so/bloom/loading';
-import { useSafeBack } from '@/hooks/useSafeBack';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { RiEyeLine } from '@oxy.so/bloom/icons/RiEyeLine';
-import { RiUserAddFill } from '@oxy.so/bloom/icons/RiUserAddFill';
-import { insightsService, type AccountInsights } from '@/services/insightsService';
-import { useTranslation } from 'react-i18next';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
-import { Avatar } from '@oxy.so/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
-import { StatCards, type StatCardsItem } from '@oxy.so/bloom/stat-cards';
-import type { BloomIconComponent } from '@oxy.so/bloom';
-import MiniChart from '@/components/MiniChart';
-import { formatCompactNumber } from '@/utils/formatNumber';
-import { ArticleIcon } from '@/assets/icons/article-icon';
-import { CommentIcon } from '@/assets/icons/comment-icon';
-import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
+import { useTranslation } from 'react-i18next';
+import type { HydratedPost } from '@mention/shared-types';
+import { useSafeBack } from '@/hooks/useSafeBack';
+import { insightsService } from '@/services/insightsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { usePostsStore } from '@/stores/postsStore';
+import { EmptyState } from '@/components/common/EmptyState';
+import { WeeklyRecapContent } from '@/components/insights/WeeklyRecapContent';
 
-// The app's own post/reply glyphs, in the shape Bloom's stat card sizes and
-// colours (`width`/`height`/`fill`) — it takes an icon component, not an element.
-const PostsGlyph: BloomIconComponent = ({ width, fill }) => (
-  <ArticleIcon size={width} color={fill} />
-);
-const RepliesGlyph: BloomIconComponent = ({ width, fill }) => (
-  <CommentIcon size={width} color={fill} />
-);
-
-/** This week's bar per day, today's bar highlighted — beside the card's figure. */
-const WEEK_CHART_WIDTH = 112;
-
-interface WeeklyRecapData {
-  currentWeek: AccountInsights;
-  previousWeek: AccountInsights;
-  newFollowers: number;
-  previousFollowers: number;
-}
-
-const WeeklyRecapScreen: React.FC = () => {
+export default function WeeklyRecapScreen() {
   const { t } = useTranslation();
-  const theme = useTheme();
   const { user, canUsePrivateApi, isPrivateApiPending } = useAuth();
   const safeBack = useSafeBack();
-
-  const getWeekDates = (weekOffset: number = 0) => {
-    const today = new Date();
-    const currentDay = today.getDay();
-    const diff = today.getDate() - currentDay + (currentDay === 0 ? -6 : 1); // Monday
-    const monday = new Date(today.setDate(diff));
-    monday.setDate(monday.getDate() - weekOffset * 7);
-    const sunday = new Date(monday);
-    sunday.setDate(sunday.getDate() + 6);
-
-    return { start: monday, end: sunday };
-  };
-
-  const getCurrentWeekData = (
-    data: AccountInsights['dailyBreakdown'],
-    field: 'views' | 'replies' | 'interactions',
-  ): number[] => {
-    if (!data || data.length === 0) return Array(7).fill(0);
-
-    const weekDates = getWeekDates(0);
-    const weekData = Array(7).fill(0);
-
-    // Create a map of dates to values
-    const dataMap = new Map<string, number>();
-    data.forEach((day) => {
-      const dateStr = day.date.split('T')[0]; // Get just the date part
-      const value = day[field] || 0;
-      dataMap.set(dateStr, value);
-    });
-
-    // Map each day of the week to its value
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(weekDates.start);
-      date.setDate(date.getDate() + i);
-      const dateStr = date.toISOString().split('T')[0];
-      weekData[i] = dataMap.get(dateStr) || 0;
-    }
-
-    return weekData;
-  };
-
-  const formatDateRange = (start: Date, end: Date) => {
-    const startMonth = start.toLocaleDateString('en-US', { month: 'short' });
-    const startDay = start.getDate();
-    const endMonth = end.toLocaleDateString('en-US', { month: 'short' });
-    const endDay = end.getDate();
-
-    if (startMonth === endMonth) {
-      return `${startMonth} ${startDay} - ${endDay}`;
-    }
-    return `${startMonth} ${startDay} - ${endMonth} ${endDay}`;
-  };
-
-  // Weekly recap = 14 days of stats split into current/previous week + an
-  // AI summary. Keyed on the auth identity so it fires only once the session
-  // lands and auto-re-runs when `user?.id` arrives after SSO restore. Gated on
-  // `canUsePrivateApi` since /statistics/* are private endpoints.
-  const { data: result, isLoading } = useQuery({
-    queryKey: viewerQueryKeys.weeklyRecap(user?.id),
-    queryFn: async () => {
-      // Fetch statistics for both weeks
-      // Fetch 14 days total, then split into current week (last 7) and previous week (first 7)
-      const [combinedStats, followerChanges, summaryResult] = await Promise.all([
-        insightsService.getAccountInsights(14),
-        insightsService.getFollowerChanges(14).catch(() => null),
-        insightsService.getWeeklySummary().catch(() => ({ summary: null })),
-      ]);
-
-      // Split daily breakdown into current and previous weeks
-      const dailyBreakdown = combinedStats.dailyBreakdown || [];
-      const previousWeekBreakdown = dailyBreakdown.slice(0, 7); // First 7 days (older)
-      const currentWeekBreakdown = dailyBreakdown.slice(-7); // Last 7 days (newer)
-
-      // Calculate current week stats from daily breakdown
-      const currentWeekStats: AccountInsights = {
-        ...combinedStats,
-        dailyBreakdown: currentWeekBreakdown,
-        overview: {
-          ...combinedStats.overview,
-          totalPosts: combinedStats.overview.totalPosts, // Will be filtered by date range if API supports it
-          totalViews: currentWeekBreakdown.reduce((sum, day) => sum + day.views, 0),
-          totalInteractions: currentWeekBreakdown.reduce((sum, day) => sum + day.interactions, 0),
-          engagementRate: combinedStats.overview.engagementRate,
-          averageEngagementPerPost: combinedStats.overview.averageEngagementPerPost,
-        },
-        interactions: {
-          likes: currentWeekBreakdown.reduce((sum, day) => sum + day.likes, 0),
-          replies: currentWeekBreakdown.reduce((sum, day) => sum + day.replies, 0),
-          boosts: currentWeekBreakdown.reduce((sum, day) => sum + day.boosts, 0),
-          shares: combinedStats.interactions.shares, // Shares might not be in daily breakdown
-        },
-      };
-
-      // Calculate previous week stats from daily breakdown
-      const previousWeekStats: AccountInsights = {
-        ...combinedStats,
-        dailyBreakdown: previousWeekBreakdown,
-        overview: {
-          ...combinedStats.overview,
-          totalPosts: combinedStats.overview.totalPosts, // Will be filtered by date range if API supports it
-          totalViews: previousWeekBreakdown.reduce((sum, day) => sum + day.views, 0),
-          totalInteractions: previousWeekBreakdown.reduce((sum, day) => sum + day.interactions, 0),
-          engagementRate: combinedStats.overview.engagementRate,
-          averageEngagementPerPost: combinedStats.overview.averageEngagementPerPost,
-        },
-        interactions: {
-          likes: previousWeekBreakdown.reduce((sum, day) => sum + day.likes, 0),
-          replies: previousWeekBreakdown.reduce((sum, day) => sum + day.replies, 0),
-          boosts: previousWeekBreakdown.reduce((sum, day) => sum + day.boosts, 0),
-          shares: combinedStats.interactions.shares, // Shares might not be in daily breakdown
-        },
-      };
-
-      // Extract follower data from followerChanges if available
-      let newFollowers = 0;
-      let previousFollowers = 0;
-
-      if (followerChanges && followerChanges.followerChanges) {
-        const changes = followerChanges.followerChanges;
-        // Current week followers (last 7 days)
-        const currentWeekChanges = changes.slice(-7);
-        newFollowers = currentWeekChanges.reduce(
-          (sum, change) => sum + Math.max(0, change.change),
-          0,
-        );
-
-        // Previous week followers (days 8-14)
-        const previousWeekChanges = changes.slice(0, 7);
-        previousFollowers = previousWeekChanges.reduce(
-          (sum, change) => sum + Math.max(0, change.change),
-          0,
-        );
-      }
-
-      const recap: WeeklyRecapData = {
-        currentWeek: currentWeekStats,
-        previousWeek: previousWeekStats,
-        newFollowers,
-        previousFollowers,
-      };
-
-      return { recap, summary: summaryResult.summary };
-    },
+  const getPostById = usePostsStore((state) => state.getPostById);
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: viewerQueryKeys.weeklyRecapPosts(user?.id),
     enabled: canUsePrivateApi,
+    queryFn: async () => {
+      // Use the API's actual period. Sparse daily rows cannot be split into
+      // weeks by array position; the API doesn't provide prior-week post totals.
+      const stats = await insightsService.getAccountInsights(7);
+      const posts = await Promise.all(
+        stats.topPosts.slice(0, 5).map((post) => getPostById(post.postId).catch(() => null)),
+      );
+      return {
+        stats,
+        topPosts: posts.filter((post): post is HydratedPost => post !== null),
+      };
+    },
   });
-
-  const data = result?.recap ?? null;
-  const summary = result?.summary ?? null;
-
-  const renderHeader = () => (
-    <PageHeader
-      title={t('insights.weeklyRecap.title')}
-      onBack={() => safeBack()}
-      backLabel={t('common.back', { defaultValue: 'Back' })}
-    />
-  );
-
-  if (isPrivateApiPending || isLoading) {
-    return (
-      <View className="flex-1">
-        {renderHeader()}
-        <View className="flex-1 items-center justify-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
-      </View>
-    );
-  }
-
-  if (!canUsePrivateApi) {
-    return (
-      <View className="flex-1">
-        {renderHeader()}
-        <OxyAuthPrompt
-          label={t('insights.signInRequired', { defaultValue: 'Sign in to see your insights' })}
-          description={t('insights.signInRequiredDesc', {
-            defaultValue:
-              'Your posts, views, and engagement stats will appear here once you sign in.',
-          })}
-        />
-      </View>
-    );
-  }
-
-  if (!data) {
-    return (
-      <View className="flex-1">
-        {renderHeader()}
-        <View className="flex-1 items-center justify-center p-6">
-          {/* `textTertiary` is the theme's real de-emphasised ink.
-                        `theme.colors.text + '60'` was a malformed colour (the
-                        token is `rgb(...)`), so the empty-state glyph painted at
-                        full foreground strength — louder than the message. */}
-          <AnalyticsIcon size={64} color={theme.colors.textTertiary} />
-          <Text className="text-base mt-3 text-muted-foreground">
-            {t('insights.weeklyRecap.noDataAvailable')}
-          </Text>
-        </View>
-      </View>
-    );
-  }
-
-  const currentWeekDates = getWeekDates(0);
-  const dateRange = formatDateRange(currentWeekDates.start, currentWeekDates.end);
-  const avatarUri = user?.avatar;
-
-  const withUnit = (n: number, unit: string) =>
-    `${formatCompactNumber(n)}${unit ? ` ${unit}` : ''}`;
-
-  const statCard = (
-    icon: BloomIconComponent,
-    label: string,
-    current: number,
-    previous: number,
-    unit: string,
-    chartData: number[],
-  ): StatCardsItem => ({
-    icon,
-    label,
-    value: withUnit(current, unit),
-    // The comparison the recap has always printed, now in the card's delta
-    // chip — coloured by which way the week went.
-    delta: `${t('insights.weeklyRecap.previous')}: ${withUnit(previous, unit)}`,
-    deltaColor: current > previous ? 'lime' : current < previous ? 'rose' : 'neutral',
-    accessory: (
-      <View style={{ width: WEEK_CHART_WIDTH }}>
-        <MiniChart values={chartData} showLabels={false} height={28} />
-      </View>
-    ),
+  const { data: summary } = useQuery({
+    queryKey: viewerQueryKeys.weeklyRecapSummary(user?.id),
+    enabled: canUsePrivateApi,
+    queryFn: () => insightsService.getWeeklySummary(),
+    retry: false,
   });
-
-  const statCards: StatCardsItem[] = [
-    statCard(
-      PostsGlyph,
-      t('insights.weeklyRecap.yourActivity'),
-      data.currentWeek.overview.totalPosts,
-      data.previousWeek.overview.totalPosts,
-      t('insights.weeklyRecap.posts'),
-      getCurrentWeekData(data.currentWeek.dailyBreakdown || [], 'interactions'),
-    ),
-    statCard(
-      RiEyeLine,
-      t('insights.weeklyRecap.views'),
-      data.currentWeek.overview.totalViews,
-      data.previousWeek.overview.totalViews,
-      '',
-      getCurrentWeekData(data.currentWeek.dailyBreakdown || [], 'views'),
-    ),
-    statCard(
-      RepliesGlyph,
-      t('insights.weeklyRecap.replies'),
-      data.currentWeek.interactions.replies,
-      data.previousWeek.interactions.replies,
-      '',
-      getCurrentWeekData(data.currentWeek.dailyBreakdown || [], 'replies'),
-    ),
-    statCard(
-      RiUserAddFill,
-      t('insights.weeklyRecap.newFollowers'),
-      data.newFollowers,
-      data.previousFollowers,
-      '',
-      Array(7).fill(0),
-    ),
-  ];
-
+  const content = data ? <WeeklyRecapContent {...data} summary={summary?.summary ?? null} /> : null;
   return (
     <View className="flex-1">
-      {renderHeader()}
-
-      <ScrollView className="flex-1 px-4 pb-5" showsVerticalScrollIndicator={false}>
-        {/* Profile & Title Section */}
-        <View className="items-center mb-6 mt-2">
-          <Avatar source={avatarUri} size={72} variant={MEDIA_VARIANT_AVATAR_LG} />
-          <Text
-            className="text-2xl font-bold mt-4 mb-2 text-foreground"
-            style={{ letterSpacing: -0.3 }}
-          >
-            {t('insights.weeklyRecap.pageTitle')}
-          </Text>
-          <Text className="text-sm text-center px-5 leading-5 text-muted-foreground">
-            {summary || dateRange}
-          </Text>
-        </View>
-
-        {/* Stats Cards - Full Width, Stacked */}
-        <StatCards stats={statCards} columns={1} />
-      </ScrollView>
+      <PageHeader
+        title={t('insights.weeklyRecap.title')}
+        onBack={() => safeBack()}
+        backLabel={t('common.back', { defaultValue: 'Back' })}
+      />
+      {isPrivateApiPending || isLoading ? (
+        <InsightsSkeleton />
+      ) : !canUsePrivateApi ? (
+        <OxyAuthPrompt
+          label={t('insights.signInRequired')}
+          description={t('insights.signInRequiredDesc')}
+        />
+      ) : isError ? (
+        <EmptyState
+          error={{
+            title: t('insights.unavailable.title', { defaultValue: 'Insights unavailable' }),
+            message: t('insights.unavailable.message', {
+              defaultValue: 'These insights could not be loaded. Please try again.',
+            }),
+            onRetry: async () => {
+              await refetch();
+            },
+          }}
+        />
+      ) : Platform.OS === 'web' ? (
+        content
+      ) : (
+        <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+          {content}
+        </ScrollView>
+      )}
     </View>
   );
-};
-
-export default WeeklyRecapScreen;
+}

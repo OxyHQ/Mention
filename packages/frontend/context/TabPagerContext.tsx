@@ -1,7 +1,7 @@
 import type React from 'react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
 import { Platform } from 'react-native';
-import { router, usePathname } from 'expo-router';
+import { useRouter, usePathname } from '@/lib/navigation/router';
 import { useSharedValue, withSpring, type SharedValue } from 'react-native-reanimated';
 import { useAuth } from '@oxy.so/services/ui/client';
 
@@ -114,6 +114,7 @@ const TabPagerContext = createContext<TabPagerValue | null>(null);
  * over, where `activeIndex` is -1 and the highlight is correctly absent.
  */
 export function TabPagerProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const pathname = usePathname();
   const { user } = useAuth();
   const viewerUsername = user?.username;
@@ -241,7 +242,7 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
       }
       committer.commit(pageIndex);
     },
-    [progress, activePage, viewerUsername],
+    [progress, activePage, viewerUsername, router],
   );
 
   /**
@@ -264,7 +265,7 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
       }
       committer.leave(fromPageIndex, toPageIndex);
     },
-    [viewerUsername],
+    [viewerUsername, router],
   );
 
   const value = useMemo<TabPagerValue>(

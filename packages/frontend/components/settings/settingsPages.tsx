@@ -1,3 +1,4 @@
+import DeckSettingsPage from './pages/deck';
 import { useTranslation } from 'react-i18next';
 import type { SettingsModalPage, SettingsNavGroup } from '@oxy.so/bloom/settings-modal';
 import { RiAccessibilityLine } from '@oxy.so/bloom/icons/RiAccessibilityLine';
@@ -22,6 +23,7 @@ import Page4 from './pages/connected-ai';
 import Page5 from './pages/external-media';
 import Page6 from './pages/fediverse/index';
 import Page7 from './pages/fediverse/node';
+import TransparencySettingsPage from './pages/fediverse/transparency';
 import Page8 from './pages/feed';
 import Page9 from './pages/for-you';
 import Page10 from './pages/interests';
@@ -52,6 +54,7 @@ export interface MentionSettingsPages {
 export function useMentionSettingsPages(): MentionSettingsPages {
   const { t } = useTranslation();
   const pages = {
+    deck: { title: t('deck.workspace.title', 'Deck'), content: <DeckSettingsPage /> },
     account: {
       title: t('settings.account.manageAccount', { defaultValue: 'Account' }),
       content: <Page0 />,
@@ -83,6 +86,10 @@ export function useMentionSettingsPages(): MentionSettingsPages {
     fediverse: {
       title: t('fediverse.settings.title'),
       content: <Page6 />,
+    },
+    'fediverse/transparency': {
+      title: t('transparency.title'),
+      content: <TransparencySettingsPage />,
     },
     'fediverse/node': {
       title: t('settings.node.title', { defaultValue: 'Your Mention node' }),
@@ -217,6 +224,12 @@ export function useMentionSettingsPages(): MentionSettingsPages {
           page: 'accessibility',
           label: pages.accessibility.title,
           icon: RiAccessibilityLine,
+        },
+        {
+          key: 'deck',
+          page: 'deck',
+          label: pages.deck.title,
+          icon: RiListUnordered,
         },
         {
           key: 'feed',

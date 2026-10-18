@@ -1,3 +1,4 @@
+import { usePanelScrollContainer } from '@oxy.so/bloom/app-shell/hooks';
 import type React from 'react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
 import { Animated, Platform } from 'react-native';
@@ -123,6 +124,7 @@ export function LayoutScrollProvider({
   children,
   scrollEventThrottle = 16,
 }: LayoutScrollProviderProps) {
+  const panel = usePanelScrollContainer<HTMLElement>();
   const scrollY = useRef(new Animated.Value(0)).current;
   const scrollPosition = useSharedValue(0);
   const scrollableRef = useRef<ScrollableRef | null>(null);
@@ -151,17 +153,18 @@ export function LayoutScrollProvider({
   // still drives scrollY through its inner FlashList via handleScroll.
   useEffect(() => {
     if (!IS_WEB || typeof window === 'undefined') return;
+    const owner = panel?.current ?? window;
     const onWindowScroll = () => {
-      setScrollY(window.scrollY || window.pageYOffset || 0);
+      setScrollY(owner instanceof Window ? owner.scrollY : owner.scrollTop);
     };
     // Prime once so a restored offset (or a non-zero cold-boot position) is
     // reflected immediately rather than on the first user scroll.
     onWindowScroll();
-    window.addEventListener('scroll', onWindowScroll, { passive: true });
+    owner.addEventListener('scroll', onWindowScroll, { passive: true });
     return () => {
-      window.removeEventListener('scroll', onWindowScroll);
+      owner.removeEventListener('scroll', onWindowScroll);
     };
-  }, [setScrollY]);
+  }, [setScrollY, panel]);
 
   const handleScroll = useCallback(
     (event: ScrollEvent) => {
@@ -229,26 +232,29 @@ export function LayoutScrollProvider({
     [scrollPosition, setScrollY],
   );
 
-  const scrollToOffset = useCallback((offset: number, animated = true) => {
-    const boundedOffset = Math.max(0, offset);
-    // WEB: scroll the document — the body is the scroller.
-    if (IS_WEB) {
-      if (typeof window !== 'undefined') {
-        window.scrollTo({
-          top: boundedOffset,
-          behavior: animated ? 'smooth' : 'auto',
-        });
+  const scrollToOffset = useCallback(
+    (offset: number, animated = true) => {
+      const boundedOffset = Math.max(0, offset);
+      // WEB: scroll the document — the body is the scroller.
+      if (IS_WEB) {
+        if (typeof window !== 'undefined') {
+          (panel?.current ?? window).scrollTo({
+            top: boundedOffset,
+            behavior: animated ? 'smooth' : 'auto',
+          });
+        }
+        return;
       }
-      return;
-    }
-    const scroller = scrollableRef.current;
-    if (!scroller) return;
-    if (typeof scroller.scrollToOffset === 'function') {
-      scroller.scrollToOffset({ offset: boundedOffset, animated });
-    } else if (typeof scroller.scrollTo === 'function') {
-      scroller.scrollTo({ y: boundedOffset, animated });
-    }
-  }, []);
+      const scroller = scrollableRef.current;
+      if (!scroller) return;
+      if (typeof scroller.scrollToOffset === 'function') {
+        scroller.scrollToOffset({ offset: boundedOffset, animated });
+      } else if (typeof scroller.scrollTo === 'function') {
+        scroller.scrollTo({ y: boundedOffset, animated });
+      }
+    },
+    [panel],
+  );
 
   const scrollToTop = useCallback(() => {
     scrollToOffset(0);

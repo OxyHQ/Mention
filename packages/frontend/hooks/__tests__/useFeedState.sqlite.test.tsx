@@ -160,7 +160,7 @@ describe('useFeedState on the SQLite path', () => {
     expect(feedService.getFeed).not.toHaveBeenCalled();
     expect(latest?.items).toEqual([{ id: 'row-1' }]);
     expect(latest?.hasMore).toBe(true);
-    expect(latest?.feedScrollKey).toBe('auth:viewer-a|for_you||');
+    expect(latest?.feedScrollKey).toBe('["auth:viewer-a","for_you","",null]');
   });
 
   it("shows a previous session's rows at once and refreshes them in the background", async () => {

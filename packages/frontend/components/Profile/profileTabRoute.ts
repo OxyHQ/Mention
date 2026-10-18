@@ -1,4 +1,4 @@
-import type { Href } from 'expo-router';
+import type { Href } from '@/lib/navigation/router';
 import {
   ORGANIZATION_ONLY_TAB_NAMES,
   PERSONAL_ONLY_TAB_NAMES,

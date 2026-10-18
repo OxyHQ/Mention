@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 
 import { useLiveRoom } from '@/context/LiveRoomContext';
 
@@ -9,6 +9,7 @@ import { useLiveRoom } from '@/context/LiveRoomContext';
  * open the live room bottom sheet and go back to the live-rooms list.
  */
 export default function LiveRoomRedirect() {
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { joinLiveRoom } = useLiveRoom();
 

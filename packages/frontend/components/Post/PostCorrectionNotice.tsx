@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import { type GestureResponderEvent, Pressable, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';

@@ -1,9 +1,9 @@
+import { InsightsSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useMemo, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Text } from '@oxy.so/bloom/typography';
 
@@ -100,9 +100,7 @@ export default function TrendGraphScreen() {
         )}
 
         {isLoading ? (
-          <View className="items-center py-10">
-            <SpinnerIcon size={20} className="text-primary" />
-          </View>
+          <InsightsSkeleton />
         ) : isError ? (
           // An unreachable graph must not render as an empty one: "no relations
           // found" over an outage would say the network has no stories.

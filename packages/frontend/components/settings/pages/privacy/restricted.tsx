@@ -1,3 +1,4 @@
+import { ListSkeleton, SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { EmptyState } from '@/components/common/EmptyState';
 import { queryClient } from '@/lib/queryClient';
 import { refreshPrivacyLists } from '@/services/privacyService';
@@ -319,9 +320,7 @@ export default function RestrictedUsersScreen() {
   if (!isAuthResolved || isPrivateApiPending) {
     return (
       <View className="gap-4">
-        <View className="flex-1 items-center justify-center">
-          <Loading />
-        </View>
+        <SettingsSkeleton />
       </View>
     );
   }
@@ -369,9 +368,7 @@ export default function RestrictedUsersScreen() {
                 label={t('settings.privacy.searchUsersToRestrict')}
                 onClearText={() => handleSearch('')}
               />
-              {searching && (
-                <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
-              )}
+              {searching && <ListSkeleton count={2} />}
             </View>
           </SettingsCard>
         </SettingsSection>
@@ -428,9 +425,7 @@ export default function RestrictedUsersScreen() {
         <SettingsSection label={t('settings.privacy.restrictedUsers')}>
           <SettingsCard>
             {loading ? (
-              <View className="py-10 items-center">
-                <Loading className="text-primary" size="lg" style={{ flex: undefined }} />
-              </View>
+              <ListSkeleton />
             ) : restrictedUsers.length === 0 ? (
               <View className="py-4">
                 <EmptyState

@@ -1,14 +1,14 @@
-import type { Href } from 'expo-router';
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
+import type { Href } from '@/lib/navigation/router';
 import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
 import { Card } from '@oxy.so/bloom/card';
 import { Item } from '@oxy.so/bloom/item';
-import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -46,6 +46,7 @@ const STATUS_TONE: Record<
  * operates, so that list is already the complete lookup table.
  */
 export default function MyJobsScreen() {
+  const router = useRouter();
   const { t } = useTranslation();
   const { user, oxyServices, canUsePrivateApi } = useAuth();
   const safeBack = useSafeBack();
@@ -121,18 +122,24 @@ export default function MyJobsScreen() {
     [runAction, t],
   );
 
-  const openJob = useCallback((job: MentionJobPosting) => {
-    try {
-      const path = new URL(job.canonicalUrl).pathname;
-      router.push((path || `/jobs/${job.id}`) as Href);
-    } catch {
-      router.push(`/jobs/${job.id}`);
-    }
-  }, []);
+  const openJob = useCallback(
+    (job: MentionJobPosting) => {
+      try {
+        const path = new URL(job.canonicalUrl).pathname;
+        router.push((path || `/jobs/${job.id}`) as Href);
+      } catch {
+        router.push(`/jobs/${job.id}`);
+      }
+    },
+    [router],
+  );
 
-  const editJob = useCallback((job: MentionJobPosting) => {
-    router.push(`/jobs/${job.id}/edit`);
-  }, []);
+  const editJob = useCallback(
+    (job: MentionJobPosting) => {
+      router.push(`/jobs/${job.id}/edit`);
+    },
+    [router],
+  );
 
   const header = (
     <PageHeader
@@ -175,9 +182,7 @@ export default function MyJobsScreen() {
     return (
       <View className="flex-1">
         {header}
-        <View className="flex-1 items-center justify-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
+        <ListSkeleton />
       </View>
     );
   }

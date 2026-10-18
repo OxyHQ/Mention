@@ -1,10 +1,10 @@
+import { PollSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
-import { Loading } from '@oxy.so/bloom/loading';
 import { StatBar } from '@oxy.so/bloom/stat-bar';
 import { toast } from '@oxy.so/bloom/toast';
 import { createLogger } from '@oxy.so/core/logger';
@@ -100,7 +100,7 @@ const PollCard: React.FC<PollCardProps> = ({ pollId }) => {
   if (loading)
     return (
       <Card radius="radius-16" className="flex-1 w-full p-3" appearance="outline">
-        <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
+        <PollSkeleton />
       </Card>
     );
 

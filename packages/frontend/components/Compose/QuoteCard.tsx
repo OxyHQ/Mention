@@ -1,8 +1,8 @@
+import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { useMemo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Card } from '@oxy.so/bloom/card';
-import { Loading } from '@oxy.so/bloom/loading';
 import { useTranslation } from 'react-i18next';
 import type { HydratedPost, HydratedPostSummary } from '@mention/shared-types';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
@@ -48,21 +48,7 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
   if (loading) {
     return (
       <Card appearance="subtle" border="thin" radius="radius-16" className="px-4 py-3">
-        <View
-          className="flex-row items-center"
-          accessibilityRole="progressbar"
-          accessibilityLabel={t('compose.quote.loading', { defaultValue: 'Loading quoted post' })}
-        >
-          <Loading
-            className="text-primary"
-            variant="inline"
-            size="sm"
-            style={{ flex: undefined }}
-          />
-          <Text className="text-muted-foreground ml-2 text-[13px]">
-            {t('compose.quote.loading', { defaultValue: 'Loading quoted post...' })}
-          </Text>
-        </View>
+        <FeedSkeleton count={1} />
       </Card>
     );
   }

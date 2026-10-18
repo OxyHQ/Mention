@@ -13,7 +13,7 @@ import type {
 } from '@mention/shared-types';
 
 // Extended FeedFilters with additional properties used by the app.
-// The index signature is what `serializeFeedFilters` and `shallowFiltersEqual`
+// The index signature is what `normalizeFeedFilters` and `shallowFiltersEqual`
 // walk, so it states the real contract: filters are a flat bag of scalars.
 export interface FeedFilters extends SharedFeedFilters {
   searchQuery?: string;
@@ -198,16 +198,10 @@ export interface FeedIdentityParams {
 }
 
 /**
- * Deterministically serialize feed filters into a stable string.
- * Keys are sorted so reference-equal-but-reordered objects produce the same
- * output. Mirrors the dedupe-key strategy in `services/feedService.ts` but is
- * defined locally to avoid a service ↔ utils dependency.
- */
-/**
- * A feed's filters in the one shape both of its identities use — the scroll key
- * ({@link buildFeedScrollKey}) and the query key (`viewerQueryKeys.feed`): keys
+ * A feed's filters in one shape for its scroll, query and request identities
+ * (`buildFeedScrollKey`, `viewerQueryKeys.feed` and `feedService`): keys
  * sorted, an absent value read as `''`, and no filters the same as an empty bag
- * (`null`). Shared so the two identities of one feed cannot disagree on whether
+ * (`null`). Shared so these identities cannot disagree on whether
  * two `<Feed>`s are the same feed.
  */
 export function normalizeFeedFilters(filters?: FeedFilters): FeedFilters | null {
@@ -215,14 +209,6 @@ export function normalizeFeedFilters(filters?: FeedFilters): FeedFilters | null 
   const keys = Object.keys(filters).sort();
   if (keys.length === 0) return null;
   return Object.fromEntries(keys.map((key) => [key, filters[key] ?? '']));
-}
-
-function serializeFeedFilters(filters?: FeedFilters): string {
-  const normalized = normalizeFeedFilters(filters);
-  if (!normalized) return '';
-  return Object.entries(normalized)
-    .map(([key, value]) => `${key}=${value}`)
-    .join('&');
 }
 
 /**
@@ -246,8 +232,7 @@ export function feedThreadParentId(filters?: FeedFilters): string | undefined {
 export function buildFeedScrollKey(params: FeedIdentityParams): string {
   const viewerKey = params.isAuthenticated ? `auth:${params.currentViewerId || 'pending'}` : 'anon';
   const userId = params.userId ?? '';
-  const filterKey = serializeFeedFilters(params.filters);
-  return `${viewerKey}|${params.type}|${userId}|${filterKey}`;
+  return JSON.stringify([viewerKey, params.type, userId, normalizeFeedFilters(params.filters)]);
 }
 
 const HOME_FEED_TYPES: ReadonlySet<FeedType> = new Set<FeedType>([

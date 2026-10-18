@@ -1,3 +1,21 @@
+jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'));
+jest.mock('@oxy.so/bloom/screen', () => ({
+  Screen: ({
+    header,
+    children,
+    bottomBar,
+  }: {
+    header?: React.ReactNode;
+    children?: React.ReactNode;
+    bottomBar?: React.ReactNode;
+  }) => (
+    <>
+      {header}
+      {children}
+      {bottomBar}
+    </>
+  ),
+}));
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { type QueryClient, QueryClientProvider } from '@tanstack/react-query';

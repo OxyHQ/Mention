@@ -1,7 +1,8 @@
-import type { Href } from 'expo-router';
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
+import type { Href } from '@/lib/navigation/router';
 import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Avatar } from '@oxy.so/bloom/avatar';
@@ -11,7 +12,6 @@ import { Chip } from '@oxy.so/bloom/chip';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { Field } from '@oxy.so/bloom/field';
 import { Item } from '@oxy.so/bloom/item';
-import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import {
   SegmentedControl,
@@ -149,6 +149,7 @@ function EmployerPickerDialog({
  * draft can never be published by mistake.
  */
 export default function CreateJobScreen() {
+  const router = useRouter();
   const { t } = useTranslation();
   const { user, oxyServices, canUsePrivateApi } = useAuth();
   const safeBack = useSafeBack();
@@ -546,11 +547,7 @@ export default function CreateJobScreen() {
               {t('jobs.create.publish', { defaultValue: 'Publish' })}
             </Button>
           </View>
-          {accountsLoading ? (
-            <View className="items-center mt-4">
-              <Loading className="text-primary" size="sm" />
-            </View>
-          ) : null}
+          {accountsLoading ? <ListSkeleton count={2} /> : null}
         </ScrollView>
       </SignInRequired>
     </View>

@@ -26,7 +26,7 @@ import {
   MEDIA_VARIANT_FULL,
   MAX_POST_DOCUMENTS,
 } from '@mention/shared-types/post';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import JobCard from '@/components/Post/JobCard';
 import { PostPodcastAttachment } from '@/components/Podcast/PostPodcastAttachment';
 import { MEDIA_CARD_RADIUS } from '@/utils/composeUtils';

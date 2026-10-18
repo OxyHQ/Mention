@@ -1,7 +1,7 @@
-import { View } from 'react-native';
+import { Screen } from '@oxy.so/bloom/screen';
 import { useTranslation } from 'react-i18next';
 import { StatusBar } from 'expo-status-bar';
-import { router, Slot, usePathname, type Href } from 'expo-router';
+import { useRouter, Slot, usePathname, type Href } from '@/lib/navigation/router';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
@@ -32,12 +32,12 @@ const TABS = [
   { id: 'starter-packs', label: 'Starter Packs', href: '/explore/starter-packs' },
 ] as const satisfies readonly { id: string; label: string; href: Href }[];
 
-function pushTab(id: string) {
-  const tab = TABS.find((candidate) => candidate.id === id);
-  if (tab) router.push(tab.href);
-}
-
 export default function ExploreLayout() {
+  const router = useRouter();
+  const pushTab = (id: string) => {
+    const tab = TABS.find((candidate) => candidate.id === id);
+    if (tab) router.push(tab.href);
+  };
   const { t } = useTranslation();
   const theme = useTheme();
   const pathname = usePathname();
@@ -45,29 +45,33 @@ export default function ExploreLayout() {
   const handleTabPress = useTabSelect<string>(activeTab, pushTab);
 
   return (
-    <View className="flex-1 web:z-auto">
+    <Screen
+      scroll="auto"
+      header={
+        <PageHeader
+          title={t('Explore')}
+          presentation="floating"
+          actions={
+            <Button
+              appearance="subtle"
+              tone="neutral"
+              iconOnly
+              icon={<Search size={20} />}
+              onPress={() => router.push('/search')}
+              accessibilityLabel={t('Search')}
+            />
+          }
+        />
+      }
+    >
       <SEO title={t('seo.explore.title')} description={t('seo.explore.description')} />
       <StatusBar style={theme.isDark ? 'light' : 'dark'} />
-      <PageHeader
-        title={t('Explore')}
-        presentation="floating"
-        actions={
-          <Button
-            appearance="subtle"
-            tone="neutral"
-            iconOnly
-            icon={<Search size={20} />}
-            onPress={() => router.push('/search')}
-            accessibilityLabel={t('Search')}
-          />
-        }
-      />
       <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
         {TABS.map((tab) => (
           <TabsTrigger key={tab.id} value={tab.id} label={t(tab.label)} />
         ))}
       </Tabs>
       <Slot />
-    </View>
+    </Screen>
   );
 }

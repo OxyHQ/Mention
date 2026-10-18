@@ -3,7 +3,7 @@ import * as Skeleton from '@oxy.so/bloom/skeleton';
 import React, { useMemo, useCallback } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import {
   ProfileCard,
   ProfileCardSkeletonList,

@@ -1,3 +1,4 @@
+import { MediaGridSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
@@ -188,7 +189,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
 
       {loading && gifs.length === 0 ? (
         <View className="flex-1 justify-center items-center py-12">
-          <Loading className="text-primary" size="lg" />
+          <MediaGridSkeleton />
           <Text className="mt-3 text-sm text-muted-foreground">{t('Loading GIFs...')}</Text>
         </View>
       ) : gifs.length === 0 ? (

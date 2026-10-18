@@ -1,9 +1,11 @@
+import { NotificationSkeleton } from '@/components/notifications/NotificationSkeleton';
+import { usePanelScrollContainer } from '@oxy.so/bloom/app-shell/hooks';
+import { useScrollMarginOrigin } from '@/components/Feed/useScrollMarginOrigin';
 import type React from 'react';
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useRef } from 'react';
 import { View } from 'react-native';
-import { useWindowVirtualizer } from '@tanstack/react-virtual';
+import { useOwnerVirtualizer } from '@/hooks/useOwnerVirtualizer.web';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
-import { Loading } from '@oxy.so/bloom/loading';
 import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
 import type { NotificationListItem } from '@/utils/groupNotifications';
 
@@ -19,7 +21,7 @@ export interface NotificationsListProps {
   onEndReached?: () => void;
   /** Gates the load-more trigger — no next page ⇒ no trigger. */
   hasMore?: boolean;
-  /** True while the next page is in flight (renders a footer spinner). */
+  /** True while the next page is in flight (renders a footer skeleton). */
   isFetchingMore?: boolean;
 }
 
@@ -66,18 +68,10 @@ export function NotificationsList({
   'use no memo';
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const [scrollMargin, setScrollMargin] = useState(0);
+  const panel = usePanelScrollContainer<HTMLElement>();
+  const scrollMargin = useScrollMarginOrigin(wrapperRef);
 
-  useLayoutEffect(() => {
-    const node = wrapperRef.current;
-    if (!node) return;
-    const top = node.getBoundingClientRect().top + window.scrollY;
-    setScrollMargin((prev) => (prev !== top ? top : prev));
-    // `tabKey` is a dep so the measurement re-runs when the active tab (and
-    // the content above the list) changes.
-  }, [items.length, tabKey]);
-
-  const virtualizer = useWindowVirtualizer<HTMLDivElement>({
+  const virtualizer = useOwnerVirtualizer<HTMLDivElement>({
     count: items.length,
     estimateSize: () => ESTIMATED_ROW_HEIGHT,
     overscan: OVERSCAN_ROWS,
@@ -117,7 +111,7 @@ export function NotificationsList({
     [measureElement],
   );
 
-  useScrollRestoration('window', { enabled: true, key: `notifications-${tabKey}` });
+  useScrollRestoration('window', { enabled: !panel, key: `notifications-${tabKey}` });
 
   if (items.length === 0) {
     return (
@@ -175,7 +169,7 @@ export function NotificationsList({
       {onEndReached ? <LoadMoreSentinel onLoadMore={onEndReached} enabled={!!hasMore} /> : null}
       {isFetchingMore ? (
         <View style={{ paddingVertical: 16, alignItems: 'center' }}>
-          <Loading />
+          <NotificationSkeleton count={2} />
         </View>
       ) : null}
     </View>

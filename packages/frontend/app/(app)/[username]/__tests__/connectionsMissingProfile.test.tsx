@@ -1,3 +1,6 @@
+jest.mock('@oxy.so/bloom/screen', () => ({
+  Screen: ({ children }: { children: React.ReactNode }) => children,
+}));
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
 jest.mock('@/hooks/useSupervisionState', () => ({
   useSupervisionState: () => ({ ready: true, supervised: false, isError: false }),
@@ -32,6 +35,7 @@ const mockSafeBack = jest.fn();
 let mockPathname = '/@qa_missing/followers';
 
 jest.mock('expo-router', () => ({
+  useRouter: () => jest.requireMock('expo-router').router,
   useLocalSearchParams: () => ({ username: '@qa_missing' }),
   usePathname: () => mockPathname,
   router: { push: jest.fn() },

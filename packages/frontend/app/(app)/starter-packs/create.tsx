@@ -11,7 +11,7 @@ import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { starterPacksService } from '@/services/starterPacksService';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
@@ -23,6 +23,7 @@ import { SignInRequired } from '@/components/common/SignInRequired';
 type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 
 export default function CreateStarterPackScreen() {
+  const router = useRouter();
   const { oxyServices, user } = useAuth();
   const { t } = useTranslation();
   const safeBack = useSafeBack();
@@ -92,7 +93,7 @@ export default function CreateStarterPackScreen() {
     } finally {
       setSaving(false);
     }
-  }, [name, description, members, queryClient, user?.id, t]);
+  }, [name, description, members, queryClient, user?.id, t, router]);
 
   return (
     <View className="flex-1">

@@ -1,15 +1,15 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import { View, FlatList } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Button } from '@oxy.so/bloom/button';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { feedService } from '@/services/feedService';
 import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
 
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { EmptyState } from '@/components/common/EmptyState';
 import { logger } from '@oxy.so/core/logger';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
@@ -158,13 +158,7 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
           keyExtractor={(item) => item.id}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.5}
-          ListFooterComponent={
-            loadingMore ? (
-              <View className="py-4 items-center">
-                <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
-              </View>
-            ) : null
-          }
+          ListFooterComponent={loadingMore ? <ListSkeleton count={2} /> : null}
         />
       )}
     </View>

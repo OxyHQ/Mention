@@ -2,7 +2,7 @@ import type React from 'react';
 import { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { Text } from '@oxy.so/bloom/typography';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
@@ -64,13 +64,14 @@ export function FeedCard({
   showLikes = false,
   variant = 'card',
 }: FeedCardProps) {
+  const router = useRouter();
   const handlePress = useCallback(() => {
     if (onPress) {
       onPress();
     } else if (feed.id) {
       router.push(`/feeds/${feed.id}`);
     }
-  }, [onPress, feed.id]);
+  }, [onPress, feed.id, router]);
 
   const statsLine = useMemo(() => {
     const parts: string[] = [];

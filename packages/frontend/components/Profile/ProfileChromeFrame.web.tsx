@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
-import { router, usePathname, type Href } from 'expo-router';
-import { BloomColorScope } from '@oxy.so/bloom/theme';
+import { useTranslation } from 'react-i18next';
+import { useRouter, usePathname, type Href } from '@/lib/navigation/router';
 import { RouterTabs, type RouterTabItem } from '@oxy.so/bloom/tabs/expo-router';
 
 import { profileTabsOffset } from './ProfilePageHeader';
@@ -76,6 +76,8 @@ import type { ProfileChromeFrameProps, ProfileTabDescriptor } from './types';
  *    nothing would fail.
  */
 export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps) {
+  const router = useRouter();
+  const { t } = useTranslation();
   const pathname = usePathname();
   const selection = useMemo(() => profileTabSelectionFromPathname(pathname), [pathname]);
   const active = selection !== null;
@@ -84,9 +86,12 @@ export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps
   // only from the summary's stats row — "12 posts" jumping to the posts tab.
   // PUSH for the same reason the strip does: a jump the reader can come back
   // from.
-  const onSelectTab = useCallback((_descriptor: ProfileTabDescriptor, href: Href) => {
-    router.push(href);
-  }, []);
+  const onSelectTab = useCallback(
+    (_descriptor: ProfileTabDescriptor, href: Href) => {
+      router.push(href);
+    },
+    [router],
+  );
 
   const routedUsername = useRoutedProfileUsername();
 
@@ -100,13 +105,23 @@ export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps
   });
 
   const items = useMemo<RouterTabItem[]>(
-    () =>
-      view.tabDescriptors.map((descriptor) => ({
+    () => [
+      ...view.tabDescriptors.map((descriptor) => ({
         value: descriptor.key,
         label: descriptor.label,
         href: profileTabHref(view.handle, descriptor),
       })),
-    [view.tabDescriptors, view.handle],
+      ...(view.isOwnProfile
+        ? [
+            {
+              value: 'manage-lanes',
+              label: t('lanes.title', { defaultValue: 'Lanes' }),
+              href: '/lanes' as const,
+            },
+          ]
+        : []),
+    ],
+    [view.tabDescriptors, view.handle, view.isOwnProfile, t],
   );
 
   // A wrong-family URL (a channel sitting on `/@handle`) holds the skeleton
@@ -116,7 +131,7 @@ export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps
   const loading = view.loading || view.canonicalHref !== null;
 
   const tabBar = (
-    <ProfileTabBarRow showLanes={view.isOwnProfile}>
+    <ProfileTabBarRow>
       <RouterTabs
         items={items}
         // The profile strip is itself horizontally scrollable — nine static tabs
@@ -132,7 +147,7 @@ export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps
   );
 
   return (
-    <BloomColorScope colorPreset={active ? view.colorName : undefined} asChild>
+    <>
       <View className="flex-1 web:z-auto">
         {view.seo}
         <ProfileShell
@@ -151,6 +166,6 @@ export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps
           {children}
         </ProfileShell>
       </View>
-    </BloomColorScope>
+    </>
   );
 }

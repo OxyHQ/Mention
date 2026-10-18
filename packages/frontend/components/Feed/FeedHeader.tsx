@@ -1,7 +1,7 @@
 import { memo, useCallback } from 'react';
 import { View, Platform } from 'react-native';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button } from '@oxy.so/bloom/button';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
@@ -23,11 +23,12 @@ export const FEED_COMPOSER_PROMPT_HEIGHT = 80;
 /** Social template composer, with Mention's real account and camera destinations. */
 export const FeedHeader = memo<FeedHeaderProps>(
   ({ showComposeButton, onComposePress, hideHeader, promptText }) => {
+    const router = useRouter();
     const { user } = useAuth();
     const compose = useCallback(() => {
       if (onComposePress) onComposePress();
       else router.push('/compose');
-    }, [onComposePress]);
+    }, [onComposePress, router]);
     if (!showComposeButton || hideHeader || !user) return null;
     return (
       <View className="m-3 min-h-14 flex-row items-center gap-3 rounded-full bg-surface px-3 py-3">

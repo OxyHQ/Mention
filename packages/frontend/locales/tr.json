@@ -1,4 +1,5 @@
 {
+  "navigation.menu": "Gezinme menüsü",
   "Your post could not be published. {{detail}}": "Gönderin yayınlanamadı. {{detail}}",
   "You're posting too fast. Please wait a moment and try again.": "Çok hızlı gönderi paylaşıyorsun. Lütfen biraz bekleyip tekrar dene.",
   "No connection. Check your network and try again.": "Bağlantı yok. Ağını kontrol edip tekrar dene.",
@@ -736,6 +737,9 @@
   "videos.sharing_not_available": "Paylaşım kullanılamıyor",
   "videos.copy_link_manually": "Lütfen bağlantıyı elle kopyala",
   "videos.share_failed": "Gönderi paylaşılamadı",
+  "videos.load_failed": "Videolar yüklenemedi",
+  "videos.load_failed_description": "Bağlantınızı kontrol edip tekrar deneyin.",
+  "videos.empty_description": "İzlenecek içerik olduğunda videolar burada görünecek. Yakında tekrar bakın.",
   "videos.no_posts_found": "Gönderi bulunamadı",
   "videos.no_video_posts_yet": "Henüz video gönderisi yok",
   "videos.loading": "Yükleniyor...",
@@ -2652,5 +2656,46 @@
     "retryDescription": "Hesabın mevcut korumalarını yüklemek için tekrar deneyin.",
     "privatePost": "Gönderilerinizi yalnızca veliniz ve onaylanmış kişiler okuyabilir.",
     "pendingAssessment": "Bu içerik, güvenlik incelemesi tamamlanana kadar kullanılamaz."
+  },
+  "deck": {
+    "resizable": "Yeniden boyutlandırmaya izin ver",
+    "appearance": "Görünüm",
+    "solid": "Yüzey",
+    "plain": "Düz",
+    "color": "Temel renk",
+    "colorDescription": "Açık profiller kendi renklerini kullanır.",
+    "inherit": "Uygulama varsayılanı",
+    "width": "Panel genişliği",
+    "reset": "Panel ayarlarını sıfırla",
+    "settings": "Panel ayarları",
+    "subtitle": "Akışlarınız yan yana",
+    "history": "Sütun geçmişi",
+    "back": "Bu sütunda geri git",
+    "forward": "Bu sütunda ileri git",
+    "source": "Sütun akışı",
+    "sources": {
+      "explore": "Keşfet",
+      "trending": "Gündem",
+      "following": "Takip edilenler",
+      "saved": "Kaydedilenler"
+    },
+    "signInDescription": "Bu sütunda kişisel akışınızı görmek için giriş yapın.",
+    "signIn": "Giriş yap",
+    "browseExplore": "Keşfet’i aç",
+    "addPanel": "Panel ekle",
+    "removePanel": "Paneli kaldır",
+    "liveUpdates": "Gerçek zamanlı güncelle",
+    "pauseWhileReading": "Okurken güncellemeleri duraklat",
+    "liveRequiresSignIn": "Canlı güncellemeler için giriş yapın",
+    "workspace": {
+      "title": "Deck",
+      "sync": "Cihazlar arasında eşitle",
+      "description": "Panellerini, sayfalarını, gezinme geçmişini ve okuma konumlarını hesabına kaydet.",
+      "anonymous": "Deck eşitlemesi için giriş yap. Çalışma alanın bu cihazda kaydedilir.",
+      "error": "Değişiklikler bu cihazda kaydedildi. Eşitleme otomatik olarak yeniden denenecek.",
+      "local": "Çalışma alanın bu cihazda kalır. Diğer cihazlarınla paylaşmak için eşitlemeyi aç.",
+      "saved": "Deck hesabına kaydedildi.",
+      "saving": "Çalışma alanın hemen kullanılabilir. Hesabına kaydediliyor…"
+    }
   }
 }

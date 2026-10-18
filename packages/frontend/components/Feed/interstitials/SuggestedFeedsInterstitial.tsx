@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { View } from 'react-native';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -188,6 +188,7 @@ function SuggestedFeedItem({
   onSubscribe,
   onDismiss,
 }: SuggestedFeedItemProps) {
+  const router = useRouter();
   const { t } = useTranslation();
   const id = marketplaceFeedId(feed);
 

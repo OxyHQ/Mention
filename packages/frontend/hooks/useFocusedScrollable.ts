@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { useIsFocused } from 'expo-router';
+import { useIsFocused } from '@/lib/navigation/router';
 import { useLayoutScroll, type ScrollableRef } from '@/context/LayoutScrollContext';
 
 /**

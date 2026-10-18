@@ -1,6 +1,6 @@
 import { memo, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import type { ProfileStatsProps } from './types';
@@ -24,15 +24,16 @@ export const ProfileStats = memo(function ProfileStats({
   onBoostsPress,
   onRepliesPress,
 }: ProfileStatsProps) {
+  const router = useRouter();
   const { t } = useTranslation();
 
   const handleFollowingPress = useCallback(() => {
     if (followingHref) router.push(followingHref);
-  }, [followingHref]);
+  }, [followingHref, router]);
 
   const handleFollowersPress = useCallback(() => {
     if (followersHref) router.push(followersHref);
-  }, [followersHref]);
+  }, [followersHref, router]);
 
   return (
     <View className="gap-2.5" style={styles.container}>

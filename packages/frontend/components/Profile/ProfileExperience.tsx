@@ -1,12 +1,12 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { experienceService } from '@/services/experienceService';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Text, View } from 'react-native';
-import { Link } from 'expo-router';
+import { Link } from '@/lib/navigation/router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button } from '@oxy.so/bloom/button';
-import { Loading } from '@oxy.so/bloom/loading';
 import { useTranslation } from 'react-i18next';
 import type { Experience } from '@clarity.surf/sdk/experience';
 import { organizationDirectoryQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -226,7 +226,7 @@ export function ProfileExperience({
         </View>
       ) : null}
       {query.isPending ? (
-        <Loading />
+        <ListSkeleton />
       ) : query.isError ? (
         <View className="items-center gap-3 py-8">
           <Text className="text-muted-foreground text-center">

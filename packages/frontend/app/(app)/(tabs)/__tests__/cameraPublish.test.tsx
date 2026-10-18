@@ -28,6 +28,7 @@ const mockSetPendingShareMedia = jest.fn();
 let mockResolveUpload: ((value: unknown) => void) | undefined;
 
 jest.mock('expo-router', () => ({
+  useRouter: () => jest.requireMock('expo-router').router,
   router: { push: jest.fn() },
   useIsFocused: () => true,
 }));

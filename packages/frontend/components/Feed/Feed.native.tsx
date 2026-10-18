@@ -1,3 +1,4 @@
+import { useScreenViewport } from '@oxy.so/bloom/screen';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState, memo, forwardRef } from 'react';
 import {
@@ -21,7 +22,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useFocusedScrollable } from '@/hooks/useFocusedScrollable';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
-import { useIsFocused } from 'expo-router';
+import { useIsFocused } from '@/lib/navigation/router';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
 import { useRevealOwnNewPost } from '@/hooks/useRevealOwnNewPost';
 import { getItemKey } from '@/utils/feedUtils';
@@ -265,8 +266,20 @@ const Feed = (props: FeedProps) => {
   // the registered scrollable — otherwise a frozen background feed could move
   // the shared value.
   const isFocused = useIsFocused();
+  const screenViewport = useScreenViewport();
+  const screenMetrics = screenViewport?.metrics;
+  const screenActive = screenViewport?.active !== false;
   const flatListRef = useRef<FlashListRef<NativeFeedRow> | null>(null);
   const { scrollPosition, scrollEventThrottle } = useLayoutScroll();
+  const ownerRef = screenViewport?.scrollRef;
+  useEffect(() => {
+    if (!ownerRef || !isFocused || !screenActive || scrollEnabled === false) return;
+    const list = flatListRef.current;
+    ownerRef.current = list;
+    return () => {
+      if (ownerRef.current === list) ownerRef.current = null;
+    };
+  }, [ownerRef, isFocused, screenActive, scrollEnabled]);
 
   // Fixed top inset for a feed that scrolls BEHIND an auto-hiding header + tab
   // bar overlay. Reserved as constant scrollable top padding so the overlay
@@ -523,6 +536,11 @@ const Feed = (props: FeedProps) => {
       'worklet';
       const offsetY = event.contentOffset.y;
       scrollPosition.value = offsetY;
+      if (screenMetrics && screenActive && isFocused) {
+        screenMetrics.scrollY.value = offsetY;
+        screenMetrics.contentHeight.value = event.contentSize.height;
+        screenMetrics.viewportHeight.value = event.layoutMeasurement.height;
+      }
       if (Math.abs(offsetY - lastReportedOffset.value) < JS_SCROLL_REPORT_PX) return;
       lastReportedOffset.value = offsetY;
       runOnJS(reportScrollOffset)(offsetY);

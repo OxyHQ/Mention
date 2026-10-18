@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 

@@ -4,21 +4,19 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { APP_COLOR_NAMES, type AppColorName, type PersistedThemeState } from '@oxy.so/bloom/theme';
 import { getPresetBackground } from '@oxy.so/bloom/preset-vars';
 import { LogoIcon } from '@/assets/logo';
-import { Loading } from '@oxy.so/bloom/loading';
 import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersistence';
 import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('AppSplashScreen');
 
 const LOGO_SIZE = 100;
-const SPINNER_SIZE = 28;
 
 // The splash renders during font loading via BloomThemeProvider's `onFontsLoading`,
 // i.e. BEFORE the theme context is available — so it must NOT depend on `useTheme()`
 // (which throws outside the provider). Instead it reads the SAME persisted theme key
 // that the provider writes (`BLOOM_THEME_PERSIST_KEY`) and derives a DARK gradient
 // from the active preset's DARK-mode `--background` (a very dark, preset-tinted
-// surface from the colour engine). The logo + spinner are white, so we use the
+// surface from the colour engine). The logo are white, so we use the
 // dark-mode background — never the preset's near-white light `--background`.
 
 // Safe literal fallback when no preset can be resolved at all (missing key,
@@ -35,7 +33,7 @@ const DARK_STOP = '#1A1A1A';
 /**
  * Build a DARK two-stop gradient from a preset. Stop 1 is the engine's dark-mode
  * `--background` for the preset (a very dark, preset-tinted surface), stop 2 is
- * near-black, so the white logo/spinner always stay clearly visible regardless of
+ * near-black, so the white logo always stay clearly visible regardless of
  * preset. Falls back to the safe literal when the preset can't be resolved.
  *
  * `getPresetBackground` resolves that one token, not the whole dark set: on a
@@ -121,9 +119,6 @@ const AppSplashScreen: React.FC = () => {
       <LinearGradient colors={gradient} style={styles.gradient}>
         <View style={styles.logoContainer}>
           <LogoIcon size={LOGO_SIZE} color="white" />
-          <View style={styles.spinnerContainer}>
-            <Loading iconSize={SPINNER_SIZE} color="white" showText={false} />
-          </View>
         </View>
       </LinearGradient>
     </View>
@@ -142,9 +137,6 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  spinnerContainer: {
-    marginTop: 32,
   },
 });
 

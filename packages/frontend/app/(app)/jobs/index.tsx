@@ -1,3 +1,4 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -6,7 +7,6 @@ import { Button } from '@oxy.so/bloom/button';
 import { Chip } from '@oxy.so/bloom/chip';
 import { Field } from '@oxy.so/bloom/field';
 import { VirtualList } from '@oxy.so/bloom/list';
-import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Search } from '@oxy.so/bloom/search';
 import {
@@ -443,11 +443,7 @@ export default function JobsDiscoveryScreen() {
 
       // status row
       if (item.state === 'loading') {
-        return (
-          <View className="items-center justify-center py-16">
-            <Loading className="text-primary" size="lg" />
-          </View>
-        );
+        return <ListSkeleton />;
       }
       if (item.state === 'error') {
         return (
@@ -495,7 +491,7 @@ export default function JobsDiscoveryScreen() {
           ListFooterComponent={
             <View className="items-center justify-center py-4">
               <LoadMoreSentinel onLoadMore={handleEndReached} enabled={!!hasNextPage && !loading} />
-              {isFetchingNextPage ? <Loading className="text-primary" size="sm" /> : null}
+              {isFetchingNextPage ? <ListSkeleton count={2} /> : null}
             </View>
           }
         />

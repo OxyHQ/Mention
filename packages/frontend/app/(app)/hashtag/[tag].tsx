@@ -1,6 +1,7 @@
+import { Screen } from '@oxy.so/bloom/screen';
 import { useMemo, useState } from 'react';
 import { Platform, View } from 'react-native';
-import { useLocalSearchParams, usePathname } from 'expo-router';
+import { useLocalSearchParams, usePathname } from '@/lib/navigation/router';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Text } from '@oxy.so/bloom/typography';
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -51,7 +52,16 @@ export default function HashtagScreen() {
   );
 
   return (
-    <View className="flex-1">
+    <Screen
+      scroll="auto"
+      header={
+        <PageHeader
+          title={displayTag}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+        />
+      }
+    >
       <SEO
         title={
           server?.title ||
@@ -71,12 +81,8 @@ export default function HashtagScreen() {
         robots={server?.robots}
         jsonLd={server?.jsonLd}
       />
-      <PageHeader
-        title={displayTag}
-        onBack={() => safeBack()}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-      />
+
       <Feed type="hashtag" filters={filters} listHeaderComponent={listHeader} />
-    </View>
+    </Screen>
   );
 }

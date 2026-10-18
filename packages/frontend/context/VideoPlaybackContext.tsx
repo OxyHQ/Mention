@@ -11,7 +11,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { AppState, Dimensions, Platform } from 'react-native';
-import { useIsFocused } from 'expo-router';
+import { useIsFocused } from '@/lib/navigation/router';
 
 /**
  * The single app-wide authority answering "may this player play right now?".

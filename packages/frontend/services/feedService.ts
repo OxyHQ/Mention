@@ -29,7 +29,7 @@ import {
   prefetchFollowingWidgetFeed,
   syncFeedWidget,
 } from '../modules/mention-widgets/feedWidgetSync';
-import { type FeedFilters, feedThreadParentId } from '../utils/feedUtils';
+import { type FeedFilters, feedThreadParentId, normalizeFeedFilters } from '../utils/feedUtils';
 import { authenticatedClient, publicClient } from '../utils/api';
 import { oxyServices } from '@/lib/oxyServices';
 import { logger } from '@oxy.so/core/logger';
@@ -327,14 +327,16 @@ export function setFeedViewerRequestScope(viewerId: string | null): void {
 
 // Generate stable dedup key from request
 function getDedupeKey(request: ExtendedFeedRequest): string {
-  const filters = request.filters;
-  const filterKey = filters
-    ? Object.keys(filters)
-        .sort()
-        .map((k) => `${k}=${filters[k] ?? ''}`)
-        .join('&')
-    : '';
-  return `${requestIdentityDedupeMarker()}|${request.type || 'mixed'}|${request.cursor || 'initial'}|${request.userId || ''}|${filterKey}`;
+  // Preserve field boundaries and page size: separate reads must never inherit
+  // another panel's smaller page or collide on delimiters inside a filter.
+  return JSON.stringify([
+    requestIdentityDedupeMarker(),
+    request.type || 'mixed',
+    request.cursor ?? null,
+    request.userId ?? null,
+    request.limit ?? 20,
+    normalizeFeedFilters(request.filters),
+  ]);
 }
 
 class FeedService {
@@ -481,7 +483,7 @@ class FeedService {
     try {
       return await fetchPromise;
     } finally {
-      inFlightRequests.delete(dedupeKey);
+      if (inFlightRequests.get(dedupeKey) === fetchPromise) inFlightRequests.delete(dedupeKey);
     }
   }
 
@@ -1087,7 +1089,7 @@ class FeedService {
     try {
       return await fetchPromise;
     } finally {
-      inFlightRequests.delete(cacheKey);
+      if (inFlightRequests.get(cacheKey) === fetchPromise) inFlightRequests.delete(cacheKey);
     }
   }
 

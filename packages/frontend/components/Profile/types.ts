@@ -1,5 +1,5 @@
 import type { ViewStyle, TextStyle, StyleProp } from 'react-native';
-import type { Href } from 'expo-router';
+import type { Href } from '@/lib/navigation/router';
 import type { AccountKind } from '@oxy.so/core';
 import type { ProfileData } from '@/hooks/useProfileData';
 
@@ -450,6 +450,8 @@ export interface ProfileHeaderProps extends ProfileHeaderBaseProps {
   actorUri?: string;
   isFollowing?: boolean;
   FollowButtonComponent: FollowButtonComponent;
+  /** Contact and notification controls rendered in the group beside Poke. */
+  interactionActions?: React.ReactNode;
 }
 
 // Profile stats props

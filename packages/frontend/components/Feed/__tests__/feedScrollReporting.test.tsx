@@ -1,3 +1,7 @@
+jest.mock('@/services/socketService', () => ({
+  socketService: { subscribeToFeedUpdates: jest.fn(() => jest.fn()) },
+}));
+jest.mock('@oxy.so/bloom/screen', () => ({ useScreenViewport: () => null }));
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 

@@ -1,6 +1,6 @@
 import { useEffect, useId, useState, useSyncExternalStore } from 'react';
 import { AppState, Platform } from 'react-native';
-import { useIsFocused } from 'expo-router';
+import { useIsFocused } from '@/lib/navigation/router';
 import { useNativeRowVisibility } from '@/context/VideoPlaybackContext';
 
 function subscribeForeground(listener: () => void) {

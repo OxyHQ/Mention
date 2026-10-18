@@ -1,7 +1,8 @@
+import { useScrollMarginOrigin } from '@/components/Feed/useScrollMarginOrigin';
 import type React from 'react';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Dimensions } from 'react-native';
-import { useWindowVirtualizer } from '@tanstack/react-virtual';
+import { useOwnerVirtualizer } from '@/hooks/useOwnerVirtualizer.web';
 import type { ProfileGridEntry, ProfileGridListProps } from './ProfileGridList.types';
 
 export type {
@@ -46,7 +47,7 @@ export function ProfileGridList<T extends ProfileGridEntry>({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(() => Dimensions.get('window').width);
-  const [scrollMargin, setScrollMargin] = useState(0);
+  const scrollMargin = useScrollMarginOrigin(gridRef);
 
   const measureGrid = useCallback(() => {
     const rootNode = rootRef.current;
@@ -55,8 +56,6 @@ export function ProfileGridList<T extends ProfileGridEntry>({
 
     const rect = rootNode.getBoundingClientRect();
     setContainerWidth((current) => (current === rect.width ? current : rect.width));
-    const nextScrollMargin = gridNode.getBoundingClientRect().top + window.scrollY;
-    setScrollMargin((current) => (current === nextScrollMargin ? current : nextScrollMargin));
   }, []);
 
   useLayoutEffect(() => {
@@ -84,7 +83,7 @@ export function ProfileGridList<T extends ProfileGridEntry>({
   }, [containerWidth]);
   const rowCount = Math.ceil(data.length / NUM_COLUMNS);
 
-  const virtualizer = useWindowVirtualizer<HTMLDivElement>({
+  const virtualizer = useOwnerVirtualizer<HTMLDivElement>({
     count: rowCount,
     estimateSize: () => itemSize + GAP,
     overscan: OVERSCAN_ROWS,

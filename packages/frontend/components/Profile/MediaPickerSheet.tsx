@@ -1,3 +1,4 @@
+import { MediaGridSkeleton } from '@/components/loading/ContentSkeleton';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
@@ -423,9 +424,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
       {/* Results */}
       <View className="mt-2 min-h-[120px]">
         {activeSearch.isLoading ? (
-          <View className="items-center justify-center py-10">
-            <SpinnerIcon size={20} color={colors.primary} />
-          </View>
+          <MediaGridSkeleton />
         ) : activeSearch.isError ? (
           <Text className="text-muted-foreground text-[15px] text-center py-10">
             {isSongTab

@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 45.54,
-      "covered": 12439,
-      "total": 27311
+      "pct": 45.56,
+      "covered": 12451,
+      "total": 27324
     },
     "branches": {
-      "pct": 40.95,
-      "covered": 8164,
-      "total": 19935
+      "pct": 40.98,
+      "covered": 8174,
+      "total": 19946
     },
     "functions": {
-      "pct": 40.63,
-      "covered": 2869,
+      "pct": 40.65,
+      "covered": 2870,
       "total": 7060
     },
     "lines": {
-      "pct": 46.28,
-      "covered": 11321,
-      "total": 24458
+      "pct": 46.31,
+      "covered": 11329,
+      "total": 24463
     }
   },
   "pins": {
@@ -282,12 +282,6 @@
       "lines": 63
     },
     "hooks/useExternalActorResolve.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useFediversePreferredLanguage.ts": {
       "statements": 0,
       "branches": 0,
       "functions": 0,
@@ -1774,6 +1768,12 @@
       "branches": 50,
       "functions": 50,
       "lines": 66
+    },
+    "utils/video-feed-pagination.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "utils/videoSource.ts": {
       "statements": 100,

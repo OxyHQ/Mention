@@ -1,12 +1,14 @@
 import type React from 'react';
 import { cloneElement, isValidElement, useCallback, useMemo } from 'react';
-import { usePathname, useRouter, type Href } from 'expo-router';
+import { usePathname, useRouter, type Href } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
+import { useDeckAvailable } from '@/components/deck/useDeckAvailable';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import type { SidebarProps } from '@oxy.so/bloom/sidebar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { ProfileButton } from '@oxy.so/services/ui/client';
 import { useAuth } from '@oxy.so/services/ui/client';
+import { RiDashboardLine } from '@oxy.so/bloom/icons/RiDashboardLine';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
@@ -25,6 +27,10 @@ import { Hashtag, HashtagActive } from '@/assets/icons/hashtag-icon';
 import { ChannelIcon, ChannelIconActive } from '@/assets/icons/channel-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 
+function DeckIcon({ size = 24, color }: { size?: number; color?: string }) {
+  return <RiDashboardLine width={size} height={size} fill={color} />;
+}
+
 function LiveRoomsIcon({ size = 24, color }: { size?: number; color?: string }) {
   return <RiBroadcastLine width={size} height={size} fill={color} />;
 }
@@ -38,6 +44,7 @@ function paintNavigationIcon(icon: React.ReactNode, width?: number, fill?: strin
 // belong to Bloom. The same descriptor feeds its desktop rail and mobile drawer.
 export function useMentionSidebar(): SidebarProps {
   const { t } = useTranslation();
+  const deckAvailable = useDeckAvailable();
   const router = useRouter();
   const { user, signIn } = useAuth();
   const avatarUri = user?.avatar;
@@ -118,6 +125,16 @@ export function useMentionSidebar(): SidebarProps {
         iconActive: <SearchActive />,
         route: '/explore',
       },
+      ...(deckAvailable
+        ? [
+            {
+              title: 'Deck',
+              icon: <DeckIcon />,
+              iconActive: <DeckIcon />,
+              route: '/deck' as Href,
+            },
+          ]
+        : []),
       {
         title: t('sidebar.notifications'),
         icon: <Bell />,
@@ -171,7 +188,7 @@ export function useMentionSidebar(): SidebarProps {
         onPress: handleNavigateManage,
       },
     ],
-    [t, user, avatarUri, avatarName, handleNavigateProfile, handleNavigateManage],
+    [t, user, avatarUri, avatarName, handleNavigateProfile, handleNavigateManage, deckAvailable],
   );
 
   const pathname = usePathname();

@@ -1,3 +1,4 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -17,7 +18,6 @@ import {
   type InfiniteData,
 } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
@@ -421,13 +421,7 @@ function FeedMarketplaceScreen() {
             `handleLoadMore` ~600px before it enters the viewport. Inert on
             native, which paginates via the FlatList's `onEndReached`. */}
         <LoadMoreSentinel onLoadMore={handleLoadMore} enabled={hasMore} />
-        {loadingMore ? (
-          <View className="py-5 items-center">
-            <SpinnerIcon size={20} className="text-primary" />
-          </View>
-        ) : (
-          <View className="h-8" />
-        )}
+        {loadingMore ? <ListSkeleton count={2} /> : <View className="h-8" />}
       </View>
     ),
     [loadingMore, handleLoadMore, hasMore],

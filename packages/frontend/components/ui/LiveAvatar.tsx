@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Avatar, type AvatarProps } from '@oxy.so/bloom/avatar';
 import { useLiveUser } from '@/stores/livePresenceStore';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 
 export interface LiveAvatarProps extends AvatarProps {
   /**
@@ -24,6 +24,7 @@ export interface LiveAvatarProps extends AvatarProps {
  * explicit `live` prop still wins over the derived state.
  */
 export function LiveAvatar({ userId, onPress, live, liveLabel, ...rest }: LiveAvatarProps) {
+  const router = useRouter();
   const { t } = useTranslation();
   const { isLive, roomId } = useLiveUser(userId);
 
@@ -38,7 +39,7 @@ export function LiveAvatar({ userId, onPress, live, liveLabel, ...rest }: LiveAv
       return;
     }
     onPress?.();
-  }, [userIsLive, roomId, onPress]);
+  }, [userIsLive, roomId, onPress, router]);
 
   const pressable = (userIsLive && Boolean(roomId)) || Boolean(onPress);
 

@@ -1,4 +1,5 @@
 {
+  "navigation.menu": "导航菜单",
   "Your post could not be published. {{detail}}": "你的帖子未能发布。{{detail}}",
   "You're posting too fast. Please wait a moment and try again.": "发帖过于频繁，请稍后再试。",
   "No connection. Check your network and try again.": "无网络连接，请检查网络后重试。",
@@ -736,6 +737,9 @@
   "videos.sharing_not_available": "分享功能不可用",
   "videos.copy_link_manually": "请手动复制链接",
   "videos.share_failed": "分享帖子失败",
+  "videos.load_failed": "无法加载视频",
+  "videos.load_failed_description": "请检查网络连接，然后重试。",
+  "videos.empty_description": "有可观看的内容时，视频会显示在这里。请稍后再来看看。",
   "videos.no_posts_found": "未找到帖子",
   "videos.no_video_posts_yet": "暂无视频帖子",
   "videos.loading": "加载中…",
@@ -2652,5 +2656,46 @@
     "retryDescription": "请重试以加载账号当前的保护设置。",
     "privatePost": "只有你的监护人和获准联系人可以阅读你的帖子。",
     "pendingAssessment": "此内容在完成安全审核前不可用。"
+  },
+  "deck": {
+    "resizable": "允许调整大小",
+    "appearance": "外观",
+    "solid": "表面",
+    "plain": "简洁",
+    "color": "基础颜色",
+    "colorDescription": "打开的个人资料使用自己的颜色。",
+    "inherit": "应用默认",
+    "width": "面板宽度",
+    "reset": "重置面板设置",
+    "settings": "面板设置",
+    "subtitle": "并排查看你的动态",
+    "history": "栏历史记录",
+    "back": "在此栏中后退",
+    "forward": "在此栏中前进",
+    "source": "栏动态来源",
+    "sources": {
+      "explore": "探索",
+      "trending": "热门",
+      "following": "正在关注",
+      "saved": "已保存"
+    },
+    "signInDescription": "登录后即可在此栏查看你的个人动态。",
+    "signIn": "登录",
+    "browseExplore": "浏览探索",
+    "addPanel": "添加面板",
+    "removePanel": "移除面板",
+    "liveUpdates": "实时更新",
+    "pauseWhileReading": "阅读时暂停更新",
+    "liveRequiresSignIn": "登录以接收实时更新",
+    "workspace": {
+      "title": "Deck",
+      "sync": "跨设备同步",
+      "description": "将面板、页面、浏览历史和阅读位置保存到你的账户。",
+      "anonymous": "登录以同步 Deck。工作区会保存在此设备上。",
+      "error": "更改已保存在此设备上。同步未完成，将自动重试。",
+      "local": "工作区保留在此设备上。开启同步即可与其他设备共享。",
+      "saved": "你的 Deck 已保存到账户。",
+      "saving": "工作区可立即使用。正在保存到账户…"
+    }
   }
 }

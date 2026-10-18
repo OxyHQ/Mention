@@ -1,11 +1,11 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useEffect, useMemo } from 'react';
 import { View, Text, Pressable, SectionList, type SectionListData } from 'react-native';
-import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 
 import { trendingService, type TrendingTopic, type TrendingDay } from '@/services/trendingService';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -245,21 +245,13 @@ export default function ExploreTrendingScreen() {
 
   const renderFooter = useCallback(() => {
     if (!historyQuery.isFetchingNextPage) return null;
-    return (
-      <View className="items-center py-4">
-        <SpinnerIcon size={20} className="text-primary" />
-      </View>
-    );
+    return <ListSkeleton count={2} />;
   }, [historyQuery.isFetchingNextPage]);
 
   const isInitialLoading = historyQuery.isPending && visibleTrends.length === 0 && trendsLoading;
 
   if (isInitialLoading) {
-    return (
-      <View className="flex-1 items-center justify-center">
-        <SpinnerIcon size={28} className="text-primary" />
-      </View>
-    );
+    return <ListSkeleton />;
   }
 
   return (

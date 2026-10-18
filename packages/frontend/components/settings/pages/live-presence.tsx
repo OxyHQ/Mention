@@ -1,3 +1,4 @@
+import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import type { BloomIcon } from '@/components/settings/RowIcon';
 import { SettingsSelect } from '@/components/settings/SettingsSelect';
 import {
@@ -8,7 +9,6 @@ import {
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
-import { Loading } from '@oxy.so/bloom/loading';
 import { SettingsGeneralPage } from '@oxy.so/bloom/settings-modal';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -81,9 +81,7 @@ export default function LivePresenceScreen() {
   if (isPrivateApiPending) {
     return (
       <View className="gap-4">
-        <View className="flex-1 items-center justify-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
+        <SettingsSkeleton />
       </View>
     );
   }
@@ -106,9 +104,7 @@ export default function LivePresenceScreen() {
   if (isLoading) {
     return (
       <View className="gap-4">
-        <View className="flex-1 items-center justify-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
+        <SettingsSkeleton />
       </View>
     );
   }
