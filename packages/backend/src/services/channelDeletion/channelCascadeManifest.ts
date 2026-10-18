@@ -1519,13 +1519,21 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
  *
  * The `engagement_outbox` and `moderation_outbox` payloads are first-class
  * columns (`payload_post_id`, `payload_actor_oxy_user_id`, `payload_report_id`,
- * …), so the gate sees them and they are ordinary cascade steps. `jsonb` survives in exactly four places
- * (CONVENTIONS.md names them) and only two can hold a channel reference.
+ * …), so the gate sees them and they are ordinary cascade steps. The narrowly
+ * scoped JSON exceptions are documented in CONVENTIONS.md. Their embedded
+ * references, including private Deck navigation, are classified below.
  *
  * Each entry names how the cascade reaches it, or states that it deliberately
  * does not and why that is harmless.
  */
 export const EMBEDDED_CHANNEL_REFERENCES: ReadonlyMap<string, string> = new Map([
+  [
+    'deck_workspaces.state.panels.navigation',
+    "Routes and parameters may reference the channel or its posts. REACHED for the channel's own " +
+      'workspace through oxyUserId. NOT REACHED for other accounts: navigation history contains no ' +
+      'fetched content and resolving a deleted target uses the ordinary unavailable-screen behavior. ' +
+      "Rewriting it would change another account's private navigation state.",
+  ],
   [
     'mention_signed_records.rkey / .subject_did / .envelope',
     "A post record's `rkey` IS the `posts.id`, and the DID embeds the oxyUserId; the envelope is a signed " +
