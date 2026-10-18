@@ -8,6 +8,7 @@ import type { SidebarProps } from '@oxy.so/bloom/sidebar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { ProfileButton } from '@oxy.so/services/ui/client';
 import { useAuth } from '@oxy.so/services/ui/client';
+import type { AccountDialogMenuItem } from '@oxy.so/services';
 import { RiDashboardLine } from '@oxy.so/bloom/icons/RiDashboardLine';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
@@ -75,10 +76,27 @@ export function useMentionSidebar(): SidebarProps {
     const href = profileHrefForUser(user);
     if (href) handleNavPress(href);
   }, [user, handleNavPress]);
-  const handleNavigateManage = useCallback(() => {
+  const handleOpenSettings = useCallback(() => {
     close();
     settings.open();
   }, [close, settings]);
+  const accountMenuItems = useMemo<AccountDialogMenuItem[]>(
+    () => [
+      {
+        key: 'mention-settings',
+        label: t('sidebar.accountMenu.settings'),
+        icon: 'cog-outline',
+        onPress: handleOpenSettings,
+      },
+      {
+        key: 'mention-plus',
+        label: t('sidebar.accountMenu.plus'),
+        icon: 'crown-outline',
+        onPress: () => handleNavPress('/plus'),
+      },
+    ],
+    [t, handleOpenSettings, handleNavPress],
+  );
   const sideBarData = useMemo<
     {
       title: string;
@@ -185,10 +203,10 @@ export function useMentionSidebar(): SidebarProps {
         icon: <Gear />,
         iconActive: <GearActive />,
         route: '/settings',
-        onPress: handleNavigateManage,
+        onPress: handleOpenSettings,
       },
     ],
-    [t, user, avatarUri, avatarName, handleNavigateProfile, handleNavigateManage, deckAvailable],
+    [t, user, avatarUri, avatarName, handleNavigateProfile, handleOpenSettings, deckAvailable],
   );
 
   const pathname = usePathname();
@@ -226,7 +244,9 @@ export function useMentionSidebar(): SidebarProps {
     footer: ({ collapsed }) => (
       <ProfileButton
         expanded={!collapsed}
-        onNavigateManage={handleNavigateManage}
+        // No `onNavigateManage`: "Manage your Oxy account" falls through to the
+        // SDK's own ManageAccount screen, not Mention's settings sheet.
+        menuItems={accountMenuItems}
         onNavigateProfile={handleNavigateProfile}
         onAddAccount={handleAddAccount}
       />
