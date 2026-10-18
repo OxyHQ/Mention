@@ -8,7 +8,6 @@ import {
   type UserAppearance,
   type ProfileMedia,
 } from '@/stores/appearanceStore';
-import { APP_COLOR_PRESETS, HEX_TO_APP_COLOR } from '@oxy.so/bloom/theme';
 import { MEDIA_VARIANT_BANNER } from '@mention/shared-types/post';
 import type { Community } from '@/components/Profile/types';
 import type { RemoteProfileMove } from '@mention/shared-types/profile';
@@ -140,11 +139,6 @@ function computeDesign(
   appearance: UserAppearance | null | undefined,
   oxyServices: FileUrlResolver,
 ): ProfileDesign {
-  const presetColor =
-    typeof profile.color === 'string' && profile.color in APP_COLOR_PRESETS
-      ? profile.color
-      : undefined;
-
   const bannerRef = appearance?.profileHeaderImage;
   const bannerUrl = bannerRef
     ? getCachedFileDownloadUrlSync(oxyServices, bannerRef, MEDIA_VARIANT_BANNER)
@@ -154,7 +148,7 @@ function computeDesign(
     displayName: displayNameOrHandle(profile.name.displayName, profile.username),
     bannerUrl: bannerUrl?.startsWith('http') ? bannerUrl : undefined,
     avatar: profile.avatar ?? undefined,
-    color: presetColor || HEX_TO_APP_COLOR[appearance?.appearance?.primaryColor ?? ''] || 'blue',
+    color: profile.color ?? undefined,
     // The public design DTO normalizes "no media" to `null`/absent.
     profileMedia: appearance?.profileMedia ?? undefined,
   };

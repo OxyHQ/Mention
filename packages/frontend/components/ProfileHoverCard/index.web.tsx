@@ -14,7 +14,7 @@ import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { useFederatedFollowSync } from '@/components/Profile/hooks/useFederatedFollowSync';
 import { AccountBadge } from '@/components/AccountBadge';
 import { useProfileData } from '@/hooks/useProfileData';
-import { resolveProfileColorName } from '@/hooks/useProfileScreenColor';
+import { resolveProfileColor } from '@oxy.so/bloom/color-presets';
 import { usePostActivity } from '@/hooks/usePostActivity';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { formatDateInput } from '@/utils/dateUtils';
@@ -93,12 +93,12 @@ function ProfilePreview({ username, onNavigate }: { username: string; onNavigate
   }, [onNavigate, router, username, profile?.username, profile?.instance, profile?.isFederated]);
 
   // The card is a small piece of that profile, so it wears the profile's own
-  // colour, including the floating surface (see `resolveProfileColorName`).
+  // colour, including the floating surface (see `resolveProfileColor`).
   // asChild carries the scoped CSS variables onto the portaled panel.
-  const colorName = resolveProfileColorName(username, profile?.design?.color);
+  const profileColor = resolveProfileColor(profile?.design?.color);
 
   return (
-    <BloomColorScope colorPreset={colorName} asChild>
+    <BloomColorScope {...profileColor} asChild>
       <HoverCardContent label={username}>
         <UserHoverCard
           loading={!profile || loading}

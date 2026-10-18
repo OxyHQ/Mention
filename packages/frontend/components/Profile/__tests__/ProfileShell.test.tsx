@@ -24,6 +24,7 @@ import { ProfileUnavailable } from '../ProfileUnavailable';
 const mockScrollPosition = { value: 0 };
 const mockHeader = jest.fn();
 const mockScreen = jest.fn();
+const mockColorScope = jest.fn();
 const mockTabs = jest.fn();
 const mockList = jest.fn();
 const mockDock = jest.fn();
@@ -55,7 +56,13 @@ jest.mock('@oxy.so/bloom/cover-header', () => ({
     return props.children;
   },
 }));
-jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ isDark: false }) }));
+jest.mock('@oxy.so/bloom/theme', () => ({
+  useTheme: () => ({ isDark: false }),
+  BloomColorScope: (props: { children: React.ReactNode }) => {
+    mockColorScope(props);
+    return props.children;
+  },
+}));
 jest.mock('@/context/LayoutScrollContext', () => ({
   useLayoutScroll: () => ({ scrollPosition: mockScrollPosition }),
 }));
@@ -213,7 +220,10 @@ test('the summary rises into the banner through Bloom CoverHeader, and only ther
 test('native paints the route in the surface the chrome paints, not the theme background', () => {
   const tree = renderShell(makeProps());
   const root = tree.root.findAllByType(View)[0];
-  expect(mockScreen.mock.calls.at(-1)?.[0].style).toEqual({ backgroundColor: 'rgb(20, 55, 84)' });
+  expect(mockScreen.mock.calls.at(-1)?.[0].style).toEqual([
+    undefined,
+    { backgroundColor: 'rgb(20, 55, 84)' },
+  ]);
   act(() => tree.unmount());
 });
 
@@ -281,4 +291,18 @@ test('with no profile, it says "not found" or offers a retry — whichever the l
   });
   expect(loading.root.findAllByType(ProfileUnavailable)).toHaveLength(0);
   act(() => loading.unmount());
+});
+
+it('passes the stored profile identity to Bloom without choosing a replacement', () => {
+  const props = makeProps();
+  if (!props.profileData) throw new Error('Profile fixture required');
+  const tree = renderShell({
+    ...props,
+    profileData: {
+      ...props.profileData,
+      design: { ...props.profileData.design, color: '#ABC' },
+    },
+  });
+  expect(mockColorScope.mock.calls.at(-1)?.[0]).toMatchObject({ seed: '#aabbcc' });
+  act(() => tree.unmount());
 });
