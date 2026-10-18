@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAskAgent } from '@alia.onl/sdk/ask';
 import { AliaAvatarIcon } from '@alia.onl/sdk/avatar';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { useAppShell } from '@oxy.so/bloom/app-shell';
+import { useAppShell } from '@oxy.so/bloom/app-shell/hooks';
 import { IconButton } from '@oxy.so/bloom/button';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { SidebarMenuIcon } from '@/assets/icons/sidebar-menu-icon';
