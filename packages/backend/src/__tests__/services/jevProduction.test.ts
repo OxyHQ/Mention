@@ -10,7 +10,9 @@ import { createProductionJevEvaluation } from '../../services/contentClassificat
 
 const { identity, token } = vi.hoisted(() => ({ identity: vi.fn(), token: vi.fn() }));
 vi.mock('../../runtime/serviceIdentity', () => ({ canAuthenticateAsService: () => identity() }));
-vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ serviceToken: token }) }));
+vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ serviceTokenFor: token }),
+}));
 
 function approval(): approvalSource.MentionJevProductionApproval {
   const release = {
@@ -200,9 +202,9 @@ describe('Mention production factory', () => {
     const transport = vi.fn(async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
       const headers = new Headers(init?.headers);
       expect(headers.get('Authorization')).toBe('Bearer synthetic-only');
-      expect(headers.get('Idempotency-Key')).toBe(input.idempotencyKey);
       expect(headers.get('X-Oxy-User-Id')).toBeNull();
       if (init?.method === 'GET') return new Response('{}', { status: 404 });
+      expect(headers.get('Idempotency-Key')).toBe(input.idempotencyKey);
       const request = JSON.parse(String(init?.body)) as DecisionRequest;
       expect(request.model).toBe(candidate.release.model);
       return new Response(
@@ -225,7 +227,7 @@ describe('Mention production factory', () => {
               : { id: q.id, kind: 'noul', probability: 0.1 },
           ),
         }),
-        { headers: { 'X-Oxy-Request-Id': 'owned-request' } },
+        { headers: { 'Kaana-Request-Id': 'owned-request' } },
       );
     });
     vi.stubGlobal('fetch', transport);

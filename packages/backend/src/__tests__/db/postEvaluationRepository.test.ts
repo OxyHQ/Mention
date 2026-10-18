@@ -1,7 +1,7 @@
 import { createServer, type Socket } from 'node:net';
 import { config } from '../../config';
 import { withShadowReceiptDatabase } from '../../db/posts/shadowReceiptDatabase';
-import { OxyInferenceClient } from '@oxy.so/core/inference';
+import { Kaana } from '@kaana.ai/sdk';
 import { createJevReceiptReader } from '../../services/contentClassification/jevReceipt';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
@@ -796,63 +796,66 @@ describe('usage reconciliation keeps lost answers and original claims separate',
   };
   function wire(version = 2) {
     const common = {
+      schemaVersion: 1,
       requestId: 'original-request',
       ...authority,
       outcome: 'completed',
       usageSource: 'provider_reported',
       units: [{ unit: 'input_tokens', quantity: 17 }],
-      resolvedModelReference: release.model,
-      servingProvider: 'fixture-provider',
+      model: release.model,
       settledAt: '2026-10-04T00:00:00.000Z',
     };
     return version === 2
       ? {
           ...common,
-          schemaVersion: 2,
           kind: 'metered_usage',
           meteredUsageId: 'original-usage',
-          economicTreatment: 'internal_metered',
-          economicPolicyVersion: 'fixture',
           customerCharge: { status: 'not_charged' },
           tariff: { status: 'unpriced', priceVersionId: null },
         }
       : {
           ...common,
-          schemaVersion: 1,
+          kind: 'charge',
           receiptId: 'original-receipt',
           billedAmount: '0.001000000000',
           currency: 'USD',
           platformFeeOnly: false,
-          priceSnapshot: { priceVersionId: 'original-price', currency: 'USD', unitPrices: [] },
+          priceSnapshot: {
+            priceVersionId: 'original-price',
+            currency: 'USD',
+            unitPrices: [
+              { unit: 'input_tokens', amount: '0.000001000000', per: 1, currency: 'USD' },
+            ],
+          },
         };
   }
   function reader(result: unknown = wire(), status = 200) {
     const transport = vi.fn(async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
-      expect(String(url)).toBe('http://owned.invalid/v1/generations/by-idempotency-key');
+      expect(new URL(String(url)).pathname).toBe('/v1/generations');
       expect(init?.method).toBe('GET');
       expect(init?.body).toBeUndefined();
       return new Response(
         JSON.stringify(
           status === 200
-            ? { data: result }
+            ? result
             : {
+                schemaVersion: 1,
                 code: status === 401 ? 'authentication_failed' : 'model_not_found',
                 requestId: 'lookup-only',
                 retryable: false,
                 message: 'Unknown',
               },
         ),
-        { status },
+        {
+          status,
+          headers: { 'Content-Type': 'application/json', 'Kaana-Request-Id': 'lookup-only' },
+        },
       );
     });
     return {
       transport,
       value: createJevReceiptReader(
-        new OxyInferenceClient({
-          credential: 'synthetic',
-          baseURL: 'http://owned.invalid',
-          fetch: transport,
-        }),
+        new Kaana({ credential: 'synthetic', fetch: transport, maxRetries: 0 }),
         authority,
       ),
     };
@@ -971,9 +974,9 @@ describe('usage reconciliation keeps lost answers and original claims separate',
       expect(await completePostEvaluation(claim, signals)).toBe(false);
       expect(await reconcilePostEvaluationUsage(claim.id, r.value)).toBe(true);
       expect(r.transport).toHaveBeenCalledTimes(1);
-      expect(new Headers(r.transport.mock.calls[0][1]?.headers).get('Idempotency-Key')).toBe(
-        claim.id,
-      );
+      expect(
+        new URL(String(r.transport.mock.calls[0][0])).searchParams.get('idempotency_key'),
+      ).toBe(claim.id);
     },
   );
   it.each([401, 404])('leaves unavailable usage (%s) unchanged', async (status) => {
@@ -984,18 +987,19 @@ describe('usage reconciliation keeps lost answers and original claims separate',
     expect(await ledger(post.id)).toEqual(before);
     expect(r.transport).toHaveBeenCalledTimes(1);
   });
-  it.each(['applicationId', 'credentialId', 'environment', 'resolvedModelReference'])(
-    'rejects foreign %s before writing',
-    async (field) => {
-      const { post, claim } = await uncertain();
-      const before = await ledger(post.id);
-      const r = reader({ ...wire(), [field]: 'foreign' });
-      await expect(reconcilePostEvaluationUsage(claim.id, r.value)).rejects.toThrow(
-        'original authority and model',
-      );
-      expect(await ledger(post.id)).toEqual(before);
-    },
-  );
+  it.each([
+    ['applicationId', 'foreign'],
+    ['credentialId', 'foreign'],
+    ['model', 'foreign/model@fixture'],
+  ])('rejects foreign %s before writing', async (field, value) => {
+    const { post, claim } = await uncertain();
+    const before = await ledger(post.id);
+    const r = reader({ ...wire(), [field]: value });
+    await expect(reconcilePostEvaluationUsage(claim.id, r.value)).rejects.toThrow(
+      'original authority and model',
+    );
+    expect(await ledger(post.id)).toEqual(before);
+  });
   it('does not invent attribution for old claims', async () => {
     const post = await fixture();
     const claim = await requiredClaim(post.id);

@@ -31,7 +31,7 @@ import { randomUUID } from 'node:crypto';
 import { inArray } from 'drizzle-orm';
 
 vi.mock('../../utils/socket', () => ({ emitTrendsUpdated: vi.fn() }));
-vi.mock('../../utils/oxyInference', () => ({
+vi.mock('../../utils/inference', () => ({
   inferenceChat: vi.fn(),
   isInferenceEnabled: () => false,
 }));

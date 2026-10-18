@@ -2,8 +2,9 @@
 
 /**
  * Mention is an inference CONSUMER. Provider credentials, endpoints and SDKs
- * belong to Kaana; this repository may select only Mention's reviewed Oxy
- * routing profile by its exact opaque primary key.
+ * belong to Kaana. Mention reaches `https://kaana.ai` only through
+ * `@kaana.ai/sdk`, which owns the origin, from the one client in
+ * `packages/backend/src/utils/kaana.ts` (Kaana ADR 0002).
  */
 
 import { existsSync } from 'node:fs';
@@ -14,8 +15,7 @@ import { fileURLToPath } from 'node:url';
 const repositoryRoot = process.env.INFERENCE_BOUNDARY_ROOT
   ? resolve(process.env.INFERENCE_BOUNDARY_ROOT)
   : resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const routingProfileIdName = 'OXY_INFERENCE_ROUTING_PROFILE_ID';
-const routingProfileId = '01a06477-94f5-74f0-bc25-4c5c13b93ccd';
+const kaanaClientFile = 'packages/backend/src/utils/kaana.ts';
 const fixtureMode = process.env.INFERENCE_BOUNDARY_FIXTURE === '1';
 
 const productionSourceRoots = ['packages/backend/src/', 'packages/frontend/', 'packages/mcp/'];
@@ -147,17 +147,20 @@ const forbiddenSourcePatterns = [
     /\b(?:RELAY_BASE_URL|ALIA_RELAY_CLIENT_ENABLED|KAANA_BASE_URL|KAANA_EDGE_SIGNING_KEY_ID|KAANA_EDGE_SIGNING_PRIVATE_KEY)\b/,
     'direct or retired data-plane configuration',
   ],
+  // The SDK owns the origin; a literal here is a second way in.
   [
     /(?:https?|wss?):\/\/(?:kaana\.ai|relay\.oxy\.so)(?=[:/\s'"`]|$)/i,
     'direct Kaana/Relay data-plane endpoint',
   ],
+  [/['"]@oxy\.so\/core\/inference['"]|\bOxyInferenceClient\b/, 'retired Oxy inference client'],
+  [/['"]@kaana\.ai\/contracts\/internal['"]/, 'Oxy-Kaana internal contract import'],
   [
     /(?:api\.openai\.com|api\.anthropic\.com|api\.groq\.com|api\.cerebras\.ai|openrouter\.ai\/api|api\.x\.ai|generativelanguage\.googleapis\.com|aiplatform\.googleapis\.com|api\.elevenlabs\.io|api\.cohere\.ai|api\.replicate\.com|api\.mistral\.ai|api\.deepseek\.com|api\.together\.xyz|api\.fireworks\.ai|api\.perplexity\.ai|api\.deepinfra\.com|api\.novita\.ai|api\.z\.ai|integrate\.api\.nvidia\.com|api-inference\.huggingface\.co|bedrock-runtime\.[a-z0-9-]+\.amazonaws\.com|api\.fal\.ai)/i,
     'direct provider endpoint',
   ],
   [providerImportPattern, 'direct provider SDK import'],
   [/(?:from\s+|require\()['"][^'"]*\/utils\/alia['"]/, 'retired Alia inference utility import'],
-  [/\bOXY_INFERENCE_ROUTING_PROFILE\b/, 'retired mutable routing-profile selector'],
+  [/\bOXY_INFERENCE_ROUTING_PROFILE(?:_ID)?\b/, 'retired routing-profile selector'],
   [/\broutingProfile\s*:/, 'routing-profile slug request field'],
 ];
 
@@ -181,6 +184,9 @@ for (const file of sourceFiles) {
   );
   for (const [pattern, label] of forbiddenSourcePatterns) {
     if (pattern.test(text)) failures.push(`${file}: ${label}`);
+  }
+  if (file !== kaanaClientFile && /\bnew\s+(?:\w+\.)?Kaana\s*\(/.test(text)) {
+    failures.push(`${file}: a second Kaana client (use kaanaClient() from ${kaanaClientFile})`);
   }
 }
 
@@ -218,14 +224,36 @@ for (const relativePath of [
   }
 }
 
-const environmentExamplePath = resolve(repositoryRoot, 'packages/backend/.env.example');
-if (existsSync(environmentExamplePath)) {
-  const environmentExample = await readFile(environmentExamplePath, 'utf8');
-  if (!environmentExample.includes(`${routingProfileIdName}=${routingProfileId}`)) {
-    failures.push(
-      "packages/backend/.env.example: must pin Mention's exact opaque routing-profile ID",
-    );
-  }
+/**
+ * A space-separated workflow list, read by VALUE, not by line.
+ *
+ * The lists outgrew one line, and YAML has two ways to write the same string.
+ * Matching the rest of the line found nothing the moment a list became a
+ * folded block — so the gate reported that a retired credential had stopped
+ * being removed, while the workflow removed it exactly as before. A gate that
+ * fails on formatting teaches people to reformat, which is the opposite of
+ * what this one is for.
+ */
+function listValue(workflow, key) {
+  const line = workflow.match(new RegExp(`^\\s*${key}:\\s*(.*)$`, 'm'));
+  const value = line?.[1]?.trim().startsWith('>')
+    ? workflow
+        .slice(workflow.indexOf(line[0]) + line[0].length)
+        .split('\n')
+        // A folded block ends at the first line indented no further than the key.
+        .slice(1)
+        .reduce(
+          (lines, next) => {
+            if (lines.done || (next.trim() !== '' && !/^\s{2,}\S/.test(next))) {
+              return { ...lines, done: true };
+            }
+            return { ...lines, values: [...lines.values, next.trim()] };
+          },
+          { values: [], done: false },
+        )
+        .values.join(' ')
+    : (line?.[1] ?? '');
+  return value.split(/\s+/).filter(Boolean);
 }
 
 const workflowPath = resolve(repositoryRoot, '.github/workflows/deploy-aws.yml');
@@ -236,35 +264,7 @@ if (existsSync(workflowPath)) {
       '.github/workflows/deploy-aws.yml: still reads the retired ALIA_API_KEY GitHub secret',
     );
   }
-  /**
-   * Read the VALUE, not the line.
-   *
-   * `TASK_SECRET_REMOVALS` is a space-separated list that outgrew one line, and
-   * YAML has two ways to write the same string. Matching the rest of the line
-   * found nothing the moment the list became a folded block — so the gate
-   * reported that a retired credential had stopped being removed, while the
-   * workflow removed it exactly as before. A gate that fails on formatting
-   * teaches people to reformat, which is the opposite of what this one is for.
-   */
-  const removalsLine = workflow.match(/^\s*TASK_SECRET_REMOVALS:\s*(.*)$/m);
-  const folded = removalsLine?.[1]?.trim().startsWith('>')
-    ? workflow
-        .slice(workflow.indexOf(removalsLine[0]) + removalsLine[0].length)
-        .split('\n')
-        // A folded block ends at the first line indented no further than the key.
-        .slice(1)
-        .reduce(
-          (lines, line) => {
-            if (lines.done || (line.trim() !== '' && !/^\s{2,}\S/.test(line))) {
-              return { ...lines, done: true };
-            }
-            return { ...lines, values: [...lines.values, line.trim()] };
-          },
-          { values: [], done: false },
-        )
-        .values.join(' ')
-    : (removalsLine?.[1] ?? '');
-  const removals = folded.split(/\s+/).filter(Boolean);
+  const removals = listValue(workflow, 'TASK_SECRET_REMOVALS');
   /**
    * The Oxy service key pair is retired too, and its removal is now a standing
    * absence assertion rather than an option.
@@ -312,22 +312,18 @@ if (existsSync(workflowPath)) {
       );
     }
   }
-  if (/\bOXY_INFERENCE_ROUTING_PROFILE\b/.test(workflow)) {
+  // The retired selector named Oxy's fixed `kaana-v1` profile, which kaana.ai
+  // cannot serve. The render derives from the RUNNING task definition, so the
+  // name stays in the standing removals and never re-enters the overrides.
+  const taskEnvOverrides = workflow.match(/TASK_ENV_OVERRIDES_JSON:\s*>-\s*\n([\s\S]*?\})/)?.[1];
+  if (taskEnvOverrides?.includes('OXY_INFERENCE_ROUTING_PROFILE')) {
     failures.push(
-      '.github/workflows/deploy-aws.yml: still injects the retired mutable routing-profile selector',
+      '.github/workflows/deploy-aws.yml: still injects the retired routing-profile selector',
     );
   }
-  // Scoped to the TASK_ENV_OVERRIDES_JSON block rather than the whole file, and
-  // matched as a key/value pair rather than as a whole one-key object. The old
-  // form asked for the literal `{"KEY":"VALUE"}`, which tied the assertion to the
-  // block holding exactly one entry: adding any unrelated task env var broke it,
-  // while the same literal sitting in a comment anywhere in the file would have
-  // satisfied it. This is narrower on both counts — the pair has to be in the
-  // block that actually reaches the task definition.
-  const taskEnvOverrides = workflow.match(/TASK_ENV_OVERRIDES_JSON:\s*>-\s*\n([\s\S]*?\})/)?.[1];
-  if (!taskEnvOverrides?.includes(`"${routingProfileIdName}":"${routingProfileId}"`)) {
+  if (!listValue(workflow, 'TASK_ENV_REMOVALS').includes('OXY_INFERENCE_ROUTING_PROFILE_ID')) {
     failures.push(
-      ".github/workflows/deploy-aws.yml: must inject Mention's exact opaque routing-profile ID durably",
+      '.github/workflows/deploy-aws.yml: must re-assert removal of OXY_INFERENCE_ROUTING_PROFILE_ID from every ECS task revision',
     );
   }
 }

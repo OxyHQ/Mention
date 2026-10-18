@@ -91,7 +91,7 @@ vi.mock('../../config', async (importOriginal) => {
   };
 });
 
-vi.mock('../../utils/oxyInference', () => ({
+vi.mock('../../utils/inference', () => ({
   inferenceJSON: (...args: unknown[]) => inferenceJSON(...args),
   isInferenceEnabled: () => isInferenceEnabled(),
 }));
@@ -1555,7 +1555,7 @@ describe('PostClassificationService — shadow fanout', () => {
       vi.spyOn(runtimeIdentity, 'canAuthenticateAsService').mockReturnValue(true);
       const token = vi.fn(async () => 'synthetic-only');
       vi.spyOn(oxyHelpers, 'getServiceOxyClient').mockReturnValue({
-        serviceToken: token,
+        serviceTokenFor: token,
       } as ReturnType<typeof oxyHelpers.getServiceOxyClient>);
       const native = await seedSubject('Native eligible content', {
         classification: { languages: ['en'] },
@@ -1627,7 +1627,7 @@ describe('PostClassificationService — shadow fanout', () => {
                 : { id: q.id, kind: 'noul', probability: 0.1 },
             ),
           }),
-          { headers: { 'X-Oxy-Request-Id': 'owned-factory-request' } },
+          { headers: { 'Kaana-Request-Id': 'owned-factory-request' } },
         );
       });
       vi.stubGlobal('fetch', transport);
@@ -1673,7 +1673,7 @@ describe('PostClassificationService — shadow fanout', () => {
     },
   );
 
-  it.each(['source-off', 'expired', 'foreign-provider', 'foreign-price', 'revoked'] as const)(
+  it.each(['source-off', 'expired', 'foreign-price', 'revoked'] as const)(
     'recovers a durable own operation after restart with %s and zero new POST',
     async (mode) => {
       classificationEnabled.value = false;
@@ -1681,7 +1681,7 @@ describe('PostClassificationService — shadow fanout', () => {
       vi.spyOn(runtimeIdentity, 'canAuthenticateAsService').mockReturnValue(true);
       const token = vi.fn(async () => 'synthetic-only');
       vi.spyOn(oxyHelpers, 'getServiceOxyClient').mockReturnValue({
-        serviceToken: token,
+        serviceTokenFor: token,
       } as ReturnType<typeof oxyHelpers.getServiceOxyClient>);
       const post = await seedSubject('Synthetic unresolved native operation', {
         classification: { languages: ['en'] },
@@ -1715,37 +1715,37 @@ describe('PostClassificationService — shadow fanout', () => {
       const source = vi
         .spyOn(productionApproval, 'reviewedMentionJevProduction')
         .mockReturnValue(candidate);
-      const transport = vi.fn(async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
-        expect(new Headers(init?.headers).get('Idempotency-Key')).toBe(selection.idempotencyKey);
-        if (init?.method === 'POST') throw new Error('Synthetic response loss after original send');
+      const transport = vi.fn(async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+        if (init?.method === 'POST') {
+          expect(new Headers(init?.headers).get('Idempotency-Key')).toBe(selection.idempotencyKey);
+          throw new Error('Synthetic response loss after original send');
+        }
         expect(init?.method).toBe('GET');
+        expect(new URL(String(url)).searchParams.get('idempotency_key')).toBe(
+          selection.idempotencyKey,
+        );
         if (mode === 'revoked') return new Response('{}', { status: 403 });
         return new Response(
           JSON.stringify({
-            data: {
-              ...authority,
-              schemaVersion: 2,
-              kind: 'metered_usage',
-              meteredUsageId: 'owned-meter',
-              requestId: 'owned-edge-request',
-              economicTreatment: 'internal_metered',
-              economicPolicyVersion: 'fixture-economics',
-              outcome: 'completed',
-              usageSource: 'provider_reported',
-              units: [{ unit: 'requests', quantity: 1 }],
-              resolvedModelReference: release.model,
-              servingProvider:
-                mode === 'foreign-provider' ? 'foreign-provider' : 'fixture-provider',
-              tariff: {
-                status: 'quoted',
-                amount: '0.0001',
-                currency: 'USD',
-                priceVersionId: mode === 'foreign-price' ? 'foreign-price' : 'fixture-price',
-              },
-              customerCharge: { status: 'not_charged' },
-              settledAt: '2026-10-04T00:00:00.000Z',
+            ...authority,
+            schemaVersion: 1,
+            kind: 'metered_usage',
+            meteredUsageId: 'owned-meter',
+            requestId: 'owned-edge-request',
+            outcome: 'completed',
+            usageSource: 'provider_reported',
+            units: [{ unit: 'requests', quantity: 1 }],
+            model: release.model,
+            tariff: {
+              status: 'quoted',
+              amount: '0.0001',
+              currency: 'USD',
+              priceVersionId: mode === 'foreign-price' ? 'foreign-price' : 'fixture-price',
             },
+            customerCharge: { status: 'not_charged' },
+            settledAt: '2026-10-04T00:00:00.000Z',
           }),
+          { headers: { 'Content-Type': 'application/json', 'Kaana-Request-Id': 'lookup' } },
         );
       });
       vi.stubGlobal('fetch', transport);
@@ -1893,7 +1893,7 @@ describe('PostClassificationService — shadow fanout', () => {
       vi.spyOn(runtimeIdentity, 'canAuthenticateAsService').mockReturnValue(true);
       const token = vi.fn(async () => 'synthetic-only');
       vi.spyOn(oxyHelpers, 'getServiceOxyClient').mockReturnValue({
-        serviceToken: token,
+        serviceTokenFor: token,
       } as ReturnType<typeof oxyHelpers.getServiceOxyClient>);
       const post = await seedSubject('Native after approval expiry', {
         classification: { languages: ['en'] },
@@ -2084,7 +2084,6 @@ describe('PostClassificationService — shadow fanout', () => {
         requestId: 'owned-original',
         authority,
         model: release.model,
-        provider: 'fixture',
         outcome: 'completed' as const,
         usageSource: 'provider_reported' as const,
         units: [{ unit: 'input_tokens' as const, quantity: 17 }],
@@ -2184,7 +2183,6 @@ describe('PostClassificationService — shadow fanout', () => {
       requestId: 'original-usage',
       authority,
       model: release.model,
-      provider: 'fixture',
       outcome: 'completed' as const,
       usageSource: 'provider_reported' as const,
       units: [{ unit: 'input_tokens' as const, quantity: 17 }],
