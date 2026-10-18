@@ -54,6 +54,8 @@ jest.mock('react-native-keyboard-controller', () => ({
 }));
 
 jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
+jest.mock('@oxy.so/services/ui/one-video', () => ({ OxyOneVideo: () => null }));
+jest.mock('@alia.onl/sdk/avatar', () => ({ AliaAvatarIcon: () => null }));
 
 // The boot visual AppProviders hands to AccountSwitchReset as its `fallback`.
 // A leaf like the others above: it reaches straight into Bloom's ESM-only theme
@@ -158,7 +160,7 @@ function renderApp(children: React.ReactNode): TestRenderer.ReactTestRenderer {
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     renderer = TestRenderer.create(
-      <AppProviders oxyServices={oxyServices} queryClient={new QueryClient()}>
+      <AppProviders oxyServices={oxyServices} queryClient={new QueryClient()} onAskAlia={() => {}}>
         {children}
       </AppProviders>,
     );

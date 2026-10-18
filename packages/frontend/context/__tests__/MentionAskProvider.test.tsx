@@ -1,12 +1,22 @@
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
-import { MentionAskProvider } from '@/context/MentionAskProvider';
+import { MentionAskProvider, useMentionAskBridge } from '@/context/MentionAskProvider';
 
 const mockProvider = jest.fn((props: { children: React.ReactNode }) => props.children);
-jest.mock('@alia.onl/sdk/ask', () => ({
-  AliaAskProvider: (props: { children: React.ReactNode }) => mockProvider(props),
-}));
+const mockAsk = jest.fn();
+jest.mock('@alia.onl/sdk/ask', () => {
+  const React = require('react');
+  return {
+    AliaAskProvider: React.forwardRef(function MockAliaAskProvider(
+      props: { children: React.ReactNode },
+      ref: React.Ref<unknown>,
+    ) {
+      React.useImperativeHandle(ref, () => ({ ask: mockAsk }));
+      return mockProvider(props);
+    }),
+  };
+});
 jest.mock('expo-router', () => ({ usePathname: () => '/@ada' }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -28,5 +38,40 @@ describe('MentionAskProvider', () => {
       { id: 'write', text: 'alia.suggestion.write' },
       { id: 'discover', text: 'alia.suggestion.discover' },
     ]);
+  });
+});
+
+it('opens the app’s existing Alia sheet from support, safely before mount and after unmount', () => {
+  let bridge!: ReturnType<typeof useMentionAskBridge>;
+  function Harness({ ready }: { ready: boolean }) {
+    bridge = useMentionAskBridge();
+    return ready ? <MentionAskProvider askRef={bridge.askRef}>{null}</MentionAskProvider> : null;
+  }
+  let renderer!: TestRenderer.ReactTestRenderer;
+  act(() => {
+    renderer = TestRenderer.create(<Harness ready={false} />);
+  });
+  const openSupport = bridge.openAlia;
+  act(() => {
+    openSupport();
+  });
+  expect(mockAsk).not.toHaveBeenCalled();
+  act(() => {
+    renderer.update(<Harness ready />);
+  });
+  expect(bridge.openAlia).toBe(openSupport);
+  act(() => {
+    openSupport();
+  });
+  expect(mockAsk).toHaveBeenCalledTimes(1);
+  act(() => {
+    renderer.update(<Harness ready={false} />);
+  });
+  act(() => {
+    openSupport();
+  });
+  expect(mockAsk).toHaveBeenCalledTimes(1);
+  act(() => {
+    renderer.unmount();
   });
 });
