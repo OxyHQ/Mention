@@ -17,12 +17,14 @@ import {
   TranslationRequestError,
   TranslationSourceChangedError,
 } from '../../services/PostTranslationService';
+import { TranslationOutputError } from '../../services/translationOutputGuard';
 import { classifyInferenceFailure } from '../../utils/inference';
 import { MAX_TEXT_LENGTH } from './composeInput';
 
 /**
  * Map a failed translation onto a response. A {@link TranslationRequestError} is
- * the caller's fault and carries its own status; a Kaana refusal maps onto a
+ * the caller's fault and carries its own status; a {@link TranslationOutputError}
+ * is a rejected completion (502, typed); a Kaana refusal maps onto a
  * typed status so a rate limit or data-plane outage is not reported as our 500.
  */
 const respondTranslationError = async (
@@ -30,6 +32,15 @@ const respondTranslationError = async (
   error: unknown,
   context: string,
 ): Promise<void> => {
+  if (error instanceof TranslationOutputError) {
+    // The model answered, but not with an acceptable translation (an echoed
+    // wrapper, a dropped mention or link). Nothing was cached; asking again may
+    // land on a model that gets it right.
+    res
+      .status(error.status)
+      .json({ message: 'Translation failed. Please try again.', code: error.code });
+    return;
+  }
   if (error instanceof TranslationSourceChangedError) {
     // Typed so a client can tell "ask again" from a refusal.
     res.status(error.status).json({ message: error.message, code: error.code });
