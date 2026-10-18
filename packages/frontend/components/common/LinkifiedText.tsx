@@ -14,6 +14,8 @@ import { openExternalLink } from '@/utils/openExternalLink';
 
 interface LinkifiedTextProps {
   text: string;
+  /** Emit text runs inside an existing Text host; the parent owns its text styling. */
+  inline?: boolean;
   style?: StyleProp<TextStyle>;
   className?: string;
   linkStyle?: StyleProp<TextStyle>;
@@ -49,6 +51,7 @@ const NOFOLLOW = { hrefAttrs: { rel: 'nofollow' } } as object;
 // a crawler follows and a reader can open in a new tab.
 export const LinkifiedText: React.FC<LinkifiedTextProps> = ({
   text,
+  inline = false,
   style,
   className,
   linkStyle,
@@ -152,6 +155,13 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({
   }, [text, linkStyle, linkTargetText]);
 
   if (!text) return null;
+  if (inline)
+    return (
+      <>
+        {nodes}
+        {suffix}
+      </>
+    );
   return (
     <Text style={style} className={className} numberOfLines={numberOfLines}>
       {nodes}

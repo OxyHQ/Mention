@@ -1,15 +1,17 @@
 import { parseInlineMarkdown, type MarkdownInline } from '@oxy.so/bloom/markdown/inline';
 import { scanLinkifyEntities, type LinkifyEntity } from './linkifyPattern';
+import { toOpenableUrl } from '@mention/shared-types/textEntities';
 
+/** Match identities against the original link, before its visible label is clipped. */
 export function postMentionForLink(
   mentions: readonly LinkifyEntity[],
   url: string,
   label?: string,
 ) {
-  return mentions.find(
-    (mention) =>
-      mention.value === url &&
-      (label === undefined ? mention.raw === url : label === `@${mention.label}`),
+  return mentions.find((mention) =>
+    label === undefined
+      ? mention.unverified && toOpenableUrl(mention.raw) === url
+      : mention.value === url && label === `@${mention.label}`,
   );
 }
 

@@ -29,3 +29,14 @@ it('does not classify ordinary Markdown links as account mentions', () => {
   const parsed = parsePostInlineMarkdown('[Docs](https://example.com/docs)');
   expect(postMentionForLink(parsed.mentions, 'https://example.com/docs', 'Docs')).toBeUndefined();
 });
+
+it.each(['https://mention.earth/@alice', 'www.mention.earth/@alice'])(
+  'keeps pasted profile %s on its internal identity route',
+  (source) => {
+    const parsed = parsePostInlineMarkdown(`See ${source}`);
+    const url = source.startsWith('www.') ? `https://${source}` : source;
+    const mention = postMentionForLink(parsed.mentions, url);
+    expect(mention?.value).toBe('alice');
+    expect(mention?.label).toBe('@alice');
+  },
+);

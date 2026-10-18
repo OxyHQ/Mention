@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import type React from 'react';
+import { useMemo } from 'react';
 import { InlineMarkdown } from '@oxy.so/bloom/markdown';
 import { truncateInlineMarkdown } from '@oxy.so/bloom/markdown/inline';
 import { parsePostInlineMarkdown, postMentionForLink } from '@/utils/postInlineMarkdown';
@@ -88,7 +89,7 @@ const PostContentText: React.FC<Props> = ({
       <InlineMarkdown
         nodes={isExpanded ? parsed.nodes : preview.nodes}
         onLinkPress={openExternalLink}
-        renderText={(text) => <LinkifiedText text={text} />}
+        renderText={(text) => <LinkifiedText inline text={text} />}
         renderLink={({ url, label, children }) => {
           const mention = postMentionForLink(parsed.mentions, url, label);
           return mention ? (

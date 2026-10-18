@@ -5,6 +5,12 @@ import TestRenderer, { act } from 'react-test-renderer';
 
 import PostContentText from '../PostContentText';
 
+// Worklets require a native host; the Markdown renderer itself remains real.
+jest.mock('react-native-reanimated', () => {
+  const { Animated } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { __esModule: true, default: Animated, useSharedValue: (value: number) => ({ value }) };
+});
+
 jest.mock('expo-font', () => ({ useFonts: () => [true, null], isLoaded: () => true }));
 
 const mockOpenExternalLink = jest.fn();
@@ -44,38 +50,49 @@ jest.mock('@/utils/openExternalLink', () => ({
 }));
 
 const FULL_URL = 'https://example.com/articles/a-very-long-article-slug';
-const LONG_POST = `${'a'.repeat(250)} ${FULL_URL}`;
+const LINK_CASES = [
+  { source: FULL_URL, destination: FULL_URL },
+  {
+    source: 'www.example.com/articles/a-very-long-article-slug',
+    destination: 'https://www.example.com/articles/a-very-long-article-slug',
+  },
+  {
+    source: 'HTTPS://example.com/articles/a-very-long-article-slug',
+    destination: 'HTTPS://example.com/articles/a-very-long-article-slug',
+  },
+];
 
 describe('PostContentText — truncated link destination', () => {
   beforeEach(() => {
     mockOpenExternalLink.mockReset();
   });
 
-  it.each(['openPost', 'expandInline'] as const)(
-    'opens the complete URL while the post is collapsed in %s mode',
-    (mode) => {
-      mockReadMoreAction = mode;
-      let renderer: TestRenderer.ReactTestRenderer | undefined;
-      act(() => {
-        renderer = TestRenderer.create(
-          <BloomThemeProvider>
-            <PostContentText content={LONG_POST} postId="post-1" />
-          </BloomThemeProvider>,
-        );
-      });
-      if (!renderer) throw new Error('render produced no tree');
+  it.each(
+    (['openPost', 'expandInline'] as const).flatMap((mode) =>
+      LINK_CASES.map((link) => ({ mode, ...link })),
+    ),
+  )('opens the complete $source while collapsed in $mode mode', ({ mode, source, destination }) => {
+    mockReadMoreAction = mode;
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+    act(() => {
+      renderer = TestRenderer.create(
+        <BloomThemeProvider>
+          <PostContentText content={`${'a'.repeat(250)} ${source}`} postId="post-1" />
+        </BloomThemeProvider>,
+      );
+    });
+    if (!renderer) throw new Error('render produced no tree');
 
-      const link = renderer.root.findAll(
-        (node) => typeof node.props.onPress === 'function' && node.props.role === 'link',
-      )[0];
-      if (!link) throw new Error('render produced no pressable truncated URL');
+    const link = renderer.root.findAll(
+      (node) => typeof node.props.onPress === 'function' && node.props.role === 'link',
+    )[0];
+    if (!link) throw new Error('render produced no pressable truncated URL');
 
-      expect(link.props.children).not.toBe(FULL_URL);
-      act(() => link.props.onPress({ stopPropagation: jest.fn(), preventDefault: jest.fn() }));
-      expect(mockOpenExternalLink).toHaveBeenCalledWith(FULL_URL);
-      act(() => renderer?.unmount());
-    },
-  );
+    expect(link.props.children).not.toBe(source);
+    act(() => link.props.onPress({ stopPropagation: jest.fn(), preventDefault: jest.fn() }));
+    expect(mockOpenExternalLink).toHaveBeenCalledWith(destination);
+    act(() => renderer?.unmount());
+  });
 
   it.each(['openPost', 'expandInline'] as const)(
     'renders a clipped mention label with its complete internal link in %s mode',
