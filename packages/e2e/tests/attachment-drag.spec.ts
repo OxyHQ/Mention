@@ -69,6 +69,15 @@ test('dragging post images scrolls the row without opening the viewer; clicking 
   if (!box) throw new Error('image has no layout');
   const x = box.x + Math.min(box.width - 20, 240);
   const y = box.y + box.height / 2;
+  // Even a stationary press is cancelled when the window loses focus.
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await page.mouse.up();
+  await expect(page.getByRole('button', { name: 'Close media viewer', exact: true })).toHaveCount(
+    0,
+  );
+
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(x - 150, y, { steps: 15 });
@@ -90,11 +99,15 @@ test('dragging post images scrolls the row without opening the viewer; clicking 
   await page.mouse.move(box.x + 100, y, { steps: 5 });
   expect(await scrollOffset()).toBe(releasedOffset);
 
-  // Losing the window while pressed must release the scroll ownership too.
+  // Losing the window while pressed cancels both scroll ownership and the tap.
+  // Release on the same target so the browser still dispatches a click.
   await page.mouse.down();
   await page.evaluate(() => window.dispatchEvent(new Event('blur')));
-  await page.mouse.move(box.x + 50, y, { steps: 5 });
+  await page.mouse.move(box.x + 99, y);
   await page.mouse.up();
+  await expect(page.getByRole('button', { name: 'Close media viewer', exact: true })).toHaveCount(
+    0,
+  );
   expect(await scrollOffset()).toBe(releasedOffset);
 
   // A fresh click after the drag must not remain suppressed.

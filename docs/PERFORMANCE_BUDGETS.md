@@ -359,17 +359,19 @@ the lean panel-hook imports. Both use `build:analyze`, identical optimized-graph
 and tree-shaking flags, external source maps, and the unchanged analyzer. Maps
 are excluded from byte totals. The feature measurements use the installed npm package, with no source mirror.
 
-| Metric | Main | Unified screens and Deck | Change | Ceiling | Preserved headroom |
+| Metric | Main | Unified screens and Deck | Change | Ceiling | Remaining headroom |
 | --- | --- | --- | --- | --- | --- |
-| totalBytes | 21,108,095 | 21,363,462 | +255,367 | 21,423,495 | 60,033 |
-| javascriptBytes | 16,186,835 | 16,441,173 | +254,338 | 16,507,266 | 66,093 |
-| initialJavascriptBytes | 6,092,384 | 6,168,559 | +76,175 | 6,236,559 | 68,000 |
-| initialJavascriptGzipBytes | 1,692,093 | 1,720,771 | +28,678 | 1,765,382 | 44,611 |
+| totalBytes | 21,108,095 | 21,363,484 | +255,389 | 21,423,495 | 60,011 |
+| javascriptBytes | 16,186,835 | 16,441,195 | +254,360 | 16,507,266 | 66,071 |
+| initialJavascriptBytes | 6,092,384 | 6,168,581 | +76,197 | 6,236,559 | 67,978 |
+| initialJavascriptGzipBytes | 1,692,093 | 1,720,784 | +28,691 | 1,765,382 | 44,598 |
 
-Each affected ceiling adds exactly the measured feature-minus-main delta to its
-previous value. Font and largest-file ceilings, all nine deferred-source guards,
+The four ceilings were calibrated by adding the measured feature-minus-main
+delta to their previous values, preserving existing headroom. The final gesture
+cancellation fix uses 22 raw bytes and 13 gzip bytes of that margin; ceilings
+were not raised again. Font and largest-file ceilings, all nine deferred-source guards,
 the analyzer and baseline comparison remain unchanged. The 1,677,722-byte
-initial gzip target is unchanged and remains missed by 43,049 bytes; the ceiling
+initial gzip target is unchanged and remains missed by 43,062 bytes; the ceiling
 is a regression guard, not a claim that the performance target has been met.
 
 Source-map attribution places the growth in the requested Bloom charts and
