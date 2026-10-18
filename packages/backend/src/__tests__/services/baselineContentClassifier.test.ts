@@ -124,6 +124,18 @@ describe('BaselineContentClassifier', () => {
       expect(result.languages).toEqual([]);
     });
 
+    it('detects prose tinyld scores low but unambiguously (short clauses, links, markdown)', () => {
+      const spanish = baselineContentClassifier.classify({
+        text: 'Nos estamos convirtiendo en un fediverso de ascensor: buenos días, qué tal y hasta la próxima planta',
+      });
+      expect(spanish.languages).toEqual(['es']);
+
+      const english = baselineContentClassifier.classify({
+        text: 'What a long day. Tomorrow, more. ✨ **Thanks** [mention:0190c0de] https://github.com/OxyHQ/Mention/pull/1466',
+      });
+      expect(english.languages).toEqual(['en']);
+    });
+
     it('does not recommend an undeclared language when detection is uncertain', () => {
       const result = baselineContentClassifier.classify({
         text: 'Mi estas tre feliĉa hodiaŭ kaj parolas kun ĉiuj miaj amikoj.',

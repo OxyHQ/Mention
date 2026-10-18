@@ -27,7 +27,7 @@
 
 import { detectAll as detectAllLanguages } from 'tinyld/light';
 import { normalizePostHashtags } from '../utils/textProcessing';
-import { extractTrendTerms } from './trending/termExtraction';
+import { extractTrendTerms, stripNonProse } from './trending/termExtraction';
 import { canonicalHashtag } from './contentClassification/taxonomy';
 import { isNsfwHashtag } from './contentClassification/nsfw';
 import { deriveRegion } from './contentClassification/region';
@@ -125,6 +125,16 @@ import {
  * declarations for scripts that uniquely identify a supported language;
  * an undeclared body needs a minimum confidence; and a multilingual declaration
  * no longer makes every label eligible merely because it was supplied.
+ *
+ * Still v11, deliberately: the "minimum confidence" above was miscalibrated.
+ * tinyld's `accuracy` is not a confidence — see {@link LANGUAGE_DETECTION} — so
+ * the 0.6 floor alone left plain Spanish and English prose with NO language in
+ * production, and near-identical posts landed on either side of it. The fix (a dominance gate, and detection on the prose with
+ * links/mention placeholders/emoji/markdown removed) can only turn an EMPTY
+ * `languages` into a non-empty one for ordinary prose, and the language
+ * backfill selects exactly the empty rows. Bumping the version would instead
+ * mark every v11 row's deterministic scores untrusted in ranking
+ * (`trustedScores.ts`) until a full-corpus pass re-stamped them.
  */
 export const BASELINE_CLASSIFIER_VERSION = 11;
 
@@ -146,8 +156,32 @@ const MIN_TEXT_LENGTH_FOR_DETECTION = 12;
  * top candidate. The top candidate is always taken as the primary (best guess).
  */
 const LANGUAGE_DETECTION = {
-  /** Confidence required before an undeclared body is eligible for discovery. */
+  /**
+   * A top candidate at or above this is accepted outright.
+   *
+   * tinyld's `accuracy` is NOT a calibrated confidence. It splits the text into
+   * punctuation-delimited chunks; a chunk that contains one of a language's
+   * unique n-grams scores its full length for that language, while every other
+   * chunk is scored word by word, each word adding at most 1 against a
+   * denominator of its CHARACTER count. Prose made of short sentences, a list,
+   * or a sentence with no unique n-gram therefore tops out near 1 / (average
+   * word length) — about 0.2 — however unambiguous it is: "Nos estamos
+   * convirtiendo en un fediverso de ascensor: buenos días, qué tal y hasta la
+   * próxima planta" scores `es` 0.23 against `pt` 0.07. This floor is only the
+   * fast path; {@link dominantMinAccuracy} is the gate such text passes.
+   */
   primaryMinAccuracy: 0.6,
+  /**
+   * Below {@link primaryMinAccuracy}, a top candidate is still accepted when it
+   * reaches this floor AND beats the runner-up by {@link dominantMinRatioToSecond}.
+   * On the word-scored path every word votes for the language it fits best, so
+   * a real language wins by a wide margin (`es` 0.23 vs 0.07 above) while
+   * Esperanto, Basque, Tagalog, gibberish, name lists and code split their votes
+   * across several languages (ratios 1.0–1.5) or stay far below the floor.
+   */
+  dominantMinAccuracy: 0.2,
+  /** How many times the runner-up's accuracy a dominant top candidate must reach. */
+  dominantMinRatioToSecond: 3,
   /** Confidence required to overrule one contradictory declared language. */
   declaredContradictionMinAccuracy: 0.8,
   /**
@@ -243,6 +277,29 @@ export interface BaselineSignals {
   classifiedAt: string;
 }
 
+/**
+ * Pictographs (emoji, with their joiners and presentation selectors) and the
+ * markdown emphasis/list markers a post carries. None of them is language, and
+ * tinyld treats `*` as a sentence boundary, so `Meet **Deck**.` reached it as
+ * three one-word fragments.
+ */
+const NON_LANGUAGE_SYMBOLS = /\p{Extended_Pictographic}|\u200d|\ufe0f|[*_~`•▪◦‣|]+/gu;
+
+/**
+ * The text language detection reads: the post's PROSE, via the same
+ * {@link stripNonProse} trend extraction uses (links, `[mention:<id>]`
+ * placeholders, handles, the `#` marker), minus pictographs and markdown
+ * markers. A pasted URL is otherwise scored as words — a GitHub link alone
+ * reads as Russian — and a placeholder adds the word `mention` plus an id to
+ * every post that names someone.
+ */
+function languageEvidenceText(text: string): string {
+  return stripNonProse(text)
+    .replace(NON_LANGUAGE_SYMBOLS, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .trim();
+}
+
 /** Length of an ISO 639-1 primary language subtag. */
 const ISO_639_1_LENGTH = 2;
 
@@ -278,7 +335,10 @@ export class BaselineContentClassifier {
     const { hashtags: normalized } = normalizePostHashtags(input.text, input.hashtags);
     const hashtagsNorm = this.applyHashtagAliases(normalized);
 
-    const { primary: language, all: languages } = this.resolveLanguages(input, text);
+    const { primary: language, all: languages } = this.resolveLanguages(
+      input,
+      languageEvidenceText(text),
+    );
     const region = deriveRegion({
       isFederated: input.isFederated,
       instanceDomain: input.instanceDomain,
@@ -441,7 +501,16 @@ export class BaselineContentClassifier {
       secondAccuracy >= LANGUAGE_DETECTION.secondaryMinAccuracy &&
       secondAccuracy / topAccuracy >= LANGUAGE_DETECTION.secondaryMinRatioToTop &&
       topAccuracy + secondAccuracy >= 0.8;
-    if (topAccuracy < LANGUAGE_DETECTION.primaryMinAccuracy && !credibleBilingualPair) return [];
+    const dominantPrimary =
+      topAccuracy >= LANGUAGE_DETECTION.dominantMinAccuracy &&
+      topAccuracy >= secondAccuracy * LANGUAGE_DETECTION.dominantMinRatioToSecond;
+    if (
+      topAccuracy < LANGUAGE_DETECTION.primaryMinAccuracy &&
+      !dominantPrimary &&
+      !credibleBilingualPair
+    ) {
+      return [];
+    }
     const selected: string[] = [ranked[0].lang];
 
     for (const candidate of ranked.slice(1)) {

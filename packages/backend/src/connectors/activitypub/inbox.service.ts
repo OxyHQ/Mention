@@ -76,6 +76,7 @@ import { ownProfileUrlHandle } from '@mention/shared-types/profileUrls';
 import { isMentionBroadcast } from '@mention/shared-types/mentions';
 import { normalizeMentionIds } from '../../utils/textProcessing';
 import { getRemoteHost } from '../shared/url';
+import { applyDetectedPrimaryTag } from '../../services/postVariants';
 import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
 import { parentIsChannelPost } from '../../utils/channelReplyGate';
 import { parseInboundActivity, parseNote, primaryApType } from './apSchemas';
@@ -1049,6 +1050,9 @@ export class InboxProcessingService {
         instanceDomain: getRemoteHost(actorUri),
         actorType: editActor?.type,
       });
+      // The origin's declared tag yields to a language the classifier resolved
+      // against it, exactly as on create (`toStoredContent`).
+      const editVariants = applyDetectedPrimaryTag(built.variants, editSignals.languages[0]);
 
       await updatePostRecord(existingPost.id, {
         hashtags: built.hashtags,
@@ -1095,7 +1099,7 @@ export class InboxProcessingService {
         existingPost.id,
         {
           ...existingPost.content,
-          variants: built.variants.length > 0 ? built.variants : undefined,
+          variants: editVariants.length > 0 ? editVariants : undefined,
           media: built.media.length > 0 ? built.media : undefined,
           attachments: built.attachments.length > 0 ? built.attachments : undefined,
         },
@@ -1111,7 +1115,7 @@ export class InboxProcessingService {
           id: existingPost.id,
           content: {
             ...existingPost.content,
-            variants: built.variants.length > 0 ? built.variants : undefined,
+            variants: editVariants.length > 0 ? editVariants : undefined,
           },
         },
       ]);

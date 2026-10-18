@@ -113,6 +113,7 @@ import { POST_CLASSIFICATION_PENDING } from '../../db/posts/postRecord';
 import { logger } from '../../utils/logger';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { parseUserDid } from './mentionDid';
+import { applyDetectedPrimaryTag } from '../postVariants';
 import { baselineContentClassifier } from '../BaselineContentClassifier';
 import { buildAuthorship } from '../../utils/postAuthorship';
 import { enrichIngestedPosts } from '../postEnrichment';
@@ -594,7 +595,9 @@ async function projectPost(
   }
 
   const content = mergeRecordContent(existing?.content, {
-    variants,
+    // The record's declared primary tag yields to a language the classifier
+    // resolved against it, as on every other ingest path.
+    variants: applyDetectedPrimaryTag(variants, baseline?.language),
     media,
     sources: record.sources,
     location: record.location,

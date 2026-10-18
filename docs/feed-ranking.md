@@ -22,10 +22,18 @@ pure/sync). Runs at all ingest chokepoints: `PostCreationService`,
   `secondaryMinRatioToTop:0.5`). Federated: `extractApLanguages` reads AP
   `language` + all `contentMap` keys, but those labels do not grant distribution
   by themselves. Japanese kana and Korean hangul correct contradictory labels;
-  statistical detection requires confidence >= 0.6 (or a credible bilingual
-  pair), and replacement of a single declaration requires >= 0.8. Ambiguous
-  bodies produce `languages: []`. Feed membership is ANY-OVERLAP against this
+  statistical detection runs on the post's prose (links, mention placeholders,
+  handles, emoji and markdown markers removed) and accepts a top candidate at
+  accuracy >= 0.6, or at >= 0.2 when it scores at least 3x the runner-up
+  (tinyld's accuracy is a share of characters, not a confidence, so clear
+  prose in short clauses scores ~0.2), or a credible bilingual pair.
+  Replacement of a single declaration requires >= 0.8. Ambiguous bodies
+  produce `languages: []`. Feed membership is ANY-OVERLAP against this
   canonical field.
+- The primary rendition's tag follows the resolved language
+  (`applyDetectedPrimaryTag`): an untagged primary takes it, and a declared
+  tag the classifier contradicted is replaced, so `textLang` and translation
+  never disagree with the classification.
 - Top-level `post.language` = `languages[0]` (primary, the AP protocol
   field).
 - Sensitive, spam, quality, toxicity scores
