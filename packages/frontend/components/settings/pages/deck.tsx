@@ -1,3 +1,4 @@
+import { useDeckAvailable } from '@/components/deck/useDeckAvailable';
 import { useDeckSettings } from '@/components/deck/deckSettings';
 import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { Switch } from '@oxy.so/bloom/switch';
@@ -7,6 +8,9 @@ import { Text } from 'react-native';
 
 export default function DeckSettingsPage() {
   const { t } = useTranslation();
+  const available = useDeckAvailable();
+  const homeScreen = useDeckSettings((state) => state.homeScreen === true);
+  const setHomeScreen = useDeckSettings((state) => state.setHomeScreen);
   const { user, canUsePrivateApi } = useAuth();
   const syncEnabled = useDeckSettings((state) => state.syncEnabled);
   const setSyncEnabled = useDeckSettings((state) => state.setSyncEnabled);
@@ -14,6 +18,18 @@ export default function DeckSettingsPage() {
   return (
     <SettingsSection label={t('deck.workspace.title', 'Deck')}>
       <SettingsCard>
+        {available && (
+          <SettingsRow
+            label={t('deck.workspace.homeScreen')}
+            description={t('deck.workspace.homeScreenDescription')}
+          >
+            <Switch
+              checked={homeScreen}
+              onCheckedChange={setHomeScreen}
+              accessibilityLabel={t('deck.workspace.homeScreen')}
+            />
+          </SettingsRow>
+        )}
         <SettingsRow
           label={t('deck.workspace.sync', 'Sync across devices')}
           description={t(

@@ -149,6 +149,7 @@ export function normalizeDeckSnapshot(value: unknown): DeckSnapshot | null {
   ];
   return {
     syncEnabled: value.syncEnabled !== false,
+    ...(typeof value.homeScreen === 'boolean' ? { homeScreen: value.homeScreen } : {}),
     panels,
     order,
     ...(typeof value.activePanel === 'string' && Object.hasOwn(panels, value.activePanel)

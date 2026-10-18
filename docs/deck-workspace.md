@@ -60,6 +60,23 @@ web content restoration and stops retrying when the user takes over scrolling.
 The application's data cache can display known content immediately; cold reads
 still require skeletons and may fail or take time.
 
+## Deck as the home screen
+
+On desktop, **Settings → Deck → Make Deck my home screen** opens `/deck` when
+visiting `/`, including the Home and Mention-logo links. The root shell replaces
+the route using Expo Router; Back does not revisit an intermediate home redirect.
+Explicit deep links remain unchanged, and Home rendered inside a Deck panel stays
+the regular feed. Phones and tablets retain normal Home even when this account
+preference is enabled; the switch appears only where Deck is available.
+
+The optional `homeScreen` workspace field defaults to false for existing accounts.
+It uses the same account-scoped local cache and synchronization policy as panels:
+with sync enabled it follows the account across devices, and with sync disabled
+changes remain local until sync is enabled again. Account activation is checked
+before applying the preference. Cached choices take effect immediately; on a new
+device Home can remain visible until the server workspace arrives. Offline reads
+never block opening the app.
+
 ## Account synchronization
 
 The Deck section in Mention settings (`/settings/deck`) exposes **Sync across

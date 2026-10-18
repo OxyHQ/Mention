@@ -1,3 +1,4 @@
+import { DeckHomeEntry } from '@/components/deck/DeckHomeEntry';
 import { useDeckSync } from '@/components/deck/useDeckSync';
 import { DeckAddPanel } from '@/components/deck/DeckAddPanel';
 import { useDeckSettings, deckRouteForSource } from '@/components/deck/deckSettings';
@@ -65,7 +66,9 @@ export default function AppLayout() {
   const centerContent = (
     <>
       {IS_WEB ? (
-        <Slot />
+        <DeckHomeEntry>
+          <Slot />
+        </DeckHomeEntry>
       ) : (
         <ExperimentalStack screenOptions={{ headerShown: false }} screenLayout={stackSceneLayout}>
           {/* The five root tabs, as ONE stack screen. Everything else in this

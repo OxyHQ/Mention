@@ -2689,6 +2689,8 @@
     "liveRequiresSignIn": "リアルタイム更新を受信するにはログインしてください",
     "workspace": {
       "title": "Deck",
+      "homeScreen": "Deckをホーム画面にする",
+      "homeScreenDescription": "デスクトップでホームにアクセスするとDeckを開きます。スマートフォンとタブレットでは通常のホーム画面を使います。",
       "sync": "デバイス間で同期",
       "description": "パネル、ページ、閲覧履歴、読んでいた位置をアカウントに保存します。",
       "anonymous": "Deckを同期するにはログインしてください。ワークスペースはこのデバイスに保存されます。",

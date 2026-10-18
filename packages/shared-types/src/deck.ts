@@ -19,6 +19,8 @@ export interface DeckPanelState {
   scrollOffsets?: Record<string, number>;
 }
 export interface DeckWorkspaceState {
+  /** Desktop web only; omitted by older clients and defaults to false. */
+  homeScreen?: boolean;
   syncEnabled: boolean;
   panels: Record<string, DeckPanelState>;
   order: string[];

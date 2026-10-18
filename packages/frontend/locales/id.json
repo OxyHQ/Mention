@@ -2689,6 +2689,8 @@
     "liveRequiresSignIn": "Masuk untuk menerima pembaruan langsung",
     "workspace": {
       "title": "Deck",
+      "homeScreen": "Jadikan Deck layar beranda saya",
+      "homeScreenDescription": "Buka Deck saat mengunjungi Beranda di desktop. Ponsel dan tablet tetap menggunakan layar beranda standar.",
       "sync": "Sinkronkan antarperangkat",
       "description": "Simpan panel, halaman, riwayat navigasi, dan posisi membaca ke akun Anda.",
       "anonymous": "Masuk untuk menyinkronkan Deck. Ruang kerja disimpan di perangkat ini.",

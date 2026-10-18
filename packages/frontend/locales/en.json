@@ -3061,6 +3061,8 @@
     "liveRequiresSignIn": "Sign in to receive live feed updates",
     "workspace": {
       "title": "Deck",
+      "homeScreen": "Make Deck my home screen",
+      "homeScreenDescription": "Open Deck when you visit Home on desktop. Phones and tablets keep the standard home screen.",
       "sync": "Sync across devices",
       "description": "Save your panels, pages, navigation history and reading positions to your account.",
       "anonymous": "Sign in to sync your Deck. Your workspace is saved on this device.",

@@ -75,6 +75,7 @@ interface DeckSettingsState extends DeckSnapshot {
   receive(viewer: string, cache: DeckCache): void;
   setStatus(viewer: string, status: DeckSyncStatus): void;
   setSyncEnabled(enabled: boolean): void;
+  setHomeScreen(enabled: boolean): void;
   removePanel(id: string): void;
   addPanel(source: DeckSource): string;
   updatePanel(
@@ -94,6 +95,7 @@ export const useDeckSettings = create<DeckSettingsState>()(
               panels: store.panels,
               activePanel: store.activePanel,
               syncEnabled: store.syncEnabled,
+              homeScreen: store.homeScreen,
               order: store.order,
             }),
           );
@@ -106,6 +108,7 @@ export const useDeckSettings = create<DeckSettingsState>()(
         });
       return {
         ...emptySnapshot(),
+        homeScreen: undefined,
         viewer: 'anonymous',
         records: {},
         status: 'local',
@@ -119,6 +122,7 @@ export const useDeckSettings = create<DeckSettingsState>()(
               emptyCache();
             return {
               ...cache.state,
+              homeScreen: cache.state.homeScreen,
               viewer,
               status: viewer === 'anonymous' ? 'local' : 'loading',
               records: { ...store.records, [viewer]: cache },
@@ -128,10 +132,15 @@ export const useDeckSettings = create<DeckSettingsState>()(
           set((store) =>
             store.viewer !== viewer
               ? store
-              : { ...cache.state, records: { ...store.records, [viewer]: cache } },
+              : {
+                  ...cache.state,
+                  homeScreen: cache.state.homeScreen,
+                  records: { ...store.records, [viewer]: cache },
+                },
           ),
         setStatus: (viewer, status) =>
           set((store) => (store.viewer === viewer ? { status } : store)),
+        setHomeScreen: (homeScreen) => edit((state) => ({ ...state, homeScreen })),
         setSyncEnabled: (syncEnabled) => edit((state) => ({ ...state, syncEnabled })),
         removePanel: (id) =>
           edit((state) => {

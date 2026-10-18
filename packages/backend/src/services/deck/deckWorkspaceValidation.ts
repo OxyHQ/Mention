@@ -110,6 +110,7 @@ export const deckWorkspaceUpdateSchema = z
     state: z
       .object({
         syncEnabled: z.boolean().default(true),
+        homeScreen: z.boolean().optional(),
         panels: z
           .record(panelId, panel)
           .refine((value) => Object.keys(value).length <= DECK_LIMITS.panels),
