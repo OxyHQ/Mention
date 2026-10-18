@@ -231,32 +231,7 @@
     "An entry that is not currently excusing a real decrease fails, so this list",
     "cannot become a standing permission slip."
   ],
-  "allowedBaselineDecreases": [
-    {
-      "path": "total",
-      "metric": "statements",
-      "date": "2026-10-17",
-      "reason": "Code shrank, not tests: Mention's own lazy Ask Alia provider and sheet wrapper (context/AskAliaContext.tsx, components/AskAliaSheet.tsx), a well-covered file, are deleted for the SDK's AliaAskProvider (@alia.onl/sdk/ask); the thin MentionAskProvider that configures it is covered by its own test. The overall ratio drops by 0.01 point because covered statements left with the code."
-    },
-    {
-      "path": "total",
-      "metric": "branches",
-      "date": "2026-10-17",
-      "reason": "Code shrank, not tests: Mention's own lazy Ask Alia provider and sheet wrapper (context/AskAliaContext.tsx, components/AskAliaSheet.tsx), a well-covered file, are deleted for the SDK's AliaAskProvider (@alia.onl/sdk/ask); the thin MentionAskProvider that configures it is covered by its own test. The overall ratio drops by 0.01 point because covered statements left with the code."
-    },
-    {
-      "path": "total",
-      "metric": "functions",
-      "date": "2026-10-17",
-      "reason": "Code shrank, not tests: Mention's own lazy Ask Alia provider and sheet wrapper (context/AskAliaContext.tsx, components/AskAliaSheet.tsx), a well-covered file, are deleted for the SDK's AliaAskProvider (@alia.onl/sdk/ask); the thin MentionAskProvider that configures it is covered by its own test. The overall ratio drops by 0.01 point because covered statements left with the code."
-    },
-    {
-      "path": "total",
-      "metric": "lines",
-      "date": "2026-10-17",
-      "reason": "Code shrank, not tests: Mention's own lazy Ask Alia provider and sheet wrapper (context/AskAliaContext.tsx, components/AskAliaSheet.tsx), a well-covered file, are deleted for the SDK's AliaAskProvider (@alia.onl/sdk/ask); the thin MentionAskProvider that configures it is covered by its own test. The overall ratio drops by 0.01 point because covered statements left with the code."
-    }
-  ],
+  "allowedBaselineDecreases": [],
   "globalDriftAllowancePoints": 0.75,
   "minimumFilesInReport": 500,
   "minimumTestFiles": 140,
@@ -265,12 +240,12 @@
     "one defensible line at a time, and a bound cannot tell growth from shrinkage."
   ],
   "expectedCounts": {
-    "domainFiles": 296,
-    "pins": 293,
+    "domainFiles": 297,
+    "pins": 294,
     "unenforceable": 3,
     "belowBarExemptions": 9,
     "criticalPaths": 35,
-    "allowedBaselineDecreases": 4,
+    "allowedBaselineDecreases": 0,
     "snapshotAssertions": 0
   }
 }

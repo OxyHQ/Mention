@@ -94,6 +94,7 @@ import {
   videoPlayerKey,
   type VideoPlayerKey,
 } from '@/stores/videoPlayerRegistry';
+import { loadVideoPagesUntilProgress } from '@/utils/video-feed-pagination';
 import { resolveFeedDescriptor } from '@/utils/feedTelemetry';
 
 // ── Tuning constants ─────────────────────────────────────────────
@@ -218,10 +219,6 @@ const VIEWABILITY_CONFIG = {
   waitForInteraction: false,
   minimumViewTime: 100,
 } as const;
-
-// When a `videos` page yields zero NEW posts but more pages exist, walk forward
-// up to this many extra pages so the reel never dead-ends prematurely.
-const MAX_AUTO_CONTINUE_PAGES = 3;
 
 // Web: pixels-from-bottom at which the document-scroll infinite scroll triggers a
 // `handleLoadMore`, so paging stays ahead of the viewer.
@@ -1468,16 +1465,7 @@ export default function VideosScreen() {
   const fetchVideosUntilProgress = useCallback(
     async (startCursor?: string): Promise<void> => {
       const generation = loadGenerationRef.current;
-      let cursor = startCursor;
-      let attempts = 0;
-      // The first call always runs; up to MAX_AUTO_CONTINUE_PAGES extra follow-ups.
-      while (attempts <= MAX_AUTO_CONTINUE_PAGES) {
-        const page = await fetchVideos(cursor, generation);
-        if (!page || page.added > 0) return;
-        if (!page.hasMore || !page.nextCursor || page.nextCursor === cursor) return;
-        cursor = page.nextCursor;
-        attempts += 1;
-      }
+      await loadVideoPagesUntilProgress((cursor) => fetchVideos(cursor, generation), startCursor);
     },
     [fetchVideos],
   );
