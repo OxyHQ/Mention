@@ -11,10 +11,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, inList, timestamptz } from '@oxy.so/db';
 import { posts } from './posts';
-import type {
-  ShadowReceiptAuthority,
-  ShadowUsageReconciliation,
-} from '../../services/contentClassification/jevReceipt';
+import type { ShadowUsageReconciliation } from '../../services/contentClassification/jevReceipt';
 import type { ShadowSignals } from '../../services/contentClassification/jevShadow';
 
 export const POST_EVALUATION_STATES = [
@@ -40,16 +37,25 @@ export const postEvaluations = pgTable(
       .notNull()
       .references(() => posts.id, { onDelete: 'cascade' }),
     fingerprint: text().notNull(),
-    model: text().notNull(),
-    policyRef: text().notNull(),
-    policyVersion: integer().notNull(),
+    /** The model the request pinned; NULL when Oxy's decisions profile chose. */
+    model: text(),
+    /** The model that answered; set, and required, once the row is completed. */
+    resolvedModel: text(),
+    /** The routing policy that served the answer, from the response; NULL until completed. */
+    policyRef: text(),
+    policyVersion: integer(),
     evaluationVersion: text().notNull(),
     state: text({ enum: POST_EVALUATION_STATES }).notNull(),
     abstention: text({ enum: POST_EVALUATION_ABSTENTIONS }),
     followState: text({ enum: POST_EVALUATION_FOLLOW_STATES }).notNull().default('unknown'),
     languages: text().array(),
     sdkReceipt: jsonb().$type<ShadowSignals['sdkReceipt']>(),
-    receiptAuthority: jsonb().$type<ShadowReceiptAuthority>(),
+    /**
+     * Historical: the approval lineage of the 2026-10 one-post runs. The
+     * continuous lane leaves it NULL; Kaana reads back only Mention's own
+     * records, so a claim needs no recorded authority.
+     */
+    receiptAuthority: jsonb().$type<Record<string, unknown>>(),
     requestDeadlineAt: timestamptz(),
     usageReconciliation: jsonb().$type<ShadowUsageReconciliation>(),
     languageEvidence: jsonb().$type<ShadowSignals['languageEvidence']>(),
@@ -60,15 +66,13 @@ export const postEvaluations = pgTable(
     finishedAt: timestamptz(),
   },
   (table) => [
-    unique('post_evaluations_revision_release_key').on(
+    unique('post_evaluations_revision_version_key').on(
       table.postId,
       table.fingerprint,
-      table.model,
-      table.policyRef,
-      table.policyVersion,
       table.evaluationVersion,
     ),
     index('post_evaluations_post_idx').on(table.postId),
+    index('post_evaluations_created_idx').on(table.createdAt),
     check(
       'post_evaluations_state_check',
       sql`${table.state} in (${sql.raw(inList(POST_EVALUATION_STATES))})`,
@@ -92,6 +96,8 @@ export const postEvaluations = pgTable(
     ${table.state} = 'completed' and ${table.spam} is not null and ${table.repetition} is not null
     and ${table.feedValue} is not null and ${table.languages} is not null
     and ${table.sdkReceipt} is not null and ${table.languageEvidence} is not null
+    and ${table.resolvedModel} is not null and ${table.policyRef} is not null
+    and ${table.policyVersion} is not null
     and ${table.abstention} is null and ${table.finishedAt} is not null
   ) or (
     ${table.state} <> 'completed' and ${table.spam} is null and ${table.repetition} is null

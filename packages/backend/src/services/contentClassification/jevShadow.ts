@@ -1,33 +1,12 @@
 import type { ShadowReceiptReader } from './jevReceipt';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import {
-  requestIdSchema,
-  idempotencyKeySchema,
-  routingPolicyReferenceSchema,
-  usageQuantitySchema,
-} from '@oxy.so/contracts';
-import type { DecisionSuccess } from '@oxy.so/contracts';
 
-/** This is an application release gate, never provider/credential configuration. */
-export const JEV_SHADOW_BLOCKERS: readonly string[] = Object.freeze([
-  'published_decisions_sdk',
-  'reviewed_exact_model_and_oxy_policy',
-  'internal_provider_eligibility',
-  'privacy_and_zdr',
-  'federated_public_visibility_provenance',
-  'semantic_revision_and_receipt_reconciliation',
-] as const);
-
-/** No environment switch can bypass the pending independent release reviews. */
-export function isJevShadowReleased(): boolean {
-  return JEV_SHADOW_BLOCKERS.length === 0;
-}
-
+/**
+ * What one shadow lane asks. No model: Oxy's decisions profile chooses, and
+ * the model that answered is recorded per row (`resolved_model`).
+ */
 export interface ShadowRelease {
-  readonly model: string;
-  readonly policyRef: string;
-  readonly policyVersion: number;
   readonly evaluationVersion: string;
   readonly supportedLanguages: readonly string[];
 }
@@ -94,21 +73,25 @@ export function shadowAbstention(snapshot: ShadowSnapshot, release: ShadowReleas
 
 export function validateShadowRelease(release: ShadowRelease): void {
   if (
-    !/^[^\s/@]+\/[^\s/@]+@[^\s/@]+$/.test(release.model) ||
-    /@(latest|main|head)$/i.test(release.model) ||
-    !release.policyRef.trim() ||
-    !Number.isSafeInteger(release.policyVersion) ||
-    release.policyVersion < 1 ||
-    !release.evaluationVersion.trim()
+    !release.evaluationVersion.trim() ||
+    !release.supportedLanguages.length ||
+    new Set(release.supportedLanguages).size !== release.supportedLanguages.length ||
+    release.supportedLanguages.some((language) => language.length < 2 || language.length > 35)
   ) {
-    throw new Error('Shadow evaluation requires an immutable model, policy and evaluation version');
+    throw new Error('Shadow evaluation requires an evaluation version and its languages');
   }
 }
 
-/** Mention's storage projection, not a copy of the SDK decisions wire contract. */
+/**
+ * Mention's storage projection of a decisions response, not a copy of the wire
+ * contract: the SDK has already validated the response against
+ * `@kaana.ai/contracts` and bound its answers to the questions.
+ */
 const probability = z.number().finite().min(0).max(1);
 export const shadowSignalsSchema = z
   .object({
+    /** The model that answered (`publisher/model@revision`), as Kaana reported it. */
+    resolvedModel: z.string().min(1).max(200),
     // Each topic is an independent proposition; probabilities need not sum to one.
     topics: z
       .array(z.object({ topic: z.string().min(1).max(60), probability }))
@@ -122,16 +105,16 @@ export const shadowSignalsSchema = z
       .refine((rows) => new Set(rows.map((row) => row.language)).size === rows.length),
     sdkReceipt: z
       .object({
-        requestId: z.string().refine((value) => requestIdSchema.safeParse(value).success),
-        routingPolicy: z.custom<DecisionSuccess['routingPolicy']>(
-          (value) => routingPolicyReferenceSchema.safeParse(value).success,
-        ),
-        // Optional only for synthetic/domain fixtures. The SDK projection always supplies
-        // the measured quantities verbatim; absence never means zero cost.
+        requestId: z.string().min(1).max(128),
+        routingPolicy: z
+          .object({
+            routingPolicyId: z.string().min(1),
+            policyVersion: z.number().int().positive(),
+          })
+          .strict(),
+        // Measured quantities, verbatim; never money, and absence never means zero.
         usage: z
-          .custom<DecisionSuccess['usage']>(
-            (value) => usageQuantitySchema.array().safeParse(value).success,
-          )
+          .array(z.object({ unit: z.string().min(1), quantity: z.number().min(0) }).strict())
           .optional(),
       })
       .strict(),
@@ -150,35 +133,9 @@ export const shadowSignalsSchema = z
   );
 export type ShadowSignals = z.infer<typeof shadowSignalsSchema>;
 
-/**
- * Domain projection of the published Oxy SDK. Production has no binding until
- * every release gate is independently reviewed.
- */
-/** A local admission refusal before calling the SDK; it cannot represent provider failure. */
-export class ShadowAdmissionClosedError extends Error {}
-
-/** Exactly one source-reviewed native revision; never supplied by a public request. */
-export const shadowSelectionSchema = z
-  .object({
-    postId: z.string().min(1).max(200),
-    fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
-    idempotencyKey: z.string().refine((value) => idempotencyKeySchema.safeParse(value).success),
-    inputSha256: z.string().regex(/^[a-f0-9]{64}$/),
-  })
-  .strict();
-export type ShadowSelection = z.infer<typeof shadowSelectionSchema>;
-export interface ShadowSelectedOperation {
-  readonly selection: ShadowSelection;
-  readonly topics: readonly import('./jevSdk').ShadowTopic[];
-  readonly expiresAt: string;
-}
-
 export interface ShadowEvaluation {
   readonly release: ShadowRelease;
-  readonly selectedOperation?: ShadowSelectedOperation;
   readonly receiptReader?: ShadowReceiptReader;
-  /** Optional product gate, checked before and after the SQL claim. */
-  isAdmissionOpen?(): boolean;
   evaluate(input: {
     readonly text: string;
     readonly languages: readonly string[];

@@ -1,23 +1,27 @@
-import type { ShadowTopic } from '../../services/contentClassification/jevSdk';
-import {
-  buildJevDecisionRequest,
-  jevInputSha256,
-  JEV_MAX_TEXT_LENGTH,
-} from '../../services/contentClassification/jevRequest';
-import { config } from '../../config';
 import { withShadowReceiptDatabase, type ShadowReceiptDatabase } from './shadowReceiptDatabase';
 import { isDeepStrictEqual } from 'node:util';
 import {
-  shadowReceiptAuthoritySchema,
-  shadowRecoveryLineageSchema,
   shadowUsageReconciliationSchema,
-  sameReceiptAuthority,
-  type ShadowReceiptAuthority,
   type ShadowReceiptReader,
-  type ShadowRecoveryLineage,
 } from '../../services/contentClassification/jevReceipt';
-import { and, asc, eq, gt, inArray, isNotNull, isNull, lte, notExists, or, sql } from 'drizzle-orm';
-import { getDb, type Transaction } from '../postgres';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  ne,
+  notExists,
+  or,
+} from 'drizzle-orm';
+import { config } from '../../config';
+import { getDb, type Database, type Transaction } from '../postgres';
 import { posts } from '../schema/posts';
 import { postContentVariants } from '../schema/postContent';
 import { postEvaluations, postEvaluationTopics } from '../schema/postEvaluations';
@@ -31,13 +35,10 @@ import {
   shadowAbstention,
   shadowFingerprint,
   shadowSignalsSchema,
-  shadowSelectionSchema,
   validateShadowRelease,
   type ShadowRelease,
   type ShadowSignals,
   type ShadowSnapshot,
-  type ShadowSelectedOperation,
-  type ShadowSelection,
 } from '../../services/contentClassification/jevShadow';
 
 /**
@@ -55,7 +56,7 @@ import {
  * {@link publicProfile}. Following is a quality signal, never a privacy
  * grant; security enforcement stays separate.
  */
-const eligibleSource = (tx: Transaction) =>
+const eligibleSource = (tx: Database | Transaction) =>
   and(
     isNull(posts.federationActivityId),
     isNull(posts.federationActorUri),
@@ -80,8 +81,8 @@ const eligibleSource = (tx: Transaction) =>
  * waits for this transaction. Taken after the post locks: writers take nothing
  * before it, so the order cannot invert.
  */
-async function publicProfile(tx: Transaction, owner: string, lockRows = true): Promise<boolean> {
-  if (lockRows) await lockProfileVisibility(tx, owner, 'read');
+async function publicProfile(tx: Transaction, owner: string): Promise<boolean> {
+  await lockProfileVisibility(tx, owner, 'read');
   const [settings] = await tx
     .select({ visibility: userSettings.privacyProfileVisibility })
     .from(userSettings)
@@ -89,14 +90,13 @@ async function publicProfile(tx: Transaction, owner: string, lockRows = true): P
   return !settings || settings.visibility === 'public';
 }
 
-/** Claim lock order matches content writers; read-only preparation uses a stable SQL snapshot. */
-async function loadSnapshot(
-  tx: Transaction,
-  postId: string,
-  lockRows = true,
-): Promise<ShadowSnapshot | null> {
-  if (lockRows) await lockPostContent(tx, postId);
-  const postQuery = tx
+/**
+ * The claim's snapshot, under the content writers' lock order: the post's
+ * content lock, the post row, then the owner's profile-visibility lock.
+ */
+async function loadSnapshot(tx: Transaction, postId: string): Promise<ShadowSnapshot | null> {
+  await lockPostContent(tx, postId);
+  const [post] = await tx
     .select({
       actorUri: posts.federationActorUri,
       owner: posts.oxyUserId,
@@ -111,10 +111,10 @@ async function loadSnapshot(
         isNull(posts.boostOf),
         eligibleSource(tx),
       ),
-    );
-  const [post] = await (lockRows ? postQuery.for('update') : postQuery);
-  if (!post?.owner || !(await publicProfile(tx, post.owner, lockRows))) return null;
-  const renditionQuery = tx
+    )
+    .for('update');
+  if (!post?.owner || !(await publicProfile(tx, post.owner))) return null;
+  const renditions = await tx
     .select({
       id: postContentVariants.id,
       position: postContentVariants.position,
@@ -127,58 +127,83 @@ async function loadSnapshot(
     })
     .from(postContentVariants)
     .where(eq(postContentVariants.postId, postId))
-    .orderBy(asc(postContentVariants.position));
-  const renditions = await (lockRows ? renditionQuery.for('share') : renditionQuery);
+    .orderBy(asc(postContentVariants.position))
+    .for('share');
   return { postId, ...post, languages: post.languages ?? [], renditions };
 }
 
-/** Read-only preparation returns hashes/IDs, never post contents, credentials or a claim.
- * The later claim must recheck this snapshot under locks; preparation grants nothing.
+/** How far back the lane looks for posts it has not evaluated. */
+const SHADOW_CANDIDATE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Posts the lane may evaluate next, newest first: native, public, published,
+ * not a boost, created in the last 24 hours, by an author whose profile is
+ * public, and with no evaluation row for `evaluationVersion` yet. An abstention
+ * is a row too, so a post the lane cannot evaluate is listed once. The claim
+ * rechecks all of it under locks; this list grants nothing.
  */
-export async function preparePostEvaluationSelection(
-  postId: string,
-  release: ShadowRelease,
-  topics: readonly ShadowTopic[],
-  idempotencyKey: string,
-): Promise<ShadowSelection | null> {
-  validateShadowRelease(release);
-  return getDb().transaction(
-    async (tx) => {
-      const snapshot = await loadSnapshot(tx, postId, false);
-      if (!snapshot || shadowAbstention(snapshot, release)) return null;
-      const fingerprint = shadowFingerprint(snapshot);
-      const [existing] = await tx
-        .select({ id: postEvaluations.id })
-        .from(postEvaluations)
-        .where(
-          and(
-            eq(postEvaluations.postId, postId),
-            eq(postEvaluations.fingerprint, fingerprint),
-            eq(postEvaluations.model, release.model),
-            eq(postEvaluations.policyRef, release.policyRef),
-            eq(postEvaluations.policyVersion, release.policyVersion),
-            eq(postEvaluations.evaluationVersion, release.evaluationVersion),
-          ),
-        )
-        .limit(1);
-      if (existing) return null;
-      const primary = snapshot.renditions.find((rendition) => rendition.position === 0)!;
-      return shadowSelectionSchema.parse({
-        postId,
-        fingerprint,
-        idempotencyKey,
-        inputSha256: jevInputSha256(
-          buildJevDecisionRequest(
-            release,
-            topics,
-            primary.body.slice(0, JEV_MAX_TEXT_LENGTH),
-            snapshot.languages,
-          ),
+export async function listShadowCandidates(
+  evaluationVersion: string,
+  limit: number,
+): Promise<string[]> {
+  const db = getDb();
+  const rows = await db
+    .select({ id: posts.id })
+    .from(posts)
+    .where(
+      and(
+        eq(posts.visibility, 'public'),
+        eq(posts.status, 'published'),
+        isNull(posts.boostOf),
+        gte(posts.createdAt, new Date(Date.now() - SHADOW_CANDIDATE_WINDOW_MS)),
+        eligibleSource(db),
+        notExists(
+          db
+            .select({ id: userSettings.oxyUserId })
+            .from(userSettings)
+            .where(
+              and(
+                eq(userSettings.oxyUserId, posts.oxyUserId),
+                ne(userSettings.privacyProfileVisibility, 'public'),
+              ),
+            ),
         ),
-      });
-    },
-    { isolationLevel: 'repeatable read', accessMode: 'read only' },
-  );
+        notExists(
+          db
+            .select({ id: postEvaluations.id })
+            .from(postEvaluations)
+            .where(
+              and(
+                eq(postEvaluations.postId, posts.id),
+                eq(postEvaluations.evaluationVersion, evaluationVersion),
+              ),
+            ),
+        ),
+      ),
+    )
+    .orderBy(desc(posts.createdAt), desc(posts.id))
+    .limit(limit);
+  return rows.map((row) => row.id);
+}
+
+/** The start of the current UTC day. */
+export function utcDayStart(now = new Date()): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+/**
+ * Today's (UTC) claims that may have been sent: every row except abstentions,
+ * which never leave the process. A released claim is deleted, so it never
+ * counts. Read once per cycle against the lane's daily limit.
+ */
+export async function countTodaysPostEvaluationClaims(now = new Date()): Promise<number> {
+  const [row] = await getDb()
+    .select({ claims: count() })
+    .from(postEvaluations)
+    .where(
+      and(gte(postEvaluations.createdAt, utcDayStart(now)), ne(postEvaluations.state, 'abstained')),
+    );
+  return row?.claims ?? 0;
 }
 
 export interface ShadowClaim {
@@ -187,63 +212,30 @@ export interface ShadowClaim {
   readonly fingerprint: string;
 }
 
-/** A successful insert is the only authorization to infer. No lease takeover. */
+/**
+ * A successful insert is the only authorization to infer. No lease takeover:
+ * the unique `(post_id, fingerprint, evaluation_version)` key means a revision
+ * is evaluated at most once per version, by whichever insert wins.
+ */
 export async function claimPostEvaluation(
   postId: string,
   release: ShadowRelease,
-  receiptAuthority?: ShadowReceiptAuthority,
-  requestDeadlineAt?: Date,
-  selectedOperation?: ShadowSelectedOperation,
+  requestDeadlineAt: Date,
 ): Promise<ShadowClaim | null> {
   validateShadowRelease(release);
-  const authority =
-    receiptAuthority === undefined ? null : shadowReceiptAuthoritySchema.parse(receiptAuthority);
-  if (requestDeadlineAt && (!authority || !Number.isFinite(requestDeadlineAt.getTime()))) {
-    throw new Error('Original deadline requires valid recorded authority');
-  }
+  if (!Number.isFinite(requestDeadlineAt.getTime())) throw new Error('Invalid claim deadline');
   return getDb().transaction(async (tx) => {
     const snapshot = await loadSnapshot(tx, postId);
     if (!snapshot) return null;
     const fingerprint = shadowFingerprint(snapshot);
     const abstention = shadowAbstention(snapshot, release);
-    if (selectedOperation) {
-      const parsed = shadowSelectionSchema.safeParse(selectedOperation.selection);
-      const expiresAt = Date.parse(selectedOperation.expiresAt);
-      if (
-        !parsed.success ||
-        !Number.isFinite(expiresAt) ||
-        expiresAt <= Date.now() ||
-        parsed.data.postId !== postId ||
-        parsed.data.fingerprint !== fingerprint ||
-        abstention
-      )
-        return null;
-      const primary = snapshot.renditions.find((rendition) => rendition.position === 0);
-      if (
-        !primary ||
-        jevInputSha256(
-          buildJevDecisionRequest(
-            release,
-            selectedOperation.topics,
-            primary.body.slice(0, JEV_MAX_TEXT_LENGTH),
-            snapshot.languages,
-          ),
-        ) !== parsed.data.inputSha256
-      )
-        return null;
-    }
     const [claim] = await tx
       .insert(postEvaluations)
       .values({
-        ...(selectedOperation ? { id: selectedOperation.selection.idempotencyKey } : {}),
         postId,
         fingerprint,
-        model: release.model,
-        receiptAuthority: authority,
-        requestDeadlineAt,
-        policyRef: release.policyRef,
-        policyVersion: release.policyVersion,
         evaluationVersion: release.evaluationVersion,
+        requestDeadlineAt: abstention ? null : requestDeadlineAt,
         state: abstention ? 'abstained' : 'claimed',
         abstention,
         finishedAt: abstention ? new Date() : null,
@@ -295,20 +287,11 @@ export async function completePostEvaluation(
     throw new Error('Shadow result languages differ from the claimed evidence');
   }
   return getDb().transaction(async (tx) => {
-    const [identity] = await tx
-      .select({
-        policyRef: postEvaluations.policyRef,
-        policyVersion: postEvaluations.policyVersion,
-      })
+    const [claimed] = await tx
+      .select({ id: postEvaluations.id })
       .from(postEvaluations)
       .where(eq(postEvaluations.id, claim.id));
-    if (!identity) return false; // Deleted claims cannot resurrect results.
-    if (
-      identity.policyRef !== signals.sdkReceipt.routingPolicy.routingPolicyId ||
-      identity.policyVersion !== signals.sdkReceipt.routingPolicy.policyVersion
-    ) {
-      throw new Error('Shadow SDK policy receipt differs from the claim');
-    }
+    if (!claimed) return false; // Deleted claims cannot resurrect results.
     const current = await loadSnapshot(tx, claim.snapshot.postId);
     const same = current && shadowFingerprint(current) === claim.fingerprint;
     if (!same) {
@@ -325,6 +308,9 @@ export async function completePostEvaluation(
       .set({
         state: 'completed',
         finishedAt: new Date(),
+        resolvedModel: signals.resolvedModel,
+        policyRef: signals.sdkReceipt.routingPolicy.routingPolicyId,
+        policyVersion: signals.sdkReceipt.routingPolicy.policyVersion,
         followState,
         languages: signals.languages,
         spam: signals.spam,
@@ -364,36 +350,30 @@ export async function markPostEvaluationUncertain(claim: ShadowClaim): Promise<v
 }
 
 /**
- * Only for a claim whose id was never handed to an evaluator: nothing can have
- * been spent, so the revision may be claimed again later under a new id. Any
- * call that may have started is `cost_uncertain` instead, never released.
+ * Only for a claim nothing was spent on: its id never reached Kaana, or Kaana
+ * refused it before anything ran. The revision may be claimed again later
+ * under a new id. A call that may have run is `cost_uncertain`, never released.
  */
 export async function releaseUnsentPostEvaluation(claim: ShadowClaim): Promise<void> {
   await getDb()
     .delete(postEvaluations)
     .where(and(eq(postEvaluations.id, claim.id), eq(postEvaluations.state, 'claimed')));
-  logger.info('[PostClassification] Shadow claim released before any evaluator call', {
+  logger.info('[PostClassification] Shadow claim released; nothing was spent', {
     evaluationId: claim.id,
   });
 }
 
 /** A caller deadline does not wait indefinitely for a credential/transport promise. */
-async function readUsageBounded(
-  reader: ShadowReceiptReader,
-  id: string,
-  model: string,
-  signal?: AbortSignal,
-  lineage?: ShadowRecoveryLineage,
-) {
+async function readUsageBounded(reader: ShadowReceiptReader, id: string, signal?: AbortSignal) {
   signal?.throwIfAborted();
-  if (!signal) return reader.readOriginal(id, model, undefined, lineage);
+  if (!signal) return reader.readOriginal(id);
   let aborted: (() => void) | undefined;
   const deadline = new Promise<never>((_resolve, reject) => {
     aborted = () => reject(signal.reason);
     signal.addEventListener('abort', aborted, { once: true });
   });
   try {
-    return await Promise.race([reader.readOriginal(id, model, signal, lineage), deadline]);
+    return await Promise.race([reader.readOriginal(id, signal), deadline]);
   } finally {
     if (aborted) signal.removeEventListener('abort', aborted);
   }
@@ -408,7 +388,11 @@ function recoverableUsage(row: typeof postEvaluations.$inferSelect): boolean {
   );
 }
 
-/** Recover only accounting evidence; never run an evaluator or revive an answer. */
+/**
+ * Recover only accounting evidence, by the claim id the request was sent under
+ * (its Idempotency-Key); never run an evaluator or revive an answer. Kaana
+ * answers only with the caller's own records.
+ */
 export async function reconcilePostEvaluationUsage(
   id: string,
   reader: ShadowReceiptReader,
@@ -425,40 +409,11 @@ export async function reconcilePostEvaluationUsage(
     .from(postEvaluations)
     .where(eq(postEvaluations.id, id));
   context.check();
-  if (
-    !original ||
-    !recoverableUsage(original) ||
-    !original.receiptAuthority ||
-    !sameReceiptAuthority(original.receiptAuthority, reader.authority)
-  )
-    return false;
+  if (!original || !recoverableUsage(original)) return false;
   if (original.usageReconciliation) return true;
-  const parsedAuthority = shadowReceiptAuthoritySchema.safeParse(original.receiptAuthority);
-  if (!parsedAuthority.success) return false;
-  const originalAuthority = parsedAuthority.data;
-  const lineage = originalAuthority.recovery;
-  if (reader.recoveryOwnerAccountId && lineage?.ownerAccountId !== reader.recoveryOwnerAccountId)
-    return false;
-  if (
-    lineage &&
-    (!shadowRecoveryLineageSchema.safeParse(lineage).success ||
-      lineage.idempotencyKey !== original.id ||
-      lineage.fingerprint !== original.fingerprint ||
-      lineage.model !== original.model ||
-      lineage.policyRef !== original.policyRef ||
-      lineage.policyVersion !== original.policyVersion ||
-      lineage.evaluationVersion !== original.evaluationVersion)
-  )
-    return false;
   const evidence = shadowUsageReconciliationSchema.parse(
-    await readUsageBounded(reader, id, original.model, signal, lineage),
+    await readUsageBounded(reader, id, signal),
   );
-  if (
-    !sameReceiptAuthority(original.receiptAuthority, evidence.authority) ||
-    evidence.model !== original.model
-  ) {
-    throw new Error('Recovered usage differs from the persisted claim');
-  }
   context.check();
   return context.db.transaction(async (tx) => {
     context.check();
@@ -471,14 +426,8 @@ export async function reconcilePostEvaluationUsage(
     if (
       !current ||
       !recoverableUsage(current) ||
-      !current.receiptAuthority ||
-      !sameReceiptAuthority(current.receiptAuthority, originalAuthority) ||
-      !isDeepStrictEqual(current.receiptAuthority, originalAuthority) ||
-      current.policyRef !== original.policyRef ||
-      current.policyVersion !== original.policyVersion ||
       current.evaluationVersion !== original.evaluationVersion ||
-      current.fingerprint !== original.fingerprint ||
-      current.model !== original.model
+      current.fingerprint !== original.fingerprint
     )
       return false;
     if (current.usageReconciliation) {
@@ -502,16 +451,18 @@ export async function reconcilePostEvaluationUsage(
   });
 }
 
+/** How long an unresolved claim keeps being looked up before it is left alone. */
+const RECONCILIATION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
 /** Bounded maintenance read within the existing classifier cycle. */
 export async function listUnreconciledPostEvaluations(
-  release: ShadowRelease,
-  authority: ShadowReceiptAuthority,
+  evaluationVersion: string,
   afterId?: string,
   context?: ShadowReceiptDatabase,
 ): Promise<string[]> {
   if (!context)
     return withShadowReceiptDatabase(Date.now() + config.inference.timeoutMs, undefined, (scoped) =>
-      listUnreconciledPostEvaluations(release, authority, afterId, scoped),
+      listUnreconciledPostEvaluations(evaluationVersion, afterId, scoped),
     );
   context.check();
   const rows = await context.db
@@ -527,53 +478,13 @@ export async function listUnreconciledPostEvaluations(
           ),
         ),
         isNull(postEvaluations.usageReconciliation),
+        eq(postEvaluations.evaluationVersion, evaluationVersion),
+        gte(postEvaluations.createdAt, new Date(Date.now() - RECONCILIATION_WINDOW_MS)),
         afterId === undefined ? undefined : gt(postEvaluations.id, afterId),
-        eq(postEvaluations.receiptAuthority, shadowReceiptAuthoritySchema.parse(authority)),
-        eq(postEvaluations.model, release.model),
-        eq(postEvaluations.policyRef, release.policyRef),
-        eq(postEvaluations.policyVersion, release.policyVersion),
-        eq(postEvaluations.evaluationVersion, release.evaluationVersion),
       ),
     )
     .orderBy(asc(postEvaluations.id))
     .limit(25);
   context.check();
-  return rows.map((row) => row.id);
-}
-
-/** Restart recovery only for new own records with complete durable lineage; never reads posts. */
-export async function listDurableUnreconciledPostEvaluations(
-  authority: ShadowReceiptAuthority,
-  ownerAccountId: string,
-  afterId: string | undefined,
-  context: ShadowReceiptDatabase,
-): Promise<string[]> {
-  context.check();
-  const rows = await context.db
-    .select()
-    .from(postEvaluations)
-    .where(
-      and(
-        or(
-          inArray(postEvaluations.state, ['cost_uncertain', 'cancelled']),
-          and(
-            eq(postEvaluations.state, 'claimed'),
-            lte(postEvaluations.requestDeadlineAt, new Date()),
-          ),
-        ),
-        isNull(postEvaluations.usageReconciliation),
-        afterId === undefined ? undefined : gt(postEvaluations.id, afterId),
-        sql`${postEvaluations.receiptAuthority}->>'applicationId' = ${authority.applicationId}`,
-        sql`${postEvaluations.receiptAuthority}->>'credentialId' = ${authority.credentialId}`,
-        sql`${postEvaluations.receiptAuthority}->>'environment' = ${authority.environment}`,
-        sql`${postEvaluations.receiptAuthority}->>'delegatedUserId' is null`,
-        sql`${postEvaluations.receiptAuthority}->'recovery'->>'ownerAccountId' = ${ownerAccountId}`,
-      ),
-    )
-    .orderBy(asc(postEvaluations.id))
-    .limit(25);
-  context.check();
-  // Advance the maintenance cursor even over malformed own rows. Reconciliation
-  // validates each complete lineage before GET; one bad row cannot starve later work.
   return rows.map((row) => row.id);
 }

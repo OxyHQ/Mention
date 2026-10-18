@@ -57,9 +57,6 @@ let id = '';
 const oldText = 'Synthetic English science news.';
 const newText = 'Les nouvelles scientifiques françaises.';
 const release = {
-  model: 'synthetic/jev@fixture-v1',
-  policyRef: 'fixture-policy',
-  policyVersion: 1,
   evaluationVersion: 'atomic-edit-v1',
   supportedLanguages: ['en', 'fr'],
 };
@@ -144,7 +141,7 @@ afterEach(() => clearServiceScope(scope));
 describe('native author edit is one content revision', () => {
   it('does not admit new languages with the previous body while an edit waits for the content lock', async () => {
     const unlock = await holdContent();
-    const claim = claimPostEvaluation(id, release);
+    const claim = claimPostEvaluation(id, release, new Date(Date.now() + 60_000));
     let updating: Promise<number> | undefined;
     try {
       await waiters(1);
