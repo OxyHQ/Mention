@@ -10,6 +10,12 @@ import { config } from '../config';
 import { logger } from '../utils/logger';
 import { inferenceChat } from '../utils/inference';
 import { resolveVariant, translationSourceFingerprint } from './postVariants';
+import {
+  finalizeTranslation,
+  protectEntities,
+  SENTINEL_PROMPT_RULE,
+  TranslationOutputError,
+} from './translationOutputGuard';
 
 /**
  * Machine translation of a post — the SAME array as the author's own language
@@ -61,13 +67,15 @@ const ARTICLE_EXCERPT_KEY = 'article.excerpt';
 const TRANSLATION_SYSTEM_PROMPT =
   'You are a strict translation engine. You receive text wrapped in <text> tags. ' +
   'Output ONLY the translation — no explanations, no commentary, no extra text. ' +
-  'Preserve all formatting, mentions, hashtags, and line breaks exactly.';
+  'Do not repeat the <text> tags. Preserve all formatting and line breaks exactly. ' +
+  SENTINEL_PROMPT_RULE;
 
 const KEYED_TRANSLATION_SYSTEM_PROMPT =
   'You are a strict translation engine. You receive a JSON object whose values are strings to translate. ' +
   'Output ONLY a JSON object with the SAME keys and the translated values. ' +
   'No explanations, no commentary, no markdown fences. ' +
-  'Preserve all formatting, mentions, hashtags, and line breaks exactly.';
+  'Preserve all formatting and line breaks exactly. ' +
+  SENTINEL_PROMPT_RULE;
 
 /** A translation request that is the CALLER's fault (unknown language, empty body). */
 export class TranslationRequestError extends Error {
@@ -386,13 +394,18 @@ export class PostTranslationService {
     return { tag, languageName };
   }
 
-  /** Translate the post body — the hot path, one plain-text completion. */
+  /**
+   * Translate the post body — the hot path, one plain-text completion. The
+   * answer passes {@link finalizeTranslation} or the request fails with a
+   * {@link TranslationOutputError} and nothing is cached.
+   */
   private async translateBody(
     text: string,
     languageName: string,
     delegatedUserId?: string,
   ): Promise<string> {
-    const source = text.slice(0, MAX_TEXT_LENGTH);
+    const protectedSource = protectEntities(text.slice(0, MAX_TEXT_LENGTH));
+    const source = protectedSource.text;
     const translated = await inferenceChat(
       [
         { role: 'system', content: TRANSLATION_SYSTEM_PROMPT },
@@ -409,11 +422,17 @@ export class PostTranslationService {
       },
     );
 
-    const trimmed = translated.trim();
-    if (!trimmed) {
-      throw new Error('Translation returned empty result');
+    try {
+      return finalizeTranslation(translated, protectedSource);
+    } catch (error) {
+      if (error instanceof TranslationOutputError) {
+        logger.warn('PostTranslationService: body translation rejected', {
+          reason: error.reason,
+          protectedTokens: protectedSource.tokens.length,
+        });
+      }
+      throw error;
     }
-    return trimmed;
   }
 
   /**
@@ -480,7 +499,12 @@ export class PostTranslationService {
     languageName: string,
     delegatedUserId?: string,
   ): Promise<Record<string, string> | null> {
-    const payload = JSON.stringify(fields);
+    const protectedFields = Object.fromEntries(
+      Object.entries(fields).map(([key, value]) => [key, protectEntities(value)]),
+    );
+    const payload = JSON.stringify(
+      Object.fromEntries(Object.entries(protectedFields).map(([key, value]) => [key, value.text])),
+    );
     let answer: string;
     try {
       answer = await inferenceChat(
@@ -500,7 +524,26 @@ export class PostTranslationService {
       return null;
     }
 
-    return parseKeyedTranslation(answer, fields);
+    const parsed = parseKeyedTranslation(answer, fields);
+    if (!parsed) return null;
+
+    // Each value passes the same guard as the body. A rejected field is dropped
+    // (the variant is stored without it) rather than failing the body.
+    const result: Record<string, string> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      const source = protectedFields[key];
+      if (!source) continue;
+      try {
+        result[key] = finalizeTranslation(value, source);
+      } catch (error) {
+        if (!(error instanceof TranslationOutputError)) throw error;
+        logger.warn('PostTranslationService: keyed translation field rejected', {
+          reason: error.reason,
+          protectedTokens: source.tokens.length,
+        });
+      }
+    }
+    return Object.keys(result).length > 0 ? result : null;
   }
 }
 

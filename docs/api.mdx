@@ -154,6 +154,17 @@ If the author edits the post while it is being translated, the stale result is
 dropped and the new source is translated once. A second edit during that retry
 returns `409 { code: 'TRANSLATION_SOURCE_CHANGED' }`, and nothing is cached.
 
+Model output is checked before it is stored or returned, for both endpoints
+(`packages/backend/src/services/translationOutputGuard.ts`). Before the text is sent, every entity
+the post renderer links (`scanTextEntities`: `[mention:<id>]` placeholders,
+`[@Label](target)` mentions, `@handle` and `@user@domain`, `#hashtags`,
+`$CASHTAGS`, URLs) is replaced with an opaque `⟦n⟧` token. The answer has one
+echoed `<text>` wrapper or code fence removed, and then it must contain every
+token exactly once and unchanged. If it does not, or if it is empty, the request
+returns `502 { code: 'TRANSLATION_OUTPUT_INVALID' }` and nothing is cached. When
+an ALT or article field fails the same check, that field is left out of the
+stored variant.
+
 `PUT /posts/:id` drops every machine variant, along with its localized ALT
 rows, when an edit changes what the variants were translated from: the primary
 body, the ALT text of the media it shows, or the article.

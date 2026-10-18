@@ -2,6 +2,7 @@ import { revalidateAnonymousFeed, type AnonymousFeedSnapshot } from './revalidat
 import { createHash } from 'node:crypto';
 import type { FeedResponse, SlicedFeedResponse } from '@mention/shared-types';
 import { createCache } from '../utils/cache';
+import type { RequestLanguages } from '../utils/viewerLanguage';
 
 /**
  * Redis cache for the ANONYMOUS main-feed page.
@@ -131,7 +132,10 @@ class AnonFeedCache {
    * any Redis failure. A failed authorization rejects: no cached page is served
    * without current decisions.
    */
-  async read(key: string, requestLanguages?: string[]): Promise<CacheableFeedResponse | null> {
+  async read(
+    key: string,
+    requestLanguages?: RequestLanguages,
+  ): Promise<CacheableFeedResponse | null> {
     const cached = await cache.get<AnonFeedEntry>(key);
     return cached?.page ? revalidateAnonymousFeed(cached, requestLanguages) : null;
   }

@@ -25,7 +25,7 @@ import {
 import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { safetyRequesterFor } from '../utils/safetyRequester';
 import { logger } from '../utils/logger';
-import { requestLanguageCandidates } from '../utils/viewerLanguage';
+import { requestLanguageCandidates, requestLanguageList } from '../utils/viewerLanguage';
 
 /**
  * `/api/community-notes` — the viewer's side of community notes.
@@ -192,7 +192,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       viewerId,
       postId,
       postAuthorId: subject.authorPrincipalId,
-      language: language ?? requestLanguageCandidates(req)[0] ?? 'en',
+      language: language ?? requestLanguageList(requestLanguageCandidates(req))[0] ?? 'en',
       text,
       sourceUrls,
     });
@@ -253,7 +253,7 @@ router.post('/to-rate', async (req: AuthRequest, res: Response) => {
   try {
     const drawn = await drawCommunityNotesToRate(
       viewerId,
-      requestLanguageCandidates(req),
+      requestLanguageList(requestLanguageCandidates(req)),
       assignmentWindowKey(viewerId, new Date()),
     );
     const entries = await withSubjectPosts(

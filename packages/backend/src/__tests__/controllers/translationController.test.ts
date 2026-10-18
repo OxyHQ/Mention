@@ -51,7 +51,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
 }));
 
 vi.mock('../../utils/viewerLanguage', () => ({
-  requestLanguageCandidates: vi.fn(() => ['es-ES']),
+  requestLanguageCandidates: vi.fn(() => ({ accepted: ['es-ES'] })),
 }));
 
 vi.mock('../../utils/logger', () => ({
