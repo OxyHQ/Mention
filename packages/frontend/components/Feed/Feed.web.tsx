@@ -99,17 +99,9 @@ function EmbeddedWebFeed(props: FeedProps) {
  */
 
 function VirtualizedWebFeed(props: FeedProps) {
-  // DECLARED, not inherited. The long note at `getVirtualItems()` below explains
-  // why this component must not be memoized; until now the only thing enforcing
-  // that was two incidental ref-`.current` reads during render, i.e. the
-  // compiler refusing the function for an unrelated reason. That is a guarantee
-  // nobody can see from the render path, and any tidy-up of those reads — the
-  // kind of change that looks purely cosmetic — silently reintroduces a
-  // production-only frozen feed on the most-used screen in the app.
-  //
-  // `ProfileGridList.web.tsx` and `SavedPostsList.web.tsx` already state it this
-  // way. The ref reads stay exactly as they are; this only makes the intent
-  // load-bearing instead of accidental.
+  // TanStack mutates a stable instance and schedules renders internally.
+  // Its live geometry must be read on every render, including owner changes.
+  // See docs/frontend-compiler-notes.md for the production compiler contract.
   'use no memo';
   const panel = usePanelScrollContainer<HTMLElement>();
   const screenViewport = useScreenViewport();
@@ -158,28 +150,7 @@ function VirtualizedWebFeed(props: FeedProps) {
     getItemKey: (index) => feedRowKey(feedRows[index]),
   });
 
-  // THE REACT COMPILER MUST NOT MEMOIZE THIS COMPONENT — and today it doesn't,
-  // by accident. `virtualizer` has a STABLE identity for this component's
-  // lifetime and forces re-renders through a reducer INTERNAL to
-  // `useWindowVirtualizer`, so a scroll changes nothing this function can see.
-  // If the compiler memoizes the render, both reads below and the row JSX get
-  // cached on deps that never change and the feed freezes on its first window
-  // — no error, virtualizer healthy, DOM stuck. What prevents that is two
-  // ref-`.current` reads during render, each of which makes the compiler
-  // refuse this whole function (verified: it emits no memo cache at all):
-  //   1. `loadMoreRef.current = handleLoadMore` below
-  //   2. `getPostRowRef`/`getMeasureRef` read their caches inside the row map
-  // Removing BOTH makes this compile to a 64-slot cache and reintroduces the
-  // freeze. Judge that by the compiler's own CompileError/CompileSuccess
-  // events, not by grepping the output for a cache call — this comment would
-  // match such a grep.
-  // This is not hypothetical: `ProfileGridList.web.tsx` has the same shape,
-  // compiles, and shipped frozen — it now carries an explicit `'use no memo'`.
-  // Do not reason about which of these is "safe" structurally; the compiler's
-  // grouping is per-file and a captured ref does NOT reliably prevent it
-  // (measured both ways). If you change this render path, re-verify by
-  // compiling this file with the app's own babel-plugin-react-compiler and
-  // confirming `getVirtualItems()` is still called unguarded.
+  // These reads must remain live under the explicit compiler opt-out above.
   const virtualItems = virtualizer.getVirtualItems();
   const totalSize = virtualizer.getTotalSize();
 
@@ -262,6 +233,11 @@ function VirtualizedWebFeed(props: FeedProps) {
       { root: panel?.current ?? null, threshold: [0, IMPRESSION_VISIBILITY_THRESHOLD, 1] },
     );
     impressionObserverRef.current = observer;
+    // Row refs run before effects. On an owner change, attach already mounted
+    // posts to the replacement observer as well as observing future row mounts.
+    wrapperRef.current?.querySelectorAll(`[${POST_URI_ATTR}]`).forEach((node) => {
+      observer.observe(node);
+    });
     return () => {
       observer.disconnect();
       impressionObserverRef.current = null;
@@ -269,39 +245,22 @@ function VirtualizedWebFeed(props: FeedProps) {
     // trackerRef is a stable ref object; the observer reads `.current` live.
   }, [trackerRef, panel]);
 
-  // Per-row ref factories. Both return a STABLE callback (cached per row) —
-  // stability matters, because a fresh inline arrow each render would make React
-  // detach/re-attach every ref on every render, re-measuring rows and thrashing
-  // observation. The cached callback is reused across renders for the same row,
-  // so the ref only fires on real mount/unmount. `measureElement` is stable for
-  // the lifetime of this virtualizer.
-  //
-  // A recommendation card gets MEASUREMENT ONLY: it must never carry a
-  // `data-post-uri`, never enter the impression observer, and therefore never
-  // send a bogus `postUri` to `POST /feed/mtn/interactions`.
+  // TanStack's measurement ref is already stable per virtualizer. Recommendation
+  // cards use it directly: they must never carry a post URI or enter impression
+  // tracking. Post rows additionally bind their post identity and observation.
   const measureElement = virtualizer.measureElement;
-
-  const measureRefCallbacks = useRef(new Map<string, (node: HTMLDivElement | null) => void>());
-  const getMeasureRef = useCallback(
-    (rowKey: string) => {
-      const cache = measureRefCallbacks.current;
-      const existing = cache.get(rowKey);
-      if (existing) return existing;
-      if (cache.size > ROW_REF_CACHE_LIMIT) cache.clear();
-      // Virtualizer measurement only (reads data-index → getBoundingClientRect).
-      const cb = (node: HTMLDivElement | null) => measureElement(node);
-      cache.set(rowKey, cb);
-      return cb;
-    },
-    [measureElement],
-  );
 
   // Post rows: measurement + impression observation on the SAME node, so
   // impression ratios reflect the real row geometry.
-  const postRowRefCallbacks = useRef(new Map<string, (node: HTMLDivElement | null) => void>());
+  // A retained panel can change between document and panel owners while hidden.
+  // Refs must reattach to the new virtualizer, even when the row key is unchanged.
+  const postRowRefCallbacks = useMemo(
+    () => new Map<string, (node: HTMLDivElement | null) => void>(),
+    [measureElement],
+  );
   const getPostRowRef = useCallback(
     (postUri: string) => {
-      const cache = postRowRefCallbacks.current;
+      const cache = postRowRefCallbacks;
       const existing = cache.get(postUri);
       if (existing) return existing;
       if (cache.size > ROW_REF_CACHE_LIMIT) cache.clear();
@@ -321,7 +280,7 @@ function VirtualizedWebFeed(props: FeedProps) {
       cache.set(postUri, cb);
       return cb;
     },
-    [measureElement],
+    [measureElement, postRowRefCallbacks],
   );
 
   // The route alone is not enough: Explore/profile tabs can host distinct
@@ -371,11 +330,7 @@ function VirtualizedWebFeed(props: FeedProps) {
                 return (
                   <div
                     key={virtualRow.key as React.Key}
-                    ref={
-                      row.kind === 'post'
-                        ? getPostRowRef(getItemKey(row.item))
-                        : getMeasureRef(feedRowKey(row))
-                    }
+                    ref={row.kind === 'post' ? getPostRowRef(getItemKey(row.item)) : measureElement}
                     data-index={virtualRow.index}
                     style={{
                       position: 'absolute',
