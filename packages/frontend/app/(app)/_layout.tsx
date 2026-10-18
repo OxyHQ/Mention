@@ -41,6 +41,7 @@ export default function AppLayout() {
   useDeckSync();
   const sidebar = useMentionSidebar();
   const activeDeckPanel = useDeckSettings((state) => state.activePanel);
+  const deckRevealPanel = useDeckSettings((state) => state.revealPanel);
   const deckViewer = useDeckSettings((state) => state.viewer);
   const deckRestorationEpoch = useDeckSettings((state) => state.restorationEpoch);
   const deckOrder = useDeckSettings((state) => state.order);
@@ -142,6 +143,7 @@ export default function AppLayout() {
           reserveBottomBarSpace={pathname !== '/camera'}
           panelLayout={{
             mode: onDeckRoute ? 'deck' : 'split',
+            revealPanel: onDeckRoute ? deckRevealPanel : undefined,
             trailingAction: onDeckRoute ? <DeckAddPanel /> : undefined,
             widths: Object.fromEntries(
               Object.entries(deckPanels).map(([id, panel]) => [id, panel.width]),

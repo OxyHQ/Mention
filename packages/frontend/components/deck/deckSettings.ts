@@ -1,7 +1,7 @@
 import { deckEqual } from './deckPersistence';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { PanelNavigationState } from '@oxy.so/bloom/app-shell';
+import type { PanelNavigationState, PanelRevealRequest } from '@oxy.so/bloom/app-shell';
 import type { AppColorName } from '@oxy.so/bloom/theme';
 import {
   DECK_SOURCES,
@@ -70,6 +70,8 @@ interface DeckSettingsState extends DeckSnapshot {
   records: Record<string, DeckCache>;
   status: DeckSyncStatus;
   restorationEpoch: number;
+  /** Explicit local actions only; never part of DeckSnapshot or persisted records. */
+  revealPanel?: PanelRevealRequest;
   restoreScope(): void;
   activate(viewer: string): void;
   receive(viewer: string, cache: DeckCache): void;
@@ -124,6 +126,7 @@ export const useDeckSettings = create<DeckSettingsState>()(
               ...cache.state,
               homeScreen: cache.state.homeScreen,
               viewer,
+              revealPanel: undefined,
               status: viewer === 'anonymous' ? 'local' : 'loading',
               records: { ...store.records, [viewer]: cache },
             };
@@ -168,6 +171,11 @@ export const useDeckSettings = create<DeckSettingsState>()(
                     [id]: { source, width: 390, resizable: true, appearance: 'solid' },
                   },
                 },
+          );
+          set((store) =>
+            store.panels[id]
+              ? { revealPanel: { id, requestKey: globalThis.crypto.randomUUID() } }
+              : store,
           );
           return id;
         },

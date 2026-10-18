@@ -308,3 +308,14 @@ it('keeps a new home preference local while sync is disabled', async () => {
   expect(save).not.toHaveBeenCalled();
   sync.stop();
 });
+it('reveals an explicitly added panel without persisting the command or replaying it on account activation', () => {
+  const id = useDeckSettings.getState().addPanel('saved');
+  const store = useDeckSettings.getState();
+  expect(store.revealPanel?.id).toBe(id);
+  expect(store.records['user:a'].state).not.toHaveProperty('revealPanel');
+  store.activate('user:b');
+  expect(useDeckSettings.getState().revealPanel).toBeUndefined();
+  useDeckSettings.getState().activate('user:a');
+  expect(useDeckSettings.getState().activePanel).toBe(id);
+  expect(useDeckSettings.getState().revealPanel).toBeUndefined();
+});

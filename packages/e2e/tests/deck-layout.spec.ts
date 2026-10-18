@@ -389,3 +389,72 @@ test('a slow topic read shows its skeleton and revisiting uses cached posts imme
     ),
   ).toEqual([]);
 });
+
+test('Deck home preference survives reload and can be disabled in settings', async ({
+  page,
+  candidate,
+}) => {
+  await page.goto('/settings/deck');
+  const home = page.getByRole('switch', { name: 'Make Deck my home screen', exact: true });
+  await expect(home).toHaveAttribute('aria-checked', 'false');
+  await home.click();
+  await expect(home).toHaveAttribute('aria-checked', 'true');
+  await page.goto('/');
+  await expect(page).toHaveURL(/\/deck$/);
+  await expect(page.getByTestId('mention-shell-panels-deck-0')).toBeVisible();
+  await page.reload();
+  await expect(page).toHaveURL(/\/deck$/);
+  await expect(page.getByTestId('mention-shell-panels-deck-0')).toBeVisible();
+  await page.goto('/settings/deck');
+  await expect(home).toHaveAttribute('aria-checked', 'true');
+  await home.click();
+  await page.goto('/');
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByTestId('mention-shell-panels-deck-0')).toBeHidden();
+  expect(
+    candidate.scriptErrors.filter(
+      (error) => !/Failed to load animation data from URL: .*AbortError/.test(error),
+    ),
+  ).toEqual([]);
+});
+
+test('restoring the last active panel does not scroll the Deck document to the end', async ({
+  page,
+  candidate,
+}) => {
+  await page.addInitScript(() => {
+    const sources = ['explore', 'trending', 'following', 'saved'];
+    const state = {
+      syncEnabled: false,
+      homeScreen: true,
+      activePanel: 'deck-3',
+      order: sources.map((_, index) => `deck-${index}`),
+      panels: Object.fromEntries(
+        sources.map((source, index) => [
+          `deck-${index}`,
+          { source, width: 390, resizable: true, appearance: 'solid' },
+        ]),
+      ),
+    };
+    localStorage.setItem(
+      'mention:deck:workspace',
+      JSON.stringify({
+        version: 1,
+        state: { records: { anonymous: { state, base: null, revision: 0, dirty: false } } },
+      }),
+    );
+  });
+  await page.goto('/');
+  await expect(page).toHaveURL(/\/deck$/);
+  const first = page.getByTestId('mention-shell-panels-deck-0');
+  await expect(first.getByRole('heading', { name: 'Explore', exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.scrollX)).toBe(0);
+  await page.reload();
+  await expect(first.getByRole('heading', { name: 'Explore', exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.scrollX)).toBe(0);
+  expect(
+    candidate.scriptErrors.filter(
+      (error) => !/Failed to load animation data from URL: .*AbortError/.test(error),
+    ),
+  ).toEqual([]);
+});

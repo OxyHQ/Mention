@@ -13,7 +13,11 @@ The application keeps one AppShell and changes its declarative `panelLayout`.
 Normal screens use document flow; Deck uses bounded columns with horizontal
 scroll on the document and independent vertical scroll in each column. Vertical
 and trailing gutters, sidebar overlap material, resize constraints and transitions
-belong to Bloom. Do not reimplement these with window measurements or nested
+belong to Bloom. Restored `activePanel` is passive: loading Deck does not scroll
+horizontally to the last selected column. Adding a column issues Bloom's transient
+`revealPanel` request so the new column comes into view. This request is excluded
+from local/account workspace snapshots and cleared on account activation.
+Do not reimplement these with window measurements or nested
 application scroll containers.
 
 Each route renders `Screen scroll="auto"`, with its `PageHeader` in `header` and
