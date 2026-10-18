@@ -11,6 +11,7 @@ import { hydratePostMedia } from './hydratePostMedia';
 import { postRevision, type HydrationRevisions } from './hydrationRevisions';
 import { postHydrationService } from './PostHydrationService';
 import { logger } from '../utils/logger';
+import type { RequestLanguages } from '../utils/viewerLanguage';
 
 /** A cached anonymous page and what it was hydrated from. */
 export interface AnonymousFeedSnapshot<T extends FeedResponse | SlicedFeedResponse>
@@ -39,7 +40,7 @@ const ANONYMOUS = { accessToken: null } as const;
  */
 export async function revalidateAnonymousFeed<T extends FeedResponse | SlicedFeedResponse>(
   snapshot: AnonymousFeedSnapshot<T>,
-  requestLanguages?: string[],
+  requestLanguages?: RequestLanguages,
 ): Promise<T> {
   const { page } = snapshot;
   const topLevel = topLevelPosts(page);
@@ -115,7 +116,7 @@ function renderedSummaries(posts: readonly HydratedPost[]): HydratedPostSummary[
 async function rehydrate<T extends FeedResponse | SlicedFeedResponse>(
   response: T,
   records: readonly PostRecord[],
-  requestLanguages?: string[],
+  requestLanguages?: RequestLanguages,
 ): Promise<T> {
   const fresh = await postHydrationService.hydratePosts([...records], {
     safetyRequester: ANONYMOUS,

@@ -233,7 +233,7 @@ describe('machine translation cache', () => {
     const [dto] = await hydration.hydratePosts([await fresh(postId)], {
       safetyRequester: { accessToken: 'test-viewer-session' },
       viewerId: undefined,
-      requestLanguages: languages,
+      requestLanguages: { accepted: languages },
       oxyClient: {
         getUsersByIds,
         getClarityDocuments: vi.fn(async () => ({})),

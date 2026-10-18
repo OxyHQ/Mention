@@ -100,34 +100,25 @@ export function findOptionForLanguage(
 }
 
 /**
- * The option to offer a reader who understands SEVERAL languages, tried most
- * preferred first — a reader whose account lists `[en, es]` and who opens a
- * Spanish/English bilingual post is offered the Spanish rendition even though
- * English leads their list, because the first language of theirs the post
- * actually has wins over the order of their own preference.
- */
-export function findOptionForLanguages(
-  options: readonly PostLanguageOption[],
-  languages: readonly string[],
-): PostLanguageOption | null {
-  for (const language of languages) {
-    const found = findOptionForLanguage(options, language);
-    if (found) return found;
-  }
-  return null;
-}
-
-/**
  * The tag to translate this post into for a reader who asked for it (the
- * translate icon or the language picker): an existing rendition in one of their
- * languages when the post already has one, otherwise their single
- * most-preferred language, as a fresh translate target.
+ * translate icon): their PRIMARY language — the first entry of their list, the
+ * one they set as primary in their Oxy account.
+ *
+ * A rendition the post already carries is reused only when it is IN that
+ * language (base subtag, the author's own preferred over a machine's, see
+ * {@link findOptionForLanguage}). A rendition in one of their OTHER languages
+ * never wins: a Spanish-primary reader who also reads Catalan, tapping
+ * Translate on a post that happens to carry a cached Catalan translation, asked
+ * for Spanish. Whether a post needs translating at all reads the WHOLE list
+ * ({@link shouldOfferTranslation}); where an explicit translation lands reads
+ * only the primary.
  */
 export function resolveTranslateTarget(
   options: readonly PostLanguageOption[],
   readerLanguages: readonly string[],
 ): string | undefined {
-  return findOptionForLanguages(options, readerLanguages)?.tag ?? readerLanguages[0];
+  const primary = readerLanguages[0];
+  return findOptionForLanguage(options, primary)?.tag ?? primary;
 }
 
 /**
