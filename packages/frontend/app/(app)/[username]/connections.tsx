@@ -25,7 +25,8 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { Error as ErrorComponent } from '@/components/Error';
 import { ProfileUnavailable } from '@/components/Profile/ProfileUnavailable';
 import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
-import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
+import { resolveProfileColor } from '@oxy.so/bloom/color-presets';
+import { BloomColorScope } from '@oxy.so/bloom/theme';
 import { logger } from '@oxy.so/core/logger';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import type { ProfileData as RecommendedProfile } from '@/lib/recommendations';
@@ -139,23 +140,21 @@ function AuthorizedConnectionsScreen() {
     notFound: profileNotFound,
     refresh: refreshProfile,
   } = useProfileData(cleanUsername);
-  const { colorName: profileColorName } = useProfileScreenColor({
-    username: cleanUsername,
-    designColor: profileData?.design?.color,
-  });
 
   return (
-    <Screen colorPreset={profileColorName}>
-      <ConnectionsContent
-        routeUsername={username}
-        cleanUsername={cleanUsername}
-        profileData={profileData}
-        profileLoading={profileLoading}
-        profileError={profileError}
-        profileNotFound={profileNotFound}
-        refreshProfile={refreshProfile}
-      />
-    </Screen>
+    <BloomColorScope {...resolveProfileColor(profileData?.design.color)} asChild>
+      <Screen>
+        <ConnectionsContent
+          routeUsername={username}
+          cleanUsername={cleanUsername}
+          profileData={profileData}
+          profileLoading={profileLoading}
+          profileError={profileError}
+          profileNotFound={profileNotFound}
+          refreshProfile={refreshProfile}
+        />
+      </Screen>
+    </BloomColorScope>
   );
 }
 
