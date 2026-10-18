@@ -1734,19 +1734,24 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
    * description of that same image. The primary language's alt rides on the media
    * item itself; every other language's goes into `variant.alt[mediaId]`.
    */
-  const composeMediaFileIds = useMemo(
-    () => [
-      ...mediaIds.map((item) => item.id),
-      ...threadItems.flatMap((item) => item.mediaIds.map((media) => media.id)),
-      ...Object.values(variants.entries).flatMap((items) =>
-        Object.values(items).flatMap((item) =>
-          item.media.mode === 'override' ? item.media.media.map((media) => media.id) : [],
+  const composeMediaRequests = useMemo(
+    () =>
+      [
+        ...mediaIds,
+        ...threadItems.flatMap((item) => item.mediaIds),
+        ...Object.values(variants.entries).flatMap((items) =>
+          Object.values(items).flatMap((item) =>
+            item.media.mode === 'override' ? item.media.media : [],
+          ),
         ),
-      ),
-    ],
+      ].map((media) => ({
+        fileId: media.id,
+        // The carousel cards are 280pt wide: w640 covers a 2x display.
+        variant: media.type === 'image' ? 'w640' : undefined,
+      })),
     [mediaIds, threadItems, variants.entries],
   );
-  const getFileDownloadUrl = usePrivateMediaUrls(composeMediaFileIds);
+  const getFileDownloadUrl = usePrivateMediaUrls(composeMediaRequests);
 
   const openSharedAltTextSheet = useCallback(
     (itemId: string, mediaItem: ComposerMediaItem) => {
@@ -3880,9 +3885,11 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                     ? editingScheduledPost && !scheduledAt
                       ? t('compose.scheduled.publishNow', { defaultValue: 'Post now' })
                       : t('Save')
-                    : replyToPostId
-                      ? t('Reply')
-                      : t('Post')}
+                    : scheduledAt
+                      ? t('compose.schedule.apply', { defaultValue: 'Schedule' })
+                      : replyToPostId
+                        ? t('Reply')
+                        : t('Post')}
                 </Button>
               </View>
             </View>

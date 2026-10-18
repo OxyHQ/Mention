@@ -99,8 +99,19 @@ export const viewerQueryKeys = {
     ['mention', 'viewer', viewerCacheId(viewerId), 'minimal-profile', handle] as const,
   postAccess: (viewerId: ViewerId, postId: string) =>
     ['mention', 'viewer', viewerCacheId(viewerId), 'post-access', postId] as const,
-  composeMedia: (viewerId: ViewerId, privateReady: boolean, ids: readonly string[]) =>
-    ['mention', 'viewer', viewerCacheId(viewerId), 'compose-media', privateReady, ids] as const,
+  composeMedia: (
+    viewerId: ViewerId,
+    privateReady: boolean,
+    requests: readonly { fileId: string; variant?: string }[],
+  ) =>
+    [
+      'mention',
+      'viewer',
+      viewerCacheId(viewerId),
+      'compose-media',
+      privateReady,
+      requests,
+    ] as const,
 
   all: (viewerId: ViewerId) => ['viewer', viewerCacheId(viewerId)] as const,
   /**
