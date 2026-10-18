@@ -20,7 +20,7 @@ and `jevRequest.ts` beside it builds the request:
   `policy_version`). Analyse results per `resolved_model`;
 - the primary author rendition, cut to 1,000 characters. The fingerprint still
   covers the full author content;
-- English only (`supportedLanguages`); any other language abstains for free.
+- `supportedLanguages`: en, es, ca, pt, fr, de, it. Jev is most accurate in English, so split any analysis by `languages`; other languages abstain for free.
 
 `JEV_EVALUATION_VERSION` names the question set. Bump it whenever the questions,
 languages or instructions change: a revision is evaluated once per version.

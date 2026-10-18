@@ -9,7 +9,7 @@ import type { ShadowEvaluation, ShadowRelease } from './jevShadow';
  * Bump {@link JEV_EVALUATION_VERSION} when the questions, languages or
  * instructions change: a post is evaluated once per version and revision.
  */
-export const JEV_EVALUATION_VERSION = 'mention-jev-shadow/2026-10-18.1';
+export const JEV_EVALUATION_VERSION = 'mention-jev-shadow/2026-10-19.1';
 
 /**
  * Paid calls per UTC day, counted from today's claims. Below the 2000/day cap
@@ -18,10 +18,14 @@ export const JEV_EVALUATION_VERSION = 'mention-jev-shadow/2026-10-18.1';
  */
 export const JEV_SHADOW_DAILY_LIMIT = 1500;
 
-/** English only, as the one reviewed run was; other languages abstain for free. */
+/**
+ * The languages Mention's readers write most. TypeSafe trains Jev primarily on
+ * English and handles other languages less accurately, so shadow analysis must
+ * be split by `languages`; posts in any other language abstain for free.
+ */
 const JEV_RELEASE: ShadowRelease = Object.freeze({
   evaluationVersion: JEV_EVALUATION_VERSION,
-  supportedLanguages: Object.freeze(['en']),
+  supportedLanguages: Object.freeze(['en', 'es', 'ca', 'pt', 'fr', 'de', 'it']),
 });
 
 /** No topic propositions until a reviewed list exists (ranking use is a later step). */
