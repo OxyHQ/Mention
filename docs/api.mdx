@@ -314,5 +314,7 @@ the local snapshot with the current revision. Unauthenticated use stays local.
 The API rejects unknown fields, external navigation URLs, malformed Unicode,
 invalid dimensions/history/selection, over 24 panels, over 100 history entries or
 256 scroll offsets per panel, and bodies over 512 KiB. Account erasure removes the
-complete private document. Migration `0079_deck_workspaces` is additive and runs
-before deploying the image that serves these endpoints.
+complete private document. The channel-content deletion cascade also removes a
+workspace owned by that channel account; other accounts' workspaces remain intact
+even when their history references the channel. Migration `0079_deck_workspaces`
+is additive and runs before deploying the image that serves these endpoints.
