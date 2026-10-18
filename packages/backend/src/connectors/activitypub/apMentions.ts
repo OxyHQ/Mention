@@ -1,4 +1,5 @@
 import { MAX_MENTIONS_PER_POST, MAX_PROFILE_LINKS_PER_BODY } from '@mention/shared-types/mentions';
+import { scanTextEntities } from '@mention/shared-types/textEntities';
 import { logger } from '../../utils/logger';
 import { findActorByUri } from '../../db/federation/actorRepository';
 import {
@@ -515,6 +516,17 @@ export async function resolveInboundMentionsForNotes(
     );
   }
   return byNote;
+}
+
+/**
+ * True when a stored body keeps an unresolved mention as a link to its source
+ * profile (`[@@user@host](https://…)`) — the form a mention takes when its actor
+ * could not be resolved to an identity. Pure.
+ */
+export function hasSourceMentionLink(text: string): boolean {
+  return scanTextEntities(text, { kinds: ['mentionDisplay'] }).some((entity) =>
+    /^https?:\/\//i.test(entity.value),
+  );
 }
 
 /**

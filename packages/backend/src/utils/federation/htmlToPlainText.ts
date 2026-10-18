@@ -51,6 +51,18 @@ function isHCardWrapped(html: string, offset: number): boolean {
   return HCARD_OPEN_TAG_REGEX.test(html.slice(from, offset));
 }
 
+/** A mention anchor's href as an http(s) URL, or null when it is not one. */
+function mentionDestination(href: string | undefined): URL | null {
+  if (!href) return null;
+  try {
+    const url = new URL(decodeEntities(href));
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url : null;
+  } catch {
+    // A malformed destination cannot produce an actionable link.
+    return null;
+  }
+}
+
 /**
  * Collapse every anchor to the ONE of its two payloads that carries the meaning.
  *
@@ -86,18 +98,16 @@ function collapseAnchors(html: string, preserveMentionLinks: boolean): string {
         // human profile URL cannot be reconstructed from their username.
         const label = decodeEntities(visible);
         const href = ANCHOR_HREF_REGEX.exec(attrs)?.[1];
-        if (preserveMentionLinks && label.startsWith('@') && !/[[\]\r\n]/.test(label) && href) {
-          try {
-            const url = new URL(decodeEntities(href));
-            if (url.protocol === 'https:' || url.protocol === 'http:') {
-              const target = url.href.replace(/\(/g, '%28').replace(/\)/g, '%29');
-              return `[@${visible}](${target})`;
-            }
-          } catch {
-            // A malformed destination cannot produce an actionable link.
-          }
+        const url = mentionDestination(href);
+        // Mastodon writes a same-instance mention as the bare `@user`. Read here
+        // that is a LOCAL handle naming someone else, so it takes the host of the
+        // profile it links to: `@user@instance`.
+        const handle = url && /^@[^@\s]+$/.test(label) ? `${visible}@${url.hostname}` : visible;
+        if (preserveMentionLinks && label.startsWith('@') && !/[[\]\r\n]/.test(label) && url) {
+          const target = url.href.replace(/\(/g, '%28').replace(/\)/g, '%29');
+          return `[@${handle}](${target})`;
         }
-        return visible;
+        return handle;
       }
       const href = ANCHOR_HREF_REGEX.exec(attrs)?.[1]?.trim() ?? '';
       // No href (or an unparseable single-quoted one) → the visible text is all
