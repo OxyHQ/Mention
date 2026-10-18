@@ -36,7 +36,7 @@ import { backfillPostLanguages } from '../scripts/backfillPostLanguages';
 
 const scope = postScope('backfill-post-languages');
 
-/** Enough Spanish for `tinyld` to reach a verdict; a six-word body is not. */
+/** Enough Spanish for the language detector to reach a verdict; a six-word body is not. */
 const SPANISH = 'Hola, ¿cómo estás hoy amigo? Espero que tengas un día estupendo por allí.';
 const ENGLISH = 'This is a clearly English sentence written for language detection.';
 

@@ -14,16 +14,16 @@ import { deriveRegion } from '../../services/contentClassification/region';
 
 describe('BaselineContentClassifier', () => {
   describe('languages (multi-language — the single canonical language field)', () => {
-    it('keeps a declared language when short text cannot reliably contradict it', () => {
-      const result = baselineContentClassifier.classify({
+    it('keeps a declared language when short text cannot reliably contradict it', async () => {
+      const result = await baselineContentClassifier.classify({
         text: 'Hola',
         language: 'es',
       });
       expect(result.languages).toEqual(['es']);
     });
 
-    it('corrects a confidently wrong monolingual federation declaration', () => {
-      const result = baselineContentClassifier.classify({
+    it('corrects a confidently wrong monolingual federation declaration', async () => {
+      const result = await baselineContentClassifier.classify({
         text: 'diesem land hilft nur noch ein flächenbombardement',
         language: 'en',
         languages: ['en'],
@@ -32,36 +32,36 @@ describe('BaselineContentClassifier', () => {
       expect(result.languages).toEqual(['de']);
     });
 
-    it('normalizes a BCP-47 provided language to its primary subtag', () => {
-      const result = baselineContentClassifier.classify({
-        text: 'irrelevant text here',
+    it('normalizes a BCP-47 provided language to its primary subtag', async () => {
+      const result = await baselineContentClassifier.classify({
+        text: 'Obrigado!',
         language: 'pt-BR',
       });
       expect(result.languages).toEqual(['pt']);
     });
 
-    it('ignores an unusable provided language and falls back to detection', () => {
-      const result = baselineContentClassifier.classify({
+    it('ignores an unusable provided language and falls back to detection', async () => {
+      const result = await baselineContentClassifier.classify({
         text: 'This is a long enough English sentence to be detected reliably.',
         language: 'english', // not a 2-letter subtag
       });
       expect(result.languages).toEqual(['en']);
     });
 
-    it('records a single language for monolingual text (primary first)', () => {
-      const en = baselineContentClassifier.classify({
+    it('records a single language for monolingual text (primary first)', async () => {
+      const en = await baselineContentClassifier.classify({
         text: 'I love how much faster the feed feels now, this is genuinely great news for everyone.',
       });
       expect(en.languages).toEqual(['en']);
 
-      const es = baselineContentClassifier.classify({
+      const es = await baselineContentClassifier.classify({
         text: 'Me encanta lo rápido que va el feed ahora, son muy buenas noticias para toda la comunidad.',
       });
       expect(es.languages).toEqual(['es']);
     });
 
-    it('detects multiple languages in genuinely bilingual text', () => {
-      const result = baselineContentClassifier.classify({
+    it('detects multiple languages in genuinely bilingual text', async () => {
+      const result = await baselineContentClassifier.classify({
         text:
           'Hello everyone welcome to my channel today thanks for watching. ' +
           'Hola a todos bienvenidos a mi canal de hoy muchas gracias por ver',
@@ -72,43 +72,45 @@ describe('BaselineContentClassifier', () => {
       expect(result.languages.length).toBe(2);
     });
 
-    it('does not let the long noise tail leak extra languages into a monolingual post', () => {
-      // tinyld emits many low-score candidates for monolingual Spanish; only the
+    it('does not let the long noise tail leak extra languages into a monolingual post', async () => {
+      // the detector scores neighbouring languages for monolingual Spanish; only the
       // top candidate clears the secondary gates, so exactly one language remains.
-      const result = baselineContentClassifier.classify({
+      const result = await baselineContentClassifier.classify({
         text: 'El zorro marrón rápido salta sobre el perro perezoso cada mañana sin falta alguna.',
       });
       expect(result.languages).toEqual(['es']);
     });
 
-    it('does not let an unrelated multilingual declaration widen discovery', () => {
-      const result = baselineContentClassifier.classify({
-        // English-looking text, but the federating server declared es + en.
+    it('does not let an unrelated multilingual declaration widen discovery', async () => {
+      const result = await baselineContentClassifier.classify({
+        // English text, but the federating server declared es + en: only the
+        // language the body verifies is kept.
         text: 'This text is in English but the source declared two languages.',
         languages: ['es', 'en'],
       });
-      expect(result.languages).toEqual([]);
+      expect(result.languages).toEqual(['en']);
     });
 
-    it('merges the singular `language` (leading) with the declared `languages` list, deduped + normalized', () => {
-      const result = baselineContentClassifier.classify({
+    it('merges the singular `language` (leading) with the declared `languages` list, deduped + normalized', async () => {
+      const result = await baselineContentClassifier.classify({
         text: 'irrelevant — declared set is authoritative',
         language: 'pt-BR',
         languages: ['pt', 'en-US'],
       });
-      expect(result.languages).toEqual([]);
+      // pt-BR + pt (dup) + en-US → {pt, en}; the English body verifies only `en`.
+      expect(result.languages).toEqual(['en']);
     });
 
-    it('caps the recorded languages at the configured maximum', () => {
-      const result = baselineContentClassifier.classify({
+    it('caps the recorded languages at the configured maximum', async () => {
+      const result = await baselineContentClassifier.classify({
         text: 'x',
         languages: ['en', 'es', 'fr', 'de', 'it'],
       });
       expect(result.languages).toEqual([]);
     });
 
-    it('uses Japanese script over a bogus English primary declaration', () => {
-      const result = baselineContentClassifier.classify({
+    it('uses Japanese script over a bogus English primary declaration', async () => {
+      const result = await baselineContentClassifier.classify({
         text: 'これは日本語で書かれた投稿です。おすすめに正しく分類される必要があります。',
         language: 'en',
         languages: ['en', 'ja'],
@@ -116,45 +118,54 @@ describe('BaselineContentClassifier', () => {
       expect(result.languages).toEqual(['ja']);
     });
 
-    it('does not guess Chinese from ambiguous Han script mixed with Latin text', () => {
-      const result = baselineContentClassifier.classify({
+    it('does not guess Chinese from ambiguous Han script mixed with Latin text', async () => {
+      const result = await baselineContentClassifier.classify({
         text: '这是一个中文帖子，其中包含 Mention 和其他英文名称。',
         language: 'en',
       });
       expect(result.languages).toEqual([]);
     });
 
-    it('detects prose tinyld scores low but unambiguously (short clauses, links, markdown)', () => {
-      const spanish = baselineContentClassifier.classify({
+    it('detects plain prose written in short clauses, with links, placeholders and markdown', async () => {
+      const spanish = await baselineContentClassifier.classify({
         text: 'Nos estamos convirtiendo en un fediverso de ascensor: buenos días, qué tal y hasta la próxima planta',
       });
       expect(spanish.languages).toEqual(['es']);
 
-      const english = baselineContentClassifier.classify({
+      const english = await baselineContentClassifier.classify({
         text: 'What a long day. Tomorrow, more. ✨ **Thanks** [mention:0190c0de] https://github.com/OxyHQ/Mention/pull/1466',
       });
       expect(english.languages).toEqual(['en']);
     });
 
-    it('does not recommend an undeclared language when detection is uncertain', () => {
-      const result = baselineContentClassifier.classify({
+    it('detects Catalan as Catalan, not as French or Spanish', async () => {
+      const result = await baselineContentClassifier.classify({
+        text: "Avui fa un dia molt bonic i anirem a la platja amb els nens i després dinarem a casa de l'àvia.",
+      });
+      expect(result.languages).toEqual(['ca']);
+    });
+
+    it('does not recommend an undeclared language when detection is uncertain', async () => {
+      const result = await baselineContentClassifier.classify({
         text: 'Mi estas tre feliĉa hodiaŭ kaj parolas kun ĉiuj miaj amikoj.',
       });
       expect(result.languages).toEqual([]);
     });
 
-    it('returns an empty languages array when no language is determinable', () => {
-      expect(baselineContentClassifier.classify({ text: 'hi' }).languages).toEqual([]);
-      expect(baselineContentClassifier.classify({ text: 'short one' }).languages).toEqual([]);
-      expect(baselineContentClassifier.classify({ text: '🔥🔥🔥' }).languages).toEqual([]);
-      expect(baselineContentClassifier.classify({ text: '' }).languages).toEqual([]);
-      expect(baselineContentClassifier.classify({}).languages).toEqual([]);
+    it('returns an empty languages array when no language is determinable', async () => {
+      expect((await baselineContentClassifier.classify({ text: 'hi' })).languages).toEqual([]);
+      expect((await baselineContentClassifier.classify({ text: 'short one' })).languages).toEqual(
+        [],
+      );
+      expect((await baselineContentClassifier.classify({ text: '🔥🔥🔥' })).languages).toEqual([]);
+      expect((await baselineContentClassifier.classify({ text: '' })).languages).toEqual([]);
+      expect((await baselineContentClassifier.classify({})).languages).toEqual([]);
     });
   });
 
   describe('hashtagsNorm', () => {
-    it('normalizes inline + provided hashtags (lowercase, no #, deduped)', () => {
-      const result = baselineContentClassifier.classify({
+    it('normalizes inline + provided hashtags (lowercase, no #, deduped)', async () => {
+      const result = await baselineContentClassifier.classify({
         text: 'Loving #Tech and #tech today',
         hashtags: ['#Design'],
       });
@@ -164,8 +175,8 @@ describe('BaselineContentClassifier', () => {
       expect(result.hashtagsNorm.filter((t) => t === 'tech')).toHaveLength(1);
     });
 
-    it('applies the alias map (artificialintelligence/ml/llm -> ai)', () => {
-      const result = baselineContentClassifier.classify({
+    it('applies the alias map (artificialintelligence/ml/llm -> ai)', async () => {
+      const result = await baselineContentClassifier.classify({
         text: 'big update #ArtificialIntelligence',
         hashtags: ['ml', 'LLM'],
       });
@@ -177,80 +188,91 @@ describe('BaselineContentClassifier', () => {
       expect(result.hashtagsNorm.filter((t) => t === 'ai')).toHaveLength(1);
     });
 
-    it('returns an empty array when there are no hashtags', () => {
-      expect(baselineContentClassifier.classify({ text: 'no tags here' }).hashtagsNorm).toEqual([]);
+    it('returns an empty array when there are no hashtags', async () => {
+      expect(
+        (await baselineContentClassifier.classify({ text: 'no tags here' })).hashtagsNorm,
+      ).toEqual([]);
     });
   });
 
   describe('topics (rule-based)', () => {
-    it('maps canonical hashtags to topic slugs', () => {
-      const result = baselineContentClassifier.classify({
+    it('maps canonical hashtags to topic slugs', async () => {
+      const result = await baselineContentClassifier.classify({
         text: 'check this out #photography #music',
       });
       expect(result.topics).toContain('photography');
       expect(result.topics).toContain('music');
     });
 
-    it('maps aliased hashtags to topics (ai)', () => {
-      const result = baselineContentClassifier.classify({ text: 'cool #machinelearning demo' });
+    it('maps aliased hashtags to topics (ai)', async () => {
+      const result = await baselineContentClassifier.classify({
+        text: 'cool #machinelearning demo',
+      });
       expect(result.topics).toContain('ai');
     });
 
-    it('maps keyword/phrase matches in text to topic slugs', () => {
-      const result = baselineContentClassifier.classify({
+    it('maps keyword/phrase matches in text to topic slugs', async () => {
+      const result = await baselineContentClassifier.classify({
         text: 'We just shipped a new feature using a neural network and a large language model.',
       });
       expect(result.topics).toContain('ai');
     });
 
-    it('uses whole-word matching (no substring false positives)', () => {
+    it('uses whole-word matching (no substring false positives)', async () => {
       // "start" must NOT trigger the 'art' topic; "scarttle" must not trigger 'art'.
-      const result = baselineContentClassifier.classify({
+      const result = await baselineContentClassifier.classify({
         text: 'we will start the scartttle soon',
       });
       expect(result.topics).not.toContain('art');
     });
 
-    it('returns [] when nothing matches', () => {
+    it('returns [] when nothing matches', async () => {
       expect(
-        baselineContentClassifier.classify({ text: 'just saying hello to my friends' }).topics,
+        (await baselineContentClassifier.classify({ text: 'just saying hello to my friends' }))
+          .topics,
       ).toEqual([]);
     });
 
-    it('dedupes topics from overlapping hashtag + keyword signals', () => {
-      const result = baselineContentClassifier.classify({
+    it('dedupes topics from overlapping hashtag + keyword signals', async () => {
+      const result = await baselineContentClassifier.classify({
         text: 'a recipe for the best restaurant cuisine #food',
       });
       expect(result.topics.filter((t) => t === 'food')).toHaveLength(1);
     });
 
-    it('maps expanded aliased hashtags to topics (chatgpt → ai, f1 → sports, netflix → entertainment)', () => {
-      expect(baselineContentClassifier.classify({ text: 'wow #chatgpt' }).topics).toContain('ai');
-      expect(baselineContentClassifier.classify({ text: 'race day #f1' }).topics).toContain(
+    it('maps expanded aliased hashtags to topics (chatgpt → ai, f1 → sports, netflix → entertainment)', async () => {
+      expect((await baselineContentClassifier.classify({ text: 'wow #chatgpt' })).topics).toContain(
+        'ai',
+      );
+      expect((await baselineContentClassifier.classify({ text: 'race day #f1' })).topics).toContain(
         'sports',
       );
-      expect(baselineContentClassifier.classify({ text: 'binge #netflix' }).topics).toContain(
-        'entertainment',
-      );
+      expect(
+        (await baselineContentClassifier.classify({ text: 'binge #netflix' })).topics,
+      ).toContain('entertainment');
     });
 
-    it('maps expanded keyword phrases to topics (federal reserve → finance, supreme court → politics)', () => {
+    it('maps expanded keyword phrases to topics (federal reserve → finance, supreme court → politics)', async () => {
       expect(
-        baselineContentClassifier.classify({
-          text: 'the federal reserve held interest rate steady today',
-        }).topics,
+        (
+          await baselineContentClassifier.classify({
+            text: 'the federal reserve held interest rate steady today',
+          })
+        ).topics,
       ).toContain('finance');
       expect(
-        baselineContentClassifier.classify({
-          text: 'the supreme court issued a major ruling this morning',
-        }).topics,
+        (
+          await baselineContentClassifier.classify({
+            text: 'the supreme court issued a major ruling this morning',
+          })
+        ).topics,
       ).toContain('politics');
     });
   });
 
   describe('region (best-effort, nullable)', () => {
-    it('derives region from a ccTLD federated instance', () => {
-      const result = baselineContentClassifier.classify({
+    it('derives region from a ccTLD federated instance', async () => {
+      const result = await baselineContentClassifier.classify({
         text: 'hallo welt, das ist ein test',
         isFederated: true,
         instanceDomain: 'social.example.de',
@@ -258,8 +280,8 @@ describe('BaselineContentClassifier', () => {
       expect(result.region).toBe('DE');
     });
 
-    it('derives region from a known national instance host', () => {
-      const result = baselineContentClassifier.classify({
+    it('derives region from a known national instance host', async () => {
+      const result = await baselineContentClassifier.classify({
         text: 'a federated post from japan',
         isFederated: true,
         instanceDomain: 'mstdn.jp',
@@ -267,8 +289,8 @@ describe('BaselineContentClassifier', () => {
       expect(result.region).toBe('JP');
     });
 
-    it('returns undefined for a global instance even on a generic TLD', () => {
-      const result = baselineContentClassifier.classify({
+    it('returns undefined for a global instance even on a generic TLD', async () => {
+      const result = await baselineContentClassifier.classify({
         text: 'a federated post from the flagship',
         isFederated: true,
         instanceDomain: 'mastodon.social',
@@ -276,8 +298,8 @@ describe('BaselineContentClassifier', () => {
       expect(result.region).toBeUndefined();
     });
 
-    it('does not derive region from instance for non-federated posts', () => {
-      const result = baselineContentClassifier.classify({
+    it('does not derive region from instance for non-federated posts', async () => {
+      const result = await baselineContentClassifier.classify({
         text: 'a native post',
         isFederated: false,
         instanceDomain: 'social.example.de',
@@ -285,34 +307,34 @@ describe('BaselineContentClassifier', () => {
       expect(result.region).toBeUndefined();
     });
 
-    it('falls back to author locale region when no instance signal', () => {
-      const result = baselineContentClassifier.classify({
+    it('falls back to author locale region when no instance signal', async () => {
+      const result = await baselineContentClassifier.classify({
         text: 'a native post with a locale',
         authorLocale: 'es-ES',
       });
       expect(result.region).toBe('ES');
     });
 
-    it('returns undefined when no region signal exists', () => {
+    it('returns undefined when no region signal exists', async () => {
       expect(
-        baselineContentClassifier.classify({ text: 'no signals at all' }).region,
+        (await baselineContentClassifier.classify({ text: 'no signals at all' })).region,
       ).toBeUndefined();
     });
   });
 
   describe('sensitive', () => {
-    it('passes the provided sensitive flag through when there is no NSFW signal', () => {
-      expect(baselineContentClassifier.classify({ text: 'x', sensitive: true }).sensitive).toBe(
-        true,
-      );
-      expect(baselineContentClassifier.classify({ text: 'x', sensitive: false }).sensitive).toBe(
-        false,
-      );
-      expect(baselineContentClassifier.classify({ text: 'x' }).sensitive).toBeUndefined();
+    it('passes the provided sensitive flag through when there is no NSFW signal', async () => {
+      expect(
+        (await baselineContentClassifier.classify({ text: 'x', sensitive: true })).sensitive,
+      ).toBe(true);
+      expect(
+        (await baselineContentClassifier.classify({ text: 'x', sensitive: false })).sensitive,
+      ).toBe(false);
+      expect((await baselineContentClassifier.classify({ text: 'x' })).sensitive).toBeUndefined();
     });
 
-    it('marks a post sensitive from an NSFW hashtag in the provided array (source NOT flagged)', () => {
-      const result = baselineContentClassifier.classify({
+    it('marks a post sensitive from an NSFW hashtag in the provided array (source NOT flagged)', async () => {
+      const result = await baselineContentClassifier.classify({
         text: 'check out my latest',
         hashtags: ['#NSFW'],
         // sensitive intentionally omitted: the federating source did not flag it.
@@ -320,47 +342,54 @@ describe('BaselineContentClassifier', () => {
       expect(result.sensitive).toBe(true);
     });
 
-    it('marks a post sensitive from an NSFW hashtag parsed from the text (source NOT flagged)', () => {
-      const result = baselineContentClassifier.classify({
+    it('marks a post sensitive from an NSFW hashtag parsed from the text (source NOT flagged)', async () => {
+      const result = await baselineContentClassifier.classify({
         text: 'come see more #porn here',
       });
       expect(result.sensitive).toBe(true);
     });
 
-    it('matches NSFW hashtags case-insensitively and with a leading #', () => {
+    it('matches NSFW hashtags case-insensitively and with a leading #', async () => {
       expect(
-        baselineContentClassifier.classify({ text: 'a', hashtags: ['OnlyFans'] }).sensitive,
+        (await baselineContentClassifier.classify({ text: 'a', hashtags: ['OnlyFans'] })).sensitive,
       ).toBe(true);
-      expect(baselineContentClassifier.classify({ text: 'hot #XXX content' }).sensitive).toBe(true);
-    });
-
-    it('keeps the source sensitive flag even when there are no NSFW hashtags', () => {
       expect(
-        baselineContentClassifier.classify({
-          text: 'ordinary text',
-          sensitive: true,
-          hashtags: ['tech'],
-        }).sensitive,
+        (await baselineContentClassifier.classify({ text: 'hot #XXX content' })).sensitive,
       ).toBe(true);
     });
 
-    it('does NOT mark a clean post sensitive (non-NSFW hashtags pass through unchanged)', () => {
+    it('keeps the source sensitive flag even when there are no NSFW hashtags', async () => {
       expect(
-        baselineContentClassifier.classify({ text: 'a normal post #tech #music' }).sensitive,
+        (
+          await baselineContentClassifier.classify({
+            text: 'ordinary text',
+            sensitive: true,
+            hashtags: ['tech'],
+          })
+        ).sensitive,
+      ).toBe(true);
+    });
+
+    it('does NOT mark a clean post sensitive (non-NSFW hashtags pass through unchanged)', async () => {
+      expect(
+        (await baselineContentClassifier.classify({ text: 'a normal post #tech #music' }))
+          .sensitive,
       ).toBeUndefined();
       expect(
-        baselineContentClassifier.classify({
-          text: 'a normal post',
-          sensitive: false,
-          hashtags: ['art'],
-        }).sensitive,
+        (
+          await baselineContentClassifier.classify({
+            text: 'a normal post',
+            sensitive: false,
+            hashtags: ['art'],
+          })
+        ).sensitive,
       ).toBe(false);
     });
   });
 
   describe('deterministic scores', () => {
-    it('includes finite 0..1 spam/quality/toxicity scores in the output', () => {
-      const { scores } = baselineContentClassifier.classify({
+    it('includes finite 0..1 spam/quality/toxicity scores in the output', async () => {
+      const { scores } = await baselineContentClassifier.classify({
         text: 'A perfectly ordinary post about my day.',
       });
       for (const value of [scores.spam, scores.quality, scores.toxicity]) {
@@ -370,19 +399,19 @@ describe('BaselineContentClassifier', () => {
       }
     });
 
-    it('scores a hashtag-dump post as spammy (using the canonical hashtag count)', () => {
-      const clean = baselineContentClassifier.classify({
+    it('scores a hashtag-dump post as spammy (using the canonical hashtag count)', async () => {
+      const clean = await baselineContentClassifier.classify({
         text: 'just a normal sentence with real words and no spam at all',
       });
-      const dump = baselineContentClassifier.classify({
+      const dump = await baselineContentClassifier.classify({
         text: 'check #a #b #c #d #e #f #g #h',
       });
       expect(dump.scores.spam).toBeGreaterThan(clean.scores.spam);
     });
 
-    it('scores substantive prose higher quality than a one-word post', () => {
-      const tiny = baselineContentClassifier.classify({ text: 'lol' });
-      const substantive = baselineContentClassifier.classify({
+    it('scores substantive prose higher quality than a one-word post', async () => {
+      const tiny = await baselineContentClassifier.classify({ text: 'lol' });
+      const substantive = await baselineContentClassifier.classify({
         text: 'I spent the afternoon refactoring the feed ranking. It is finally clean. Very happy with the result!',
       });
       expect(substantive.scores.quality).toBeGreaterThan(tiny.scores.quality);
@@ -390,25 +419,25 @@ describe('BaselineContentClassifier', () => {
   });
 
   describe('version + classifiedAt', () => {
-    it('stamps the ruleset version', () => {
-      expect(baselineContentClassifier.classify({ text: 'x' }).version).toBe(
+    it('stamps the ruleset version', async () => {
+      expect((await baselineContentClassifier.classify({ text: 'x' })).version).toBe(
         BASELINE_CLASSIFIER_VERSION,
       );
     });
 
-    it('is at v11 (uncertain language membership fails closed)', () => {
+    it('is at v11 (uncertain language membership fails closed)', async () => {
       expect(BASELINE_CLASSIFIER_VERSION).toBe(11);
     });
 
-    it('stamps an ISO classifiedAt timestamp', () => {
-      const at = baselineContentClassifier.classify({ text: 'x' }).classifiedAt;
+    it('stamps an ISO classifiedAt timestamp', async () => {
+      const at = (await baselineContentClassifier.classify({ text: 'x' })).classifiedAt;
       expect(typeof at).toBe('string');
       expect(Number.isNaN(Date.parse(at))).toBe(false);
     });
   });
 
   describe('purity', () => {
-    it('does not mutate its input', () => {
+    it('does not mutate its input', async () => {
       const input: ClassifyInput = {
         text: 'a post about #tech and music',
         hashtags: ['#Design'],
@@ -419,18 +448,18 @@ describe('BaselineContentClassifier', () => {
         authorLocale: 'de-DE',
       };
       const snapshot = JSON.parse(JSON.stringify(input));
-      baselineContentClassifier.classify(input);
+      await baselineContentClassifier.classify(input);
       expect(input).toEqual(snapshot);
     });
 
-    it('is deterministic for the same input', () => {
+    it('is deterministic for the same input', async () => {
       const input: ClassifyInput = {
         text: 'a recipe for great food #food',
         isFederated: true,
         instanceDomain: 'm.fr',
       };
-      const a = baselineContentClassifier.classify(input);
-      const b = baselineContentClassifier.classify(input);
+      const a = await baselineContentClassifier.classify(input);
+      const b = await baselineContentClassifier.classify(input);
       // classifiedAt is a timestamp; compare everything else.
       const { classifiedAt: _a, ...restA } = a;
       const { classifiedAt: _b, ...restB } = b;
@@ -439,7 +468,7 @@ describe('BaselineContentClassifier', () => {
   });
 
   describe('TopicClassifier is swappable', () => {
-    it('uses an injected topic classifier instead of the rule-based default', () => {
+    it('uses an injected topic classifier instead of the rule-based default', async () => {
       const calls: TopicClassifierInput[] = [];
       const stub: TopicClassifier = {
         classify(input) {
@@ -448,7 +477,7 @@ describe('BaselineContentClassifier', () => {
         },
       };
       const classifier = new BaselineContentClassifier(stub);
-      const result = classifier.classify({
+      const result = await classifier.classify({
         text: 'this would normally map to #tech',
         hashtags: ['tech'],
       });
@@ -465,11 +494,11 @@ describe('BaselineContentClassifier', () => {
 describe('RuleBasedTopicClassifier (direct)', () => {
   const classifier = new RuleBasedTopicClassifier();
 
-  it('returns [] for empty input', () => {
+  it('returns [] for empty input', async () => {
     expect(classifier.classify({ text: '', hashtagsNorm: [] })).toEqual([]);
   });
 
-  it('orders hashtag-driven topics before keyword-driven topics', () => {
+  it('orders hashtag-driven topics before keyword-driven topics', async () => {
     const topics = classifier.classify({
       text: 'this is about basketball and the world cup',
       hashtagsNorm: ['music'],
@@ -480,19 +509,19 @@ describe('RuleBasedTopicClassifier (direct)', () => {
 });
 
 describe('deriveRegion (direct)', () => {
-  it('prefers federated instance over locale', () => {
+  it('prefers federated instance over locale', async () => {
     expect(deriveRegion({ isFederated: true, instanceDomain: 'x.fr', authorLocale: 'de-DE' })).toBe(
       'FR',
     );
   });
 
-  it('uses locale when instance yields nothing', () => {
+  it('uses locale when instance yields nothing', async () => {
     expect(
       deriveRegion({ isFederated: true, instanceDomain: 'x.com', authorLocale: 'de-DE' }),
     ).toBe('DE');
   });
 
-  it('returns undefined when both are unknown', () => {
+  it('returns undefined when both are unknown', async () => {
     expect(deriveRegion({ isFederated: true, instanceDomain: 'x.com' })).toBeUndefined();
     expect(deriveRegion({})).toBeUndefined();
   });

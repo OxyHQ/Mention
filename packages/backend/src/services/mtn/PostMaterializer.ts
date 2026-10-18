@@ -391,9 +391,11 @@ interface BaselineClassification {
  * can never fail projection — the caller then leaves the column defaults in place
  * (mirrors PostCreationService).
  */
-function buildBaselineClassification(record: MentionPostRecord): BaselineClassification | null {
+async function buildBaselineClassification(
+  record: MentionPostRecord,
+): Promise<BaselineClassification | null> {
   try {
-    const signals = baselineContentClassifier.classify({
+    const signals = await baselineContentClassifier.classify({
       text: record.text,
       hashtags: record.tags,
       // The record's `langs[0]` is the primary; the full `langs` list is the
@@ -567,7 +569,7 @@ async function projectPost(
   const fileIdBySha256 = await resolveRecordFileIds(record);
   const media = resolveEmbedItemsToMedia(record.embed, fileIdBySha256);
   const variants = buildVariantsFromRecord(record, fileIdBySha256, createdAt);
-  const baseline = buildBaselineClassification(record);
+  const baseline = await buildBaselineClassification(record);
 
   // The record's `langs` are BCP-47 (`es-ES`) while the top-level `language` is a
   // BASE subtag (the classifier's alphabet), so normalize rather than storing a

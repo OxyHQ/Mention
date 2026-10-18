@@ -98,7 +98,7 @@ export async function rebaselineTrendTerms(
       // The PRIMARY rendition — the author's own words, the same text ingest
       // classifies. A machine translation would re-derive terms from a
       // translator's word choices.
-      const signals = baselineContentClassifier.classify({
+      const signals = await baselineContentClassifier.classify({
         text: resolveVariant(post.content).text,
         hashtags: post.hashtags,
       });

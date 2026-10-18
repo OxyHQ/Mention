@@ -42,10 +42,13 @@
  * a partial backfill as successful. Supports `--dry-run` or `DRY_RUN=true` (report what it would
  * update, write nothing).
  *
+ * `--all` (`ALL_POSTS=true`) re-derives every post rather than the gaps: needed
+ * once after a detector change that the version does not record.
+ *
  * Runnable as a Fargate one-shot post-deploy (the live run also needs
  * `CONFIRM_ADMIN_MUTATION=backfillPostLanguages`):
- *   bun packages/backend/dist/src/scripts/backfillPostLanguages.js --dry-run
- *   bun packages/backend/dist/src/scripts/backfillPostLanguages.js
+ *   bun packages/backend/dist/src/scripts/backfillPostLanguages.js --dry-run [--all]
+ *   bun packages/backend/dist/src/scripts/backfillPostLanguages.js [--all]
  */
 
 import { and, asc, gt, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
@@ -114,7 +117,7 @@ const sameList = (a: readonly string[] | undefined, b: readonly string[]): boole
  * the connection lifecycle, so this is reusable from an in-process caller.
  */
 export async function backfillPostLanguages(
-  opts: { batchSize?: number; dryRun?: boolean } = {},
+  opts: { batchSize?: number; dryRun?: boolean; all?: boolean } = {},
 ): Promise<BackfillPostLanguagesResult> {
   const pageSize = opts.batchSize ?? DEFAULT_PAGE_SIZE;
   const dryRun = opts.dryRun ?? false;
@@ -127,13 +130,20 @@ export async function backfillPostLanguages(
   // spelled out: `version < N` is NULL for an unstamped row, and a NULL predicate
   // excludes the row — so the literal translation would silently skip exactly the
   // posts that were never classified at all.
-  const baseFilter = or(
-    isNull(posts.classificationLanguages),
-    sql`cardinality(${posts.classificationLanguages}) = 0`,
-    isNull(posts.classificationVersion),
-    lt(posts.classificationVersion, BASELINE_CLASSIFIER_VERSION),
-    primaryTagDisagrees,
-  ) as SQL;
+  //
+  // `all` re-derives EVERY post instead: the detector changed within v11 (see
+  // `BASELINE_CLASSIFIER_VERSION`), so a post it once labelled wrongly — Catalan
+  // read as `fr` — carries a non-empty array no version filter can find. Only
+  // the rows whose result actually changes are written.
+  const baseFilter = opts.all
+    ? undefined
+    : (or(
+        isNull(posts.classificationLanguages),
+        sql`cardinality(${posts.classificationLanguages}) = 0`,
+        isNull(posts.classificationVersion),
+        lt(posts.classificationVersion, BASELINE_CLASSIFIER_VERSION),
+        primaryTagDisagrees,
+      ) as SQL);
 
   let scanned = 0;
   let updated = 0;
@@ -161,7 +171,7 @@ export async function backfillPostLanguages(
         // and stamping a version on it would only make its column-default scores
         // look computed. Left exactly as it is.
         if (text.trim().length === 0) continue;
-        const signals = baselineContentClassifier.classify({
+        const signals = await baselineContentClassifier.classify({
           text,
           hashtags: post.hashtags,
           languages: declaredBaseLanguages(post.content),
@@ -242,6 +252,8 @@ async function main(): Promise<void> {
   const startedAt = Date.now();
   // `DRY_RUN=true` is how the ECS one-shot runner asks for a preview.
   const dryRun = process.argv.includes('--dry-run') || process.env.DRY_RUN === 'true';
+  // `--all` (or `ALL_POSTS=true` from the one-shot runner): re-derive every post.
+  const all = process.argv.includes('--all') || process.env.ALL_POSTS === 'true';
 
   try {
     assertAdminMutationAllowed({
@@ -249,9 +261,9 @@ async function main(): Promise<void> {
       dryRun,
     });
     await connectPostgres();
-    logger.info('[backfillPostLanguages] connected to PostgreSQL', { dryRun });
+    logger.info('[backfillPostLanguages] connected to PostgreSQL', { dryRun, all });
 
-    const result = await backfillPostLanguages({ dryRun });
+    const result = await backfillPostLanguages({ dryRun, all });
 
     const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
     logger.info(

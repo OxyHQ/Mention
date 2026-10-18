@@ -283,10 +283,10 @@ class PostCreationService {
    * throw is caught + logged at warn and the post is still stored with the
    * column defaults (`status: 'pending'`, zeroed scores) untouched.
    */
-  private baselineClassification(
+  private async baselineClassification(
     params: CreatePostParams,
     primaryText: string,
-  ): BaselineClassification {
+  ): Promise<BaselineClassification> {
     try {
       const isFederated = params.federation != null;
       const metadataSensitive = (params.metadata as { isSensitive?: boolean } | undefined)
@@ -294,7 +294,7 @@ class PostCreationService {
       // What the post DECLARES: the federated ingest paths pass `params.languages`
       // (AP `language` + every `contentMap` key); a native post declares the base
       // subtags of the author's own language variants (primary first). Either way
-      // the classifier prefers a declared set over tinyld detection — a bilingual
+      // the classifier prefers a declared set over detection — a bilingual
       // post reaches BOTH audiences without the detector having to guess.
       //
       // An author who declared NOTHING contributes no languages here, so detection
@@ -304,7 +304,7 @@ class PostCreationService {
       // would stamp `en` on Spanish posts and the feed would serve them to the
       // wrong language audience, network-wide and silently.
       const declaredLanguages = params.languages ?? declaredBaseLanguages(params.content);
-      const signals = baselineContentClassifier.classify({
+      const signals = await baselineContentClassifier.classify({
         text: primaryText,
         hashtags: params.hashtags,
         language: params.language,
@@ -569,7 +569,7 @@ class PostCreationService {
     // resolution WINS over the caller's `params.language` — it has already
     // normalized the tag to ISO 639-1 — and falls back to the caller's when it
     // resolved nothing at all.
-    const baseline = this.baselineClassification(params, primaryText);
+    const baseline = await this.baselineClassification(params, primaryText);
     const primaryLanguage = baseline.language ?? params.language;
 
     const storedContent = toStoredContent(content, primaryLanguage);

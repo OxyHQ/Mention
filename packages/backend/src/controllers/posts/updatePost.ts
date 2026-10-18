@@ -353,7 +353,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       const declaredVariants =
         authorLanguageVariants ?? (existingAuthorVariants.length > 1 ? existingAuthorVariants : []);
 
-      const signals = baselineContentClassifier.classify({
+      const signals = await baselineContentClassifier.classify({
         text: text ?? currentText,
         hashtags: nextHashtags,
         languages: toBaseLanguages(declaredVariants.map((variant) => variant.tag)),

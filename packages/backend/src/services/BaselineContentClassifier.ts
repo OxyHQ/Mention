@@ -4,8 +4,9 @@
  * Produces the cheap, synchronous, side-effect-free signals that run on EVERY
  * post (native AND federated) on the same code path at ingest:
  *   - languages: ALL detected/declared ISO 639-1 languages (primary first) —
- *     languages verified from the visible body via script evidence / tinyld,
- *     else `[]` (short, ambiguous, or contradictory text).
+ *     languages verified from the visible body via script evidence / ELD
+ *     (`eld`, the n-gram language detector), else `[]` (short, ambiguous, or
+ *     contradictory text).
  *   - region: best-effort, nullable (from a federated instance domain or locale)
  *   - hashtagsNorm: canonical hashtags via the shared post-hashtag normalizer
  *     (NOT a parallel normalizer), with the alias map applied
@@ -19,13 +20,15 @@
  * This is intentionally SEPARATE from the async AI {@link PostClassificationService}
  * (Stage B): both write into the single `postClassification` object on the Post,
  * but this one is deterministic and runs inline at ingest. No DB, no network —
- * so it is cheap and trivially unit-testable.
+ * so it is cheap and trivially unit-testable. `classify` is async only because
+ * the language detector is an ESM-only package this CommonJS service loads with
+ * a dynamic `import()` (once, cached); the classification itself is pure.
  *
  * The output is NOT wired into any ingest path here (P1 is foundation only);
  * wiring happens in P2.
  */
 
-import { detectAll as detectAllLanguages } from 'tinyld/light';
+import type { eld as LanguageDetector } from 'eld/extrasmall' with { 'resolution-mode': 'import' };
 import { normalizePostHashtags } from '../utils/textProcessing';
 import { extractTrendTerms, stripNonProse } from './trending/termExtraction';
 import { canonicalHashtag } from './contentClassification/taxonomy';
@@ -126,15 +129,17 @@ import {
  * an undeclared body needs a minimum confidence; and a multilingual declaration
  * no longer makes every label eligible merely because it was supplied.
  *
- * Still v11, deliberately: the "minimum confidence" above was miscalibrated.
- * tinyld's `accuracy` is not a confidence — see {@link LANGUAGE_DETECTION} — so
- * the 0.6 floor alone left plain Spanish and English prose with NO language in
- * production, and near-identical posts landed on either side of it. The fix (a dominance gate, and detection on the prose with
- * links/mention placeholders/emoji/markdown removed) can only turn an EMPTY
- * `languages` into a non-empty one for ordinary prose, and the language
- * backfill selects exactly the empty rows. Bumping the version would instead
- * mark every v11 row's deterministic scores untrusted in ranking
- * (`trustedScores.ts`) until a full-corpus pass re-stamped them.
+ * Still v11, deliberately. The "minimum confidence" above was measured with
+ * tinyld, whose `accuracy` is a share of characters rather than a confidence:
+ * plain Spanish and English prose in short clauses scored ~0.2 and was left
+ * with NO language, and its light model has no Catalan, Danish, Czech or
+ * Slovak at all (Catalan read as `fr`). Detection now uses ELD (60 languages,
+ * including those four) gated on its own reliability flag and score margin,
+ * on the post's prose rather than its links/placeholders/emoji/markdown. The
+ * version is NOT bumped because a bump makes ranking distrust every v11 row's
+ * deterministic scores (`trustedScores.ts`) until a full-corpus pass re-stamps
+ * them; the language backfill re-derives languages instead
+ * (`backfillPostLanguages --all`), which touches only the language fields.
  */
 export const BASELINE_CLASSIFIER_VERSION = 11;
 
@@ -146,58 +151,31 @@ export const BASELINE_CLASSIFIER_VERSION = 11;
 const MIN_TEXT_LENGTH_FOR_DETECTION = 12;
 
 /**
- * Multi-language detection policy for {@link detectAllLanguages}. tinyld returns
- * a ranked `[{ lang, accuracy }]` list whose accuracy values are RELATIVE within
- * a single call (a confident monolingual post yields one entry at ~1.0, a
- * monolingual-but-ambiguous post yields a low top score with a long noise tail,
- * and a genuinely bilingual post yields two comparably-scored entries). A single
- * absolute threshold therefore cannot separate "second real language" from
- * "noise", so a SECONDARY candidate must clear BOTH gates below relative to the
- * top candidate. The top candidate is always taken as the primary (best guess).
+ * Language detection policy over ELD's result.
+ *
+ * ELD scores every supported language against the text; the scores are
+ * similarities, so related languages always sit close together (a Spanish post
+ * scores `es` 0.80 and `pt` 0.67). What separates a real answer from a guess is
+ * the MARGIN between the top two, together with ELD's own `isReliable()` (enough
+ * n-grams, a top score near that language's typical score). Measured on short
+ * posts in the languages Mention carries, correct answers had a margin of 0.06
+ * or more (Danish against Norwegian, the closest pair, 0.025); the wrong ones a
+ * detector without the language produces — Galician read as `es`/`pt`, Slovak
+ * tied with Czech, Latin read as `fr` — stayed under 0.035.
  */
 const LANGUAGE_DETECTION = {
+  /** Top score minus runner-up required before a body is assigned a language. */
+  minMargin: 0.04,
+  /** Margin required to overrule ONE contradictory declared language. */
+  declaredContradictionMinMargin: 0.1,
   /**
-   * A top candidate at or above this is accepted outright.
-   *
-   * tinyld's `accuracy` is NOT a calibrated confidence. It splits the text into
-   * punctuation-delimited chunks; a chunk that contains one of a language's
-   * unique n-grams scores its full length for that language, while every other
-   * chunk is scored word by word, each word adding at most 1 against a
-   * denominator of its CHARACTER count. Prose made of short sentences, a list,
-   * or a sentence with no unique n-gram therefore tops out near 1 / (average
-   * word length) — about 0.2 — however unambiguous it is: "Nos estamos
-   * convirtiendo en un fediverso de ascensor: buenos días, qué tal y hasta la
-   * próxima planta" scores `es` 0.23 against `pt` 0.07. This floor is only the
-   * fast path; {@link dominantMinAccuracy} is the gate such text passes.
+   * A post is multilingual when its sentences say so: a language other than the
+   * primary is kept when the sentences confidently detected as it hold at least
+   * this share of the post's detectable text.
    */
-  primaryMinAccuracy: 0.6,
-  /**
-   * Below {@link primaryMinAccuracy}, a top candidate is still accepted when it
-   * reaches this floor AND beats the runner-up by {@link dominantMinRatioToSecond}.
-   * On the word-scored path every word votes for the language it fits best, so
-   * a real language wins by a wide margin (`es` 0.23 vs 0.07 above) while
-   * Esperanto, Basque, Tagalog, gibberish, name lists and code split their votes
-   * across several languages (ratios 1.0–1.5) or stay far below the floor.
-   */
-  dominantMinAccuracy: 0.2,
-  /** How many times the runner-up's accuracy a dominant top candidate must reach. */
-  dominantMinRatioToSecond: 3,
-  /** Confidence required to overrule one contradictory declared language. */
-  declaredContradictionMinAccuracy: 0.8,
-  /**
-   * Absolute floor on a SECONDARY candidate's accuracy. Filters the long
-   * low-score noise tail tinyld emits for monolingual text (e.g. a Spanish post
-   * listing `pt`/`ro`/`hu` at ~0.02). Does NOT apply to the primary, which is the
-   * single best guess regardless of absolute score.
-   */
-  secondaryMinAccuracy: 0.2,
-  /**
-   * Minimum ratio of a SECONDARY candidate's accuracy to the top candidate's. A
-   * real second language scores close to the top (a balanced ES/EN post is ~0.55
-   * vs ~0.45, ratio ~0.82); incidental matches score far below it. Combined with
-   * the absolute floor this keeps multi-language to genuinely multilingual text.
-   */
-  secondaryMinRatioToTop: 0.5,
+  secondaryMinShare: 0.3,
+  /** Sentences shorter than this are too short to vote on a secondary language. */
+  minSegmentLength: 20,
   /**
    * Maximum number of languages recorded for one post (primary + extras). Keeps
    * the multikey `$in`/index footprint small; real posts rarely mix more than a
@@ -205,6 +183,50 @@ const LANGUAGE_DETECTION = {
    */
   maxLanguages: 3,
 } as const;
+
+type Detector = typeof LanguageDetector;
+
+let detectorLoad: Promise<Detector> | undefined;
+
+/**
+ * The ELD detector with its extra-small n-gram set (~1 MB, ~60 MB resident once
+ * loaded, ~0.015 ms per post). ESM-only, so it is loaded with a dynamic import,
+ * once per process, as `utils/kaana.ts` loads its SDK.
+ */
+function languageDetector(): Promise<Detector> {
+  detectorLoad ??= import('eld/extrasmall').then((module) => module.eld);
+  return detectorLoad;
+}
+
+/** A language ELD named reliably, by a clear margin over the runner-up. */
+interface ConfidentLanguage {
+  language: string;
+  margin: number;
+}
+
+function detectConfident(detector: Detector, text: string): ConfidentLanguage | undefined {
+  const result = detector.detect(text);
+  const language = normalizeProvidedLanguage(result.language);
+  if (!language || !result.isReliable()) return undefined;
+  const [top = 0, second = 0] = Object.values(result.getScores()).sort((a, b) => b - a);
+  const margin = top - second;
+  return margin >= LANGUAGE_DETECTION.minMargin ? { language, margin } : undefined;
+}
+
+let detectorLanguages: ReadonlySet<string> | undefined;
+
+/**
+ * Whether the detector has a model for this language at all. A language it
+ * lacks (Galician, Welsh, Esperanto, Latin) can only ever be read as a
+ * neighbour, so its verdict is no evidence against such a declaration.
+ */
+function detectorKnows(detector: Detector, language: string): boolean {
+  detectorLanguages ??= new Set(Object.values(detector.info().Languages));
+  return detectorLanguages.has(language);
+}
+
+/** Sentence boundaries for the per-sentence secondary-language vote. */
+const SENTENCE_BOUNDARY = /[.!?¡¿…;\n]+/u;
 
 /** Minimal post shape the classifier needs. Framework-agnostic; no ORM. */
 export interface ClassifyInput {
@@ -280,8 +302,7 @@ export interface BaselineSignals {
 /**
  * Pictographs (emoji, with their joiners and presentation selectors) and the
  * markdown emphasis/list markers a post carries. None of them is language, and
- * tinyld treats `*` as a sentence boundary, so `Meet **Deck**.` reached it as
- * three one-word fragments.
+ * the detector would score them as words.
  */
 const NON_LANGUAGE_SYMBOLS = /\p{Extended_Pictographic}|\u200d|\ufe0f|[*_~`•▪◦‣|]+/gu;
 
@@ -327,7 +348,7 @@ export class BaselineContentClassifier {
    * Classify a post into deterministic Stage-A signals. Pure: no DB, no network,
    * no mutation of the input. Same behavior for native and federated posts.
    */
-  classify(input: ClassifyInput): BaselineSignals {
+  async classify(input: ClassifyInput): Promise<BaselineSignals> {
     const text = (input.text ?? '').trim();
 
     // Hashtags: reuse the single source of truth for post-hashtag normalization,
@@ -335,7 +356,7 @@ export class BaselineContentClassifier {
     const { hashtags: normalized } = normalizePostHashtags(input.text, input.hashtags);
     const hashtagsNorm = this.applyHashtagAliases(normalized);
 
-    const { primary: language, all: languages } = this.resolveLanguages(
+    const { primary: language, all: languages } = await this.resolveLanguages(
       input,
       languageEvidenceText(text),
     );
@@ -425,16 +446,17 @@ export class BaselineContentClassifier {
    * 1. Declarations are evidence, never an unconditional discovery grant.
    * 2. Decisive script evidence corrects a contradiction; shared Han script can
    *    reject a Latin declaration without guessing Chinese versus Japanese.
-   * 3. Otherwise, detect from text when it is long enough to be
-   *    reliable, using tinyld's ranked `detectAll`: a sufficiently confident top
-   *    candidate is the
-   *    primary, and additional candidates are kept only when they clear both the
-   *    absolute and relative gates in {@link LANGUAGE_DETECTION}.
+   * 3. A single declaration stands unless the detector, which must itself know
+   *    the declared language, names another by a wide margin. A Galician post
+   *    declared `gl` therefore stays `gl`: ELD has no Galician, and its `es`
+   *    is no evidence against it.
+   * 4. Otherwise, detect from text when it is long enough to be reliable (see
+   *    {@link selectDetectedLanguages}).
    */
-  private resolveLanguages(
+  private async resolveLanguages(
     input: Pick<ClassifyInput, 'language' | 'languages'>,
     trimmedText: string,
-  ): { primary: string | undefined; all: string[] } {
+  ): Promise<{ primary: string | undefined; all: string[] }> {
     // Merge the single `language` (leading) with the `languages` list, normalize
     // each, dedupe (first-seen order), cap.
     const declared = this.dedupeLanguages(
@@ -444,10 +466,13 @@ export class BaselineContentClassifier {
     ).slice(0, LANGUAGE_DETECTION.maxLanguages);
 
     const scripted = this.strongScriptLanguage(trimmedText);
+    const longEnough = trimmedText.length >= MIN_TEXT_LENGTH_FOR_DETECTION;
 
     if (declared.length > 1) {
       if (scripted) return { primary: scripted, all: [scripted] };
-      const detected = this.selectDetectedLanguages(trimmedText);
+      const detected = longEnough
+        ? this.selectDetectedLanguages(await languageDetector(), trimmedText)
+        : [];
       const verified = detected.filter((code) => declared.includes(code));
       return { primary: verified[0], all: verified };
     }
@@ -461,15 +486,16 @@ export class BaselineContentClassifier {
       if (/\p{Script=Han}/u.test(trimmedText) && !['zh', 'ja'].includes(declared[0])) {
         return { primary: undefined, all: [] };
       }
-      if (trimmedText.length >= MIN_TEXT_LENGTH_FOR_DETECTION) {
-        const [top] = detectAllLanguages(trimmedText);
-        const detected = normalizeProvidedLanguage(top?.lang);
+      if (longEnough) {
+        const detector = await languageDetector();
+        const whole = detectConfident(detector, trimmedText);
         if (
-          detected &&
-          detected !== declared[0] &&
-          top.accuracy >= LANGUAGE_DETECTION.declaredContradictionMinAccuracy
+          whole &&
+          whole.language !== declared[0] &&
+          whole.margin >= LANGUAGE_DETECTION.declaredContradictionMinMargin &&
+          detectorKnows(detector, declared[0])
         ) {
-          const all = this.selectDetectedLanguages(trimmedText);
+          const all = this.selectDetectedLanguages(detector, trimmedText);
           return { primary: all[0], all };
         }
       }
@@ -477,54 +503,49 @@ export class BaselineContentClassifier {
     }
 
     // No declaration: detect from text. Too-short input is unreliable → none.
-    if (trimmedText.length < MIN_TEXT_LENGTH_FOR_DETECTION) return { primary: undefined, all: [] };
+    if (!longEnough) return { primary: undefined, all: [] };
 
-    const detected = this.selectDetectedLanguages(trimmedText);
+    const detected = this.selectDetectedLanguages(await languageDetector(), trimmedText);
     return { primary: detected[0], all: detected };
   }
 
   /**
-   * Run tinyld's ranked multi-candidate detection and select the languages to
-   * keep: a sufficiently confident top candidate plus any further candidate
-   * that clears BOTH the absolute accuracy floor AND the ratio-to-top gate. Only
-   * ISO 639-1 codes are kept; the result is deduped and capped.
+   * The body's languages, primary first: the whole text's confident language,
+   * plus any other language its sentences are confidently written in, holding
+   * at least {@link LANGUAGE_DETECTION.secondaryMinShare} of the detectable
+   * text. A body the detector is unsure about as a whole is still bilingual
+   * when two languages each hold that share sentence by sentence; otherwise it
+   * is unknown (`[]`).
    */
-  private selectDetectedLanguages(trimmedText: string): string[] {
-    const ranked = detectAllLanguages(trimmedText).filter(
-      (candidate) => candidate.lang.length === ISO_639_1_LENGTH,
-    );
-    if (ranked.length === 0) return [];
+  private selectDetectedLanguages(detector: Detector, trimmedText: string): string[] {
+    const whole = detectConfident(detector, trimmedText);
 
-    const topAccuracy = ranked[0].accuracy;
-    const secondAccuracy = ranked[1]?.accuracy ?? 0;
-    const credibleBilingualPair =
-      secondAccuracy >= LANGUAGE_DETECTION.secondaryMinAccuracy &&
-      secondAccuracy / topAccuracy >= LANGUAGE_DETECTION.secondaryMinRatioToTop &&
-      topAccuracy + secondAccuracy >= 0.8;
-    const dominantPrimary =
-      topAccuracy >= LANGUAGE_DETECTION.dominantMinAccuracy &&
-      topAccuracy >= secondAccuracy * LANGUAGE_DETECTION.dominantMinRatioToSecond;
-    if (
-      topAccuracy < LANGUAGE_DETECTION.primaryMinAccuracy &&
-      !dominantPrimary &&
-      !credibleBilingualPair
-    ) {
-      return [];
-    }
-    const selected: string[] = [ranked[0].lang];
-
-    for (const candidate of ranked.slice(1)) {
-      if (selected.length >= LANGUAGE_DETECTION.maxLanguages) break;
-      const clearsFloor = candidate.accuracy >= LANGUAGE_DETECTION.secondaryMinAccuracy;
-      const clearsRatio =
-        topAccuracy > 0 &&
-        candidate.accuracy / topAccuracy >= LANGUAGE_DETECTION.secondaryMinRatioToTop;
-      if (clearsFloor && clearsRatio) {
-        selected.push(candidate.lang);
+    const lengthByLanguage = new Map<string, number>();
+    let segmentTotal = 0;
+    for (const raw of trimmedText.split(SENTENCE_BOUNDARY)) {
+      const segment = raw.trim();
+      if (segment.length < LANGUAGE_DETECTION.minSegmentLength) continue;
+      segmentTotal += segment.length;
+      const detected = detectConfident(detector, segment);
+      if (detected) {
+        lengthByLanguage.set(
+          detected.language,
+          (lengthByLanguage.get(detected.language) ?? 0) + segment.length,
+        );
       }
     }
+    const sharedLanguages = [...lengthByLanguage.entries()]
+      .filter(([, length]) => length / segmentTotal >= LANGUAGE_DETECTION.secondaryMinShare)
+      .sort((a, b) => b[1] - a[1])
+      .map(([language]) => language);
 
-    return this.dedupeLanguages(selected);
+    const primary =
+      whole?.language ?? (sharedLanguages.length > 1 ? sharedLanguages[0] : undefined);
+    if (!primary) return [];
+    return this.dedupeLanguages([primary, ...sharedLanguages]).slice(
+      0,
+      LANGUAGE_DETECTION.maxLanguages,
+    );
   }
 
   /** Languages whose writing system is decisive without a vocabulary model. */

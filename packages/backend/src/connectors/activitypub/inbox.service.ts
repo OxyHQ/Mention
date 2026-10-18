@@ -1040,7 +1040,7 @@ export class InboxProcessingService {
       // is re-detected rather than pinned to the language it used to be in. Here
       // that declaration is the edit's own AP fields — `language` plus every
       // `contentMap` key — which is what fresh ingest reads too.
-      const editSignals = baselineContentClassifier.classify({
+      const editSignals = await baselineContentClassifier.classify({
         text: built.variants[0]?.text ?? '',
         hashtags: built.hashtags,
         language: extractApLanguage(object),

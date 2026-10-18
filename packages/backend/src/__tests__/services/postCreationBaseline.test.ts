@@ -222,7 +222,8 @@ describe('PostCreationService — native Stage-A baseline', () => {
     // The AP scalar preserves the source declaration for protocol fidelity, but
     // the recommendation field grants no audience the body did not verify.
     expect(post.language).toBe('en');
-    expect(post.postClassification.languages).toEqual([]);
+    // The English body verifies `en`; the declared `es` grants no Spanish audience.
+    expect(post.postClassification.languages).toEqual(['en']);
   });
 
   it('persists only mention ids that still occur in a stored author body', async () => {

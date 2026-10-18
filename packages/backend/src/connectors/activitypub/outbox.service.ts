@@ -308,7 +308,7 @@ export class OutboxSyncService {
    * so the AI batch still processes the post and the batch insert is never
    * aborted by classification.
    */
-  private computeBaselineForNote(input: {
+  private async computeBaselineForNote(input: {
     text: string;
     hashtags: string[];
     language?: string;
@@ -316,9 +316,9 @@ export class OutboxSyncService {
     sensitive: boolean;
     instanceDomain?: string;
     actorType?: string;
-  }): RawPostClassificationSeed {
+  }): Promise<RawPostClassificationSeed> {
     try {
-      const signals = baselineContentClassifier.classify({
+      const signals = await baselineContentClassifier.classify({
         text: input.text,
         hashtags: input.hashtags,
         language: input.language,
@@ -964,7 +964,7 @@ export class OutboxSyncService {
         // hashtag normalization now runs inside `buildFederatedNoteContent`).
         // Best-effort: a classifier throw must not abort the whole batch insert —
         // fall back to the bare pending subdoc on failure.
-        const baseline = this.computeBaselineForNote({
+        const baseline = await this.computeBaselineForNote({
           text,
           hashtags,
           language: apLanguage,

@@ -254,7 +254,7 @@ export function buildClassifyInput(candidate: EvalCandidate): ClassifyInput {
  */
 export function withClassification(
   post: CandidatePost,
-  signals: ReturnType<BaselineContentClassifier['classify']>,
+  signals: Awaited<ReturnType<BaselineContentClassifier['classify']>>,
 ): CandidatePost {
   const existing = post.postClassification;
   const classification: PostRecordClassification = {
@@ -369,7 +369,7 @@ export async function runFeedQualityEval(deps: FeedQualityEvalDeps): Promise<Eva
   const rows: EvalScoredRow[] = [];
 
   for (const candidate of candidates) {
-    const signals = classifier.classify(buildClassifyInput(candidate));
+    const signals = await classifier.classify(buildClassifyInput(candidate));
     const evaluated = withClassification(candidate.post, signals);
 
     const gateResult = evaluateGate(evaluated, gateCtx, gateModules);

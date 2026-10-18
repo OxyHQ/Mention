@@ -16,20 +16,21 @@ pure/sync). Runs at all ingest chokepoints: `PostCreationService`,
 `InboxProcessingService`. Writes a `postClassification` subdoc:
 
 - `languages: string[]` — SINGLE multi-language field (verified ISO 639-1
-  codes, primary first, deduped, cap 3). Detection is local and deterministic
-  via Unicode-script evidence plus tinyld
-  `detectAll` with a combined gate (`secondaryMinAccuracy:0.2` AND
-  `secondaryMinRatioToTop:0.5`). Federated: `extractApLanguages` reads AP
-  `language` + all `contentMap` keys, but those labels do not grant distribution
-  by themselves. Japanese kana and Korean hangul correct contradictory labels;
-  statistical detection runs on the post's prose (links, mention placeholders,
-  handles, emoji and markdown markers removed) and accepts a top candidate at
-  accuracy >= 0.6, or at >= 0.2 when it scores at least 3x the runner-up
-  (tinyld's accuracy is a share of characters, not a confidence, so clear
-  prose in short clauses scores ~0.2), or a credible bilingual pair.
-  Replacement of a single declaration requires >= 0.8. Ambiguous bodies
-  produce `languages: []`. Feed membership is ANY-OVERLAP against this
-  canonical field.
+  codes, primary first, deduped, cap 3). Detection is local and deterministic:
+  Unicode-script evidence plus ELD (`eld`, extra-small n-gram set, 60
+  languages including Catalan, Basque, Danish, Czech and Slovak), run on the
+  post's prose (links, mention placeholders, handles, emoji and markdown
+  markers removed). A language is accepted when ELD calls it reliable AND it
+  beats the runner-up score by >= 0.04; a second language is kept when the
+  sentences confidently detected as it hold >= 30% of the text. Federated:
+  `extractApLanguages` reads AP `language` + all `contentMap` keys, but those
+  labels do not grant distribution by themselves. Japanese kana and Korean
+  hangul correct contradictory labels; a single declaration is replaced only
+  when ELD knows the declared language and names another by >= 0.1 (so a
+  declared Galician post, which ELD cannot recognise, stays `gl`). Ambiguous
+  bodies, and languages ELD lacks, produce `languages: []` rather than a
+  neighbour's label. Feed membership is ANY-OVERLAP against this canonical
+  field.
 - The primary rendition's tag follows the resolved language
   (`applyDetectedPrimaryTag`): an untagged primary takes it, and a declared
   tag the classifier contradicted is replaced, so `textLang` and translation
