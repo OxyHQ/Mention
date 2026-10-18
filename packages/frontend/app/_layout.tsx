@@ -5,8 +5,7 @@ import { registerChunkErrorRecovery } from '@/lib/chunkReload';
 import NetInfo from '@react-native-community/netinfo';
 import { focusManager, onlineManager } from '@tanstack/react-query';
 import * as SplashScreen from 'expo-splash-screen';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AliaAsk } from '@alia.onl/sdk/ask';
+import { useEffect, useState } from 'react';
 import { AppState, Platform, type AppStateStatus } from 'react-native';
 import { BloomProvider } from '@oxy.so/bloom/provider';
 import { APP_DEFAULT_COLOR_PRESET } from '@/lib/colorEntitlement';
@@ -17,7 +16,7 @@ import { NotificationPermissionGate } from '@/components/NotificationPermissionG
 import { SEOHandoff } from '@/components/SEOHandoff';
 import { PwaHead } from '@/components/PwaHead';
 import { AppProviders } from '@/components/providers/AppProviders';
-import { MentionAskProvider } from '@/context/MentionAskProvider';
+import { MentionAskProvider, useMentionAskBridge } from '@/context/MentionAskProvider';
 import { MentionSettingsProvider } from '@/components/settings/MentionSettingsProvider';
 import { AuthRouter } from '@/components/providers/AuthRouter';
 import { OverlayInertBoundary, PortalOutlet, PortalProvider } from '@oxy.so/bloom/portal';
@@ -77,8 +76,7 @@ function resolveImageSource(fileId: string, variant?: string): string | undefine
 }
 
 export default function RootLayout() {
-  const aliaRef = useRef<AliaAsk>(null);
-  const openAlia = useCallback(() => aliaRef.current?.ask(), []);
+  const { askRef: aliaRef, openAlia } = useMentionAskBridge();
   // State
   const [appIsReady, setAppIsReady] = useState(false);
   // Global haptics on/off, persisted via the accessibility settings toggle. Passed
