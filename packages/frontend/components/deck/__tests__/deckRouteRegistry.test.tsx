@@ -8,12 +8,16 @@ function context(files: string[], load: (file: string) => Promise<RouteModule>) 
   return Object.assign(jest.fn(load), { keys: () => files });
 }
 function deferred() {
-  let resolve!: (value: RouteModule) => void;
-  let reject!: (reason: Error) => void;
+  const controls: {
+    resolve?: (value: RouteModule) => void;
+    reject?: (reason: Error) => void;
+  } = {};
   const promise = new Promise<RouteModule>((yes, no) => {
-    resolve = yes;
-    reject = no;
+    controls.resolve = yes;
+    controls.reject = no;
   });
+  const { resolve, reject } = controls;
+  if (!resolve || !reject) throw new Error('Deferred promise controls were not initialized');
   return { promise, resolve, reject };
 }
 const pendingUI = <Text>Loading skeleton</Text>;
@@ -31,17 +35,21 @@ test('does not import screens at startup; shares resolved routes across panels a
   const request = deferred();
   const modules = context(['./explore/index.tsx', './saved.tsx'], () => request.promise);
   const registry = createDeckRouteRegistry(modules);
-  const Route = registry.routes.find((route) => route.path === '/explore')!.component;
+  const route = registry.routes.find((candidate) => candidate.path === '/explore');
+  if (!route) throw new Error('Explore route is missing');
+  const Route = route.component;
   expect(modules).not.toHaveBeenCalled();
-  let view!: TestRenderer.ReactTestRenderer;
+  const rendered: { current?: TestRenderer.ReactTestRenderer } = {};
   await act(async () => {
-    view = TestRenderer.create(
+    rendered.current = TestRenderer.create(
       <Suspense fallback={pendingUI}>
         <Route />
         <Route />
       </Suspense>,
     );
   });
+  const view = rendered.current;
+  if (!view) throw new Error('Explore renderer was not created');
   expect(modules).toHaveBeenCalledTimes(1);
   expect(modules).toHaveBeenCalledWith('./explore/index.tsx');
   expect(JSON.stringify(view.toJSON())).toContain('Loading skeleton');
@@ -84,18 +92,26 @@ test('selects web screens, preserves nested layout identities, excludes Deck and
     '/[username]/lane/[id]',
     '/[username]/lane',
   ]);
-  expect(routes[1].layouts).toHaveLength(2);
-  expect(routes[1].layouts![0]).toBe(routes[2].layouts![0]);
-  expect(routes[1].layouts![1]).toBe(routes[2].layouts![1]);
-  const Home = routes[0].component;
-  let view!: TestRenderer.ReactTestRenderer;
+  const [home, detail, index] = routes;
+  if (!home || !detail || !index) throw new Error('Expected Home and both nested routes');
+  const detailLayouts = detail.layouts;
+  const indexLayouts = index.layouts;
+  if (!detailLayouts || !indexLayouts) throw new Error('Nested route layouts are missing');
+  expect(detailLayouts).toHaveLength(2);
+  expect(indexLayouts).toHaveLength(2);
+  expect(detailLayouts[0]).toBe(indexLayouts[0]);
+  expect(detailLayouts[1]).toBe(indexLayouts[1]);
+  const Home = home.component;
+  const rendered: { current?: TestRenderer.ReactTestRenderer } = {};
   await act(async () => {
-    view = TestRenderer.create(
+    rendered.current = TestRenderer.create(
       <Suspense fallback={pendingUI}>
         <Home />
       </Suspense>,
     );
   });
+  const view = rendered.current;
+  if (!view) throw new Error('Home renderer was not created');
   expect(modules).toHaveBeenCalledWith('./(tabs)/index.web.tsx');
   expect(modules).toHaveBeenCalledTimes(1);
   await act(async () => view.unmount());
@@ -105,12 +121,14 @@ test('a rejected chunk reaches the error boundary and explicit retry loads it ag
   const request = deferred();
   const modules = context(['./saved.tsx'], () => request.promise);
   const registry = createDeckRouteRegistry(modules);
-  const Route = registry.routes[0].component;
+  const route = registry.routes[0];
+  if (!route) throw new Error('Saved route is missing');
+  const Route = route.component;
   const errorLog = jest.spyOn(console, 'error').mockImplementation(() => {});
-  let view!: TestRenderer.ReactTestRenderer;
+  const rendered: { current?: TestRenderer.ReactTestRenderer } = {};
   try {
     await act(async () => {
-      view = TestRenderer.create(
+      rendered.current = TestRenderer.create(
         <Boundary>
           <Suspense fallback={pendingUI}>
             <Route />
@@ -118,6 +136,8 @@ test('a rejected chunk reaches the error boundary and explicit retry loads it ag
         </Boundary>,
       );
     });
+    const view = rendered.current;
+    if (!view) throw new Error('Saved renderer was not created');
     await act(async () => {
       request.reject(new Error('Chunk unavailable'));
     });
@@ -138,7 +158,7 @@ test('a rejected chunk reaches the error boundary and explicit retry loads it ag
     expect(JSON.stringify(view.toJSON())).toContain('Loaded page');
     expect(modules).toHaveBeenCalledTimes(2);
   } finally {
-    await act(async () => view?.unmount());
+    await act(async () => rendered.current?.unmount());
     errorLog.mockRestore();
   }
 });
