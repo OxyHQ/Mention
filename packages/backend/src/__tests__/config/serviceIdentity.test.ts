@@ -75,7 +75,6 @@ describe('acting as Mention against Oxy', () => {
 async function loadValidation(environment: Record<string, string>) {
   vi.resetModules();
   vi.stubEnv('POST_CLASSIFICATION_ENABLED', 'true');
-  vi.stubEnv('OXY_INFERENCE_ROUTING_PROFILE_ID', '01a06477-94f5-74f0-bc25-4c5c13b93ccd');
   for (const [name, value] of Object.entries(environment)) vi.stubEnv(name, value);
   return (await import('../../config')).validateEnvironment;
 }

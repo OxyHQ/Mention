@@ -48,7 +48,7 @@ const { getUsersByIds, cacheStore, inferenceChat } = vi.hoisted(() => ({
   inferenceChat: vi.fn(),
 }));
 
-vi.mock('../../utils/oxyInference', () => ({ inferenceChat }));
+vi.mock('../../utils/inference', () => ({ inferenceChat }));
 
 vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({
@@ -297,7 +297,7 @@ describe('machine translation cache', () => {
         path.join(srcRoot, 'services', 'PostHydrationService.ts'),
         'utf8',
       );
-      expect(hydrationSource).not.toMatch(/PostTranslationService|oxyInference/);
+      expect(hydrationSource).not.toMatch(/PostTranslationService|utils\/inference/);
     });
 
     it('serves exact, then same-base, then the primary — with zero inference calls', async () => {

@@ -1,7 +1,6 @@
+import type { Kaana } from '@kaana.ai/sdk' with { 'resolution-mode': 'import' };
+import { createJevReceiptReader } from './jevReceipt';
 import { buildJevDecisionRequest, FEED_SCORE_LEVELS } from './jevRequest';
-import { createJevReceiptReader, type ShadowReceiptAuthority } from './jevReceipt';
-import { decisionAnswersMatch, decisionSuccessSchema } from '@oxy.so/contracts';
-import type { OxyInferenceClient } from '@oxy.so/core/inference';
 import {
   shadowSignalsSchema,
   validateShadowRelease,
@@ -17,18 +16,22 @@ export interface ShadowTopic {
 
 export { FEED_SCORE_LEVELS } from './jevRequest';
 
+/** The part of the Kaana client Jev uses; the receipt read is optional. */
+export interface JevKaanaClient {
+  readonly decisions: Pick<Kaana['decisions'], 'create'>;
+  readonly generations?: Pick<Kaana['generations'], 'getByIdempotencyKey'>;
+}
+
 /**
- * An inert consumer: callers supply an existing SDK client. No credentials,
- * transport, provider selection, production binding, or retry policy lives here.
- * The SDK binds the returned requestId to the Oxy response header. That edge ID
- * is distinct from our claim/idempotency key; decisions do not return receiptId.
+ * An inert consumer: callers supply an existing Kaana client. No credentials,
+ * transport, provider selection or retry policy lives here. The SDK validates
+ * the response against `@kaana.ai/contracts` and refuses answers that do not
+ * answer these questions; Kaana's requestId is distinct from our claim key.
  */
 export function createJevShadowEvaluation(
-  client: Pick<OxyInferenceClient, 'decide'> &
-    Partial<Pick<OxyInferenceClient, 'getGenerationRecordByIdempotencyKey'>>,
+  client: JevKaanaClient,
   releaseInput: ShadowRelease,
   topicInput: readonly ShadowTopic[],
-  receiptAuthority?: ShadowReceiptAuthority,
 ): ShadowEvaluation {
   validateShadowRelease(releaseInput);
   const release = Object.freeze({
@@ -39,48 +42,20 @@ export function createJevShadowEvaluation(
   if (
     topics.length > 64 ||
     new Set(topics.map((topic) => topic.topic)).size !== topics.length ||
-    topics.some(
-      (topic) => !topic.topic.trim() || topic.topic.length > 60 || !topic.question.trim(),
-    ) ||
-    !release.supportedLanguages.length ||
-    new Set(release.supportedLanguages).size !== release.supportedLanguages.length ||
-    release.supportedLanguages.some((language) => language.length < 2 || language.length > 35)
+    topics.some((topic) => !topic.topic.trim() || topic.topic.length > 60 || !topic.question.trim())
   ) {
     throw new Error('Invalid reviewed shadow question set');
   }
-  const readOriginal = client.getGenerationRecordByIdempotencyKey?.bind(client);
-  if (receiptAuthority !== undefined && !readOriginal)
-    throw new Error('Canonical receipt reader is unavailable');
-  const receiptReader =
-    receiptAuthority !== undefined && readOriginal
-      ? createJevReceiptReader(
-          { getGenerationRecordByIdempotencyKey: readOriginal },
-          receiptAuthority,
-        )
-      : undefined;
+  const generations = client.generations;
   return {
     release,
-    ...(receiptReader === undefined ? {} : { receiptReader }),
+    ...(generations === undefined
+      ? {}
+      : { receiptReader: createJevReceiptReader({ generations }) }),
     async evaluate({ text, languages, idempotencyKey, signal }) {
       const request = buildJevDecisionRequest(release, topics, text, languages);
-      // Exactly one dispatch. Any failure is quarantined by the existing worker.
-      const result = decisionSuccessSchema.parse(
-        await client.decide(request, {
-          idempotencyKey,
-          signal,
-          ...(receiptReader?.authority.delegatedUserId === undefined
-            ? {}
-            : { delegatedUserId: receiptReader.authority.delegatedUserId }),
-        }),
-      );
-      if (
-        result.model !== release.model ||
-        !decisionAnswersMatch(request, result.data) ||
-        result.routingPolicy.routingPolicyId !== release.policyRef ||
-        result.routingPolicy.policyVersion !== release.policyVersion
-      ) {
-        throw new Error('Shadow SDK response does not match the reviewed request and policy');
-      }
+      // Exactly one dispatch. Any failure is settled by the worker, never retried.
+      const result = await client.decisions.create(request, { idempotencyKey, signal });
       const probability = (id: string): number => {
         const answer = result.data.find((candidate) => candidate.id === id);
         if (answer?.kind !== 'noul') throw new Error('Missing independent shadow proposition');
@@ -89,6 +64,7 @@ export function createJevShadowEvaluation(
       const score = result.data.find((answer) => answer.id === 'feedScore');
       if (score?.kind !== 'score') throw new Error('Missing ordered feed score');
       return shadowSignalsSchema.parse({
+        resolvedModel: result.model,
         topics: topics.map((topic, index) => ({
           topic: topic.topic,
           probability: probability(`topic:${index}`),

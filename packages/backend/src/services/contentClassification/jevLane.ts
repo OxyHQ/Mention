@@ -1,0 +1,49 @@
+import { canAuthenticateAsService } from '../../runtime/serviceIdentity';
+import { kaanaClient } from '../../utils/kaana';
+import { createJevShadowEvaluation, type JevKaanaClient, type ShadowTopic } from './jevSdk';
+import type { ShadowEvaluation, ShadowRelease } from './jevShadow';
+
+/**
+ * The continuous Jev shadow lane (docs/jev-shadow-evaluation.md).
+ *
+ * Bump {@link JEV_EVALUATION_VERSION} when the questions, languages or
+ * instructions change: a post is evaluated once per version and revision.
+ */
+export const JEV_EVALUATION_VERSION = 'mention-jev-shadow/2026-10-18.1';
+
+/**
+ * Paid calls per UTC day, counted from today's claims. Below the 2000/day cap
+ * Oxy holds for the `mention-kaana-decisions` relationship, so Mention stops
+ * before Oxy has to refuse it.
+ */
+export const JEV_SHADOW_DAILY_LIMIT = 1500;
+
+/** English only, as the one reviewed run was; other languages abstain for free. */
+const JEV_RELEASE: ShadowRelease = Object.freeze({
+  evaluationVersion: JEV_EVALUATION_VERSION,
+  supportedLanguages: Object.freeze(['en']),
+});
+
+/** No topic propositions until a reviewed list exists (ranking use is a later step). */
+const JEV_TOPICS: readonly ShadowTopic[] = Object.freeze([]);
+
+/** The shared Kaana client, loaded on first use (the SDK is ESM-only). */
+const kaana = {
+  decisions: {
+    create: async (request, options) => (await kaanaClient()).decisions.create(request, options),
+  },
+  generations: {
+    getByIdempotencyKey: async (key, options) =>
+      (await kaanaClient()).generations.getByIdempotencyKey(key, options),
+  },
+} satisfies Required<JevKaanaClient>;
+
+/**
+ * The lane's evaluator, or `undefined` when this process cannot authenticate to
+ * Oxy as Mention. There is no other switch: Oxy's grant decides whether a call
+ * may run and what it costs.
+ */
+export function createJevLane(): ShadowEvaluation | undefined {
+  if (!canAuthenticateAsService()) return undefined;
+  return createJevShadowEvaluation(kaana, JEV_RELEASE, JEV_TOPICS);
+}

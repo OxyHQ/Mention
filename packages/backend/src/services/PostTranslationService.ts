@@ -8,7 +8,7 @@ import { loadPostRecord, storeMachineVariant } from '../db/posts/postRepository'
 import { createRedisLock, type DistributedLock } from '../utils/redisLock';
 import { config } from '../config';
 import { logger } from '../utils/logger';
-import { inferenceChat } from '../utils/oxyInference';
+import { inferenceChat } from '../utils/inference';
 import { resolveVariant, translationSourceFingerprint } from './postVariants';
 
 /**

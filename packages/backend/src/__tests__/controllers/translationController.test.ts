@@ -1,5 +1,5 @@
 import { adultSafetyFixture } from '../helpers/adultSafety';
-import { OxyInferenceError } from '@oxy.so/core/inference';
+import { KaanaPermissionError, KaanaRateLimitError } from '@kaana.ai/sdk';
 import type { OxyAuthRequest } from '@oxy.so/core/server';
 import type { Response } from 'express';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -93,11 +93,11 @@ beforeEach(() => {
 
 describe('post translation inference failures', () => {
   it('reports an upstream scope refusal as dependency unavailability, not a Mention 500', async () => {
-    const error = new OxyInferenceError({
+    const error = new KaanaPermissionError({
       code: 'insufficient_scope',
       message: 'This credential does not hold the inference:invoke scope.',
       retryable: false,
-      requestId: 'oxy-request-1',
+      requestId: 'kaana-request-1',
       status: 403,
     });
     mocks.translatePost.mockRejectedValue(error);
@@ -116,13 +116,13 @@ describe('post translation inference failures', () => {
     expect(mocks.error).not.toHaveBeenCalled();
   });
 
-  it('preserves the explicit rate-limit response from the inference edge', async () => {
+  it('preserves the explicit rate-limit response from Kaana', async () => {
     mocks.translatePost.mockRejectedValue(
-      new OxyInferenceError({
+      new KaanaRateLimitError({
         code: 'rate_limited',
         message: 'Slow down.',
         retryable: true,
-        requestId: 'oxy-request-2',
+        requestId: 'kaana-request-2',
         retryAfterMs: 1_000,
         status: 429,
       }),

@@ -58,7 +58,7 @@ vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({ users: { get: vi.fn(async () => ({})) } }),
 }));
 
-vi.mock('../../utils/oxyInference', () => ({
+vi.mock('../../utils/inference', () => ({
   inferenceChat: vi.fn(),
   isInferenceEnabled: () => false,
 }));

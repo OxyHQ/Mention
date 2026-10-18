@@ -6,8 +6,6 @@ import {
 import { canAttestWorkloadIdentity } from '@oxy.so/core/server';
 import * as z from 'zod';
 
-export const MENTION_INFERENCE_ROUTING_PROFILE_ID = '01a06477-94f5-74f0-bc25-4c5c13b93ccd' as const;
-
 const withoutTrailingSlash = (value: string): string => value.replace(/\/+$/, '');
 
 const emptyAsUndefined = (value: unknown): unknown =>
@@ -411,10 +409,6 @@ const environmentSchema = z
 
     OXY_SERVICE_API_KEY: trimmedOptionalString,
     OXY_SERVICE_API_SECRET: optionalString(),
-    OXY_INFERENCE_ROUTING_PROFILE_ID: z.preprocess(
-      emptyAsUndefined,
-      z.literal(MENTION_INFERENCE_ROUTING_PROFILE_ID).optional(),
-    ),
     MENTION_OXY_CLIENT_ID: trimmedOptionalString,
     MOVE_APPLICATION_ID: trimmedOptionalString,
     IP_HASH_SALT: optionalString(16),
@@ -958,7 +952,6 @@ export const config = {
     maxTimeMS: 3_000,
   },
   inference: {
-    routingProfileId: environment.OXY_INFERENCE_ROUTING_PROFILE_ID,
     timeoutMs: 30_000,
   },
   syra: {
@@ -1010,9 +1003,6 @@ export function validateEnvironment(): void {
   // starts and 502s is a silent outage.
   if (config.runtime.isProduction && !environment.MENTION_SHELL_ACCESS_KEY) {
     missing.push('MENTION_SHELL_ACCESS_KEY');
-  }
-  if (config.classification.enabled && !config.inference.routingProfileId) {
-    missing.push('OXY_INFERENCE_ROUTING_PROFILE_ID');
   }
   // Classification spends through the Kaana edge AS Mention, so it needs an
   // identity Oxy accepts — the either-or `canAuthenticateAsService` answers,
