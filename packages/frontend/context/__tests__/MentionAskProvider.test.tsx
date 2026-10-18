@@ -8,12 +8,13 @@ const mockAsk = jest.fn();
 jest.mock('@alia.onl/sdk/ask', () => {
   const React = require('react');
   return {
-    AliaAskProvider: React.forwardRef(
-      (props: { children: React.ReactNode }, ref: React.Ref<unknown>) => {
-        React.useImperativeHandle(ref, () => ({ ask: mockAsk }));
-        return mockProvider(props);
-      },
-    ),
+    AliaAskProvider: React.forwardRef(function MockAliaAskProvider(
+      props: { children: React.ReactNode },
+      ref: React.Ref<unknown>,
+    ) {
+      React.useImperativeHandle(ref, () => ({ ask: mockAsk }));
+      return mockProvider(props);
+    }),
   };
 });
 jest.mock('expo-router', () => ({ usePathname: () => '/@ada' }));
