@@ -65,6 +65,8 @@ export interface FeedProps {
   listStickyHeaderComponent?: React.ReactElement | null;
   /** Optional non-sticky row rendered immediately after the sticky row. */
   listLeadingComponent?: React.ReactElement | null;
+  /** Identity rendered by the leading section; excluded from normal rows. */
+  leadingPostId?: string;
   /**
    * The leading element is still being fetched (a profile's pinned post). The
    * feed's FIRST presentation waits for it AND for its own first page — its
@@ -147,6 +149,7 @@ export function useFeedCore(props: FeedProps) {
         blockedSet,
         threaded,
         threadPostId,
+        leadingPostId: merged.leadingPostId,
       }),
     [
       feedState.slices,
@@ -157,6 +160,7 @@ export function useFeedCore(props: FeedProps) {
       blockedSet,
       threaded,
       threadPostId,
+      merged.leadingPostId,
     ],
   );
   // Memoized explicitly, not left to the compiler: these rows are FlashList's
@@ -245,7 +249,7 @@ export function useFeedCore(props: FeedProps) {
         isLoading={feedState.isLoading || holdForLeading}
         error={feedState.error}
         errorKind={feedState.errorKind}
-        hasItems={false}
+        hasItems={Boolean(merged.listLeadingComponent) && !holdForLeading}
         type={type}
         onRetry={handleRetry}
         pending={feedState.pending}
@@ -255,6 +259,7 @@ export function useFeedCore(props: FeedProps) {
     [
       feedState.isLoading,
       holdForLeading,
+      merged.listLeadingComponent,
       feedState.error,
       feedState.errorKind,
       type,
@@ -340,6 +345,7 @@ export function areFeedPropsEqual(prevProps: FeedProps, nextProps: FeedProps): b
     prevProps.listContentHeaderComponent !== nextProps.listContentHeaderComponent ||
     prevProps.listStickyHeaderComponent !== nextProps.listStickyHeaderComponent ||
     prevProps.listLeadingComponent !== nextProps.listLeadingComponent ||
+    prevProps.leadingPostId !== nextProps.leadingPostId ||
     prevProps.leadingPending !== nextProps.leadingPending
   ) {
     return false;

@@ -94,12 +94,14 @@ function slot(kind: FeedInterstitialSlot['kind'], afterSliceKey: string): FeedIn
 const NO_BLOCKS = new Set<string>();
 
 function build(params: {
+  leadingPostId?: string;
   slices?: FeedPostSlice[];
   items?: HydratedPost[];
   interstitials?: FeedInterstitialSlot[];
   blockedSet?: Set<string>;
 }): FeedRow[] {
   return buildFeedRows({
+    leadingPostId: params.leadingPostId,
     slices: params.slices,
     items: params.items ?? [],
     interstitials: params.interstitials,
@@ -497,5 +499,31 @@ describe('renderFeedRow — a recycled cell never inherits another card', () => 
     act(() => renderer!.update(React.createElement(Cell, { row: second })));
     expect(mockInterstitialMounts).toBe(2);
     act(() => renderer!.unmount());
+  });
+});
+
+describe('profile pinned post deduplication', () => {
+  it.each(['flat', 'slices'])(
+    'excludes the pinned post across pages and restores it on unpin (%s)',
+    (mode) => {
+      const data =
+        mode === 'flat'
+          ? { items: [post('latest'), post('older'), post('latest')] }
+          : { slices: [slice('latest'), slice('older'), slice('latest')] };
+      expect(build({ ...data, leadingPostId: 'latest' }).map((row) => asPost(row).item.id)).toEqual(
+        ['older'],
+      );
+      expect(build(data).map((row) => asPost(row).item.id)).toEqual(['latest', 'older']);
+      expect(build({ ...data, leadingPostId: 'older' }).map((row) => asPost(row).item.id)).toEqual([
+        'latest',
+      ]);
+    },
+  );
+
+  it('recomputes thread positions after excluding the pinned parent', () => {
+    const rows = build({ slices: [threadSlice(['pinned', 'reply'])], leadingPostId: 'pinned' });
+    expect(rows).toHaveLength(1);
+    expect(asPost(rows[0]).item.id).toBe('reply');
+    expect(asPost(rows[0]).isThreadChild).toBe(false);
   });
 });
