@@ -23,6 +23,13 @@ export interface InferenceChatOptions {
 export const MENTION_TEXT_POWER_LEVEL = 'instant';
 
 /**
+ * Oxy's grant for Mention's text lane refuses a request that does not bound its
+ * output at or below this, so every request carries an explicit ceiling.
+ */
+export const MENTION_MAX_OUTPUT_TOKENS = 8192;
+const DEFAULT_OUTPUT_TOKENS = 1024;
+
+/**
  * "Has an identity Oxy accepts", not "has a key pair": in ECS the task role
  * proves what this process is and there is no pair to have (oxy ADR 0026).
  */
@@ -73,7 +80,10 @@ export async function inferenceChat(
       })),
       labels: { product: 'mention', feature: options.feature },
       ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
-      ...(options.maxTokens === undefined ? {} : { maxOutputTokens: options.maxTokens }),
+      maxOutputTokens: Math.min(
+        options.maxTokens ?? DEFAULT_OUTPUT_TOKENS,
+        MENTION_MAX_OUTPUT_TOKENS,
+      ),
     },
     {
       timeoutMs: config.inference.timeoutMs,
