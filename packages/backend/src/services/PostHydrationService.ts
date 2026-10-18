@@ -551,10 +551,6 @@ const oxyUserResolutionWaiters: Array<{
   cancel: () => void;
 }> = [];
 
-function userSummaryFlightKey(userIds: string[]): string {
-  return [...userIds].sort().join('\u0000');
-}
-
 async function withinUserResolutionDeadline<T>(
   promise: Promise<T>,
   deadlineAt: number,
@@ -788,32 +784,34 @@ export async function resolveUserSummaries(
     return resolved;
   }
 
-  // 2. Single-flight an identical miss cohort. The shared resolver performs the
-  //    bulk service-token read first and bounds any public per-id fallback.
-  const flightKey = userSummaryFlightKey(missIds);
-  let flight = userSummaryFlights.get(flightKey);
-  if (!flight) {
-    flight = resolveOxyUserSummaryMisses(missIds);
-    userSummaryFlights.set(flightKey, flight);
-    void flight.then(
-      () => {
-        if (userSummaryFlights.get(flightKey) === flight) {
-          userSummaryFlights.delete(flightKey);
-        }
-      },
-      () => {
-        if (userSummaryFlights.get(flightKey) === flight) {
-          userSummaryFlights.delete(flightKey);
-        }
-      },
-    );
+  // 2. Share by identity, not by the whole miss cohort: concurrent panels often
+  // overlap only partly. Batch new identities together and join existing reads.
+  const unclaimedIds = missIds.filter((userId) => !userSummaryFlights.has(userId));
+  if (unclaimedIds.length > 0) {
+    const flight = resolveOxyUserSummaryMisses(unclaimedIds);
+    for (const userId of unclaimedIds) userSummaryFlights.set(userId, flight);
+    const release = () => {
+      for (const userId of unclaimedIds) {
+        if (userSummaryFlights.get(userId) === flight) userSummaryFlights.delete(userId);
+      }
+    };
+    void flight.then(release, release);
   }
 
-  const freshlyResolved = await flight;
+  const flights = new Set<Promise<Map<string, CachedUserSummary>>>();
+  for (const userId of missIds) {
+    const flight = userSummaryFlights.get(userId);
+    if (flight) flights.add(flight);
+  }
+  const batches = await Promise.all(flights);
 
-  // 3. Merge cache-miss results (real users or deliberately uncached fallbacks).
-  for (const [userId, value] of freshlyResolved) {
-    resolved.set(userId, value);
+  // 3. A shared batch can contain other callers' identities. Return exactly this
+  // caller's misses, alongside its cache hits, including uncached fallbacks.
+  const requestedMisses = new Set(missIds);
+  for (const batch of batches) {
+    for (const [userId, value] of batch) {
+      if (requestedMisses.has(userId)) resolved.set(userId, value);
+    }
   }
 
   return resolved;

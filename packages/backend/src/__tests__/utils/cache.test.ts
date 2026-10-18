@@ -14,7 +14,7 @@
  *  - **Serialization + TTL.** One JSON path, one atomic `SETEX` per key, one
  *    guard against the non-array `MGET` reply ElastiCache Valkey can hand back.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const client = {
   isReady: true,
@@ -354,5 +354,86 @@ describe('cache.getOrCompute with stale-while-revalidate', () => {
     client.get.mockResolvedValue(JSON.stringify('raw-legacy-value'));
 
     await expect(cache.getOrCompute('k', async () => 'recomputed')).resolves.toBe('recomputed');
+  });
+});
+
+describe('cache response deadlines', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it.each(['get', 'mGet', 'exists', 'setEx', 'del', 'pipeline'] as const)(
+    'fails open when a ready client never answers %s',
+    async (method) => {
+      vi.useFakeTimers();
+      const cache = createCache({ name: 'Stalled', ttlSeconds: 30 });
+      const pending = deferred<never>();
+      const commands = {
+        get: () => cache.get('k'),
+        mGet: () => cache.getMany(['a', 'b']),
+        exists: () => cache.has('k'),
+        setEx: () => cache.set('k', 'v'),
+        del: () => cache.delete(['k']),
+        pipeline: () => cache.setMany([['k', 'v']]),
+      };
+      const expected =
+        method === 'mGet' ? [undefined, undefined] : method === 'exists' ? false : undefined;
+      (method === 'pipeline' ? pipeline.execAsPipeline : client[method]).mockReturnValue(
+        pending.promise,
+      );
+      let settled = false;
+      const result = commands[method]().then((value) => {
+        settled = true;
+        return value;
+      });
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(settled).toBe(true);
+      await expect(result).resolves.toEqual(expected);
+      expect(reportRedisConnectionFailure).toHaveBeenCalledWith(
+        client,
+        expect.objectContaining({ code: 'ETIMEDOUT' }),
+      );
+    },
+  );
+
+  it('returns computed data when persisting its cache value stalls and releases single-flight', async () => {
+    vi.useFakeTimers();
+    client.setEx.mockReturnValue(new Promise(() => {}));
+    const cache = createCache({ name: 'StalledWrite', ttlSeconds: 30 });
+    const compute = vi.fn().mockResolvedValue('fresh');
+    let settled = false;
+    const result = cache.getOrCompute('k', compute).then((value) => {
+      settled = true;
+      return value;
+    });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(settled).toBe(true);
+    await expect(result).resolves.toBe('fresh');
+    client.setEx.mockResolvedValue('OK');
+    await expect(cache.getOrCompute('k', compute)).resolves.toBe('fresh');
+    expect(compute).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not send later write batches after a timed-out batch settles late', async () => {
+    vi.useFakeTimers();
+    const firstBatch = deferred<unknown[]>();
+    pipeline.execAsPipeline.mockReturnValueOnce(firstBatch.promise);
+    const cache = createCache({ name: 'StalledBatch', ttlSeconds: 30 });
+    const result = cache.setMany(
+      Array.from({ length: 201 }, (_, index) => [`k${index}`, 'v'] as const),
+    );
+    await vi.advanceTimersByTimeAsync(1_000);
+    await result;
+    firstBatch.resolve([]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(client.multi).toHaveBeenCalledTimes(1);
+    expect(pipeline.setEx).toHaveBeenCalledTimes(200);
+  });
+
+  it('clears a completed operation deadline without opening the connection circuit later', async () => {
+    vi.useFakeTimers();
+    const cache = createCache({ name: 'Healthy', ttlSeconds: 30 });
+    await cache.get('k');
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(reportRedisConnectionFailure).not.toHaveBeenCalled();
   });
 });
