@@ -101,6 +101,13 @@ export function erasureKey(entry: Pick<ErasureMapEntry, 'table' | 'column'>): st
 
 export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
   {
+    table: 'deck_workspaces',
+    column: 'oxyUserId',
+    disposition: 'delete-row',
+    phase: 'account',
+    why: 'Private Deck settings, navigation and scroll belong only to the erased account.',
+  },
+  {
     table: 'event_attendance',
     column: 'oxyUserId',
     disposition: 'delete-entry',

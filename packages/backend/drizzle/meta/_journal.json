@@ -554,6 +554,13 @@
       "when": 1792210162428,
       "tag": "0078_validate_event_and_type_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1792342543943,
+      "tag": "0079_deck_workspaces",
+      "breakpoints": true
     }
   ]
 }
