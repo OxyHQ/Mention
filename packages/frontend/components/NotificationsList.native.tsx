@@ -1,8 +1,8 @@
+import { NotificationSkeleton } from '@/components/notifications/NotificationSkeleton';
 import type React from 'react';
 import { useCallback } from 'react';
 import { RefreshControl, View } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { Loading } from '@oxy.so/bloom/loading';
 import { FocusedFlashList } from '@/components/common/FocusedFlashList';
 import type { NotificationListItem } from '@/utils/groupNotifications';
 
@@ -19,7 +19,7 @@ export interface NotificationsListProps {
   onEndReached?: () => void;
   /** Gates the load-more trigger — no next page ⇒ no trigger. */
   hasMore?: boolean;
-  /** True while the next page is in flight (renders a footer spinner). */
+  /** True while the next page is in flight (renders a footer skeleton). */
   isFetchingMore?: boolean;
 }
 
@@ -63,7 +63,7 @@ export function NotificationsList({
 
   const listFooter = isFetchingMore ? (
     <View style={{ paddingVertical: 16 }}>
-      <Loading />
+      <NotificationSkeleton count={2} />
     </View>
   ) : null;
 

@@ -1,4 +1,4 @@
-import { Redirect } from 'expo-router';
+import { Redirect } from '@/lib/navigation/router';
 
 /**
  * `/camera` on WEB, where there is no camera.

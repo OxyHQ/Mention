@@ -1,8 +1,8 @@
+import { MediaGridSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useCallback, useMemo } from 'react';
-import { TouchableOpacity, View } from 'react-native';
-import { Loading } from '@oxy.so/bloom/loading';
-import { useRouter } from 'expo-router';
+import { TouchableOpacity, type View } from 'react-native';
+import { useRouter } from '@/lib/navigation/router';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -160,9 +160,7 @@ const VideosGrid: React.FC<VideosGridProps> = ({
   );
 
   const emptyContent = isLoading ? (
-    <View className="items-center justify-center p-8">
-      <Loading iconSize={28} style={{ padding: 0 }} />
-    </View>
+    <MediaGridSkeleton />
   ) : videoItems.length === 0 ? (
     <EmptyState
       title={t('profile.videos.empty.title', { defaultValue: 'No videos yet' })}

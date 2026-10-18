@@ -1,9 +1,7 @@
-import { View } from 'react-native';
-import { Redirect } from 'expo-router';
+import { ProfileSkeleton } from '@/components/Profile/ProfileSkeleton';
+import { Redirect } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
-
-import { Loading } from '@oxy.so/bloom/loading';
 
 /**
  * `/you` on WEB, where the bottom bar does not point here.
@@ -30,11 +28,7 @@ export default function YouTabWeb() {
   // Cold-boot SSO restore takes seconds; deciding "signed out" before it lands
   // would flash the sign-in prompt at a viewer whose session is about to return.
   if (!isAuthResolved) {
-    return (
-      <View className="flex-1 justify-center items-center">
-        <Loading className="text-primary" size="lg" />
-      </View>
-    );
+    return <ProfileSkeleton />;
   }
 
   if (!isAuthenticated || !user?.username) {

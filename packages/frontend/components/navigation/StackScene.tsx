@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useIsFocused } from 'expo-router';
+import { useIsFocused } from '@/lib/navigation/router';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
 
 /**

@@ -1,3 +1,4 @@
+import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useCallback, useState } from 'react';
 import { View, Text, TouchableOpacity, FlatList } from 'react-native';
@@ -285,11 +286,7 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
   );
 
   if (isLoading) {
-    return (
-      <View className="flex-1 justify-center items-center py-12">
-        <Loading className="text-primary" size="lg" />
-      </View>
-    );
+    return <FeedSkeleton />;
   }
 
   if (isError) {

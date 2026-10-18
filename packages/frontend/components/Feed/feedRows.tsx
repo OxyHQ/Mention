@@ -1,6 +1,6 @@
 import type React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import type { useRouter } from 'expo-router';
+import type { useRouter } from '@/lib/navigation/router';
 import type {
   FeedType,
   HydratedPost,

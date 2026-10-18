@@ -1,13 +1,13 @@
+import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { Suspense, lazy, useCallback, useContext, useEffect, useRef } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
 import { Chip } from '@oxy.so/bloom/chip';
-import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -77,6 +77,7 @@ function formatSalary(
  * renders what it gets back.
  */
 export default function JobDetailScreen() {
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const idOrSlug = String(id);
   const { t } = useTranslation();
@@ -111,7 +112,7 @@ export default function JobDetailScreen() {
   const openEmployer = useCallback(() => {
     const handle = employerQuery.data ? getNormalizedUserHandle(employerQuery.data) : null;
     if (handle) router.push(`/@${handle}`);
-  }, [employerQuery.data]);
+  }, [employerQuery.data, router]);
 
   const applyExternally = useCallback(() => {
     if (!job?.externalApplyUrl) return;
@@ -177,9 +178,7 @@ export default function JobDetailScreen() {
     return (
       <View className="flex-1">
         {header}
-        <View className="flex-1 items-center justify-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
+        <DetailSkeleton />
       </View>
     );
   }

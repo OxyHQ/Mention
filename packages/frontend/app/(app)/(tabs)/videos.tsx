@@ -1,3 +1,4 @@
+import { VideoSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useCallback, useContext, useEffect, useRef, useState, useMemo, memo } from 'react';
 import {
@@ -8,7 +9,6 @@ import {
   FlatList,
   Platform,
   Share,
-  useWindowDimensions,
   type ViewStyle,
   type TextStyle,
   type ImageStyle,
@@ -24,13 +24,14 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { IconButton } from '@oxy.so/bloom/button';
-import { useBottomEdgeInset } from '@oxy.so/bloom/layout';
+import { Screen, ScreenPager, type ScreenPagerHandle } from '@oxy.so/bloom/screen';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { useOptionalPanelRouter } from '@oxy.so/bloom/panel-routing';
 import {
   SegmentedControl,
   SegmentedControlItem,
   SegmentedControlItemText,
 } from '@oxy.so/bloom/segmented-control';
-import { resolveBottomEdgeInset } from '@/components/navigation/bottomEdgeInset';
 import { useHaptics } from '@oxy.so/bloom/hooks';
 import { RiHeartFill } from '@oxy.so/bloom/icons/RiHeartFill';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
@@ -42,7 +43,7 @@ import { VideoView } from '@oxy.so/bloom/video-view';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@/components/common/Ionicons';
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
-import { useRouter, useLocalSearchParams, useIsFocused } from 'expo-router';
+import { useRouter, useLocalSearchParams, useIsFocused } from '@/lib/navigation/router';
 import { useReselectReloadKey, useTabSelect } from '@/context/ScreenReselectContext';
 import { usePostsStore } from '@/stores/postsStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
@@ -61,7 +62,6 @@ import { ShareIcon } from '@/assets/icons/share-icon';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
-import { cn } from '@/lib/utils';
 import { videoSourceFor } from '@/utils/videoSource';
 import type { HydratedPost } from '@mention/shared-types';
 import { readMediaDurationSec, readMediaPixelSize, type MediaPixelSize } from '@/utils/mediaTypes';
@@ -220,24 +220,7 @@ const VIEWABILITY_CONFIG = {
   minimumViewTime: 100,
 } as const;
 
-// Web: pixels-from-bottom at which the document-scroll infinite scroll triggers a
-// `handleLoadMore`, so paging stays ahead of the viewer.
-const WEB_END_REACHED_PX = 1200;
-
-// Web: each slide is exactly one viewport tall so `scroll-snap-align: start`
-// lands each video flush against the document scroller's top. The slides flow in
-// the normal document (the BODY/documentElement is the scroller — see the
-// `html, body { overflow: visible }` reset in `global.css`), so the snap height
-// is the full `100dvh`: the desktop panel's `md:p-2` 8px gutter in
-// `app/(app)/_layout.tsx` is column PADDING, not a scroll offset, so snap
-// boundaries land at clean `innerHeight` multiples either way. Spelled out as a
-// LITERAL class string so the NativeWind compiler can see it (it scans source
-// text — interpolated arbitrary values are NOT picked up).
-const WEB_SLIDE_HEIGHT_CLASS = 'web:h-[100dvh]';
-// Web renders the reel as a plain document-scroll list, with no virtualizer:
-// slides further than this from the active one are drawn as empty boxes of the
-// same height. Wider than the live-player window (and the poster prefetch
-// radius) so nothing the reader can reach in one fling is ever a blank.
+// Web pager dimensions and snap ownership come from Bloom's Screen region.
 const WEB_RENDER_RADIUS = 6;
 
 const GRADIENT_COLORS = [
@@ -869,7 +852,7 @@ const VideoItem = memo<VideoItemProps>(
 
     return (
       <Animated.View
-        className={cn(WEB_SLIDE_HEIGHT_CLASS, 'web:[scroll-snap-align:start]')}
+        className="web:h-full"
         style={[
           styles.videoContainer,
           Platform.OS === 'web' ? null : { height: windowHeight },
@@ -1129,7 +1112,9 @@ export default function VideosScreen() {
   const theme = useTheme();
   const haptic = useHaptics();
   const insets = useSafeAreaInsets();
-  const { height: WINDOW_HEIGHT } = useWindowDimensions();
+  const [WINDOW_HEIGHT, setViewportHeight] = useState(0);
+  const pagerRef = useRef<ScreenPagerHandle>(null);
+  const inDeck = Boolean(useOptionalPanelRouter());
   const isFocused = useIsFocused();
   const params = useLocalSearchParams<{ postId?: string; mediaIndex?: string }>();
   const { oxyServices, user, canUsePrivateApi, isAuthResolved, isAuthenticated } = useAuth();
@@ -1148,7 +1133,8 @@ export default function VideosScreen() {
   // breakpoint (matching mobile); `isDesktop` only decides how the comment
   // button behaves — a no-op on desktop (replies are already open in the
   // RightBar) vs. opening the bottom sheet on mobile.
-  const isDesktop = useIsRightBarVisible();
+  const rightBarVisible = useIsRightBarVisible();
+  const isDesktop = rightBarVisible && !inDeck;
   const { setRailState, requestComposerFocus } = useVideosRail();
   const { openBottomSheet, setBottomSheetContent, setBottomSheetProgress } =
     useContext(BottomSheetContext);
@@ -1279,12 +1265,8 @@ export default function VideosScreen() {
   }, []);
   const activeRadius = armedIndex === currentVisibleIndex ? ACTIVE_WINDOW_RADIUS : 0;
 
-  const occupiedBottomEdge = useBottomEdgeInset();
-  const bottomBarHeight = resolveBottomEdgeInset(
-    occupiedBottomEdge,
-    insets.bottom,
-    Platform.OS === 'web',
-  );
+  // The Screen's available region already excludes app navigation.
+  const bottomBarHeight = 0;
 
   // The raw/original URL — always playable, used as `fallbackVideoUrl`.
   // Unchanged from before this HLS work; every existing resolution path
@@ -1474,9 +1456,7 @@ export default function VideosScreen() {
   // tab switch so the new feed starts from the first slide.
   const scrollReelToTop = useCallback(() => {
     if (Platform.OS === 'web') {
-      if (typeof window !== 'undefined') {
-        window.scrollTo({ top: 0 });
-      }
+      pagerRef.current?.scrollToIndex(0, { animated: false });
     } else {
       flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
     }
@@ -1587,61 +1567,6 @@ export default function VideosScreen() {
     [],
   );
 
-  // Web: videos scroll with the DOCUMENT (the BODY/documentElement is the
-  // scroller, same as every other screen), so scroll-snap lives on the document
-  // scroller — but ONLY while /videos is mounted. Set `scroll-snap-type: y
-  // mandatory` on the documentElement on mount and RESTORE the exact prior
-  // inline value on unmount, so it never leaks to home/explore (which do not
-  // snap) and never clobbers an unrelated inline value. External-DOM
-  // synchronization with a cleanup is the legitimate `useEffect` case.
-  useEffect(() => {
-    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
-    const root = document.documentElement;
-    const previousSnapType = root.style.scrollSnapType;
-    root.style.scrollSnapType = 'y mandatory';
-    return () => {
-      root.style.scrollSnapType = previousSnapType;
-    };
-  }, []);
-
-  // Web: derive the active index from the document scroll position and trigger
-  // infinite scroll near the bottom. Each slide is exactly `innerHeight` tall
-  // (`web:h-[100dvh]`) so the nearest snapped index is
-  // `round(scrollY / innerHeight)`. The listener is passive and coalesced via
-  // requestAnimationFrame so bursts of scroll events collapse to one read per
-  // frame. Re-attaches when `handleLoadMore` changes (its pagination closure),
-  // which is cheap for a passive listener.
-  useEffect(() => {
-    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
-    let frame = 0;
-    const read = () => {
-      frame = 0;
-      const viewportH = window.innerHeight;
-      if (viewportH > 0) {
-        const index = Math.round(window.scrollY / viewportH);
-        setCurrentVisibleIndex((prev) => (prev === index ? prev : index));
-      }
-      if (
-        window.scrollY + viewportH >=
-        document.documentElement.scrollHeight - WEB_END_REACHED_PX
-      ) {
-        handleLoadMore();
-      }
-    };
-    const onScroll = () => {
-      if (frame === 0) {
-        frame = window.requestAnimationFrame(read);
-      }
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      if (frame !== 0) {
-        window.cancelAnimationFrame(frame);
-      }
-    };
-  }, [handleLoadMore]);
-
   // Scroll the reel to a clamped target index. Powers the rail arrows + the
   // web keyboard ↑/↓ shortcuts. Web scrolls the document; native scrolls the
   // FlatList by the slide height. `animated` is off for the jump back from a
@@ -1651,12 +1576,7 @@ export default function VideosScreen() {
       const clamped = Math.min(Math.max(targetIndex, 0), posts.length - 1);
       if (clamped < 0) return;
       if (Platform.OS === 'web') {
-        if (typeof window !== 'undefined') {
-          window.scrollTo({
-            top: clamped * window.innerHeight,
-            behavior: animated ? 'smooth' : 'auto',
-          });
-        }
+        pagerRef.current?.scrollToIndex(clamped, { animated });
       } else {
         flatListRef.current?.scrollToOffset({ offset: clamped * WINDOW_HEIGHT, animated });
       }
@@ -1739,7 +1659,7 @@ export default function VideosScreen() {
   // textarea / contenteditable so the composer and search are unaffected.
   // External-system (window) listener with a cleanup — the legitimate effect case.
   useEffect(() => {
-    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || !isFocused || inDeck) return;
     const onKeyDown = (e: KeyboardEvent) => {
       const target = document.activeElement;
       if (target) {
@@ -1758,7 +1678,7 @@ export default function VideosScreen() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [prev, next]);
+  }, [prev, next, isFocused, inDeck]);
 
   const handleLike = useCallback(
     async (postId: string, isLiked: boolean) => {
@@ -1953,11 +1873,12 @@ export default function VideosScreen() {
   // on mount and false on unmount so the panel mounts/unmounts in lockstep
   // with /videos.
   useEffect(() => {
+    if (inDeck || !isFocused) return;
     setRailState({ active: true });
     return () => {
       setRailState({ active: false, activePost: null });
     };
-  }, [setRailState]);
+  }, [setRailState, inDeck, isFocused]);
 
   const activeVideoPost = posts[currentVisibleIndex];
 
@@ -2062,8 +1983,9 @@ export default function VideosScreen() {
   // comment count after a reply posts. Engagement itself lives on the on-video
   // action buttons (both platforms), so nothing else needs to cross over.
   useEffect(() => {
+    if (inDeck || !isFocused) return;
     setRailState({ activePost: railActivePost, onCommentPosted: handleCommentPosted });
-  }, [setRailState, railActivePost, handleCommentPosted]);
+  }, [setRailState, railActivePost, handleCommentPosted, inDeck, isFocused]);
 
   const renderVideoItem = useCallback(
     ({ item, index }: { item: VideoPost; index: number }) => (
@@ -2145,74 +2067,62 @@ export default function VideosScreen() {
   return (
     <>
       <SEO title={t('seo.videos.title')} description={t('seo.videos.description')} />
-      <View
+      <Screen
+        scroll="auto"
+        active={isFocused}
+        headerPlacement="overlay"
         testID="videos-screen"
-        className={cn(
-          'w-full native:flex-1 web:min-h-[100dvh]',
-          posts.length === 0 ? 'bg-background' : 'bg-black',
-        )}
-      >
-        {/* A zero-height sticky host overlays the reel without negative margins
-            or coupling the slide geometry to the segmented control's height. */}
-        <View
-          className="absolute web:sticky left-0 right-0 h-0 z-20"
-          style={{ top: insets.top }}
-          pointerEvents="box-none"
-        >
-          <View className="flex-row justify-center pt-3 px-4" pointerEvents="box-none">
-            <SegmentedControl<VideoFeedTab>
-              label={t('seo.videos.title')}
-              type="radio"
-              size="lg"
-              value={activeFeed}
-              onValueChange={handleSelectFeed}
-            >
-              <SegmentedControlItem value="videos">
-                <SegmentedControlItemText>{t('For You')}</SegmentedControlItemText>
-              </SegmentedControlItem>
-              {canUsePrivateApi && (
-                <SegmentedControlItem value="following">
-                  <SegmentedControlItemText>{t('Following')}</SegmentedControlItemText>
+        style={{ backgroundColor: posts.length === 0 ? theme.colors.background : '#000000' }}
+        header={
+          <PageHeader
+            testID="videos-header"
+            titleAlign="center"
+            presentation="floating"
+            title={
+              <SegmentedControl<VideoFeedTab>
+                label={t('seo.videos.title')}
+                type="radio"
+                size="lg"
+                value={activeFeed}
+                onValueChange={handleSelectFeed}
+              >
+                <SegmentedControlItem value="videos">
+                  <SegmentedControlItemText>{t('For You')}</SegmentedControlItemText>
                 </SegmentedControlItem>
-              )}
-            </SegmentedControl>
-          </View>
-        </View>
-
-        {/* The reel publishes its own viewability (the snapped slide) to the
+                {canUsePrivateApi && (
+                  <SegmentedControlItem value="following">
+                    <SegmentedControlItemText>{t('Following')}</SegmentedControlItemText>
+                  </SegmentedControlItem>
+                )}
+              </SegmentedControl>
+            }
+          />
+        }
+      >
+        <View
+          className="w-full native:flex-1"
+          onLayout={
+            Platform.OS === 'web'
+              ? undefined
+              : (event) => setViewportHeight(event.nativeEvent.layout.height)
+          }
+        >
+          {/* The reel publishes its own viewability (the snapped slide) to the
                     playback authority. A context provider renders no view, so the
                     slides' layout is untouched. */}
-        {posts.length > 0 && (
-          <VideoViewabilityProvider viewableKeys={viewableVideoKeys}>
-            {Platform.OS === 'web' ? (
-              // WEB: slides flow in the DOCUMENT — no internal scroller, no
-              // `overflow-y-scroll`, no height clamp. This plain full-column
-              // `<View>` grows to the sum of its `100dvh` slides, and the
-              // BODY/documentElement is the scroller (the `html, body {
-              // overflow: visible }` reset in `global.css`), exactly like every
-              // other screen — so wheeling anywhere (over the SideBar, right
-              // rail, or gutter) scrolls the videos. Scroll-snap is applied to
-              // the document scroller (scoped to /videos via the mount effect
-              // above); each slide carries `web:[scroll-snap-align:start]` so it
-              // rests flush at the viewport top. The active index + infinite
-              // scroll come from the window scroll listener above. The slides
-              // stay full COLUMN width (sidebars/rail visible) because this
-              // `<View>` lives inside the central column, not the viewport.
-              <View className="web:w-full">
-                {posts.map((item, index) =>
-                  Math.abs(index - currentVisibleIndex) > WEB_RENDER_RADIUS ? (
-                    // Far from the reader: an empty slide of the
-                    // same height, so snapping and the scroll
-                    // offset → index mapping are unchanged, but
-                    // the poster, avatar, gradient and buttons
-                    // of a long session stop living in the DOM.
-                    <View
-                      key={item.id}
-                      className={cn(WEB_SLIDE_HEIGHT_CLASS, 'web:[scroll-snap-align:start]')}
-                    />
-                  ) : (
+          {posts.length > 0 && (
+            <VideoViewabilityProvider viewableKeys={viewableVideoKeys}>
+              {Platform.OS === 'web' ? (
+                <ScreenPager
+                  ref={pagerRef}
+                  data={posts}
+                  keyExtractor={keyExtractor}
+                  renderRadius={WEB_RENDER_RADIUS}
+                  onIndexChange={setCurrentVisibleIndex}
+                  onEndReached={handleLoadMore}
+                  onEndReachedThreshold={2}
+                  renderItem={({ item, index, viewportHeight }) => (
                     <VideoItem
-                      key={item.id}
                       item={item}
                       isActive={index === currentVisibleIndex}
                       // See the native path: the session's owner keeps its player.
@@ -2236,7 +2146,7 @@ export default function VideosScreen() {
                       onMutedChange={handleMuteChange}
                       bottomBarHeight={bottomBarHeight}
                       t={t}
-                      windowHeight={WINDOW_HEIGHT}
+                      windowHeight={viewportHeight}
                       bottomSheetProgress={bottomSheetProgress}
                       viewerId={viewerId}
                       ownsSession={item.id === pipOwnerId}
@@ -2246,68 +2156,76 @@ export default function VideosScreen() {
                       onSessionEnd={endPipSession}
                       onRegisterTransportSeek={registerTransportSeek}
                     />
-                  ),
-                )}
-              </View>
-            ) : (
-              <FlatList
-                ref={flatListRef}
-                data={posts}
-                renderItem={renderVideoItem}
-                keyExtractor={keyExtractor}
-                pagingEnabled
-                snapToInterval={WINDOW_HEIGHT}
-                snapToAlignment="start"
-                decelerationRate="fast"
-                onEndReached={handleLoadMore}
-                onEndReachedThreshold={FLATLIST_CONFIG.END_REACHED_THRESHOLD}
-                onViewableItemsChanged={handleViewableItemsChanged}
-                viewabilityConfig={VIEWABILITY_CONFIG}
-                showsVerticalScrollIndicator={false}
-                removeClippedSubviews
-                maxToRenderPerBatch={FLATLIST_CONFIG.MAX_TO_RENDER_PER_BATCH}
-                windowSize={FLATLIST_CONFIG.WINDOW_SIZE}
-                initialNumToRender={FLATLIST_CONFIG.INITIAL_NUM_TO_RENDER}
-                style={styles.list}
-                contentContainerStyle={styles.listContent}
-                contentInsetAdjustmentBehavior="never"
-                getItemLayout={getItemLayout}
-              />
-            )}
-          </VideoViewabilityProvider>
-        )}
+                  )}
+                />
+              ) : WINDOW_HEIGHT > 0 ? (
+                <FlatList
+                  ref={flatListRef}
+                  data={posts}
+                  renderItem={renderVideoItem}
+                  keyExtractor={keyExtractor}
+                  pagingEnabled
+                  snapToInterval={WINDOW_HEIGHT}
+                  snapToAlignment="start"
+                  decelerationRate="fast"
+                  onEndReached={handleLoadMore}
+                  onEndReachedThreshold={FLATLIST_CONFIG.END_REACHED_THRESHOLD}
+                  onViewableItemsChanged={handleViewableItemsChanged}
+                  viewabilityConfig={VIEWABILITY_CONFIG}
+                  showsVerticalScrollIndicator={false}
+                  removeClippedSubviews
+                  maxToRenderPerBatch={FLATLIST_CONFIG.MAX_TO_RENDER_PER_BATCH}
+                  windowSize={FLATLIST_CONFIG.WINDOW_SIZE}
+                  initialNumToRender={FLATLIST_CONFIG.INITIAL_NUM_TO_RENDER}
+                  style={styles.list}
+                  contentContainerStyle={styles.listContent}
+                  contentInsetAdjustmentBehavior="never"
+                  getItemLayout={getItemLayout}
+                />
+              ) : null}
+            </VideoViewabilityProvider>
+          )}
 
-        {posts.length === 0 && (
-          <View
-            className="native:flex-1 web:min-h-[100dvh] items-center justify-center px-6"
-            style={{ paddingTop: insets.top + 72, paddingBottom: bottomBarHeight + 24 }}
-            testID="videos-status"
-          >
-            {isLoading ? (
-              <SpinnerIcon size={44} className="text-foreground" />
-            ) : (
-              <EmptyState
-                title={t(hasLoadError ? 'videos.load_failed' : 'videos.no_video_posts_yet')}
-                subtitle={t(
-                  hasLoadError ? 'videos.load_failed_description' : 'videos.empty_description',
-                )}
-                sticker={hasLoadError ? 'loadError' : 'videosTab'}
-                action={{ label: t('common.retry'), onPress: handleRetry }}
-              />
-            )}
-          </View>
-        )}
+          {posts.length === 0 && (
+            <View
+              className="native:flex-1 web:min-h-[var(--bloom-screen-viewport-height)] items-center justify-center"
+              style={
+                isLoading
+                  ? undefined
+                  : {
+                      paddingTop: insets.top + 72,
+                      paddingBottom: bottomBarHeight + 24,
+                      paddingHorizontal: 24,
+                    }
+              }
+              testID="videos-status"
+            >
+              {isLoading ? (
+                <VideoSkeleton />
+              ) : (
+                <EmptyState
+                  title={t(hasLoadError ? 'videos.load_failed' : 'videos.no_video_posts_yet')}
+                  subtitle={t(
+                    hasLoadError ? 'videos.load_failed_description' : 'videos.empty_description',
+                  )}
+                  sticker={hasLoadError ? 'loadError' : 'videosTab'}
+                  action={{ label: t('common.retry'), onPress: handleRetry }}
+                />
+              )}
+            </View>
+          )}
 
-        {loadingMore && (
-          <View
-            className="absolute left-0 right-0 items-center"
-            style={{ bottom: bottomBarHeight + 24 }}
-            pointerEvents="none"
-          >
-            <SpinnerIcon size={24} className="text-white" />
-          </View>
-        )}
-      </View>
+          {loadingMore && (
+            <View
+              className="absolute left-0 right-0 items-center"
+              style={{ bottom: bottomBarHeight + 24 }}
+              pointerEvents="none"
+            >
+              <SpinnerIcon size={24} className="text-white" />
+            </View>
+          )}
+        </View>
+      </Screen>
     </>
   );
 }

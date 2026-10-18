@@ -1,3 +1,4 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { EmptyState } from '@/components/common/EmptyState';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { lanesService } from '@/services/lanesService';
@@ -6,7 +7,6 @@ import { getErrorMessage } from '@/utils/apiError';
 import type { MutedLane } from '@mention/shared-types';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { Button } from '@oxy.so/bloom/button';
-import { Loading } from '@oxy.so/bloom/loading';
 import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { toast } from '@oxy.so/bloom/toast';
 import { getNormalizedUserHandle } from '@oxy.so/core';
@@ -102,9 +102,7 @@ export default function MutedLanesScreen() {
         <SettingsSection label={t('lanes.muted.title', { defaultValue: 'Muted lanes' })}>
           <SettingsCard>
             {isLoading ? (
-              <View className="py-10 items-center">
-                <Loading className="text-primary" size="lg" style={{ flex: undefined }} />
-              </View>
+              <ListSkeleton />
             ) : isError ? (
               <View className="py-4">
                 <EmptyState

@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { RiArrowRightLine } from '@oxy.so/bloom/icons/RiArrowRightLine';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -19,6 +19,7 @@ interface ProfileMovedNoticeProps {
 export const ProfileMovedNotice = memo(function ProfileMovedNotice({
   movedTo,
 }: ProfileMovedNoticeProps) {
+  const router = useRouter();
   const theme = useTheme();
   const { t } = useTranslation();
   const label = t('profile.movedTo', {

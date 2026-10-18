@@ -345,6 +345,49 @@ build. Font and largest-file ceilings stay unchanged, as does the 1.6 MiB initia
 gzip target; this build is still above that target. The CI analyzer and baseline
 comparison remain enabled.
 
+### Unified Bloom screens and persistent Deck (2026-10-18)
+
+The modular screen/header/scroll APIs, independent Deck navigation, richer
+Insights and weekly recap charts, and translated settings introduce a measured
+feature cost. Deck still loads actual screen modules lazily; its production
+browser check covers skeletons, in-panel navigation, restored history/scroll,
+and retry after a failed route chunk.
+
+The comparison uses main `5571a86dc` with published Bloom 12.0.0 and the feature
+with published Bloom 12.2.0 at `970ac616b063e4152b3650b1b5a639ad33ff9196`, including
+the lean panel-hook imports. Both use `build:analyze`, identical optimized-graph
+and tree-shaking flags, external source maps, and the unchanged analyzer. Maps
+are excluded from byte totals. The feature measurements use the installed npm package, with no source mirror.
+
+| Metric | Main | Unified screens and Deck | Change | Ceiling | Remaining headroom |
+| --- | --- | --- | --- | --- | --- |
+| totalBytes | 21,108,095 | 21,363,484 | +255,389 | 21,423,495 | 60,011 |
+| javascriptBytes | 16,186,835 | 16,441,195 | +254,360 | 16,507,266 | 66,071 |
+| initialJavascriptBytes | 6,092,384 | 6,168,581 | +76,197 | 6,236,559 | 67,978 |
+| initialJavascriptGzipBytes | 1,692,093 | 1,720,784 | +28,691 | 1,765,382 | 44,598 |
+
+The four ceilings were calibrated by adding the measured feature-minus-main
+delta to their previous values, preserving existing headroom. The final gesture
+cancellation fix uses 22 raw bytes and 13 gzip bytes of that margin; ceilings
+were not raised again. Font and largest-file ceilings, all nine deferred-source guards,
+the analyzer and baseline comparison remain unchanged. The 1,677,722-byte
+initial gzip target is unchanged and remains missed by 43,062 bytes; the ceiling
+is a regression guard, not a claim that the performance target has been met.
+
+Source-map attribution places the growth in the requested Bloom charts and
+screen/panel machinery. Oxy Services/Core/Contracts and Reanimated generated
+startup bytes are unchanged, and the graph contains one Bloom installation.
+Moving hook-only consumers to Bloom's lean entry removes 199,846 initial raw
+bytes and 58,435 gzip bytes compared with importing the full app-shell barrel.
+The source-only development mirror adds roughly 200 KB raw and 91 KB gzip over
+the compiled package, so it is not the release comparison artifact.
+
+A shared analytics entry and granular chart subpaths were measured separately
+and together. They did not recover the previous startup ceilings and would add
+public entrypoints and route coupling for marginal savings. The shipped API
+keeps the simple lean-hook boundary; future reductions must preserve the shared
+screen behavior and are still measured against the unchanged gzip target.
+
 ### Reanimated's layout animations and the feed's first request (2026-10-15)
 
 Two root causes, each measured on its own export of the same commit

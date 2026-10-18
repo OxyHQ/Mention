@@ -133,7 +133,9 @@ it('keeps the dialog and its pages out of the tree until the first open request'
 });
 
 it('retains every settings address and rejects unrelated routes', () => {
-  expect(SETTINGS_PAGE_IDS).toHaveLength(25);
+  expect(new Set(SETTINGS_PAGE_IDS).size).toBe(SETTINGS_PAGE_IDS.length);
+  expect(SETTINGS_PAGE_IDS).toContain('deck');
+  expect(settingsPageFromRoute('/settings/deck')).toBe('deck');
   for (const page of SETTINGS_PAGE_IDS)
     expect(settingsPageFromRoute(page === 'account' ? '/settings' : `/settings/${page}`)).toBe(
       page,

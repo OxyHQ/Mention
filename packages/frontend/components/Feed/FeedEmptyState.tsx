@@ -1,10 +1,10 @@
+import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import { memo } from 'react';
 import { View, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { FeedType } from '@mention/shared-types';
 import type { FeedFailureKind } from '@/utils/feedRetry';
 import { EmptyState } from '@/components/common/EmptyState';
-import { Loading } from '@oxy.so/bloom/loading';
 import type { EmptyStateStickerName } from '@/lib/stickers';
 
 interface FeedEmptyStateProps {
@@ -37,8 +37,8 @@ export const FeedEmptyState = memo<FeedEmptyStateProps>(
     const { t } = useTranslation();
     if (isLoading || pending)
       return (
-        <View className="items-center justify-center py-12 gap-3">
-          <Loading iconSize={28} style={{ padding: 0 }} />
+        <View className="w-full gap-3">
+          <FeedSkeleton />
           {pending && (
             <Text className="text-muted-foreground text-sm">
               {t('feed.loadingPosts', { defaultValue: 'Loading posts…' })}

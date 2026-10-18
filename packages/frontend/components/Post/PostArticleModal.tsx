@@ -1,3 +1,4 @@
+import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useEffect, useMemo, useState, useCallback, memo } from 'react';
 import {
@@ -11,7 +12,6 @@ import {
   type GestureResponderEvent,
 } from 'react-native';
 import { Backdrop } from '@oxy.so/bloom/overlay';
-import { Loading } from '@oxy.so/bloom/loading';
 import Animated from 'react-native-reanimated';
 import { ScaleAndFadeIn, ScaleAndFadeOut } from '@oxy.so/bloom/motion';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -177,9 +177,9 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
           </View>
 
           {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
-            </View>
+            <ScrollView style={styles.scrollView}>
+              <DetailSkeleton />
+            </ScrollView>
           ) : (
             <ScrollView
               style={styles.scrollView}
@@ -314,12 +314,6 @@ const styles = StyleSheet.create({
   articleBodyPlaceholder: {
     fontSize: 14,
     fontStyle: 'italic',
-  },
-  loadingContainer: {
-    minHeight: 200,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
   },
   pressableContent: {
     flex: 1,

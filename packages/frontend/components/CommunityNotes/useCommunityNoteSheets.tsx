@@ -1,6 +1,6 @@
 import type React from 'react';
 import { lazy, Suspense, useContext, useMemo } from 'react';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import type {
   CommunityNoteRating,
   CommunityNoteSummary,

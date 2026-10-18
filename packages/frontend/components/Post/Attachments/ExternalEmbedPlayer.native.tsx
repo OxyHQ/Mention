@@ -7,7 +7,7 @@ import Animated, {
   useFrameCallback,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect } from '@/lib/navigation/router';
 import { WebView } from 'react-native-webview';
 import { getPlayerAspect, type EmbedPlayerParams } from '@/utils/embedPlayer';
 import { WEB_BASE_URL } from '@/config';

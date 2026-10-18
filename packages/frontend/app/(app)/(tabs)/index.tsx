@@ -1,9 +1,10 @@
 import type React from 'react';
 import { useState, useEffect, useMemo } from 'react';
-import { View } from 'react-native';
+import { Screen } from '@oxy.so/bloom/screen';
+import { MentionHomeHeader } from '@/components/navigation/MentionHomeHeader';
 import { useTranslation } from 'react-i18next';
 import { StatusBar } from 'expo-status-bar';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import Feed from '@/components/Feed/Feed';
 import { customFeedsService } from '@/services/customFeedsService';
@@ -48,6 +49,7 @@ type HomeTabModel =
   | { key: string; label: string; kind: 'custom'; feedId: string };
 
 const HomeScreen: React.FC = () => {
+  const router = useRouter();
   const { t } = useTranslation();
   const { isAuthResolved, canUsePrivateApi, user } = useAuth();
   const theme = useTheme();
@@ -193,7 +195,7 @@ const HomeScreen: React.FC = () => {
         description={t('seo.home.description')}
         jsonLd={SITE_STRUCTURED_DATA}
       />
-      <View className="flex-1">
+      <Screen scroll="auto" header={<MentionHomeHeader />}>
         <StatusBar style={theme.isDark ? 'light' : 'dark'} />
         <Tabs
           value={activeTab}
@@ -223,7 +225,7 @@ const HomeScreen: React.FC = () => {
           ))}
         </Tabs>
         {renderContent()}
-      </View>
+      </Screen>
     </>
   );
 };

@@ -10,7 +10,7 @@ import {
   Text,
   type GestureResponderEvent,
 } from 'react-native';
-import { Link, useRouter, type Href } from 'expo-router';
+import { Link, useRouter, type Href } from '@/lib/navigation/router';
 import type {
   HydratedPost,
   PostUser,

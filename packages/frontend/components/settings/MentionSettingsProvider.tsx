@@ -1,6 +1,6 @@
 import { MentionSettingsContext } from '@/context/MentionSettingsContext';
 import { useDialogControl } from '@oxy.so/bloom/dialog';
-import { useRouter, type Href } from 'expo-router';
+import { useRouter, type Href } from '@/lib/navigation/router';
 import {
   lazy,
   Suspense,

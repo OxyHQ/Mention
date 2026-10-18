@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import { Text, TouchableOpacity, StyleSheet, View, type TextStyle } from 'react-native';
-import { Link } from 'expo-router';
+import { Link } from '@/lib/navigation/router';
 import * as Clipboard from 'expo-clipboard';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';

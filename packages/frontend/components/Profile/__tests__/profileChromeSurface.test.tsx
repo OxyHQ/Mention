@@ -35,7 +35,7 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 
 jest.mock('@oxy.so/bloom/icons', () => ({ RiGitMergeLine: () => null }));
 
-jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -48,11 +48,11 @@ jest.mock('react-i18next', () => ({
  * resolves its styles in an effect, so the tree read outside it is the one
  * before the classes applied.
  */
-function renderRow(showLanes: boolean) {
+function renderRow() {
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
     renderer = TestRenderer.create(
-      <ProfileTabBarRow showLanes={showLanes}>
+      <ProfileTabBarRow>
         <View testID="strip" />
       </ProfileTabBarRow>,
     );
@@ -70,24 +70,15 @@ function rowProps(renderer: TestRenderer.ReactTestRenderer) {
 
 describe('profile tab row surface', () => {
   it('paints the fill the surrounding surface published', () => {
-    const props = rowProps(renderRow(false));
+    const props = rowProps(renderRow());
 
     expect(props.style?.backgroundColor).toBe(PUBLISHED_FILL);
   });
 
   it('names no colour of its own', () => {
-    const props = rowProps(renderRow(false));
+    const props = rowProps(renderRow());
 
     expect(props.className ?? '').not.toContain('bg-card');
-  });
-
-  it('keeps the fill when the lanes button is beside the tabs', () => {
-    // The button sits OUTSIDE the tab strip's own scroller, so it is drawn by
-    // the row rather than by the strip — the branch that could paint its own
-    // container and lose the surface.
-    const props = rowProps(renderRow(true));
-
-    expect(props.style?.backgroundColor).toBe(PUBLISHED_FILL);
   });
 });
 

@@ -98,6 +98,29 @@ class SocketService {
   private currentToken?: string;
   private appStateSubscription: { remove: () => void } | null = null;
   // recentActions handled by echoGuard
+  private feedListeners = new Map<string, Set<() => void>>();
+
+  /** Share the app connection; each mounted screen releases only its listener. */
+  subscribeToFeedUpdates(type: string, listener: () => void): () => void {
+    if (!VALID_FEED_TYPES.includes(type)) return () => {};
+    let listeners = this.feedListeners.get(type);
+    if (!listeners) {
+      listeners = new Set();
+      this.feedListeners.set(type, listeners);
+      this.joinFeed(type);
+    }
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0) {
+        this.feedListeners.delete(type);
+        // The server's leaveFeed also leaves the app-wide personal room.
+        // Keep the bounded allow-listed room until disconnect; remove only
+        // this screen's listener, without disrupting other mounted screens.
+      }
+    };
+  }
+
   private invalidatedFeeds = new Set<FeedType>();
   private feedAccessEpoch = 0;
   private feedRefreshes = new Set<FeedType>();
@@ -458,6 +481,10 @@ class SocketService {
       // Join feed rooms for real-time updates
       if (this.currentUserId && this.socket) {
         this.socket.emit('joinFeed', { userId: this.currentUserId });
+        for (const [type, listeners] of this.feedListeners) {
+          this.joinFeed(type);
+          for (const listener of listeners) listener();
+        }
       }
 
       // Re-assert the post rooms the mounted screens are still watching. The
@@ -561,6 +588,7 @@ class SocketService {
   private handleFeedUpdate(data: FeedUpdateData) {
     const type = data?.type;
     if (!type || !VALID_FEED_TYPES.includes(type)) return;
+    for (const listener of this.feedListeners.get(type) ?? []) listener();
     this.invalidatedFeeds.add(type as FeedType);
     if (this.feedInvalidationTimer) clearTimeout(this.feedInvalidationTimer);
     this.feedInvalidationTimer = setTimeout(() => {

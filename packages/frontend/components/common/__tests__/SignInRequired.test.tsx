@@ -1,3 +1,4 @@
+jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'));
 import { Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 
@@ -51,7 +52,7 @@ const has = (tree: TestRenderer.ReactTestRenderer, testID: string) =>
   hosts(tree, testID).length > 0;
 
 describe('SignInRequired', () => {
-  it('holds a spinner while the session is still resolving', () => {
+  it('shows a form skeleton while the session is still resolving', () => {
     mockAuth = {
       isAuthResolved: false,
       isPrivateApiPending: false,
@@ -60,11 +61,12 @@ describe('SignInRequired', () => {
     };
     const tree = render();
     expect(has(tree, 'sign-in-required-pending')).toBe(true);
+    expect(has(tree, 'form-skeleton')).toBe(true);
     expect(has(tree, 'auth-prompt')).toBe(false);
     expect(has(tree, 'form')).toBe(false);
   });
 
-  it('holds the spinner while the private API is pending, even when authenticated', () => {
+  it('shows the form skeleton while the private API is pending, even when authenticated', () => {
     mockAuth = {
       isAuthResolved: true,
       isPrivateApiPending: true,
@@ -73,6 +75,7 @@ describe('SignInRequired', () => {
     };
     const tree = render();
     expect(has(tree, 'sign-in-required-pending')).toBe(true);
+    expect(has(tree, 'form-skeleton')).toBe(true);
     expect(has(tree, 'form')).toBe(false);
   });
 

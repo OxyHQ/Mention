@@ -1,3 +1,20 @@
+jest.mock('@oxy.so/bloom/screen', () => ({
+  Screen: (props: {
+    header?: React.ReactNode;
+    bottomBar?: React.ReactNode;
+    children?: React.ReactNode;
+  }) => {
+    mockScreen(props);
+    return (
+      <>
+        {props.header}
+        {props.children}
+        {props.bottomBar}
+      </>
+    );
+  },
+}));
+
 import type React from 'react';
 import { Animated, ScrollView, Text, View } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
@@ -6,6 +23,7 @@ import { ProfileUnavailable } from '../ProfileUnavailable';
 
 const mockScrollPosition = { value: 0 };
 const mockHeader = jest.fn();
+const mockScreen = jest.fn();
 const mockTabs = jest.fn();
 const mockList = jest.fn();
 const mockDock = jest.fn();
@@ -134,7 +152,6 @@ test('non-feed tabs have one list owner and measure docking from its header', ()
   expect(tree.root.findAllByType(ScrollView)).toHaveLength(0);
   expect(mockDock.mock.calls.at(-1)?.[0].scrollY).toBe(mockScrollPosition);
   expect(mockHeader.mock.calls.at(-1)?.[0]).toMatchObject({
-    placement: 'overlay',
     titleReveal: 'onDock',
   });
   expect(mockList.mock.calls.at(-1)?.[0]).toMatchObject({
@@ -196,7 +213,7 @@ test('the summary rises into the banner through Bloom CoverHeader, and only ther
 test('native paints the route in the surface the chrome paints, not the theme background', () => {
   const tree = renderShell(makeProps());
   const root = tree.root.findAllByType(View)[0];
-  expect([root.props.style].flat()).toContainEqual({ backgroundColor: 'rgb(20, 55, 84)' });
+  expect(mockScreen.mock.calls.at(-1)?.[0].style).toEqual({ backgroundColor: 'rgb(20, 55, 84)' });
   act(() => tree.unmount());
 });
 
@@ -213,7 +230,7 @@ test('a channel without media keeps its inline header and Bloom zero inset', () 
   mockDockInset = 0;
   const tree = renderShell({ ...makeProps(), banner: null });
   expect(mockCover).not.toHaveBeenCalled();
-  expect(mockHeader.mock.calls.at(-1)?.[0].placement).toBe('inline');
+  expect(mockScreen.mock.calls.at(-1)?.[0].headerPlacement).toBe('inset');
   expect(mockList.mock.calls.at(-1)?.[0].stickyHeaderConfig).toEqual({ offset: 0 });
   act(() => tree.unmount());
 });

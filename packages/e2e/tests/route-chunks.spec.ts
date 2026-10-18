@@ -39,7 +39,7 @@ test('routes navigate client-side without a recovery reload', async ({ page, can
   // The persistent sidebar navigates with an imperative `router.navigate` on a
   // Pressable rather than an anchor (`SideBarItem`), so this is a real in-app
   // transition and not a browser-level link follow.
-  await page.getByText('Explore', { exact: true }).click();
+  await page.locator('[data-testid="sidebar-item-/explore"]:visible').click();
   await expect(page).toHaveURL(`${APP_ORIGIN}/explore`);
 
   const exploreRow = page.locator('[data-post-uri]').first();

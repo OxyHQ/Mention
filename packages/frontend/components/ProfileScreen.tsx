@@ -1,7 +1,8 @@
 import type React from 'react';
 import { useCallback, useState } from 'react';
 import { View } from 'react-native';
-import { Redirect, router, type Href } from 'expo-router';
+import { useTranslation } from 'react-i18next';
+import { useRouter, Redirect, type Href } from '@/lib/navigation/router';
 
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import {
@@ -40,6 +41,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   laneId,
   isRootTab = false,
 }) => {
+  const router = useRouter();
+  const { t } = useTranslation();
   // Active tab — local state so switching tabs does not remount the page.
   // Held as the tab's KEY, not its index: the strip's length depends on how
   // many lanes the publisher has, so an index means a different tab before and
@@ -54,10 +57,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   // WEB does the opposite — there the route owns the selection and each tab
   // is pushed, which is what makes Back return to the tab you came from. It
   // can, because there the strip outlives the navigation; here it does not.
-  const onSelectTab = useCallback((descriptor: ProfileTabDescriptor, href: Href) => {
-    setActiveTabKey(descriptor.key);
-    router.replace(href);
-  }, []);
+  const onSelectTab = useCallback(
+    (descriptor: ProfileTabDescriptor, href: Href) => {
+      setActiveTabKey(descriptor.key);
+      router.replace(href);
+    },
+    [router],
+  );
 
   const view = usePersonProfileView({ activeKey: activeTabKey, onSelectTab, username });
 
@@ -71,10 +77,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   }
 
   const tabBar = (
-    <ProfileTabBarRow showLanes={view.isOwnProfile}>
+    <ProfileTabBarRow>
       <Tabs
         value={view.activeDescriptor?.key ?? 'posts'}
-        onValueChange={view.selectTab}
+        onValueChange={(key) => {
+          if (key === 'manage-lanes') router.push('/lanes');
+          else view.selectTab(key);
+        }}
         variant="underline"
       >
         {view.tabDescriptors
@@ -85,6 +94,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
           .map((tab: { id: string; label: string; count?: number }) => (
             <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
           ))}
+        {view.isOwnProfile && (
+          <TabsTrigger value="manage-lanes" label={t('lanes.title', { defaultValue: 'Lanes' })} />
+        )}
       </Tabs>
     </ProfileTabBarRow>
   );

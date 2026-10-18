@@ -1,3 +1,4 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
@@ -6,7 +7,6 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { Item } from '@oxy.so/bloom/item';
-import { Loading } from '@oxy.so/bloom/loading';
 import { Search } from '@oxy.so/bloom/search';
 import {
   SegmentedControl,
@@ -126,11 +126,7 @@ const PlaceSearchDialog = memo(function PlaceSearchDialog({
       </Text>
     );
   } else if (isFetching && places.length === 0) {
-    body = (
-      <View className="items-center py-6">
-        <Loading className="text-primary" size="sm" />
-      </View>
-    );
+    body = <ListSkeleton count={2} />;
   } else if (places.length === 0) {
     body = (
       <Text className="text-center text-sm text-muted-foreground py-6">

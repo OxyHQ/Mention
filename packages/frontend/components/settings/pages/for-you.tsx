@@ -1,9 +1,9 @@
+import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import {
   FOR_YOU_TUNING_MODULES,
   type ForYouFeedTuning,
   type ForYouTuningModuleSpec,
 } from '@mention/shared-types/mtn/feedTuning';
-import { Loading } from '@oxy.so/bloom/loading';
 import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { Switch } from '@oxy.so/bloom/switch';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
@@ -130,9 +130,7 @@ export default function ForYouTuningScreen() {
   if (isLoading) {
     return (
       <View className="gap-4">
-        <View className="flex-1 items-center justify-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
+        <SettingsSkeleton />
       </View>
     );
   }

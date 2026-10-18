@@ -1,3 +1,4 @@
+import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import {
   useFollowedTopics,
   useTopicFollowTargetId,
@@ -7,7 +8,6 @@ import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 import { topicFollowUri } from '@/services/followGraph';
 import { topicService } from '@/services/topicService';
 import { Button } from '@oxy.so/bloom/button';
-import { Loading } from '@oxy.so/bloom/loading';
 import { Search } from '@oxy.so/bloom/search';
 import { SettingsCard, SettingsSection } from '@oxy.so/bloom/settings-modal';
 import type { TopicData } from '@oxy.so/core';
@@ -69,9 +69,7 @@ export default function InterestsSettingsScreen() {
   if (isPrivateApiPending) {
     return (
       <View className="gap-4">
-        <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
+        <SettingsSkeleton />
       </View>
     );
   }
@@ -123,9 +121,7 @@ export default function InterestsSettingsScreen() {
         >
           <SettingsCard>
             {catalogue.isLoading ? (
-              <View className="py-8 items-center">
-                <Loading className="text-primary" size="lg" />
-              </View>
+              <SettingsSkeleton />
             ) : topics.length === 0 ? (
               <View className="px-4 py-6">
                 <Text className="text-[13px] text-muted-foreground">

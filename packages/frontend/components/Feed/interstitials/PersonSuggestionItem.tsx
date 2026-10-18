@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { ProfileCardData } from '@/components/ProfileCard';
@@ -29,6 +29,7 @@ export function PersonSuggestionItem({
   report,
   onDismiss,
 }: PersonSuggestionItemProps) {
+  const router = useRouter();
   const { t } = useTranslation();
 
   // Same degradation ladder the tile itself renders: display name, else

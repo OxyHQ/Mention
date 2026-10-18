@@ -1,6 +1,7 @@
+import { Screen } from '@oxy.so/bloom/screen';
 import { useMemo } from 'react';
 import { View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { PageHeader } from '@oxy.so/bloom/page-header';
@@ -84,7 +85,16 @@ export default function TrendScreen() {
   );
 
   return (
-    <View className="flex-1">
+    <Screen
+      scroll="auto"
+      header={
+        <PageHeader
+          title={heading}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+        />
+      }
+    >
       <SEO
         title={t('seo.trend.title', { topic: heading, defaultValue: '{{topic}} - Mention' })}
         description={t('seo.trend.description', {
@@ -92,12 +102,8 @@ export default function TrendScreen() {
           defaultValue: 'Posts about {{topic}} on Mention',
         })}
       />
-      <PageHeader
-        title={heading}
-        onBack={() => safeBack()}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-      />
+
       <Feed type={feedType} listHeaderComponent={listHeader} />
-    </View>
+    </Screen>
   );
 }

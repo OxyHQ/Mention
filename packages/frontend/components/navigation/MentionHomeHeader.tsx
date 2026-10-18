@@ -1,10 +1,13 @@
 import { Pressable } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { useAskAgent } from '@alia.onl/sdk/ask';
 import { AliaAvatarIcon } from '@alia.onl/sdk/avatar';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { AppShellMenuButton } from '@oxy.so/bloom/app-shell';
+import { useAppShell } from '@oxy.so/bloom/app-shell/hooks';
+import { IconButton } from '@oxy.so/bloom/button';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
+import { SidebarMenuIcon } from '@/assets/icons/sidebar-menu-icon';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
@@ -13,6 +16,7 @@ import { useNavigateOrReselect } from '@/hooks/useNavigateOrReselect';
 
 export function MentionHomeHeader() {
   const router = useRouter();
+  const shell = useAppShell();
   const { t } = useTranslation();
   const navigateOrReselect = useNavigateOrReselect();
   // A sheet, not a page. Signed out, the press opens the Oxy sign-in dialog
@@ -32,15 +36,30 @@ export function MentionHomeHeader() {
       }
       titleAlign="center"
       presentation="floating"
-      leading={<AppShellMenuButton />}
+      leading={
+        <>
+          {shell.drawerAvailable && (
+            <IconButton
+              size="md"
+              leadingIcon={shell.drawerOpen ? RiCloseLine : SidebarMenuIcon}
+              accessibilityLabel={t('navigation.menu')}
+              aria-expanded={shell.drawerOpen}
+              onPress={shell.toggleDrawer}
+              testID="sidebar-menu-button"
+            />
+          )}
+          <ButtonGroup accessibilityLabel={t('Search')}>
+            <ButtonGroupItem
+              iconOnly
+              leadingIcon={RiSearchLine}
+              accessibilityLabel={t('Search')}
+              onPress={() => router.push('/search')}
+            />
+          </ButtonGroup>
+        </>
+      }
       actions={
         <ButtonGroup accessibilityLabel={t('common.actions', { defaultValue: 'Page actions' })}>
-          <ButtonGroupItem
-            iconOnly
-            leadingIcon={RiSearchLine}
-            accessibilityLabel={t('Search')}
-            onPress={() => router.push('/search')}
-          />
           <ButtonGroupItem leadingIcon={AliaAvatarIcon} onPress={() => ask()}>
             {t('header.askAlia')}
           </ButtonGroupItem>

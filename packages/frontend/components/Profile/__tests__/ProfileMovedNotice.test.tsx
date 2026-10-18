@@ -12,7 +12,7 @@ import { ProfileMovedNotice } from '../ProfileMovedNotice';
 const mockPush = jest.fn();
 
 jest.mock('expo-router', () => ({
-  router: { push: (href: string) => mockPush(href) },
+  useRouter: () => ({ push: (href: string) => mockPush(href) }),
 }));
 
 jest.mock('react-i18next', () => ({

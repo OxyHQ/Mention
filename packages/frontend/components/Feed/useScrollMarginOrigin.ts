@@ -1,3 +1,4 @@
+import { usePanelScrollContainer } from '@oxy.so/bloom/app-shell/hooks';
 import { useLayoutEffect, useState, type RefObject } from 'react';
 
 /**
@@ -38,6 +39,7 @@ import { useLayoutEffect, useState, type RefObject } from 'react';
  * a row-count change at least correlated with content moving.
  */
 export function useScrollMarginOrigin(ref: RefObject<HTMLElement | null>): number {
+  const panel = usePanelScrollContainer<HTMLElement>();
   const [scrollMargin, setScrollMargin] = useState(0);
 
   useLayoutEffect(() => {
@@ -49,7 +51,10 @@ export function useScrollMarginOrigin(ref: RefObject<HTMLElement | null>): numbe
       // No box: the element is `display: none`, or not laid out yet. There is
       // nothing true to read, and reading anyway is the bug described above.
       if (rect.width === 0 && rect.height === 0) return;
-      const top = rect.top + window.scrollY;
+      const owner = panel?.current;
+      const top = owner
+        ? rect.top - owner.getBoundingClientRect().top + owner.scrollTop
+        : rect.top + window.scrollY;
       setScrollMargin((prev) => (prev !== top ? top : prev));
     };
 
@@ -60,9 +65,10 @@ export function useScrollMarginOrigin(ref: RefObject<HTMLElement | null>): numbe
     observer.observe(node);
     if (typeof document !== 'undefined' && document.body) {
       observer.observe(document.body);
+      if (panel?.current) observer.observe(panel.current);
     }
     return () => observer.disconnect();
-  }, [ref]);
+  }, [ref, panel]);
 
   return scrollMargin;
 }

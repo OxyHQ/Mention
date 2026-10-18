@@ -1,3 +1,4 @@
+import { FeedSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -10,7 +11,7 @@ import {
   type TextInputSelectionChangeEventData,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { skipToken, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
@@ -40,7 +41,6 @@ import {
   toProfileHandleSuggestion,
   type ActiveOperatorToken,
 } from '@/utils/searchSuggestions';
-import { Loading } from '@oxy.so/bloom/loading';
 import { FlashList } from '@shopify/flash-list';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import PostItem from '@/components/Feed/PostItem';
@@ -444,6 +444,7 @@ function toStarterPackCardData(pack: SearchStarterPackResult): StarterPackCardDa
 }
 
 function SearchIndex() {
+  const router = useRouter();
   const { t } = useTranslation();
   const theme = useTheme();
   const safeBack = useSafeBack();
@@ -806,7 +807,7 @@ function SearchIndex() {
       commitCurrentQuery();
       router.push(`/@${handle}`);
     },
-    [commitCurrentQuery],
+    [commitCurrentQuery, router],
   );
 
   // --- Result handlers (opening a result commits the query to history) ---
@@ -816,7 +817,7 @@ function SearchIndex() {
       const handle = getNormalizedUserHandle(profile);
       if (handle) router.push(`/@${handle}`);
     },
-    [commitCurrentQuery],
+    [commitCurrentQuery, router],
   );
 
   const handleOpenFeed = useCallback(
@@ -824,7 +825,7 @@ function SearchIndex() {
       commitCurrentQuery();
       router.push(`/feeds/${feedId}`);
     },
-    [commitCurrentQuery],
+    [commitCurrentQuery, router],
   );
 
   const handleOpenList = useCallback(
@@ -832,7 +833,7 @@ function SearchIndex() {
       commitCurrentQuery();
       router.push(`/lists/${listId}`);
     },
-    [commitCurrentQuery],
+    [commitCurrentQuery, router],
   );
 
   const handleOpenHashtag = useCallback(
@@ -840,7 +841,7 @@ function SearchIndex() {
       commitCurrentQuery();
       router.push(`/hashtag/${encodeURIComponent(tag)}`);
     },
-    [commitCurrentQuery],
+    [commitCurrentQuery, router],
   );
 
   const handleOpenStarterPack = useCallback(
@@ -848,7 +849,7 @@ function SearchIndex() {
       commitCurrentQuery();
       router.push(`/starter-packs/${packId}`);
     },
-    [commitCurrentQuery],
+    [commitCurrentQuery, router],
   );
 
   const tabs = useMemo(
@@ -1152,8 +1153,8 @@ function SearchIndex() {
 
         case 'trendsLoading':
           return (
-            <View className="w-full items-center justify-center py-6 border-b border-border">
-              <Loading className="text-primary" size="sm" />
+            <View className="w-full border-b border-border">
+              <ListSkeleton count={2} />
             </View>
           );
 
@@ -1254,19 +1255,11 @@ function SearchIndex() {
           );
 
         // Loading is checked before the error state so a retry/refetch shows
-        // the spinner rather than lingering on the error card.
+        // the skeleton rather than lingering on the error card.
         case 'status':
           if (item.state === 'loading') {
-            // A tab that knows the shape of the row it is about to show
-            // paints that shape. The rest — "all" (mixed kinds), posts,
-            // saved, hashtags and lists — have no skeleton of their own,
-            // so they keep the neutral spinner rather than borrowing a
-            // card that misrepresents what is coming.
-            //
-            // This state is now reached far less often than it used to
-            // be: refining a query keeps the previous rows on screen
-            // (see `placeholderData`), so a skeleton means "first
-            // results for this tab", not "the viewer typed a letter".
+            // Match the first results to this tab's row anatomy. Existing
+            // placeholderData retains populated results during refinement.
             if (activeTab === 'users') {
               return <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />;
             }
@@ -1289,8 +1282,12 @@ function SearchIndex() {
               );
             }
             return (
-              <View className="items-center justify-center py-20">
-                <Loading className="text-primary" size="lg" />
+              <View className="w-full">
+                {activeTab === 'posts' || activeTab === 'saved' ? (
+                  <FeedSkeleton />
+                ) : (
+                  <ListSkeleton />
+                )}
               </View>
             );
           }
@@ -1489,7 +1486,7 @@ function SearchIndex() {
             ListFooterComponent={
               isFetchingNextPage ? (
                 <View className="items-center justify-center py-4">
-                  <Loading className="text-primary" size="sm" />
+                  <ListSkeleton count={2} />
                 </View>
               ) : null
             }

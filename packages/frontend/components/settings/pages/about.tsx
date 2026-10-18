@@ -190,7 +190,7 @@ export default function AboutScreen() {
                 size="sm"
                 appearance="subtle"
                 tone="neutral"
-                onPress={() => router.push('/transparency')}
+                onPress={() => router.push('/settings/fediverse/transparency')}
                 accessibilityLabel={t('transparency.title')}
               >
                 {t('common.open', { defaultValue: 'Open' })}

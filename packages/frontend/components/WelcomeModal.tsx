@@ -13,7 +13,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { LogoIcon } from '@/assets/logo';
 import { Button, LinkButton } from '@oxy.so/bloom/button';

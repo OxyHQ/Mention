@@ -1,3 +1,4 @@
+import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type { BloomIcon } from '@/components/settings/RowIcon';
 import { useSettingsRouter } from '@/context/MentionSettingsContext';
@@ -21,7 +22,6 @@ import { Button } from '@oxy.so/bloom/button';
 import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
 import { RiRefreshLine } from '@oxy.so/bloom/icons/RiRefreshLine';
 import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
-import { Loading } from '@oxy.so/bloom/loading';
 import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { Switch } from '@oxy.so/bloom/switch';
 import { logger } from '@oxy.so/core/logger';
@@ -147,9 +147,7 @@ function PrivacySettingsScreen() {
   if (!isAuthResolved || isPrivateApiPending) {
     return (
       <View className="gap-4">
-        <View className="flex-1 items-center justify-center">
-          <Loading />
-        </View>
+        <SettingsSkeleton />
       </View>
     );
   }
@@ -172,9 +170,7 @@ function PrivacySettingsScreen() {
   if (loading) {
     return (
       <View className="gap-4">
-        <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
+        <SettingsSkeleton />
       </View>
     );
   }

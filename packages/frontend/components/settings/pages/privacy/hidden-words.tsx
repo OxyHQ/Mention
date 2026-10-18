@@ -1,3 +1,4 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { EmptyState } from '@/components/common/EmptyState';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import {
@@ -214,9 +215,7 @@ export default function HiddenWordsScreen() {
         >
           <SettingsCard>
             {isLoading ? (
-              <View className="py-10 items-center">
-                <Loading className="text-primary" size="lg" style={{ flex: undefined }} />
-              </View>
+              <ListSkeleton />
             ) : isError ? (
               <View className="py-4">
                 <EmptyState

@@ -1,3 +1,4 @@
+import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { useSettingsRouter as useRouter } from '@/context/MentionSettingsContext';
 import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
 import { authenticatedClient } from '@/utils/api';
@@ -99,9 +100,7 @@ export default function NotificationSettingsScreen() {
   if (isPrivateApiPending) {
     return (
       <View className="gap-4">
-        <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
+        <SettingsSkeleton />
       </View>
     );
   }
@@ -124,9 +123,7 @@ export default function NotificationSettingsScreen() {
   if (loading) {
     return (
       <View className="gap-4">
-        <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
+        <SettingsSkeleton />
       </View>
     );
   }

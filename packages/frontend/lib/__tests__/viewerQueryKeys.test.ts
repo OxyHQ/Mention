@@ -72,6 +72,8 @@ describe('viewer-scoped private cache', () => {
       viewerQueryKeys.profileStarterPacks(viewerId, 'profile-1', false),
       viewerQueryKeys.profileLists(viewerId, 'profile-1', false),
       viewerQueryKeys.weeklyRecap(viewerId),
+      viewerQueryKeys.weeklyRecapPosts(viewerId),
+      viewerQueryKeys.weeklyRecapSummary(viewerId),
       viewerQueryKeys.insights(viewerId, null, 30),
       viewerQueryKeys.recommendationFilters(viewerId),
       viewerQueryKeys.recommendations(viewerId, 'agent'),
@@ -105,6 +107,18 @@ describe('viewer-scoped private cache', () => {
     );
     expect(viewerStorageKey('history', 'viewer-a')).toBe('history:viewer-a');
     expect(viewerStorageKey('history', 'viewer-b')).toBe('history:viewer-b');
+  });
+
+  it('keeps recap payloads distinct while invalidating them as one viewer family', () => {
+    const root = viewerQueryKeys.weeklyRecap('viewer-a');
+    const posts = viewerQueryKeys.weeklyRecapPosts('viewer-a');
+    const summary = viewerQueryKeys.weeklyRecapSummary('viewer-a');
+    expect(posts.slice(0, root.length)).toEqual(root);
+    expect(summary.slice(0, root.length)).toEqual(root);
+    expect(posts).not.toEqual(summary);
+    expect(publicQueryKeys.mentionResolve('https://example.com/@alice')).not.toEqual(
+      publicQueryKeys.externalActorResolve('https://example.com/@alice'),
+    );
   });
 
   it('separates one viewer’s insights from each account they operate', () => {
@@ -160,6 +174,7 @@ describe('viewer-scoped private cache', () => {
       publicQueryKeys.all(),
       publicQueryKeys.customFeedReviews('feed-1'),
       publicQueryKeys.externalActorResolve('alice@example.com'),
+      publicQueryKeys.mentionResolve('https://example.com/@alice'),
       publicQueryKeys.feedModules(),
       publicQueryKeys.marketplaceCategories(),
       publicQueryKeys.topicCatalogue('climate'),

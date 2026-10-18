@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import type { useRouter } from 'expo-router';
+import type { useRouter } from '@/lib/navigation/router';
 import type { QueryClient } from '@tanstack/react-query';
 import type { TFunction } from 'i18next';
 import type { ActionMenuAction } from '@/components/common/actionMenuGroups';

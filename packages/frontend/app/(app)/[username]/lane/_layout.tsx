@@ -1,4 +1,4 @@
-import { Slot } from 'expo-router';
+import { Slot } from '@/lib/navigation/router';
 
 /**
  * The `lane` segment's navigator.

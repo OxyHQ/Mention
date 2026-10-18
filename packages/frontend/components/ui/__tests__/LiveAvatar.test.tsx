@@ -27,7 +27,10 @@ jest.mock('react-i18next', () => ({
 }));
 
 const mockPush = jest.fn();
-jest.mock('expo-router', () => ({ router: { push: (...args: unknown[]) => mockPush(...args) } }));
+jest.mock('expo-router', () => ({
+  useRouter: () => jest.requireMock('expo-router').router,
+  router: { push: (...args: unknown[]) => mockPush(...args) },
+}));
 
 interface AvatarProbeProps {
   testID?: string;

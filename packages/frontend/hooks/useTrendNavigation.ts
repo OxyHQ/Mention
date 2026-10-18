@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import type { TrendEventSurface } from '@mention/shared-types';
 import { WEB_BASE_URL } from '@/config';
 import type { Trend } from '@/interfaces/Trend';

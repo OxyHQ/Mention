@@ -1,3 +1,4 @@
+import { usePanelScrollContainer } from '@oxy.so/bloom/app-shell/hooks';
 import { useRef, useCallback, useEffect, useMemo } from 'react';
 import { Platform } from 'react-native';
 import {
@@ -43,6 +44,7 @@ export function useProfileScroll({
   currentTab,
   currentLaneId,
 }: UseProfileScrollOptions) {
+  const panel = usePanelScrollContainer<HTMLElement>();
   const { scrollY, createAnimatedScrollHandler, scrollToOffset, setScrollY } = useLayoutScroll();
   const claimScroll = useFocusedScrollable<ScrollableRef>();
 
@@ -214,14 +216,14 @@ export function useProfileScroll({
     if (Platform.OS !== 'web' || typeof window === 'undefined') return;
     const listenerId = scrollY.addListener(({ value }) => {
       const y = typeof value === 'number' ? value : 0;
-      const docHeight = document.documentElement.scrollHeight;
-      const viewHeight = window.innerHeight;
+      const docHeight = panel?.current?.scrollHeight ?? document.documentElement.scrollHeight;
+      const viewHeight = panel?.current?.clientHeight ?? window.innerHeight;
       maybeLoadMore(docHeight - (y + viewHeight));
     });
     return () => {
       scrollY.removeListener(listenerId);
     };
-  }, [scrollY, maybeLoadMore]);
+  }, [scrollY, maybeLoadMore, panel]);
 
   // The active owner may be the profile ScrollView (non-feed tabs), Feed's
   // FlashList (virtualized tabs), or the web document. LayoutScrollContext

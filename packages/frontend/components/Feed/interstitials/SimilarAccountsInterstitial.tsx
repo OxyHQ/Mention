@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { Href } from 'expo-router';
+import type { Href } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { cacheActors } from '@/lib/actorCache';

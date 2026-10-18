@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import Feed from '@/components/Feed/Feed';
 import { View } from 'react-native';

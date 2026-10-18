@@ -1,12 +1,12 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { memo, useCallback, useMemo } from 'react';
 import { Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { Item } from '@oxy.so/bloom/item';
-import { Loading } from '@oxy.so/bloom/loading';
 import { Switch } from '@oxy.so/bloom/switch';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle, type AccountNode } from '@oxy.so/core';
@@ -74,6 +74,7 @@ const PublishAsDialog = memo(function PublishAsDialog({
   alsoPostToProfile,
   onAlsoPostToProfileChange,
 }: PublishAsDialogProps) {
+  const router = useRouter();
   const { t } = useTranslation();
   const { user, oxyServices, canUsePrivateApi } = useAuth();
 
@@ -107,7 +108,7 @@ const PublishAsDialog = memo(function PublishAsDialog({
   const handleManage = useCallback(() => {
     onClose();
     router.push('/channels');
-  }, [onClose]);
+  }, [onClose, router]);
 
   return (
     <Dialog
@@ -141,9 +142,7 @@ const PublishAsDialog = memo(function PublishAsDialog({
       />
 
       {isLoading ? (
-        <View className="py-10 items-center">
-          <Loading className="text-primary" size="lg" style={{ flex: undefined }} />
-        </View>
+        <ListSkeleton />
       ) : otherAccounts.length === 0 ? (
         <Text className="text-center text-sm text-muted-foreground py-6 px-6">
           {t('compose.publishAs.empty', {

@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { useIsFocused } from 'expo-router';
+import { useIsFocused } from '@/lib/navigation/router';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { useRefSync } from '@/hooks/useRefSync';
 

@@ -80,7 +80,8 @@ In order (the order is what each step reads before another deletes it):
 4. **Engagement**: likes and downvotes, saves, poll votes, feed telemetry, and
    the account's place in other posts' reply-avatar strips (recomputed from the
    surviving replies).
-5. **Everything keyed on the account**: settings (appearance, privacy, profile
+5. **Everything keyed on the account**: private Deck workspace (panel settings,
+   navigation history and scroll offsets), settings (appearance, privacy, profile
    design, notification and feed tuning), saved feeds, the ranking profile,
    follower snapshots, mutes both ways, muted words, pokes both ways, hashtag and
    list follows, notifications to, from and about the account, push tokens, owned
