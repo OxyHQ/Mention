@@ -1,10 +1,15 @@
 import type React from 'react';
+import { useMemo } from 'react';
+import { InlineMarkdown } from '@oxy.so/bloom/markdown';
+import { truncateInlineMarkdown } from '@oxy.so/bloom/markdown/inline';
+import { parsePostInlineMarkdown, postMentionForLink } from '@/utils/postInlineMarkdown';
+import { openExternalLink } from '@/utils/openExternalLink';
 import { StyleSheet, Text } from 'react-native';
-import { LinkifiedText } from '../common/LinkifiedText';
+import { LinkifiedText, MentionTextLink } from '../common/LinkifiedText';
 import { useRouter } from '@/lib/navigation/router';
 import type { PostContent } from '@mention/shared-types';
 import { useAppearanceStore } from '@/stores/appearanceStore';
-import { useExpandableText } from '@/hooks/useExpandableText';
+import { useTextExpansion } from '@/hooks/useExpandableText';
 import { useTranslation } from 'react-i18next';
 
 interface Props {
@@ -56,17 +61,13 @@ const PostContentText: React.FC<Props> = ({
         )
       : rawText;
 
-  // Surfaces that never truncate (the focused post on a detail screen, the boost
-  // screen) pass `previewChars={Infinity}`, which makes the hook a no-op — the
-  // caller knows whether it is the focused post, and reading the route here would
-  // re-render every mounted row on every navigation.
-  // `postReadMoreAction` is passed as the reset key so toggling it in Settings
-  // (or reusing this component for different content) collapses back to false.
-  const { displayText, isTruncated, isExpanded, toggle } = useExpandableText(
-    textContent,
-    effectivePreviewChars,
-    postReadMoreAction,
+  const parsed = useMemo(() => parsePostInlineMarkdown(textContent), [textContent]);
+  const preview = useMemo(
+    () => truncateInlineMarkdown(parsed.nodes, effectivePreviewChars),
+    [parsed.nodes, effectivePreviewChars],
   );
+  const { isExpanded, toggle } = useTextExpansion(textContent, postReadMoreAction);
+  const isTruncated = preview.isTruncated;
 
   if (!textContent) return null;
 
@@ -84,13 +85,24 @@ const PostContentText: React.FC<Props> = ({
     ) : null;
 
   return (
-    <LinkifiedText
-      text={displayText}
-      style={styles.postText}
-      className="text-foreground"
-      suffix={suffix}
-      linkTargetText={!isExpanded && isTruncated ? textContent : undefined}
-    />
+    <Text style={styles.postText} className="text-foreground">
+      <InlineMarkdown
+        nodes={isExpanded ? parsed.nodes : preview.nodes}
+        onLinkPress={openExternalLink}
+        renderText={(text) => <LinkifiedText inline text={text} />}
+        renderLink={({ url, label, children }) => {
+          const mention = postMentionForLink(parsed.mentions, url, label);
+          return mention ? (
+            <MentionTextLink
+              destination={mention.value}
+              label={children}
+              unverified={mention.unverified}
+            />
+          ) : undefined;
+        }}
+        suffix={suffix}
+      />
+    </Text>
   );
 };
 
