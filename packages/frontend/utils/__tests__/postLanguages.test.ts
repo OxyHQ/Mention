@@ -3,8 +3,8 @@ import { CONTENT_LANGUAGES } from '@/constants/contentLanguages';
 import {
   buildPostLanguageOptions,
   findOptionForLanguage,
-  findOptionForLanguages,
   languageLabel,
+  resolveTranslateTarget,
   servedLanguageTag,
   shouldOfferTranslation,
   translateTargets,
@@ -207,15 +207,17 @@ describe('shouldOfferTranslation', () => {
   });
 });
 
-describe('findOptionForLanguages', () => {
-  const options = buildPostLanguageOptions(bilingual);
-
-  it('tries each reader language in order and returns the first the post actually has', () => {
-    expect(findOptionForLanguages(options, ['fr', 'en'])?.tag).toBe('en');
+describe('resolveTranslateTarget', () => {
+  it('targets the reader’s primary language, never a rendition in a secondary one', () => {
+    // A Spanish-primary reader who also reads Italian asked for Spanish, even
+    // though the post already carries an Italian rendition.
+    const options = buildPostLanguageOptions(englishWithMachineItalian);
+    expect(resolveTranslateTarget(options, ['es', 'it'])).toBe('es');
   });
 
-  it('is null when none of the reader’s languages match', () => {
-    expect(findOptionForLanguages(options, ['fr', 'de'])).toBeNull();
+  it('reuses a rendition the post already has in the primary language', () => {
+    const options = buildPostLanguageOptions(bilingual);
+    expect(resolveTranslateTarget(options, ['es-MX', 'en'])).toBe('es-ES');
   });
 });
 

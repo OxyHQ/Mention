@@ -3,6 +3,7 @@ import type { OxyClient } from '../utils/privacyHelpers';
 
 import { loadViewerLanguages, resolveViewerBaseLanguages } from '../mtn/feed/feedContext';
 import { resolveDiscoveryGate } from '../mtn/feed/definitions/presets';
+import { languageLadder, requestLanguageCandidates } from '../utils/viewerLanguage';
 
 describe('loadViewerLanguages', () => {
   const viewerId = 'viewer-1';
@@ -129,6 +130,26 @@ describe('resolveViewerBaseLanguages', () => {
 
   it('is [] when neither side declares anything (an UNKNOWN reader, never a filtered one)', () => {
     expect(resolveViewerBaseLanguages([], [])).toEqual([]);
+  });
+});
+
+/**
+ * Which rendition a reader is SERVED. A device default (`Accept-Language`) must
+ * not outrank what a signed-in reader declared on their Oxy account: a Catalan
+ * browser on a Spanish-primary account reads Spanish. Only an explicit `?lang`
+ * outranks the account.
+ */
+describe('languageLadder', () => {
+  const request = (lang?: string) =>
+    requestLanguageCandidates({
+      query: lang ? { lang } : {},
+      acceptsLanguages: () => ['ca-ES', 'es-ES'],
+    } as never);
+
+  it('orders ?lang, then the account locales, then Accept-Language', () => {
+    expect(languageLadder(request(), ['es-ES', 'ca-ES'])).toEqual(['es-ES', 'ca-ES']);
+    expect(languageLadder(request('en'), ['es-ES'])).toEqual(['en', 'es-ES', 'ca-ES']);
+    expect(languageLadder(request(), [])).toEqual(['ca-ES', 'es-ES']);
   });
 });
 

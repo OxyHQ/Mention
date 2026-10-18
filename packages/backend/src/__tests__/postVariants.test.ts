@@ -24,7 +24,7 @@ import {
  * `media` present replaces the set outright, and the two together are rejected at
  * the write boundary (two sources of truth for one alt text).
  *
- * THE LADDER: explicit tag → Accept-Language → the viewer's Oxy account locales →
+ * THE LADDER: explicit tag → the viewer's Oxy account locales → Accept-Language →
  * the post's primary; within each rung, exact tag → any variant sharing the base
  * subtag. An author variant always beats a machine one for the same language.
  */
@@ -148,8 +148,8 @@ describe('resolveViewerTag — the resolution ladder', () => {
   });
 
   it('walks the ladder in order: the explicit tag outranks the account locale', () => {
-    // Candidates arrive already ordered: explicit `?lang`, Accept-Language, then
-    // the viewer's Oxy account locales.
+    // Candidates arrive already ordered (`languageLadder`): explicit `?lang`, the
+    // viewer's Oxy account locales, then Accept-Language.
     expect(resolveViewerTag(['en-GB', 'es-ES'], bilingual)).toBe('en-US');
   });
 
