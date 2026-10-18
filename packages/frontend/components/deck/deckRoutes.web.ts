@@ -1,3 +1,4 @@
+/// <reference types="expo/types/metro-require" />
 import { createDeckRouteRegistry } from './deckRouteRegistry';
 
 // Metro splits the same app screens into real asynchronous chunks. The registry
