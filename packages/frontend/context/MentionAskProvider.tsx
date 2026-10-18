@@ -2,7 +2,7 @@ import type React from 'react';
 import { useMemo } from 'react';
 import { usePathname } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { AliaAskProvider } from '@alia.onl/sdk/ask';
+import { AliaAskProvider, type AliaAsk } from '@alia.onl/sdk/ask';
 
 /**
  * Alia's one sheet for the whole app (`@alia.onl/sdk/ask`). Anything below opens it with
@@ -14,7 +14,10 @@ import { AliaAskProvider } from '@alia.onl/sdk/ask';
  * Must sit inside `OxyProvider` (auth), the portal provider and the router, beside the inert
  * boundary rather than in it: the sheet portals into the outlet.
  */
-export const MentionAskProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const MentionAskProvider: React.FC<{
+  children: React.ReactNode;
+  askRef?: React.Ref<AliaAsk>;
+}> = ({ children, askRef }) => {
   const { t } = useTranslation();
   const pathname = usePathname() || '/';
 
@@ -29,6 +32,7 @@ export const MentionAskProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   return (
     <AliaAskProvider
+      ref={askRef}
       app="mention"
       clientContext={`${t('alia.clientContext')} ${t('alia.onScreen', { path: pathname })}`}
       welcomeSuggestions={welcomeSuggestions}

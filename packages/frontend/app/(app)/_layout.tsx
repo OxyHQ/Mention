@@ -3,7 +3,7 @@ import { ExperimentalStack, Slot, usePathname } from 'expo-router';
 
 import { useAuth } from '@oxy.so/services/ui/client';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
-import { AppShell } from '@oxy.so/bloom/app-shell';
+import { AppShell, AppShellPanel } from '@oxy.so/bloom/app-shell';
 import { registerPanelSurface } from '@/components/shell/panelSurface';
 import { bottomBarContent } from '@/components/shell/bottomBarRoutes';
 
@@ -140,13 +140,11 @@ export default function AppLayout() {
         <AppShell
           variant="feed"
           scroll={IS_WEB ? 'document' : 'fixed'}
-          panel
-          panelColorPreset={activeScreenColor}
+          panels
           drawer="reveal"
           drawerOpen={drawer.isOpen}
           onDrawerOpenChange={(open) => (open ? drawer.open() : drawer.close())}
           sidebar={sidebar}
-          header={pathname === '/' ? <MentionHomeHeader /> : null}
           contentWidth={620}
           navigationAlign="content"
           navigationGap={0}
@@ -164,12 +162,17 @@ export default function AppLayout() {
           bottomBarVisibility={isAuthenticated ? 'compact' : 'always'}
           reserveBottomBarSpace={pathname !== '/videos' && pathname !== '/camera'}
         >
-          <View
-            style={StyleSheet.absoluteFill}
-            pointerEvents="box-none"
-            ref={registerPanelSurface}
-          />
-          {centerContent}
+          <AppShellPanel
+            colorPreset={activeScreenColor}
+            header={pathname === '/' ? <MentionHomeHeader /> : null}
+          >
+            <View
+              style={StyleSheet.absoluteFill}
+              pointerEvents="box-none"
+              ref={registerPanelSurface}
+            />
+            {centerContent}
+          </AppShellPanel>
         </AppShell>
       </BloomColorScope>
       <RegisterPush />

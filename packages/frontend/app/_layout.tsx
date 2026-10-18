@@ -5,7 +5,8 @@ import { registerChunkErrorRecovery } from '@/lib/chunkReload';
 import NetInfo from '@react-native-community/netinfo';
 import { focusManager, onlineManager } from '@tanstack/react-query';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { AliaAsk } from '@alia.onl/sdk/ask';
 import { AppState, Platform, type AppStateStatus } from 'react-native';
 import { BloomProvider } from '@oxy.so/bloom/provider';
 import { APP_DEFAULT_COLOR_PRESET } from '@/lib/colorEntitlement';
@@ -76,6 +77,8 @@ function resolveImageSource(fileId: string, variant?: string): string | undefine
 }
 
 export default function RootLayout() {
+  const aliaRef = useRef<AliaAsk>(null);
+  const openAlia = useCallback(() => aliaRef.current?.ask(), []);
   // State
   const [appIsReady, setAppIsReady] = useState(false);
   // Global haptics on/off, persisted via the accessibility settings toggle. Passed
@@ -174,7 +177,7 @@ export default function RootLayout() {
         // because the held OS splash is already covering the screen.
         onFontsLoading={Platform.OS === 'web' ? <AppSplashScreen /> : null}
       >
-        <AppProviders oxyServices={oxyServices} queryClient={queryClient}>
+        <AppProviders oxyServices={oxyServices} queryClient={queryClient} onAskAlia={openAlia}>
           {appIsReady ? (
             <>
               {Platform.OS !== 'web' && <NotificationPermissionGate appIsReady={appIsReady} />}
@@ -193,7 +196,7 @@ export default function RootLayout() {
                   {/* Alia's one sheet for the whole app, loaded on first use. It
                       sits beside the inert boundary, not in it, and portals into
                       the outlet below. */}
-                  <MentionAskProvider>
+                  <MentionAskProvider askRef={aliaRef}>
                     <OverlayInertBoundary>
                       <AuthRouter />
                     </OverlayInertBoundary>

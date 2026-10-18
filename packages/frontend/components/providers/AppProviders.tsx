@@ -13,6 +13,8 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { OxyProvider } from '@oxy.so/services/ui/client';
+import { OxyOneVideo } from '@oxy.so/services/ui/one-video';
+import { AliaAvatarIcon } from '@alia.onl/sdk/avatar';
 import type { OxyServices } from '@oxy.so/core';
 import { createStickersClient } from '@oxy.so/stickers';
 import { StickersProvider } from '@oxy.so/stickers/react';
@@ -48,12 +50,14 @@ interface AppProvidersProps {
   children: React.ReactNode;
   oxyServices: OxyServices;
   queryClient: QueryClient;
+  onAskAlia: () => void;
 }
 
 export const AppProviders = memo(function AppProviders({
   children,
   oxyServices,
   queryClient,
+  onAskAlia,
 }: AppProvidersProps) {
   // One sticker client per OxyServices: it memoizes resolved stickers for the
   // life of the app and acts with this client's session.
@@ -102,6 +106,10 @@ export const AppProviders = memo(function AppProviders({
            * unaffected either way.
            */}
           <OxyProvider
+            onAskAlia={onAskAlia}
+            documentationUrl="https://oxy.so/developers/docs/mention/"
+            aliaAvatar={<AliaAvatarIcon width={32} height={32} />}
+            oxyOneArtwork={<OxyOneVideo />}
             oxyServices={oxyServices}
             clientId={OXY_CLIENT_ID}
             authRedirectUri={OXY_AUTH_REDIRECT_URI}
