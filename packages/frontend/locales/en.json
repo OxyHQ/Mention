@@ -1,4 +1,8 @@
 {
+  "post.repostOptions": "Repost options",
+  "post.repost": "Repost",
+  "post.undoRepost": "Undo repost",
+  "post.quote": "Quote",
   "navigation.menu": "Navigation menu",
   "Your post could not be published. {{detail}}": "Your post could not be published. {{detail}}",
   "You're posting too fast. Please wait a moment and try again.": "You're posting too fast. Please wait a moment and try again.",

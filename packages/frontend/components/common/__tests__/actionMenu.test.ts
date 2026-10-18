@@ -90,6 +90,7 @@ describe('action menu wiring', () => {
       // The post ⋯ menu. Built by the app's one post-interaction controller
       // when a row's menu is PRESSED, not by each row (#1103).
       join('components', 'Feed', 'PostInteractionsBinder.tsx'),
+      join('components', 'Feed', 'showRepostMenu.tsx'),
       // "Message in Allo" when Allo is not installed: get Allo, or open it on
       // the web (#1140).
       join('components', 'Profile', 'hooks', 'useMessageInAllo.tsx'),

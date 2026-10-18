@@ -1,4 +1,8 @@
 {
+  "post.repostOptions": "Opciones de repost",
+  "post.repost": "Repostear",
+  "post.undoRepost": "Deshacer repost",
+  "post.quote": "Citar",
   "navigation.menu": "Menú de navegación",
   "insights.activeDaysShort": "Días activos",
   "insights.interactionsPerPostShort": "Interacc./post",

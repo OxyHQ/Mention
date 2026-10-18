@@ -43,6 +43,7 @@ import { useTranslation } from 'react-i18next';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { useImagePreload } from '@oxy.so/bloom/hooks';
 import { usePostInteractions } from './postInteractions';
+import { showRepostMenu } from './showRepostMenu';
 import { PinIcon } from '@/assets/icons/pin-icon';
 import { BoostIcon } from '@/assets/icons/boost-icon';
 import { usePostLanguage } from '@/hooks/usePostLanguage';
@@ -465,8 +466,26 @@ const PostItem: React.FC<PostItemProps> = ({
     if (viewPost) void interactions.toggleSave(viewPost, feedDescriptor);
   }, [interactions, viewPost, feedDescriptor]);
   const handleBoost = useCallback(() => {
-    if (viewPost) void interactions.toggleBoost(viewPost, feedDescriptor);
-  }, [interactions, viewPost, feedDescriptor]);
+    if (!viewPost || !viewPostId) return;
+    showRepostMenu({
+      isBoosted,
+      quotesDisabled: Boolean(metadata.quotesDisabled),
+      t,
+      onRepost: () => {
+        void interactions.toggleBoost(viewPost, feedDescriptor);
+      },
+      onQuote: () => router.push(`/compose?quotePostId=${encodeURIComponent(viewPostId)}`),
+    });
+  }, [
+    interactions,
+    viewPost,
+    viewPostId,
+    feedDescriptor,
+    isBoosted,
+    metadata.quotesDisabled,
+    t,
+    router,
+  ]);
   const handleShare = useCallback(() => {
     if (viewPost) interactions.share(viewPost);
   }, [interactions, viewPost]);
