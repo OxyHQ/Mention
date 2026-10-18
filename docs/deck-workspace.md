@@ -23,6 +23,15 @@ Bloom adds Back only when history permits. Profiles, topics, saved feeds and pos
 render their actual route components inside `PanelRouteSlot`. Links and hooks use
 Mention's panel-aware router adapter, not the global Expo router singleton.
 
+Deck's Metro context uses `lazy` mode to retain production route code splitting.
+Building the registry does not import every screen into the startup bundle. A
+panel's first module load uses its Bloom skeleton; resolved modules and component
+identities are shared across columns and revisits. A rejected chunk reaches a
+Bloom PanelErrorBoundary in that column. Its retry action resets only failed
+module records and retries the fetch, preserving healthy panels and navigation.
+Do not replace this with a synchronous context or a `Promise.resolve` wrapper
+around eagerly bundled screens.
+
 Settings pages use Bloom's SettingsModal and Screen composition, including the
 shared scrollbar. Full-bleed settings routes compose the modal's Back/close
 controls into their existing screen header. Overlay scopes isolate navigation,

@@ -1,44 +1,13 @@
-import { createElement, type ComponentType } from 'react';
-import type { PanelRouteDefinition } from '@oxy.so/bloom/panel-routing';
+import { createDeckRouteRegistry } from './deckRouteRegistry';
 
-// The same screens and route layouts as the main app; only the navigation host differs.
+// Metro splits the same app screens into real asynchronous chunks. The registry
+// names routes at startup, but only an opened panel loads its screen/layouts.
 const modules = require.context(
   '../../app/(app)',
   true,
   /^(?!.*(?:__tests__|\.test\.|\.spec\.)).*\.tsx$/,
+  'lazy',
 );
-const files = new Map<string, string>();
-for (const key of modules.keys()) {
-  if (/\.(native|ios|android)\.tsx$/.test(key)) continue;
-  const route = key.replace(/^\.\//, '').replace(/(?:\.web)?\.tsx$/, '');
-  if (!files.has(route) || key.endsWith('.web.tsx')) files.set(route, key);
-}
-const components = new Map<string, ComponentType>();
-function component(file: string): ComponentType {
-  let screen = components.get(file);
-  if (!screen) {
-    screen = function PanelScreenRoute() {
-      const Screen = (modules(file) as { default: ComponentType }).default;
-      return createElement(Screen);
-    };
-    components.set(file, screen);
-  }
-  return screen;
-}
-export const deckRoutes: readonly PanelRouteDefinition[] = [...files].flatMap(([file, key]) => {
-  if (
-    file.split('/').some((segment) => segment.startsWith('+')) ||
-    file.endsWith('_layout') ||
-    file === 'deck'
-  )
-    return [];
-  const parts = file.split('/');
-  const layouts: ComponentType[] = [];
-  for (let depth = 1; depth < parts.length; depth++) {
-    const layout = files.get(`${parts.slice(0, depth).join('/')}/_layout`);
-    if (layout) layouts.push(component(layout));
-  }
-  const path =
-    `/${parts.filter((part) => !/^\(.+\)$/.test(part)).join('/')}`.replace(/\/index$/, '') || '/';
-  return [{ path, component: component(key), layouts }];
-});
+const registry = createDeckRouteRegistry(modules);
+export const deckRoutes = registry.routes;
+export const retryFailedDeckRoutes = registry.retryFailed;
