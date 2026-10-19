@@ -3,8 +3,9 @@
  *
  * The three properties that make this safe to run on every task:
  *
- *  - A `profile` invalidation drops ALL THREE caches — the shared Redis
- *    user-summary entry plus BOTH per-process Oxy client response caches. The
+ *  - A `profile` invalidation drops EVERY cache of that user — the shared Redis
+ *    user-summary and viewer-languages entries plus BOTH per-process Oxy client
+ *    response caches. The
  *    SDK caches are per-process, so missing them leaves each task serving its
  *    own stale `GET /users/:id` for another five minutes; the Redis eviction
  *    alone is not sufficient and a test that only asserted it would pass while
@@ -27,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   quit: vi.fn(),
   publisherQuit: vi.fn(),
   invalidateUserSummaries: vi.fn(),
+  invalidateViewerLanguages: vi.fn(),
   serviceInvalidate: vi.fn(() => 0),
   runtimeInvalidate: vi.fn(() => 0),
   info: vi.fn(),
@@ -61,6 +63,10 @@ vi.mock('../runtime/oxyClient', () => ({
 
 vi.mock('../services/userSummaryCache', () => ({
   invalidate: mocks.invalidateUserSummaries,
+}));
+
+vi.mock('../utils/viewerLanguage', () => ({
+  invalidateViewerLanguages: mocks.invalidateViewerLanguages,
 }));
 
 vi.mock('../services/federation/aliasPublication', () => ({
@@ -102,11 +108,12 @@ describe('startUserInvalidationSubscriber', () => {
     });
   });
 
-  it('drops the Redis summary AND both per-process SDK caches', async () => {
+  it('drops the Redis summary, the viewer languages AND both per-process SDK caches', async () => {
     await startUserInvalidationSubscriber();
     deliver(VALID);
 
     expect(mocks.invalidateUserSummaries).toHaveBeenCalledWith(['user-1']);
+    expect(mocks.invalidateViewerLanguages).toHaveBeenCalledWith(['user-1']);
     // Both clients, or one task keeps answering from its own stale copy.
     const sweep = expect.objectContaining({
       keys: ['GET:/users/user-1'],

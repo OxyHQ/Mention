@@ -13,9 +13,12 @@
  * rebroadcasts a local actor whose `alsoKnownAs` changed (the precondition of an
  * incoming Mastodon `Move`). That check claims each event once across tasks.
  *
- * WHAT IT DROPS, and why all three:
+ * WHAT IT DROPS, and why all four:
  *  - the Redis {@link userSummaryCache} entry — the shared, cross-task copy that
  *    `PostHydrationService` reads for every post author;
+ *  - the Redis viewer-languages entry (`utils/viewerLanguage`) — the user's own
+ *    ordered locales, which decide the rendition of every post they are served,
+ *    so a reorder in Oxy applies on their next request;
  *  - the GET response cache of BOTH process-level Oxy clients (service and
  *    runtime). Those are per-PROCESS in-memory caches inside `@oxy.so/core`, so
  *    the Redis eviction alone would leave each task serving its own stale copy
@@ -43,6 +46,7 @@ import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { createRedisPubSub } from '../utils/redis';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
+import { invalidateViewerLanguages } from '../utils/viewerLanguage';
 import { invalidate as invalidateUserSummaries } from './userSummaryCache';
 import { publishAliasChange } from './federation/aliasPublication';
 
@@ -92,7 +96,10 @@ export async function startUserInvalidationSubscriber(): Promise<UserInvalidatio
           // A changed `alsoKnownAs` must reach remote servers before the user
           // presses Move on their old account. Never throws; runs alongside.
           void publishAliasChange(event);
-          return invalidateUserSummaries([event.userId]);
+          return Promise.all([
+            invalidateUserSummaries([event.userId]),
+            invalidateViewerLanguages([event.userId]),
+          ]).then(() => undefined);
         },
         onError: (error, raw) => {
           logger.warn('[UserInvalidation] dropped an invalidation message', {

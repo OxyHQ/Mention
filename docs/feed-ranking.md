@@ -235,9 +235,12 @@ feeds.
   request — affinity and preferred-topic signals were dead without it.
 - Viewer languages: `loadViewerLanguages` (`utils/viewerLanguage.ts`) reads
   the viewer's Oxy account languages from their owner profile (`users.me()`,
-  with the request's own credential, uncached) — for `loadViewerFeedContext`
-  and for every other hydration alike; Oxy's public profiles carry no
-  languages, so the per-author summary cache cannot supply them. They
+  with the request's own credential) — for `loadViewerFeedContext` and for
+  every other hydration alike; Oxy's public profiles carry no languages, so the
+  per-author summary cache cannot supply them. Cached per viewer in Redis
+  (`viewerlanguages:v1:<id>`, the summary TTL as a safety net) and evicted by
+  `userInvalidationSubscriber` on Oxy's `oxy:user:invalidate`, so a warm viewer
+  costs no Oxy call and a reorder applies on the next request. They
   are BCP-47 LOCALES (`es-ES`), while `postClassification.languages` are
   ISO 639-1 base codes (`es`), so `languageMismatchPenalty` compares on the
   BASE subtag via `getBaseLanguage`. Empty on either side ⇒ neutral.

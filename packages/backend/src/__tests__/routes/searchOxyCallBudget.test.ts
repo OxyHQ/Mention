@@ -88,6 +88,23 @@ const oxyClient = {
   getClarityDocuments: calls.getClarityDocuments,
 };
 
+const { languagesStore } = vi.hoisted(() => ({ languagesStore: new Map<string, unknown>() }));
+
+// Only the viewer-languages cache gets a store (the suite has no Redis), so a
+// warm request is observable; every other cache stays a miss, as the graph
+// budgets below assume.
+vi.mock('../../utils/cache', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../utils/cache')>();
+  const { createMemoryCache } = await import('../helpers/memoryCache');
+  return {
+    ...actual,
+    createCache: (config: Parameters<typeof actual.createCache>[0]) =>
+      config.name === 'ViewerLanguagesCache'
+        ? createMemoryCache(languagesStore)
+        : actual.createCache(config),
+  };
+});
+
 vi.mock('../../utils/oxyHelpers', () => ({
   // BOTH factories hand back the same object, so a call made through either
   // seam lands in the same counters — otherwise a leak could hide behind the
@@ -122,6 +139,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   for (const spy of Object.values(calls)) spy.mockClear();
+  languagesStore.clear();
 });
 
 describe('GET /search Oxy call budget', () => {
@@ -182,11 +200,11 @@ describe('GET /search Oxy call budget', () => {
     }
   });
 
-  it("reads the viewer's own profile once, for their account languages", async () => {
-    // `buildLanguageCandidates` reads the VIEWER's account languages, which no
+  it("reads the viewer's languages once, then serves a warm viewer with no Oxy call", async () => {
+    // `buildLanguageCandidates` needs the VIEWER's account languages, which no
     // request header carries, from their owner profile — the public identity
-    // Mention caches per author has no `languages`. One read per request; a
-    // second would show up here.
+    // Mention caches per author has no `languages`. A cold viewer costs one read;
+    // after that the per-viewer cache answers until Oxy's invalidation evicts it.
     await seedPost(scope, {
       oxyUserId: scope.user('author3'),
       content: {
@@ -196,14 +214,19 @@ describe('GET /search Oxy call budget', () => {
         ],
       },
     });
+    const search = () =>
+      request(app)
+        .get('/search')
+        .set('Accept-Language', 'es-ES')
+        .query({ query: 'llamas', type: 'posts' })
+        .expect(200);
 
-    await request(app)
-      .get('/search')
-      .set('Accept-Language', 'es-ES')
-      .query({ query: 'llamas', type: 'posts' })
-      .expect(200);
-
+    await search();
     expect(calls.getMe).toHaveBeenCalledTimes(1);
+
+    calls.getMe.mockClear();
+    await search();
+    expect(calls.getMe).toHaveBeenCalledTimes(0);
   });
 
   it('asks Oxy nothing at all for an anonymous viewer', async () => {
