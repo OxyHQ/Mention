@@ -105,11 +105,12 @@ async function writeCached(counts: Map<string, number>): Promise<void> {
   const redis = getRedisClient();
   await withRedisFallback(
     redis,
-    async () => {
+    async (signal) => {
       await setExInBatches(
         redis,
         [...counts].map(([curatorId, count]) => [keyFor(curatorId), String(count)] as const),
         cacheTtlSeconds,
+        signal,
       );
     },
     undefined,

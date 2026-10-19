@@ -66,6 +66,20 @@ function routeTemplate(req: Request, res: Response): string {
   return joined.startsWith('/') ? joined : `/${joined}`;
 }
 
+/**
+ * Requests whose completion line is not written: the load balancer's readiness
+ * probe, the uptime monitor's `HEAD /` and the web client's telemetry beacon.
+ * Together they were a large share of every log line the service wrote while
+ * saying nothing a metric does not. They still feed every metric, and a 5xx
+ * from any of them is still logged.
+ */
+function isQuietRequest(method: string, route: string, statusCode: number): boolean {
+  if (statusCode >= 500) return false;
+  return (
+    route === '/health/ready' || route === '/telemetry/web' || (method === 'HEAD' && route === '/')
+  );
+}
+
 function statusClass(statusCode: number): string {
   const bucket = Math.floor(statusCode / 100);
   return bucket >= 1 && bucket <= 5 ? `${bucket}xx` : 'other';
@@ -110,6 +124,8 @@ function reportRequest(
     metrics.observeValue('oxy_request_calls', oxyTally.count, perRequestLabels);
     metrics.recordLatency('oxy_request_duration_ms', oxyTally.totalDurationMs, perRequestLabels);
   }
+
+  if (isQuietRequest(labels.method, route, res.statusCode)) return;
 
   logger.info('HTTP request completed', {
     requestId: id,

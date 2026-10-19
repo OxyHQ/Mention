@@ -1,6 +1,10 @@
 import type { RedisClientType } from '../utils/redis';
-import { describe, expect, it, mock } from 'bun:test';
-import { isRedisConnectionError, withRedisFallback } from '../utils/redisHelpers';
+import { describe, expect, it, jest, mock } from 'bun:test';
+import {
+  isRedisConnectionError,
+  REDIS_RESPONSE_DEADLINE_MS,
+  withRedisFallback,
+} from '../utils/redisHelpers';
 
 function redisClient(overrides: Record<string, unknown>): RedisClientType {
   return {
@@ -50,6 +54,18 @@ describe('redis hot-path fallback', () => {
         0,
       ),
     ).resolves.toBe(0);
+  });
+
+  it('falls back when a ready socket stops answering', async () => {
+    jest.useFakeTimers();
+    try {
+      const client = redisClient({ isReady: true, isOpen: true });
+      const pending = withRedisFallback(client, () => new Promise<string>(() => {}), 'fallback');
+      jest.advanceTimersByTime(REDIS_RESPONSE_DEADLINE_MS);
+      await expect(pending).resolves.toBe('fallback');
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('does not hide non-connection command failures', async () => {

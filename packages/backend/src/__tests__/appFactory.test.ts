@@ -340,11 +340,18 @@ describe('createApp', () => {
     deps.routes.publicApi = publicApi;
     const app = createApp(deps);
 
+    // Only an ActivityPub body keeps its raw bytes, for signature verification.
+    await request(app)
+      .post('/raw')
+      .set('Host', 'api.mention.earth')
+      .set('Content-Type', 'application/activity+json')
+      .send('{"hello":"world"}')
+      .expect(200, { rawBody: '{"hello":"world"}' });
     await request(app)
       .post('/raw')
       .set('Host', 'api.mention.earth')
       .send({ hello: 'world' })
-      .expect(200, { rawBody: '{"hello":"world"}' });
+      .expect(200, {});
 
     const filters = await request(app)
       .get('/filters')
