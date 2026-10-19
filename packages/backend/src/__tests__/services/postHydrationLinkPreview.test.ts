@@ -355,20 +355,6 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
     expect(hydrated.documentsPending).toBe(true);
   });
 
-  it('passes a caller-supplied wait through to Clarity', async () => {
-    mockDocuments({ [POST_URL]: resolvedPreview(POST_URL, 'First') });
-
-    await service.hydratePosts([postRow()], {
-      safetyRequester: { accessToken: 'test-viewer-session' },
-      viewerId: undefined,
-      maxDepth: 0,
-      includeLinkMetadata: true,
-      linkMetadataWaitMs: 3_000,
-    });
-
-    expect(resolveDocuments).toHaveBeenCalledWith({ urls: [POST_URL], waitMs: 3_000 });
-  });
-
   it('does not call the preview service when includeLinkMetadata is false', async () => {
     resolveDocuments.mockResolvedValue({ data: [] });
 

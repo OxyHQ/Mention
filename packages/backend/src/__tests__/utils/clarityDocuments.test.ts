@@ -6,7 +6,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * call, and results that answer by position with the URL echoed canonicalised.
  */
 
-const { resolve } = vi.hoisted(() => ({ resolve: vi.fn() }));
+const { resolve, cacheEntries } = vi.hoisted(() => ({
+  resolve: vi.fn(),
+  cacheEntries: new Map<string, unknown>(),
+}));
+
+/** An in-memory stand-in for the Redis cache, so a hit can be observed. */
+vi.mock('../../utils/cache', () => ({
+  createCache: () => ({
+    getMany: async (keys: string[]) => keys.map((key) => cacheEntries.get(key)),
+    setMany: async (entries: Iterable<readonly [string, unknown]>) => {
+      for (const [key, value] of entries) cacheEntries.set(key, value);
+    },
+  }),
+}));
 
 vi.mock('../../utils/clarityClient', () => ({
   getClarityClient: async () => ({ indexing: { resolve } }),
@@ -40,6 +53,7 @@ function answerEveryUrl() {
 describe('resolveClarityDocuments', () => {
   beforeEach(() => {
     resolve.mockReset();
+    cacheEntries.clear();
   });
 
   it('asks nothing for an empty set', async () => {
@@ -93,6 +107,25 @@ describe('resolveClarityDocuments', () => {
     const result = await resolveClarityDocuments([ready, busy]);
     expect([...result.documents.keys()]).toEqual([ready]);
     expect([...result.pending]).toEqual([busy]);
+  });
+
+  it('serves a resolved document from the cache and asks again for a pending one', async () => {
+    const ready = 'https://example.com/cached-ready';
+    const busy = 'https://example.com/cached-busy';
+    resolve.mockResolvedValue({
+      data: [
+        { url: ready, status: 'indexed', document: document(ready) },
+        { url: busy, status: 'queued' },
+      ],
+    });
+    await resolveClarityDocuments([ready, busy]);
+
+    resolve.mockResolvedValue({ data: [{ url: busy, status: 'queued' }] });
+    const again = await resolveClarityDocuments([ready, busy]);
+
+    expect(resolve).toHaveBeenLastCalledWith({ urls: [busy] });
+    expect([...again.documents.keys()]).toEqual([ready]);
+    expect([...again.pending]).toEqual([busy]);
   });
 
   it('dedupes before asking', async () => {

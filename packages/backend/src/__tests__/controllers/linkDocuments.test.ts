@@ -135,7 +135,7 @@ function withText(text: string) {
 }
 
 describe('POST /posts/documents', () => {
-  it('returns the cards Clarity now has, waiting on it off the render path', async () => {
+  it('returns the cards Clarity has now, without holding the call open for the rest', async () => {
     resolve.mockResolvedValue({
       data: [{ url: ARTICLE, status: 'indexed', document: document(ARTICLE, 'Article') }],
     });
@@ -148,7 +148,7 @@ describe('POST /posts/documents', () => {
     expect(res.body).toEqual({
       posts: { [post.id]: { documents: [expect.objectContaining({ title: 'Article' })] } },
     });
-    expect(resolve).toHaveBeenCalledWith({ urls: [ARTICLE], waitMs: 3_000 });
+    expect(resolve).toHaveBeenCalledWith({ urls: [ARTICLE] });
   });
 
   it('keeps reporting a post pending while Clarity is still indexing it', async () => {
