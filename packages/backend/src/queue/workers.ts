@@ -36,7 +36,10 @@ import { activityPubConnector } from '../connectors/activitypub/ActivityPubConne
 import { federationJobScheduler } from '../services/FederationJobScheduler';
 import { runSharingCleanup } from '../connectors/activitypub/sharingCleanup.service';
 import { instagramGraphConnector } from '../connectors/instagram/InstagramGraphConnector';
-import { processMediaMetadataEnrichJob } from '../services/mediaMetadataEnrichJob';
+import {
+  MediaMetadataPendingError,
+  processMediaMetadataEnrichJob,
+} from '../services/mediaMetadataEnrichJob';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { processAccountErasure } from '../services/accountErasure/AccountErasureService';
 import { findErasedAccountUsernames } from '../db/accountErasures/accountErasureRepository';
@@ -344,6 +347,16 @@ export function startWorkers(): void {
     ...(instagramGraphSyncWorker ? [instagramGraphSyncWorker] : []),
   ]) {
     worker.on('failed', (job, err) => {
+      // "Oxy has not finished the metadata yet" is the enrich job's deliberate
+      // retry signal, not a fault; only the attempt that gives up is worth a warn.
+      if (
+        err instanceof MediaMetadataPendingError &&
+        job &&
+        job.attemptsMade < (job.opts.attempts ?? 1)
+      ) {
+        logger.debug('[Queue] media metadata still pending; retry scheduled');
+        return;
+      }
       logger.warn('[Queue] job failed', {
         worker: worker.name,
         error: err,
