@@ -178,7 +178,6 @@ describe('durable shadow evaluation ledger', () => {
     expect(await getDb().select().from(posts).where(eq(posts.id, post.id))).toEqual([before]);
     expect((await ledger(post.id))[0]).toMatchObject({
       state: 'completed',
-      model: null,
       resolvedModel: signals.resolvedModel,
       policyRef: 'fixture-policy',
       policyVersion: 1,

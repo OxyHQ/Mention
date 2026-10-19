@@ -39,8 +39,6 @@ export const postEvaluations = pgTable(
       .notNull()
       .references(() => posts.id, { onDelete: 'cascade' }),
     fingerprint: text().notNull(),
-    /** The model the request pinned; NULL when Oxy's decisions profile chose. */
-    model: text(),
     /** The model that answered; set, and required, once the row is completed. */
     resolvedModel: text(),
     /** The routing policy that served the answer, from the response; NULL until completed. */
@@ -52,12 +50,6 @@ export const postEvaluations = pgTable(
     followState: text({ enum: POST_EVALUATION_FOLLOW_STATES }).notNull().default('unknown'),
     languages: text().array(),
     sdkReceipt: jsonb().$type<ShadowSignals['sdkReceipt']>(),
-    /**
-     * Historical: the approval lineage of the 2026-10 one-post runs. The
-     * continuous lane leaves it NULL; Kaana reads back only Mention's own
-     * records, so a claim needs no recorded authority.
-     */
-    receiptAuthority: jsonb().$type<Record<string, unknown>>(),
     requestDeadlineAt: timestamptz(),
     usageReconciliation: jsonb().$type<ShadowUsageReconciliation>(),
     languageEvidence: jsonb().$type<ShadowSignals['languageEvidence']>(),
