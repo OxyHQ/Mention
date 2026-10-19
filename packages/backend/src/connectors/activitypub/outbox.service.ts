@@ -1,4 +1,3 @@
-import { scanTextEntities } from '@mention/shared-types/textEntities';
 import { eq, inArray } from 'drizzle-orm';
 import { postMatchesFederatedObjectSql } from '../shared/instagramSourceKey';
 import { logger } from '../../utils/logger';
@@ -80,6 +79,7 @@ import {
 import {
   applyMentionPlaceholders,
   extractMentionTags,
+  hasSourceMentionLink,
   resolveInboundMentionsForNotes,
   type ResolvedInboundMentions,
 } from './apMentions';
@@ -1289,9 +1289,7 @@ export class OutboxSyncService {
     const repairsSourceLink = variants.some(
       (variant, index) =>
         variant.text !== stored.content.variants?.[index]?.text &&
-        scanTextEntities(variant.text, { kinds: ['mentionDisplay'] }).some((entity) =>
-          /^https?:\/\//i.test(entity.value),
-        ),
+        hasSourceMentionLink(variant.text),
     );
     if (!addsIdentity && !repairsSourceLink) return false;
     // Re-derived from the note, the primary carries the origin's declared tag

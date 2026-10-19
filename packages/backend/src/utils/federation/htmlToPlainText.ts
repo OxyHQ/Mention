@@ -40,6 +40,16 @@ const HCARD_OPEN_TAG_REGEX = /<span\b[^>]*\bclass="[^"]*\bh-card\b[^"]*"[^>]*>\s
  */
 const HCARD_LOOKBEHIND_CHARS = 256;
 
+/**
+ * A handle's `@user` part: a username character, then username characters or `-`.
+ * The ingest qualifies exactly this shape and the mention backfill scans for it,
+ * so both share it. POSIX-compatible, because Postgres runs it too.
+ */
+export const LOCAL_HANDLE_SOURCE = '@[A-Za-z0-9_][A-Za-z0-9_-]*';
+
+/** A mention label that is a bare `@user`, with no `@domain`. */
+const LOCAL_HANDLE_LABEL_REGEX = new RegExp(`^${LOCAL_HANDLE_SOURCE}$`);
+
 /** An anchor's visible text: inner markup stripped, surrounding space trimmed. */
 function anchorVisibleText(inner: string): string {
   return sanitizeHtml(inner, { allowedTags: [], allowedAttributes: {} }).trim();
@@ -49,6 +59,18 @@ function anchorVisibleText(inner: string): string {
 function isHCardWrapped(html: string, offset: number): boolean {
   const from = Math.max(0, offset - HCARD_LOOKBEHIND_CHARS);
   return HCARD_OPEN_TAG_REGEX.test(html.slice(from, offset));
+}
+
+/** A mention anchor's href as an http(s) URL, or null when it is not one. */
+function mentionDestination(href: string | undefined): URL | null {
+  if (!href) return null;
+  try {
+    const url = new URL(decodeEntities(href));
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url : null;
+  } catch {
+    // A malformed destination cannot produce an actionable link.
+    return null;
+  }
 }
 
 /**
@@ -86,18 +108,17 @@ function collapseAnchors(html: string, preserveMentionLinks: boolean): string {
         // human profile URL cannot be reconstructed from their username.
         const label = decodeEntities(visible);
         const href = ANCHOR_HREF_REGEX.exec(attrs)?.[1];
-        if (preserveMentionLinks && label.startsWith('@') && !/[[\]\r\n]/.test(label) && href) {
-          try {
-            const url = new URL(decodeEntities(href));
-            if (url.protocol === 'https:' || url.protocol === 'http:') {
-              const target = url.href.replace(/\(/g, '%28').replace(/\)/g, '%29');
-              return `[@${visible}](${target})`;
-            }
-          } catch {
-            // A malformed destination cannot produce an actionable link.
-          }
+        const url = mentionDestination(href);
+        // Mastodon writes a same-instance mention as the bare `@user`. Read here
+        // that is a LOCAL handle naming someone else, so it takes the host of the
+        // profile it links to: `@user@instance`.
+        const handle =
+          url && LOCAL_HANDLE_LABEL_REGEX.test(label) ? `${visible}@${url.hostname}` : visible;
+        if (preserveMentionLinks && label.startsWith('@') && !/[[\]\r\n]/.test(label) && url) {
+          const target = url.href.replace(/\(/g, '%28').replace(/\)/g, '%29');
+          return `[@${handle}](${target})`;
         }
-        return visible;
+        return handle;
       }
       const href = ANCHOR_HREF_REGEX.exec(attrs)?.[1]?.trim() ?? '';
       // No href (or an unparseable single-quoted one) → the visible text is all

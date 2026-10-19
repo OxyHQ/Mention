@@ -20,25 +20,24 @@
  *   ingest and the anchor `href` is discarded), so the anchor→actor mapping only
  *   exists in the origin's HTML. Each post has to be re-fetched from its origin.
  *
+ *   A third shape came after: an unresolved mention was kept as a link with the
+ *   author-relative label, `[@@user](https://host/@user)`, which reads as a LOCAL
+ *   handle naming someone else. Ingest now writes `@user@host`; this sweep
+ *   re-derives the stored bodies with that rule too.
+ *
  * SELECTION FILTER (stated explicitly — the candidate count is logged up front)
  *   A post is a candidate when ALL of the following hold:
  *     - `federation.activityId` is present (it is a federated import);
  *     - `type !== 'boost'` (a boost body is intentionally empty and carries no
  *       mentions of its own — see the boost-hydration contract);
- *     - the `mentions` allowlist is ABSENT, null, or EMPTY (nothing resolved);
- *     - some stored body variant matches `/@[A-Za-z0-9_]/` — an `@` followed by a
- *       username character. That ONE regex covers both damage shapes above: the
- *       bare `@user` text AND the raw `https://host/@user` profile URL.
+ *     - some stored body variant matches {@link UNQUALIFIED_MENTION_TEXT_REGEX}:
+ *       a handle with no `@domain`, which covers all three damage shapes. A post
+ *       with some mentions resolved is selected too when one is still bare.
  *   Optionally narrowed to one origin actor via `REPAIR_ACTOR_URI`.
  *
- *   Deliberately narrow, with two known trade-offs:
- *     - a PARTIALLY-resolved post (some mentions stored, one anchor still raw) is
- *       NOT selected. Widening to "any federated post with an `@` in the body"
- *       would re-fetch essentially the whole federated corpus to catch a small
- *       tail; run this sweep first and revisit that tail with evidence.
- *     - the regex also matches ordinary text (an email address, an `@` used as a
- *       word). Those cost one re-fetch and resolve to zero mentions, so they are
- *       counted `unresolved` and written to nothing.
+ *   The regex also matches ordinary text (an `@` used as a word). Those cost one
+ *   re-fetch and re-derive to the stored body, so they are counted `unresolved`
+ *   or `unchanged` and written to nothing.
  *
  * WHAT IT DOES PER CANDIDATE
  *   Re-fetches the source Note over the project's SIGNED, SSRF-safe transport
@@ -212,9 +211,8 @@
  *   await d.closePostgres();})()"
  */
 
-import { and, asc, count, eq, exists, gt, inArray, lte, ne, not, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, eq, exists, gt, inArray, lte, ne, sql, type SQL } from 'drizzle-orm';
 import type { PostContentVariant } from '@mention/shared-types';
-import { scanTextEntities } from '@mention/shared-types/textEntities';
 import { connectPostgres, getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { postContentVariants, postMedia, postMentions } from '../db/schema/postContent';
@@ -222,6 +220,7 @@ import { isLiveEntityId } from '@oxy.so/db';
 import { logger } from '../utils/logger';
 import {
   applyMentionPlaceholders,
+  hasSourceMentionLink,
   resolveInboundMentionsExisting,
 } from '../connectors/activitypub/apMentions';
 import { buildFederatedNoteVariants } from '../connectors/activitypub/apPostContent';
@@ -229,6 +228,7 @@ import { runWithTimeout, signedFetch } from '../connectors/activitypub/helpers';
 import { AP_CONTENT_TYPE } from '../connectors/activitypub/constants';
 import { DEFAULT_CONCURRENCY, MAX_CONCURRENCY, mapWithConcurrency } from '../utils/concurrency';
 import { repairVariantText } from './lib/variantTextRepair';
+import { LOCAL_HANDLE_SOURCE } from '../utils/federation/htmlToPlainText';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import {
@@ -267,12 +267,17 @@ const DEFAULT_FAILURE_SAMPLE_SIZE = 20;
 const GONE_STATUS_CODES = new Set([404, 410]);
 
 /**
- * An `@` followed by a username character — the residue BOTH pre-fix damage
- * shapes leave in a stored body: the bare `@user` a stripped Mastodon anchor
- * degrades to, and the `/@user` inside the raw `https://host/@user` profile URL a
- * plain-text-child anchor degrades to.
+ * A handle with no `@domain` — the residue every pre-fix damage shape leaves in
+ * a stored body: the bare `@user` a stripped Mastodon anchor degrades to, the
+ * unqualified `[@@user](https://host/@user)` link an unresolved mention was kept
+ * as, and a raw `https://host/@user` profile URL in the text. The URL inside a
+ * link's `(…)` target is not residue, so a `/@user` right before `)` does not
+ * count. A qualified `@user@host` and an email address do not match.
+ * POSIX-compatible, because Postgres runs the same source.
  */
-const UNLINKED_MENTION_TEXT_REGEX = /@[A-Za-z0-9_]/;
+const UNQUALIFIED_MENTION_TEXT_REGEX = new RegExp(
+  `(^|[^A-Za-z0-9_./-])${LOCAL_HANDLE_SOURCE}($|[^A-Za-z0-9_@-])|/${LOCAL_HANDLE_SOURCE}($|[^A-Za-z0-9_@)-])`,
+);
 
 /** Per-post repair outcome. */
 type RepairOutcome =
@@ -567,16 +572,7 @@ export function buildCandidateFilter(actorUri?: string, postIds?: string[]): SQL
     sql`${posts.federationActivityId} is not null`,
     ne(posts.type, 'boost'),
     /**
-     * Nothing resolved. As a junction table there is exactly ONE state that
-     * means it: no row.
-     */
-    not(
-      exists(
-        getDb().select({ one: sql`1` }).from(postMentions).where(eq(postMentions.postId, posts.id)),
-      ),
-    ),
-    /**
-     * Some stored body still carries the residue of an unlinked mention.
+     * Some stored body still carries the residue of an unqualified mention.
      *
      * `~` is Postgres' POSIX regex match, and the pattern is the SOURCE of the
      * same JavaScript literal the in-memory checks use — declared once so the
@@ -589,7 +585,7 @@ export function buildCandidateFilter(actorUri?: string, postIds?: string[]): SQL
         .where(
           and(
             eq(postContentVariants.postId, posts.id),
-            sql`${postContentVariants.body} ~ ${UNLINKED_MENTION_TEXT_REGEX.source}`,
+            sql`${postContentVariants.body} ~ ${UNQUALIFIED_MENTION_TEXT_REGEX.source}`,
           ),
         ),
     ),
@@ -798,11 +794,7 @@ async function prepareRepair(
   const freshVariants = await buildFederatedNoteVariants(noteObject, post.hasMedia);
   if (
     resolved.ids.length === 0 &&
-    !freshVariants.some((variant) =>
-      scanTextEntities(variant.text, { kinds: ['mentionDisplay'] }).some((entity) =>
-        /^https?:\/\//i.test(entity.value),
-      ),
-    )
+    !freshVariants.some((variant) => hasSourceMentionLink(variant.text))
   ) {
     return { outcome: 'unresolved' };
   }

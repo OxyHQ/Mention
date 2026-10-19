@@ -111,10 +111,10 @@ describe('htmlToPlainText — mention anchors degrade to their handle', () => {
     expect(text).not.toContain('mastodon.online/@');
   });
 
-  it('keeps the handle of a NESTED (Mastodon) mention anchor — unchanged behavior', () => {
+  it('qualifies the handle of a NESTED (Mastodon) mention anchor with its profile host', () => {
     const html =
       '<p><span class="h-card" translate="no"><a href="https://mastodon.social/@indigoparadox" class="u-url mention">@<span>indigoparadox</span></a></span> No, none of that.</p>';
-    expect(htmlToPlainText(html)).toBe('@indigoparadox No, none of that.');
+    expect(htmlToPlainText(html)).toBe('@indigoparadox@mastodon.social No, none of that.');
   });
 
   it('reads the h-card wrapper when the anchor itself carries no mention class', () => {
@@ -122,7 +122,7 @@ describe('htmlToPlainText — mention anchors degrade to their handle', () => {
     // which means nothing on its own — the ENCLOSING h-card is what identifies it.
     const html =
       '<p>hey <span class="h-card"><a href="https://gts.example/@bob" class="u-url" rel="nofollow noreferrer noopener" target="_blank">@<span>bob</span></a></span></p>';
-    expect(htmlToPlainText(html)).toBe('hey @bob');
+    expect(htmlToPlainText(html)).toBe('hey @bob@gts.example');
   });
 
   it('keeps the #tag of a hashtag anchor marked by its CLASS', () => {
@@ -178,9 +178,9 @@ describe('post bodies preserve unresolved mention destinations', () => {
   it('retains a Flipboard Group link and its visible handle without inventing an identity', () => {
     const html = `<p>Posted into Leadership <span class="h-card"><a href="${url}" class="u-url mention">@<span>leadership-forbes</span></a></span></p>`;
     expect(htmlToPlainText(html, options)).toBe(
-      `Posted into Leadership [@@leadership-forbes](${url})`,
+      `Posted into Leadership [@@leadership-forbes@flipboard.com](${url})`,
     );
-    expect(htmlToPlainText(html)).toBe('Posted into Leadership @leadership-forbes');
+    expect(htmlToPlainText(html)).toBe('Posted into Leadership @leadership-forbes@flipboard.com');
   });
 
   it('preserves resolved placeholders and hashtag labels', () => {
@@ -207,12 +207,15 @@ describe('post bodies preserve unresolved mention destinations', () => {
         '<a href="https://example.org/@a(b)?x=1&amp;y=2" class="mention">@alice</a>',
         options,
       ),
-    ).toBe('[@@alice](https://example.org/@a%28b%29?x=1&y=2)');
+    ).toBe('[@@alice@example.org](https://example.org/@a%28b%29?x=1&y=2)');
     expect(
       htmlToPlainText(
         '<a href="https://example.org/@alice" class="mention">@alice&#93;(bad)</a>',
         options,
       ),
     ).toBe('@alice](bad)');
+    expect(
+      htmlToPlainText('<a href="https://masto.es/@bob" class="mention">@bob@masto.es</a>', options),
+    ).toBe('[@@bob@masto.es](https://masto.es/@bob)');
   });
 });

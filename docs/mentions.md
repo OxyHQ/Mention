@@ -152,7 +152,10 @@ For an inbound Note:
 4. Matching anchors in `content` and `contentMap` become internal placeholders,
    and the IDs are stored in `Post.mentions`.
 5. Unresolved mention anchors retain their actual HTTP(S) destination as
-   `[@<label>](<sourceUrl>)`; the label includes the visible `@`. The reader opens an internal resolution route which uses
+   `[@<label>](<sourceUrl>)`; the label includes the visible `@` and is always
+   a qualified handle. Mastodon writes a same-instance mention as the bare
+   `@user`, so a label with no `@domain` takes the host of its destination:
+   `[@@user@instance](https://instance/@user)`. The reader opens an internal resolution route which uses
    the existing federation resolver to obtain the canonical Oxy identity and
    redirect to `/@<canonicalHandle>`. This applies to all source profile shapes,
    including Group actors and opaque actor URLs. If URL discovery returns no
@@ -166,7 +169,10 @@ For an inbound Note:
 
 Outbox re-sync repairs existing dead mentions from the source HTML, including
 links whose identities still cannot resolve, and skips bodies already repaired.
-`repairFederatedMentions.ts` also supports a bounded repair with `REPAIR_POST_IDS`
+`repairFederatedMentions.ts` is the backfill: it re-fetches every federated post
+whose body still holds a handle with no `@domain` (bare `@user` text, an
+unqualified `[@@user](…)` link, or a raw `https://host/@user` URL) and re-derives
+it with the ingest rules. It supports a bounded repair with `REPAIR_POST_IDS`
 (comma-separated IDs) and `DRY_RUN=true` for reviewing the exact changes first.
 
 Only locally hosted mentioned users receive a Mention notification for an
