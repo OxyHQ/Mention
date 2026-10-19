@@ -57,6 +57,7 @@ import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { findActorsByUris } from '../../db/federation/actorRepository';
 import { distinctRemoteActorUris } from '../../db/federation/followRepository';
 import { listSubscriptionService } from '../../services/ListSubscriptionService';
+import { feedSeenPostsService } from '../../services/FeedSeenPostsService';
 import { anonFeedCache, type AnonFeedEntry } from '../../services/anonFeedCache';
 import {
   captureHydrationRevisions,
@@ -461,6 +462,11 @@ class MtnFeedController {
       // never rejects (soft-fails to `[]`), so leaving it un-awaited on a blank page
       // cannot surface an unhandled rejection.
       const muteWordsPromise = loadMuteWords(currentUserId);
+      // The seen set the engine excludes on ranked feeds, started here for the
+      // same reason. Never rejects (Redis failures fall back to memory).
+      const seenPostIdsPrefetch = currentUserId
+        ? feedSeenPostsService.getSeenPostIds(currentUserId)
+        : undefined;
 
       // The viewer's accepted OUTBOUND federated follows, read ONCE and handed to
       // both consumers as the same pending read: the feed context merges it into
@@ -507,6 +513,7 @@ class MtnFeedController {
 
       context.privacyOxyClient = requestOxyClient;
       context.safetyRequester = safetyRequesterFor(req);
+      context.seenPostIdsPrefetch = seenPostIdsPrefetch;
       // Thread the privacy lists this request already paid for into hydration,
       // which otherwise re-asks Oxy for both on every hydration call the page
       // makes — and a For You page hydrates more than once. Same arrangement as

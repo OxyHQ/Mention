@@ -98,6 +98,12 @@ export interface FeedEngineContext extends FeedContext {
    * definitions). Sources exclude these; the engine marks emitted posts seen.
    */
   seenPostIds?: string[];
+  /**
+   * The viewer's seen-set read, started by the controller alongside the context
+   * load so the engine does not pay for it as a serial round trip of its own.
+   * Never rejects (`FeedSeenPostsService` falls back to memory).
+   */
+  seenPostIdsPrefetch?: Promise<string[]>;
   /** The raw request cursor, forwarded so cursor-aware sources can page. */
   cursor?: string;
   /**

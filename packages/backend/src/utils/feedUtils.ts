@@ -41,14 +41,17 @@ export const FEED_RECENCY_WINDOWS_MS: readonly number[] = [
  *   overfetch size, `limit + 1`).
  * @param runWithCutoff executes the scan for a given cutoff Date, or unbounded
  *   when `undefined`.
+ * @param anchorMs where the windows are measured back from: now, or a
+ *   chronological page's cursor time, so page forty of a timeline is bounded
+ *   below its own boundary rather than below today.
  */
 export async function fetchWithRecencyFallback<T>(
   desiredCount: number,
   runWithCutoff: (cutoff: Date | undefined) => Promise<T[]>,
+  anchorMs: number = Date.now(),
 ): Promise<T[]> {
-  const now = Date.now();
   for (const windowMs of FEED_RECENCY_WINDOWS_MS) {
-    const result = await runWithCutoff(new Date(now - windowMs));
+    const result = await runWithCutoff(new Date(anchorMs - windowMs));
     if (result.length >= desiredCount) {
       return result;
     }

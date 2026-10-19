@@ -1,6 +1,8 @@
 import type { PostAuthorshipEntry, PostAuthorRole, PostAuthorStatus } from '@mention/shared-types';
 import { MAX_POST_COLLABORATORS } from '@mention/shared-types';
-import { and, eq, exists, inArray, or, sql, type SQL } from 'drizzle-orm';
+import { and, eq, exists, gte, inArray, or, sql, type SQL } from 'drizzle-orm';
+import { unionAll } from 'drizzle-orm/pg-core';
+import { qualified } from '@oxy.so/db';
 import { getDb } from '../db/postgres';
 import { postAuthorships, posts } from '../db/schema';
 
@@ -137,6 +139,21 @@ export function collectAuthorshipUserIds(authorship: PostAuthorshipEntry[] | und
  * Returns a predicate matching NOTHING for an empty id list, which is the honest
  * answer for "one of nobody".
  *
+ * ## `since`: the window is stated on the AUTHORSHIP row, which is what makes it cheap
+ *
+ * Without a window the planner reads every authorship of every followed author
+ * (`post_authorships_author_chrono_idx`, `= any(ids)`), probes `posts` for each
+ * and sorts: 6,973 posts probed and 37,870 buffers, 4.7 s cold, for 300 followed
+ * authors (production, 2026-10-19), growing with everything those authors ever
+ * wrote. `post_authorships.post_created_at` is the post's own `created_at`
+ * (`0021_faithful_bloodstrike`, asserted by `authorshipChronoSync.test.ts`), so
+ * `since` bounds the same index range scan instead: 113 posts and 1,871 buffers
+ * over seven days. A bound on `posts.created_at` alone cannot do that — it is
+ * applied after the probe.
+ *
+ * The ids are ONE array parameter (`= any($1::text[])`), so a 500-author list is
+ * one statement text rather than a new prepared statement per list length.
+ *
  * ## There is deliberately NO channel exclusion here, and re-adding one would be a symptom rather than a fix
  *
  * A channel post used to be authored by the PERSON who wrote it and marked with a
@@ -152,9 +169,9 @@ export function collectAuthorshipUserIds(authorship: PostAuthorshipEntry[] | und
  * `post_authorships` and every channel post reappears on its writer's surfaces
  * with nothing left to stop it.
  */
-export function followedAuthorsSql(authorIds: readonly string[]): SQL {
+export function followedAuthorsSql(authorIds: readonly string[], since?: Date): SQL {
   if (authorIds.length === 0) return sql`false`;
-  const authored = exists(
+  return exists(
     getDb()
       .select({ one: sql`1` })
       .from(postAuthorships)
@@ -162,11 +179,39 @@ export function followedAuthorsSql(authorIds: readonly string[]): SQL {
         and(
           eq(postAuthorships.postId, posts.id),
           eq(postAuthorships.status, 'accepted'),
-          inArray(postAuthorships.oxyUserId, [...authorIds]),
+          sql`${qualified(postAuthorships.oxyUserId)} = any(${sql.param([...authorIds])}::text[])`,
+          since ? gte(postAuthorships.postCreatedAt, since) : undefined,
         ),
       ),
   );
-  return authored;
+}
+
+/**
+ * "This post is `oxyUserId`'s": the owner cache OR the authorship OWNER entry —
+ * what account erasure and channel deletion remove. Either alone can miss a row
+ * whose mirror drifted, so both are kept, as `authorFeedSql` below argues.
+ *
+ * Stated as `id in (owner branch union all authorship branch)` rather than
+ * `oxy_user_id = $1 or exists (…)`. The `or` gives the planner no index for
+ * either half, so it walked `posts_pkey` probing `post_authorships` per row: for
+ * an author with 1,702 posts, 35,952 buffers and 7.8 s cold for the first page of
+ * 100, and a whole-table walk for an author with few posts. Each branch here is
+ * its own index lookup (`posts_owner_chrono_idx`, `post_authorships_author_idx`):
+ * 10,604 buffers, 0.98 s cold (production, 2026-10-19). `union all` because the
+ * outer `in` already de-duplicates.
+ */
+export function ownedBySql(oxyUserId: string): SQL {
+  const db = getDb();
+  return inArray(
+    posts.id,
+    unionAll(
+      db.select({ id: posts.id }).from(posts).where(eq(posts.oxyUserId, oxyUserId)),
+      db
+        .select({ id: postAuthorships.postId })
+        .from(postAuthorships)
+        .where(and(eq(postAuthorships.oxyUserId, oxyUserId), eq(postAuthorships.role, 'owner'))),
+    ),
+  );
 }
 
 /**
