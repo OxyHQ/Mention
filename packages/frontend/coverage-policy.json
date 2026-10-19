@@ -97,7 +97,9 @@
       "stores/engagementInvalidation.ts",
       "stores/bylineInvalidation.ts",
       "stores/laneInvalidation.ts",
-      "stores/safetyInvalidation.ts"
+      "stores/safetyInvalidation.ts",
+      "stores/readerLanguageInvalidation.ts",
+      "stores/feedRuleSignal.ts"
     ],
     "permissions and channel management": [
       "lib/operatedAccounts.ts",
@@ -240,11 +242,11 @@
     "one defensible line at a time, and a bound cannot tell growth from shrinkage."
   ],
   "expectedCounts": {
-    "domainFiles": 301,
-    "pins": 296,
+    "domainFiles": 303,
+    "pins": 298,
     "unenforceable": 5,
     "belowBarExemptions": 8,
-    "criticalPaths": 34,
+    "criticalPaths": 36,
     "allowedBaselineDecreases": 0,
     "snapshotAssertions": 0
   }

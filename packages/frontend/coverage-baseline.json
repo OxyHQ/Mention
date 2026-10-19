@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 46.77,
-      "covered": 13029,
-      "total": 27853
+      "pct": 46.88,
+      "covered": 13083,
+      "total": 27902
     },
     "branches": {
-      "pct": 42.06,
-      "covered": 8603,
-      "total": 20451
+      "pct": 42.16,
+      "covered": 8637,
+      "total": 20484
     },
     "functions": {
-      "pct": 41.59,
-      "covered": 3009,
-      "total": 7234
+      "pct": 41.8,
+      "covered": 3034,
+      "total": 7257
     },
     "lines": {
-      "pct": 47.57,
-      "covered": 11848,
-      "total": 24902
+      "pct": 47.69,
+      "covered": 11896,
+      "total": 24943
     }
   },
   "pins": {
@@ -1319,6 +1319,12 @@
       "functions": 100,
       "lines": 100
     },
+    "stores/feedRuleSignal.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "stores/feedScrollStore.ts": {
       "statements": 100,
       "branches": 100,
@@ -1391,6 +1397,12 @@
       "functions": 100,
       "lines": 100
     },
+    "stores/readerLanguageInvalidation.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "stores/safetyInvalidation.ts": {
       "statements": 100,
       "branches": 100,
@@ -1410,10 +1422,10 @@
       "lines": 50
     },
     "stores/trendsStore.ts": {
-      "statements": 82,
-      "branches": 76,
-      "functions": 81,
-      "lines": 88
+      "statements": 88,
+      "branches": 80,
+      "functions": 93,
+      "lines": 95
     },
     "stores/videoMuteStore.ts": {
       "statements": 0,

@@ -26,6 +26,8 @@ it('refetches cached posts only when the same reader reorders their languages', 
   noteReaderLanguages('viewer-a', ['es-ES', 'en-US', 'ca-ES']);
   noteReaderLanguages('viewer-a', ['es-ES', 'en-US', 'ca-ES']);
   noteReaderLanguages('viewer-b', ['ca-ES', 'es-ES', 'en-US']);
+  // A profile not read yet has no languages; that is not a change either.
+  noteReaderLanguages('viewer-b', []);
   expect(reload).not.toHaveBeenCalled();
   expect(queryClient.getQueryState(post)?.isInvalidated).toBe(false);
 
