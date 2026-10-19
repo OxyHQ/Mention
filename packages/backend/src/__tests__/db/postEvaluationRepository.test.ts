@@ -178,6 +178,10 @@ describe('durable shadow evaluation ledger', () => {
     expect(await getDb().select().from(posts).where(eq(posts.id, post.id))).toEqual([before]);
     expect((await ledger(post.id))[0]).toMatchObject({
       state: 'completed',
+      model: null,
+      resolvedModel: signals.resolvedModel,
+      policyRef: 'fixture-policy',
+      policyVersion: 1,
       spam: 0.1,
       repetition: 0.8,
       feedValue: 0.6,
@@ -579,24 +583,6 @@ describe('durable shadow evaluation ledger', () => {
       await claimPostEvaluation(post.id, { ...release, evaluationVersion: 'shadow-v2' }),
     ).not.toBeNull();
     expect(await ledger(post.id)).toHaveLength(2);
-  });
-
-  it('records the model and policy that answered on completion', async () => {
-    const post = await fixture();
-    const claim = await requiredClaim(post.id);
-    expect((await ledger(post.id))[0]).toMatchObject({
-      model: null,
-      resolvedModel: null,
-      policyRef: null,
-    });
-    expect(await completePostEvaluation(claim, signals)).toBe(true);
-    expect((await ledger(post.id))[0]).toMatchObject({
-      state: 'completed',
-      model: null,
-      resolvedModel: signals.resolvedModel,
-      policyRef: 'fixture-policy',
-      policyVersion: 1,
-    });
   });
 
   it('lists recent native public posts newest first, once per evaluation version', async () => {

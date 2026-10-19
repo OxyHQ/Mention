@@ -163,7 +163,10 @@ echoed `<text>` wrapper or code fence removed, and then it must contain every
 token exactly once and unchanged. If it does not, or if it is empty, the request
 returns `502 { code: 'TRANSLATION_OUTPUT_INVALID' }` and nothing is cached. When
 an ALT or article field fails the same check, that field is left out of the
-stored variant.
+stored variant. The stored translation keeps `[mention:<id>]` placeholders; the
+response's `translatedText` renders them as hydration does (`[@Label](handle)`).
+A Kaana rate limit answers `429`, a billing limit `502`, and any other inference
+failure `503` (`classifyKaanaFailure` in `utils/kaana.ts`).
 
 `PUT /posts/:id` drops every machine variant, along with its localized ALT
 rows, when an edit changes what the variants were translated from: the primary

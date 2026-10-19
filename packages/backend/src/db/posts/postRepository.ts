@@ -1891,86 +1891,6 @@ export type MachineVariantWrite =
   /** The post no longer exists. */
   | { kind: 'missing' };
 
-/** The columns {@link dropVariantsAndCompact} decides on. */
-interface VariantRowSummary {
-  id: string;
-  tag: string | null;
-  source: string;
-  body: string;
-}
-
-/**
- * Delete a post's renditions that `isDropped` selects — the rows and their
- * `post_variant_alt_texts` — and renumber the survivors so `position` stays
- * dense: removing a middle variant otherwise leaves a hole the next appended
- * row cannot occupy without colliding with the tail. The caller holds
- * {@link lockPostContent} in `tx`.
- */
-async function dropVariantsAndCompact(
-  tx: DatabaseOrTransaction,
-  postId: string,
-  isDropped: (row: VariantRowSummary) => boolean,
-): Promise<{ dropped: number; survivors: number }> {
-  const existing = await tx
-    .select({
-      id: postContentVariants.id,
-      position: postContentVariants.position,
-      tag: postContentVariants.tag,
-      source: postContentVariants.source,
-      body: postContentVariants.body,
-    })
-    .from(postContentVariants)
-    .where(eq(postContentVariants.postId, postId))
-    .orderBy(asc(postContentVariants.position));
-
-  const dropped = existing.filter(isDropped).map((row) => row.id);
-  const survivors = existing.filter((row) => !isDropped(row));
-  if (dropped.length > 0) {
-    await tx.delete(postVariantAltTexts).where(inArray(postVariantAltTexts.variantId, dropped));
-    await tx.delete(postContentVariants).where(inArray(postContentVariants.id, dropped));
-  }
-
-  for (const [index, row] of survivors.entries()) {
-    if (row.position === index) continue;
-    await tx
-      .update(postContentVariants)
-      .set({ position: index })
-      .where(eq(postContentVariants.id, row.id));
-  }
-  return { dropped: dropped.length, survivors: survivors.length };
-}
-
-/**
- * Remove a post's MACHINE renditions that `isDropped` selects. Author
- * renditions are never offered to the predicate, so no caller can delete one.
- * A machine variant is a cache: the next translate request for that language
- * makes it again. Returns how many rows were deleted.
- */
-export async function deleteMachineVariants(
-  postId: string,
-  isDropped: (variant: { id: string; tag: string | null; body: string }) => boolean,
-): Promise<number> {
-  const dropped = await getDb().transaction(async (tx) => {
-    await lockPostContent(tx, postId);
-    const result = await dropVariantsAndCompact(
-      tx,
-      postId,
-      (row) => row.source === 'machine' && isDropped(row),
-    );
-    if (result.dropped > 0) {
-      // Same as storing one: the post's renditions changed.
-      await tx
-        .update(posts)
-        .set({ classificationStatus: 'pending', classificationAttempts: 0 })
-        .where(eq(posts.id, postId));
-    }
-    return result.dropped;
-  });
-
-  if (dropped > 0) await invalidatePostDetailCache(postId);
-  return dropped;
-}
-
 /**
  * Persist a machine translation of a post, conflict-safely.
  *
@@ -2019,17 +1939,42 @@ export async function storeMachineVariant(
     );
     if (cached && !options.force) return { kind: 'existing', variant: cached };
 
-    const { survivors } = await dropVariantsAndCompact(
-      tx,
-      postId,
-      (row) => row.tag === variant.tag && row.source === 'machine',
-    );
+    const existing = await tx
+      .select({
+        id: postContentVariants.id,
+        position: postContentVariants.position,
+        tag: postContentVariants.tag,
+        source: postContentVariants.source,
+      })
+      .from(postContentVariants)
+      .where(eq(postContentVariants.postId, postId))
+      .orderBy(asc(postContentVariants.position));
+
+    const isReplaced = (row: { tag: string | null; source: string }): boolean =>
+      row.tag === variant.tag && row.source === 'machine';
+    const replaced = existing.filter(isReplaced).map((row) => row.id);
+    const survivors = existing.filter((row) => !isReplaced(row));
+    if (replaced.length > 0) {
+      await tx.delete(postVariantAltTexts).where(inArray(postVariantAltTexts.variantId, replaced));
+      await tx.delete(postContentVariants).where(inArray(postContentVariants.id, replaced));
+    }
+
+    // Renumber whatever survived so `position` stays dense before the append —
+    // otherwise removing a middle variant leaves a hole the new row cannot
+    // occupy without colliding with the tail.
+    for (const [index, row] of survivors.entries()) {
+      if (row.position === index) continue;
+      await tx
+        .update(postContentVariants)
+        .set({ position: index })
+        .where(eq(postContentVariants.id, row.id));
+    }
 
     const variantId = uuidv7();
     await tx.insert(postContentVariants).values({
       id: variantId,
       postId,
-      position: survivors,
+      position: survivors.length,
       tag: variant.tag,
       source: 'machine',
       body: variant.text,

@@ -36,17 +36,13 @@ vi.mock('@kaana.ai/sdk', () => ({
   },
 }));
 
-import {
-  clearInferenceClient,
-  inferenceChat,
-  inferenceJSON,
-  isInferenceEnabled,
-} from '../../utils/inference';
+import { inferenceChat, inferenceJSON, isInferenceEnabled } from '../../utils/inference';
+import { resetKaanaClient } from '../../utils/kaana';
 
 describe('Kaana inference boundary', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    clearInferenceClient();
+    resetKaanaClient();
     state.credentials.apiKey = 'application-id';
     state.credentials.apiSecret = 'application-secret';
     state.create.mockResolvedValue({

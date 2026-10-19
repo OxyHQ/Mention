@@ -11,6 +11,12 @@ export interface ShadowRelease {
   readonly supportedLanguages: readonly string[];
 }
 
+/** Reviewed topic propositions are versioned with the release; never inferred labels. */
+export interface ShadowTopic {
+  readonly topic: string;
+  readonly question: string;
+}
+
 /** Persisted rendition identity, including the FULL body, before truncation. */
 export interface ShadowRendition {
   readonly id: string;

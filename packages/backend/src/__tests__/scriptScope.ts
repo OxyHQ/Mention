@@ -118,11 +118,6 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     scope: 'whole-table',
     reason: 'Every federated post with a null quote_of whose body renders as `RE: <url>`.',
   },
-  purgeWrappedMachineTranslations: {
-    scope: 'whole-table',
-    reason:
-      "Every source = 'machine' variant whose body still carries the `<text>` wrapper, across all posts; it deletes them.",
-  },
   stripRenderedQuoteMarkers: {
     scope: 'whole-table',
     reason:

@@ -18,7 +18,7 @@ import {
   TranslationSourceChangedError,
 } from '../../services/PostTranslationService';
 import { TranslationOutputError } from '../../services/translationOutputGuard';
-import { classifyInferenceFailure } from '../../utils/inference';
+import { classifyKaanaFailure } from '../../utils/kaana';
 import { MAX_TEXT_LENGTH } from './composeInput';
 
 /**
@@ -51,7 +51,7 @@ const respondTranslationError = async (
     return;
   }
 
-  const failure = await classifyInferenceFailure(error);
+  const failure = (await classifyKaanaFailure(error))?.kind;
   if (failure === 'rate_limited') {
     logger.warn(`${context}: rate limited`, error);
     res.status(429).json({ message: 'Too many requests. Please try again later.' });

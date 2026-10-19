@@ -49,12 +49,10 @@ const TRANSLATION_LOCK_POLL_MS = 250;
 /**
  * The output budget for a translation, derived from the source length. The
  * ratio is generous (a translation can be longer than its source, and a token is
- * several characters), and the ceiling keeps a long article from asking the model
- * for an out-of-range completion.
+ * several characters). `inferenceChat` caps it at Mention's output ceiling.
  */
 const TRANSLATION_TOKENS_PER_CHAR = 3;
 const MIN_TRANSLATION_TOKENS = 256;
-const MAX_TRANSLATION_TOKENS = 8192;
 
 const TRANSLATION_TEMPERATURE = 0.1;
 
@@ -144,10 +142,7 @@ function languageDisplayName(tag: string): string | null {
 }
 
 function translationTokenBudget(sourceLength: number): number {
-  return Math.min(
-    Math.max(sourceLength * TRANSLATION_TOKENS_PER_CHAR, MIN_TRANSLATION_TOKENS),
-    MAX_TRANSLATION_TOKENS,
-  );
+  return Math.max(sourceLength * TRANSLATION_TOKENS_PER_CHAR, MIN_TRANSLATION_TOKENS);
 }
 
 export class PostTranslationService {
@@ -416,7 +411,7 @@ export class PostTranslationService {
       ],
       {
         feature: 'post-translation',
-        ...(delegatedUserId === undefined ? {} : { delegatedUserId }),
+        delegatedUserId,
         temperature: TRANSLATION_TEMPERATURE,
         maxTokens: translationTokenBudget(source.length),
       },
@@ -514,7 +509,7 @@ export class PostTranslationService {
         ],
         {
           feature: 'post-translation-fields',
-          ...(delegatedUserId === undefined ? {} : { delegatedUserId }),
+          delegatedUserId,
           temperature: TRANSLATION_TEMPERATURE,
           maxTokens: translationTokenBudget(payload.length),
         },

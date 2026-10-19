@@ -1,6 +1,6 @@
 import { config } from '../config';
 import { canAuthenticateAsService } from '../runtime/serviceIdentity';
-import { kaanaClient, resetKaanaClient } from './kaana';
+import { kaanaClient } from './kaana';
 import { logger } from './logger';
 
 export interface InferenceChatMessage {
@@ -18,7 +18,7 @@ export interface InferenceChatOptions {
 /**
  * Every Mention text feature (translation, summaries, topics, classification)
  * asks for the `instant` power level: Kaana picks the model of that reviewed
- * class, Oxy's grant decides who pays (owner decision, 2026-10-18).
+ * class, Oxy's grant decides who pays.
  */
 export const MENTION_TEXT_POWER_LEVEL = 'instant';
 
@@ -35,31 +35,6 @@ const DEFAULT_OUTPUT_TOKENS = 1024;
  */
 export function isInferenceEnabled(): boolean {
   return canAuthenticateAsService();
-}
-
-/** How a failed Kaana call reads to Mention's own callers. */
-export type InferenceFailure = 'rate_limited' | 'billing' | 'unavailable';
-
-/**
- * Classify a failure from the Kaana SDK, or `undefined` when it is not one
- * (a Mention bug stays a Mention 500). Authentication, scope, policy, routing,
- * protocol and network failures are all the inference dependency being
- * unavailable.
- */
-export async function classifyInferenceFailure(
-  error: unknown,
-): Promise<InferenceFailure | undefined> {
-  const sdk = await import('@kaana.ai/sdk');
-  if (error instanceof sdk.KaanaRateLimitError) return 'rate_limited';
-  if (error instanceof sdk.KaanaBillingError) return 'billing';
-  if (
-    error instanceof sdk.KaanaError ||
-    error instanceof sdk.KaanaConnectionError ||
-    error instanceof sdk.KaanaProtocolError
-  ) {
-    return 'unavailable';
-  }
-  return undefined;
 }
 
 /** Send a non-streaming request to Kaana and return its text output. */
@@ -123,9 +98,4 @@ export async function inferenceJSON<T>(
     });
     throw new Error('Kaana inference returned invalid JSON');
   }
-}
-
-/** Test/lifecycle hook; production keeps one connectionless client. */
-export function clearInferenceClient(): void {
-  resetKaanaClient();
 }

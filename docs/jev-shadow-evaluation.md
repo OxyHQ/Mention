@@ -20,7 +20,9 @@ and `jevRequest.ts` beside it builds the request:
   `policy_version`). Analyse results per `resolved_model`;
 - the primary author rendition, cut to 1,000 characters. The fingerprint still
   covers the full author content;
-- `supportedLanguages`: en, es, ca, pt, fr, de, it. Jev is most accurate in English, so split any analysis by `languages`; other languages abstain for free.
+- `supportedLanguages`: en, es, ca, pt, fr, de, it. Jev is most accurate in
+  English, so split any analysis by `languages`; other languages abstain for
+  free.
 
 `JEV_EVALUATION_VERSION` names the question set. Bump it whenever the questions,
 languages or instructions change: a revision is evaluated once per version.
@@ -65,10 +67,10 @@ classification:
 
    A 502 or 504 is never a refusal, whatever its code: Kaana answers them after
    a provider ran, and Cloudflare in front of kaana.ai replaces their body, so
-   the SDK reads a body-less `service_unavailable`. On 2026-10-18 that sent one
-   post whose answer Kaana's adapter refused (each attempt billed upstream) back
-   every cycle as "nothing was spent". Every failure is logged with its public
-   code, status and Kaana request id, never its message.
+   the SDK reads a body-less `service_unavailable` for a call that may have run.
+   Every failure is logged with its public code, status and Kaana request id,
+   never its message. The classification is `classifyKaanaFailure` in
+   `utils/kaana.ts`, the same one the translate endpoint maps onto HTTP.
 
    The SDK client is built with `maxRetries: 0`, so Mention never resends. Kaana
    retries and fails over on the provider side before any output.
@@ -111,8 +113,8 @@ unchanged. Reconciliation never runs an evaluator and never restores an answer.
 
 `post_evaluation_total{outcome, model}` is published to CloudWatch
 (`Mention/Backend`, EMF). Its outcomes are `completed`, `superseded`,
-`cost_uncertain`, `refused`, `rejected`, `exhausted` and `released`. `model` is the model
-that answered, or `none`.
+`cost_uncertain`, `refused`, `rejected`, `exhausted` and `released`. `model` is
+the model that answered, or `none`.
 
 ## Storage
 
@@ -126,4 +128,5 @@ that answered, or `none`.
   - requires `resolved_model` and the policy on completed rows;
   - moves the unique key to `(post_id, fingerprint, evaluation_version)`;
   - indexes `created_at` for the daily count.
+- `0081_post_evaluations_rejected` adds the terminal `rejected` state.
 - Post deletion cascades to both tables.

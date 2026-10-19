@@ -56,24 +56,16 @@ export function requestLanguageCandidates(req: Request): RequestLanguages {
 }
 
 /**
- * The request's languages as ONE list, `?lang` first — for consumers that have
- * no account rung to slot between the two (a readability SET, an anonymous
- * reader, a default for a note's language).
- */
-export function requestLanguageList(languages: RequestLanguages | undefined): string[] {
-  if (!languages) return [];
-  return languages.explicit ? [languages.explicit, ...languages.accepted] : [...languages.accepted];
-}
-
-/**
  * The full variant-resolution ladder, most-preferred first: an explicit `?lang`,
  * then the viewer's Oxy account locales (primary first — what they DECLARED),
- * then `Accept-Language` (what their device happens to say). An anonymous
- * reader has no account rung and gets `?lang` then `Accept-Language`.
+ * then `Accept-Language` (what their device happens to say). Without account
+ * locales (an anonymous reader, or a consumer with no account rung: a
+ * readability set, a default for a note's language) it is `?lang` then
+ * `Accept-Language`.
  */
 export function languageLadder(
   request: RequestLanguages | undefined,
-  accountLanguages: readonly string[],
+  accountLanguages: readonly string[] = [],
 ): string[] {
   const ladder: string[] = [];
   for (const tag of [
