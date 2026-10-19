@@ -414,9 +414,9 @@ jobs:
           #    GENERALISES TO EVERY POST-DEPLOY ONE-SHOT. `deploy-ecs-image.sh`
           #    passes `--task-definition "$new_task_definition"` to `run-task`
           #    (`:593`), and that revision is registered from the LIVE SERVICE's
-          #    own definition (`:515`, `:577`) with only `image`, `secrets` and
-          #    `environment` rewritten. `cpu` and `memory` are copied verbatim,
-          #    and nothing here can override them. So the one-shot runs on the
+          #    own definition (`:515`, `:577`) with only `image`, `secrets`,
+          #    `environment` and the task size (TASK_CPU/TASK_MEMORY) rewritten.
+          #    The size is the SERVICE's, so the one-shot runs on the
           #    WEB CONTAINER's sizing — `oxy-mention:211` is 512 CPU / 1024 MiB,
           #    against 8192 CPU / 61440 MiB for the sizing this sweep was timed
           #    on. 16x the CPU. The 12-minute measurement extrapolates to roughly
@@ -455,6 +455,16 @@ jobs:
           # `packages/backend/scripts/reconcile-engagement-projections.ts` holds
           # the command and how to launch it.
           POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-mention.sh
+          # The serving task's size, re-asserted on every revision (the render
+          # otherwise copies it from the RUNNING one). 1 vCPU / 2 GB since
+          # 2026-10-19: at 512/1024 the scheduler leader sat at 100% CPU while
+          # it built the sitemaps, and died during the 07:42Z build. Every
+          # one-shot this deploy launches (migrations) inherits it too. Raising
+          # it is an account-capacity question: the Fargate quota is 100 vCPU,
+          # and autoscaling `max` x this size x the 200% deploy surge must fit
+          # beside every other service.
+          TASK_CPU: '1024'
+          TASK_MEMORY: '2048'
         # The existing target group remains on `/`, which server.ts now serves
         # as the same readiness gate as `/health/ready`. ELB mutations belong
         # in oxy-infra because the deploy role intentionally lacks ELB access.

@@ -84,15 +84,10 @@ export function startSchedulers(): void {
     logger.warn('Failed to start expiry sweep job', error);
   }
 
-  // SEO sitemaps (leader-gated): every child sitemap built in one pass when the
-  // cached catalog is six hours old. Requests only read the cache, so no
-  // crawler can make a sitemap query the database (#1160).
-  try {
-    const { sitemapBuildJob } = require('../services/seoSitemap');
-    sitemapBuildJob.start();
-  } catch (error) {
-    logger.warn('Failed to start sitemap build job', error);
-  }
+  // SEO sitemaps are NOT built here: the build streams every eligible post and
+  // gzips 64 shards, which is work a task serving requests should not share its
+  // event loop with. It runs as its own scheduled one-shot task
+  // (`scripts/buildSitemaps.ts`).
 
   // CrowdSource reconciliation (leader-gated, and gated on being able to deliver):
   // finds reports whose durable delivery event is missing or dead-lettered. The
@@ -220,13 +215,6 @@ export function stopSchedulers(): void {
     expirySweepJob.stop();
   } catch (error) {
     logger.warn('Failed to stop expiry sweep job', error);
-  }
-
-  try {
-    const { sitemapBuildJob } = require('../services/seoSitemap');
-    sitemapBuildJob.stop();
-  } catch (error) {
-    logger.warn('Failed to stop sitemap build job', error);
   }
 
   try {

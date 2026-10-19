@@ -1,5 +1,5 @@
 import IORedis, { type RedisOptions } from 'ioredis';
-import { getRedisConnectionConfig, isRedisRuntimeConfigured } from '../config';
+import { getQueueRedisConnectionConfig, isQueueRedisRuntimeConfigured } from '../config';
 import { logger } from '../utils/logger';
 
 /**
@@ -9,8 +9,12 @@ import { logger } from '../utils/logger';
  * `maxRetriesPerRequest: null` (BullMQ uses blocking commands like BRPOPLPUSH
  * whose lifetime exceeds a single request budget). We therefore do NOT reuse
  * the app's node-redis client in `src/utils/redis.ts`; we build a separate
- * ioredis connection here using the SAME env resolution as `getRedisConfig()`
- * (REDIS_URL/REDIS_URI first, then host/port/password/db).
+ * ioredis connection here.
+ *
+ * It may also point at a different SERVER: `QUEUE_REDIS_URL` when set, and the
+ * cache's settings (REDIS_URL/REDIS_URI, then host/port/password/db) otherwise.
+ * In production it names a `noeviction` server: the cache Redis evicts keys
+ * carrying a TTL under memory pressure, BullMQ's job locks among them.
  *
  * The connection is created lazily on first access so that merely importing the
  * queue module is side-effect free (important for unit tests that run without a
@@ -25,14 +29,14 @@ const REDIS_CONNECT_TIMEOUT_MS = 15_000;
 const REDIS_TLS_CONNECT_TIMEOUT_MS = 20_000;
 
 /**
- * Whether a usable Redis target is configured. True when an explicit
- * REDIS_URL/REDIS_URI is set, OR when an explicit REDIS_HOST is provided. A bare
+ * Whether a usable Redis target is configured. True when QUEUE_REDIS_URL or an
+ * explicit REDIS_URL/REDIS_URI is set, OR when an explicit REDIS_HOST is provided. A bare
  * default `localhost` (no env at all) is NOT considered configured so that local
  * dev without Redis cleanly falls back to the in-process scheduler + the
  * `federation_delivery_queue` table instead of crash-looping against a non-existent server.
  */
 export function isQueueEnabled(): boolean {
-  return isRedisRuntimeConfigured();
+  return isQueueRedisRuntimeConfigured();
 }
 
 let connection: IORedis | null = null;
@@ -47,7 +51,7 @@ let connection: IORedis | null = null;
 export function getQueueConnection(): IORedis {
   if (connection) return connection;
 
-  const redisConfig = getRedisConnectionConfig();
+  const redisConfig = getQueueRedisConnectionConfig();
 
   if (redisConfig.url) {
     const isTls = redisConfig.url.startsWith('rediss://');

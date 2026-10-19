@@ -3,6 +3,7 @@ import {
   getIpHashSalt,
   getMentionSigningConfig,
   isRedisRuntimeConfigured,
+  isQueueRedisRuntimeConfigured,
   parseRuntimeEnvironment,
 } from '../config';
 
@@ -80,6 +81,15 @@ describe('runtime configuration', () => {
     expect(isRedisRuntimeConfigured({ REDIS_URL: 'redis://localhost:6379' })).toBe(true);
     expect(isRedisRuntimeConfigured({ REDIS_URI: 'rediss://cache.example:6380' })).toBe(true);
     expect(isRedisRuntimeConfigured({ REDIS_HOST: 'cache.internal' })).toBe(true);
+  });
+
+  it('gives BullMQ a Redis of its own, or the cache when it has none', () => {
+    expect(isQueueRedisRuntimeConfigured({})).toBe(false);
+    expect(isQueueRedisRuntimeConfigured({ QUEUE_REDIS_URL: 'redis://queue.internal:6379' })).toBe(
+      true,
+    );
+    expect(isQueueRedisRuntimeConfigured({ REDIS_URL: 'redis://localhost:6379' })).toBe(true);
+    expect(() => isQueueRedisRuntimeConfigured({ QUEUE_REDIS_URL: 'http://queue' })).toThrow();
   });
 
   it('prefers a dedicated IP salt and safely falls back to the former MCP key', () => {

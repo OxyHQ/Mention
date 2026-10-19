@@ -27,6 +27,9 @@ const READ_ONLY_SCRIPTS = new Set([
   // Re-derives one field from a pure function over data already on the post.
   // Idempotent, and the ingest path rewrites the same field anyway.
   'rebaselineTrendTerms.ts',
+  // Reads posts and profiles; its only write is the sitemap cache in Redis, a
+  // derived value every run replaces. Launched on a schedule, takes no input.
+  'buildSitemaps.ts',
 ]);
 
 /**

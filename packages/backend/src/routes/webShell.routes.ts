@@ -507,7 +507,7 @@ Sitemap: ${config.web.origin}/sitemap.xml
 `;
 
 /**
- * Sitemaps are rebuilt every six hours (`SitemapBuildJob`), so a crawler or a
+ * Sitemaps are rebuilt every six hours (`scripts/buildSitemaps.ts`), so a crawler or a
  * cache in front of us may keep one for an hour, and the CDN for six. The
  * build time is the Last-Modified, which with Express's own ETag lets a
  * revalidating crawler get a bodiless 304.
