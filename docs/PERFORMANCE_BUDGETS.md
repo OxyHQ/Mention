@@ -446,6 +446,11 @@ difference is inside the run-to-run spread.
   served `max-age=0, must-revalidate`. The fix belongs in Bloom's runtime (a
   size-aware level of detail, or a still for icon sizes) and in alia.onl's
   caching, not in Mention.
+  **Resolved upstream** by OxyHQ/Alia#791 (immutable caching for the hashed
+  assets) and OxyHQ/Alia#792 (SDK 17.1.0 draws a still PNG at icon sizes);
+  Mention is on `@alia.onl/sdk` ^21.5.0. Measured on production 2026-10-19: a
+  cold load of `/` makes **0 requests / 0 bytes** to the 3D runtime (was 20
+  requests / 7.8 MiB). No Mention change was needed.
 - **Theme tokens.** Bloom's `BloomThemeProvider` solved the same preset's tokens
   twice on its first render — fixed in Bloom 10.8.2 (OxyHQ/Bloom#361). The
   splash (`AppSplashScreen`) resolves the full DARK token set for one gradient
