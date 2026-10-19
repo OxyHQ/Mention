@@ -3522,6 +3522,15 @@ export class PostHydrationService {
     };
   }
 
+  /**
+   * Render a body outside hydration (a translate response) exactly as
+   * hydration renders it: `[mention:<id>]` placeholders for the post's own
+   * declared mentions become `[@Label](handle)`.
+   */
+  async renderMentionPlaceholders(text: string, mentions: readonly string[]): Promise<string> {
+    return this.replaceMentionPlaceholders(text, [...mentions], new Map());
+  }
+
   private async replaceMentionPlaceholders(
     text: string,
     mentions: string[],

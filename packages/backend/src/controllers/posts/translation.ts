@@ -139,7 +139,12 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
     res.json({
-      translatedText: translated.text,
+      // Stored bodies keep `[mention:<id>]`; serve the rendered form, as the
+      // hydrated variant is.
+      translatedText: await postHydrationService.renderMentionPlaceholders(
+        translated.text,
+        current.mentions,
+      ),
       tag: translated.tag,
       cached: translated.cached,
     });
