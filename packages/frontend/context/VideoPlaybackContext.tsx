@@ -349,33 +349,77 @@ function rankKeys(keys: ReadonlySet<string>): ReadonlyMap<string, number> {
   return order;
 }
 
-/** Mounted by a list that owns viewability for the players inside it (native feeds). */
-export function VideoViewabilityProvider({
-  viewableKeys,
-  children,
-}: {
-  viewableKeys: ReadonlySet<string>;
-  children: React.ReactNode;
-}): React.ReactElement {
-  // A `Set` keeps insertion order, so the publisher's order (top of the list
-  // first) becomes the index a player is ranked by for the audible slot.
-  const ranks = useMemo(() => rankKeys(viewableKeys), [viewableKeys]);
+function sameKeys(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
+  if (a === b) return true;
+  if (a.size !== b.size) return false;
+  // Compared in ITERATION order, not merely by membership: the published order IS
+  // the audible slot's ranking, so a reordered set is a real change.
+  const next = b.values();
+  for (const key of a) {
+    if (next.next().value !== key) return false;
+  }
+  return true;
+}
 
-  // The Context value is created ONCE and never changes: a new viewable set is
-  // pushed through the store instead, so it reaches only the players whose own
-  // rank moved. Seeded from the first set so the first render already resolves.
-  const [source] = useState<ViewabilitySource & { kind: 'keys' }>(() => ({
-    kind: 'keys',
-    order: createStore(ranks),
-  }));
+const NO_VIEWABLE_KEYS: ReadonlySet<string> = new Set<string>();
+
+/**
+ * Where a list publishes the keys it has on screen, in on-screen order (a `Set`
+ * keeps insertion order, so the publisher's order — top of the list first —
+ * becomes the index a player is ranked by for the audible slot).
+ *
+ * A list publishes from its viewability and scroll callbacks straight into this
+ * store: the players whose own rank moved re-render, and the list itself does
+ * not. Holding the set in the list's state instead re-rendered the whole list on
+ * every viewability change.
+ */
+export interface ViewableKeysStore {
+  publish: (keys: ReadonlySet<string>) => void;
+  readonly source: ViewabilitySource & { kind: 'keys' };
+}
+
+export function createViewableKeysStore(
+  initial: ReadonlySet<string> = NO_VIEWABLE_KEYS,
+): ViewableKeysStore {
+  const order = createStore(rankKeys(initial));
+  let published = initial;
+  return {
+    source: { kind: 'keys', order },
+    publish: (keys) => {
+      if (sameKeys(published, keys)) return;
+      published = keys;
+      order.set(rankKeys(keys));
+    },
+  };
+}
+
+/**
+ * Mounted by a list that owns viewability for the players inside it (native
+ * feeds). A list that publishes from callbacks passes its own `store`; one that
+ * derives the set while rendering passes `viewableKeys`.
+ */
+export function VideoViewabilityProvider(
+  props: { children: React.ReactNode } & (
+    | { viewableKeys: ReadonlySet<string> }
+    | { store: ViewableKeysStore }
+  ),
+): React.ReactElement {
+  const viewableKeys = 'viewableKeys' in props ? props.viewableKeys : undefined;
+  // Seeded from the first set so the first render already resolves.
+  const [ownStore] = useState(() => createViewableKeysStore(viewableKeys));
+  const store = 'store' in props ? props.store : ownStore;
   // Layout, not passive: the new set must land in the same commit that produced
   // it, or a scrolled-away player would keep its slot for a frame.
   useLayoutEffect(() => {
-    source.order.set(ranks);
-  }, [source, ranks]);
+    if (viewableKeys) ownStore.publish(viewableKeys);
+  }, [ownStore, viewableKeys]);
 
+  // The Context value never changes: a new viewable set is pushed through the
+  // store instead, so it reaches only the players whose own rank moved.
   return (
-    <VideoViewabilityContext.Provider value={source}>{children}</VideoViewabilityContext.Provider>
+    <VideoViewabilityContext.Provider value={store.source}>
+      {props.children}
+    </VideoViewabilityContext.Provider>
   );
 }
 
