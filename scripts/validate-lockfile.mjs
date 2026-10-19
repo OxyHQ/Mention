@@ -120,17 +120,6 @@ const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
   'vite -> lightningcss@^1.32.0': 'Same single-copy native-binary pin as @tailwindcss/node.',
   '@alia.onl/sdk -> react-native-css@^3.0.7':
     'The override installs 3.1.0-rc.0, the release candidate of the next 3.x minor, which semver ranges exclude only because it is a prerelease. It is the single copy nativewind 5.0.0-rc.0 needs and the exact version @oxy.so/bloom 10.17 depends on, so the SDK draws through the same react-native-css as the rest of the app.',
-  // contracts 5.0.0 only removed the retired decisions/scoped/Private Auto
-  // inference schemas. These two declare `workspace:^` in OxyHQ/oxy, which
-  // their last publish froze at ^4; every name they import from
-  // @oxy.so/contracts still exists in 5.0.0. Each entry stops firing (and must
-  // be deleted) once the package is republished against contracts 5.
-  '@oxy.so/mcp -> @oxy.so/contracts@^4.21.0':
-    'mcp 1.3.0 imports only schemas and types contracts 5.0.0 still exports; a second contracts copy would split the Zod schemas the backend and MCP server validate with.',
-  '@oxy.so/stickers -> @oxy.so/contracts@^4.24.0':
-    'stickers 0.2.0 imports only schemas and types contracts 5.0.0 still exports; single contracts copy for the same reason as @oxy.so/mcp.',
-  '@oxy.so/homiio-sdk -> @oxy.so/homiio-contracts@0.1.1':
-    'homiio-sdk 0.1.3 was published with the stale exact pin; its source in OxyHQ/Homiio already depends on homiio-contracts 0.2.0, whose dist is byte-identical to 0.1.1 (the release only added repository metadata).',
   // expo-share-intent 8.0.1 is the latest release and still names SDK 57. Without
   // these overrides bun nests a second expo 57 (and its autolinking) under it,
   // which is a duplicate native module, not a compatibility fallback.
