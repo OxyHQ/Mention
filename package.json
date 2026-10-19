@@ -23,7 +23,7 @@
       "jsonwebtoken": "^9.0.3",
       "typescript": "~6.0.3",
       "zod": "^4.6.5",
-      "@oxy.so/protocol": "1.4.0"
+      "@oxy.so/protocol": "1.4.1"
     }
   },
   "scripts": {
@@ -84,7 +84,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
-    "@oxy.so/doctor": "1.1.1",
+    "@oxy.so/doctor": "1.2.0",
     "@types/node": "catalog:",
     "semver": "^7.8.5",
     "typescript": "catalog:",
