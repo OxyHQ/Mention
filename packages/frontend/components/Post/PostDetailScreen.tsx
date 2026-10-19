@@ -202,14 +202,34 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
   //
   // A genuine external subscription, hence an effect. The server re-checks
   // that this viewer may read the post before admitting the socket, so the id
-  // in the URL grants nothing on its own.
+  // in the URL grants nothing on its own; like everything the reader sees, it
+  // waits for the access gate.
+  const accessAllowed = access.allowed;
   useEffect(() => {
     const postId = String(id ?? '');
-    if (!postId || !viewerId) return;
+    if (!postId || !viewerId || !accessAllowed) return;
 
     socketService.joinPost(postId);
     return () => socketService.leavePost(postId);
-  }, [id, viewerId]);
+  }, [id, viewerId, accessAllowed]);
+
+  // Track the view once the reader is shown the post. The ack carries the
+  // post's fresh total — the server reads it back specifically to return it —
+  // so it goes into the shared cache rather than being dropped: this screen
+  // renders that number, and the view it just recorded is precisely the one it
+  // would otherwise be missing.
+  useEffect(() => {
+    const postId = String(id ?? '');
+    if (!postId || !viewerId || !accessAllowed) return;
+    insightsService
+      .trackPostView(postId)
+      .then((ack) => applyServerViewCounts({ [postId]: ack.viewsCount }))
+      .catch((error) => {
+        // View tracking is best-effort and must never reach the reader, but a
+        // count that silently stops updating should still be diagnosable.
+        postDetailLogger.debug('Post view tracking failed', { error });
+      });
+  }, [id, viewerId, accessAllowed]);
 
   // Load the post. When the feed already cached it, the post is rendered
   // synchronously above (`cachedPost`) and this effect only revalidates it in
@@ -241,23 +261,6 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
     );
     // Likewise drop the previous post's continuation spine.
     setContinuations([]);
-
-    // Track view in background (non-blocking) regardless of cache state. The
-    // ack carries the post's fresh total — the server reads it back
-    // specifically to return it — so it goes into the shared cache rather
-    // than being dropped: this screen renders that number, and the view it
-    // just recorded is precisely the one it would otherwise be missing.
-    if (viewerId) {
-      insightsService
-        .trackPostView(postId)
-        .then((ack) => applyServerViewCounts({ [postId]: ack.viewsCount }))
-        .catch((error) => {
-          // View tracking is best-effort and must never reach the
-          // reader, but a count that silently stops updating should
-          // still be diagnosable.
-          postDetailLogger.debug('Post view tracking failed', { error });
-        });
-    }
 
     // Fetch the author's self-thread continuation spine (root → c1 … cN) ONLY
     // for a self-thread root. `metadata.isThread` is `Boolean(post.threadId)`:
