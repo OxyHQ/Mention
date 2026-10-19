@@ -1,3 +1,4 @@
+import { respondWithApiError } from '../utils/error';
 import express, { type Response } from 'express';
 import { and, arrayContains, eq, exists, gte, lte, lt, or, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
@@ -507,6 +508,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 
     res.json(results);
   } catch (error) {
+    if (respondWithApiError(res, error)) return;
     // A query that ran out of time is a CAPACITY answer, not a fault. It was
     // reaching the client as a 500, which reads as "the server is broken" and
     // hides the real one behind the same status as a genuine crash. 503 says

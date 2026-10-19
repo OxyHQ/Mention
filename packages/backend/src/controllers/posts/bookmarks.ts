@@ -3,6 +3,7 @@
  * list, and moving a bookmark between folders.
  */
 
+import { respondWithApiError } from '../../utils/error';
 import type { Response } from 'express';
 import { and, eq, exists, ilike, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
@@ -216,6 +217,7 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
       limit,
     });
   } catch (error) {
+    if (respondWithApiError(res, error)) return;
     logger.error('Error fetching saved posts', error);
     res.status(500).json({ message: 'Error fetching saved posts' });
   }

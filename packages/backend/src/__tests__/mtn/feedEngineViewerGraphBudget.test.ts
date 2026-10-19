@@ -232,7 +232,7 @@ describe('FeedEngine — viewer-graph Oxy call budget', () => {
      * The negative control, and the reason `viewerGraphOption` returns
      * `undefined` rather than a half-built graph.
      *
-     * The peek path builds a context with `followingIds` but no `followerIds`.
+     * A context with `followingIds` but no `followerIds` is partial.
      * Threading that would hydrate every post against an EMPTY follower set —
      * silently wrong "followed by" state rather than a slow request. So a partial
      * context must still pay the live fetch, and this asserts the budget above is
@@ -270,7 +270,7 @@ describe('FeedEngine — viewer-graph Oxy call budget', () => {
         safetyRequester: { accessToken: 'test-viewer-session' },
         currentUserId: viewerId,
         followingIds: [],
-        // `followerIds` deliberately absent — the peek path's shape.
+        // `followerIds` deliberately absent.
         viewerLanguages: ['en-US'],
         oxyClient: oxy.client,
       } as FeedEngineContext,

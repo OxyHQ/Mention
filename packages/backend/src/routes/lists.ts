@@ -1,3 +1,4 @@
+import { respondWithApiError } from '../utils/error';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { safetyRequesterFor } from '../utils/safetyRequester';
 import express, { type Response } from 'express';
@@ -796,6 +797,7 @@ router.get('/:id/timeline', ...timelineRateLimiters, async (req: AuthRequest, re
       totalCount: transformed.length,
     });
   } catch (error) {
+    if (respondWithApiError(res, error)) return;
     logger.error('[Lists] Failed to load list timeline', {
       userId: req.user?.id,
       listId: String(req.params.id),

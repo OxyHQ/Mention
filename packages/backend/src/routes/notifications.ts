@@ -1,3 +1,4 @@
+import { respondWithApiError } from '../utils/error';
 import express, { type Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { and, count, eq, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
@@ -429,6 +430,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       limit,
     });
   } catch (error) {
+    if (respondWithApiError(res, error)) return;
     logger.error('[Notifications] Error fetching notifications:', {
       userId: req.user?.id,
       error,

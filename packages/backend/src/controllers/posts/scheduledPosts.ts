@@ -3,6 +3,7 @@
  * publishing a scheduled post ahead of its time or a draft at all.
  */
 
+import { respondWithApiError } from '../../utils/error';
 import type { Response } from 'express';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
@@ -69,6 +70,7 @@ export const getDrafts = async (req: AuthRequest, res: Response) => {
 
     res.json({ posts: hydratedPosts });
   } catch (error) {
+    if (respondWithApiError(res, error)) return;
     logger.error('Error fetching drafts', error);
     res.status(500).json({ message: 'Error fetching drafts' });
   }
@@ -309,6 +311,7 @@ export const getScheduledPosts = async (req: AuthRequest, res: Response) => {
 
     res.json({ posts: hydratedPosts });
   } catch (error) {
+    if (respondWithApiError(res, error)) return;
     logger.error('Error fetching scheduled posts', error);
     res.status(500).json({ message: 'Error fetching scheduled posts' });
   }

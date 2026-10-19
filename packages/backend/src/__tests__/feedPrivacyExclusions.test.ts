@@ -29,7 +29,6 @@ const engineRun = vi.fn(
 vi.mock('../mtn/feed/engine/FeedEngine', () => ({
   feedEngine: {
     run: (...a: unknown[]) => engineRun(...(a as [])),
-    peekLatest: vi.fn(async () => undefined),
   },
 }));
 

@@ -29,7 +29,6 @@ const engineRun = vi.fn(async (_def: unknown, ctx: Record<string, unknown>) => {
 vi.mock('../mtn/feed/engine/FeedEngine', () => ({
   feedEngine: {
     run: (...a: unknown[]) => engineRun(...(a as [unknown, Record<string, unknown>])),
-    peekLatest: vi.fn(async () => undefined),
   },
 }));
 

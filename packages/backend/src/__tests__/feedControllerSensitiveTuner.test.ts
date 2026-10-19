@@ -20,7 +20,6 @@ const engineRun = vi.fn();
 vi.mock('../mtn/feed/engine/FeedEngine', () => ({
   feedEngine: {
     run: (...args: unknown[]) => engineRun(...args),
-    peekLatest: vi.fn(async () => undefined),
   },
 }));
 

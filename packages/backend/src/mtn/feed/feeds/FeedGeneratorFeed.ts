@@ -17,7 +17,6 @@
  * failure resolves to an empty page and never throws out of the feed engine.
  */
 
-import type { HydratedPost } from '@mention/shared-types';
 import { and, eq, inArray, isNotNull } from 'drizzle-orm';
 import type { FeedAPI, FeedAPIResponse, FeedFetchOptions, FeedContext } from '../FeedAPI';
 import { getDb } from '../../../db/postgres';
@@ -53,37 +52,6 @@ export class FeedGeneratorFeed implements FeedAPI {
   constructor(generatorUri: string) {
     this.generatorUri = generatorUri;
     this.descriptor = `feedgen|${generatorUri}` as const;
-  }
-
-  async peekLatest(context: FeedContext): Promise<HydratedPost | undefined> {
-    try {
-      if (!context.currentUserId) {
-        logger.info(
-          '[FeedGeneratorFeed] anonymous peek suppressed for side-effectful feedgen import',
-          {
-            uri: this.generatorUri,
-          },
-        );
-        return undefined;
-      }
-      if (!(await this.isAtprotoBacked())) return undefined;
-
-      const { posts } = await getFeed(this.generatorUri, { limit: 1 });
-      const ordered = await this.importAndLoad(posts.slice(0, 1));
-      if (ordered.length === 0) return undefined;
-
-      const [hydrated] = await postHydrationService.hydratePosts([ordered[0]], {
-        viewerId: context.currentUserId,
-        oxyClient: context.oxyClient,
-        safetyRequester: context.safetyRequester,
-        maxDepth: HYDRATE_MAX_DEPTH,
-        viewerGraph: this.viewerGraph(context),
-      });
-      return hydrated;
-    } catch (err) {
-      logger.warn('[FeedGeneratorFeed] peekLatest failed', { uri: this.generatorUri, err });
-      return undefined;
-    }
   }
 
   async fetch(options: FeedFetchOptions, context: FeedContext): Promise<FeedAPIResponse> {

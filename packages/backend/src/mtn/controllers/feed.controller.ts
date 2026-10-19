@@ -1,3 +1,4 @@
+import { respondWithApiError } from '../../utils/error';
 import { canSeeUnratedMaterial } from '../../services/contentAccessBatcher';
 import { revalidateAnonymousFeed } from '../../services/revalidateAnonymousFeed';
 /**
@@ -8,12 +9,7 @@ import { revalidateAnonymousFeed } from '../../services/revalidateAnonymousFeed'
  */
 
 import type { Response } from 'express';
-import {
-  isValidFeedDescriptor,
-  MtnConfig,
-  createPostUri,
-  parseFeedDescriptor,
-} from '@mention/shared-types';
+import { isValidFeedDescriptor, MtnConfig, parseFeedDescriptor } from '@mention/shared-types';
 import type {
   FeedDescriptor,
   FeedPostSlice,
@@ -27,12 +23,7 @@ import { forYouUsesSocialProof } from '../feed/definitions/presets';
 import { feedEngine } from '../feed/engine/FeedEngine';
 import type { FeedEngineContext } from '../feed/engine/types';
 import { loadViewerFeedContext, resolveViewerBaseLanguages } from '../feed/feedContext';
-import {
-  languageLadder,
-  loadViewerLanguages,
-  requestLanguageCandidates,
-} from '../../utils/viewerLanguage';
-import { mergeFederatedFollowIds } from '../../services/viewerFollowGraph';
+import { languageLadder, requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { resolveDiscoveryGateBucket } from '../feed/discoveryGateExperiment';
 import { FeedGeneratorFeed } from '../feed/feeds/FeedGeneratorFeed';
 import type { FeedAPI } from '../feed/FeedAPI';
@@ -51,12 +42,11 @@ import { federatedProfileSync } from '../../connectors/federatedProfileSync';
 import { ownerHasProfileAffectingLane } from '../../services/laneVisibility';
 import { logger } from '../../utils/logger';
 import { getRuntimeOxyClient } from '../../runtime/oxyClient';
-import { extractFollowingIds, type OxyClient } from '../../utils/privacyHelpers';
+import type { OxyClient } from '../../utils/privacyHelpers';
 import { createScopedOxyClient } from '../../utils/oxyHelpers';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { findActorsByUris } from '../../db/federation/actorRepository';
 import { distinctRemoteActorUris } from '../../db/federation/followRepository';
-import { listSubscriptionService } from '../../services/ListSubscriptionService';
 import { anonFeedCache, type AnonFeedEntry } from '../../services/anonFeedCache';
 import {
   captureHydrationRevisions,
@@ -661,122 +651,13 @@ class MtnFeedController {
         data: response,
       });
     } catch (error) {
+      if (respondWithApiError(res, error)) return;
       logger.error('[MtnFeedController] getFeed error', error);
       res.status(500).json({ success: false, error: 'Failed to fetch feed' });
     } finally {
       // Releases any joiners on every path the page was not shared on; a no-op
       // once it was.
       settleAnonBuild?.(null);
-    }
-  }
-
-  /**
-   * GET /api/feed/peek?descriptor=following
-   *
-   * "New posts" indicator — peek at the latest item without consuming cursor.
-   */
-  async peekLatest(req: AuthRequest, res: Response): Promise<void> {
-    try {
-      // Same boundary narrowing as getFeed: a query param can arrive as an array.
-      const descriptorParam = queryString(req.query.descriptor);
-      if (!descriptorParam || !isValidFeedDescriptor(descriptorParam)) {
-        res.status(400).json({ success: false, error: 'Invalid or missing feed descriptor' });
-        return;
-      }
-
-      const descriptor: FeedDescriptor = descriptorParam;
-      const currentUserId = req.user?.id;
-      const requestOxyClient = createScopedOxyClient(req);
-      const feedOxyClient = requestOxyClient ?? (getRuntimeOxyClient() as unknown as OxyClient);
-
-      // `?lang=` then `Accept-Language`. Synchronous; the account rung below wins
-      // when it has anything.
-      const requestLanguages = languageLadder(requestLanguageCandidates(req));
-
-      let followingIds: string[] = [];
-      let subscribedListMemberIds: string[] = [];
-      let accountLanguages: string[] = [];
-      if (currentUserId) {
-        // Three INDEPENDENT reads. They ran as a serial chain, and the languages
-        // this needs would have made it four; only the federated-follow merge is
-        // genuinely chained, because it appends onto the Oxy list. Each branch
-        // keeps its own soft-fail, so one failure degrades one signal.
-        const followingPromise = (async (): Promise<string[]> => {
-          let ids: string[] = [];
-          try {
-            ids = extractFollowingIds(await feedOxyClient.follows.following(currentUserId));
-          } catch (error) {
-            logger.warn('[MtnFeedController] Failed to load following list', error);
-          }
-          try {
-            await mergeFederatedFollowIds(currentUserId, ids);
-          } catch (error) {
-            logger.warn('[MtnFeedController] Failed to load federated following', error);
-          }
-          return ids;
-        })();
-
-        const subscribedPromise = listSubscriptionService
-          .getSubscribedListMemberIds(currentUserId)
-          .catch((error): string[] => {
-            logger.warn('[MtnFeedController] Failed to load subscribed-list members', error);
-            return [];
-          });
-
-        [followingIds, subscribedListMemberIds, accountLanguages] = await Promise.all([
-          followingPromise,
-          subscribedPromise,
-          loadViewerLanguages(currentUserId, requestOxyClient),
-        ]);
-      }
-
-      // The peek builds its own MINIMAL context rather than calling
-      // `loadViewerFeedContext`, and the readability set has to be part of that
-      // minimum: the discovery lanes and the popular fallback filter on it, so a
-      // peek without it counts posts the feed itself will then drop — "5 new
-      // posts", refresh, two appear.
-      const viewerBaseLanguages = resolveViewerBaseLanguages(accountLanguages, requestLanguages);
-
-      const context: FeedEngineContext = {
-        currentUserId,
-        followingIds,
-        subscribedListMemberIds,
-        oxyClient: feedOxyClient,
-        privacyOxyClient: requestOxyClient,
-        viewerBaseLanguages,
-      };
-
-      if (currentUserId && parseFeedDescriptor(descriptor).source === 'mutuals') {
-        context.mutualIds = await computeMutualIds(currentUserId);
-      }
-
-      if (currentUserId && parseFeedDescriptor(descriptor).source === 'friends_of_friends') {
-        context.fofIds = await computeFriendsOfFriendsIds();
-      }
-
-      const definition = await resolveDefinition(descriptor, context);
-      let latest;
-      if (definition) {
-        latest = await feedEngine.peekLatest(definition, context);
-      } else {
-        const feedApi = resolveLegacyFeed(descriptor);
-        if (!feedApi) {
-          res
-            .status(400)
-            .json({ success: false, error: `Unsupported feed descriptor: ${descriptor}` });
-          return;
-        }
-        latest = await feedApi.peekLatest(context);
-      }
-      res.json({
-        success: true,
-        data: latest
-          ? { uri: createPostUri(String(latest.user?.id), String(latest.id)), post: latest }
-          : null,
-      });
-    } catch (error) {
-      logger.error('[MtnFeedController] peekLatest error', error);
-      res.status(500).json({ success: false, error: 'Failed to peek feed' });
     }
   }
 

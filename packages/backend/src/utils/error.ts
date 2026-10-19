@@ -38,6 +38,17 @@ export function errorResponse(
 }
 
 /**
+ * Answer a typed {@link ApiError} that a handler's broad `catch` caught with its
+ * own status and code. Returns false for anything else, which stays the
+ * handler's 500.
+ */
+export function respondWithApiError(res: Response, error: unknown): boolean {
+  if (!(error instanceof ApiError)) return false;
+  errorResponse(res, error.statusCode, error.message, error.code);
+  return true;
+}
+
+/**
  * An `http-errors` error the client caused: body-parser's (`raw-body`'s)
  * `entity.too.large` (413), `entity.parse.failed` (400), `request.size.invalid`
  * (400), `charset.unsupported` (415), `request.aborted` (400), and the like.

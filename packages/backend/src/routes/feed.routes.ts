@@ -20,7 +20,6 @@ if (config.runtime.isProduction) {
 // MTN Protocol routes — unified descriptor-based feed API
 // ────────────────────────────────────────────────────────────
 router.get('/mtn', mtnFeedController.getFeed.bind(mtnFeedController));
-router.get('/mtn/peek', mtnFeedController.peekLatest.bind(mtnFeedController));
 router.post('/mtn/interactions', mtnFeedController.recordInteraction.bind(mtnFeedController));
 // Recommendation-card telemetry. Kept OFF `/mtn/interactions` on purpose: that
 // route feeds post ranking and requires a `postUri`, which a card event has not

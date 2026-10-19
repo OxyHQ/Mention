@@ -48,7 +48,6 @@ vi.mock('../../mtn/feed/engine/FeedEngine', () => ({
       capturedContext = ctx;
       return { slices: [], items: [], hasMore: false, totalCount: 0 };
     }),
-    peekLatest: vi.fn(async () => undefined),
   },
 }));
 
