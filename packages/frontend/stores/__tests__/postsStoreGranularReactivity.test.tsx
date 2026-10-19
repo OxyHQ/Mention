@@ -76,9 +76,13 @@ jest.mock('@/db', () => ({
     mockUpsertPosts(posts);
     const current = mockFeedIds.get(feedKey) ?? [];
     const next = [...current];
+    const appended: FeedItem[] = [];
     for (const post of posts) {
       const id = mockResolvePostId(post);
-      if (id && !next.includes(id)) next.push(id);
+      if (id && !next.includes(id)) {
+        next.push(id);
+        appended.push(post);
+      }
     }
     mockFeedIds.set(feedKey, next);
     const previousMeta = mockFeedMeta.get(feedKey);
@@ -89,6 +93,7 @@ jest.mock('@/db', () => ({
       lastUpdated: meta.lastUpdated ?? Date.now(),
       filters: meta.filters ?? previousMeta?.filters,
     });
+    return appended;
   },
   getAllFeedItems: (feedKey: string) => {
     mockFeedReadCounts.set(feedKey, (mockFeedReadCounts.get(feedKey) ?? 0) + 1);
@@ -372,6 +377,33 @@ describe('postsStore keyed SQLite reactivity', () => {
     expect(mockFeedReadCounts.get('posts') ?? 0).toBe(postsReadsBefore);
     expect(mockFeedReadCounts.get('following') ?? 0).toBe(followingReadsBefore);
 
+    act(() => renderer.unmount());
+  });
+
+  it('extends a profile feed by the page it appended, without reading the feed back', async () => {
+    mockFeedService.getUserFeed
+      .mockResolvedValueOnce({ items: [makePost('page-1')], hasMore: true, nextCursor: 'c2' })
+      .mockResolvedValueOnce({
+        items: [makePost('page-1'), makePost('page-2')],
+        hasMore: false,
+      });
+    await act(async () => {
+      await usePostsStore.getState().fetchUserFeed('profile-a', { type: 'posts' });
+    });
+    const feedRenders = jest.fn();
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(<UserFeedProbe userId="profile-a" onRender={feedRenders} />);
+    });
+    const readsBefore = mockFeedReadCounts.get('user:profile-a:posts') ?? 0;
+
+    await act(async () => {
+      await usePostsStore.getState().fetchUserFeed('profile-a', { type: 'posts', cursor: 'c2' });
+    });
+
+    expect(mockFeedReadCounts.get('user:profile-a:posts') ?? 0).toBe(readsBefore);
+    const shown = feedRenders.mock.calls.at(-1)?.[0] as FeedItem[];
+    expect(shown.map((post) => post.id)).toEqual(['page-1', 'page-2']);
     act(() => renderer.unmount());
   });
 
