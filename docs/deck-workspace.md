@@ -13,7 +13,11 @@ The application keeps one AppShell and changes its declarative `panelLayout`.
 Normal screens use document flow; Deck uses bounded columns with horizontal
 scroll on the document and independent vertical scroll in each column. Vertical
 and trailing gutters, sidebar overlap material, resize constraints and transitions
-belong to Bloom. Do not reimplement these with window measurements or nested
+belong to Bloom. Restored `activePanel` is passive: loading Deck does not scroll
+horizontally to the last selected column. Adding a column issues Bloom's transient
+`revealPanel` request so the new column comes into view. This request is excluded
+from local/account workspace snapshots and cleared on account activation.
+Do not reimplement these with window measurements or nested
 application scroll containers.
 
 Each route renders `Screen scroll="auto"`, with its `PageHeader` in `header` and
@@ -59,6 +63,23 @@ account/workspace, without remounting the application shell. Bloom handles delay
 web content restoration and stops retrying when the user takes over scrolling.
 The application's data cache can display known content immediately; cold reads
 still require skeletons and may fail or take time.
+
+## Deck as the home screen
+
+On desktop, **Settings → Deck → Make Deck my home screen** opens `/deck` when
+visiting `/`, including the Home and Mention-logo links. The root shell replaces
+the route using Expo Router; Back does not revisit an intermediate home redirect.
+Explicit deep links remain unchanged, and Home rendered inside a Deck panel stays
+the regular feed. Phones and tablets retain normal Home even when this account
+preference is enabled; the switch appears only where Deck is available.
+
+The optional `homeScreen` workspace field defaults to false for existing accounts.
+It uses the same account-scoped local cache and synchronization policy as panels:
+with sync enabled it follows the account across devices, and with sync disabled
+changes remain local until sync is enabled again. Account activation is checked
+before applying the preference. Cached choices take effect immediately; on a new
+device Home can remain visible until the server workspace arrives. Offline reads
+never block opening the app.
 
 ## Account synchronization
 

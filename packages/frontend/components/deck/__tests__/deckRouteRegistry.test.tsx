@@ -1,4 +1,4 @@
-import React, { Component, Suspense, type ComponentType, type ReactNode } from 'react';
+import { Component, Suspense, type ComponentType, type ReactNode } from 'react';
 import { Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { createDeckRouteRegistry } from '../deckRouteRegistry';
@@ -82,6 +82,7 @@ test('selects web screens, preserves nested layout identities, excludes Deck and
       './[username]/lane/[id].tsx',
       './[username]/lane/index.tsx',
       './deck.tsx',
+      './deck.web.tsx',
       './+not-found.tsx',
     ],
     async () => ({ default: Page }),

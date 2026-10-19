@@ -2723,6 +2723,8 @@
     "liveRequiresSignIn": "Connectez-vous pour recevoir les mises à jour en temps réel",
     "workspace": {
       "title": "Deck",
+      "homeScreen": "Utiliser Deck comme écran d’accueil",
+      "homeScreenDescription": "Ouvrir Deck en allant à l’accueil sur ordinateur. Les téléphones et tablettes conservent l’écran d’accueil habituel.",
       "sync": "Synchroniser entre appareils",
       "description": "Enregistrez vos panneaux, pages, historique de navigation et positions de lecture dans votre compte.",
       "anonymous": "Connectez-vous pour synchroniser Deck. Votre espace est enregistré sur cet appareil.",

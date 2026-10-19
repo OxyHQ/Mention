@@ -71,6 +71,21 @@ afterAll(async () => {
 });
 
 describe('private Deck workspace persistence', () => {
+  it('round trips the optional desktop home preference and preserves it on sync opt-out', async () => {
+    const owner = user();
+    const value = { ...state(), homeScreen: true };
+    await write(owner, 0, value).expect(200);
+    expect((await read(owner)).body.state).toEqual(value);
+    await write(owner, 1, { ...value, syncEnabled: false, homeScreen: false }).expect(200);
+    expect((await read(owner)).body.state).toEqual({ ...value, syncEnabled: false });
+  });
+  it('rejects nonboolean home preferences', async () => {
+    await request(app)
+      .put('/deck')
+      .set('x-test-user', user())
+      .send({ baseRevision: 0, state: { ...state(), homeScreen: 'true' } })
+      .expect(400);
+  });
   it('requires auth and returns absence without inventing layout defaults', async () => {
     await request(app).get('/deck').expect(401);
     const result = await read(user()).expect(200);

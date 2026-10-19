@@ -2720,6 +2720,8 @@
     "liveRequiresSignIn": "Inicia sessió per rebre actualitzacions en temps real",
     "workspace": {
       "title": "Deck",
+      "homeScreen": "Fer servir Deck com a pantalla d’inici",
+      "homeScreenDescription": "Obre Deck quan vagis a Inici a l’ordinador. Els mòbils i les tauletes mantenen la pantalla d’inici habitual.",
       "sync": "Sincronitza entre dispositius",
       "description": "Desa els panells, pàgines, historial de navegació i posicions de lectura al teu compte.",
       "anonymous": "Inicia sessió per sincronitzar Deck. El teu espai es desa en aquest dispositiu.",

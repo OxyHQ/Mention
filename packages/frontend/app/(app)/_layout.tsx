@@ -1,3 +1,4 @@
+import { DeckHomeEntry } from '@/components/deck/DeckHomeEntry';
 import { useDeckSync } from '@/components/deck/useDeckSync';
 import { DeckAddPanel } from '@/components/deck/DeckAddPanel';
 import { useDeckSettings, deckRouteForSource } from '@/components/deck/deckSettings';
@@ -40,6 +41,7 @@ export default function AppLayout() {
   useDeckSync();
   const sidebar = useMentionSidebar();
   const activeDeckPanel = useDeckSettings((state) => state.activePanel);
+  const deckRevealPanel = useDeckSettings((state) => state.revealPanel);
   const deckViewer = useDeckSettings((state) => state.viewer);
   const deckRestorationEpoch = useDeckSettings((state) => state.restorationEpoch);
   const deckOrder = useDeckSettings((state) => state.order);
@@ -65,7 +67,9 @@ export default function AppLayout() {
   const centerContent = (
     <>
       {IS_WEB ? (
-        <Slot />
+        <DeckHomeEntry>
+          <Slot />
+        </DeckHomeEntry>
       ) : (
         <ExperimentalStack screenOptions={{ headerShown: false }} screenLayout={stackSceneLayout}>
           {/* The five root tabs, as ONE stack screen. Everything else in this
@@ -139,6 +143,7 @@ export default function AppLayout() {
           reserveBottomBarSpace={pathname !== '/camera'}
           panelLayout={{
             mode: onDeckRoute ? 'deck' : 'split',
+            revealPanel: onDeckRoute ? deckRevealPanel : undefined,
             trailingAction: onDeckRoute ? <DeckAddPanel /> : undefined,
             widths: Object.fromEntries(
               Object.entries(deckPanels).map(([id, panel]) => [id, panel.width]),

@@ -115,3 +115,9 @@ it('bounds even oversized current-route params without dropping small route iden
   })!;
   expect(normal.entries[0].params).toEqual({ id: 'topic' });
 });
+it('accepts legacy workspaces and preserves only boolean home preferences', () => {
+  const state = emptySnapshot();
+  expect(normalizeDeckSnapshot(state)?.homeScreen).not.toBe(true);
+  expect(normalizeDeckSnapshot({ ...state, homeScreen: true })?.homeScreen).toBe(true);
+  expect(normalizeDeckSnapshot({ ...state, homeScreen: 'true' })?.homeScreen).toBeUndefined();
+});

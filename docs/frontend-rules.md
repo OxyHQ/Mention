@@ -42,8 +42,10 @@ controlled `panelLayout.widths` persists changes made with the resize handle.
 Deck roots render the actual Explore, preset-feed viewer and Saved routes through
 `PanelRouteSlot`; do not introduce alternate feed or authentication screens in Deck.
 `panelLayout.trailingAction` supplies the end-of-document create-panel action;
-selecting its new `activePanel` reveals it through Bloom. Panel definitions and
-preferences persist in `deckSettings`; app code does not measure their geometry.
+adding a column issues a transient `revealPanel` request to bring it into view.
+`activePanel` is passive selection; hydration never requests horizontal scrolling.
+Panel definitions and preferences persist in `deckSettings`; reveal requests do
+not. App code does not measure panel geometry.
 Live feed refresh is opt-in per panel. `FeedUpdatePolicyProvider` reuses the
 existing authenticated socket's invalidation events and the screen's authorized
 HTTP refresh. Bursts coalesce; reading/hidden-document pauses retain a pending

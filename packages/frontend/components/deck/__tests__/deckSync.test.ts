@@ -277,3 +277,45 @@ it('sends a disable preference made while the preceding workspace save is still 
   expect(useDeckSettings.getState().records['user:a'].dirty).toBe(false);
   sync.stop();
 });
+it('syncs home preference without losing concurrent panel changes', async () => {
+  const remote = snapshot();
+  remote.panels['deck-1'].width = 600;
+  useDeckSettings.getState().setHomeScreen(true);
+  const save = jest.fn(async (revision, state) => ({ revision: revision + 1, state }));
+  const sync = startDeckSync('user:a', {
+    load: async () => ({ revision: 1, state: remote }),
+    save,
+  });
+  await flush();
+  await jest.advanceTimersByTimeAsync(400);
+  expect(save).toHaveBeenCalled();
+  expect(useDeckSettings.getState().homeScreen).toBe(true);
+  expect(useDeckSettings.getState().panels['deck-1'].width).toBe(600);
+  expect(useDeckSettings.getState().records['user:a'].dirty).toBe(false);
+  sync.stop();
+});
+it('keeps a new home preference local while sync is disabled', async () => {
+  const remote = { ...snapshot(), syncEnabled: false, homeScreen: false };
+  const save = jest.fn();
+  const sync = startDeckSync('user:a', {
+    load: async () => ({ revision: 1, state: remote }),
+    save,
+  });
+  await flush();
+  useDeckSettings.getState().setHomeScreen(true);
+  await jest.advanceTimersByTimeAsync(1000);
+  expect(useDeckSettings.getState().homeScreen).toBe(true);
+  expect(save).not.toHaveBeenCalled();
+  sync.stop();
+});
+it('reveals an explicitly added panel without persisting the command or replaying it on account activation', () => {
+  const id = useDeckSettings.getState().addPanel('saved');
+  const store = useDeckSettings.getState();
+  expect(store.revealPanel?.id).toBe(id);
+  expect(store.records['user:a'].state).not.toHaveProperty('revealPanel');
+  store.activate('user:b');
+  expect(useDeckSettings.getState().revealPanel).toBeUndefined();
+  useDeckSettings.getState().activate('user:a');
+  expect(useDeckSettings.getState().activePanel).toBe(id);
+  expect(useDeckSettings.getState().revealPanel).toBeUndefined();
+});

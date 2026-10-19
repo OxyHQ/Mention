@@ -2720,6 +2720,8 @@
     "liveRequiresSignIn": "Entre para receber atualizações em tempo real",
     "workspace": {
       "title": "Deck",
+      "homeScreen": "Usar Deck como tela inicial",
+      "homeScreenDescription": "Abra o Deck ao acessar o início no computador. Celulares e tablets mantêm a tela inicial padrão.",
       "sync": "Sincronizar entre dispositivos",
       "description": "Guarde os painéis, páginas, histórico de navegação e posições de leitura na sua conta.",
       "anonymous": "Inicie sessão para sincronizar Deck. O seu espaço é guardado neste dispositivo.",

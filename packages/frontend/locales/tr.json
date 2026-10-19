@@ -2689,6 +2689,8 @@
     "liveRequiresSignIn": "Canlı güncellemeler için giriş yapın",
     "workspace": {
       "title": "Deck",
+      "homeScreen": "Deck’i ana ekranım yap",
+      "homeScreenDescription": "Bilgisayarda ana sayfaya gittiğinizde Deck açılsın. Telefonlar ve tabletler standart ana ekranı kullanmaya devam eder.",
       "sync": "Cihazlar arasında eşitle",
       "description": "Panellerini, sayfalarını, gezinme geçmişini ve okuma konumlarını hesabına kaydet.",
       "anonymous": "Deck eşitlemesi için giriş yap. Çalışma alanın bu cihazda kaydedilir.",

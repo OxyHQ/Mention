@@ -2689,6 +2689,8 @@
     "liveRequiresSignIn": "登录以接收实时更新",
     "workspace": {
       "title": "Deck",
+      "homeScreen": "将 Deck 设为我的主屏幕",
+      "homeScreenDescription": "在桌面端访问首页时打开 Deck。手机和平板电脑仍使用标准主屏幕。",
       "sync": "跨设备同步",
       "description": "将面板、页面、浏览历史和阅读位置保存到你的账户。",
       "anonymous": "登录以同步 Deck。工作区会保存在此设备上。",

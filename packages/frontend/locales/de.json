@@ -2689,6 +2689,8 @@
     "liveRequiresSignIn": "Für Live-Aktualisierungen anmelden",
     "workspace": {
       "title": "Deck",
+      "homeScreen": "Deck als Startseite verwenden",
+      "homeScreenDescription": "Öffne Deck beim Aufrufen der Startseite am Desktop. Auf Smartphones und Tablets bleibt die normale Startseite erhalten.",
       "sync": "Geräteübergreifend synchronisieren",
       "description": "Speichere deine Panels, Seiten, den Navigationsverlauf und Lesepositionen in deinem Konto.",
       "anonymous": "Melde dich an, um Deck zu synchronisieren. Dein Arbeitsbereich wird auf diesem Gerät gespeichert.",

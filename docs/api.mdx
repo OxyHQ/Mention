@@ -317,6 +317,9 @@ the client to reconcile its pending edits without silently replacing another
 device's workspace. Revisioned state includes ordered panels, their settings,
 independent navigation histories, selected entries, and Bloom scroll snapshots.
 Only references and UI configuration are stored, never fetched feed/profile data.
+The optional boolean `homeScreen` opens Deck as desktop Home; omission defaults to
+false. It follows workspace synchronization, so disabling sync preserves the
+server’s previous home preference along with its panels.
 
 Setting `syncEnabled: false` persists the preference while preserving the server's
 previous workspace. If none exists, the stored disabled workspace has empty
