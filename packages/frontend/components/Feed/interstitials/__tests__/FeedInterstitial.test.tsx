@@ -782,6 +782,15 @@ function reportedEvents(): FeedInterstitialEventInput[] {
   return mockSendInterstitialEvent.mock.calls.map(([input]) => input as FeedInterstitialEventInput);
 }
 
+/**
+ * The reader's actions only. An impression fires on a real timer after mount,
+ * so a test about what a press reports must not depend on whether that timer
+ * has run yet.
+ */
+function interactionEvents(): FeedInterstitialEventInput[] {
+  return reportedEvents().filter((event) => event.event !== 'impression');
+}
+
 /** Every TREND event reported, in order — the other endpoint entirely. */
 function reportedTrendEvents(): TrendEventInput[] {
   return mockSendTrendEvent.mock.calls.map(([input]) => input as TrendEventInput);
@@ -1647,7 +1656,7 @@ describe('FeedInterstitial', () => {
 
     press(dismissButton(renderer, 'Person 1'));
 
-    expect(reportedEvents()).toEqual([
+    expect(interactionEvents()).toEqual([
       expect.objectContaining({
         feedDescriptor: 'author|profile-9',
         slotKey: 'slot-suggestedUsers',
@@ -1759,7 +1768,7 @@ describe('interstitial telemetry', () => {
     // The THIRD row: a handler that captured the wrong index would report 0 or 4.
     press(profileRowPressables(renderer)[2]);
 
-    expect(reportedEvents()).toEqual([
+    expect(interactionEvents()).toEqual([
       {
         feedDescriptor: FEED_DESCRIPTOR,
         slotKey: SLOT_KEY,
@@ -1777,7 +1786,7 @@ describe('interstitial telemetry', () => {
 
     press(followButtons(renderer)[1]);
 
-    expect(reportedEvents()).toEqual([
+    expect(interactionEvents()).toEqual([
       expect.objectContaining({ kind: 'suggestedUsers', event: 'follow', position: 1 }),
     ]);
   });
@@ -1790,7 +1799,7 @@ describe('interstitial telemetry', () => {
     press(dismissButton(renderer, 'Person 2'));
     press(seeMoreButtons(renderer)[0]);
 
-    expect(reportedEvents()).toEqual([
+    expect(interactionEvents()).toEqual([
       expect.objectContaining({ event: 'dismiss', position: 1 }),
       {
         feedDescriptor: FEED_DESCRIPTOR,
@@ -1809,7 +1818,7 @@ describe('interstitial telemetry', () => {
     press(subscribeButtons(renderer)[1]);
     await flush();
 
-    expect(reportedEvents()).toEqual([
+    expect(interactionEvents()).toEqual([
       expect.objectContaining({ kind: 'suggestedFeeds', event: 'subscribe', position: 1 }),
     ]);
   });
@@ -1822,7 +1831,7 @@ describe('interstitial telemetry', () => {
     press(subscribeButtons(renderer)[1]);
     await flush();
 
-    expect(reportedEvents().some((event) => event.event === 'subscribe')).toBe(false);
+    expect(interactionEvents().some((event) => event.event === 'subscribe')).toBe(false);
   });
 
   it('reports a starter pack as USED when the reader follows all of its members', async () => {
@@ -1834,7 +1843,7 @@ describe('interstitial telemetry', () => {
     press(followAllButtons(renderer)[2]);
     await flush();
 
-    expect(reportedEvents()).toEqual([
+    expect(interactionEvents()).toEqual([
       expect.objectContaining({ kind: 'suggestedStarterPacks', event: 'use', position: 2 }),
     ]);
   });
@@ -1849,7 +1858,7 @@ describe('interstitial telemetry', () => {
     press(followButtons(renderer)[0]);
     press(dismissButton(renderer, 'Similar 2'));
 
-    expect(reportedEvents()).toEqual([
+    expect(interactionEvents()).toEqual([
       expect.objectContaining({ kind: 'similarAccounts', event: 'follow', position: 0 }),
       expect.objectContaining({ kind: 'similarAccounts', event: 'dismiss', position: 1 }),
     ]);
