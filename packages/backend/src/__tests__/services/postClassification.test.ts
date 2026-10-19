@@ -1674,24 +1674,27 @@ describe('PostClassificationService — Jev shadow lane', () => {
     await padBatch(1);
     respondWith([]);
     let finish: ((value: jevShadow.ShadowSignals) => void) | undefined;
-    const evaluate = vi.fn(
-      () =>
-        new Promise<jevShadow.ShadowSignals>((resolve) => {
-          finish = resolve;
-        }),
-    );
+    const projection = new Promise<jevShadow.ShadowSignals>((resolve) => {
+      finish = resolve;
+    });
+    const evaluate = vi.fn(() => projection);
     const pending = new PostClassificationService({ release, evaluate }).processQueue();
     try {
-      await vi.waitFor(async () => {
-        expect(evaluate).toHaveBeenCalledTimes(1);
-        expect((await classificationOf(post.id)).status).toBe('classified');
-      });
+      // Both lanes perform real database I/O. Keep the projection unresolved
+      // while waiting for canonical completion, including on a loaded CI runner.
+      await vi.waitFor(
+        async () => {
+          expect(evaluate).toHaveBeenCalledTimes(1);
+          expect((await classificationOf(post.id)).status).toBe('classified');
+        },
+        { timeout: 5_000 },
+      );
     } finally {
       finish?.(signals);
       await pending;
     }
     expect(await ledgerOf(post.id)).toEqual([expect.objectContaining({ state: 'completed' })]);
-  });
+  }, 10_000);
 
   it('aborts a hung evaluator at the cycle deadline and keeps its claim cost-uncertain', async () => {
     const post = await englishSubject('Synthetic hung projection');

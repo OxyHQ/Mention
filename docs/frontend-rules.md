@@ -109,6 +109,17 @@ callers** — the feed row's commands (`components/Feed/postInteractions.tsx`)
 and `app/(app)/videos.tsx` both write through the store directly. Client-wide
 `refetchOnMount` must stay at the library default.
 
+## Post text
+
+`PostContentText` renders composer formatting through Bloom `InlineMarkdown`;
+Bloom's React-free inline parser and truncation count visible text rather than
+Markdown delimiters or link destinations. Parse the complete source before
+clipping, so an ellipsis stays inside its formatting or mention and every link
+keeps its complete target. `postInlineMarkdown` only adapts Mention identities:
+hydrated display names stay literal and use the same `MentionTextLink` routing
+as plain text. Do not introduce another Markdown parser or rewrite stored posts
+for display.
+
 ## Rules
 
 - **A feed row mounts no controllers.** Every command a row can issue — like, downvote, save, boost, share, the ⋯ menu, sources, insights, community notes — comes from the one app-lifetime controller, `usePostInteractions()` (`components/Feed/postInteractions.tsx`, services bound once by `PostInteractionsBinder` in `AppProviders`). Commands resolve the post from the store when PRESSED; the menu is built then, not per row. Adding a per-row hook for an action the reader might take is the regression #1103 removed; the row-cost harness (`bun run --cwd packages/frontend test:perf`) counts hook slots per row and gates them.

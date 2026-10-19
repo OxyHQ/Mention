@@ -2,9 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { computeExpandableText } from '@/utils/expandableText';
 
 /**
- * Stateful wrapper around `computeExpandableText`. Not unit-tested directly
- * (it's a thin useState binding with no branching of its own) — the
- * truncation logic itself is covered by `utils/__tests__/expandableText.test.ts`.
+ * Shared expansion state for plain text and parsed Markdown previews.
  *
  * `resetKey` collapses `isExpanded` back to `false` whenever it (or `text`)
  * changes, using the ref-during-render pattern (no `useEffect`). This covers
@@ -14,7 +12,7 @@ import { computeExpandableText } from '@/utils/expandableText';
  * (e.g. a recycled list item) where `text` itself changes out from under an
  * already-expanded instance.
  */
-export function useExpandableText(text: string, maxChars: number, resetKey?: unknown) {
+export function useTextExpansion(text: string, resetKey?: unknown) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const prevTextRef = useRef(text);
@@ -27,7 +25,11 @@ export function useExpandableText(text: string, maxChars: number, resetKey?: unk
     }
   }
 
-  const { displayText, isTruncated } = computeExpandableText(text, maxChars, isExpanded);
   const toggle = useCallback(() => setIsExpanded((prev) => !prev), []);
-  return { displayText, isTruncated, isExpanded, toggle };
+  return { isExpanded, toggle };
+}
+
+export function useExpandableText(text: string, maxChars: number, resetKey?: unknown) {
+  const { isExpanded, toggle } = useTextExpansion(text, resetKey);
+  return { ...computeExpandableText(text, maxChars, isExpanded), isExpanded, toggle };
 }

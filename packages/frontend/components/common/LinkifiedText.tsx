@@ -14,6 +14,8 @@ import { openExternalLink } from '@/utils/openExternalLink';
 
 interface LinkifiedTextProps {
   text: string;
+  /** Emit text runs inside an existing Text host; the parent owns its text styling. */
+  inline?: boolean;
   style?: StyleProp<TextStyle>;
   className?: string;
   linkStyle?: StyleProp<TextStyle>;
@@ -49,6 +51,7 @@ const NOFOLLOW = { hrefAttrs: { rel: 'nofollow' } } as object;
 // a crawler follows and a reader can open in a new tab.
 export const LinkifiedText: React.FC<LinkifiedTextProps> = ({
   text,
+  inline = false,
   style,
   className,
   linkStyle,
@@ -103,31 +106,15 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({
       pushText(text.slice(lastIndex, entity.start));
       lastIndex = entity.end;
 
-      if (entity.kind === 'mentionDisplay' && /^https?:\/\//i.test(entity.value)) {
-        // Resolve the source to its canonical Oxy identity inside the app.
-        // Never infer identity from the label or open a mention externally.
+      if (entity.kind === 'mentionDisplay') {
         elements.push(
-          linkText(
-            `/mention?uri=${encodeURIComponent(entity.value)}`,
-            entity.label,
-            `m-${key++}`,
-            true,
-          ),
-        );
-      } else if (entity.kind === 'mentionDisplay') {
-        // One handle drives both behaviors — the profile link and the hover
-        // preview — so they can never point at different profiles.
-        const mentionHandle = getNormalizedUserHandle({ username: entity.value }) ?? undefined;
-        elements.push(
-          <ProfileHoverCard key={`m-${key++}`} username={mentionHandle}>
-            {mentionHandle ? (
-              linkText(`/@${mentionHandle}`, entity.label, undefined, entity.unverified)
-            ) : (
-              <Text className="text-primary" style={linkStyle}>
-                {entity.label}
-              </Text>
-            )}
-          </ProfileHoverCard>,
+          <MentionTextLink
+            key={`m-${key++}`}
+            destination={entity.value}
+            label={entity.label}
+            unverified={entity.unverified}
+            linkStyle={linkStyle}
+          />,
         );
       } else if (entity.kind === 'federatedHandle') {
         // The handle already names its host, so it routes verbatim — no
@@ -168,6 +155,13 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({
   }, [text, linkStyle, linkTargetText]);
 
   if (!text) return null;
+  if (inline)
+    return (
+      <>
+        {nodes}
+        {suffix}
+      </>
+    );
   return (
     <Text style={style} className={className} numberOfLines={numberOfLines}>
       {nodes}
@@ -177,3 +171,42 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({
 };
 
 export default LinkifiedText;
+
+/** Shared identity navigation for plain and formatted post bodies. */
+export function MentionTextLink({
+  destination,
+  label,
+  unverified,
+  linkStyle,
+}: {
+  destination: string;
+  label: React.ReactNode;
+  unverified?: boolean;
+  linkStyle?: StyleProp<TextStyle>;
+}) {
+  const sourceUrl = /^https?:\/\//i.test(destination);
+  const handle = sourceUrl
+    ? undefined
+    : (getNormalizedUserHandle({ username: destination }) ?? undefined);
+  const href = sourceUrl
+    ? `/mention?uri=${encodeURIComponent(destination)}`
+    : handle
+      ? `/@${handle}`
+      : undefined;
+  const content = href ? (
+    <Link href={href as Href} push asChild onPress={stopAtLink}>
+      <Text
+        className="text-primary"
+        style={StyleSheet.flatten(linkStyle)}
+        {...(sourceUrl || unverified ? NOFOLLOW : null)}
+      >
+        {label}
+      </Text>
+    </Link>
+  ) : (
+    <Text className="text-primary" style={linkStyle}>
+      {label}
+    </Text>
+  );
+  return sourceUrl ? content : <ProfileHoverCard username={handle}>{content}</ProfileHoverCard>;
+}
