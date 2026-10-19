@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   hydratePosts: vi.fn(),
+  canViewerReadPostId: vi.fn(),
+  renderMentionPlaceholders: vi.fn(),
   loadPostRecord: vi.fn(),
   translatePost: vi.fn(),
   warn: vi.fn(),
@@ -17,7 +19,11 @@ vi.mock('../../db/posts/postRepository', () => ({
 }));
 
 vi.mock('../../services/PostHydrationService', () => ({
-  postHydrationService: { hydratePosts: mocks.hydratePosts },
+  postHydrationService: {
+    hydratePosts: mocks.hydratePosts,
+    canViewerReadPostId: mocks.canViewerReadPostId,
+    renderMentionPlaceholders: mocks.renderMentionPlaceholders,
+  },
 }));
 
 vi.mock('../../services/PostTranslationService', () => {
@@ -160,5 +166,30 @@ describe('post translation inference failures', () => {
       code: 'TRANSLATION_SOURCE_CHANGED',
     });
     expect(mocks.error).not.toHaveBeenCalled();
+  });
+
+  it('serves a translation with its mentions rendered, as hydration serves them', async () => {
+    mocks.loadPostRecord.mockResolvedValue({
+      id: 'post-1',
+      content: { text: '[mention:u1] Hallo' },
+      mentions: ['u1'],
+    });
+    mocks.translatePost.mockResolvedValue({
+      text: '[mention:u1] Hola',
+      tag: 'es-ES',
+      cached: false,
+    });
+    mocks.canViewerReadPostId.mockResolvedValue(true);
+    mocks.renderMentionPlaceholders.mockResolvedValue('[@Ana](ana) Hola');
+    const res = response();
+
+    await translatePost(request(), res);
+
+    expect(mocks.renderMentionPlaceholders).toHaveBeenCalledWith('[mention:u1] Hola', ['u1']);
+    expect(res.json).toHaveBeenCalledWith({
+      translatedText: '[@Ana](ana) Hola',
+      tag: 'es-ES',
+      cached: false,
+    });
   });
 });
