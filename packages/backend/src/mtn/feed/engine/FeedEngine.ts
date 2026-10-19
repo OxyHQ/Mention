@@ -11,7 +11,12 @@
  * `FeedResponseBuilder`. No new query or scoring logic lives here.
  */
 
-import { MtnConfig, type HydratedPost, type SlicedFeedResponse } from '@mention/shared-types';
+import {
+  MtnConfig,
+  type FeedPostSlice,
+  type HydratedPost,
+  type SlicedFeedResponse,
+} from '@mention/shared-types';
 import { getDiscoveryGateRolloutMode } from '../../../config';
 import { feedRankingService } from '../../../services/FeedRankingService';
 import { feedSeenPostsService } from '../../../services/FeedSeenPostsService';
@@ -51,6 +56,31 @@ import type {
 export interface FeedEngineRunOptions {
   cursor?: string;
   limit: number;
+}
+
+/**
+ * Thread-slice only as far down the score order as one page can reach.
+ *
+ * Slicing reads every candidate's thread children and parents from the
+ * database, and a ranked pool runs to hundreds of candidates while a page is
+ * `limit` slices. A slice's contents depend only on the candidates ABOVE it, so
+ * the first `limit + 1` slices of a prefix are exactly the first `limit + 1`
+ * slices of the whole pool. The prefix starts at `2 * limit + 1` candidates
+ * (thread grouping folds several into one slice, so a page needs more than
+ * `limit`) and doubles only when it yields too few slices to fill the page and
+ * say whether another follows.
+ */
+export async function sliceTopWindow(
+  candidates: RankedCandidate[],
+  limit: number,
+  options: Parameters<typeof threadSlicingService.sliceFeed>[1],
+): Promise<FeedPostSlice[]> {
+  let window = Math.min(candidates.length, 2 * limit + 1);
+  for (;;) {
+    const { slices } = await threadSlicingService.sliceFeed(candidates.slice(0, window), options);
+    if (slices.length > limit || window >= candidates.length) return slices;
+    window = Math.min(candidates.length, window * 2);
+  }
 }
 
 const EMPTY_RESPONSE: SlicedFeedResponse = {
@@ -746,7 +776,7 @@ export class FeedEngine {
       );
     }
 
-    const { slices: rawSlices } = await threadSlicingService.sliceFeed(deduped, {
+    const rawSlices = await sliceTopWindow(deduped, limit, {
       enableThreadGrouping: exec.threadGrouping !== false,
       enableReplyContext: exec.replyContext === true,
       maxSliceSize: MtnConfig.feed.maxSliceSize,

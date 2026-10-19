@@ -10,6 +10,7 @@ describe('requestObservability', () => {
   app.use(requestObservability);
   app.get('/posts/:id', (_req, res) => res.status(200).json({ ok: true }));
   app.get(namedRoutePattern(/^\/p\/([^/]+)$/, '/p/:id'), (_req, res) => res.status(200).end());
+  app.get('/health/ready', (req, res) => res.status(req.query.down ? 503 : 200).end());
 
   beforeEach(() => {
     metrics.reset();
@@ -66,5 +67,21 @@ describe('requestObservability', () => {
         .getSeries('http_request_duration_ms')
         .find(({ labels }) => labels.route === '/p/:id' && labels.status === '2xx')?.count,
     ).toBe(1);
+  });
+
+  it('measures the readiness probe but logs it only when it fails', async () => {
+    await request(app).get('/health/ready').expect(200);
+    expect(logger.info).not.toHaveBeenCalled();
+    expect(
+      metrics
+        .getSeries('http_request_duration_ms')
+        .find(({ labels }) => labels.route === '/health/ready')?.count,
+    ).toBe(1);
+
+    await request(app).get('/health/ready?down=1').expect(503);
+    expect(logger.info).toHaveBeenCalledWith(
+      'HTTP request completed',
+      expect.objectContaining({ route: '/health/ready', statusCode: 503 }),
+    );
   });
 });

@@ -203,20 +203,26 @@ async function computeMutualIds(
   currentUserId: string,
   acceptedOutboundFollowUris?: Promise<string[]>,
 ): Promise<string[]> {
-  let oxyMutualIds: string[] = [];
-  try {
-    const ids = await getRuntimeOxyClient().follows.mutualIds({ limit: MAX_MUTUAL_IDS });
-    oxyMutualIds = ids.filter((id) => id.length > 0);
-  } catch (error) {
-    logger.warn('[MtnFeedController] Failed to load Oxy mutual ids', error);
-  }
-
-  let federatedMutualIds: string[] = [];
-  try {
-    federatedMutualIds = await getFederatedMutualIds(currentUserId, acceptedOutboundFollowUris);
-  } catch (error) {
-    logger.warn('[MtnFeedController] Failed to load federated mutual ids', error);
-  }
+  // The two sources are independent, so neither waits for the other.
+  const [oxyMutualIds, federatedMutualIds] = await Promise.all([
+    (async () => {
+      try {
+        const ids = await getRuntimeOxyClient().follows.mutualIds({ limit: MAX_MUTUAL_IDS });
+        return ids.filter((id) => id.length > 0);
+      } catch (error) {
+        logger.warn('[MtnFeedController] Failed to load Oxy mutual ids', error);
+        return [];
+      }
+    })(),
+    (async () => {
+      try {
+        return await getFederatedMutualIds(currentUserId, acceptedOutboundFollowUris);
+      } catch (error) {
+        logger.warn('[MtnFeedController] Failed to load federated mutual ids', error);
+        return [];
+      }
+    })(),
+  ]);
 
   return Array.from(new Set([...oxyMutualIds, ...federatedMutualIds])).slice(0, MAX_MUTUAL_IDS);
 }

@@ -327,7 +327,24 @@ on touch, arrows beside the title on wide screens). People are vertical tiles
   Redis (key `usersummary:v7:<id>`, 10m TTL); `invalidate()` evicts on
   federated-actor re-resolve and on Oxy's `oxy:user:invalidate`. Those facts are
   RANKING-side (`CachedUserSummary`) and deliberately never ship on the
-  `PostUser` DTO.
+  `PostUser` DTO. In front of Redis each task keeps a bounded (5,000 entries)
+  15-second copy of what Redis returned; `invalidate()` clears it, and the
+  invalidation subscriber runs on every task, so an Oxy identity change clears
+  it everywhere.
+- Ranked pages thread-slice only the top `2 * limit + 1` candidates
+  (`sliceTopWindow` in `FeedEngine.ts`), doubling the window only when it folds
+  into too few slices to fill the page and say whether another follows. Slicing
+  reads every candidate's thread children and parents, and a slice depends only
+  on the candidates above it, so the page is the same as slicing the whole pool.
+- For You candidate shells carry the `posts` row they were assembled from;
+  `hydrateSlices` completes the page's shells from those rows
+  (`completeShellRecords`), reading only the child tables instead of selecting
+  the page's posts a second time.
+- A post record is one wave of round trips: `loadPostRecords` reads `posts` and
+  every child table (the variant tables through a subquery) at once. Reply
+  parents, the web shell's `/p/:id` post and its SEO replies come through the
+  viewer-agnostic post-record cache (`services/postDetailCache.ts`) that
+  `/feed/item/:id` already used.
 - View counts: `services/feedViewCounter.ts` (Redis SET NX EX
   `viewseen:<postId>:<viewerId>`). Frontend reports impressions via
   `utils/feedTelemetry.ts`.

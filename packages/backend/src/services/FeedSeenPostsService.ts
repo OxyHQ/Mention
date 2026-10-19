@@ -148,27 +148,22 @@ export class FeedSeenPostsService {
       this.redis,
       async () => {
         const key = this.getKey(userId);
+        const now = Date.now();
 
-        // Batch add all post IDs to Sorted Set with timestamp scores (LRU ordering)
-        if (postIds.length > 0) {
-          const now = Date.now();
-          const members = postIds.map((postId) => ({
-            score: now,
-            value: postId,
-          }));
-          await this.redis.zAdd(key, members);
-        }
-
-        // Set/refresh TTL
-        await this.redis.expire(key, this.TTL_SECONDS);
-
-        // Trim to MAX_SEEN_POSTS if needed (evict oldest by lowest score)
-        const currentSize = await this.redis.zCard(key);
-        if (currentSize > this.MAX_SEEN_POSTS) {
-          const excess = currentSize - this.MAX_SEEN_POSTS;
-          // Remove the oldest entries (lowest scores = oldest timestamps)
-          await this.redis.zRemRangeByRank(key, 0, excess - 1);
-        }
+        // ONE non-transactional pipeline rather than four sequential round
+        // trips: add with timestamp scores (LRU ordering), keep only the newest
+        // MAX_SEEN_POSTS — a rank range ending at -(MAX + 1) removes everything
+        // below them and is empty when there are no more than that — and
+        // refresh the TTL.
+        await this.redis
+          .multi()
+          .zAdd(
+            key,
+            postIds.map((postId) => ({ score: now, value: postId })),
+          )
+          .zRemRangeByRank(key, 0, -(this.MAX_SEEN_POSTS + 1))
+          .expire(key, this.TTL_SECONDS)
+          .execAsPipeline();
       },
       undefined, // Fallback: in-memory cache already updated
       'markPostsAsSeen',

@@ -16,7 +16,7 @@
  * rendering as "not found" rather than an error anyone could act on.
  */
 
-import { asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, or } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import {
   customFeedDefinitionModules,
@@ -249,4 +249,27 @@ export async function loadCustomFeedSource(
     includeMedia: row.includeMedia,
     ...(row.language === null ? {} : { language: row.language }),
   };
+}
+
+/**
+ * The titles of the feeds among `feedIds` that `viewerId` may read — their own,
+ * or public — keyed by feed id. One indexed primary-key read; a feed that is
+ * gone or private to someone else is simply absent.
+ */
+export async function loadReadableFeedTitles(
+  feedIds: readonly string[],
+  viewerId: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<Record<string, string>> {
+  if (feedIds.length === 0) return {};
+  const rows = await db
+    .select({ id: customFeeds.id, title: customFeeds.title })
+    .from(customFeeds)
+    .where(
+      and(
+        inArray(customFeeds.id, [...feedIds]),
+        or(eq(customFeeds.ownerOxyUserId, viewerId), eq(customFeeds.isPublic, true)),
+      ),
+    );
+  return Object.fromEntries(rows.map((row) => [row.id, row.title]));
 }

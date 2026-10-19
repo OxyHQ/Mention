@@ -510,6 +510,10 @@ report per request, on the `HTTP request completed` log line that
 | `queryCount` / `queryDurationMs` | `db/queryMetrics.ts` | Postgres statements issued and time inside them |
 | `oxyCallCount` / `oxyDurationMs` | `utils/oxyMetrics.ts` | Oxy API calls issued and time waiting on them |
 
+The line is not written for the readiness probe (`/health/ready`), the uptime
+check (`HEAD /`) or the web telemetry beacon (`/telemetry/web`) unless they
+answer 5xx; they still feed every metric.
+
 `slowQueryCount` / `failedQueryCount` and `failedOxyCallCount` sit beside them.
 The matching histograms — `db_request_queries`, `db_request_duration_ms`,
 `oxy_request_calls`, `oxy_request_duration_ms`, plus per-call

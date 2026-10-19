@@ -56,14 +56,49 @@ export function isRedisConnectionError(error: unknown): boolean {
   );
 }
 
+/** A Redis operation may cost at most one second before its caller uses its fallback. */
+export const REDIS_RESPONSE_DEADLINE_MS = 1_000;
+
 /**
- * Execute a Redis operation only when the shared client is already ready.
+ * Run a Redis operation under {@link REDIS_RESPONSE_DEADLINE_MS}.
+ *
+ * A ready socket can still stop answering. node-redis 6's native timeout only
+ * covers the send queue and its pipeline API does not forward commandOptions,
+ * so it cannot bound response latency — this does. On expiry it aborts `signal`
+ * (so later pipeline batches stop even if the current one settles late) and
+ * rejects with an `ETIMEDOUT` error, which {@link isRedisConnectionError}
+ * classifies as a connection failure: the caller reports it to the supervisor,
+ * which destroys and recovers the socket, releasing everything queued on it.
+ */
+export async function withRedisDeadline<T>(run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const controller = new AbortController();
+  let deadline: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const expired = new Promise<never>((_, reject) => {
+      deadline = setTimeout(() => {
+        const error = Object.assign(new Error('Redis response deadline exceeded'), {
+          code: 'ETIMEDOUT',
+        });
+        controller.abort(error);
+        reject(error);
+      }, REDIS_RESPONSE_DEADLINE_MS);
+    });
+    return await Promise.race([run(controller.signal), expired]);
+  } finally {
+    if (deadline !== undefined) clearTimeout(deadline);
+  }
+}
+
+/**
+ * Execute a Redis operation only when the shared client is already ready, and
+ * give up on it after {@link REDIS_RESPONSE_DEADLINE_MS}: a hung socket costs a
+ * request one second, never the request.
  * Connection and recovery belong to the singleton supervisor; hot paths never
  * PING, call connect, or wait for a cooldown.
  */
 export async function withRedisFallback<T>(
   client: RedisClientType,
-  operation: () => Promise<T>,
+  operation: (signal: AbortSignal) => Promise<T>,
   fallback: T,
   operationName?: string,
 ): Promise<T> {
@@ -72,7 +107,7 @@ export async function withRedisFallback<T>(
   }
 
   try {
-    return await operation();
+    return await withRedisDeadline(operation);
   } catch (error: unknown) {
     if (isRedisConnectionError(error)) {
       reportRedisConnectionFailure(client, error);

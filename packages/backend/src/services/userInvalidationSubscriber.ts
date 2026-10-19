@@ -14,8 +14,10 @@
  * incoming Mastodon `Move`). That check claims each event once across tasks.
  *
  * WHAT IT DROPS, and why all four:
- *  - the Redis {@link userSummaryCache} entry — the shared, cross-task copy that
- *    `PostHydrationService` reads for every post author;
+ *  - the {@link userSummaryCache} entry — the shared, cross-task Redis copy that
+ *    `PostHydrationService` reads for every post author, AND this task's own
+ *    short-lived in-process copy of it, which only a per-task signal like this
+ *    one can clear on every task;
  *  - the Redis viewer-languages entry (`utils/viewerLanguage`) — the user's own
  *    ordered locales, which decide the rendition of every post they are served,
  *    so a reorder in Oxy applies on their next request;

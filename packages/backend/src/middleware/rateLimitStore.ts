@@ -1,5 +1,31 @@
+import { createHash } from 'node:crypto';
 import { getRedisClient } from '../utils/redis';
 import { withRedisFallback } from '../utils/redisHelpers';
+
+/**
+ * Atomic INCR + EXPIRE. Returns `[hits, ttlSeconds]`.
+ * - INCR creates the key with value 1 if it doesn't exist.
+ * - On first creation (hits === 1) OR if the key has no TTL (-1), set the
+ *   expiration. This fixes both the race condition and any stale unbounded keys
+ *   from previous buggy code paths.
+ */
+const INCREMENT_SCRIPT = `
+  local hits = redis.call('INCR', KEYS[1])
+  local ttl = redis.call('TTL', KEYS[1])
+  if hits == 1 or ttl == -1 then
+    redis.call('EXPIRE', KEYS[1], ARGV[1])
+    ttl = tonumber(ARGV[1])
+  end
+  return {hits, ttl}
+`;
+
+/** What `EVALSHA` names the script by; Redis derives the same digest on `EVAL`. */
+const INCREMENT_SCRIPT_SHA = createHash('sha1').update(INCREMENT_SCRIPT).digest('hex');
+
+/** Redis has not cached the script (first call, restart, failover, `SCRIPT FLUSH`). */
+function isNoScriptError(error: unknown): boolean {
+  return error instanceof Error && error.message.startsWith('NOSCRIPT');
+}
 
 /**
  * Custom Redis store for express-rate-limit
@@ -71,7 +97,7 @@ export class RedisStore {
    * Increment a key's value
    * This is the main method used by express-rate-limit
    *
-   * Atomically increments and sets TTL using a Lua script. This avoids the race
+   * Atomically increments and sets TTL using a Lua script ({@link INCREMENT_SCRIPT}). This avoids the race
    * condition in non-atomic implementations where a concurrent EXPIRE call could
    * leave the key without a TTL, causing rate limit hits to accumulate forever.
    *
@@ -82,29 +108,20 @@ export class RedisStore {
     const fullKey = `${this.prefix}${key}`;
     const fallback = { totalHits: 1, resetTime: undefined as Date | undefined };
     const ttlSeconds = Math.ceil(this.windowMs / 1000);
-
-    // Atomic INCR + EXPIRE via Lua. Returns [hits, ttlSeconds].
-    // - INCR creates the key with value 1 if it doesn't exist.
-    // - On first creation (hits === 1) OR if the key has no TTL (-1),
-    //   set the expiration. This fixes both the race condition and any
-    //   stale unbounded keys from previous buggy code paths.
-    const script = `
-      local hits = redis.call('INCR', KEYS[1])
-      local ttl = redis.call('TTL', KEYS[1])
-      if hits == 1 or ttl == -1 then
-        redis.call('EXPIRE', KEYS[1], ARGV[1])
-        ttl = tonumber(ARGV[1])
-      end
-      return {hits, ttl}
-    `;
+    const scriptArgs = { keys: [fullKey], arguments: [String(ttlSeconds)] };
 
     return await withRedisFallback(
       this.redis,
       async () => {
-        const result = (await this.redis.eval(script, {
-          keys: [fullKey],
-          arguments: [String(ttlSeconds)],
-        })) as [number, number];
+        // By digest: every request on every route runs this, and `EVAL` sent the
+        // whole script body each time. Redis answers `NOSCRIPT` until it has
+        // seen the body once, and `EVAL` both runs and caches it.
+        const result = (await this.redis
+          .evalSha(INCREMENT_SCRIPT_SHA, scriptArgs)
+          .catch((error: unknown) => {
+            if (!isNoScriptError(error)) throw error;
+            return this.redis.eval(INCREMENT_SCRIPT, scriptArgs);
+          })) as [number, number];
 
         const totalHits = Number(result[0]);
         const ttl = Number(result[1]);
