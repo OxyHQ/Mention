@@ -75,7 +75,7 @@ import { readPersistedMediaFields } from './MediaMetadataService';
 // has to hide exactly what the DTO hides — see `engagementCountPrivacy.ts`.
 import { DEFAULT_PRIVACY, readEngagementCountPrivacy } from './engagementCountPrivacy';
 import type { User as OxyUser } from '@oxy.so/core';
-import { getNormalizedUserHandle, getUserLanguages } from '@oxy.so/core';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 import { assignThreadState } from './ThreadSlicingService';
 import {
   mget as mgetUserSummaries,
@@ -101,7 +101,11 @@ import {
 } from './postVariants';
 import { loadRecentReplierIds } from './PostRecentReplierService';
 import { previewableUrls, resolveClarityDocuments } from '../utils/clarityDocuments';
-import { languageLadder, type RequestLanguages } from '../utils/viewerLanguage';
+import {
+  languageLadder,
+  loadViewerLanguages,
+  type RequestLanguages,
+} from '../utils/viewerLanguage';
 import {
   findPostLinkPreviews,
   type StoredLinkPreview,
@@ -281,7 +285,7 @@ export interface HydrationOptions {
   /**
    * The viewer's Oxy account locales, when the caller already resolved them (the
    * feed does, in `loadViewerFeedContext`). Absent → {@link buildViewerContext}
-   * reads them from the Redis-cached identity itself.
+   * reads them itself, from Oxy with {@link oxyClient} (`loadViewerLanguages`).
    */
   viewerLanguages?: string[];
   /**
@@ -425,7 +429,7 @@ async function loadReplyParents(
 
 /**
  * Build the cached identity ({@link CachedUserSummary}: raw Oxy user + the
- * ranking-side follower count and account languages) from a resolved Oxy user.
+ * ranking-side follower count and account facts) from a resolved Oxy user.
  * Oxy owns the user shape, so the {@link PostUser} half is a PASSTHROUGH: it
  * selects the canonical fields without reshaping — no flat `displayName`, no
  * pre-resolved `avatarUrl`, no wire `handle`. `avatar` stays the bare Oxy file id
@@ -461,15 +465,10 @@ function toCachedUser(userId: string, userData: OxyUser): CachedUserSummary {
   };
 
   const followerCount = userData._count?.followers;
-  // Account locales, normalized/validated/deduped by the SDK (`es-es` → `es-ES`,
-  // unsupported tags dropped). Cached alongside the identity so the feed can read
-  // the VIEWER's languages without a second Oxy round trip; omitted when the
-  // account declares none, which keeps the language signal neutral.
-  const languages = getUserLanguages(userData);
   // Two RANKING-side account facts Oxy has always sent and this serializer used to
   // drop on the floor, because it names its fields one by one. Neither belongs on
-  // `PostUser` — same reasoning as `followerCount` and `languages`: they describe
-  // the ACCOUNT for ranking, not the author of a post for a renderer.
+  // `PostUser` — same reasoning as `followerCount`: they describe the ACCOUNT
+  // for ranking, not the author of a post for a renderer.
   const accountCreatedAt =
     typeof userData.createdAt === 'string' && userData.createdAt.length > 0
       ? userData.createdAt
@@ -481,7 +480,6 @@ function toCachedUser(userId: string, userData: OxyUser): CachedUserSummary {
   return {
     user,
     followerCount: typeof followerCount === 'number' ? followerCount : undefined,
-    languages: languages.length > 0 ? languages : undefined,
     accountCreatedAt,
     reputationTier,
   };
@@ -1510,26 +1508,16 @@ export class PostHydrationService {
    * The viewer's ordered language preference ({@link languageLadder}): an
    * explicit `?lang`, then the viewer's Oxy account locales — which the feed
    * already resolved and threads in, and which every other caller reads here
-   * from the Redis-cached identity (the same batched lookup hydration uses for
-   * authors, so it costs no Oxy round trip on a hit) — then `Accept-Language`.
+   * through the same {@link loadViewerLanguages} — then `Accept-Language`.
    * Fail-soft: an unresolvable viewer simply contributes no account locales.
    */
   private async buildLanguageCandidates(
     viewerId: string | undefined,
     options: HydrationOptions | undefined,
   ): Promise<string[]> {
-    let accountLanguages = options?.viewerLanguages;
-    if (accountLanguages === undefined && viewerId) {
-      try {
-        const summaries = await resolveUserSummaries([viewerId]);
-        accountLanguages = summaries.get(viewerId)?.languages ?? [];
-      } catch (error) {
-        logger.warn('[PostHydration] Failed to resolve viewer languages', error);
-        accountLanguages = [];
-      }
-    }
-
-    return languageLadder(options?.requestLanguages, accountLanguages ?? []);
+    const accountLanguages =
+      options?.viewerLanguages ?? (await loadViewerLanguages(viewerId, options?.oxyClient));
+    return languageLadder(options?.requestLanguages, accountLanguages);
   }
 
   private async buildViewerContext(

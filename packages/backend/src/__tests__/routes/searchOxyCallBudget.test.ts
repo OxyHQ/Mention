@@ -71,9 +71,11 @@ const calls = {
   getUserFollowers: vi.fn(async () => []),
   getBlockedUsers: vi.fn(async () => []),
   getRestrictedUsers: vi.fn(async () => []),
+  // Oxy's public projection: no `languages` on another person's profile.
   getUsersByIds: vi.fn(async (ids: string[]) =>
-    ids.map((id) => ({ id, username: `u${id.slice(-6)}`, name: {}, languages: ['en-US'] })),
+    ids.map((id) => ({ id, username: `u${id.slice(-6)}`, name: {} })),
   ),
+  getMe: vi.fn(async () => ({ id: VIEWER, languages: ['es-ES'] })),
   getClarityDocuments: vi.fn(async () => []),
 };
 
@@ -82,7 +84,7 @@ const oxyClient = {
   safety: adultSafetyFixture(),
   follows: { following: calls.getUserFollowing, followers: calls.getUserFollowers },
   privacy: { blocked: calls.getBlockedUsers, restricted: calls.getRestrictedUsers },
-  users: { getMany: calls.getUsersByIds },
+  users: { getMany: calls.getUsersByIds, me: calls.getMe },
   getClarityDocuments: calls.getClarityDocuments,
 };
 
@@ -180,14 +182,11 @@ describe('GET /search Oxy call budget', () => {
     }
   });
 
-  it('resolves the viewer profile once, for their account languages', async () => {
-    // `buildLanguageCandidates` resolves the VIEWER's own summary to read their
-    // account languages, which is real data no request header carries — so
-    // this call is legitimate, and threading `requestLanguages` would not
-    // remove it (that is driven by the separate `viewerLanguages` option). It
-    // is pinned so a SECOND resolution of the same summary would show up.
-    //
-    // Recorded because it was initially mistaken for waste.
+  it("reads the viewer's own profile once, for their account languages", async () => {
+    // `buildLanguageCandidates` reads the VIEWER's account languages, which no
+    // request header carries, from their owner profile — the public identity
+    // Mention caches per author has no `languages`. One read per request; a
+    // second would show up here.
     await seedPost(scope, {
       oxyUserId: scope.user('author3'),
       content: {
@@ -204,10 +203,7 @@ describe('GET /search Oxy call budget', () => {
       .query({ query: 'llamas', type: 'posts' })
       .expect(200);
 
-    const viewerResolutions = calls.getUsersByIds.mock.calls
-      .flatMap(([ids]) => ids)
-      .filter((id) => id === VIEWER);
-    expect(viewerResolutions).toHaveLength(1);
+    expect(calls.getMe).toHaveBeenCalledTimes(1);
   });
 
   it('asks Oxy nothing at all for an anonymous viewer', async () => {

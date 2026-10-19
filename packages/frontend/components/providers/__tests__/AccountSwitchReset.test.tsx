@@ -39,10 +39,8 @@ const mockResetPrivacySettingsCache = jest.fn();
 const mockChildRender = jest.fn();
 
 // Account-switch behavior reads locale state; initialization/storage are tested separately.
-jest.mock('@/lib/i18n', () => ({
-  get appI18n() {
-    return mockLocale;
-  },
+jest.mock('@/hooks/useAppLanguage', () => ({
+  useAppLanguage: () => mockLocale.language,
 }));
 
 jest.mock('@tanstack/react-query', () => ({
@@ -123,6 +121,11 @@ jest.mock('@/stores/engagementInvalidation', () => ({
 
 jest.mock('@/stores/safetyInvalidation', () => ({
   resetSafetyInvalidation: jest.fn(),
+}));
+
+jest.mock('@/stores/readerLanguageInvalidation', () => ({
+  noteReaderLanguages: jest.fn(),
+  resetReaderLanguageInvalidation: jest.fn(),
 }));
 
 jest.mock('@/services/feedService', () => ({

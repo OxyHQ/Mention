@@ -1,9 +1,13 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import type { OxyClient } from '../utils/privacyHelpers';
 
-import { loadViewerLanguages, resolveViewerBaseLanguages } from '../mtn/feed/feedContext';
+import { resolveViewerBaseLanguages } from '../mtn/feed/feedContext';
 import { resolveDiscoveryGate } from '../mtn/feed/definitions/presets';
-import { languageLadder, requestLanguageCandidates } from '../utils/viewerLanguage';
+import {
+  languageLadder,
+  loadViewerLanguages,
+  requestLanguageCandidates,
+} from '../utils/viewerLanguage';
 
 describe('loadViewerLanguages', () => {
   const viewerId = 'viewer-1';

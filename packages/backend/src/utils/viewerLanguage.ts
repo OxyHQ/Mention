@@ -1,5 +1,8 @@
 import type { Request } from 'express';
 import { canonicalizeLanguageTag } from '@mention/shared-types';
+import { getUserLanguages } from '@oxy.so/core';
+import { logger } from './logger';
+import type { OxyClient } from './privacyHelpers';
 import { queryString } from './queryParams';
 
 /**
@@ -20,9 +23,9 @@ const MAX_ACCEPT_LANGUAGE_TAGS = 10;
  *     reader it ranks BELOW the languages their Oxy account declares — a Catalan
  *     browser must not outrank a Spanish primary. See {@link languageLadder}.
  *
- * The viewer's Oxy account locales sit between the two, but they are resolved
- * server-side inside hydration (from the Redis-cached identity), not here — this
- * helper is synchronous and sees only the request.
+ * The viewer's Oxy account locales sit between the two. They are not on the
+ * request: {@link loadViewerLanguages} reads them from Oxy with the viewer's own
+ * credential.
  *
  * Every tag is canonicalized, so a malformed header entry (or a wildcard `*`) is
  * dropped instead of reaching the resolver; `accepted` never repeats `explicit`.
@@ -76,4 +79,36 @@ export function languageLadder(
     if (!ladder.includes(tag)) ladder.push(tag);
   }
   return ladder;
+}
+
+/**
+ * The viewer's Oxy account locales, primary first — the account rung of
+ * {@link languageLadder}, and the ONE reader of it: the feed context and post
+ * hydration both come through here.
+ *
+ * Read from Oxy's OWNER profile (`users.me()`) with this request's credential,
+ * never from the public identity Mention caches per author: Oxy's public user
+ * projection does not carry `languages` at all, so a read through that cache
+ * always came back empty. It is uncached on purpose — the request-scoped client
+ * is a fresh instance, so a reader who has just reordered their languages in
+ * Oxy is served by the new order on their very next request, with no TTL or
+ * invalidation event to wait for.
+ *
+ * Fail-soft: an anonymous viewer, a delegated client that cannot read the
+ * owner profile, a profile for someone else or any error yields `[]`, and the
+ * ladder falls through to the request's languages.
+ */
+export async function loadViewerLanguages(
+  userId: string | undefined,
+  oxyClient?: OxyClient,
+): Promise<string[]> {
+  if (!userId || !oxyClient?.users) return [];
+  try {
+    const user = await oxyClient.users.me();
+    if (user.id !== userId) return [];
+    return getUserLanguages(user);
+  } catch (error) {
+    logger.warn('[viewerLanguage] Failed to load viewer languages', error);
+    return [];
+  }
 }

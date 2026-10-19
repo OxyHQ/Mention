@@ -1,5 +1,6 @@
 import { queryClient } from '@/lib/queryClient';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { createFeedRuleSignal } from './feedRuleSignal';
 
 /**
  * The single authority for "the viewer changed a safety rule, so what they are
@@ -39,13 +40,8 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
  * converges the rest on their next mount.
  */
 
-/** When the viewer last changed a safety rule, in `Date.now()` terms. */
-let changedAt = 0;
-
-/** Notified when a safety rule changes, so a mounted feed can refetch. */
-type SafetyFilterListener = () => void;
-
-const listeners = new Set<SafetyFilterListener>();
+/** When the viewer last changed a safety rule, and the mounted feeds to tell. */
+const signal = createFeedRuleSignal();
 
 /**
  * Whether a feed cache retained at `retainedAt` predates the viewer's current
@@ -62,18 +58,15 @@ const listeners = new Set<SafetyFilterListener>();
  * see.
  */
 export function isFeedCacheStaleForSafety(retainedAt: number): boolean {
-  return retainedAt <= changedAt;
+  return signal.isStale(retainedAt);
 }
 
 /**
  * Subscribe a mounted feed to safety-rule changes so it refetches without
  * waiting for a remount. Returns an unsubscribe function.
  */
-export function subscribeToSafetyFilterChanges(listener: SafetyFilterListener): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
+export function subscribeToSafetyFilterChanges(listener: () => void): () => void {
+  return signal.subscribe(listener);
 }
 
 /**
@@ -83,8 +76,6 @@ export function subscribeToSafetyFilterChanges(listener: SafetyFilterListener): 
  * it.
  */
 export function invalidateSafetyFilters(): void {
-  changedAt = Date.now();
-
   // The two React Query families the server filters with these rules. Search
   // excludes sensitive at the query level and drops muted results after
   // hydration; notifications withhold a gated preview and remove a muted row.
@@ -94,9 +85,7 @@ export function invalidateSafetyFilters(): void {
       viewerQueryKeys.isFamily(query.queryKey, 'notifications'),
   });
 
-  for (const listener of listeners) {
-    listener();
-  }
+  signal.notify();
 }
 
 /**
@@ -105,5 +94,5 @@ export function invalidateSafetyFilters(): void {
  * switch unmounts them itself.
  */
 export function resetSafetyInvalidation(): void {
-  changedAt = 0;
+  signal.reset();
 }

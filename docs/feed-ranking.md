@@ -233,8 +233,11 @@ feeds.
   persisted.
 - `userBehavior` context is loaded in `feed.controller` on every ForYou
   request — affinity and preferred-topic signals were dead without it.
-- Viewer languages: `loadViewerFeedContext` resolves the viewer's Oxy
-  account languages via the Redis-cached `resolveUserSummaries` path. They
+- Viewer languages: `loadViewerLanguages` (`utils/viewerLanguage.ts`) reads
+  the viewer's Oxy account languages from their owner profile (`users.me()`,
+  with the request's own credential, uncached) — for `loadViewerFeedContext`
+  and for every other hydration alike; Oxy's public profiles carry no
+  languages, so the per-author summary cache cannot supply them. They
   are BCP-47 LOCALES (`es-ES`), while `postClassification.languages` are
   ISO 639-1 base codes (`es`), so `languageMismatchPenalty` compares on the
   BASE subtag via `getBaseLanguage`. Empty on either side ⇒ neutral.
@@ -312,9 +315,9 @@ on touch, arrows beside the title on wide screens). People are vertical tiles
 - Hydration author-batch: `PostHydrationService.buildUserMap`
   batch-resolves authors via `oxyServices.getUsersByIds`.
   `services/userSummaryCache.ts` caches the raw canonical Oxy `User` (as
-  `PostUser`) + followerCount + the account's BCP-47 `languages` in Redis
-  (key `usersummary:v5:<id>`, 10m TTL); `invalidate()` evicts on
-  federated-actor re-resolve. The follower count and languages are
+  `PostUser`) + followerCount and the other ranking-side account facts in
+  Redis (key `usersummary:v7:<id>`, 10m TTL); `invalidate()` evicts on
+  federated-actor re-resolve and on Oxy's `oxy:user:invalidate`. Those facts are
   RANKING-side (`CachedUserSummary`) and deliberately never ship on the
   `PostUser` DTO.
 - View counts: `services/feedViewCounter.ts` (Redis SET NX EX
