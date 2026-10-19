@@ -35,6 +35,12 @@ const { getProfileByUsername, getUsersByIds, serviceRequest } = vi.hoisted(() =>
   ),
 }));
 
+const { cachedUserSummaries } = vi.hoisted(() => ({
+  cachedUserSummaries: vi.fn(async (_ids: string[]) => new Map<string, unknown>()),
+}));
+
+vi.mock('../services/userSummaryCache', () => ({ mget: cachedUserSummaries }));
+
 vi.mock('../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
     users: { byUsername: getProfileByUsername, getMany: getUsersByIds },
@@ -1158,6 +1164,22 @@ describe('webShell post OG sensitivity gate', () => {
     const response = await crawl(boostId);
     expect(response.text).not.toContain('data-mention-seo-fallback');
     expect(response.text).toContain('content="noindex,nofollow"');
+    expect(postHydrationService.hydratePosts).not.toHaveBeenCalled();
+  });
+
+  it('does not trust a cached handle that now names another account', async () => {
+    const postId = await seedGatedPost({}, 'an ordinary post');
+    cachedUserSummaries.mockResolvedValueOnce(new Map([[AUTHOR, { user: { username: 'nate' } }]]));
+    stubFetch({
+      ok: true,
+      body: { data: { id: 'someone-else', username: 'nate', name: { displayName: 'Nate' } } },
+    });
+    getUsersByIds.mockResolvedValueOnce([]);
+
+    const response = await crawl(postId);
+
+    expect(response.text).toContain('content="noindex,nofollow"');
+    expect(response.text).not.toContain('an ordinary post');
     expect(postHydrationService.hydratePosts).not.toHaveBeenCalled();
   });
 

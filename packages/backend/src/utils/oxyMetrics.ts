@@ -81,6 +81,9 @@ const routeTemplates = new Set<string>();
 const IDENTIFIER_SEGMENT =
   /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{24}|\d+|.{33,})$/i;
 
+/** Route words whose next segment is a handle (`/profiles/username/<handle>`). */
+const HANDLE_PARENT_SEGMENTS = new Set(['username']);
+
 export function templateOxyRoute(rawUrl: string): string {
   // Strip the query string BEFORE anything else. `HttpService` redacts query
   // strings from its own logs because an asset URL carries a scoped `mt=` media
@@ -89,7 +92,16 @@ export function templateOxyRoute(rawUrl: string): string {
   const path = withoutQuery.replace(/^https?:\/\/[^/]+/i, '');
   const templated = path
     .split('/')
-    .map((segment) => (segment && IDENTIFIER_SEGMENT.test(segment) ? ':id' : segment))
+    .map((segment, index, segments) =>
+      // A handle is a person's name, not a route word, and usually too short
+      // for `IDENTIFIER_SEGMENT`: as a label it leaked usernames and spent the
+      // template cap, after which every other call collapsed into `/other`.
+      segment && HANDLE_PARENT_SEGMENTS.has(segments[index - 1] ?? '')
+        ? ':handle'
+        : segment && IDENTIFIER_SEGMENT.test(segment)
+          ? ':id'
+          : segment,
+    )
     .join('/');
   const normalized = templated.startsWith('/') ? templated : `/${templated}`;
 

@@ -79,6 +79,7 @@ describe('templateOxyRoute', () => {
       '/users/:id/following',
     );
     expect(templateOxyRoute('/users/me/graph')).toBe('/users/me/graph');
+    expect(templateOxyRoute('/profiles/username/alice')).toBe('/profiles/username/:handle');
     expect(templateOxyRoute('/privacy/blocked/12345')).toBe('/privacy/blocked/:id');
     expect(templateOxyRoute('/assets/2b8f4e1c-9a0d-4f7b-8c31-5e6d7a8b9c01/stream')).toBe(
       '/assets/:id/stream',

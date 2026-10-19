@@ -37,6 +37,7 @@ import { loadPostRecord } from '../db/posts/postRepository';
 import { loadNewestEligibleReplies } from '../services/PostRecentReplierService';
 import type { PostRecord } from '../db/posts/postRecord';
 import { postHydrationService } from '../services/PostHydrationService';
+import { mget as mgetUserSummaries } from '../services/userSummaryCache';
 import { logger } from '../utils/logger';
 import {
   type OgData,
@@ -61,6 +62,7 @@ import { requiresContentWarning, type FeedSafetyPostShape } from '../mtn/feed/fe
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { webShellRateLimiter } from '../middleware/security';
 import { measureOxyFetch } from '../utils/oxyMetrics';
+import { namedRoutePattern } from '../middleware/requestObservability';
 import { isApexHost } from '../middleware/apexFrontendProxy';
 import { getShell } from '../services/webShellDocument';
 import {
@@ -194,9 +196,30 @@ async function profileSeoFacts(oxyUserId: string | undefined): Promise<ProfileSe
   return facts ?? {};
 }
 
+/**
+ * Whether Oxy serves this author's public profile, asked fresh on every
+ * request: the profile read is the availability answer and is never cached.
+ *
+ * Only the author's HANDLE may come from a cache — the user summary hydration
+ * keeps, which this page's card hydration reads for the same author a moment
+ * later — and it is trusted only when the profile Oxy returns for it is this
+ * very account. A handle that names no one or someone else now (a rename, a
+ * merged account) falls back to asking Oxy who the account is, as every
+ * request used to. A cached handle saves the serial `users/by-ids` round trip
+ * on every crawled post page by an author seen in the last few minutes.
+ */
 async function isOxyAuthorPublic(oxyUserId: string): Promise<boolean> {
+  const cachedHandle = (await mgetUserSummaries([oxyUserId])).get(oxyUserId)?.user?.username;
+  let asked: { handle: string; found: boolean } | undefined;
+  if (cachedHandle) {
+    const profile = await fetchProfile(cachedHandle);
+    if (profile?.id === oxyUserId) return true;
+    asked = { handle: cachedHandle, found: Boolean(profile) };
+  }
   const [user] = await getServiceOxyClient().users.getMany([oxyUserId]);
   if (!user?.username) return false;
+  // That handle was already asked about in this request; its answer stands.
+  if (asked?.handle === user.username) return asked.found;
   return Boolean(await fetchProfile(user.username));
 }
 
@@ -213,6 +236,26 @@ async function authorSeoPolicy(oxyUserId: string): Promise<MentionProfileSeoPoli
     isOxyAuthorPublic(oxyUserId),
   ]);
   return { visible: onMention.visible && onOxy, indexable: onMention.indexable && onOxy };
+}
+
+/** Reads an author's {@link authorSeoPolicy}. */
+type AuthorPolicyReader = (oxyUserId: string) => Promise<MentionProfileSeoPolicy>;
+
+/**
+ * {@link authorSeoPolicy} for ONE request: an author it asks about twice — a
+ * post's author who also replied to it — is read once. Nothing outlives the
+ * request; every request reads every author it shows afresh.
+ */
+function requestAuthorPolicies(): AuthorPolicyReader {
+  const reads = new Map<string, Promise<MentionProfileSeoPolicy>>();
+  return (oxyUserId) => {
+    let read = reads.get(oxyUserId);
+    if (!read) {
+      read = authorSeoPolicy(oxyUserId);
+      reads.set(oxyUserId, read);
+    }
+    return read;
+  };
 }
 
 /**
@@ -298,7 +341,10 @@ const SEO_REPLY_LIMIT = 5;
  * FAIL-OPEN: the replies describe the page, they are not the page, so a failed
  * read renders it without them rather than turning the post into a 503.
  */
-async function postComments(postId: string): Promise<Record<string, unknown>[]> {
+async function postComments(
+  postId: string,
+  policyFor: AuthorPolicyReader,
+): Promise<Record<string, unknown>[]> {
   try {
     const rows = (await loadNewestEligibleReplies(postId, SEO_REPLY_LIMIT)).filter(
       (row) => !requiresContentWarning(row),
@@ -307,7 +353,7 @@ async function postComments(postId: string): Promise<Record<string, unknown>[]> 
 
     const authorIds = [...new Set(rows.map((row) => String(row.oxyUserId)))];
     const policies = new Map(
-      await Promise.all(authorIds.map(async (id) => [id, await authorSeoPolicy(id)] as const)),
+      await Promise.all(authorIds.map(async (id) => [id, await policyFor(id)] as const)),
     );
     const shown = rows.filter((row) => policies.get(String(row.oxyUserId))?.indexable);
     if (!shown.length) return [];
@@ -327,9 +373,13 @@ async function postComments(postId: string): Promise<Record<string, unknown>[]> 
 }
 
 /** The card with its replies attached, when the page is one a search engine indexes. */
-async function withComments(og: OgData, postId: string): Promise<OgData> {
+async function withComments(
+  og: OgData,
+  postId: string,
+  policyFor: AuthorPolicyReader,
+): Promise<OgData> {
   if (og.robots !== 'index,follow' || !og.jsonLd || og.jsonLd.commentCount === 0) return og;
-  const comment = await postComments(postId);
+  const comment = await postComments(postId, policyFor);
   return comment.length ? { ...og, jsonLd: { ...og.jsonLd, comment } } : og;
 }
 
@@ -504,135 +554,147 @@ router.get('/sitemap.xml', async (_req, res) => {
 // can retain child sitemap URLs after the root index changes, and HTML at one of
 // those URLs is reported as a malformed sitemap. Gone is the truthful response;
 // the current root index is the only discovery entry point.
-router.get(/^\/sitemaps\/(profiles|posts)-(\d+)\.xml$/, (_req, res) => {
-  res.status(410);
-  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
-  res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=86400');
-  res.send(
-    '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>',
-  );
-});
+router.get(
+  namedRoutePattern(/^\/sitemaps\/(profiles|posts)-(\d+)\.xml$/, '/sitemaps/:kind-:page.xml'),
+  (_req, res) => {
+    res.status(410);
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=86400');
+    res.send(
+      '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>',
+    );
+  },
+);
 
-router.get(/^\/sitemaps\/(profiles|posts)-([0-9a-f]{2})-(\d+)\.xml$/, async (req, res) => {
-  const kind = req.params[0] === 'profiles' ? 'profiles' : 'posts';
-  const bucket = Number.parseInt(req.params[1], 16);
-  const page = Number(req.params[2]);
-  if (!Number.isSafeInteger(bucket) || !Number.isSafeInteger(page) || page < 0) {
-    res.status(404).end();
-    return;
-  }
-  try {
-    // A cache read and nothing else: no request builds a sitemap (#1160).
-    const shard = await sitemapShard(kind, { bucket, page });
-    if (shard.status === 'absent') {
-      res.status(404).setHeader('Cache-Control', 'public, max-age=3600').end();
+router.get(
+  namedRoutePattern(
+    /^\/sitemaps\/(profiles|posts)-([0-9a-f]{2})-(\d+)\.xml$/,
+    '/sitemaps/:kind-:bucket-:page.xml',
+  ),
+  async (req, res) => {
+    const kind = req.params[0] === 'profiles' ? 'profiles' : 'posts';
+    const bucket = Number.parseInt(req.params[1], 16);
+    const page = Number(req.params[2]);
+    if (!Number.isSafeInteger(bucket) || !Number.isSafeInteger(page) || page < 0) {
+      res.status(404).end();
       return;
     }
-    sendXml(res, shard.xml, shard.builtAt);
-  } catch (error) {
-    if (!(error instanceof SitemapNotReadyError)) {
-      logger.warn(`[webShell] Failed to read the ${kind} sitemap`, error);
+    try {
+      // A cache read and nothing else: no request builds a sitemap (#1160).
+      const shard = await sitemapShard(kind, { bucket, page });
+      if (shard.status === 'absent') {
+        res.status(404).setHeader('Cache-Control', 'public, max-age=3600').end();
+        return;
+      }
+      sendXml(res, shard.xml, shard.builtAt);
+    } catch (error) {
+      if (!(error instanceof SitemapNotReadyError)) {
+        logger.warn(`[webShell] Failed to read the ${kind} sitemap`, error);
+      }
+      sitemapNotReady(res);
     }
-    sitemapNotReady(res);
-  }
-});
+  },
+);
 
 // Profile: `/@handle` plus sub-tabs (`/@handle/media`, `/@handle/followers`, …).
 // The captured group is the handle segment (`user` or `user@domain`).
-router.get(/^\/@([^/]+)(?:\/.*)?$/, async (req: Request, res: Response) => {
-  warmShell();
-  // Express 5 has already decoded the captured segment; decoding it again
-  // threw on any handle with a literal `%`, so a bad link was a 500, not a 404.
-  const handle = req.params[0];
-  const isLocalProfileUrl = LOCAL_PROFILE_RE.test(req.path);
-  const isProfileRoot = PROFILE_ROOT_RE.test(req.path);
+router.get(
+  namedRoutePattern(/^\/@([^/]+)(?:\/.*)?$/, '/@:handle'),
+  async (req: Request, res: Response) => {
+    warmShell();
+    // Express 5 has already decoded the captured segment; decoding it again
+    // threw on any handle with a literal `%`, so a bad link was a 500, not a 404.
+    const handle = req.params[0];
+    const isLocalProfileUrl = LOCAL_PROFILE_RE.test(req.path);
+    const isProfileRoot = PROFILE_ROOT_RE.test(req.path);
 
-  // AP content negotiation — only for a LOCAL single-segment profile URL, and
-  // FIRST: an ActivityPub consumer must reach the actor in one hop. Mastodon's
-  // redirector is strict and does not re-sign, so a chain through the channel
-  // redirect below would silently kill inbound federation.
-  if (isLocalProfileUrl && wantsActivityPub(req.headers.accept)) {
-    res.setHeader('Vary', 'Accept');
-    return res.redirect(302, AP_ACTOR_BASE + encodeURIComponent(handle));
-  }
-
-  res.setHeader('Vary', 'Accept');
-
-  // ONE profile resolution, read by both decisions below.
-  //
-  // Every HTML client gets the same public representation. Resolution is
-  // SWR-cached per handle, so the normal path is a Redis read.
-  let profile: OxyProfileData | null;
-  try {
-    profile = await cachedProfile(handle);
-  } catch (error) {
-    logger.warn('[webShell] Profile page resolution failed', {
-      path: req.path,
-      ...describeShellFailure(error),
-    });
-    res.setHeader('Retry-After', '60');
-    await serveShell(
-      res,
-      noindexPage(
-        `${config.web.origin}${req.path}`,
-        'Mention is temporarily unavailable',
-        'Please try again shortly.',
-      ),
-      503,
-    );
-    return;
-  }
-
-  let policy: MentionProfileSeoPolicy = { visible: true, indexable: true };
-  try {
-    if (profile) {
-      policy = await mentionProfileSeoPolicy(profile.id);
-      if (!policy.visible) profile = null;
+    // AP content negotiation — only for a LOCAL single-segment profile URL, and
+    // FIRST: an ActivityPub consumer must reach the actor in one hop. Mastodon's
+    // redirector is strict and does not re-sign, so a chain through the channel
+    // redirect below would silently kill inbound federation.
+    if (isLocalProfileUrl && wantsActivityPub(req.headers.accept)) {
+      res.setHeader('Vary', 'Accept');
+      return res.redirect(302, AP_ACTOR_BASE + encodeURIComponent(handle));
     }
-  } catch (error) {
-    logger.warn('[webShell] Profile visibility read failed', {
-      path: req.path,
-      ...describeShellFailure(error),
-    });
-    res.setHeader('Retry-After', '60');
-    await serveShell(
-      res,
-      noindexPage(
-        `${config.web.origin}${req.path}`,
-        'Mention is temporarily unavailable',
-        'Please try again shortly.',
-      ),
-      503,
-    );
-    return;
-  }
 
-  // A channel account's page is `/c/<handle>`, not `/@<handle>`.
-  if (isProfileRoot && profile?.kind === 'channel' && profile.username) {
-    return res.redirect(301, CHANNEL_PATH_PREFIX + encodeURIComponent(profile.username));
-  }
+    res.setHeader('Vary', 'Accept');
 
-  if (!profile) {
-    await serveShell(
-      res,
-      noindexPage(
-        `${config.web.origin}${req.path}`,
-        'Profile not found',
-        'This profile is unavailable on Mention.',
-      ),
-      isProfileRoot ? 404 : 200,
-    );
-    return;
-  }
+    // ONE profile resolution, read by both decisions below.
+    //
+    // Every HTML client gets the same public representation. Resolution is
+    // SWR-cached per handle, so the normal path is a Redis read.
+    let profile: OxyProfileData | null;
+    try {
+      profile = await cachedProfile(handle);
+    } catch (error) {
+      logger.warn('[webShell] Profile page resolution failed', {
+        path: req.path,
+        ...describeShellFailure(error),
+      });
+      res.setHeader('Retry-After', '60');
+      await serveShell(
+        res,
+        noindexPage(
+          `${config.web.origin}${req.path}`,
+          'Mention is temporarily unavailable',
+          'Please try again shortly.',
+        ),
+        503,
+      );
+      return;
+    }
 
-  const mapped = mapProfileOg(profile, await profileSeoFacts(profile.id));
-  // A sub-tab repeats the profile, so only the root is indexed.
-  const og = mapped && (!isProfileRoot || !policy.indexable) ? withoutIndexing(mapped) : mapped;
-  // The page's first request is this very lookup; hand the app the public
-  // answer so its feed and design reads start with the route, not ~one
-  // round-trip later. Only reached for a profile Mention publishes.
-  await serveShell(res, og, 200, { profile: { handle, data: profile } });
-});
+    let policy: MentionProfileSeoPolicy = { visible: true, indexable: true };
+    try {
+      if (profile) {
+        policy = await mentionProfileSeoPolicy(profile.id);
+        if (!policy.visible) profile = null;
+      }
+    } catch (error) {
+      logger.warn('[webShell] Profile visibility read failed', {
+        path: req.path,
+        ...describeShellFailure(error),
+      });
+      res.setHeader('Retry-After', '60');
+      await serveShell(
+        res,
+        noindexPage(
+          `${config.web.origin}${req.path}`,
+          'Mention is temporarily unavailable',
+          'Please try again shortly.',
+        ),
+        503,
+      );
+      return;
+    }
+
+    // A channel account's page is `/c/<handle>`, not `/@<handle>`.
+    if (isProfileRoot && profile?.kind === 'channel' && profile.username) {
+      return res.redirect(301, CHANNEL_PATH_PREFIX + encodeURIComponent(profile.username));
+    }
+
+    if (!profile) {
+      await serveShell(
+        res,
+        noindexPage(
+          `${config.web.origin}${req.path}`,
+          'Profile not found',
+          'This profile is unavailable on Mention.',
+        ),
+        isProfileRoot ? 404 : 200,
+      );
+      return;
+    }
+
+    const mapped = mapProfileOg(profile, await profileSeoFacts(profile.id));
+    // A sub-tab repeats the profile, so only the root is indexed.
+    const og = mapped && (!isProfileRoot || !policy.indexable) ? withoutIndexing(mapped) : mapped;
+    // The page's first request is this very lookup; hand the app the public
+    // answer so its feed and design reads start with the route, not ~one
+    // round-trip later. Only reached for a profile Mention publishes.
+    await serveShell(res, og, 200, { profile: { handle, data: profile } });
+  },
+);
 
 // Channel: `/c/<handle>` (optional trailing slash).
 //
@@ -641,57 +703,60 @@ router.get(/^\/@([^/]+)(?:\/.*)?$/, async (req: Request, res: Response) => {
 // already resolve, and the URL this backend advertises as the actor's `url`.
 // Adding a second AP entry point would give one actor two profile URLs and leave
 // remote software to guess which is canonical.
-router.get(/^\/c\/([^/]+)\/?$/, async (req: Request, res: Response) => {
-  warmShell();
-  // Express 5 has already decoded the captured segment; decoding it again
-  // threw on any handle with a literal `%`, so a bad link was a 500, not a 404.
-  const handle = req.params[0];
-  // The same profile resolution the `/@handle` route uses, so a channel's card is
-  // built from the same payload and `og:url` comes back as `/c/<handle>` from the
-  // ONE definition of that (`canonicalProfilePath`).
-  try {
-    const profile = await cachedProfile(handle);
-    const policy = profile ? await mentionProfileSeoPolicy(profile.id) : undefined;
-    if (!profile || !policy?.visible) {
+router.get(
+  namedRoutePattern(/^\/c\/([^/]+)\/?$/, '/c/:handle'),
+  async (req: Request, res: Response) => {
+    warmShell();
+    // Express 5 has already decoded the captured segment; decoding it again
+    // threw on any handle with a literal `%`, so a bad link was a 500, not a 404.
+    const handle = req.params[0];
+    // The same profile resolution the `/@handle` route uses, so a channel's card is
+    // built from the same payload and `og:url` comes back as `/c/<handle>` from the
+    // ONE definition of that (`canonicalProfilePath`).
+    try {
+      const profile = await cachedProfile(handle);
+      const policy = profile ? await mentionProfileSeoPolicy(profile.id) : undefined;
+      if (!profile || !policy?.visible) {
+        await serveShell(
+          res,
+          noindexPage(
+            `${config.web.origin}${req.path}`,
+            'Channel not found',
+            'This channel is unavailable on Mention.',
+          ),
+          404,
+        );
+        return;
+      }
+      if (profile.kind !== 'channel' && profile.username) {
+        res.redirect(301, canonicalProfilePath(profile));
+        return;
+      }
+      const og = mapProfileOg(profile, await profileSeoFacts(profile.id));
+      await serveShell(res, og && !policy.indexable ? withoutIndexing(og) : og);
+    } catch (error) {
+      logger.warn('[webShell] Channel page resolution failed', {
+        path: req.path,
+        ...describeShellFailure(error),
+      });
+      res.setHeader('Retry-After', '60');
       await serveShell(
         res,
         noindexPage(
           `${config.web.origin}${req.path}`,
-          'Channel not found',
-          'This channel is unavailable on Mention.',
+          'Mention is temporarily unavailable',
+          'Please try again shortly.',
         ),
-        404,
+        503,
       );
-      return;
     }
-    if (profile.kind !== 'channel' && profile.username) {
-      res.redirect(301, canonicalProfilePath(profile));
-      return;
-    }
-    const og = mapProfileOg(profile, await profileSeoFacts(profile.id));
-    await serveShell(res, og && !policy.indexable ? withoutIndexing(og) : og);
-  } catch (error) {
-    logger.warn('[webShell] Channel page resolution failed', {
-      path: req.path,
-      ...describeShellFailure(error),
-    });
-    res.setHeader('Retry-After', '60');
-    await serveShell(
-      res,
-      noindexPage(
-        `${config.web.origin}${req.path}`,
-        'Mention is temporarily unavailable',
-        'Please try again shortly.',
-      ),
-      503,
-    );
-  }
-});
+  },
+);
 
 // Hashtag: `/hashtag/<tag>` on the apex. The tag is normalized the way posts
 // store it, so every spelling shares one canonical URL.
 router.get(
-  /^\/hashtag\/([^/]+)\/?$/,
+  namedRoutePattern(/^\/hashtag\/([^/]+)\/?$/, '/hashtag/:tag'),
   webShellRateLimiter,
   async (req: Request, res: Response, next) => {
     if (!isApexHost(req)) {
@@ -744,115 +809,128 @@ router.get(
   },
 );
 
+const SIGN_IN_FOR_POST = 'Sign in to Mention if you have access to this post.';
+
+function unavailablePostPage(path: string, description: string): OgData {
+  return noindexPage(`${config.web.origin}${path}`, 'Post unavailable', description);
+}
+
+/** Whether a public, published post's page may be shown, and indexed. */
+type PostPageVisibility =
+  | { visible: true; indexable: boolean }
+  | { visible: false; description: string };
+
+/**
+ * The current visibility decisions for a public, published post's page: its
+ * author, and for a boost the original and ITS author too, whose words the
+ * page shows.
+ */
+async function postPageVisibility(
+  post: PostRecord,
+  originalRead: Promise<PostRecord | null>,
+  policyFor: AuthorPolicyReader,
+): Promise<PostPageVisibility> {
+  // Independent reads run together; the original row is read once and handed on.
+  const [author, original] = await Promise.all([
+    policyFor(post.oxyUserId ? String(post.oxyUserId) : ''),
+    originalRead,
+  ]);
+  if (!author.visible) return { visible: false, description: SIGN_IN_FOR_POST };
+  if (!post.boostOf) return { visible: true, indexable: author.indexable };
+
+  const originalPolicy =
+    original && original.visibility === 'public' && original.status === 'published'
+      ? await policyFor(original.oxyUserId ? String(original.oxyUserId) : '')
+      : undefined;
+  if (!originalPolicy?.visible) {
+    return { visible: false, description: 'This post is unavailable on Mention.' };
+  }
+  return { visible: true, indexable: author.indexable && originalPolicy.indexable };
+}
+
 // Post: `/p/<id>` (optional trailing slash). No AP case.
-router.get(/^\/p\/([^/]+)\/?$/, webShellRateLimiter, async (req: Request, res: Response) => {
-  warmShell();
-  const id = req.params[0];
-  try {
-    // No id-shape guard: `posts.id` is `text`, so an arbitrary path segment
-    // matches no row and yields `null`, while an ObjectId test would refuse to
-    // render an OG card for any post created since the cutover.
-    const post = await loadPostRecord(id);
-    if (!post) {
-      await serveShell(
-        res,
-        noindexPage(
-          `${config.web.origin}${req.path}`,
-          'Post not found',
-          'This post is unavailable on Mention.',
-        ),
-        404,
-      );
-      return;
-    }
-
-    const authorId = post.oxyUserId ? String(post.oxyUserId) : '';
-    const isPublic = post.visibility === 'public' && post.status === 'published';
-    // Every read below is this request's own and current; nothing is taken from
-    // a cache before the visibility decisions. Independent reads run together,
-    // and each row is read once and handed on rather than read again.
-    const [author, original] = isPublic
-      ? await Promise.all([
-          authorSeoPolicy(authorId),
-          post.boostOf ? loadPostRecord(String(post.boostOf)) : Promise.resolve(null),
-        ])
-      : [undefined, null];
-    if (!isPublic || !author?.visible) {
-      await serveShell(
-        res,
-        noindexPage(
-          `${config.web.origin}${req.path}`,
-          'Post unavailable',
-          'Sign in to Mention if you have access to this post.',
-        ),
-      );
-      return;
-    }
-
-    // A boost's rendered body comes from its original. Check current visibility
-    // for both rows before reading any cached representation.
-    let indexable = author.indexable;
-    if (post.boostOf) {
-      const originalAuthor = original?.oxyUserId ? String(original.oxyUserId) : '';
-      const originalPolicy =
-        original && original.visibility === 'public' && original.status === 'published'
-          ? await authorSeoPolicy(originalAuthor)
-          : undefined;
-      if (!originalPolicy?.visible) {
+router.get(
+  namedRoutePattern(/^\/p\/([^/]+)\/?$/, '/p/:id'),
+  webShellRateLimiter,
+  async (req: Request, res: Response) => {
+    warmShell();
+    const id = req.params[0];
+    try {
+      // No id-shape guard: `posts.id` is `text`, so an arbitrary path segment
+      // matches no row and yields `null`, while an ObjectId test would refuse to
+      // render an OG card for any post created since the cutover.
+      const post = await loadPostRecord(id);
+      if (!post) {
         await serveShell(
           res,
           noindexPage(
             `${config.web.origin}${req.path}`,
-            'Post unavailable',
+            'Post not found',
             'This post is unavailable on Mention.',
           ),
+          404,
         );
         return;
       }
-      // Its words are the original author's, so their choice governs too.
-      indexable = indexable && originalPolicy.indexable;
-    }
 
-    const safety = resolvePostOgSafety(post, original);
-    // Never serve a previously cached safe body after a sensitivity change.
-    // A gated post is re-rendered from the current row on every request.
-    const og = safety.requiresWarning
-      ? await fetchPostOg(post, safety)
-      : await getShellCached(`post:semantic-v2:${id}`, () => fetchPostOg(post, safety), {
-          rethrow: true,
-        });
-    if (!og) {
+      if (post.visibility !== 'public' || post.status !== 'published') {
+        await serveShell(res, unavailablePostPage(req.path, SIGN_IN_FOR_POST));
+        return;
+      }
+
+      // Every visibility decision is this request's own and current, and no
+      // card is read from the cache or built before they all allow the page.
+      const policyFor = requestAuthorPolicies();
+      const original = post.boostOf ? loadPostRecord(String(post.boostOf)) : Promise.resolve(null);
+      const verdict = await postPageVisibility(post, original, policyFor);
+      if (!verdict.visible) {
+        await serveShell(res, unavailablePostPage(req.path, verdict.description));
+        return;
+      }
+
+      const safety = resolvePostOgSafety(post, await original);
+      // Never serve a previously cached safe body after a sensitivity change.
+      // A gated post is re-rendered from the current row on every request.
+      const og = safety.requiresWarning
+        ? await fetchPostOg(post, safety)
+        : await getShellCached(`post:semantic-v2:${id}`, () => fetchPostOg(post, safety), {
+            rethrow: true,
+          });
+      if (!og) {
+        await serveShell(
+          res,
+          noindexPage(
+            `${config.web.origin}${req.path}`,
+            'Post not found',
+            'This post is unavailable on Mention.',
+          ),
+          404,
+        );
+        return;
+      }
+      await serveShell(
+        res,
+        verdict.indexable
+          ? await withComments(og, String(post.id), policyFor)
+          : withoutIndexing(og),
+      );
+    } catch (error) {
+      logger.warn('[webShell] Post page resolution failed', {
+        path: req.path,
+        ...describeShellFailure(error),
+      });
+      res.setHeader('Retry-After', '60');
       await serveShell(
         res,
         noindexPage(
           `${config.web.origin}${req.path}`,
-          'Post not found',
-          'This post is unavailable on Mention.',
+          'Mention is temporarily unavailable',
+          'Please try again shortly.',
         ),
-        404,
+        503,
       );
-      return;
     }
-    await serveShell(
-      res,
-      indexable ? await withComments(og, String(post.id)) : withoutIndexing(og),
-    );
-  } catch (error) {
-    logger.warn('[webShell] Post page resolution failed', {
-      path: req.path,
-      ...describeShellFailure(error),
-    });
-    res.setHeader('Retry-After', '60');
-    await serveShell(
-      res,
-      noindexPage(
-        `${config.web.origin}${req.path}`,
-        'Mention is temporarily unavailable',
-        'Please try again shortly.',
-      ),
-      503,
-    );
-  }
-});
+  },
+);
 
 export default router;
