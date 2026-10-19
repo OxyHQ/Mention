@@ -35,11 +35,17 @@ export async function filterFederatablePosts(
 
 const iri = z.url();
 const addressing = z.array(iri).optional();
+// The bare AS2 namespace is the context the shared engine's `sendFollow` emits;
+// any other context could smuggle term definitions, so only these two pass.
+const ALLOWED_CONTEXTS = new Set([
+  JSON.stringify(AP_CONTEXT),
+  JSON.stringify('https://www.w3.org/ns/activitystreams'),
+]);
 const controlFields = {
   '@context': z
     .unknown()
     .optional()
-    .refine((value) => value === undefined || JSON.stringify(value) === JSON.stringify(AP_CONTEXT)),
+    .refine((value) => value === undefined || ALLOWED_CONTEXTS.has(JSON.stringify(value))),
   id: iri,
   actor: iri,
   to: addressing,
