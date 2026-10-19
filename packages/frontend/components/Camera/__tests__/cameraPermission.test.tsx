@@ -75,6 +75,7 @@ jest.mock('@oxy.so/bloom/typography', () => {
   return { Text };
 });
 
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { CameraCapture } from '../CameraCapture';
 
 /** Every string the tree renders, flattened — the screen as a reader reads it. */
@@ -96,7 +97,13 @@ function textOf(renderer: TestRenderer.ReactTestRenderer): string {
 function mount() {
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
-    renderer = TestRenderer.create(<CameraCapture onCaptured={jest.fn()} onClose={jest.fn()} />);
+    // Gesture Handler 3 enforces its root view under Jest too (2.x skipped the
+    // check in a test environment); the app's root is `AppProviders`.
+    renderer = TestRenderer.create(
+      <GestureHandlerRootView>
+        <CameraCapture onCaptured={jest.fn()} onClose={jest.fn()} />
+      </GestureHandlerRootView>,
+    );
   });
   return renderer!;
 }

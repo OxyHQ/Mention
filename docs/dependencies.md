@@ -21,3 +21,10 @@ version is a downgrade — remove it from the list only when the SDK catches up.
 SDK 58 caught up with the others (`@shopify/flash-list`,
 `react-native-pager-view`, `react-native-safe-area-context`,
 `react-native-svg`), so they left the list with it.
+
+`jest-environment-jsdom` is pinned to 29.7.0 in `packages/frontend`: it is the
+environment the `@jest-environment jsdom` test files run in, and jest-expo 58
+would otherwise hoist 30. Every test file, jsdom ones included, runs React
+Native's jest setup, which redefines `window` on the global, and 30's jsdom
+`window` is unforgeable, so those files fail with "Cannot redefine property:
+window" before a test runs. 29.7.0 is the version jest-expo 57 resolved.

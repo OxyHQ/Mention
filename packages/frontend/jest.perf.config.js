@@ -33,13 +33,25 @@ module.exports = {
   rootDir: '.',
   testMatch: ['<rootDir>/**/__perf__/**/*.perf.tsx'],
   testPathIgnorePatterns: ['/node_modules/'],
-  // Worklets' own Jest resolver: picks the JS (non-.native) worklet runtime so
-  // real Reanimated loads without the native module.
-  resolver: require.resolve('react-native-worklets/jest/resolver'),
+  // Reanimated's own Jest resolver (4.7+), which wraps Worklets' one: it picks
+  // the JS (non-.native) worklet runtime AND Reanimated's web initializers, so
+  // real Reanimated loads without the native module. Worklets' resolver alone
+  // now loads Reanimated's native initializers, which call `runOnUISync`.
+  resolver: require.resolve('react-native-reanimated/jest/resolver'),
   transformIgnorePatterns: [
     preset.transformIgnorePatterns[0].replace('(?!(', '(?!(@oxy\\.so|@syra\\.fm|'),
     ...preset.transformIgnorePatterns.slice(1),
   ],
+  // Gesture Handler 3 installs its UI-runtime bindings on a timer by asking
+  // Worklets for the UI runtime, which the JS worklet runtime above does not
+  // have: it throws after the tests pass and fails the suite. Gesture Handler's
+  // web build of that module is the no-op this runtime needs.
+  moduleNameMapper: {
+    ...base.moduleNameMapper,
+    '^\\./installUIRuntimeBindings$': require.resolve(
+      'react-native-gesture-handler/src/handlers/gestures/installUIRuntimeBindings.web.ts',
+    ),
+  },
   setupFiles: [...base.setupFiles, '<rootDir>/test-support/perfSetup.ts'],
   // Reanimated/worklets keep a frame loop alive after the last test.
   forceExit: true,
