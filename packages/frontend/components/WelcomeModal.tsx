@@ -6,14 +6,13 @@ import {
   StyleSheet,
   Platform,
   Pressable,
-  ImageBackground,
   Image,
-  type ImageSourcePropType,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useRouter } from '@/lib/navigation/router';
+import { Image as BackgroundImage, type ImageSource } from 'expo-image';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { LogoIcon } from '@/assets/logo';
 import { Button, LinkButton } from '@oxy.so/bloom/button';
@@ -133,7 +132,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ visible, onClose }) => {
     signIn().catch(() => {});
   }, [onClose, signIn]);
 
-  const backgroundImage: ImageSourcePropType = useMemo(
+  const backgroundImage: ImageSource | number = useMemo(
     () =>
       theme.isDark
         ? require('@/assets/images/welcome-modal-bg-dark.jpg')
@@ -157,12 +156,15 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ visible, onClose }) => {
       morph={false}
       style={styles.panel}
     >
-      <ImageBackground
-        source={backgroundImage}
-        style={styles.modalBox}
-        imageStyle={styles.modalBoxImage}
-        resizeMode="cover"
-      >
+      {/* React Native 0.88 deprecates `ImageBackground`; this is what it
+          rendered — the art absolutely filling the box, behind its content. */}
+      <View style={styles.modalBox}>
+        <BackgroundImage
+          source={backgroundImage}
+          style={[StyleSheet.absoluteFill, styles.modalBoxImage]}
+          contentFit="cover"
+          accessible={false}
+        />
         {/* Close Button */}
         <Pressable
           onPress={onClose}
@@ -229,7 +231,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ visible, onClose }) => {
             <LinkButton onPress={handleSignIn}>Sign in</LinkButton>
           </View>
         </View>
-      </ImageBackground>
+      </View>
     </Dialog>
   );
 };

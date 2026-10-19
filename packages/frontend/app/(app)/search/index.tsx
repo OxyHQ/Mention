@@ -5,10 +5,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
-  type TextInput,
   TouchableOpacity,
-  type NativeSyntheticEvent,
-  type TextInputSelectionChangeEventData,
+  type TextInputSelectionChangeEvent,
+  type TextInputInstance,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
@@ -484,7 +483,7 @@ function SearchIndex() {
   // Pending debounce timer, set and cleared INSIDE event handlers — never an
   // Effect — so a burst of keystrokes collapses to exactly one search.
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const searchInputRef = useRef<TextInput>(null);
+  const searchInputRef = useRef<TextInputInstance>(null);
 
   // A `/search?q=…` deep link can change while this screen stays mounted.
   // Adjusting state during render (instead of an Effect) keeps the input AND the
@@ -716,12 +715,9 @@ function SearchIndex() {
 
   // The box reports where the caret really is. Read-only: the selection is never
   // driven from state, so this only ever refines what the write handlers assumed.
-  const handleSelectionChange = useCallback(
-    (event: NativeSyntheticEvent<TextInputSelectionChangeEventData>) => {
-      setCaret(event.nativeEvent.selection.end);
-    },
-    [],
-  );
+  const handleSelectionChange = useCallback((event: TextInputSelectionChangeEvent) => {
+    setCaret(event.nativeEvent.selection.end);
+  }, []);
 
   const handleSubmit = useCallback(() => {
     // Read the box text now rather than whatever this callback closed over:

@@ -22,8 +22,9 @@ const expectedBloomVersion = String(catalog['@oxy.so/bloom'] ?? '').replace(/^\^
 // Bloom above: bump these two constants when taking a new SDK, and the manifest
 // and installed-copy assertions below follow. They were spelled out inline until
 // SDK 57, which meant an upgrade passed local review and failed here instead.
-const expectedExpoMajor = '57';
-const expectedReactNativeVersion = '0.86.3';
+const expectedExpoMajor = '58';
+const expectedReactNativeVersion = '0.88.0';
+const expectedReactVersion = '19.3.0';
 
 if (!expectedBunVersion) {
   failures.push('package.json must declare packageManager as bun@<version>.');
@@ -108,9 +109,9 @@ if (!String(installedExpo.version || '').startsWith(`${expectedExpoMajor}.`)) {
     `Installed Expo must be version ${expectedExpoMajor}.x (found ${String(installedExpo.version)}).`,
   );
 }
-if (frontendManifest.dependencies?.react !== '19.2.3') {
+if (frontendManifest.dependencies?.react !== expectedReactVersion) {
   failures.push(
-    `Mention frontend must target React 19.2.3 (found ${String(frontendManifest.dependencies?.react)}).`,
+    `Mention frontend must target React ${expectedReactVersion} (found ${String(frontendManifest.dependencies?.react)}).`,
   );
 }
 if (frontendManifest.dependencies?.['react-native'] !== expectedReactNativeVersion) {

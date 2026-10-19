@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import type { View } from 'react-native';
+import type { ViewInstance } from 'react-native';
 import type { FeedInterstitialEventName, FeedInterstitialKind } from '@mention/shared-types';
 import { reportInterstitialEvent } from '@/utils/feedTelemetry';
 
@@ -103,8 +103,8 @@ function toObservableElement(target: unknown): Element | null {
 export function useInterstitialImpression(
   report: ReportInterstitialEvent,
   enabled: boolean,
-): React.RefObject<View | null> {
-  const targetRef = useRef<View | null>(null);
+): React.RefObject<ViewInstance | null> {
+  const targetRef = useRef<ViewInstance | null>(null);
   const reportedRef = useRef(false);
 
   useEffect(() => {

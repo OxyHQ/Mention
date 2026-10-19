@@ -69,7 +69,7 @@ updates:
           - "patch"
     # MANUALLY managed — do NOT let Dependabot touch the pinned toolchains.
     ignore:
-      # Expo SDK + toolchain — locked to the Expo SDK 56 release train.
+      # Expo SDK + toolchain — locked to the Expo SDK release train.
       - dependency-name: "expo"
       - dependency-name: "expo-*"
       - dependency-name: "@expo/*"

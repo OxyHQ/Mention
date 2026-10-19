@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  type TextInputInstance,
 } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
@@ -44,7 +45,7 @@ const BoostScreen: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const discardControl = useDialogControl();
   const [originalPost, setOriginalPost] = useState<FeedItem | null>(null);
-  const textInputRef = useRef<TextInput>(null);
+  const textInputRef = useRef<TextInputInstance>(null);
 
   const { getPostById, createBoost } = usePostsStore();
 

@@ -180,7 +180,7 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
                   <Text className="text-muted-foreground text-sm p-3 text-center">
                     {t('collab.noResults', { defaultValue: 'No users found' })}
                   </Text>
-                ) : null
+                ) : undefined
               }
               renderItem={({ item }) => (
                 <TouchableOpacity

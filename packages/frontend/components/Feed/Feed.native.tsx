@@ -8,9 +8,10 @@ import {
   Platform,
   ScrollView,
   type LayoutChangeEvent,
-  type ViewToken,
   type ScrollViewProps,
   type ViewStyle,
+  type ScrollViewInstance,
+  type ViewInstance,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useHeaderDockInset } from '@oxy.so/bloom/layout';
@@ -26,7 +27,7 @@ import { useIsFocused } from '@/lib/navigation/router';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
 import { useRevealOwnNewPost } from '@/hooks/useRevealOwnNewPost';
 import { getItemKey } from '@/utils/feedUtils';
-import type { FlashListProps, FlashListRef } from '@shopify/flash-list';
+import type { FlashListProps, FlashListRef, ViewToken } from '@shopify/flash-list';
 import { getFeedScrollOffset, setFeedScrollOffset } from '@/stores/feedScrollStore';
 import { VideoViewabilityProvider, VideoViewabilityScope } from '@/context/VideoPlaybackContext';
 import {
@@ -185,49 +186,51 @@ function sameKeys(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
  * intercept wheel events and prevent the parent Animated.ScrollView from
  * receiving them.
  */
-const NonScrollingScrollComponent = forwardRef<ScrollView, ScrollViewProps>((props, ref) => {
-  if (Platform.OS === 'web') {
-    // On web, strip ScrollView-only props and render a plain View so
-    // wheel events propagate naturally to the parent scroll container.
-    const {
-      scrollEnabled: _se,
-      nestedScrollEnabled: _ne,
-      showsVerticalScrollIndicator: _sv,
-      showsHorizontalScrollIndicator: _sh,
-      overScrollMode: _os,
-      onScroll: _onScroll,
-      scrollEventThrottle: _set,
-      contentContainerStyle,
-      refreshControl: _rc,
-      stickyHeaderIndices: _shi,
-      ...viewProps
-    } = props;
+const NonScrollingScrollComponent = forwardRef<ScrollViewInstance, ScrollViewProps>(
+  (props, ref) => {
+    if (Platform.OS === 'web') {
+      // On web, strip ScrollView-only props and render a plain View so
+      // wheel events propagate naturally to the parent scroll container.
+      const {
+        scrollEnabled: _se,
+        nestedScrollEnabled: _ne,
+        showsVerticalScrollIndicator: _sv,
+        showsHorizontalScrollIndicator: _sh,
+        overScrollMode: _os,
+        onScroll: _onScroll,
+        scrollEventThrottle: _set,
+        contentContainerStyle,
+        refreshControl: _rc,
+        stickyHeaderIndices: _shi,
+        ...viewProps
+      } = props;
+
+      return (
+        <View
+          {...viewProps}
+          ref={ref as React.Ref<ViewInstance>}
+          style={[props.style, { overflow: 'visible' as const }]}
+        >
+          <View style={contentContainerStyle}>{props.children}</View>
+        </View>
+      );
+    }
 
     return (
-      <View
-        {...viewProps}
-        ref={ref as React.Ref<View>}
-        style={[props.style, { overflow: 'visible' as const }]}
-      >
-        <View style={contentContainerStyle}>{props.children}</View>
-      </View>
+      <ScrollView
+        {...props}
+        ref={ref}
+        scrollEnabled={false}
+        nestedScrollEnabled={false}
+        showsVerticalScrollIndicator={false}
+        showsHorizontalScrollIndicator={false}
+        // On Android, disabling overScroll prevents the inner container from
+        // consuming fling gestures that should propagate to the parent.
+        overScrollMode="never"
+      />
     );
-  }
-
-  return (
-    <ScrollView
-      {...props}
-      ref={ref}
-      scrollEnabled={false}
-      nestedScrollEnabled={false}
-      showsVerticalScrollIndicator={false}
-      showsHorizontalScrollIndicator={false}
-      // On Android, disabling overScroll prevents the inner container from
-      // consuming fling gestures that should propagate to the parent.
-      overScrollMode="never"
-    />
-  );
-});
+  },
+);
 NonScrollingScrollComponent.displayName = 'NonScrollingScrollComponent';
 
 /**
@@ -430,7 +433,12 @@ const Feed = (props: FeedProps) => {
   const isFocusedRef = useRef(isFocused);
   isFocusedRef.current = isFocused;
   const handleViewableItemsChanged = useCallback(
-    ({ viewableItems }: { viewableItems: ViewToken[]; changed: ViewToken[] }) => {
+    ({
+      viewableItems,
+    }: {
+      viewableItems: ViewToken<NativeFeedRow>[];
+      changed: ViewToken<NativeFeedRow>[];
+    }) => {
       const visibleUris: string[] = [];
       const rowKeys: string[] = [];
       for (const token of viewableItems) {
@@ -594,10 +602,12 @@ const Feed = (props: FeedProps) => {
   // FlashList v2 types `style` as a single ViewStyle (not StyleProp), so flatten here.
   const listStyle = useMemo<ViewStyle>(
     () =>
+      // RN 0.88 types `flatten` as possibly empty; an array always flattens
+      // to an object, so the fallback never applies.
       StyleSheet.flatten([
         scrollEnabled === false ? feedRowStyles.listEmbedded : feedRowStyles.list,
         style,
-      ]),
+      ]) ?? {},
     [style, scrollEnabled],
   );
 

@@ -15,8 +15,9 @@ Native modules the Expo SDK pins (its bundled native-module list) move with
 the SDK: bump `expo`, then let `npx expo install --check` in `packages/frontend`
 name the versions. A few are deliberately AHEAD of what the SDK names and are
 listed in `expo.install.exclude` in `packages/frontend/package.json`, so the
-check stays a clean gate instead of a list everyone learns to ignore:
-`@shopify/flash-list` 2.3, `react-native-pager-view` 9,
-`react-native-safe-area-context` 5.8, and Jest 30 with its `@types/jest` (the
-SDK still names Jest 29). Taking one of those back to the SDK's version is a
-downgrade — remove it from the list only when the SDK catches up.
+check stays a clean gate instead of a list everyone learns to ignore: today
+only Jest 30 with its `@types/jest`. Taking one of those back to the SDK's
+version is a downgrade — remove it from the list only when the SDK catches up.
+SDK 58 caught up with the others (`@shopify/flash-list`,
+`react-native-pager-view`, `react-native-safe-area-context`,
+`react-native-svg`), so they left the list with it.

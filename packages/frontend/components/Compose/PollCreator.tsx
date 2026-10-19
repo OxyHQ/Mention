@@ -2,11 +2,11 @@ import React, { useRef } from 'react';
 import {
   View,
   Text,
-  type TextInput,
   TouchableOpacity,
   StyleSheet,
   type StyleProp,
   type ViewStyle,
+  type TextInputInstance,
 } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Card } from '@oxy.so/bloom/card';
@@ -44,7 +44,7 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
 }) => {
   const theme = useTheme();
   const { t } = useTranslation();
-  const pollTitleInputRef = useRef<TextInput | null>(null);
+  const pollTitleInputRef = useRef<TextInputInstance | null>(null);
 
   React.useEffect(() => {
     if (autoFocus) {

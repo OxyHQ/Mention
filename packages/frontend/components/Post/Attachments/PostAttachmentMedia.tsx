@@ -1,5 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, Text, View, StyleSheet, type ViewStyle, Platform } from 'react-native';
+import {
+  Pressable,
+  Text,
+  View,
+  StyleSheet,
+  type ViewStyle,
+  Platform,
+  type ViewInstance,
+} from 'react-native';
 import { Image, type ImageLoadEventData } from 'expo-image';
 import { BlurView } from 'expo-blur';
 import { useTranslation } from 'react-i18next';
@@ -30,7 +38,7 @@ import { HIT_SLOP_MD } from '@/styles/hitSlop';
  * thumbnail so the parent row can `measureInWindow` ANY thumbnail by index for
  * the close fly-back. Called with the host `View` on mount and `null` on unmount.
  */
-export type RegisterThumbHost = (node: View | null) => void;
+export type RegisterThumbHost = (node: ViewInstance | null) => void;
 
 const webGrabCursorStyle: ViewStyle | null =
   Platform.OS === 'web' ? ({ cursor: 'grab' } as unknown as ViewStyle) : null;
@@ -365,7 +373,7 @@ const PostAttachmentImage: React.FC<{
   overlay,
 }) => {
   const theme = useTheme();
-  const wrapperRef = useRef<View | null>(null);
+  const wrapperRef = useRef<ViewInstance | null>(null);
   // The ratio is DERIVED while it is knowable synchronously — from the record,
   // else from the shared cache — and only a ratio that has to be measured goes
   // through state. Setting state from an effect for the synchronous cases made
@@ -382,7 +390,7 @@ const PostAttachmentImage: React.FC<{
   // host into the parent's index registry (for the close fly-back). Registers on
   // mount, clears on unmount — no effect needed.
   const setHostRef = useCallback(
-    (node: View | null) => {
+    (node: ViewInstance | null) => {
       wrapperRef.current = node;
       registerHost?.(node);
     },

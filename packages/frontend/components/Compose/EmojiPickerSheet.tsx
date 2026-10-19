@@ -1,6 +1,14 @@
 import type React from 'react';
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Platform,
+  type ScrollViewInstance,
+} from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { PageHeader } from '@oxy.so/bloom/page-header';
@@ -30,7 +38,7 @@ const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEm
   const { t } = useTranslation();
   const [activeCategory, setActiveCategory] = useState('smileys');
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   const sectionOffsets = useRef<Record<string, number>>({});
 
   // Load recent emojis from storage

@@ -403,9 +403,9 @@ const DraftsList: React.FC<DraftsListProps> = ({
     </View>
   ) : serverLoading ? (
     <FeedSkeleton count={2} />
-  ) : null;
+  ) : undefined;
 
-  if (items.length === 0 && serverStatus === null) {
+  if (items.length === 0 && serverStatus === undefined) {
     return (
       <EmptyState
         title={t('compose.noDrafts')}
