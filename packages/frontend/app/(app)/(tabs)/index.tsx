@@ -5,9 +5,7 @@ import { MentionHomeHeader } from '@/components/navigation/MentionHomeHeader';
 import { useTranslation } from 'react-i18next';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from '@/lib/navigation/router';
-import { useQuery } from '@tanstack/react-query';
 import Feed from '@/components/Feed/Feed';
-import { customFeedsService } from '@/services/customFeedsService';
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';
 import { PRESET_FEEDS } from '@mention/shared-types/mtn/presetFeeds';
 import { parseFeedDescriptor } from '@mention/shared-types/mtn/feedDescriptor';
@@ -19,8 +17,6 @@ import { SEO } from '@/components/SEO';
 import { siteStructuredData } from '@mention/shared-types/seo';
 import { INSTANCE_LOGO_URL, INSTANCE_NAME, WEB_BASE_URL } from '@/config';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { logger } from '@oxy.so/core/logger';
-import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**
  * The site's own identity (site name and logo in search results). The
@@ -65,43 +61,11 @@ const HomeScreen: React.FC = () => {
   // The home tabs ARE the viewer's server-persisted pinned feeds (server order),
   // so pinning in the feeds screen updates the tab bar cross-device. Anonymous
   // viewers get the read-only default (For You).
-  const { pinnedFeeds } = useFeedPreferences();
+  // Pinned custom feeds carry only a descriptor; their titles ride along on
+  // the same preferences response.
+  const { pinnedFeeds, customFeedTitles } = useFeedPreferences();
 
   const presetById = useMemo(() => new Map(PRESET_FEEDS.map((p) => [p.id, p])), []);
-
-  // Whether any pinned feed is a custom feed — gates the (title-only) custom-feed
-  // fetch so users with no custom pins never trigger it.
-  const hasPinnedCustom = useMemo(
-    () => pinnedFeeds.some((sf) => parseFeedDescriptor(sf.descriptor).source === 'custom'),
-    [pinnedFeeds],
-  );
-
-  // Resolve custom-feed ids → titles for the tab labels (pinned custom feeds
-  // carry only a descriptor). Keyed on the auth identity; cached + deduped.
-  const customTitlesQuery = useQuery<Map<string, string>>({
-    queryKey: viewerQueryKeys.customFeedTitles(user?.id),
-    enabled: canUsePrivateApi && hasPinnedCustom,
-    staleTime: 5 * 60 * 1000,
-    queryFn: async () => {
-      const map = new Map<string, string>();
-      try {
-        const [mine, pub] = await Promise.all([
-          customFeedsService.list({ mine: true }),
-          customFeedsService.list({ publicOnly: true }),
-        ]);
-        [...(mine.items || []), ...(pub.items || [])].forEach((feed) => {
-          const feedId = String(feed._id || feed.id);
-          if (!map.has(feedId))
-            map.set(feedId, feed.title || t('feeds.untitled', { defaultValue: 'Feed' }));
-        });
-      } catch (error) {
-        logger.warn('Failed to load custom feed titles', { error });
-      }
-      return map;
-    },
-  });
-
-  const customTitles = customTitlesQuery.data;
 
   const homeTabs = useMemo<HomeTabModel[]>(() => {
     return pinnedFeeds
@@ -120,7 +84,7 @@ const HomeScreen: React.FC = () => {
             key: sf.key,
             kind: 'custom',
             feedId,
-            label: customTitles?.get(feedId) ?? t('feeds.untitled', { defaultValue: 'Feed' }),
+            label: customFeedTitles[feedId] || t('feeds.untitled', { defaultValue: 'Feed' }),
           };
         }
         const preset = presetById.get(sf.key);
@@ -131,7 +95,7 @@ const HomeScreen: React.FC = () => {
           label: preset ? t(preset.labelKey) : sf.descriptor,
         };
       });
-  }, [pinnedFeeds, canUsePrivateApi, presetById, customTitles, t]);
+  }, [pinnedFeeds, canUsePrivateApi, presetById, customFeedTitles, t]);
 
   useEffect(() => {
     // Keep the active tab valid as the pinned set changes (e.g. logout removes
