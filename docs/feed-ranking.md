@@ -24,10 +24,15 @@ pure/sync). Runs at all ingest chokepoints: `PostCreationService`,
   beats the runner-up score by >= 0.04; a second language is kept when the
   sentences confidently detected as it hold >= 30% of the text. Federated:
   `extractApLanguages` reads AP `language` + all `contentMap` keys, but those
-  labels do not grant distribution by themselves. Japanese kana and Korean
-  hangul correct contradictory labels; a single declaration is replaced only
-  when ELD knows the declared language and names another by >= 0.1 (so a
-  declared Galician post, which ELD cannot recognise, stays `gl`). Ambiguous
+  labels do not grant distribution by themselves. Kana or hangul that
+  make up at least half of the letters correct contradictory labels (a quoted
+  `きんかくじ` in English prose does not). A language the post already carries
+  — the author's or origin's declaration, or, on a re-classification, the
+  languages it is stored under (`previousLanguages`) — is replaced only on
+  strong evidence: >= 40 letters and >= 5 words of prose, a reliable verdict
+  beating the runner-up by >= 0.1 and the carried language's own score by
+  >= 0.15, and a carried language ELD knows (so a declared Galician post stays
+  `gl`). An undeclared body needs >= 12 letters and >= 3 words. Ambiguous
   bodies, and languages ELD lacks, produce `languages: []` rather than a
   neighbour's label. Feed membership is ANY-OVERLAP against this canonical
   field.

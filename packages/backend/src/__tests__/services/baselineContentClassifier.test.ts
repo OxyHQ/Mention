@@ -145,6 +145,37 @@ describe('BaselineContentClassifier', () => {
       expect(result.languages).toEqual(['ca']);
     });
 
+    it('keeps a carried language on short text and overrules it only on strong evidence', async () => {
+      // Six German words: too little to call German anything else, whether the
+      // origin declared `en` or the post is already classified `de`.
+      const short = 'wir müssen die dinge bananen nennen';
+      expect(
+        (await baselineContentClassifier.classify({ text: short, language: 'en' })).languages,
+      ).toEqual(['en']);
+      expect(
+        (
+          await baselineContentClassifier.classify({
+            text: short,
+            language: 'en',
+            previousLanguages: ['de'],
+          })
+        ).languages,
+      ).toEqual(['de']);
+      // A full English sentence is ample to correct an origin's `de` default.
+      const long = "Ok. This may explain a lot of people's reaction to meeting me, honestly.";
+      expect(
+        (await baselineContentClassifier.classify({ text: long, language: 'de' })).languages,
+      ).toEqual(['en']);
+    });
+
+    it('does not read a quoted Japanese word as a Japanese post', async () => {
+      const result = await baselineContentClassifier.classify({
+        text: '3) THE CAMPHOR CEILING🌳 The 3rd floor of Kinkaku-ji (きんかくじ) was famed for its ceiling, made of camphor wood and covered in gold leaf.',
+        language: 'en',
+      });
+      expect(result.languages).toEqual(['en']);
+    });
+
     it('does not recommend an undeclared language when detection is uncertain', async () => {
       const result = await baselineContentClassifier.classify({
         text: 'Mi estas tre feliĉa hodiaŭ kaj parolas kun ĉiuj miaj amikoj.',
