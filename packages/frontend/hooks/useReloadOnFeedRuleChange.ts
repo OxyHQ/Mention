@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { subscribeToSafetyFilterChanges } from '@/stores/safetyInvalidation';
 import { subscribeToBylineChanges } from '@/stores/bylineInvalidation';
+import { subscribeToReaderLanguageChanges } from '@/stores/readerLanguageInvalidation';
 
 /**
  * Read a MOUNTED feed again when a rule changes what it may show.
@@ -8,8 +9,9 @@ import { subscribeToBylineChanges } from '@/stores/bylineInvalidation';
  * A muted word or the sensitive-content toggle changes what the server is
  * willing to send; a channel turning its byline on or off rewrites the author
  * list of every post it published, and with the byline off the writer's id was
- * never sent here at all. Either way a feed on screen cannot re-derive its own
- * contents — it has to ask again. The warm-start staleness check
+ * never sent here at all; the reader reordering their languages changes which
+ * rendition of a multilingual post the server serves. Either way a feed on
+ * screen cannot re-derive its own contents — it has to ask again. The warm-start staleness check
  * (`stores/feedStaleness`) covers feeds that are unmounted when the rule
  * changes; this covers the common case, where the settings screen was pushed
  * OVER a feed that stays mounted underneath and would never run that check.
@@ -25,9 +27,11 @@ export function useReloadOnFeedRuleChange(enabled: boolean, reload: () => unknow
     };
     const unsubscribeSafety = subscribeToSafetyFilterChanges(onChange);
     const unsubscribeByline = subscribeToBylineChanges(onChange);
+    const unsubscribeLanguages = subscribeToReaderLanguageChanges(onChange);
     return () => {
       unsubscribeSafety();
       unsubscribeByline();
+      unsubscribeLanguages();
     };
   }, [enabled, reload]);
 }

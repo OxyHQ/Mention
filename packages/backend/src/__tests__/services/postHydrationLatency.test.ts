@@ -6,15 +6,18 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { setTimeout as delay } from 'node:timers/promises';
 import type { CachedUserSummary } from '../../services/userSummaryCache';
 
-const { getMany, getUser, blocked, restricted, following, followers, cache } = vi.hoisted(() => ({
-  getMany: vi.fn(),
-  getUser: vi.fn(),
-  blocked: vi.fn(),
-  restricted: vi.fn(),
-  following: vi.fn(),
-  followers: vi.fn(),
-  cache: new Map<string, CachedUserSummary>(),
-}));
+const { getMany, getUser, me, blocked, restricted, following, followers, cache } = vi.hoisted(
+  () => ({
+    getMany: vi.fn(),
+    me: vi.fn(),
+    getUser: vi.fn(),
+    blocked: vi.fn(),
+    restricted: vi.fn(),
+    following: vi.fn(),
+    followers: vi.fn(),
+    cache: new Map<string, CachedUserSummary>(),
+  }),
+);
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
@@ -62,7 +65,7 @@ afterEach(async () => {
 });
 beforeEach(() => {
   cache.clear();
-  for (const read of [getMany, getUser, blocked, restricted, following, followers])
+  for (const read of [getMany, getUser, me, blocked, restricted, following, followers])
     read.mockReset();
   getMany.mockImplementation(async (ids: string[]) => {
     await delay(REMOTE_LATENCY_MS);
@@ -134,7 +137,9 @@ describe('feed hydration latency', () => {
       );
       expect(warm).toEqual(result);
       expect(getMany).not.toHaveBeenCalled();
-      expect(coldCalls).toBe(scenario === 'authenticated' ? 2 : 1);
+      // ONE bulk read, for the authors and mentions: the viewer's own languages
+      // come from their owner profile, never from this public directory.
+      expect(coldCalls).toBe(1);
     },
   );
 
@@ -144,9 +149,9 @@ describe('feed hydration latency', () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    getMany.mockImplementation(async (ids: string[]) => {
+    me.mockImplementation(async () => {
       await gate;
-      return ids.map((id) => ({ id, username: id }));
+      return { id: scope.user('viewer'), languages: ['en-US'] };
     });
     blocked.mockImplementation(async () => {
       await gate;
@@ -156,6 +161,7 @@ describe('feed hydration latency', () => {
     const result = service.hydratePosts([post], {
       safetyRequester: { accessToken: 'test-viewer-session' },
       viewerId: scope.user('viewer'),
+      oxyClient: { users: { me } } as unknown as HydrationOptions['oxyClient'],
     });
     void result.then(
       () => {
@@ -168,7 +174,7 @@ describe('feed hydration latency', () => {
     try {
       await vi.waitFor(
         () => {
-          expect(getMany).toHaveBeenCalled();
+          expect(me).toHaveBeenCalled();
           expect(blocked).toHaveBeenCalled();
           expect(restricted).toHaveBeenCalled();
           expect(following).toHaveBeenCalled();

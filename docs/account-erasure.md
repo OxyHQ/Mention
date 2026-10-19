@@ -96,7 +96,7 @@ In order (the order is what each step reads before another deletes it):
 6. **Federation rows**: follow edges with remote actors, identity links, actor
    rows and legacy key material.
 7. **Redis caches** keyed by the account (user summary, fediverse-sharing flag,
-   viewer relations, seen posts, recent topics).
+   viewer relations, viewer languages, seen posts, recent topics).
 
 ## What is kept, and why
 

@@ -42,6 +42,11 @@ import { createCache } from '../utils/cache';
  *    classification), which the reply gate reads off `user.kind`.
  *  - `v7` — adds `accountCreatedAt` and `reputationTier` (ranking-side, see
  *    {@link CachedUserSummary}).
+ *
+ * `languages` (v3) is gone again without a bump: Oxy's public user projection
+ * never carries an account's languages, so the field was always empty, and a
+ * `v7` entry that still holds one is read back with it ignored. The viewer's own
+ * languages come from `loadViewerLanguages` (`utils/viewerLanguage`).
  */
 const USER_SUMMARY_PREFIX = 'usersummary:v7:';
 
@@ -55,12 +60,12 @@ const SUMMARY_TTL_SECONDS = config.cache.userSummaryTtlSeconds;
 /**
  * The cached value: the raw canonical Oxy {@link PostUser} plus the RANKING-side
  * facts about that account which never belong on a post DTO — the follower count
- * (authority signal), the account's languages (the viewer-language signal), and
- * the starter-pack curation score (the `starterPackBoost` signal).
+ * (authority signal), the starter-pack curation score (the `starterPackBoost`
+ * signal) and the account's age and standing.
  *
- * All three are OPTIONAL: a user whose count was unavailable, who set no account
- * languages, or whom nobody curated simply omits the field and the corresponding
- * signal falls back to its neutral multiplier.
+ * All of them are OPTIONAL: a user whose count was unavailable or whom nobody
+ * curated simply omits the field and the corresponding signal falls back to its
+ * neutral multiplier.
  *
  * The account `kind` is NOT one of them — it lives on `user.kind`, because it is
  * part of the Oxy user DTO rather than a Mention-side signal. `services/publishAsAccount`
@@ -70,13 +75,6 @@ const SUMMARY_TTL_SECONDS = config.cache.userSummaryTtlSeconds;
 export interface CachedUserSummary {
   user: PostUser;
   followerCount?: number;
-  /**
-   * The account's languages as canonical BCP-47 locales (`es-ES`, `en-US`),
-   * primary first — resolved from the Oxy user via `getUserLanguages`. Read for
-   * the VIEWER (`languageMismatchPenalty`); it is deliberately kept OFF
-   * {@link PostUser} so it never ships inside a post's author DTO.
-   */
-  languages?: string[];
   /**
    * The bounded starter-pack CURATION score for this account — how strongly OTHER
    * people curated them into starter packs that newcomers actually used (see

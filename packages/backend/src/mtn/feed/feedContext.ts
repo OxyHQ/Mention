@@ -19,11 +19,11 @@ import { getFollowingIds, getFollowerIds } from '../../utils/privacyHelpers';
 import { loadUserSettings } from '../../db/userProfile/userSettingsRepository';
 import { listSubscriptionService } from '../../services/ListSubscriptionService';
 import { userPreferenceService } from '../../services/UserPreferenceService';
-import { getUserLanguages } from '@oxy.so/core';
 import { mergeFederatedFollowIds } from '../../services/viewerFollowGraph';
 import { loadMutedLaneIds } from '../../services/safety/viewerSafety';
 import type { UserBehaviorRecord } from '../../db/userProfile/userBehaviorRecord';
 import { logger } from '../../utils/logger';
+import { loadViewerLanguages } from '../../utils/viewerLanguage';
 import type { FeedEngineContext } from './engine/types';
 
 /**
@@ -62,28 +62,6 @@ export function resolveViewerBaseLanguages(
   const account = toBaseLanguages(accountLanguages);
   if (account.length > 0) return account;
   return toBaseLanguages(requestLanguages).slice(0, MAX_VIEWER_LANGUAGES);
-}
-
-/**
- * Read the viewer's ordered locales from Oxy's owner profile. Public author
- * summaries omit languages, so they cannot supply account feed preferences.
- * The client carries this request's user credential; these private preferences
- * never enter the shared public-user cache. Delegated clients without a self
- * read and failed lookups fall back to the request's languages downstream.
- */
-export async function loadViewerLanguages(
-  userId: string | undefined,
-  oxyClient?: OxyClient,
-): Promise<string[]> {
-  if (!userId || !oxyClient?.users) return [];
-  try {
-    const user = await oxyClient.users.me();
-    if (user.id !== userId) return [];
-    return getUserLanguages(user);
-  } catch (error) {
-    logger.warn('[feedContext] Failed to load viewer languages', error);
-    return [];
-  }
 }
 
 /**

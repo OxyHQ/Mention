@@ -1,9 +1,30 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import type { OxyClient } from '../utils/privacyHelpers';
+import { createMemoryCache } from './helpers/memoryCache';
 
-import { loadViewerLanguages, resolveViewerBaseLanguages } from '../mtn/feed/feedContext';
+const { cacheStore } = vi.hoisted(() => ({ cacheStore: new Map<string, unknown>() }));
+
+// The suite has no Redis; give the viewer-languages cache a memory store so a hit
+// is observable. Every other cache keeps the real (Redis-less) implementation.
+vi.mock('../utils/cache', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../utils/cache')>();
+  return {
+    ...actual,
+    createCache: (config: Parameters<typeof actual.createCache>[0]) =>
+      config.name === 'ViewerLanguagesCache'
+        ? createMemoryCache(cacheStore)
+        : actual.createCache(config),
+  };
+});
+
+import { resolveViewerBaseLanguages } from '../mtn/feed/feedContext';
 import { resolveDiscoveryGate } from '../mtn/feed/definitions/presets';
-import { languageLadder, requestLanguageCandidates } from '../utils/viewerLanguage';
+import {
+  invalidateViewerLanguages,
+  languageLadder,
+  loadViewerLanguages,
+  requestLanguageCandidates,
+} from '../utils/viewerLanguage';
 
 describe('loadViewerLanguages', () => {
   const viewerId = 'viewer-1';
@@ -15,6 +36,28 @@ describe('loadViewerLanguages', () => {
   };
   beforeEach(() => {
     me.mockReset();
+    cacheStore.clear();
+  });
+
+  it('serves a warm viewer from the cache until a profile write invalidates it', async () => {
+    me.mockResolvedValue({ id: viewerId, languages: ['es-ES', 'en-US', 'ca-ES'] });
+    await loadViewerLanguages(viewerId, client);
+    await expect(loadViewerLanguages(viewerId, client)).resolves.toEqual([
+      'es-ES',
+      'en-US',
+      'ca-ES',
+    ]);
+    expect(me).toHaveBeenCalledOnce();
+
+    // The reader reorders in Oxy; the broadcast evicts their entry.
+    me.mockResolvedValue({ id: viewerId, languages: ['ca-ES', 'es-ES', 'en-US'] });
+    await invalidateViewerLanguages([viewerId]);
+    await expect(loadViewerLanguages(viewerId, client)).resolves.toEqual([
+      'ca-ES',
+      'es-ES',
+      'en-US',
+    ]);
+    expect(me).toHaveBeenCalledTimes(2);
   });
 
   it('reads every ordered account locale from the authenticated owner profile', async () => {

@@ -1,5 +1,6 @@
 import { queryClient } from '@/lib/queryClient';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { createFeedRuleSignal } from './feedRuleSignal';
 
 /**
  * The single authority for "a channel changed whether its posts name the person
@@ -65,13 +66,8 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
  * where it is not.
  */
 
-/** When a channel last changed its byline disclosure, in `Date.now()` terms. */
-let changedAt = 0;
-
-/** Notified when a byline changes, so a mounted feed can refetch. */
-type BylineListener = () => void;
-
-const listeners = new Set<BylineListener>();
+/** When a channel last changed its byline disclosure, and the mounted feeds to tell. */
+const signal = createFeedRuleSignal();
 
 /**
  * Whether a feed cache retained at `retainedAt` predates a byline change, in
@@ -87,18 +83,15 @@ const listeners = new Set<BylineListener>();
  * published it was withdrawn.
  */
 export function isFeedCacheStaleForByline(retainedAt: number): boolean {
-  return retainedAt <= changedAt;
+  return signal.isStale(retainedAt);
 }
 
 /**
  * Subscribe a mounted feed to byline changes so it refetches without waiting for
  * a remount. Returns an unsubscribe function.
  */
-export function subscribeToBylineChanges(listener: BylineListener): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
+export function subscribeToBylineChanges(listener: () => void): () => void {
+  return signal.subscribe(listener);
 }
 
 /**
@@ -111,30 +104,15 @@ export function subscribeToBylineChanges(listener: BylineListener): () => void {
  * family that can be scoped — everything else is global, see the note above.
  */
 export function noteChannelBylineChanged(channelOxyUserId: string): void {
-  changedAt = Date.now();
-
   void queryClient.invalidateQueries({
     predicate: (query) =>
       // Every family whose cached response embeds a post DTO, and therefore a
-      // byline the server has just rewritten:
-      //   `posts`       — the post detail behind a notification, and a profile's
-      //                   pinned post, which on a channel's page is the channel's
-      //                   own. `scheduledPosts` rides in the same family and IS a
-      //                   target: `GET /posts/scheduled` now returns the shared
-      //                   editorial queue of every channel the caller operates, so
-      //                   an operator's scheduled list holds channel posts whose
-      //                   byline this change rewrites. (It used to be collateral —
-      //                   the read was owner-scoped and a channel's post reached
-      //                   nobody's queue. The invalidation was already correct;
-      //                   only the reason it fires has changed.)
-      //   `saved-posts` — the saved screen, React Query's own post list.
-      //   `search`      — the posts tab.
-      //   `notifications` — rows embed the post they are about, and the server
-      //                   applies the same disclosure decision to them.
-      viewerQueryKeys.isFamily(query.queryKey, 'posts') ||
-      viewerQueryKeys.isFamily(query.queryKey, 'saved-posts') ||
-      viewerQueryKeys.isFamily(query.queryKey, 'search') ||
-      viewerQueryKeys.isFamily(query.queryKey, 'notifications') ||
+      // byline the server has just rewritten. `scheduledPosts` rides in the
+      // `posts` family and IS a target: `GET /posts/scheduled` returns the
+      // shared editorial queue of every channel the caller operates, so an
+      // operator's scheduled list holds channel posts whose byline this change
+      // rewrites. Notifications get the same disclosure decision server-side.
+      viewerQueryKeys.embedsPosts(query.queryKey) ||
       // And the writers list itself, which this setting does not merely change
       // but decides the EXISTENCE of: the endpoint 404s for a channel that does
       // not disclose, and `useChannelWriters` reads that refusal as "no tab".
@@ -142,9 +120,7 @@ export function noteChannelBylineChanged(channelOxyUserId: string): void {
       viewerQueryKeys.isChannelWriters(query.queryKey, channelOxyUserId),
   });
 
-  for (const listener of listeners) {
-    listener();
-  }
+  signal.notify();
 }
 
 /**
@@ -159,5 +135,5 @@ export function noteChannelBylineChanged(channelOxyUserId: string): void {
  * viewer holds was read after this stamp and none of them is condemned by it.
  */
 export function resetBylineInvalidation(): void {
-  changedAt = 0;
+  signal.reset();
 }

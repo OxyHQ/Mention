@@ -508,6 +508,22 @@ export const viewerQueryKeys = {
     [...viewerQueryKeys.all(viewerId), 'profile-media-search', type, query] as const,
   isFamily: (queryKey: readonly unknown[], family: string): boolean =>
     queryKey[0] === 'viewer' && queryKey[2] === family,
+  /**
+   * Every React Query family whose cached response embeds a hydrated post DTO —
+   * what a change to how the SERVER renders a post (a byline, the reader's
+   * languages) has to refetch outside the feed caches:
+   *   `posts`         — post detail, a profile's pinned post, scheduled posts.
+   *   `saved-posts`   — the saved screen.
+   *   `search`        — the posts tab and the "All" tab's sources.
+   *   `notifications` — rows embed the post they are about.
+   * Feeds are not here: they live in the feed caches, which converge through
+   * `stores/feedStaleness` and `hooks/useReloadOnFeedRuleChange`.
+   */
+  embedsPosts: (queryKey: readonly unknown[]): boolean =>
+    viewerQueryKeys.isFamily(queryKey, 'posts') ||
+    viewerQueryKeys.isFamily(queryKey, 'saved-posts') ||
+    viewerQueryKeys.isFamily(queryKey, 'search') ||
+    viewerQueryKeys.isFamily(queryKey, 'notifications'),
   isAppearanceForUser: (queryKey: readonly unknown[], userId: string): boolean =>
     viewerQueryKeys.isFamily(queryKey, 'appearance') &&
     queryKey[3] === 'user' &&

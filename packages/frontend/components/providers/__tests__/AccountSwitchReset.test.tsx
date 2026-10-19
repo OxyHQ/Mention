@@ -13,6 +13,7 @@ import { useTrendsStore } from '@/stores/trendsStore';
 import { clearFeedScrollOffsets } from '@/stores/feedScrollStore';
 import { resetEngagementInvalidation } from '@/stores/engagementInvalidation';
 import { resetSafetyInvalidation } from '@/stores/safetyInvalidation';
+import { noteReaderLanguages } from '@/stores/readerLanguageInvalidation';
 import { setFeedViewerRequestScope } from '@/services/feedService';
 import { searchService } from '@/services/searchService';
 import { socketService } from '@/services/socketService';
@@ -22,7 +23,7 @@ import { getLiveRoomId, setLivePresence } from '@/stores/livePresenceStore';
 import { AccountSwitchReset } from '../AccountSwitchReset';
 
 const mockLocale: { language: string | undefined } = { language: 'en-US' };
-let mockUser: { id: string } | null = { id: 'viewer-a' };
+let mockUser: { id: string; languages?: string[] } | null = { id: 'viewer-a' };
 let mockIsAuthResolved = true;
 let mockPersistedViewerId: string | null = 'viewer-a';
 const mockQueryClientClear = jest.fn();
@@ -39,10 +40,8 @@ const mockResetPrivacySettingsCache = jest.fn();
 const mockChildRender = jest.fn();
 
 // Account-switch behavior reads locale state; initialization/storage are tested separately.
-jest.mock('@/lib/i18n', () => ({
-  get appI18n() {
-    return mockLocale;
-  },
+jest.mock('@/hooks/useAppLanguage', () => ({
+  useAppLanguage: () => mockLocale.language,
 }));
 
 jest.mock('@tanstack/react-query', () => ({
@@ -125,6 +124,11 @@ jest.mock('@/stores/safetyInvalidation', () => ({
   resetSafetyInvalidation: jest.fn(),
 }));
 
+jest.mock('@/stores/readerLanguageInvalidation', () => ({
+  noteReaderLanguages: jest.fn(),
+  resetReaderLanguageInvalidation: jest.fn(),
+}));
+
 jest.mock('@/services/feedService', () => ({
   setFeedViewerRequestScope: jest.fn(),
 }));
@@ -159,6 +163,7 @@ const mockSetReaderLanguages = jest.fn();
 const mockClearFeedScrollOffsets = clearFeedScrollOffsets as jest.Mock;
 const mockResetEngagementInvalidation = resetEngagementInvalidation as jest.Mock;
 const mockResetSafetyInvalidation = resetSafetyInvalidation as jest.Mock;
+const mockNoteReaderLanguages = noteReaderLanguages as jest.Mock;
 const mockSetFeedViewerRequestScope = setFeedViewerRequestScope as jest.Mock;
 const mockClearSearchHistory = searchService.clearSearchHistory as jest.Mock;
 const mockDisconnectSocket = socketService.disconnect as jest.Mock;
@@ -491,6 +496,47 @@ describe('AccountSwitchReset identity boundary', () => {
     act(() => {
       renderer!.unmount();
     });
+  });
+
+  it('reports the languages renditions resolve against, per resolved viewer', () => {
+    // Unresolved auth names no viewer, so nothing is reported yet.
+    mockIsAuthResolved = false;
+    mockUser = null;
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(renderBoundary());
+    });
+    expect(mockNoteReaderLanguages).not.toHaveBeenCalled();
+
+    // Signed in: the account's languages, in order — not the interface language.
+    mockIsAuthResolved = true;
+    mockUser = { id: 'viewer-a', languages: ['es-ES', 'en-US', 'ca-ES'] };
+    act(() => renderer!.update(renderBoundary()));
+    expect(mockNoteReaderLanguages).toHaveBeenLastCalledWith('viewer-a', [
+      'es-ES',
+      'en-US',
+      'ca-ES',
+    ]);
+
+    // The same reader reorders them in Oxy.
+    mockUser = { id: 'viewer-a', languages: ['ca-ES', 'es-ES', 'en-US'] };
+    act(() => renderer!.update(renderBoundary()));
+    expect(mockNoteReaderLanguages).toHaveBeenLastCalledWith('viewer-a', [
+      'ca-ES',
+      'es-ES',
+      'en-US',
+    ]);
+
+    // Signed out: the interface language, which is all the server has; before it
+    // is known, nothing — an empty list the authority ignores.
+    mockUser = null;
+    act(() => renderer!.update(renderBoundary()));
+    expect(mockNoteReaderLanguages).toHaveBeenLastCalledWith('anon', ['en-US']);
+    mockLocale.language = undefined;
+    act(() => renderer!.update(renderBoundary()));
+    expect(mockNoteReaderLanguages).toHaveBeenLastCalledWith('anon', []);
+
+    act(() => renderer!.unmount());
   });
 
   it('keeps the identity boundary usable before an interface locale is available', () => {

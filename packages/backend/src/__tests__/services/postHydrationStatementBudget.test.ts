@@ -161,7 +161,7 @@ function hydrate(posts: object[]) {
     viewerId: VIEWER_ID,
     maxDepth: 2,
     oxyClient: {
-      users: { getMany: getUsersByIds },
+      users: { getMany: getUsersByIds, me: async () => ({ id: VIEWER_ID }) },
       getClarityDocuments: vi.fn(async () => ({})),
       assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
     } as never,
@@ -235,14 +235,10 @@ describe('the statement budget for one cold hydration', () => {
      *  `likes`                1 — the viewer's like/downvote state.
      *  `bookmarks`            1 — the viewer's saved state.
      *  `post_recent_repliers` 1 — the replier-avatar projection.
-     *  `starter_pack_members` 2 — the curation aggregation, once per cache-FILL.
-     *                             TWO because a hydration fills twice: the
-     *                             viewer (for account languages, which decide
-     *                             the localized rendition every post is served)
-     *                             before the post graph exists, then the graph's
-     *                             authors. Deliberate — see the workstream note
-     *                             on why merging them would serialize link
-     *                             previews behind the author batch.
+     *  `starter_pack_members` 1 — the curation aggregation, once per cache-FILL
+     *                             of the graph's authors. The viewer's account
+     *                             languages are read from their Oxy owner
+     *                             profile, not through this cache.
      *  `post_imports`         1 — import provenance ("Originally posted on
      *                             Mastodon") and an imported post's CW label,
      *                             by primary key over the batch. Native posts
@@ -259,7 +255,7 @@ describe('the statement budget for one cold hydration', () => {
       ['likes', 1],
       ['bookmarks', 1],
       ['post_recent_repliers', 1],
-      ['starter_pack_members', 2],
+      ['starter_pack_members', 1],
       ['post_imports', 1],
     ]);
 

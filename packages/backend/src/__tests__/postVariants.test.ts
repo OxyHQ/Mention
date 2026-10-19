@@ -148,6 +148,15 @@ describe('resolveViewerTag — the resolution ladder', () => {
     expect(resolveViewerTag(['es-419', 'en-US'], bilingual)).toBe('es-ES');
   });
 
+  it('serves the first of the reader’s languages the author wrote, in the reader’s order', () => {
+    const trilingual = content({
+      variants: [variant({ tag: 'en' }), variant({ tag: 'ca' }), variant({ tag: 'es' })],
+    });
+    expect(resolveViewerTag(['es-ES', 'en-US', 'ca-ES'], trilingual)).toBe('es');
+    // Same languages, Catalan made primary: the order is what decides.
+    expect(resolveViewerTag(['ca-ES', 'es-ES', 'en-US'], trilingual)).toBe('ca');
+  });
+
   it('walks the ladder in order: the explicit tag outranks the account locale', () => {
     // Candidates arrive already ordered (`languageLadder`): explicit `?lang`, the
     // viewer's Oxy account locales, then Accept-Language.

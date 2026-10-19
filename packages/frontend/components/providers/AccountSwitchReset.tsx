@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getUserLanguages } from '@oxy.so/core';
-import { appI18n as i18n } from '@/lib/i18n';
+import { useAppLanguage } from '@/hooks/useAppLanguage';
 import { useBloomTheme } from '@oxy.so/bloom/theme';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { usePostsStore } from '@/stores/postsStore';
@@ -16,6 +16,10 @@ import { useTrendsStore } from '@/stores/trendsStore';
 import { clearFeedScrollOffsets } from '@/stores/feedScrollStore';
 import { resetEngagementInvalidation } from '@/stores/engagementInvalidation';
 import { resetSafetyInvalidation } from '@/stores/safetyInvalidation';
+import {
+  noteReaderLanguages,
+  resetReaderLanguageInvalidation,
+} from '@/stores/readerLanguageInvalidation';
 import { resetPendingDocuments } from '@/stores/pendingDocuments';
 import { setFeedViewerRequestScope } from '@/services/feedService';
 import { searchService } from '@/services/searchService';
@@ -61,27 +65,6 @@ export function AccountSwitchReset({
   const resetAppearance = useAppearanceStore((state) => state.resetViewerState);
   const prevViewerIdRef = useRef<string | null>(null);
 
-  /*
-   * The reader's content languages, pushed to the trends store from the one
-   * place that already knows who is reading.
-   *
-   * The ACCOUNT's declared locales first (`getUserLanguages` — the same helper
-   * the backend reads them with, so a bilingual reader gets both languages
-   * ordered first rather than only the one the app happens to be in), with the
-   * interface language behind them so a signed-out visitor still gets one.
-   *
-   * `i18n.language` is read rather than subscribed to: this fires on every
-   * identity change, and a language switch already remounts the tree.
-   */
-  const readerLanguages = useMemo(
-    () => [...(isAuthenticated && user ? getUserLanguages(user) : []), i18n.language ?? ''],
-    [isAuthenticated, user],
-  );
-
-  useEffect(() => {
-    useTrendsStore.getState().setReaderLanguages(readerLanguages);
-  }, [readerLanguages]);
-
   const userId = user?.id?.trim() || null;
   const viewerId = !isAuthResolved
     ? null
@@ -90,6 +73,47 @@ export function AccountSwitchReset({
         ? viewerCacheId(userId)
         : null
       : viewerCacheId(null);
+
+  /*
+   * The reader's content languages, from the one place that already knows who
+   * is reading.
+   *
+   * The ACCOUNT's declared locales first (`getUserLanguages` — the same helper
+   * the backend reads them with, so a bilingual reader gets both languages
+   * ordered first rather than only the one the app happens to be in), with the
+   * interface language behind them so a signed-out visitor still gets one.
+   * Subscribed, not read once: a signed-out reader changes language without any
+   * identity change, and nothing remounts this boundary when they do.
+   */
+  const appLanguage = useAppLanguage();
+  const accountLanguages = useMemo(
+    () => (isAuthenticated && user ? getUserLanguages(user) : []),
+    [isAuthenticated, user],
+  );
+  const readerLanguages = useMemo(
+    () => [...accountLanguages, appLanguage ?? ''],
+    [accountLanguages, appLanguage],
+  );
+
+  useEffect(() => {
+    useTrendsStore.getState().setReaderLanguages(readerLanguages);
+  }, [readerLanguages]);
+
+  /*
+   * What the SERVER resolves each post's rendition against (`resolveViewerTag`):
+   * the account's languages, in order, for a signed-in reader — the interface
+   * language trails them as the lowest rung and follows the account's primary
+   * anyway — and the interface language for a signed-out one. A change of it for
+   * the same viewer refetches every post already on screen
+   * (`stores/readerLanguageInvalidation`).
+   */
+  const renditionLanguages = useMemo(
+    () => (isAuthenticated ? accountLanguages : appLanguage ? [appLanguage] : []),
+    [isAuthenticated, accountLanguages, appLanguage],
+  );
+  useEffect(() => {
+    if (viewerId) noteReaderLanguages(viewerId, renditionLanguages);
+  }, [viewerId, renditionLanguages]);
   const [readyViewerId, setReadyViewerId] = useState<string | null>(null);
 
   const clearRuntimeState = useCallback(
@@ -112,9 +136,10 @@ export function AccountSwitchReset({
       // The previous viewer's engagements say nothing about the next viewer's
       // lists, and every cache they could have marked stale is gone anyway. The
       // same holds for the safety rules they changed — muted words and the
-      // sensitive-content toggle are per-account.
+      // sensitive-content toggle are per-account — and for their languages.
       resetEngagementInvalidation();
       resetSafetyInvalidation();
+      resetReaderLanguageInvalidation();
       // Link cards still in flight belong to the previous viewer.
       resetPendingDocuments();
 

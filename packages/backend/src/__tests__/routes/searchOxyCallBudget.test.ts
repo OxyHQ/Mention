@@ -71,9 +71,11 @@ const calls = {
   getUserFollowers: vi.fn(async () => []),
   getBlockedUsers: vi.fn(async () => []),
   getRestrictedUsers: vi.fn(async () => []),
+  // Oxy's public projection: no `languages` on another person's profile.
   getUsersByIds: vi.fn(async (ids: string[]) =>
-    ids.map((id) => ({ id, username: `u${id.slice(-6)}`, name: {}, languages: ['en-US'] })),
+    ids.map((id) => ({ id, username: `u${id.slice(-6)}`, name: {} })),
   ),
+  getMe: vi.fn(async () => ({ id: VIEWER, languages: ['es-ES'] })),
   getClarityDocuments: vi.fn(async () => []),
 };
 
@@ -82,9 +84,26 @@ const oxyClient = {
   safety: adultSafetyFixture(),
   follows: { following: calls.getUserFollowing, followers: calls.getUserFollowers },
   privacy: { blocked: calls.getBlockedUsers, restricted: calls.getRestrictedUsers },
-  users: { getMany: calls.getUsersByIds },
+  users: { getMany: calls.getUsersByIds, me: calls.getMe },
   getClarityDocuments: calls.getClarityDocuments,
 };
+
+const { languagesStore } = vi.hoisted(() => ({ languagesStore: new Map<string, unknown>() }));
+
+// Only the viewer-languages cache gets a store (the suite has no Redis), so a
+// warm request is observable; every other cache stays a miss, as the graph
+// budgets below assume.
+vi.mock('../../utils/cache', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../utils/cache')>();
+  const { createMemoryCache } = await import('../helpers/memoryCache');
+  return {
+    ...actual,
+    createCache: (config: Parameters<typeof actual.createCache>[0]) =>
+      config.name === 'ViewerLanguagesCache'
+        ? createMemoryCache(languagesStore)
+        : actual.createCache(config),
+  };
+});
 
 vi.mock('../../utils/oxyHelpers', () => ({
   // BOTH factories hand back the same object, so a call made through either
@@ -120,6 +139,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   for (const spy of Object.values(calls)) spy.mockClear();
+  languagesStore.clear();
 });
 
 describe('GET /search Oxy call budget', () => {
@@ -180,14 +200,11 @@ describe('GET /search Oxy call budget', () => {
     }
   });
 
-  it('resolves the viewer profile once, for their account languages', async () => {
-    // `buildLanguageCandidates` resolves the VIEWER's own summary to read their
-    // account languages, which is real data no request header carries — so
-    // this call is legitimate, and threading `requestLanguages` would not
-    // remove it (that is driven by the separate `viewerLanguages` option). It
-    // is pinned so a SECOND resolution of the same summary would show up.
-    //
-    // Recorded because it was initially mistaken for waste.
+  it("reads the viewer's languages once, then serves a warm viewer with no Oxy call", async () => {
+    // `buildLanguageCandidates` needs the VIEWER's account languages, which no
+    // request header carries, from their owner profile — the public identity
+    // Mention caches per author has no `languages`. A cold viewer costs one read;
+    // after that the per-viewer cache answers until Oxy's invalidation evicts it.
     await seedPost(scope, {
       oxyUserId: scope.user('author3'),
       content: {
@@ -197,17 +214,19 @@ describe('GET /search Oxy call budget', () => {
         ],
       },
     });
+    const search = () =>
+      request(app)
+        .get('/search')
+        .set('Accept-Language', 'es-ES')
+        .query({ query: 'llamas', type: 'posts' })
+        .expect(200);
 
-    await request(app)
-      .get('/search')
-      .set('Accept-Language', 'es-ES')
-      .query({ query: 'llamas', type: 'posts' })
-      .expect(200);
+    await search();
+    expect(calls.getMe).toHaveBeenCalledTimes(1);
 
-    const viewerResolutions = calls.getUsersByIds.mock.calls
-      .flatMap(([ids]) => ids)
-      .filter((id) => id === VIEWER);
-    expect(viewerResolutions).toHaveLength(1);
+    calls.getMe.mockClear();
+    await search();
+    expect(calls.getMe).toHaveBeenCalledTimes(0);
   });
 
   it('asks Oxy nothing at all for an anonymous viewer', async () => {

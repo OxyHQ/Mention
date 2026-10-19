@@ -26,12 +26,12 @@ import { resolveDefinition } from '../feed/definitions/resolveDefinition';
 import { forYouUsesSocialProof } from '../feed/definitions/presets';
 import { feedEngine } from '../feed/engine/FeedEngine';
 import type { FeedEngineContext } from '../feed/engine/types';
+import { loadViewerFeedContext, resolveViewerBaseLanguages } from '../feed/feedContext';
 import {
-  loadViewerFeedContext,
+  languageLadder,
   loadViewerLanguages,
-  resolveViewerBaseLanguages,
-} from '../feed/feedContext';
-import { languageLadder, requestLanguageCandidates } from '../../utils/viewerLanguage';
+  requestLanguageCandidates,
+} from '../../utils/viewerLanguage';
 import { mergeFederatedFollowIds } from '../../services/viewerFollowGraph';
 import { resolveDiscoveryGateBucket } from '../feed/discoveryGateExperiment';
 import { FeedGeneratorFeed } from '../feed/feeds/FeedGeneratorFeed';
