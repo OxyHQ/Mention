@@ -829,6 +829,20 @@ export const config = {
     maxLifetimeSeconds: environment.PG_MAX_LIFETIME_SECONDS,
     queryMetricsEnabled: environment.DB_QUERY_METRICS_ENABLED,
     slowQueryMs: environment.DB_SLOW_QUERY_MS,
+    /**
+     * `statement_timeout` on every connection the SERVING process opens
+     * (`server.ts`). The database is shared by every Oxy app, so a statement
+     * that outlives the request that asked for it holds a connection and IO
+     * nobody is waiting for.
+     */
+    statementTimeoutMs: 15_000,
+    /**
+     * The budget a leader job raises its own transaction to
+     * (`withStatementTimeout`) for a statement that legitimately reads more than
+     * a request ever does: the follower-snapshot author scan and the
+     * interest-score aggregate.
+     */
+    backgroundStatementTimeoutMs: 120_000,
   },
   frontendUrl: environment.FRONTEND_URL,
   oxyApiUrl: environment.OXY_API_URL,
@@ -935,14 +949,6 @@ export const config = {
     connectTimeout: 45_000,
     maxBufferSize: 1e6,
     compressionThreshold: 1_024,
-  },
-  feed: {
-    defaultLimit: 20,
-    maxLimit: 100,
-    queryTimeoutMs: 15_000,
-    slowQueryThresholdMs: 100,
-    rankedCandidateMultiplier: 2,
-    scoreEpsilon: 0.001,
   },
   posts: {
     maxSources: 5,

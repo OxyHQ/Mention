@@ -42,21 +42,12 @@ import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
  * WHY NO SOURCE CARRIES A PER-QUERY TIMEOUT — a deliberate placement, not a
  * missing guard.
  *
- * `statement_timeout` is a
- * server GUC settable per ROLE or per DATABASE, which is the correct home for a
- * blanket "no query may run longer than N" rule — it covers every query
- * including the ones nobody remembered to annotate, and it cannot drift from a
- * constant copied into thirty call sites.
- *
- * Reproducing it per-query here would mean wrapping each scan in
- * `BEGIN; SET LOCAL statement_timeout …; …; COMMIT;` — two extra round trips on
- * a path that issues eight source queries in parallel per feed page — to buy
- * exactly what one `ALTER ROLE … SET statement_timeout` buys for free.
- *
- * So this is an explicit HANDOFF, and it is listed in the migration report:
- * until the application role carries a `statement_timeout`, these scans are
- * unbounded. That is a real gap; it belongs to whoever provisions the role,
- * not to the query layer.
+ * The serving process opens its pool with a `statement_timeout`
+ * (`config.postgres.statementTimeoutMs`, `db/postgres.ts`), which covers every
+ * query including the ones nobody remembered to annotate and cannot drift from a
+ * constant copied into thirty call sites. Reproducing it here would wrap each
+ * scan in `BEGIN; SET LOCAL statement_timeout …; …; COMMIT;` — two extra round
+ * trips on a path that issues eight source queries in parallel per feed page.
  */
 
 /**
