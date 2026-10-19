@@ -2,11 +2,12 @@ import { useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { FeedDescriptor } from '@mention/shared-types/mtn/feedDescriptor';
-import { PRESET_FEEDS, type SavedFeed } from '@mention/shared-types/mtn/presetFeeds';
 import {
-  feedPreferencesService,
-  type FeedPreferencesResponse,
-} from '@/services/feedPreferencesService';
+  type FeedPreferences,
+  PRESET_FEEDS,
+  type SavedFeed,
+} from '@mention/shared-types/mtn/presetFeeds';
+import { feedPreferencesService } from '@/services/feedPreferencesService';
 import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
@@ -66,7 +67,7 @@ export function useFeedPreferences(): UseFeedPreferences {
   const queryClient = useQueryClient();
   const queryKey = useMemo(() => viewerQueryKeys.feedPreferences(user?.id), [user?.id]);
 
-  const query = useQuery<FeedPreferencesResponse>({
+  const query = useQuery<FeedPreferences>({
     queryKey,
     enabled: canUsePrivateApi,
     staleTime: 5 * 60 * 1000,
@@ -83,14 +84,14 @@ export function useFeedPreferences(): UseFeedPreferences {
     SavedFeed[],
     Error,
     SavedFeed[],
-    { previous: FeedPreferencesResponse | undefined }
+    { previous: FeedPreferences | undefined }
   >({
     mutationFn: (next) => feedPreferencesService.update(next),
     onMutate: async (next) => {
       await queryClient.cancelQueries({ queryKey });
-      const previous = queryClient.getQueryData<FeedPreferencesResponse>(queryKey);
+      const previous = queryClient.getQueryData<FeedPreferences>(queryKey);
       // A newly pinned custom feed has no title until the refetch below.
-      queryClient.setQueryData<FeedPreferencesResponse>(queryKey, {
+      queryClient.setQueryData<FeedPreferences>(queryKey, {
         ...previous,
         savedFeeds: next,
       });
@@ -98,7 +99,7 @@ export function useFeedPreferences(): UseFeedPreferences {
     },
     onError: (error, _next, context) => {
       if (context?.previous !== undefined) {
-        queryClient.setQueryData<FeedPreferencesResponse>(queryKey, context.previous);
+        queryClient.setQueryData<FeedPreferences>(queryKey, context.previous);
       }
       logger.warn('Failed to persist feed preferences', { error });
     },
