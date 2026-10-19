@@ -107,13 +107,26 @@ describe('userSummaryCache.mget', () => {
   });
 
   it('skips corrupt (unparseable) entries instead of throwing', async () => {
-    const cached = summaryFor('u1');
+    const cached = summaryFor('c1');
     mocks.mGet.mockResolvedValue([JSON.stringify(cached), '{not valid json']);
 
-    const result = await mget(['u1', 'u2']);
+    const result = await mget(['c1', 'c2']);
 
-    expect(result.get('u1')).toEqual(cached);
-    expect(result.has('u2')).toBe(false);
+    expect(result.get('c1')).toEqual(cached);
+    expect(result.has('c2')).toBe(false);
+  });
+
+  it("answers a repeat read from this task's copy until the entry is invalidated", async () => {
+    const cached = summaryFor('l1');
+    mocks.mGet.mockResolvedValue([JSON.stringify(cached)]);
+
+    await mget(['l1']);
+    expect((await mget(['l1'])).get('l1')).toEqual(cached);
+    expect(mocks.mGet).toHaveBeenCalledTimes(1);
+
+    await invalidate(['l1']);
+    await mget(['l1']);
+    expect(mocks.mGet).toHaveBeenCalledTimes(2);
   });
 
   it('short-circuits to an empty map for an empty id list without touching Redis', async () => {
