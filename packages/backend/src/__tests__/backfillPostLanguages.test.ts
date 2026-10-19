@@ -32,9 +32,21 @@ import type { PostRecordInput } from '../db/posts/postRecord';
 import { loadPostRecord } from '../db/posts/postRepository';
 import { clearPostScope, postScope, seedPost } from './helpers/postFixtures';
 import { BASELINE_CLASSIFIER_VERSION } from '../services/BaselineContentClassifier';
-import { backfillPostLanguages } from '../scripts/backfillPostLanguages';
+import {
+  backfillPostLanguages,
+  EXCERPT_LENGTH,
+  LanguageChangeReport,
+  NO_LANGUAGE,
+  REPORT_SAMPLES_PER_PAIR,
+  REPORT_SAMPLED_PAIRS,
+  REPORT_TOP_PAIRS,
+} from '../scripts/backfillPostLanguages';
+import { clearAdminScriptCursor, readAdminScriptCursor } from '../scripts/lib/adminScriptCursor';
 
 const scope = postScope('backfill-post-languages');
+
+/** The real rate bound, without the real waiting. */
+const NO_WAIT = { sleep: async () => {} };
 
 /** Enough Spanish for the language detector to reach a verdict; a six-word body is not. */
 const SPANISH = 'Hola, ¿cómo estás hoy amigo? Espero que tengas un día estupendo por allí.';
@@ -80,7 +92,7 @@ describe('backfillPostLanguages', () => {
     });
     expect((await classificationOf(id))?.version).toBeNull();
 
-    await backfillPostLanguages({ batchSize: 100 });
+    await backfillPostLanguages({ batchSize: 100, pacing: NO_WAIT });
 
     const after = await classificationOf(id);
     expect(after?.languages).toContain('es');
@@ -102,7 +114,7 @@ describe('backfillPostLanguages', () => {
     expect(before?.languages).toEqual(['xx']);
     expect(before?.version).toBeNull();
 
-    await backfillPostLanguages({ batchSize: 100 });
+    await backfillPostLanguages({ batchSize: 100, pacing: NO_WAIT });
 
     const after = await classificationOf(id);
     expect(after?.languages).toContain('es');
@@ -115,7 +127,7 @@ describe('backfillPostLanguages', () => {
       postClassification: { languages: ['xx'], version: BASELINE_CLASSIFIER_VERSION - 1 },
     });
 
-    await backfillPostLanguages({ batchSize: 100 });
+    await backfillPostLanguages({ batchSize: 100, pacing: NO_WAIT });
 
     const after = await classificationOf(id);
     expect(after?.languages).not.toContain('xx');
@@ -128,7 +140,7 @@ describe('backfillPostLanguages', () => {
       postClassification: { languages: [], version: BASELINE_CLASSIFIER_VERSION },
     });
 
-    await backfillPostLanguages({ batchSize: 100 });
+    await backfillPostLanguages({ batchSize: 100, pacing: NO_WAIT });
 
     expect((await classificationOf(id))?.languages).toContain('en');
   });
@@ -145,7 +157,7 @@ describe('backfillPostLanguages', () => {
       postClassification: { languages: ['en'], version: BASELINE_CLASSIFIER_VERSION },
     });
 
-    await backfillPostLanguages({ batchSize: 100 });
+    await backfillPostLanguages({ batchSize: 100, pacing: NO_WAIT });
 
     expect((await classificationOf(untagged))?.languages).toEqual(['es']);
     expect((await loadPostRecord(untagged))?.content.variants?.[0]?.tag).toBe('es');
@@ -157,10 +169,10 @@ describe('backfillPostLanguages', () => {
       content: { variants: [{ source: 'author', text: SPANISH, tag: 'es' }] },
     });
 
-    await backfillPostLanguages({ batchSize: 100 });
+    await backfillPostLanguages({ batchSize: 100, pacing: NO_WAIT });
     const first = await classificationOf(id);
 
-    await backfillPostLanguages({ batchSize: 100 });
+    await backfillPostLanguages({ batchSize: 100, pacing: NO_WAIT });
     const second = await classificationOf(id);
 
     // `updated_at` is maintained on every `db.update()`, so an unchanged stamp is
@@ -177,7 +189,7 @@ describe('backfillPostLanguages', () => {
       postClassification: { languages: ['en'], version: BASELINE_CLASSIFIER_VERSION - 1 },
     });
 
-    await backfillPostLanguages({ batchSize: 100 });
+    await backfillPostLanguages({ batchSize: 100, pacing: NO_WAIT });
 
     const after = await classificationOf(id);
     expect(after?.languages).toEqual([]);
@@ -211,10 +223,94 @@ describe('backfillPostLanguages', () => {
       );
     }
 
-    await backfillPostLanguages({ batchSize: 1 });
+    await backfillPostLanguages({ batchSize: 1, pacing: NO_WAIT });
 
     for (const id of ids) {
       expect((await classificationOf(id))?.version).toBe(BASELINE_CLASSIFIER_VERSION);
+    }
+  });
+
+  it('reports (old → new) pairs largest first, capped, with lowest-id samples for the top pairs', () => {
+    const report = new LanguageChangeReport();
+    const longText =
+      'Avui fa un dia molt bonic i anirem a la platja amb els nens i després dinarem a casa.';
+    // More pairs than are listed; the first pair is the largest and has more
+    // rows than samples are kept. Rows arrive in ascending id order, as the
+    // scan delivers them.
+    for (let pair = 0; pair < REPORT_TOP_PAIRS + 2; pair += 1) {
+      const rows = pair === 0 ? REPORT_SAMPLES_PER_PAIR + 2 : 1;
+      for (let row = 0; row < rows; row += 1) {
+        report.add({
+          postId: `p${pair}-${row}`,
+          text: longText,
+          from: pair === 0 ? 'fr' : `x${pair}`,
+          to: pair === 0 ? 'ca' : NO_LANGUAGE,
+          retagged: pair === 0,
+        });
+      }
+    }
+
+    const pairs = report.top();
+
+    expect(pairs).toHaveLength(REPORT_TOP_PAIRS);
+    expect(pairs[0]).toMatchObject({
+      from: 'fr',
+      to: 'ca',
+      count: REPORT_SAMPLES_PER_PAIR + 2,
+      retagged: REPORT_SAMPLES_PER_PAIR + 2,
+    });
+    expect(pairs[0].samples.map((sample) => sample.postId)).toEqual(
+      Array.from({ length: REPORT_SAMPLES_PER_PAIR }, (_, row) => `p0-${row}`),
+    );
+    expect(pairs[0].samples[0].excerpt).toBe(longText.slice(0, EXCERPT_LENGTH));
+    // Only the largest pairs carry samples.
+    expect(pairs.slice(0, REPORT_SAMPLED_PAIRS).every((pair) => pair.samples.length > 0)).toBe(
+      true,
+    );
+    expect(pairs.slice(REPORT_SAMPLED_PAIRS).every((pair) => pair.samples.length === 0)).toBe(true);
+  });
+
+  it('resumes strictly after START_AFTER_ID, records its cursor, and paces every write', async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 3; i += 1) {
+      ids.push(
+        await seedUnclassified({
+          content: { variants: [{ source: 'author', text: `${ENGLISH} Number ${i}.` }] },
+        }),
+      );
+    }
+    ids.sort();
+    const cursorScope = `test-${scope.name}`;
+    const sleeps: number[] = [];
+
+    try {
+      await backfillPostLanguages({
+        batchSize: 100,
+        startAfterId: ids[0],
+        cursorScope,
+        pacing: {
+          rowsPerSecond: 10,
+          writeBatchSize: 1,
+          pauseMs: 0,
+          now: () => 0,
+          sleep: async (ms) => {
+            sleeps.push(ms);
+          },
+        },
+      });
+
+      expect((await classificationOf(ids[0]))?.version).toBeNull();
+      expect((await classificationOf(ids[1]))?.version).toBe(BASELINE_CLASSIFIER_VERSION);
+      expect((await classificationOf(ids[2]))?.version).toBe(BASELINE_CLASSIFIER_VERSION);
+      // One row per transaction at 10 rows/s: at least 100 ms after each.
+      expect(sleeps.length).toBeGreaterThanOrEqual(2);
+      for (const ms of sleeps) expect(ms).toBeGreaterThanOrEqual(100);
+
+      const stored = await readAdminScriptCursor('backfillPostLanguages', cursorScope);
+      expect(stored?.completedAt).not.toBeNull();
+      expect(stored && stored.cursor >= ids[2]).toBe(true);
+    } finally {
+      await clearAdminScriptCursor('backfillPostLanguages', cursorScope);
     }
   });
 });
