@@ -33,13 +33,14 @@ import {
   countTodaysPostEvaluationClaims,
   listShadowCandidates,
   listUnreconciledPostEvaluations,
+  markPostEvaluationRejected,
   markPostEvaluationUncertain,
   reconcilePostEvaluationUsage,
   releaseUnsentPostEvaluation,
   utcDayStart,
   type ShadowClaim,
 } from '../db/posts/postEvaluationRepository';
-import { kaanaRefusalOf } from '../utils/kaana';
+import { kaanaFailureFacts, kaanaRefusalOf } from '../utils/kaana';
 import { metrics } from '../utils/metrics';
 
 /** What became of one shadow-lane post, for `post_evaluation_total`. */
@@ -48,6 +49,7 @@ type ShadowOutcome =
   | 'superseded'
   | 'cost_uncertain'
   | 'refused'
+  | 'rejected'
   | 'exhausted'
   | 'released';
 
@@ -569,9 +571,10 @@ export class PostClassificationService {
   /**
    * The continuous Jev shadow lane: recent native public posts, newest first,
    * each claimed before it is sent, within the cycle's deadline and the daily
-   * limit. A refusal before anything ran releases its claim and ends the
-   * cycle; an exhausted allowance pauses the lane until the next UTC day; any
-   * failure that may have run is `cost_uncertain` and is never resent.
+   * limit. A refusal of the lane before anything ran releases its claim and
+   * ends the cycle; a refusal of this request before it ran is `rejected` and
+   * never resent; an exhausted allowance pauses the lane until the next UTC
+   * day; any failure that may have run is `cost_uncertain` and is never resent.
    */
   private async runShadowLane(): Promise<void> {
     const evaluation = this.shadowEvaluation;
@@ -630,18 +633,31 @@ export class PostClassificationService {
           continue;
         }
         const refusal = sent ? await kaanaRefusalOf(error) : 'refused';
+        // Codes, statuses and Kaana's request id only: never a message or the post.
+        const facts = { evaluationId: claim.id, ...(sent ? await kaanaFailureFacts(error) : {}) };
         try {
           if (refusal === undefined) {
             logger.warn(
               '[PostClassification] Shadow evaluation failed; cost uncertain, no retry',
-              error,
+              facts,
             );
             await markPostEvaluationUncertain(claim);
             this.recordShadowOutcome('cost_uncertain');
             continue;
           }
+          if (refusal === 'rejected') {
+            // This request is refused every time it is sent: keep the row so the
+            // post is never claimed again under this version.
+            logger.info(
+              '[PostClassification] Shadow evaluation rejected before it ran; not resent',
+              facts,
+            );
+            await markPostEvaluationRejected(claim);
+            this.recordShadowOutcome('rejected');
+            return;
+          }
           logger.info('[PostClassification] Shadow evaluation refused before it ran', {
-            evaluationId: claim.id,
+            ...facts,
             refusal,
           });
           await releaseUnsentPostEvaluation(claim);

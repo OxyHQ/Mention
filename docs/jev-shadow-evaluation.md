@@ -58,9 +58,17 @@ classification:
    |---|---|---|
    | Answer written | `completed` | continues |
    | Post changed meanwhile | `cancelled` | continues |
-   | Refused before anything ran (4xx such as auth or policy, `no_route_available`, `service_unavailable`) | deleted | stops for this cycle |
+   | The lane refused before anything ran (auth, permission or policy, `no_route_available`, a 503 `service_unavailable`) | deleted | stops for this cycle |
+   | This request refused before it ran (`invalid_request`, `request_too_large`, `idempotency_conflict`) | `rejected` | stops for this cycle; never resent |
    | `rate_limited`, `quota_exceeded` or a spend limit | deleted | sleeps until the next UTC midnight |
-   | Anything that may have run (5xx provider errors, timeout, dropped connection, invalid output) | `cost_uncertain` | continues; never resent |
+   | Anything that may have run (`provider_error`, any 502 or 504, timeout, dropped connection, invalid output) | `cost_uncertain` | continues; never resent |
+
+   A 502 or 504 is never a refusal, whatever its code: Kaana answers them after
+   a provider ran, and Cloudflare in front of kaana.ai replaces their body, so
+   the SDK reads a body-less `service_unavailable`. On 2026-10-18 that sent one
+   post whose answer Kaana's adapter refused (each attempt billed upstream) back
+   every cycle as "nothing was spent". Every failure is logged with its public
+   code, status and Kaana request id, never its message.
 
    The SDK client is built with `maxRetries: 0`, so Mention never resends. Kaana
    retries and fails over on the provider side before any output.
@@ -103,7 +111,7 @@ unchanged. Reconciliation never runs an evaluator and never restores an answer.
 
 `post_evaluation_total{outcome, model}` is published to CloudWatch
 (`Mention/Backend`, EMF). Its outcomes are `completed`, `superseded`,
-`cost_uncertain`, `refused`, `exhausted` and `released`. `model` is the model
+`cost_uncertain`, `refused`, `rejected`, `exhausted` and `released`. `model` is the model
 that answered, or `none`.
 
 ## Storage
