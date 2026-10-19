@@ -40,7 +40,7 @@ import {
   utcDayStart,
   type ShadowClaim,
 } from '../db/posts/postEvaluationRepository';
-import { kaanaFailureFacts, kaanaRefusalOf } from '../utils/kaana';
+import { classifyKaanaFailure, kaanaFailureFacts } from '../utils/kaana';
 import { metrics } from '../utils/metrics';
 
 /** What became of one shadow-lane post, for `post_evaluation_total`. */
@@ -632,7 +632,7 @@ export class PostClassificationService {
           logger.warn('[PostClassification] Shadow claim failed', error);
           continue;
         }
-        const refusal = sent ? await kaanaRefusalOf(error) : 'refused';
+        const refusal = sent ? (await classifyKaanaFailure(error))?.refusal : 'refused';
         // Codes, statuses and Kaana's request id only: never a message or the post.
         const facts = { evaluationId: claim.id, ...(sent ? await kaanaFailureFacts(error) : {}) };
         try {

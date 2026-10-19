@@ -1,6 +1,5 @@
 import type { DecisionRequest } from '@kaana.ai/contracts' with { 'resolution-mode': 'import' };
-import type { ShadowRelease } from './jevShadow';
-import type { ShadowTopic } from './jevSdk';
+import type { ShadowRelease, ShadowTopic } from './jevShadow';
 
 /** Same truncation used by the ordinary worker; fingerprint still covers full author content. */
 export const JEV_MAX_TEXT_LENGTH = 1000;

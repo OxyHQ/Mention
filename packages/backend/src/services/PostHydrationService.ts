@@ -3079,7 +3079,7 @@ export class PostHydrationService {
    */
   private async resolveMentionText(
     text: string,
-    postMentions: string[],
+    postMentions: readonly string[],
     mentionCache: Map<string, PostUser>,
   ): Promise<string> {
     if (postMentions.length === 0 || !text.includes('[mention:')) {
@@ -3528,12 +3528,12 @@ export class PostHydrationService {
    * declared mentions become `[@Label](handle)`.
    */
   async renderMentionPlaceholders(text: string, mentions: readonly string[]): Promise<string> {
-    return this.replaceMentionPlaceholders(text, [...mentions], new Map());
+    return this.resolveMentionText(text, mentions, new Map());
   }
 
   private async replaceMentionPlaceholders(
     text: string,
-    mentions: string[],
+    mentions: readonly string[],
     mentionCache: Map<string, PostUser>,
   ): Promise<string> {
     if (!text || !Array.isArray(mentions) || mentions.length === 0) {

@@ -46,6 +46,7 @@ import {
 } from '../services/ranking/signalContext';
 import type {
   BaselineContentClassifier,
+  BaselineSignals,
   ClassifyInput,
 } from '../services/BaselineContentClassifier';
 import type { FeedRankingService } from '../services/FeedRankingService';
@@ -252,10 +253,7 @@ export function buildClassifyInput(candidate: EvalCandidate): ClassifyInput {
  * `_discovery` so the discovery-scoped ranking signals (language-mismatch penalty,
  * local boost) apply exactly as they would for a real discovery candidate.
  */
-export function withClassification(
-  post: CandidatePost,
-  signals: Awaited<ReturnType<BaselineContentClassifier['classify']>>,
-): CandidatePost {
+export function withClassification(post: CandidatePost, signals: BaselineSignals): CandidatePost {
   const existing = post.postClassification;
   const classification: PostRecordClassification = {
     ...existing,

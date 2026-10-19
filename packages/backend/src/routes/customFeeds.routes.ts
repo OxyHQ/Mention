@@ -38,7 +38,7 @@ import { validateBody, validateObjectId, schemas } from '../middleware/validate'
 import { buildCustomFeedCreatePayload, buildCustomFeedUpdatePatch } from './customFeedWrite';
 import { buildCustomFeedDefinition } from '../mtn/feed/definitions/customFeedDefinition';
 import { loadViewerFeedContext } from '../mtn/feed/feedContext';
-import { requestLanguageCandidates, requestLanguageList } from '../utils/viewerLanguage';
+import { languageLadder, requestLanguageCandidates } from '../utils/viewerLanguage';
 import { feedEngine } from '../mtn/feed/engine/FeedEngine';
 import { resolveUserSummaries, degradedActorSummary } from '../services/PostHydrationService';
 import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
@@ -927,7 +927,7 @@ router.get('/:id/timeline', validateObjectId('id'), async (req: AuthRequest, res
       // reader's languages are resolved on the same two rungs — otherwise an
       // anonymous reader of a custom feed is the one viewer left with no language
       // signal at all.
-      requestLanguageList(requestLanguageCandidates(req)),
+      languageLadder(requestLanguageCandidates(req)),
     );
     context.privacyOxyClient = requestOxyClient;
     context.safetyRequester = safetyRequesterFor(req);

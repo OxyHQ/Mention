@@ -1,7 +1,7 @@
 /**
  * Stage-A deterministic content classifier.
  *
- * Produces the cheap, synchronous, side-effect-free signals that run on EVERY
+ * Produces the cheap, side-effect-free signals that run on EVERY
  * post (native AND federated) on the same code path at ingest:
  *   - languages: ALL detected/declared ISO 639-1 languages (primary first) —
  *     languages verified from the visible body via script evidence / ELD
@@ -23,9 +23,6 @@
  * so it is cheap and trivially unit-testable. `classify` is async only because
  * the language detector is an ESM-only package this CommonJS service loads with
  * a dynamic `import()` (once, cached); the classification itself is pure.
- *
- * The output is NOT wired into any ingest path here (P1 is foundation only);
- * wiring happens in P2.
  */
 
 import type { eld as LanguageDetector } from 'eld/extrasmall' with { 'resolution-mode': 'import' };

@@ -175,7 +175,6 @@ const JOB_ENTRY_POINTS: readonly JobEntryPoint[] = [
   { name: 'backfillMediaMetadata', call: /\bbackfillMediaMetadata\s*\(/ },
   { name: 'backfillPostLanguages', call: /\bbackfillPostLanguages\s*\(/ },
   { name: 'backfillCustomFeedDefinitions', call: /\bbackfillCustomFeedDefinitions\s*\(/ },
-  { name: 'purgeWrappedMachineTranslations', call: /\bpurgeWrappedMachineTranslations\s*\(/ },
 ];
 
 /** Every `*.test.ts` under `src/__tests__/`, as paths relative to the package root. */

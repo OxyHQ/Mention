@@ -2,16 +2,10 @@
  * The guard between a translation model and anything Mention stores or serves.
  *
  * Translation is routed across many models, and a prompt instruction is a
- * request, not a guarantee. Two failures reached production that the prompt
- * alone did not prevent:
- *
- *  - the model echoed the `<text>` wrapper the prompt put around the source, and
- *    the wrapper was cached as part of the translation;
- *  - entities a reader can follow — mentions, handles, hashtags, cashtags,
- *    URLs — were only protected by "preserve mentions and hashtags", which a
- *    model is free to translate, respell or drop.
- *
- * So both are enforced here, in code:
+ * request, not a guarantee: a model may echo the `<text>` wrapper the prompt
+ * puts around the source, and may translate, respell or drop the entities a
+ * reader can follow (mentions, handles, hashtags, cashtags, URLs). Both are
+ * enforced here, in code:
  *
  *  1. {@link protectEntities} replaces every entity the post renderer
  *     linkifies with an opaque sentinel (`⟦0⟧`, `⟦1⟧`, …) before the text is

@@ -442,13 +442,6 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       'Its filter is `isNull(custom_feeds.definition_mode)` — every unmigrated feed in the ' +
       'table — and it stamps a definition onto each. The suite calls it with no arguments.',
   },
-  {
-    path: 'src/__tests__/scripts/purgeWrappedMachineTranslations.test.ts',
-    jobEntryPoint: 'purgeWrappedMachineTranslations',
-    reason:
-      'Selects every machine variant in `post_content_variants` whose body carries the `<text>` ' +
-      'wrapper, across all posts, and DELETES them. The suite calls it with no scope.',
-  },
 ];
 
 /**

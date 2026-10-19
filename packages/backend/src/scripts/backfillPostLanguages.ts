@@ -57,10 +57,10 @@ import {
   declaredBaseLanguages,
   resolveVariant,
 } from '../services/postVariants';
+import { getRemoteHost } from '../connectors/shared/url';
 import { connectPostgres } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { findPostRecords, replacePostContent, updatePostRecord } from '../db/posts/postRepository';
-import type { PostRecord } from '../db/posts/postRecord';
 import {
   baselineContentClassifier,
   BASELINE_CLASSIFIER_VERSION,
@@ -97,17 +97,6 @@ const primaryTagDisagrees = sql`exists (
     and v.tag is not null
     and split_part(lower(v.tag), '-', 1) is distinct from "posts"."classification_languages"[1]
 )`;
-
-/** The federated author's instance host — the classifier's region/bot input. */
-function instanceDomainOf(post: PostRecord): string | undefined {
-  const actorUri = post.federation?.actorUri;
-  if (!actorUri) return undefined;
-  try {
-    return new URL(actorUri).hostname;
-  } catch {
-    return undefined;
-  }
-}
 
 const sameList = (a: readonly string[] | undefined, b: readonly string[]): boolean =>
   (a ?? []).length === b.length && b.every((value, index) => a?.[index] === value);
@@ -177,7 +166,10 @@ export async function backfillPostLanguages(
           languages: declaredBaseLanguages(post.content),
           sensitive: post.federation?.sensitive ?? post.metadata.isSensitive,
           isFederated: post.federation != null,
-          instanceDomain: instanceDomainOf(post),
+          // The author's instance host, read exactly as ingest reads it.
+          instanceDomain: post.federation?.actorUri
+            ? getRemoteHost(post.federation.actorUri)
+            : undefined,
         });
         const primaryLanguage = signals.languages[0];
         const restamp = classification?.version !== BASELINE_CLASSIFIER_VERSION;

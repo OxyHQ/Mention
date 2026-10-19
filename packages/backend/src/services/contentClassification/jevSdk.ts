@@ -6,15 +6,8 @@ import {
   validateShadowRelease,
   type ShadowEvaluation,
   type ShadowRelease,
+  type ShadowTopic,
 } from './jevShadow';
-
-/** Reviewed topic propositions are versioned with the release; never inferred labels. */
-export interface ShadowTopic {
-  readonly topic: string;
-  readonly question: string;
-}
-
-export { FEED_SCORE_LEVELS } from './jevRequest';
 
 /** The part of the Kaana client Jev uses; the receipt read is optional. */
 export interface JevKaanaClient {

@@ -1,7 +1,7 @@
 import { canAuthenticateAsService } from '../../runtime/serviceIdentity';
 import { kaanaClient } from '../../utils/kaana';
-import { createJevShadowEvaluation, type JevKaanaClient, type ShadowTopic } from './jevSdk';
-import type { ShadowEvaluation, ShadowRelease } from './jevShadow';
+import { createJevShadowEvaluation, type JevKaanaClient } from './jevSdk';
+import type { ShadowEvaluation, ShadowRelease, ShadowTopic } from './jevShadow';
 
 /**
  * The continuous Jev shadow lane (docs/jev-shadow-evaluation.md).

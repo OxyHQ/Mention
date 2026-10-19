@@ -31,7 +31,7 @@ import {
   loadViewerLanguages,
   resolveViewerBaseLanguages,
 } from '../feed/feedContext';
-import { requestLanguageCandidates, requestLanguageList } from '../../utils/viewerLanguage';
+import { languageLadder, requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { mergeFederatedFollowIds } from '../../services/viewerFollowGraph';
 import { resolveDiscoveryGateBucket } from '../feed/discoveryGateExperiment';
 import { FeedGeneratorFeed } from '../feed/feeds/FeedGeneratorFeed';
@@ -382,7 +382,7 @@ class MtnFeedController {
       // synchronously — the anon cache key is built before the context load and
       // has to name the languages the page was actually built for.
       const requestLanguages = requestLanguageCandidates(req);
-      const requestLanguageTags = requestLanguageList(requestLanguages);
+      const requestLanguageTags = languageLadder(requestLanguages);
 
       // Anonymous feeds are shared across logged-out viewers (no per-user
       // following/blocked/muted/seen state — see loadViewerFeedContext), so the
@@ -691,7 +691,7 @@ class MtnFeedController {
 
       // `?lang=` then `Accept-Language`. Synchronous; the account rung below wins
       // when it has anything.
-      const requestLanguages = requestLanguageList(requestLanguageCandidates(req));
+      const requestLanguages = languageLadder(requestLanguageCandidates(req));
 
       let followingIds: string[] = [];
       let subscribedListMemberIds: string[] = [];
