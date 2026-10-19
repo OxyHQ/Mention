@@ -25,10 +25,10 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@alia.onl/sdk": "^21.3.1",
+    "@alia.onl/sdk": "^21.5.0",
     "@clarity.surf/sdk": "^0.4.0",
     "@crowdsource.you/contracts": "1.1.0",
-    "@crowdsource.you/core": "3.0.2",
+    "@crowdsource.you/core": "3.0.3",
     "@kaana.ai/contracts": "7.0.0",
     "@kaana.ai/sdk": "3.2.0",
     "@mention/shared-types": "workspace:*",

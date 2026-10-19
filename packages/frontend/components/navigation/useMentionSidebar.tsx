@@ -244,8 +244,6 @@ export function useMentionSidebar(): SidebarProps {
     footer: ({ collapsed }) => (
       <ProfileButton
         expanded={!collapsed}
-        // No `onNavigateManage`: "Manage your Oxy account" falls through to the
-        // SDK's own ManageAccount screen, not Mention's settings sheet.
         menuItems={accountMenuItems}
         onNavigateProfile={handleNavigateProfile}
         onAddAccount={handleAddAccount}
