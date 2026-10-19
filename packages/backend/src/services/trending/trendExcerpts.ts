@@ -8,8 +8,8 @@
  * fail-soft rule, rather than two implementations that could drift.
  */
 
-import { and, desc, eq, sql } from 'drizzle-orm';
-import { PostVisibility } from '@mention/shared-types';
+import { and, desc, eq, gte, sql } from 'drizzle-orm';
+import { MtnConfig, PostVisibility } from '@mention/shared-types';
 import { getDb } from '../../db/postgres';
 import { postContentVariants } from '../../db/schema/postContent';
 import { posts } from '../../db/schema/posts';
@@ -54,8 +54,16 @@ const TREND_EXCERPTS_PER_TERM = 12;
  * evaluates this efficiently — the `LIMIT` sits ABOVE the join, so the
  * rendition is fetched for the twelve surviving posts and no others — and that
  * plan is what any batching has to preserve.
+ *
+ * BOUNDED BY THE DETECTION WINDOW (`since`). The evidence names a story that
+ * the window's posts made trend, so posts older than it are not evidence for it;
+ * and without the bound a term common in the archive but rare this week ("twitter")
+ * walked `posts` newest-first through years of non-matching rows to find twelve:
+ * 14,028 buffers and 3.1 s for one term, 20.6k buffers and ~5 s for the seven
+ * terms of one batch, against ~800 buffers a term inside the window
+ * (EXPLAIN ANALYZE, production, 2026-10-19).
  */
-export function termExcerptBranch(term: string) {
+export function termExcerptBranch(term: string, since: Date) {
   return getDb()
     .select({ body: postContentVariants.body, createdAt: posts.createdAt })
     .from(posts)
@@ -67,6 +75,7 @@ export function termExcerptBranch(term: string) {
       and(
         notCollapsedCrosspostSql(),
         trendTermMatchSql(term),
+        gte(posts.createdAt, since),
         eq(posts.status, 'published'),
         eq(posts.visibility, PostVisibility.PUBLIC),
         sensitiveExcludeSql(),
@@ -113,19 +122,23 @@ export function termExcerptBranch(term: string) {
  * its entry instead of vanishing from the result and silently becoming a
  * missing key at the call site.
  */
-export async function loadExcerptsByTerm(terms: readonly string[]): Promise<Map<string, string[]>> {
+export async function loadExcerptsByTerm(
+  terms: readonly string[],
+  now: Date = new Date(),
+): Promise<Map<string, string[]>> {
   const byTerm = new Map<string, string[]>(terms.map((term) => [term, []]));
   if (byTerm.size === 0) return byTerm;
 
   // Deduped, because two identical branches would do the work twice for one
   // answer. `ranked` groups by term so this is defensive, not corrective.
   const unique = [...byTerm.keys()];
+  const since = new Date(now.getTime() - MtnConfig.trending.detection.windowMs);
 
   try {
     const branches = unique.map(
       (term, ord) => sql`
       select ${term}::text as term, ${ord}::int as ord, branch.body, branch.created_at
-      from (${termExcerptBranch(term)}) as branch
+      from (${termExcerptBranch(term, since)}) as branch
     `,
     );
 
