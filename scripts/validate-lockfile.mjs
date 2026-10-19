@@ -131,6 +131,17 @@ const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
     'stickers 0.2.0 imports only schemas and types contracts 5.0.0 still exports; single contracts copy for the same reason as @oxy.so/mcp.',
   '@oxy.so/homiio-sdk -> @oxy.so/homiio-contracts@0.1.1':
     'homiio-sdk 0.1.3 was published with the stale exact pin; its source in OxyHQ/Homiio already depends on homiio-contracts 0.2.0, whose dist is byte-identical to 0.1.1 (the release only added repository metadata).',
+  // expo-share-intent 8.0.1 is the latest release and still names SDK 57. Without
+  // these overrides bun nests a second expo 57 (and its autolinking) under it,
+  // which is a duplicate native module, not a compatibility fallback.
+  'expo-share-intent -> expo@^57':
+    'A peer range only: the package imports nothing from `expo` itself, and the app has exactly one Expo, the SDK 58 one its native modules are built against.',
+  'expo-share-intent -> expo-constants@~57.0.3':
+    'It reads only `Constants.expoConfig` (its own plugin options), which SDK 58 keeps unchanged.',
+  'expo-share-intent -> expo-linking@~57.0.1':
+    'It only subscribes to incoming URLs through expo-linking; SDK 58 keeps that API, and on iOS it reads the share URL from the JS side, so the scene life cycle does not route around it.',
+  'expo-share-intent -> @expo/config-plugins@~57.0.2':
+    'Used only by its config plugin (Info.plist, entitlements, the share-extension Xcode target, Android intent filters); `expo prebuild --clean` for iOS and Android runs it on 58.0.9 without errors.',
 };
 
 /**

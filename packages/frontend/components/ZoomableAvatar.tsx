@@ -5,11 +5,11 @@ import {
   Pressable,
   StyleSheet,
   View,
-  type ImageSourcePropType,
   type StyleProp,
   type ViewStyle,
+  type ViewInstance,
 } from 'react-native';
-import { Image, type ImageStyle } from 'expo-image';
+import { Image, type ImageSource, type ImageStyle } from 'expo-image';
 import Animated, {
   Extrapolation,
   interpolate,
@@ -29,7 +29,8 @@ import { useImageUrl } from '@/hooks/useImageUrl';
 import { MEDIA_VARIANT_FULL, MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 
 interface ZoomableAvatarProps {
-  source?: ImageSourcePropType | string | undefined | null;
+  /** An Oxy file id, an absolute URL, or an expo-image source (a bundled asset). */
+  source?: ImageSource | number | string | undefined | null;
   size?: number;
   style?: StyleProp<ViewStyle>;
   imageStyle?: StyleProp<ImageStyle>;
@@ -78,7 +79,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
     setErroredSource(source);
     setErrored(false);
   }
-  const wrapperRef = useRef<View>(null);
+  const wrapperRef = useRef<ViewInstance>(null);
   const galleryRef = useRef<ZoomableMediaGalleryHandle>(null);
 
   // An absolute http(s) `source` is a FINAL, server-resolved URL. A non-http

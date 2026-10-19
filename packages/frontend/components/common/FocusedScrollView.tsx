@@ -6,6 +6,7 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   type ScrollViewProps,
+  type ScrollViewInstance,
 } from 'react-native';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { useFocusedScrollable } from '@/hooks/useFocusedScrollable';
@@ -25,7 +26,7 @@ import { useFocusedScrollable } from '@/hooks/useFocusedScrollable';
  */
 function NativeFocusedScrollView({ onScroll, ...props }: ScrollViewProps) {
   const { handleScroll, scrollEventThrottle } = useLayoutScroll();
-  const ref = useFocusedScrollable<ScrollView>({ initialOffset: 0 });
+  const ref = useFocusedScrollable<ScrollViewInstance>({ initialOffset: 0 });
   const handleOwnScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       handleScroll(event);

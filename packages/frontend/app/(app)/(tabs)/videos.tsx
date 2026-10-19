@@ -286,7 +286,7 @@ interface VideoPost extends HydratedPost {
 }
 
 interface ViewableItem {
-  index: number | null;
+  index: number | null | undefined;
   isViewable: boolean;
 }
 
@@ -2257,7 +2257,7 @@ const TEXT_SHADOW_HANDLE: Pick<
   textShadowRadius: 4,
 };
 
-interface VideosStyles {
+type VideosStyles = {
   list: ViewStyle;
   listContent: ViewStyle;
   videoContainer: ViewStyle;
@@ -2297,7 +2297,7 @@ interface VideosStyles {
   soundRow: ViewStyle;
   soundIcon: TextStyle;
   soundText: TextStyle;
-}
+};
 
 const styles = StyleSheet.create<VideosStyles>({
   list: {

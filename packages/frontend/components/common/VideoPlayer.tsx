@@ -8,6 +8,7 @@ import {
   type StyleProp,
   type ViewStyle,
   type GestureResponderEvent,
+  type ViewInstance,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useVideoPlayer, type VideoPlayer as ExpoVideoPlayer } from 'expo-video';
@@ -118,9 +119,12 @@ type FlightVideoSlotProps = Parameters<NonNullable<MediaFlightHostProps['renderV
  * this needs no `as any`. Two callers need it: the visibility observer, and the
  * position the authority reads when it elects.
  */
-function resolveDomElement(ref: View | null): Element | null {
-  const candidate = ref as (View & { _nativeNode?: Element; getNode?: () => Element }) | null;
-  const node: Element | View | null = candidate?._nativeNode ?? candidate?.getNode?.() ?? candidate;
+function resolveDomElement(ref: ViewInstance | null): Element | null {
+  const candidate = ref as
+    | (ViewInstance & { _nativeNode?: Element; getNode?: () => Element })
+    | null;
+  const node: Element | ViewInstance | null =
+    candidate?._nativeNode ?? candidate?.getNode?.() ?? candidate;
   return node && (node as Partial<Element>).nodeType !== undefined ? (node as Element) : null;
 }
 
@@ -272,10 +276,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const videoViewRef = useRef<VideoViewHandle>(null);
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seekSettleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const progressBarRef = useRef<View>(null);
+  const progressBarRef = useRef<ViewInstance>(null);
   // Root container — observed by an IntersectionObserver on web to report this
   // player's viewport center-Y AND whether it still intersects the viewport.
-  const containerRef = useRef<View>(null);
+  const containerRef = useRef<ViewInstance>(null);
 
   // Federated video is an HLS playlist, which Chrome and Firefox cannot decode.
   // On web such a source is handed to hls.js, which attaches a MediaSource to

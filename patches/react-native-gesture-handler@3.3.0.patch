@@ -1,0 +1,54 @@
+diff --git a/lib/module/handlers/gestures/reanimatedWrapper.js b/lib/module/handlers/gestures/reanimatedWrapper.js
+index 96c5e37bf2da7643589850922dd71ae5ecd39458..dbcd771109214c204905158d5260878786c5acdf 100644
+--- a/lib/module/handlers/gestures/reanimatedWrapper.js
++++ b/lib/module/handlers/gestures/reanimatedWrapper.js
+@@ -1,8 +1,12 @@
+ "use strict";
+ 
+-import { tagMessage } from '../../utils';
+ import { installUIRuntimeBindings } from './installUIRuntimeBindings';
+-let Reanimated;
++// Mention patch: the Reanimated members Gesture Handler reads, imported by
++// name. The upstream `require('react-native-reanimated')` (Reanimated as an
++// optional peer) hands the bundler the whole module, so Metro's tree shaking
++// keeps every Reanimated export in the web startup chunk. Worklets keeps its
++// upstream optional require. See patches/README.md.
++import Animated, { isSharedValue, NativeEventsManager, setGestureState, useComposedEventHandler, useEvent, useHandler, useSharedValue } from 'react-native-reanimated';
+ let Worklets;
+ try {
+   // eslint-disable-next-line @typescript-eslint/no-var-requires
+@@ -11,24 +15,18 @@ try {
+   // When 'react-native-worklets' is not available we want to quietly continue
+   Worklets = undefined;
+ }
+-try {
+-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+-  Reanimated = require('react-native-reanimated');
+-} catch (e) {
+-  // When 'react-native-reanimated' is not available we want to quietly continue
+-  // @ts-ignore TS demands the variable to be initialized
+-  Reanimated = undefined;
+-}
++const Reanimated = {
++  default: Animated,
++  isSharedValue,
++  NativeEventsManager,
++  setGestureState,
++  useComposedEventHandler,
++  useEvent,
++  useHandler,
++  useSharedValue
++};
+ if (Worklets !== undefined) {
+   installUIRuntimeBindings(Worklets.getUIRuntimeHolder);
+ }
+-if (Reanimated !== undefined && !Reanimated.setGestureState) {
+-  // The loaded module is Reanimated but it doesn't have the setGestureState defined
+-  Reanimated.setGestureState = () => {
+-    'worklet';
+-
+-    console.warn(tagMessage('Please use newer version of react-native-reanimated in order to control state of the gestures.'));
+-  };
+-}
+ export { Reanimated, Worklets };
+ //# sourceMappingURL=reanimatedWrapper.js.map

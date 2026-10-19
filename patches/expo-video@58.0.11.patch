@@ -1,9 +1,10 @@
 diff --git a/build/VideoPlayer.web.js b/build/VideoPlayer.web.js
-index 46dfa8353eab9ab89ca0ff591b0235114185bc33..8fc417ebad239a175b8ff34d14d18bb6bf053146 100644
+index de8d39050cecbc7519ac46c99029ecc3d355a412..999b1708b35a34f49c20edfa975cefdcee42dd10 100644
 --- a/build/VideoPlayer.web.js
 +++ b/build/VideoPlayer.web.js
-@@ -1,5 +1,14 @@
- import { useMemo } from 'react';
+@@ -1,6 +1,15 @@
+ import { useReleasingSharedObjectWithLifecycle } from 'expo-modules-core';
+ import { useState } from 'react';
  import resolveAssetSource from './resolveAssetSource';
 +// Removing, pausing, or replacing media can cancel a pending browser play.
 +// Consume only that expected cancellation; unexpected failures stay observable.
@@ -14,48 +15,48 @@ index 46dfa8353eab9ab89ca0ff591b0235114185bc33..8fc417ebad239a175b8ff34d14d18bb6
 +  });
 +}
 +
- export function useVideoPlayer(source, setup) {
-     const parsedSource = typeof source === 'string' ? { uri: source } : source;
-     return useMemo(() => {
-@@ -228,7 +237,7 @@ export default class VideoPlayerWeb extends globalThis.expo.SharedObject {
+ export function useVideoPlayer(source, setup, _playerBuilderOptions) {
+     const parsedSource = typeof source === 'string' ? {
+         uri: source
+@@ -259,7 +268,7 @@ export default class VideoPlayerWeb extends globalThis.expo.SharedObject {
      }
      play() {
-         this._mountedVideos.forEach((video) => {
+         this._mountedVideos.forEach((video)=>{
 -            video.play();
 +            playVideo(video);
          });
      }
      pause() {
-@@ -243,7 +252,7 @@ export default class VideoPlayerWeb extends globalThis.expo.SharedObject {
+@@ -274,7 +283,7 @@ export default class VideoPlayerWeb extends globalThis.expo.SharedObject {
              if (uri) {
                  video.setAttribute('src', uri);
                  video.load();
 -                video.play();
 +                playVideo(video);
-             }
-             else {
+             } else {
                  video.removeAttribute('src');
-@@ -268,7 +277,7 @@ export default class VideoPlayerWeb extends globalThis.expo.SharedObject {
+                 video.load();
+@@ -298,7 +307,7 @@ export default class VideoPlayerWeb extends globalThis.expo.SharedObject {
      replay() {
-         this._mountedVideos.forEach((video) => {
+         this._mountedVideos.forEach((video)=>{
              video.currentTime = 0;
 -            video.play();
 +            playVideo(video);
          });
          this.playing = true;
      }
-@@ -283,7 +292,7 @@ export default class VideoPlayerWeb extends globalThis.expo.SharedObject {
+@@ -313,7 +322,7 @@ export default class VideoPlayerWeb extends globalThis.expo.SharedObject {
+         if (firstVideo.paused) {
              video.pause();
-         }
-         else {
+         } else {
 -            video.play();
 +            playVideo(video);
          }
          video.currentTime = firstVideo.currentTime;
          video.volume = firstVideo.volume;
-@@ -309,7 +318,7 @@ export default class VideoPlayerWeb extends globalThis.expo.SharedObject {
+@@ -340,7 +349,7 @@ export default class VideoPlayerWeb extends globalThis.expo.SharedObject {
              this.playing = true;
-             this._mountedVideos.forEach((mountedVideo) => {
+             this._mountedVideos.forEach((mountedVideo)=>{
                  if (e.target !== mountedVideo) {
 -                    mountedVideo.play();
 +                    playVideo(mountedVideo);
@@ -63,10 +64,10 @@ index 46dfa8353eab9ab89ca0ff591b0235114185bc33..8fc417ebad239a175b8ff34d14d18bb6
              });
          };
 diff --git a/src/VideoPlayer.web.tsx b/src/VideoPlayer.web.tsx
-index 5cfdf596c5e0d4f3ecfbf96074d732e25e18b23c..6299720a81ab2f7b9f125b0c45b6d96ff322c2cd 100644
+index 6b5083eaf6505d376112acd6ee0995fa7b856f88..4327b2b1eed538c7f7cc5ce351c5fa7dbdc56c8d 100644
 --- a/src/VideoPlayer.web.tsx
 +++ b/src/VideoPlayer.web.tsx
-@@ -17,6 +17,15 @@ import type { VideoPlayerEvents } from './VideoPlayerEvents.types';
+@@ -20,6 +20,15 @@ import type { VideoPlayerEvents } from './VideoPlayerEvents.types';
  import type { VideoThumbnail } from './VideoThumbnail';
  import resolveAssetSource from './resolveAssetSource';
  
@@ -81,8 +82,8 @@ index 5cfdf596c5e0d4f3ecfbf96074d732e25e18b23c..6299720a81ab2f7b9f125b0c45b6d96f
 +
  export function useVideoPlayer(
    source: VideoSource,
-   setup?: (player: VideoPlayer) => void
-@@ -290,7 +299,7 @@ export default class VideoPlayerWeb
+   setup?: (player: VideoPlayer) => void,
+@@ -311,7 +320,7 @@ export default class VideoPlayerWeb
  
    play(): void {
      this._mountedVideos.forEach((video) => {
@@ -91,7 +92,7 @@ index 5cfdf596c5e0d4f3ecfbf96074d732e25e18b23c..6299720a81ab2f7b9f125b0c45b6d96f
      });
    }
  
-@@ -307,7 +316,7 @@ export default class VideoPlayerWeb
+@@ -328,7 +337,7 @@ export default class VideoPlayerWeb
        if (uri) {
          video.setAttribute('src', uri);
          video.load();
@@ -100,7 +101,7 @@ index 5cfdf596c5e0d4f3ecfbf96074d732e25e18b23c..6299720a81ab2f7b9f125b0c45b6d96f
        } else {
          video.removeAttribute('src');
          video.load();
-@@ -334,7 +343,7 @@ export default class VideoPlayerWeb
+@@ -355,7 +364,7 @@ export default class VideoPlayerWeb
    replay(): void {
      this._mountedVideos.forEach((video) => {
        video.currentTime = 0;
@@ -109,7 +110,7 @@ index 5cfdf596c5e0d4f3ecfbf96074d732e25e18b23c..6299720a81ab2f7b9f125b0c45b6d96f
      });
      this.playing = true;
    }
-@@ -350,7 +359,7 @@ export default class VideoPlayerWeb
+@@ -371,7 +380,7 @@ export default class VideoPlayerWeb
      if (firstVideo.paused) {
        video.pause();
      } else {
@@ -118,7 +119,7 @@ index 5cfdf596c5e0d4f3ecfbf96074d732e25e18b23c..6299720a81ab2f7b9f125b0c45b6d96f
      }
      video.currentTime = firstVideo.currentTime;
      video.volume = firstVideo.volume;
-@@ -382,7 +391,7 @@ export default class VideoPlayerWeb
+@@ -403,7 +412,7 @@ export default class VideoPlayerWeb
        this.playing = true;
        this._mountedVideos.forEach((mountedVideo) => {
          if (e.target !== mountedVideo) {

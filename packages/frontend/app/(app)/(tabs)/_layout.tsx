@@ -71,6 +71,23 @@ function NativeTabsLayout() {
   });
 
   /**
+   * Give every page its route up front.
+   *
+   * Expo Router 58's tab router creates a route the first time its tab is
+   * visited; 57 created all of them with the navigator. `TabsPager` renders each
+   * page from its route, so a page nobody had visited yet would stay blank under
+   * the finger until a swipe onto it committed. `preload` adds the route without
+   * focusing it or touching the back history, which is the state 57 started in.
+   */
+  useEffect(() => {
+    for (const page of PAGES) {
+      if (!state.routes.some((route) => route.name === page.name)) {
+        navigation.preload(page.name);
+      }
+    }
+  }, [navigation, state.routes]);
+
+  /**
    * Switch tab without a route push.
    *
    * `navigation.navigate(name)` is the tab router's own move, so it neither
@@ -101,12 +118,13 @@ function NativeTabsLayout() {
       const from = PAGES[fromPageIndex];
       const to = PAGES[toPageIndex];
       if (!from || !to) return;
-      navigation.dispatch((current) => {
-        const next = stateLeavingTab(current, from.name, to.name);
-        return next
+      const current = navigation.getState();
+      const next = stateLeavingTab(current, from.name, to.name);
+      navigation.dispatch(
+        next
           ? { type: 'RESET', payload: next, target: current.key }
-          : { type: 'NAVIGATE', payload: { name: to.name }, target: current.key };
-      });
+          : { type: 'NAVIGATE', payload: { name: to.name }, target: current.key },
+      );
     },
     [navigation],
   );
@@ -132,7 +150,9 @@ function NativeTabsLayout() {
    * half statically; this catches a trigger the router dropped at runtime.
    */
   if (__DEV__) {
-    const missing = PAGES.filter((page) => !state.routes.some((route) => route.name === page.name));
+    // `routeNames`, not `routes`: a route exists only once it is visited or
+    // preloaded (above), while the names are what the navigator was built with.
+    const missing = PAGES.filter((page) => !state.routeNames.includes(page.name));
     if (missing.length > 0) {
       console.warn(
         `[tabs] the navigator built no route for ${missing.map((page) => `"${page.name}"`).join(', ')}. ` +

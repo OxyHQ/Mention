@@ -233,7 +233,14 @@
     "An entry that is not currently excusing a real decrease fails, so this list",
     "cannot become a standing permission slip."
   ],
-  "allowedBaselineDecreases": [],
+  "allowedBaselineDecreases": [
+    {
+      "path": "hooks/useReelChrome.ts",
+      "metric": "functions",
+      "date": "2026-10-19",
+      "reason": "Instrumentation, not tests or code: under Expo SDK 58 (react-native-worklets 0.13's Babel plugin) Istanbul no longer maps the `heartStyle` useAnimatedStyle worklet at line 670 as its own function. Its calls are now counted on the `progressStyle` worklet's entry, so the file reports 24/43 functions instead of 25/44 with the same tests, the same 15 calls and unchanged statements, branches and lines."
+    }
+  ],
   "globalDriftAllowancePoints": 0.75,
   "minimumFilesInReport": 500,
   "minimumTestFiles": 140,
@@ -247,7 +254,7 @@
     "unenforceable": 5,
     "belowBarExemptions": 8,
     "criticalPaths": 36,
-    "allowedBaselineDecreases": 0,
+    "allowedBaselineDecreases": 1,
     "snapshotAssertions": 0
   }
 }

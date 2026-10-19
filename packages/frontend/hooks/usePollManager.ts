@@ -1,11 +1,11 @@
 import { useState, useCallback, useRef } from 'react';
-import type { TextInput } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 
 export const usePollManager = () => {
   const [showPollCreator, setShowPollCreator] = useState(false);
   const [pollTitle, setPollTitle] = useState('');
   const [pollOptions, setPollOptions] = useState<string[]>([]);
-  const pollTitleInputRef = useRef<TextInput | null>(null);
+  const pollTitleInputRef = useRef<TextInputInstance | null>(null);
 
   const focusPollCreator = useCallback(() => {
     setShowPollCreator(true);

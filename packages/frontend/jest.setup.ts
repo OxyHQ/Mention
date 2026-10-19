@@ -3,6 +3,22 @@
 // so the re-export is the same singleton its internals arm.
 import { timeoutManager } from '@tanstack/react-query';
 import { configureAppLogging } from '@/lib/logging';
+import { AssetRegistry } from 'react-native';
+
+/**
+ * Resolve stubbed assets the way jest-expo intends.
+ *
+ * jest-expo compiles every asset `require()` to the id `1` and mocks
+ * `react-native/asset-registry` to describe any id. React Native 0.88's
+ * `AssetRegistry` export — the one expo-asset reads — is a separate module the
+ * mock never reaches, so `Asset.fromModule(1)` threw "Module 1 is missing from the
+ * asset registry" from every `@expo/vector-icons` font load, as an unhandled
+ * rejection that took the whole run down.
+ */
+const stubbedAssetRegistry = jest.requireMock<{
+  getAssetByID: typeof AssetRegistry.getAssetByID;
+}>('react-native/asset-registry');
+AssetRegistry.getAssetByID = (assetId) => stubbedAssetRegistry.getAssetByID(assetId);
 
 // The SDK logger defaults to `debug` whenever `__DEV__` is true, which jest-expo
 // sets. Install the app's own transport policy instead so a test run shows the

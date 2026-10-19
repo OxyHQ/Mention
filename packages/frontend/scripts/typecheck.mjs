@@ -47,6 +47,13 @@ const ALLOWED_EXTERNAL = [
   `../../node_modules/@syra.fm/sdk/src/live/hooks/useActiveSpeakers.ts(2,27): error TS2305: Module '"livekit-client"' has no exported member 'Participant'.`,
   `../../node_modules/@syra.fm/sdk/src/live/hooks/useRoomAudio.ts(3,34): error TS2305: Module '"livekit-client"' has no exported member 'ConnectionState'.`,
   `../../node_modules/@syra.fm/sdk/src/live/hooks/useRoomAudio.ts(49,27): error TS2554: Expected 0 arguments, but got 1.`,
+  // React Native 0.88 (Expo SDK 58) types a list's header/footer/empty slot as
+  // `Element | ComponentType | undefined`, and @syra.fm/sdk's source still passes
+  // `null` there. Type-only: VirtualizedList renders nothing for either value.
+  // Owned by the Syra SDK; drop these once it ships `undefined`.
+  `../../node_modules/@syra.fm/sdk/src/live/components/PodcastStreamPicker.tsx(614,13): error TS2322: Type 'Element | null' is not assignable to type 'Element | ComponentType<any> | undefined'.`,
+  `../../node_modules/@syra.fm/sdk/src/live/components/PodcastStreamPicker.tsx(751,11): error TS2322: Type 'Element | null' is not assignable to type 'Element | ComponentType<any> | undefined'.`,
+  `../../node_modules/@syra.fm/sdk/src/live/components/PodcastStreamPicker.tsx(1096,11): error TS2322: Type 'Element | null' is not assignable to type 'Element | ComponentType<any> | undefined'.`,
 ];
 
 const result = spawnSync(resolveTscBin(), ['--noEmit'], {
@@ -71,7 +78,7 @@ if (unexpected.length > 0) {
 const allowedSeen = errorLines.length - unexpected.length;
 if (allowedSeen > 0) {
   console.log(
-    `Frontend type-check passed (${allowedSeen} allow-listed external livekit-client error(s) ignored).`,
+    `Frontend type-check passed (${allowedSeen} allow-listed external @syra.fm/sdk error(s) ignored).`,
   );
 } else {
   console.log('Frontend type-check passed with 0 errors.');

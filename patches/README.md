@@ -1,4 +1,4 @@
-# Expo Router 57.0.23
+# Expo Router 58.0.23
 
 The experimental stack currently ignores `contentStyle` and hardcodes a white
 scene. Mention's Bloom AppShell owns the central surface, including its scoped
@@ -9,21 +9,25 @@ paints every screen with the panel's own fill, so no screen shows the one under
 it through itself.
 The npm package ships the compiled implementation, not its TypeScript source.
 Remove this hunk when upstream supports transparent scene styling. Both hunks
-are still needed in 57.0.23 (it keeps `backgroundColor: 'white'` and renders
-`Stack.HeaderConfig` unconditionally); the patch was re-made unchanged against
-it. This does not claim physical-device validation: verify Android rendering
+are still needed in 58.0.23 (it keeps `backgroundColor: 'white'` and renders
+`StackV5.HeaderConfig` unconditionally); the patch was re-made against it. The
+two 57.0.23 hunks for pending deep-link state (`useOnGetState`,
+`findMatchingState` in `fork/useLinking`) are gone: SDK 58 replaced that
+navigation core and neither function exists any more. The cold deep-link
+browser gate (`packages/e2e/tests/deep-link-boot.spec.ts`) still covers the
+behaviour. This does not claim physical-device validation: verify Android rendering
 after installation.
 
-# expo-video 57.0.5
+# expo-video 58.0.11
 
 The web player calls `video.play()` and drops the returned promise. Removing,
 pausing or replacing media cancels a pending play, and the browser rejects it
 with an `AbortError` that surfaces as an unhandled rejection. The patch routes
 every call through `playVideo()`, which consumes only that expected
-cancellation and rethrows anything else. Still present in 57.0.5; re-made
-unchanged against it. Remove when upstream handles the `play()` promise.
+cancellation and rethrows anything else. Still present in 58.0.11 (all five
+calls); re-made against it. Remove when upstream handles the `play()` promise.
 
-# react-native-screens 4.26.2
+# react-native-screens 4.30.0
 
 The experimental ("gamma") stack host lays its native `StackContainer` out with
 the host's own bounds in its PARENT (`container.layout(l, t, r, b)`), where a
@@ -34,21 +38,9 @@ header, inside the gutter), so on Android every screen started 110 dp lower and
 8 dp further right than the panel — a blank band under the header and a double
 frame. The patch lays the container out at `(0, 0, width, height)`. Measured on
 a Pixel 8a release build: the container moves from (42, 578) to the panel's own
-(21, 289). Still present in 4.28.0 and the 4.29 nightly; remove when upstream
+(21, 289). Still present in 4.30.0 (Expo Router 58's `ExperimentalStack` still
+renders this host); remove when upstream
 fixes `StackHost.onLayout` / `layoutContainerNow`.
-
-# react-native-reanimated 4.5.1
-
-On React Native 0.86+, Reanimated applies synchronous prop updates by calling
-RN's internal `MountingManager.updatePropsSynchronously` through reflection. RN's
-public path (`FabricUIManager.synchronouslyUpdateViewOnUIThread`) first checks
-`getViewExists(tag)`; the reflective call skips that check, so every animation
-frame that still targets a view the stack just unmounted throws
-`RetryableMountingLayerException` and logs it with a ~150-frame stack. Measured
-on a Pixel 8a release build: 45–116 warnings per screen pop, 3,079 in 45 minutes
-(#1126). The patch restores RN's check and is byte-for-byte upstream PR
-software-mansion/react-native-reanimated#10435 (issues #10280, #10434). Still
-present in 4.7.0; remove it with the first release that includes that PR.
 
 # @oxy.so/bloom 6.2.0
 
@@ -93,7 +85,7 @@ In Mention only the profile passes a non-zero offset: `useHeaderDockInset()` is
 2.2.0, and still in 2.3.2. Remove the patch when FlashList separates the sticky
 offset from a content inset.
 
-# react-native-gesture-handler 2.32.0
+# react-native-gesture-handler 3.3.0
 
 Gesture Handler reaches Reanimated through `reanimatedWrapper.js`, which loads it
 with `require('react-native-reanimated')` inside a `try` (Reanimated is an
@@ -104,9 +96,11 @@ Flip, Bounce, Rotate, Lightspeed, Roll, Stretch, Pinwheel, …), the screen
 transitions and the rest, none of which Mention or Bloom uses, in the startup
 `__common` chunk of every page load.
 
-The patch imports by name the four members Gesture Handler reads
-(`useSharedValue`, `useEvent`, `setGestureState` and the default export's
-`createAnimatedComponent`). Mention always installs Reanimated, so the
+The patch imports by name the members Gesture Handler reads (3.3.0's v3 API
+reads more of them than 2.32 did: `isSharedValue`, `NativeEventsManager`,
+`setGestureState`, `useComposedEventHandler`, `useEvent`, `useHandler`,
+`useSharedValue` and the default export's `createAnimatedComponent`).
+Worklets keeps its upstream optional `require`. Mention always installs Reanimated, so the
 optional-peer fallback has nothing to fall back from. Only `lib/module` is
 patched: it is what the web export resolves, and native bundles are not tree
 shaken. Measured on one `expo export --platform web` of the same commit:
@@ -114,5 +108,5 @@ shaken. Measured on one `expo export --platform web` of the same commit:
 `react-native-reanimated` in `__common` 722 → 500 KiB (layout animations
 241 → 101 KiB; what stays is Reanimated's own web layout-animation runtime,
 which every animated component imports, and the Fade and Slide presets Bloom
-and the app use). Still `require()` in 2.33.0 and 3.3.0; remove the patch when
-upstream imports Reanimated statically.
+and the app use). Still `require()` in 3.3.0; remove the patch when upstream
+imports Reanimated statically.

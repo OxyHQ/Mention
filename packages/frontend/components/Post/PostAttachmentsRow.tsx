@@ -9,6 +9,8 @@ import {
   Platform,
   View,
   type ViewStyle,
+  type ScrollViewInstance,
+  type ViewInstance,
 } from 'react-native';
 import { oxyServices } from '@/lib/oxyServices';
 import type {
@@ -757,7 +759,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
     // Registry of thumbnail host nodes keyed by the images-only subset index — the
     // SAME index space the gallery opens/pages/indicator/close use. Populated via
     // callback refs from each image thumbnail (set on mount, cleared on unmount).
-    const thumbHostsRef = useRef<Map<number, View>>(new Map());
+    const thumbHostsRef = useRef<Map<number, ViewInstance>>(new Map());
 
     // Stable per-index callback refs: the same index always returns the same
     // function identity so the host ref is not detached/reattached every render.
@@ -767,7 +769,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
       const cache = registerCallbacksRef.current;
       const existing = cache.get(index);
       if (existing) return existing;
-      const callback: RegisterThumbHost = (node: View | null) => {
+      const callback: RegisterThumbHost = (node: ViewInstance | null) => {
         if (node) {
           thumbHostsRef.current.set(index, node);
         } else {
@@ -829,7 +831,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
 
     const startX = useRef<number | null>(null);
     const startY = useRef<number | null>(null);
-    const scrollViewRef = useRef<ScrollView | null>(null);
+    const scrollViewRef = useRef<ScrollViewInstance | null>(null);
 
     const onTouchStart = (e: GestureResponderEvent) => {
       const t = e.nativeEvent.touches && e.nativeEvent.touches[0];
