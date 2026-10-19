@@ -39,6 +39,10 @@ updates:
       time: "06:00"
       timezone: "Europe/Madrid"
     open-pull-requests-limit: 5
+    # Each rebase reruns the full CI, and Dependabot rebased every open PR on
+    # each merge to main, mostly red PRs nothing had changed in (the org shares
+    # 20 Actions jobs). Comment `@dependabot rebase` on one ready to land.
+    rebase-strategy: disabled
     versioning-strategy: increase
     labels:
       - "dependencies"
