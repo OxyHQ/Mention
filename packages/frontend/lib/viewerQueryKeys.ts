@@ -329,8 +329,6 @@ export const viewerQueryKeys = {
     [...viewerQueryKeys.all(viewerId), 'connections-mutuals', profileId ?? ''] as const,
   customFeedsRoot: (viewerId: ViewerId) =>
     [...viewerQueryKeys.all(viewerId), 'custom-feeds'] as const,
-  customFeedTitles: (viewerId: ViewerId) =>
-    [...viewerQueryKeys.customFeedsRoot(viewerId), 'titles'] as const,
   customFeed: (viewerId: ViewerId, feedId: string) =>
     [...viewerQueryKeys.customFeedsRoot(viewerId), 'detail', feedId] as const,
   customFeedMarketplace: (viewerId: ViewerId, filters: Readonly<Record<string, unknown>>) =>
