@@ -103,10 +103,24 @@ export interface KaanaFailure {
   readonly refusal?: 'exhausted' | 'refused' | 'rejected';
 }
 
+/**
+ * The SDK's own refusals, raised before it sends anything: a request that does
+ * not satisfy `@kaana.ai/contracts` (`invalid_request`) and an empty credential
+ * (`authentication_failed`). They are the only errors with neither a status nor
+ * a request id: everything Kaana answers carries its request id (the SDK
+ * refuses a response without one), and a caller's abort (`cancelled`) can land
+ * after the send.
+ */
+const UNSENT_REFUSALS: ReadonlyMap<string, KaanaFailure['refusal']> = new Map([
+  ['invalid_request', 'rejected'],
+  ['authentication_failed', 'refused'],
+]);
+
 function refusalOf(error: InstanceType<KaanaSdk['KaanaError']>): KaanaFailure['refusal'] {
-  if (error.status === null || error.afterOutput || AFTER_DISPATCH_STATUSES.has(error.status)) {
-    return undefined;
+  if (error.status === null) {
+    return error.requestId === null ? UNSENT_REFUSALS.get(error.code) : undefined;
   }
+  if (error.afterOutput || AFTER_DISPATCH_STATUSES.has(error.status)) return undefined;
   if (EXHAUSTED_CODES.has(error.code)) return 'exhausted';
   if (REJECTED_CODES.has(error.code)) return 'rejected';
   return REFUSED_CODES.has(error.code) ? 'refused' : undefined;

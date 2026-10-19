@@ -647,14 +647,15 @@ export class PostClassificationService {
           }
           if (refusal === 'rejected') {
             // This request is refused every time it is sent: keep the row so the
-            // post is never claimed again under this version.
+            // post is never claimed again under this version. It says nothing
+            // about the next post, so the lane moves on.
             logger.info(
               '[PostClassification] Shadow evaluation rejected before it ran; not resent',
               facts,
             );
             await markPostEvaluationRejected(claim);
             this.recordShadowOutcome('rejected');
-            return;
+            continue;
           }
           logger.info('[PostClassification] Shadow evaluation refused before it ran', {
             ...facts,

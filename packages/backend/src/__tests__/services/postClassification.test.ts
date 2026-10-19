@@ -1601,7 +1601,6 @@ describe('PostClassificationService — Jev shadow lane', () => {
     expect(await ledgerOf(post.id)).toEqual([
       expect.objectContaining({
         state: 'completed',
-        model: null,
         resolvedModel: answering,
         policyRef: 'decisions-profile',
         policyVersion: 3,
@@ -1666,17 +1665,44 @@ describe('PostClassificationService — Jev shadow lane', () => {
     },
   );
 
-  it('keeps a request Kaana refused on its own merits and never sends it again', async () => {
-    const post = await englishSubject('Refused on its own merits');
+  it('keeps a request Kaana refused on its own merits, never resends it, and moves on to the next post', async () => {
+    const refused = await englishSubject('Refused on its own merits');
+    const next = await englishSubject('The next candidate');
+    candidates(refused.id, next.id);
+    respondWith([]);
+    await padBatch(1);
+    const evaluate = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new KaanaInvalidRequestError({
+          code: 'invalid_request',
+          message: 'The request cannot be served as asked.',
+          status: 400,
+          requestId: 'kaana-request',
+          retryable: false,
+        }),
+      )
+      .mockResolvedValueOnce(signals);
+    const worker = new PostClassificationService({ release, evaluate });
+    await worker.processQueue();
+    expect(await ledgerOf(refused.id)).toEqual([expect.objectContaining({ state: 'rejected' })]);
+    expect(await ledgerOf(next.id)).toEqual([expect.objectContaining({ state: 'completed' })]);
+    await worker.processQueue();
+    expect(evaluate).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects a request the SDK refused before sending it, instead of calling its cost uncertain', async () => {
+    const post = await englishSubject('Refused before any send');
     candidates(post.id);
     respondWith([]);
     await padBatch(1);
     const evaluate = vi.fn(async () => {
+      // The SDK's own contract check: no status, no Kaana request id.
       throw new KaanaInvalidRequestError({
         code: 'invalid_request',
-        message: 'The request cannot be served as asked.',
-        status: 400,
-        requestId: 'kaana-request',
+        message: 'The request does not satisfy the contract.',
+        status: null,
+        requestId: null,
         retryable: false,
       });
     });

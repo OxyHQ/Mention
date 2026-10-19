@@ -60,8 +60,8 @@ classification:
    |---|---|---|
    | Answer written | `completed` | continues |
    | Post changed meanwhile | `cancelled` | continues |
-   | The lane refused before anything ran (auth, permission or policy, `no_route_available`, a 503 `service_unavailable`) | deleted | stops for this cycle |
-   | This request refused before it ran (`invalid_request`, `request_too_large`, `idempotency_conflict`) | `rejected` | stops for this cycle; never resent |
+   | The lane refused before anything ran (auth, permission or policy, `no_route_available`, a 503 `service_unavailable`, the SDK finding the credential empty) | deleted | stops for this cycle |
+   | This request refused before it ran (`invalid_request`, `request_too_large`, `idempotency_conflict`, or the SDK's own contract check before sending) | `rejected` | continues; never resent |
    | `rate_limited`, `quota_exceeded` or a spend limit | deleted | sleeps until the next UTC midnight |
    | Anything that may have run (`provider_error`, any 502 or 504, timeout, dropped connection, invalid output) | `cost_uncertain` | continues; never resent |
 
@@ -69,7 +69,9 @@ classification:
    a provider ran, and Cloudflare in front of kaana.ai replaces their body, so
    the SDK reads a body-less `service_unavailable` for a call that may have run.
    Every failure is logged with its public code, status and Kaana request id,
-   never its message. The classification is `classifyKaanaFailure` in
+   never its message. The SDK's own refusals, raised before it sends anything,
+   are the only failures with neither a status nor a Kaana request id; they
+   are provably unsent. The classification is `classifyKaanaFailure` in
    `utils/kaana.ts`, the same one the translate endpoint maps onto HTTP.
 
    The SDK client is built with `maxRetries: 0`, so Mention never resends. Kaana
@@ -120,7 +122,7 @@ the model that answered, or `none`.
 
 - `0058_jev_shadow_ledger` created `post_evaluations` and
   `post_evaluation_topics`.
-- `0060` added the deadline, the reconciliation column and the historical
+- `0060` added the deadline, the reconciliation column and
   `receipt_authority`.
 - `0080_post_evaluations_profile`:
   - adds `resolved_model`;
@@ -129,4 +131,6 @@ the model that answered, or `none`.
   - moves the unique key to `(post_id, fingerprint, evaluation_version)`;
   - indexes `created_at` for the daily count.
 - `0081_post_evaluations_rejected` adds the terminal `rejected` state.
+- `0082_post_evaluations_drop_unused` drops `model` (a request names no model)
+  and `receipt_authority` (the one-post approval lineage).
 - Post deletion cascades to both tables.
