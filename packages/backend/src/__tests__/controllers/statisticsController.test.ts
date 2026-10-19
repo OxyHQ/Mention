@@ -167,7 +167,7 @@ async function seedPost(options: SeedPostOptions = {}): Promise<string> {
       ...(options.boostOf === undefined ? {} : { boostOf: options.boostOf }),
       ...(options.quoteOf === undefined ? {} : { quoteOf: options.quoteOf }),
     })
-    .returning({ id: posts.id });
+    .returning({ id: posts.id, createdAt: posts.createdAt });
   createdPostIds.push(post.id);
 
   if (options.owner) {
@@ -176,6 +176,9 @@ async function seedPost(options: SeedPostOptions = {}): Promise<string> {
       oxyUserId: options.owner,
       role: 'owner',
       status: 'accepted',
+      // The live writers copy the post's timestamp here (`insertChildRows`), and
+      // the statistics window is read off this copy.
+      postCreatedAt: post.createdAt,
     });
   }
   if (options.body !== undefined) {

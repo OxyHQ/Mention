@@ -96,6 +96,32 @@ function requestedStatsDays(value: unknown): number {
  * `set_config(..., true)` is the parameterisable spelling of `SET LOCAL`; `SET`
  * itself takes no bind parameters.
  */
+/**
+ * The posts `userId` owns, created inside `[start, end]` — joined from
+ * `post_authorships` to `posts`.
+ *
+ * The window is read off the AUTHORSHIP row's copy of the timestamp, with the
+ * owner's `accepted` status, so `post_authorships_author_chrono_idx` (author,
+ * status, created) answers the whole range and `posts` is probed only for the
+ * rows inside it — the shape `fetchAuthored` uses. Filtering `posts.created_at`
+ * instead walked every post the author ever made and probed `posts` for each:
+ * 957 ms and 2,903 probes for a prolific account in production, past the 3 s
+ * statement timeout for larger ones, against 24 ms and 746 probes this way. The
+ * copy equals `posts.created_at` by construction (`authorshipChronoSync.test.ts`).
+ *
+ * `post_authorships_one_owner_per_post` keeps the join from fanning a post out
+ * into two rows.
+ */
+function ownedPostsCreatedBetween(userId: string, start: Date, end: Date): SQL | undefined {
+  return and(
+    eq(postAuthorships.oxyUserId, userId),
+    eq(postAuthorships.status, 'accepted'),
+    eq(postAuthorships.role, 'owner'),
+    gte(postAuthorships.postCreatedAt, start),
+    lte(postAuthorships.postCreatedAt, end),
+  );
+}
+
 async function withStatisticsTimeout<T>(run: (tx: Transaction) => Promise<T>): Promise<T> {
   return getDb().transaction(async (tx) => {
     await tx.execute(
@@ -188,16 +214,7 @@ async function queryUserStatistics(userId: string, days: number): Promise<UserSt
 
   const { startDate, endDate } = getDateRange(days);
 
-  // The `$match`: `authorship: { $elemMatch: { oxyUserId, role: 'owner' } }`
-  // became a join, and `post_authorships_one_owner_per_post` guarantees it
-  // cannot fan a post out into two rows the way a naive join on a multi-valued
-  // relation would.
-  const ownedInWindow = and(
-    eq(postAuthorships.oxyUserId, userId),
-    eq(postAuthorships.role, 'owner'),
-    gte(posts.createdAt, startDate),
-    lte(posts.createdAt, endDate),
-  );
+  const ownedInWindow = ownedPostsCreatedBetween(userId, startDate, endDate);
 
   // `likes + replies + boosts + shares`, the `$add` both the daily and the
   // top-post branches computed. Integer arithmetic on integer columns, so it
@@ -901,14 +918,7 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
         })
         .from(posts)
         .innerJoin(postAuthorships, eq(postAuthorships.postId, posts.id))
-        .where(
-          and(
-            eq(postAuthorships.oxyUserId, userId),
-            eq(postAuthorships.role, 'owner'),
-            gte(posts.createdAt, startDate),
-            lte(posts.createdAt, now),
-          ),
-        ),
+        .where(ownedPostsCreatedBetween(userId, startDate, now)),
     );
 
     // Split into current week (last 7 days) and previous week (days 8-14)
