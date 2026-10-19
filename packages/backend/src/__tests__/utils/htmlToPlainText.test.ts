@@ -111,10 +111,10 @@ describe('htmlToPlainText — mention anchors degrade to their handle', () => {
     expect(text).not.toContain('mastodon.online/@');
   });
 
-  it('keeps the handle of a NESTED (Mastodon) mention anchor — unchanged behavior', () => {
+  it('qualifies the handle of a NESTED (Mastodon) mention anchor with its profile host', () => {
     const html =
       '<p><span class="h-card" translate="no"><a href="https://mastodon.social/@indigoparadox" class="u-url mention">@<span>indigoparadox</span></a></span> No, none of that.</p>';
-    expect(htmlToPlainText(html)).toBe('@indigoparadox No, none of that.');
+    expect(htmlToPlainText(html)).toBe('@indigoparadox@mastodon.social No, none of that.');
   });
 
   it('reads the h-card wrapper when the anchor itself carries no mention class', () => {
@@ -122,7 +122,7 @@ describe('htmlToPlainText — mention anchors degrade to their handle', () => {
     // which means nothing on its own — the ENCLOSING h-card is what identifies it.
     const html =
       '<p>hey <span class="h-card"><a href="https://gts.example/@bob" class="u-url" rel="nofollow noreferrer noopener" target="_blank">@<span>bob</span></a></span></p>';
-    expect(htmlToPlainText(html)).toBe('hey @bob');
+    expect(htmlToPlainText(html)).toBe('hey @bob@gts.example');
   });
 
   it('keeps the #tag of a hashtag anchor marked by its CLASS', () => {

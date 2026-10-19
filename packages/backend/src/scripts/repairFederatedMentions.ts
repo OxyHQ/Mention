@@ -228,6 +228,7 @@ import { runWithTimeout, signedFetch } from '../connectors/activitypub/helpers';
 import { AP_CONTENT_TYPE } from '../connectors/activitypub/constants';
 import { DEFAULT_CONCURRENCY, MAX_CONCURRENCY, mapWithConcurrency } from '../utils/concurrency';
 import { repairVariantText } from './lib/variantTextRepair';
+import { LOCAL_HANDLE_SOURCE } from '../utils/federation/htmlToPlainText';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import {
@@ -265,9 +266,6 @@ const DEFAULT_FAILURE_SAMPLE_SIZE = 20;
 /** HTTP statuses that mean the remote object is permanently gone. */
 const GONE_STATUS_CODES = new Set([404, 410]);
 
-/** A handle's `@user` part: a username character, then username characters or `-`. */
-const HANDLE_SOURCE = '@[A-Za-z0-9_][A-Za-z0-9_-]*';
-
 /**
  * A handle with no `@domain` — the residue every pre-fix damage shape leaves in
  * a stored body: the bare `@user` a stripped Mastodon anchor degrades to, the
@@ -278,7 +276,7 @@ const HANDLE_SOURCE = '@[A-Za-z0-9_][A-Za-z0-9_-]*';
  * POSIX-compatible, because Postgres runs the same source.
  */
 const UNQUALIFIED_MENTION_TEXT_REGEX = new RegExp(
-  `(^|[^A-Za-z0-9_./-])${HANDLE_SOURCE}($|[^A-Za-z0-9_@-])|/${HANDLE_SOURCE}($|[^A-Za-z0-9_@)-])`,
+  `(^|[^A-Za-z0-9_./-])${LOCAL_HANDLE_SOURCE}($|[^A-Za-z0-9_@-])|/${LOCAL_HANDLE_SOURCE}($|[^A-Za-z0-9_@)-])`,
 );
 
 /** Per-post repair outcome. */

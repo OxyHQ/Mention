@@ -40,6 +40,16 @@ const HCARD_OPEN_TAG_REGEX = /<span\b[^>]*\bclass="[^"]*\bh-card\b[^"]*"[^>]*>\s
  */
 const HCARD_LOOKBEHIND_CHARS = 256;
 
+/**
+ * A handle's `@user` part: a username character, then username characters or `-`.
+ * The ingest qualifies exactly this shape and the mention backfill scans for it,
+ * so both share it. POSIX-compatible, because Postgres runs it too.
+ */
+export const LOCAL_HANDLE_SOURCE = '@[A-Za-z0-9_][A-Za-z0-9_-]*';
+
+/** A mention label that is a bare `@user`, with no `@domain`. */
+const LOCAL_HANDLE_LABEL_REGEX = new RegExp(`^${LOCAL_HANDLE_SOURCE}$`);
+
 /** An anchor's visible text: inner markup stripped, surrounding space trimmed. */
 function anchorVisibleText(inner: string): string {
   return sanitizeHtml(inner, { allowedTags: [], allowedAttributes: {} }).trim();
@@ -102,7 +112,7 @@ function collapseAnchors(html: string, preserveMentionLinks: boolean): string {
         // Mastodon writes a same-instance mention as the bare `@user`. Read here
         // that is a LOCAL handle naming someone else, so it takes the host of the
         // profile it links to: `@user@instance`.
-        const handle = url && /^@[^@\s]+$/.test(label) ? `${visible}@${url.hostname}` : visible;
+        const handle = url && LOCAL_HANDLE_LABEL_REGEX.test(label) ? `${visible}@${url.hostname}` : visible;
         if (preserveMentionLinks && label.startsWith('@') && !/[[\]\r\n]/.test(label) && url) {
           const target = url.href.replace(/\(/g, '%28').replace(/\)/g, '%29');
           return `[@${handle}](${target})`;
