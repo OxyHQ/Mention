@@ -5,7 +5,6 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { useBloomTheme } from '@oxy.so/bloom/theme';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { usePostsStore } from '@/stores/postsStore';
-import { usePrivacyStore } from '@/stores/privacyStore';
 import { useEntityFollowStore } from '@/stores/entityFollowStore';
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
@@ -30,7 +29,6 @@ const mockQueryClientClear = jest.fn();
 const mockResetAppearance = jest.fn();
 const mockResetTheme = jest.fn();
 const mockResetPosts = jest.fn();
-const mockResetPrivacy = jest.fn();
 const mockResetEntityFollows = jest.fn();
 const mockResetExternalEmbeds = jest.fn();
 const mockResetLiveRooms = jest.fn();
@@ -69,12 +67,6 @@ jest.mock('@/stores/appearanceStore', () => ({
 
 jest.mock('@/stores/postsStore', () => ({
   usePostsStore: {
-    getState: jest.fn(),
-  },
-}));
-
-jest.mock('@/stores/privacyStore', () => ({
-  usePrivacyStore: {
     getState: jest.fn(),
   },
 }));
@@ -154,7 +146,6 @@ const mockUseAuth = useAuth as jest.Mock;
 const mockUseBloomTheme = useBloomTheme as jest.Mock;
 const mockUseAppearanceStore = useAppearanceStore as unknown as jest.Mock;
 const mockGetPostsState = usePostsStore.getState as jest.Mock;
-const mockGetPrivacyState = usePrivacyStore.getState as jest.Mock;
 const mockGetEntityFollowState = useEntityFollowStore.getState as jest.Mock;
 const mockGetExternalEmbedsState = useExternalEmbedsStore.getState as jest.Mock;
 const mockGetLiveRoomsState = useLiveRoomsStore.getState as jest.Mock;
@@ -224,7 +215,6 @@ describe('AccountSwitchReset identity boundary', () => {
         selector({ resetViewerState: mockResetAppearance }),
     );
     mockGetPostsState.mockReturnValue({ resetViewerState: mockResetPosts });
-    mockGetPrivacyState.mockReturnValue({ reset: mockResetPrivacy });
     mockGetEntityFollowState.mockReturnValue({
       reset: mockResetEntityFollows,
     });
@@ -262,7 +252,6 @@ describe('AccountSwitchReset identity boundary', () => {
     expect(mockResetPosts).toHaveBeenCalledWith({
       clearCachedData: false,
     });
-    expect(mockResetPrivacy).toHaveBeenCalledTimes(1);
     expect(mockResetEntityFollows).toHaveBeenCalledTimes(1);
     expect(mockResetExternalEmbeds).toHaveBeenCalledWith('viewer-a');
     expect(mockResetLiveRooms).toHaveBeenCalledTimes(1);

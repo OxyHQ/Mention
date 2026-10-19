@@ -3,7 +3,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { queryClient } from '@/lib/queryClient';
 import { refreshPrivacyLists } from '@/services/privacyService';
 import { searchService } from '@/services/searchService';
-import { usePrivacyStore } from '@/stores/privacyStore';
+import { setPrivacyListMembership } from '@/hooks/usePrivacyControls';
 import { Button } from '@oxy.so/bloom/button';
 import { RiAddCircleLine } from '@oxy.so/bloom/icons/RiAddCircleLine';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
@@ -50,11 +50,6 @@ export default function BlockedUsersScreen() {
     isPrivateApiPending,
   } = useAuth();
 
-  // Authoritative cross-app sync: keep the shared privacy store in lockstep so
-  // `usePrivacyControls().isBlocked` (which gates interactions everywhere)
-  // reflects a block/unblock immediately, without waiting for the store's
-  // interval refresh or a possibly-cached `privacy.blocked` refetch.
-  const setStoreBlocked = usePrivacyStore((state) => state.setBlocked);
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -196,7 +191,9 @@ export default function BlockedUsersScreen() {
       // expires. Best-effort: the write to Oxy has already landed.
       await refreshPrivacyLists();
 
-      setStoreBlocked(userId, true);
+      // The feeds filter on the viewer's held block list; record it now
+      // rather than when that list goes stale.
+      setPrivacyListMembership(currentUser?.id, 'blocked', userId, true);
 
       await loadBlockedUsers();
 
@@ -229,7 +226,7 @@ export default function BlockedUsersScreen() {
 
         await refreshPrivacyLists();
 
-        setStoreBlocked(userId, false);
+        setPrivacyListMembership(currentUser?.id, 'blocked', userId, false);
 
         await loadBlockedUsers();
 

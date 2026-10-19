@@ -14,12 +14,16 @@ import { type FeedProps, FeedErrorBoundary, areFeedPropsEqual, useFeedCore } fro
 
 // Estimated row height (px) before a row is measured. Post rows vary widely
 // (text-only vs. media vs. threads), so this is only the first-paint guess;
-// `measureElement` replaces it with the real height once each row mounts.
-const ESTIMATED_ROW_HEIGHT = 140;
+// `measureElement` replaces it with the real height once each row mounts. Near
+// a typical post with media rather than a one-line text post: an estimate far
+// below the real heights mounts two or three times the rows the first paint
+// can show.
+const ESTIMATED_ROW_HEIGHT = 400;
 
 // Small overscan keeps the mounted-row count bounded (~viewport + a handful) so
 // the DOM never holds the whole feed — the whole point of virtualizing on web.
-const OVERSCAN_ROWS = 8;
+// Rows are tall, so three on each side is already a screen or more.
+const OVERSCAN_ROWS = 3;
 
 // The load-more sentinel is observed `rootMargin` before it actually enters the
 // viewport, so the next page is requested ahead of the reader reaching the end.

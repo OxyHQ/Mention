@@ -368,6 +368,8 @@ export interface UserNameProps {
    * real `<a href>` on web.
    */
   href?: Href | null;
+  /** Runs when the {@link href} link is pressed, before it navigates. */
+  onPress?: () => void;
   /**
    * The name is the page's title: a heading to assistive technology, and the
    * document's `<h1>` on web. Only the profile's own header sets it — a feed

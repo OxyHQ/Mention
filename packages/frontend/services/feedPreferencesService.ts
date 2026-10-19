@@ -1,10 +1,15 @@
 import { authenticatedClient } from '@/utils/api';
-import type { SavedFeed } from '@mention/shared-types';
+import type { FeedPreferences, SavedFeed } from '@mention/shared-types';
 import { logger } from '@oxy.so/core/logger';
 import { normalizeApiError } from '@/utils/apiError';
 
-interface FeedPreferencesResponse {
-  savedFeeds: SavedFeed[];
+/**
+ * `GET /feed/preferences`: the layout, plus the title of every pinned custom
+ * feed the viewer may still read, keyed by feed id — what the home tab bar
+ * labels them with. A pinned feed missing from it was deleted or made private.
+ */
+export interface FeedPreferencesResponse extends FeedPreferences {
+  customFeedTitles?: Record<string, string>;
 }
 
 /**
@@ -32,10 +37,13 @@ async function run<T>(operation: string, request: () => Promise<T>): Promise<T> 
  * a signed-in caller always receives the full catalog.
  */
 class FeedPreferencesService {
-  async get(): Promise<SavedFeed[]> {
+  async get(): Promise<FeedPreferencesResponse> {
     return run('get', async () => {
       const res = await authenticatedClient.get<FeedPreferencesResponse>('/feed/preferences');
-      return res.data.savedFeeds ?? [];
+      return {
+        savedFeeds: res.data.savedFeeds ?? [],
+        customFeedTitles: res.data.customFeedTitles ?? {},
+      };
     });
   }
 

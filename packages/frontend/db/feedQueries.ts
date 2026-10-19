@@ -122,22 +122,27 @@ export function setFeedItems(feedKey: string, posts: FeedItem[], meta: FeedMetaD
 /**
  * Append items to an existing feed (pagination).
  * Writes posts FIRST, then feed_items.
+ *
+ * Returns the posts that joined the feed, in feed order (a post the feed already
+ * held is not appended twice), so a reader holding the feed can extend it
+ * without reading the whole feed back; `null` when that is not known (the write
+ * failed), and the feed has to be read again.
  */
 export function appendFeedItems(
   feedKey: string,
   posts: FeedItem[],
   meta: Partial<FeedMetaData>,
-): void {
-  if (!feedKey || !posts || posts.length === 0) return;
+): FeedItem[] | null {
+  if (!feedKey || !posts || posts.length === 0) return [];
 
   if (!isDbAvailable()) {
     notifyPostsStored(posts);
-    memAppendFeedItems(feedKey, posts, meta);
-    return;
+    return memAppendFeedItems(feedKey, posts, meta);
   }
 
   const db = getDb();
-  if (!db) return;
+  if (!db) return null;
+  const appended: FeedItem[] = [];
 
   // Step 1: Upsert posts BEFORE feed_items (FK constraint on post_id)
   try {
@@ -174,6 +179,7 @@ export function appendFeedItems(
       // Only advance position if the insert actually happened
       if (result.changes > 0) {
         position++;
+        appended.push(post);
       }
     }
 
@@ -201,9 +207,11 @@ export function appendFeedItems(
     }
 
     db.execSync('COMMIT');
+    return appended;
   } catch (error) {
     db.execSync('ROLLBACK');
     logger.error(`Failed to append feed items for ${feedKey}`, error);
+    return null;
   }
 }
 

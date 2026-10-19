@@ -56,7 +56,12 @@ jest.mock('react-native-reanimated', () => {
   };
 });
 
-const mockScrollPosition = { value: 0 };
+const mockScrollPosition = {
+  value: 0,
+  set(next: number) {
+    this.value = next;
+  },
+};
 const mockSetFeedScrollOffset = jest.fn();
 
 jest.mock('@/context/LayoutScrollContext', () => ({

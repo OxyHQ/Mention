@@ -7,7 +7,6 @@ import { useAppLanguage } from '@/hooks/useAppLanguage';
 import { useBloomTheme } from '@oxy.so/bloom/theme';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { usePostsStore } from '@/stores/postsStore';
-import { usePrivacyStore } from '@/stores/privacyStore';
 import { useEntityFollowStore } from '@/stores/entityFollowStore';
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
@@ -126,7 +125,6 @@ export function AccountSwitchReset({
       // including legacy keys that predate the viewer-key factory.
       queryClient.clear();
       usePostsStore.getState().resetViewerState({ clearCachedData });
-      usePrivacyStore.getState().reset();
       useEntityFollowStore.getState().reset();
       useExternalEmbedsStore.getState().resetViewerState(previousViewerId ?? undefined);
       useLiveRoomsStore.getState().resetViewerState();

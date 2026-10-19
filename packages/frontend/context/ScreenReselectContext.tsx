@@ -124,6 +124,21 @@ export function useReselectReloadKey(handler: ReselectHandler = {}): number {
 }
 
 /**
+ * {@link useReselectReloadKey} for a screen that keeps several inner tabs'
+ * feeds mounted: a reselect moves only the `active` tab's key, so a retained
+ * tab does not reload behind the reader or again when it is shown.
+ */
+export function useReselectReloadKeys(active: string): (tab: string) => number {
+  const [reloadKeys, setReloadKeys] = useState<Readonly<Record<string, number>>>({});
+  useScreenReselect({
+    refresh: () => {
+      setReloadKeys((keys) => ({ ...keys, [active]: (keys[active] ?? 0) + 1 }));
+    },
+  });
+  return useCallback((tab: string) => reloadKeys[tab] ?? 0, [reloadKeys]);
+}
+
+/**
  * An inner tab strip's press handler: the tab already selected is reselected,
  * any other one is selected with `select`.
  */

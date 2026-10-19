@@ -1,6 +1,6 @@
 import { getDb, resetDb } from '../database';
 import { memClearAll } from '../memoryStore';
-import { claimViewerCache } from '../cacheLifecycle';
+import { claimViewerCache, readPersistedViewerOwner } from '../cacheLifecycle';
 
 let mockOwner: string | null = null;
 let mockFailTransactions = false;
@@ -131,5 +131,18 @@ describe('viewer-owned cache lifecycle', () => {
       'mention.viewer-cache-owner.v1',
       'viewer-b',
     );
+    expect(readPersistedViewerOwner()).toBe('viewer-b');
+  });
+
+  it('reads the persisted owner without claiming it', () => {
+    expect(readPersistedViewerOwner()).toBe('viewer-a');
+    expect(mockDb.runSync).not.toHaveBeenCalled();
+
+    mockOwner = null;
+    expect(readPersistedViewerOwner()).toBeNull();
+    mockGetDb.mockImplementation(() => {
+      throw new Error('sqlite unavailable');
+    });
+    expect(readPersistedViewerOwner()).toBeNull();
   });
 });
