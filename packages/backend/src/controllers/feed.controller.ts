@@ -996,7 +996,17 @@ class FeedController {
       // (root … cN) — Bluesky behavior — not just the root's direct children. An
       // unknown parent id simply reads as no row, so spine expansion is skipped and
       // the single-parent query stands.
-      const parent = await loadPostRecord(parentId);
+      //
+      // The parent (through the record cache every detail read shares), the
+      // viewer's relations and their exclusion list are independent reads, so
+      // they run together; the relations are then threaded into hydration so it
+      // does not resolve them a second time.
+      const requestOxyClient = createScopedOxyClient(req);
+      const [parent, viewerRelations, blockedAndMutedIds] = await Promise.all([
+        getOrLoadPostRecord(parentId, () => loadPostRecord(parentId)),
+        resolveViewerPrivacyAndGraph(currentUserId, requestOxyClient),
+        this.getBlockedAndMutedUserIds(currentUserId, requestOxyClient),
+      ]);
       const isSelfThreadRoot = parent?.threadId === parent?.id;
 
       // The OP's own continuations are rendered as the connected spine on the client,
@@ -1054,16 +1064,7 @@ class FeedController {
 
       const hasMore = page.length > limit;
       const slicedPosts = hasMore ? page.slice(0, limit) : page;
-      const requestOxyClient = createScopedOxyClient(req);
-
-      let filteredPosts = slicedPosts;
-      if (currentUserId) {
-        const blockedAndMutedIds = await this.getBlockedAndMutedUserIds(
-          currentUserId,
-          requestOxyClient,
-        );
-        filteredPosts = this.filterBlockedAndMutedPosts(slicedPosts, blockedAndMutedIds);
-      }
+      const filteredPosts = this.filterBlockedAndMutedPosts(slicedPosts, blockedAndMutedIds);
 
       // Hydrate replies at maxDepth 1 so quoted/embedded context (e.g. a reply
       // that is also a quote, or a boosted reply) renders, matching peer
@@ -1075,6 +1076,8 @@ class FeedController {
         oxyClient: requestOxyClient,
         maxDepth: 1,
         includeLinkMetadata: true,
+        viewerPrivacy: viewerRelations?.viewerPrivacy,
+        viewerGraph: viewerRelations?.viewerGraph,
       });
       const items = hydratedReplies.filter((post) => post?.id && post.user?.id);
       const anchor = hasMore ? slicedPosts[slicedPosts.length - 1] : undefined;
