@@ -248,6 +248,14 @@ const environmentSchema = z
     REDIS_PORT: integerFromEnv(6_379, { minimum: 1, maximum: 65_535 }),
     REDIS_DB: integerFromEnv(0, { maximum: 1_024 }),
     REDIS_PASSWORD: optionalString(),
+    /**
+     * Where BullMQ keeps its jobs, when that is not the cache. The cache Redis
+     * evicts keys carrying a TTL under memory pressure (`volatile-lru`), and
+     * BullMQ's job locks carry one: an evicted lock reads as a stalled job,
+     * which runs twice. In production this names a `noeviction` instance.
+     * Unset, the queues use the cache connection above (local development).
+     */
+    QUEUE_REDIS_URL: optionalRedisUrl,
 
     CACHE_USER_TTL: integerFromEnv(300, { minimum: 1 }),
     CACHE_POST_TTL: integerFromEnv(120, { minimum: 1 }),
@@ -581,6 +589,17 @@ export function getRedisConnectionConfig(): RedisConnectionConfig {
 }
 
 /**
+ * The BullMQ connection settings: `QUEUE_REDIS_URL` when set, otherwise the
+ * cache's. Secret-bearing like {@link getRedisConnectionConfig}.
+ */
+export function getQueueRedisConnectionConfig(): RedisConnectionConfig {
+  const cache = redisConfigFrom(environment);
+  return environment.QUEUE_REDIS_URL
+    ? { ...cache, url: environment.QUEUE_REDIS_URL, explicitlyConfigured: true }
+    : cache;
+}
+
+/**
  * Dynamic configured-state check retained for lifecycle/tests that intentionally
  * toggle Redis after module import. Parsing still happens here, centrally.
  */
@@ -603,6 +622,13 @@ export function isRedisRuntimeConfigured(source: EnvironmentSource = process.env
     .parse(source);
   return Boolean(
     redisEnvironment.REDIS_URL || redisEnvironment.REDIS_URI || redisEnvironment.REDIS_HOST,
+  );
+}
+
+/** Whether BullMQ has a Redis: its own `QUEUE_REDIS_URL`, or the cache's. */
+export function isQueueRedisRuntimeConfigured(source: EnvironmentSource = process.env): boolean {
+  return (
+    Boolean(optionalRedisUrl.parse(source.QUEUE_REDIS_URL)) || isRedisRuntimeConfigured(source)
   );
 }
 
