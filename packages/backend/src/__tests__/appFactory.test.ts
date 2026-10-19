@@ -338,9 +338,20 @@ describe('createApp', () => {
       res.json(req.query);
     });
     deps.routes.publicApi = publicApi;
+    const inbox = express.Router();
+    inbox.post('/inbox', (req, res) => {
+      res.json({ rawBody: (req as express.Request & { rawBody?: string }).rawBody });
+    });
+    deps.routes.actor = inbox;
     const app = createApp(deps);
 
-    // Only an ActivityPub body keeps its raw bytes, for signature verification.
+    // Only an ActivityPub body keeps its raw bytes, for signature verification:
+    // one addressed to the inboxes, or one declaring an ActivityPub media type.
+    await request(app)
+      .post('/ap/inbox')
+      .set('Host', 'api.mention.earth')
+      .send({ hello: 'world' })
+      .expect(200, { rawBody: '{"hello":"world"}' });
     await request(app)
       .post('/raw')
       .set('Host', 'api.mention.earth')
