@@ -4,15 +4,6 @@ import { logger } from '@oxy.so/core/logger';
 import { normalizeApiError } from '@/utils/apiError';
 
 /**
- * `GET /feed/preferences`: the layout, plus the title of every pinned custom
- * feed the viewer may still read, keyed by feed id — what the home tab bar
- * labels them with. A pinned feed missing from it was deleted or made private.
- */
-export interface FeedPreferencesResponse extends FeedPreferences {
-  customFeedTitles?: Record<string, string>;
-}
-
-/**
  * Run a feed-preferences request, logging and rethrowing (with the original
  * error preserved as `cause`) on failure. Mirrors `customFeedsService.run` so
  * callers get a consistent, loud failure surface.
@@ -37,9 +28,9 @@ async function run<T>(operation: string, request: () => Promise<T>): Promise<T> 
  * a signed-in caller always receives the full catalog.
  */
 class FeedPreferencesService {
-  async get(): Promise<FeedPreferencesResponse> {
+  async get(): Promise<FeedPreferences> {
     return run('get', async () => {
-      const res = await authenticatedClient.get<FeedPreferencesResponse>('/feed/preferences');
+      const res = await authenticatedClient.get<FeedPreferences>('/feed/preferences');
       return {
         savedFeeds: res.data.savedFeeds ?? [],
         customFeedTitles: res.data.customFeedTitles ?? {},
@@ -49,7 +40,7 @@ class FeedPreferencesService {
 
   async update(savedFeeds: SavedFeed[]): Promise<SavedFeed[]> {
     return run('update', async () => {
-      const res = await authenticatedClient.put<FeedPreferencesResponse>('/feed/preferences', {
+      const res = await authenticatedClient.put<FeedPreferences>('/feed/preferences', {
         savedFeeds,
       });
       return res.data.savedFeeds ?? savedFeeds;
