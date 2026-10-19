@@ -505,7 +505,7 @@ class FeedController {
       let classification: PostRecord['postClassification'] | undefined;
       let primaryLanguage: string | undefined;
       try {
-        const signals = baselineContentClassifier.classify({
+        const signals = await baselineContentClassifier.classify({
           text: replyContent?.text,
           hashtags: mergedTags,
         });

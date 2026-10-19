@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import {
   MAX_AUTHOR_VARIANTS,
   canonicalizeLanguageTag,
+  sameBaseLanguage,
   toBaseLanguage,
   toBaseLanguages,
   type MediaItem,
@@ -139,22 +140,55 @@ export function buildPrimaryVariant(
 }
 
 /**
- * Stamp the language the classifier DETECTED onto a primary rendition the author
- * left untagged — the same thing that happens to a plain `content.text` body, just
- * arriving through the variant shape. An author who named their languages keeps
- * them untouched; a post whose language nothing could resolve keeps its untagged
- * primary, because "we don't know" is the honest answer and a guess would be
- * federated and signed as a declaration.
+ * Make the primary rendition's tag agree with the language the Stage-A
+ * classifier RESOLVED for the post (`languages[0]`).
+ *
+ *  - An untagged primary takes the resolved language — the same thing that
+ *    happens to a plain `content.text` body, just arriving through the variant
+ *    shape.
+ *  - A tagged primary keeps its tag when the classifier agrees on the base
+ *    language (so `es-MX` stays `es-MX`), and when the classifier fell back to
+ *    the declaration because detection was unsure — it then resolves to that
+ *    same declaration.
+ *  - A tagged primary the classifier CONTRADICTED is re-tagged. The classifier
+ *    only overrules a declaration on strong evidence (see
+ *    `BaselineContentClassifier.resolveLanguages`), and the tag is what
+ *    hydration serves as `textLang` and what translation reads as the source:
+ *    a Mastodon account whose default posting language is `de` writing English
+ *    left English readers offered "translate English → English" and Spanish
+ *    readers a "German" original, while the post's classification already said
+ *    `en`.
+ *
+ * Re-tagging is skipped when another AUTHOR rendition already carries the
+ * resolved language: that rendition is the author's own text in it, and two
+ * renditions of one language is a state the store refuses.
+ *
+ * A post whose language nothing could resolve keeps its primary as it is,
+ * because "we don't know" is the honest answer and a guess would be federated
+ * and signed as a declaration.
  */
 export function applyDetectedPrimaryTag(
   variants: PostContentVariant[],
   detected: string | undefined,
 ): PostContentVariant[] {
   const primary = variants[0];
-  if (!primary || primary.tag) return variants;
+  if (primary?.source !== 'author') return variants;
   const canonical = canonicalizeLanguageTag(detected);
   if (!canonical) return variants;
-  return [{ ...primary, tag: canonical }, ...variants.slice(1)];
+  const rest = variants.slice(1);
+  if (primary.tag) {
+    if (sameBaseLanguage(primary.tag, canonical)) return variants;
+    const authoredElsewhere = rest.some(
+      (variant) => variant.source === 'author' && sameBaseLanguage(variant.tag, canonical),
+    );
+    if (authoredElsewhere) return variants;
+  }
+  // A cached MACHINE rendition in the resolved language translated the post
+  // into the language it is already written in; it goes with the re-tag.
+  const kept = rest.filter(
+    (variant) => variant.source !== 'machine' || !sameBaseLanguage(variant.tag, canonical),
+  );
+  return [{ ...primary, tag: canonical }, ...kept];
 }
 
 /**

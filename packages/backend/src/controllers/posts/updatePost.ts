@@ -49,6 +49,7 @@ import { enrichIngestedPosts } from '../../services/postEnrichment';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { normalizeMediaItems } from '../../utils/mediaInput';
 import {
+  applyDetectedPrimaryTag,
   authorVariants,
   buildPrimaryVariant,
   stripSpamHashtagBlocks,
@@ -100,15 +101,20 @@ const rewriteEditedVariants = (params: {
 }): PostContentVariant[] => {
   const { authorLanguageVariants, existingAuthorVariants, text, detectedPrimary } = params;
 
+  // A supplied or kept primary goes through the same reconciliation as a create:
+  // it takes the classifier's language when untagged or contradicted.
   if (authorLanguageVariants !== undefined) {
-    return authorLanguageVariants;
+    return applyDetectedPrimaryTag(authorLanguageVariants, detectedPrimary);
   }
 
   const newText = text ?? '';
 
   if (existingAuthorVariants.length > 1) {
-    return existingAuthorVariants.map((variant, index) =>
-      index === 0 ? { ...variant, text: newText } : variant,
+    return applyDetectedPrimaryTag(
+      existingAuthorVariants.map((variant, index) =>
+        index === 0 ? { ...variant, text: newText } : variant,
+      ),
+      detectedPrimary,
     );
   }
 
@@ -347,7 +353,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       const declaredVariants =
         authorLanguageVariants ?? (existingAuthorVariants.length > 1 ? existingAuthorVariants : []);
 
-      const signals = baselineContentClassifier.classify({
+      const signals = await baselineContentClassifier.classify({
         text: text ?? currentText,
         hashtags: nextHashtags,
         languages: toBaseLanguages(declaredVariants.map((variant) => variant.tag)),

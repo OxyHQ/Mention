@@ -88,7 +88,7 @@ async function applyUpdate(
   const survivingLanguages = decision.variants
     .map((variant) => variant.tag)
     .filter((tag): tag is string => typeof tag === 'string' && tag.length > 0);
-  const signals = baselineContentClassifier.classify({
+  const signals = await baselineContentClassifier.classify({
     text,
     hashtags: post.hashtags,
     language: survivingLanguages[0],

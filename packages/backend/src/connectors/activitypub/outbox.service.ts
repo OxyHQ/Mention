@@ -42,6 +42,7 @@ import { getPostCreator } from '../../services/serviceRegistry';
 import { derivePostType } from '../../services/PostCreationService';
 import { storeRemoteLinkPreviews, type RemoteLinkPreview } from './apLinkPreview';
 import { enrichIngestedPosts } from '../../services/postEnrichment';
+import { applyDetectedPrimaryTag } from '../../services/postVariants';
 import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
 import {
   SPAM_QUALITY_CONFIG,
@@ -307,7 +308,7 @@ export class OutboxSyncService {
    * so the AI batch still processes the post and the batch insert is never
    * aborted by classification.
    */
-  private computeBaselineForNote(input: {
+  private async computeBaselineForNote(input: {
     text: string;
     hashtags: string[];
     language?: string;
@@ -315,9 +316,9 @@ export class OutboxSyncService {
     sensitive: boolean;
     instanceDomain?: string;
     actorType?: string;
-  }): RawPostClassificationSeed {
+  }): Promise<RawPostClassificationSeed> {
     try {
-      const signals = baselineContentClassifier.classify({
+      const signals = await baselineContentClassifier.classify({
         text: input.text,
         hashtags: input.hashtags,
         language: input.language,
@@ -963,7 +964,7 @@ export class OutboxSyncService {
         // hashtag normalization now runs inside `buildFederatedNoteContent`).
         // Best-effort: a classifier throw must not abort the whole batch insert —
         // fall back to the bare pending subdoc on failure.
-        const baseline = this.computeBaselineForNote({
+        const baseline = await this.computeBaselineForNote({
           text,
           hashtags,
           language: apLanguage,
@@ -1004,7 +1005,12 @@ export class OutboxSyncService {
             // The body, and its ONLY home (`contentMap` → author variants,
             // `variants[0]` primary). There is no `content.text` mirror on any
             // path — the column does not exist.
-            variants: quoteVariants.length > 0 ? quoteVariants : undefined,
+            // The origin's declared primary tag yields to a language the classifier
+            // resolved against it, exactly as on the inbox path (`toStoredContent`).
+            variants:
+              quoteVariants.length > 0
+                ? applyDetectedPrimaryTag(quoteVariants, primaryLanguage)
+                : undefined,
             media: media.length > 0 ? media : undefined,
             attachments: attachments.length > 0 ? attachments : undefined,
           },
@@ -1288,7 +1294,13 @@ export class OutboxSyncService {
         ),
     );
     if (!addsIdentity && !repairsSourceLink) return false;
-    await replacePostContent(stored.id, { ...stored.content, variants }, [
+    // Re-derived from the note, the primary carries the origin's declared tag
+    // again; keep the language the post was classified under.
+    const reconciled = applyDetectedPrimaryTag(
+      variants,
+      stored.postClassification?.languages?.[0] ?? stored.language,
+    );
+    await replacePostContent(stored.id, { ...stored.content, variants: reconciled }, [
       ...new Set([...candidate.storedMentions, ...resolved.ids]),
     ]);
     return true;

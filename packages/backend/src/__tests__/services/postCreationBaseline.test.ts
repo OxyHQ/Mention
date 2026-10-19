@@ -176,6 +176,32 @@ describe('PostCreationService — native Stage-A baseline', () => {
     expect(post.federation?.activityId).toBe(`https://${scope.name}.test/statuses/1`);
   });
 
+  it('re-tags a federated primary whose declared language the body contradicts', async () => {
+    // A Mastodon account's default posting language (`de`) stamped on English.
+    const post = await createAndReload({
+      oxyUserId: scope.user('federated-default-de'),
+      content: {
+        variants: [
+          {
+            tag: 'de',
+            source: 'author',
+            text: "Ok. This may explain a lot of people's reaction to meeting me 🤔",
+          },
+        ],
+      },
+      language: 'de',
+      languages: ['de'],
+      federation: { activityId: `https://${scope.name}.test/statuses/3`, sensitive: false },
+      visibility: PostVisibility.PUBLIC,
+      skipNotifications: true,
+      skipSocketEmit: true,
+      skipFederationDelivery: true,
+    });
+
+    expect(post.postClassification.languages).toEqual(['en']);
+    expect(post.content.variants?.[0]?.tag).toBe('en');
+  });
+
   it('does not widen discovery from an unverified federated multi-language declaration', async () => {
     const post = await createAndReload({
       oxyUserId: scope.user('federated-multi'),
@@ -196,7 +222,8 @@ describe('PostCreationService — native Stage-A baseline', () => {
     // The AP scalar preserves the source declaration for protocol fidelity, but
     // the recommendation field grants no audience the body did not verify.
     expect(post.language).toBe('en');
-    expect(post.postClassification.languages).toEqual([]);
+    // The English body verifies `en`; the declared `es` grants no Spanish audience.
+    expect(post.postClassification.languages).toEqual(['en']);
   });
 
   it('persists only mention ids that still occur in a stored author body', async () => {

@@ -113,6 +113,7 @@ import { POST_CLASSIFICATION_PENDING } from '../../db/posts/postRecord';
 import { logger } from '../../utils/logger';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { parseUserDid } from './mentionDid';
+import { applyDetectedPrimaryTag } from '../postVariants';
 import { baselineContentClassifier } from '../BaselineContentClassifier';
 import { buildAuthorship } from '../../utils/postAuthorship';
 import { enrichIngestedPosts } from '../postEnrichment';
@@ -390,9 +391,11 @@ interface BaselineClassification {
  * can never fail projection — the caller then leaves the column defaults in place
  * (mirrors PostCreationService).
  */
-function buildBaselineClassification(record: MentionPostRecord): BaselineClassification | null {
+async function buildBaselineClassification(
+  record: MentionPostRecord,
+): Promise<BaselineClassification | null> {
   try {
-    const signals = baselineContentClassifier.classify({
+    const signals = await baselineContentClassifier.classify({
       text: record.text,
       hashtags: record.tags,
       // The record's `langs[0]` is the primary; the full `langs` list is the
@@ -566,7 +569,7 @@ async function projectPost(
   const fileIdBySha256 = await resolveRecordFileIds(record);
   const media = resolveEmbedItemsToMedia(record.embed, fileIdBySha256);
   const variants = buildVariantsFromRecord(record, fileIdBySha256, createdAt);
-  const baseline = buildBaselineClassification(record);
+  const baseline = await buildBaselineClassification(record);
 
   // The record's `langs` are BCP-47 (`es-ES`) while the top-level `language` is a
   // BASE subtag (the classifier's alphabet), so normalize rather than storing a
@@ -594,7 +597,9 @@ async function projectPost(
   }
 
   const content = mergeRecordContent(existing?.content, {
-    variants,
+    // The record's declared primary tag yields to a language the classifier
+    // resolved against it, as on every other ingest path.
+    variants: applyDetectedPrimaryTag(variants, baseline?.language),
     media,
     sources: record.sources,
     location: record.location,

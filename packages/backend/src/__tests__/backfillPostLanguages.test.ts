@@ -29,13 +29,14 @@ import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import type { PostRecordInput } from '../db/posts/postRecord';
+import { loadPostRecord } from '../db/posts/postRepository';
 import { clearPostScope, postScope, seedPost } from './helpers/postFixtures';
 import { BASELINE_CLASSIFIER_VERSION } from '../services/BaselineContentClassifier';
 import { backfillPostLanguages } from '../scripts/backfillPostLanguages';
 
 const scope = postScope('backfill-post-languages');
 
-/** Enough Spanish for `tinyld` to reach a verdict; a six-word body is not. */
+/** Enough Spanish for the language detector to reach a verdict; a six-word body is not. */
 const SPANISH = 'Hola, ¿cómo estás hoy amigo? Espero que tengas un día estupendo por allí.';
 const ENGLISH = 'This is a clearly English sentence written for language detection.';
 
@@ -130,6 +131,25 @@ describe('backfillPostLanguages', () => {
     await backfillPostLanguages({ batchSize: 100 });
 
     expect((await classificationOf(id))?.languages).toContain('en');
+  });
+
+  it('repairs the primary tag: untagged takes the language, a contradicted declaration is replaced', async () => {
+    const untagged = await seedUnclassified({
+      content: { variants: [{ source: 'author', text: SPANISH }] },
+      postClassification: { languages: [], version: BASELINE_CLASSIFIER_VERSION },
+    });
+    // Classified correctly, but stored under the origin's default `de` tag.
+    const contradicted = await seedUnclassified({
+      content: { variants: [{ source: 'author', text: ENGLISH, tag: 'de' }] },
+      language: 'en',
+      postClassification: { languages: ['en'], version: BASELINE_CLASSIFIER_VERSION },
+    });
+
+    await backfillPostLanguages({ batchSize: 100 });
+
+    expect((await classificationOf(untagged))?.languages).toEqual(['es']);
+    expect((await loadPostRecord(untagged))?.content.variants?.[0]?.tag).toBe('es');
+    expect((await loadPostRecord(contradicted))?.content.variants?.[0]?.tag).toBe('en');
   });
 
   it('is idempotent — a second run does not rewrite a completed row', async () => {

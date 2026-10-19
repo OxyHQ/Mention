@@ -209,7 +209,7 @@ describe('projectRecord — post', () => {
   });
 
   it('writes a classification identical to the baseline classifier output', async () => {
-    const expected = baselineContentClassifier.classify({
+    const expected = await baselineContentClassifier.classify({
       text: postRecord.text,
       hashtags: postRecord.tags,
       language: postRecord.langs[0],

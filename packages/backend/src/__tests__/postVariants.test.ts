@@ -337,9 +337,15 @@ describe('applyDetectedPrimaryTag', () => {
     expect(applyDetectedPrimaryTag(variants, 'es')[0].tag).toBe('es');
   });
 
-  it('never overwrites a language the author DECLARED', () => {
+  it('keeps a declared tag the classifier agrees with, or whose language another rendition holds', () => {
     const variants = [variant({ tag: 'es-ES' }), variant({ tag: 'en-US' })];
-    expect(applyDetectedPrimaryTag(variants, 'fr')[0].tag).toBe('es-ES');
+    expect(applyDetectedPrimaryTag(variants, 'es')[0].tag).toBe('es-ES');
+    expect(applyDetectedPrimaryTag(variants, 'en')[0].tag).toBe('es-ES');
+  });
+
+  it('re-tags a declared primary the classifier contradicted, dropping the self-translation', () => {
+    const variants = [variant({ tag: 'de' }), variant({ tag: 'en', source: 'machine' })];
+    expect(applyDetectedPrimaryTag(variants, 'en')).toEqual([{ ...variants[0], tag: 'en' }]);
   });
 
   it('leaves the primary untagged when detection resolved nothing — a guess would be federated as a declaration', () => {
