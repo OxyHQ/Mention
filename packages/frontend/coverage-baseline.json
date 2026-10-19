@@ -2,31 +2,31 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 46.9,
-      "covered": 13088,
-      "total": 27905
+      "pct": 47.23,
+      "covered": 13197,
+      "total": 27941
     },
     "branches": {
-      "pct": 42.16,
-      "covered": 8638,
-      "total": 20488
+      "pct": 42.53,
+      "covered": 8741,
+      "total": 20551
     },
     "functions": {
-      "pct": 41.82,
-      "covered": 3037,
-      "total": 7262
+      "pct": 41.9,
+      "covered": 3046,
+      "total": 7268
     },
     "lines": {
-      "pct": 47.71,
-      "covered": 11906,
-      "total": 24953
+      "pct": 48.06,
+      "covered": 12010,
+      "total": 24989
     }
   },
   "pins": {
     "components/Feed/PostInteractionsBinder.tsx": {
-      "statements": 82,
-      "branches": 83,
-      "functions": 53,
+      "statements": 84,
+      "branches": 88,
+      "functions": 56,
       "lines": 88
     },
     "components/Feed/postInteractions.tsx": {
@@ -102,10 +102,10 @@
       "lines": 100
     },
     "db/cacheLifecycle.ts": {
-      "statements": 88,
-      "branches": 59,
+      "statements": 89,
+      "branches": 61,
       "functions": 100,
-      "lines": 88
+      "lines": 89
     },
     "db/database.native.ts": {
       "statements": 13,
@@ -132,10 +132,10 @@
       "lines": 100
     },
     "db/feedQueries.ts": {
-      "statements": 16,
-      "branches": 12,
-      "functions": 33,
-      "lines": 18
+      "statements": 31,
+      "branches": 25,
+      "functions": 40,
+      "lines": 36
     },
     "db/index.ts": {
       "statements": 100,
@@ -150,10 +150,10 @@
       "lines": 1
     },
     "db/memoryStore.ts": {
-      "statements": 50,
-      "branches": 39,
-      "functions": 68,
-      "lines": 59
+      "statements": 67,
+      "branches": 55,
+      "functions": 72,
+      "lines": 78
     },
     "db/migrations.ts": {
       "statements": 93,
@@ -168,10 +168,10 @@
       "lines": 100
     },
     "db/postQueries.ts": {
-      "statements": 45,
-      "branches": 35,
+      "statements": 54,
+      "branches": 41,
       "functions": 80,
-      "lines": 48
+      "lines": 59
     },
     "db/schema.ts": {
       "statements": 79,
@@ -516,10 +516,10 @@
       "lines": 0
     },
     "hooks/usePrivacyControls.ts": {
-      "statements": 75,
-      "branches": 65,
-      "functions": 80,
-      "lines": 77
+      "statements": 100,
+      "branches": 95,
+      "functions": 100,
+      "lines": 100
     },
     "hooks/usePrivacySettings.ts": {
       "statements": 27,
@@ -802,6 +802,18 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
+    },
+    "lib/bootFeedRead.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 0,
+      "lines": 100
+    },
+    "lib/bootFeedRead.web.ts": {
+      "statements": 83,
+      "branches": 83,
+      "functions": 77,
+      "lines": 92
     },
     "lib/chunkReload.native.ts": {
       "statements": 100,
@@ -1127,6 +1139,12 @@
       "functions": 100,
       "lines": 94
     },
+    "services/feedPageRead.ts": {
+      "statements": 95,
+      "branches": 91,
+      "functions": 100,
+      "lines": 100
+    },
     "services/feedPreferencesService.ts": {
       "statements": 0,
       "branches": 0,
@@ -1380,16 +1398,10 @@
       "lines": 98
     },
     "stores/postsStore.ts": {
-      "statements": 65,
-      "branches": 45,
+      "statements": 66,
+      "branches": 48,
       "functions": 64,
-      "lines": 71
-    },
-    "stores/privacyStore.ts": {
-      "statements": 52,
-      "branches": 36,
-      "functions": 56,
-      "lines": 55
+      "lines": 72
     },
     "stores/profileCountsInvalidation.ts": {
       "statements": 100,

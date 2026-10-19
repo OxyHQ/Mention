@@ -53,8 +53,9 @@ jest.mock('@/components/common/ActionMenu', () => ({
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn(), back: jest.fn(), canGoBack: () => false }),
 }));
+const mockPrefetchQuery = jest.fn(() => Promise.resolve());
 jest.mock('@tanstack/react-query', () => ({
-  useQueryClient: () => ({ invalidateQueries: jest.fn() }),
+  useQueryClient: () => ({ invalidateQueries: jest.fn(), prefetchQuery: mockPrefetchQuery }),
 }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -64,14 +65,20 @@ jest.mock('react-i18next', () => ({
 jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { textSecondary: '#888', error: '#f00' } }),
 }));
-jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => ({ user: { id: 'viewer-1' } }) }));
+let mockAuth: Record<string, unknown> = { user: { id: 'viewer-1' } };
+jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => mockAuth }));
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (u: { username?: string } | null) => u?.username ?? null,
 }));
 jest.mock('@/services/feedService', () => ({ feedService: {} }));
-jest.mock('@/hooks/useFeedQuery', () => ({ prefetchFeed: jest.fn() }));
-jest.mock('@/components/Profile/pinnedPostQuery', () => ({ pinnedPostQueryOptions: jest.fn() }));
+const mockPrefetchFeed = jest.fn();
+jest.mock('@/hooks/useFeedQuery', () => ({
+  prefetchFeed: (...args: unknown[]) => mockPrefetchFeed(...args),
+}));
+jest.mock('@/components/Profile/pinnedPostQuery', () => ({
+  pinnedPostQueryOptions: (viewerId: unknown, profileId: string) => ({ profileId }),
+}));
 jest.mock('@/services/muteService', () => ({ muteService: {} }));
 jest.mock('@/services/lanesService', () => ({ lanesService: {} }));
 jest.mock('@/services/reportService', () => ({ reportService: {} }));
@@ -309,5 +316,50 @@ describe('bound sheet commands', () => {
       .flat()
       .map((a) => a.label);
     expect(ownerLabels).not.toContain('Add community note');
+  });
+});
+
+describe('profile prefetch', () => {
+  it("starts the author's pinned post and posts feed once bound, and nothing before", () => {
+    capture((probe) => (
+      <PostInteractionsProvider>{probe}</PostInteractionsProvider>
+    )).prefetchProfile('author-1');
+    expect(mockPrefetchFeed).not.toHaveBeenCalled();
+
+    const commands = capture((probe) => (
+      <PostInteractionsProvider>
+        <PostInteractionsBinder />
+        {probe}
+      </PostInteractionsProvider>
+    ));
+    commands.prefetchProfile(undefined);
+    commands.prefetchProfile('author-1');
+
+    expect(mockPrefetchQuery).toHaveBeenCalledTimes(1);
+    expect(mockPrefetchQuery).toHaveBeenCalledWith({ profileId: 'author-1' });
+    expect(mockPrefetchFeed).toHaveBeenCalledTimes(1);
+    expect(mockPrefetchFeed.mock.calls[0][1]).toEqual({
+      type: 'posts',
+      userId: 'author-1',
+      viewerId: undefined,
+    });
+  });
+
+  it('reads as the signed-in viewer, and not at all while their session is still landing', () => {
+    const bound = () =>
+      capture((probe) => (
+        <PostInteractionsProvider>
+          <PostInteractionsBinder />
+          {probe}
+        </PostInteractionsProvider>
+      ));
+    mockAuth = { user: { id: 'viewer-1' }, isAuthenticated: true, canUsePrivateApi: false };
+    bound().prefetchProfile('author-1');
+    expect(mockPrefetchFeed).not.toHaveBeenCalled();
+
+    mockAuth = { user: { id: 'viewer-1' }, isAuthenticated: true, canUsePrivateApi: true };
+    bound().prefetchProfile('author-1');
+    expect(mockPrefetchFeed.mock.calls[0][1]).toMatchObject({ viewerId: 'viewer-1' });
+    mockAuth = { user: { id: 'viewer-1' } };
   });
 });
