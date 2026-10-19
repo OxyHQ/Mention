@@ -147,6 +147,8 @@ interface PostHeaderProps {
    */
   nameAsHeading?: boolean;
   onPressAvatar?: () => void;
+  /** Runs when the author's name link is pressed, before it navigates. */
+  onPressName?: () => void;
   /**
    * Collaborative BYLINES only (owner + ≥1 accepted collaborator, or a channel
    * naming its writer): tapping the avatar — which represents the group — opens
@@ -223,6 +225,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   onPressTime,
   nameAsHeading,
   onPressAvatar,
+  onPressName,
   onPressCollaborators,
   onPressMenu,
   linkAuthors,
@@ -473,6 +476,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
                   }
                   verified={user.verified}
                   href={userHref}
+                  onPress={onPressName}
                   asHeading={nameAsHeading}
                   style={{ container: { flexShrink: 1, minWidth: 0 } }}
                 />

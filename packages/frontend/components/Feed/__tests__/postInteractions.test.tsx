@@ -70,6 +70,8 @@ jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (u: { username?: string } | null) => u?.username ?? null,
 }));
 jest.mock('@/services/feedService', () => ({ feedService: {} }));
+jest.mock('@/hooks/useFeedQuery', () => ({ prefetchFeed: jest.fn() }));
+jest.mock('@/components/Profile/pinnedPostQuery', () => ({ pinnedPostQueryOptions: jest.fn() }));
 jest.mock('@/services/muteService', () => ({ muteService: {} }));
 jest.mock('@/services/lanesService', () => ({ lanesService: {} }));
 jest.mock('@/services/reportService', () => ({ reportService: {} }));
