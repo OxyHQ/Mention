@@ -9,14 +9,20 @@ import {
   MEDIA_CACHE_EVICTION_CONCURRENCY,
   MEDIA_CACHE_TTL_MS,
 } from './constants';
-import { deleteCachedMedia, isMediaCacheEnabled, isMediaStoreThrottled } from './oxyMediaStore';
+import {
+  deleteCachedMedia,
+  isAbsentFromCacheNamespace,
+  isMediaCacheEnabled,
+  isMediaStoreThrottled,
+} from './oxyMediaStore';
 
 /**
  * A bounded description of why a delete failed, for the warn below.
  *
  * `OxyMediaStoreRequestError` carries the HTTP status, which is what decides the
- * answer: a 404 means the object is already gone and the row should stop being
- * retried, a 403 means the credential, a 5xx means wait. The fields are read
+ * answer: a 403 means the credential, a 5xx means wait (a 404 or a
+ * not-a-cache-object 403 never reaches here — see `isAbsentFromCacheNamespace`).
+ * The fields are read
  * defensively because a rejection here can also be a plain SDK object, for which
  * `String(error)` prints `[object Object]`.
  */
@@ -43,6 +49,9 @@ function describeDeleteFailure(error: unknown): Record<string, unknown> {
  * KEEPING the row (file ids cleared) so a future access re-caches it. If a
  * delete fails the row is left `cached` so the next sweep retries — we never
  * mark `evicted` while bytes may still live in S3 (avoids orphaned objects).
+ * An id the cache namespace does not hold (already gone, or a durable file a
+ * pre-oxy#1444 dedupe handed back) is not a failure: nothing of the cache's is
+ * left behind it, and retrying it would be refused forever.
  */
 async function evictOne(candidate: MediaCacheEvictionCandidate): Promise<'done' | 'budget-spent'> {
   const fileIds = [candidate.oxyFileId, candidate.posterFileId].filter(
@@ -51,7 +60,10 @@ async function evictOne(candidate: MediaCacheEvictionCandidate): Promise<'done' 
 
   // Delete every associated object first; only flip to `evicted` if all succeed.
   const results = await Promise.allSettled(fileIds.map((id) => deleteCachedMedia(id)));
-  const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+  const failed = results.filter(
+    (r): r is PromiseRejectedResult =>
+      r.status === 'rejected' && !isAbsentFromCacheNamespace(r.reason),
+  );
   if (failed.length > 0) {
     // A spent write budget is not this entry's failure, and it will be the next
     // entry's too — say so ONCE (the store logs the pause itself) and let the

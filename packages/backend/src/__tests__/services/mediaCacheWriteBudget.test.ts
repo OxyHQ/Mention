@@ -21,7 +21,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { logger } from '../../utils/logger';
 
-const { ThrottledError, mocks } = vi.hoisted(() => {
+const { ThrottledError, AbsentError, mocks } = vi.hoisted(() => {
   /** Stands in for the store's own throttled error; `isMediaStoreThrottled` matches it. */
   class ThrottledError extends Error {
     readonly operation: 'upload' | 'delete';
@@ -33,8 +33,12 @@ const { ThrottledError, mocks } = vi.hoisted(() => {
     }
   }
 
+  /** Stands in for an id the cache namespace does not hold (404, or a non-cache 403). */
+  class AbsentError extends Error {}
+
   return {
     ThrottledError,
+    AbsentError,
     mocks: {
       fetchUpstreamFollowingRedirects: vi.fn(),
       uploadCachedMedia: vi.fn(),
@@ -72,6 +76,7 @@ vi.mock('../../services/mediaCache/oxyMediaStore', () => ({
   MediaStoreUnavailableError: class MediaStoreUnavailableError extends Error {},
   OxyMediaStoreThrottledError: ThrottledError,
   isMediaStoreThrottled: (error: unknown) => error instanceof ThrottledError,
+  isAbsentFromCacheNamespace: (error: unknown) => error instanceof AbsentError,
   isMediaCacheEnabled: () => true,
   uploadCachedMedia: mocks.uploadCachedMedia,
   uploadFederatedMedia: mocks.uploadFederatedMedia,
@@ -203,8 +208,8 @@ describe('the eviction sweep and a spent write budget', () => {
   it('names the status when a delete fails, not just that one did', async () => {
     mocks.findEvictableMediaCacheEntries.mockResolvedValue(candidates.slice(0, 1));
     mocks.deleteCachedMedia.mockRejectedValue(
-      Object.assign(new Error('Oxy media store delete failed (HTTP 404): not found'), {
-        statusCode: 404,
+      Object.assign(new Error('Oxy media store delete failed (HTTP 403): missing scope'), {
+        statusCode: 403,
       }),
     );
     const warn = vi.spyOn(logger, 'warn');
@@ -214,8 +219,8 @@ describe('the eviction sweep and a spent write budget', () => {
     expect(warn).toHaveBeenCalledWith(
       '[MediaCache] Eviction delete failed; leaving entry cached for retry',
       expect.objectContaining({
-        reason: 'Oxy media store delete failed (HTTP 404): not found',
-        status: 404,
+        reason: 'Oxy media store delete failed (HTTP 403): missing scope',
+        status: 403,
         failedCount: 1,
       }),
     );
@@ -233,6 +238,15 @@ describe('the eviction sweep and a spent write budget', () => {
     // next, so the sweep must not treat it as a global stop signal.
     expect(mocks.deleteCachedMedia).toHaveBeenCalledTimes(4);
     expect(mocks.markMediaCacheEvicted).not.toHaveBeenCalled();
+  });
+
+  it('evicts a row whose id the cache namespace does not hold instead of retrying it forever', async () => {
+    mocks.findEvictableMediaCacheEntries.mockResolvedValue(candidates.slice(0, 1));
+    mocks.deleteCachedMedia.mockRejectedValue(new AbsentError());
+
+    await runEvictionOnce();
+
+    expect(mocks.markMediaCacheEvicted).toHaveBeenCalledWith(candidates[0].remoteUrl);
   });
 
   it('evicts normally when the budget is available', async () => {
