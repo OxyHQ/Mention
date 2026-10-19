@@ -44,6 +44,12 @@ export interface SavedFeed {
 /** A viewer's full persisted feed layout. */
 export interface FeedPreferences {
   savedFeeds: SavedFeed[];
+  /**
+   * The title of every PINNED custom feed the viewer may still read, keyed by
+   * feed id — what the tab bar labels them with. A pinned feed missing here was
+   * deleted or made private by its owner. Sent by `GET /feed/preferences` only.
+   */
+  customFeedTitles?: Record<string, string>;
 }
 
 /**

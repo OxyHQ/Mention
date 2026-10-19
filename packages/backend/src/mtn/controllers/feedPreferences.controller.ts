@@ -17,11 +17,11 @@ import {
   parseFeedDescriptor,
   validateForYouTuning,
 } from '@mention/shared-types';
-import type { FeedDescriptor, SavedFeed } from '@mention/shared-types';
+import type { FeedDescriptor, FeedPreferences, SavedFeed } from '@mention/shared-types';
 import { getRequiredOxyUserId, type OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { loadFeedLayout, replaceFeedLayout } from '../../db/feeds/feedPreferenceRepository';
 import { loadUserSettings, updateUserSettings } from '../../db/userProfile/userSettingsRepository';
-import { loadCustomFeedSource } from '../../db/feeds/customFeedRepository';
+import { loadCustomFeedSource, loadReadableFeedTitles } from '../../db/feeds/customFeedRepository';
 import { sendErrorResponse, sendSuccessResponse } from '../../utils/apiHelpers';
 import { logger } from '../../utils/logger';
 
@@ -83,9 +83,18 @@ class FeedPreferencesController {
       // a layout and then removed every entry has stored one, and re-pinning the
       // presets for them on every load is what collapsing the two would do.
       const { savedFeeds: stored, hasStored } = await loadFeedLayout(userId);
-      return sendSuccessResponse(res, 200, {
-        savedFeeds: mergeWithPresetDefaults(stored, hasStored),
+      const savedFeeds = mergeWithPresetDefaults(stored, hasStored);
+      // The pinned custom feeds' titles ride along, so the tab bar can label them
+      // without downloading the viewer's feed lists to find them.
+      const pinnedCustomIds = savedFeeds.flatMap((feed) => {
+        if (!feed.pinned) return [];
+        const { source, params } = parseFeedDescriptor(feed.descriptor);
+        return source === 'custom' && params[0] ? [params[0]] : [];
       });
+      return sendSuccessResponse(res, 200, {
+        savedFeeds,
+        customFeedTitles: await loadReadableFeedTitles(pinnedCustomIds, userId),
+      } satisfies FeedPreferences);
     } catch (error) {
       logger.error('[FeedPreferences] Failed to load preferences', { userId, error });
       return sendErrorResponse(
