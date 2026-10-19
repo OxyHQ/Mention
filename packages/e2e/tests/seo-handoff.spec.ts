@@ -71,6 +71,8 @@ test('server metadata leaves the application body unchanged without JavaScript',
       'ProfilePage',
     );
   } finally {
+    // This test owns its context; fixture teardown cleans a different one.
+    await context.unrouteAll({ behavior: 'ignoreErrors' });
     await context.close();
   }
 });
