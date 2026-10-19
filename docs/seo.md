@@ -158,6 +158,10 @@ a crawler walking the index made that ~70% of Mention's database load (#1160).
 Responses carry `Last-Modified` (the build time) and an ETag, so a revalidating
 crawler gets a `304`, and may be cached for an hour (six at the CDN).
 
+The post read's shards are compressed while its cursor streams and written to
+Redis only after its transaction ends, so the read's connection and snapshot are
+never held across Redis I/O.
+
 Submit only the root sitemap in Google Search Console and monitor Page Indexing,
 ProfilePage markup, crawl failures, and sitemap URL counts. Retired numeric shard
 URLs return XML with `410 Gone`, never the HTML application shell.

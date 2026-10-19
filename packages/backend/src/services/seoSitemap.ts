@@ -316,35 +316,45 @@ export async function sitemapShard(
 // Building: the leader's job
 // ---------------------------------------------------------------------------
 
-async function writeShard(
-  kind: SitemapKind,
-  shard: SitemapShard,
-  urls: SitemapUrl[],
-): Promise<void> {
-  const value: CompressedXml = {
+/** One child sitemap's XML, compressed as the cache stores it. */
+async function compressShard(urls: SitemapUrl[]): Promise<CompressedXml> {
+  return {
     encoding: 'gzip-base64-v1',
     data: (await gzipAsync(renderUrlSet(urls))).toString('base64'),
   };
-  await sitemapCache.set(shardKey(kind, shard), value);
 }
 
-/** Write one bucket's URLs as as many pages as it needs; returns the pages written. */
-async function writeBucket(
-  kind: SitemapKind,
-  bucket: number,
-  urls: SitemapUrl[],
-): Promise<SitemapShard[]> {
-  const pages: SitemapShard[] = [];
+interface CompressedBucket {
+  bucket: number;
+  /** One compressed child sitemap per page of the bucket, in page order. */
+  pages: CompressedXml[];
+}
+
+/** Render and compress one bucket's URLs as as many pages as it needs. */
+async function compressBucket(bucket: number, urls: SitemapUrl[]): Promise<CompressedBucket> {
+  const pages: CompressedXml[] = [];
   for (let page = 0; page * SITEMAP_URL_LIMIT < urls.length; page += 1) {
-    const shard = { bucket, page };
-    await writeShard(
-      kind,
-      shard,
-      urls.slice(page * SITEMAP_URL_LIMIT, (page + 1) * SITEMAP_URL_LIMIT),
+    pages.push(
+      await compressShard(urls.slice(page * SITEMAP_URL_LIMIT, (page + 1) * SITEMAP_URL_LIMIT)),
     );
-    pages.push(shard);
   }
-  return pages;
+  return { bucket, pages };
+}
+
+/** Write compressed buckets to the cache; returns the shards written. */
+async function writeBuckets(
+  kind: SitemapKind,
+  buckets: readonly CompressedBucket[],
+): Promise<SitemapShard[]> {
+  const shards: SitemapShard[] = [];
+  for (const { bucket, pages } of buckets) {
+    for (const [page, value] of pages.entries()) {
+      const shard = { bucket, page };
+      await sitemapCache.set(shardKey(kind, shard), value);
+      shards.push(shard);
+    }
+  }
+  return shards;
 }
 
 interface ProfileRow {
@@ -391,10 +401,11 @@ async function buildProfileSitemaps(): Promise<{
     urlsByBucket.set(row.bucket, urls);
   }
 
-  const pages: SitemapShard[] = [];
+  const buckets: CompressedBucket[] = [];
   for (const bucketId of [...urlsByBucket.keys()].sort((a, b) => a - b)) {
-    pages.push(...(await writeBucket('profiles', bucketId, urlsByBucket.get(bucketId) ?? [])));
+    buckets.push(await compressBucket(bucketId, urlsByBucket.get(bucketId) ?? []));
   }
+  const pages = await writeBuckets('profiles', buckets);
   return { pages, listable: new Set(userById.keys()), authors: ids.length };
 }
 
@@ -408,9 +419,13 @@ interface PostStreamRow {
 /**
  * Every post sitemap, from ONE read streamed in bucket order: at most one
  * bucket's URLs are held in memory at a time, never the ~1.4M eligible rows.
- * The Redis writes for a finished bucket happen inside the cursor callback,
- * which holds the read's connection meanwhile; 64 buckets of a few hundred KB
- * each is well inside what that costs.
+ *
+ * A finished bucket is compressed inside the cursor callback and kept, and the
+ * cache is written only after the read's transaction has ended. Writing inside
+ * the callback held the connection, its snapshot and its sorted result open
+ * across 64 rounds of Redis I/O, which the database counts as `ClientRead` time
+ * on a connection nobody else can use. What is kept is the compressed XML, a few
+ * hundred KB a bucket.
  */
 async function buildPostSitemaps(
   listable: Set<string>,
@@ -431,14 +446,14 @@ async function buildPostSitemaps(
     .orderBy(asc(bucket), asc(posts.id))
     .toSQL();
 
-  const pages: SitemapShard[] = [];
+  const buckets: CompressedBucket[] = [];
   let currentBucket: number | null = null;
   let urls: SitemapUrl[] = [];
   let rows = 0;
 
   const flush = async (): Promise<void> => {
     if (currentBucket !== null && urls.length > 0) {
-      pages.push(...(await writeBucket('posts', currentBucket, urls)));
+      buckets.push(await compressBucket(currentBucket, urls));
     }
     urls = [];
   };
@@ -484,7 +499,7 @@ async function buildPostSitemaps(
     await chain;
   });
   await flush();
-  return { pages, rows };
+  return { pages: await writeBuckets('posts', buckets), rows };
 }
 
 export interface SitemapBuildReport {
