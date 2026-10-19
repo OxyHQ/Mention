@@ -141,13 +141,6 @@ import {
 export const BASELINE_CLASSIFIER_VERSION = 11;
 
 /**
- * Minimum number of non-whitespace characters required before attempting
- * language detection. Below this, trigram detection is unreliable (e.g. `"hi"`,
- * emoji-only) so we return `undefined` rather than a confident-but-wrong guess.
- */
-const MIN_TEXT_LENGTH_FOR_DETECTION = 12;
-
-/**
  * Language detection policy over ELD's result.
  *
  * ELD scores every supported language against the text; the scores are
@@ -163,8 +156,34 @@ const MIN_TEXT_LENGTH_FOR_DETECTION = 12;
 const LANGUAGE_DETECTION = {
   /** Top score minus runner-up required before a body is assigned a language. */
   minMargin: 0.04,
-  /** Margin required to overrule ONE contradictory declared language. */
-  declaredContradictionMinMargin: 0.1,
+  /**
+   * The prose an UNDECLARED body needs before it is given a language at all —
+   * letters and words of the text left after links, placeholders, handles,
+   * emoji and markdown are removed, not characters of the raw body.
+   */
+  fillMinLetters: 12,
+  fillMinWords: 3,
+  /**
+   * Overruling a language the post already carries — the author's, the
+   * origin's AP `language`, or the classification it was stored under — is a
+   * different claim from filling an empty one, and needs strong evidence: this
+   * much prose, a reliable verdict, a margin over the runner-up AND over the
+   * carried language's own score, and a carried language the detector knows.
+   * Measured on the production review: "wir müssen die dinge bananen nennen"
+   * (six words, `de` 0.79 against `nl` 0.70) is not enough to call German
+   * anything else, and an English paragraph is ample to correct a `de` default.
+   */
+  overruleMinLetters: 40,
+  overruleMinWords: 5,
+  overruleMinMargin: 0.1,
+  overruleMinMarginOverCarried: 0.15,
+  /**
+   * Writing-system evidence is decisive only when that script IS the text:
+   * kana (+ Han) or hangul must be at least this share of its letters. One
+   * `きんかくじ` in an English paragraph about Kinkaku-ji is a quotation, not
+   * Japanese.
+   */
+  scriptMinShare: 0.5,
   /**
    * A post is multilingual when its sentences say so: a language other than the
    * primary is kept when the sentences confidently detected as it hold at least
@@ -222,6 +241,65 @@ function detectorKnows(detector: Detector, language: string): boolean {
   return detectorLanguages.has(language);
 }
 
+/** How much prose a body carries, after the non-language parts are removed. */
+interface ProseMeasure {
+  letters: number;
+  words: number;
+}
+
+/** Scripts written without spaces: each character counts as a word. */
+const SPACELESS_SCRIPT =
+  /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]/gu;
+
+function measureProse(text: string): ProseMeasure {
+  const letters = text.match(/\p{L}/gu)?.length ?? 0;
+  const spaceless = text.match(SPACELESS_SCRIPT)?.length ?? 0;
+  const spacedWords = text
+    .split(/\s+/)
+    .filter(
+      (token) => /\p{L}/u.test(token) && !new RegExp(SPACELESS_SCRIPT.source, 'u').test(token),
+    ).length;
+  return { letters, words: spacedWords + spaceless };
+}
+
+/**
+ * The language the detector names when it is strong enough to OVERRULE
+ * `carried` (see {@link LANGUAGE_DETECTION.overruleMinLetters}), else
+ * `undefined`.
+ */
+function overrulingLanguage(
+  detector: Detector,
+  text: string,
+  prose: ProseMeasure,
+  carried: string,
+): string | undefined {
+  if (
+    prose.letters < LANGUAGE_DETECTION.overruleMinLetters ||
+    prose.words < LANGUAGE_DETECTION.overruleMinWords ||
+    !detectorKnows(detector, carried)
+  ) {
+    return undefined;
+  }
+  const result = detector.detect(text);
+  const language = normalizeProvidedLanguage(result.language);
+  if (!language || language === carried || !result.isReliable()) return undefined;
+  const scores = result.getScores();
+  const [top = 0, second = 0] = Object.values(scores).sort((a, b) => b - a);
+  const carriedScore = scores[carried] ?? 0;
+  if (top - second < LANGUAGE_DETECTION.overruleMinMargin) return undefined;
+  if (top - carriedScore < LANGUAGE_DETECTION.overruleMinMarginOverCarried) return undefined;
+  return language;
+}
+
+/** Where a post's resolved languages came from — reported, never stored. */
+export type LanguageSource = 'declared' | 'detected' | 'script' | 'previous' | 'none';
+
+interface ResolvedLanguages {
+  primary: string | undefined;
+  all: string[];
+  source: LanguageSource;
+}
+
 /** Sentence boundaries for the per-sentence secondary-language vote. */
 const SENTENCE_BOUNDARY = /[.!?¡¿…;\n]+/u;
 
@@ -254,6 +332,13 @@ export interface ClassifyInput {
   actorType?: string;
   /** Author locale (e.g. `"es-ES"`), when known. Weak region fallback. */
   authorLocale?: string;
+  /**
+   * The languages the post is ALREADY classified under (a re-classification
+   * of a stored post). They are carried, like a declaration: a different
+   * result replaces them only on strong evidence, so a re-run with a different
+   * detector cannot flip a correct label on a sentence too short to judge.
+   */
+  previousLanguages?: string[];
 }
 
 /** Deterministic Stage-A signals produced by {@link BaselineContentClassifier.classify}. */
@@ -272,6 +357,8 @@ export interface BaselineSignals {
    * `postClassification.languages`.
    */
   languages: string[];
+  /** Where {@link languages} came from. Diagnostic; not stored. */
+  languageSource: LanguageSource;
   region?: string;
   hashtagsNorm: string[];
   /**
@@ -353,10 +440,11 @@ export class BaselineContentClassifier {
     const { hashtags: normalized } = normalizePostHashtags(input.text, input.hashtags);
     const hashtagsNorm = this.applyHashtagAliases(normalized);
 
-    const { primary: language, all: languages } = await this.resolveLanguages(
-      input,
-      languageEvidenceText(text),
-    );
+    const {
+      primary: language,
+      all: languages,
+      source: languageSource,
+    } = await this.resolveLanguages(input, languageEvidenceText(text));
     const region = deriveRegion({
       isFederated: input.isFederated,
       instanceDomain: input.instanceDomain,
@@ -406,6 +494,7 @@ export class BaselineContentClassifier {
     return {
       language,
       languages,
+      languageSource,
       region,
       hashtagsNorm,
       trendTerms,
@@ -441,69 +530,84 @@ export class BaselineContentClassifier {
    * The primary is simply element 0 (or none when the list is empty). Policy:
    *
    * 1. Declarations are evidence, never an unconditional discovery grant.
-   * 2. Decisive script evidence corrects a contradiction; shared Han script can
-   *    reject a Latin declaration without guessing Chinese versus Japanese.
-   * 3. A single declaration stands unless the detector, which must itself know
-   *    the declared language, names another by a wide margin. A Galician post
-   *    declared `gl` therefore stays `gl`: ELD has no Galician, and its `es`
-   *    is no evidence against it.
-   * 4. Otherwise, detect from text when it is long enough to be reliable (see
-   *    {@link selectDetectedLanguages}).
+   * 2. A writing system that IS the text (kana, hangul) corrects a
+   *    contradiction; Han that is the text can reject a Latin declaration
+   *    without guessing Chinese versus Japanese.
+   * 3. A single declaration stands unless the detector overrules it on strong
+   *    evidence ({@link overrulingLanguage}). A declared Galician post stays
+   *    `gl`: ELD has no Galician, so its `es` is no evidence against it.
+   * 4. An undeclared body is detected when it carries enough prose.
+   * 5. A post re-classified with `previousLanguages` keeps them unless the new
+   *    result is backed by script evidence or overrules them on strong evidence.
    */
   private async resolveLanguages(
-    input: Pick<ClassifyInput, 'language' | 'languages'>,
-    trimmedText: string,
-  ): Promise<{ primary: string | undefined; all: string[] }> {
-    // Merge the single `language` (leading) with the `languages` list, normalize
-    // each, dedupe (first-seen order), cap.
-    const declared = this.dedupeLanguages(
-      [input.language, ...(input.languages ?? [])]
-        .map(normalizeProvidedLanguage)
-        .filter((code): code is string => code !== undefined),
-    ).slice(0, LANGUAGE_DETECTION.maxLanguages);
+    input: Pick<ClassifyInput, 'language' | 'languages' | 'previousLanguages'>,
+    text: string,
+  ): Promise<ResolvedLanguages> {
+    const resolved = await this.resolveFresh(input, text);
+    const previous = this.normalizeLanguages(input.previousLanguages ?? []);
+    if (previous.length === 0 || resolved.primary === previous[0]) return resolved;
+    if (resolved.source === 'script') return resolved;
+    if (resolved.primary !== undefined) {
+      const detector = await languageDetector();
+      if (
+        overrulingLanguage(detector, text, measureProse(text), previous[0]) === resolved.primary
+      ) {
+        return resolved;
+      }
+    }
+    return { primary: previous[0], all: previous, source: 'previous' };
+  }
 
-    const scripted = this.strongScriptLanguage(trimmedText);
-    const longEnough = trimmedText.length >= MIN_TEXT_LENGTH_FOR_DETECTION;
+  /** {@link resolveLanguages} without the previous classification. */
+  private async resolveFresh(
+    input: Pick<ClassifyInput, 'language' | 'languages'>,
+    text: string,
+  ): Promise<ResolvedLanguages> {
+    const declared = this.normalizeLanguages([input.language, ...(input.languages ?? [])]);
+    const prose = measureProse(text);
+    const fillable =
+      prose.letters >= LANGUAGE_DETECTION.fillMinLetters &&
+      prose.words >= LANGUAGE_DETECTION.fillMinWords;
+    const scripted = this.strongScriptLanguage(text);
+    const none: ResolvedLanguages = { primary: undefined, all: [], source: 'none' };
 
     if (declared.length > 1) {
-      if (scripted) return { primary: scripted, all: [scripted] };
-      const detected = longEnough
-        ? this.selectDetectedLanguages(await languageDetector(), trimmedText)
-        : [];
+      if (scripted) return { primary: scripted, all: [scripted], source: 'script' };
+      const detected = fillable ? this.selectDetectedLanguages(await languageDetector(), text) : [];
       const verified = detected.filter((code) => declared.includes(code));
-      return { primary: verified[0], all: verified };
+      return verified.length > 0
+        ? { primary: verified[0], all: verified, source: 'declared' }
+        : none;
     }
 
     if (declared.length === 1) {
       if (scripted && scripted !== declared[0]) {
-        return { primary: scripted, all: [scripted] };
+        return { primary: scripted, all: [scripted], source: 'script' };
       }
       // Han is shared by Chinese and Japanese, so it cannot choose between them;
-      // it can still prove that a Latin-only declaration such as `en` is false.
-      if (/\p{Script=Han}/u.test(trimmedText) && !['zh', 'ja'].includes(declared[0])) {
-        return { primary: undefined, all: [] };
+      // when it IS the text it can still prove that a Latin-only declaration
+      // such as `en` is false.
+      if (this.hanIsTheText(text) && !['zh', 'ja'].includes(declared[0])) return none;
+      const detector = await languageDetector();
+      if (overrulingLanguage(detector, text, prose, declared[0])) {
+        const all = this.selectDetectedLanguages(detector, text);
+        if (all.length > 0) return { primary: all[0], all, source: 'detected' };
       }
-      if (longEnough) {
-        const detector = await languageDetector();
-        const whole = detectConfident(detector, trimmedText);
-        if (
-          whole &&
-          whole.language !== declared[0] &&
-          whole.margin >= LANGUAGE_DETECTION.declaredContradictionMinMargin &&
-          detectorKnows(detector, declared[0])
-        ) {
-          const all = this.selectDetectedLanguages(detector, trimmedText);
-          return { primary: all[0], all };
-        }
-      }
-      return { primary: declared[0], all: declared };
+      return { primary: declared[0], all: declared, source: 'declared' };
     }
 
-    // No declaration: detect from text. Too-short input is unreliable → none.
-    if (!longEnough) return { primary: undefined, all: [] };
+    if (scripted) return { primary: scripted, all: [scripted], source: 'script' };
+    if (!fillable) return none;
+    const detected = this.selectDetectedLanguages(await languageDetector(), text);
+    return detected.length > 0 ? { primary: detected[0], all: detected, source: 'detected' } : none;
+  }
 
-    const detected = this.selectDetectedLanguages(await languageDetector(), trimmedText);
-    return { primary: detected[0], all: detected };
+  /** Normalize, dedupe (first-seen order) and cap a list of language tags. */
+  private normalizeLanguages(tags: readonly (string | undefined)[]): string[] {
+    return this.dedupeLanguages(
+      tags.map(normalizeProvidedLanguage).filter((code): code is string => code !== undefined),
+    ).slice(0, LANGUAGE_DETECTION.maxLanguages);
   }
 
   /**
@@ -545,11 +649,28 @@ export class BaselineContentClassifier {
     );
   }
 
-  /** Languages whose writing system is decisive without a vocabulary model. */
+  /**
+   * Languages whose writing system is decisive without a vocabulary model —
+   * when that writing system is the text ({@link LANGUAGE_DETECTION.scriptMinShare}),
+   * not a word quoted inside another language.
+   */
   private strongScriptLanguage(text: string): string | undefined {
-    if (/\p{Script=Hiragana}|\p{Script=Katakana}/u.test(text)) return 'ja';
-    if (/\p{Script=Hangul}/u.test(text)) return 'ko';
+    const letters = text.match(/\p{L}/gu)?.length ?? 0;
+    if (letters === 0) return undefined;
+    const share = (pattern: RegExp): number => (text.match(pattern)?.length ?? 0) / letters;
+    const kana = share(/[\p{Script=Hiragana}\p{Script=Katakana}]/gu);
+    if (kana > 0 && kana + share(/\p{Script=Han}/gu) >= LANGUAGE_DETECTION.scriptMinShare) {
+      return 'ja';
+    }
+    if (share(/\p{Script=Hangul}/gu) >= LANGUAGE_DETECTION.scriptMinShare) return 'ko';
     return undefined;
+  }
+
+  /** Han characters are at least {@link LANGUAGE_DETECTION.scriptMinShare} of the letters. */
+  private hanIsTheText(text: string): boolean {
+    const letters = text.match(/\p{L}/gu)?.length ?? 0;
+    const han = text.match(/\p{Script=Han}/gu)?.length ?? 0;
+    return letters > 0 && han / letters >= LANGUAGE_DETECTION.scriptMinShare;
   }
 
   /** Dedupe ISO 639-1 codes, preserving first-seen order. */
