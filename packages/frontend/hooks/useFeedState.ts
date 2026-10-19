@@ -154,9 +154,11 @@ function useStoredFeed({
     }
   }, []);
 
-  // Global feed state — reads from SQLite via selectors
-  const globalFeedSelector = useFeedSelector(type);
-  const userFeedSelector = useUserFeedSelector(userId || '', type);
+  // Feed state read from SQLite. Only the half that serves this feed
+  // subscribes: an idle half (this feed is a query, or the other kind of feed)
+  // is woken by no write.
+  const globalFeedSelector = useFeedSelector(type, enabled && !userId);
+  const userFeedSelector = useUserFeedSelector(userId || '', type, enabled && Boolean(userId));
   const globalFeed = userId ? userFeedSelector : globalFeedSelector;
 
   // Refs for preventing duplicate calls.
@@ -347,8 +349,12 @@ function useStoredFeed({
     ],
   );
 
-  // Keep the ref pointing at the latest fetchInitial for the pending-poll scheduler.
-  fetchInitialRef.current = fetchInitial;
+  // Keep the ref pointing at the latest fetchInitial for the pending-poll
+  // scheduler. Written after commit, never during render: a render-phase ref
+  // write makes the React Compiler skip this whole hook.
+  useEffect(() => {
+    fetchInitialRef.current = fetchInitial;
+  }, [fetchInitial]);
 
   // The listener reads the current `fetchInitial` off the ref, so it never
   // needs re-subscribing while this half serves the feed.
