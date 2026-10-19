@@ -29,7 +29,11 @@ import { useRevealOwnNewPost } from '@/hooks/useRevealOwnNewPost';
 import { getItemKey } from '@/utils/feedUtils';
 import type { FlashListProps, FlashListRef, ViewToken } from '@shopify/flash-list';
 import { getFeedScrollOffset, setFeedScrollOffset } from '@/stores/feedScrollStore';
-import { VideoViewabilityProvider, VideoViewabilityScope } from '@/context/VideoPlaybackContext';
+import {
+  createViewableKeysStore,
+  VideoViewabilityProvider,
+  VideoViewabilityScope,
+} from '@/context/VideoPlaybackContext';
 import {
   type FeedItem,
   type FeedRow,
@@ -123,7 +127,6 @@ const nativeFeedRowKey = (row: NativeFeedRow): string =>
 const nativeFeedRowType = (row: NativeFeedRow): string =>
   row.kind === 'auxiliary' ? `feed-${row.key}` : feedRowType(row);
 
-const EMPTY_VIEWABLE_KEYS: ReadonlySet<string> = new Set<string>();
 const EMPTY_ROW_KEYS: readonly string[] = [];
 
 /**
@@ -162,17 +165,14 @@ function collectRowVideoKeys(item: FeedItem, into: string[]): void {
   if (nestedId) into.push(String(nestedId));
 }
 
-function sameKeys(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
-  if (a === b) return true;
-  if (a.size !== b.size) return false;
-  // Compared in ITERATION order, not merely by membership: the published order IS
-  // the audible slot's ranking, so a reordered set is a real change.
-  const next = b.values();
-  for (const key of a) {
-    if (next.next().value !== key) return false;
-  }
-  return true;
-}
+/**
+ * The header and the list's header wrapper are document content: their height
+ * is their measured content height, so the following sticky row starts right
+ * below them. FlashList may otherwise stretch the wrapper to the viewport when
+ * it is the first child of a flex list.
+ */
+const LIST_HEADER_STYLE: ViewStyle = { flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' };
+const FEED_CONTAINER_BASE_STYLE: ViewStyle = { minHeight: 0 };
 
 /**
  * A non-scrolling ScrollView replacement for FlashList.
@@ -234,6 +234,24 @@ const NonScrollingScrollComponent = forwardRef<ScrollViewInstance, ScrollViewPro
 NonScrollingScrollComponent.displayName = 'NonScrollingScrollComponent';
 
 /**
+ * Makes `listRef` the screen viewport's scroll owner while `enabled` (the
+ * focused, active, scrolling list). A hook of its own because the write to the
+ * viewport's ref is one the React Compiler refuses: it costs this small hook
+ * its memoization rather than the whole feed.
+ */
+function useScreenScrollOwner(listRef: React.RefObject<unknown>, enabled: boolean) {
+  const ownerRef = useScreenViewport()?.scrollRef;
+  useEffect(() => {
+    if (!ownerRef || !enabled) return;
+    const list = listRef.current;
+    ownerRef.current = list;
+    return () => {
+      if (ownerRef.current === list) ownerRef.current = null;
+    };
+  }, [ownerRef, enabled, listRef]);
+}
+
+/**
  * The native feed: FlashList, scrolled on the UI thread. What the feed shows and
  * does comes from {@link useFeedCore}; this file owns only how it scrolls.
  */
@@ -274,15 +292,7 @@ const Feed = (props: FeedProps) => {
   const screenActive = screenViewport?.active !== false;
   const flatListRef = useRef<FlashListRef<NativeFeedRow> | null>(null);
   const { scrollPosition, scrollEventThrottle } = useLayoutScroll();
-  const ownerRef = screenViewport?.scrollRef;
-  useEffect(() => {
-    if (!ownerRef || !isFocused || !screenActive || scrollEnabled === false) return;
-    const list = flatListRef.current;
-    ownerRef.current = list;
-    return () => {
-      if (ownerRef.current === list) ownerRef.current = null;
-    };
-  }, [ownerRef, isFocused, screenActive, scrollEnabled]);
+  useScreenScrollOwner(flatListRef, isFocused && screenActive && scrollEnabled !== false);
 
   // Fixed top inset for a feed that scrolls BEHIND an auto-hiding header + tab
   // bar overlay. Reserved as constant scrollable top padding so the overlay
@@ -383,9 +393,9 @@ const Feed = (props: FeedProps) => {
   // visibility source for the players inside it). Two inputs feed it — FlashList's
   // viewability tokens for the rows, and this list's own scroll geometry for the
   // header, which is not a row — so both are held imperatively and the published
-  // set is rebuilt from them.
-  const [viewableVideoKeys, setViewableVideoKeys] =
-    useState<ReadonlySet<string>>(EMPTY_VIEWABLE_KEYS);
+  // set is rebuilt from them, straight into the store the players subscribe to:
+  // a viewability change re-renders the players whose rank moved, never the list.
+  const [viewableVideoKeys] = useState(createViewableKeysStore);
   const rowViewableKeysRef = useRef<readonly string[]>(EMPTY_ROW_KEYS);
   const headerOnScreenRef = useRef(false);
   const headerBottomRef = useRef(0);
@@ -397,8 +407,8 @@ const Feed = (props: FeedProps) => {
     // inside it outrank the rows for the single audible slot while it shows.
     if (headerOnScreenRef.current) keys.add(FEED_HEADER_VIEWABILITY_KEY);
     for (const key of rowViewableKeysRef.current) keys.add(key);
-    setViewableVideoKeys((previous) => (sameKeys(previous, keys) ? previous : keys));
-  }, []);
+    viewableVideoKeys.publish(keys);
+  }, [viewableVideoKeys]);
 
   // The header spans [topInset, topInset + height) of the scrollable content, so
   // it is on screen exactly while the scroll offset has not passed its bottom
@@ -431,7 +441,9 @@ const Feed = (props: FeedProps) => {
   // but viewability itself is a fact about the list, so video visibility is
   // published either way (a blurred screen's players are gated on focus anyway).
   const isFocusedRef = useRef(isFocused);
-  isFocusedRef.current = isFocused;
+  useEffect(() => {
+    isFocusedRef.current = isFocused;
+  }, [isFocused]);
   const handleViewableItemsChanged = useCallback(
     ({
       viewableItems,
@@ -543,11 +555,13 @@ const Feed = (props: FeedProps) => {
     onScroll: (event) => {
       'worklet';
       const offsetY = event.contentOffset.y;
-      scrollPosition.value = offsetY;
+      // `.set()`, not `.value =`: the compiler refuses a property write to a
+      // value another hook returned, and would skip this whole component.
+      scrollPosition.set(offsetY);
       if (screenMetrics && screenActive && isFocused) {
-        screenMetrics.scrollY.value = offsetY;
-        screenMetrics.contentHeight.value = event.contentSize.height;
-        screenMetrics.viewportHeight.value = event.layoutMeasurement.height;
+        screenMetrics.scrollY.set(offsetY);
+        screenMetrics.contentHeight.set(event.contentSize.height);
+        screenMetrics.viewportHeight.set(event.layoutMeasurement.height);
       }
       if (Math.abs(offsetY - lastReportedOffset.value) < JS_SCROLL_REPORT_PX) return;
       lastReportedOffset.value = offsetY;
@@ -618,14 +632,7 @@ const Feed = (props: FeedProps) => {
   const headerComponent = useMemo(
     () => (
       <VideoViewabilityScope viewabilityKey={FEED_HEADER_VIEWABILITY_KEY}>
-        <View
-          onLayout={handleHeaderLayout}
-          // FlashList may stretch its header wrapper to the viewport
-          // when it is the first child of a flex list. The header is
-          // document content; its height must be its measured content
-          // height so the following sticky row starts immediately.
-          style={{ flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' }}
-        >
+        <View onLayout={handleHeaderLayout} style={LIST_HEADER_STYLE}>
           {core.header}
         </View>
       </VideoViewabilityScope>
@@ -642,11 +649,11 @@ const Feed = (props: FeedProps) => {
     <FeedErrorBoundary>
       <View
         className={scrollEnabled === false ? undefined : 'flex-1'}
-        style={[{ minHeight: 0 }, scrollEnabled !== false && containerStyle]}
+        style={[FEED_CONTAINER_BASE_STYLE, scrollEnabled !== false && containerStyle]}
       >
         {/* This list owns viewability for every video inside it: a player
                     whose row is not viewable is not visible, so it cannot play. */}
-        <VideoViewabilityProvider viewableKeys={viewableVideoKeys}>
+        <VideoViewabilityProvider store={viewableVideoKeys}>
           <AnimatedFlashList
             ref={assignListRef}
             data={listRows}
@@ -655,7 +662,7 @@ const Feed = (props: FeedProps) => {
             getItemType={getItemType}
             extraData={dataHash}
             ListHeaderComponent={headerComponent}
-            ListHeaderComponentStyle={{ flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' }}
+            ListHeaderComponentStyle={LIST_HEADER_STYLE}
             ListEmptyComponent={renderedEmptyComponent}
             ListFooterComponent={renderedFooterComponent}
             // The Bloom sticky section is the first data row. FlashList
