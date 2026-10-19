@@ -112,7 +112,8 @@ function collapseAnchors(html: string, preserveMentionLinks: boolean): string {
         // Mastodon writes a same-instance mention as the bare `@user`. Read here
         // that is a LOCAL handle naming someone else, so it takes the host of the
         // profile it links to: `@user@instance`.
-        const handle = url && LOCAL_HANDLE_LABEL_REGEX.test(label) ? `${visible}@${url.hostname}` : visible;
+        const handle =
+          url && LOCAL_HANDLE_LABEL_REGEX.test(label) ? `${visible}@${url.hostname}` : visible;
         if (preserveMentionLinks && label.startsWith('@') && !/[[\]\r\n]/.test(label) && url) {
           const target = url.href.replace(/\(/g, '%28').replace(/\)/g, '%29');
           return `[@${handle}](${target})`;
