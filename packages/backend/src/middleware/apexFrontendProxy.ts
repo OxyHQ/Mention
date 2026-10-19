@@ -29,6 +29,7 @@ import https from 'node:https';
 import type { Request, Response, NextFunction } from 'express';
 import { config } from '../config';
 import { logger } from '../utils/logger';
+import { labelMiddlewareResponse } from './requestObservability';
 import { SHELL_ACCESS_HEADER, invalidateShellDocument } from '../services/webShellDocument';
 
 /**
@@ -369,6 +370,7 @@ export async function apexFrontendProxy(
     next();
     return;
   }
+  labelMiddlewareResponse(res, '/apex-proxy');
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     res.setHeader('Allow', 'GET, HEAD');
     res.status(405).end();

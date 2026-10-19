@@ -1,7 +1,7 @@
 import express from 'express';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { requestObservability } from '../../middleware/requestObservability';
+import { namedRoutePattern, requestObservability } from '../../middleware/requestObservability';
 import { logger } from '../../utils/logger';
 import { metrics } from '../../utils/metrics';
 
@@ -9,6 +9,7 @@ describe('requestObservability', () => {
   const app = express();
   app.use(requestObservability);
   app.get('/posts/:id', (_req, res) => res.status(200).json({ ok: true }));
+  app.get(namedRoutePattern(/^\/p\/([^/]+)$/, '/p/:id'), (_req, res) => res.status(200).end());
 
   beforeEach(() => {
     metrics.reset();
@@ -54,6 +55,16 @@ describe('requestObservability', () => {
             status: '4xx',
           }),
       )?.count,
+    ).toBe(1);
+  });
+
+  it('reports a RegExp route under its name, not as unmatched', async () => {
+    await request(app).get('/p/65fdc8c8c8c8c8c8c8c8c8c8').expect(200);
+
+    expect(
+      metrics
+        .getSeries('http_request_duration_ms')
+        .find(({ labels }) => labels.route === '/p/:id' && labels.status === '2xx')?.count,
     ).toBe(1);
   });
 });

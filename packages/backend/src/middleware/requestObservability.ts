@@ -20,10 +20,49 @@ function requestId(req: Request): string {
   return incoming && SAFE_REQUEST_ID.test(incoming) ? incoming : randomUUID();
 }
 
-function routeTemplate(req: Request): string {
+/**
+ * The template a RegExp route path is reported as. Express reports a RegExp
+ * route's `path` as the RegExp itself, so without a name every request it
+ * served was counted as `/unmatched` — which is how the apex's crawled post
+ * pages, the backend's busiest route, hid under that label.
+ */
+const namedPatterns = new WeakMap<RegExp, string>();
+
+/**
+ * Give a RegExp route path the template its requests are reported under, and
+ * return the pattern unchanged so it can be passed straight to `router.get`.
+ * The name is a literal from code, never request input, so it is a bounded
+ * label.
+ */
+export function namedRoutePattern(pattern: RegExp, template: string): RegExp {
+  namedPatterns.set(pattern, template);
+  return pattern;
+}
+
+/** `res.locals` key a middleware that answers without a route sets to name itself. */
+const MIDDLEWARE_LABEL = 'observabilityRoute';
+
+/**
+ * Report a response answered by middleware rather than a route (the apex
+ * frontend proxy) under its own name instead of `/unmatched`. `label` must be
+ * a literal from code.
+ */
+export function labelMiddlewareResponse(res: Response, label: string): void {
+  res.locals[MIDDLEWARE_LABEL] = label;
+}
+
+function routeTemplate(req: Request, res: Response): string {
+  const labelled = res.locals?.[MIDDLEWARE_LABEL];
+  if (typeof labelled === 'string') return labelled;
   const route = req.route as { path?: unknown } | undefined;
-  if (typeof route?.path !== 'string') return '/unmatched';
-  const joined = `${req.baseUrl ?? ''}${route.path}`;
+  const path =
+    typeof route?.path === 'string'
+      ? route.path
+      : route?.path instanceof RegExp
+        ? (namedPatterns.get(route.path) ?? '/unnamed-pattern')
+        : undefined;
+  if (path === undefined) return '/unmatched';
+  const joined = `${req.baseUrl ?? ''}${path}`;
   return joined.startsWith('/') ? joined : `/${joined}`;
 }
 
@@ -53,7 +92,7 @@ function reportRequest(
   oxyTally: OxyTally | undefined,
 ): void {
   const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
-  const route = routeTemplate(req);
+  const route = routeTemplate(req, res);
   const labels = {
     method: req.method.toUpperCase(),
     route,
