@@ -309,6 +309,12 @@ export const viewerQueryKeys = {
     [...viewerQueryKeys.all(viewerId), 'similar-profiles', sourceUserId ?? ''] as const,
   profileReputation: (viewerId: ViewerId, profileId: string | null | undefined) =>
     [...viewerQueryKeys.all(viewerId), 'profile-reputation', profileId ?? ''] as const,
+  /**
+   * The viewer's Oxy block and restrict lists, as ids. One app-wide entry, so
+   * every mounted feed shares one read instead of each asking Oxy on mount.
+   */
+  privacyLists: (viewerId: ViewerId) =>
+    [...viewerQueryKeys.all(viewerId), 'privacy-lists'] as const,
   mutualFollowers: (viewerId: ViewerId, profileId: string | null | undefined) =>
     [...viewerQueryKeys.all(viewerId), 'mutual-followers', profileId ?? ''] as const,
   knownLikers: (viewerId: ViewerId, postId: string | null | undefined) =>
