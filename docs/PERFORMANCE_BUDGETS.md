@@ -763,10 +763,13 @@ views. What each step did:
 | other-row renders when post A is liked | 0 | 0 |
 | other-row renders on a view-count update | 0 | 0 |
 
-The one request per row is the author avatar prefetch. A 200-post fling makes
-198 requests, all avatar prefetches, and **zero** translation requests. Before
-#1106 the frontend could auto-translate a row on mount; now only an explicit
-Translate calls the endpoint.
+A row makes no request of its own. The last one, a prefetch of the author's
+avatar, was removed (2026-10-19): the row's `Avatar` asks for the same image in
+the same commit, so the prefetch was a second request and ~20 hook slots per
+row (text 293 -> 272). A 200-post fling now makes **zero** requests (198 before,
+all avatar prefetches) and zero translation requests. Before #1106 the frontend
+could auto-translate a row on mount; now only an explicit Translate calls the
+endpoint.
 
 Measured outside the row harness, in each PR's own test:
 

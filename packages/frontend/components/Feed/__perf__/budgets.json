@@ -1,5 +1,5 @@
 {
-  "$comment": "Structural budgets for the feed row-cost harness (issue #1103). Exact counts, not timings: they are deterministic, so they can gate CI. Lower a ceiling when an optimization lands; raising one is a decision to write down in the PR. Bloom 7.31 + react-native-css 3.1.0-rc.0 (inline video on iPhone Safari): text hostNodes 52.125 -> 53.125 because Bloom 7.9.2 gives the avatar placeholder image its own positioned wrapper so it paints above the absolute shape fill on web; linkPreview contextReads 53 -> 55 because react-native-css 3.1.0-rc.0 re-runs an interop component's rule effect after commit (its StrictMode-safe subscription), so the link card's interop Pressable reads its two CSS contexts twice on mount. Bloom 10.7.0 (Alia's live avatar on the Ask Alia button): linkPreview contextReads 55 -> 56 because Bloom's Avatar now also calls useMessages(AGENT_AVATAR_MESSAGES) for its character-face label, a second LocaleContext read on every Avatar even when it draws no character (every avatar row gains one; only linkPreview had no headroom). Bloom can read that catalog only in the character branch and give this back. Bloom 11.1.0: text componentsPerRow 195 -> 196. Comparing the real text-row fiber trees on main 319ab1dd6 and the update (eight rows), each native Image becomes BloomImage + ExpoImage: +1 component per row, with no extra host nodes or requests. Every other ceiling is unchanged. Bloom inline post Markdown: comparing main a686b2525 (Bloom 12.2.0) against the real shared InlineMarkdown renderer adds one component, one theme context read and one hook per post body; quote rows render two bodies. Host nodes, requests and unrelated-row renders are unchanged. Raise only exhausted component ceilings: text 196 -> 197 and quote 266 -> 268. Other ceilings retain their existing headroom.",
+  "$comment": "Structural budgets for the feed row-cost harness (issue #1103). Exact counts, not timings: they are deterministic, so they can gate CI. Lower a ceiling when an optimization lands; raising one is a decision to write down in the PR. Bloom 7.31 + react-native-css 3.1.0-rc.0 (inline video on iPhone Safari): text hostNodes 52.125 -> 53.125 because Bloom 7.9.2 gives the avatar placeholder image its own positioned wrapper so it paints above the absolute shape fill on web; linkPreview contextReads 53 -> 55 because react-native-css 3.1.0-rc.0 re-runs an interop component's rule effect after commit (its StrictMode-safe subscription), so the link card's interop Pressable reads its two CSS contexts twice on mount. Bloom 10.7.0 (Alia's live avatar on the Ask Alia button): linkPreview contextReads 55 -> 56 because Bloom's Avatar now also calls useMessages(AGENT_AVATAR_MESSAGES) for its character-face label, a second LocaleContext read on every Avatar even when it draws no character (every avatar row gains one; only linkPreview had no headroom). Bloom can read that catalog only in the character branch and give this back. Bloom 11.1.0: text componentsPerRow 195 -> 196. Comparing the real text-row fiber trees on main 319ab1dd6 and the update (eight rows), each native Image becomes BloomImage + ExpoImage: +1 component per row, with no extra host nodes or requests. Every other ceiling is unchanged. Bloom inline post Markdown: comparing main a686b2525 (Bloom 12.2.0) against the real shared InlineMarkdown renderer adds one component, one theme context read and one hook per post body; quote rows render two bodies. Host nodes, requests and unrelated-row renders are unchanged. Raise only exhausted component ceilings: text 196 -> 197 and quote 266 -> 268. Other ceilings retain their existing headroom. Avatar prefetch removed from PostItem (the row's own Avatar loads the same image in the same commit): every avatar row loses its one request and the hooks of useImagePreload, so requestsPerRow is 0 for every kind, the fling's requests per post visited 1 -> 0, and hooksPerRow drops to the measured values (text 293 -> 272, quote 488 -> 445).",
   "hostNodesPerRow": {
     "text": 53.125,
     "textAvatar": 51,
@@ -25,16 +25,16 @@
     "communityNote": 220
   },
   "hooksPerRow": {
-    "text": 293,
-    "textAvatar": 293,
-    "image": 346,
-    "multiImage": 388,
-    "video": 405,
-    "linkPreview": 350,
-    "quote": 488,
-    "repost": 312,
-    "poll": 327,
-    "communityNote": 337
+    "text": 272,
+    "textAvatar": 272,
+    "image": 324,
+    "multiImage": 366,
+    "video": 383,
+    "linkPreview": 330,
+    "quote": 445,
+    "repost": 275,
+    "poll": 305,
+    "communityNote": 316
   },
   "contextReadsPerRow": {
     "text": 40,
@@ -50,15 +50,15 @@
   },
   "requestsPerRow": {
     "text": 0,
-    "textAvatar": 1,
-    "image": 1,
-    "multiImage": 1,
-    "video": 1,
-    "linkPreview": 1,
-    "quote": 2,
-    "repost": 1,
-    "poll": 1,
-    "communityNote": 1
+    "textAvatar": 0,
+    "image": 0,
+    "multiImage": 0,
+    "video": 0,
+    "linkPreview": 0,
+    "quote": 0,
+    "repost": 0,
+    "poll": 0,
+    "communityNote": 0
   },
   "queryObserversPerRow": {
     "text": 0,
@@ -80,6 +80,6 @@
   },
   "fling": {
     "translationRequests": 0,
-    "maxRequestsPerPostVisited": 1
+    "maxRequestsPerPostVisited": 0
   }
 }
