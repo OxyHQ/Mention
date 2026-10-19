@@ -287,7 +287,7 @@ describe('useFeedState memory mode: one feed query', () => {
       expect(ids()).toEqual(['l2']);
     });
 
-    it("always reads a thread's replies again, page 1 only", async () => {
+    it("reads a thread's replies again on a later visit, page 1 only", async () => {
       const thread: UseFeedStateOptions = {
         ...explore,
         type: 'replies',
@@ -301,8 +301,19 @@ describe('useFeedState memory mode: one feed query', () => {
       await loadMore();
       unmount(first);
 
-      getFeedMock.mockResolvedValueOnce({ ...page([]), items: [reply('r1'), reply('r9')] });
-      await mount(thread);
+      // Within seconds of the read it is this same visit's (the post screen
+      // prefetches its replies): mounting does not read them twice.
+      unmount(await mount(thread));
+      expect(getFeedMock).toHaveBeenCalledTimes(2);
+
+      const later = Date.now() + 60_000;
+      const clock = jest.spyOn(Date, 'now').mockReturnValue(later);
+      try {
+        getFeedMock.mockResolvedValueOnce({ ...page([]), items: [reply('r1'), reply('r9')] });
+        await mount(thread);
+      } finally {
+        clock.mockRestore();
+      }
 
       expect(ids(renders[0])).toEqual(['r1', 'r2']);
       expect(getFeedMock).toHaveBeenCalledTimes(3);

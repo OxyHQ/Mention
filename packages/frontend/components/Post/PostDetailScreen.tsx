@@ -14,7 +14,13 @@ import Feed from '@/components/Feed/Feed';
 import { FeedHeader } from '@/components/Feed/FeedHeader';
 import { Screen } from '@oxy.so/bloom/screen';
 import { PageFooter } from '@oxy.so/bloom/page-footer';
-import { useThreadPreferences, SORT_TO_API } from '@/hooks/useThreadPreferences';
+import {
+  useThreadPreferences,
+  useThreadPreferencesStore,
+  SORT_TO_API,
+} from '@/hooks/useThreadPreferences';
+import { prefetchFeed } from '@/hooks/useFeedQuery';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   applyServerViewCounts,
   getCachedAncestorChain,
@@ -54,16 +60,47 @@ interface PostDetailScreenProps {
   onBack?: () => void;
 }
 
-const AuthorizedPostDetailScreen = ({
-  postId: id,
-  onBack,
-  requiresFreshReads,
-}: PostDetailScreenProps & { requiresFreshReads: boolean }) => {
+/**
+ * Read the replies for the route's post while the post itself and the viewer's
+ * supervision are still loading, so the three requests leave together instead
+ * of one after another. Data only: nothing renders until the screen's access
+ * gate allows it, and the server re-checks the viewer on every read.
+ */
+function usePrefetchReplies(postId: string) {
+  const queryClient = useQueryClient();
+  const { user, isAuthenticated, isAuthResolved, canUsePrivateApi } = useAuth();
+  const sortOrder = useThreadPreferencesStore((state) => state.sortOrder);
+  const sortLoaded = useThreadPreferencesStore((state) => state.loaded);
+  const viewerId = isAuthenticated ? user?.id : undefined;
+  // The same viewer the feed will read for: resolved, and signed in with a
+  // usable session or signed out.
+  const viewerReady = isAuthResolved && (isAuthenticated ? canUsePrivateApi && !!viewerId : true);
+
+  useEffect(() => {
+    if (!postId || !viewerReady || !sortLoaded) return;
+    // A boost's replies are its original's; a cached boost names it.
+    const boosted = usePostsStore.getState().getPostFromDb(postId)?.boost?.originalPost?.id;
+    const target = boosted ? String(boosted) : postId;
+    prefetchFeed(queryClient, {
+      type: 'replies' as FeedType,
+      filters: { postId: target, parentPostId: target, sort: SORT_TO_API[sortOrder] },
+      viewerId,
+    });
+  }, [postId, viewerReady, sortLoaded, sortOrder, viewerId, queryClient]);
+}
+
+export default function PostDetailScreen({ postId: id, onBack }: PostDetailScreenProps) {
+  // Supervision, the post and its replies load at the same time; only what is
+  // SHOWN waits for the access gate (see the returns below).
+  const access = usePostReadAccess(id ? String(id) : '');
+  const requiresFreshReads = access.supervised;
+  usePrefetchReplies(id ? String(id) : '');
   const router = useRouter();
   const safeBack = useSafeBack();
   const getPostById = usePostsStore((state) => state.getPostById);
   const revalidatePostById = usePostsStore((state) => state.revalidatePostById);
   const { user } = useAuth();
+  const viewerId = user?.id;
   const theme = useTheme();
   const { t } = useTranslation();
   const { treeView, sortOrder } = useThreadPreferences();
@@ -168,11 +205,11 @@ const AuthorizedPostDetailScreen = ({
   // in the URL grants nothing on its own.
   useEffect(() => {
     const postId = String(id ?? '');
-    if (!postId || !user) return;
+    if (!postId || !viewerId) return;
 
     socketService.joinPost(postId);
     return () => socketService.leavePost(postId);
-  }, [id, user]);
+  }, [id, viewerId]);
 
   // Load the post. When the feed already cached it, the post is rendered
   // synchronously above (`cachedPost`) and this effect only revalidates it in
@@ -210,7 +247,7 @@ const AuthorizedPostDetailScreen = ({
     // specifically to return it — so it goes into the shared cache rather
     // than being dropped: this screen renders that number, and the view it
     // just recorded is precisely the one it would otherwise be missing.
-    if (user) {
+    if (viewerId) {
       insightsService
         .trackPostView(postId)
         .then((ack) => applyServerViewCounts({ [postId]: ack.viewsCount }))
@@ -379,7 +416,7 @@ const AuthorizedPostDetailScreen = ({
     return () => {
       cancelled = true;
     };
-  }, [id, getPostById, revalidatePostById, user, requiresFreshReads, t]);
+  }, [id, getPostById, revalidatePostById, viewerId, requiresFreshReads, t]);
 
   const handleBack = () => {
     if (onBack) onBack();
@@ -521,6 +558,18 @@ const AuthorizedPostDetailScreen = ({
       }
     />
   );
+  if (access.failed) {
+    return (
+      <EmptyState
+        error={{
+          title: t('safety.contentUnavailable'),
+          message: t('safety.retryDescription'),
+          onRetry: access.retry,
+        }}
+      />
+    );
+  }
+  if (!access.allowed) return <FeedSkeleton />;
   if (!loading && (error || !post)) {
     return (
       <Screen scroll="auto" header={header}>
@@ -586,28 +635,5 @@ const AuthorizedPostDetailScreen = ({
         />
       )}
     </Screen>
-  );
-};
-
-export default function PostDetailScreen({ postId: id, onBack }: PostDetailScreenProps) {
-  const { t } = useTranslation();
-  const access = usePostReadAccess(id ? String(id) : '');
-  if (access.failed)
-    return (
-      <EmptyState
-        error={{
-          title: t('safety.contentUnavailable'),
-          message: t('safety.retryDescription'),
-          onRetry: access.retry,
-        }}
-      />
-    );
-  if (!access.allowed) return <FeedSkeleton />;
-  return (
-    <AuthorizedPostDetailScreen
-      postId={id}
-      onBack={onBack}
-      requiresFreshReads={access.supervised}
-    />
   );
 }

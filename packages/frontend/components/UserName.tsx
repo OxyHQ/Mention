@@ -19,6 +19,7 @@ const UserName: React.FC<UserNameProps> = ({
   isAgent,
   isAutomated,
   href,
+  onPress,
   asHeading,
   onExplainNetwork,
   onExplainChannel,
@@ -157,7 +158,15 @@ const UserName: React.FC<UserNameProps> = ({
       role={asHeading ? 'heading' : undefined}
     >
       {href ? (
-        <Link href={href} push asChild onPress={(event) => event.stopPropagation()}>
+        <Link
+          href={href}
+          push
+          asChild
+          onPress={(event) => {
+            event.stopPropagation();
+            onPress?.();
+          }}
+        >
           <Text>{primaryText}</Text>
         </Link>
       ) : (
