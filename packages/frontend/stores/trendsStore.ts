@@ -137,13 +137,11 @@ export const useTrendsStore = create<TrendsStore>()((set, get) => ({
   hiddenTrendIds: [],
 
   setReaderLanguages: (languages: readonly string[]) => {
-    // Deduped and sorted, NOT normalized: `GET /trending` reduces the tags
-    // itself because the value becomes part of a shared cache key, and one
-    // authority for a key beats two copies of the rule. All this comparison
-    // owes is stability — it decides whether to refetch, and the worst case
-    // of holding `es-ES` where the server sees `es` is one redundant
-    // refetch on an identity change.
-    const next = [...new Set(languages.map((tag) => tag.trim()).filter(Boolean))].sort();
+    // Deduped, in the reader's order of preference: the Translate action reads
+    // the first entry as the reader's primary language. Not sorted or
+    // normalized here — `GET /trending` reduces, sorts and caps the tags itself
+    // for its shared cache key, the one authority for that rule.
+    const next = [...new Set(languages.map((tag) => tag.trim()).filter(Boolean))];
     if (next.join(',') === get().readerLanguages.join(',')) return;
     set({ readerLanguages: next });
     // The list already on screen was ordered for the previous reader.
