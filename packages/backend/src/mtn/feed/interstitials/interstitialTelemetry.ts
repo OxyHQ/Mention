@@ -8,7 +8,7 @@
  *
  * Two constraints shape this file:
  *
- *  1. Card events MUST NOT reach `trackFeedInteraction` / the post-interaction
+ *  1. Card events MUST NOT reach `trackFeedInteractions` / the post-interaction
  *     route. That path requires a `postUri` and feeds POST ranking — routing card
  *     engagement there would poison author/topic affinity with engagement that
  *     never touched a post.

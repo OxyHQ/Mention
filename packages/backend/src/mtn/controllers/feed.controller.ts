@@ -45,7 +45,7 @@ import {
 import { FeedResponseBuilder } from '../../utils/FeedResponseBuilder';
 import { queryString } from '../../utils/queryParams';
 import { UserPrivacyManager } from '../UserPrivacyManager';
-import { trackFeedInteraction } from '../feed/FeedInteractionTracker';
+import { trackFeedInteractions } from '../feed/FeedInteractionTracker';
 import { parseFeedInteractionBatch } from '../feed/interactionTelemetry';
 import { federatedProfileSync } from '../../connectors/federatedProfileSync';
 import { ownerHasProfileAffectingLane } from '../../services/laneVisibility';
@@ -822,34 +822,24 @@ class MtnFeedController {
 
       // One timestamp for the whole batch: the entries were observed together on
       // the client, and the queue's flush delay is not per-entry information.
+      // One call for the batch, not one per entry: it writes the raw rows in one
+      // insert and the viewer's preference signals in one locked write, and each
+      // side effect fails soft on its own (`trackFeedInteractions`).
       const timestamp = new Date();
-      // `allSettled`, not `all`: each entry's side effects are independent, so a
-      // single failure must not discard the rest of the batch. `trackFeedInteraction`
-      // already logs its own failures; this only reports how many did not land, so
-      // a systematically failing batch stays visible.
-      const results = await Promise.allSettled(
-        parsed.interactions.map((interaction) =>
-          trackFeedInteraction({ ...interaction, userId, timestamp }),
-        ),
+      const counts = await trackFeedInteractions(
+        parsed.interactions.map((interaction) => ({ ...interaction, userId, timestamp })),
       );
-      const failed = results.filter((result) => result.status === 'rejected').length;
-      if (failed > 0) {
-        logger.warn('[MtnFeedController] recordInteraction: some entries failed', {
-          failed,
-          total: parsed.interactions.length,
-        });
-      }
 
-      // Positional pairing: `allSettled` preserves the input order, so result i
-      // belongs to interaction i. Only entries that COUNTED a view resolve to a
-      // number — everything else (a click, a duplicate impression, a self-view)
-      // resolves to null and is left out, so the map stays the honest "what
-      // changed" set rather than a mirror of the request.
+      // Positional pairing: count i belongs to interaction i. Only entries that
+      // COUNTED a view resolve to a number — everything else (a click, a
+      // duplicate impression, a self-view) resolves to null and is left out, so
+      // the map stays the honest "what changed" set rather than a mirror of the
+      // request.
       const viewCounts: FeedPostViewCounts = {};
-      results.forEach((result, index) => {
+      counts.forEach((count, index) => {
         const entry = parsed.interactions[index];
-        if (!entry || result.status !== 'fulfilled' || result.value === null) return;
-        viewCounts[entry.postUri] = result.value;
+        if (!entry || count === null) return;
+        viewCounts[entry.postUri] = count;
       });
 
       const counted = Object.keys(viewCounts).length > 0;
@@ -867,7 +857,7 @@ class MtnFeedController {
    * subscribe / use / dismiss / see-more).
    *
    * Deliberately NOT `recordInteraction` above: that route requires a `postUri`
-   * and feeds POST ranking through `trackFeedInteraction`, so card engagement
+   * and feeds POST ranking through `trackFeedInteractions`, so card engagement
    * sent there would corrupt author/topic affinity with engagement that never
    * touched a post. Card events land as low-cardinality counters and nothing
    * else — no ranking signal, no per-row documents.
