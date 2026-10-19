@@ -7,7 +7,7 @@ vi.mock('@oxy.so/core', () => ({
     assets = { access };
   },
 }));
-import { hydratePostMedia } from '../../services/hydratePostMedia';
+import { hydratePostMedia, prefetchPostMediaAccess } from '../../services/hydratePostMedia';
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -88,5 +88,28 @@ describe('canonical asset access for a hydrated graph', () => {
         accessToken: 'viewer',
       }),
     ).rejects.toThrow('Oxy unavailable');
+  });
+  it('finishes from a lookup started early, asking only for files it did not cover', async () => {
+    access.mockImplementation(async (batch: Array<{ fileId: string }>) => ({
+      results: Object.fromEntries(
+        batch.map(({ fileId }) => [
+          fileId,
+          { allowed: true, visibility: 'private', url: `https://oxy.test/${fileId}` },
+        ]),
+      ),
+    }));
+    const prefetched = prefetchPostMediaAccess(['early'], { accessToken: 'viewer' });
+    const post = { content: { media: [media('early'), media('late')] }, attachments: {} };
+
+    await hydratePostMedia([post], { accessToken: 'viewer' }, prefetched);
+
+    expect(access.mock.calls.map(([batch]) => batch)).toEqual([
+      [{ fileId: 'early' }],
+      [{ fileId: 'late' }],
+    ]);
+    expect(post.content.media.map((item) => item.url)).toEqual([
+      'https://oxy.test/early',
+      'https://oxy.test/late',
+    ]);
   });
 });

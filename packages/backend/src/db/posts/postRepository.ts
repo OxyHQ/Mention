@@ -273,6 +273,14 @@ async function loadChildRows(
   db: DatabaseOrTransaction,
   postIds: readonly string[],
 ): Promise<PostChildRows> {
+  // The variant-owned tables key on the VARIANT, not the post. They are read in
+  // the SAME wave as everything else, through a subquery over the post ids,
+  // rather than after the variant rows come back: a second wave cost every
+  // assembly — every post page, every feed page — one more serial round trip.
+  const variantIdsOfPosts = db
+    .select({ id: postContentVariants.id })
+    .from(postContentVariants)
+    .where(inArray(postContentVariants.postId, [...postIds]));
   const [
     authorshipRows,
     variantRows,
@@ -281,6 +289,8 @@ async function loadChildRows(
     sourceRows,
     mentionRows,
     topicRefRows,
+    variantMediaRows,
+    variantAltRows,
   ] = await Promise.all([
     db
       .select()
@@ -353,26 +363,17 @@ async function loadChildRows(
         sql`${postClassificationTopicRefs.relevance} desc nulls last`,
         asc(postClassificationTopicRefs.name),
       ),
+    db
+      .select()
+      .from(postVariantMedia)
+      .where(inArray(postVariantMedia.variantId, variantIdsOfPosts))
+      .orderBy(asc(postVariantMedia.position)),
+    db
+      .select()
+      .from(postVariantAltTexts)
+      .where(inArray(postVariantAltTexts.variantId, variantIdsOfPosts))
+      .orderBy(asc(postVariantAltTexts.mediaId)),
   ]);
-
-  // The variant-owned tables key on the VARIANT, so they can only be read once
-  // the variant ids are known. Grouped back onto the post by that mapping.
-  const variantIds = variantRows.map((row) => row.id);
-  const [variantMediaRows, variantAltRows] =
-    variantIds.length === 0
-      ? [[] as VariantMediaRow[], [] as Array<typeof postVariantAltTexts.$inferSelect>]
-      : await Promise.all([
-          db
-            .select()
-            .from(postVariantMedia)
-            .where(inArray(postVariantMedia.variantId, variantIds))
-            .orderBy(asc(postVariantMedia.position)),
-          db
-            .select()
-            .from(postVariantAltTexts)
-            .where(inArray(postVariantAltTexts.variantId, variantIds))
-            .orderBy(asc(postVariantAltTexts.mediaId)),
-        ]);
 
   return {
     authorships: groupBy(
@@ -717,6 +718,16 @@ const NO_CHILD_ROWS: PostChildRows = {
 };
 
 /**
+ * The `posts` row a shell was assembled from, carried on the shell so that
+ * completing it needs only the child tables — see {@link completeShellRecords}.
+ */
+const SHELL_ROW = Symbol('postShellRow');
+
+interface ShellRowCarrier {
+  [SHELL_ROW]?: PostRow;
+}
+
+/**
  * Assemble a set of `posts` rows WITHOUT their child tables — every flat
  * column (author, visibility, stats, the flat halves of `content` and
  * `postClassification`, etc.) is populated; `authorship`, `mentions`, and the
@@ -739,7 +750,41 @@ const NO_CHILD_ROWS: PostChildRows = {
  * affected; only the registry-linked `topicRefs` is.
  */
 export function assembleShellRecords(rows: readonly PostRow[]): PostRecord[] {
-  return rows.map((row) => assembleRecord(row, NO_CHILD_ROWS));
+  return rows.map((row) => {
+    const shell: PostRecord & ShellRowCarrier = assembleRecord(row, NO_CHILD_ROWS);
+    // Enumerable on purpose: a candidate is copied with object spread on its way
+    // through ranking, and spread copies symbol keys too. `JSON.stringify` drops
+    // it, so it never reaches a response or a cache entry.
+    shell[SHELL_ROW] = row;
+    return shell;
+  });
+}
+
+/**
+ * Finish the deferred half of a two-phase read: assemble full records for shells
+ * from {@link assembleShellRecords}, keyed by id.
+ *
+ * The `posts` row is already in hand on every shell that still carries it, so
+ * only the child tables are read — the page's posts are not selected a second
+ * time. A shell that lost its row on the way (one copied through anything but
+ * object spread) is loaded whole, which is what this did for every shell before.
+ */
+export async function completeShellRecords(
+  shells: readonly PostRecord[],
+  db: DatabaseOrTransaction = getDb(),
+): Promise<Map<string, PostRecord>> {
+  const rowsInHand: PostRow[] = [];
+  const unrowed: string[] = [];
+  for (const shell of shells) {
+    const row = (shell as PostRecord & ShellRowCarrier)[SHELL_ROW];
+    if (row) rowsInHand.push(row);
+    else unrowed.push(shell.id);
+  }
+  const [assembled, loaded] = await Promise.all([
+    assemblePostRecords(rowsInHand, db),
+    loadPostRecords(unrowed, db),
+  ]);
+  return new Map([...assembled, ...loaded].map((record) => [record.id, record]));
 }
 
 /**
@@ -755,12 +800,18 @@ export async function loadPostRecords(
   db: DatabaseOrTransaction = getDb(),
 ): Promise<PostRecord[]> {
   if (postIds.length === 0) return [];
-  const rows = await db
-    .select()
-    .from(posts)
-    .where(inArray(posts.id, [...postIds]));
-  const records = await assemblePostRecords(rows, db);
-  const byId = new Map(records.map((record) => [record.id, record]));
+  // The child tables key on the post ids the caller already holds, so they are
+  // read BESIDE the `posts` rows rather than after them: one wave of round trips
+  // for a whole assembly instead of two. An id with no row costs a few empty
+  // index probes and assembles nothing.
+  const [rows, children] = await Promise.all([
+    db
+      .select()
+      .from(posts)
+      .where(inArray(posts.id, [...postIds])),
+    loadChildRows(db, postIds),
+  ]);
+  const byId = new Map(rows.map((row) => [row.id, assembleRecord(row, children)]));
   return postIds.flatMap((id) => {
     const record = byId.get(id);
     return record ? [record] : [];

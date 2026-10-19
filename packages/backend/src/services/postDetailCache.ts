@@ -80,6 +80,42 @@ export async function getOrLoadPostRecord(
 }
 
 /**
+ * {@link getOrLoadPostRecord} for a batch: ONE `MGET` for every id, ONE `load`
+ * for whatever missed, and the records it found written back in one pipeline.
+ * Returned in the order asked for, skipping ids with no row — the contract
+ * `loadPostRecords` has, so a caller can swap one for the other.
+ *
+ * No per-key single-flight here, unlike the single read: a batch is a page of
+ * DIFFERENT posts, so there is no burst on one key to collapse.
+ */
+export async function getOrLoadPostRecords(
+  postIds: readonly string[],
+  load: (missIds: string[]) => Promise<PostRecord[]>,
+): Promise<PostRecord[]> {
+  const ids = [...new Set(postIds)];
+  if (ids.length === 0) return [];
+  const cached = await cache.getMany<PostRecord>(ids.map(keyFor));
+  const byId = new Map<string, PostRecord>();
+  const missIds: string[] = [];
+  ids.forEach((id, index) => {
+    const hit = cached[index];
+    if (hit) byId.set(id, reviveDates(hit));
+    else missIds.push(id);
+  });
+  if (missIds.length > 0) {
+    const loaded = await load(missIds);
+    for (const record of loaded) byId.set(record.id, record);
+    if (loaded.length > 0) {
+      await cache.setMany(loaded.map((record) => [keyFor(record.id), record] as const));
+    }
+  }
+  return postIds.flatMap((id) => {
+    const record = byId.get(id);
+    return record ? [record] : [];
+  });
+}
+
+/**
  * Evict `postId`'s cached record so the next read re-assembles it. Called from
  * `postRepository.ts` wherever a write changes what `loadPostRecord` returns
  * for an EXISTING post (edit, authorship change, a scheduled post going live,
