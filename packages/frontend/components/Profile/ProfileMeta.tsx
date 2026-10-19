@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { LocationIcon } from '@/assets/icons/location-icon';
-import { CalendarIcon } from '@/assets/icons/calendar-icon';
+import { EmojiNatureIcon } from '@/assets/icons/emoji-nature-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import type { ProfileMetaProps } from './types';
 
@@ -53,7 +53,7 @@ export const ProfileMeta = memo(function ProfileMeta({
           disabled={!aboutHref}
           activeOpacity={0.7}
         >
-          <CalendarIcon size={16} className="text-muted-foreground" />
+          <EmojiNatureIcon size={16} className="text-muted-foreground" />
           <Text className="text-muted-foreground text-[15px]">
             {t('profile.joined')} {formatJoinDate(createdAt)}
           </Text>
