@@ -28,6 +28,9 @@ import { Hashtag, HashtagActive } from '@/assets/icons/hashtag-icon';
 import { ChannelIcon, ChannelIconActive } from '@/assets/icons/channel-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 
+// Keep the Deck badge visible for its first month after launch.
+const DECK_NEW_BADGE_EXPIRES_AT = Date.parse('2026-11-19T00:00:00Z');
+
 function DeckIcon({ size = 24, color }: { size?: number; color?: string }) {
   return <RiDashboardLine width={size} height={size} fill={color} />;
 }
@@ -222,20 +225,27 @@ export function useMentionSidebar(): SidebarProps {
       onPress: () => handleNavPress('/'),
     },
     selected: pathname,
-    items: sideBarData.map(({ title, icon, iconActive, route, onPress }) => ({
-      key: typeof route === 'string' ? route : title,
-      label: title,
-      // Bloom supplies the foreground paired with the selected surface.
-      icon: ({ width, fill }) => paintNavigationIcon(icon, width, fill),
-      activeIcon: ({ width, fill }) => paintNavigationIcon(iconActive, width, fill),
-      href: typeof route === 'string' ? route : undefined,
-      onPress:
-        onPress ??
-        (() => {
-          if (route) handleNavPress(route);
-        }),
-      badge: route === '/notifications' && unreadCount > 0 ? unreadCount : undefined,
-    })),
+    items: sideBarData.map(({ title, icon, iconActive, route, onPress }) => {
+      const isNewDeck = route === '/deck' && Date.now() < DECK_NEW_BADGE_EXPIRES_AT;
+      return {
+        key: typeof route === 'string' ? route : title,
+        label: title,
+        // Bloom supplies the foreground paired with the selected surface.
+        icon: ({ width, fill }) => paintNavigationIcon(icon, width, fill),
+        activeIcon: ({ width, fill }) => paintNavigationIcon(iconActive, width, fill),
+        href: typeof route === 'string' ? route : undefined,
+        onPress:
+          onPress ??
+          (() => {
+            if (route) handleNavPress(route);
+          }),
+        badge: isNewDeck
+          ? 'New'
+          : route === '/notifications' && unreadCount > 0
+            ? unreadCount
+            : undefined,
+      };
+    }),
     primaryAction: {
       label: t('sidebar.compose'),
       icon: ({ width, fill }) => <ComposeIcon size={width ?? 26} color={fill} />,
