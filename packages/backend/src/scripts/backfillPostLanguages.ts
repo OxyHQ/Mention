@@ -45,32 +45,130 @@
  * `--all` (`ALL_POSTS=true`) re-derives every post rather than the gaps: needed
  * once after a detector change that the version does not record.
  *
+ * ## The dry run is a review, not a count
+ *
+ * A dry run logs `[backfillPostLanguages] language change` once per
+ * (old primary → new primary) pair, for the {@link REPORT_TOP_PAIRS} largest
+ * pairs, and `[backfillPostLanguages] language change sample` for the first
+ * {@link REPORT_SAMPLES_PER_PAIR} posts (lowest ids, so the same corpus always
+ * yields the same sample) of the {@link REPORT_SAMPLED_PAIRS} largest. A sample
+ * carries the first {@link EXCERPT_LENGTH} characters of the primary body; post
+ * ids go through the logger's redaction like everywhere else, so a sample is
+ * found again by its excerpt. `∅` stands for "no language".
+ *
+ * ## The live run is paced for a SHARED database
+ *
+ * `oxy-postgres` serves every Oxy app, and an unpaced bulk write has stalled all
+ * of them before. Writes are grouped into transactions of {@link
+ * DEFAULT_WRITE_BATCH_SIZE} rows (one commit per group rather than per post),
+ * each under `lock_timeout` / `statement_timeout`, so a write that would queue
+ * behind a lock gives up instead of piling up. The rate is held at or below
+ * `BACKFILL_ROWS_PER_SECOND` (default {@link DEFAULT_ROWS_PER_SECOND}) with at
+ * least `BACKFILL_PAUSE_MS` between groups; a group that hits a timeout is
+ * retried with exponential backoff, and a group that keeps failing stops the run
+ * (exit non-zero) rather than pressing on against a struggling database.
+ *
+ * Rows are written one statement each inside the group's transaction rather
+ * than as one multi-row `UPDATE … FROM (VALUES …)`: rows differ in which
+ * columns they carry (a restamp writes scores, a language-only change does not)
+ * and `updatePostRecord` is the one place that maps a classification patch onto
+ * columns. The rate bound, not the statement count, is what protects the
+ * instance.
+ *
+ * ## Resuming
+ *
+ * A live run records its position in `admin_script_cursors` after every page
+ * whose writes have all committed (scope `all` or `gaps`), and the next live run
+ * resumes after it. The position cannot be logged — the logger redacts post ids
+ * under every key — so it is read back with
+ * `select cursor, scanned, completed_at from admin_script_cursors where script = 'backfillPostLanguages'`.
+ * `START_AFTER_ID=<id>` overrides it; `RESET_CURSOR=true` starts over. A resume
+ * re-scans at most one page, whose already-written rows are unchanged and skipped.
+ *
  * Runnable as a Fargate one-shot post-deploy (the live run also needs
  * `CONFIRM_ADMIN_MUTATION=backfillPostLanguages`):
  *   bun packages/backend/dist/src/scripts/backfillPostLanguages.js --dry-run [--all]
  *   bun packages/backend/dist/src/scripts/backfillPostLanguages.js [--all]
+ * Pacing env (all optional): BACKFILL_ROWS_PER_SECOND, BACKFILL_WRITE_BATCH_SIZE,
+ * BACKFILL_PAUSE_MS, BACKFILL_LOCK_TIMEOUT_MS, BACKFILL_STATEMENT_TIMEOUT_MS;
+ * cursor env: START_AFTER_ID, RESET_CURSOR.
  */
 
+import { isLiveEntityId } from '@oxy.so/db';
 import { and, asc, gt, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
+import { getRemoteHost } from '../connectors/shared/url';
+import { connectPostgres, getDb, type Transaction } from '../db/postgres';
+import type { PostRecord } from '../db/posts/postRecord';
+import {
+  findPostRecords,
+  replacePostContent,
+  updatePostRecord,
+  type PostRecordPatch,
+} from '../db/posts/postRepository';
+import { posts } from '../db/schema/posts';
+import {
+  baselineContentClassifier,
+  BASELINE_CLASSIFIER_VERSION,
+} from '../services/BaselineContentClassifier';
+import { invalidate as invalidatePostDetailCache } from '../services/postDetailCache';
 import {
   applyDetectedPrimaryTag,
   declaredBaseLanguages,
   resolveVariant,
 } from '../services/postVariants';
-import { getRemoteHost } from '../connectors/shared/url';
-import { connectPostgres } from '../db/postgres';
-import { posts } from '../db/schema/posts';
-import { findPostRecords, replacePostContent, updatePostRecord } from '../db/posts/postRepository';
-import {
-  baselineContentClassifier,
-  BASELINE_CLASSIFIER_VERSION,
-} from '../services/BaselineContentClassifier';
 import { logger } from '../utils/logger';
 import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
+import {
+  clearAdminScriptCursor,
+  readAdminScriptCursor,
+  recordAdminScriptCursor,
+} from './lib/adminScriptCursor';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+
+const SCRIPT_NAME = 'backfillPostLanguages';
 
 /** Posts scanned per page (stable ascending `id` cursor pagination). */
 const DEFAULT_PAGE_SIZE = 500;
+/** Rows per write transaction. */
+export const DEFAULT_WRITE_BATCH_SIZE = 100;
+/** Upper bound on rows written per second across the run. */
+export const DEFAULT_ROWS_PER_SECOND = 200;
+/** Minimum pause between write transactions, whatever the rate allows. */
+export const DEFAULT_PAUSE_MS = 100;
+/** A write that would wait longer than this for a row lock gives up. */
+const DEFAULT_LOCK_TIMEOUT_MS = 2_000;
+/** No single statement of a write transaction may run longer than this. */
+const DEFAULT_STATEMENT_TIMEOUT_MS = 10_000;
+/** Attempts per write transaction before the run stops. */
+const MAX_WRITE_ATTEMPTS = 5;
+/** First backoff after a timed-out write; doubles per attempt. */
+const BACKOFF_BASE_MS = 1_000;
+
+/** Pairs listed in the dry-run report. */
+export const REPORT_TOP_PAIRS = 30;
+/** Pairs, largest first, that get samples. */
+export const REPORT_SAMPLED_PAIRS = 10;
+/** Samples kept per pair. */
+export const REPORT_SAMPLES_PER_PAIR = 5;
+/** Characters of the primary body shown in a sample. */
+export const EXCERPT_LENGTH = 80;
+/** How "no language" is spelled in a pair. */
+export const NO_LANGUAGE = '∅';
+
+export interface LanguageChangeSample {
+  postId: string;
+  excerpt: string;
+}
+
+export interface LanguageChangePair {
+  from: string;
+  to: string;
+  count: number;
+  /** Of `count`, rows whose primary rendition tag changes too. */
+  retagged: number;
+  /** Lowest-id rows of the pair; filled for the {@link REPORT_SAMPLED_PAIRS} largest only. */
+  samples: LanguageChangeSample[];
+}
 
 export interface BackfillPostLanguagesResult {
   scanned: number;
@@ -78,6 +176,53 @@ export interface BackfillPostLanguagesResult {
   /** Of `updated`, the rows whose primary rendition was (or would be) re-tagged. */
   retagged: number;
   failed: number;
+  /** Pages whose resume cursor could not be recorded (live runs with a scope). */
+  cursorWriteFailures: number;
+  /** The last id whose page was fully processed (and, live, committed). */
+  lastId: string | null;
+  /** The (old → new primary language) pairs, largest first, capped at {@link REPORT_TOP_PAIRS}. */
+  pairs: LanguageChangePair[];
+}
+
+export interface BackfillPacing {
+  rowsPerSecond: number;
+  writeBatchSize: number;
+  pauseMs: number;
+  lockTimeoutMs: number;
+  statementTimeoutMs: number;
+  /** Injectable for tests; real time otherwise. */
+  sleep?: (ms: number) => Promise<void>;
+  now?: () => number;
+}
+
+export interface BackfillPostLanguagesOptions {
+  batchSize?: number;
+  dryRun?: boolean;
+  all?: boolean;
+  /** Resume strictly after this id (exclusive). Wins over a stored cursor. */
+  startAfterId?: string;
+  /**
+   * Read and record progress in `admin_script_cursors` under this scope (live
+   * runs only). Off unless given, so an in-process caller never resumes by
+   * accident from a cursor somebody else's run left.
+   */
+  cursorScope?: string;
+  /** Forget the stored cursor first. */
+  resetCursor?: boolean;
+  pacing?: Partial<BackfillPacing>;
+}
+
+/**
+ * How long to wait after a write transaction so the run stays at or below
+ * `rowsPerSecond`, and never less than `pauseMs`.
+ */
+export function paceDelayMs(
+  rowsWritten: number,
+  elapsedMs: number,
+  pacing: Pick<BackfillPacing, 'rowsPerSecond' | 'pauseMs'>,
+): number {
+  const budgetMs = pacing.rowsPerSecond > 0 ? (rowsWritten * 1000) / pacing.rowsPerSecond : 0;
+  return Math.max(pacing.pauseMs, Math.ceil(budgetMs - elapsedMs));
 }
 
 /**
@@ -101,15 +246,206 @@ const primaryTagDisagrees = sql`exists (
 const sameList = (a: readonly string[] | undefined, b: readonly string[]): boolean =>
   (a ?? []).length === b.length && b.every((value, index) => a?.[index] === value);
 
+/** One row's re-derived state, decided before anything is written. */
+interface PostLanguagePlan {
+  post: PostRecord;
+  text: string;
+  from: string;
+  to: string;
+  patch: PostRecordPatch;
+  /** The re-tagged renditions, or `null` when the tag already agrees. */
+  retagged: PostRecord['content']['variants'] | null;
+}
+
+/** Re-derive one post. `null` when there is nothing to write. */
+async function planPost(post: PostRecord): Promise<PostLanguagePlan | null> {
+  const classification = post.postClassification;
+  // The PRIMARY rendition — the author's own words. Detecting a language from a
+  // machine translation would just re-derive the language we asked the
+  // translator for.
+  const text = resolveVariant(post.content).text;
+  // A boost or a media-only post has no words to derive a language from, and
+  // stamping a version on it would only make its column-default scores look
+  // computed. Left exactly as it is.
+  if (text.trim().length === 0) return null;
+  const signals = await baselineContentClassifier.classify({
+    text,
+    hashtags: post.hashtags,
+    languages: declaredBaseLanguages(post.content),
+    sensitive: post.federation?.sensitive ?? post.metadata.isSensitive,
+    isFederated: post.federation != null,
+    // The author's instance host, read exactly as ingest reads it.
+    instanceDomain: post.federation?.actorUri ? getRemoteHost(post.federation.actorUri) : undefined,
+  });
+  const primaryLanguage = signals.languages[0];
+  const restamp = classification?.version !== BASELINE_CLASSIFIER_VERSION;
+  const variants = post.content.variants ?? [];
+  const reconciled = applyDetectedPrimaryTag(variants, primaryLanguage);
+  const retag = reconciled !== variants;
+
+  const unchanged =
+    !restamp &&
+    !retag &&
+    sameList(classification?.languages, signals.languages) &&
+    sameList(classification?.trendTerms, signals.trendTerms) &&
+    (post.language ?? null) === (primaryLanguage ?? null);
+  if (unchanged) return null;
+
+  return {
+    post,
+    text,
+    from: classification?.languages?.[0] ?? NO_LANGUAGE,
+    to: primaryLanguage ?? NO_LANGUAGE,
+    patch: {
+      postClassification: {
+        languages: signals.languages,
+        // Written alongside the languages because this update also stamps
+        // `version`: a row claiming the current baseline version while missing
+        // a field that version defines is worse than an un-backfilled row, since
+        // the version is exactly what readers use to decide whether to trust the
+        // classification.
+        trendTerms: signals.trendTerms,
+        version: signals.version,
+        ...(restamp && classification?.status !== 'classified'
+          ? {
+              topics: signals.topics,
+              region: signals.region,
+              hashtagsNorm: signals.hashtagsNorm,
+              sensitive: signals.sensitive,
+              scores: signals.scores,
+            }
+          : {}),
+      },
+      language: primaryLanguage ?? null,
+    },
+    retagged: retag ? reconciled : null,
+  };
+}
+
+/**
+ * Tallies (old → new primary) pairs and keeps the first samples of each.
+ * Pages arrive in ascending id order, so "first" is "lowest id" and the sample
+ * is the same on every run over the same corpus.
+ */
+export class LanguageChangeReport {
+  private readonly pairs = new Map<string, LanguageChangePair>();
+
+  add(plan: { postId: string; text: string; from: string; to: string; retagged: boolean }): void {
+    const key = `${plan.from}→${plan.to}`;
+    let pair = this.pairs.get(key);
+    if (!pair) {
+      pair = { from: plan.from, to: plan.to, count: 0, retagged: 0, samples: [] };
+      this.pairs.set(key, pair);
+    }
+    pair.count += 1;
+    if (plan.retagged) pair.retagged += 1;
+    if (pair.samples.length < REPORT_SAMPLES_PER_PAIR) {
+      pair.samples.push({
+        postId: plan.postId,
+        excerpt: plan.text.replace(/\s+/g, ' ').trim().slice(0, EXCERPT_LENGTH),
+      });
+    }
+  }
+
+  /** Largest first (ties by pair name, so the order is stable), capped. */
+  top(): LanguageChangePair[] {
+    return [...this.pairs.values()]
+      .sort((a, b) => b.count - a.count || `${a.from}${a.to}`.localeCompare(`${b.from}${b.to}`))
+      .slice(0, REPORT_TOP_PAIRS)
+      .map((pair, index) => (index < REPORT_SAMPLED_PAIRS ? pair : { ...pair, samples: [] }));
+  }
+}
+
+function logReport(pairs: readonly LanguageChangePair[]): void {
+  for (const [rank, pair] of pairs.entries()) {
+    logger.info(`[${SCRIPT_NAME}] language change`, {
+      rank: rank + 1,
+      from: pair.from,
+      to: pair.to,
+      count: pair.count,
+      retagged: pair.retagged,
+    });
+    for (const sample of pair.samples) {
+      logger.info(`[${SCRIPT_NAME}] language change sample`, {
+        from: pair.from,
+        to: pair.to,
+        // Redacted by the logger's id policy; the excerpt is what finds the post.
+        postId: sample.postId,
+        excerpt: sample.excerpt,
+      });
+    }
+  }
+}
+
+/** Lock or statement timeout: the database asked us to back off. */
+function isBackoffError(error: unknown): boolean {
+  const codeOf = (value: unknown): unknown =>
+    value && typeof value === 'object' ? (value as { code?: unknown }).code : undefined;
+  const cause =
+    error && typeof error === 'object' ? (error as { cause?: unknown }).cause : undefined;
+  return [codeOf(error), codeOf(cause)].some(
+    (code) => code === '55P03' || code === '57014' || code === '40001' || code === '40P01',
+  );
+}
+
+/** Write one group of plans in ONE transaction under the pacing timeouts. */
+async function writeGroup(
+  plans: readonly PostLanguagePlan[],
+  pacing: BackfillPacing,
+): Promise<void> {
+  await getDb().transaction(async (tx: Transaction) => {
+    await tx.execute(
+      sql`select set_config('lock_timeout', ${String(pacing.lockTimeoutMs)}, true),
+                 set_config('statement_timeout', ${String(pacing.statementTimeoutMs)}, true)`,
+    );
+    for (const plan of plans) {
+      await updatePostRecord(plan.post.id, plan.patch, tx);
+      if (plan.retagged) {
+        await replacePostContent(
+          plan.post.id,
+          { ...plan.post.content, variants: plan.retagged },
+          plan.post.mentions,
+          tx,
+        );
+      }
+    }
+  });
+  // The repository invalidated inside the transaction; a reader in between
+  // could have re-cached the old row, so invalidate again now it is committed.
+  await Promise.all(plans.map((plan) => invalidatePostDetailCache(plan.post.id)));
+}
+
+function parseStartAfter(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim().toLowerCase();
+  if (trimmed.length === 0) return undefined;
+  if (!isLiveEntityId(trimmed)) {
+    // Never degrade a malformed bound into a full rescan that looks like success.
+    throw new Error('START_AFTER_ID must be a 24-character hex ObjectId or a uuid v7');
+  }
+  return trimmed;
+}
+
 /**
  * Re-classify and backfill languages over the qualifying corpus. The caller owns
  * the connection lifecycle, so this is reusable from an in-process caller.
  */
 export async function backfillPostLanguages(
-  opts: { batchSize?: number; dryRun?: boolean; all?: boolean } = {},
+  opts: BackfillPostLanguagesOptions = {},
 ): Promise<BackfillPostLanguagesResult> {
   const pageSize = opts.batchSize ?? DEFAULT_PAGE_SIZE;
   const dryRun = opts.dryRun ?? false;
+  const pacing: BackfillPacing = {
+    rowsPerSecond: DEFAULT_ROWS_PER_SECOND,
+    writeBatchSize: DEFAULT_WRITE_BATCH_SIZE,
+    pauseMs: DEFAULT_PAUSE_MS,
+    lockTimeoutMs: DEFAULT_LOCK_TIMEOUT_MS,
+    statementTimeoutMs: DEFAULT_STATEMENT_TIMEOUT_MS,
+    ...opts.pacing,
+  };
+  const sleep =
+    pacing.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const now = pacing.now ?? Date.now;
 
   // Posts whose canonical multi-language array is absent/empty, or that were
   // classified before the current baseline version. Setting the array + version
@@ -134,11 +470,30 @@ export async function backfillPostLanguages(
         primaryTagDisagrees,
       ) as SQL);
 
+  // Where to start: an explicit id wins, then (live only) the stored cursor.
+  const cursorScope = dryRun ? undefined : opts.cursorScope;
+  if (cursorScope && opts.resetCursor) await clearAdminScriptCursor(SCRIPT_NAME, cursorScope);
+  const stored =
+    cursorScope && !opts.resetCursor ? await readAdminScriptCursor(SCRIPT_NAME, cursorScope) : null;
+  const explicitStart = parseStartAfter(opts.startAfterId);
+  let lastId: string | null = explicitStart ?? stored?.cursor ?? null;
+  const scannedBefore = explicitStart ? 0 : (stored?.scanned ?? 0);
+  logger.info(`[${SCRIPT_NAME}] starting`, {
+    dryRun,
+    all: Boolean(opts.all),
+    resumed: lastId !== null,
+    resumedFrom: explicitStart ? 'START_AFTER_ID' : stored ? 'stored cursor' : 'beginning',
+    scopeCompletedEarlier: Boolean(stored?.completedAt),
+    rowsPerSecond: pacing.rowsPerSecond,
+    writeBatchSize: pacing.writeBatchSize,
+  });
+
+  const report = new LanguageChangeReport();
   let scanned = 0;
   let updated = 0;
   let retagged = 0;
   let failed = 0;
-  let lastId: string | null = null;
+  let cursorWriteFailures = 0;
 
   for (;;) {
     const page = await findPostRecords(
@@ -148,96 +503,88 @@ export async function backfillPostLanguages(
 
     if (page.length === 0) break;
 
+    const plans: PostLanguagePlan[] = [];
     for (const post of page) {
       scanned += 1;
       try {
-        const classification = post.postClassification;
-        // The PRIMARY rendition — the author's own words. Detecting a language
-        // from a machine translation would just re-derive the language we asked
-        // the translator for.
-        const text = resolveVariant(post.content).text;
-        // A boost or a media-only post has no words to derive a language from,
-        // and stamping a version on it would only make its column-default scores
-        // look computed. Left exactly as it is.
-        if (text.trim().length === 0) continue;
-        const signals = await baselineContentClassifier.classify({
-          text,
-          hashtags: post.hashtags,
-          languages: declaredBaseLanguages(post.content),
-          sensitive: post.federation?.sensitive ?? post.metadata.isSensitive,
-          isFederated: post.federation != null,
-          // The author's instance host, read exactly as ingest reads it.
-          instanceDomain: post.federation?.actorUri
-            ? getRemoteHost(post.federation.actorUri)
-            : undefined,
+        const plan = await planPost(post);
+        if (!plan) continue;
+        plans.push(plan);
+        report.add({
+          postId: post.id,
+          text: plan.text,
+          from: plan.from,
+          to: plan.to,
+          retagged: plan.retagged !== null,
         });
-        const primaryLanguage = signals.languages[0];
-        const restamp = classification?.version !== BASELINE_CLASSIFIER_VERSION;
-        const variants = post.content.variants ?? [];
-        const reconciled = applyDetectedPrimaryTag(variants, primaryLanguage);
-        const retag = reconciled !== variants;
-
-        const unchanged =
-          !restamp &&
-          !retag &&
-          sameList(classification?.languages, signals.languages) &&
-          sameList(classification?.trendTerms, signals.trendTerms) &&
-          (post.language ?? null) === (primaryLanguage ?? null);
-        if (unchanged) continue;
-
         updated += 1;
-        if (retag) retagged += 1;
-        if (dryRun) continue;
-
-        // A per-post PARTIAL patch rather than a batched bulkWrite: the
-        // classification fields are a MERGE onto the existing columns, which is
-        // what `updatePostRecord` expresses and what a whole-column write would
-        // destroy. The page size still bounds the work per round.
-        await updatePostRecord(post.id, {
-          postClassification: {
-            languages: signals.languages,
-            // Written alongside the languages because this update also stamps
-            // `version`: a row claiming the current baseline version while
-            // missing a field that version defines is worse than an
-            // un-backfilled row, since the version is exactly what readers use
-            // to decide whether to trust the classification.
-            trendTerms: signals.trendTerms,
-            version: signals.version,
-            ...(restamp && classification?.status !== 'classified'
-              ? {
-                  topics: signals.topics,
-                  region: signals.region,
-                  hashtagsNorm: signals.hashtagsNorm,
-                  sensitive: signals.sensitive,
-                  scores: signals.scores,
-                }
-              : {}),
-          },
-          language: primaryLanguage ?? null,
-        });
-        if (retag) {
-          await replacePostContent(
-            post.id,
-            { ...post.content, variants: reconciled },
-            post.mentions,
-          );
-        }
+        if (plan.retagged) retagged += 1;
       } catch (error) {
         failed += 1;
-        logger.warn('[backfillPostLanguages] classify failed for post; skipping', {
+        logger.warn(`[${SCRIPT_NAME}] classify failed for post; skipping`, {
           id: post.id,
           reason: error instanceof Error ? error.message : 'unknown',
         });
       }
     }
 
+    if (!dryRun) {
+      for (let start = 0; start < plans.length; start += pacing.writeBatchSize) {
+        const group = plans.slice(start, start + pacing.writeBatchSize);
+        const startedAt = now();
+        for (let attempt = 1; ; attempt += 1) {
+          try {
+            await writeGroup(group, pacing);
+            break;
+          } catch (error) {
+            if (!isBackoffError(error) || attempt >= MAX_WRITE_ATTEMPTS) throw error;
+            const backoffMs = BACKOFF_BASE_MS * 2 ** (attempt - 1);
+            logger.warn(`[${SCRIPT_NAME}] write timed out; backing off`, { attempt, backoffMs });
+            await sleep(backoffMs);
+          }
+        }
+        await sleep(paceDelayMs(group.length, now() - startedAt, pacing));
+      }
+    }
+
+    // Every write of this page has committed, so this is a safe resume point.
     lastId = page[page.length - 1].id;
+    if (cursorScope) {
+      const recorded = await recordAdminScriptCursor(SCRIPT_NAME, cursorScope, {
+        cursor: lastId,
+        scanned: scannedBefore + scanned,
+      });
+      // A miss is logged by the helper and fails the run at the end, so a run
+      // whose position never persisted cannot report itself resumable.
+      if (!recorded) cursorWriteFailures += 1;
+    }
     logger.info(
-      `[backfillPostLanguages] progress: scanned ${scanned}, updated ${updated} (retagged ${retagged}), failed ${failed}`,
+      `[${SCRIPT_NAME}] progress: scanned ${scanned}, updated ${updated} (retagged ${retagged}), failed ${failed}`,
     );
   }
 
-  return { scanned, updated, retagged, failed };
+  if (cursorScope && lastId) {
+    const recorded = await recordAdminScriptCursor(SCRIPT_NAME, cursorScope, {
+      cursor: lastId,
+      scanned: scannedBefore + scanned,
+      completed: true,
+    });
+    if (!recorded) cursorWriteFailures += 1;
+  }
+
+  const pairs = report.top();
+  if (dryRun) logReport(pairs);
+  return { scanned, updated, retagged, failed, cursorWriteFailures, lastId, pairs };
+}
+
+function envNumber(name: string): number | undefined {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === '') return undefined;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`${name} must be a non-negative number`);
+  }
+  return value;
 }
 
 async function main(): Promise<void> {
@@ -249,24 +596,44 @@ async function main(): Promise<void> {
 
   try {
     assertAdminMutationAllowed({
-      scriptName: 'backfillPostLanguages',
+      scriptName: SCRIPT_NAME,
       dryRun,
     });
-    await connectPostgres();
-    logger.info('[backfillPostLanguages] connected to PostgreSQL', { dryRun, all });
+    const pacing: Partial<BackfillPacing> = {};
+    const rowsPerSecond = envNumber('BACKFILL_ROWS_PER_SECOND');
+    const writeBatchSize = envNumber('BACKFILL_WRITE_BATCH_SIZE');
+    const pauseMs = envNumber('BACKFILL_PAUSE_MS');
+    const lockTimeoutMs = envNumber('BACKFILL_LOCK_TIMEOUT_MS');
+    const statementTimeoutMs = envNumber('BACKFILL_STATEMENT_TIMEOUT_MS');
+    if (rowsPerSecond !== undefined) pacing.rowsPerSecond = rowsPerSecond;
+    if (writeBatchSize !== undefined)
+      pacing.writeBatchSize = Math.max(1, Math.floor(writeBatchSize));
+    if (pauseMs !== undefined) pacing.pauseMs = pauseMs;
+    if (lockTimeoutMs !== undefined) pacing.lockTimeoutMs = lockTimeoutMs;
+    if (statementTimeoutMs !== undefined) pacing.statementTimeoutMs = statementTimeoutMs;
 
-    const result = await backfillPostLanguages({ dryRun, all });
+    await connectPostgres();
+
+    const result = await backfillPostLanguages({
+      dryRun,
+      all,
+      startAfterId: process.env.START_AFTER_ID,
+      cursorScope: all ? 'all' : 'gaps',
+      resetCursor: process.env.RESET_CURSOR === 'true',
+      pacing,
+    });
 
     const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
     logger.info(
-      `[backfillPostLanguages] done${dryRun ? ' (DRY_RUN — no writes)' : ''}: scanned ${result.scanned}, updated ${result.updated} (retagged ${result.retagged}), failed ${result.failed} (${elapsedSeconds}s)`,
+      `[${SCRIPT_NAME}] done${dryRun ? ' (DRY_RUN — no writes)' : ''}: scanned ${result.scanned}, updated ${result.updated} (retagged ${result.retagged}), failed ${result.failed} (${elapsedSeconds}s)`,
     );
 
-    assertAdminRunComplete('backfillPostLanguages', {
+    assertAdminRunComplete(SCRIPT_NAME, {
       failed: result.failed,
+      cursorWriteFailures: result.cursorWriteFailures,
     });
   } catch (error) {
-    logger.error('[backfillPostLanguages] failed', error);
+    logger.error(`[${SCRIPT_NAME}] failed`, error);
     throw error;
   } finally {
     await closeAdminScriptResources();
@@ -277,7 +644,7 @@ if (require.main === module) {
   main()
     .then(() => process.exit(0))
     .catch((error) => {
-      logger.error('[backfillPostLanguages] unhandled failure', error);
+      logger.error(`[${SCRIPT_NAME}] unhandled failure`, error);
       process.exit(1);
     });
 }
