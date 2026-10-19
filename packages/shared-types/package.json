@@ -173,7 +173,7 @@
     "@oxy.so/contracts": "catalog:",
     "@oxy.so/utils": "catalog:",
     "zod": "catalog:",
-    "@oxy.so/homiio-contracts": "0.1.1"
+    "@oxy.so/homiio-contracts": "0.2.0"
   },
   "devDependencies": {
     "typescript": "catalog:",
