@@ -346,13 +346,13 @@ export async function gatherFollowingLane(
 ): Promise<CandidatePost[]> {
   const followingIds = resolveFollowingIds(params);
   if (followingIds.length === 0) return [];
+  // The window rides on the authorship index too, not only on `posts` — see
+  // `followedAuthorsSql`: 9,712 buffers against 1,227 for 300 followed authors.
+  const since = recencyStart();
   return runSource(
     'following',
     withViewerLanguage(
-      [
-        ...buildBaseConditions(params.seenPostIds, recencyStart()),
-        followedAuthorsSql(followingIds),
-      ],
+      [...buildBaseConditions(params.seenPostIds, since), followedAuthorsSql(followingIds, since)],
       params.viewerLanguages,
     ),
     MtnConfig.feed.candidateSources.perSource.following,
@@ -365,12 +365,13 @@ export async function gatherSubscribedListsLane(
 ): Promise<CandidatePost[]> {
   const subscribedListMemberIds = resolveSubscribedListIds(params);
   if (subscribedListMemberIds.length === 0) return [];
+  const since = recencyStart();
   return runSource(
     'subscribed-lists',
     withViewerLanguage(
       [
-        ...buildBaseConditions(params.seenPostIds, recencyStart()),
-        followedAuthorsSql(subscribedListMemberIds),
+        ...buildBaseConditions(params.seenPostIds, since),
+        followedAuthorsSql(subscribedListMemberIds, since),
       ],
       params.viewerLanguages,
     ),
@@ -389,12 +390,13 @@ export async function gatherAffinityLane(
 ): Promise<CandidatePost[]> {
   const affinityAuthorIds = await resolveAffinityAuthorIds(params);
   if (affinityAuthorIds.length === 0) return [];
+  const since = recencyStart();
   return runSource(
     'affinity',
     withViewerLanguage(
       [
-        ...buildBaseConditions(params.seenPostIds, recencyStart()),
-        followedAuthorsSql(affinityAuthorIds),
+        ...buildBaseConditions(params.seenPostIds, since),
+        followedAuthorsSql(affinityAuthorIds, since),
       ],
       params.viewerLanguages,
     ),

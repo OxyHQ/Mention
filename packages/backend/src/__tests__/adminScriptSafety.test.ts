@@ -14,8 +14,8 @@ const ts = createRequire(path.join(__dirname, 'adminScriptSafety.test.ts'))(
 const SCRIPTS_DIRECTORY = path.resolve(__dirname, '../scripts');
 const SCRIPT_NAME = 'purgeGoneFederatedActors';
 const READ_ONLY_SCRIPTS = new Set([
-  // Counts rows and exits. Its entire database surface is
-  // `select count(*) from <table>` — no insert, update or delete — and it runs
+  // Counts rows and exits. Its entire database surface is a bounded
+  // `select count(*)` per table — no insert, update or delete — and it runs
   // before `update-service` precisely so it can refuse a rollout without ever
   // having changed anything.
   'assertPostgresPopulated.ts',

@@ -29,6 +29,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { inArray } from 'drizzle-orm';
+import { MtnConfig } from '@mention/shared-types';
 
 vi.mock('../../utils/socket', () => ({ emitTrendsUpdated: vi.fn() }));
 vi.mock('../../utils/inference', () => ({
@@ -96,7 +97,8 @@ async function seedPost(termName: string, body: string, seed: Seed = {}): Promis
 
 /** The per-term query, run one term at a time — property 1's reference. */
 async function perTerm(termName: string): Promise<string[]> {
-  const rows = await termExcerptBranch(termName);
+  const since = new Date(Date.now() - MtnConfig.trending.detection.windowMs);
+  const rows = await termExcerptBranch(termName, since);
   return rows.map((row) => row.body);
 }
 

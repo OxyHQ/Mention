@@ -243,7 +243,7 @@ describe('the Videos lane scan', () => {
       .selectDistinctOn([postMedia.postCreatedAt, postMedia.postId], { id: posts.id })
       .from(postMedia)
       .innerJoin(posts, eq(posts.id, postMedia.postId))
-      .where(and(FeedQueryBuilder.videoMediaConditions(), FeedQueryBuilder.videoPostConditions([])))
+      .where(and(FeedQueryBuilder.videoMediaConditions(), FeedQueryBuilder.videoPostConditions()))
       .orderBy(
         sql`${postMedia.postCreatedAt} desc nulls last`,
         sql`${postMedia.postId} desc nulls last`,

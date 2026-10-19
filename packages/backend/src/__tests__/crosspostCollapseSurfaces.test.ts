@@ -183,7 +183,7 @@ describe('the content predicates, driven directly', () => {
 
   it.each<[string, () => SQL]>([
     ['the ranked video predicate', () => FeedQueryBuilder.buildVideosQuery([])],
-    ['the chronological video predicate', () => FeedQueryBuilder.videoPostConditions([])],
+    ['the chronological video predicate', () => FeedQueryBuilder.videoPostConditions()],
     ['the media predicate', () => FeedQueryBuilder.buildMediaFeedQuery([])],
     ['the hashtag page', () => buildPostsByHashtagFilter(TAG)],
     ['the topic page', () => buildPostsByTopicFilter(TOPIC)],

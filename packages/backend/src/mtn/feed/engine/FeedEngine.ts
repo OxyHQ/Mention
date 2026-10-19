@@ -306,7 +306,10 @@ export class FeedEngine {
 
     // Seen-post de-prioritization for ranked personalized/discovery feeds.
     if (exec.seenPosts && ctx.currentUserId) {
-      const seenPostIds = await feedSeenPostsService.getSeenPostIds(ctx.currentUserId);
+      const seenPostIds = [
+        ...(await (ctx.seenPostIdsPrefetch ??
+          feedSeenPostsService.getSeenPostIds(ctx.currentUserId))),
+      ];
       if (parsedScoreCursor?.id && !seenPostIds.includes(parsedScoreCursor.id)) {
         seenPostIds.push(parsedScoreCursor.id);
         feedSeenPostsService

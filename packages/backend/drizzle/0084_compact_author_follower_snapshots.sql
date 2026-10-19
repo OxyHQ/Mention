@@ -1,0 +1,22 @@
+-- oxy:deploy-phase=post
+-- oxy:statement-timeout=300s
+-- Rewrite `author_follower_snapshots` without the space a 5.4M-row backlog left.
+--
+-- The expiry sweep drained that backlog (#1187), but deleted rows only free
+-- space; they never shrink a table or its indexes. Production holds 545k live
+-- rows in 542 MB of heap (69k pages, ~8 rows a page for 107-byte rows) and
+-- 870 MB of indexes (2026-10-19), and every reader pays for the empty pages:
+--
+--   - the follower-snapshot sweep's last-snapshot probe, once per active author,
+--     read 12.4k pages of a 473 MB index for 21.5k authors: 15 s cold;
+--   - the expiry sweep's batch select runs as a generic plan that scans the heap
+--     (`@oxy.so/db` binds the retention as a parameter): 69k pages, 3.4 s, every
+--     ten minutes while rows expire.
+--
+-- CLUSTER rewrites the heap in `at` order, the order the expiry sweep deletes
+-- in, and rebuilds every index. It takes ACCESS EXCLUSIVE on this table only.
+-- Its readers are leader jobs and the `risingCreators` source, which caches its
+-- aggregate and falls back to no candidates on error, so a short wait costs a
+-- feed lane nothing visible. It is not a request-path table; post phase, so it
+-- never holds a deploy's pre-rollout window.
+CLUSTER "author_follower_snapshots" USING "author_follower_snapshots_at_idx";

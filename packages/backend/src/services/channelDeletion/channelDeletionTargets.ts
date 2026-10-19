@@ -12,14 +12,13 @@
  * still live, and handed on whole.
  */
 
-import { and, count, eq, gt, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, count, eq, gt, inArray, sql } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
-import { qualified } from '@oxy.so/db';
 import { posts } from '../../db/schema/posts';
-import { postAuthorships } from '../../db/schema/postContent';
 import { federatedFollows } from '../../db/schema/federation';
 import type { PostDeletionTarget } from '../../scripts/lib/adminDeletionPreflight';
 import type { CascadedPostRow } from '../PostDeletionCascade';
+import { ownedBySql } from '../../utils/postAuthorship';
 import { LOG_PREFIX } from './channelCascadeLog';
 
 /**
@@ -61,19 +60,6 @@ const CHANNEL_ROW_COLUMNS = {
   boostOf: posts.boostOf,
   writtenByOxyUserId: posts.writtenByOxyUserId,
 } as const;
-
-/**
- * A post belongs to the channel by the denormalized owner cache OR by its
- * authorship owner entry.
- *
- * The two are kept in sync by the write path, but a cascade is the wrong place to
- * depend on that having held for every row — and this is a real join, so the
- * authorship half costs an index lookup rather than a scan.
- */
-function ownedByChannel(channelOxyUserId: string): SQL {
-  const byAuthorship = sql`exists (select 1 from ${postAuthorships} where ${qualified(postAuthorships.postId)} = ${qualified(posts.id)} and ${qualified(postAuthorships.oxyUserId)} = ${channelOxyUserId} and ${qualified(postAuthorships.role)} = 'owner')`;
-  return sql`(${eq(posts.oxyUserId, channelOxyUserId)} or ${byAuthorship})`;
-}
 
 /** The AP identifiers a post additionally travels under. */
 function postUris(row: Pick<CascadedPostRow, 'federationActivityId' | 'federationUrl'>): string[] {
@@ -150,8 +136,8 @@ export async function readPostBatch(
     .from(posts)
     .where(
       after === null
-        ? ownedByChannel(channelOxyUserId)
-        : and(ownedByChannel(channelOxyUserId), gt(posts.id, after)),
+        ? ownedBySql(channelOxyUserId)
+        : and(ownedBySql(channelOxyUserId), gt(posts.id, after)),
     )
     .orderBy(posts.id)
     .limit(POST_BATCH_SIZE);
@@ -205,7 +191,7 @@ export function postKeysOf(rows: readonly CascadedPostRow[]): string[] {
  */
 export async function resolveDeletionTargets(channelOxyUserId: string): Promise<DeletionTargets> {
   const db = getDb();
-  const owned = ownedByChannel(channelOxyUserId);
+  const owned = ownedBySql(channelOxyUserId);
   const channelPostIds = db.select({ id: posts.id }).from(posts).where(owned);
 
   const [[postCount], [boostCount], [replyCount], [quoteCount], [followerCount]] =

@@ -431,6 +431,13 @@ a query needs.
 
 Do not add an index speculatively.
 
+**A new column a query filters on is analyzed in the migration that adds it.**
+Until the table's next autoanalyze (10% of its rows changed) the column has no
+statistics, and the planner prices `IS NULL` on it at 0.5% of the rows whatever
+the truth. `post_media.withheld` (0077) cut the Videos lane's estimate from
+12,399 rows to 46 and turned a 2 ms index walk into a 9.8 s probe-and-sort; 0083
+analyzed it.
+
 ---
 
 ## What is enforced by a test

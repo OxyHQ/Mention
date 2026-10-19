@@ -1,0 +1,21 @@
+-- oxy:deploy-phase=pre
+-- oxy:statement-timeout=180s
+-- Statistics for `post_media.withheld`, which 0077 added and nothing analyzed.
+--
+-- The Videos lane (`selectVideoCandidatesByMediaChrono`) filters
+-- `withheld IS NULL`. A column with no statistics gets the planner's default
+-- 0.5% for `IS NULL`, so 12,399 portrait videos were estimated at 46 rows. On
+-- that estimate the planner read every matching media row through
+-- `post_media_video_idx`, probed `posts` for each and sorted them all, instead of
+-- walking `post_media_video_chrono_idx` and stopping at the page: 9,238 posts
+-- probed, 58,402 buffers, 9.8 s (EXPLAIN ANALYZE, production, 2026-10-19). The
+-- slow-query log had the lane at 18 s on average and 53.8 s at worst from
+-- 2026-10-18, the day after 0077 deployed; before it, under 2 s. The same
+-- statement walking the chrono index: 1,111 buffers, 1.9 ms. With the column's
+-- other predicates estimable the planner already picks that walk.
+--
+-- `post_media` is not due an autoanalyze until ~50k rows change (18k so far), so
+-- it is analyzed here. ANALYZE samples 30k rows and takes SHARE UPDATE
+-- EXCLUSIVE, which blocks no read or write. A migration that adds a column a
+-- query filters on analyzes its table in the same file (`db/schema/CONVENTIONS.md`).
+ANALYZE "post_media";
