@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useState, useEffect, useMemo } from 'react';
+import { Activity, useState, useEffect, useMemo } from 'react';
 import { Screen } from '@oxy.so/bloom/screen';
 import { MentionHomeHeader } from '@/components/navigation/MentionHomeHeader';
 import { useTranslation } from 'react-i18next';
@@ -14,7 +14,7 @@ import { parseFeedDescriptor } from '@mention/shared-types/mtn/feedDescriptor';
 import type { FeedType } from '@mention/shared-types/feed';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { useReselectReloadKey, useTabSelect } from '@/context/ScreenReselectContext';
+import { useReselectReloadKeys, useTabSelect } from '@/context/ScreenReselectContext';
 import { SEO } from '@/components/SEO';
 import { siteStructuredData } from '@mention/shared-types/seo';
 import { INSTANCE_LOGO_URL, INSTANCE_NAME, WEB_BASE_URL } from '@/config';
@@ -48,13 +48,20 @@ type HomeTabModel =
   | { key: string; label: string; kind: 'descriptor'; type: FeedType }
   | { key: string; label: string; kind: 'custom'; feedId: string };
 
+/** What the home screen shows before a signed-in layout has loaded. */
+const FOR_YOU_TAB: HomeTabModel = {
+  key: 'for_you',
+  label: '',
+  kind: 'descriptor',
+  type: 'for_you',
+};
+
 const HomeScreen: React.FC = () => {
   const router = useRouter();
   const { t } = useTranslation();
   const { isAuthResolved, canUsePrivateApi, user } = useAuth();
   const theme = useTheme();
   const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
-  const refreshKey = useReselectReloadKey();
   // The home tabs ARE the viewer's server-persisted pinned feeds (server order),
   // so pinning in the feeds screen updates the tab bar cross-device. Anonymous
   // viewers get the read-only default (For You).
@@ -139,54 +146,52 @@ const HomeScreen: React.FC = () => {
 
   const handleTabPress = useTabSelect(activeTab, setActiveTab);
 
-  const renderContent = () => {
-    // Feeds that render in both the anon and authed branches (for_you, …) must
-    // remount when the auth identity flips so their mount-time fetch re-runs
-    // against the now-ready token. Without an identity-scoped key, React
-    // reconciles the same element across the anon→authed transition and the feed
-    // stays stuck on anonymous (or empty) content. This is the belt-and-suspenders
-    // guarantee alongside the auth-keyed initial-fetch effect inside useFeedState.
-    const feedIdentity = canUsePrivateApi && user?.id ? user.id : 'anon';
+  // Resolve the active tab; fall back to the first tab (For You) if the active
+  // key is momentarily stale (the reset effect converges it next render), and
+  // to For You itself while a signed-in layout is still loading.
+  const currentTab = homeTabs.find((x) => x.key === activeTab) ?? homeTabs[0] ?? FOR_YOU_TAB;
+  const reloadKeyFor = useReselectReloadKeys(currentTab.key);
 
-    // Resolve the active tab; fall back to the first tab (For You) if the active
-    // key is momentarily stale (the reset effect converges it next render).
-    const tab = homeTabs.find((x) => x.key === activeTab) ?? homeTabs[0];
-    const composeProps = canUsePrivateApi
-      ? { showComposeButton: true, onComposePress: () => router.push('/compose') }
-      : {};
+  // Every tab the reader has opened stays mounted, hidden and frozen behind
+  // `<Activity>` (its effects — scroll listeners, live updates, observers —
+  // are torn down while hidden), so switching back shows its rows and scroll
+  // position at once instead of rebuilding the whole list.
+  const [visitedTabs, setVisitedTabs] = useState<readonly string[]>([currentTab.key]);
+  if (!visitedTabs.includes(currentTab.key)) {
+    setVisitedTabs([...visitedTabs, currentTab.key]);
+  }
+  const mountedTabs = visitedTabs
+    .map((key) => (key === currentTab.key ? currentTab : homeTabs.find((x) => x.key === key)))
+    .filter((tab): tab is HomeTabModel => Boolean(tab));
 
-    if (!tab) {
-      return (
-        <Feed
-          key={`for_you-${feedIdentity}`}
-          type="for_you"
-          reloadKey={refreshKey}
-          {...composeProps}
-        />
-      );
-    }
+  // Feeds that render in both the anon and authed branches (for_you, …) must
+  // remount when the auth identity flips so their mount-time fetch re-runs
+  // against the now-ready token. Without an identity-scoped key, React
+  // reconciles the same element across the anon→authed transition and the feed
+  // stays stuck on anonymous (or empty) content. This is the belt-and-suspenders
+  // guarantee alongside the auth-keyed initial-fetch effect inside useFeedState.
+  const feedIdentity = canUsePrivateApi && user?.id ? user.id : 'anon';
+  const composeProps = canUsePrivateApi
+    ? { showComposeButton: true, onComposePress: () => router.push('/compose') }
+    : {};
 
-    if (tab.kind === 'custom') {
-      return (
-        <Feed
-          key={`custom-${tab.feedId}-${feedIdentity}`}
-          type="custom"
-          filters={{ customFeedId: tab.feedId }}
-          reloadKey={refreshKey}
-          {...composeProps}
-        />
-      );
-    }
-
-    return (
+  const renderTabFeed = (tab: HomeTabModel) =>
+    tab.kind === 'custom' ? (
+      <Feed
+        key={`custom-${tab.feedId}-${feedIdentity}`}
+        type="custom"
+        filters={{ customFeedId: tab.feedId }}
+        reloadKey={reloadKeyFor(tab.key)}
+        {...composeProps}
+      />
+    ) : (
       <Feed
         key={`${tab.type}-${feedIdentity}`}
         type={tab.type}
-        reloadKey={refreshKey}
+        reloadKey={reloadKeyFor(tab.key)}
         {...composeProps}
       />
     );
-  };
 
   return (
     <>
@@ -224,7 +229,11 @@ const HomeScreen: React.FC = () => {
             />
           ))}
         </Tabs>
-        {renderContent()}
+        {mountedTabs.map((tab) => (
+          <Activity key={tab.key} mode={tab.key === currentTab.key ? 'visible' : 'hidden'}>
+            {renderTabFeed(tab)}
+          </Activity>
+        ))}
       </Screen>
     </>
   );
