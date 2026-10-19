@@ -1,5 +1,6 @@
 /**
- * The sitemaps are built in one pass by the leader and only READ by requests.
+ * The sitemaps are built in one pass by a scheduled one-shot task and only READ
+ * by requests.
  *
  * Each child sitemap used to be built on demand by a query that read the whole
  * eligible half of `posts` to keep one bucket in 64 (~30 s for a profile
@@ -64,7 +65,7 @@ import webShellRoutes from '../routes/webShell.routes';
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
 import { userSettings } from '../db/schema';
-import { SitemapBuildJob, buildAllSitemaps, sitemapsAreDue } from '../services/seoSitemap';
+import { buildAllSitemaps, buildSitemapsIfDue, sitemapsAreDue } from '../services/seoSitemap';
 import { clearPostScope, postScope, seedPost } from './helpers/postFixtures';
 
 const scope = postScope('seo-sitemap-build');
@@ -271,30 +272,23 @@ describe('SEO sitemaps', () => {
     expect(after.text).toBe(before);
   });
 
-  it('rebuilds only when the catalog is due, and backs off after a failure', async () => {
+  it('rebuilds only when the catalog is due', async () => {
     await seedPost(scope, {
       oxyUserId: AUTHOR,
       authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
     });
-    const job = new SitemapBuildJob();
 
     expect(await sitemapsAreDue()).toBe(true);
-    await job.tick();
+    expect(await buildSitemapsIfDue()).not.toBeNull();
     expect(await sitemapsAreDue()).toBe(false);
     const callsAfterBuild = serviceRequest.mock.calls.length;
     expect(callsAfterBuild).toBeGreaterThan(0);
 
-    // Fresh: a tick is one cache read.
-    await job.tick();
+    // Fresh: a run is one cache read.
+    expect(await buildSitemapsIfDue()).toBeNull();
     expect(serviceRequest.mock.calls.length).toBe(callsAfterBuild);
 
-    // Due again seven hours later, but Oxy fails: the next tick inside the
-    // backoff does not try again.
-    const later = Date.now() + 7 * 60 * 60 * 1000;
-    serviceRequest.mockRejectedValue(new Error('Oxy down'));
-    await job.tick(later);
-    const callsAfterFailure = serviceRequest.mock.calls.length;
-    await job.tick(later + 60_000);
-    expect(serviceRequest.mock.calls.length).toBe(callsAfterFailure);
+    // Due again seven hours later.
+    expect(await buildSitemapsIfDue(Date.now() + 7 * 60 * 60 * 1000)).not.toBeNull();
   });
 });
