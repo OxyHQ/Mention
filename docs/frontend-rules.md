@@ -103,7 +103,12 @@ authorities whether a write postdates the held read, and only then is page 1
 read again (never every loaded page). **Never invalidate the `feeds` family**:
 that refetches every loaded page of every open feed. The viewer's own new post,
 reply and deletion are written into the feed queries by
-`stores/feedQueryCache.ts`, mounted or not. `stores/engagementInvalidation.ts`
+`stores/feedQueryCache.ts`, mounted or not. A feed's first page can be started
+before its `<Feed>` mounts — `prefetchFeed` (post replies from the route id, a
+profile opened from a feed row) and, on web, the home feed's boot read
+(`lib/bootFeedRead`), which the feed takes only when the viewer resolves as the
+one it was read as (`services/feedPageRead`). Visited home tabs stay mounted
+behind `<Activity>`. `stores/engagementInvalidation.ts`
 is the single authority for engagement writes; **do not invalidate from the
 callers** — the feed row's commands (`components/Feed/postInteractions.tsx`)
 and `app/(app)/videos.tsx` both write through the store directly. Client-wide

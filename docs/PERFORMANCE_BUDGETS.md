@@ -434,6 +434,32 @@ loads on `/`, 5 on a post and a profile; production API):
 The profile's LCP is its banner image, which neither change touches; its
 difference is inside the run-to-run spread.
 
+**It still waited for the viewer to resolve (2026-10-19).** Starting the read
+during render only helps once the feed renders, and nothing account-dependent
+renders before `AccountSwitchReset` has resolved the viewer — on a signed-out
+cold load that is the SDK's whole cold boot. `lib/bootFeedRead` now starts the
+home feed's first page from the root layout's module scope, as the viewer the
+device last had (anonymous, or the account the bearer names once it lands),
+and the feed takes it only when it resolves as that same viewer
+(`services/feedPageRead`). Measured with a local `expo export` of main
+`73fbe89b7` and of the branch, each served at the production origin against
+the production API (headless Chromium, 430×932, 4x CPU, 150 ms RTT, ~9 Mbit/s,
+cold context, signed out, median of 9 interleaved loads of `/`):
+
+| Signal | Main | Branch |
+| --- | --- | --- |
+| First feed request | 3.05 s | **1.12 s** |
+| Feed response | 3.31 s | 2.03 s |
+| First row (`content-ready`) | 3.99 s | 3.54 s |
+| LCP | 4.20 s | 3.71 s |
+| FCP | 2.51 s | 1.60 s |
+| Feed requests per load | 1 | 1 |
+
+The first row now waits for the boot, not for the network: the page is in hand
+~1.5 s before the feed can render it. The FCP difference was not attributed
+and may be run-to-run spread in this harness, which is not the one behind the
+table above. Bundle: initial JavaScript −285 bytes, total +1,465 bytes.
+
 ### Measured startup costs still open (2026-10-15)
 
 - **Alia's live avatar on the home header's Ask Alia button** (`AliaAvatarIcon`,
