@@ -3,7 +3,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { queryClient } from '@/lib/queryClient';
 import { refreshPrivacyLists } from '@/services/privacyService';
 import { searchService } from '@/services/searchService';
-import { usePrivacyStore } from '@/stores/privacyStore';
+import { setPrivacyListMembership } from '@/hooks/usePrivacyControls';
 import { Button } from '@oxy.so/bloom/button';
 import { RiAddCircleLine } from '@oxy.so/bloom/icons/RiAddCircleLine';
 import { RiInformationFill } from '@oxy.so/bloom/icons/RiInformationFill';
@@ -51,11 +51,6 @@ export default function RestrictedUsersScreen() {
     oxyServices,
   } = useAuth();
 
-  // Authoritative cross-app sync: keep the shared privacy store in lockstep so
-  // `usePrivacyControls().isRestricted` (which gates interactions everywhere)
-  // reflects a restrict/unrestrict immediately, without waiting for the store's
-  // interval refresh or a possibly-cached `getRestrictedUsers` refetch.
-  const setStoreRestricted = usePrivacyStore((state) => state.setRestricted);
   const [restrictedUserIds, setRestrictedUserIds] = useState<string[]>([]);
   const [restrictedUsers, setRestrictedUsers] = useState<RestrictedUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -253,7 +248,7 @@ export default function RestrictedUsersScreen() {
       // request window, so it has to be told. Best-effort.
       await refreshPrivacyLists();
 
-      setStoreRestricted(userId, true);
+      setPrivacyListMembership(currentUser?.id, 'restricted', userId, true);
 
       await loadRestrictedUsers();
 
@@ -286,7 +281,7 @@ export default function RestrictedUsersScreen() {
 
         await refreshPrivacyLists();
 
-        setStoreRestricted(userId, false);
+        setPrivacyListMembership(currentUser?.id, 'restricted', userId, false);
 
         await loadRestrictedUsers();
 

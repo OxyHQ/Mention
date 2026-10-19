@@ -97,7 +97,7 @@ export interface BuildFeedRowsParams {
   items: HydratedPost[];
   type: FeedType;
   currentUserId?: string;
-  blockedSet: Set<string>;
+  blockedSet: ReadonlySet<string>;
   threaded?: boolean;
   threadPostId?: string;
   /** Server-decided recommendation-card placements for the accumulated feed. */
