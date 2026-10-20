@@ -395,7 +395,7 @@ function FeedMarketplaceScreen() {
   );
 
   const ListEmpty = useMemo(() => {
-    if (loading) return null;
+    if (loading) return undefined;
     return (
       <EmptyState
         title={t('marketplace.emptyTitle', { defaultValue: 'No feeds found' })}

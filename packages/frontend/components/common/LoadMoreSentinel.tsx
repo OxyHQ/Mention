@@ -1,6 +1,6 @@
 import { usePanelScrollContainer } from '@oxy.so/bloom/app-shell/hooks';
 import { useEffect, useRef } from 'react';
-import { Platform, View } from 'react-native';
+import { Platform, View, type ViewInstance } from 'react-native';
 
 interface LoadMoreSentinelProps {
   /** Fired when the sentinel nears the viewport (web) — wire to `fetchNextPage`. */
@@ -27,7 +27,7 @@ export function LoadMoreSentinel({
   rootMargin = '600px',
 }: LoadMoreSentinelProps) {
   const panel = usePanelScrollContainer<HTMLElement>();
-  const viewRef = useRef<View>(null);
+  const viewRef = useRef<ViewInstance>(null);
 
   // The observer closes over `onLoadMore` and re-subscribes when its identity
   // changes, rather than reading it from a ref. A "latest ref" written during

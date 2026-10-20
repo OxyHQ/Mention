@@ -17,6 +17,7 @@
     "db:check-locks": "oxy-db-check-migration-locks --migrations=drizzle --after=77 --hot-tables=bookmarks,federated_actors,likes,mutes,notifications,post_attachments,post_media,post_safety_assessments,posts,user_settings",
     "backfill:multilingual-trends": "bun src/scripts/backfillMultilingualTrends.ts",
     "backfill:custom-emoji": "bun src/scripts/cleanFederatedCustomEmoji.ts",
+    "sitemaps:build": "bun src/scripts/buildSitemaps.ts",
     "test": "bun run test:vitest && bun run test:bun",
     "test:vitest": "node ../../node_modules/vitest/vitest.mjs run",
     "test:bun": "bun --no-env-file runBunTests.ts",
@@ -25,10 +26,10 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@alia.onl/sdk": "^21.2.0",
+    "@alia.onl/sdk": "^21.5.0",
     "@clarity.surf/sdk": "^0.4.0",
     "@crowdsource.you/contracts": "1.1.0",
-    "@crowdsource.you/core": "3.0.2",
+    "@crowdsource.you/core": "3.0.3",
     "@kaana.ai/contracts": "7.0.0",
     "@kaana.ai/sdk": "3.2.0",
     "@mention/shared-types": "workspace:*",

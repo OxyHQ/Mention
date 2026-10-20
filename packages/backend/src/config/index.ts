@@ -248,6 +248,14 @@ const environmentSchema = z
     REDIS_PORT: integerFromEnv(6_379, { minimum: 1, maximum: 65_535 }),
     REDIS_DB: integerFromEnv(0, { maximum: 1_024 }),
     REDIS_PASSWORD: optionalString(),
+    /**
+     * Where BullMQ keeps its jobs, when that is not the cache. The cache Redis
+     * evicts keys carrying a TTL under memory pressure (`volatile-lru`), and
+     * BullMQ's job locks carry one: an evicted lock reads as a stalled job,
+     * which runs twice. In production this names a `noeviction` instance.
+     * Unset, the queues use the cache connection above (local development).
+     */
+    QUEUE_REDIS_URL: optionalRedisUrl,
 
     CACHE_USER_TTL: integerFromEnv(300, { minimum: 1 }),
     CACHE_POST_TTL: integerFromEnv(120, { minimum: 1 }),
@@ -581,6 +589,17 @@ export function getRedisConnectionConfig(): RedisConnectionConfig {
 }
 
 /**
+ * The BullMQ connection settings: `QUEUE_REDIS_URL` when set, otherwise the
+ * cache's. Secret-bearing like {@link getRedisConnectionConfig}.
+ */
+export function getQueueRedisConnectionConfig(): RedisConnectionConfig {
+  const cache = redisConfigFrom(environment);
+  return environment.QUEUE_REDIS_URL
+    ? { ...cache, url: environment.QUEUE_REDIS_URL, explicitlyConfigured: true }
+    : cache;
+}
+
+/**
  * Dynamic configured-state check retained for lifecycle/tests that intentionally
  * toggle Redis after module import. Parsing still happens here, centrally.
  */
@@ -603,6 +622,13 @@ export function isRedisRuntimeConfigured(source: EnvironmentSource = process.env
     .parse(source);
   return Boolean(
     redisEnvironment.REDIS_URL || redisEnvironment.REDIS_URI || redisEnvironment.REDIS_HOST,
+  );
+}
+
+/** Whether BullMQ has a Redis: its own `QUEUE_REDIS_URL`, or the cache's. */
+export function isQueueRedisRuntimeConfigured(source: EnvironmentSource = process.env): boolean {
+  return (
+    Boolean(optionalRedisUrl.parse(source.QUEUE_REDIS_URL)) || isRedisRuntimeConfigured(source)
   );
 }
 
@@ -803,6 +829,20 @@ export const config = {
     maxLifetimeSeconds: environment.PG_MAX_LIFETIME_SECONDS,
     queryMetricsEnabled: environment.DB_QUERY_METRICS_ENABLED,
     slowQueryMs: environment.DB_SLOW_QUERY_MS,
+    /**
+     * `statement_timeout` on every connection the SERVING process opens
+     * (`server.ts`). The database is shared by every Oxy app, so a statement
+     * that outlives the request that asked for it holds a connection and IO
+     * nobody is waiting for.
+     */
+    statementTimeoutMs: 15_000,
+    /**
+     * The budget a leader job raises its own transaction to
+     * (`withStatementTimeout`) for a statement that legitimately reads more than
+     * a request ever does: the follower-snapshot author scan and the
+     * interest-score aggregate.
+     */
+    backgroundStatementTimeoutMs: 120_000,
   },
   frontendUrl: environment.FRONTEND_URL,
   oxyApiUrl: environment.OXY_API_URL,
@@ -909,14 +949,6 @@ export const config = {
     connectTimeout: 45_000,
     maxBufferSize: 1e6,
     compressionThreshold: 1_024,
-  },
-  feed: {
-    defaultLimit: 20,
-    maxLimit: 100,
-    queryTimeoutMs: 15_000,
-    slowQueryThresholdMs: 100,
-    rankedCandidateMultiplier: 2,
-    scoreEpsilon: 0.001,
   },
   posts: {
     maxSources: 5,

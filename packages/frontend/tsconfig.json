@@ -12,7 +12,7 @@
   // would break the Node/CommonJS packages. Later entries win, so the Expo base
   // overrides root where they differ; the explicit overrides below win over both.
   // ---------------------------------------------------------------------------
-  "extends": ["../../tsconfig.json", "expo/tsconfig.base"],
+  "extends": ["../../tsconfig.json", "expo/tsconfig.base.json"],
   "compilerOptions": {
     // React Native JSX runtime (the Expo base defaults to `react-jsx`).
     "jsx": "react-native",

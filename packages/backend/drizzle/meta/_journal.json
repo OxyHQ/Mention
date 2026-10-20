@@ -582,6 +582,20 @@
       "when": 1792370569171,
       "tag": "0082_post_evaluations_drop_unused",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1792437310164,
+      "tag": "0083_post_media_statistics",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1792437311812,
+      "tag": "0084_compact_author_follower_snapshots",
+      "breakpoints": true
     }
   ]
 }

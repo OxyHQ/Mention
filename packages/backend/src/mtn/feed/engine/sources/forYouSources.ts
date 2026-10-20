@@ -16,7 +16,8 @@ import { assemblePostRecords } from '../../../../db/posts/postRepository';
 import { followedAuthorsSql } from '../../../../utils/postAuthorship';
 import { topicSlugSql } from '../../../../utils/postTopicMatch';
 import { notCollapsedCrosspostSql } from '../../../../utils/feedQueryBuilder';
-import { chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
+import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
+import { fetchWithRecencyFallback } from '../../../../utils/feedUtils';
 import { logger } from '../../../../utils/logger';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 import {
@@ -42,6 +43,7 @@ export function buildFollowingVisibilitySql(
   currentUserId: string,
   followingIds: string[] = [],
   subscribedListMemberIds: string[] = [],
+  since?: Date,
 ): SQL {
   const followAuthorizedIds = Array.from(new Set([currentUserId, ...followingIds]));
   const publicOnlyListIds = Array.from(
@@ -53,7 +55,7 @@ export function buildFollowingVisibilitySql(
   );
 
   const followed = and(
-    followedAuthorsSql(followAuthorizedIds),
+    followedAuthorsSql(followAuthorizedIds, since),
     inArray(posts.visibility, [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY]),
   ) as SQL;
 
@@ -61,7 +63,10 @@ export function buildFollowingVisibilitySql(
 
   return or(
     followed,
-    and(followedAuthorsSql(publicOnlyListIds), eq(posts.visibility, PostVisibility.PUBLIC)) as SQL,
+    and(
+      followedAuthorsSql(publicOnlyListIds, since),
+      eq(posts.visibility, PostVisibility.PUBLIC),
+    ) as SQL,
   ) as SQL;
 }
 
@@ -99,7 +104,16 @@ async function fetchChrono(
   return assemblePostRecords(rows, db);
 }
 
-/** CHRONOLOGICAL Following-feed query (public/followers-only + subscribed lists). */
+/**
+ * CHRONOLOGICAL Following-feed query (public/followers-only + subscribed lists).
+ *
+ * Read through progressively wider windows below the page's own boundary (the
+ * cursor's time, or now), widening only when a window cannot fill the page. The
+ * window is what lets `followedAuthorsSql` read a RANGE of the authorship index
+ * rather than every post the followed accounts ever wrote — see its docblock for
+ * the measurement. A reader whose follows post rarely pays one or two extra
+ * narrow reads before the unbounded one; everyone else pays one.
+ */
 async function gatherFollowingTimeline(
   ctx: FeedEngineContext,
   cap: number,
@@ -109,15 +123,22 @@ async function gatherFollowingTimeline(
   const listMemberIds = directOnly ? [] : subscribedListMemberIds;
   if (!currentUserId || (!followingIds?.length && !listMemberIds?.length)) return [];
 
-  return fetchChrono(
-    [
-      buildFollowingVisibilitySql(currentUserId, followingIds, listMemberIds),
-      eq(posts.status, 'published'),
-      notCollapsedCrosspostSql(),
-    ],
-    ctx.cursor,
-    cap,
-  );
+  const run = (since: Date | undefined) =>
+    fetchChrono(
+      [
+        buildFollowingVisibilitySql(currentUserId, followingIds, listMemberIds, since),
+        eq(posts.status, 'published'),
+        notCollapsedCrosspostSql(),
+      ],
+      ctx.cursor,
+      cap,
+    );
+
+  // A legacy id-only cursor carries no time to measure a window from; it is
+  // read unbounded, as it always was.
+  const parsed = ChronoCursor.parse(ctx.cursor);
+  if (parsed && parsed.ts === undefined) return run(undefined);
+  return fetchWithRecencyFallback(cap, run, parsed?.ts ?? Date.now());
 }
 
 /**

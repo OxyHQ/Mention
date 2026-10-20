@@ -26,8 +26,9 @@
 
 import { PostVisibility } from '@mention/shared-types';
 import { and, desc, eq, gte, isNotNull, sql } from 'drizzle-orm';
-import { isRedisRuntimeConfigured } from '../config';
-import { getDb } from '../db/postgres';
+import { config, isRedisRuntimeConfigured } from '../config';
+import { getDb, type Transaction } from '../db/postgres';
+import { withStatementTimeout } from '../utils/withStatementTimeout';
 import { authorFollowerSnapshots } from '../db/schema/discovery';
 import { posts } from '../db/schema/posts';
 import { resolveUserSummaries } from './PostHydrationService';
@@ -139,7 +140,15 @@ export class FollowerSnapshotJob {
    * `distinguishes authors by their OWN last snapshot` is the test that holds it.
    */
   private async selectAuthorsToSample(windowStart: Date): Promise<string[]> {
-    const db = getDb();
+    // A fortnight of posts, read every six hours, runs past the serving pool's
+    // statement_timeout when the pages are cold (30 s, 2026-10-19), so this
+    // statement takes the background budget.
+    return withStatementTimeout(config.postgres.backgroundStatementTimeoutMs, (db) =>
+      this.selectAuthorsToSampleIn(db, windowStart),
+    );
+  }
+
+  private async selectAuthorsToSampleIn(db: Transaction, windowStart: Date): Promise<string[]> {
     const active = db
       .selectDistinct({ oxyUserId: posts.oxyUserId })
       .from(posts)

@@ -14,10 +14,10 @@ import {
   StyleSheet,
   type TextInputProps,
   Platform,
-  type NativeSyntheticEvent,
-  type TextInputContentSizeChangeEventData,
-  type TextInputKeyPressEventData,
-  type TextInputSelectionChangeEventData,
+  type TextInputContentSizeChangeEvent,
+  type TextInputInstance,
+  type TextInputKeyPressEvent,
+  type TextInputSelectionChangeEvent,
   type StyleProp,
   type TextStyle,
 } from 'react-native';
@@ -76,7 +76,7 @@ const MentionTextInput = memo(
       const [showMentionPicker, setShowMentionPicker] = useState(false);
       const [mentionQuery, setMentionQuery] = useState('');
       const [cursorPosition, setCursorPosition] = useState(0);
-      const textInputRef = useRef<TextInput>(null);
+      const textInputRef = useRef<TextInputInstance>(null);
       const [contentHeight, setContentHeight] = useState<number | undefined>(undefined);
       const searchCache = useMentionSearchCache();
       const pickerQuery = showMentionPicker ? mentionQuery : '';
@@ -140,7 +140,7 @@ const MentionTextInput = memo(
 
       // Native: use onContentSizeChange to track height
       const handleContentSizeChange = useCallback(
-        (event: NativeSyntheticEvent<TextInputContentSizeChangeEventData>) => {
+        (event: TextInputContentSizeChangeEvent) => {
           if (Platform.OS !== 'web' && multiline) {
             setContentHeight(event.nativeEvent.contentSize.height);
           }
@@ -206,12 +206,9 @@ const MentionTextInput = memo(
       );
 
       // Handle selection change to track cursor position
-      const handleSelectionChange = useCallback(
-        (event: NativeSyntheticEvent<TextInputSelectionChangeEventData>) => {
-          setCursorPosition(event.nativeEvent.selection.start);
-        },
-        [],
-      );
+      const handleSelectionChange = useCallback((event: TextInputSelectionChangeEvent) => {
+        setCursorPosition(event.nativeEvent.selection.start);
+      }, []);
 
       // Handle user selection from mention picker
       const handleMentionSelect = useCallback(
@@ -279,7 +276,7 @@ const MentionTextInput = memo(
       // arrives as "Enter" and cannot be prevented there, so it would both take a
       // row AND break the line — on native the rows are tapped.
       const handleKeyPress = useCallback(
-        (event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+        (event: TextInputKeyPressEvent) => {
           const pickerOpen = Platform.OS === 'web' && showMentionPicker && mentionQuery.length > 0;
           const count = pickerUsers.length;
           const key = event.nativeEvent.key;

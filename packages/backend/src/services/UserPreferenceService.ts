@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { posts } from '../db/schema/posts';
-import { CHRONO_DESC, findPostRecords, loadPostRecord } from '../db/posts/postRepository';
+import { CHRONO_DESC, findPostRecords, loadPostRecords } from '../db/posts/postRepository';
 import { getDb } from '../db/postgres';
 import { bookmarks as bookmarksTable, likes as likesTable } from '../db/schema/engagement';
 import type { UserBehaviorRecord } from '../db/userProfile/userBehaviorRecord';
@@ -17,6 +17,26 @@ import { recordSeenTopics } from './viewerRecentTopics';
  */
 export interface InteractionContext {
   surface?: string;
+}
+
+/** What a viewer did to a post, as preference learning weighs it. */
+export type InteractionType =
+  | 'like'
+  | 'boost'
+  | 'comment'
+  | 'save'
+  | 'share'
+  | 'view'
+  | 'skip'
+  | 'hide'
+  | 'mute'
+  | 'block';
+
+/** One entry of {@link UserPreferenceService.recordInteractions}. */
+export interface InteractionEntry {
+  postId: string;
+  type: InteractionType;
+  context?: InteractionContext;
 }
 
 /**
@@ -112,52 +132,71 @@ export class UserPreferenceService {
   async recordInteraction(
     userId: string, // Oxy user ID
     postId: string,
-    interactionType:
-      | 'like'
-      | 'boost'
-      | 'comment'
-      | 'save'
-      | 'share'
-      | 'view'
-      | 'skip'
-      | 'hide'
-      | 'mute'
-      | 'block',
+    interactionType: InteractionType,
     context?: InteractionContext,
   ): Promise<void> {
-    try {
-      logger.debug('[UserPreference] recording interaction', {
-        type: interactionType,
-      });
+    await this.recordInteractions(userId, [{ postId, type: interactionType, context }]);
+  }
 
-      const post = await loadPostRecord(postId);
-      if (!post) {
-        logger.warn('[UserPreference] post not found; skipping interaction');
-        return;
+  /**
+   * Record several interactions of one viewer at once — a feed's impression
+   * batch, or a sweep replaying a viewer's likes. In order, exactly as that many
+   * {@link recordInteraction} calls would apply them, but with ONE read of the
+   * posts and ONE locked read-modify-write of the behaviour row: a batch of N
+   * used to load N full post records and take the viewer's row lock N times, each
+   * waiting behind the last (52.8 statements per `POST /feed/mtn/interactions`,
+   * 2026-10-19).
+   *
+   * An entry whose post no longer exists is skipped, as it always was.
+   */
+  async recordInteractions(userId: string, entries: readonly InteractionEntry[]): Promise<void> {
+    if (entries.length === 0) return;
+    try {
+      const records = await loadPostRecords([...new Set(entries.map((entry) => entry.postId))]);
+      const byId = new Map(records.map((record) => [record.id, record]));
+      const applicable = entries.flatMap((entry) => {
+        const post = byId.get(entry.postId);
+        return post ? [{ ...entry, post }] : [];
+      });
+      if (applicable.length < entries.length) {
+        logger.warn('[UserPreference] post not found; skipping interaction', {
+          skipped: entries.length - applicable.length,
+        });
       }
+      if (applicable.length === 0) return;
 
       // Feed the viewer's RECENT-TOPIC set (powers the opt-in `noveltyBoost`
       // ranking signal). Positive signals only — a genuine view / like / etc.
       // means the viewer was exposed to these topics. Best-effort and
       // fire-and-forget (the helper never rejects), so it never blocks or fails
       // interaction recording.
-      if ((this.LEARNING_WEIGHTS[interactionType] || 0) > 0) {
-        const seenTopics = [
-          ...this.getCanonicalTopics(post)
-            .map((t) => (typeof t.name === 'string' ? t.name : ''))
-            .filter((name) => name.length > 0),
-          ...(Array.isArray(post.hashtags) ? post.hashtags : []),
-        ];
-        if (seenTopics.length > 0) {
-          void recordSeenTopics(userId, seenTopics);
-        }
+      const seenTopics = applicable.flatMap(({ post, type }) =>
+        (this.LEARNING_WEIGHTS[type] || 0) > 0
+          ? [
+              ...this.getCanonicalTopics(post)
+                .map((t) => (typeof t.name === 'string' ? t.name : ''))
+                .filter((name) => name.length > 0),
+              ...(Array.isArray(post.hashtags) ? post.hashtags : []),
+            ]
+          : [],
+      );
+      if (seenTopics.length > 0) {
+        void recordSeenTopics(userId, seenTopics);
       }
 
-      // One read-modify-write, serialized against every other interaction for
-      // this viewer by the row lock `applyInteraction` takes — see the class
-      // comment for why there is no retry loop around it any more.
-      await this.applyInteraction(userId, post, interactionType, context);
-      logger.debug('[UserPreference] saved user behavior');
+      // One read-modify-write for the whole batch, serialized against every
+      // other writer for this viewer by the row lock `updateUserBehavior` takes —
+      // see the class comment for why there is no retry loop around it.
+      await updateUserBehavior(
+        userId,
+        (userBehavior) => {
+          for (const { post, type, context } of applicable) {
+            this.applyInteraction(userBehavior, post, type, context);
+          }
+        },
+        { createIfMissing: true },
+      );
+      logger.debug('[UserPreference] saved user behavior', { interactions: applicable.length });
     } catch (error) {
       logger.error('[UserPreference] error recording interaction', error);
       // Re-throw to see full error stack
@@ -166,30 +205,17 @@ export class UserPreferenceService {
   }
 
   /**
-   * One read-modify-write pass for {@link recordInteraction}: applies the full
-   * accumulator mutation to the viewer's behaviour under a row lock held for the
-   * whole transaction, creating the record when this is their first interaction.
-   *
-   * Everything the mutation needs that does NOT depend on the stored state is
-   * computed before the lock is taken; the callback itself is synchronous, so
-   * the lock is never held across a round trip.
+   * One interaction's full accumulator mutation, applied in place while
+   * {@link recordInteractions} holds the row lock. Synchronous and free of I/O:
+   * everything it needs that does not depend on the stored state is computed
+   * from its arguments, so the lock is never held across a round trip.
    */
-  private async applyInteraction(
-    userId: string,
+  private applyInteraction(
+    userBehavior: UserBehaviorRecord,
     post: InteractionPost,
-    interactionType:
-      | 'like'
-      | 'boost'
-      | 'comment'
-      | 'save'
-      | 'share'
-      | 'view'
-      | 'skip'
-      | 'hide'
-      | 'mute'
-      | 'block',
+    interactionType: InteractionType,
     context?: InteractionContext,
-  ): Promise<void> {
+  ): void {
     const weight = this.LEARNING_WEIGHTS[interactionType] || 0;
     // A negative weight is a NEGATIVE signal (e.g. `skip`): it must not be
     // allowed to look like positive engagement. Positive-only accumulators
@@ -211,118 +237,108 @@ export class UserPreferenceService {
     const authorAffinityFactor = fromVideoSurface ? ctx.videoSurfaceAuthorAffinityFactor : 1;
     const contentWeight = weight * (fromVideoSurface ? ctx.videoSurfaceContentBoost : 1);
 
-    await updateUserBehavior(
-      userId,
-      (userBehavior) => {
-        // Update author preference (positive signals strengthen the relationship).
-        // Dampened on video surfaces so reels likes barely move "follow this author".
-        if (post.oxyUserId && isPositiveSignal) {
-          this.updateAuthorPreference(
-            userBehavior,
-            post.oxyUserId,
-            interactionType,
-            weight,
-            authorAffinityFactor,
-          );
-        }
+    // Update author preference (positive signals strengthen the relationship).
+    // Dampened on video surfaces so reels likes barely move "follow this author".
+    if (post.oxyUserId && isPositiveSignal) {
+      this.updateAuthorPreference(
+        userBehavior,
+        post.oxyUserId,
+        interactionType,
+        weight,
+        authorAffinityFactor,
+      );
+    }
 
-        // Update topic preferences (positive signals only — skipping a topic must
-        // not increase interest in it). Uses the content weight (amplified on video).
-        if (isPositiveSignal && post.hashtags && post.hashtags.length > 0) {
-          for (const hashtag of post.hashtags) {
-            this.updateTopicPreference(userBehavior, hashtag.toLowerCase(), contentWeight);
-          }
-        }
+    // Update topic preferences (positive signals only — skipping a topic must
+    // not increase interest in it). Uses the content weight (amplified on video).
+    if (isPositiveSignal && post.hashtags && post.hashtags.length > 0) {
+      for (const hashtag of post.hashtags) {
+        this.updateTopicPreference(userBehavior, hashtag.toLowerCase(), contentWeight);
+      }
+    }
 
-        // Update topic preferences from classified topics (richer signal). Prefer
-        // the canonical `postClassification.topicRefs` (registry-linked), falling
-        // back to `postClassification.topics`. Canonical refs may carry no relevance
-        // (AI topics are slug-only), so an absent relevance scales by the full
-        // content weight (relevance factor 1) rather than zeroing the signal.
-        if (isPositiveSignal) {
-          for (const topic of this.getCanonicalTopics(post)) {
-            if (typeof topic.name !== 'string' || topic.name.length === 0) continue;
-            const relevanceFactor = typeof topic.relevance === 'number' ? topic.relevance / 10 : 1;
-            this.updateTopicPreference(
-              userBehavior,
-              topic.name.toLowerCase(),
-              contentWeight * relevanceFactor,
-              topic.topicId,
-            );
-          }
-        }
+    // Update topic preferences from classified topics (richer signal). Prefer
+    // the canonical `postClassification.topicRefs` (registry-linked), falling
+    // back to `postClassification.topics`. Canonical refs may carry no relevance
+    // (AI topics are slug-only), so an absent relevance scales by the full
+    // content weight (relevance factor 1) rather than zeroing the signal.
+    if (isPositiveSignal) {
+      for (const topic of this.getCanonicalTopics(post)) {
+        if (typeof topic.name !== 'string' || topic.name.length === 0) continue;
+        const relevanceFactor = typeof topic.relevance === 'number' ? topic.relevance / 10 : 1;
+        this.updateTopicPreference(
+          userBehavior,
+          topic.name.toLowerCase(),
+          contentWeight * relevanceFactor,
+          topic.topicId,
+        );
+      }
+    }
 
-        // Update post type preference (positive signals only — a skipped post type
-        // should not be promoted just because it was scrolled past). Uses the
-        // content weight so a reels like reinforces "I like video content".
-        if (isPositiveSignal) {
-          const postType = (
-            post.type || 'text'
-          ).toLowerCase() as keyof typeof userBehavior.preferredPostTypes;
-          if (postType in userBehavior.preferredPostTypes) {
-            userBehavior.preferredPostTypes[postType] =
-              (userBehavior.preferredPostTypes[postType] || 0) + contentWeight;
-          }
-        }
+    // Update post type preference (positive signals only — a skipped post type
+    // should not be promoted just because it was scrolled past). Uses the
+    // content weight so a reels like reinforces "I like video content".
+    if (isPositiveSignal) {
+      const postType = (
+        post.type || 'text'
+      ).toLowerCase() as keyof typeof userBehavior.preferredPostTypes;
+      if (postType in userBehavior.preferredPostTypes) {
+        userBehavior.preferredPostTypes[postType] =
+          (userBehavior.preferredPostTypes[postType] || 0) + contentWeight;
+      }
+    }
 
-        // Record active hour for any engagement (including a genuine view) — it
-        // reflects WHEN the user is on the app, independent of sentiment. A pure
-        // skip still means the user was active, so we record it too.
-        //
-        // A ROLLING LOG of the last 168 recorded hours, which is what the cap was
-        // always written for and what `timeOfDay` needs to mean anything. It was a
-        // deduplicated SET: `includes` refused a repeat, so the array held at most
-        // the 24 distinct hours-of-day and the 168 cap could never fire. That set
-        // only ever grew. A reader who was once awake at 03:00 kept 03:00 forever,
-        // and any reader who used the app across a full day eventually held all 24
-        // — at which point `timeOfDay` returned its 1.2 boost for EVERY post and
-        // stopped discriminating, silently and permanently. The same
-        // append-only-with-an-inert-cap shape as the learned language set removed
-        // earlier.
-        //
-        // Keeping the repeats is also what makes the signal weigh frequency: an
-        // hour the reader is on the app daily appears many times in the window, an
-        // hour they visited once appears once and falls out of it.
-        userBehavior.activeHours.push(new Date().getHours());
-        if (userBehavior.activeHours.length > ACTIVE_HOURS_WINDOW) {
-          userBehavior.activeHours = userBehavior.activeHours.slice(-ACTIVE_HOURS_WINDOW);
-        }
+    // Record active hour for any engagement (including a genuine view) — it
+    // reflects WHEN the user is on the app, independent of sentiment. A pure
+    // skip still means the user was active, so we record it too.
+    //
+    // A ROLLING LOG of the last 168 recorded hours, which is what the cap was
+    // always written for and what `timeOfDay` needs to mean anything. It was a
+    // deduplicated SET: `includes` refused a repeat, so the array held at most
+    // the 24 distinct hours-of-day and the 168 cap could never fire. That set
+    // only ever grew. A reader who was once awake at 03:00 kept 03:00 forever,
+    // and any reader who used the app across a full day eventually held all 24
+    // — at which point `timeOfDay` returned its 1.2 boost for EVERY post and
+    // stopped discriminating, silently and permanently. The same
+    // append-only-with-an-inert-cap shape as the learned language set removed
+    // earlier.
+    //
+    // Keeping the repeats is also what makes the signal weigh frequency: an
+    // hour the reader is on the app daily appears many times in the window, an
+    // hour they visited once appears once and falls out of it.
+    userBehavior.activeHours.push(new Date().getHours());
+    if (userBehavior.activeHours.length > ACTIVE_HOURS_WINDOW) {
+      userBehavior.activeHours = userBehavior.activeHours.slice(-ACTIVE_HOURS_WINDOW);
+    }
 
-        // Update REGION affinity (positive signals only — a skip must not increase
-        // interest in a region). Region is a CONTENT-origin signal, so it uses the
-        // content weight (amplified on video surfaces) like topics/post-type. It is
-        // best-effort and frequently absent — `postClassification.region` is itself
-        // derived only from a federated instance domain or author locale, never from
-        // post text — so this no-ops for most native posts. When present, the
-        // dominant region accrues a stable count (read via `getTopRegion`).
-        if (isPositiveSignal) {
-          const region = post.postClassification?.region;
-          if (typeof region === 'string' && region.length > 0) {
-            this.updateRegionPreference(userBehavior, region, contentWeight);
-          }
-        }
+    // Update REGION affinity (positive signals only — a skip must not increase
+    // interest in a region). Region is a CONTENT-origin signal, so it uses the
+    // content weight (amplified on video surfaces) like topics/post-type. It is
+    // best-effort and frequently absent — `postClassification.region` is itself
+    // derived only from a federated instance domain or author locale, never from
+    // post text — so this no-ops for most native posts. When present, the
+    // dominant region accrues a stable count (read via `getTopRegion`).
+    if (isPositiveSignal) {
+      const region = post.postClassification?.region;
+      if (typeof region === 'string' && region.length > 0) {
+        this.updateRegionPreference(userBehavior, region, contentWeight);
+      }
+    }
 
-        // Handle hard negative signals (hide/mute/block) — author/topic suppression.
-        if (
-          interactionType === 'hide' ||
-          interactionType === 'mute' ||
-          interactionType === 'block'
-        ) {
-          this.handleNegativeSignal(userBehavior, post, interactionType);
-        }
+    // Handle hard negative signals (hide/mute/block) — author/topic suppression.
+    if (interactionType === 'hide' || interactionType === 'mute' || interactionType === 'block') {
+      this.handleNegativeSignal(userBehavior, post, interactionType);
+    }
 
-        // Handle the soft negative signal (skip): the viewer scrolled past quickly.
-        // This is NOT a suppression — it only nudges down an existing author
-        // preference weight so a repeatedly-skipped author gradually loses its
-        // boost. It never creates a preference entry or hides the author.
-        if (interactionType === 'skip' && post.oxyUserId) {
-          this.decayAuthorPreference(userBehavior, post.oxyUserId, Math.abs(weight));
-        }
+    // Handle the soft negative signal (skip): the viewer scrolled past quickly.
+    // This is NOT a suppression — it only nudges down an existing author
+    // preference weight so a repeatedly-skipped author gradually loses its
+    // boost. It never creates a preference entry or hides the author.
+    if (interactionType === 'skip' && post.oxyUserId) {
+      this.decayAuthorPreference(userBehavior, post.oxyUserId, Math.abs(weight));
+    }
 
-        userBehavior.lastUpdated = new Date();
-      },
-      { createIfMissing: true },
-    );
+    userBehavior.lastUpdated = new Date();
   }
 
   /**
@@ -623,17 +639,19 @@ export class UserPreferenceService {
         .select({ postId: likesTable.postId })
         .from(likesTable)
         .where(eq(likesTable.userId, userId));
-      for (const like of likeRows) {
-        await this.recordInteraction(userId, like.postId, 'like');
-      }
+      await this.recordInteractions(
+        userId,
+        likeRows.map((like) => ({ postId: like.postId, type: 'like' as const })),
+      );
 
       const bookmarkRows = await getDb()
         .select({ postId: bookmarksTable.postId })
         .from(bookmarksTable)
         .where(eq(bookmarksTable.userId, userId));
-      for (const bookmark of bookmarkRows) {
-        await this.recordInteraction(userId, bookmark.postId, 'save');
-      }
+      await this.recordInteractions(
+        userId,
+        bookmarkRows.map((bookmark) => ({ postId: bookmark.postId, type: 'save' as const })),
+      );
 
       // Get all user's posts (to infer preferences)
       const userPosts = await findPostRecords(eq(posts.oxyUserId, userId), {

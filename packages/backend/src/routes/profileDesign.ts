@@ -58,14 +58,21 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
       return sendErrorResponse(res, 400, 'Bad Request', validationError);
     }
 
+    // The three reads are independent, so they start together. The profile
+    // facts are only READ ahead of the decisions below: they are awaited — and
+    // anything from them sent, or any failure of theirs surfaced — only once the
+    // erasure and access checks have passed.
+    const factsRead = loadPublicProfileFacts(userId);
+    factsRead.catch(() => undefined);
+    const [erased, doc] = await Promise.all([isAccountErased(userId), loadUserSettings(userId)]);
+
     // An account Oxy told us was deleted has no profile to describe. Without this
     // the route would answer 200 with default settings and zero counts for it,
     // which is what the issue that introduced erasure saw (OxyHQ/Mention#1169).
-    if (await isAccountErased(userId)) {
+    if (erased) {
       return sendErrorResponse(res, 404, 'Not Found', 'Profile not found');
     }
 
-    const doc = await loadUserSettings(userId);
     const profileVisibility = doc?.privacy?.profileVisibility || ProfileVisibility.PUBLIC;
 
     // The shared profile-design rule (`GET /profile/settings/:userId` applies the
@@ -81,7 +88,7 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
     // User has access - return full profile design data with privacy info
     const response = extractPublicProfileData(doc, userId) as PublicProfileDesignResponse;
 
-    const { counts, remote } = await loadPublicProfileFacts(userId);
+    const { counts, remote } = await factsRead;
 
     response.postsCount = counts.postsCount;
     response.boostsCount = counts.boostsCount;

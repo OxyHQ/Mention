@@ -37,6 +37,12 @@ export interface PostInteractions {
   openSources: (sources: PostSourceLink[]) => void;
   openInsights: (postId: string) => void;
   openCommunityNoteAbout: (note: CommunityNoteSummary) => void;
+  /**
+   * Start what a profile opened from this row shows first — its pinned post
+   * and its posts feed — from the author id the row already holds, so neither
+   * waits for the profile lookup on the other side of the navigation.
+   */
+  prefetchProfile: (profileId: string | undefined) => void;
 }
 
 export interface PostMenuRequest {
@@ -57,7 +63,7 @@ export interface PostMenuRequest {
  */
 export type BoundPostCommands = Pick<
   PostInteractions,
-  'openMenu' | 'openSources' | 'openInsights' | 'openCommunityNoteAbout'
+  'openMenu' | 'openSources' | 'openInsights' | 'openCommunityNoteAbout' | 'prefetchProfile'
 >;
 
 /** The canonical copy of a post right now, or the row's copy when the store has none. */
@@ -152,6 +158,8 @@ function createController(): Controller {
     openSources: whenBound('openSources'),
     openInsights: whenBound('openInsights'),
     openCommunityNoteAbout: whenBound('openCommunityNoteAbout'),
+    // A prefetch with nothing bound has nothing to warm; it is not a failure.
+    prefetchProfile: (profileId) => bound?.prefetchProfile(profileId),
   };
 
   return {

@@ -304,11 +304,31 @@ function readInitialJavascriptPaths() {
   return paths;
 }
 
+/**
+ * The sources a map covers, paired with their contents. Metro 0.87 (Expo SDK
+ * 58) writes an INDEX map — `{ sections: [{ offset, map }] }` — where 0.84 wrote
+ * one flat map, and an index map has no top-level `sources` at all; read as a
+ * flat map it covers nothing, so every module looked absent from the export.
+ */
+function flattenSourceMap(sourceMap) {
+  if (!Array.isArray(sourceMap?.sections)) return sourceMap;
+  const sources = [];
+  const sourcesContent = [];
+  for (const section of sourceMap.sections) {
+    const inner = flattenSourceMap(section.map);
+    for (let index = 0; index < (inner?.sources?.length ?? 0); index += 1) {
+      sources.push(inner.sources[index]);
+      sourcesContent.push(inner.sourcesContent?.[index] ?? null);
+    }
+  }
+  return { sources, sourcesContent };
+}
+
 function readSourceMap(file) {
   const mapPath = path.join(distDir, `${file.path}.map`);
   if (!fs.existsSync(mapPath)) return null;
   try {
-    return JSON.parse(fs.readFileSync(mapPath, 'utf8'));
+    return flattenSourceMap(JSON.parse(fs.readFileSync(mapPath, 'utf8')));
   } catch (error) {
     console.warn(`Skipping unreadable source map ${mapPath}: ${error.message}`);
     return null;

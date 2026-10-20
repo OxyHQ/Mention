@@ -349,8 +349,8 @@ function feedElementKey(element: unknown): string {
  *    short-circuit plus full ordered-key equality (via {@link feedElementKey}).
  *    Both feed data paths allocate a new array reference on every real change
  *    (see {@link feedArrayEqual}), so the reference path is the common fast path.
- *  - `Set`/`Map` (e.g. the privacy `blockedSet`): reference — the owning store
- *    allocates a new instance only when membership changes, so reference equality
+ *  - `Set`/`Map` (e.g. the privacy `blockedSet`): reference — the owning query
+ *    builds a new instance only when membership changes, so reference equality
  *    is both correct and far cheaper than serializing (the old path stringified a
  *    Set to `{}` and never detected its changes at all).
  *  - Plain objects (e.g. `filters`): one shallow key-by-key pass, so a

@@ -4,7 +4,7 @@ Deck is a desktop web workspace made from the same routed screens used by the
 main application. Bloom owns the layout, header/footer composition, responsive
 panel geometry, scrollbars and panel histories. Mention owns screen data,
 authentication, workspace storage and synchronization policy. Read Bloom's
-[Compose application layouts](https://oxy.so/docs/bloom/main/compose-layouts)
+[Compose application layouts](https://github.com/OxyHQ/Bloom/blob/main/docs/compose-layouts.mdx)
 guide alongside [Frontend rules](./frontend-rules.md).
 
 ## Rendering contract

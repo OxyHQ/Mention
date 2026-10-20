@@ -69,7 +69,7 @@ updates:
           - "patch"
     # MANUALLY managed — do NOT let Dependabot touch the pinned toolchains.
     ignore:
-      # Expo SDK + toolchain — locked to the Expo SDK 56 release train.
+      # Expo SDK + toolchain — locked to the Expo SDK release train.
       - dependency-name: "expo"
       - dependency-name: "expo-*"
       - dependency-name: "@expo/*"
@@ -117,6 +117,12 @@ updates:
       - dependency-name: "lightningcss-*"
       # AI SDK — intentionally pinned (breaking changes between minors).
       - dependency-name: "ai"
+      # The environment behind `@jest-environment jsdom` test files. 30's
+      # unforgeable `window` makes React Native's jest setup (which every file
+      # runs, jsdom ones included) throw "Cannot redefine property: window";
+      # see docs/dependencies.md.
+      - dependency-name: "jest-environment-jsdom"
+        update-types: ["version-update:semver-major"]
 
   # ---------------------------------------------------------------------------
   # GitHub Actions — keep workflow action versions current.

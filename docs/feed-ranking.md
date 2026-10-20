@@ -24,10 +24,15 @@ pure/sync). Runs at all ingest chokepoints: `PostCreationService`,
   beats the runner-up score by >= 0.04; a second language is kept when the
   sentences confidently detected as it hold >= 30% of the text. Federated:
   `extractApLanguages` reads AP `language` + all `contentMap` keys, but those
-  labels do not grant distribution by themselves. Japanese kana and Korean
-  hangul correct contradictory labels; a single declaration is replaced only
-  when ELD knows the declared language and names another by >= 0.1 (so a
-  declared Galician post, which ELD cannot recognise, stays `gl`). Ambiguous
+  labels do not grant distribution by themselves. Kana or hangul that
+  make up at least half of the letters correct contradictory labels (a quoted
+  `きんかくじ` in English prose does not). A language the post already carries
+  — the author's or origin's declaration, or, on a re-classification, the
+  languages it is stored under (`previousLanguages`) — is replaced only on
+  strong evidence: >= 40 letters and >= 5 words of prose, a reliable verdict
+  beating the runner-up by >= 0.1 and the carried language's own score by
+  >= 0.15, and a carried language ELD knows (so a declared Galician post stays
+  `gl`). An undeclared body needs >= 12 letters and >= 3 words. Ambiguous
   bodies, and languages ELD lacks, produce `languages: []` rather than a
   neighbour's label. Feed membership is ANY-OVERLAP against this canonical
   field.
@@ -322,7 +327,24 @@ on touch, arrows beside the title on wide screens). People are vertical tiles
   Redis (key `usersummary:v7:<id>`, 10m TTL); `invalidate()` evicts on
   federated-actor re-resolve and on Oxy's `oxy:user:invalidate`. Those facts are
   RANKING-side (`CachedUserSummary`) and deliberately never ship on the
-  `PostUser` DTO.
+  `PostUser` DTO. In front of Redis each task keeps a bounded (5,000 entries)
+  15-second copy of what Redis returned; `invalidate()` clears it, and the
+  invalidation subscriber runs on every task, so an Oxy identity change clears
+  it everywhere.
+- Ranked pages thread-slice only the top `2 * limit + 1` candidates
+  (`sliceTopWindow` in `FeedEngine.ts`), doubling the window only when it folds
+  into too few slices to fill the page and say whether another follows. Slicing
+  reads every candidate's thread children and parents, and a slice depends only
+  on the candidates above it, so the page is the same as slicing the whole pool.
+- For You candidate shells carry the `posts` row they were assembled from;
+  `hydrateSlices` completes the page's shells from those rows
+  (`completeShellRecords`), reading only the child tables instead of selecting
+  the page's posts a second time.
+- A post record is one wave of round trips: `loadPostRecords` reads `posts` and
+  every child table (the variant tables through a subquery) at once. Reply
+  parents, the web shell's `/p/:id` post and its SEO replies come through the
+  viewer-agnostic post-record cache (`services/postDetailCache.ts`) that
+  `/feed/item/:id` already used.
 - View counts: `services/feedViewCounter.ts` (Redis SET NX EX
   `viewseen:<postId>:<viewerId>`). Frontend reports impressions via
   `utils/feedTelemetry.ts`.

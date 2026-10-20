@@ -28,6 +28,7 @@ export DEPLOY_TEST_EXPECT_TASK_SECRET_ARN=false
 export DEPLOY_TEST_EXPECT_TASK_ENV=false
 export DEPLOY_TEST_EXPECT_SECRET_REMOVED=
 export DEPLOY_TEST_EXPECT_ENV_REMOVED=
+export DEPLOY_TEST_EXPECT_TASK_SIZE=
 export DEPLOY_TEST_SERVICE_DESIRED_COUNT=1
 export DEPLOY_TEST_ROLLOUT_SCENARIO=healthy
 # The `lastStatus` a mocked one-shot reports. `RUNNING` never resolves, which is
@@ -239,6 +240,19 @@ aws() {
         else
           printf 'env-removed:MISMATCH\n' >>"$DEPLOY_TEST_LOG"
         fi
+      fi
+      if [[ "$DEPLOY_TEST_EXPECT_TASK_SIZE" != "" ]]; then
+        local previous_argument=""
+        local input_json=""
+        local argument
+        for argument in "$@"; do
+          if [[ "$previous_argument" == "--cli-input-json" ]]; then
+            input_json="${argument#file://}"
+            break
+          fi
+          previous_argument="$argument"
+        done
+        printf 'task-size:%s\n' "$(jq -r '"\(.cpu)/\(.memory)"' "$input_json")" >>"$DEPLOY_TEST_LOG"
       fi
       if [[ "$DEPLOY_TEST_EXPECT_TASK_SECRET_ARN" == "true" ]]; then
         local previous_argument=""
@@ -829,6 +843,23 @@ TASK_ENV_REMOVALS=EXTRA_TASK_ENV \
 grep -q 'in both TASK_ENV_OVERRIDES_JSON and TASK_ENV_REMOVALS' \
   "$test_directory/env-conflict/output.log" || {
   echo "The conflicting-name refusal must name BOTH lists, or it is indistinguishable from any other failure." >&2
+  exit 1
+}
+
+# TASK_CPU/TASK_MEMORY replace the size the running definition carries (256/512
+# in the fixture); without them it is carried forward unchanged.
+DEPLOY_TEST_EXPECT_TASK_SIZE=true TASK_CPU=1024 TASK_MEMORY=2048 \
+  run_release task-size true false false 0
+DEPLOY_TEST_EXPECT_TASK_SIZE=true run_release task-size-carried true false false 0
+grep -qx 'task-size:1024/2048' "$test_directory/task-size/aws.log" &&
+  grep -qx 'task-size:256/512' "$test_directory/task-size-carried/aws.log" || {
+  echo "TASK_CPU/TASK_MEMORY did not set the registered size, or an unset size was not carried forward." >&2
+  exit 1
+}
+TASK_CPU=1024 run_release task-size-half false false false 0
+grep -q 'TASK_CPU and TASK_MEMORY must be set together' \
+  "$test_directory/task-size-half/output.log" || {
+  echo "A size with only one half set must be refused." >&2
   exit 1
 }
 

@@ -19,7 +19,8 @@
  */
 
 import { and, eq, gte, isNotNull, ne, sql } from 'drizzle-orm';
-import { getDb } from '../db/postgres';
+import { config } from '../config';
+import { withStatementTimeout } from '../utils/withStatementTimeout';
 import { posts } from '../db/schema/posts';
 import { getRedisClient } from '../utils/redis';
 import { logger } from '../utils/logger';
@@ -100,28 +101,32 @@ export class InterestScoreService {
      * decoder, so the annotation is DERIVED from what actually runs and cannot
      * drift from it.
      */
-    const rows = await getDb()
-      .select({
-        oxyUserId: posts.oxyUserId,
-        raw: sql`sum(
+    // Every author's fortnight in one aggregate: up to 25 s when the pages are
+    // cold (2026-10-19), past the serving pool's statement_timeout.
+    const rows = await withStatementTimeout(config.postgres.backgroundStatementTimeoutMs, (db) =>
+      db
+        .select({
+          oxyUserId: posts.oxyUserId,
+          raw: sql`sum(
           ${posts.statsLikesCount} + ${posts.statsBoostsCount} + ${posts.statsCommentsCount}
           + ${posts.statsViewsCount}
         )`.mapWith(Number),
-        postCount: sql`count(*)`.mapWith(Number),
-        lastPost: sql`max(${posts.createdAt})`.mapWith(posts.createdAt),
-      })
-      .from(posts)
-      .where(
-        and(
-          isNotNull(posts.oxyUserId),
-          eq(posts.status, 'published'),
-          eq(posts.visibility, 'public'),
-          // Exclude boosts: a boost carries no original engagement of its own.
-          ne(posts.type, 'boost'),
-          gte(posts.createdAt, since),
-        ),
-      )
-      .groupBy(posts.oxyUserId);
+          postCount: sql`count(*)`.mapWith(Number),
+          lastPost: sql`max(${posts.createdAt})`.mapWith(posts.createdAt),
+        })
+        .from(posts)
+        .where(
+          and(
+            isNotNull(posts.oxyUserId),
+            eq(posts.status, 'published'),
+            eq(posts.visibility, 'public'),
+            // Exclude boosts: a boost carries no original engagement of its own.
+            ne(posts.type, 'boost'),
+            gte(posts.createdAt, since),
+          ),
+        )
+        .groupBy(posts.oxyUserId),
+    );
 
     // `flatMap` rather than `filter`+`map`: it narrows `oxy_user_id` from
     // `string | null` to `string` without a cast. The empty-string check stays —

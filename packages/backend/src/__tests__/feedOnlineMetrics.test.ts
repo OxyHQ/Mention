@@ -34,7 +34,7 @@ vi.mock('../services/dwellAggregate', () => ({
   recordDwell: vi.fn(async () => undefined),
 }));
 vi.mock('../services/UserPreferenceService', () => ({
-  userPreferenceService: { recordInteraction: vi.fn(async () => undefined) },
+  userPreferenceService: { recordInteractions: vi.fn(async () => undefined) },
 }));
 
 import { metrics } from '../utils/metrics';
@@ -53,7 +53,14 @@ import {
   resolveDiscoveryGateBucket,
   isDiscoveryGateExperimentEnabled,
 } from '../mtn/feed/discoveryGateExperiment';
-import { applyImpressionSignals, recordReportSignal } from '../mtn/feed/FeedInteractionTracker';
+import {
+  applyImpressionSignals,
+  type FeedInteractionData,
+  recordReportSignal,
+} from '../mtn/feed/FeedInteractionTracker';
+
+/** One impression through the batch API. */
+const applyOne = (interaction: FeedInteractionData) => applyImpressionSignals([interaction]);
 import { closePostgres, connectPostgres } from '../db/postgres';
 import type { PostRecordInput } from '../db/posts/postRecord';
 import { clearPostScope, postScope, seedPost } from './helpers/postFixtures';
@@ -273,7 +280,7 @@ describe('applyImpressionSignals metrics', () => {
       federation: { actorUri: `https://${scope.name}.test/users/x` },
     });
 
-    await applyImpressionSignals({
+    await applyOne({
       userId: VIEWER,
       feedDescriptor: 'for_you',
       postUri: postId,
@@ -293,7 +300,7 @@ describe('applyImpressionSignals metrics', () => {
   it('classifies a short dwell as a skip and a local post as local origin', async () => {
     const postId = await seedTrackedPost();
 
-    await applyImpressionSignals({
+    await applyOne({
       userId: VIEWER,
       feedDescriptor: `author|${AUTHOR}`,
       postUri: postId,
@@ -316,7 +323,7 @@ describe('applyImpressionSignals metrics', () => {
       federation: { actorUri: `https://${scope.name}.test/users/x` },
     });
 
-    await applyImpressionSignals({
+    await applyOne({
       userId: VIEWER,
       feedDescriptor: 'for_you',
       postUri: postId,
@@ -342,7 +349,7 @@ describe('applyImpressionSignals metrics', () => {
     // could never legitimately have seen must move no ranking signal at all.
     const postId = await seedTrackedPost(overrides);
 
-    await applyImpressionSignals({
+    await applyOne({
       userId: VIEWER,
       feedDescriptor: 'for_you',
       postUri: postId,
@@ -360,7 +367,7 @@ describe('applyImpressionSignals metrics', () => {
   });
 
   it('records nothing for a postUri that resolves to no post', async () => {
-    await applyImpressionSignals({
+    await applyOne({
       userId: VIEWER,
       feedDescriptor: 'for_you',
       postUri: 'at://not-a-local-post-id',

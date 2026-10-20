@@ -254,7 +254,10 @@ Startup runs in this order:
 
 1. Validate configuration.
 2. Connect PostgreSQL. This is the only data store the process opens, and
-   `getDb()` throws until it resolves.
+   `getDb()` throws until it resolves. The serving pool carries a 15 s
+   `statement_timeout` (`connectServingPostgres`); a leader job that reads
+   more raises it for its own transaction with `withStatementTimeout`, and
+   one-shot scripts open an unbounded pool with `connectPostgres`.
 3. In production, `assertPostgresMigrationsCurrent` refuses readiness
    unless the deploy's migration one-shot has already brought the schema
    current. Outside production the migrator is a developer command

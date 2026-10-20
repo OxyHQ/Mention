@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Pressable, StyleSheet, type TextInput } from 'react-native';
+import { View, Pressable, StyleSheet, type TextInputInstance } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Divider } from '@oxy.so/bloom/divider';
@@ -43,7 +43,7 @@ export function InlineReplyComposer({
   const createReply = usePostsStore((s) => s.createReply);
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const inputRef = useRef<TextInput | null>(null);
+  const inputRef = useRef<TextInputInstance | null>(null);
 
   // Only a change taken while this composer was mounted counts. Seeding the ref
   // with the value at mount is what stops a remount — leaving /videos and coming

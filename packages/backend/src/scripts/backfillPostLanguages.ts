@@ -47,6 +47,16 @@
  *
  * ## The dry run is a review, not a count
  *
+ * Every cross-language pair (one language replaced by another) of at least
+ * {@link REPORT_CROSS_PAIR_MIN_COUNT} rows is also logged, as `cross-language
+ * change` with its samples, and `language fills by source` counts how empty rows
+ * would be filled: from a declaration, from detection, or from script evidence.
+ *
+ * A row classified under the CURRENT ruleset passes its languages to the
+ * classifier as `previousLanguages`, so they are replaced only on strong
+ * evidence (`BaselineContentClassifier`'s overrule rule), never by a different
+ * detector's verdict on a sentence too short to judge.
+ *
  * A dry run logs `[backfillPostLanguages] language change` once per
  * (old primary → new primary) pair, for the {@link REPORT_TOP_PAIRS} largest
  * pairs, and `[backfillPostLanguages] language change sample` for the first
@@ -109,6 +119,7 @@ import { posts } from '../db/schema/posts';
 import {
   baselineContentClassifier,
   BASELINE_CLASSIFIER_VERSION,
+  type LanguageSource,
 } from '../services/BaselineContentClassifier';
 import { invalidate as invalidatePostDetailCache } from '../services/postDetailCache';
 import {
@@ -154,6 +165,12 @@ export const REPORT_SAMPLES_PER_PAIR = 5;
 export const EXCERPT_LENGTH = 80;
 /** How "no language" is spelled in a pair. */
 export const NO_LANGUAGE = '∅';
+/**
+ * Every cross-language pair (a language replaced by ANOTHER language) at least
+ * this large is sampled, whatever its rank: those are the rows where a wrong
+ * rule does the most damage per row.
+ */
+export const REPORT_CROSS_PAIR_MIN_COUNT = 500;
 
 export interface LanguageChangeSample {
   postId: string;
@@ -166,9 +183,12 @@ export interface LanguageChangePair {
   count: number;
   /** Of `count`, rows whose primary rendition tag changes too. */
   retagged: number;
-  /** Lowest-id rows of the pair; filled for the {@link REPORT_SAMPLED_PAIRS} largest only. */
+  /** Lowest-id rows of the pair, up to {@link REPORT_SAMPLES_PER_PAIR}. */
   samples: LanguageChangeSample[];
 }
+
+/** How empty rows would be filled, by where the new language came from. */
+export type LanguageFillSources = Record<LanguageSource, number>;
 
 export interface BackfillPostLanguagesResult {
   scanned: number;
@@ -180,8 +200,19 @@ export interface BackfillPostLanguagesResult {
   cursorWriteFailures: number;
   /** The last id whose page was fully processed (and, live, committed). */
   lastId: string | null;
-  /** The (old → new primary language) pairs, largest first, capped at {@link REPORT_TOP_PAIRS}. */
+  /**
+   * The (old → new primary language) pairs, largest first, capped at
+   * {@link REPORT_TOP_PAIRS}; only the {@link REPORT_SAMPLED_PAIRS} largest keep
+   * their samples.
+   */
   pairs: LanguageChangePair[];
+  /**
+   * Every pair replacing one language with ANOTHER (both non-empty) of at least
+   * {@link REPORT_CROSS_PAIR_MIN_COUNT} rows, largest first, with samples.
+   */
+  crossPairs: LanguageChangePair[];
+  /** Rows going from no language to one, by the source of the new language. */
+  fills: LanguageFillSources;
 }
 
 export interface BackfillPacing {
@@ -252,6 +283,7 @@ interface PostLanguagePlan {
   text: string;
   from: string;
   to: string;
+  source: LanguageSource;
   patch: PostRecordPatch;
   /** The re-tagged renditions, or `null` when the tag already agrees. */
   retagged: PostRecord['content']['variants'] | null;
@@ -272,6 +304,13 @@ async function planPost(post: PostRecord): Promise<PostLanguagePlan | null> {
     text,
     hashtags: post.hashtags,
     languages: declaredBaseLanguages(post.content),
+    // A row already classified under the CURRENT ruleset carries its languages
+    // like a declaration: a different detector replaces them only on strong
+    // evidence. An older stamp is not trusted that far (see the docblock).
+    previousLanguages:
+      classification?.version === BASELINE_CLASSIFIER_VERSION
+        ? classification.languages
+        : undefined,
     sensitive: post.federation?.sensitive ?? post.metadata.isSensitive,
     isFederated: post.federation != null,
     // The author's instance host, read exactly as ingest reads it.
@@ -296,6 +335,7 @@ async function planPost(post: PostRecord): Promise<PostLanguagePlan | null> {
     text,
     from: classification?.languages?.[0] ?? NO_LANGUAGE,
     to: primaryLanguage ?? NO_LANGUAGE,
+    source: signals.languageSource,
     patch: {
       postClassification: {
         languages: signals.languages,
@@ -329,8 +369,22 @@ async function planPost(post: PostRecord): Promise<PostLanguagePlan | null> {
  */
 export class LanguageChangeReport {
   private readonly pairs = new Map<string, LanguageChangePair>();
+  private readonly fillSources: LanguageFillSources = {
+    declared: 0,
+    detected: 0,
+    script: 0,
+    previous: 0,
+    none: 0,
+  };
 
-  add(plan: { postId: string; text: string; from: string; to: string; retagged: boolean }): void {
+  add(plan: {
+    postId: string;
+    text: string;
+    from: string;
+    to: string;
+    source: LanguageSource;
+    retagged: boolean;
+  }): void {
     const key = `${plan.from}→${plan.to}`;
     let pair = this.pairs.get(key);
     if (!pair) {
@@ -339,6 +393,7 @@ export class LanguageChangeReport {
     }
     pair.count += 1;
     if (plan.retagged) pair.retagged += 1;
+    if (plan.from === NO_LANGUAGE && plan.to !== NO_LANGUAGE) this.fillSources[plan.source] += 1;
     if (pair.samples.length < REPORT_SAMPLES_PER_PAIR) {
       pair.samples.push({
         postId: plan.postId,
@@ -347,16 +402,52 @@ export class LanguageChangeReport {
     }
   }
 
+  private sorted(): LanguageChangePair[] {
+    return [...this.pairs.values()].sort(
+      (a, b) => b.count - a.count || `${a.from}${a.to}`.localeCompare(`${b.from}${b.to}`),
+    );
+  }
+
   /** Largest first (ties by pair name, so the order is stable), capped. */
   top(): LanguageChangePair[] {
-    return [...this.pairs.values()]
-      .sort((a, b) => b.count - a.count || `${a.from}${a.to}`.localeCompare(`${b.from}${b.to}`))
+    return this.sorted()
       .slice(0, REPORT_TOP_PAIRS)
       .map((pair, index) => (index < REPORT_SAMPLED_PAIRS ? pair : { ...pair, samples: [] }));
   }
+
+  /** Every large pair that replaces one language with another, with samples. */
+  crossPairs(): LanguageChangePair[] {
+    return this.sorted().filter(
+      (pair) =>
+        pair.from !== NO_LANGUAGE &&
+        pair.to !== NO_LANGUAGE &&
+        pair.from !== pair.to &&
+        pair.count >= REPORT_CROSS_PAIR_MIN_COUNT,
+    );
+  }
+
+  fills(): LanguageFillSources {
+    return { ...this.fillSources };
+  }
 }
 
-function logReport(pairs: readonly LanguageChangePair[]): void {
+function logSamples(pair: LanguageChangePair): void {
+  for (const sample of pair.samples) {
+    logger.info(`[${SCRIPT_NAME}] language change sample`, {
+      from: pair.from,
+      to: pair.to,
+      // Redacted by the logger's id policy; the excerpt is what finds the post.
+      postId: sample.postId,
+      excerpt: sample.excerpt,
+    });
+  }
+}
+
+function logReport(
+  pairs: readonly LanguageChangePair[],
+  crossPairs: readonly LanguageChangePair[],
+  fills: LanguageFillSources,
+): void {
   for (const [rank, pair] of pairs.entries()) {
     logger.info(`[${SCRIPT_NAME}] language change`, {
       rank: rank + 1,
@@ -365,16 +456,22 @@ function logReport(pairs: readonly LanguageChangePair[]): void {
       count: pair.count,
       retagged: pair.retagged,
     });
-    for (const sample of pair.samples) {
-      logger.info(`[${SCRIPT_NAME}] language change sample`, {
-        from: pair.from,
-        to: pair.to,
-        // Redacted by the logger's id policy; the excerpt is what finds the post.
-        postId: sample.postId,
-        excerpt: sample.excerpt,
-      });
-    }
+    logSamples(pair);
   }
+  const sampledAbove = new Set(
+    pairs.filter((pair) => pair.samples.length > 0).map((pair) => `${pair.from}→${pair.to}`),
+  );
+  for (const pair of crossPairs) {
+    logger.info(`[${SCRIPT_NAME}] cross-language change`, {
+      from: pair.from,
+      to: pair.to,
+      count: pair.count,
+      retagged: pair.retagged,
+    });
+    if (!sampledAbove.has(`${pair.from}→${pair.to}`)) logSamples(pair);
+  }
+  // `counts` keeps its numbers through the logger's redaction (a count map).
+  logger.info(`[${SCRIPT_NAME}] language fills by source`, { counts: fills });
 }
 
 /** Lock or statement timeout: the database asked us to back off. */
@@ -515,6 +612,7 @@ export async function backfillPostLanguages(
           text: plan.text,
           from: plan.from,
           to: plan.to,
+          source: plan.source,
           retagged: plan.retagged !== null,
         });
         updated += 1;
@@ -573,8 +671,20 @@ export async function backfillPostLanguages(
   }
 
   const pairs = report.top();
-  if (dryRun) logReport(pairs);
-  return { scanned, updated, retagged, failed, cursorWriteFailures, lastId, pairs };
+  const crossPairs = report.crossPairs();
+  const fills = report.fills();
+  if (dryRun) logReport(pairs, crossPairs, fills);
+  return {
+    scanned,
+    updated,
+    retagged,
+    failed,
+    cursorWriteFailures,
+    lastId,
+    pairs,
+    crossPairs,
+    fills,
+  };
 }
 
 function envNumber(name: string): number | undefined {

@@ -609,7 +609,7 @@ async function countOrDeleteDistinctPosts(
 
 /**
  * `feed_interactions` — deleted from the Postgres table that
- * `trackFeedInteraction` writes, matched on `post_uri`.
+ * `trackFeedInteractions` writes, matched on `post_uri`.
  */
 async function purgeFeedInteractions(
   postKeys: readonly string[],

@@ -11,6 +11,7 @@ import { AddToListSheet } from '@/components/Lists/AddToListSheet';
 import { AddToStarterPackSheet } from '@/components/AddToStarterPackSheet';
 import { muteService } from '@/services/muteService';
 import { refreshPrivacyLists } from '@/services/privacyService';
+import { setPrivacyListMembership } from '@/hooks/usePrivacyControls';
 import { reportService } from '@/services/reportService';
 import { confirmDialog } from '@/utils/alerts';
 import { List as ListIcon } from '@/assets/icons/list-icon';
@@ -88,7 +89,7 @@ export function useProfileMoreMenu({
 }: ProfileMoreMenuOptions): (() => void) | null {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { oxyServices, canUsePrivateApi } = useAuth();
+  const { oxyServices, canUsePrivateApi, user } = useAuth();
   const bottomSheet = useContext(BottomSheetContext);
 
   const openMoreMenu = useCallback(() => {
@@ -139,6 +140,7 @@ export function useProfileMoreMenu({
         // showing the blocked account until the window expires. Best-effort —
         // the block itself has already succeeded.
         await refreshPrivacyLists();
+        setPrivacyListMembership(user?.id, 'blocked', profileData.id, true);
         toast(
           t('profile.blocked', {
             username: displayUsername,

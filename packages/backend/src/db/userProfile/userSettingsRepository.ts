@@ -448,16 +448,29 @@ export async function loadUserSettings(
   oxyUserId: string,
   db: DatabaseOrTransaction = getDb(),
 ): Promise<UserSettingsRecord | null> {
-  const [row] = await db.select().from(userSettings).where(eq(userSettings.oxyUserId, oxyUserId));
+  // The label actions are keyed by the settings row's id, which is reached by a
+  // subquery on the account id here rather than by waiting for the row: one
+  // round trip of latency for every profile, pinned-post and settings read.
+  const [[row], actions] = await Promise.all([
+    db.select().from(userSettings).where(eq(userSettings.oxyUserId, oxyUserId)),
+    db
+      .select({
+        labelerId: userSettingsLabelActions.labelerId,
+        labelSlug: userSettingsLabelActions.labelSlug,
+        action: userSettingsLabelActions.action,
+      })
+      .from(userSettingsLabelActions)
+      .where(
+        inArray(
+          userSettingsLabelActions.settingsId,
+          db
+            .select({ id: userSettings.id })
+            .from(userSettings)
+            .where(eq(userSettings.oxyUserId, oxyUserId)),
+        ),
+      ),
+  ]);
   if (!row) return null;
-  const actions = await db
-    .select({
-      labelerId: userSettingsLabelActions.labelerId,
-      labelSlug: userSettingsLabelActions.labelSlug,
-      action: userSettingsLabelActions.action,
-    })
-    .from(userSettingsLabelActions)
-    .where(eq(userSettingsLabelActions.settingsId, row.id));
   return assembleRecord(row, actions);
 }
 
@@ -614,25 +627,32 @@ export async function loadUserSettingsByIds(
   db: DatabaseOrTransaction = getDb(),
 ): Promise<Map<string, UserSettingsRecord>> {
   if (oxyUserIds.length === 0) return new Map();
-  const rows = await db
-    .select()
-    .from(userSettings)
-    .where(inArray(userSettings.oxyUserId, [...oxyUserIds]));
-  if (rows.length === 0) return new Map();
-  const actions = await db
-    .select({
-      settingsId: userSettingsLabelActions.settingsId,
-      labelerId: userSettingsLabelActions.labelerId,
-      labelSlug: userSettingsLabelActions.labelSlug,
-      action: userSettingsLabelActions.action,
-    })
-    .from(userSettingsLabelActions)
-    .where(
-      inArray(
-        userSettingsLabelActions.settingsId,
-        rows.map((row) => row.id),
+  // Same single wave as `loadUserSettings`: the actions are reached through the
+  // account ids, not through the rows' ids.
+  const [rows, actions] = await Promise.all([
+    db
+      .select()
+      .from(userSettings)
+      .where(inArray(userSettings.oxyUserId, [...oxyUserIds])),
+    db
+      .select({
+        settingsId: userSettingsLabelActions.settingsId,
+        labelerId: userSettingsLabelActions.labelerId,
+        labelSlug: userSettingsLabelActions.labelSlug,
+        action: userSettingsLabelActions.action,
+      })
+      .from(userSettingsLabelActions)
+      .where(
+        inArray(
+          userSettingsLabelActions.settingsId,
+          db
+            .select({ id: userSettings.id })
+            .from(userSettings)
+            .where(inArray(userSettings.oxyUserId, [...oxyUserIds])),
+        ),
       ),
-    );
+  ]);
+  if (rows.length === 0) return new Map();
 
   const bySettingsId = new Map<string, LabelAction[]>();
   for (const entry of actions) {

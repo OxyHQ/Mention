@@ -158,7 +158,7 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
           keyExtractor={(item) => item.id}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.5}
-          ListFooterComponent={loadingMore ? <ListSkeleton count={2} /> : null}
+          ListFooterComponent={loadingMore ? <ListSkeleton count={2} /> : undefined}
         />
       )}
     </View>

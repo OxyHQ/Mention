@@ -62,7 +62,8 @@ vi.mock('../services/FeedSeenPostsService', () => ({
 }));
 
 import { MtnConfig } from '@mention/shared-types';
-import { FeedEngine } from '../mtn/feed/engine/FeedEngine';
+import { FeedEngine, sliceTopWindow } from '../mtn/feed/engine/FeedEngine';
+import { threadSlicingService } from '../services/ThreadSlicingService';
 import { FeedModuleRegistry } from '../mtn/feed/engine/FeedModuleRegistry';
 import { ScoreCursor } from '../mtn/feed/CursorBuilder';
 import type {
@@ -556,5 +557,32 @@ describe('FeedEngine — ranked fallbacks', () => {
         ? rankCtx.showSensitiveContent
         : undefined,
     ).toBeUndefined();
+  });
+});
+
+describe('sliceTopWindow', () => {
+  const options = { enableThreadGrouping: true, enableReplyContext: false, maxSliceSize: 3 };
+
+  it('slices only the top 2*limit+1 candidates, widening when they fold into too few slices', async () => {
+    const sliceFeed = vi.mocked(threadSlicingService.sliceFeed);
+    const candidates = Array.from({ length: 50 }, (_, n) => makePost(n) as never);
+
+    sliceFeed.mockClear();
+    expect(await sliceTopWindow(candidates, 5, options)).toHaveLength(11);
+    expect(sliceFeed.mock.calls.map(([posts]) => posts.length)).toEqual([11]);
+
+    // Every three candidates fold into one slice: 11 make 4, too few for a page of 5.
+    sliceFeed.mockClear();
+    const foldInThrees: typeof threadSlicingService.sliceFeed = async (posts) => ({
+      slices: Array.from({ length: Math.ceil(posts.length / 3) }, (_, index) => ({
+        _sliceKey: String(index),
+        items: [],
+        isIncompleteThread: false,
+      })) as never,
+      additionalPostIds: [],
+    });
+    sliceFeed.mockImplementationOnce(foldInThrees).mockImplementationOnce(foldInThrees);
+    expect(await sliceTopWindow(candidates, 5, options)).toHaveLength(8);
+    expect(sliceFeed.mock.calls.map(([posts]) => posts.length)).toEqual([11, 22]);
   });
 });

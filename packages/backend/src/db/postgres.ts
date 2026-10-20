@@ -64,6 +64,27 @@ let client: postgres.Sql | null = null;
  *   unmigrated deployment check `config.postgres.url` first.
  */
 export async function connectPostgres(): Promise<Database> {
+  return openPool({});
+}
+
+/**
+ * Open the SERVING process's pool: {@link connectPostgres} with
+ * `config.postgres.statementTimeoutMs` on every connection, so no request can
+ * hold a pooled connection behind a runaway statement. A leader job that
+ * legitimately runs longer raises it for its own transaction with
+ * `withStatementTimeout`. One-shot scripts and the deploy gate use
+ * {@link connectPostgres}: they run alone, under an operator, bounded by their
+ * task.
+ *
+ * A separate entry point rather than an options argument: the test suites hand
+ * `connectPostgres` straight to `beforeAll`, and vitest reads a hook's first
+ * parameter as a fixture.
+ */
+export async function connectServingPostgres(): Promise<Database> {
+  return openPool({ statementTimeoutMs: config.postgres.statementTimeoutMs });
+}
+
+async function openPool(options: { statementTimeoutMs?: number }): Promise<Database> {
   if (db) return db;
 
   const url = config.postgres.url;
@@ -88,6 +109,10 @@ export async function connectPostgres(): Promise<Database> {
       idle_timeout: config.postgres.idleTimeoutSeconds,
       connect_timeout: config.postgres.connectTimeoutSeconds,
       max_lifetime: config.postgres.maxLifetimeSeconds,
+      // A startup parameter, so it holds from the connection's first statement.
+      ...(options.statementTimeoutMs
+        ? { connection: { statement_timeout: options.statementTimeoutMs } }
+        : {}),
       onnotice: (notice) => logger.debug('Postgres notice', { notice: notice.message }),
     },
   });
@@ -112,7 +137,10 @@ export async function connectPostgres(): Promise<Database> {
   client = created.client;
   db = created.db;
 
-  logger.info('Connected to PostgreSQL successfully', { maxPoolSize });
+  logger.info('Connected to PostgreSQL successfully', {
+    maxPoolSize,
+    statementTimeoutMs: options.statementTimeoutMs ?? null,
+  });
   return db;
 }
 

@@ -41,6 +41,13 @@ TASK_ENV_OVERRIDES_JSON="${TASK_ENV_OVERRIDES_JSON:-}"
 # delete the parameter.
 TASK_SECRET_REMOVALS="${TASK_SECRET_REMOVALS:-}"
 TASK_ENV_REMOVALS="${TASK_ENV_REMOVALS:-}"
+# The task's Fargate size (`cpu` units / `memory` MiB), asserted on every
+# revision. Unset, the size is copied from the RUNNING definition like everything
+# else, which is how a size written into Terraform can sit there unapplied for
+# months: an apply registers a revision no service adopts, and the next deploy
+# renders from the running one. Both or neither.
+TASK_CPU="${TASK_CPU:-}"
+TASK_MEMORY="${TASK_MEMORY:-}"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
 AWS_PARTITION="${AWS_PARTITION:-aws}"
 POST_DEPLOY_SMOKE_SCRIPT="${POST_DEPLOY_SMOKE_SCRIPT:-}"
@@ -260,6 +267,12 @@ for removal_name in $TASK_ENV_REMOVALS; do
     exit 1
   fi
 done
+
+if [[ -n "$TASK_CPU" || -n "$TASK_MEMORY" ]] &&
+   ! [[ "$TASK_CPU" =~ ^[1-9][0-9]{2,4}$ && "$TASK_MEMORY" =~ ^[1-9][0-9]{2,5}$ ]]; then
+  echo "::error::TASK_CPU and TASK_MEMORY must be set together, as Fargate cpu units and MiB (e.g. 1024 and 2048)."
+  exit 1
+fi
 
 service_json="$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP")"
 if [[ "$(jq '.failures | length' <<<"$service_json")" != "0" ||
@@ -610,6 +623,8 @@ jq \
   --argjson taskSecretRemovals "$task_secret_removals" \
   --argjson taskEnvOverrides "$task_env_overrides" \
   --argjson taskEnvRemovals "$task_env_removals" \
+  --arg taskCpu "$TASK_CPU" \
+  --arg taskMemory "$TASK_MEMORY" \
   '
     del(
       .taskDefinitionArn,
@@ -620,6 +635,7 @@ jq \
       .registeredAt,
       .registeredBy
     )
+    | if $taskCpu != "" then .cpu = $taskCpu | .memory = $taskMemory else . end
     | (($taskSecretOverrides | map(.name)) + $taskSecretRemovals) as $taskSecretNames
     | (($taskEnvOverrides | map(.name)) + $taskEnvRemovals) as $taskEnvNames
     | .containerDefinitions |= map(

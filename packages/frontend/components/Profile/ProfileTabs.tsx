@@ -21,7 +21,6 @@ import {
   StarterPackCardSkeleton,
   type StarterPackCardData,
 } from '@/components/StarterPackCard';
-import { feedService } from '@/services/feedService';
 import { customFeedsService } from '@/services/customFeedsService';
 import { ListCard, type ListCardData } from '@/components/ListCard';
 import { starterPacksService } from '@/services/starterPacksService';
@@ -29,7 +28,7 @@ import { listsService } from '@/services/listsService';
 import { jobsService } from '@/services/jobsService';
 import OrganizationJobRow from '@/components/Jobs/OrganizationJobRow';
 import { useOperatesAccount } from './hooks/useOperatesAccount';
-import type { FeedType, HydratedPost, MentionJobPosting } from '@mention/shared-types';
+import type { FeedType, MentionJobPosting } from '@mention/shared-types';
 import type { ProfileTabsProps } from './types';
 import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -37,6 +36,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { Button } from '@oxy.so/bloom/button';
 import { useReselectReloadKey } from '@/context/ScreenReselectContext';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
+import { pinnedPostQueryOptions } from './pinnedPostQuery';
 
 const ProfileExperience = lazy(() =>
   import('./ProfileExperience').then((module) => ({ default: module.ProfileExperience })),
@@ -96,9 +96,8 @@ export const ProfileTabs = memo(function ProfileTabs({
   // query is gated off there as well.
   const canLoadPinnedPost =
     tab === 'posts' && !laneId && Boolean(profileId) && !(isPrivate && !isOwnProfile);
-  const pinnedPostQuery = useQuery<HydratedPost | null>({
-    queryKey: viewerQueryKeys.pinnedPost(user?.id, profileId ?? ''),
-    queryFn: () => feedService.getPinnedPost(profileId as string),
+  const pinnedPostQuery = useQuery({
+    ...pinnedPostQueryOptions(user?.id, profileId ?? ''),
     enabled: canLoadPinnedPost,
   });
   const pinnedPost = canLoadPinnedPost ? (pinnedPostQuery.data ?? null) : null;

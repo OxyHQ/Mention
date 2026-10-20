@@ -41,7 +41,6 @@ import { RiLinkM } from '@oxy.so/bloom/icons/RiLinkM';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { formatCompactNumber } from '@/utils/formatNumber';
-import { useImagePreload } from '@oxy.so/bloom/hooks';
 import { usePostInteractions } from './postInteractions';
 import { showRepostMenu } from './showRepostMenu';
 import { PinIcon } from '@/assets/icons/pin-icon';
@@ -354,19 +353,8 @@ const PostItem: React.FC<PostItemProps> = ({
   const avatarSource = author?.avatar;
   const avatarVariant = MEDIA_VARIANT_AVATAR;
 
-  // Preload only makes sense when the avatar is already an absolute URL —
-  // a bare file id needs async resolution first, handled internally by
-  // Bloom's resolver/cache. Media items are referenced by id and resolved
-  // inside PostAttachmentsRow.
-  const imageUrls = useMemo(
-    () =>
-      avatarSource && (avatarSource.startsWith('http://') || avatarSource.startsWith('https://'))
-        ? [avatarSource]
-        : [],
-    [avatarSource],
-  );
-
-  useImagePreload(imageUrls, true);
+  // No separate avatar prefetch: the row's own <Avatar> requests the same image
+  // in the same commit, so a prefetch only added a request and a hook per row.
 
   // `isDetailMain` = the FOCUSED post itself (detail variant). Only that post is
   // not a link, because it is a link to the page it is already on — every other
@@ -439,12 +427,19 @@ const PostItem: React.FC<PostItemProps> = ({
 
   // The avatar and the identity line both open the author's own profile; the
   // identity line is a `Link` there, the avatar a tap.
+  // Opening it starts the profile's pinned post and feed from the id this row
+  // already holds, instead of after the profile lookup on the other side.
   const authorHref = useMemo(() => profileHrefForUser(author), [author]);
+  const authorId = author?.id;
+  const prefetchAuthorProfile = useCallback(() => {
+    interactions.prefetchProfile(authorId);
+  }, [interactions, authorId]);
   const goToAuthorProfile = useCallback(() => {
     if (authorHref) {
+      prefetchAuthorProfile();
       router.push(authorHref);
     }
-  }, [router, authorHref]);
+  }, [router, authorHref, prefetchAuthorProfile]);
 
   // "Reposted by X" row → the BOOSTER's profile.
   // Canonical handle of the BOOSTER, on the same terms as `authorHandle`: it
@@ -991,6 +986,7 @@ const PostItem: React.FC<PostItemProps> = ({
             onPressTime={recordOpen}
             nameAsHeading={isDetailMain}
             onPressAvatar={goToAuthorProfile}
+            onPressName={prefetchAuthorProfile}
             onPressCollaborators={isCollab ? openCollaboratorsList : undefined}
             linkAuthors
             onPressMenu={openMenu}

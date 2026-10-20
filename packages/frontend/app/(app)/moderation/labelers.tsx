@@ -319,7 +319,9 @@ const LabelersScreen: React.FC = () => {
           refreshControl={
             <RefreshControl
               refreshing={isFetching}
-              onRefresh={refetch}
+              onRefresh={() => {
+                void refetch();
+              }}
               tintColor={theme.colors.primary}
             />
           }

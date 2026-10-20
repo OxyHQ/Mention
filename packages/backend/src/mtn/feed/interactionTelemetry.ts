@@ -47,7 +47,7 @@ export type ParsedFeedInteractionBatch =
  * is coerced and nothing is trusted:
  *
  *  - `feedDescriptor` and `postUri` must be non-empty strings. `postUri` is NOT
- *    validated as an id here — `trackFeedInteraction` already resolves it to a
+ *    validated as an id here — `trackFeedInteractions` already resolves it to a
  *    real public, published, non-self post before any ranking side effect runs,
  *    which is the check that actually matters.
  *  - `event` must be a member of the union; anything else fails the batch.

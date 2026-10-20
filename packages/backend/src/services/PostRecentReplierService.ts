@@ -33,7 +33,8 @@ import {
 } from '@oxy.so/db';
 import { POST_RECENT_REPLIER_LIMIT, postRecentRepliers } from '../db/schema/postContent';
 import { posts } from '../db/schema/posts';
-import { CHRONO_DESC, findPostRecords } from '../db/posts/postRepository';
+import { CHRONO_DESC, loadPostRecords } from '../db/posts/postRepository';
+import { getOrLoadPostRecords } from './postDetailCache';
 import type { PostRecord } from '../db/posts/postRecord';
 import { logger } from '../utils/logger';
 
@@ -99,10 +100,19 @@ export async function loadNewestEligibleReplies(
   postId: string,
   limit: number,
 ): Promise<PostRecord[]> {
-  return findPostRecords(and(eq(posts.parentPostId, postId), ELIGIBLE_REPLY_MATCH), {
-    orderBy: CHRONO_DESC,
-    limit,
-  });
+  // Eligibility is decided here, fresh, over the ids; the records themselves
+  // come through the viewer-agnostic record cache every post read shares, which
+  // any write to a post invalidates.
+  const rows = await getDb()
+    .select({ id: posts.id })
+    .from(posts)
+    .where(and(eq(posts.parentPostId, postId), ELIGIBLE_REPLY_MATCH))
+    .orderBy(...CHRONO_DESC)
+    .limit(limit);
+  return getOrLoadPostRecords(
+    rows.map((row) => row.id),
+    (ids) => loadPostRecords(ids),
+  );
 }
 
 /**

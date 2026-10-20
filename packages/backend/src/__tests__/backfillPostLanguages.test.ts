@@ -37,6 +37,7 @@ import {
   EXCERPT_LENGTH,
   LanguageChangeReport,
   NO_LANGUAGE,
+  REPORT_CROSS_PAIR_MIN_COUNT,
   REPORT_SAMPLES_PER_PAIR,
   REPORT_SAMPLED_PAIRS,
   REPORT_TOP_PAIRS,
@@ -245,6 +246,7 @@ describe('backfillPostLanguages', () => {
           text: longText,
           from: pair === 0 ? 'fr' : `x${pair}`,
           to: pair === 0 ? 'ca' : NO_LANGUAGE,
+          source: 'detected',
           retagged: pair === 0,
         });
       }
@@ -268,6 +270,38 @@ describe('backfillPostLanguages', () => {
       true,
     );
     expect(pairs.slice(REPORT_SAMPLED_PAIRS).every((pair) => pair.samples.length === 0)).toBe(true);
+
+    // A large cross-language pair is sampled whatever its rank; fills are
+    // broken down by where the new language came from.
+    for (let row = 0; row < REPORT_CROSS_PAIR_MIN_COUNT; row += 1) {
+      report.add({
+        postId: `de-${row}`,
+        text: longText,
+        from: 'de',
+        to: 'en',
+        source: 'detected',
+        retagged: false,
+      });
+    }
+    report.add({
+      postId: 'f1',
+      text: longText,
+      from: NO_LANGUAGE,
+      to: 'es',
+      source: 'declared',
+      retagged: false,
+    });
+    report.add({
+      postId: 'f2',
+      text: longText,
+      from: NO_LANGUAGE,
+      to: 'es',
+      source: 'detected',
+      retagged: false,
+    });
+    expect(report.crossPairs().map((pair) => `${pair.from}→${pair.to}`)).toEqual(['de→en']);
+    expect(report.crossPairs()[0].samples).toHaveLength(REPORT_SAMPLES_PER_PAIR);
+    expect(report.fills()).toMatchObject({ declared: 1, detected: 1 });
   });
 
   it('resumes strictly after START_AFTER_ID, records its cursor, and paces every write', async () => {

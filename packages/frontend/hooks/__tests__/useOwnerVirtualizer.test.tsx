@@ -28,7 +28,11 @@ it('hands virtualization to the panel owner and back to the document when the sc
     tree = TestRenderer.create(<Harness />);
   });
   expect(selected).toBe(documentList);
-  expect(mockWindowVirtualizer).toHaveBeenLastCalledWith({ ...options, enabled: true });
+  expect(mockWindowVirtualizer).toHaveBeenLastCalledWith({
+    ...options,
+    enabled: true,
+    useFlushSync: false,
+  });
   expect(mockElementVirtualizer.mock.lastCall?.[0].enabled).toBe(false);
   expect(mockElementVirtualizer.mock.lastCall?.[0].getScrollElement()).toBeNull();
 
@@ -38,7 +42,11 @@ it('hands virtualization to the panel owner and back to the document when the sc
     tree.update(<Harness />);
   });
   expect(selected).toBe(panelList);
-  expect(mockWindowVirtualizer).toHaveBeenLastCalledWith({ ...options, enabled: false });
+  expect(mockWindowVirtualizer).toHaveBeenLastCalledWith({
+    ...options,
+    enabled: false,
+    useFlushSync: false,
+  });
   expect(mockElementVirtualizer.mock.lastCall?.[0].enabled).toBe(true);
   expect(mockElementVirtualizer.mock.lastCall?.[0].getScrollElement()).toBe(element);
 

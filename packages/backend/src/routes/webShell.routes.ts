@@ -34,6 +34,7 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 import { Router, type Request, type Response } from 'express';
 import { config } from '../config';
 import { loadPostRecord } from '../db/posts/postRepository';
+import { getOrLoadPostRecord } from '../services/postDetailCache';
 import { loadNewestEligibleReplies } from '../services/PostRecentReplierService';
 import type { PostRecord } from '../db/posts/postRecord';
 import { postHydrationService } from '../services/PostHydrationService';
@@ -507,7 +508,7 @@ Sitemap: ${config.web.origin}/sitemap.xml
 `;
 
 /**
- * Sitemaps are rebuilt every six hours (`SitemapBuildJob`), so a crawler or a
+ * Sitemaps are rebuilt every six hours (`scripts/buildSitemaps.ts`), so a crawler or a
  * cache in front of us may keep one for an hour, and the CDN for six. The
  * build time is the Last-Modified, which with Express's own ETag lets a
  * revalidating crawler get a bodiless 304.
@@ -859,7 +860,10 @@ router.get(
       // No id-shape guard: `posts.id` is `text`, so an arbitrary path segment
       // matches no row and yields `null`, while an ObjectId test would refuse to
       // render an OG card for any post created since the cutover.
-      const post = await loadPostRecord(id);
+      // Through the record cache `/feed/item/:id` shares, which every write that
+      // changes a post's visibility, status, authorship or text invalidates — so
+      // the decisions below still read the current row.
+      const post = await getOrLoadPostRecord(id, () => loadPostRecord(id));
       if (!post) {
         await serveShell(
           res,
@@ -881,7 +885,10 @@ router.get(
       // Every visibility decision is this request's own and current, and no
       // card is read from the cache or built before they all allow the page.
       const policyFor = requestAuthorPolicies();
-      const original = post.boostOf ? loadPostRecord(String(post.boostOf)) : Promise.resolve(null);
+      const originalId = post.boostOf ? String(post.boostOf) : undefined;
+      const original = originalId
+        ? getOrLoadPostRecord(originalId, () => loadPostRecord(originalId))
+        : Promise.resolve(null);
       const verdict = await postPageVisibility(post, original, policyFor);
       if (!verdict.visible) {
         await serveShell(res, unavailablePostPage(req.path, verdict.description));

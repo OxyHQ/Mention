@@ -17,7 +17,6 @@ import {
   gte,
   lt,
   lte,
-  notInArray,
   sql,
   type SQL,
 } from 'drizzle-orm';
@@ -27,6 +26,7 @@ import { assemblePostRecords, assembleShellRecords } from '../../../../db/posts/
 import {
   FeedQueryBuilder,
   authorNotInSql,
+  excludeSeenSql,
   notABoostSql,
   notCollapsedCrosspostSql,
 } from '../../../../utils/feedQueryBuilder';
@@ -42,21 +42,12 @@ import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
  * WHY NO SOURCE CARRIES A PER-QUERY TIMEOUT — a deliberate placement, not a
  * missing guard.
  *
- * `statement_timeout` is a
- * server GUC settable per ROLE or per DATABASE, which is the correct home for a
- * blanket "no query may run longer than N" rule — it covers every query
- * including the ones nobody remembered to annotate, and it cannot drift from a
- * constant copied into thirty call sites.
- *
- * Reproducing it per-query here would mean wrapping each scan in
- * `BEGIN; SET LOCAL statement_timeout …; …; COMMIT;` — two extra round trips on
- * a path that issues eight source queries in parallel per feed page — to buy
- * exactly what one `ALTER ROLE … SET statement_timeout` buys for free.
- *
- * So this is an explicit HANDOFF, and it is listed in the migration report:
- * until the application role carries a `statement_timeout`, these scans are
- * unbounded. That is a real gap; it belongs to whoever provisions the role,
- * not to the query layer.
+ * The serving process opens its pool with a `statement_timeout`
+ * (`config.postgres.statementTimeoutMs`, `db/postgres.ts`), which covers every
+ * query including the ones nobody remembered to annotate and cannot drift from a
+ * constant copied into thirty call sites. Reproducing it here would wrap each
+ * scan in `BEGIN; SET LOCAL statement_timeout …; …; COMMIT;` — two extra round
+ * trips on a path that issues eight source queries in parallel per feed page.
  */
 
 /**
@@ -183,7 +174,12 @@ async function selectVideoCandidatesByMediaChrono(
           orientation: ctx.videoFilters?.orientation,
           minDurationSec: ctx.videoFilters?.minDurationSec,
         }),
-        FeedQueryBuilder.videoPostConditions(ctx.seenPostIds ?? []),
+        FeedQueryBuilder.videoPostConditions(),
+        // On the MEDIA row's post id: the seen posts sit at the head of the
+        // chronological order, and testing them here steps over each one on its
+        // index entry instead of probing `posts` for it — 2,106 buffers against
+        // 6,232 for a full 1,000-id seen set (production, 2026-10-19).
+        excludeSeenSql(ctx.seenPostIds ?? [], postMedia.postId),
         discoveryGuardsSql(ctx),
       ),
     )
@@ -370,11 +366,8 @@ export const exploreSource: SourceModule = {
       notABoostSql(),
     ];
 
-    // `authorNotInSql` rather than a bare `notInArray`, because the author column
-    // is nullable and `NOT IN` is NULL-propagating — see its own doc. It also
-    // uses `notInArray` internally rather than `<> all(${array})`: a raw JS array
-    // interpolated into `sql` binds as a ROW constructor, and Postgres then
-    // raises "op ANY/ALL (array) requires array on right side".
+    // `authorNotInSql` rather than a bare `<> all`, because the author column is
+    // nullable and the comparison is NULL-propagating — see its own doc.
     const excludeAuthors = authorNotInSql(excludeUserIds);
     if (excludeAuthors) conditions.push(excludeAuthors);
 
@@ -385,10 +378,8 @@ export const exploreSource: SourceModule = {
     const language = viewerLanguageSql(ctx.viewerBaseLanguages);
     if (language) conditions.push(language);
 
-    const cursorExcludedIds = parsedCursor?.excludeIds ?? [];
-    if (cursorExcludedIds.length > 0) {
-      conditions.push(notInArray(posts.id, [...cursorExcludedIds]));
-    }
+    const cursorExcluded = excludeSeenSql(parsedCursor?.excludeIds ?? []);
+    if (cursorExcluded) conditions.push(cursorExcluded);
 
     const finalScore = exploreFinalScoreSql(rankingCeiling, resolveExploreRelevance(ctx));
 
@@ -462,18 +453,15 @@ export const popularSource: SourceModule = {
     // moment to repeat yourself. Later pages were already fine, because the
     // keyset carries the boundary forward; it is only the ranked→fallback
     // transition, where there is no keyset yet, that had nothing to exclude on.
-    const seenPostIds = ctx.seenPostIds ?? [];
-    if (seenPostIds.length > 0) {
-      baseConditions.push(notInArray(posts.id, [...seenPostIds]));
-    }
+    const seen = excludeSeenSql(ctx.seenPostIds ?? []);
+    if (seen) baseConditions.push(seen);
 
     // This source is BOTH For You anonymous and the authenticated never-blank
     // fallback, so it is handed whatever cursor the ranked feed last emitted —
     // including a `ScoreCursor`, which is not a bare id.
     const parsedCursor = ScoreCursor.parse(ctx.cursor);
-    if (parsedCursor?.excludeIds?.length) {
-      baseConditions.push(notInArray(posts.id, [...parsedCursor.excludeIds]));
-    }
+    const cursorExcluded = excludeSeenSql(parsedCursor?.excludeIds ?? []);
+    if (cursorExcluded) baseConditions.push(cursorExcluded);
 
     const engagementScore = engagementScoreSql();
     const keyset = popularKeysetSql(engagementScore, parsedCursor);
@@ -583,9 +571,8 @@ async function gatherPopularByQuery(
   const engagementScore = engagementScoreSql();
 
   const conditions: SQL[] = [contentPredicate];
-  if (parsed?.excludeIds?.length) {
-    conditions.push(notInArray(posts.id, [...parsed.excludeIds]));
-  }
+  const cursorExcluded = excludeSeenSql(parsed?.excludeIds ?? []);
+  if (cursorExcluded) conditions.push(cursorExcluded);
   const keyset = popularKeysetSql(engagementScore, parsed);
   if (keyset) conditions.push(keyset);
 

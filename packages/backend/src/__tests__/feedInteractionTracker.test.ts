@@ -33,9 +33,7 @@ const recordDedupedView = vi.fn(
   (_postId: string, _viewerId: string): Promise<number | null> => Promise.resolve(1),
 );
 const recordDwell = vi.fn((_postId: string, _durationMs: number) => Promise.resolve());
-const recordInteraction = vi.fn(
-  (_userId: string, _postId: string, _signal: string, _opts: unknown) => Promise.resolve(),
-);
+const recordInteractions = vi.fn((_userId: string, _entries: unknown[]) => Promise.resolve());
 
 vi.mock('../services/feedViewCounter', () => ({
   recordDedupedView: (postId: string, viewerId: string) => recordDedupedView(postId, viewerId),
@@ -48,8 +46,7 @@ vi.mock('../services/dwellAggregate', () => ({
 
 vi.mock('../services/UserPreferenceService', () => ({
   userPreferenceService: {
-    recordInteraction: (userId: string, postId: string, signal: string, opts: unknown) =>
-      recordInteraction(userId, postId, signal, opts),
+    recordInteractions: (userId: string, entries: unknown[]) => recordInteractions(userId, entries),
   },
 }));
 
@@ -57,7 +54,23 @@ import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
 import { feedInteractions } from '../db/schema/feeds';
 import { clearPostScope, postScope, seedPost } from './helpers/postFixtures';
-import { applyImpressionSignals, trackFeedInteraction } from '../mtn/feed/FeedInteractionTracker';
+import {
+  applyImpressionSignals,
+  type FeedInteractionData,
+  trackFeedInteractions,
+} from '../mtn/feed/FeedInteractionTracker';
+
+/** One impression through the batch API; its view count. */
+async function applyOne(interaction: FeedInteractionData): Promise<number | null> {
+  const [count] = await applyImpressionSignals([interaction]);
+  return count ?? null;
+}
+
+/** One interaction through the batch API; its view count. */
+async function trackOne(interaction: FeedInteractionData): Promise<number | null> {
+  const [count] = await trackFeedInteractions([interaction]);
+  return count ?? null;
+}
 
 const scope = postScope('impression-signals');
 const AUTHOR = scope.user('author');
@@ -96,7 +109,7 @@ describe('applyImpressionSignals', () => {
     it('clamps an absurd client durationMs to MtnConfig.preferences.maxDwellMs', async () => {
       const post = await seedPost(scope, { oxyUserId: AUTHOR });
 
-      await applyImpressionSignals(impression(post.id, { durationMs: 999_999_999 }));
+      await applyOne(impression(post.id, { durationMs: 999_999_999 }));
 
       expect(recordDwell).toHaveBeenCalledTimes(1);
       expect(recordDwell).toHaveBeenCalledWith(post.id, MtnConfig.preferences.maxDwellMs);
@@ -105,7 +118,7 @@ describe('applyImpressionSignals', () => {
     it('passes a sane durationMs through unchanged', async () => {
       const post = await seedPost(scope, { oxyUserId: AUTHOR });
 
-      await applyImpressionSignals(impression(post.id, { durationMs: 4000 }));
+      await applyOne(impression(post.id, { durationMs: 4000 }));
 
       expect(recordDwell).toHaveBeenCalledWith(post.id, 4000);
     });
@@ -116,7 +129,7 @@ describe('applyImpressionSignals', () => {
       const post = await seedPost(scope, { oxyUserId: AUTHOR });
       recordDedupedView.mockResolvedValue(null);
 
-      await applyImpressionSignals(impression(post.id, { durationMs: 4000 }));
+      await applyOne(impression(post.id, { durationMs: 4000 }));
 
       expect(recordDedupedView).toHaveBeenCalledTimes(1);
       expect(recordDwell).not.toHaveBeenCalled();
@@ -125,7 +138,7 @@ describe('applyImpressionSignals', () => {
     it('records dwell only on the first (newly-counted) view', async () => {
       const post = await seedPost(scope, { oxyUserId: AUTHOR });
 
-      await applyImpressionSignals(impression(post.id, { durationMs: 4000 }));
+      await applyOne(impression(post.id, { durationMs: 4000 }));
 
       expect(recordDwell).toHaveBeenCalledTimes(1);
     });
@@ -135,19 +148,38 @@ describe('applyImpressionSignals', () => {
     it('records no dwell, no view, and no preference learning for the viewer own post', async () => {
       const own = await seedPost(scope, { oxyUserId: VIEWER });
 
-      await applyImpressionSignals(impression(own.id, { durationMs: 4000 }));
+      await applyOne(impression(own.id, { durationMs: 4000 }));
 
       expect(recordDedupedView).not.toHaveBeenCalled();
       expect(recordDwell).not.toHaveBeenCalled();
-      expect(recordInteraction).not.toHaveBeenCalled();
+      expect(recordInteractions).not.toHaveBeenCalled();
     });
 
     it('still learns from another author post', async () => {
       const post = await seedPost(scope, { oxyUserId: AUTHOR });
 
-      await applyImpressionSignals(impression(post.id, { durationMs: 4000 }));
+      await applyOne(impression(post.id, { durationMs: 4000 }));
 
-      expect(recordInteraction).toHaveBeenCalledTimes(1);
+      expect(recordInteractions).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('a batch', () => {
+    it("applies the viewer's signals in ONE preference write, in the order observed", async () => {
+      const first = await seedPost(scope, { oxyUserId: AUTHOR });
+      const second = await seedPost(scope, { oxyUserId: AUTHOR });
+
+      const counts = await applyImpressionSignals([
+        impression(first.id, { durationMs: 4000 }),
+        impression(second.id, { durationMs: 300 }),
+      ]);
+
+      expect(counts).toEqual([1, 1]);
+      expect(recordInteractions).toHaveBeenCalledTimes(1);
+      expect(recordInteractions).toHaveBeenCalledWith(VIEWER, [
+        { postId: first.id, type: 'view', context: { surface: 'for_you' } },
+        { postId: second.id, type: 'skip', context: { surface: 'for_you' } },
+      ]);
     });
   });
 
@@ -156,16 +188,14 @@ describe('applyImpressionSignals', () => {
       // A federated URI, or anything else a client invents, simply matches no
       // row. The id-shape pre-check this replaced would ALSO have discarded
       // every post created since the uuid cutover.
-      await applyImpressionSignals(impression('https://remote.example/notlocal'));
+      await applyOne(impression('https://remote.example/notlocal'));
 
       expect(recordDedupedView).not.toHaveBeenCalled();
       expect(recordDwell).not.toHaveBeenCalled();
     });
 
     it('is a no-op for a post id that does not exist', async () => {
-      await applyImpressionSignals(
-        impression('019fffff-ffff-7fff-bfff-ffffffffffff', { durationMs: 4000 }),
-      );
+      await applyOne(impression('019fffff-ffff-7fff-bfff-ffffffffffff', { durationMs: 4000 }));
 
       expect(recordDedupedView).not.toHaveBeenCalled();
       expect(recordDwell).not.toHaveBeenCalled();
@@ -177,21 +207,21 @@ describe('applyImpressionSignals', () => {
         visibility: PostVisibility.PRIVATE,
       });
 
-      await applyImpressionSignals(impression(post.id, { durationMs: 4000 }));
+      await applyOne(impression(post.id, { durationMs: 4000 }));
 
       expect(recordDedupedView).not.toHaveBeenCalled();
       expect(recordDwell).not.toHaveBeenCalled();
-      expect(recordInteraction).not.toHaveBeenCalled();
+      expect(recordInteractions).not.toHaveBeenCalled();
     });
 
     it('is a no-op for an UNPUBLISHED post the viewer sent telemetry about', async () => {
       const post = await seedPost(scope, { oxyUserId: AUTHOR, status: 'draft' });
 
-      await applyImpressionSignals(impression(post.id, { durationMs: 4000 }));
+      await applyOne(impression(post.id, { durationMs: 4000 }));
 
       expect(recordDedupedView).not.toHaveBeenCalled();
       expect(recordDwell).not.toHaveBeenCalled();
-      expect(recordInteraction).not.toHaveBeenCalled();
+      expect(recordInteractions).not.toHaveBeenCalled();
     });
   });
 
@@ -207,18 +237,14 @@ describe('applyImpressionSignals', () => {
       const post = await seedPost(scope, { oxyUserId: AUTHOR });
       recordDedupedView.mockResolvedValue(42);
 
-      await expect(applyImpressionSignals(impression(post.id, { durationMs: 4000 }))).resolves.toBe(
-        42,
-      );
+      await expect(applyOne(impression(post.id, { durationMs: 4000 }))).resolves.toBe(42);
     });
 
     it('returns null for a repeat impression inside the dedupe window', async () => {
       const post = await seedPost(scope, { oxyUserId: AUTHOR });
       recordDedupedView.mockResolvedValue(null);
 
-      await expect(
-        applyImpressionSignals(impression(post.id, { durationMs: 4000 })),
-      ).resolves.toBeNull();
+      await expect(applyOne(impression(post.id, { durationMs: 4000 }))).resolves.toBeNull();
     });
 
     it('returns null for the viewer own post, whatever the counter would have said', async () => {
@@ -226,26 +252,20 @@ describe('applyImpressionSignals', () => {
       // Would be reported if the self-view guard did not short-circuit first.
       recordDedupedView.mockResolvedValue(42);
 
-      await expect(
-        applyImpressionSignals(impression(own.id, { durationMs: 4000 })),
-      ).resolves.toBeNull();
+      await expect(applyOne(impression(own.id, { durationMs: 4000 }))).resolves.toBeNull();
     });
 
     it('returns null for an ineligible post', async () => {
       const draft = await seedPost(scope, { oxyUserId: AUTHOR, status: 'draft' });
       recordDedupedView.mockResolvedValue(42);
 
-      await expect(
-        applyImpressionSignals(impression(draft.id, { durationMs: 4000 })),
-      ).resolves.toBeNull();
+      await expect(applyOne(impression(draft.id, { durationMs: 4000 }))).resolves.toBeNull();
     });
 
     it('returns null for a non-local postUri', async () => {
       recordDedupedView.mockResolvedValue(42);
 
-      await expect(
-        applyImpressionSignals(impression('https://remote.example/notlocal')),
-      ).resolves.toBeNull();
+      await expect(applyOne(impression('https://remote.example/notlocal'))).resolves.toBeNull();
     });
   });
 });
@@ -264,7 +284,7 @@ describe('applyImpressionSignals', () => {
  * Scoped by `userId`, so the cleanup names this file's own rows rather than
  * emptying a table every other suite shares.
  */
-describe('trackFeedInteraction — the raw analytics row', () => {
+describe('trackFeedInteractions — the raw analytics row', () => {
   const RAW_VIEWER = scope.user('raw-viewer');
 
   beforeAll(async () => {
@@ -291,7 +311,7 @@ describe('trackFeedInteraction — the raw analytics row', () => {
     const happenedAt = new Date('2026-07-04T05:06:07.000Z');
     const post = await seedPost(scope, { oxyUserId: AUTHOR });
 
-    await trackFeedInteraction({
+    await trackOne({
       userId: RAW_VIEWER,
       feedDescriptor: 'for_you',
       postUri: post.id,
@@ -320,7 +340,7 @@ describe('trackFeedInteraction — the raw analytics row', () => {
     const post = await seedPost(scope, { oxyUserId: AUTHOR });
     recordDedupedView.mockResolvedValue(7);
 
-    await trackFeedInteraction({
+    await trackOne({
       userId: RAW_VIEWER,
       feedDescriptor: 'for_you',
       postUri: post.id,
@@ -341,7 +361,7 @@ describe('trackFeedInteraction — the raw analytics row', () => {
     // already-deleted id must still record rather than raise — a feed request
     // must never fail because its analytics did.
     await expect(
-      trackFeedInteraction({
+      trackOne({
         userId: RAW_VIEWER,
         feedDescriptor: 'for_you',
         postUri: 'no-such-post-id',

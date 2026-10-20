@@ -144,13 +144,19 @@ export function evaluatePopulation(
   return { ok, lines };
 }
 
-/** `count(*)`, read-only. */
-async function countRows(table: string): Promise<number> {
+/**
+ * How many rows `table` holds, counted no further than `floor`: the question is
+ * "does it hold at least the floor", and a count that stops there answers it
+ * exactly. The full `count(*)` it replaces read all of `posts` on every deploy,
+ * 22 s of IO on the database every Oxy app shares (2026-10-19). A reading that
+ * equals the floor therefore means "at least the floor".
+ */
+async function countRowsUpTo(table: string, floor: number): Promise<number> {
   // The table names come from POPULATION_FLOORS, a constant in this file — not
   // from input — so the identifier is interpolated rather than parameterised,
   // which a table name cannot be anyway.
   const rows = await getDb().execute<{ count: string }>(
-    sql.raw(`select count(*)::text as count from ${table}`),
+    sql`select count(*)::text as count from (select 1 from ${sql.raw(table)} limit ${floor}) bounded`,
   );
   const first = Array.isArray(rows) ? rows[0] : (rows as { rows?: unknown[] }).rows?.[0];
   const value = (first as { count?: string } | undefined)?.count;
@@ -165,7 +171,7 @@ async function main(): Promise<number> {
   await connectPostgres();
   const readings: PopulationReading[] = [];
   for (const floor of POPULATION_FLOORS) {
-    readings.push({ table: floor.table, rows: await countRows(floor.table) });
+    readings.push({ table: floor.table, rows: await countRowsUpTo(floor.table, floor.minimum) });
   }
 
   const verdict = evaluatePopulation(POPULATION_FLOORS, readings);

@@ -38,6 +38,7 @@ import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersist
 import { registerSocketBfcacheRelease } from '@/lib/socketBfcache';
 import { initializeWebTelemetry } from '@/lib/webTelemetry';
 import { registerPendingDocuments } from '@/stores/pendingDocuments';
+import { startHomeFeedBootRead } from '@/lib/bootFeedRead';
 
 // Styles
 import '../global.css';
@@ -45,6 +46,11 @@ import '../global.css';
 // Install the app's level + scrubbing sink on the shared SDK logger before any
 // route can emit a line.
 configureAppLogging();
+
+// The home feed's first page leaves now, not once the whole cold boot has
+// rendered down to the feed; the feed takes it only for the viewer it was read
+// as (see the module).
+startHomeFeedBootRead();
 
 // Freeze blurred screens so their state and scroll position survive navigation,
 // and register web chunk recovery before the first route can lazy-load.

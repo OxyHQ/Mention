@@ -11,6 +11,8 @@ import { createCommunityNoteSheets } from '@/components/CommunityNotes/useCommun
 import { showActionMenu } from '@/components/common/ActionMenu';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { buildPostMenuActions } from './postMenuActions';
+import { prefetchFeed } from '@/hooks/useFeedQuery';
+import { pinnedPostQueryOptions } from '@/components/Profile/pinnedPostQuery';
 import {
   currentPost,
   toggleSave,
@@ -33,7 +35,7 @@ export function PostInteractionsBinder() {
   const bind = usePostInteractionsBinding();
   const theme = useTheme();
   const { t } = useTranslation();
-  const { user, canUsePrivateApi } = useAuth();
+  const { user, isAuthenticated, canUsePrivateApi } = useAuth();
   const router = useRouter();
   const safeBack = useSafeBack();
   const bottomSheet = useContext(BottomSheetContext);
@@ -70,6 +72,17 @@ export function PostInteractionsBinder() {
 
     return {
       openSources,
+      prefetchProfile: (profileId) => {
+        // Only for a resolved viewer: a read started while the session is
+        // still landing would be cached under the wrong viewer's key.
+        if (!profileId || (isAuthenticated && (!viewerId || !canUsePrivateApi))) return;
+        void queryClient.prefetchQuery(pinnedPostQueryOptions(viewerId, profileId));
+        prefetchFeed(queryClient, {
+          type: 'posts',
+          userId: profileId,
+          viewerId: isAuthenticated ? viewerId : undefined,
+        });
+      },
       openInsights: (postId) => {
         bottomSheet.setBottomSheetContent(
           <Suspense fallback={null}>
@@ -135,6 +148,7 @@ export function PostInteractionsBinder() {
     theme,
     t,
     viewerId,
+    isAuthenticated,
     canUsePrivateApi,
     router,
     safeBack,

@@ -34,7 +34,7 @@
  */
 import { logger } from './logger';
 import { getRedisClient, reportRedisConnectionFailure } from './redis';
-import { isRedisConnectionError, setExInBatches } from './redisHelpers';
+import { isRedisConnectionError, setExInBatches, withRedisDeadline } from './redisHelpers';
 
 /** How a cache instance stores its values; see {@link CacheConfig.staleAfterMs}. */
 interface StoredEnvelope<T> {
@@ -130,6 +130,21 @@ export interface Cache {
     compute: () => Promise<T>,
     options?: CacheComputeOptions<T>,
   ): Promise<T>;
+  /**
+   * {@link Cache.getOrCompute} for several keys, with ONE `MGET` deciding every
+   * hit. Each miss (or stale entry) is then served exactly as `getOrCompute`
+   * would serve it. Positional, one promise per request, so each caller keeps
+   * its own failure handling — one computation rejecting does not reject the
+   * others.
+   */
+  getOrComputeEach<T>(requests: readonly CacheComputeRequest<T>[]): Promise<T>[];
+}
+
+/** One key of a {@link Cache.getOrComputeEach} batch. */
+export interface CacheComputeRequest<T> {
+  key: string;
+  compute: () => Promise<T>;
+  options?: CacheComputeOptions<T>;
 }
 
 /**
@@ -141,9 +156,6 @@ export interface Cache {
  * path can fire on every feed hydration.
  */
 let nonArrayReplyWarned = false;
-
-/** A cache may cost at most one second of Redis time before using its source of truth. */
-const CACHE_REDIS_DEADLINE_MS = 1_000;
 
 function reportNonArrayMgetReply(name: string, reply: unknown, keyCount: number): void {
   logger.debug(`[${name}] mGet returned a non-array reply; treating as cache miss`, {
@@ -196,10 +208,9 @@ export function createCache(config: CacheConfig): Cache {
    * Run a Redis operation under the fail-open contract. The shared client is
    * connected and recovered by its own supervisor, so a hot path never PINGs,
    * connects, or waits for a cooldown — an unready client is simply a miss.
-   * A ready socket can still stop answering. Bound the whole operation (including
-   * every write batch), then let the supervisor destroy/recover that connection.
-   * node-redis 6's native timeout only covers the send queue and its pipeline
-   * API does not forward commandOptions, so it cannot bound response latency.
+   * The whole operation (including every write batch) is bounded by
+   * {@link withRedisDeadline}; an expiry is a connection failure, reported so the
+   * supervisor destroys and recovers that socket.
    */
   async function withFallback<T>(
     operation: string,
@@ -209,22 +220,8 @@ export function createCache(config: CacheConfig): Cache {
     const client = getRedisClient();
     if (!client.isReady) return fallback;
 
-    const controller = new AbortController();
-    let deadline: ReturnType<typeof setTimeout> | undefined;
     try {
-      const expired = new Promise<never>((_, reject) => {
-        deadline = setTimeout(() => {
-          const error = Object.assign(new Error('Redis cache response deadline exceeded'), {
-            code: 'ETIMEDOUT',
-          });
-          // Stop later pipeline batches even if the current batch settles late.
-          // The catch below destroys the supervised socket, releasing all of its
-          // queued/in-flight commands instead of abandoning a live operation.
-          controller.abort(error);
-          reject(error);
-        }, CACHE_REDIS_DEADLINE_MS);
-      });
-      return await Promise.race([run(client, controller.signal), expired]);
+      return await withRedisDeadline((signal) => run(client, signal));
     } catch (error: unknown) {
       const reason = error instanceof Error ? error.message : 'unknown';
       if (isRedisConnectionError(error)) {
@@ -234,8 +231,6 @@ export function createCache(config: CacheConfig): Cache {
         logger.warn(`[${name}] ${operation} failed`, { reason });
       }
       return fallback;
-    } finally {
-      if (deadline !== undefined) clearTimeout(deadline);
     }
   }
 
@@ -273,6 +268,25 @@ export function createCache(config: CacheConfig): Cache {
     return withFallback<DecodedEntry<T> | undefined>('get', undefined, async (client) => {
       const raw = await client.get(key);
       return raw ? decode<T>(raw) : undefined;
+    });
+  }
+
+  /** Read many entries in ONE round trip, positionally. A failure reads as all misses. */
+  async function readEntries<T>(keys: string[]): Promise<(DecodedEntry<T> | undefined)[]> {
+    const misses = (): (DecodedEntry<T> | undefined)[] => new Array(keys.length).fill(undefined);
+    if (keys.length === 0) return [];
+    return withFallback<(DecodedEntry<T> | undefined)[]>('mGet', misses(), async (client) => {
+      const values = await client.mGet(keys);
+
+      // A non-array reply would make the map below throw a TypeError, which
+      // would surface as a 500 on whatever hot path is reading the cache.
+      // Treat it as a full miss so the caller degrades to a cold computation.
+      if (!Array.isArray(values)) {
+        reportNonArrayMgetReply(name, values, keys.length);
+        return misses();
+      }
+
+      return values.map((raw) => (raw ? decode<T>(raw) : undefined));
     });
   }
 
@@ -316,6 +330,38 @@ export function createCache(config: CacheConfig): Cache {
     return pending;
   }
 
+  /**
+   * Answer one `getOrCompute` from the entry its read produced: a miss computes,
+   * a fresh hit is served, a stale one is served while ONE refresh runs behind it.
+   */
+  function serve<T>(
+    key: string,
+    entry: DecodedEntry<T> | undefined,
+    computeValue: () => Promise<T>,
+    options: CacheComputeOptions<T> | undefined,
+  ): Promise<T> {
+    if (!entry) {
+      return compute(key, computeValue, options);
+    }
+
+    if (
+      staleAfterMs === undefined ||
+      entry.cachedAt === null ||
+      Date.now() - entry.cachedAt < staleAfterMs
+    ) {
+      return Promise.resolve(entry.value);
+    }
+
+    // Stale: answer from the cache NOW and refresh behind the response. The
+    // refresh has no caller to receive its failure, so it is logged here.
+    void compute(key, computeValue, options).catch((error: unknown) => {
+      logger.debug(`[${name}] Background refresh failed`, {
+        reason: error instanceof Error ? error.message : 'unknown',
+      });
+    });
+    return Promise.resolve(entry.value);
+  }
+
   return {
     async get<T>(key: string): Promise<T | undefined> {
       const entry = await readEntry<T>(key);
@@ -323,25 +369,8 @@ export function createCache(config: CacheConfig): Cache {
     },
 
     async getMany<T>(keys: string[]): Promise<(T | undefined)[]> {
-      if (keys.length === 0) return [];
-
-      return withFallback<(T | undefined)[]>(
-        'mGet',
-        new Array(keys.length).fill(undefined),
-        async (client) => {
-          const values = await client.mGet(keys);
-
-          // A non-array reply would make the map below throw a TypeError, which
-          // would surface as a 500 on whatever hot path is reading the cache.
-          // Treat it as a full miss so the caller degrades to a cold computation.
-          if (!Array.isArray(values)) {
-            reportNonArrayMgetReply(name, values, keys.length);
-            return new Array<T | undefined>(keys.length).fill(undefined);
-          }
-
-          return values.map((raw) => (raw ? decode<T>(raw)?.value : undefined));
-        },
-      );
+      const entries = await readEntries<T>(keys);
+      return entries.map((entry) => entry?.value);
     },
 
     async has(key: string): Promise<boolean> {
@@ -388,27 +417,14 @@ export function createCache(config: CacheConfig): Cache {
       computeValue: () => Promise<T>,
       options?: CacheComputeOptions<T>,
     ): Promise<T> {
-      const entry = await readEntry<T>(key);
-      if (!entry) {
-        return compute(key, computeValue, options);
-      }
+      return serve(key, await readEntry<T>(key), computeValue, options);
+    },
 
-      if (
-        staleAfterMs === undefined ||
-        entry.cachedAt === null ||
-        Date.now() - entry.cachedAt < staleAfterMs
-      ) {
-        return entry.value;
-      }
-
-      // Stale: answer from the cache NOW and refresh behind the response. The
-      // refresh has no caller to receive its failure, so it is logged here.
-      void compute(key, computeValue, options).catch((error: unknown) => {
-        logger.debug(`[${name}] Background refresh failed`, {
-          reason: error instanceof Error ? error.message : 'unknown',
-        });
-      });
-      return entry.value;
+    getOrComputeEach<T>(requests: readonly CacheComputeRequest<T>[]): Promise<T>[] {
+      const entries = readEntries<T>(requests.map((request) => request.key));
+      return requests.map(async (request, index) =>
+        serve(request.key, (await entries)[index], request.compute, request.options),
+      );
     },
   };
 }

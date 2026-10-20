@@ -10,6 +10,7 @@ export { getDb, closeDb, resetDb, isDbAvailable } from './database';
 export {
   claimViewerCache,
   clearAllCachedData,
+  readPersistedViewerOwner,
   type ViewerCacheClaim,
 } from './cacheLifecycle';
 

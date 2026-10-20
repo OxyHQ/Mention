@@ -8,7 +8,7 @@
 import { MtnConfig, PostVisibility } from '@mention/shared-types';
 import type { FeedInteractionEventName } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { feedInteractions } from '../../db/schema/feeds';
@@ -31,7 +31,7 @@ const IS_FEDERATED = sql<boolean>`(
 )`;
 import { recordDedupedView } from '../../services/feedViewCounter';
 import { recordDwell } from '../../services/dwellAggregate';
-import { userPreferenceService } from '../../services/UserPreferenceService';
+import { type InteractionEntry, userPreferenceService } from '../../services/UserPreferenceService';
 import {
   recordImpression,
   recordInteractionSignal,
@@ -50,77 +50,82 @@ export interface FeedInteractionData {
 }
 
 /**
- * Record feed interactions for analytics and ranking feedback.
+ * Record a batch of feed interactions for analytics and ranking feedback.
  *
- * Returns the post's new `viewsCount` when this interaction counted a view, and
- * `null` otherwise — see {@link applyImpressionSignals}. Nothing else the server
- * does here is invisible to the caller, so nothing else needs returning.
+ * Returns, per interaction and in order, the post's new `viewsCount` when that
+ * interaction counted a view and `null` otherwise — see
+ * {@link applyImpressionSignals}. Nothing else the server does here is invisible
+ * to the caller, so nothing else needs returning.
  *
- * The raw row goes to `feed_interactions` in POSTGRES, alongside everything else
- * this function writes: the view count, the dwell aggregate and the preference
- * signal below. The table is indexed, swept by `db/expiry.ts` and probed by the
- * deletion preflight.
+ * The raw rows go to `feed_interactions` in POSTGRES, in ONE insert, alongside
+ * everything else this function writes: the view counts, the dwell aggregates
+ * and the preference signals below. The table is indexed, swept by
+ * `db/expiry.ts` and probed by the deletion preflight.
  *
  * `createdAt` is written EXPLICITLY from the caller's timestamp rather than
  * left to the column default. The caller stamps the interaction when it
  * happened; this write is awaited inside a request but the value it records is
  * not "now", and a default would quietly re-date every row to insert time.
  */
-export async function trackFeedInteraction(
-  interaction: FeedInteractionData,
-): Promise<number | null> {
+export async function trackFeedInteractions(
+  interactions: readonly FeedInteractionData[],
+): Promise<Array<number | null>> {
+  if (interactions.length === 0) return [];
   try {
-    await getDb().insert(feedInteractions).values({
-      userId: interaction.userId,
-      feedDescriptor: interaction.feedDescriptor,
-      postUri: interaction.postUri,
-      event: interaction.event,
-      durationMs: interaction.durationMs,
-      createdAt: interaction.timestamp,
-    });
+    await getDb()
+      .insert(feedInteractions)
+      .values(
+        interactions.map((interaction) => ({
+          userId: interaction.userId,
+          feedDescriptor: interaction.feedDescriptor,
+          postUri: interaction.postUri,
+          event: interaction.event,
+          durationMs: interaction.durationMs,
+          createdAt: interaction.timestamp,
+        })),
+      );
   } catch (error) {
     // Non-critical — log and move on. Analytics must never fail a feed request.
-    logger.warn('[FeedInteractionTracker] Failed to record interaction', error);
+    logger.warn('[FeedInteractionTracker] Failed to record interactions', error);
+  }
+
+  // A report is a strong negative feed signal — count it (split by origin) so
+  // report-per-impression can be tracked online and per A/B cohort offline.
+  for (const interaction of interactions) {
+    if (interaction.event !== 'report') continue;
+    recordReportSignal(interaction).catch((error) => {
+      logger.warn('[FeedInteractionTracker] Failed to record report signal', error);
+    });
   }
 
   // An impression carries TWO derived signals beyond the raw analytics row:
   //   1. a deduped increment of the post's real view count (ranking input), and
   //   2. a UserBehavior learning signal — a genuine `view` when the post was
   //      dwelled on, or a negative `skip` when it was scrolled past quickly.
-  // Both are best-effort and MUST NOT fail the interaction record above, so they
-  // run after it and swallow-then-log their own errors.
-  if (interaction.event === 'impression') {
-    // AWAITED, unlike the report signal below, because one of those side effects
-    // produces a value the RESPONSE carries: the post's new view total. The
-    // reporting client is the surface that shows that number, and only the
-    // server knows whether the view counted, so detaching this work is what made
-    // a watched video's count stay stale until the next fetch.
-    return await applyImpressionSignals(interaction).catch((error) => {
-      logger.warn('[FeedInteractionTracker] Failed to apply impression signals', error);
-      return null;
-    });
-  }
-
-  if (interaction.event === 'report') {
-    // A report is a strong negative feed signal — count it (split by origin) so
-    // report-per-impression can be tracked online and per A/B cohort offline.
-    recordReportSignal(interaction).catch((error) => {
-      logger.warn('[FeedInteractionTracker] Failed to record report signal', error);
-    });
-  }
-
-  return null;
+  // AWAITED, because one of those side effects produces a value the RESPONSE
+  // carries: the post's new view total. The reporting client is the surface that
+  // shows that number, and only the server knows whether the view counted.
+  const viewCounts: Array<number | null> = interactions.map(() => null);
+  const impressionAt = interactions.flatMap((interaction, index) =>
+    interaction.event === 'impression' ? [index] : [],
+  );
+  if (impressionAt.length === 0) return viewCounts;
+  const counted = await applyImpressionSignals(impressionAt.map((index) => interactions[index]));
+  impressionAt.forEach((index, at) => {
+    viewCounts[index] = counted[at] ?? null;
+  });
+  return viewCounts;
 }
 
 /**
- * Apply the deduped view-count increment and the UserBehavior learning signal
- * for a feed impression. `postUri` is the local post id (`posts.id`, a `text`
- * column holding ObjectId hex before the cutover and uuid v7 after);
- * federated/non-local uris that are not valid ObjectIds are skipped.
+ * Apply the deduped view-count increments and the UserBehavior learning signals
+ * for a batch of feed impressions. `postUri` is the local post id (`posts.id`, a
+ * `text` column holding ObjectId hex before the cutover and uuid v7 after); a
+ * uri naming no local post is skipped.
  *
  * Impression telemetry is CLIENT-controlled, so its side effects are hardened
  * against ranking manipulation:
- *   - the post is resolved to a real public+published local post (author
+ *   - each post is resolved to a real public+published local post (author
  *     included) before any side effect runs;
  *   - a viewer's OWN posts record NO view/dwell/preference learning, so an author
  *     cannot self-pump their own ranking signals;
@@ -129,91 +134,110 @@ export async function trackFeedInteraction(
  *     deduped view counted a NEW view — so a forged/repeated impression cannot
  *     dominate or inflate the average.
  *
- * Returns the post's new `viewsCount` when this impression counted a view, and
- * `null` on every path that did not count one — a non-local uri, an ineligible
- * post, the self-view guard, or a repeat inside the dedupe window. That is
- * exactly the set of decisions a client cannot make for itself, which is why the
- * value travels back rather than being inferred there.
+ * ONE read resolves every post in the batch, and each viewer's preference
+ * signals are applied in ONE locked write (`recordInteractions`), in batch order.
  *
- * Exported for unit testing; called only by {@link trackFeedInteraction}.
+ * Returns, per impression, the post's new `viewsCount` when that impression
+ * counted a view, and `null` on every path that did not count one — a non-local
+ * uri, an ineligible post, the self-view guard, a repeat inside the dedupe
+ * window, or a failure. That is exactly the set of decisions a client cannot make
+ * for itself, which is why the value travels back rather than being inferred
+ * there.
+ *
+ * Exported for unit testing; called only by {@link trackFeedInteractions}.
  */
 export async function applyImpressionSignals(
-  interaction: FeedInteractionData,
-): Promise<number | null> {
-  const postId = interaction.postUri;
+  impressions: readonly FeedInteractionData[],
+): Promise<Array<number | null>> {
   // Emptiness only. There is deliberately NO id-shape check: `posts.id` is
   // `text` holding pre-cutover ObjectId hex AND post-cutover uuid v7, so an
   // `isValidObjectId` guard would reject every post this instance has minted
-  // since the cutover — and the observable would be a view counter that quietly
-  // stopped moving. What replaces it is the bound-parameter read below.
-  if (!postId) {
-    return null; // Nothing to count or learn from.
-  }
+  // since the cutover. The ids are bound parameters against a `text` column, so
+  // a `postUri` that is not a local post id — a federated URI, or anything else
+  // a client invents — simply matches no row.
+  const postIds = [...new Set(impressions.map((impression) => impression.postUri))].filter(
+    (postId) => postId.length > 0,
+  );
+  if (postIds.length === 0) return impressions.map(() => null);
 
-  // Client telemetry is untrusted: only derive view/preference side effects for
-  // real public, published local posts. Resolving the post here also yields its
-  // author (self-pumping guard below) and its federation columns (the impression
-  // origin label). The id is a bound parameter against a `text` column, so a
-  // `postUri` that is not a local post id — a federated URI, or anything else a
-  // client invents — simply matches no row; the ObjectId pre-check this replaces
-  // would have discarded every post created since the cutover instead.
-  const [post] = await getDb()
-    .select({ oxyUserId: posts.oxyUserId, isFederated: IS_FEDERATED })
+  const eligible = await getDb()
+    .select({ id: posts.id, oxyUserId: posts.oxyUserId, isFederated: IS_FEDERATED })
     .from(posts)
     .where(
       and(
-        eq(posts.id, postId),
+        inArray(posts.id, postIds),
         eq(posts.visibility, PostVisibility.PUBLIC),
         eq(posts.status, 'published'),
       ),
-    )
-    .limit(1);
-  if (!post) {
-    return null;
+    );
+  const postById = new Map(eligible.map((post) => [post.id, post]));
+
+  // Built synchronously, in batch order, so the preference write applies the
+  // signals in the order they were observed.
+  const preferenceSignals = new Map<string, InteractionEntry[]>();
+  const counted = await Promise.all(
+    impressions.map(async (impression) => {
+      const post = postById.get(impression.postUri);
+      if (!post) return null;
+
+      // Self-pumping guard: a viewer impressing their OWN post must not move any
+      // ranking/learning signal (view count, dwell average, or affinity),
+      // otherwise an author could inflate their own reach by re-viewing their
+      // posts. Self-views are also excluded from the impression metrics so they
+      // never skew the engagement-per-impression denominator.
+      if (post.oxyUserId && post.oxyUserId === impression.userId) return null;
+
+      // Online metric: a genuine third-party impression, split by federated vs
+      // local origin (the denominator for engagement- and report-per-impression).
+      recordImpression(impression.feedDescriptor, originForFederation(post.isFederated || null));
+
+      // UserBehavior signal. A short dwell is a SKIP (negative); a real dwell is
+      // a VIEW (mild positive). The frontend only reports impressions that
+      // passed its visibility gate, so `durationMs` is the accrued visible time.
+      // The originating feed is forwarded as the attribution surface so a
+      // video-feed view is attributed to video content, not the author.
+      const dwellMs = impression.durationMs ?? 0;
+      const signal =
+        dwellMs > 0 && dwellMs < MtnConfig.preferences.dwellSkipThresholdMs ? 'skip' : 'view';
+      // Online metric: the derived view/skip signal for this impression.
+      recordInteractionSignal(signal, impression.feedDescriptor);
+      const signals = preferenceSignals.get(impression.userId) ?? [];
+      signals.push({
+        postId: post.id,
+        type: signal,
+        context: { surface: impression.feedDescriptor },
+      });
+      preferenceSignals.set(impression.userId, signals);
+
+      try {
+        // Deduped real view count. Returns the post's new total ONLY for the
+        // first view of this (post, viewer) pair within the window, and null
+        // otherwise (no-op without Redis / on duplicate).
+        const countedViewsCount = await recordDedupedView(post.id, impression.userId);
+
+        // Fold the dwell duration into the post's rolling average (opt-in
+        // `dwellTime` ranking signal). Recorded ONCE per (post, viewer) — gated
+        // on the deduped view counting a NEW view so repeated impressions can't
+        // pump the mean — and CLAMPED so one forged sample can't dominate it.
+        if (countedViewsCount !== null && dwellMs > 0) {
+          await recordDwell(post.id, Math.min(dwellMs, MtnConfig.preferences.maxDwellMs));
+        }
+        return countedViewsCount;
+      } catch (error) {
+        logger.warn('[FeedInteractionTracker] Failed to apply impression signals', error);
+        return null;
+      }
+    }),
+  );
+
+  for (const [userId, signals] of preferenceSignals) {
+    try {
+      await userPreferenceService.recordInteractions(userId, signals);
+    } catch (error) {
+      logger.warn('[FeedInteractionTracker] Failed to record preference signals', error);
+    }
   }
-
-  // Self-pumping guard: a viewer impressing their OWN post must not move any
-  // ranking/learning signal (view count, dwell average, or affinity), otherwise
-  // an author could inflate their own reach by re-viewing their posts. Self-views
-  // are also excluded from the impression metrics so they never skew the
-  // engagement-per-impression denominator.
-  if (post.oxyUserId && post.oxyUserId === interaction.userId) {
-    return null;
-  }
-
-  // Online metric: a genuine third-party impression, split by federated vs local
-  // origin (the denominator for engagement- and report-per-impression).
-  recordImpression(interaction.feedDescriptor, originForFederation(post.isFederated || null));
-
-  // 1. Deduped real view count. Returns the post's new total ONLY for the first
-  //    view of this (post, viewer) pair within the window, and null otherwise
-  //    (no-op without Redis / on duplicate).
-  const countedViewsCount = await recordDedupedView(postId, interaction.userId);
-  const countedNewView = countedViewsCount !== null;
-
-  // 2. UserBehavior signal. A short dwell is a SKIP (negative); a real dwell is
-  //    a VIEW (mild positive). The frontend only reports impressions that passed
-  //    its visibility gate, so `durationMs` is the accrued visible time. The
-  //    originating feed is forwarded as the attribution surface so a video-feed
-  //    view is attributed to video content, not the author.
-  const dwellMs = interaction.durationMs ?? 0;
-  const signal =
-    dwellMs > 0 && dwellMs < MtnConfig.preferences.dwellSkipThresholdMs ? 'skip' : 'view';
-  // Online metric: the derived view/skip signal for this impression.
-  recordInteractionSignal(signal, interaction.feedDescriptor);
-  await userPreferenceService.recordInteraction(interaction.userId, postId, signal, {
-    surface: interaction.feedDescriptor,
-  });
-
-  // 3. Fold the dwell duration into the post's rolling average (opt-in
-  //    `dwellTime` ranking signal). Recorded ONCE per (post, viewer) — gated on
-  //    the deduped view counting a NEW view so repeated impressions can't pump
-  //    the mean — and CLAMPED so one forged sample can't dominate it.
-  if (countedNewView && dwellMs > 0) {
-    await recordDwell(postId, Math.min(dwellMs, MtnConfig.preferences.maxDwellMs));
-  }
-
-  return countedViewsCount;
+  return counted;
 }
 
 /**
@@ -222,7 +246,7 @@ export async function applyImpressionSignals(
  * when the uri is a local post id; a non-local / unresolved uri is counted as
  * `local`. Best-effort — never fails the interaction record.
  *
- * Exported for unit testing; called only by {@link trackFeedInteraction}.
+ * Exported for unit testing; called only by {@link trackFeedInteractions}.
  */
 export async function recordReportSignal(interaction: FeedInteractionData): Promise<void> {
   const postId = interaction.postUri;
