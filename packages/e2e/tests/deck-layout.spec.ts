@@ -284,6 +284,16 @@ test.describe('configured Deck', () => {
   }) => {
     await page.goto('/deck');
     await expect(page.getByTestId('mention-shell-panels-deck-custom')).toBeVisible();
+    // The entrance changes the document's scroll range. Reach the trailing
+    // edge after the configured column widths have settled.
+    await expect
+      .poll(() =>
+        page
+          .locator('[data-bloom-panel-index][data-testid^="mention-shell-panels-"]')
+          .filter({ visible: true })
+          .evaluateAll((panels) => panels.map((panel) => panel.getBoundingClientRect().width)),
+      )
+      .toEqual([390, 390, 390, 390, 390]);
     await page.evaluate(() => {
       const documentScroller = document.scrollingElement;
       if (!documentScroller) throw new Error('Document scroll owner is unavailable');
@@ -547,6 +557,7 @@ test('default Deck preserves the current post and its DOM through both layout ch
 
 test('column grips reorder saved panels while the application column stays fixed', async ({
   page,
+  candidate,
 }) => {
   await page.goto('/deck');
   const main = page.getByTestId('mention-shell-panels-main');
@@ -554,9 +565,18 @@ test('column grips reorder saved panels while the application column stays fixed
   const second = page.getByTestId('mention-shell-panels-deck-2');
   const grip = page.getByTestId('mention-shell-panels-deck-1-reorder');
   await expect(grip).toBeVisible();
+  await expect
+    .poll(() =>
+      page
+        .locator('[data-bloom-panel-index][data-testid^="mention-shell-panels-"]')
+        .filter({ visible: true })
+        .evaluateAll((panels) => panels.map((panel) => panel.getBoundingClientRect().width)),
+    )
+    .toEqual([390, 390, 390, 390]);
   await expect(main.locator('[data-bloom-panel-reorder]')).toHaveCount(0);
   await first.evaluate((node) => node.setAttribute('data-retained-column', 'true'));
   await page.evaluate(() => window.scrollTo(350, 0));
+  await expect.poll(() => page.evaluate(() => window.scrollX)).toBe(350);
   const start = await grip.boundingBox();
   const target = await second.boundingBox();
   if (!start || !target) throw new Error('Column drag targets were not rendered');
@@ -581,4 +601,5 @@ test('column grips reorder saved panels while the application column stays fixed
   await grip.focus();
   await grip.press('ArrowLeft');
   await expect.poll(savedOrder).toEqual(['deck-0', 'deck-1', 'deck-2', 'deck-3']);
+  expect(candidate.scriptErrors).toEqual([]);
 });
