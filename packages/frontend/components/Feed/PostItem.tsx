@@ -709,6 +709,7 @@ const PostItem: React.FC<PostItemProps> = ({
   // Canonical post-item layout tokens (single source of truth: POST_ITEM_SPACING in styles/shared.ts).
   // HPAD/VPAD/SECTION_GAP = 12, AVATAR_SIZE = 40, AVATAR_GAP = 12, AVATAR_OFFSET = 64.
   const { HPAD, VPAD, SECTION_GAP, AVATAR_SIZE, AVATAR_OFFSET } = POST_ITEM_SPACING;
+  const contentLeftOffset = isNested ? HPAD : AVATAR_OFFSET;
 
   // The detail variant is layout-identical to the feed: the body stays indented
   // under the avatar column (AVATAR_OFFSET), aligned with the name. ONLY the
@@ -978,6 +979,8 @@ const PostItem: React.FC<PostItemProps> = ({
             showReply={false}
             laneSlot={laneSlot}
             contextTop={contextRows.length > 0 ? contextRows : undefined}
+            compact={isNested}
+            avatarSize={isNested ? 20 : undefined}
             avatarSource={avatarSource}
             avatarVariant={avatarVariant}
             authorUserId={author.id || undefined}
@@ -1016,13 +1019,13 @@ const PostItem: React.FC<PostItemProps> = ({
           {hasBelowHeaderBlocks && !isContentGated && (
             <View style={{ gap: SECTION_GAP }}>
               {hasValidLocation && location && (
-                <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
+                <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
                   <PostLocation location={location} paddingHorizontal={0} />
                 </View>
               )}
 
               {hasSources && (
-                <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
+                <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
                   <TouchableOpacity
                     className="border-border bg-surface flex-row items-center gap-1.5 self-start rounded-xl border"
                     style={{ paddingHorizontal: 10, paddingVertical: 4 }}
@@ -1039,7 +1042,7 @@ const PostItem: React.FC<PostItemProps> = ({
               )}
 
               {boostUnavailable && !isContentGated && (
-                <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
+                <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
                   <View className="border-border rounded-2xl border px-3 py-3">
                     <Text className="text-muted-foreground text-[14px]">
                       {t('post.boostUnavailable', {
@@ -1056,7 +1059,7 @@ const PostItem: React.FC<PostItemProps> = ({
                   media={mediaItems}
                   attachments={attachmentDescriptors}
                   nestedPost={nestedPost ?? null}
-                  leftOffset={AVATAR_OFFSET}
+                  leftOffset={contentLeftOffset}
                   pollData={pollData}
                   pollId={pollId ? String(pollId) : undefined}
                   nestingDepth={nestingDepth}
@@ -1170,8 +1173,8 @@ const styles = StyleSheet.create({
   nestedPostContainer: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 16,
-    // Vertical inset only, laid out exactly like a feed row: the header and
-    // every block carry their own HPAD / AVATAR_OFFSET, and the attachments
+    // Vertical inset only: the header and body blocks carry their own HPAD,
+    // with the compact avatar inline beside the name. The attachments
     // carousel runs to both edges of the card, which clips it at its border.
     // A horizontal padding here shifted the row off the text column and
     // stopped the carousel short of both sides.
