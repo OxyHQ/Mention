@@ -1182,10 +1182,7 @@ export async function repairFederatedMentions(
     // The in-run cursor NARROWS the declared range rather than replacing it — a
     // bare `id > lastId` would silently drop a shard's upper bound after the
     // first page and let it run into the next shard's territory.
-    const page = await loadCandidatePage(
-      candidateMatch(lastId ?? lowerBound),
-      pageLimit,
-    );
+    const page = await loadCandidatePage(candidateMatch(lastId ?? lowerBound), pageLimit);
 
     // An empty page means this scope's range is exhausted — the one exit that
     // means FINISHED, as opposed to stopping on a limit or dying mid-page. Stamp
