@@ -2069,6 +2069,7 @@ export default function VideosScreen() {
         scroll="auto"
         active={isFocused}
         headerPlacement="overlay"
+        contentClearance={0}
         testID="videos-screen"
         style={{ backgroundColor: posts.length === 0 ? theme.colors.background : '#000000' }}
         header={
