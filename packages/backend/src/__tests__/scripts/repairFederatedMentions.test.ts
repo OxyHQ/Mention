@@ -442,11 +442,7 @@ describe('buildCandidateFilter', () => {
       mentions: ['oxy_bob'],
       content: {
         variants: [
-          {
-            source: 'author',
-            tag: 'en',
-            text: '[mention:oxy_bob] [@@a@b.example](https://b.example/@a)',
-          },
+          { source: 'author', tag: 'en', text: '[mention:oxy_bob] and a@b.example said hi' },
         ],
       },
     });
@@ -474,7 +470,21 @@ describe('buildCandidateFilter', () => {
       },
     });
 
-    expect(await selected()).toEqual([damaged, rawUrl, unqualified]);
+    // A qualified label still names the host the copy arrived through, not the
+    // identity, while the mention stays a link to its source.
+    const sourceLink = await seedPost('8', {
+      content: {
+        variants: [
+          {
+            source: 'author',
+            tag: 'en',
+            text: 'thanks [@@elonmusk@bird.makeup](https://bird.makeup/users/elonmusk)',
+          },
+        ],
+      },
+    });
+
+    expect(await selected()).toEqual([damaged, rawUrl, unqualified, sourceLink]);
   });
 
   it('narrows to a single origin actor when one is supplied', async () => {
@@ -826,7 +836,9 @@ describe('repairFederatedMentions', () => {
       resetCursor: true,
       noteTimeoutMs: 1_000,
     });
-    expect(repeated.candidates).toBe(0);
+    // The link is still the best an unknown identity allows, so the post stays a
+    // candidate — but a re-run has nothing to change and writes nothing.
+    expect(repeated.repaired).toBe(0);
     expect(repeated.written).toBe(0);
   });
 

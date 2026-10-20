@@ -30,9 +30,10 @@
  *     - `federation.activityId` is present (it is a federated import);
  *     - `type !== 'boost'` (a boost body is intentionally empty and carries no
  *       mentions of its own — see the boost-hydration contract);
- *     - some stored body variant matches {@link UNQUALIFIED_MENTION_TEXT_REGEX}:
- *       a handle with no `@domain`, which covers all three damage shapes. A post
- *       with some mentions resolved is selected too when one is still bare.
+ *     - some stored body variant matches {@link MENTION_RESIDUE_TEXT_REGEX}:
+ *       a handle with no `@domain` (the first three damage shapes), or a mention
+ *       still kept as a link to its source profile. A post with some mentions
+ *       resolved is selected too when one is still bare.
  *   Optionally narrowed to one origin actor via `REPAIR_ACTOR_URI`.
  *
  *   The regex also matches ordinary text (an `@` used as a word). Those cost one
@@ -83,7 +84,9 @@
  * SAFETY / SHAPE
  *   - Idempotent + re-runnable: a repaired post gains a non-empty `mentions`
  *     array and so leaves the candidate set entirely; even if it were re-scanned,
- *     an unchanged re-mapping stages no write at all.
+ *     an unchanged re-mapping stages no write at all. A mention whose identity
+ *     is still unknown stays a source link, so its post remains a candidate and
+ *     a re-run re-reads it without writing.
  *   - Stable ASCENDING `_id` cursor. The repair only ever REMOVES posts from the
  *     matching set, so no page is revisited and none is skipped.
  *   - Writes are explicit `$set` field whitelists (`content.variants`, `mentions`)
@@ -277,6 +280,19 @@ const GONE_STATUS_CODES = new Set([404, 410]);
  */
 const UNQUALIFIED_MENTION_TEXT_REGEX = new RegExp(
   `(^|[^A-Za-z0-9_./-])${LOCAL_HANDLE_SOURCE}($|[^A-Za-z0-9_@-])|/${LOCAL_HANDLE_SOURCE}($|[^A-Za-z0-9_@)-])`,
+);
+
+/**
+ * A mention kept as a link to its source profile, `[@@user@host](https://…)`.
+ * Its label is qualified, so {@link UNQUALIFIED_MENTION_TEXT_REGEX} never selects
+ * it — yet it is the residue of a mention that did not resolve, and whose host is
+ * the one the copy arrived through (a bridge) rather than the identity's network.
+ */
+const SOURCE_MENTION_LINK_TEXT_REGEX = /\[@[^\n]*\]\(https?:\/\//;
+
+/** Either residue. A single pattern so the SQL filter and the JS check agree. */
+const MENTION_RESIDUE_TEXT_REGEX = new RegExp(
+  `${UNQUALIFIED_MENTION_TEXT_REGEX.source}|${SOURCE_MENTION_LINK_TEXT_REGEX.source}`,
 );
 
 /** Per-post repair outcome. */
@@ -604,7 +620,7 @@ export function buildCandidateFilter(
           and(
             eq(postContentVariants.postId, posts.id),
             ...variantRange,
-            sql`${postContentVariants.body} ~ ${UNQUALIFIED_MENTION_TEXT_REGEX.source}`,
+            sql`${postContentVariants.body} ~ ${MENTION_RESIDUE_TEXT_REGEX.source}`,
           ),
         ),
     ),
