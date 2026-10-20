@@ -71,6 +71,8 @@ export interface ProfileData {
   createdAt?: string;
   updatedAt?: string;
   postsCount?: number;
+  /** Public reputation total, served by Oxy on the profile with `_count`. */
+  reputationTotal?: number;
   boostsCount?: number;
   repliesCount?: number;
   followsYou?: boolean;
