@@ -250,10 +250,19 @@ jobs:
                  else [{name:"MODE", value:"dry_run"}] end
                )
              }]}')
+          # Where the service runs: its capacity provider strategy when it has
+          # one (the oxy-ec2 capacity, whose revisions are EC2-only), otherwise
+          # its launch type. A hard-coded FARGATE refuses an EC2-only revision.
+          PLACEMENT_STRATEGY=$(jq -c '.capacityProviderStrategy // []' <<<"$SERVICE_JSON")
+          if [[ "$PLACEMENT_STRATEGY" != "[]" ]]; then
+            PLACEMENT=(--capacity-provider-strategy "$PLACEMENT_STRATEGY")
+          else
+            PLACEMENT=(--launch-type "$(jq -r '.launchType // "FARGATE"' <<<"$SERVICE_JSON")")
+          fi
           RUN_TASK_JSON=$(aws ecs run-task \
             --cluster "$CLUSTER" \
             --task-definition "$BACKFILL_TASK_DEF" \
-            --launch-type FARGATE \
+            "${PLACEMENT[@]}" \
             --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SEC_GROUPS],assignPublicIp=$ASSIGN_IP}" \
             --overrides "$OVERRIDES" \
             --started-by "gh-reconcile-filerefs")
