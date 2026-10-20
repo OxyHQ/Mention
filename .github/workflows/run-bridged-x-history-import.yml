@@ -199,7 +199,12 @@ jobs:
           # the service's 1 GB. 4096 MB keeps CPU at 512, so no extra vCPU quota.
           jq --arg img "$IMAGE" '
             .containerDefinitions[0].image = $img
-            | .memory = "4096"
+            # Fargate: the task size. EC2-only (oxy-ec2): the container is
+            # the limit, so the 4096 lands there.
+            | if ((.requiresCompatibilities // ["FARGATE"]) | index("FARGATE")) != null
+              then .memory = "4096"
+              else .containerDefinitions[0].memory = 4096
+              end
             | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
                   .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)
           ' live-taskdef.json > import-taskdef.json
@@ -230,10 +235,19 @@ jobs:
                ]
              }]}')
 
+          # Where the service runs: its capacity provider strategy when it has
+          # one (the oxy-ec2 capacity, whose revisions are EC2-only), otherwise
+          # its launch type. A hard-coded FARGATE refuses an EC2-only revision.
+          PLACEMENT_STRATEGY=$(jq -c '.capacityProviderStrategy // []' <<<"$SERVICE_JSON")
+          if [[ "$PLACEMENT_STRATEGY" != "[]" ]]; then
+            PLACEMENT=(--capacity-provider-strategy "$PLACEMENT_STRATEGY")
+          else
+            PLACEMENT=(--launch-type "$(jq -r '.launchType // "FARGATE"' <<<"$SERVICE_JSON")")
+          fi
           RUN_TASK_JSON=$(aws ecs run-task \
             --cluster "$CLUSTER" \
             --task-definition "$IMPORT_TASK_DEF" \
-            --launch-type FARGATE \
+            "${PLACEMENT[@]}" \
             --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SEC_GROUPS],assignPublicIp=$ASSIGN_IP}" \
             --overrides "$OVERRIDES" \
             --started-by "gh-import-x-history")

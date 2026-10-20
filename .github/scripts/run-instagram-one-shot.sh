@@ -122,7 +122,15 @@ jq -n --arg name "$container" --arg dry "$DRY_RUN" --arg script "$SCRIPT" --arg 
 
 # Re-read the live definition just before starting. Never update the service.
 [[ "$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" --query 'services[0].taskDefinition' --output text)" == "$live_task_def" ]] || { echo '::error::The live task definition changed'; exit 1; }
-aws ecs run-task --cluster "$CLUSTER" --task-definition "$live_task_def" --launch-type FARGATE \
+# Where the service runs: its capacity provider strategy when it has one (the
+# oxy-ec2 capacity, whose revisions are EC2-only), otherwise its launch type.
+placement_strategy=$(jq -c '.services[0].capacityProviderStrategy // []' "$work_dir/service.json")
+if [[ "$placement_strategy" != "[]" ]]; then
+  placement=(--capacity-provider-strategy "$placement_strategy")
+else
+  placement=(--launch-type "$(jq -r '.services[0].launchType // "FARGATE"' "$work_dir/service.json")")
+fi
+aws ecs run-task --cluster "$CLUSTER" --task-definition "$live_task_def" "${placement[@]}" \
   --network-configuration "file://$work_dir/network.json" --overrides "file://$work_dir/overrides.json" \
   --started-by gh-instagram-one-shot > "$work_dir/run.json"
 jq -e '.failures | length == 0' "$work_dir/run.json" >/dev/null

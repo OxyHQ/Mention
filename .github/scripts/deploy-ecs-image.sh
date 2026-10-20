@@ -635,7 +635,25 @@ jq \
       .registeredAt,
       .registeredBy
     )
-    | if $taskCpu != "" then .cpu = $taskCpu | .memory = $taskMemory else . end
+    # The size lands where the revision can carry it. Fargate: the task level,
+    # as always. An EC2-only revision (the oxy-ec2 capacity) has no task-level
+    # size by design, because a task-level cpu there is a HARD cap and a full
+    # reservation; so TASK_CPU becomes the CPU SHARE of the container (the same
+    # floor under contention, free to burst above it) and TASK_MEMORY its hard
+    # memory limit; a memoryReservation above that limit is clamped to it.
+    | if $taskCpu == "" then .
+      elif ((.requiresCompatibilities // ["FARGATE"]) | index("FARGATE")) != null then
+        .cpu = $taskCpu | .memory = $taskMemory
+      else
+        .containerDefinitions |= map(
+          if .name == $name then
+            .cpu = ($taskCpu | tonumber)
+            | .memory = ($taskMemory | tonumber)
+            | if (.memoryReservation // 0) > ($taskMemory | tonumber)
+              then .memoryReservation = ($taskMemory | tonumber) else . end
+          else . end
+        )
+      end
     | (($taskSecretOverrides | map(.name)) + $taskSecretRemovals) as $taskSecretNames
     | (($taskEnvOverrides | map(.name)) + $taskEnvRemovals) as $taskEnvNames
     | .containerDefinitions |= map(
