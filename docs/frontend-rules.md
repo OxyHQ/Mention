@@ -94,6 +94,13 @@ Do not simulate asynchronous loading with `Promise.resolve` over eager imports. 
 Deck regression holds a topic response, checks the skeleton and working Back
 button, then checks that revisiting renders cached posts without another read.
 
+Hydrated quotes render synchronously with their parent post. `PostItem` supplies a
+stable nested renderer to the attachment row; do not reimport it through
+`React.lazy` with an empty fallback. That boundary adds the quote's height after
+the virtualizer has measured the parent and shifts the reading position. Keep the
+depth limit and memo comparison. Feed action glyphs use fixed-size SVGs, so a
+late icon-font load cannot change the row height.
+
 Feed request deduplication includes viewer generation, page size and normalized
 filters. Scroll identities use the same normalized filters with structured
 serialization, so delimiters inside values and boolean/string values cannot

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, type PressableProps } from 'react-native';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
-import Ionicons from '@/components/common/Ionicons';
+import { RiTranslate2 } from '@oxy.so/bloom/icons/RiTranslate2';
 import { CommentIcon } from '@/assets/icons/comment-icon';
 import { BoostIcon, BoostIconActive } from '@/assets/icons/boost-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
@@ -258,10 +258,9 @@ const PostActions: React.FC<Props> = ({
           {isTranslating ? (
             <SpinnerIcon size={16} className="text-muted-foreground" />
           ) : (
-            <Ionicons
-              name={isTranslated ? 'language' : 'language-outline'}
-              size={ICON_SIZE}
-              color={isTranslated ? theme.colors.primary : theme.colors.textSecondary}
+            <RiTranslate2
+              size="md"
+              fill={isTranslated ? theme.colors.primary : theme.colors.textSecondary}
             />
           )}
         </PressableScale>

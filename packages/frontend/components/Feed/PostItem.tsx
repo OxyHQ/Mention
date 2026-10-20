@@ -36,6 +36,7 @@ import PostActions from '../Post/PostActions';
 import PostDetailStats from '../Post/PostDetailStats';
 import PostLocation from '../Post/PostLocation';
 import PostAttachmentsRow from '../Post/PostAttachmentsRow';
+import type { NestedPostRenderer } from '../Post/Attachments/PostAttachmentNested';
 import { RiCornerDownRightLine } from '@oxy.so/bloom/icons/RiCornerDownRightLine';
 import { RiLinkM } from '@oxy.so/bloom/icons/RiLinkM';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -1114,6 +1115,7 @@ const PostItem: React.FC<PostItemProps> = ({
                   media={mediaItems}
                   attachments={attachmentDescriptors}
                   nestedPost={nestedPost ?? null}
+                  renderNestedPost={renderNestedPost}
                   leftOffset={contentLeftOffset}
                   pollData={pollData}
                   pollId={pollId ? String(pollId) : undefined}
@@ -1255,7 +1257,7 @@ const rowPlacementEqual = (prevProps: PostItemProps, nextProps: PostItemProps): 
   // compare the booster so a recycled row never shows a stale "Reposted by".
   prevProps.repostedBy?.id === nextProps.repostedBy?.id;
 
-export default React.memo(PostItem, (prevProps, nextProps) => {
+const MemoPostItem = React.memo(PostItem, (prevProps, nextProps) => {
   if (!rowPlacementEqual(prevProps, nextProps)) return false;
   // Fast path: same post reference.
   if (prevProps.post === nextProps.post) return true;
@@ -1294,3 +1296,11 @@ export default React.memo(PostItem, (prevProps, nextProps) => {
     prev?.lane?.id === next?.lane?.id
   );
 });
+
+// Quotes already have their data and use the same loaded post component. Keep
+// this renderer stable: no deferred empty card, import cycle or per-row hook.
+const renderNestedPost: NestedPostRenderer = (post, nestingDepth) => (
+  <MemoPostItem post={post} isNested nestingDepth={nestingDepth} />
+);
+
+export default MemoPostItem;

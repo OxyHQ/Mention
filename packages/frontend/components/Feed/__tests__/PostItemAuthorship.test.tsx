@@ -4,6 +4,7 @@ import { PostVisibility } from '@mention/shared-types';
 import type { HydratedAuthor, HydratedPost, PostUser } from '@mention/shared-types';
 
 import PostItem from '../PostItem';
+import type { NestedPostRenderer } from '../../Post/Attachments/PostAttachmentNested';
 
 /**
  * `PostItem` decides two things about authorship that only it can see, and both
@@ -96,7 +97,24 @@ jest.mock('../../Post/ContentWarning', () => ({ __esModule: true, default: () =>
 jest.mock('../../Post/PostActions', () => ({ __esModule: true, default: 'PostActions' }));
 jest.mock('../../Post/PostDetailStats', () => ({ __esModule: true, default: 'PostDetailStats' }));
 jest.mock('../../Post/PostLocation', () => ({ __esModule: true, default: () => null }));
-jest.mock('../../Post/PostAttachmentsRow', () => ({ __esModule: true, default: () => null }));
+jest.mock('../../Post/PostAttachmentsRow', () => ({
+  __esModule: true,
+  default: ({
+    nestedPost,
+    nestingDepth,
+    renderNestedPost,
+  }: {
+    nestedPost?: HydratedPost;
+    nestingDepth: number;
+    renderNestedPost?: NestedPostRenderer;
+  }) => {
+    if (!nestedPost || !renderNestedPost) return null;
+    const Nested = jest.requireActual('../../Post/Attachments/PostAttachmentNested').default;
+    return (
+      <Nested nestedPost={nestedPost} nestingDepth={nestingDepth} renderPost={renderNestedPost} />
+    );
+  },
+}));
 jest.mock('@/hooks/usePostLanguagePicker', () => ({
   usePostLanguagePicker: () => () => undefined,
 }));
@@ -284,6 +302,13 @@ describe('PostItem boost wiring', () => {
     render(<PostItem post={postWith([channel, writer])} />);
     expect(lastHeader().boostedBy).toBeUndefined();
   });
+});
+
+it('renders a hydrated quote in the same commit as its parent, without an empty suspense frame', () => {
+  mockHeaderProps.length = 0;
+  const quote = { ...postWith([writer]), id: 'quoted-post' };
+  render(<PostItem post={{ ...postWith([owner]), quotedPost: quote }} />);
+  expect(mockHeaderProps.map((header) => header.authors?.[0]?.id)).toEqual([owner.id, writer.id]);
 });
 
 it('aligns focused actions with the full-width text and keeps them before metadata', () => {

@@ -19,6 +19,7 @@ const capture = (kind: string) => (props: Record<string, unknown>) => {
   captured.push({ kind, props });
   return null;
 };
+const renderNestedPost = () => null;
 
 jest.mock('../Attachments', () => ({
   PostAttachmentMedia: capture('media'),
@@ -72,7 +73,9 @@ const podcast = {
 function render(props: Record<string, unknown>): Captured[] {
   captured.length = 0;
   act(() => {
-    TestRenderer.create(<PostAttachmentsRow postId="post-1" {...props} />);
+    TestRenderer.create(
+      <PostAttachmentsRow postId="post-1" renderNestedPost={renderNestedPost} {...props} />,
+    );
   });
   return [...captured];
 }
@@ -148,12 +151,19 @@ describe('a quoted post renders below the row', () => {
   it('renders on its own, with nothing else attached', () => {
     const quoteOnly = render({ nestedPost: { id: 'q1' }, nestingDepth: 0 });
     expect(of(quoteOnly, 'nested').nestedPost).toEqual({ id: 'q1' });
+    expect(of(quoteOnly, 'nested').renderPost).toBe(renderNestedPost);
   });
 
   it('leaves the image alone in the row', () => {
     const withQuote = render({ media: [image], nestedPost: { id: 'q1' }, nestingDepth: 0 });
     expect(of(withQuote, 'media').hasSingleMedia).toBe(true);
     expect(withQuote.some((item) => item.kind === 'nested')).toBe(true);
+  });
+
+  it('stops nesting at the existing depth limit', () => {
+    expect(
+      render({ nestedPost: { id: 'q1' }, nestingDepth: 2 }).some((item) => item.kind === 'nested'),
+    ).toBe(false);
   });
 });
 
