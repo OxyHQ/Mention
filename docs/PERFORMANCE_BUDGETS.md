@@ -27,7 +27,8 @@ past any of:
 | Largest single file | 7.5 MiB |
 
 Wired into `.github/workflows/ci.yml`'s "Enforce bundle budgets" step, which
-also diffs the PR's export against `main`'s baseline. This is the one item
+also diffs the merge-queue entry's export against `main`'s baseline (pull
+requests skip it; the queue entry is the tree that ships). This is the one item
 on the original SLO list that already has the property the rest of this
 document argues for: a number, a place it is measured, and a build that
 fails when the number is exceeded.
