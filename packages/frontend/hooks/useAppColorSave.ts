@@ -51,7 +51,7 @@ export function useAppColorSave() {
         // `oxyServices.users.updateMe` busts the SDK's internal HTTP response cache
         // but NOT the React Query user caches that `useProfileData`/`useUserByUsername`
         // read. Without this, the viewer's own profile keeps rendering the
-        // pre-change accent color (via `useProfileScreenColor` → `BloomColorScope`)
+        // pre-change accent color (via `resolveProfileColor` → `BloomColorScope`)
         // until the 5-minute staleTime elapses or a full reload. Scope the
         // invalidation to the VIEWER'S OWN entries only: invalidating the whole
         // `queryKeys.users.details()` subtree would drop every cached profile and
