@@ -50,6 +50,7 @@ import {
 import type { PostClassificationScores } from '@mention/shared-types';
 import { assertSafePublicUrl } from '@oxy.so/core/server';
 import { actorService } from './actor.service';
+import { identityDomainOfActor } from './identityDomain';
 import {
   asRecord,
   activityPubItems,
@@ -80,6 +81,7 @@ import {
   applyMentionPlaceholders,
   extractMentionTags,
   hasSourceMentionLink,
+  resolveInboundMentions,
   resolveInboundMentionsForNotes,
   type ResolvedInboundMentions,
 } from './apMentions';
@@ -1713,9 +1715,17 @@ export class OutboxSyncService {
     // path handleCreate and the outbox loop use. A boosted/ancestor Note that
     // carries nothing storable is skipped (return null) rather than creating a
     // blank post; the boost/ancestor link is simply not made this pass.
-    const built = await buildFederatedNoteContent(note, authorOxyUserId, {
+    // The SAME mention resolution the inbox `Create` path runs. Without it an
+    // imported original keeps every mention as the link to its source profile,
+    // which names the host the copy arrived through (`@elonmusk@bird.makeup`)
+    // instead of the identity (`@elonmusk@x.com`).
+    const mentionResult = await resolveInboundMentions(note);
+    const noteObject = applyMentionPlaceholders(note, mentionResult.anchorMap);
+
+    const built = await buildFederatedNoteContent(noteObject, authorOxyUserId, {
       activityId: noteActivityId,
       actorUri: authorUri ?? undefined,
+      identityDomain: identityDomainOfActor(authorActor),
       // Third site of the same gate. A boosted original, a reply ancestor and a
       // quoted note all arrive here, so without it a flattened retweet reaches
       // the database as somebody else's post the moment anything references it.
@@ -1781,6 +1791,7 @@ export class OutboxSyncService {
         },
         visibility: mapApVisibility(note.to, note.cc),
         hashtags,
+        ...(mentionResult.ids.length > 0 ? { mentions: mentionResult.ids } : {}),
         // AP-derived language + author instance for the Stage-A baseline (and the
         // top-level `post.language`), via PostCreationService's classifier wiring.
         // The singular `language` is the primary; the full declared set feeds

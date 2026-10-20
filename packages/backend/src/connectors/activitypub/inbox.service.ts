@@ -990,6 +990,7 @@ export class InboxProcessingService {
       const built = await buildFederatedNoteContentForEdit(noteObject, ownerOxyUserId, {
         activityId: objectActivityId,
         actorUri,
+        identityDomain: identityDomainOfActor(editActor),
         ingestPath: 'update',
       });
 
