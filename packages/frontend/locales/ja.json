@@ -2755,5 +2755,9 @@
     "rateExplanation": "反応数 ÷ 閲覧数 × 100。",
     "updating": "更新中…",
     "total": "合計"
-  }
+  },
+  "post.repostOptions": "リポストのオプション",
+  "post.repost": "リポスト",
+  "post.undoRepost": "リポストを取り消す",
+  "post.quote": "引用"
 }

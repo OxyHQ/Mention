@@ -14,8 +14,10 @@ export function computeExpandableText(
   // Hydrated mentions contain a label and a hidden identity destination. The
   // preview budget counts the label, never the serialized markup or target.
   const mentions = scanTextEntities(text, { kinds: ['mentionDisplay'] });
+  // `mentionDisplay` entities always carry a string label in the shared parser;
+  // the type is optional because other entity kinds do not have labels.
   const visibleLength = mentions.reduce(
-    (length, mention) => length - mention.raw.length + (mention.label ?? '').length,
+    (length, mention) => length - mention.raw.length + (mention.label as string).length,
     text.length,
   );
   const isTruncated = visibleLength > maxChars;
@@ -32,7 +34,7 @@ export function computeExpandableText(
     }
     preview += prose;
     remaining -= prose.length;
-    const label = mention.label ?? '';
+    const label = mention.label as string;
     if (remaining < label.length) {
       // Keep valid mention syntax and its complete destination even when only
       // part of the label is visible. LinkifiedText still renders a real link.

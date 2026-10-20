@@ -2755,5 +2755,9 @@
     "rateExplanation": "Interaksi dibagi tayangan × 100.",
     "updating": "Memperbarui…",
     "total": "Total"
-  }
+  },
+  "post.repostOptions": "Opsi repost",
+  "post.repost": "Repost",
+  "post.undoRepost": "Batalkan repost",
+  "post.quote": "Kutip"
 }

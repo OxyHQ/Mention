@@ -126,11 +126,13 @@ describe('PostContentText — truncated link destination', () => {
       let renderer: TestRenderer.ReactTestRenderer | undefined;
       act(() => {
         renderer = TestRenderer.create(
-          <PostContentText
-            content="Mention, [@Allo](allo) answers too"
-            previewChars={11}
-            postId="post-1"
-          />,
+          <BloomThemeProvider>
+            <PostContentText
+              content="Mention, [@Allo](allo) answers too"
+              previewChars={11}
+              postId="post-1"
+            />
+          </BloomThemeProvider>,
         );
       });
       if (!renderer) throw new Error('render produced no tree');

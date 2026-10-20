@@ -2755,5 +2755,9 @@
     "rateExplanation": "इंटरैक्शन को व्यू से भाग देकर × 100।",
     "updating": "अपडेट हो रहा है…",
     "total": "कुल"
-  }
+  },
+  "post.repostOptions": "रीपोस्ट विकल्प",
+  "post.repost": "रीपोस्ट करें",
+  "post.undoRepost": "रीपोस्ट हटाएँ",
+  "post.quote": "उद्धृत करें"
 }

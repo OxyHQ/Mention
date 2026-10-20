@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 46.88,
-      "covered": 13083,
-      "total": 27902
+      "pct": 46.95,
+      "covered": 13108,
+      "total": 27918
     },
     "branches": {
-      "pct": 42.16,
-      "covered": 8637,
-      "total": 20484
+      "pct": 42.19,
+      "covered": 8649,
+      "total": 20500
     },
     "functions": {
-      "pct": 41.8,
-      "covered": 3034,
-      "total": 7257
+      "pct": 41.86,
+      "covered": 3040,
+      "total": 7262
     },
     "lines": {
-      "pct": 47.69,
-      "covered": 11896,
-      "total": 24943
+      "pct": 47.75,
+      "covered": 11923,
+      "total": 24965
     }
   },
   "pins": {
@@ -535,7 +535,7 @@
     },
     "hooks/useProfileData.ts": {
       "statements": 92,
-      "branches": 84,
+      "branches": 85,
       "functions": 90,
       "lines": 93
     },
@@ -550,12 +550,6 @@
       "branches": 100,
       "functions": 100,
       "lines": 100
-    },
-    "hooks/useProfileScreenColor.ts": {
-      "statements": 61,
-      "branches": 50,
-      "functions": 50,
-      "lines": 60
     },
     "hooks/useProfileSongPreview.ts": {
       "statements": 0,
@@ -1794,10 +1788,10 @@
       "lines": 38
     },
     "utils/userPlaceholderColor.ts": {
-      "statements": 60,
-      "branches": 50,
-      "functions": 50,
-      "lines": 66
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "utils/video-feed-pagination.ts": {
       "statements": 100,

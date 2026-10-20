@@ -2755,5 +2755,9 @@
     "rateExplanation": "互动数除以浏览量 × 100。",
     "updating": "正在更新…",
     "total": "总计"
-  }
+  },
+  "post.repostOptions": "转发选项",
+  "post.repost": "转发",
+  "post.undoRepost": "撤销转发",
+  "post.quote": "引用"
 }

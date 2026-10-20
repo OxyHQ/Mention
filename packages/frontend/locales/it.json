@@ -2787,5 +2787,9 @@
     "updating": "Aggiornamento…",
     "total": "Totale",
     "dayCount_many": "{{count}} giorni"
-  }
+  },
+  "post.repostOptions": "Opzioni di repost",
+  "post.repost": "Reposta",
+  "post.undoRepost": "Annulla repost",
+  "post.quote": "Cita"
 }

@@ -2755,5 +2755,9 @@
     "rateExplanation": "Etkileşimler bölü görüntülemeler × 100.",
     "updating": "Güncelleniyor…",
     "total": "Toplam"
-  }
+  },
+  "post.repostOptions": "Yeniden paylaşım seçenekleri",
+  "post.repost": "Yeniden paylaş",
+  "post.undoRepost": "Yeniden paylaşımı geri al",
+  "post.quote": "Alıntıla"
 }

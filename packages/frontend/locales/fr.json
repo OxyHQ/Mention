@@ -2790,5 +2790,9 @@
     "updating": "Mise à jour…",
     "total": "Total",
     "dayCount_many": "{{count}} jours"
-  }
+  },
+  "post.repostOptions": "Options de republication",
+  "post.repost": "Republier",
+  "post.undoRepost": "Annuler la republication",
+  "post.quote": "Citer"
 }

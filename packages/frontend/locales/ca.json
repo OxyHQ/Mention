@@ -2787,5 +2787,9 @@
     "updating": "Actualitzant…",
     "total": "Total",
     "dayCount_many": "{{count}} dies"
-  }
+  },
+  "post.repostOptions": "Opcions de republicació",
+  "post.repost": "Republicar",
+  "post.undoRepost": "Desfer la republicació",
+  "post.quote": "Citar"
 }

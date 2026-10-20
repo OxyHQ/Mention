@@ -2819,5 +2819,9 @@
     "total": "Всего",
     "dayCount_few": "{{count}} дня",
     "dayCount_many": "{{count}} дней"
-  }
+  },
+  "post.repostOptions": "Настройки репоста",
+  "post.repost": "Репост",
+  "post.undoRepost": "Отменить репост",
+  "post.quote": "Цитировать"
 }
