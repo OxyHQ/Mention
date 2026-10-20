@@ -153,7 +153,7 @@ export function usePersonProfileView({
   const refreshAccount = account.refresh;
   const { handle, isFederated } = account;
   const routedCanonicalHref = useProfileCanonicalHref({ routedFamily: 'person', account });
-  const { user: currentUser, oxyServices, canUsePrivateApi } = useAuth();
+  const { user: currentUser, canUsePrivateApi } = useAuth();
   const { t } = useTranslation();
   const { ask: askAlia } = useAskAgent();
 
@@ -270,26 +270,15 @@ export function usePersonProfileView({
 
   const isOwnProfile = viewerOwnsProfile(profileData, currentUser?.id, isFederated);
   const isPrivate = useMemo(() => isProfilePrivate(profileData), [profileData]);
-  const { data: reputationData, refetch: refetchReputation } = useQuery<number>({
-    queryKey: viewerQueryKeys.profileReputation(currentUser?.id, profileData?.id),
-    enabled: Boolean(profileData?.id) && (!isPrivate || isOwnProfile),
-    retry: false,
-    queryFn: async () => {
-      const profileId = profileData?.id;
-      if (!profileId) throw new Error('A profile ID is required to load reputation');
-      const balance = isOwnProfile
-        ? await oxyServices.reputation.balance()
-        : await oxyServices.reputation.balance(profileId);
-      return balance.total;
-    },
-  });
-  const reputationTotal = reputationData ?? null;
+  // Oxy serves the public reputation total on the profile itself, so it lands
+  // with the follower counts. A private profile keeps it from non-followers.
+  const reputationTotal =
+    !isPrivate || isOwnProfile ? (profileData?.reputationTotal ?? null) : null;
 
   const refreshProfileSurface = useCallback(async () => {
     await Promise.all([
       refreshAccount(),
       ...(profileData?.id && !isFederated ? [refetchLaneTabs()] : []),
-      ...(profileData?.id && (!isPrivate || isOwnProfile) ? [refetchReputation()] : []),
       ...(stableUserId && refreshFollowStatus && refreshFollowCounts
         ? [refreshFollowStatus(), refreshFollowCounts()]
         : []),
@@ -297,11 +286,8 @@ export function usePersonProfileView({
   }, [
     refreshAccount,
     isFederated,
-    isOwnProfile,
-    isPrivate,
     refetchLaneTabs,
     profileData?.id,
-    refetchReputation,
     refreshFollowCounts,
     refreshFollowStatus,
     stableUserId,
