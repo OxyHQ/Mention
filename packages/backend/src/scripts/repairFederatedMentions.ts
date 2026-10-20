@@ -562,12 +562,30 @@ async function fetchApObject(url: string): Promise<ApFetchOutcome> {
   }
 }
 
+/** An `_id` range: `after` EXCLUSIVE, `through` INCLUSIVE. */
+export interface CandidateRange {
+  after?: string;
+  through?: string;
+}
+
 /**
  * Build the candidate filter documented at the top of this file. Kept separate
  * (and exported) so the exact selection can be asserted by a test rather than
  * re-described in prose.
+ *
+ * The range bounds the variant lookup as well as `posts.id`. Postgres runs this
+ * as a merge semi-join of `posts` and `post_content_variants` in id order, and a
+ * bound on `posts.id` alone leaves the variant side scanning (and regex-matching)
+ * from the first row on every page, so each page cost more than the last.
  */
-export function buildCandidateFilter(actorUri?: string, postIds?: string[]): SQL {
+export function buildCandidateFilter(
+  actorUri?: string,
+  postIds?: string[],
+  range: CandidateRange = {},
+): SQL {
+  const variantRange: SQL[] = [];
+  if (range.after) variantRange.push(gt(postContentVariants.postId, range.after));
+  if (range.through) variantRange.push(lte(postContentVariants.postId, range.through));
   const clauses: SQL[] = [
     sql`${posts.federationActivityId} is not null`,
     ne(posts.type, 'boost'),
@@ -585,11 +603,14 @@ export function buildCandidateFilter(actorUri?: string, postIds?: string[]): SQL
         .where(
           and(
             eq(postContentVariants.postId, posts.id),
+            ...variantRange,
             sql`${postContentVariants.body} ~ ${UNQUALIFIED_MENTION_TEXT_REGEX.source}`,
           ),
         ),
     ),
   ];
+  if (range.after) clauses.push(gt(posts.id, range.after));
+  if (range.through) clauses.push(lte(posts.id, range.through));
   if (actorUri) clauses.push(eq(posts.federationActorUri, actorUri));
   if (postIds) clauses.push(inArray(posts.id, postIds));
   return and(...clauses) as SQL;
@@ -988,21 +1009,16 @@ export async function repairFederatedMentions(
   // partition as (b[k-1], b[k]].
   const lowerBound = resumeId ?? afterId;
 
-  const candidateMatch = buildCandidateFilter(options.actorUri, postIds);
   /** The declared range, rebuilt per query — `lastId` narrows it, never replaces it. */
-  const rangeClauses = (from: string | undefined): SQL[] => {
-    const clauses: SQL[] = [];
-    if (from) clauses.push(gt(posts.id, from));
-    if (beforeId) clauses.push(lte(posts.id, beforeId));
-    return clauses;
-  };
+  const candidateMatch = (from: string | undefined): SQL =>
+    buildCandidateFilter(options.actorUri, postIds, { after: from, through: beforeId });
 
   // Counted WITHIN the range, so a shard reports the work it has LEFT rather
   // than the whole corpus or ground it has already covered.
   const [candidateRow] = await getDb()
     .select({ total: count() })
     .from(posts)
-    .where(and(candidateMatch, ...rangeClauses(lowerBound)));
+    .where(candidateMatch(lowerBound));
   const candidates = candidateRow?.total ?? 0;
   logger.info('[repairFederatedMentions] candidate posts selected', {
     count: candidates,
@@ -1166,10 +1182,7 @@ export async function repairFederatedMentions(
     // The in-run cursor NARROWS the declared range rather than replacing it — a
     // bare `id > lastId` would silently drop a shard's upper bound after the
     // first page and let it run into the next shard's territory.
-    const page = await loadCandidatePage(
-      and(candidateMatch, ...rangeClauses(lastId ?? lowerBound)) as SQL,
-      pageLimit,
-    );
+    const page = await loadCandidatePage(candidateMatch(lastId ?? lowerBound), pageLimit);
 
     // An empty page means this scope's range is exhausted — the one exit that
     // means FINISHED, as opposed to stopping on a limit or dying mid-page. Stamp
