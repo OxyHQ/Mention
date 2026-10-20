@@ -17,6 +17,10 @@ belong to Bloom. Restored `activePanel` is passive: loading Deck does not scroll
 horizontally to the last selected column. Adding a column issues Bloom's transient
 `revealPanel` request so the new column comes into view. This request is excluded
 from local/account workspace snapshots and cleared on account activation.
+Bloom waits for the compositor's own transitions before revealing the expanded
+column; content animations do not delay it. A superseded request or unmounted
+layout cancels the pending reveal. Reduced motion keeps the same destination
+without animated scrolling.
 Do not reimplement these with window measurements or nested
 application scroll containers.
 
@@ -35,7 +39,10 @@ stays fixed. Reordering preserves panel IDs, navigation, scroll snapshots and
 hidden legacy slots.
 
 Bloom owns panel movement and document/column scroll handoff through
-`panelLayout.transition="exit-before-enter"`. Panel invitations use the descriptor's
+`panelLayout.transition="exit-before-enter"`: outgoing context chrome fades away,
+the retained layout changes geometry, and incoming panels appear. The same
+sequence runs in reverse on exit, with reduced-motion behavior owned by Bloom.
+Panel invitations use the descriptor's
 `bottomBar` slot; the route Screen composes and measures that footer without an
 application wrapper. The selected mode is stored locally per account, separately
 from synchronized column configuration. Phones retain normal layout; returning
@@ -162,6 +169,17 @@ production already runs it.
   disabled-layout preservation and account erasure against PostgreSQL.
 - Check normal document pages, Deck horizontal scrolling, compact settings and
   native list ownership; headers and indicators must follow the correct owner.
+- Enter and leave Deck from a post; its mounted content, reading position and
+  sign-in footer must stay in the first panel.
+- Reorder additional columns by pointer and keyboard, preserving their DOM,
+  history and horizontal offset. The first application column stays fixed.
+- Add a column from the trailing action, verify that its final box is revealed,
+  then remove it through its settings.
+
+Browser geometry assertions and raw pointer coordinates must wait for the
+configured column widths to settle. Visibility alone does not mean that an
+entrance transition has finished. The release gate uses `expectDeckColumnWidths`
+for these checks rather than fixed sleeps or relaxed geometry tolerances.
 
 Browser fixtures may mock the HTTP contract; PostgreSQL tests separately establish
 server behavior. Neither proves that production has been deployed.

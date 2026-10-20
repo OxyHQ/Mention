@@ -1,5 +1,18 @@
 import { PROFILE_HANDLE } from '../environment';
 import { expect, test } from '../fixtures';
+import type { Page } from '@playwright/test';
+
+/** Geometry assertions and pointer coordinates require the completed layout. */
+async function expectDeckColumnWidths(page: Page, widths: number[]) {
+  await expect
+    .poll(() =>
+      page
+        .locator('[data-bloom-panel-index][data-testid^="mention-shell-panels-"]')
+        .filter({ visible: true })
+        .evaluateAll((panels) => panels.map((panel) => panel.getBoundingClientRect().width)),
+    )
+    .toEqual(widths);
+}
 
 const deckPost = {
   id: '019e23ee-2d68-7000-8000-000000000001',
@@ -197,6 +210,7 @@ test.describe('configured Deck', () => {
   }) => {
     await page.goto('/deck');
     await expect(page.getByTestId('mention-shell-panels-deck-custom')).toBeVisible();
+    await expectDeckColumnWidths(page, [390, 390, 390, 390, 390]);
     await expect
       .poll(() => page.evaluate(() => document.scrollingElement!.scrollWidth - innerWidth))
       .toBeGreaterThan(100);
@@ -286,14 +300,7 @@ test.describe('configured Deck', () => {
     await expect(page.getByTestId('mention-shell-panels-deck-custom')).toBeVisible();
     // The entrance changes the document's scroll range. Reach the trailing
     // edge after the configured column widths have settled.
-    await expect
-      .poll(() =>
-        page
-          .locator('[data-bloom-panel-index][data-testid^="mention-shell-panels-"]')
-          .filter({ visible: true })
-          .evaluateAll((panels) => panels.map((panel) => panel.getBoundingClientRect().width)),
-      )
-      .toEqual([390, 390, 390, 390, 390]);
+    await expectDeckColumnWidths(page, [390, 390, 390, 390, 390]);
     await page.evaluate(() => {
       const documentScroller = document.scrollingElement;
       if (!documentScroller) throw new Error('Document scroll owner is unavailable');
@@ -565,14 +572,7 @@ test('column grips reorder saved panels while the application column stays fixed
   const second = page.getByTestId('mention-shell-panels-deck-2');
   const grip = page.getByTestId('mention-shell-panels-deck-1-reorder');
   await expect(grip).toBeVisible();
-  await expect
-    .poll(() =>
-      page
-        .locator('[data-bloom-panel-index][data-testid^="mention-shell-panels-"]')
-        .filter({ visible: true })
-        .evaluateAll((panels) => panels.map((panel) => panel.getBoundingClientRect().width)),
-    )
-    .toEqual([390, 390, 390, 390]);
+  await expectDeckColumnWidths(page, [390, 390, 390, 390]);
   await expect(main.locator('[data-bloom-panel-reorder]')).toHaveCount(0);
   await first.evaluate((node) => node.setAttribute('data-retained-column', 'true'));
   await page.evaluate(() => window.scrollTo(350, 0));

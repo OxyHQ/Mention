@@ -14,7 +14,10 @@ The app shell declares its main and context panels through Bloom's
 same outer width; Bloom owns visibility, transitions, scrolling and bottom-bar
 clearance. Do not add another app-specific sidebar breakpoint or width animation.
 
-`/deck` uses the same API in `mode: 'deck'` with four resizable columns.
+Deck uses the same API in `mode: 'deck'`. Its default composition has the current
+application page as a fixed first column and three configurable columns. Saved
+custom columns can change that count. The compact sidebar mode control preserves
+the current route and mounted page; `/deck` activates that mode and resolves to Home.
 Its horizontal scroll belongs to the document; each column owns its vertical
 scroll. Bloom preserves the top and bottom gutters around bounded columns.
 The web host keeps `html`, `body` and `#root` at `height: 100%` with visible
@@ -25,8 +28,9 @@ Bloom also owns the final inline gutter and the sticky sidebar overlap surface.
 Its shared CSS responds to document scroll; Mention adds no scroll listener or
 route-specific sidebar paint.
 It is available only on web at Bloom's `lg` breakpoint and above; both the sidebar
-entry and direct route use `useDeckAvailable`. Each column has a Bloom memory
-history for all internal routes, with back/forward and restored scroll positions.
+mode control and direct route use `useDeckAvailable`. The first column keeps
+Expo's application history. Each additional column has a Bloom memory history
+for all internal routes, with back/forward and restored scroll positions.
 `lib/navigation/router` binds app links, parameters and navigation hooks to
 Bloom’s panel router when embedded on web, and to Expo otherwise. Native
 imports use Expo directly. Screens and nested layouts come from the same app route tree; profiles keep their chrome mounted
@@ -37,12 +41,18 @@ history offset. Column reselect, scroll and profile colors are scoped too.
 Each route declares its chrome through `Screen scroll="auto"`, `header` and
 `bottomBar`. The same screen uses document scroll normally and the column owner
 inside Deck. Header actions from the workspace compose into that header: one
-Back button only when history exists and a panel-settings modal, never a second toolbar. The modal persists feed, resizing, appearance and base recipe per panel;
+Back button only when history exists and a panel-settings modal for configurable
+columns, never a second toolbar. A screen rendered in a panel delegates Back to
+Bloom; an unconditional `onBack` would incorrectly show it at the history root.
+The modal persists feed, resizing, appearance and base recipe per panel;
 controlled `panelLayout.widths` persists changes made with the resize handle.
 Deck roots render the actual Explore, preset-feed viewer and Saved routes through
 `PanelRouteSlot`; do not introduce alternate feed or authentication screens in Deck.
 `panelLayout.trailingAction` supplies the end-of-document create-panel action;
 adding a column issues a transient `revealPanel` request to bring it into view.
+Bloom waits for the compositor's layout transitions before revealing the final
+column box and cancels superseded requests. The app must not schedule a second
+scroll or assume that a newly mounted panel has already reached its final width.
 `activePanel` is passive selection; hydration never requests horizontal scrolling.
 Panel definitions and preferences persist in `deckSettings`; reveal requests do
 not. App code does not measure panel geometry.
