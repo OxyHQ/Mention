@@ -58,9 +58,12 @@ async function readFeedPage(
 
   // When scoped to a thread, narrow the results to the posts that answer it.
   const parentId = feedThreadParentId(feed.filters);
-  const items = parentId
-    ? (response.items ?? []).filter((item) => String(item.parentPostId) === parentId)
-    : (response.items ?? []);
+  // The replies endpoint owns membership: it also includes replies to the
+  // author's continuation spine and bounded nested previews.
+  const items =
+    parentId && feed.type !== 'replies'
+      ? (response.items ?? []).filter((item) => String(item.parentPostId) === parentId)
+      : (response.items ?? []);
   const content = mergeFeedPageContent(undefined, {
     items,
     slices: response.slices,

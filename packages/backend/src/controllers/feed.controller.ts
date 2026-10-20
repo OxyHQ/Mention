@@ -1080,6 +1080,35 @@ class FeedController {
         viewerGraph: viewerRelations?.viewerGraph,
       });
       const items = hydratedReplies.filter((post) => post?.id && post.user?.id);
+      // A bounded, one-level preview for the tree view. Page/cursor ownership
+      // stays with the top-level replies, so expanding a branch cannot skip or
+      // duplicate the next page. Only descend from parents the viewer can read.
+      if (queryString(req.query.includeNestedReplies) === '1' && items.length > 0) {
+        const children = await findPostRecords(
+          and(
+            inArray(
+              postsTable.parentPostId,
+              items.map((post) => post.id),
+            ),
+            eq(postsTable.visibility, 'public'),
+            eq(postsTable.status, 'published'),
+          ),
+          { orderBy, limit: Math.min(limit * 2, 60) },
+        );
+        const hydratedChildren = await postHydrationService.hydratePosts(
+          this.filterBlockedAndMutedPosts(children, blockedAndMutedIds),
+          {
+            viewerId: currentUserId,
+            safetyRequester: safetyRequesterFor(req),
+            oxyClient: requestOxyClient,
+            maxDepth: 1,
+            includeLinkMetadata: true,
+            viewerPrivacy: viewerRelations?.viewerPrivacy,
+            viewerGraph: viewerRelations?.viewerGraph,
+          },
+        );
+        items.push(...hydratedChildren.filter((post) => post?.id && post.user?.id));
+      }
       const anchor = hasMore ? slicedPosts[slicedPosts.length - 1] : undefined;
       const nextCursor = anchor
         ? sort === 'best'

@@ -15,3 +15,7 @@ export const POST_ITEM_SPACING = {
   /** Horizontal padding + avatar + gap: where the body column starts (64). */
   AVATAR_OFFSET: HPAD + AVATAR_SIZE + AVATAR_GAP,
 } as const;
+
+/** The rendered PostHeader avatar and indentation of a reply branch. */
+export const POST_AVATAR_SIZE = 36;
+export const REPLY_BRANCH_INDENT = 32;

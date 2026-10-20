@@ -64,6 +64,7 @@ import { parseEmbedPlayerFromUrl, canEmbed, type EmbedPlayerParams } from '@/uti
 import { extractUrls } from '@/utils/extractUrls';
 import { ownProfileLinkHandle } from '@/utils/ownProfileLinks';
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
+import type { NestedPostRenderer } from './Attachments/PostAttachmentNested';
 
 // Runtime media reference. The server now resolves final URLs (`url`, `thumbUrl`,
 // `posterUrl`, `fullUrl`); `id` remains for the legacy fallback path (old cached
@@ -89,6 +90,8 @@ interface Props {
   media?: MediaObj[];
   attachments?: PostAttachmentDescriptor[];
   nestedPost?: HydratedPostSummary | null;
+  /** Supplied by the post owner so quotes render without a circular lazy import. */
+  renderNestedPost?: NestedPostRenderer;
   leftOffset?: number;
   pollId?: string;
   pollData?: PollData | null;
@@ -235,6 +238,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
     media,
     attachments,
     nestedPost,
+    renderNestedPost,
     leftOffset = 0,
     pollId,
     pollData,
@@ -1127,9 +1131,13 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
             {items.map(renderItem)}
           </ScrollView>
         )}
-        {showNested && nestedPost && (
+        {showNested && nestedPost && renderNestedPost && (
           <View className={items.length > 0 ? 'pr-3 mt-2' : 'pr-3'} style={gutterStyle}>
-            <PostAttachmentNested nestedPost={nestedPost} nestingDepth={nestingDepth} />
+            <PostAttachmentNested
+              nestedPost={nestedPost}
+              nestingDepth={nestingDepth}
+              renderPost={renderNestedPost}
+            />
           </View>
         )}
         {/* Mounted on the first tap, not with the row: the viewer is ~100 hook
@@ -1151,6 +1159,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
       prevProps.media === nextProps.media &&
       prevProps.attachments === nextProps.attachments &&
       prevProps.nestedPost === nextProps.nestedPost &&
+      prevProps.renderNestedPost === nextProps.renderNestedPost &&
       prevProps.leftOffset === nextProps.leftOffset &&
       prevProps.pollId === nextProps.pollId &&
       prevProps.pollData === nextProps.pollData &&

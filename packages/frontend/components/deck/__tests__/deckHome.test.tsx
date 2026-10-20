@@ -52,15 +52,23 @@ beforeEach(() => {
   mockAvailable = true;
   mockPathname = '/';
   mockAuth = { user: { id: 'a' }, isAuthResolved: true };
-  useDeckSettings.setState({ records: {} });
+  useDeckSettings.setState({ records: {}, layoutModes: {} });
   useDeckSettings.getState().activate('user:a');
+  useDeckSettings.getState().setDeckEnabled(false);
 });
 it('defaults legacy/new accounts to the normal home and opts into Deck immediately', () => {
   const screen = home();
   expect(screen.getByText('Route content')).toBeTruthy();
   screen.unmount();
   useDeckSettings.getState().setHomeScreen(true);
-  expect(home().getByText('Redirect /deck')).toBeTruthy();
+  expect(home().getByText('Route content')).toBeTruthy();
+  expect(useDeckSettings.getState().deckEnabled).toBe(true);
+});
+it('opens the same main page even when additional columns were customized', () => {
+  useDeckSettings.getState().updatePanel('deck-0', { source: 'saved' });
+  useDeckSettings.getState().setHomeScreen(true);
+  expect(home().getByText('Route content')).toBeTruthy();
+  expect(useDeckSettings.getState().deckEnabled).toBe(true);
 });
 it.each(['/deck', '/t/Bloom', '/settings/deck', '/p/one'])('preserves deep link %s', (path) => {
   useDeckSettings.getState().setHomeScreen(true);
@@ -90,7 +98,7 @@ it('restores account choices independently, including disabling the preference',
   useDeckSettings.getState().setHomeScreen(false);
   expect(home().getByText('Route content')).toBeTruthy();
 });
-it('keeps the Expo navigator mounted while the preference redirects Home', () => {
+it('keeps the Expo navigator mounted while the preference opens Deck', () => {
   const mounted = jest.fn();
   const unmounted = jest.fn();
   function Navigator() {

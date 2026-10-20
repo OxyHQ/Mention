@@ -36,11 +36,11 @@ import PostActions from '../Post/PostActions';
 import PostDetailStats from '../Post/PostDetailStats';
 import PostLocation from '../Post/PostLocation';
 import PostAttachmentsRow from '../Post/PostAttachmentsRow';
+import type { NestedPostRenderer } from '../Post/Attachments/PostAttachmentNested';
 import { RiCornerDownRightLine } from '@oxy.so/bloom/icons/RiCornerDownRightLine';
 import { RiLinkM } from '@oxy.so/bloom/icons/RiLinkM';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { formatCompactNumber } from '@/utils/formatNumber';
 import { usePostInteractions } from './postInteractions';
 import { showRepostMenu } from './showRepostMenu';
 import { PinIcon } from '@/assets/icons/pin-icon';
@@ -53,7 +53,7 @@ import {
   THREAD_LINE_BORDER_RADIUS,
   THREAD_LINE_Z_INDEX,
 } from '@/components/Compose/composeLayout';
-import { POST_ITEM_SPACING } from '@/styles/shared';
+import { POST_ITEM_SPACING, POST_AVATAR_SIZE, REPLY_BRANCH_INDENT } from '@/styles/shared';
 import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
 import { useThreadHoverStore } from '@/stores/threadHoverStore';
 import { mergeKnownIdentity, useKnownIdentitySet } from '@/stores/identityUpdates';
@@ -89,6 +89,8 @@ interface PostItemProps {
   isThreadParent?: boolean;
   isThreadChild?: boolean;
   isThreadLastChild?: boolean;
+  /** Incoming elbow from the parent of a nested reply. */
+  replyBranch?: boolean;
   /**
    * When something is rendered flush below this post (e.g. a "Show this thread"
    * link), drop the container's bottom border + padding so the post connects to
@@ -107,13 +109,15 @@ interface PostItemProps {
    */
   repostedBy?: PostUser;
   /**
-   * Render the FOCUSED post-detail variant: full-width body, the larger spread-out
-   * action bar (with the full absolute timestamp + engagement-stats rows), and a
+   * Render the FOCUSED post-detail variant: full-width body, the usual action bar,
+   * the full absolute timestamp + engagement-stats rows, and a
    * non-tappable container. Passed ONLY by the post-detail screen for the focused
    * post — NOT by the replies list (replies stay in the compact feed variant). The
    * same `PostItem` renders feed AND detail; only this flag changes.
    */
   isPostDetail?: boolean;
+  /** Position in the complete, loaded author thread; never the replies list. */
+  threadPosition?: { index: number; total: number };
   /**
    * When this item is rendered inside a feed, the feed's descriptor. Opening
    * the post detail from the feed reports a `click` interaction attributed to
@@ -149,9 +153,11 @@ const PostItem: React.FC<PostItemProps> = ({
   isThreadParent = false,
   isThreadChild = false,
   isThreadLastChild = false,
+  replyBranch = false,
   attachedBelow = false,
   repostedBy,
   isPostDetail: isPostDetailProp = false,
+  threadPosition,
   feedDescriptor,
   sliceKey,
   threadRootId,
@@ -452,7 +458,9 @@ const PostItem: React.FC<PostItemProps> = ({
   // (e.g. a like in the Videos feed = interest in the video, not the author).
   // Undefined outside a feed (post detail / nested) → normal, unattributed write.
   const handleLike = useCallback(() => {
-    if (viewPost) void interactions.toggleLike(viewPost, feedDescriptor);
+    if (!viewPost || !interactions.requireSession()) return false;
+    void interactions.toggleLike(viewPost, feedDescriptor);
+    return true;
   }, [interactions, viewPost, feedDescriptor]);
   const handleDownvote = useCallback(() => {
     if (viewPost) void interactions.toggleDownvote(viewPost);
@@ -462,6 +470,7 @@ const PostItem: React.FC<PostItemProps> = ({
   }, [interactions, viewPost, feedDescriptor]);
   const handleBoost = useCallback(() => {
     if (!viewPost || !viewPostId) return;
+    if (!interactions.requireSession()) return;
     showRepostMenu({
       isBoosted,
       quotesDisabled: Boolean(metadata.quotesDisabled),
@@ -469,7 +478,10 @@ const PostItem: React.FC<PostItemProps> = ({
       onRepost: () => {
         void interactions.toggleBoost(viewPost, feedDescriptor);
       },
-      onQuote: () => router.push(`/compose?quotePostId=${encodeURIComponent(viewPostId)}`),
+      onQuote: () => {
+        if (interactions.requireSession())
+          router.push(`/compose?quotePostId=${encodeURIComponent(viewPostId)}`);
+      },
     });
   }, [
     interactions,
@@ -486,6 +498,7 @@ const PostItem: React.FC<PostItemProps> = ({
   }, [interactions, viewPost]);
 
   const handleReply = useCallback(() => {
+    if (!interactions.requireSession()) return;
     if (onReply) {
       onReply();
       return;
@@ -493,7 +506,7 @@ const PostItem: React.FC<PostItemProps> = ({
     if (viewPostId) {
       router.push(`/compose?replyToPostId=${viewPostId}`);
     }
-  }, [onReply, router, viewPostId]);
+  }, [interactions, onReply, router, viewPostId]);
 
   // Reading this post in another language. The server already resolved ONE body
   // for this viewer, so everything here is the reader deliberately overruling
@@ -688,7 +701,6 @@ const PostItem: React.FC<PostItemProps> = ({
       // detail read fills it in.
       quotes: engagementSummary?.quotes,
       views: engagementSummary?.views ?? null,
-      recentReplierAvatars: engagementSummary?.recentReplierAvatars,
     }),
     [
       engagementSummary?.replies,
@@ -698,7 +710,6 @@ const PostItem: React.FC<PostItemProps> = ({
       engagementSummary?.saves,
       engagementSummary?.quotes,
       engagementSummary?.views,
-      engagementSummary?.recentReplierAvatars,
     ],
   );
 
@@ -708,12 +719,10 @@ const PostItem: React.FC<PostItemProps> = ({
 
   // Canonical post-item layout tokens (single source of truth: POST_ITEM_SPACING in styles/shared.ts).
   // HPAD/VPAD/SECTION_GAP = 12, AVATAR_SIZE = 40, AVATAR_GAP = 12, AVATAR_OFFSET = 64.
-  const { HPAD, VPAD, SECTION_GAP, AVATAR_SIZE, AVATAR_OFFSET } = POST_ITEM_SPACING;
+  const { HPAD, VPAD, SECTION_GAP, AVATAR_OFFSET } = POST_ITEM_SPACING;
+  const contentLeftOffset = isNested || isDetailMain ? HPAD : AVATAR_OFFSET;
 
-  // The detail variant is layout-identical to the feed: the body stays indented
-  // under the avatar column (AVATAR_OFFSET), aligned with the name. ONLY the
-  // bottom action bar and the extra detail rows (timestamp + engagement stats)
-  // differ — never the avatar/name/handle/time/content position.
+  // Focused content and actions share the full-width inset.
   const fullTimestamp = isDetailMain ? formatFullTimestamp(metadata.createdAt ?? '') : '';
 
   // Keep text posts on the normal section rhythm, but let no-text posts hug
@@ -774,7 +783,7 @@ const PostItem: React.FC<PostItemProps> = ({
     ) : null;
 
   // Thread line positioning: center on avatar, use shared style constants from composeLayout
-  const THREAD_LINE_LEFT = HPAD + AVATAR_SIZE / 2 - 1;
+  const THREAD_LINE_LEFT = HPAD + POST_AVATAR_SIZE / 2 - THREAD_LINE_WIDTH / 2;
   const THREAD_LINE_W = THREAD_LINE_WIDTH;
 
   // Bluesky-style context rows (Reposted by / Pinned / Replying to), rendered as
@@ -883,6 +892,52 @@ const PostItem: React.FC<PostItemProps> = ({
   // line tracks the offset avatar instead of leaving a gap above it.
   const headerTopOffset = contextRows.length * (POST_CONTEXT_ROW_HEIGHT + HEADER_CONTENT_GAP);
 
+  const hasPostBody = Boolean(
+    spoilerText ||
+      (!isContentGated && (content.text || threadPosition || (corrections && viewPostId))),
+  );
+  const postBody = (
+    <>
+      {spoilerText ? (
+        <ContentWarning
+          text={spoilerText}
+          revealed={isContentWarningOpen}
+          onToggle={toggleContentWarning}
+        />
+      ) : null}
+      {(content.text || threadPosition) && !isContentGated ? (
+        <PostContentText
+          content={content}
+          postId={viewPostId}
+          detail={isDetailMain}
+          previewChars={isDetailMain ? Infinity : undefined}
+          overrideText={languageDisplayText}
+          linkPreviewUrls={linkPreviewUrls}
+          trailingContent={
+            threadPosition && !isNested ? (
+              <>
+                {'\u00A0'}
+                <Text
+                  className="bg-surface text-muted-foreground rounded-full text-[11px]"
+                  accessibilityLabel={t('post.threadPosition', {
+                    defaultValue: 'Post {{index}} of {{total}} in thread',
+                    index: threadPosition.index,
+                    total: threadPosition.total,
+                  })}
+                >
+                  {` ${threadPosition.index}/${threadPosition.total} `}
+                </Text>
+              </>
+            ) : undefined
+          }
+        />
+      ) : null}
+      {corrections && viewPostId && !isContentGated ? (
+        <PostCorrectionNotice postId={viewPostId} count={corrections.count} />
+      ) : null}
+    </>
+  );
+
   return (
     <>
       <Pressable
@@ -931,7 +986,7 @@ const PostItem: React.FC<PostItemProps> = ({
               top: 0,
               left: THREAD_LINE_LEFT,
               width: THREAD_LINE_W,
-              height: headerTopOffset,
+              height: headerTopOffset + 4,
               backgroundColor: theme.colors.border,
               borderRadius: THREAD_LINE_BORDER_RADIUS,
               zIndex: THREAD_LINE_Z_INDEX,
@@ -940,17 +995,33 @@ const PostItem: React.FC<PostItemProps> = ({
         )}
         {/* Thread line below avatar — connects to next post's top. Shifted
                     down by headerTopOffset so it starts at the offset avatar's bottom. */}
-        {isThreadParent && !isNested && (
+        {isThreadParent && !isNested && !isDetailMain && (
           <View
             style={{
               position: 'absolute',
-              top: (isThreadChild ? 4 : VPAD) + AVATAR_SIZE + headerTopOffset,
+              top: (isThreadChild ? 4 : VPAD) + POST_AVATAR_SIZE + 4 + headerTopOffset,
               left: THREAD_LINE_LEFT,
               width: THREAD_LINE_W,
               bottom: 0,
               backgroundColor: theme.colors.border,
               borderRadius: THREAD_LINE_BORDER_RADIUS,
               zIndex: THREAD_LINE_Z_INDEX,
+            }}
+          />
+        )}
+        {replyBranch && !isNested && (
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              left: THREAD_LINE_LEFT - REPLY_BRANCH_INDENT,
+              top: 0,
+              width: REPLY_BRANCH_INDENT - POST_AVATAR_SIZE / 2 - 3,
+              height: VPAD + headerTopOffset + POST_AVATAR_SIZE / 2,
+              borderLeftWidth: THREAD_LINE_W,
+              borderBottomWidth: THREAD_LINE_W,
+              borderBottomLeftRadius: 8,
+              borderColor: theme.colors.border,
             }}
           />
         )}
@@ -978,6 +1049,9 @@ const PostItem: React.FC<PostItemProps> = ({
             showReply={false}
             laneSlot={laneSlot}
             contextTop={contextRows.length > 0 ? contextRows : undefined}
+            detail={isDetailMain}
+            compact={isNested}
+            avatarSize={isNested ? 20 : undefined}
             avatarSource={avatarSource}
             avatarVariant={avatarVariant}
             authorUserId={author.id || undefined}
@@ -992,37 +1066,22 @@ const PostItem: React.FC<PostItemProps> = ({
             onPressMenu={openMenu}
             paddingHorizontal={HPAD}
           >
-            {spoilerText ? (
-              <ContentWarning
-                text={spoilerText}
-                revealed={isContentWarningOpen}
-                onToggle={toggleContentWarning}
-              />
-            ) : null}
-            {content.text && !isContentGated ? (
-              <PostContentText
-                content={content}
-                postId={viewPostId}
-                previewChars={isDetailMain ? Infinity : undefined}
-                overrideText={languageDisplayText}
-                linkPreviewUrls={linkPreviewUrls}
-              />
-            ) : null}
-            {corrections && viewPostId && !isContentGated ? (
-              <PostCorrectionNotice postId={viewPostId} count={corrections.count} />
-            ) : null}
+            {isDetailMain ? null : postBody}
           </PostHeader>
+          {isDetailMain && hasPostBody && (
+            <View style={{ paddingHorizontal: HPAD, gap: HEADER_CONTENT_GAP }}>{postBody}</View>
+          )}
 
           {hasBelowHeaderBlocks && !isContentGated && (
             <View style={{ gap: SECTION_GAP }}>
               {hasValidLocation && location && (
-                <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
+                <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
                   <PostLocation location={location} paddingHorizontal={0} />
                 </View>
               )}
 
               {hasSources && (
-                <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
+                <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
                   <TouchableOpacity
                     className="border-border bg-surface flex-row items-center gap-1.5 self-start rounded-xl border"
                     style={{ paddingHorizontal: 10, paddingVertical: 4 }}
@@ -1039,7 +1098,7 @@ const PostItem: React.FC<PostItemProps> = ({
               )}
 
               {boostUnavailable && !isContentGated && (
-                <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
+                <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
                   <View className="border-border rounded-2xl border px-3 py-3">
                     <Text className="text-muted-foreground text-[14px]">
                       {t('post.boostUnavailable', {
@@ -1056,7 +1115,8 @@ const PostItem: React.FC<PostItemProps> = ({
                   media={mediaItems}
                   attachments={attachmentDescriptors}
                   nestedPost={nestedPost ?? null}
-                  leftOffset={AVATAR_OFFSET}
+                  renderNestedPost={renderNestedPost}
+                  leftOffset={contentLeftOffset}
                   pollData={pollData}
                   pollId={pollId ? String(pollId) : undefined}
                   nestingDepth={nestingDepth}
@@ -1083,13 +1143,13 @@ const PostItem: React.FC<PostItemProps> = ({
               {communityNote?.status === 'shown' && !isNested && !isContentGated && (
                 // Below everything the author posted, above the actions: the
                 // note is context ABOUT the post, never part of it.
-                <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
+                <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
                   <CommunityNoteCard note={communityNote} onPressAbout={openCommunityNoteAbout} />
                 </View>
               )}
 
               {!isNested && (
-                <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
+                <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
                   <PostActions
                     engagement={actionsEngagement}
                     isLiked={isLiked}
@@ -1111,23 +1171,11 @@ const PostItem: React.FC<PostItemProps> = ({
                     isTranslated={isTranslated}
                     isTranslating={isTranslating}
                     onInsightsPress={isOwner ? handleInsightsPress : undefined}
-                    repliesSummary={
-                      actionsEngagement.replies > 0
-                        ? t('post.summary.replies', {
-                            count: actionsEngagement.replies,
-                            formattedCount: formatCompactNumber(actionsEngagement.replies),
-                          })
-                        : undefined
-                    }
                   />
                 </View>
               )}
 
-              {/* Everything above is the plain feed rendering of a post. A
-                    FOCUSED post adds this block below the action bar — the
-                    absolute timestamp and the engagement counts — and nothing
-                    else. It sits outside the avatar-indented column above so its
-                    rule spans the full row (see PostDetailStats). */}
+              {/* Detail metadata stays below the unchanged action bar. */}
               {isDetailMain && (
                 <PostDetailStats
                   timestampLabel={fullTimestamp}
@@ -1170,8 +1218,8 @@ const styles = StyleSheet.create({
   nestedPostContainer: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 16,
-    // Vertical inset only, laid out exactly like a feed row: the header and
-    // every block carry their own HPAD / AVATAR_OFFSET, and the attachments
+    // Vertical inset only: the header and body blocks carry their own HPAD,
+    // with the compact avatar inline beside the name. The attachments
     // carousel runs to both edges of the card, which clips it at its border.
     // A horizontal padding here shifted the row off the text column and
     // stopped the carousel short of both sides.
@@ -1196,8 +1244,11 @@ const rowPlacementEqual = (prevProps: PostItemProps, nextProps: PostItemProps): 
   prevProps.isThreadParent === nextProps.isThreadParent &&
   prevProps.isThreadChild === nextProps.isThreadChild &&
   prevProps.isThreadLastChild === nextProps.isThreadLastChild &&
+  prevProps.replyBranch === nextProps.replyBranch &&
   prevProps.attachedBelow === nextProps.attachedBelow &&
   prevProps.isPostDetail === nextProps.isPostDetail &&
+  prevProps.threadPosition?.index === nextProps.threadPosition?.index &&
+  prevProps.threadPosition?.total === nextProps.threadPosition?.total &&
   prevProps.feedDescriptor === nextProps.feedDescriptor &&
   prevProps.sliceKey === nextProps.sliceKey &&
   prevProps.threadRootId === nextProps.threadRootId &&
@@ -1206,7 +1257,7 @@ const rowPlacementEqual = (prevProps: PostItemProps, nextProps: PostItemProps): 
   // compare the booster so a recycled row never shows a stale "Reposted by".
   prevProps.repostedBy?.id === nextProps.repostedBy?.id;
 
-export default React.memo(PostItem, (prevProps, nextProps) => {
+const MemoPostItem = React.memo(PostItem, (prevProps, nextProps) => {
   if (!rowPlacementEqual(prevProps, nextProps)) return false;
   // Fast path: same post reference.
   if (prevProps.post === nextProps.post) return true;
@@ -1245,3 +1296,11 @@ export default React.memo(PostItem, (prevProps, nextProps) => {
     prev?.lane?.id === next?.lane?.id
   );
 });
+
+// Quotes already have their data and use the same loaded post component. Keep
+// this renderer stable: no deferred empty card, import cycle or per-row hook.
+const renderNestedPost: NestedPostRenderer = (post, nestingDepth) => (
+  <MemoPostItem post={post} isNested nestingDepth={nestingDepth} />
+);
+
+export default MemoPostItem;

@@ -31,6 +31,8 @@ export interface FeedFilters extends SharedFeedFilters {
   laneId?: string;
   /** Reply ordering, as the replies feed sends it to the API. */
   sort?: string;
+  /** Include a bounded preview of children in the replies endpoint. */
+  includeNestedReplies?: boolean;
   [key: string]: string | boolean | undefined;
 }
 

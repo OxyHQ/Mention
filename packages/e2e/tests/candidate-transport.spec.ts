@@ -55,6 +55,15 @@ async function listenOnLoopback(server: http.Server): Promise<string> {
   return `http://127.0.0.1:${address.port}`;
 }
 
+async function closeServer(server: http.Server): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+    // The browser can retain speculative connections after interception ends.
+    // Stop accepting first, then close the fixture's connections as well.
+    server.closeAllConnections();
+  });
+}
+
 test('a reset connection is retried and the page still gets its bytes', async ({
   context,
   page,
@@ -91,7 +100,7 @@ test('a reset connection is retried and the page still gets its bytes', async ({
   expect(requestCount(), 'each retry must open a new request').toBe(3);
 
   await context.unrouteAll({ behavior: 'ignoreErrors' });
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await closeServer(server);
 });
 
 test('a reset that outlives the budget still fails the gate', async ({ context, page }) => {
@@ -128,7 +137,7 @@ test('a reset that outlives the budget still fails the gate', async ({ context, 
   expect(surfaced).toContain('ECONNRESET');
 
   await context.unrouteAll({ behavior: 'ignoreErrors' });
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await closeServer(server);
 });
 
 test('the predicate admits transport faults and refuses everything else', () => {

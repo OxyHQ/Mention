@@ -1,38 +1,24 @@
 import type React from 'react';
-import { lazy, Suspense } from 'react';
 import { View, StyleSheet } from 'react-native';
 import type { HydratedPostSummary } from '@mention/shared-types';
 
-// PostItem's `post` prop. Typed structurally here because the concrete
-// `PostEntity` alias is local to PostItem.
-type NestedPostItemProps = {
-  post: HydratedPostSummary;
-  isNested?: boolean;
-  nestingDepth?: number;
-};
-
-// Lazy loading breaks PostItem -> PostAttachmentsRow -> PostItem without a
-// CommonJS runtime require.
-const PostItem = lazy(() => import('../../Feed/PostItem')) as React.LazyExoticComponent<
-  React.ComponentType<NestedPostItemProps>
->;
+export type NestedPostRenderer = (
+  post: HydratedPostSummary,
+  nestingDepth: number,
+) => React.ReactNode;
 
 interface PostAttachmentNestedProps {
   nestedPost: HydratedPostSummary;
   nestingDepth: number;
+  renderPost: NestedPostRenderer;
 }
 
 const PostAttachmentNested: React.FC<PostAttachmentNestedProps> = ({
   nestedPost,
   nestingDepth,
+  renderPost,
 }) => {
-  return (
-    <View style={styles.nestedContainer}>
-      <Suspense fallback={null}>
-        <PostItem post={nestedPost} isNested={true} nestingDepth={nestingDepth + 1} />
-      </Suspense>
-    </View>
-  );
+  return <View style={styles.nestedContainer}>{renderPost(nestedPost, nestingDepth + 1)}</View>;
 };
 
 const styles = StyleSheet.create({

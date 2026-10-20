@@ -4,7 +4,7 @@ import { InlineMarkdown } from '@oxy.so/bloom/markdown';
 import { truncateInlineMarkdown } from '@oxy.so/bloom/markdown/inline';
 import { parsePostInlineMarkdown, postMentionForLink } from '@/utils/postInlineMarkdown';
 import { openExternalLink } from '@/utils/openExternalLink';
-import { StyleSheet, Text } from 'react-native';
+import { Text } from 'react-native';
 import { LinkifiedText, MentionTextLink } from '../common/LinkifiedText';
 import { useRouter } from '@/lib/navigation/router';
 import type { PostContent } from '@mention/shared-types';
@@ -16,6 +16,10 @@ interface Props {
   content?: string | PostContent;
   postId?: string;
   previewChars?: number;
+  /** Larger reading text for the focused post. */
+  detail?: boolean;
+  /** Small inline context after the body, such as a position in an author thread. */
+  trailingContent?: React.ReactNode;
   /**
    * A body the READER chose over the one the server resolved — another author
    * rendition of this post, or a machine translation of it. `null` (the norm)
@@ -40,6 +44,8 @@ const PostContentText: React.FC<Props> = ({
   content,
   postId,
   previewChars,
+  detail = false,
+  trailingContent,
   overrideText,
   linkPreviewUrls,
 }) => {
@@ -69,7 +75,7 @@ const PostContentText: React.FC<Props> = ({
   const { isExpanded, toggle } = useTextExpansion(textContent, postReadMoreAction);
   const isTruncated = preview.isTruncated;
 
-  if (!textContent) return null;
+  if (!textContent && !trailingContent) return null;
 
   const suffix =
     isTruncated && postId ? (
@@ -85,7 +91,13 @@ const PostContentText: React.FC<Props> = ({
     ) : null;
 
   return (
-    <Text style={styles.postText} className="text-foreground">
+    <Text
+      className={
+        detail
+          ? 'text-foreground text-[17px] leading-[22px]'
+          : 'text-foreground text-[15px] leading-5'
+      }
+    >
       <InlineMarkdown
         nodes={isExpanded ? parsed.nodes : preview.nodes}
         onLinkPress={openExternalLink}
@@ -100,7 +112,12 @@ const PostContentText: React.FC<Props> = ({
             />
           ) : undefined;
         }}
-        suffix={suffix}
+        suffix={
+          <>
+            {suffix}
+            {trailingContent}
+          </>
+        }
       />
     </Text>
   );
@@ -112,10 +129,3 @@ function ShowLessLabel() {
 }
 
 export default PostContentText;
-
-const styles = StyleSheet.create({
-  postText: {
-    fontSize: 15,
-    lineHeight: 20,
-  },
-});

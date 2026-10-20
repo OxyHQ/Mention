@@ -1,5 +1,5 @@
 import { memo, useMemo } from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { RiArrowDownLine } from '@oxy.so/bloom/icons/RiArrowDownLine';
 import { RiArrowUpLine } from '@oxy.so/bloom/icons/RiArrowUpLine';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
@@ -143,8 +143,8 @@ export const TrendItemRow = memo(function TrendItemRow({
 
   return (
     <TouchableOpacity
-      className={`flex-row items-center justify-between ${isLarge ? 'py-3' : 'py-1.5'} ${showBorder ? 'border-border' : ''}`}
-      style={[styles.webCursor, showBorder && styles.itemBorder]}
+      className={`web:cursor-pointer flex-row items-center justify-between ${isLarge ? 'py-3' : 'py-1.5'} ${showBorder ? 'border-border' : ''}`}
+      style={showBorder && styles.itemBorder}
       onPress={() => onPress(trend)}
       activeOpacity={0.7}
     >
@@ -240,8 +240,7 @@ export const TrendItemRow = memo(function TrendItemRow({
       </View>
       {onMenuPress ? (
         <TouchableOpacity
-          className="p-1"
-          style={styles.webCursor}
+          className="p-1 web:cursor-pointer"
           onPress={() => onMenuPress(trend)}
           hitSlop={HIT_SLOP_LG}
           accessibilityLabel="More options"
@@ -282,7 +281,6 @@ export function TrendItemRowSkeleton({ showBorder = false }: { showBorder?: bool
 }
 
 const styles = StyleSheet.create({
-  webCursor: Platform.select({ web: { cursor: 'pointer' }, default: {} }),
   itemBorder: { borderBottomWidth: 0.5 },
   // Tabular figures keep the numerals in a column: without them "10" is wider
   // than "1" and every row below the tenth shifts sideways.

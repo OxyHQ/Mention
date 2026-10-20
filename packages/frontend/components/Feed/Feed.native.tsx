@@ -2,7 +2,6 @@ import { useScreenViewport } from '@oxy.so/bloom/screen';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState, memo, forwardRef } from 'react';
 import {
-  StyleSheet,
   View,
   RefreshControl,
   Platform,
@@ -602,26 +601,17 @@ const Feed = (props: FeedProps) => {
   // never reflows the list; caller-supplied `contentContainerStyle` is applied
   // last so an explicit override still wins.
   const listContentStyle = useMemo(
-    () =>
-      StyleSheet.flatten([
-        feedRowStyles.listContent,
-        topInset > 0 ? { paddingTop: topInset } : null,
-        contentContainerStyle,
-      ]),
+    () => [
+      feedRowStyles.listContent,
+      topInset > 0 ? { paddingTop: topInset } : null,
+      contentContainerStyle,
+    ],
     [contentContainerStyle, topInset],
   );
 
-  // Memoize list style - when scroll is disabled (embedded in a parent ScrollView),
-  // avoid flex: 1 which collapses to zero height in a non-flex scroll content container.
-  // FlashList v2 types `style` as a single ViewStyle (not StyleProp), so flatten here.
-  const listStyle = useMemo<ViewStyle>(
-    () =>
-      // RN 0.88 types `flatten` as possibly empty; an array always flattens
-      // to an object, so the fallback never applies.
-      StyleSheet.flatten([
-        scrollEnabled === false ? feedRowStyles.listEmbedded : feedRowStyles.list,
-        style,
-      ]) ?? {},
+  // FlashList accepts style arrays; preserve the caller's style directly.
+  const listStyle = useMemo(
+    () => [scrollEnabled === false ? feedRowStyles.listEmbedded : feedRowStyles.list, style],
     [style, scrollEnabled],
   );
 

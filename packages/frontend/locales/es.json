@@ -1,4 +1,7 @@
 {
+  "post.threadPosition": "Publicación {{index}} de {{total}} del hilo",
+  "post.viewConversation": "Ver conversación",
+  "post.threadContinuation": "Continuación del hilo ({{count}})",
   "post.repostOptions": "Opciones de repost",
   "post.repost": "Repostear",
   "post.undoRepost": "Deshacer repost",
@@ -2029,6 +2032,8 @@
   "post.viewArticle": "Ver artículo",
   "post.viewSources": "Ver fuentes",
   "postActions.title": "Opciones de la publicación",
+  "postActions.signInRequired": "Inicia sesión para interactuar con las publicaciones.",
+  "postActions.sessionLoading": "Tu sesión se está cargando. Inténtalo de nuevo en un momento.",
   "profile.bio.readMore": "Leer más",
   "profile.block": "Bloquear",
   "profile.blockConfirm": "No podrá encontrar tu perfil, tus publicaciones ni tus menciones, y no recibirá ningún aviso de que le has bloqueado.",
@@ -2746,6 +2751,10 @@
     "pendingAssessment": "Este contenido no está disponible hasta que termine su revisión de seguridad."
   },
   "deck": {
+    "mode": {
+      "standard": "Normal",
+      "label": "Modo Deck"
+    },
     "resizable": "Permitir redimensionar",
     "appearance": "Apariencia",
     "solid": "Superficie",

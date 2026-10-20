@@ -66,6 +66,10 @@ const emptyCache = (): DeckCache => ({
 });
 export type DeckSyncStatus = 'local' | 'loading' | 'saving' | 'saved' | 'error';
 interface DeckSettingsState extends DeckSnapshot {
+  /** Device-local mode, kept per account and independent of synchronized columns. */
+  deckEnabled: boolean;
+  layoutModes: Record<string, boolean>;
+  setDeckEnabled(open: boolean): void;
   viewer: string;
   records: Record<string, DeckCache>;
   status: DeckSyncStatus;
@@ -79,6 +83,7 @@ interface DeckSettingsState extends DeckSnapshot {
   setSyncEnabled(enabled: boolean): void;
   setHomeScreen(enabled: boolean): void;
   removePanel(id: string): void;
+  reorderPanels(order: readonly string[]): void;
   addPanel(source: DeckSource): string;
   updatePanel(
     id: string,
@@ -115,6 +120,13 @@ export const useDeckSettings = create<DeckSettingsState>()(
         records: {},
         status: 'local',
         restorationEpoch: 0,
+        deckEnabled: false,
+        layoutModes: {},
+        setDeckEnabled: (deckEnabled) =>
+          set((state) => ({
+            deckEnabled,
+            layoutModes: { ...state.layoutModes, [state.viewer]: deckEnabled },
+          })),
         restoreScope: () => set((state) => ({ restorationEpoch: state.restorationEpoch + 1 })),
         activate: (viewer) =>
           set((store) => {
@@ -126,6 +138,7 @@ export const useDeckSettings = create<DeckSettingsState>()(
               ...cache.state,
               homeScreen: cache.state.homeScreen,
               viewer,
+              deckEnabled: store.layoutModes[viewer] ?? false,
               revealPanel: undefined,
               status: viewer === 'anonymous' ? 'local' : 'loading',
               records: { ...store.records, [viewer]: cache },
@@ -143,8 +156,27 @@ export const useDeckSettings = create<DeckSettingsState>()(
           ),
         setStatus: (viewer, status) =>
           set((store) => (store.viewer === viewer ? { status } : store)),
-        setHomeScreen: (homeScreen) => edit((state) => ({ ...state, homeScreen })),
+        setHomeScreen: (homeScreen) => {
+          edit((state) => ({ ...state, homeScreen }));
+          if (!homeScreen)
+            set((state) => ({
+              deckEnabled: false,
+              layoutModes: { ...state.layoutModes, [state.viewer]: false },
+            }));
+        },
         setSyncEnabled: (syncEnabled) => edit((state) => ({ ...state, syncEnabled })),
+        reorderPanels: (requestedOrder) =>
+          edit((state) => {
+            // Bloom can include fixed application panels in its order. Only
+            // reorder saved columns, retaining omitted/hidden slots in place.
+            const ordered = [...new Set(requestedOrder)].filter((id) => state.order.includes(id));
+            const moved = new Set(ordered);
+            let index = 0;
+            return {
+              ...state,
+              order: state.order.map((id) => (moved.has(id) ? ordered[index++] : id)),
+            };
+          }),
         removePanel: (id) =>
           edit((state) => {
             if (Object.keys(state.panels).length <= 1) return state;
@@ -237,9 +269,14 @@ export const useDeckSettings = create<DeckSettingsState>()(
             dirty: cache.dirty === true,
           };
         }
-        return { ...current, records };
+        const layoutModes = Object.fromEntries(
+          Object.entries(
+            (persisted as { layoutModes?: Record<string, unknown> })?.layoutModes ?? {},
+          ).filter((entry): entry is [string, boolean] => typeof entry[1] === 'boolean'),
+        );
+        return { ...current, records, layoutModes };
       },
-      partialize: (state) => ({ records: state.records }),
+      partialize: (state) => ({ records: state.records, layoutModes: state.layoutModes }),
     },
   ),
 );

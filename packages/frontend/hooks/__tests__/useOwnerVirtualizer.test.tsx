@@ -2,15 +2,27 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { useOwnerVirtualizer } from '../useOwnerVirtualizer.web';
 
 let mockOwner: { current: HTMLElement | null } | null = null;
+let mockPanelActive = true;
+let mockViewportActive = true;
 const mockWindowVirtualizer = jest.fn();
 const mockElementVirtualizer = jest.fn();
 jest.mock('@oxy.so/bloom/app-shell/hooks', () => ({
   usePanelScrollContainer: () => mockOwner,
+  useAppShellPanel: () => ({ active: mockPanelActive }),
+}));
+jest.mock('@oxy.so/bloom/screen', () => ({
+  useScreenViewport: () => ({ active: mockViewportActive }),
 }));
 jest.mock('@tanstack/react-virtual', () => ({
   useWindowVirtualizer: (options: unknown) => mockWindowVirtualizer(options),
   useVirtualizer: (options: unknown) => mockElementVirtualizer(options),
 }));
+
+beforeEach(() => {
+  mockOwner = null;
+  mockPanelActive = true;
+  mockViewportActive = true;
+});
 
 it('hands virtualization to the panel owner and back to the document when the screen moves', () => {
   const documentList = { owner: 'document' };
@@ -60,3 +72,26 @@ it('hands virtualization to the panel owner and back to the document when the sc
     tree.unmount();
   });
 });
+
+it.each(['panel', 'viewport'])(
+  'keeps a retained inactive %s from taking over document scroll',
+  (inactive) => {
+    function Harness() {
+      useOwnerVirtualizer({ count: 50, estimateSize: () => 200 });
+      return null;
+    }
+    mockOwner = { current: {} as HTMLElement };
+    let tree!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tree = TestRenderer.create(<Harness />);
+    });
+    expect(mockElementVirtualizer.mock.lastCall?.[0].enabled).toBe(true);
+    mockPanelActive = inactive !== 'panel';
+    mockViewportActive = inactive !== 'viewport';
+    mockOwner = null;
+    act(() => tree.update(<Harness />));
+    expect(mockWindowVirtualizer.mock.lastCall?.[0].enabled).toBe(false);
+    expect(mockElementVirtualizer.mock.lastCall?.[0].enabled).toBe(false);
+    act(() => tree.unmount());
+  },
+);

@@ -80,6 +80,11 @@ still succeeds, because a branch with no baseline on record is a normal state
 and only the absolute ceilings decide pass or fail. CI restores that baseline
 from an Actions cache the `main` branch populates; see `.github/workflows/ci.yml`.
 
+Web minification preserves UTF-8 text instead of expanding translated characters
+into Unicode escapes. This reduces locale chunks without changing their strings.
+Hermes native builds skip this JavaScript minifier and use their own bytecode
+compiler.
+
 The coverage gate freezes the current untested-code baseline and applies
 stricter per-file thresholds to the account-switch and viewer-query-key
 boundaries. Jest excludes files with their own thresholds from its reported

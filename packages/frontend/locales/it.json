@@ -1,4 +1,11 @@
 {
+  "post.threadPosition": "Post {{index}} di {{total}} del thread",
+  "post.viewConversation": "Mostra conversazione",
+  "post.threadContinuation": "Continuazione del thread ({{count}})",
+  "postActions.signInRequired": "Accedi per interagire con i post.",
+  "postActions.sessionLoading": "Caricamento della sessione in corso. Riprova tra poco.",
+  "deck.mode.standard": "Standard",
+  "deck.mode.label": "Modalità Deck",
   "navigation.menu": "Menu di navigazione",
   "Your post could not be published. {{detail}}": "Impossibile pubblicare il tuo post. {{detail}}",
   "You're posting too fast. Please wait a moment and try again.": "Stai pubblicando troppo velocemente. Attendi un momento e riprova.",
