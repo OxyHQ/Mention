@@ -16,7 +16,7 @@ import { prefetchFeed } from '@/hooks/useFeedQuery';
 import { pinnedPostQueryOptions } from '@/components/Profile/pinnedPostQuery';
 import {
   currentPost,
-  toggleSave,
+  usePostInteractions,
   usePostInteractionsBinding,
   type BoundPostCommands,
 } from './postInteractions';
@@ -34,6 +34,7 @@ const PostInsightsSheet = lazy(() => import('@/components/Post/PostInsightsSheet
  */
 export function PostInteractionsBinder() {
   const bind = usePostInteractionsBinding();
+  const interactions = usePostInteractions();
   const theme = useTheme();
   const { t } = useTranslation();
   const { user, isAuthenticated, canUsePrivateApi } = useAuth();
@@ -122,7 +123,8 @@ export function PostInteractionsBinder() {
             isSaved: viewerState?.isSaved ?? false,
             hasArticle: Boolean(post.attachments?.article),
             hasSources: sources.length > 0,
-            onSave: () => (requireSession() ? toggleSave(post, source) : Promise.resolve()),
+            // An open menu can outlive the session that created it.
+            onSave: () => interactions.toggleSave(post, source),
             onOpenArticle,
             onOpenSources: () => openSources(sources),
           },
@@ -169,6 +171,7 @@ export function PostInteractionsBinder() {
     bottomSheet,
     queryClient,
     noteHandlers,
+    interactions,
   ]);
 
   useEffect(() => {

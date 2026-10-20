@@ -261,6 +261,106 @@ describe('session gate', () => {
 });
 
 describe('menu', () => {
+  it.each([false, true])(
+    'honors the server insight permission over ownership (allowed: %s)',
+    (allowed) => {
+      mockAuth = { user: { id: 'viewer-1' }, isAuthenticated: true, canUsePrivateApi: true };
+      const commands = capture((probe) => (
+        <PostInteractionsProvider>
+          <PostInteractionsBinder />
+          {probe}
+        </PostInteractionsProvider>
+      ));
+      const item = post('insights-permission', { isOwner: !allowed });
+      item.permissions = { ...item.permissions, canViewInsights: allowed };
+      commands.openMenu({ post: item, isPostDetail: false, onOpenArticle: jest.fn() });
+      const labels = (
+        mockShowActionMenu.mock.calls[0][0] as { groups: { label: string }[][] }
+      ).groups
+        .flat()
+        .map((action) => action.label);
+      expect(labels.includes('postActions.insights')).toBe(allowed);
+    },
+  );
+
+  it.each([false, true])('offers saving only with a ready session (ready: %s)', async (ready) => {
+    mockAuth = {
+      user: ready ? { id: 'viewer-1' } : null,
+      isAuthenticated: ready,
+      canUsePrivateApi: ready,
+    };
+    const commands = capture((probe) => (
+      <PostInteractionsProvider>
+        <PostInteractionsBinder />
+        {probe}
+      </PostInteractionsProvider>
+    ));
+    commands.openMenu({
+      post: post('menu-save'),
+      source: 'following',
+      isPostDetail: false,
+      onOpenArticle: jest.fn(),
+    });
+    const actions = (
+      mockShowActionMenu.mock.calls[0][0] as {
+        groups: { label: string; onPress: () => Promise<void> }[][];
+      }
+    ).groups.flat();
+    const save = actions.find((action) => action.label === 'postActions.save');
+    if (ready) {
+      expect(save).toBeDefined();
+      await save?.onPress();
+      expect(mockStore.savePost).toHaveBeenCalledWith({ postId: 'menu-save' }, 'following');
+    } else {
+      expect(save).toBeUndefined();
+      expect(mockStore.savePost).not.toHaveBeenCalled();
+    }
+  });
+
+  it('checks the current session when saving from an already open menu', async () => {
+    mockAuth = { user: { id: 'viewer-1' }, isAuthenticated: true, canUsePrivateApi: true };
+    let commands!: PostInteractions;
+    const Probe = () => {
+      commands = usePostInteractions();
+      return null;
+    };
+    const tree = () => (
+      <PostInteractionsProvider>
+        <PostInteractionsBinder />
+        <Probe />
+      </PostInteractionsProvider>
+    );
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(tree());
+    });
+    commands.openMenu({
+      post: post('expired-menu'),
+      isPostDetail: false,
+      onOpenArticle: jest.fn(),
+    });
+    const save = (
+      mockShowActionMenu.mock.calls[0][0] as {
+        groups: { label: string; onPress: () => Promise<void> }[][];
+      }
+    ).groups
+      .flat()
+      .find((action) => action.label === 'postActions.save');
+    expect(save).toBeDefined();
+
+    mockAuth = { user: null, isAuthenticated: false, canUsePrivateApi: false };
+    act(() => {
+      renderer.update(tree());
+    });
+    await save?.onPress();
+    expect(mockStore.savePost).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith('Sign in to interact with posts.', {
+      id: 'post-session-required',
+      type: 'info',
+    });
+    act(() => renderer.unmount());
+  });
+
   it('without a binder, opening the menu is a logged no-op', () => {
     const commands = capture((probe) => (
       <PostInteractionsProvider>{probe}</PostInteractionsProvider>
@@ -406,6 +506,11 @@ describe('profile prefetch', () => {
       ));
     mockAuth = { user: { id: 'viewer-1' }, isAuthenticated: true, canUsePrivateApi: false };
     bound().prefetchProfile('author-1');
+    expect(mockPrefetchFeed).not.toHaveBeenCalled();
+
+    mockAuth = { user: null, isAuthenticated: true, canUsePrivateApi: true };
+    bound().prefetchProfile('author-1');
+    expect(mockPrefetchQuery).not.toHaveBeenCalled();
     expect(mockPrefetchFeed).not.toHaveBeenCalled();
 
     mockAuth = { user: { id: 'viewer-1' }, isAuthenticated: true, canUsePrivateApi: true };

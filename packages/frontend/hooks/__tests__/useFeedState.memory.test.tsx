@@ -224,6 +224,8 @@ describe('useFeedState memory mode: one feed query', () => {
       expect(ids()).toEqual([]);
       await mount({ ...explore, type: 'replies', filters: { parentPostId: 'root' } });
       expect(ids()).toEqual([]);
+      await mount({ ...explore, filters: { parentPostId: 'root' } });
+      expect(ids()).toEqual([]);
     });
 
     it('reads for itself when the boot read failed', async () => {
@@ -359,6 +361,27 @@ describe('useFeedState memory mode: one feed query', () => {
       expect(getFeedMock).toHaveBeenCalledTimes(3);
       expect(getFeedMock.mock.calls[2][0].cursor).toBeUndefined();
       expect(ids()).toEqual(['r1', 'r9']);
+    });
+
+    it('keeps a parent filter on other feeds from leaking unrelated posts into rows or caches', async () => {
+      getFeedMock.mockResolvedValueOnce({
+        ...page([]),
+        items: [
+          post('answer', { parentPostId: 'root' } as Partial<HydratedPost>),
+          post('other-thread', { parentPostId: 'elsewhere' } as Partial<HydratedPost>),
+          post('standalone'),
+        ],
+      });
+      await mount({ ...explore, filters: { parentPostId: 'root' } });
+
+      expect(ids()).toEqual(['answer']);
+      const cachePosts = usePostsStore.getState().cachePosts as jest.Mock;
+      expect(cachePosts.mock.calls[0][0].map((item: HydratedPost) => item.id)).toEqual(['answer']);
+      expect(
+        (precacheActorsFromPosts as jest.Mock).mock.calls[0][0].map(
+          (item: HydratedPost) => item.id,
+        ),
+      ).toEqual(['answer']);
     });
 
     it('preserves server-selected spine and nested replies in the feed and entity caches', async () => {
