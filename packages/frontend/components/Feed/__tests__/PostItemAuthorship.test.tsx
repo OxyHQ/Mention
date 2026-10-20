@@ -22,6 +22,7 @@ import PostItem from '../PostItem';
  */
 
 interface CapturedHeaderProps {
+  children?: React.ReactNode;
   boostedBy?: PostUser;
   authors?: HydratedAuthor[];
   onPressCollaborators?: () => void;
@@ -31,7 +32,7 @@ jest.mock('../../Post/PostHeader', () => ({
   __esModule: true,
   default: (props: CapturedHeaderProps) => {
     mockHeaderProps.push(props);
-    return null;
+    return props.children;
   },
 }));
 
@@ -89,11 +90,11 @@ jest.mock('@oxy.so/bloom/icons', () => ({ RiChat3Fill: 'RiChat3Fill', RiMoreFill
 jest.mock('@/assets/icons/pin-icon', () => ({ PinIcon: () => null }));
 jest.mock('@/assets/icons/boost-icon', () => ({ BoostIcon: () => null }));
 
-jest.mock('../../Post/PostContentText', () => ({ __esModule: true, default: () => null }));
+jest.mock('../../Post/PostContentText', () => ({ __esModule: true, default: 'PostContentText' }));
 jest.mock('../../Post/PostLaneChip', () => ({ __esModule: true, default: () => null }));
 jest.mock('../../Post/ContentWarning', () => ({ __esModule: true, default: () => null }));
-jest.mock('../../Post/PostActions', () => ({ __esModule: true, default: () => null }));
-jest.mock('../../Post/PostDetailStats', () => ({ __esModule: true, default: () => null }));
+jest.mock('../../Post/PostActions', () => ({ __esModule: true, default: 'PostActions' }));
+jest.mock('../../Post/PostDetailStats', () => ({ __esModule: true, default: 'PostDetailStats' }));
 jest.mock('../../Post/PostLocation', () => ({ __esModule: true, default: () => null }));
 jest.mock('../../Post/PostAttachmentsRow', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/hooks/usePostLanguagePicker', () => ({
@@ -282,5 +283,28 @@ describe('PostItem boost wiring', () => {
   it('leaves it unset when no boost surfaced the row', () => {
     render(<PostItem post={postWith([channel, writer])} />);
     expect(lastHeader().boostedBy).toBeUndefined();
+  });
+});
+
+it('gives focused text the full width while keeping the action row before metadata and at its feed inset', () => {
+  let feed: TestRenderer.ReactTestRenderer | undefined;
+  let detail: TestRenderer.ReactTestRenderer | undefined;
+  act(() => {
+    feed = TestRenderer.create(<PostItem post={postWith([owner])} />);
+    detail = TestRenderer.create(<PostItem post={postWith([owner])} isPostDetail />);
+  });
+  if (!feed || !detail) throw new Error('Post render did not complete');
+  const host = (tree: TestRenderer.ReactTestRenderer, name: string) =>
+    tree.root.findAll((node) => typeof node.type === 'string' && node.type === name)[0];
+  const feedActions = host(feed, 'PostActions');
+  const detailActions = host(detail, 'PostActions');
+  expect(detailActions.parent?.props.style).toEqual(feedActions.parent?.props.style);
+  const rendered = JSON.stringify(detail.toJSON());
+  expect(rendered.indexOf('PostActions')).toBeLessThan(rendered.indexOf('PostDetailStats'));
+  expect(host(detail, 'PostContentText').parent?.props.style.paddingHorizontal).toBe(12);
+  expect(lastHeader().children).toBeNull();
+  act(() => {
+    feed?.unmount();
+    detail?.unmount();
   });
 });

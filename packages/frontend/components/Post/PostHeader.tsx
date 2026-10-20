@@ -1,3 +1,4 @@
+import { POST_AVATAR_SIZE } from '@/styles/shared';
 import React, { useMemo } from 'react';
 import { Text, View, TouchableOpacity } from 'react-native';
 import { LiveAvatar } from '@/components/ui/LiveAvatar';
@@ -216,7 +217,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   contextTop,
   avatarSource,
   avatarVariant,
-  avatarSize = 36,
+  avatarSize = POST_AVATAR_SIZE,
   compact = false,
   timeSlot,
   laneSlot,

@@ -1,4 +1,6 @@
 {
+  "post.viewConversation": "View conversation",
+  "post.threadContinuation": "Thread continuation ({{count}})",
   "post.repostOptions": "Repost options",
   "post.repost": "Repost",
   "post.undoRepost": "Undo repost",

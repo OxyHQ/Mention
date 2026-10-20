@@ -527,3 +527,72 @@ describe('profile pinned post deduplication', () => {
     expect(asPost(rows[0]).isThreadChild).toBe(false);
   });
 });
+
+describe('reply branches', () => {
+  function reply(id: string, parentPostId: string, replies = 0): HydratedPost {
+    return { ...post(id), parentPostId, engagement: { replies } } as HydratedPost;
+  }
+  function branches(items: HydratedPost[], blockedSet = NO_BLOCKS) {
+    return buildFeedRows({
+      items,
+      type: 'replies',
+      blockedSet,
+      threaded: true,
+      threadPostId: 'focus',
+    }).map(asPost);
+  }
+
+  it('keeps a sibling trunk through descendants and closes each independent conversation', () => {
+    const rows = branches([
+      reply('a', 'focus', 2),
+      reply('b', 'a', 1),
+      reply('c', 'b'),
+      reply('d', 'a'),
+      reply('e', 'focus'),
+    ]);
+    expect(rows.map((row) => [row.item.id, row.nestingDepth, row.replyBranch])).toEqual([
+      ['a', 0, { continuingDepths: [], endsGroup: false }],
+      ['b', 1, { continuingDepths: [0], endsGroup: false }],
+      ['c', 2, { continuingDepths: [0], endsGroup: false }],
+      ['d', 1, { continuingDepths: [], endsGroup: true }],
+      ['e', 0, { continuingDepths: [], endsGroup: true }],
+    ]);
+    // A nested reply has an elbow to its actual parent, never a straight line
+    // implying it answers the previous flattened row (which may be a cousin).
+    expect(rows.every((row) => !row.isThreadChild)).toBe(true);
+    expect(rows.filter((row) => row.isThreadParent).map((row) => row.item.id)).toEqual(['a', 'b']);
+  });
+
+  it('offers the conversation when the bounded preview omits children', () => {
+    const rows = branches([reply('a', 'focus', 5), reply('b', 'a', 2)]);
+    expect(rows[0]).toMatchObject({ isIncompleteThread: true, truncatedChildCount: 4 });
+    expect(rows[1]).toMatchObject({ isIncompleteThread: true, truncatedChildCount: 2 });
+  });
+
+  it('caps indentation and offers deeper replies without drawing a dangling outgoing line', () => {
+    const rows = branches([
+      reply('a', 'focus'),
+      reply('b', 'a'),
+      reply('c', 'b'),
+      reply('d', 'c'),
+      reply('e', 'd'),
+    ]);
+    expect(rows.map((row) => row.item.id)).toEqual(['a', 'b', 'c', 'd']);
+    expect(rows[3]).toMatchObject({
+      nestingDepth: 3,
+      isThreadParent: false,
+      isIncompleteThread: true,
+      truncatedChildCount: 1,
+      replyBranch: { continuingDepths: [], endsGroup: true },
+    });
+  });
+
+  it('does not connect replies whose parent is absent or filtered', () => {
+    const hidden = { ...reply('a', 'focus'), user: { id: 'blocked' } } as HydratedPost;
+    const rows = branches([hidden, reply('b', 'a'), reply('c', 'missing')], new Set(['blocked']));
+    expect(rows.map((row) => [row.nestingDepth, row.replyBranch?.endsGroup])).toEqual([
+      [0, true],
+      [0, true],
+    ]);
+  });
+});

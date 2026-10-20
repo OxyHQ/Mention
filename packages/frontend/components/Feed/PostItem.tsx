@@ -53,7 +53,7 @@ import {
   THREAD_LINE_BORDER_RADIUS,
   THREAD_LINE_Z_INDEX,
 } from '@/components/Compose/composeLayout';
-import { POST_ITEM_SPACING } from '@/styles/shared';
+import { POST_ITEM_SPACING, POST_AVATAR_SIZE, REPLY_BRANCH_INDENT } from '@/styles/shared';
 import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
 import { useThreadHoverStore } from '@/stores/threadHoverStore';
 import { mergeKnownIdentity, useKnownIdentitySet } from '@/stores/identityUpdates';
@@ -89,6 +89,8 @@ interface PostItemProps {
   isThreadParent?: boolean;
   isThreadChild?: boolean;
   isThreadLastChild?: boolean;
+  /** Incoming elbow from the parent of a nested reply. */
+  replyBranch?: boolean;
   /**
    * When something is rendered flush below this post (e.g. a "Show this thread"
    * link), drop the container's bottom border + padding so the post connects to
@@ -107,8 +109,8 @@ interface PostItemProps {
    */
   repostedBy?: PostUser;
   /**
-   * Render the FOCUSED post-detail variant: full-width body, the larger spread-out
-   * action bar (with the full absolute timestamp + engagement-stats rows), and a
+   * Render the FOCUSED post-detail variant: full-width body, the usual action bar,
+   * the full absolute timestamp + engagement-stats rows, and a
    * non-tappable container. Passed ONLY by the post-detail screen for the focused
    * post — NOT by the replies list (replies stay in the compact feed variant). The
    * same `PostItem` renders feed AND detail; only this flag changes.
@@ -149,6 +151,7 @@ const PostItem: React.FC<PostItemProps> = ({
   isThreadParent = false,
   isThreadChild = false,
   isThreadLastChild = false,
+  replyBranch = false,
   attachedBelow = false,
   repostedBy,
   isPostDetail: isPostDetailProp = false,
@@ -708,13 +711,10 @@ const PostItem: React.FC<PostItemProps> = ({
 
   // Canonical post-item layout tokens (single source of truth: POST_ITEM_SPACING in styles/shared.ts).
   // HPAD/VPAD/SECTION_GAP = 12, AVATAR_SIZE = 40, AVATAR_GAP = 12, AVATAR_OFFSET = 64.
-  const { HPAD, VPAD, SECTION_GAP, AVATAR_SIZE, AVATAR_OFFSET } = POST_ITEM_SPACING;
-  const contentLeftOffset = isNested ? HPAD : AVATAR_OFFSET;
+  const { HPAD, VPAD, SECTION_GAP, AVATAR_OFFSET } = POST_ITEM_SPACING;
+  const contentLeftOffset = isNested || isDetailMain ? HPAD : AVATAR_OFFSET;
 
-  // The detail variant is layout-identical to the feed: the body stays indented
-  // under the avatar column (AVATAR_OFFSET), aligned with the name. ONLY the
-  // bottom action bar and the extra detail rows (timestamp + engagement stats)
-  // differ — never the avatar/name/handle/time/content position.
+  // Focused content uses the full width; the action bar keeps its feed layout.
   const fullTimestamp = isDetailMain ? formatFullTimestamp(metadata.createdAt ?? '') : '';
 
   // Keep text posts on the normal section rhythm, but let no-text posts hug
@@ -775,7 +775,7 @@ const PostItem: React.FC<PostItemProps> = ({
     ) : null;
 
   // Thread line positioning: center on avatar, use shared style constants from composeLayout
-  const THREAD_LINE_LEFT = HPAD + AVATAR_SIZE / 2 - 1;
+  const THREAD_LINE_LEFT = HPAD + POST_AVATAR_SIZE / 2 - THREAD_LINE_WIDTH / 2;
   const THREAD_LINE_W = THREAD_LINE_WIDTH;
 
   // Bluesky-style context rows (Reposted by / Pinned / Replying to), rendered as
@@ -884,6 +884,33 @@ const PostItem: React.FC<PostItemProps> = ({
   // line tracks the offset avatar instead of leaving a gap above it.
   const headerTopOffset = contextRows.length * (POST_CONTEXT_ROW_HEIGHT + HEADER_CONTENT_GAP);
 
+  const hasPostBody = Boolean(
+    spoilerText || (!isContentGated && (content.text || (corrections && viewPostId))),
+  );
+  const postBody = (
+    <>
+      {spoilerText ? (
+        <ContentWarning
+          text={spoilerText}
+          revealed={isContentWarningOpen}
+          onToggle={toggleContentWarning}
+        />
+      ) : null}
+      {content.text && !isContentGated ? (
+        <PostContentText
+          content={content}
+          postId={viewPostId}
+          previewChars={isDetailMain ? Infinity : undefined}
+          overrideText={languageDisplayText}
+          linkPreviewUrls={linkPreviewUrls}
+        />
+      ) : null}
+      {corrections && viewPostId && !isContentGated ? (
+        <PostCorrectionNotice postId={viewPostId} count={corrections.count} />
+      ) : null}
+    </>
+  );
+
   return (
     <>
       <Pressable
@@ -932,7 +959,7 @@ const PostItem: React.FC<PostItemProps> = ({
               top: 0,
               left: THREAD_LINE_LEFT,
               width: THREAD_LINE_W,
-              height: headerTopOffset,
+              height: headerTopOffset + 4,
               backgroundColor: theme.colors.border,
               borderRadius: THREAD_LINE_BORDER_RADIUS,
               zIndex: THREAD_LINE_Z_INDEX,
@@ -941,17 +968,33 @@ const PostItem: React.FC<PostItemProps> = ({
         )}
         {/* Thread line below avatar — connects to next post's top. Shifted
                     down by headerTopOffset so it starts at the offset avatar's bottom. */}
-        {isThreadParent && !isNested && (
+        {isThreadParent && !isNested && !isDetailMain && (
           <View
             style={{
               position: 'absolute',
-              top: (isThreadChild ? 4 : VPAD) + AVATAR_SIZE + headerTopOffset,
+              top: (isThreadChild ? 4 : VPAD) + POST_AVATAR_SIZE + 4 + headerTopOffset,
               left: THREAD_LINE_LEFT,
               width: THREAD_LINE_W,
               bottom: 0,
               backgroundColor: theme.colors.border,
               borderRadius: THREAD_LINE_BORDER_RADIUS,
               zIndex: THREAD_LINE_Z_INDEX,
+            }}
+          />
+        )}
+        {replyBranch && !isNested && (
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              left: THREAD_LINE_LEFT - REPLY_BRANCH_INDENT,
+              top: 0,
+              width: REPLY_BRANCH_INDENT - POST_AVATAR_SIZE / 2 - 3,
+              height: VPAD + headerTopOffset + POST_AVATAR_SIZE / 2,
+              borderLeftWidth: THREAD_LINE_W,
+              borderBottomWidth: THREAD_LINE_W,
+              borderBottomLeftRadius: 8,
+              borderColor: theme.colors.border,
             }}
           />
         )}
@@ -995,26 +1038,11 @@ const PostItem: React.FC<PostItemProps> = ({
             onPressMenu={openMenu}
             paddingHorizontal={HPAD}
           >
-            {spoilerText ? (
-              <ContentWarning
-                text={spoilerText}
-                revealed={isContentWarningOpen}
-                onToggle={toggleContentWarning}
-              />
-            ) : null}
-            {content.text && !isContentGated ? (
-              <PostContentText
-                content={content}
-                postId={viewPostId}
-                previewChars={isDetailMain ? Infinity : undefined}
-                overrideText={languageDisplayText}
-                linkPreviewUrls={linkPreviewUrls}
-              />
-            ) : null}
-            {corrections && viewPostId && !isContentGated ? (
-              <PostCorrectionNotice postId={viewPostId} count={corrections.count} />
-            ) : null}
+            {isDetailMain ? null : postBody}
           </PostHeader>
+          {isDetailMain && hasPostBody && (
+            <View style={{ paddingHorizontal: HPAD, gap: HEADER_CONTENT_GAP }}>{postBody}</View>
+          )}
 
           {hasBelowHeaderBlocks && !isContentGated && (
             <View style={{ gap: SECTION_GAP }}>
@@ -1086,7 +1114,7 @@ const PostItem: React.FC<PostItemProps> = ({
               {communityNote?.status === 'shown' && !isNested && !isContentGated && (
                 // Below everything the author posted, above the actions: the
                 // note is context ABOUT the post, never part of it.
-                <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
+                <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
                   <CommunityNoteCard note={communityNote} onPressAbout={openCommunityNoteAbout} />
                 </View>
               )}
@@ -1126,11 +1154,7 @@ const PostItem: React.FC<PostItemProps> = ({
                 </View>
               )}
 
-              {/* Everything above is the plain feed rendering of a post. A
-                    FOCUSED post adds this block below the action bar — the
-                    absolute timestamp and the engagement counts — and nothing
-                    else. It sits outside the avatar-indented column above so its
-                    rule spans the full row (see PostDetailStats). */}
+              {/* Detail metadata stays below the unchanged action bar. */}
               {isDetailMain && (
                 <PostDetailStats
                   timestampLabel={fullTimestamp}
@@ -1199,6 +1223,7 @@ const rowPlacementEqual = (prevProps: PostItemProps, nextProps: PostItemProps): 
   prevProps.isThreadParent === nextProps.isThreadParent &&
   prevProps.isThreadChild === nextProps.isThreadChild &&
   prevProps.isThreadLastChild === nextProps.isThreadLastChild &&
+  prevProps.replyBranch === nextProps.replyBranch &&
   prevProps.attachedBelow === nextProps.attachedBelow &&
   prevProps.isPostDetail === nextProps.isPostDetail &&
   prevProps.feedDescriptor === nextProps.feedDescriptor &&

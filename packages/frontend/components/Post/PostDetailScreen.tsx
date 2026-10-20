@@ -3,6 +3,12 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { View, Text, Platform } from 'react-native';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Button } from '@oxy.so/bloom/button';
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from '@oxy.so/bloom/accordion';
 import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { RiEqualizerLine } from '@oxy.so/bloom/icons/RiEqualizerLine';
 import { useRouter } from '@/lib/navigation/router';
@@ -70,6 +76,7 @@ function usePrefetchReplies(postId: string) {
   const queryClient = useQueryClient();
   const { user, isAuthenticated, isAuthResolved, canUsePrivateApi } = useAuth();
   const sortOrder = useThreadPreferencesStore((state) => state.sortOrder);
+  const treeView = useThreadPreferencesStore((state) => state.treeView);
   const sortLoaded = useThreadPreferencesStore((state) => state.loaded);
   const viewerId = isAuthenticated ? user?.id : undefined;
   // The same viewer the feed will read for: resolved, and signed in with a
@@ -83,10 +90,15 @@ function usePrefetchReplies(postId: string) {
     const target = boosted ? String(boosted) : postId;
     prefetchFeed(queryClient, {
       type: 'replies' as FeedType,
-      filters: { postId: target, parentPostId: target, sort: SORT_TO_API[sortOrder] },
+      filters: {
+        postId: target,
+        parentPostId: target,
+        sort: SORT_TO_API[sortOrder],
+        includeNestedReplies: treeView,
+      },
       viewerId,
     });
-  }, [postId, viewerReady, sortLoaded, sortOrder, viewerId, queryClient]);
+  }, [postId, viewerReady, sortLoaded, sortOrder, treeView, viewerId, queryClient]);
 }
 
 export default function PostDetailScreen({ postId: id, onBack }: PostDetailScreenProps) {
@@ -134,8 +146,10 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
   // The author's self-thread continuation spine BELOW the focused post, ordered
   // root-first (c1 … cN). Populated only when the focused post is a self-thread
   // root (the backend returns [] otherwise), so a non-thread post is unchanged.
-  // Rendered as one connected thread descending from the focused post.
+  // Its own connected group, below the focused post and its metadata.
   const [continuations, setContinuations] = useState<PostDetailEntity[]>([]);
+  const [collapsedThreadId, setCollapsedThreadId] = useState<string | null>(null);
+  const continuationsExpanded = collapsedThreadId !== id;
   // Only block first paint when there is no cached post to render. A cache hit
   // paints immediately and revalidates in the background (stale-while-revalidate).
   const [loading, setLoading] = useState(() => !cachedPost);
@@ -175,8 +189,9 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
       postId: repliesQueryTargetId,
       parentPostId: repliesQueryTargetId,
       sort: SORT_TO_API[sortOrder],
+      includeNestedReplies: treeView,
     }),
-    [repliesQueryTargetId, sortOrder],
+    [repliesQueryTargetId, sortOrder, treeView],
   );
 
   const feedContentStyle = useMemo(() => ({ paddingBottom: FEED_BOTTOM_PADDING }), []);
@@ -483,59 +498,49 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
           />
         ))}
 
-        {/* The focused post renders through the SAME PostItem as the feed,
-                    gated by the `isPostDetail` variant (larger spread action bar,
-                    full timestamp + engagement-stats rows). This covers BOTH a
-                    normal post and a boost (booster header + "boosted" + the original
-                    as a nested, tappable sub-card → `/p/<originalId>`). The focused
-                    main post is non-tappable; only its nested card navigates.
-                    `isThreadChild` brings the line in from above when there are
-                    ancestors (and tightens the top gap to connect flush to the
-                    immediate parent). When the focused post is a self-thread root
-                    with a continuation spine below, it is ALSO a thread PARENT
-                    (`isThreadParent`): the line runs DOWN through it into the spine,
-                    so the thread is continuous last-ancestor → focused → c1 … cN —
-                    and it drops its bottom border (no longer the last node). Only
-                    when there is NO spine does it close the thread with
-                    `isThreadLastChild` (keeping its bottom border above the replies
-                    below). */}
+        {/* Ancestors end at the focused avatar; no rail crosses its full-width body. */}
         <PostItem
           post={post}
           isPostDetail
           isThreadChild={hasAncestors}
-          isThreadParent={hasContinuations}
-          isThreadLastChild={hasAncestors && !hasContinuations}
+          isThreadLastChild={hasAncestors}
           onReply={handleOpenReply}
         />
 
-        {/* The OP's self-thread continuation spine, descending from the
-                    focused post as ONE connected thread (root → c1 … cN). Each
-                    continuation receives the incoming line from above
-                    (`isThreadChild`) and draws the line DOWN (`isThreadParent`) for
-                    every node but the last; `attachedBelow` drops their bottom border
-                    so they connect flush with no separators. The LAST continuation
-                    (the thread tail) closes the thread with `isThreadLastChild`,
-                    keeping its bottom border to separate the tail from the replies
-                    below. A new reply attaches to this tail (see
-                    `composeReplyTargetId`); the spine-aware replies feed excludes the
-                    OP continuations, so they never double up in the replies list. */}
-        {continuations.map((continuation, index) => {
-          const isLast = index === continuations.length - 1;
-          return (
-            <PostItem
-              key={String(continuation.id ?? `continuation-${index}`)}
-              post={continuation}
-              isThreadChild
-              isThreadParent={!isLast}
-              isThreadLastChild={isLast}
-              attachedBelow={!isLast}
-              onReply={handleOpenReply}
-            />
-          );
-        })}
+        {hasContinuations && (
+          <Accordion
+            value={continuationsExpanded ? 'continuations' : undefined}
+            onValueChange={(value) => setCollapsedThreadId(value ? null : id)}
+          >
+            <AccordionItem value="continuations" className="border-0">
+              <AccordionTrigger className="px-3 py-3" textStyle={{ fontSize: 13 }}>
+                {t('post.threadContinuation', {
+                  defaultValue: 'Thread continuation ({{count}})',
+                  count: continuations.length,
+                })}
+              </AccordionTrigger>
+              <AccordionContent contentClassName="p-0">
+                {continuations.map((continuation, index) => {
+                  const isLast = index === continuations.length - 1;
+                  return (
+                    <PostItem
+                      key={String(continuation.id)}
+                      post={continuation}
+                      isThreadChild={index > 0}
+                      isThreadParent={!isLast}
+                      isThreadLastChild={isLast}
+                      attachedBelow={!isLast}
+                      onReply={handleOpenReply}
+                    />
+                  );
+                })}
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        )}
       </View>
     );
-  }, [post, ancestors, continuations, handleOpenReply]);
+  }, [post, ancestors, continuations, continuationsExpanded, id, t, handleOpenReply]);
 
   const header = (
     <PageHeader

@@ -1,4 +1,6 @@
 {
+  "post.viewConversation": "Ver conversación",
+  "post.threadContinuation": "Continuación del hilo ({{count}})",
   "post.repostOptions": "Opciones de repost",
   "post.repost": "Repostear",
   "post.undoRepost": "Deshacer repost",
