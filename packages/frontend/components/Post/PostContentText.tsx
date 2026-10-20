@@ -4,7 +4,7 @@ import { InlineMarkdown } from '@oxy.so/bloom/markdown';
 import { truncateInlineMarkdown } from '@oxy.so/bloom/markdown/inline';
 import { parsePostInlineMarkdown, postMentionForLink } from '@/utils/postInlineMarkdown';
 import { openExternalLink } from '@/utils/openExternalLink';
-import { StyleSheet, Text } from 'react-native';
+import { Text } from 'react-native';
 import { LinkifiedText, MentionTextLink } from '../common/LinkifiedText';
 import { useRouter } from '@/lib/navigation/router';
 import type { PostContent } from '@mention/shared-types';
@@ -91,7 +91,13 @@ const PostContentText: React.FC<Props> = ({
     ) : null;
 
   return (
-    <Text style={detail ? styles.detailText : styles.postText} className="text-foreground">
+    <Text
+      className={
+        detail
+          ? 'text-foreground text-[17px] leading-[22px]'
+          : 'text-foreground text-[15px] leading-5'
+      }
+    >
       <InlineMarkdown
         nodes={isExpanded ? parsed.nodes : preview.nodes}
         onLinkPress={openExternalLink}
@@ -123,14 +129,3 @@ function ShowLessLabel() {
 }
 
 export default PostContentText;
-
-const styles = StyleSheet.create({
-  postText: {
-    fontSize: 15,
-    lineHeight: 20,
-  },
-  detailText: {
-    fontSize: 17,
-    lineHeight: 22,
-  },
-});
