@@ -836,7 +836,9 @@ describe('repairFederatedMentions', () => {
       resetCursor: true,
       noteTimeoutMs: 1_000,
     });
-    expect(repeated.candidates).toBe(0);
+    // The link is still the best an unknown identity allows, so the post stays a
+    // candidate — but a re-run has nothing to change and writes nothing.
+    expect(repeated.repaired).toBe(0);
     expect(repeated.written).toBe(0);
   });
 

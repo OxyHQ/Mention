@@ -84,7 +84,9 @@
  * SAFETY / SHAPE
  *   - Idempotent + re-runnable: a repaired post gains a non-empty `mentions`
  *     array and so leaves the candidate set entirely; even if it were re-scanned,
- *     an unchanged re-mapping stages no write at all.
+ *     an unchanged re-mapping stages no write at all. A mention whose identity
+ *     is still unknown stays a source link, so its post remains a candidate and
+ *     a re-run re-reads it without writing.
  *   - Stable ASCENDING `_id` cursor. The repair only ever REMOVES posts from the
  *     matching set, so no page is revisited and none is skipped.
  *   - Writes are explicit `$set` field whitelists (`content.variants`, `mentions`)
