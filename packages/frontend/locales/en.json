@@ -3048,7 +3048,10 @@
     "pendingAssessment": "This content is not available until its safety review is complete."
   },
   "deck": {
-    "mode": { "standard": "Standard", "label": "Deck mode" },
+    "mode": {
+      "standard": "Standard",
+      "label": "Deck mode"
+    },
     "resizable": "Allow resizing",
     "appearance": "Appearance",
     "solid": "Surface",
