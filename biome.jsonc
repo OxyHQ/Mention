@@ -128,6 +128,11 @@
                   // A vector-icons glyph is a Text node a screen reader reads aloud as
                   // its private-use code point. The wrapper hides it once for every
                   // call site; the barrel also ships every icon font.
+                  // Every Oxy app takes Services through its client entry. `ui` is the
+                  // wider surface (SSR-shaped, more re-exports) and gave nothing
+                  // `ui/client` does not. The package root is left alone: its only
+                  // imports here are type-only, which Biome cannot tell apart.
+                  "@oxy.so/services/ui": "Import from @oxy.so/services/ui/client — the client entry every Oxy app uses.",
                   "@expo/vector-icons": "Use @/components/common/Ionicons (or a Bloom icon) — it hides the glyph from screen readers.",
                   "@expo/vector-icons/Ionicons": "Use @/components/common/Ionicons (or a Bloom icon) — it hides the glyph from screen readers.",
                   // iPhone Safari plays a web `<video>` inline only when it carries
