@@ -16,6 +16,7 @@ jest.mock('@oxy.so/bloom/screen', () => ({
     </>
   ),
 }));
+import { useEffect, type ReactNode } from 'react';
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { type QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -287,7 +288,11 @@ jest.mock('@/stores/postsStore', () => ({
 jest.mock('@/hooks/usePostShare', () => ({ sharePost: jest.fn() }));
 
 import SavedPostsScreen from '../saved';
-import { usePostInteractions } from '@/components/Feed/postInteractions';
+import {
+  PostInteractionsProvider,
+  usePostInteractionsBinding,
+  usePostInteractions,
+} from '@/components/Feed/postInteractions';
 
 /** The minimum of a post the save command reads: its id and the viewer's flag. */
 function rowPost(id: string, isSaved: boolean): HydratedPost {
@@ -357,6 +362,31 @@ function closeScreen(renderer: TestRenderer.ReactTestRenderer): void {
  * Save a post from a feed row — the real save command a `PostItem` issues
  * (`usePostInteractions().toggleSave`), with the saved screen nowhere in the tree.
  */
+function SignedInFeed({ children }: { children: ReactNode }) {
+  return (
+    <PostInteractionsProvider>
+      <SignedInCommands />
+      {children}
+    </PostInteractionsProvider>
+  );
+}
+
+function SignedInCommands() {
+  const bind = usePostInteractionsBinding();
+  useEffect(() => {
+    bind({
+      requireSession: () => mockAuth.canUsePrivateApi,
+      openMenu: jest.fn(),
+      openSources: jest.fn(),
+      openInsights: jest.fn(),
+      openCommunityNoteAbout: jest.fn(),
+      prefetchProfile: jest.fn(),
+    });
+    return () => bind(null);
+  }, [bind]);
+  return null;
+}
+
 async function savePostFromFeed(client: QueryClient, postId: string): Promise<void> {
   let toggleSave: (() => Promise<void>) | undefined;
 
@@ -370,7 +400,9 @@ async function savePostFromFeed(client: QueryClient, postId: string): Promise<vo
   act(() => {
     renderer = TestRenderer.create(
       <QueryClientProvider client={client}>
-        <FeedRow />
+        <SignedInFeed>
+          <FeedRow />
+        </SignedInFeed>
       </QueryClientProvider>,
     );
   });
@@ -449,7 +481,9 @@ describe('saved screen revalidation after a save', () => {
     act(() => {
       feedRenderer = TestRenderer.create(
         <QueryClientProvider client={client}>
-          <FeedRow />
+          <SignedInFeed>
+            <FeedRow />
+          </SignedInFeed>
         </QueryClientProvider>,
       );
     });
