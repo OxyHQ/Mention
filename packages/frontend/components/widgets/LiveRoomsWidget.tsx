@@ -2,7 +2,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { RiCustomerServiceLine } from '@oxy.so/bloom/icons/RiCustomerServiceLine';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';

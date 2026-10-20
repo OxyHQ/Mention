@@ -1,13 +1,17 @@
+import { useDeckSync } from '@/components/deck/useDeckSync';
+import { DeckAddPanel } from '@/components/deck/DeckAddPanel';
+import { useDeckSettings, deckRouteForSource } from '@/components/deck/deckSettings';
 import { Platform, StyleSheet, View } from 'react-native';
 import { ExperimentalStack, Slot, usePathname } from 'expo-router';
 
 import { useAuth } from '@oxy.so/services/ui/client';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
-import { AppShell } from '@oxy.so/bloom/app-shell';
+import { AppShell, type PanelNavigationState } from '@oxy.so/bloom/app-shell';
+import { DeckColumn, DeckColumnHeaderActions } from '@/components/deck/DeckColumn';
+import { useDeckAvailable } from '@/components/deck/useDeckAvailable';
 import { registerPanelSurface } from '@/components/shell/panelSurface';
 import { bottomBarContent } from '@/components/shell/bottomBarRoutes';
 
-import { MentionHomeHeader } from '@/components/navigation/MentionHomeHeader';
 import { stackSceneLayout } from '@/components/navigation/StackScene';
 import { BottomBar } from '@/components/BottomBar';
 import KeyboardShortcutsModal from '@/components/KeyboardShortcutsModal';
@@ -24,54 +28,33 @@ import { BootMilestone } from '@/components/BootMilestone';
 
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useKeyboardVisibility } from '@/hooks/useKeyboardVisibility';
-import { useScreenColor } from '@/context/ScreenColorContext';
-import { APP_COLOR_PRESETS, BloomColorScope, type AppColorName } from '@oxy.so/bloom/theme';
 
 const IS_WEB = Platform.OS === 'web';
 
-/**
- * Profile routes own the screen-level color scope; every other route renders with
- * the app-wide theme. Safety net: ignore any stale screenColor when the pathname
- * is outside the profile subtree (`/@username[/sub]`, `/c/<handle>[/sub]`) so
- * per-profile colors never leak into other pages.
- */
-function isProfileRoute(pathname: string | null | undefined): boolean {
-  if (!pathname) return false;
-  // `/you` is the viewer's own profile as a TAB — the same page, at a route with
-  // no handle in it (see `(tabs)/you.tsx`). Without it here the one profile a
-  // reader looks at most would be the only one rendering outside its own colour
-  // scope.
-  //
-  // `/c/` is the same screen for a channel (`ChannelScreen` resolves its preset
-  // through the same `useProfileAccount` -> `useProfileScreenColor`, which
-  // publishes it here). It scopes its own subtree either way; what this adds is
-  // the PANEL. Chrome reads the surface the panel painted (`useSurfaceFill`), so
-  // a channel whose column was tinted from inside its own scope, on a panel
-  // painted outside it, would otherwise paint the app-wide card against the
-  // channel's tinted children.
-  return pathname.startsWith('/@') || pathname.startsWith('/c/') || pathname === '/you';
-}
-
-/**
- * Leaf host for the web keyboard-shortcuts help modal. Owns `showHelpModal` so its
- * high-frequency toggle stays isolated from the visual shell.
- */
 function KeyboardShortcutsHost() {
   const { showHelpModal, setShowHelpModal } = useKeyboardShortcuts();
   return <KeyboardShortcutsModal visible={showHelpModal} onClose={() => setShowHelpModal(false)} />;
 }
 
 export default function AppLayout() {
+  useDeckSync();
   const sidebar = useMentionSidebar();
+  const activeDeckPanel = useDeckSettings((state) => state.activePanel);
+  const deckViewer = useDeckSettings((state) => state.viewer);
+  const deckRestorationEpoch = useDeckSettings((state) => state.restorationEpoch);
+  const deckOrder = useDeckSettings((state) => state.order);
+  const deckPanels = useDeckSettings((state) => state.panels);
+  const updateDeckPanel = useDeckSettings((state) => state.updatePanel);
   const keyboardVisible = useKeyboardVisibility();
   const drawer = useDrawer();
   const { isAuthenticated, isAuthResolved } = useAuth();
-  const { screenColor } = useScreenColor();
   const pathname = usePathname();
-  const onProfileRoute = isProfileRoute(pathname);
-
-  const activeScreenColor: AppColorName | undefined =
-    onProfileRoute && screenColor && APP_COLOR_PRESETS[screenColor] ? screenColor : undefined;
+  const deckAvailable = useDeckAvailable();
+  const onDeckRoute = pathname === '/deck' && deckAvailable;
+  const onInsightsRoute =
+    pathname === '/insights' ||
+    pathname === '/insights/weekly_recap' ||
+    /^\/c\/[^/]+\/insights$/.test(pathname);
 
   // Same center content on both platforms; only the host differs. WEB uses <Slot/>
   // so the route flows in document scroll (the BODY is the scroller) and sticky
@@ -136,42 +119,123 @@ export default function AppLayout() {
       {/* Ungated on purpose: the public socket is what makes trending realtime
           for signed-out visitors, who cannot connect to the two above at all. */}
       <PublicRealtimeBridge />
-      <BloomColorScope colorPreset={activeScreenColor} asChild>
+      <>
         <AppShell
+          testID="mention-shell"
           variant="feed"
           scroll={IS_WEB ? 'document' : 'fixed'}
-          panel
-          panelColorPreset={activeScreenColor}
           drawer="reveal"
           drawerOpen={drawer.isOpen}
           onDrawerOpenChange={(open) => (open ? drawer.open() : drawer.close())}
           sidebar={sidebar}
-          header={pathname === '/' ? <MentionHomeHeader /> : null}
-          contentWidth={620}
+          header={null}
           navigationAlign="content"
           navigationGap={0}
-          asideGap={0}
           gutter={8}
-          navFrom={500}
-          navExpandedFrom={1300}
-          asideFrom={990}
-          asideWidth={350}
-          asideCollapse="hidden"
-          aside={<RightBar />}
           bottomBar={bottomBar}
           // The tab bar is navigation, so it gives way to the sidebar on wide
           // screens; the CTA has no stand-in there and shows at every width.
           bottomBarVisibility={isAuthenticated ? 'compact' : 'always'}
-          reserveBottomBarSpace={pathname !== '/videos' && pathname !== '/camera'}
-        >
-          <View
-            style={StyleSheet.absoluteFill}
-            pointerEvents="box-none"
-            ref={registerPanelSurface}
-          />
-          {centerContent}
-        </AppShell>
-      </BloomColorScope>
+          reserveBottomBarSpace={pathname !== '/camera'}
+          panelLayout={{
+            mode: onDeckRoute ? 'deck' : 'split',
+            trailingAction: onDeckRoute ? <DeckAddPanel /> : undefined,
+            widths: Object.fromEntries(
+              Object.entries(deckPanels).map(([id, panel]) => [id, panel.width]),
+            ),
+            flow: onDeckRoute || !IS_WEB ? 'bounded' : 'document',
+            appearance: 'separated',
+            gap: onDeckRoute ? undefined : 0,
+            activePanel: onDeckRoute ? (activeDeckPanel ?? Object.keys(deckPanels)[0]) : 'main',
+            expandedPanel: onInsightsRoute ? 'main' : undefined,
+            panels: [
+              {
+                id: 'main',
+                visible: !onDeckRoute,
+                // The Expo child navigator keeps the same host across every layout mode,
+                // including a cold open of Deck where its route screen renders null.
+                keepMounted: true,
+                width: 620,
+                minWidth: 0,
+                content: (
+                  <>
+                    <View
+                      style={StyleSheet.absoluteFill}
+                      pointerEvents="box-none"
+                      ref={registerPanelSurface}
+                    />
+                    {centerContent}
+                  </>
+                ),
+              },
+              {
+                id: 'context',
+                visible: !onDeckRoute,
+                sticky: true,
+                width: 350,
+                hideBelow: 990,
+                appearance: pathname === '/videos' ? 'solid' : 'plain',
+                chrome: 'none',
+                scroll: 'content',
+                content: <RightBar />,
+              },
+              ...deckOrder
+                .filter((id) => deckPanels[id])
+                .map((id) => {
+                  const panel = deckPanels[id];
+                  return {
+                    id,
+                    visible: onDeckRoute,
+                    width: panel.width,
+                    appearance: panel.appearance,
+                    colorPreset: panel.colorPreset,
+                    onWidthChange: (width: number) => {
+                      const current = useDeckSettings.getState();
+                      if (
+                        current.viewer === deckViewer &&
+                        current.restorationEpoch === deckRestorationEpoch
+                      )
+                        updateDeckPanel(id, { width });
+                    },
+                    minWidth: 300,
+                    maxWidth: 620,
+                    resizable: panel.resizable,
+                    scroll: 'content' as const,
+                    headerActions: <DeckColumnHeaderActions panelId={id} />,
+                    navigation: {
+                      initialEntries: [{ key: 'root', ...deckRouteForSource(panel.source) }],
+                      state: panel.navigation ?? {
+                        entries: [{ key: 'root', ...deckRouteForSource(panel.source) }],
+                        index: 0,
+                      },
+                      scrollRestoration: {
+                        scopeKey: `${deckViewer}:${deckRestorationEpoch}`,
+                        initialSnapshot: panel.scrollOffsets,
+                        onSnapshotChange: (scrollOffsets: Readonly<Record<string, number>>) => {
+                          const current = useDeckSettings.getState();
+                          if (
+                            current.viewer === deckViewer &&
+                            current.restorationEpoch === deckRestorationEpoch
+                          )
+                            updateDeckPanel(id, { scrollOffsets: { ...scrollOffsets } });
+                        },
+                      },
+                      onNavigationChange: (navigation: PanelNavigationState) => {
+                        const current = useDeckSettings.getState();
+                        if (
+                          current.viewer === deckViewer &&
+                          current.restorationEpoch === deckRestorationEpoch
+                        )
+                          updateDeckPanel(id, { navigation });
+                      },
+                      render: () => <DeckColumn panelId={id} />,
+                    },
+                  };
+                }),
+            ],
+          }}
+        />
+      </>
       <RegisterPush />
       <BootMilestone name="route-mounted" />
       <WelcomeModalGate appIsReady={true} />

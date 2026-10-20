@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { Keyboard } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect } from '@/lib/navigation/router';
 
 /**
  * Close the soft keyboard when this screen stops being the focused one.

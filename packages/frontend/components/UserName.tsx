@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import { Text, TouchableOpacity, StyleSheet, View, type TextStyle } from 'react-native';
-import { Link } from 'expo-router';
+import { Link } from '@/lib/navigation/router';
 import * as Clipboard from 'expo-clipboard';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -227,9 +227,13 @@ const UserName: React.FC<UserNameProps> = ({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'column',
+    minWidth: 0,
+    maxWidth: '100%',
   },
   nameRow: {
     flexDirection: 'row',
+    // Centered identity stacks still constrain the row before text ellipsizes.
+    maxWidth: '100%',
     alignItems: 'center',
     // Allow the row to shrink below its content's intrinsic width when a
     // constraining parent requests it, so the name Text can ellipsize.
@@ -248,6 +252,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   handle: {
+    maxWidth: '100%',
     fontSize: 15,
     lineHeight: 20,
   },

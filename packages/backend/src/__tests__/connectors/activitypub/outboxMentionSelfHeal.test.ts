@@ -317,7 +317,7 @@ describe('OutboxSyncService — @mention self-heal on re-sync', () => {
     expect(mocks.getOrFetchActor).toHaveBeenCalledWith(BOB_URI);
     const state = await storedState(postId);
     expect(state.mentions).toEqual([]);
-    expect(state.texts[0]).toContain(`[@@bob](${BOB_PROFILE})`);
+    expect(state.texts[0]).toContain(`[@@bob@mastodon.example](${BOB_PROFILE})`);
     const repeated = await runSync();
     expect(repeated.healedMentionCount).toBe(0);
   });

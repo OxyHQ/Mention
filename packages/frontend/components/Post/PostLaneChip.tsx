@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import { type GestureResponderEvent, Pressable, Text } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import type { LaneSummary } from '@mention/shared-types';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 

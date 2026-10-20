@@ -18,7 +18,10 @@ import { canAttestWorkloadIdentity, createEcosystemTraffic } from '@oxy.so/core/
  * still have it — `createEcosystemTraffic` takes an explicit location — but
  * nothing in a task definition has to say the obvious.
  */
-export function startPlatformActivity(ready: () => boolean, service = 'mention-mcp') {
+export function startPlatformActivity(
+  ready: () => boolean,
+  service = 'mention-mcp',
+): ReturnType<typeof createEcosystemTraffic> | undefined {
   if (!canAttestWorkloadIdentity()) return undefined;
   const traffic = createEcosystemTraffic({
     service,

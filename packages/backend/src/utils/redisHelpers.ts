@@ -111,8 +111,10 @@ export async function setExInBatches(
   client: Pick<RedisClientType, 'multi'>,
   entries: ReadonlyArray<readonly [string, string]>,
   ttlSeconds: number,
+  signal?: AbortSignal,
 ): Promise<void> {
   for (let start = 0; start < entries.length; start += REDIS_WRITE_BATCH_COMMANDS) {
+    signal?.throwIfAborted();
     const batch = client.multi();
     for (const [key, value] of entries.slice(start, start + REDIS_WRITE_BATCH_COMMANDS)) {
       batch.setEx(key, ttlSeconds, value);

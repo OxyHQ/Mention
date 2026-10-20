@@ -1,3 +1,4 @@
+import deckRoutes from './routes/deck.routes';
 import { config } from './config';
 import { createDeploymentAdmission } from './middleware/deployment-admission';
 import express, { type RequestHandler } from 'express';
@@ -180,6 +181,7 @@ export function createAppRoutes({ oxy, optionalAuth }: CreateAppRoutesDependenci
   authenticatedApi.use('/jobs', jobApplicationsRoutes);
   authenticatedApi.use('/profile/media', profileMediaRoutes);
   authenticatedApi.use('/profile', profileSettingsRoutes);
+  authenticatedApi.use('/deck', deckRoutes);
   authenticatedApi.use('/subscriptions', subscriptionsRoutes);
   authenticatedApi.use('/gifs', gifsRoutes);
   authenticatedApi.use('/mute', muteRoutes);

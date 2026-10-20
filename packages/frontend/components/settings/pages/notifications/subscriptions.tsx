@@ -1,3 +1,4 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 /**
  * Activity notification subscriptions — the accounts the viewer asked to be
  * notified about ("notify me when this account posts").
@@ -11,7 +12,6 @@
  */
 
 import type { PostSubscriptionItem, PostSubscriptionListResponse } from '@mention/shared-types';
-import { Loading, SpinnerIcon } from '@oxy.so/bloom/loading';
 import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { toast } from '@oxy.so/bloom/toast';
 import { getNormalizedUserHandle } from '@oxy.so/core';
@@ -182,13 +182,7 @@ export default function ActivitySubscriptionsScreen() {
       <View>
         {/* The shared modal owns scrolling; the explicit action also supports native. */}
         <LoadMoreSentinel onLoadMore={handleLoadMore} enabled={Boolean(hasNextPage)} />
-        {isFetchingNextPage ? (
-          <View className="py-5 items-center">
-            <SpinnerIcon size={20} className="text-primary" />
-          </View>
-        ) : (
-          <View className="h-8" />
-        )}
+        {isFetchingNextPage ? <ListSkeleton count={2} /> : <View className="h-8" />}
       </View>
     ),
     [handleLoadMore, hasNextPage, isFetchingNextPage],
@@ -196,11 +190,7 @@ export default function ActivitySubscriptionsScreen() {
 
   const renderContent = () => {
     if (isPrivateApiPending) {
-      return (
-        <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
-      );
+      return <ListSkeleton />;
     }
 
     if (!canUsePrivateApi) {

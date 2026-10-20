@@ -1,4 +1,4 @@
-import { Slot } from 'expo-router';
+import { Slot } from '@/lib/navigation/router';
 
 import type { TabsPagerProps } from './TabsPager.types';
 
@@ -11,7 +11,7 @@ import type { TabsPagerProps } from './TabsPager.types';
  * (`app/(app)/_layout.tsx`), `components/Feed/Feed.web.tsx` is a WINDOW
  * virtualizer measuring against the document, `stores/feedScrollStore.ts` and
  * Bloom's `useScrollRestoration('window')` persist `window.scrollY`, and
- * `components/shell/PanelChrome.tsx` pins its chrome with `position: sticky`.
+ * Bloom Screen coordinates page chrome with the active scroll owner.
  * There is no arrangement of five side-by-side pages that leaves those true.
  * Bloom's own `docs/scroll.mdx` records the same wall from the other side: a
  * tabbed navigator hides blurred tabs with `display: none`, which collapses the

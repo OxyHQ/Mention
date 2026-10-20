@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { Platform } from 'react-native';
-import { Slot } from 'expo-router';
+import { Slot } from '@/lib/navigation/router';
 import { useTabsWithTriggers } from 'expo-router/ui';
 
 import { TabsPager } from '@/components/navigation/TabsPager';

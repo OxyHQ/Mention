@@ -1,6 +1,7 @@
+import { FormSkeleton, SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Avatar } from '@oxy.so/bloom/avatar';
@@ -14,7 +15,6 @@ import { RiShapesLine } from '@oxy.so/bloom/icons/RiShapesLine';
 import { RiStarFill } from '@oxy.so/bloom/icons/RiStarFill';
 import { RiUserLine } from '@oxy.so/bloom/icons/RiUserLine';
 import { Item } from '@oxy.so/bloom/item';
-import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { Switch } from '@oxy.so/bloom/switch';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
@@ -174,9 +174,7 @@ export default function ChannelAccountSettingsScreen() {
     return (
       <View className="flex-1">
         {header}
-        <View className="flex-1 items-center justify-center">
-          <SpinnerIcon size={28} className="text-primary" />
-        </View>
+        <FormSkeleton />
       </View>
     );
   }
@@ -204,6 +202,7 @@ export default function ChannelAccountSettingsScreen() {
 }
 
 function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
+  const router = useRouter();
   const { t } = useTranslation();
   const { colors } = useTheme();
   const queryClient = useQueryClient();
@@ -460,11 +459,7 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
     channel.callerMembership?.permissions?.includes(ACCOUNT_DELETE_PERMISSION) === true;
 
   if (isPending) {
-    return (
-      <View className="flex-1 items-center justify-center">
-        <SpinnerIcon size={28} className="text-primary" />
-      </View>
-    );
+    return <SettingsSkeleton />;
   }
 
   return (

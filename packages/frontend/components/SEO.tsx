@@ -1,7 +1,8 @@
+import { useOptionalPanelRouter } from '@oxy.so/bloom/panel-routing';
 import type React from 'react';
 import { useCallback, useEffect } from 'react';
 import { Platform } from 'react-native';
-import { useFocusEffect, usePathname } from 'expo-router';
+import { useFocusEffect, usePathname } from '@/lib/navigation/router';
 import { releaseServerSEO } from '@/lib/seoHandoff';
 import { WEB_BASE_URL } from '@/config';
 import ExpoHead from 'expo-router/head';
@@ -141,6 +142,7 @@ export const SEO: React.FC<SEOProps> = ({
   robots = 'index,follow',
   jsonLd,
 }) => {
+  const panel = useOptionalPanelRouter();
   const pathname = usePathname();
   const { t } = useTranslation();
 
@@ -171,18 +173,18 @@ export const SEO: React.FC<SEOProps> = ({
 
   const pageImage = image || DEFAULT_IMAGE;
 
-  useDefaultImageTags(Platform.OS === 'web');
+  useDefaultImageTags(Platform.OS === 'web' && !panel);
 
   useFocusEffect(
     useCallback(() => {
-      if (Platform.OS === 'web' && ready && typeof document !== 'undefined') {
+      if (!panel && Platform.OS === 'web' && ready && typeof document !== 'undefined') {
         releaseServerSEO(document);
       }
-    }, [ready]),
+    }, [ready, panel]),
   );
 
   // Loading routes must not overwrite complete server metadata with placeholders.
-  if (Platform.OS !== 'web' || !ready) {
+  if (Platform.OS !== 'web' || !ready || panel) {
     return null;
   }
 

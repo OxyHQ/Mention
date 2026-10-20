@@ -1,3 +1,4 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -230,7 +231,7 @@ const JobApplicationDetailSheet = ({
         </Text>
 
         {notesQuery.isLoading ? (
-          <Loading className="text-primary" size="sm" />
+          <ListSkeleton count={2} />
         ) : (
           <View className="gap-2 mb-3">
             {(notesQuery.data?.notes ?? []).map((note) => (

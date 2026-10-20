@@ -80,6 +80,18 @@ describe('buildFeedScrollKey', () => {
     ).not.toBe(buildFeedScrollKey({ type: 'hashtag', filters: { hashtag: 'vue' } as FeedFilters }));
   });
 
+  it('keeps filter delimiters inside values instead of confusing distinct feeds', () => {
+    expect(buildFeedScrollKey({ type: 'hashtag', filters: { hashtag: 'a&topic=b' } })).not.toBe(
+      buildFeedScrollKey({ type: 'hashtag', filters: { hashtag: 'a', topic: 'b' } }),
+    );
+  });
+
+  it('preserves boolean filter types', () => {
+    expect(buildFeedScrollKey({ type: 'explore', filters: { custom: false } })).not.toBe(
+      buildFeedScrollKey({ type: 'explore', filters: { custom: 'false' } }),
+    );
+  });
+
   it('treats no filters and empty filters as equivalent', () => {
     const none = buildFeedScrollKey({ type: 'for_you' });
     const empty = buildFeedScrollKey({ type: 'for_you', filters: {} as FeedFilters });

@@ -1,12 +1,15 @@
 import type React from 'react';
 import { cloneElement, isValidElement, useCallback, useMemo } from 'react';
-import { usePathname, useRouter, type Href } from 'expo-router';
+import { usePathname, useRouter, type Href } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
+import { useDeckAvailable } from '@/components/deck/useDeckAvailable';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import type { SidebarProps } from '@oxy.so/bloom/sidebar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { ProfileButton } from '@oxy.so/services/ui/client';
+import type { AccountDialogMenuItem } from '@oxy.so/services';
 import { useAuth } from '@oxy.so/services/ui/client';
+import { RiDashboardLine } from '@oxy.so/bloom/icons/RiDashboardLine';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
@@ -25,6 +28,10 @@ import { Hashtag, HashtagActive } from '@/assets/icons/hashtag-icon';
 import { ChannelIcon, ChannelIconActive } from '@/assets/icons/channel-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 
+function DeckIcon({ size = 24, color }: { size?: number; color?: string }) {
+  return <RiDashboardLine width={size} height={size} fill={color} />;
+}
+
 function LiveRoomsIcon({ size = 24, color }: { size?: number; color?: string }) {
   return <RiBroadcastLine width={size} height={size} fill={color} />;
 }
@@ -38,6 +45,7 @@ function paintNavigationIcon(icon: React.ReactNode, width?: number, fill?: strin
 // belong to Bloom. The same descriptor feeds its desktop rail and mobile drawer.
 export function useMentionSidebar(): SidebarProps {
   const { t } = useTranslation();
+  const deckAvailable = useDeckAvailable();
   const router = useRouter();
   const { user, signIn } = useAuth();
   const avatarUri = user?.avatar;
@@ -68,10 +76,28 @@ export function useMentionSidebar(): SidebarProps {
     const href = profileHrefForUser(user);
     if (href) handleNavPress(href);
   }, [user, handleNavPress]);
-  const handleNavigateManage = useCallback(() => {
+  const handleOpenSettings = useCallback(() => {
     close();
     settings.open();
   }, [close, settings]);
+  // Mention's own rows in the shared Oxy account dialog, below Oxy's actions.
+  const accountMenuItems = useMemo<AccountDialogMenuItem[]>(
+    () => [
+      {
+        key: 'mention-settings',
+        label: t('sidebar.accountMenu.settings'),
+        icon: 'cog-outline',
+        onPress: handleOpenSettings,
+      },
+      {
+        key: 'mention-plus',
+        label: t('sidebar.accountMenu.plus'),
+        icon: 'crown-outline',
+        onPress: () => handleNavPress('/plus'),
+      },
+    ],
+    [t, handleOpenSettings, handleNavPress],
+  );
   const sideBarData = useMemo<
     {
       title: string;
@@ -118,6 +144,16 @@ export function useMentionSidebar(): SidebarProps {
         iconActive: <SearchActive />,
         route: '/explore',
       },
+      ...(deckAvailable
+        ? [
+            {
+              title: 'Deck',
+              icon: <DeckIcon />,
+              iconActive: <DeckIcon />,
+              route: '/deck' as Href,
+            },
+          ]
+        : []),
       {
         title: t('sidebar.notifications'),
         icon: <Bell />,
@@ -168,10 +204,10 @@ export function useMentionSidebar(): SidebarProps {
         icon: <Gear />,
         iconActive: <GearActive />,
         route: '/settings',
-        onPress: handleNavigateManage,
+        onPress: handleOpenSettings,
       },
     ],
-    [t, user, avatarUri, avatarName, handleNavigateProfile, handleNavigateManage],
+    [t, user, avatarUri, avatarName, handleNavigateProfile, handleOpenSettings, deckAvailable],
   );
 
   const pathname = usePathname();
@@ -209,9 +245,11 @@ export function useMentionSidebar(): SidebarProps {
     footer: ({ collapsed }) => (
       <ProfileButton
         expanded={!collapsed}
-        onNavigateManage={handleNavigateManage}
+        // No `onNavigateManage`: "Manage your Oxy account" falls through to the
+        // SDK's own ManageAccount screen, not Mention's settings sheet.
         onNavigateProfile={handleNavigateProfile}
         onAddAccount={handleAddAccount}
+        menuItems={accountMenuItems}
       />
     ),
   };

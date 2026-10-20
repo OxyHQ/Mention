@@ -1,6 +1,7 @@
+import { usePanelScrollContainer } from '@oxy.so/bloom/app-shell/hooks';
 import { useRef } from 'react';
 import { Pressable } from 'react-native';
-import { useWindowVirtualizer } from '@tanstack/react-virtual';
+import { useOwnerVirtualizer } from '@/hooks/useOwnerVirtualizer.web';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
 import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
 import PostItem from '@/components/Feed/PostItem';
@@ -35,10 +36,11 @@ export default function SavedPostsList({
   // `subscribe` on the virtualizer to drive `useSyncExternalStore` from.
   'use no memo';
 
+  const panel = usePanelScrollContainer<HTMLElement>();
   const spacerRef = useRef<HTMLDivElement | null>(null);
   const scrollMargin = useScrollMarginOrigin(spacerRef);
 
-  const virtualizer = useWindowVirtualizer<HTMLDivElement>({
+  const virtualizer = useOwnerVirtualizer<HTMLDivElement>({
     count: posts.length,
     estimateSize: () => ESTIMATED_POST_HEIGHT,
     overscan: OVERSCAN_POSTS,
@@ -53,7 +55,7 @@ export default function SavedPostsList({
     : 0;
   const spacerHeight = Math.max(totalSize, lastItemEnd);
 
-  useScrollRestoration('window', { enabled: true });
+  useScrollRestoration('window', { enabled: !panel });
 
   // The spacer stays mounted while the list is empty: it is the element the
   // scroll-margin origin measures, and that measurement binds once, on mount.

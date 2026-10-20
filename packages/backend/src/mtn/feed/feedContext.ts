@@ -19,7 +19,7 @@ import { getFollowingIds, getFollowerIds } from '../../utils/privacyHelpers';
 import { loadUserSettings } from '../../db/userProfile/userSettingsRepository';
 import { listSubscriptionService } from '../../services/ListSubscriptionService';
 import { userPreferenceService } from '../../services/UserPreferenceService';
-import { resolveUserSummaries } from '../../services/PostHydrationService';
+import { getUserLanguages } from '@oxy.so/core';
 import { mergeFederatedFollowIds } from '../../services/viewerFollowGraph';
 import { loadMutedLaneIds } from '../../services/safety/viewerSafety';
 import type { UserBehaviorRecord } from '../../db/userProfile/userBehaviorRecord';
@@ -27,8 +27,8 @@ import { logger } from '../../utils/logger';
 import type { FeedEngineContext } from './engine/types';
 
 /**
- * How many reader languages reach a query. Three covers a genuinely multilingual
- * reader, and it bounds two things that would otherwise grow with an
+ * How many untrusted request languages reach a query. This bounds two things
+ * that would otherwise grow with an
  * attacker-supplied `Accept-Language`: the width of the `&&` array overlap on
  * the discovery lanes, and the cardinality of the anonymous feed cache, whose
  * key now carries this set.
@@ -37,7 +37,7 @@ const MAX_VIEWER_LANGUAGES = MtnConfig.feed.discoveryLanguage.maxViewerLanguages
 
 /**
  * The reader's READABILITY set: which languages they can read at all, as ISO
- * 639-1 BASE subtags, primary first, capped.
+ * 639-1 BASE subtags, primary first. Only request fallback locales are capped.
  *
  * Deliberately SEPARATE from {@link loadViewerLanguages}, which answers a
  * different question with a different unit, and conflating the two is a real bug
@@ -59,37 +59,27 @@ export function resolveViewerBaseLanguages(
   accountLanguages: readonly string[],
   requestLanguages: readonly string[],
 ): string[] {
-  const account = toBaseLanguages(accountLanguages).slice(0, MAX_VIEWER_LANGUAGES);
+  const account = toBaseLanguages(accountLanguages);
   if (account.length > 0) return account;
   return toBaseLanguages(requestLanguages).slice(0, MAX_VIEWER_LANGUAGES);
 }
 
 /**
- * The viewer's account languages — canonical BCP-47 locales (`es-ES`, `en-US`),
- * primary first. The Oxy account is the SINGLE source of truth here: languages
- * are never derived from behavior and never defaulted to a UI locale.
- *
- * REGION-SIGNIFICANT, and that is the point: this is the set hydration resolves
- * a post's VARIANT against, and `selectVariantForTag` matches the exact locale
- * before the base subtag, so `pt-BR` and `pt-PT` are genuinely different answers.
- * The readability question — which languages the reader can read at all — is a
- * different unit and lives in {@link resolveViewerBaseLanguages}.
- *
- * The viewer's Oxy user is resolved through the SAME Redis-cached identity path
- * the feed already uses for post authors ({@link resolveUserSummaries}: batched
- * cache read, one bulk Oxy fetch for a miss), so an authenticated feed request
- * adds NO new Oxy round trip — the viewer is typically already warm in the cache.
- * `CachedUserSummary.languages` is normalized by the SDK's `getUserLanguages`
- * when the entry is filled.
- *
- * Fail-soft: an anonymous viewer, an unresolvable user, or any lookup error
- * yields `[]`.
+ * Read the viewer's ordered locales from Oxy's owner profile. Public author
+ * summaries omit languages, so they cannot supply account feed preferences.
+ * The client carries this request's user credential; these private preferences
+ * never enter the shared public-user cache. Delegated clients without a self
+ * read and failed lookups fall back to the request's languages downstream.
  */
-export async function loadViewerLanguages(userId: string | undefined): Promise<string[]> {
-  if (!userId) return [];
+export async function loadViewerLanguages(
+  userId: string | undefined,
+  oxyClient?: OxyClient,
+): Promise<string[]> {
+  if (!userId || !oxyClient?.users) return [];
   try {
-    const summaries = await resolveUserSummaries([userId]);
-    return summaries.get(userId)?.languages ?? [];
+    const user = await oxyClient.users.me();
+    if (user.id !== userId) return [];
+    return getUserLanguages(user);
   } catch (error) {
     logger.warn('[feedContext] Failed to load viewer languages', error);
     return [];
@@ -230,8 +220,8 @@ export async function loadViewerFeedContext(
     // are two fields of the same `UserSettings` row.
     const preferencesPromise = loadFeedPreferences(currentUserId);
 
-    // Already soft-fails to `[]` internally; served from the Redis identity cache.
-    const languagesPromise = loadViewerLanguages(currentUserId);
+    // Owner-only Oxy read, concurrent with the other context lookups.
+    const languagesPromise = loadViewerLanguages(currentUserId, oxyClient);
 
     // Already soft-fails to `[]` internally. One small indexed read, and `[]` for
     // almost every reader — the engine's predicate is then `undefined`, i.e. free.

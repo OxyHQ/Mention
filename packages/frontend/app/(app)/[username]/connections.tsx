@@ -1,3 +1,4 @@
+import { Screen } from '@oxy.so/bloom/screen';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Text } from '@oxy.so/bloom/typography';
@@ -8,14 +9,14 @@ import {
   ProfileCardSkeletonList,
   type ProfileCardData,
 } from '@/components/ProfileCard';
-import { useLocalSearchParams, router, usePathname } from 'expo-router';
+import { useRouter, useLocalSearchParams, usePathname } from '@/lib/navigation/router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, TouchableOpacity, Share, Platform } from 'react-native';
 import { VirtualList } from '@oxy.so/bloom/list';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import { BloomColorScope, useTheme } from '@oxy.so/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { EmptyState } from '@/components/common/EmptyState';
 import type { EmptyStateStickerName } from '@/lib/stickers';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
@@ -144,7 +145,7 @@ function AuthorizedConnectionsScreen() {
   });
 
   return (
-    <BloomColorScope colorPreset={profileColorName} asChild>
+    <Screen colorPreset={profileColorName}>
       <ConnectionsContent
         routeUsername={username}
         cleanUsername={cleanUsername}
@@ -154,7 +155,7 @@ function AuthorizedConnectionsScreen() {
         profileNotFound={profileNotFound}
         refreshProfile={refreshProfile}
       />
-    </BloomColorScope>
+    </Screen>
   );
 }
 
@@ -179,6 +180,7 @@ function ConnectionsContent({
   profileNotFound,
   refreshProfile,
 }: ConnectionsContentProps) {
+  const router = useRouter();
   const safeBack = useSafeBack();
   const pathname = usePathname();
   const { oxyServices, user } = useAuth();
@@ -314,7 +316,7 @@ function ConnectionsContent({
       const subroute = tab === 'who-may-know' ? 'who-may-know' : tab;
       router.push(`/@${profileHandle}/${subroute}`);
     },
-    [profileHandle, routeUsername],
+    [profileHandle, routeUsername, router],
   );
 
   const getInviteMessage = useCallback(() => {

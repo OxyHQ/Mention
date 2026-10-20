@@ -1,95 +1,22 @@
-import React, { useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Platform,
-  type ViewStyle,
-  type TextStyle,
-} from 'react-native';
+import { InsightsSkeleton } from '@/components/loading/ContentSkeleton';
+import type React from 'react';
+import { useState, useCallback } from 'react';
+import { View, StyleSheet, Platform } from 'react-native';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import { Loading } from '@oxy.so/bloom/loading';
-import { router } from 'expo-router';
-import Ionicons from '@/components/common/Ionicons';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { RiEyeLine } from '@oxy.so/bloom/icons/RiEyeLine';
 import { insightsService } from '@/services/insightsService';
 import { useTranslation } from 'react-i18next';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 import { usePostsStore } from '@/stores/postsStore';
-import PostItem from '@/components/Feed/PostItem';
 import type { HydratedPost } from '@mention/shared-types';
-import MiniChart from '@/components/MiniChart';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
-import { Divider } from '@oxy.so/bloom/divider';
-import {
-  SegmentedControl,
-  SegmentedControlItem,
-  SegmentedControlItemText,
-} from '@oxy.so/bloom/segmented-control';
 import { EmptyState } from '@/components/common/EmptyState';
-import { formatCompactNumber } from '@/utils/formatNumber';
-import { asViewStyle, asTextStyle } from '@/types/webStyles';
+import { asViewStyle } from '@/types/webStyles';
 import { logger } from '@oxy.so/core/logger';
-import { HeartIcon } from '@/assets/icons/heart-icon';
-import { CommentIcon } from '@/assets/icons/comment-icon';
-import { BoostIcon } from '@/assets/icons/boost-icon';
-import { ShareIcon } from '@/assets/icons/share-icon';
-import { CalendarIcon } from '@/assets/icons/calendar-icon';
-import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
-import { ArticleIcon } from '@/assets/icons/article-icon';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { MediaIcon } from '@/assets/icons/media-icon';
-import { Video } from '@/assets/icons/video-icon';
-import { PollIcon } from '@/assets/icons/poll-icon';
-import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
-import { StatRow } from '@/components/insights/StatRow';
+import { InsightsDashboard } from './InsightsDashboard';
 
-const PERIOD_OPTIONS = [
-  { labelKey: 'insights.period.7days', value: 7 },
-  { labelKey: 'insights.period.30days', value: 30 },
-  { labelKey: 'insights.period.90days', value: 90 },
-];
-
-// `position: 'sticky'` is a valid react-native-web value absent from RN's native
-// position union — author it through the shared extended View/Text styles (same
-// pattern as SideBar) and bridge to the RN style types, rather than an `as any` cast.
-const webStickyViewStyle: ViewStyle = asViewStyle({ position: 'sticky' });
-const webStickyRankStyle: TextStyle = asTextStyle({ position: 'sticky', top: 12 });
-
-// WEB hands scroll to the shared panel/document (no nested scroller that would
-// break sticky rails + window scroll restoration); NATIVE keeps a ScrollView as
-// the tab's scroller — the standard RN idiom.
-const IS_WEB = Platform.OS === 'web';
-
-// Period selector — picks the window every figure below is computed over.
-interface PeriodSelectorProps {
-  selected: number;
-  onSelect: (val: number) => void;
-  t: (key: string) => string;
-}
-
-const PeriodSelector: React.FC<PeriodSelectorProps> = ({ selected, onSelect, t }) => (
-  <View style={styles.periodRow}>
-    <View style={styles.periodControl}>
-      <SegmentedControl
-        label={t('insights.title')}
-        type="radio"
-        value={String(selected)}
-        onValueChange={(value) => onSelect(Number(value))}
-      >
-        {PERIOD_OPTIONS.map((opt) => (
-          <SegmentedControlItem key={opt.value} value={String(opt.value)}>
-            <SegmentedControlItemText>{t(opt.labelKey)}</SegmentedControlItemText>
-          </SegmentedControlItem>
-        ))}
-      </SegmentedControl>
-    </View>
-    <Divider />
-  </View>
-);
+const webStickyViewStyle = asViewStyle({ position: 'sticky' });
 
 export interface InsightsViewProps {
   /**
@@ -131,7 +58,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
   const { user, canUsePrivateApi, isPrivateApiPending } = useAuth();
 
   const [selectedPeriod, setSelectedPeriod] = useState(30);
-  const [activeTab, setActiveTab] = useState<'overview' | 'engagement'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'engagement' | 'publishing'>('overview');
 
   const { getPostById } = usePostsStore();
 
@@ -142,7 +69,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
   // keeps the previous period on screen while a new one loads, matching the
   // original background-prefetch smoothness. Gated on `canUsePrivateApi` since
   // /statistics/* are private endpoints.
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: viewerQueryKeys.insights(user?.id, accountId, selectedPeriod),
     queryFn: async () => {
       const [stats, engagement] = await Promise.all([
@@ -183,318 +110,23 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
     [selectedPeriod],
   );
 
-  const renderOverviewTab = () => {
-    if (!stats) return null;
-
-    const totalPosts = stats.overview.totalPosts;
-    const perPost = (n: number) =>
-      totalPosts > 0 ? `${(n / totalPosts).toFixed(1)}/post` : undefined;
-
-    const body = (
-      <>
-        <PeriodSelector selected={selectedPeriod} onSelect={handlePeriodChange} t={t} />
-
-        {/* Weekly Recap link — the viewer's own insights only. See the note above. */}
-        {!accountId && (
-          <>
-            <TouchableOpacity
-              style={styles.recapRow}
-              onPress={() => router.push('/insights/weekly_recap')}
-              activeOpacity={0.7}
-            >
-              <View className="flex-row items-center gap-2.5">
-                <CalendarIcon size={18} className="text-foreground" />
-                <Text className="text-[15px] font-semibold text-foreground">
-                  {t('insights.weeklyRecap.ready')}
-                </Text>
-              </View>
-              <ChevronRightIcon size={18} className="text-muted-foreground" />
-            </TouchableOpacity>
-            <Divider />
-          </>
-        )}
-
-        {/* Top-line metrics */}
-        <View className="flex-row items-center py-5">
-          <View className="flex-1 items-center">
-            <Text className="text-2xl font-extrabold tracking-tight text-foreground">
-              {formatCompactNumber(stats.overview.totalPosts)}
-            </Text>
-            <Text className="text-xs font-medium mt-0.5 text-muted-foreground">
-              {t('insights.posts')}
-            </Text>
-          </View>
-          <Divider vertical style={styles.topMetricDivider} />
-          <View className="flex-1 items-center">
-            <Text className="text-2xl font-extrabold tracking-tight text-foreground">
-              {formatCompactNumber(stats.overview.totalViews)}
-            </Text>
-            <Text className="text-xs font-medium mt-0.5 text-muted-foreground">
-              {t('insights.post.views')}
-            </Text>
-          </View>
-          <Divider vertical style={styles.topMetricDivider} />
-          <View className="flex-1 items-center">
-            <Text className="text-2xl font-extrabold tracking-tight text-foreground">
-              {stats.overview.engagementRate.toFixed(1)}%
-            </Text>
-            <Text className="text-xs font-medium mt-0.5 text-muted-foreground">
-              {t('insights.post.engagementRate')}
-            </Text>
-          </View>
-        </View>
-
-        {/* Mini chart */}
-        {stats.dailyBreakdown && stats.dailyBreakdown.length > 0 && (
-          <View className="mb-4">
-            <MiniChart
-              values={stats.dailyBreakdown.slice(-7).map((d) => d.views)}
-              showLabels={true}
-              height={40}
-            />
-          </View>
-        )}
-
-        {/* Interactions */}
-        <Text className="text-[15px] font-bold mb-1 mt-2 text-foreground">
-          {t('insights.post.interactions')}
-        </Text>
-
-        <StatRow
-          icon={<HeartIcon size={18} className="text-foreground" />}
-          label={t('insights.post.likes')}
-          value={stats.interactions.likes}
-          sub={perPost(stats.interactions.likes)}
-        />
-        <StatRow
-          icon={<CommentIcon size={18} className="text-foreground" />}
-          label={t('insights.post.replies')}
-          value={stats.interactions.replies}
-          sub={perPost(stats.interactions.replies)}
-        />
-        <StatRow
-          icon={<BoostIcon size={18} className="text-foreground" />}
-          label={t('insights.post.boosts')}
-          value={stats.interactions.boosts}
-          sub={perPost(stats.interactions.boosts)}
-        />
-        <StatRow
-          icon={<ShareIcon size={18} className="text-foreground" />}
-          label={t('insights.post.shares')}
-          value={stats.interactions.shares}
-          sub={perPost(stats.interactions.shares)}
-          showDivider={false}
-        />
-
-        {/* Posts by Type */}
-        {Object.keys(stats.postsByType).length > 0 && (
-          <>
-            <Text className="text-[15px] font-bold mb-1 mt-6 text-foreground">
-              {t('insights.postsByType')}
-            </Text>
-            {Object.entries(stats.postsByType).map(([type, count], index, array) => {
-              const pct =
-                totalPosts > 0 ? `${((count / totalPosts) * 100).toFixed(0)}%` : undefined;
-              const iconMap: Record<string, React.ReactNode> = {
-                text: <ArticleIcon size={18} className="text-foreground" />,
-                image: <MediaIcon size={18} className="text-foreground" />,
-                video: <Video size={18} className="text-foreground" />,
-                poll: <PollIcon size={18} className="text-foreground" />,
-              };
-              return (
-                <StatRow
-                  key={type}
-                  icon={iconMap[type] || <ArticleIcon size={18} className="text-foreground" />}
-                  label={t(`insights.postType.${type}`)}
-                  value={count}
-                  sub={pct}
-                  showDivider={index < array.length - 1}
-                />
-              );
-            })}
-          </>
-        )}
-
-        {/* Top Posts */}
-        {stats.topPosts.length > 0 && (
-          <>
-            <Text className="text-[15px] font-bold mb-1 mt-6 text-foreground">
-              {t('insights.topPerformingPosts')}
-            </Text>
-            {topPostsData.length > 0 ? (
-              topPostsData.map((post, index) => (
-                <React.Fragment key={post.id}>
-                  <View style={styles.topPostRow}>
-                    <Text
-                      className="text-xl font-extrabold w-8 pt-3.5 text-muted-foreground"
-                      style={webStickyRankStyle}
-                    >
-                      {index + 1}
-                    </Text>
-                    <View className="flex-1">
-                      <PostItem post={post} style={styles.topPostItem} />
-                    </View>
-                  </View>
-                  {index < topPostsData.length - 1 ? <Divider /> : null}
-                </React.Fragment>
-              ))
-            ) : (
-              <Text className="text-sm font-medium py-4 text-muted-foreground">
-                {t('insights.unableToLoadPosts')}
-              </Text>
-            )}
-          </>
-        )}
-
-        <View className="h-10" />
-      </>
-    );
-
-    return IS_WEB ? (
-      <View style={styles.scrollContent}>{body}</View>
-    ) : (
-      <ScrollView
-        className="flex-1"
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {body}
-      </ScrollView>
-    );
-  };
-
-  const renderEngagementTab = () => {
-    if (!engagementRatios) return null;
-
-    const body = (
-      <>
-        <PeriodSelector selected={selectedPeriod} onSelect={handlePeriodChange} t={t} />
-
-        {/* Top-line */}
-        <View className="flex-row items-center py-5">
-          <View className="flex-1 items-center">
-            <Text className="text-2xl font-extrabold tracking-tight text-foreground">
-              {engagementRatios.ratios.engagementRate.toFixed(1)}%
-            </Text>
-            <Text className="text-xs font-medium mt-0.5 text-muted-foreground">
-              {t('insights.post.engagementRate')}
-            </Text>
-          </View>
-          <Divider vertical style={styles.topMetricDivider} />
-          <View className="flex-1 items-center">
-            <Text className="text-2xl font-extrabold tracking-tight text-foreground">
-              {formatCompactNumber(engagementRatios.totals.interactions)}
-            </Text>
-            <Text className="text-xs font-medium mt-0.5 text-muted-foreground">
-              {t('insights.post.interactions')}
-            </Text>
-          </View>
-          <Divider vertical style={styles.topMetricDivider} />
-          <View className="flex-1 items-center">
-            <Text className="text-2xl font-extrabold tracking-tight text-foreground">
-              {engagementRatios.averages.engagementPerPost.toFixed(1)}
-            </Text>
-            <Text className="text-xs font-medium mt-0.5 text-muted-foreground">
-              {t('insights.avgPerPost')}
-            </Text>
-          </View>
-        </View>
-
-        {/* Rates */}
-        <Text className="text-[15px] font-bold mb-1 mt-2 text-foreground">
-          {t('insights.engagementRatios')}
-        </Text>
-
-        <StatRow
-          icon={<HeartIcon size={18} className="text-foreground" />}
-          label={t('insights.likeRate')}
-          value={`${engagementRatios.ratios.likeRate.toFixed(2)}%`}
-        />
-        <StatRow
-          icon={<CommentIcon size={18} className="text-foreground" />}
-          label={t('insights.replyRate')}
-          value={`${engagementRatios.ratios.replyRate.toFixed(2)}%`}
-        />
-        <StatRow
-          icon={<BoostIcon size={18} className="text-foreground" />}
-          label={t('insights.boostRate')}
-          value={`${engagementRatios.ratios.boostRate.toFixed(2)}%`}
-        />
-        <StatRow
-          icon={<ShareIcon size={18} className="text-foreground" />}
-          label={t('insights.shareRate')}
-          value={`${engagementRatios.ratios.shareRate.toFixed(2)}%`}
-          showDivider={false}
-        />
-
-        {/* Averages */}
-        <Text className="text-[15px] font-bold mb-1 mt-6 text-foreground">
-          {t('insights.averages')}
-        </Text>
-
-        <StatRow
-          icon={<RiEyeLine width={18} height={18} fill={theme.colors.text} />}
-          label={t('insights.viewsPerPost')}
-          value={formatCompactNumber(Math.round(engagementRatios.averages.viewsPerPost))}
-          sub={`${engagementRatios.totals.posts} ${t('insights.posts').toLowerCase()}`}
-        />
-        <StatRow
-          icon={<AnalyticsIcon size={18} className="text-foreground" />}
-          label={t('insights.engagementPerPost')}
-          value={engagementRatios.averages.engagementPerPost.toFixed(1)}
-          showDivider={false}
-        />
-
-        {/* Totals */}
-        <Text className="text-[15px] font-bold mb-1 mt-6 text-foreground">
-          {t('insights.totalActivity')}
-        </Text>
-
-        <StatRow
-          icon={<ArticleIcon size={18} className="text-foreground" />}
-          label={t('insights.posts')}
-          value={engagementRatios.totals.posts}
-        />
-        <StatRow
-          icon={<RiEyeLine width={18} height={18} fill={theme.colors.text} />}
-          label={t('insights.post.views')}
-          value={engagementRatios.totals.views}
-        />
-        <StatRow
-          icon={<Ionicons name="flash" size={18} color={theme.colors.text} />}
-          label={t('insights.post.interactions')}
-          value={engagementRatios.totals.interactions}
-          showDivider={false}
-        />
-
-        <View className="h-10" />
-      </>
-    );
-
-    return IS_WEB ? (
-      <View style={styles.scrollContent}>{body}</View>
-    ) : (
-      <ScrollView
-        className="flex-1"
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {body}
-      </ScrollView>
-    );
-  };
-
   return (
     <>
-      <View style={[styles.stickyTabBar, { borderBottomColor: theme.colors.border }]}>
+      <View
+        style={[
+          styles.stickyTabBar,
+          { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.background },
+        ]}
+      >
         <Tabs
           value={activeTab}
-          onValueChange={(tabId) => setActiveTab(tabId as 'overview' | 'engagement')}
+          onValueChange={(tabId) => setActiveTab(tabId as 'overview' | 'engagement' | 'publishing')}
           variant="underline"
         >
           {[
             { id: 'overview', label: t('insights.tabs.overview') },
             { id: 'engagement', label: t('insights.tabs.engagement') },
+            { id: 'publishing', label: t('insights.publishing') },
           ].map((tab: { id: string; label: string; count?: number }) => (
             <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
           ))}
@@ -502,9 +134,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
       </View>
 
       {isPrivateApiPending || isLoading ? (
-        <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
+        <InsightsSkeleton />
       ) : !canUsePrivateApi ? (
         <OxyAuthPrompt
           label={t('insights.signInRequired', { defaultValue: 'Sign in to see your insights' })}
@@ -542,11 +172,18 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
             },
           }}
         />
-      ) : activeTab === 'overview' ? (
-        renderOverviewTab()
-      ) : (
-        renderEngagementTab()
-      )}
+      ) : stats && engagementRatios ? (
+        <InsightsDashboard
+          stats={stats}
+          engagementRatios={engagementRatios}
+          topPostsData={topPostsData}
+          accountId={accountId}
+          selectedPeriod={selectedPeriod}
+          handlePeriodChange={handlePeriodChange}
+          activeTab={activeTab}
+          isFetching={isFetching}
+        />
+      ) : null}
     </>
   );
 };
@@ -558,35 +195,6 @@ const styles = StyleSheet.create({
     zIndex: 100,
     backgroundColor: 'transparent',
     borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-  },
-  periodRow: {
-    marginBottom: 4,
-  },
-  periodControl: {
-    paddingVertical: 14,
-    alignItems: 'flex-start',
-  },
-  recapRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-  },
-  // A vertical `Divider` stretches to its row; the figures' rule is shorter.
-  topMetricDivider: {
-    height: 28,
-    alignSelf: 'center',
-  },
-  topPostRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingVertical: 4,
-  },
-  topPostItem: {
-    borderBottomWidth: 0,
   },
 });
 

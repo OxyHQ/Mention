@@ -1,12 +1,12 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { lazy, memo, Suspense } from 'react';
 import { View, Text, Platform } from 'react-native';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { Loading } from '@oxy.so/bloom/loading';
 import { Feed } from '@/components/Feed/index';
 // Static on purpose: the feed below renders every row with this same component,
 // so it is always already loaded. A `lazy()` here saved nothing and painted the
@@ -161,7 +161,7 @@ export const ProfileTabs = memo(function ProfileTabs({
   if (tab === 'experience') {
     return (
       <SupervisedFeatureGate allowSupervised={isOwnProfile && user?.id === profileId}>
-        <Suspense fallback={<Loading />}>
+        <Suspense fallback={<ListSkeleton />}>
           <ProfileExperience profileId={profileId} isOwnProfile={isOwnProfile} />
         </Suspense>
       </SupervisedFeatureGate>
@@ -322,6 +322,7 @@ const ProfileFeeds = memo(function ProfileFeeds({
   isOwnProfile: boolean;
   viewerId?: string;
 }) {
+  const router = useRouter();
   const { t } = useTranslation();
 
   // React Query (keyed on the profile + ownership) replaces the per-tab
@@ -369,11 +370,7 @@ const ProfileFeeds = memo(function ProfileFeeds({
   });
 
   if (loading) {
-    return (
-      <View className="items-center justify-center p-8">
-        <Loading iconSize={28} style={{ padding: 0 }} />
-      </View>
-    );
+    return <ListSkeleton />;
   }
 
   if (feeds.length === 0) {
@@ -440,6 +437,7 @@ const ProfileJobs = memo(function ProfileJobs({
   isOwnProfile: boolean;
   viewerId?: string;
 }) {
+  const router = useRouter();
   const { t } = useTranslation();
 
   // `accountKind: 'organization'` is a stand-in, not an assertion about which
@@ -469,11 +467,7 @@ const ProfileJobs = memo(function ProfileJobs({
   });
 
   if (loading) {
-    return (
-      <View className="items-center justify-center p-8">
-        <Loading iconSize={28} style={{ padding: 0 }} />
-      </View>
-    );
+    return <ListSkeleton />;
   }
 
   return (
@@ -512,6 +506,7 @@ const ProfileStarterPacks = memo(function ProfileStarterPacks({
   isOwnProfile: boolean;
   viewerId?: string;
 }) {
+  const router = useRouter();
   const { t } = useTranslation();
 
   // React Query (keyed on the profile + ownership) replaces the per-tab
@@ -586,6 +581,7 @@ const ProfileLists = memo(function ProfileLists({
   isOwnProfile: boolean;
   viewerId?: string;
 }) {
+  const router = useRouter();
   const { t } = useTranslation();
 
   // React Query (keyed on the profile + ownership) replaces the per-tab
@@ -625,11 +621,7 @@ const ProfileLists = memo(function ProfileLists({
   });
 
   if (loading) {
-    return (
-      <View className="items-center justify-center p-8">
-        <Loading iconSize={28} style={{ padding: 0 }} />
-      </View>
-    );
+    return <ListSkeleton />;
   }
 
   if (lists.length === 0) {

@@ -1,9 +1,9 @@
-import type { Href } from 'expo-router';
+import type { Href } from '@/lib/navigation/router';
 import type React from 'react';
 import { useCallback } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { cn } from '@/lib/utils';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -62,6 +62,7 @@ interface JobCardProps {
  * rather than upfront for every rendered card.
  */
 const JobCard: React.FC<JobCardProps> = ({ job, className = 'w-[280px]' }) => {
+  const router = useRouter();
   const { t } = useTranslation();
   const { oxyServices } = useAuth();
   const vocabulary = useJobVocabulary();
@@ -80,7 +81,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, className = 'w-[280px]' }) => {
     } catch {
       router.push(`/jobs/${job.mentionJobId}`);
     }
-  }, [job.canonicalUrl, job.mentionJobId]);
+  }, [job.canonicalUrl, job.mentionJobId, router]);
 
   const openEmployer = useCallback(() => {
     void (async () => {
@@ -92,7 +93,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, className = 'w-[280px]' }) => {
         logger.warn('Failed to resolve employer profile for job card', { error });
       }
     })();
-  }, [oxyServices, job.employerOxyUserId]);
+  }, [oxyServices, job.employerOxyUserId, router]);
 
   const metaBadges = [
     job.location ? vocabulary.formatJobLocation(job.location) : undefined,

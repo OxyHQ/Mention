@@ -1,6 +1,6 @@
+import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
 import { authenticatedClient } from '@/utils/api';
-import { Loading } from '@oxy.so/bloom/loading';
 import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { Switch } from '@oxy.so/bloom/switch';
 import { logger } from '@oxy.so/core/logger';
@@ -69,9 +69,7 @@ export default function TagsMentionsScreen() {
   if (!isAuthResolved || isPrivateApiPending) {
     return (
       <View className="gap-4">
-        <View className="flex-1 items-center justify-center">
-          <Loading />
-        </View>
+        <SettingsSkeleton />
       </View>
     );
   }
@@ -94,9 +92,7 @@ export default function TagsMentionsScreen() {
   if (loading) {
     return (
       <View className="gap-4">
-        <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
+        <SettingsSkeleton />
       </View>
     );
   }

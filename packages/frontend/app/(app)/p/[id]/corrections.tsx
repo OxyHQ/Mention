@@ -1,8 +1,8 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { ScrollView, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
@@ -88,9 +88,7 @@ export default function PostCorrectionsScreen() {
         </Text>
 
         {isLoading ? (
-          <View className="items-center py-10">
-            <SpinnerIcon size={20} className="text-primary" />
-          </View>
+          <ListSkeleton />
         ) : isError ? (
           // An unreachable trail must not render as an empty one: "no
           // corrections" over an outage would say the post was never

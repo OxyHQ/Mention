@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useMemo } from 'react';
 import { Text, StyleSheet, type StyleProp, type TextStyle } from 'react-native';
-import { Link, type Href } from 'expo-router';
+import { Link, type Href } from '@/lib/navigation/router';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 import {
@@ -104,21 +104,15 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({
       lastIndex = entity.end;
 
       if (entity.kind === 'mentionDisplay' && /^https?:\/\//i.test(entity.value)) {
-        // Inbound federation keeps an unresolved mention's actual source href.
-        // It is a link to that remote profile, not a local identity or hover card.
+        // Resolve the source to its canonical Oxy identity inside the app.
+        // Never infer identity from the label or open a mention externally.
         elements.push(
-          <Text
-            key={`m-${key++}`}
-            className="text-primary"
-            style={linkStyle}
-            accessibilityRole="link"
-            onPress={(event) => {
-              event.stopPropagation();
-              openExternalLink(entity.value);
-            }}
-          >
-            {entity.label}
-          </Text>,
+          linkText(
+            `/mention?uri=${encodeURIComponent(entity.value)}`,
+            entity.label,
+            `m-${key++}`,
+            true,
+          ),
         );
       } else if (entity.kind === 'mentionDisplay') {
         // One handle drives both behaviors — the profile link and the hover

@@ -1,3 +1,4 @@
+import { ListSkeleton, SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { EmptyState } from '@/components/common/EmptyState';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { confirmDialog } from '@/utils/alerts';
@@ -106,9 +107,7 @@ export default function ConnectedAiScreen() {
   if (!isAuthResolved || isPrivateApiPending) {
     return (
       <View className="gap-4">
-        <View className="flex-1 items-center justify-center">
-          <Loading />
-        </View>
+        <SettingsSkeleton />
       </View>
     );
   }
@@ -132,9 +131,7 @@ export default function ConnectedAiScreen() {
     <View className="gap-4">
       <View className="gap-4">
         {isLoading ? (
-          <View className="py-10 items-center">
-            <Loading />
-          </View>
+          <ListSkeleton />
         ) : isError ? (
           <EmptyState
             icon={{ name: 'cloud-offline-outline' }}

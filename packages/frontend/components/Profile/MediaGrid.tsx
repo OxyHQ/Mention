@@ -1,9 +1,9 @@
+import { MediaGridSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useCallback, useMemo } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import { Image } from 'expo-image';
-import { Loading } from '@oxy.so/bloom/loading';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
 import Ionicons from '@/components/common/Ionicons';
@@ -223,9 +223,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
   const isLoading = (!primaryFeed && !postsFeed) || primaryFeed?.isLoading || postsFeed?.isLoading;
   const emptyContent =
     isLoading && mediaItems.length === 0 ? (
-      <View className="items-center justify-center p-8">
-        <Loading iconSize={28} style={{ padding: 0 }} />
-      </View>
+      <MediaGridSkeleton />
     ) : !isLoading && mediaItems.length === 0 ? (
       <EmptyState
         title={t('profile.media.empty.title', { defaultValue: 'No media posts yet' })}

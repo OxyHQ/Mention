@@ -1,3 +1,4 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useState, useCallback } from 'react';
 import {
@@ -12,7 +13,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { RiHand } from '@oxy.so/bloom/icons/RiHand';
-import { Loading } from '@oxy.so/bloom/loading';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { PageHeader } from '@oxy.so/bloom/page-header';
@@ -205,11 +205,7 @@ export default function PokesScreen() {
     }
 
     if (isLoading && !refreshing) {
-      return (
-        <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
-      );
+      return <ListSkeleton />;
     }
 
     if (errorReceived) {

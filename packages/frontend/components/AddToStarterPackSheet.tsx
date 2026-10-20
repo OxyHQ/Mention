@@ -1,8 +1,9 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Checkbox } from '@oxy.so/bloom/checkbox';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
@@ -68,6 +69,7 @@ export function AddToStarterPackSheet({
   targetLabel,
   onClose,
 }: AddToStarterPackSheetProps) {
+  const router = useRouter();
   const theme = useTheme();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -178,7 +180,7 @@ export function AddToStarterPackSheet({
   const goCreate = useCallback(() => {
     onClose();
     router.push('/starter-packs/create');
-  }, [onClose]);
+  }, [onClose, router]);
 
   return (
     <View className="bg-background px-4 pt-3 pb-2">
@@ -200,9 +202,7 @@ export function AddToStarterPackSheet({
       </View>
 
       {isLoading ? (
-        <View className="items-center justify-center py-10">
-          <SpinnerIcon size={26} className="text-primary" />
-        </View>
+        <ListSkeleton />
       ) : isError ? (
         <View className="items-center justify-center py-8 gap-3">
           <Text className="text-muted-foreground text-sm text-center">

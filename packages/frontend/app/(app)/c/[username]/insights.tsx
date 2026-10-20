@@ -1,9 +1,9 @@
+import { InsightsSkeleton } from '@/components/loading/ContentSkeleton';
 import { useMemo } from 'react';
 import { View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle, type AccountNode } from '@oxy.so/core';
 import { PageHeader } from '@oxy.so/bloom/page-header';
@@ -111,9 +111,7 @@ export default function ChannelInsightsScreen() {
     return (
       <View className="flex-1">
         {header}
-        <View className="flex-1 items-center justify-center">
-          <SpinnerIcon size={28} className="text-primary" />
-        </View>
+        <InsightsSkeleton />
       </View>
     );
   }

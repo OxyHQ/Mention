@@ -63,9 +63,6 @@ export const OXY_AUTH_REDIRECT_URI =
 // Public web origin used to build shareable deep links (posts, trends, rooms).
 export const WEB_BASE_URL = process.env.EXPO_PUBLIC_WEB_BASE_URL || 'https://mention.earth';
 
-// Stripe Payment Links (open in browser)
-export const STRIPE_LINK_PLUS = process.env.EXPO_PUBLIC_STRIPE_LINK_PLUS || '';
-
 // Allo store listings, for "Message in Allo" when Allo is not installed
 // (lib/alloDirectMessage.ts). Unset while Allo has no listing.
 export const ALLO_APP_STORE_URL = process.env.EXPO_PUBLIC_ALLO_APP_STORE_URL || '';

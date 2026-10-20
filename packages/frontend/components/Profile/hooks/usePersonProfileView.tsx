@@ -1,15 +1,16 @@
+import { IconButton } from '@oxy.so/bloom/button';
 import type React from 'react';
 import { useCallback, useEffect, useMemo } from 'react';
 import { Share, Text, View } from 'react-native';
-import type { Href } from 'expo-router';
+import type { Href } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { FollowButton as OxyFollowButton, useAuth, useFollow } from '@oxy.so/services/ui/client';
 import { logger } from '@oxy.so/core/logger';
 import type { FeedType } from '@mention/shared-types';
-import { Button } from '@oxy.so/bloom/button';
+import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
-import { RiMailLine } from '@oxy.so/bloom/icons/RiMailLine';
+import { AlloIcon } from '@/assets/icons/allo-icon';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { RiNotification3Fill } from '@oxy.so/bloom/icons/RiNotification3Fill';
 import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
@@ -432,6 +433,40 @@ export function usePersonProfileView({
           currentUsername={currentUser?.username}
           profileId={profileData.id}
           FollowButtonComponent={OxyFollowButton}
+          interactionActions={
+            canUsePrivateApi && !isOwnProfile ? (
+              <>
+                <ButtonGroupItem
+                  iconOnly
+                  leadingIcon={subscribed ? RiNotification3Fill : RiNotification3Line}
+                  onPress={toggleSubscription}
+                  disabled={subLoading}
+                  accessibilityLabel={
+                    subscribed
+                      ? t('profile.actions.unsubscribe', {
+                          handle,
+                          defaultValue: 'Stop notifying me about new posts from @{{handle}}',
+                        })
+                      : t('profile.actions.subscribe', {
+                          handle,
+                          defaultValue: 'Notify me about new posts from @{{handle}}',
+                        })
+                  }
+                />
+                {!isFederated && (
+                  <ButtonGroupItem
+                    iconOnly
+                    renderLeadingIcon={({ size, color }) => <AlloIcon size={size} color={color} />}
+                    onPress={handleDM}
+                    accessibilityLabel={t('profile.actions.messageInAllo', {
+                      handle,
+                      defaultValue: 'Message @{{handle}} in Allo',
+                    })}
+                  />
+                )}
+              </>
+            ) : undefined
+          }
         />
         <View>
           <UserName
@@ -466,7 +501,22 @@ export function usePersonProfileView({
         </View>
       </>
     );
-  }, [profileData, isOwnProfile, isPrivate, avatarUri, currentUser, userNameStyle, t]);
+  }, [
+    profileData,
+    isOwnProfile,
+    isPrivate,
+    avatarUri,
+    currentUser,
+    userNameStyle,
+    t,
+    canUsePrivateApi,
+    subscribed,
+    toggleSubscription,
+    subLoading,
+    handle,
+    isFederated,
+    handleDM,
+  ]);
 
   const summary = useMemo(() => {
     if (!profileData) return null;
@@ -511,64 +561,8 @@ export function usePersonProfileView({
 
   const headerActions = (
     <>
-      {/* The bell is a toggle rendered as two different glyphs, so its label has
-          to carry the state a sighted user reads from the icon — a static
-          "Notifications" would leave a screen reader unable to tell subscribed
-          from not. */}
-      {/* The bell and the DM act as the viewer, so without a session they could
-          only fail with a 401 — the same rule as the "…" menu (#1126). */}
-      {!isOwnProfile && canUsePrivateApi && (
-        <Button
-          appearance="subtle"
-          tone="neutral"
-          iconOnly
-          leadingIcon={subscribed ? RiNotification3Fill : RiNotification3Line}
-          onPress={toggleSubscription}
-          disabled={subLoading}
-          accessibilityLabel={
-            subscribed
-              ? t('profile.actions.unsubscribe', {
-                  handle,
-                  defaultValue: 'Stop notifying me about new posts from @{{handle}}',
-                })
-              : t('profile.actions.subscribe', {
-                  handle,
-                  defaultValue: 'Notify me about new posts from @{{handle}}',
-                })
-          }
-        />
-      )}
-      {!isOwnProfile && !isFederated && canUsePrivateApi && (
-        <Button
-          appearance="subtle"
-          tone="neutral"
-          iconOnly
-          leadingIcon={RiMailLine}
-          onPress={handleDM}
-          accessibilityLabel={t('profile.actions.messageInAllo', {
-            handle,
-            defaultValue: 'Message @{{handle}} in Allo',
-          })}
-        />
-      )}
-      {isFederated && (
-        <Button
-          appearance="subtle"
-          tone="neutral"
-          iconOnly
-          leadingIcon={RiExternalLinkLine}
-          onPress={handleOpenOnInstance}
-          accessibilityLabel={t('profile.actions.openOnInstance', {
-            handle,
-            defaultValue: 'Open @{{handle}} on their home instance',
-          })}
-        />
-      )}
       {!isOwnProfile && profileData && (
-        <Button
-          appearance="subtle"
-          tone="neutral"
-          iconOnly
+        <IconButton
           leadingIcon={RiSparklingLine}
           onPress={() => askAlia(undefined, { text: t('profile.askAlia.prompt', { handle }) })}
           accessibilityLabel={t('profile.actions.askAlia', {
@@ -577,30 +571,40 @@ export function usePersonProfileView({
           })}
         />
       )}
-      <Button
-        appearance="subtle"
-        tone="neutral"
-        iconOnly
-        leadingIcon={RiUpload2Line}
-        onPress={handleShare}
-        accessibilityLabel={t('profile.actions.share', {
-          handle,
-          defaultValue: "Share @{{handle}}'s profile",
-        })}
-      />
-      {!isOwnProfile && handleMoreOptions && (
-        <Button
-          appearance="subtle"
-          tone="neutral"
+      <ButtonGroup testID="profile-header-actions">
+        {isFederated && (
+          <ButtonGroupItem
+            iconOnly
+            leadingIcon={RiExternalLinkLine}
+            onPress={handleOpenOnInstance}
+            accessibilityLabel={t('profile.actions.openOnInstance', {
+              handle,
+              defaultValue: 'Open @{{handle}} on their home instance',
+            })}
+          />
+        )}
+
+        <ButtonGroupItem
           iconOnly
-          leadingIcon={RiMoreFill}
-          onPress={handleMoreOptions}
-          accessibilityLabel={t('profile.actions.more', {
+          leadingIcon={RiUpload2Line}
+          onPress={handleShare}
+          accessibilityLabel={t('profile.actions.share', {
             handle,
-            defaultValue: 'More options for @{{handle}}',
+            defaultValue: "Share @{{handle}}'s profile",
           })}
         />
-      )}
+        {!isOwnProfile && handleMoreOptions && (
+          <ButtonGroupItem
+            iconOnly
+            leadingIcon={RiMoreFill}
+            onPress={handleMoreOptions}
+            accessibilityLabel={t('profile.actions.more', {
+              handle,
+              defaultValue: 'More options for @{{handle}}',
+            })}
+          />
+        )}
+      </ButtonGroup>
     </>
   );
 

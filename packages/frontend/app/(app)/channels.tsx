@@ -1,14 +1,14 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 import { Field } from '@oxy.so/bloom/field';
 import { InputGroup, InputGroupAddon } from '@oxy.so/bloom/input-group';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Item } from '@oxy.so/bloom/item';
-import { Loading } from '@oxy.so/bloom/loading';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { AccountNode } from '@oxy.so/core';
@@ -44,6 +44,7 @@ const HANDLE_REGEX = /^[a-zA-Z0-9_-]{3,30}$/;
 const MAX_TITLE_LENGTH = 100;
 
 export default function ChannelsScreen() {
+  const router = useRouter();
   const { t } = useTranslation();
   const { user, oxyServices, canUsePrivateApi } = useAuth();
   const safeBack = useSafeBack();
@@ -100,11 +101,14 @@ export default function ChannelsScreen() {
     },
   });
 
-  const openChannel = useCallback((account: AccountNode) => {
-    const target = getNormalizedUserHandle(account.account);
-    if (!target) return;
-    router.push(`/c/${target}`);
-  }, []);
+  const openChannel = useCallback(
+    (account: AccountNode) => {
+      const target = getNormalizedUserHandle(account.account);
+      if (!target) return;
+      router.push(`/c/${target}`);
+    },
+    [router],
+  );
 
   return (
     <View className="flex-1">
@@ -184,7 +188,7 @@ export default function ChannelsScreen() {
 
           {isLoading ? (
             <View className="py-8">
-              <Loading />
+              <ListSkeleton />
             </View>
           ) : channels.length === 0 ? (
             <Text className="text-muted-foreground text-[14px] px-4 py-3">

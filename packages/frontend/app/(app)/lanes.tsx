@@ -1,3 +1,4 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useState } from 'react';
 import { ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -365,9 +366,7 @@ export default function LanesScreen() {
 
           <SettingsListGroup title={t('lanes.yourLanes', { defaultValue: 'Your lanes' })}>
             {isLoading ? (
-              <View className="py-10 items-center">
-                <Loading className="text-primary" size="lg" style={{ flex: undefined }} />
-              </View>
+              <ListSkeleton />
             ) : isError ? (
               <View className="py-4">
                 <EmptyState

@@ -1,13 +1,10 @@
+import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { showFediverseInfo } from '@/components/Fediverse/FediverseInfoDialog';
-import { SettingsSelect } from '@/components/settings/SettingsSelect';
 import { WEB_BASE_URL } from '@/config';
-import { CONTENT_LANGUAGES, describeContentLanguage } from '@/constants/contentLanguages';
 import { useSettingsRouter as useRouter } from '@/context/MentionSettingsContext';
-import { useFediversePreferredLanguage } from '@/hooks/useFediversePreferredLanguage';
 import { confirmDialog } from '@/utils/alerts';
 import { api } from '@/utils/api';
 import { Button } from '@oxy.so/bloom/button';
-import { Loading } from '@oxy.so/bloom/loading';
 import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { Switch } from '@oxy.so/bloom/switch';
 import { toast } from '@oxy.so/bloom/toast';
@@ -34,33 +31,9 @@ function FediverseSharingBody() {
   const { t } = useTranslation();
   const router = useRouter();
   const { user, oxyServices } = useAuth();
-  const { preferredLanguage, updatePreferredLanguage } = useFediversePreferredLanguage();
 
   const [sharing, setSharing] = useState<boolean>(user?.fediverseSharing !== false);
   const [pending, setPending] = useState(false);
-
-  const preferredLabel = preferredLanguage
-    ? describeContentLanguage(preferredLanguage).nativeName
-    : t('fediverse.settings.preferredLanguage.automatic', {
-        defaultValue: 'Automatic',
-      });
-
-  const applyPreferred = useCallback(
-    async (tag: string | null) => {
-      try {
-        await updatePreferredLanguage(tag);
-      } catch (error) {
-        logger.error('Failed to update fediverse preferred language', error);
-        toast(
-          t('fediverse.settings.updateFailed', {
-            defaultValue: "Couldn't update fediverse sharing. Please try again.",
-          }),
-          { type: 'error' },
-        );
-      }
-    },
-    [updatePreferredLanguage, t],
-  );
 
   const federatedHandle = user?.username
     ? `@${user.username}@${new URL(WEB_BASE_URL).host}`
@@ -138,48 +111,6 @@ function FediverseSharingBody() {
         </SettingsCard>
       </SettingsSection>
 
-      <SettingsSection
-        description={t('fediverse.settings.preferredLanguage.description', {
-          defaultValue:
-            'The main language your posts are written in. It becomes the primary version shown across the fediverse; leave it automatic to let it be detected per post.',
-        })}
-      >
-        <SettingsCard>
-          <SettingsRow
-            label={t('fediverse.settings.preferredLanguage.title', {
-              defaultValue: 'Preferred language',
-            })}
-            description={preferredLabel}
-          >
-            <SettingsSelect
-              label={t('fediverse.settings.preferredLanguage.title', {
-                defaultValue: 'Preferred language',
-              })}
-              value={preferredLanguage ?? 'automatic'}
-              items={[
-                {
-                  value: 'automatic',
-                  label: t('fediverse.settings.preferredLanguage.automatic', {
-                    defaultValue: 'Automatic',
-                  }),
-                },
-                ...CONTENT_LANGUAGES.map((language) => ({
-                  value: language.tag,
-                  label: language.nativeName,
-                })),
-                ...(preferredLanguage &&
-                !CONTENT_LANGUAGES.some((language) => language.tag === preferredLanguage)
-                  ? [{ value: preferredLanguage, label: preferredLabel }]
-                  : []),
-              ]}
-              onChange={(value) => {
-                void applyPreferred(value === 'automatic' ? null : value);
-              }}
-            />
-          </SettingsRow>
-        </SettingsCard>
-      </SettingsSection>
-
       <SettingsSection>
         <SettingsCard>
           <SettingsRow
@@ -223,7 +154,7 @@ function FediverseSharingBody() {
               size="sm"
               appearance="subtle"
               tone="neutral"
-              onPress={() => router.push('/transparency')}
+              onPress={() => router.push('/settings/fediverse/transparency')}
               accessibilityLabel={t('transparency.title')}
             >
               {t('common.open', { defaultValue: 'Open' })}
@@ -243,9 +174,7 @@ export default function FediverseSettingsScreen() {
   return (
     <View className="gap-4">
       {!isAuthResolved || isPrivateApiPending ? (
-        <View className="flex-1 items-center justify-center">
-          <Loading />
-        </View>
+        <SettingsSkeleton />
       ) : !canUsePrivateApi ? (
         <OxyAuthPrompt
           label={t('fediverse.settings.signInRequired', {

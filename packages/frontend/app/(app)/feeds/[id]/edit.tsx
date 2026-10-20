@@ -1,8 +1,8 @@
+import { FormSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import { View, Text } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
-import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -41,9 +41,7 @@ function EditFeedScreen() {
           onBack={() => safeBack()}
           backLabel={t('common.back', { defaultValue: 'Back' })}
         />
-        <View className="flex-1 items-center justify-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
+        <FormSkeleton />
       </View>
     );
   }

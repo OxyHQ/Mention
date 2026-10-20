@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 
 import { pageIndexByName } from '@/components/navigation/tabs';
 import { useTabPager } from '@/context/TabPagerContext';
@@ -44,6 +44,7 @@ export interface ComposeExit {
 }
 
 export function useComposeExit(presentation: ComposePresentation): ComposeExit {
+  const router = useRouter();
   const safeBack = useSafeBack();
   const { selectTab, leaveTab } = useTabPager();
 
@@ -65,7 +66,7 @@ export function useComposeExit(presentation: ComposePresentation): ComposeExit {
     } else {
       router.replace('/');
     }
-  }, [presentation, leaveTab]);
+  }, [presentation, leaveTab, router]);
 
   return useMemo(() => ({ dismiss, leaveAfterPublish }), [dismiss, leaveAfterPublish]);
 }

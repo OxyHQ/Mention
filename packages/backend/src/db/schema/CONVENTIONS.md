@@ -286,12 +286,20 @@ Three invariants enforced as constraints:
 - `default: undefined` on an array means "absent", which is a nullable column
   with NO default — not `'{}'`, which is a different value.
 
-**`jsonb` is for genuinely shape-less data only.** There are exactly four:
+**`jsonb` is for genuinely shape-less data only**, plus the narrowly scoped UI snapshot below:
 `mention_signed_records.envelope` (a signed document that must round-trip),
 `custom_feed_definition_modules.params` (defined by the module, not the engine),
 `federation_delivery_queue.activity_json` (an arbitrary ActivityStreams
 document), and the two moderation payloads (§10.11 makes a published decision
 LOOSE — projecting it would silently drop whatever a newer CrowdSource added).
+
+`deck_workspaces.state` is a bounded private UI snapshot: panel geometry,
+route references/history, ordering and scroll offsets travel together under one
+optimistic revision. Panel/history ids are ephemeral UI keys, not relational
+entity identities. Its schema rejects unknown fields and nested content objects;
+it never copies fetched posts, profiles or authentication data. The owner and
+revision remain normal indexed/constrained columns. This exception is not a
+generic settings/document store and does not permit domain relationships in JSON.
 
 The envelope is safe as jsonb because verification re-canonicalizes from the
 PARSED value, so jsonb's key reordering, duplicate-key collapse, number

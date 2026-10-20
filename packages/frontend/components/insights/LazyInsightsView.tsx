@@ -1,5 +1,5 @@
-import React, { lazy, Suspense } from 'react';
-import { Loading } from '@oxy.so/bloom/loading';
+import { InsightsSkeleton } from '@/components/loading/ContentSkeleton';
+import { lazy, Suspense } from 'react';
 import type { InsightsViewProps } from './InsightsView';
 
 // The insights dashboard is served by two routes, `/insights` and
@@ -12,7 +12,7 @@ const InsightsView = lazy(() => import('./InsightsView'));
 
 export default function LazyInsightsView(props: InsightsViewProps) {
   return (
-    <Suspense fallback={<Loading />}>
+    <Suspense fallback={<InsightsSkeleton />}>
       <InsightsView {...props} />
     </Suspense>
   );

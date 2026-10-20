@@ -1,7 +1,7 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
-import { Loading } from '@oxy.so/bloom/loading';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
@@ -167,7 +167,7 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
           </View>
           {loading ? (
             <View style={styles.loadingRow}>
-              <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
+              <ListSkeleton count={2} />
             </View>
           ) : (
             <FlatList

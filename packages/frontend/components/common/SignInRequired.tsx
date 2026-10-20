@@ -1,6 +1,6 @@
+import { FormSkeleton } from '@/components/loading/ContentSkeleton';
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
-import { Loading } from '@oxy.so/bloom/loading';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 
 export interface SignInRequiredProps {
@@ -23,7 +23,7 @@ export interface SignInRequiredProps {
  * failed with a 401 the reader never saw. This is the same three-way gate the
  * Notifications and Saved screens use, in one place:
  *
- *   * a spinner while the SSO restore is still resolving (it can take several
+ *   * a form skeleton while the SSO restore is still resolving (it can take several
  *     seconds on cold boot, and the prompt must not flash for a signed-in
  *     reader);
  *   * `OxyAuthPrompt` when the private API is unusable — `canUsePrivateApi`,
@@ -42,8 +42,8 @@ export function SignInRequired({ label, description, children }: SignInRequiredP
 
   if (!isAuthResolved || isPrivateApiPending) {
     return (
-      <View className="flex-1 justify-center items-center" testID="sign-in-required-pending">
-        <Loading className="text-primary" size="lg" />
+      <View className="w-full" testID="sign-in-required-pending">
+        <FormSkeleton />
       </View>
     );
   }

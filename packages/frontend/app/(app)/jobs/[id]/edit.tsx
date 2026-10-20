@@ -1,12 +1,12 @@
+import { FormSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
 import { Chip } from '@oxy.so/bloom/chip';
 import { Field } from '@oxy.so/bloom/field';
-import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import {
   SegmentedControl,
@@ -76,6 +76,7 @@ const INTERVAL_LABELS: Record<MentionJobSalaryInterval, string> = {
  * not here.
  */
 export default function EditJobScreen() {
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const jobId = String(id);
   const { t } = useTranslation();
@@ -228,9 +229,7 @@ export default function EditJobScreen() {
     return (
       <View className="flex-1">
         {header}
-        <View className="flex-1 items-center justify-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
+        <FormSkeleton />
       </View>
     );
   }

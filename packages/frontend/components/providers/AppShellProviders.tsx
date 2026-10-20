@@ -1,5 +1,4 @@
 import { memo, type ReactNode } from 'react';
-import { ScreenColorProvider } from '@/context/ScreenColorContext';
 import { VideosRailProvider } from '@/context/VideosRailContext';
 import { VideoPlaybackProvider } from '@/context/VideoPlaybackContext';
 import { DrawerProvider } from '@/context/DrawerContext';
@@ -19,7 +18,7 @@ export const AppShellProviders = memo(function AppShellProviders({
   children: ReactNode;
 }) {
   return (
-    <ScreenColorProvider>
+    <>
       <VideosRailProvider>
         {/* one playback authority for the whole (app) group: only a visible,
             focused, foregrounded player may play, and only one may be audible */}
@@ -41,6 +40,6 @@ export const AppShellProviders = memo(function AppShellProviders({
           </DrawerProvider>
         </VideoPlaybackProvider>
       </VideosRailProvider>
-    </ScreenColorProvider>
+    </>
   );
 });

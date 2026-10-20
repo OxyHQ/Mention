@@ -1,6 +1,6 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { useCallback, useMemo } from 'react';
 import { Platform, StyleSheet, TouchableOpacity, View, Share } from 'react-native';
-import { Loading } from '@oxy.so/bloom/loading';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 
@@ -68,7 +68,7 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
     () => (
       <View style={styles.footer}>
         <LoadMoreSentinel onLoadMore={handleLoadMore} enabled={hasNextPage} />
-        {isFetchingNextPage ? <Loading className="text-primary" size="sm" /> : null}
+        {isFetchingNextPage ? <ListSkeleton count={2} /> : null}
       </View>
     ),
     [handleLoadMore, hasNextPage, isFetchingNextPage],

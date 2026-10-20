@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { usePathname, useRouter, type Href } from 'expo-router';
+import { usePathname, useRouter, type Href } from '@/lib/navigation/router';
 import { useReselect } from '@/context/ScreenReselectContext';
 import { useRefSync } from '@/hooks/useRefSync';
 

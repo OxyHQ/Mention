@@ -725,7 +725,7 @@ class MtnFeedController {
         [followingIds, subscribedListMemberIds, accountLanguages] = await Promise.all([
           followingPromise,
           subscribedPromise,
-          loadViewerLanguages(currentUserId),
+          loadViewerLanguages(currentUserId, requestOxyClient),
         ]);
       }
 

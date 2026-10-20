@@ -1,7 +1,7 @@
 import type React from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { LinkifiedText } from '../common/LinkifiedText';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import type { PostContent } from '@mention/shared-types';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { useExpandableText } from '@/hooks/useExpandableText';
@@ -38,10 +38,9 @@ const PostContentText: React.FC<Props> = ({
   overrideText,
   linkPreviewUrls,
 }) => {
-  // No `useRouter()` / `useTranslation()` here: this renders on every row, and
-  // both are only needed for a truncated body's suffix — the imperative router
-  // navigates on press, and the one translated label is its own component
-  // (#1103).
+  const router = useRouter();
+  // Keep navigation scoped to the containing panel. The translated suffix
+  // remains in its own component so full rows need no translation subscription.
   const postTextExpand =
     useAppearanceStore((s) => s.mySettings?.appearance?.postTextExpand) ?? 'default';
   const postReadMoreAction =

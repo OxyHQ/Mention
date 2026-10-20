@@ -27,6 +27,7 @@ let previewLive = false;
 let reviewLive = false;
 
 jest.mock('expo-router', () => ({
+  useRouter: () => jest.requireMock('expo-router').router,
   router: { push: jest.fn() },
   useIsFocused: () => mockFocused,
 }));

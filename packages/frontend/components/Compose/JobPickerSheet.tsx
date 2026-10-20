@@ -1,10 +1,10 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { memo, useCallback } from 'react';
 import { FlatList, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Item } from '@oxy.so/bloom/item';
-import { Loading } from '@oxy.so/bloom/loading';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { AccountNode } from '@oxy.so/core';
 import type { MentionJobPosting, MentionJobStatus } from '@mention/shared-types';
@@ -90,9 +90,7 @@ const JobPickerSheet = memo(function JobPickerSheet({
 
       <View className="min-h-[120px]">
         {isLoading ? (
-          <View className="items-center justify-center py-10">
-            <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
-          </View>
+          <ListSkeleton />
         ) : isError ? (
           <Text className="text-muted-foreground text-[15px] text-center py-10">
             {t('compose.job.loadError', { defaultValue: 'Could not load your jobs' })}

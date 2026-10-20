@@ -79,3 +79,5 @@ export * from './communityNotes';
 
 // The one-request search fan-out contract (`GET /search/overview`)
 export * from './search';
+
+export * from './deck';

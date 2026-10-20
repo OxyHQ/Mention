@@ -430,15 +430,26 @@ describe('buildCandidateFilter', () => {
     return rows.map((row) => row.id).filter((id) => id.startsWith(ID_PREFIX));
   }
 
-  it('selects federated non-boost posts with no mentions and an @-shaped body', async () => {
+  it('selects federated non-boost posts whose body holds an unqualified handle', async () => {
     const damaged = await seedDamaged('1');
 
     // A NATIVE post — no federation activity id.
     await seedPost('2', { federation: undefined });
     // A BOOST, which carries no body of its own to repair.
     await seedPost('3', { type: PostType.BOOST });
-    // Already resolved: one mention row is the single state that means it.
-    await seedPost('4', { mentions: ['oxy_bob'] });
+    // Resolved: a placeholder and a qualified handle leave nothing bare.
+    await seedPost('4', {
+      mentions: ['oxy_bob'],
+      content: {
+        variants: [
+          {
+            source: 'author',
+            tag: 'en',
+            text: '[mention:oxy_bob] [@@a@b.example](https://b.example/@a)',
+          },
+        ],
+      },
+    });
     // No `@`-shaped residue anywhere in the body.
     await seedPost('5', {
       content: { variants: [{ source: 'author', tag: 'en', text: 'no mentions here at all' }] },
@@ -453,7 +464,17 @@ describe('buildCandidateFilter', () => {
       },
     });
 
-    expect(await selected()).toEqual([damaged, rawUrl]);
+    // Partly resolved, with the unqualified link an unresolved mention was kept as.
+    const unqualified = await seedPost('7', {
+      mentions: ['oxy_bob'],
+      content: {
+        variants: [
+          { source: 'author', tag: 'en', text: '[mention:oxy_bob] [@@a](https://b.example/@a)' },
+        ],
+      },
+    });
+
+    expect(await selected()).toEqual([damaged, rawUrl, unqualified]);
   });
 
   it('narrows to a single origin actor when one is supplied', async () => {
@@ -582,24 +603,6 @@ describe('repairFederatedMentions', () => {
     ).toEqual([{ mediaId: 'file-1' }]);
   });
 
-  it('never selects a post whose mentions are already resolved', async () => {
-    await seedPost('2', {
-      mentions: ['oxy_bob'],
-      content: { variants: [{ source: 'author', text: '[mention:oxy_bob] hi @carol' }] },
-      federation: {
-        activityId: 'https://remote.example/notes/2',
-        actorUri: 'https://remote.example/users/x',
-        url: 'https://remote.example/notes/2',
-      },
-    });
-
-    const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
-
-    expect(summary.candidates).toBe(0);
-    expect(summary.scanned).toBe(0);
-    expect(mocks.signedFetch).not.toHaveBeenCalled();
-  });
-
   it('is idempotent — a second run over a repaired corpus updates nothing', async () => {
     const id = await seedDamaged('1');
 
@@ -661,7 +664,7 @@ describe('repairFederatedMentions', () => {
   });
 
   it('does not churn a body that is already correct — it writes only the allowlist', async () => {
-    // The `@` that made this post a candidate is an EMAIL ADDRESS, and the body
+    // The `@` that made this post a candidate is a word (`@home`), and the body
     // already carries the placeholder; only the `mentions` allowlist is missing.
     // The re-derived body therefore equals the stored one, so its ROW must not be
     // rewritten (no version churn across the whole corpus, no risk to the tag).
@@ -669,14 +672,14 @@ describe('repairFederatedMentions', () => {
       ...SAME_INSTANCE_NOTE,
       content: SAME_INSTANCE_NOTE.content.replace(
         'No, none of that.',
-        'No, none of that. mail@example.com',
+        'No, none of that. see you @home',
       ),
     };
     mocks.signedFetch.mockImplementation(async () => apResponse(note));
 
     const id = await seedPost('1', {
       content: {
-        variants: [{ source: 'author', tag: 'en', text: `${REPAIRED_TEXT} mail@example.com` }],
+        variants: [{ source: 'author', tag: 'en', text: `${REPAIRED_TEXT} see you @home` }],
       },
     });
     // `xmin` is the transaction that last WROTE the row, so it distinguishes
@@ -815,7 +818,7 @@ describe('repairFederatedMentions', () => {
     expect(summary.written).toBe(1);
     expect(await storedMentions(id)).toEqual([]);
     expect((await storedVariants(id))[0].text).toContain(
-      '[@@indigoparadox](https://mastodon.social/@indigoparadox)',
+      '[@@indigoparadox@mastodon.social](https://mastodon.social/@indigoparadox)',
     );
     expect(mocks.getOrFetchActor).not.toHaveBeenCalled();
     const repeated = await repairFederatedMentions({
@@ -823,7 +826,7 @@ describe('repairFederatedMentions', () => {
       resetCursor: true,
       noteTimeoutMs: 1_000,
     });
-    expect(repeated.unchanged).toBe(1);
+    expect(repeated.candidates).toBe(0);
     expect(repeated.written).toBe(0);
   });
 

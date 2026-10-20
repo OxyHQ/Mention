@@ -1,4 +1,6 @@
+import { resolveProfileColorName } from '@/hooks/useProfileScreenColor';
 import type React from 'react';
+import { Screen } from '@oxy.so/bloom/screen';
 import { useState } from 'react';
 import { Platform, StatusBar, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
@@ -84,9 +86,34 @@ export interface ProfileShellProps {
  */
 export function ProfileShell(props: ProfileShellProps) {
   const { scrollPosition } = useLayoutScroll();
+  const { active = true, loading, profileData, banner, headerActions, isRootTab = false } = props;
+  const drawing = active && !loading ? profileData : null;
+  // The Screen is the profile's colour scope, so everything that reads the theme
+  // (`ProfileShellBody`, the header) must render INSIDE it. Its own surface fill
+  // already follows the scope, which is why it takes no background here.
   return (
-    <HeaderDockProvider scrollY={scrollPosition}>
-      <ProfileShellBody {...props} />
+    <HeaderDockProvider scrollY={IS_WEB ? undefined : scrollPosition}>
+      <Screen
+        scroll={active ? 'auto' : 'content'}
+        colorPreset={
+          active
+            ? resolveProfileColorName(profileData?.username, profileData?.design?.color)
+            : undefined
+        }
+        headerPlacement={banner ? 'overlay' : 'inset'}
+        header={
+          drawing ? (
+            <ProfilePageHeader
+              profileData={drawing}
+              actions={headerActions}
+              overMedia={Boolean(banner)}
+              showBack={!isRootTab}
+            />
+          ) : undefined
+        }
+      >
+        <ProfileShellBody {...props} />
+      </Screen>
     </HeaderDockProvider>
   );
 }
@@ -98,14 +125,12 @@ function ProfileShellBody({
   notFound,
   onRetry,
   banner,
-  headerActions,
   summary,
   tabBar,
   tabs,
   children,
   active = true,
   skeletonVariant = 'person',
-  isRootTab = false,
 }: ProfileShellProps) {
   const theme = useTheme();
   const surfaceFill = useSurfaceFill();
@@ -171,16 +196,8 @@ function ProfileShellBody({
   ) : null;
   const nativeContent = tabs ? <ProfileTabs {...tabs} /> : null;
   const drawing = active && !loading ? profileData : null;
-  // Native pushed routes are rendered above the tab navigator by the stack, so
-  // the route must be opaque or the pager shows through while the list lays
-  // out. It is painted in the surface fill, the colour of every other native
-  // route (StackScene), not the theme background it used to name. Web leaves
-  // the page to the content panel, like every other screen.
   return (
-    <View
-      className="flex-1 web:z-auto"
-      style={IS_WEB ? undefined : { backgroundColor: surfaceFill }}
-    >
+    <>
       <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
       {IS_WEB ? (
         <>
@@ -188,14 +205,6 @@ function ProfileShellBody({
           {active && loading ? <ProfileSkeleton variant={skeletonVariant} /> : null}
           {active && !loading && !profileData ? (
             <ProfileUnavailable notFound={notFound} onRetry={onRetry} />
-          ) : null}
-          {drawing ? (
-            <ProfilePageHeader
-              profileData={drawing}
-              actions={headerActions}
-              overMedia={Boolean(banner)}
-              showBack={!isRootTab}
-            />
           ) : null}
           {drawing ? listHeader : null}
           {drawing ? stickyTabs : null}
@@ -235,14 +244,8 @@ function ProfileShellBody({
               stickyHeaderConfig={{ offset: headerInset }}
             />
           )}
-          <ProfilePageHeader
-            profileData={profileData}
-            actions={headerActions}
-            overMedia={Boolean(banner)}
-            showBack={!isRootTab}
-          />
         </>
       )}
-    </View>
+    </>
   );
 }

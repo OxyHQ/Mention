@@ -1,3 +1,20 @@
+jest.mock('@oxy.so/bloom/screen', () => ({
+  Screen: ({
+    header,
+    children,
+    bottomBar,
+  }: {
+    header?: React.ReactNode;
+    children?: React.ReactNode;
+    bottomBar?: React.ReactNode;
+  }) => (
+    <>
+      {header}
+      {children}
+      {bottomBar}
+    </>
+  ),
+}));
 import TestRenderer, { act } from 'react-test-renderer';
 
 const mockPush = jest.fn();
@@ -7,6 +24,7 @@ type TabsProps = { value: string; onValueChange: (value: string) => void };
 let mockTabsProps: TabsProps | undefined;
 
 jest.mock('expo-router', () => ({
+  useRouter: () => jest.requireMock('expo-router').router,
   router: { push: (href: string) => mockPush(href) },
   usePathname: () => mockPathname,
   Slot: () => null,

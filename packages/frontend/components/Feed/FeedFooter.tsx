@@ -1,6 +1,6 @@
+import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import { memo, useCallback } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
-import { Loading } from '@oxy.so/bloom/loading';
+import { StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -48,16 +48,7 @@ export const FeedFooter = memo<FeedFooterProps>(({ hasMore, isLoadingMore, hasIt
   if (!hasMore || !isLoadingMore) return null;
   if (!hasItems) return null;
 
-  return (
-    <View
-      className="flex-row justify-center items-center py-2"
-      accessible={true}
-      accessibilityRole="progressbar"
-      accessibilityLabel="Loading more posts"
-    >
-      <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
-    </View>
-  );
+  return <FeedSkeleton count={2} />;
 });
 
 FeedFooter.displayName = 'FeedFooter';

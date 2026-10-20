@@ -1,3 +1,4 @@
+import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { Slider } from '@oxy.so/bloom/slider';
 import { DEFAULT_FEED_SETTINGS, useFeedSettings, type FeedSettings } from '@/hooks/useFeedSettings';
 import { confirmDialog } from '@/utils/alerts';
@@ -147,9 +148,7 @@ export default function FeedSettingsScreen() {
   if (isLoading) {
     return (
       <View className="gap-4">
-        <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
+        <SettingsSkeleton />
       </View>
     );
   }

@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { CoverHeader } from '@oxy.so/bloom/cover-header';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
-import { POST_ITEM_SPACING } from '@/styles/shared';
+import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import { CHANNEL_AVATAR_SIZE } from './ChannelHeader';
 import {
   PROFILE_AVATAR_OVERLAP,
@@ -55,29 +55,6 @@ const CHANNEL_CONTENT_OFFSET = 60;
 const CHANNEL_STAT_CHIP_WIDTHS = [96, 104, 78, 84];
 const CHANNEL_TAB_CHIP_WIDTHS = [42, 50, 58, 56];
 
-/**
- * One placeholder feed row, mirroring the real post row (PostItem) via the
- * shared POST_ITEM_SPACING: a 40px avatar + a byline line and two body lines,
- * inside a `border-b border-border py-3` row with `px-3` gutters — so the rows
- * land exactly where the real feed will paint.
- */
-const FeedRowSkeleton = memo(function FeedRowSkeleton() {
-  return (
-    <View className="w-full border-b border-border py-3">
-      <View className="px-3 flex-row items-start">
-        <View className="mr-3">
-          <Skeleton.Circle size={POST_ITEM_SPACING.AVATAR_SIZE} />
-        </View>
-        <View className="flex-1 gap-2 pt-0.5">
-          <Skeleton.Box width="40%" height={14} borderRadius={6} />
-          <Skeleton.Box width="94%" height={14} borderRadius={6} />
-          <Skeleton.Box width="72%" height={14} borderRadius={6} />
-        </View>
-      </View>
-    </View>
-  );
-});
-
 export interface ProfileSkeletonProps {
   /**
    * Which anatomy to mirror. A skeleton exists to hold the exact space the real
@@ -100,7 +77,7 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
 
   if (variant === 'channel') {
     return (
-      <View className="flex-1" accessibilityRole="progressbar">
+      <Skeleton.Region className="w-full">
         <View style={{ paddingTop: insets.top + CHANNEL_CONTENT_OFFSET }}>
           <View className="px-4 pb-4">
             {/* Centred masthead — avatar, then name, then handle. The margins
@@ -163,16 +140,14 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
             ))}
           </View>
 
-          {Array.from({ length: FEED_ROW_COUNT }).map((_, index) => (
-            <FeedRowSkeleton key={index} />
-          ))}
+          <FeedSkeleton count={FEED_ROW_COUNT} />
         </View>
-      </View>
+      </Skeleton.Region>
     );
   }
 
   return (
-    <View className="flex-1" accessibilityRole="progressbar">
+    <Skeleton.Region className="w-full">
       {/* Banner and profile info block — the loaded profile's `CoverHeader`,
           with ProfileContent's padding. The band is dampened (`blend`) so the
           avatar placeholder reads clearly over it. */}
@@ -240,9 +215,7 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
       </View>
 
       {/* Placeholder feed rows below the tab bar. */}
-      {Array.from({ length: FEED_ROW_COUNT }).map((_, index) => (
-        <FeedRowSkeleton key={index} />
-      ))}
-    </View>
+      <FeedSkeleton count={FEED_ROW_COUNT} />
+    </Skeleton.Region>
   );
 });

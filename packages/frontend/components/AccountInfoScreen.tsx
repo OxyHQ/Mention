@@ -1,8 +1,9 @@
+import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
-import { Redirect } from 'expo-router';
+import { Redirect } from '@/lib/navigation/router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -34,7 +35,6 @@ import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedPr
 import type { ProfileRouteFamily } from '@/components/Profile/profileRoute';
 import { ProfileUnavailable } from '@/components/Profile/ProfileUnavailable';
 import { BloomColorScope } from '@oxy.so/bloom/theme';
-import { Loading } from '@oxy.so/bloom/loading';
 
 /**
  * An account's "about" surface — joined date, location, website, verification,
@@ -157,9 +157,7 @@ function AccountInfoContent({
     return (
       <View className="flex-1">
         {header}
-        <View className="flex-1 items-center justify-center">
-          <Loading className="text-primary" size="lg" />
-        </View>
+        <DetailSkeleton />
       </View>
     );
   }

@@ -178,9 +178,9 @@ describe('post bodies preserve unresolved mention destinations', () => {
   it('retains a Flipboard Group link and its visible handle without inventing an identity', () => {
     const html = `<p>Posted into Leadership <span class="h-card"><a href="${url}" class="u-url mention">@<span>leadership-forbes</span></a></span></p>`;
     expect(htmlToPlainText(html, options)).toBe(
-      `Posted into Leadership [@@leadership-forbes](${url})`,
+      `Posted into Leadership [@@leadership-forbes@flipboard.com](${url})`,
     );
-    expect(htmlToPlainText(html)).toBe('Posted into Leadership @leadership-forbes');
+    expect(htmlToPlainText(html)).toBe('Posted into Leadership @leadership-forbes@flipboard.com');
   });
 
   it('preserves resolved placeholders and hashtag labels', () => {
@@ -207,12 +207,15 @@ describe('post bodies preserve unresolved mention destinations', () => {
         '<a href="https://example.org/@a(b)?x=1&amp;y=2" class="mention">@alice</a>',
         options,
       ),
-    ).toBe('[@@alice](https://example.org/@a%28b%29?x=1&y=2)');
+    ).toBe('[@@alice@example.org](https://example.org/@a%28b%29?x=1&y=2)');
     expect(
       htmlToPlainText(
         '<a href="https://example.org/@alice" class="mention">@alice&#93;(bad)</a>',
         options,
       ),
     ).toBe('@alice](bad)');
+    expect(
+      htmlToPlainText('<a href="https://masto.es/@bob" class="mention">@bob@masto.es</a>', options),
+    ).toBe('[@@bob@masto.es](https://masto.es/@bob)');
   });
 });

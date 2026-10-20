@@ -1,3 +1,4 @@
+jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'));
 /**
  * What a reader actually sees when a feed has nothing to show.
  *
@@ -106,7 +107,12 @@ function textContent(tree: TestRenderer.ReactTestRenderer): string {
 describe('FeedEmptyState', () => {
   it('shows the loading state while a read (and its retries) is in flight', () => {
     const tree = render({ isLoading: true, error: 'Failed to load', errorKind: 'transient' });
-    expect(tree.root.findAll((node) => isElement(node, 'Loading')).length).toBe(1);
+    expect(
+      tree.root.findAll(
+        (node) => typeof node.type === 'string' && node.props.testID === 'feed-skeleton',
+      ),
+    ).toHaveLength(1);
+    expect(tree.root.findAll((node) => isElement(node, 'Loading'))).toHaveLength(0);
     expect(iconNames(tree)).toEqual([]);
     expect(retryButtons(tree)).toHaveLength(0);
   });

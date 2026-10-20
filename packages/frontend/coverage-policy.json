@@ -16,43 +16,64 @@
   "domains": [
     {
       "id": "stores",
-      "why": "Zustand stores hold the client's own truth — engagement, identity, scroll position, invalidation signals.",
-      "include": ["stores/**/*.ts", "stores/**/*.tsx"]
+      "why": "Zustand stores hold the client's own truth \u2014 engagement, identity, scroll position, invalidation signals.",
+      "include": [
+        "stores/**/*.ts",
+        "stores/**/*.tsx"
+      ]
     },
     {
       "id": "services",
       "why": "Every network call the app makes and the shapes it expects back.",
-      "include": ["services/**/*.ts"]
+      "include": [
+        "services/**/*.ts"
+      ]
     },
     {
       "id": "lib",
       "why": "Session, query client, query keys, share intents, telemetry, platform forks.",
-      "include": ["lib/**/*.ts", "lib/**/*.tsx"],
-      "exclude": ["lib/animations/**"]
+      "include": [
+        "lib/**/*.ts",
+        "lib/**/*.tsx"
+      ],
+      "exclude": [
+        "lib/animations/**"
+      ]
     },
     {
       "id": "db",
       "why": "The on-device feed cache, its schema and its migrations.",
-      "include": ["db/**/*.ts"]
+      "include": [
+        "db/**/*.ts"
+      ]
     },
     {
       "id": "providers",
-      "why": "Boot order, auth routing and account-switch teardown — the components that are logic.",
-      "include": ["components/providers/**/*.ts", "components/providers/**/*.tsx"]
+      "why": "Boot order, auth routing and account-switch teardown \u2014 the components that are logic.",
+      "include": [
+        "components/providers/**/*.ts",
+        "components/providers/**/*.tsx"
+      ]
     },
     {
       "id": "hooks",
       "why": "Where the app's product behaviour actually lives.",
-      "include": ["hooks/**/*.ts", "hooks/**/*.tsx"]
+      "include": [
+        "hooks/**/*.ts",
+        "hooks/**/*.tsx"
+      ]
     },
     {
       "id": "utils",
       "why": "Pure logic: intent parsing, post building, feed merging, formatting.",
-      "include": ["utils/**/*.ts", "utils/**/*.tsx"]
+      "include": [
+        "utils/**/*.ts",
+        "utils/**/*.tsx"
+      ]
     },
     {
       "id": "post-interactions",
-      "why": "A feed row's commands: engagement writes, the ⋯ menu and what each viewer may do to a post. Components by location, logic by content (#1103 moved them out of hooks/).",
+      "why": "A feed row's commands: engagement writes, the \u22ef menu and what each viewer may do to a post. Components by location, logic by content (#1103 moved them out of hooks/).",
       "include": [
         "components/Feed/postInteractions.tsx",
         "components/Feed/PostInteractionsBinder.tsx",
@@ -108,8 +129,7 @@
     "federation-facing UI state": [
       "utils/externalActor.ts",
       "hooks/useExternalActorResolve.ts",
-      "hooks/useMentionNode.ts",
-      "hooks/useFediversePreferredLanguage.ts"
+      "hooks/useMentionNode.ts"
     ],
     "deep links and share intents": [
       "utils/composeIntent.ts",
@@ -133,7 +153,7 @@
     "half of the policy: it says out loud which named-critical code is untested,",
     "rather than lowering the bar until everything passes. Each entry still",
     "carries its measured pin in coverage-baseline.json, so an exempt file cannot",
-    "get worse — only stay put or improve. `expectedCounts.belowBarExemptions` is",
+    "get worse \u2014 only stay put or improve. `expectedCounts.belowBarExemptions` is",
     "an equality, so the list cannot grow quietly, and an entry that starts",
     "clearing the bar is reported as a failure until it is deleted."
   ],
@@ -141,7 +161,7 @@
     "stores/postsStore.ts": {
       "since": "2026-08-15",
       "measured": "47.85% statements / 29.93% branches",
-      "reason": "stores/__tests__/postsStoreGranularReactivity.test.tsx is the only test naming it, and it is about selector reactivity. At 29.93% branches, most of the engagement write path this store owns — the authority every post surface reads — is unexercised."
+      "reason": "stores/__tests__/postsStoreGranularReactivity.test.tsx is the only test naming it, and it is about selector reactivity. At 29.93% branches, most of the engagement write path this store owns \u2014 the authority every post surface reads \u2014 is unexercised."
     },
     "utils/postBuilder.ts": {
       "since": "2026-08-15",
@@ -163,11 +183,6 @@
       "measured": "0%",
       "reason": "No direct test. Self-hosted node pairing state; low traffic, but it is federation-facing state as the issue defines it."
     },
-    "hooks/useFediversePreferredLanguage.ts": {
-      "since": "2026-08-15",
-      "measured": "0%",
-      "reason": "No direct test. Reads and writes a consent-adjacent Oxy setting."
-    },
     "lib/shareIntent.ts": {
       "since": "2026-08-15",
       "measured": "0% statements",
@@ -188,7 +203,7 @@
     "jest-expo resolves the NATIVE platform extension, so `import './X'` never",
     "loads `X.web.tsx`. Measured on this repository: a syntax error inserted into",
     "Feed.web.tsx left the whole suite green. A test that names `../X.web`",
-    "explicitly DOES load it — which is why four web forks here carry real",
+    "explicitly DOES load it \u2014 which is why four web forks here carry real",
     "coverage and are pinned like anything else. These are reachable by no",
     "implicit path and have no direct test, so a coverage floor on them would be",
     "a number nobody can move. tsc and `expo export --platform web` are their",
@@ -206,7 +221,7 @@
     }
   },
   "$comment:jestOwnedThresholds": [
-    "Pre-existing hard floors in package.json's jest config. They stay there — the",
+    "Pre-existing hard floors in package.json's jest config. They stay there \u2014 the",
     "policy asserts the numbers rather than re-implementing them, so that lowering",
     "one is a failure here as well as a lie there. viewerQueryKeys.ts at 100% is",
     "the boundary that keeps one account's cached data out of another's."
@@ -227,36 +242,11 @@
   },
   "$comment:allowedBaselineDecreases": [
     "Dated, path-and-metric-named permission to record a LOWER baseline than the",
-    "base revision — the one legitimate case being code that legitimately shrank.",
+    "base revision \u2014 the one legitimate case being code that legitimately shrank.",
     "An entry that is not currently excusing a real decrease fails, so this list",
     "cannot become a standing permission slip."
   ],
-  "allowedBaselineDecreases": [
-    {
-      "path": "total",
-      "metric": "statements",
-      "date": "2026-10-17",
-      "reason": "Code shrank, not tests: Mention's own lazy Ask Alia provider and sheet wrapper (context/AskAliaContext.tsx, components/AskAliaSheet.tsx), a well-covered file, are deleted for the SDK's AliaAskProvider (@alia.onl/sdk/ask); the thin MentionAskProvider that configures it is covered by its own test. The overall ratio drops by 0.01 point because covered statements left with the code."
-    },
-    {
-      "path": "total",
-      "metric": "branches",
-      "date": "2026-10-17",
-      "reason": "Code shrank, not tests: Mention's own lazy Ask Alia provider and sheet wrapper (context/AskAliaContext.tsx, components/AskAliaSheet.tsx), a well-covered file, are deleted for the SDK's AliaAskProvider (@alia.onl/sdk/ask); the thin MentionAskProvider that configures it is covered by its own test. The overall ratio drops by 0.01 point because covered statements left with the code."
-    },
-    {
-      "path": "total",
-      "metric": "functions",
-      "date": "2026-10-17",
-      "reason": "Code shrank, not tests: Mention's own lazy Ask Alia provider and sheet wrapper (context/AskAliaContext.tsx, components/AskAliaSheet.tsx), a well-covered file, are deleted for the SDK's AliaAskProvider (@alia.onl/sdk/ask); the thin MentionAskProvider that configures it is covered by its own test. The overall ratio drops by 0.01 point because covered statements left with the code."
-    },
-    {
-      "path": "total",
-      "metric": "lines",
-      "date": "2026-10-17",
-      "reason": "Code shrank, not tests: Mention's own lazy Ask Alia provider and sheet wrapper (context/AskAliaContext.tsx, components/AskAliaSheet.tsx), a well-covered file, are deleted for the SDK's AliaAskProvider (@alia.onl/sdk/ask); the thin MentionAskProvider that configures it is covered by its own test. The overall ratio drops by 0.01 point because covered statements left with the code."
-    }
-  ],
+  "allowedBaselineDecreases": [],
   "globalDriftAllowancePoints": 0.75,
   "minimumFilesInReport": 500,
   "minimumTestFiles": 140,
@@ -268,9 +258,9 @@
     "domainFiles": 296,
     "pins": 293,
     "unenforceable": 3,
-    "belowBarExemptions": 9,
-    "criticalPaths": 35,
-    "allowedBaselineDecreases": 4,
+    "belowBarExemptions": 8,
+    "criticalPaths": 34,
+    "allowedBaselineDecreases": 0,
     "snapshotAssertions": 0
   }
 }

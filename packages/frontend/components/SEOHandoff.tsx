@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
-import { usePathname } from 'expo-router';
+import { usePathname } from '@/lib/navigation/router';
 import { INSTANCE_NAME } from '@/config';
 import { initialSEODocumentPath, releaseServerSEOForNavigation } from '@/lib/seoHandoff';
 

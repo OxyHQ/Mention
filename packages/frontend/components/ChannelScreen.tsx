@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import { View, Share } from 'react-native';
-import { Redirect, router } from 'expo-router';
+import { useRouter, Redirect } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -104,6 +104,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
   notFound,
   onRetry,
 }) => {
+  const router = useRouter();
   const { user: currentUser } = useAuth();
   const { t } = useTranslation();
   const { colors } = useTheme();
@@ -287,7 +288,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
             },
           ]
         : undefined,
-    [operatesThisChannel, handle, t, colors.text],
+    [operatesThisChannel, handle, t, colors.text, router],
   );
 
   // `viewerOperatesAccount`, never `isOwnProfile: false` as this read before.
