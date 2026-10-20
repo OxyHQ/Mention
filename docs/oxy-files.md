@@ -144,12 +144,12 @@ same file. Inline `base64` bytes are still uploaded as before.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `OXY_FILE_REFERENCES_ENABLED` | `true` | `false` pauses the reference drain (marks accumulate; federated deletions of files Mention referenced wait) |
-| `OXY_FILE_REFERENCE_RECONCILE_MODE` | `dry_run` | `off`, `dry_run` (records what would change), `apply` |
 | `OXY_FILES_WEBHOOK_SECRET` / `_PREVIOUS` | unset | the file-events signing secret Oxy returned when the endpoint was set |
 
-The first two are optional task variables (repository variables of the same
-name, validated by `.github/scripts/optional-task-bindings.sh`).
+There is no switch for references or their reconciliation: the drain always
+runs and the nightly reconciliation always applies (an application file nobody
+references is collected by Oxy). To see what a run would change first, dispatch
+`run-file-reference-reconciliation.yml` with `mode: dry_run`.
 
 ## Rollout
 
@@ -160,14 +160,14 @@ name, validated by `.github/scripts/optional-task-bindings.sh`).
    not the 4c API is out.
 2. Staff grant the Mention application `files:app:write` and
    `files:references:write` (staff-only for a `first_party` application).
-3. Deploy Mention. References start draining; the reconciliation runs nightly
-   as a dry run.
-4. Read a dry run (`oxy_file_reference_reconciliations`; the nightly one, or
-   `run-file-reference-reconciliation.yml` with `mode: dry_run`), make the
-   first applied run (the same workflow, `mode: apply`), then set
-   `OXY_FILE_REFERENCE_RECONCILE_MODE=apply` so the nightly run commits. The first applied run is how
+3. Deploy Mention. References start draining; the reconciliation runs and
+   applies nightly.
+4. Read a dry run (`run-file-reference-reconciliation.yml` with
+   `mode: dry_run`), then make the first applied run (the same workflow,
+   `mode: apply`) rather than wait for the night. The first applied run is how
    existing posts, banners and GIFs enter Oxy's model — it must run before Oxy
    switches its lifecycle sweep to `enforce`, or the GIF library reads as unused.
+   Done 2026-10-20: 419,548 references added, 0 removed, 552 refused.
 5. Run the GIF library migration (dry run, then apply).
 6. Set the file-events endpoint (console → Webhooks → File events,
    `https://api.mention.earth/webhooks/oxy/files`), store the returned secret in

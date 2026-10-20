@@ -4,11 +4,10 @@
  * `docs/oxy-files.md` § Rollout).
  *
  * WHY. The nightly run (`fileReferenceReconciliation.ts`) only starts between
- * 02:00 and 06:00 UTC and takes its mode from the deployed
- * `OXY_FILE_REFERENCE_RECONCILE_MODE`. The rollout needs a dry run read and the
- * first applied run made — the backfill of every existing post, banner and GIF
- * into Oxy's model — when an operator is there to read them, not on the next
- * two nights. This runs the SAME function, so what it records in
+ * 02:00 and 06:00 UTC and always applies. Here an operator previews it (a dry
+ * run, the default) or applies it without waiting for the night — as the
+ * rollout made the first applied run, the backfill of every existing post,
+ * banner and GIF into Oxy's model. This runs the SAME function, so what it records in
  * `oxy_file_reference_reconciliations` is what the nightly run records; the
  * nightly scheduler counts it as that night's run.
  *
