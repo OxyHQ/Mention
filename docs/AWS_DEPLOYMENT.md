@@ -18,7 +18,7 @@ The check is fail-closed: a push that is not merge-queue verified releases
 nothing, and an API error is a red run rather than a skip.
 
 CI answers the same question (`merge-queue-verified.sh`) on every push to main.
-A queue-verified push runs only the bundle baseline that pull requests restore
+A queue-verified push runs only the bundle baseline that queue entries restore
 and `CI complete`, which then accepts the tests, e2e and quality jobs (the
 lockfile check is a step of quality) as skipped because they already passed on
 this exact tree. Any other push runs
