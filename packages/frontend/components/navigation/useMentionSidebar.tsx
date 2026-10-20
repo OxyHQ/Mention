@@ -3,6 +3,7 @@ import { cloneElement, isValidElement, useCallback, useMemo } from 'react';
 import { usePathname, useRouter, type Href } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { useDeckAvailable } from '@/components/deck/useDeckAvailable';
+import { useDeckSettings } from '@/components/deck/deckSettings';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import type { SidebarProps } from '@oxy.so/bloom/sidebar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
@@ -28,13 +29,6 @@ import { Hashtag, HashtagActive } from '@/assets/icons/hashtag-icon';
 import { ChannelIcon, ChannelIconActive } from '@/assets/icons/channel-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 
-// Keep the Deck badge visible for its first month after launch.
-const DECK_NEW_BADGE_EXPIRES_AT = Date.parse('2026-11-19T00:00:00Z');
-
-function DeckIcon({ size = 24, color }: { size?: number; color?: string }) {
-  return <RiDashboardLine width={size} height={size} fill={color} />;
-}
-
 function LiveRoomsIcon({ size = 24, color }: { size?: number; color?: string }) {
   return <RiBroadcastLine width={size} height={size} fill={color} />;
 }
@@ -49,6 +43,7 @@ function paintNavigationIcon(icon: React.ReactNode, width?: number, fill?: strin
 export function useMentionSidebar(): SidebarProps {
   const { t } = useTranslation();
   const deckAvailable = useDeckAvailable();
+  const deckEnabled = useDeckSettings((state) => state.deckEnabled);
   const router = useRouter();
   const { user, signIn } = useAuth();
   const avatarUri = user?.avatar;
@@ -146,16 +141,6 @@ export function useMentionSidebar(): SidebarProps {
         iconActive: <SearchActive />,
         route: '/explore',
       },
-      ...(deckAvailable
-        ? [
-            {
-              title: 'Deck',
-              icon: <DeckIcon />,
-              iconActive: <DeckIcon />,
-              route: '/deck' as Href,
-            },
-          ]
-        : []),
       {
         title: t('sidebar.notifications'),
         icon: <Bell />,
@@ -209,7 +194,7 @@ export function useMentionSidebar(): SidebarProps {
         onPress: handleOpenSettings,
       },
     ],
-    [t, user, avatarUri, avatarName, handleNavigateProfile, handleOpenSettings, deckAvailable],
+    [t, user, avatarUri, avatarName, handleNavigateProfile, handleOpenSettings],
   );
 
   const pathname = usePathname();
@@ -225,8 +210,21 @@ export function useMentionSidebar(): SidebarProps {
       onPress: () => handleNavPress('/'),
     },
     selected: pathname,
+    modes: deckAvailable
+      ? [
+          {
+            key: 'standard',
+            label: t('deck.mode.standard', 'Standard'),
+            icon: ({ width, fill }) => paintNavigationIcon(<Home />, width, fill),
+          },
+          { key: 'deck', label: 'Deck', icon: RiDashboardLine },
+        ]
+      : undefined,
+    mode: deckEnabled ? 'deck' : 'standard',
+    modesPresentation: 'toggle',
+    modesLabel: t('deck.mode.label', 'Deck mode'),
+    onModeChange: (mode) => useDeckSettings.getState().setDeckEnabled(mode === 'deck'),
     items: sideBarData.map(({ title, icon, iconActive, route, onPress }) => {
-      const isNewDeck = route === '/deck' && Date.now() < DECK_NEW_BADGE_EXPIRES_AT;
       return {
         key: typeof route === 'string' ? route : title,
         label: title,
@@ -239,11 +237,7 @@ export function useMentionSidebar(): SidebarProps {
           (() => {
             if (route) handleNavPress(route);
           }),
-        badge: isNewDeck
-          ? 'New'
-          : route === '/notifications' && unreadCount > 0
-            ? unreadCount
-            : undefined,
+        badge: route === '/notifications' && unreadCount > 0 ? unreadCount : undefined,
       };
     }),
     primaryAction: {

@@ -14,14 +14,14 @@ export function hidesBottomBar(pathname: string | null | undefined): boolean {
   return FULL_SCREEN_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
 }
 
-/** What the app shell pins to the bottom edge. */
+/** Which bottom control is visible: shell navigation or the main panel's invitation. */
 export type BottomBarContent = 'tabs' | 'sign-in' | null;
 
 /**
  * The bottom edge: the tab bar for a signed-in reader, the sign-in invitation
  * for an anonymous one, and nothing on a full-screen route or over the
- * keyboard. The invitation is shell-owned for the same reason the tab bar is: a
- * fixed bar reserves its measured height at the end of the column, so nothing it
+ * keyboard. The invitation is owned by the main panel's Screen: its pinned
+ * bar reserves its measured height at the end of the column, so nothing it
  * covers is lost and nothing loading above it moves it. Rendered inline after
  * the route instead, every change in the page's height pushed it down the
  * viewport and out of it (#1216 measured it as half the profile's layout

@@ -3,7 +3,8 @@ import {
   useWindowVirtualizer,
   type VirtualizerOptions,
 } from '@tanstack/react-virtual';
-import { usePanelScrollContainer } from '@oxy.so/bloom/app-shell/hooks';
+import { useAppShellPanel, usePanelScrollContainer } from '@oxy.so/bloom/app-shell/hooks';
+import { useScreenViewport } from '@oxy.so/bloom/screen';
 
 type ListOptions<T extends Element> = Pick<
   VirtualizerOptions<HTMLElement, T>,
@@ -20,14 +21,20 @@ type ListOptions<T extends Element> = Pick<
  */
 export function useOwnerVirtualizer<T extends Element>(options: ListOptions<T>) {
   const panel = usePanelScrollContainer<HTMLElement>();
+  const shellPanel = useAppShellPanel();
+  const viewport = useScreenViewport();
+  // Retained columns must not initialize a window virtualizer when their
+  // hidden host changes flow: its initial scroll write would move the page
+  // the reader is still viewing in another panel.
+  const active = shellPanel.active !== false && viewport?.active !== false;
   const documentList = useWindowVirtualizer<T>({
     ...options,
-    enabled: !panel,
+    enabled: active && !panel,
     useFlushSync: false,
   });
   const panelList = useVirtualizer<HTMLElement, T>({
     ...options,
-    enabled: Boolean(panel),
+    enabled: active && Boolean(panel),
     useFlushSync: false,
     getScrollElement: () => panel?.current ?? null,
   });

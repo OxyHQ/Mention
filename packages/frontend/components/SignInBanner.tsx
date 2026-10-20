@@ -1,20 +1,21 @@
 import { memo } from 'react';
 import { View, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { InverseButton } from '@oxy.so/bloom/button';
 
 /**
  * The anonymous reader's invitation to sign in. `app/(app)/_layout.tsx` hands
- * it to the app shell as the bottom bar, which pins it to the bottom edge and
- * reserves its height at the end of the column; it paints no position of its own.
+ * it to the main panel's Bloom bottomBar slot. The route's Screen pins it within
+ * that column and reserves its measured height; it paints no position of its own.
  */
 export const SignInBanner = memo(function SignInBanner() {
   const { signIn } = useAuth();
   const { t } = useTranslation();
 
   return (
-    <View className="bg-primary">
+    <SafeAreaView edges={['bottom']} className="bg-primary" testID="sign-in-banner">
       <View className="flex-row items-center justify-center px-4 py-3 gap-4 w-full">
         <View className="flex-1">
           <Text className="text-primary-foreground text-base font-bold">
@@ -32,6 +33,6 @@ export const SignInBanner = memo(function SignInBanner() {
           {t('Sign In')}
         </InverseButton>
       </View>
-    </View>
+    </SafeAreaView>
   );
 });

@@ -2,8 +2,10 @@ import { DeckHomeEntry } from '@/components/deck/DeckHomeEntry';
 import { useDeckSync } from '@/components/deck/useDeckSync';
 import { DeckAddPanel } from '@/components/deck/DeckAddPanel';
 import { useDeckSettings, deckRouteForSource } from '@/components/deck/deckSettings';
+import { isDefaultLeadingDeckPanel } from '@/components/deck/deckEntry';
 import { Platform, StyleSheet, View } from 'react-native';
 import { ExperimentalStack, Slot, usePathname } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 
 import { useAuth } from '@oxy.so/services/ui/client';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
@@ -38,6 +40,7 @@ function KeyboardShortcutsHost() {
 }
 
 export default function AppLayout() {
+  const { t } = useTranslation();
   useDeckSync();
   const sidebar = useMentionSidebar();
   const activeDeckPanel = useDeckSettings((state) => state.activePanel);
@@ -47,12 +50,15 @@ export default function AppLayout() {
   const deckOrder = useDeckSettings((state) => state.order);
   const deckPanels = useDeckSettings((state) => state.panels);
   const updateDeckPanel = useDeckSettings((state) => state.updatePanel);
+  const deckEnabled = useDeckSettings((state) => state.deckEnabled);
+  const hasDefaultLeadingPanel = useDeckSettings(isDefaultLeadingDeckPanel);
   const keyboardVisible = useKeyboardVisibility();
   const drawer = useDrawer();
   const { isAuthenticated, isAuthResolved } = useAuth();
   const pathname = usePathname();
   const deckAvailable = useDeckAvailable();
-  const onDeckRoute = pathname === '/deck' && deckAvailable;
+  const deckOpen = (pathname === '/deck' || deckEnabled) && deckAvailable;
+  const firstDeckId = deckOrder[0];
   const onInsightsRoute =
     pathname === '/insights' ||
     pathname === '/insights/weekly_recap' ||
@@ -93,20 +99,15 @@ export default function AppLayout() {
     </>
   );
 
-  // The tab bar for a signed-in reader, the sign-in invitation for an anonymous
-  // one — both pinned by the shell; see `bottomBarContent`.
+  // Navigation belongs to the shell; the anonymous invitation belongs to the
+  // main panel's Bloom footer. Both retain the route, keyboard and auth rules.
   const bottomContent = bottomBarContent({
     pathname,
     keyboardVisible,
     isAuthenticated,
     isAuthResolved,
   });
-  const bottomBar =
-    bottomContent === 'tabs' ? (
-      <BottomBar />
-    ) : bottomContent === 'sign-in' ? (
-      <SignInBanner />
-    ) : undefined;
+  const bottomBar = bottomContent === 'tabs' ? <BottomBar /> : undefined;
 
   // The app-shell contexts this subtree reads (screen color, videos rail, video
   // playback, drawer, bottom-bar visibility) are mounted by <AppShellProviders>
@@ -137,31 +138,48 @@ export default function AppLayout() {
           navigationGap={0}
           gutter={8}
           bottomBar={bottomBar}
-          // The tab bar is navigation, so it gives way to the sidebar on wide
-          // screens; the CTA has no stand-in there and shows at every width.
-          bottomBarVisibility={isAuthenticated ? 'compact' : 'always'}
+          bottomBarVisibility="compact"
           reserveBottomBarSpace={pathname !== '/camera'}
           panelLayout={{
-            mode: onDeckRoute ? 'deck' : 'split',
-            revealPanel: onDeckRoute ? deckRevealPanel : undefined,
-            trailingAction: onDeckRoute ? <DeckAddPanel /> : undefined,
+            mode: deckOpen ? 'deck' : 'split',
+            transition: 'exit-before-enter',
+            onPanelOrderChange: deckOpen
+              ? (order) => {
+                  const current = useDeckSettings.getState();
+                  if (
+                    current.viewer === deckViewer &&
+                    current.restorationEpoch === deckRestorationEpoch
+                  )
+                    current.reorderPanels(order);
+                }
+              : undefined,
+            revealPanel: deckOpen ? deckRevealPanel : undefined,
+            trailingAction: deckOpen ? <DeckAddPanel /> : undefined,
             widths: Object.fromEntries(
               Object.entries(deckPanels).map(([id, panel]) => [id, panel.width]),
             ),
-            flow: onDeckRoute || !IS_WEB ? 'bounded' : 'document',
+            flow: deckOpen || !IS_WEB ? 'bounded' : 'document',
             appearance: 'separated',
-            gap: onDeckRoute ? undefined : 0,
-            activePanel: onDeckRoute ? (activeDeckPanel ?? Object.keys(deckPanels)[0]) : 'main',
-            expandedPanel: onInsightsRoute ? 'main' : undefined,
+            gap: deckOpen ? undefined : 0,
+            activePanel:
+              deckOpen &&
+              activeDeckPanel &&
+              !(hasDefaultLeadingPanel && activeDeckPanel === firstDeckId)
+                ? activeDeckPanel
+                : 'main',
+            expandedPanel: !deckOpen && onInsightsRoute ? 'main' : undefined,
             panels: [
               {
                 id: 'main',
-                visible: !onDeckRoute,
+                visible: true,
                 // The Expo child navigator keeps the same host across every layout mode,
-                // including a cold open of Deck where its route screen renders null.
+                // including the Deck entry link that opens the home route.
                 keepMounted: true,
-                width: 620,
-                minWidth: 0,
+                bottomBar: bottomContent === 'sign-in' ? <SignInBanner /> : undefined,
+                width: deckOpen ? 390 : 620,
+                minWidth: deckOpen ? 390 : 0,
+                maxWidth: deckOpen ? 390 : undefined,
+                resizable: false,
                 content: (
                   <>
                     <View
@@ -175,7 +193,7 @@ export default function AppLayout() {
               },
               {
                 id: 'context',
-                visible: !onDeckRoute,
+                visible: !deckOpen,
                 sticky: true,
                 width: 350,
                 hideBelow: 990,
@@ -190,7 +208,7 @@ export default function AppLayout() {
                   const panel = deckPanels[id];
                   return {
                     id,
-                    visible: onDeckRoute,
+                    visible: deckOpen && !(hasDefaultLeadingPanel && id === firstDeckId),
                     width: panel.width,
                     appearance: panel.appearance,
                     colorPreset: panel.colorPreset,
@@ -205,6 +223,8 @@ export default function AppLayout() {
                     minWidth: 300,
                     maxWidth: 620,
                     resizable: panel.resizable,
+                    reorderable: true,
+                    reorderLabel: t(`deck.sources.${panel.source}`),
                     scroll: 'content' as const,
                     headerActions: <DeckColumnHeaderActions panelId={id} />,
                     navigation: {

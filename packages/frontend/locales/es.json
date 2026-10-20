@@ -2751,6 +2751,7 @@
     "pendingAssessment": "Este contenido no está disponible hasta que termine su revisión de seguridad."
   },
   "deck": {
+    "mode": { "standard": "Normal", "label": "Modo Deck" },
     "resizable": "Permitir redimensionar",
     "appearance": "Apariencia",
     "solid": "Superficie",
