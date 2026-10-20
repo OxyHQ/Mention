@@ -34,6 +34,7 @@ import {
 import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedProfileUsername';
 import type { ProfileRouteFamily } from '@/components/Profile/profileRoute';
 import { ProfileUnavailable } from '@/components/Profile/ProfileUnavailable';
+import { resolveProfileColor } from '@oxy.so/bloom/color-presets';
 import { BloomColorScope } from '@oxy.so/bloom/theme';
 
 /**
@@ -63,7 +64,7 @@ export function AccountInfoScreen({ routedFamily }: { routedFamily: ProfileRoute
 
 function AccountInfoScreenContent({ routedFamily }: { routedFamily: ProfileRouteFamily }) {
   const account = useProfileAccount(useRoutedProfileUsername());
-  const { profileData, loading: profileLoading, notFound, refresh, colorName } = account;
+  const { profileData, loading: profileLoading, notFound, refresh } = account;
   const canonicalHref = useProfileCanonicalHref({ routedFamily, account, subpath: 'about' });
 
   if (canonicalHref) {
@@ -71,7 +72,7 @@ function AccountInfoScreenContent({ routedFamily }: { routedFamily: ProfileRoute
   }
 
   return (
-    <BloomColorScope colorPreset={colorName} asChild>
+    <BloomColorScope {...resolveProfileColor(profileData?.design.color)} asChild>
       <AccountInfoContent
         profileData={profileData}
         profileLoading={profileLoading}
