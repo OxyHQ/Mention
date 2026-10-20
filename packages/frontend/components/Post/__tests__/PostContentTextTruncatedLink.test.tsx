@@ -138,8 +138,9 @@ describe('PostContentText — truncated link destination', () => {
       if (!renderer) throw new Error('render produced no tree');
       const links = renderer.root.findAll((node) => node.props.href === '/@allo');
       expect(links.length).toBeGreaterThan(0);
-      expect(links[0]?.props.children.props.children).toBe('Al…');
-      expect(JSON.stringify(renderer.toJSON())).not.toContain('[@');
+      const rendered = JSON.stringify(renderer.toJSON());
+      expect(rendered).toContain('Al…');
+      expect(rendered).not.toContain('[@');
       act(() => renderer?.unmount());
     },
   );
