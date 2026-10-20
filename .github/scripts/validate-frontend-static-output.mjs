@@ -79,8 +79,8 @@ if (await exists(indexPath)) {
 // The route layout preloads are written by `packages/frontend/scripts/
 // web-layout-preload.mjs` after `expo export`, and checked here for the same
 // reason: an export without them boots fine, its layouts just go back to
-// waiting for the whole common chunk. The check also proves every layout under
-// `app/` is preloaded and each href is a chunk in this export.
+// waiting for the whole common chunk. The check also proves the layouts every URL
+// loads are preloaded (and no others) and each href is a chunk in this export.
 if (await exists(indexPath)) {
   const { checkLayoutPreloads } = await import(
     '../../packages/frontend/scripts/web-layout-preload.mjs'

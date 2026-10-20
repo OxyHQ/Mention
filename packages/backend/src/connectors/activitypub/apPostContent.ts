@@ -17,6 +17,7 @@ import { extractApLinkPreviews, type RemoteLinkPreview } from './apLinkPreview';
 import { extractApLanguage, getApContentMap } from './apLanguage';
 import { primaryApType } from './apSchemas';
 import { expandVariantTcoLinks } from './tcoLinks';
+import { rewriteMirrorUrls } from '../../utils/federation/mirrorTransports';
 import { metrics } from '../../utils/metrics';
 
 /**
@@ -387,7 +388,7 @@ function buildApAuthorVariants(
 ): PostContentVariant[] {
   const variants: PostContentVariant[] = [];
   if (primaryText.length > 0) {
-    const primary: PostContentVariant = { source: 'author', text: primaryText };
+    const primary: PostContentVariant = { source: 'author', text: rewriteMirrorUrls(primaryText) };
     if (primaryTag) primary.tag = primaryTag;
     variants.push(primary);
   }
@@ -399,7 +400,7 @@ function buildApAuthorVariants(
       if (typeof value !== 'string') continue;
       const tag = canonicalizeLanguageTag(key);
       if (tag === null || variants.some((variant) => variant.tag === tag)) continue;
-      const text = normalizeRemoteBody(value, hasMedia, customEmojiNames);
+      const text = rewriteMirrorUrls(normalizeRemoteBody(value, hasMedia, customEmojiNames));
       if (text.length === 0) continue;
       variants.push({ tag, source: 'author', text });
     }
