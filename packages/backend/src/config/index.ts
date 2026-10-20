@@ -384,24 +384,6 @@ const environmentSchema = z
     GIF_LIBRARY_WRITE_ENABLED: booleanFromEnv(true),
 
     /**
-     * Oxy file references (ADR 0043, `docs/oxy-files.md`). ON by default: an
-     * application file nobody references is collected by Oxy, so the GIF
-     * library depends on it. `false` PAUSES the reference drain only — the
-     * triggers keep marking, nothing is lost, and federated deletions of files
-     * Mention referenced wait for it.
-     */
-    OXY_FILE_REFERENCES_ENABLED: booleanFromEnv(true),
-    /**
-     * The nightly reference reconciliation. `dry_run` (the default, and the
-     * first deployment) asks Oxy what a reconciliation WOULD add and remove and
-     * records the counts; `apply` lets it; `off` skips it. Read the
-     * `oxy_file_reference_reconciliations` dry runs before switching to apply.
-     */
-    OXY_FILE_REFERENCE_RECONCILE_MODE: z.preprocess(
-      emptyAsUndefined,
-      z.enum(['off', 'dry_run', 'apply']).default('dry_run'),
-    ),
-    /**
      * The signing secret Oxy returned when Mention's file-events endpoint was
      * set (`PUT /applications/:id/files-webhook`, shown once). Without it the
      * route still answers Oxy's endpoint challenge — which is how the secret is
@@ -900,8 +882,6 @@ export const config = {
     bridgeEnabled: environment.ATPROTO_BRIDGE_ENABLED,
   },
   oxyFiles: {
-    referencesEnabled: environment.OXY_FILE_REFERENCES_ENABLED,
-    reconcileMode: environment.OXY_FILE_REFERENCE_RECONCILE_MODE,
     webhookSecret: environment.OXY_FILES_WEBHOOK_SECRET,
     webhookPreviousSecret: environment.OXY_FILES_WEBHOOK_SECRET_PREVIOUS,
   },

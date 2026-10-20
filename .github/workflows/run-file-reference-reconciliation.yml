@@ -3,12 +3,13 @@ name: Run Oxy file-reference reconciliation
 # Drives `reconcileOxyFileReferences` — the nightly file-reference
 # reconciliation (ADR 0043, docs/oxy-files.md), run once on demand.
 #
-# WHY IT EXISTS. The nightly run only starts between 02:00 and 06:00 UTC, in the
-# mode the deployed `OXY_FILE_REFERENCE_RECONCILE_MODE` names. The rollout reads
-# a dry run and then makes the first applied run — the backfill of every
-# existing post, banner and GIF into Oxy's references — while an operator is
-# watching. This runs the same function; its history rows are the nightly run's,
-# and the scheduler counts it as that night's run.
+# WHY IT EXISTS. The nightly run only starts between 02:00 and 06:00 UTC, and
+# always applies. Here an operator reads a dry run (nothing committed), or makes
+# an applied run without waiting for the night — as the rollout made the first
+# one, the backfill of every existing post, banner and GIF into Oxy's
+# references, while an operator was watching. This runs the same function; its
+# history rows are the nightly run's, and the scheduler counts an applied run
+# as that night's.
 #
 # Shaped like `run-gif-library-migration.yml`, for the same reasons: IN-VPC (the
 # database is private) and FROM `main` ONLY (the task reuses the live service's

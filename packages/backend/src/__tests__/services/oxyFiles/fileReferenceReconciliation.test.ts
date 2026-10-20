@@ -27,7 +27,6 @@ vi.mock('../../../utils/oxyHelpers', async (importOriginal) => ({
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
-import { config } from '../../../config';
 import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
 import { deletePostRecord, insertPostRecord } from '../../../db/posts/postRepository';
 import { federatedMediaDeletions } from '../../../db/schema/federation';
@@ -153,7 +152,8 @@ describe('when a run is due', () => {
       vi.restoreAllMocks();
     }
     expect(run).toHaveBeenCalledTimes(1);
-    expect(run).toHaveBeenCalledWith(config.oxyFiles.reconcileMode);
+    // The nightly run always applies; a dry run is an operator's preview.
+    expect(run).toHaveBeenCalledWith('apply');
   });
 });
 

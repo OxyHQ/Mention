@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { ServiceReferenceReconcileResult } from '@oxy.so/core';
 import { desc, eq, sql } from 'drizzle-orm';
-import { config } from '../../config';
 import {
   databaseNow,
   rearmInUseFederatedMediaDeletions,
@@ -35,9 +34,8 @@ import { describeOxyError, oxyErrorStatus } from './oxyErrors';
  * (only references created before the session began, so the drain's concurrent
  * writes are never undone), and reports the counts.
  *
- * `OXY_FILE_REFERENCE_RECONCILE_MODE`: `dry_run` (the default and first
- * deployment) commits nothing and records what WOULD change; `apply` commits;
- * `off` skips the run.
+ * The nightly run always APPLIES. An operator who wants to see what a run
+ * would change first runs `reconcileOxyFileReferences` with `MODE=dry_run`.
  *
  * ## The one race a commit has, and how it is closed
  *
@@ -269,18 +267,12 @@ export class FileReferenceReconciliationScheduler {
 
   start(): void {
     if (this.running) return;
-    if (config.oxyFiles.reconcileMode === 'off') {
-      logger.info('[FileReferences] reconciliation off (OXY_FILE_REFERENCE_RECONCILE_MODE=off)');
-      return;
-    }
     this.running = true;
     this.timer = setInterval(() => {
       void this.tick();
     }, DUE_CHECK_INTERVAL_MS);
     this.timer.unref?.();
-    logger.info('[FileReferences] reconciliation scheduler started', {
-      mode: config.oxyFiles.reconcileMode,
-    });
+    logger.info('[FileReferences] reconciliation scheduler started');
   }
 
   stop(): void {
@@ -307,8 +299,7 @@ export class FileReferenceReconciliationScheduler {
   }
 
   private async runIfDue(): Promise<void> {
-    const mode = config.oxyFiles.reconcileMode;
-    if (mode === 'off') return;
+    const mode: ReconcileMode = 'apply';
     if (!isReconciliationDue(this.now(), await latestReconciliationStartedAt())) return;
 
     const result = await this.run(mode);
