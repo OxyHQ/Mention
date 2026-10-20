@@ -2755,5 +2755,9 @@
     "rateExplanation": "Interaktionen geteilt durch Aufrufe × 100.",
     "updating": "Wird aktualisiert…",
     "total": "Gesamt"
-  }
+  },
+  "post.repostOptions": "Repost-Optionen",
+  "post.repost": "Reposten",
+  "post.undoRepost": "Repost rückgängig machen",
+  "post.quote": "Zitieren"
 }

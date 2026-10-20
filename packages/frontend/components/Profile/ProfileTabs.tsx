@@ -100,7 +100,7 @@ export const ProfileTabs = memo(function ProfileTabs({
     ...pinnedPostQueryOptions(user?.id, profileId ?? ''),
     enabled: canLoadPinnedPost,
   });
-  const pinnedPost = pinnedPostQuery.data ?? null;
+  const pinnedPost = canLoadPinnedPost ? (pinnedPostQuery.data ?? null) : null;
   const refetchPinnedPost = pinnedPostQuery.refetch;
   const refreshProfileSurface = React.useCallback(async () => {
     await Promise.all([onProfileRefresh?.(), ...(canLoadPinnedPost ? [refetchPinnedPost()] : [])]);
@@ -259,6 +259,8 @@ export const ProfileTabs = memo(function ProfileTabs({
         listContentHeaderComponent={listContentHeaderComponent}
         listStickyHeaderComponent={listStickyHeaderComponent}
         listLeadingComponent={pinnedPostElement}
+        leadingPostId={pinnedPost?.id}
+        leadingPending={canLoadPinnedPost && pinnedPostQuery.isPending}
         contentContainerStyle={[listContentContainerStyle, { paddingBottom: 100 }]}
         onRefresh={refreshProfileSurface}
         reloadKey={feedReloadKey}
@@ -281,6 +283,7 @@ export const ProfileTabs = memo(function ProfileTabs({
         hideHeader={true}
         scrollEnabled={IS_WEB ? undefined : false}
         listLeadingComponent={pinnedPostElement}
+        leadingPostId={pinnedPost?.id}
         leadingPending={canLoadPinnedPost && pinnedPostQuery.isPending}
         contentContainerStyle={{ paddingBottom: 100 }}
         onRefresh={refreshProfileSurface}

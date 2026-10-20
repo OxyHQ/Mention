@@ -312,32 +312,59 @@ jest.mock('@oxy.so/bloom/skeleton', () => {
 
 // Bloom's carousel, reduced to what the band hands it: the header row (title,
 // link, arrows when asked for) over ONE horizontal scroller of slides.
-jest.mock('@oxy.so/bloom/carousel', () => {
-  const { ScrollView, TouchableOpacity, View } =
+jest.mock('@oxy.so/bloom/button-group', () => {
+  const { View, TouchableOpacity } =
     jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    ButtonGroup: ({ children }: { children: React.ReactNode }) => (
+      <View testID="carousel-controls">{children}</View>
+    ),
+    ButtonGroupItem: ({
+      children,
+      ...props
+    }: {
+      children?: React.ReactNode;
+      onPress?: () => void;
+      disabled?: boolean;
+      accessibilityLabel?: string;
+    }) => (
+      <TouchableOpacity {...props} testID="carousel-control" accessibilityRole="button">
+        {children}
+      </TouchableOpacity>
+    ),
+  };
+});
+
+jest.mock('@oxy.so/bloom/carousel', () => {
+  const { ScrollView, View } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
     Carousel: ({
       children,
       header,
       showArrows = true,
+      renderControls,
       previousLabel,
       nextLabel,
     }: {
       children?: React.ReactNode;
       header?: React.ReactNode;
       showArrows?: boolean;
+      renderControls?: (controls: {
+        previous: { accessibilityLabel?: string; disabled: boolean; onPress: () => void };
+        next: { accessibilityLabel?: string; disabled: boolean; onPress: () => void };
+      }) => React.ReactNode;
       previousLabel?: string;
       nextLabel?: string;
     }) => (
       <View>
         <View>
           {header}
-          {showArrows ? (
-            <>
-              <TouchableOpacity accessibilityLabel={previousLabel} />
-              <TouchableOpacity accessibilityLabel={nextLabel} />
-            </>
-          ) : null}
+          {showArrows
+            ? renderControls?.({
+                previous: { accessibilityLabel: previousLabel, disabled: true, onPress: jest.fn() },
+                next: { accessibilityLabel: nextLabel, disabled: false, onPress: jest.fn() },
+              })
+            : null}
         </View>
         <ScrollView horizontal>{children}</ScrollView>
       </View>
@@ -694,33 +721,36 @@ function carouselArrows(renderer: TestRenderer.ReactTestRenderer): ReactTestInst
 }
 
 /**
- * The desktop header's "See more" link. Matched by name as well as role: a
+ * The desktop header's "See more" link. Matched by name and its grouped-control slot: a
  * person tile is a `link` too (it opens the profile), and must not count.
  */
-function seeMoreLinks(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance[] {
+function seeMoreHeaderButtons(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance[] {
   const label = mockTranslate('feed.interstitial.seeMore');
   return renderer.root.findAll(
     (node) =>
       typeof node.type === 'string' &&
-      node.props.accessibilityRole === 'link' &&
+      node.props.testID === 'carousel-control' &&
       node.props.accessibilityLabel === label,
   );
 }
 
 /**
  * The trailing "See more" card — the last slide, on every screen size. A
- * `button`, where the header link is a `link`.
+ * standalone button outside the header group.
  */
 function seeMoreCards(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance[] {
   const label = mockTranslate('feed.interstitial.seeMore');
   return pressables(renderer).filter(
-    (node) => node.props.accessibilityRole === 'button' && node.props.accessibilityLabel === label,
+    (node) =>
+      node.props.testID !== 'carousel-control' &&
+      node.props.accessibilityRole === 'button' &&
+      node.props.accessibilityLabel === label,
   );
 }
 
 /**
- * Every pressable "See more" control — on desktop the header link AND the
- * trailing card, on mobile the card alone. (`seeMoreLinks` matches the rendered
+ * Every pressable "See more" control — on desktop the header button AND the
+ * trailing card, on mobile the card alone. (`seeMoreHeaderButtons` matches the rendered
  * host node, which carries the accessible role but not the press handler.)
  */
 function seeMoreButtons(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance[] {
@@ -760,7 +790,7 @@ function followButtons(renderer: TestRenderer.ReactTestRenderer): ReactTestInsta
  * The pressable region of a person tile — the account itself, as opposed to the
  * follow/dismiss controls beside it. It is the only control in a band whose
  * accessible role is a link and which carries no accessible name of its own
- * (the header "See more" link is named).
+ * (the grouped "See more" button is named).
  */
 function profileRowPressables(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance[] {
   return pressables(renderer).filter(
@@ -917,7 +947,7 @@ describe('SuggestedUsersInterstitial', () => {
     expect(renderedText(second)).not.toContain('Person 8');
   });
 
-  it('renders a carousel on desktop — arrows, a header "See more" link and a trailing card', async () => {
+  it('renders a carousel on desktop — arrows, a grouped "See more" button and a trailing card', async () => {
     mockIsDesktop = true;
     mockRecommendations = users(5);
 
@@ -929,13 +959,13 @@ describe('SuggestedUsersInterstitial', () => {
       mockTranslate('feed.interstitial.previous'),
       mockTranslate('feed.interstitial.next'),
     ]);
-    expect(seeMoreLinks(renderer)).toHaveLength(1);
+    expect(seeMoreHeaderButtons(renderer)).toHaveLength(1);
     expect(seeMoreCards(renderer)).toHaveLength(1);
     // Every suggestion is a fixed-width person tile.
     expect(suggestionSlideWidths(renderer)).toEqual(Array(5).fill(172));
   });
 
-  it('renders a carousel on mobile — no arrows, no header link, a trailing "See more" card', async () => {
+  it('renders a carousel on mobile — no arrows, no header button, a trailing "See more" card', async () => {
     mockIsDesktop = false;
     mockRecommendations = users(5);
 
@@ -943,7 +973,7 @@ describe('SuggestedUsersInterstitial', () => {
 
     expect(horizontalScrollers(renderer)).toHaveLength(1);
     expect(carouselArrows(renderer)).toHaveLength(0);
-    expect(seeMoreLinks(renderer)).toHaveLength(0);
+    expect(seeMoreHeaderButtons(renderer)).toHaveLength(0);
     expect(seeMoreCards(renderer)).toHaveLength(1);
     expect(suggestionSlideWidths(renderer)).toEqual(Array(5).fill(172));
   });
@@ -1069,14 +1099,14 @@ describe('SuggestedFeedsInterstitial', () => {
     );
   });
 
-  it('renders a carousel on every screen size — arrows and a header link only on desktop', async () => {
+  it('renders a carousel on every screen size — arrows and a header button only on desktop', async () => {
     mockGetMarketplace.mockResolvedValue({ items: feeds(6), total: 6 });
 
     mockIsDesktop = true;
     const desktop = await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
     expect(horizontalScrollers(desktop)).toHaveLength(1);
     expect(carouselArrows(desktop)).toHaveLength(2);
-    expect(seeMoreLinks(desktop)).toHaveLength(1);
+    expect(seeMoreHeaderButtons(desktop)).toHaveLength(1);
     expect(seeMoreCards(desktop)).toHaveLength(1);
     expect(suggestionSlideWidths(desktop)).toEqual(Array(6).fill(280));
 
@@ -1084,7 +1114,7 @@ describe('SuggestedFeedsInterstitial', () => {
     const mobile = await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
     expect(horizontalScrollers(mobile)).toHaveLength(1);
     expect(carouselArrows(mobile)).toHaveLength(0);
-    expect(seeMoreLinks(mobile)).toHaveLength(0);
+    expect(seeMoreHeaderButtons(mobile)).toHaveLength(0);
     expect(seeMoreCards(mobile)).toHaveLength(1);
     expect(suggestionSlideWidths(mobile)).toEqual(Array(6).fill(280));
   });
@@ -1239,14 +1269,14 @@ describe('SuggestedStarterPacksInterstitial', () => {
     expect(followAllButtons(renderer)).toHaveLength(0);
   });
 
-  it('renders a carousel on every screen size — arrows and a header link only on desktop', async () => {
+  it('renders a carousel on every screen size — arrows and a header button only on desktop', async () => {
     mockListStarterPacks.mockResolvedValue({ items: packs(6), total: 6 });
 
     mockIsDesktop = true;
     const desktop = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
     expect(horizontalScrollers(desktop)).toHaveLength(1);
     expect(carouselArrows(desktop)).toHaveLength(2);
-    expect(seeMoreLinks(desktop)).toHaveLength(1);
+    expect(seeMoreHeaderButtons(desktop)).toHaveLength(1);
     expect(seeMoreCards(desktop)).toHaveLength(1);
     expect(suggestionSlideWidths(desktop)).toEqual(Array(6).fill(280));
 
@@ -1254,7 +1284,7 @@ describe('SuggestedStarterPacksInterstitial', () => {
     const mobile = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
     expect(horizontalScrollers(mobile)).toHaveLength(1);
     expect(carouselArrows(mobile)).toHaveLength(0);
-    expect(seeMoreLinks(mobile)).toHaveLength(0);
+    expect(seeMoreHeaderButtons(mobile)).toHaveLength(0);
     expect(seeMoreCards(mobile)).toHaveLength(1);
     expect(suggestionSlideWidths(mobile)).toEqual(Array(6).fill(280));
   });
@@ -1376,7 +1406,7 @@ describe('SimilarAccountsInterstitial', () => {
     expect(dismissButtonCount(renderer)).toBe(4);
   });
 
-  it('renders a carousel on every screen size — arrows and a header link only on desktop', async () => {
+  it('renders a carousel on every screen size — arrows and a header button only on desktop', async () => {
     mockGetSimilarProfiles.mockResolvedValue(similarAccounts(6));
 
     mockIsDesktop = true;
@@ -1385,7 +1415,7 @@ describe('SimilarAccountsInterstitial', () => {
     );
     expect(horizontalScrollers(desktop)).toHaveLength(1);
     expect(carouselArrows(desktop)).toHaveLength(2);
-    expect(seeMoreLinks(desktop)).toHaveLength(1);
+    expect(seeMoreHeaderButtons(desktop)).toHaveLength(1);
     expect(seeMoreCards(desktop)).toHaveLength(1);
     expect(suggestionSlideWidths(desktop)).toEqual(Array(6).fill(172));
 
@@ -1395,7 +1425,7 @@ describe('SimilarAccountsInterstitial', () => {
     );
     expect(horizontalScrollers(mobile)).toHaveLength(1);
     expect(carouselArrows(mobile)).toHaveLength(0);
-    expect(seeMoreLinks(mobile)).toHaveLength(0);
+    expect(seeMoreHeaderButtons(mobile)).toHaveLength(0);
     expect(seeMoreCards(mobile)).toHaveLength(1);
     expect(suggestionSlideWidths(mobile)).toEqual(Array(6).fill(172));
   });

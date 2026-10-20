@@ -6,9 +6,7 @@ const mockUseProfileData = jest.fn();
 jest.mock('@/hooks/useProfileData', () => ({
   useProfileData: (handle: string) => mockUseProfileData(handle),
 }));
-jest.mock('@/hooks/useProfileScreenColor', () => ({
-  useProfileScreenColor: () => ({ colorName: undefined }),
-}));
+
 jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: ({
     username,

@@ -93,6 +93,8 @@ export { boundFeedRows, canLoadMoreFeed } from './feedPaging';
 const logger = createLogger('Feed');
 
 export interface BuildFeedRowsParams {
+  /** A post already rendered in the leading section. */
+  leadingPostId?: string;
   slices?: FeedPostSlice[];
   items: HydratedPost[];
   type: FeedType;
@@ -213,6 +215,7 @@ export function buildFeedRows({
   threaded,
   threadPostId,
   interstitials,
+  leadingPostId,
 }: BuildFeedRowsParams): FeedRow[] {
   // If we have slices, transform them into FeedRows with thread state
   if (slices && slices.length > 0) {
@@ -226,6 +229,7 @@ export function buildFeedRows({
       const uniqueSliceItems = slice.items.filter((sliceItem) => {
         const post = sliceItem.post as FeedItem;
         if (!post || !post.id) return false;
+        if (leadingPostId && displayedPostId(post) === leadingPostId) return false;
         if (blockedSet.size > 0) {
           const authorId = post.user?.id;
           if (authorId && blockedSet.has(authorId)) return false;
@@ -284,6 +288,7 @@ export function buildFeedRows({
   const filteredByPrivacy = threaded
     ? visible
     : visible.filter((item) => {
+        if (leadingPostId && displayedPostId(item) === leadingPostId) return false;
         if (isRedrawOfShownPost(item, shownPostIds)) return false;
         shownPostIds.add(displayedPostId(item));
         return true;
