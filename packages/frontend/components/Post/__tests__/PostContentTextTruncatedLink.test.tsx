@@ -1,6 +1,6 @@
 import type React from 'react';
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 
 import PostContentText from '../PostContentText';
@@ -176,4 +176,22 @@ describe('PostContentText Markdown', () => {
     expect(JSON.stringify(renderer.toJSON())).not.toContain('**');
     act(() => renderer?.unmount());
   });
+});
+
+it.each(['A short post', ''])('keeps the thread position inline after the body: %s', (content) => {
+  let renderer: TestRenderer.ReactTestRenderer | undefined;
+  act(() => {
+    renderer = TestRenderer.create(
+      <BloomThemeProvider>
+        <PostContentText content={content} trailingContent={<Text>2/3</Text>} />
+      </BloomThemeProvider>,
+    );
+  });
+  if (!renderer) throw new Error('render produced no tree');
+  const tree = renderer.toJSON();
+  expect(Array.isArray(tree)).toBe(false);
+  expect(JSON.stringify(tree)).toContain('2/3');
+  if (content)
+    expect(JSON.stringify(tree).indexOf(content)).toBeLessThan(JSON.stringify(tree).indexOf('2/3'));
+  act(() => renderer?.unmount());
 });

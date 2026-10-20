@@ -16,6 +16,8 @@ interface Props {
   content?: string | PostContent;
   postId?: string;
   previewChars?: number;
+  /** Small inline context after the body, such as a position in an author thread. */
+  trailingContent?: React.ReactNode;
   /**
    * A body the READER chose over the one the server resolved — another author
    * rendition of this post, or a machine translation of it. `null` (the norm)
@@ -40,6 +42,7 @@ const PostContentText: React.FC<Props> = ({
   content,
   postId,
   previewChars,
+  trailingContent,
   overrideText,
   linkPreviewUrls,
 }) => {
@@ -69,7 +72,7 @@ const PostContentText: React.FC<Props> = ({
   const { isExpanded, toggle } = useTextExpansion(textContent, postReadMoreAction);
   const isTruncated = preview.isTruncated;
 
-  if (!textContent) return null;
+  if (!textContent && !trailingContent) return null;
 
   const suffix =
     isTruncated && postId ? (
@@ -100,7 +103,12 @@ const PostContentText: React.FC<Props> = ({
             />
           ) : undefined;
         }}
-        suffix={suffix}
+        suffix={
+          <>
+            {suffix}
+            {trailingContent}
+          </>
+        }
       />
     </Text>
   );

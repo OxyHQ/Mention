@@ -148,6 +148,9 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
   // root (the backend returns [] otherwise), so a non-thread post is unchanged.
   // Its own connected group, below the focused post and its metadata.
   const [continuations, setContinuations] = useState<PostDetailEntity[]>([]);
+  const [threadPositions, setThreadPositions] = useState<
+    ReadonlyMap<string, { index: number; total: number }>
+  >(new Map());
   const [collapsedThreadId, setCollapsedThreadId] = useState<string | null>(null);
   const continuationsExpanded = collapsedThreadId !== id;
   // Only block first paint when there is no cached post to render. A cache hit
@@ -274,27 +277,37 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
             usePostsStore.getState().getPostFromDb(postId)?.parentPostId,
           ) as PostDetailEntity[]),
     );
-    // Likewise drop the previous post's continuation spine.
+    // Likewise drop the previous post's continuation spine and numbering.
     setContinuations([]);
+    setThreadPositions(new Map());
 
-    // Fetch the author's self-thread continuation spine (root → c1 … cN) ONLY
-    // for a self-thread root. `metadata.isThread` is `Boolean(post.threadId)`:
-    // when false the post has no threadId and so can never be a self-thread
-    // root — the backend returns [] for it — so we skip the request entirely.
-    // When true we still ask (a thread REPLY also carries a threadId; the
-    // backend returns [] for non-roots). The spine was reset to [] above, so the
-    // skip path is a no-op. Best-effort: a failure just yields no spine.
+    // Read the complete author spine even when opening one of its continuations,
+    // so "2/3" does not become "1/2" when the focused post changes. Only the root
+    // renders the continuation group; reply targets and ancestor loading stay the same.
     const loadContinuations = (target: PostDetailEntity | null | undefined) => {
-      const isSelfThreadRoot =
-        !!target && 'metadata' in target && target.metadata?.isThread === true;
-      if (!isSelfThreadRoot) return;
+      if (!target?.metadata?.isThread) return;
+      const rootId = target.context?.parentThreadId ?? postId;
       feedService
-        .getThreadContinuations(postId)
+        .getThreadContinuations(rootId)
         .then((spine) => {
-          if (!cancelled) setContinuations(spine);
+          if (cancelled) return;
+          setContinuations(rootId === postId ? spine : []);
+          // A missing/hidden part means the visible list cannot establish a
+          // trustworthy position. Omit numbering instead of inventing a total.
+          const ids = [rootId, ...spine.map((part) => String(part.id))];
+          if (spine.length > 0 && spine.every((part, index) => part.parentPostId === ids[index])) {
+            setThreadPositions(
+              new Map(
+                ids.map((partId, index) => [partId, { index: index + 1, total: ids.length }]),
+              ),
+            );
+          }
         })
         .catch(() => {
-          if (!cancelled) setContinuations([]);
+          if (!cancelled) {
+            setContinuations([]);
+            setThreadPositions(new Map());
+          }
         });
     };
 
@@ -491,6 +504,7 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
           <PostItem
             key={String(ancestor.id ?? index)}
             post={ancestor}
+            threadPosition={threadPositions.get(String(ancestor.id))}
             isThreadParent
             isThreadChild={index > 0}
             attachedBelow
@@ -501,6 +515,7 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
         {/* Ancestors end at the focused avatar; no rail crosses its full-width body. */}
         <PostItem
           post={post}
+          threadPosition={threadPositions.get(String(post.id))}
           isPostDetail
           isThreadChild={hasAncestors}
           isThreadLastChild={hasAncestors}
@@ -526,6 +541,7 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
                     <PostItem
                       key={String(continuation.id)}
                       post={continuation}
+                      threadPosition={threadPositions.get(String(continuation.id))}
                       isThreadChild={index > 0}
                       isThreadParent={!isLast}
                       isThreadLastChild={isLast}
@@ -540,7 +556,16 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
         )}
       </View>
     );
-  }, [post, ancestors, continuations, continuationsExpanded, id, t, handleOpenReply]);
+  }, [
+    post,
+    ancestors,
+    continuations,
+    threadPositions,
+    continuationsExpanded,
+    id,
+    t,
+    handleOpenReply,
+  ]);
 
   const header = (
     <PageHeader

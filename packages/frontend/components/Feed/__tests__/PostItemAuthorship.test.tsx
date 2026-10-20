@@ -286,7 +286,7 @@ describe('PostItem boost wiring', () => {
   });
 });
 
-it('gives focused text the full width while keeping the action row before metadata and at its feed inset', () => {
+it('aligns focused actions with the full-width text and keeps them before metadata', () => {
   let feed: TestRenderer.ReactTestRenderer | undefined;
   let detail: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
@@ -298,7 +298,12 @@ it('gives focused text the full width while keeping the action row before metada
     tree.root.findAll((node) => typeof node.type === 'string' && node.type === name)[0];
   const feedActions = host(feed, 'PostActions');
   const detailActions = host(detail, 'PostActions');
-  expect(detailActions.parent?.props.style).toEqual(feedActions.parent?.props.style);
+  expect(feedActions.parent?.props.style).toEqual({ paddingLeft: 64, paddingRight: 12 });
+  const bodyInset = host(detail, 'PostContentText').parent?.props.style.paddingHorizontal;
+  expect(detailActions.parent?.props.style).toEqual({
+    paddingLeft: bodyInset,
+    paddingRight: bodyInset,
+  });
   const rendered = JSON.stringify(detail.toJSON());
   expect(rendered.indexOf('PostActions')).toBeLessThan(rendered.indexOf('PostDetailStats'));
   expect(host(detail, 'PostContentText').parent?.props.style.paddingHorizontal).toBe(12);

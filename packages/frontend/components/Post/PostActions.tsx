@@ -7,8 +7,6 @@ import { BoostIcon, BoostIconActive } from '@/assets/icons/boost-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
-import { Avatar } from '@oxy.so/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useHaptics } from '@oxy.so/bloom/hooks';
@@ -21,8 +19,6 @@ import { HIT_SLOP_MD } from '@/styles/hitSlop';
 import VotePill from './VotePill';
 
 const ICON_SIZE = 20;
-const MINI_AVATAR = 16;
-const AVATAR_OVERLAP = -4;
 
 /** Only what the bar itself renders. Counts it does not show (quotes, views) live on <PostDetailStats>. */
 interface Engagement {
@@ -36,7 +32,6 @@ interface Engagement {
   boosts?: number | null;
   downvotes?: number | null;
   saves?: number | null;
-  recentReplierAvatars?: string[];
 }
 
 interface Props {
@@ -74,12 +69,6 @@ interface Props {
   isTranslated?: boolean;
   isTranslating?: boolean;
   postId?: string;
-  /**
-   * "2 replies", already localized and pluralized by the caller (i18n plural
-   * rules, not an English `=== 1` check). The bar holds no translation hook of
-   * its own: it mounts once per feed row, and the row already has one.
-   */
-  repliesSummary?: string;
 }
 
 const PostActions: React.FC<Props> = ({
@@ -99,7 +88,6 @@ const PostActions: React.FC<Props> = ({
   onTranslateLongPress,
   isTranslated,
   isTranslating,
-  repliesSummary,
 }) => {
   const theme = useTheme();
   const haptic = useHaptics();
@@ -114,7 +102,6 @@ const PostActions: React.FC<Props> = ({
   const saves = engagement?.saves ?? 0;
   const boosts = engagement?.boosts ?? 0;
   const downvotes = engagement?.downvotes ?? 0;
-  const replierAvatars = engagement?.recentReplierAvatars ?? [];
 
   // The translate icon's SECOND job — reading the post in some other language —
   // hung off a long press, which no screen reader performs, so the accessibility
@@ -139,7 +126,7 @@ const PostActions: React.FC<Props> = ({
   // and the focused post on `/p/:id` included. A focused post adds
   // <PostDetailStats> BELOW this bar; it does not get a bar of its own.
   const actionIconRow = (
-    <View className="flex-row items-center" style={{ gap: 12 }}>
+    <View className="flex-row items-center" style={{ gap: 8 }}>
       {voteStyle === 'pill' && onDownvote ? (
         <VotePill
           likeCount={likes}
@@ -172,7 +159,7 @@ const PostActions: React.FC<Props> = ({
 
       {onReply ? (
         <PressableScale
-          style={styles.iconButton}
+          style={styles.countedIconButton}
           onPress={() => {
             haptic('light');
             onReply();
@@ -181,6 +168,11 @@ const PostActions: React.FC<Props> = ({
           accessibilityLabel="Reply"
         >
           <CommentIcon size={ICON_SIZE} className="text-muted-foreground" />
+          {replies > 0 && (
+            <Text className="text-[13px] text-muted-foreground">
+              {formatCompactNumber(replies)}
+            </Text>
+          )}
         </PressableScale>
       ) : null}
 
@@ -290,50 +282,7 @@ const PostActions: React.FC<Props> = ({
     </View>
   );
 
-  // Build summary parts like Threads: "X replies · Y likes"
-  const summaryParts: string[] = [];
-  if (replies > 0 && repliesSummary) summaryParts.push(repliesSummary);
-
-  // A fragment, not a wrapping <View>: the only caller already renders this bar
-  // inside a padded column, so the wrapper laid nothing out. Under NativeWind's
-  // global class-name polyfill every react-native primitive is a
-  // `react-native-css` interop component (two useContext + two useState + an
-  // effect + rule evaluation, className or not), so an inert wrapper is not free
-  // — measured at ~0.012ms per primitive to mount in the jest harness.
-  return (
-    <>
-      {actionIconRow}
-
-      {/* Engagement summary -- avatar bubbles + "X replies . Y likes".
-          A plain View: nothing here has ever been pressable. The counters that
-          DO open a list live on <PostDetailStats>, and this bar was rendering a
-          `PressableScale` — a reanimated shared value, an animated style and a
-          Pressability instance per row — permanently `disabled`, because no
-          caller ever passed it a handler. */}
-      {summaryParts.length > 0 && (
-        <View className="flex-row items-center mt-2" style={{ gap: 6 }}>
-          {replierAvatars.length > 0 && (
-            <View className="flex-row items-center">
-              {replierAvatars.slice(0, 3).map((avatarId, i) => (
-                <View
-                  key={i}
-                  className="border-background"
-                  style={[
-                    styles.miniAvatarWrap,
-                    i > 0 && { marginLeft: AVATAR_OVERLAP },
-                    { zIndex: 3 - i },
-                  ]}
-                >
-                  <Avatar source={avatarId} size={MINI_AVATAR} variant={MEDIA_VARIANT_AVATAR} />
-                </View>
-              ))}
-            </View>
-          )}
-          <Text className="text-muted-foreground text-[13px]">{summaryParts.join(' \u00B7 ')}</Text>
-        </View>
-      )}
-    </>
-  );
+  return actionIconRow;
 };
 
 // Mounted once per feed row. Memoized so an unrelated re-render of a sibling row
@@ -352,10 +301,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-  },
-  miniAvatarWrap: {
-    borderWidth: 1.5,
-    borderRadius: MINI_AVATAR / 2 + 1.5,
-    overflow: 'hidden',
   },
 });

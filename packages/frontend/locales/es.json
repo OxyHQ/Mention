@@ -1,4 +1,5 @@
 {
+  "post.threadPosition": "Publicación {{index}} de {{total}} del hilo",
   "post.viewConversation": "Ver conversación",
   "post.threadContinuation": "Continuación del hilo ({{count}})",
   "post.repostOptions": "Opciones de repost",

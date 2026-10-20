@@ -93,6 +93,8 @@ interface PostHeaderProps {
   avatarSize?: number;
   /** Inline avatar and full-width body for an embedded quoted post. */
   compact?: boolean;
+  /** Focused post: stack the handle beneath the name and omit relative time. */
+  detail?: boolean;
   avatarGap?: number;
   /**
    * Replaces the relative-time label ("now", "5m", …) in the identity line.
@@ -219,6 +221,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   avatarVariant,
   avatarSize = POST_AVATAR_SIZE,
   compact = false,
+  detail = false,
   timeSlot,
   laneSlot,
   isEdited,
@@ -418,6 +421,37 @@ const PostHeader: React.FC<PostHeaderProps> = ({
     </TouchableOpacity>
   ) : null;
 
+  const identityName = (
+    <UserName
+      name={hasDisplayName ? user.displayName : user.handle ? `@${user.handle}` : undefined}
+      verified={user.verified}
+      href={userHref}
+      onPress={onPressName}
+      asHeading={nameAsHeading}
+      style={{ container: { flexShrink: 1, minWidth: 0 } }}
+    />
+  );
+  const identityHandle =
+    hasDisplayName && user.handle ? (
+      <Text
+        className="text-muted-foreground text-[15px] leading-tight"
+        style={{ flexShrink: 10, minWidth: 0 }}
+        numberOfLines={1}
+        ellipsizeMode="tail"
+      >
+        {`${detail ? '' : '\u00A0'}@${user.handle}`}
+      </Text>
+    ) : null;
+  const identityBadge = (
+    <AccountBadge
+      isFederated={user.isFederated}
+      kind={user.kind}
+      size={13}
+      className="text-muted-foreground"
+      containerClassName="self-center ml-1"
+    />
+  );
+
   return (
     <View className="flex-row items-start justify-between" style={{ paddingHorizontal }}>
       {compact ? null : avatar}
@@ -485,39 +519,31 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               disable={disableHoverCard}
               style={{ minWidth: 0, flexShrink: 1 }}
             >
-              <View className="flex-row items-end flex-shrink" style={{ minWidth: 0 }}>
-                <UserName
-                  name={
-                    hasDisplayName ? user.displayName : user.handle ? `@${user.handle}` : undefined
-                  }
-                  verified={user.verified}
-                  href={userHref}
-                  onPress={onPressName}
-                  asHeading={nameAsHeading}
-                  style={{ container: { flexShrink: 1, minWidth: 0 } }}
-                />
-                {hasDisplayName && user.handle ? (
-                  <Text
-                    className="text-muted-foreground text-[15px] leading-tight"
-                    style={{ flexShrink: 10, minWidth: 0 }}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                  >
-                    {`\u00A0@${user.handle}`}
-                  </Text>
-                ) : null}
-                <AccountBadge
-                  isFederated={user.isFederated}
-                  kind={user.kind}
-                  size={13}
-                  className="text-muted-foreground"
-                  containerClassName="self-center ml-1"
-                />
+              <View
+                className={detail ? 'items-start' : 'flex-row items-end flex-shrink'}
+                style={{ minWidth: 0 }}
+              >
+                {detail ? (
+                  <>
+                    <View className="flex-row items-center">
+                      {identityName}
+                      {identityBadge}
+                    </View>
+                    {identityHandle}
+                  </>
+                ) : (
+                  <>
+                    {identityName}
+                    {identityHandle}
+                    {identityBadge}
+                  </>
+                )}
               </View>
             </ProfileHoverCard>
           )}
           {timeSlot ??
-            (timeText &&
+            (!detail &&
+              timeText &&
               (postHref ? (
                 <Link
                   href={postHref}

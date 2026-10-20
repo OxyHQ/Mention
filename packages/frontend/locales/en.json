@@ -1,4 +1,5 @@
 {
+  "post.threadPosition": "Post {{index}} of {{total}} in thread",
   "post.viewConversation": "View conversation",
   "post.threadContinuation": "Thread continuation ({{count}})",
   "post.repostOptions": "Repost options",
