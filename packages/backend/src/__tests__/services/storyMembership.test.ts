@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import {
   saveStoryMemberships,
   scoreContextualStoryMembership,
@@ -145,5 +145,40 @@ describe('saveStoryMemberships — which posts a story can be built from', () =>
       .from(posts)
       .where(inArray(posts.id, [shown, hidden]));
     expect([...stored]).toHaveLength(2);
+  });
+
+  it('leaves an unchanged membership alone on a re-run, and updates a changed one', async () => {
+    const member = await variant();
+    const calculatedAt = new Date();
+    const [trend] = await getDb()
+      .insert(trending)
+      .values({ type: 'entity', name: TERM, terms: [TERM], score: 1, rank: 0, calculatedAt })
+      .returning({ id: trending.id });
+    seededTrends.push(trend.id);
+    const story = { id: trend.id, name: TERM, terms: [TERM], calculatedAt };
+
+    /** The row's version: Postgres gives every UPDATE, changed or not, a new one. */
+    const version = async () => {
+      const [row] = await getDb()
+        .select({ xmin: sql<string>`xmin::text`, relevance: trendStoryPosts.relevance })
+        .from(trendStoryPosts)
+        .where(eq(trendStoryPosts.trendId, trend.id));
+      return row;
+    };
+
+    expect(await saveStoryMemberships([story])).toBe(1);
+    const first = await version();
+
+    // Same inputs, same membership: no write, so no dead row version.
+    expect(await saveStoryMemberships([story])).toBe(0);
+    expect((await version())?.xmin).toBe(first?.xmin);
+
+    // A changed membership is still written.
+    await getDb()
+      .update(trendStoryPosts)
+      .set({ relevance: 0.6 })
+      .where(eq(trendStoryPosts.postId, member));
+    expect(await saveStoryMemberships([story])).toBe(1);
+    expect((await version())?.relevance).toBe(1);
   });
 });
