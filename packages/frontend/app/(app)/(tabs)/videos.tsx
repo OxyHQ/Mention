@@ -1866,10 +1866,9 @@ export default function VideosScreen() {
 
   // ── Desktop replies-panel coordination ──────────────────────────
   // The RightBar replies panel is a read-only projection of this screen's
-  // active post. Writing this derived state to an external store is the same
-  // legitimate-effect pattern as the ScreenColor screens. `active` flips true
-  // on mount and false on unmount so the panel mounts/unmounts in lockstep
-  // with /videos.
+  // active post. Writing this derived state to an external store is a
+  // legitimate effect. `active` flips true on mount and false on unmount so the
+  // panel mounts/unmounts in lockstep with /videos.
   useEffect(() => {
     if (inDeck || !isFocused) return;
     setRailState({ active: true });
