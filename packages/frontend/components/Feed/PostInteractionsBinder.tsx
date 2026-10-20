@@ -3,6 +3,7 @@ import { useRouter } from '@/lib/navigation/router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
@@ -55,6 +56,18 @@ export function PostInteractionsBinder() {
       queryClient,
     };
     const noteSheets = createCommunityNoteSheets({ bottomSheet, router, handlers: noteHandlers });
+    const requireSession = () => {
+      if (canUsePrivateApi) return true;
+      toast(
+        isAuthenticated
+          ? t('postActions.sessionLoading', {
+              defaultValue: 'Your session is loading. Try again in a moment.',
+            })
+          : t('postActions.signInRequired', { defaultValue: 'Sign in to interact with posts.' }),
+        { id: 'post-session-required', type: 'info' },
+      );
+      return false;
+    };
 
     const openSources: BoundPostCommands['openSources'] = (sources) => {
       if (sources.length === 0) return;
@@ -71,6 +84,7 @@ export function PostInteractionsBinder() {
     };
 
     return {
+      requireSession,
       openSources,
       prefetchProfile: (profileId) => {
         // Only for a resolved viewer: a read started while the session is
@@ -108,7 +122,7 @@ export function PostInteractionsBinder() {
             isSaved: viewerState?.isSaved ?? false,
             hasArticle: Boolean(post.attachments?.article),
             hasSources: sources.length > 0,
-            onSave: () => toggleSave(post, source),
+            onSave: () => (requireSession() ? toggleSave(post, source) : Promise.resolve()),
             onOpenArticle,
             onOpenSources: () => openSources(sources),
           },

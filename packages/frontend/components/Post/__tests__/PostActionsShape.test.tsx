@@ -2,6 +2,7 @@ import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
 import PostActions from '../PostActions';
+import { AnimatedLikeIcon } from '@/lib/animations/AnimatedLikeIcon';
 
 /** The action bar keeps all engagement counts on their respective buttons. */
 
@@ -43,12 +44,12 @@ function renderBar(props: Partial<React.ComponentProps<typeof PostActions>> = {}
     renderer = TestRenderer.create(
       <PostActions
         engagement={{ replies: 2, likes: 3 }}
-        {...props}
         onReply={noop}
         onBoost={noop}
         onLike={noop}
         onSave={noop}
         onShare={noop}
+        {...props}
       />,
     );
   });
@@ -57,6 +58,18 @@ function renderBar(props: Partial<React.ComponentProps<typeof PostActions>> = {}
 }
 
 describe('PostActions shape', () => {
+  it('does not switch to the animated heart when a like is rejected', () => {
+    const onLike = jest.fn(() => false);
+    const renderer = renderBar({ onLike });
+    const like = renderer.root.find(
+      (node) => String(node.type) === 'PressableScale' && node.props.accessibilityLabel === 'Like',
+    );
+    act(() => like.props.onPress());
+    expect(onLike).toHaveBeenCalledTimes(1);
+    expect(renderer.root.findByType(AnimatedLikeIcon).props.hasBeenToggled).toBe(false);
+    act(() => renderer.unmount());
+  });
+
   it('renders a single row with the reply count inside the reply button', () => {
     const renderer = renderBar();
     expect(Array.isArray(renderer.toJSON())).toBe(false);

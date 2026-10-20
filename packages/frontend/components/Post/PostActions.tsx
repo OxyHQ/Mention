@@ -49,7 +49,8 @@ interface Props {
    */
   onReply?: () => void;
   onBoost: () => void;
-  onLike: () => void;
+  /** Returning false rejects the action without mounting the like animation. */
+  onLike: () => boolean | undefined;
   onDownvote?: () => void;
   onSave: () => void;
   onShare: () => void;
@@ -134,8 +135,8 @@ const PostActions: React.FC<Props> = ({
           isLiked={!!isLiked}
           isDownvoted={!!isDownvoted}
           onUpvote={() => {
+            if (onLike() === false) return;
             setHasBeenToggled(true);
-            onLike();
           }}
           onDownvote={onDownvote}
         />
@@ -143,9 +144,9 @@ const PostActions: React.FC<Props> = ({
         <PressableScale
           style={styles.iconButton}
           onPress={() => {
+            if (onLike() === false) return;
             setHasBeenToggled(true);
             haptic('light');
-            onLike();
           }}
           hitSlop={HIT_SLOP_MD}
           accessibilityLabel={isLiked ? 'Unlike' : 'Like'}

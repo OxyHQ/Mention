@@ -16,6 +16,8 @@ interface Props {
   content?: string | PostContent;
   postId?: string;
   previewChars?: number;
+  /** Larger reading text for the focused post. */
+  detail?: boolean;
   /** Small inline context after the body, such as a position in an author thread. */
   trailingContent?: React.ReactNode;
   /**
@@ -42,6 +44,7 @@ const PostContentText: React.FC<Props> = ({
   content,
   postId,
   previewChars,
+  detail = false,
   trailingContent,
   overrideText,
   linkPreviewUrls,
@@ -88,7 +91,7 @@ const PostContentText: React.FC<Props> = ({
     ) : null;
 
   return (
-    <Text style={styles.postText} className="text-foreground">
+    <Text style={detail ? styles.detailText : styles.postText} className="text-foreground">
       <InlineMarkdown
         nodes={isExpanded ? parsed.nodes : preview.nodes}
         onLinkPress={openExternalLink}
@@ -125,5 +128,9 @@ const styles = StyleSheet.create({
   postText: {
     fontSize: 15,
     lineHeight: 20,
+  },
+  detailText: {
+    fontSize: 17,
+    lineHeight: 22,
   },
 });

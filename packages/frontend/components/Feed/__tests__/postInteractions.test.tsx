@@ -9,6 +9,7 @@ import {
   type PostInteractions,
 } from '../postInteractions';
 import { PostInteractionsBinder } from '../PostInteractionsBinder';
+import { toast } from '@oxy.so/bloom/toast';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 
 /**
@@ -143,10 +144,19 @@ beforeAll(() => {
 beforeEach(() => {
   jest.clearAllMocks();
   mockStore.posts.clear();
+  mockAuth = { user: { id: 'viewer-1' } };
 });
 
 describe('engagement commands', () => {
-  const interactions = () => capture((probe) => probe);
+  const interactions = () => {
+    mockAuth = { user: { id: 'viewer-1' }, isAuthenticated: true, canUsePrivateApi: true };
+    return capture((probe) => (
+      <PostInteractionsProvider>
+        <PostInteractionsBinder />
+        {probe}
+      </PostInteractionsProvider>
+    ));
+  };
 
   it('likes with the feed as attribution, and unlikes without it', async () => {
     const commands = interactions();
@@ -206,6 +216,47 @@ describe('engagement commands', () => {
     mockStore.posts.set('s', canonical);
     interactions().share(post('s'));
     expect(mockShare).toHaveBeenCalledWith(canonical);
+  });
+});
+
+describe('session gate', () => {
+  it.each([false, true])(
+    'blocks optimistic writes while private API is unavailable (signed in: %s)',
+    async (isAuthenticated) => {
+      mockAuth = {
+        user: isAuthenticated ? { id: 'viewer-1' } : null,
+        isAuthenticated,
+        canUsePrivateApi: false,
+      };
+      const commands = capture((probe) => (
+        <PostInteractionsProvider>
+          <PostInteractionsBinder />
+          {probe}
+        </PostInteractionsProvider>
+      ));
+      for (const action of ['toggleLike', 'toggleDownvote', 'toggleSave', 'toggleBoost'] as const)
+        await commands[action](post('anonymous'));
+      expect(commands.requireSession()).toBe(false);
+      for (const action of ['likePost', 'downvotePost', 'savePost', 'boostPost'] as const)
+        expect(mockStore[action]).not.toHaveBeenCalled();
+      expect(toast).toHaveBeenCalledTimes(5);
+      expect(toast).toHaveBeenLastCalledWith(
+        isAuthenticated
+          ? 'Your session is loading. Try again in a moment.'
+          : 'Sign in to interact with posts.',
+        { id: 'post-session-required', type: 'info' },
+      );
+      commands.share(post('anonymous'));
+      expect(mockShare).toHaveBeenCalled();
+    },
+  );
+
+  it('does not write before the session binder mounts', async () => {
+    const commands = capture((probe) => (
+      <PostInteractionsProvider>{probe}</PostInteractionsProvider>
+    ));
+    await commands.toggleLike(post('early'));
+    expect(mockStore.likePost).not.toHaveBeenCalled();
   });
 });
 

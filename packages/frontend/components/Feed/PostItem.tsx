@@ -457,7 +457,9 @@ const PostItem: React.FC<PostItemProps> = ({
   // (e.g. a like in the Videos feed = interest in the video, not the author).
   // Undefined outside a feed (post detail / nested) → normal, unattributed write.
   const handleLike = useCallback(() => {
-    if (viewPost) void interactions.toggleLike(viewPost, feedDescriptor);
+    if (!viewPost || !interactions.requireSession()) return false;
+    void interactions.toggleLike(viewPost, feedDescriptor);
+    return true;
   }, [interactions, viewPost, feedDescriptor]);
   const handleDownvote = useCallback(() => {
     if (viewPost) void interactions.toggleDownvote(viewPost);
@@ -467,6 +469,7 @@ const PostItem: React.FC<PostItemProps> = ({
   }, [interactions, viewPost, feedDescriptor]);
   const handleBoost = useCallback(() => {
     if (!viewPost || !viewPostId) return;
+    if (!interactions.requireSession()) return;
     showRepostMenu({
       isBoosted,
       quotesDisabled: Boolean(metadata.quotesDisabled),
@@ -474,7 +477,10 @@ const PostItem: React.FC<PostItemProps> = ({
       onRepost: () => {
         void interactions.toggleBoost(viewPost, feedDescriptor);
       },
-      onQuote: () => router.push(`/compose?quotePostId=${encodeURIComponent(viewPostId)}`),
+      onQuote: () => {
+        if (interactions.requireSession())
+          router.push(`/compose?quotePostId=${encodeURIComponent(viewPostId)}`);
+      },
     });
   }, [
     interactions,
@@ -491,6 +497,7 @@ const PostItem: React.FC<PostItemProps> = ({
   }, [interactions, viewPost]);
 
   const handleReply = useCallback(() => {
+    if (!interactions.requireSession()) return;
     if (onReply) {
       onReply();
       return;
@@ -498,7 +505,7 @@ const PostItem: React.FC<PostItemProps> = ({
     if (viewPostId) {
       router.push(`/compose?replyToPostId=${viewPostId}`);
     }
-  }, [onReply, router, viewPostId]);
+  }, [interactions, onReply, router, viewPostId]);
 
   // Reading this post in another language. The server already resolved ONE body
   // for this viewer, so everything here is the reader deliberately overruling
@@ -901,6 +908,7 @@ const PostItem: React.FC<PostItemProps> = ({
         <PostContentText
           content={content}
           postId={viewPostId}
+          detail={isDetailMain}
           previewChars={isDetailMain ? Infinity : undefined}
           overrideText={languageDisplayText}
           linkPreviewUrls={linkPreviewUrls}

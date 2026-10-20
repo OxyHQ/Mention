@@ -2032,6 +2032,8 @@
   "post.viewArticle": "Ver artículo",
   "post.viewSources": "Ver fuentes",
   "postActions.title": "Opciones de la publicación",
+  "postActions.signInRequired": "Inicia sesión para interactuar con las publicaciones.",
+  "postActions.sessionLoading": "Tu sesión se está cargando. Inténtalo de nuevo en un momento.",
   "profile.bio.readMore": "Leer más",
   "profile.block": "Bloquear",
   "profile.blockConfirm": "No podrá encontrar tu perfil, tus publicaciones ni tus menciones, y no recibirá ningún aviso de que le has bloqueado.",

@@ -937,6 +937,8 @@
   "post.quotes.title": "Quotes",
   "post.quotes.description": "Posts quoting this post on Mention",
   "postActions": {
+    "signInRequired": "Sign in to interact with posts.",
+    "sessionLoading": "Your session is loading. Try again in a moment.",
     "insights": "Insights",
     "save": "Save",
     "unsave": "Unsave",
