@@ -120,7 +120,11 @@ aws() {
       printf '%s\n' "$service_json"
       ;;
     "ecs describe-task-definition")
-      printf '%s\n' '{
+      ec2_only_filter='.'
+      if [[ "${DEPLOY_TEST_EC2_ONLY:-}" == "true" ]]; then
+        ec2_only_filter='.requiresCompatibilities = ["EC2"] | del(.cpu, .memory) | .containerDefinitions[0].memoryReservation = 4096'
+      fi
+      jq "$ec2_only_filter" <<<'{
         "family": "deploy-test",
         "networkMode": "awsvpc",
         "requiresCompatibilities": ["FARGATE"],
@@ -253,6 +257,7 @@ aws() {
           previous_argument="$argument"
         done
         printf 'task-size:%s\n' "$(jq -r '"\(.cpu)/\(.memory)"' "$input_json")" >>"$DEPLOY_TEST_LOG"
+        printf 'container-size:%s\n' "$(jq -r '.containerDefinitions[] | select(.name == "deploy-test") | "\(.cpu)/\(.memory)/\(.memoryReservation)"' "$input_json")" >>"$DEPLOY_TEST_LOG"
       fi
       if [[ "$DEPLOY_TEST_EXPECT_TASK_SECRET_ARN" == "true" ]]; then
         local previous_argument=""
@@ -854,6 +859,16 @@ DEPLOY_TEST_EXPECT_TASK_SIZE=true run_release task-size-carried true false false
 grep -qx 'task-size:1024/2048' "$test_directory/task-size/aws.log" &&
   grep -qx 'task-size:256/512' "$test_directory/task-size-carried/aws.log" || {
   echo "TASK_CPU/TASK_MEMORY did not set the registered size, or an unset size was not carried forward." >&2
+  exit 1
+}
+# An EC2-only revision (oxy-cluster's EC2 capacity) has no task-level size: the
+# size becomes the container's CPU share and hard memory limit, and a
+# reservation above the limit is clamped to it.
+DEPLOY_TEST_EC2_ONLY=true DEPLOY_TEST_EXPECT_TASK_SIZE=true TASK_CPU=1024 TASK_MEMORY=2048 \
+  run_release task-size-ec2 true false false 0
+grep -qx 'task-size:null/null' "$test_directory/task-size-ec2/aws.log" &&
+  grep -qx 'container-size:1024/2048/2048' "$test_directory/task-size-ec2/aws.log" || {
+  echo "On an EC2-only revision TASK_CPU/TASK_MEMORY must land on the container, not the task." >&2
   exit 1
 }
 TASK_CPU=1024 run_release task-size-half false false false 0
