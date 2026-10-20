@@ -154,8 +154,6 @@ jobs:
           CONFIRM_WRITE: ${{ inputs.confirm_write }}
         run: |
           set -euo pipefail
-          MAX_WAIT_SECS=3600
-          POLL_INTERVAL=15
           BACKFILL_TASK_DEF=""
           TASK_ARN=""
           TASK_STOPPED=true
@@ -232,8 +230,8 @@ jobs:
 
           echo "backfill task definition: $BACKFILL_TASK_DEF"
 
-          # The container is bounded by busybox `timeout` at 3300s, inside the
-          # 3600s wait above, so a sweep that outlives its window is stopped by
+          # The container is bounded by busybox `timeout` at 3300s from its start,
+          # which the wait below honours, so a sweep that outlives its window is stopped by
           # the container rather than left running by a workflow that cannot call
           # `ecs:StopTask`. Every write it committed stands, and the candidate
           # query no longer matches those rows.
@@ -277,24 +275,11 @@ jobs:
 
           echo "task: $TASK_ARN"
           echo "Waiting for the task to stop…"
-          ELAPSED=0
-          while (( ELAPSED < MAX_WAIT_SECS )); do
-            LAST_STATUS=$(aws ecs describe-tasks \
-              --cluster "$CLUSTER" \
-              --tasks "$TASK_ARN" \
-              --query 'tasks[0].lastStatus' \
-              --output text)
-            echo "($ELAPSED s) backfill task status=$LAST_STATUS"
-            if [[ "$LAST_STATUS" == "STOPPED" ]]; then
-              TASK_STOPPED=true
-              break
-            fi
-            sleep "$POLL_INTERVAL"
-            ELAPSED=$((ELAPSED + POLL_INTERVAL))
-          done
-
-          if [[ "$TASK_STOPPED" != "true" ]]; then
-            echo "::error::Backfill exceeded ${MAX_WAIT_SECS}s. The deploy role cannot call ecs:StopTask; task $TASK_ARN may still be running and must be checked in ECS."
+          # Two deadlines, provisioning and the container's own bound from its
+          # start (.github/scripts/wait-one-shot-task.sh).
+          if bash .github/scripts/wait-one-shot-task.sh "$CLUSTER" "$TASK_ARN"; then
+            TASK_STOPPED=true
+          else
             exit 1
           fi
 

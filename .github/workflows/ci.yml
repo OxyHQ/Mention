@@ -198,6 +198,7 @@ jobs:
           bash .github/scripts/test-release-provenance.sh
           bash .github/scripts/test-deploy-ecs-image.sh
           bash .github/scripts/test-optional-task-bindings.sh
+          bash .github/scripts/test-wait-one-shot-task.sh
           bash .github/scripts/test-source-identity-reconciliation.sh
           bash .github/scripts/test-instagram-one-shot.sh
           bash .github/scripts/test-source-identity-recovery.sh
