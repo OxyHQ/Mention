@@ -1,4 +1,4 @@
-import { StyleSheet, View, type ViewStyle } from 'react-native';
+import { View, type ViewStyle } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { Button } from '@oxy.so/bloom/button';
 import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
@@ -43,10 +43,7 @@ export function Error({
   return (
     <View
       className="flex-1 justify-center items-center py-8 px-6"
-      style={StyleSheet.flatten([
-        { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 32 },
-        style,
-      ])}
+      style={[{ paddingTop: insets.top + 32, paddingBottom: insets.bottom + 32 }, style]}
     >
       <EmptyState
         error={{

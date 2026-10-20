@@ -1,7 +1,7 @@
 import { InsightsSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useState, useCallback } from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { insightsService } from '@/services/insightsService';
@@ -11,12 +11,9 @@ import { usePostsStore } from '@/stores/postsStore';
 import type { HydratedPost } from '@mention/shared-types';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { EmptyState } from '@/components/common/EmptyState';
-import { asViewStyle } from '@/types/webStyles';
 import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { InsightsDashboard } from './InsightsDashboard';
-
-const webStickyViewStyle = asViewStyle({ position: 'sticky' });
 
 export interface InsightsViewProps {
   /**
@@ -113,10 +110,12 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
   return (
     <>
       <View
-        style={[
-          styles.stickyTabBar,
-          { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.background },
-        ]}
+        className="relative web:sticky top-0 z-[100]"
+        style={{
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: theme.colors.border,
+          backgroundColor: theme.colors.background,
+        }}
       >
         <Tabs
           value={activeTab}
@@ -187,15 +186,5 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
     </>
   );
 };
-
-const styles = StyleSheet.create({
-  stickyTabBar: {
-    ...(Platform.OS === 'web' ? webStickyViewStyle : { position: 'relative' as const }),
-    top: 0,
-    zIndex: 100,
-    backgroundColor: 'transparent',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-});
 
 export default InsightsView;
