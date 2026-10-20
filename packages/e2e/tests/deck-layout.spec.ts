@@ -88,7 +88,7 @@ test.describe('configured Deck', () => {
     await settings.click();
     const selector = page.getByRole('button', { name: 'Column feed', exact: true });
     await selector.click();
-    await page.getByRole('radio', { name: 'Trending', exact: true }).click();
+    await page.getByRole('option', { name: 'Trending', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Panel settings', exact: true })).toHaveCount(0);
     await expect(first.getByRole('heading', { name: 'Trending', exact: true })).toBeVisible();
     await first.getByRole('button', { name: 'Back', exact: true }).click();
