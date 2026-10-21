@@ -3,11 +3,12 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { eq, inArray } from 'drizzle-orm';
 import { PostVisibility } from '@mention/shared-types';
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
-import { postSubscriptions } from '../db/schema';
+import { postSubscriptions, userBehaviors } from '../db/schema';
 import {
   activitySubscriptionsSource,
   followingSource,
 } from '../mtn/feed/engine/sources/forYouSources';
+import { updateUserBehavior } from '../db/userProfile/userBehaviorRepository';
 import { loadViewerFeedContext } from '../mtn/feed/feedContext';
 import { forYouDefinition } from '../mtn/feed/definitions/presets';
 import { rankedSessionBinding } from '../mtn/feed/RankedFeedSession';
@@ -24,6 +25,7 @@ beforeAll(async () => {
 });
 afterEach(async () => {
   await clearServiceScope(scope);
+  await getDb().delete(userBehaviors).where(eq(userBehaviors.oxyUserId, viewer));
   await getDb()
     .delete(postSubscriptions)
     .where(inArray(postSubscriptions.subscriberId, [viewer, other]));
@@ -100,7 +102,7 @@ describe('bell subscriptions are interest, not follow authorization', () => {
     // candidate-bounded authorship lookup still recognizes the bell.
     expect(
       await activitySubscriptionMatches([{ ...collab, authorship: [], _unassembled: true }], ctx),
-    ).toEqual(new Set([collab.id]));
+    ).toEqual(new Map([[collab.id, [channel]]]));
     expect(await followingSource.gather(ctx, { timeline: true }, 20)).toEqual([]);
     expect(
       await activitySubscriptionsSource.gather(
@@ -110,6 +112,69 @@ describe('bell subscriptions are interest, not follow authorization', () => {
       ),
     ).toEqual([]);
   });
+  it.each(['hiddenAuthors', 'mutedAuthors', 'blockedAuthors'] as const)(
+    'does not reintroduce a persisted %s bell through SQL; another eligible coauthor remains valid',
+    async (field) => {
+      await getDb()
+        .insert(postSubscriptions)
+        .values([
+          { subscriberId: viewer, authorId: channel },
+          { subscriberId: viewer, authorId: author },
+        ]);
+      const onlyExcluded = await seedPost(scope, {
+        oxyUserId: scope.user('clean-owner'),
+        authorship: [
+          { oxyUserId: scope.user('clean-owner'), role: 'owner', status: 'accepted' },
+          { oxyUserId: channel, role: 'collaborator', status: 'accepted' },
+        ],
+        createdAt: new Date(now - 1000),
+      });
+      const mixed = await seedPost(scope, {
+        oxyUserId: scope.user('clean-owner'),
+        authorship: [
+          { oxyUserId: scope.user('clean-owner'), role: 'owner', status: 'accepted' },
+          { oxyUserId: channel, role: 'collaborator', status: 'accepted' },
+          { oxyUserId: author, role: 'collaborator', status: 'accepted' },
+        ],
+        createdAt: new Date(now - 2000),
+      });
+      const before = await context();
+      await updateUserBehavior(
+        viewer,
+        (behavior) => {
+          behavior[field] = [channel];
+        },
+        { createIfMissing: true },
+      );
+      const after = await context();
+      expect(after.userBehavior?.[field]).toEqual([channel]);
+      expect(after.activitySubscribedAuthorIds).toEqual([author]);
+      expect(rankedSessionBinding(forYouDefinition, after, 20)).not.toBe(
+        rankedSessionBinding(forYouDefinition, before, 20),
+      );
+      // Include the stale edge deliberately: both direct callers and context callers must be safe.
+      const stale = { ...after, activitySubscribedAuthorIds: [channel, author] };
+      for (const ctx of [
+        after,
+        stale,
+        { ...before, viewerPrivacy: { blockedIds: [channel], restrictedIds: [] } },
+      ]) {
+        expect((await activitySubscriptionsSource.gather(ctx, {}, 20)).map((p) => p.id)).toEqual([
+          mixed.id,
+        ]);
+        const shells = [onlyExcluded, mixed].map((p) => ({
+          ...p,
+          authorship: [],
+          _unassembled: true,
+          activitySubscriptionMatch: true,
+        }));
+        expect(await activitySubscriptionMatches(shells, ctx)).toEqual(
+          new Map([[mixed.id, [author]]]),
+        );
+      }
+    },
+  );
+
   it('removing a bell changes continuation binding and removes that dedicated supply without touching follows', async () => {
     await getDb().insert(postSubscriptions).values({ subscriberId: viewer, authorId: author });
     await seedPost(scope, { oxyUserId: author, createdAt: new Date(now - 1000) });

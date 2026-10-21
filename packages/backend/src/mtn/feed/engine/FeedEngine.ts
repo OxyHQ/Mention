@@ -1,3 +1,4 @@
+import { eligibleActivitySubscriptionAuthors } from '../../../services/activitySubscriptionInterest';
 import { activitySubscriptionMatches } from '../activitySubscriptionMatches';
 /**
  * Feed Engine
@@ -227,6 +228,14 @@ export class FeedEngine {
     context: FeedEngineContext,
     options: FeedEngineRunOptions,
   ): Promise<SlicedFeedResponse> {
+    context = {
+      ...context,
+      activitySubscribedAuthorIds: eligibleActivitySubscriptionAuthors(
+        context.activitySubscribedAuthorIds,
+        context.userBehavior,
+        context.viewerPrivacy?.blockedIds,
+      ),
+    };
     const exec: FeedExecution = definition.execution ?? {};
     const { cursor, limit } = options;
     const parsedScoreCursor = ScoreCursor.parse(cursor);
@@ -558,7 +567,9 @@ export class FeedEngine {
     // row for the next page, including when several timelines are merged.
     const raw = Array.from(new Map(sourceResults.flat().map((post) => [post.id, post])).values());
     const bellMatches =
-      definition.id === 'for_you' ? await activitySubscriptionMatches(raw, ctx) : new Set<string>();
+      definition.id === 'for_you'
+        ? await activitySubscriptionMatches(raw, ctx)
+        : new Map<string, string[]>();
     const poolNeedsTextMedia = this.needsTextMedia(definition.filters, ctx);
     const gateNeedsTextMedia = this.needsTextMedia(definition.discoveryFilters ?? [], ctx);
     const gateViews = await this.prepareTextMediaViews(
@@ -614,7 +625,10 @@ export class FeedEngine {
       const sourceModule = enabledSources[i].module;
       const trustedSource = this.registry.getSource(sourceModule)?.trusted === true;
       for (const post of sourceResults[i]) {
-        if (bellMatches.has(post.id)) post.activitySubscriptionMatch = true;
+        if (definition.id === 'for_you') {
+          post.activitySubscriptionAuthorIds = bellMatches.get(post.id) ?? [];
+          post.activitySubscriptionMatch = post.activitySubscriptionAuthorIds.length > 0;
+        }
         const isTrusted = trustedSource || post.activitySubscriptionMatch === true;
         const applyGate = !isTrusted && hasGate;
         if (maxPool !== undefined && merged.size >= maxPool) break;

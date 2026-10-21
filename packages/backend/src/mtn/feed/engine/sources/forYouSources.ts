@@ -1,3 +1,4 @@
+import { eligibleActivitySubscriptionAuthors } from '../../../../services/activitySubscriptionInterest';
 /**
  * For You + timeline source modules.
  *
@@ -90,7 +91,11 @@ function forYouParams(ctx: FeedEngineContext, cap?: number): GatherForYouCandida
     rankingAsOf: ctx.rankingAsOf,
     candidateLimit: ctx.paginationSession ? cap : undefined,
     followingIds: ctx.followingIds ?? [],
-    activitySubscribedAuthorIds: ctx.activitySubscribedAuthorIds,
+    activitySubscribedAuthorIds: eligibleActivitySubscriptionAuthors(
+      ctx.activitySubscribedAuthorIds,
+      ctx.userBehavior,
+      ctx.viewerPrivacy?.blockedIds,
+    ),
     subscribedListMemberIds: ctx.subscribedListMemberIds,
     followedCommunityIds: ctx.followedCommunityIds,
     userBehavior: ctx.userBehavior as CandidateUserBehavior | undefined,

@@ -238,6 +238,59 @@ describe('FeedEngine — ranked mode', () => {
     },
   );
 
+  it.each(['hiddenAuthors', 'mutedAuthors', 'blockedAuthors'] as const)(
+    'does not trust a %s bell coauthor from discovery while retaining a different eligible bell',
+    async (field) => {
+      const excluded = scored(1, 10, {
+        oxyUserId: 'clean-owner',
+        activitySubscriptionMatch: true,
+        authorship: [{ oxyUserId: 'unwanted', role: 'collaborator', status: 'accepted' }],
+      });
+      const mixed = scored(2, 9, {
+        oxyUserId: 'clean-owner',
+        authorship: [
+          { oxyUserId: 'unwanted', role: 'collaborator', status: 'accepted' },
+          { oxyUserId: 'eligible', role: 'collaborator', status: 'accepted' },
+        ],
+      });
+      registry.register(sourceReturning('discovery', [excluded, mixed]));
+      const gate = vi.fn((_post: CandidatePost) => true);
+      registry.register({ id: 'gate', kind: 'filter', keep: gate });
+      await engine.run(
+        {
+          id: 'for_you',
+          title: 'For You',
+          mode: 'ranked',
+          sources: [{ module: 'discovery', enabled: true }],
+          signals: [],
+          filters: [],
+          discoveryFilters: [{ module: 'gate', enabled: true }],
+        },
+        {
+          currentUserId: 'viewer',
+          activitySubscribedAuthorIds: ['unwanted', 'eligible'],
+          userBehavior: { [field]: ['unwanted'] },
+        },
+        { limit: 10 },
+      );
+      expect(gate).toHaveBeenCalledTimes(1);
+      expect(gate.mock.calls[0]?.[0]).toMatchObject({ id: excluded.id });
+      expect(rankPosts.mock.calls[0]?.[2]).toMatchObject({
+        activitySubscribedAuthorIds: ['eligible'],
+      });
+      expect(excluded).toMatchObject({
+        _discovery: true,
+        activitySubscriptionMatch: false,
+        activitySubscriptionAuthorIds: [],
+      });
+      expect(mixed).toMatchObject({
+        activitySubscriptionMatch: true,
+        activitySubscriptionAuthorIds: ['eligible'],
+      });
+      expect(mixed).not.toHaveProperty('_discovery', true);
+    },
+  );
+
   it.each(['primary', 'accepted-coauthor'] as const)(
     'recognizes %s bell interest from another lane while preserving safety and numeric exclusions',
     async (kind) => {

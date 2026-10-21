@@ -1,3 +1,4 @@
+import { buildBehaviorSets } from '../signalContext';
 import { negativePenalty } from './negativePenalty';
 import type { RankingSignal } from './types';
 
@@ -18,9 +19,17 @@ export const activitySubscriptionSignal: RankingSignal = {
       !ctx.activitySubscribedAuthorIdsSet?.size
     )
       return 1;
+    const behaviorSets =
+      ctx.behaviorSets ?? (ctx.userBehavior ? buildBehaviorSets(ctx.userBehavior) : undefined);
+    const matchedAuthors = [post.oxyUserId ?? '', ...(post.activitySubscriptionAuthorIds ?? [])];
     if (
-      !post.activitySubscriptionMatch &&
-      !ctx.activitySubscribedAuthorIdsSet.has(post.oxyUserId ?? '')
+      !matchedAuthors.some(
+        (id) =>
+          ctx.activitySubscribedAuthorIdsSet?.has(id) &&
+          !behaviorSets?.hiddenAuthors.has(id) &&
+          !behaviorSets?.mutedAuthors.has(id) &&
+          !behaviorSets?.blockedAuthors.has(id),
+      )
     )
       return 1;
     // Explicit negative feedback and content safety always win over the bell.

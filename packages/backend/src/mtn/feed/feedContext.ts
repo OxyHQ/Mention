@@ -1,3 +1,4 @@
+import { eligibleActivitySubscriptionAuthors } from '../../services/activitySubscriptionInterest';
 /**
  * Viewer feed-context assembly.
  *
@@ -253,7 +254,10 @@ export async function loadViewerFeedContext(
 
   return {
     currentUserId,
-    activitySubscribedAuthorIds,
+    activitySubscribedAuthorIds: eligibleActivitySubscriptionAuthors(
+      activitySubscribedAuthorIds,
+      userBehavior,
+    ),
     followingIds,
     followerIds,
     subscribedListMemberIds,
