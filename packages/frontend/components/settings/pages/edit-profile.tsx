@@ -2,7 +2,6 @@ import { useOxyIdentityRows } from '@/components/settings/useOxyIdentityRows';
 import { SettingsSelect } from '@/components/settings/SettingsSelect';
 import { BannerSection } from '@/components/Profile/EditProfile/BannerSection';
 import { PinnedMediaSection } from '@/components/Profile/EditProfile/PinnedMediaSection';
-import { useMentionSettings } from '@/context/MentionSettingsContext';
 import { useAppColorSave } from '@/hooks/useAppColorSave';
 import { useMentionColorViewer } from '@/hooks/useMentionColorViewer';
 import { entitledColorNames } from '@/lib/colorEntitlement';
@@ -24,7 +23,6 @@ export default function EditProfileSettingsPage() {
   const { isAuthenticated, showBottomSheet, user } = useAuth();
   const { colorPreset } = useBloomTheme();
   const { saveColor } = useAppColorSave();
-  const { afterClose } = useMentionSettings();
   const identityRows = useOxyIdentityRows({ full: true });
   const viewer = useMentionColorViewer();
   const colorItems = useMemo(() => {
@@ -61,7 +59,7 @@ export default function EditProfileSettingsPage() {
                     size="sm"
                     appearance="subtle"
                     tone="neutral"
-                    onPress={() => afterClose(() => showBottomSheet?.('ManageAccount'))}
+                    onPress={() => showBottomSheet?.('ManageAccount')}
                   >
                     {t('settings.account.manageYourAccount', {
                       defaultValue: 'Manage your account',
