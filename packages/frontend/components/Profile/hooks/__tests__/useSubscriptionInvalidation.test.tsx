@@ -43,6 +43,7 @@ type SubscriptionResult = ReturnType<typeof useSubscription>;
 let latestResult: SubscriptionResult | null = null;
 
 function Probe() {
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   latestResult = useSubscription(PROFILE_ID, VIEWER_ID, false);
   return null;
 }

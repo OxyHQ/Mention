@@ -26,6 +26,7 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 }));
 let viewer: ReturnType<typeof useMentionColorViewer>;
 function Probe() {
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   viewer = useMentionColorViewer();
   return null;
 }

@@ -1,5 +1,5 @@
 import type React from 'react';
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Platform } from 'react-native';
 import { useSharedValue, type SharedValue } from 'react-native-reanimated';
 
@@ -123,7 +123,9 @@ export function LayoutScrollProvider({
   children,
   scrollEventThrottle = 16,
 }: LayoutScrollProviderProps) {
-  const scrollY = useRef(new Animated.Value(0)).current;
+  // Lazy state, not a ref: one Animated.Value for the provider's lifetime that
+  // render may read.
+  const [scrollY] = useState(() => new Animated.Value(0));
   const scrollPosition = useSharedValue(0);
   const scrollableRef = useRef<ScrollableRef | null>(null);
   const scrollPositionRef = useRef(0);
@@ -135,7 +137,7 @@ export function LayoutScrollProvider({
       scrollY.setValue(value);
       // Mirror into the reanimated shared value so UI-thread worklets (auto-hide)
       // see every scroller's offset through the one chokepoint.
-      scrollPosition.value = value;
+      scrollPosition.set(value);
       scrollPositionRef.current = value;
     },
     [scrollY, scrollPosition],

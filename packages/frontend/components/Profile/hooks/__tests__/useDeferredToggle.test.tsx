@@ -26,6 +26,7 @@ type ToggleResult = ReturnType<typeof useDeferredToggle>;
 let latest: ToggleResult | null = null;
 
 function Probe({ skip, handlers }: { skip: boolean; handlers: Handlers }) {
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   latest = useDeferredToggle({
     skip,
     fetchStatus: handlers.fetchStatus,

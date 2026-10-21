@@ -135,6 +135,7 @@ const openFeeds = new Set<TestRenderer.ReactTestRenderer>();
 
 /** The channel's own page: the author feed the operator returns to on Back. */
 function ChannelFeed() {
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   latest = useFeedState({
     type: 'posts',
     userId: CHANNEL_ID,

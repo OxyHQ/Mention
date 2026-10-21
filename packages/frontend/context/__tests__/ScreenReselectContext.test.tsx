@@ -27,6 +27,7 @@ import {
 
 let reselect!: () => void;
 function Trigger() {
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   reselect = useReselect();
   return null;
 }
@@ -160,6 +161,7 @@ describe('useTabSelect', () => {
     const select = jest.fn();
     let press!: (tab: string) => void;
     function Strip() {
+      // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
       press = useTabSelect<string>('for_you', select);
       return null;
     }
@@ -184,6 +186,7 @@ describe('useReselectReloadKey', () => {
     const refresh = jest.fn();
     let reloadKey = -1;
     function Feed() {
+      // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
       reloadKey = useReselectReloadKey({ refresh });
       return null;
     }
@@ -198,6 +201,7 @@ describe('useReselectReloadKey', () => {
     const scrollToTop = jest.fn();
     let reloadKey = -1;
     function Reel() {
+      // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
       reloadKey = useReselectReloadKey({ isAtTop: () => false, scrollToTop });
       return null;
     }

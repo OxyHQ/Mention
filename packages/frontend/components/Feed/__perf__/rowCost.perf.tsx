@@ -86,6 +86,7 @@ function FeedHarness({
   onRender: ProfilerOnRenderCallback;
 }) {
   const [posts, setPosts] = useState<HydratedPost[]>([]);
+  /* eslint-disable react-hooks/refs, react-hooks/immutability -- perf harness: simulates FlashList cell recycling during render and hands setPosts to the test driver */
   const cellsRef = React.useRef(new Map<string, number>());
   handle.setPosts = setPosts;
 
@@ -116,6 +117,7 @@ function FeedHarness({
         </Profiler>
       ))}
     </>
+  /* eslint-enable react-hooks/refs, react-hooks/immutability */
   );
 }
 

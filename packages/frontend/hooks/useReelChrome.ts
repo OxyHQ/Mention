@@ -595,13 +595,11 @@ export function useReelChrome({
   );
 
   const popHeart = useCallback(() => {
-    heartOpacity.value = withSequence(
-      withTiming(1, { duration: 120 }),
-      withTiming(0, { duration: 480 }),
+    heartOpacity.set(
+      withSequence(withTiming(1, { duration: 120 }), withTiming(0, { duration: 480 })),
     );
-    heartScale.value = withSequence(
-      withTiming(1, { duration: 180 }),
-      withTiming(1.25, { duration: 420 }),
+    heartScale.set(
+      withSequence(withTiming(1, { duration: 180 }), withTiming(1.25, { duration: 420 })),
     );
   }, [heartOpacity, heartScale]);
 

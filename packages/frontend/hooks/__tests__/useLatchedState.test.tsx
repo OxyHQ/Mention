@@ -31,7 +31,9 @@ function renderProbe(
     const { value, setValue, read } = useValueSource('');
     // Memoized on the value, exactly like a screen's submit callback.
     const submit = useCallback(() => read(), [read, value]);
+    // eslint-disable-next-line react-hooks/immutability -- test harness: exposes the hook's latest return value to the assertions
     captured.setValue = setValue;
+    // eslint-disable-next-line react-hooks/immutability -- test harness: exposes the hook's latest return value to the assertions
     captured.submit = submit;
     return null;
   }

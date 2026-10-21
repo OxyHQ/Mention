@@ -351,6 +351,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   const surfaceFill = useSurfaceFill();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const viewerId = user?.id;
   const bottomSheet = useContext(BottomSheetContext);
   // Shared post cache (SQLite/memory) that every feed + the post detail read from.
   // Accepting/declining an invite mutates the post's authorship, so the updated
@@ -422,7 +423,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   // Collab invites carry no backend preview — fetch the invited post's text via
   // React Query (replaces the old useEffect + useState load).
   const { data: collabPost } = useQuery({
-    queryKey: viewerQueryKeys.post(user?.id, postId),
+    queryKey: viewerQueryKeys.post(viewerId, postId),
     queryFn: () => feedService.getPostById(postId),
     enabled: isCollabInvite && !!postId,
     staleTime: 60_000,
@@ -625,7 +626,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
         // propagate the newly-accepted co-authorship to every feed + the post
         // detail via the shared posts store, so the collaboration shows
         // everywhere without a manual refresh.
-        queryClient.setQueryData(viewerQueryKeys.post(user?.id, postId), result.post);
+        queryClient.setQueryData(viewerQueryKeys.post(viewerId, postId), result.post);
         cachePosts([result.post]);
       }
       onMarkAsRead(item.notificationIds);
@@ -649,7 +650,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
     item.notificationIds,
     bottomSheet,
     t,
-    user?.id,
+    viewerId,
   ]);
 
   const runDecline = useCallback(async () => {
@@ -661,7 +662,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
         // Flip this row to the resolved state and reflect the declined status on
         // any cached copy of the post (private posts return no post here, in which
         // case the actionable UI is simply dropped — the viewer lost view access).
-        queryClient.setQueryData(viewerQueryKeys.post(user?.id, postId), result.post);
+        queryClient.setQueryData(viewerQueryKeys.post(viewerId, postId), result.post);
         cachePosts([result.post]);
       }
       onMarkAsRead(item.notificationIds);
@@ -682,7 +683,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
     item.notificationIds,
     bottomSheet,
     t,
-    user?.id,
+    viewerId,
   ]);
 
   const openAcceptSheet = useCallback(() => {

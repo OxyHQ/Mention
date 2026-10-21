@@ -149,7 +149,7 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (committerRef.current?.drivesProgress) return;
     if (activeIndex < 0) return;
-    progress.value = withSpring(activeIndex, BAR_SETTLE_SPRING);
+    progress.set(withSpring(activeIndex, BAR_SETTLE_SPRING));
   }, [activeIndex, progress]);
 
   /**
@@ -163,9 +163,8 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
    */
   useEffect(() => {
     if (committerRef.current?.drivesProgress) return;
-    chromeProgress.value = withSpring(
-      activePage >= 0 ? (CHROME_HIDDEN_BY_PAGE[activePage] ?? 0) : 0,
-      BAR_SETTLE_SPRING,
+    chromeProgress.set(
+      withSpring(activePage >= 0 ? (CHROME_HIDDEN_BY_PAGE[activePage] ?? 0) : 0, BAR_SETTLE_SPRING),
     );
   }, [activePage, chromeProgress]);
 
@@ -217,7 +216,7 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
       // There is nothing to dismiss here anyway: that stack history is the
       // browser's, not detail screens sitting over the tabs.
       if (!committer) {
-        if (barIndex >= 0) progress.value = withSpring(barIndex, BAR_SETTLE_SPRING);
+        if (barIndex >= 0) progress.set(withSpring(barIndex, BAR_SETTLE_SPRING));
         router.navigate(tabHref(page, viewerUsername));
         return;
       }
@@ -237,7 +236,7 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
       // Optimism is only ours to apply when nobody else owns the value. The
       // pager animates its own way to the page and writes `progress` as it goes.
       if (!committer.drivesProgress && barIndex >= 0) {
-        progress.value = withSpring(barIndex, BAR_SETTLE_SPRING);
+        progress.set(withSpring(barIndex, BAR_SETTLE_SPRING));
       }
       committer.commit(pageIndex);
     },

@@ -33,6 +33,7 @@ import { useMentionSidebar } from '../useMentionSidebar';
 
 let sidebar!: SidebarProps;
 function Probe() {
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   sidebar = useMentionSidebar();
   return null;
 }

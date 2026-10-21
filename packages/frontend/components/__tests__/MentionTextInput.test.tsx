@@ -55,6 +55,7 @@ function ControlledInput({ initial }: { initial?: MentionTextValue }) {
   const [state, setState] = useState<MentionTextValue>(
     initial ?? { text: 'Hello [mention:alice-id]', mentions: [alice] },
   );
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   latestState = state;
   return (
     <MentionTextInput

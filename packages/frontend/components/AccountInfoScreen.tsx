@@ -90,26 +90,30 @@ function AccountInfoContent({
   const { t } = useTranslation();
   const categoryLabel = useAccountCategoryLabel();
 
+  const createdAt = profileData?.createdAt;
+  const verified = profileData?.verified;
+  const verifiedAt = profileData?.verifiedAt;
+
   // Format join date
   const joinDate = useMemo(() => {
-    if (!profileData?.createdAt) return null;
-    return new Date(profileData.createdAt).toLocaleDateString('en-US', {
+    if (!createdAt) return null;
+    return new Date(createdAt).toLocaleDateString('en-US', {
       month: 'long',
       year: 'numeric',
     });
-  }, [profileData?.createdAt]);
+  }, [createdAt]);
 
   // Format verified date if available (using createdAt as fallback)
   const verifiedDate = useMemo(() => {
-    if (!profileData?.verified) return null;
+    if (!verified) return null;
     // If we have a verifiedAt date, use it, otherwise use createdAt
-    const dateToUse = profileData.verifiedAt || profileData.createdAt;
+    const dateToUse = verifiedAt || createdAt;
     if (!dateToUse) return null;
     return new Date(dateToUse).toLocaleDateString('en-US', {
       month: 'long',
       year: 'numeric',
     });
-  }, [profileData?.verified, profileData?.verifiedAt, profileData?.createdAt]);
+  }, [verified, verifiedAt, createdAt]);
 
   // Every category the account carries that this build can name, in the
   // account's OWN order — the first is its primary. Filtered, never sorted:

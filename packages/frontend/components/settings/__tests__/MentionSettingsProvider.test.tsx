@@ -46,6 +46,7 @@ jest.mock('react-i18next', () => ({
 }));
 let actions: MentionSettingsActions;
 function Probe() {
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   actions = useMentionSettings();
   return null;
 }

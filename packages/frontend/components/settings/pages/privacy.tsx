@@ -82,25 +82,24 @@ export default function PrivacySettingsScreen() {
       return;
     }
     if (!isAuthenticated || !viewerId) {
-      setLoading(false);
       return;
     }
-    loadPrivacySettings();
+    const loadPrivacySettings = async () => {
+      try {
+        const response =
+          await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
+        const settings = response.data;
+        setPrivacySettings(settings.privacy || { profileVisibility: 'public' });
+        setLoading(false);
+      } catch (error) {
+        logger.error('Error loading privacy settings', error);
+        setPrivacySettings({ profileVisibility: 'public' });
+        setLoading(false);
+      }
+    };
+    void loadPrivacySettings();
     getRecommendationFilters(viewerId).then(setRecFilters);
   }, [isAuthResolved, isPrivateApiPending, isAuthenticated, viewerId]);
-
-  const loadPrivacySettings = async () => {
-    try {
-      const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
-      const settings = response.data;
-      setPrivacySettings(settings.privacy || { profileVisibility: 'public' });
-      setLoading(false);
-    } catch (error) {
-      logger.error('Error loading privacy settings', error);
-      setPrivacySettings({ profileVisibility: 'public' });
-      setLoading(false);
-    }
-  };
 
   const updateRecFilter = (key: keyof RecommendationFilters, value: boolean) => {
     const updated = { ...recFilters, [key]: value };
@@ -168,7 +167,8 @@ export default function PrivacySettingsScreen() {
     );
   }
 
-  if (loading) {
+  // Without a viewer id the effect never fetches, so there is nothing to wait for.
+  if (loading && viewerId) {
     return (
       <View className="gap-4">
         <View className="flex-1 justify-center items-center">

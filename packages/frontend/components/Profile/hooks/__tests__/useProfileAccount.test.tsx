@@ -24,6 +24,7 @@ jest.mock('../../profileRoute', () => ({ canonicalProfileHref: () => null }));
 
 let latest: ProfileAccount | null = null;
 function Probe({ handle }: { handle: string }) {
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   latest = useProfileAccount(handle);
   return null;
 }

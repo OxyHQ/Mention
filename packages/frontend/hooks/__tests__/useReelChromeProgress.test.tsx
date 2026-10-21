@@ -87,6 +87,7 @@ function Harness({
   onBufferAhead?: (seconds: number) => void;
   initialDurationSec?: number;
 }) {
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   latest = useReelChrome({
     player,
     restartOnActivate: true,

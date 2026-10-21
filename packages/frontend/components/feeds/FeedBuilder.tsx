@@ -740,6 +740,7 @@ export function FeedBuilder({
   const { t } = useTranslation();
   const safeBack = useSafeBack();
   const { oxyServices, user, canUsePrivateApi } = useAuth();
+  const viewerId = user?.id;
   const queryClient = useQueryClient();
   const { catalog, isLoading: catalogLoading } = useFeedModules();
 
@@ -910,10 +911,10 @@ export function FeedBuilder({
         setSavedFeedId(String(created.id ?? created._id ?? ''));
       }
       queryClient.invalidateQueries({
-        queryKey: viewerQueryKeys.feedPreferences(user?.id),
+        queryKey: viewerQueryKeys.feedPreferences(viewerId),
       });
       queryClient.invalidateQueries({
-        queryKey: viewerQueryKeys.customFeedsRoot(user?.id),
+        queryKey: viewerQueryKeys.customFeedsRoot(viewerId),
       });
       setPreviewKey((k) => k + 1);
       toast(t('feeds.builder.saved'), { type: 'success' });
@@ -937,7 +938,7 @@ export function FeedBuilder({
     savedFeedId,
     queryClient,
     t,
-    user?.id,
+    viewerId,
   ]);
 
   const canSave = title.trim().length > 0 && Boolean(catalog);

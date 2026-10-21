@@ -50,11 +50,13 @@ let latestHandlers: Handlers | null = null;
 let latestHub: Hub | null = null;
 
 function HandlersProbe() {
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   latestHandlers = useCommunityNoteHandlers();
   return null;
 }
 
 function HubProbe() {
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   latestHub = useCommunityNotesHub();
   return null;
 }

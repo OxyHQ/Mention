@@ -74,9 +74,11 @@ export function useProfileMediaFeed({
     isOwnProfile,
   ]);
 
+  const primaryItems = primaryFeed?.items;
+  const postsItems = postsFeed?.items;
   const items = useMemo<FeedItem[]>(
-    () => (primaryFeed?.items?.length ? primaryFeed.items : postsFeed?.items || []),
-    [primaryFeed?.items, postsFeed?.items],
+    () => (primaryItems?.length ? primaryItems : postsItems || []),
+    [primaryItems, postsItems],
   );
 
   const loadMore = useCallback(() => {

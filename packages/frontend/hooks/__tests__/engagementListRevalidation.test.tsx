@@ -90,6 +90,7 @@ function page(ids: string[]): SlicedFeedResponse {
 let latest: UseFeedStateReturn | undefined;
 
 function ProfileTab({ tab }: { tab: 'likes' | 'boosts' }) {
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   latest = useFeedState({
     type: tab,
     userId: VIEWER_ID,
@@ -214,6 +215,7 @@ describe('engagement lists revalidate on their next visit', () => {
     serverLists.likes = ['their-post'];
 
     function OtherProfileLikes() {
+      // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
       latest = useFeedState({
         type: 'likes',
         userId: OTHER_ID,

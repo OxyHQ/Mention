@@ -162,6 +162,7 @@ describe('the composer resolves only what it does not already have', () => {
     mockGetCached.mockImplementation((url: string) => (url === cached.url ? cached : undefined));
     let links: unknown[] = [];
     function Reader({ text }: { text: string }) {
+      // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
       links = useLinkDetection(text).detectedLinks;
       return null;
     }

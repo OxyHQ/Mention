@@ -21,6 +21,7 @@ type ThreadManager = ReturnType<typeof useThreadManager>;
 let latest: ThreadManager | null = null;
 
 function Probe() {
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   latest = useThreadManager();
   return null;
 }

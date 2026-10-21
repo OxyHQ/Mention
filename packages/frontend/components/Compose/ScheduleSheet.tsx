@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { DatePicker, TimeField } from '@oxy.so/bloom/date-picker';
 import { Button } from '@oxy.so/bloom/button';
@@ -54,10 +54,8 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
 }) => {
   const { t } = useTranslation();
 
-  const initialDate = useMemo(
-    () => scheduledAt ?? new Date(Date.now() + 15 * 60000),
-    [scheduledAt],
-  );
+  // Only the two initialisers below read it, so it is fixed at mount.
+  const [initialDate] = useState(() => scheduledAt ?? new Date(Date.now() + 15 * 60000));
   const [customDate, setCustomDate] = useState<Date | null>(() => toLocalDay(initialDate));
   const [customTime, setCustomTime] = useState<string | null>(() => formatTimeInput(initialDate));
   // Days before today cannot be scheduled; the time is still checked on apply.

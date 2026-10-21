@@ -120,6 +120,7 @@ const RoomDetailScreen = () => {
   const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user, oxyServices } = useAuth();
+  const viewerId = user?.id;
   const safeBack = useSafeBack();
   const { joinLiveRoom } = useLiveRoom();
   const [room, setRoom] = useState<Room | null>(null);
@@ -134,8 +135,8 @@ const RoomDetailScreen = () => {
       setLoading(true);
       const data = await roomsService.getRoom(id);
       setRoom(data);
-      if (data && user?.id) {
-        setIsJoined(data.participants?.includes(user.id) ?? false);
+      if (data && viewerId) {
+        setIsJoined(data.participants?.includes(viewerId) ?? false);
       }
     } catch (error) {
       logger.warn('Failed to load room', { error });
@@ -143,7 +144,7 @@ const RoomDetailScreen = () => {
     } finally {
       setLoading(false);
     }
-  }, [id, user?.id]);
+  }, [id, viewerId]);
 
   useEffect(() => {
     loadRoom();
@@ -176,7 +177,7 @@ const RoomDetailScreen = () => {
   const isLive = room?.status === 'live';
   const isScheduled = room?.status === 'scheduled';
   const isEnded = room?.status === 'ended';
-  const isHost = room?.host === user?.id;
+  const isHost = room?.host === viewerId;
 
   const handleShareRoom = useCallback(async () => {
     if (!room) return;

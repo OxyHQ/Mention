@@ -124,7 +124,9 @@ export default function BlockedUsersScreen() {
   }, [t, oxyServices]);
 
   React.useEffect(() => {
-    if (canUsePrivateApi) void loadBlockedUsers();
+    if (!canUsePrivateApi) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the same loader refreshes after block/unblock; on mount its setLoading(true) is a no-op
+    void loadBlockedUsers();
   }, [canUsePrivateApi, loadBlockedUsers]);
 
   const searchUsersViaOxy = useCallback(

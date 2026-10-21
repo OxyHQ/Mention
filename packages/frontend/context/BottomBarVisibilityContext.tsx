@@ -106,8 +106,8 @@ export function BottomBarVisibilityProvider({ children }: { children: React.Reac
   // only fires on a scroll change, this also guarantees the pinned routes show
   // the chrome even without any scroll.
   useEffect(() => {
-    hideAmount.value = 0;
-    hidden.value = 0;
+    hideAmount.set(0);
+    hidden.set(0);
     // The bar must also come back to its EXPANDED size on a route change —
     // without this, navigating away from a scrolled screen opens the next one
     // with a shrunken pill.
@@ -124,8 +124,8 @@ export function BottomBarVisibilityProvider({ children }: { children: React.Reac
     (y, prevY) => {
       'worklet';
       if (autoHideDisabled) {
-        hideAmount.value = 0;
-        hidden.value = 0;
+        hideAmount.set(0);
+        hidden.set(0);
         setMinimized(minimizeState, 0);
         return;
       }
@@ -146,8 +146,8 @@ export function BottomBarVisibilityProvider({ children }: { children: React.Reac
         if (next < 0) next = 0;
         else if (next > HIDE_SCROLL_RANGE) next = HIDE_SCROLL_RANGE;
       }
-      hideAmount.value = next;
-      hidden.value = next / HIDE_SCROLL_RANGE;
+      hideAmount.set(next);
+      hidden.set(next / HIDE_SCROLL_RANGE);
       // Bloom's tab bar minimizes (58 → 44, labels collapsing) instead of
       // sliding away. `setMinimized` is itself a worklet and no-ops when the
       // target is unchanged, so this costs nothing on the frames between the

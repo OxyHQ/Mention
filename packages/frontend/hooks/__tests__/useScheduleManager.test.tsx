@@ -43,6 +43,7 @@ function setup() {
 
   let api: ReturnType<typeof useScheduleManager> | undefined;
   const Probe = () => {
+    // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
     api = useScheduleManager({ bottomSheet, t, toast: toast as never });
     return null;
   };

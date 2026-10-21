@@ -57,6 +57,7 @@ export default function EditStarterPackScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const packId = String(id);
   const { user, oxyServices } = useAuth();
+  const viewerId = user?.id;
   const theme = useTheme();
   const safeBack = useSafeBack();
   const { t } = useTranslation();
@@ -83,7 +84,7 @@ export default function EditStarterPackScreen() {
     setError(null);
     try {
       const pack = await starterPacksService.get(packId);
-      if (pack.ownerOxyUserId && user?.id && pack.ownerOxyUserId !== user.id) {
+      if (pack.ownerOxyUserId && viewerId && pack.ownerOxyUserId !== viewerId) {
         setError('You can only edit your own starter packs');
         return;
       }
@@ -106,7 +107,7 @@ export default function EditStarterPackScreen() {
     } finally {
       setLoading(false);
     }
-  }, [packId, user?.id]);
+  }, [packId, viewerId]);
 
   useEffect(() => {
     load();

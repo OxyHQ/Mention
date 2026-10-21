@@ -35,6 +35,7 @@ const base: Props = {
 
 let latest: Result | null = null;
 function Probe(props: Props) {
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   latest = useAttachmentOrder(props);
   return null;
 }

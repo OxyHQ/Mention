@@ -43,23 +43,22 @@ export default function ProfileVisibilityScreen() {
       return;
     }
     if (!isAuthenticated) {
-      setLoading(false);
       return;
     }
-    loadSettings();
+    const loadSettings = async () => {
+      try {
+        const response =
+          await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
+        const settings = response.data;
+        setProfileVisibility(settings.privacy?.profileVisibility || 'public');
+        setLoading(false);
+      } catch (error) {
+        logger.error('Error loading settings', error);
+        setLoading(false);
+      }
+    };
+    void loadSettings();
   }, [isAuthResolved, isPrivateApiPending, isAuthenticated]);
-
-  const loadSettings = async () => {
-    try {
-      const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
-      const settings = response.data;
-      setProfileVisibility(settings.privacy?.profileVisibility || 'public');
-      setLoading(false);
-    } catch (error) {
-      logger.error('Error loading settings', error);
-      setLoading(false);
-    }
-  };
 
   const handleSave = async (newVisibility: VisibilityOption) => {
     if (newVisibility === profileVisibility) {

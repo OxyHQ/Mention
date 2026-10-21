@@ -20,6 +20,7 @@ const SAMPLE: JobAttachmentData = {
  */
 function useHarness() {
   const manager = useJobAttachmentManager();
+  // eslint-disable-next-line react-hooks/immutability -- test harness: exposes the hook's latest return value to the assertions
   harnessRef.current = manager;
   return manager;
 }

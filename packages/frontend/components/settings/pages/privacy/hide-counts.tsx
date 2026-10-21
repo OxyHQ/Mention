@@ -32,26 +32,25 @@ export default function HideCountsScreen() {
       return;
     }
     if (!canUsePrivateApi) {
-      setLoading(false);
       return;
     }
-    loadSettings();
+    const loadSettings = async () => {
+      try {
+        const response =
+          await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
+        const settings = response.data;
+        setHideLikeCounts(settings.privacy?.hideLikeCounts || false);
+        setHideShareCounts(settings.privacy?.hideShareCounts || false);
+        setHideReplyCounts(settings.privacy?.hideReplyCounts || false);
+        setHideSaveCounts(settings.privacy?.hideSaveCounts || false);
+        setLoading(false);
+      } catch (error) {
+        hideCountsLogger.error('Error loading settings', error);
+        setLoading(false);
+      }
+    };
+    void loadSettings();
   }, [canUsePrivateApi, isPrivateApiPending]);
-
-  const loadSettings = async () => {
-    try {
-      const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
-      const settings = response.data;
-      setHideLikeCounts(settings.privacy?.hideLikeCounts || false);
-      setHideShareCounts(settings.privacy?.hideShareCounts || false);
-      setHideReplyCounts(settings.privacy?.hideReplyCounts || false);
-      setHideSaveCounts(settings.privacy?.hideSaveCounts || false);
-      setLoading(false);
-    } catch (error) {
-      hideCountsLogger.error('Error loading settings', error);
-      setLoading(false);
-    }
-  };
 
   const updateSetting = async (
     field: 'hideLikeCounts' | 'hideShareCounts' | 'hideReplyCounts' | 'hideSaveCounts',

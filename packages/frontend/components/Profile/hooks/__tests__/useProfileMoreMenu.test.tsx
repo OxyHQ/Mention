@@ -53,6 +53,7 @@ const channelSettings: ActionMenuAction = {
 
 let latest: (() => void) | null = null;
 function Probe(props: Omit<ProfileMoreMenuOptions, 'profileData'>) {
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   latest = useProfileMoreMenu({ profileData, ...props });
   return null;
 }

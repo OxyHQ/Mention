@@ -10,6 +10,7 @@ const alice: MentionUser = { id: 'alice-id', username: 'alice' };
 
 let latest: MentionSearchResults;
 function Probe({ query, cache }: { query: string; cache: MentionSearchCache }) {
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   latest = useMentionSearchResults(query, cache);
   return null;
 }

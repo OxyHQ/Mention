@@ -263,6 +263,7 @@ type Hook = ReturnType<typeof useChannelWriters>;
 let latest: Hook | null = null;
 
 function Probe({ channelId }: { channelId: string | undefined }) {
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   latest = useChannelWriters(channelId);
   return null;
 }

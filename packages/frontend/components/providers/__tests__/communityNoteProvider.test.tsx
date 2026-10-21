@@ -20,6 +20,7 @@ import { useCommunityNoteHandlerContext } from '@/context/CommunityNoteHandlersC
 let seen: unknown = null;
 
 function Row() {
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   seen = useCommunityNoteHandlerContext();
   return null;
 }

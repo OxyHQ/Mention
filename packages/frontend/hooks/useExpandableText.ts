@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { computeExpandableText } from '@/utils/expandableText';
 
 /**
@@ -17,11 +17,11 @@ import { computeExpandableText } from '@/utils/expandableText';
 export function useExpandableText(text: string, maxChars: number, resetKey?: unknown) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const prevTextRef = useRef(text);
-  const prevResetKeyRef = useRef(resetKey);
-  if (prevTextRef.current !== text || prevResetKeyRef.current !== resetKey) {
-    prevTextRef.current = text;
-    prevResetKeyRef.current = resetKey;
+  // The inputs the expansion belongs to, held in state (not refs) so the reset
+  // below is React's "adjust state while rendering" pattern.
+  const [expandedFor, setExpandedFor] = useState({ text, resetKey });
+  if (expandedFor.text !== text || expandedFor.resetKey !== resetKey) {
+    setExpandedFor({ text, resetKey });
     if (isExpanded) {
       setIsExpanded(false);
     }

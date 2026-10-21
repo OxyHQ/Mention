@@ -57,6 +57,7 @@ export default function RestrictedUsersScreen() {
   const setStoreRestricted = usePrivacyStore((state) => state.setRestricted);
   const [restrictedUserIds, setRestrictedUserIds] = useState<string[]>([]);
   const [restrictedUsers, setRestrictedUsers] = useState<RestrictedUser[]>([]);
+  const currentUserId = currentUser?.id;
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<RestrictedUser[]>([]);
@@ -91,7 +92,6 @@ export default function RestrictedUsersScreen() {
         })
         .filter((id): id is string => Boolean(id));
 
-      const currentUserId = currentUser?.id;
       if (currentUserId) {
         userIds = userIds.filter((id: string) => id !== currentUserId);
       }
@@ -130,11 +130,12 @@ export default function RestrictedUsersScreen() {
     } finally {
       setLoading(false);
     }
-  }, [t, currentUser?.id, canUsePrivateApi, oxyServices]);
+  }, [t, currentUserId, canUsePrivateApi, oxyServices]);
 
   useEffect(() => {
     if (canUsePrivateApi) {
-      loadRestrictedUsers();
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- the same loader refreshes after restrict/unrestrict; on mount its setLoading(true) is a no-op
+      void loadRestrictedUsers();
     }
   }, [canUsePrivateApi, loadRestrictedUsers]);
 
@@ -180,7 +181,7 @@ export default function RestrictedUsersScreen() {
 
         const filtered = results.filter((user) => {
           const userId = getUserId(user);
-          return userId && !restrictedUserIdsSet.has(userId) && userId !== currentUser?.id;
+          return userId && !restrictedUserIdsSet.has(userId) && userId !== currentUserId;
         });
         setSearchResults(filtered);
       } catch (error) {
@@ -194,7 +195,7 @@ export default function RestrictedUsersScreen() {
         }
       }
     },
-    [restrictedUserIdsSet, currentUser?.id, oxyServices],
+    [restrictedUserIdsSet, currentUserId, oxyServices],
   );
 
   const handleSearch = useCallback(

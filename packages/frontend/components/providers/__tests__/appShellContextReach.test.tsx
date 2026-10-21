@@ -206,6 +206,7 @@ describe('app-shell contexts reach hoisted content', () => {
     let sheetSawOpen: boolean | undefined;
 
     const SheetProbe = () => {
+      // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
       sheetSawOpen = useDrawer().isOpen;
       return null;
     };
@@ -238,14 +239,17 @@ describe('app-shell contexts reach hoisted content', () => {
     let outsideApp: PostInteractions | undefined;
 
     const TreeProbe = () => {
+      // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
       fromTree = usePostInteractions();
       return null;
     };
     const SheetProbe = () => {
+      // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
       fromSheet = usePostInteractions();
       return null;
     };
     const OutsideProbe = () => {
+      // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
       outsideApp = usePostInteractions();
       return null;
     };

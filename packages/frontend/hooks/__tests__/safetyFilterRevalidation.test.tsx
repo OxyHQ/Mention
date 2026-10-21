@@ -123,6 +123,7 @@ let latest: UseFeedStateReturn | undefined;
 const openFeeds = new Set<TestRenderer.ReactTestRenderer>();
 
 function HomeFeed() {
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   latest = useFeedState({
     type: 'for_you',
     useScoped: false,

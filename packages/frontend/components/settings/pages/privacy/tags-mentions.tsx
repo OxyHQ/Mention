@@ -22,24 +22,23 @@ export default function TagsMentionsScreen() {
       return;
     }
     if (!isAuthenticated) {
-      setLoading(false);
       return;
     }
-    loadSettings();
+    const loadSettings = async () => {
+      try {
+        const response =
+          await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
+        const settings = response.data;
+        setAllowTags(settings.privacy?.allowTags !== false);
+        setAllowMentions(settings.privacy?.allowMentions !== false);
+        setLoading(false);
+      } catch (error) {
+        logger.error('Error loading settings', error);
+        setLoading(false);
+      }
+    };
+    void loadSettings();
   }, [isAuthResolved, isPrivateApiPending, isAuthenticated]);
-
-  const loadSettings = async () => {
-    try {
-      const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
-      const settings = response.data;
-      setAllowTags(settings.privacy?.allowTags !== false);
-      setAllowMentions(settings.privacy?.allowMentions !== false);
-      setLoading(false);
-    } catch (error) {
-      logger.error('Error loading settings', error);
-      setLoading(false);
-    }
-  };
 
   const updateSetting = async (field: 'allowTags' | 'allowMentions', value: boolean) => {
     try {

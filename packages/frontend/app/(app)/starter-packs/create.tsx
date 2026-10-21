@@ -24,6 +24,7 @@ type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 
 export default function CreateStarterPackScreen() {
   const { oxyServices, user } = useAuth();
+  const viewerId = user?.id;
   const { t } = useTranslation();
   const safeBack = useSafeBack();
   const queryClient = useQueryClient();
@@ -81,7 +82,7 @@ export default function CreateStarterPackScreen() {
       // Refresh the viewer's cached pack list so the new pack appears in the
       // AddToStarterPackSheet (which now inherits the global staleTime).
       queryClient.invalidateQueries({
-        queryKey: viewerQueryKeys.starterPacksMine(user?.id),
+        queryKey: viewerQueryKeys.starterPacksMine(viewerId),
       });
       router.replace('/starter-packs');
     } catch (e) {
@@ -92,7 +93,7 @@ export default function CreateStarterPackScreen() {
     } finally {
       setSaving(false);
     }
-  }, [name, description, members, queryClient, user?.id, t]);
+  }, [name, description, members, queryClient, viewerId, t]);
 
   return (
     <View className="flex-1">

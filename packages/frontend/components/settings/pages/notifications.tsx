@@ -49,25 +49,24 @@ export default function NotificationSettingsScreen() {
       return;
     }
     if (!canUsePrivateApi) {
-      setLoading(false);
       return;
     }
-    loadPreferences();
-  }, [canUsePrivateApi, isPrivateApiPending]);
-
-  const loadPreferences = async () => {
-    try {
-      const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
-      const settings = response.data;
-      if (settings.notificationPreferences) {
-        setPrefs({ ...DEFAULT_PREFS, ...settings.notificationPreferences });
+    const loadPreferences = async () => {
+      try {
+        const response =
+          await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
+        const settings = response.data;
+        if (settings.notificationPreferences) {
+          setPrefs({ ...DEFAULT_PREFS, ...settings.notificationPreferences });
+        }
+      } catch (error) {
+        logger.error('Error loading notification preferences', error);
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      logger.error('Error loading notification preferences', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+    void loadPreferences();
+  }, [canUsePrivateApi, isPrivateApiPending]);
 
   const updatePreference = useCallback(
     async (key: keyof NotificationPreferences, value: boolean) => {

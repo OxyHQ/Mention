@@ -68,6 +68,7 @@ type ScrollResult = ReturnType<typeof useProfileScroll>;
 let latest: ScrollResult | null = null;
 
 function Probe({ profileId, currentTab }: { profileId?: string; currentTab: ProfileTab }) {
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   latest = useProfileScroll({ profileId, currentTab });
   return null;
 }

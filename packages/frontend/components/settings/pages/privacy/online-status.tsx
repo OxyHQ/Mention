@@ -21,23 +21,22 @@ export default function OnlineStatusScreen() {
       return;
     }
     if (!canUsePrivateApi) {
-      setLoading(false);
       return;
     }
-    loadSettings();
+    const loadSettings = async () => {
+      try {
+        const response =
+          await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
+        const settings = response.data;
+        setShowOnlineStatus(settings.privacy?.showOnlineStatus !== false);
+        setLoading(false);
+      } catch (error) {
+        logger.error('Error loading settings', error);
+        setLoading(false);
+      }
+    };
+    void loadSettings();
   }, [canUsePrivateApi, isPrivateApiPending]);
-
-  const loadSettings = async () => {
-    try {
-      const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
-      const settings = response.data;
-      setShowOnlineStatus(settings.privacy?.showOnlineStatus !== false);
-      setLoading(false);
-    } catch (error) {
-      logger.error('Error loading settings', error);
-      setLoading(false);
-    }
-  };
 
   const updateSetting = async (value: boolean) => {
     try {

@@ -195,12 +195,12 @@ export function TabsPager({
       // only while every page draws a bar item, which is a fact about today's
       // table rather than a property of either.
       const page = event.position + event.offset;
-      progress.value = barPositionForPage(BAR_POSITION_BY_PAGE, page);
+      progress.set(barPositionForPage(BAR_POSITION_BY_PAGE, page));
       // Same frame, same interpolation, different quantity: the bar fades out as
       // the finger travels onto a page it draws no item for. Continuous, because
       // a bar that vanished on commit would announce the commit rather than
       // follow the finger.
-      chromeProgress.value = barPositionForPage(CHROME_HIDDEN_BY_PAGE, page);
+      chromeProgress.set(barPositionForPage(CHROME_HIDDEN_BY_PAGE, page));
     },
     [progress, chromeProgress],
   );
@@ -224,13 +224,11 @@ export function TabsPager({
     pageRef.current = focusedPage;
     admit([keyForPage(focusedPage)]);
     pagerRef.current?.setPageWithoutAnimation(focusedPage);
-    progress.value = withSpring(
-      barPositionForPage(BAR_POSITION_BY_PAGE, focusedPage),
-      BAR_SETTLE_SPRING,
+    progress.set(
+      withSpring(barPositionForPage(BAR_POSITION_BY_PAGE, focusedPage), BAR_SETTLE_SPRING),
     );
-    chromeProgress.value = withSpring(
-      barPositionForPage(CHROME_HIDDEN_BY_PAGE, focusedPage),
-      BAR_SETTLE_SPRING,
+    chromeProgress.set(
+      withSpring(barPositionForPage(CHROME_HIDDEN_BY_PAGE, focusedPage), BAR_SETTLE_SPRING),
     );
   }, [focusedPage, keyForPage, admit, progress, chromeProgress]);
 

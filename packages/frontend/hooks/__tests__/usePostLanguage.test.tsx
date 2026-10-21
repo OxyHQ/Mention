@@ -100,6 +100,7 @@ const Probe: React.FC<{ content: PostContent; postId?: string; postLanguage?: st
   postId,
   postLanguage,
 }) => {
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   state = usePostLanguage(content, postId, postLanguage);
   return null;
 };
@@ -171,6 +172,7 @@ describe('a row recycled onto another post', () => {
       content,
       postId,
     }) => {
+      // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
       state = usePostLanguage(content, postId);
       renders();
       return null;
@@ -560,6 +562,7 @@ describe('no automatic translation', () => {
       content,
       postId,
     }) => {
+      // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
       state = usePostLanguage(content, postId);
       return null;
     };

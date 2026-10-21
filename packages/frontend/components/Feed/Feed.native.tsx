@@ -522,19 +522,19 @@ const Feed = (props: FeedProps) => {
     onScroll: (event) => {
       'worklet';
       const offsetY = event.contentOffset.y;
-      scrollPosition.value = offsetY;
+      scrollPosition.set(offsetY);
       if (Math.abs(offsetY - lastReportedOffset.value) < JS_SCROLL_REPORT_PX) return;
-      lastReportedOffset.value = offsetY;
+      lastReportedOffset.set(offsetY);
       runOnJS(reportScrollOffset)(offsetY);
     },
     onEndDrag: (event) => {
       'worklet';
-      lastReportedOffset.value = event.contentOffset.y;
+      lastReportedOffset.set(event.contentOffset.y);
       runOnJS(reportScrollOffset)(event.contentOffset.y);
     },
     onMomentumEnd: (event) => {
       'worklet';
-      lastReportedOffset.value = event.contentOffset.y;
+      lastReportedOffset.set(event.contentOffset.y);
       runOnJS(reportScrollOffset)(event.contentOffset.y);
     },
   });

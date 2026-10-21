@@ -8,7 +8,7 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 export function useMentionColorViewer() {
   const { user, oxyServices, canUsePrivateApi } = useAuth();
   const { activeSessionId } = useOxy();
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);

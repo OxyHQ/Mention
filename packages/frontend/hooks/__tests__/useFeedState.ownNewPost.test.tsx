@@ -80,6 +80,7 @@ function page(items: HydratedPost[], slices: FeedPostSlice[] = []): SlicedFeedRe
 let latest: UseFeedStateReturn | undefined;
 
 function Probe({ options }: { options: UseFeedStateOptions }) {
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   latest = useFeedState(options);
   return null;
 }

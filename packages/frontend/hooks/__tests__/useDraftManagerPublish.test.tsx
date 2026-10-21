@@ -28,6 +28,7 @@ const deleteDraft = jest.fn(async (_id: string) => undefined);
 const onDraftLoad = jest.fn();
 
 function Probe() {
+  // eslint-disable-next-line react-hooks/globals -- test probe: hands the hook's latest result to the assertions, which is the point of the harness
   latest = useDraftManager({ saveDraft, deleteDraft, onDraftLoad });
   return null;
 }

@@ -383,9 +383,10 @@ export function usePersonProfileView({
   const handleDM = useMessageInAllo(profileData?.id, handle);
 
   // Open on remote instance (federated only)
+  const actorUri = profileData?.actorUri;
   const handleOpenOnInstance = useCallback(() => {
-    if (profileData?.actorUri) openExternalLink(profileData.actorUri);
-  }, [profileData?.actorUri]);
+    if (actorUri) openExternalLink(actorUri);
+  }, [actorUri]);
 
   const userNameStyle = useMemo(
     () => ({

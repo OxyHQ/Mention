@@ -30,7 +30,7 @@ export function FocusedFlashList<T>(
   const onScroll = useAnimatedScrollHandler({
     onScroll: (event) => {
       'worklet';
-      scrollPosition.value = event.contentOffset.y;
+      scrollPosition.set(event.contentOffset.y);
     },
   });
   return (
