@@ -1,8 +1,7 @@
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Avatar } from '@oxy.so/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
+import { ZoomableAvatar } from '@/components/ZoomableAvatar';
 import { Redirect } from '@/lib/navigation/router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useMemo } from 'react';
@@ -36,6 +35,8 @@ import type { ProfileRouteFamily } from '@/components/Profile/profileRoute';
 import { ProfileUnavailable } from '@/components/Profile/ProfileUnavailable';
 import { resolveProfileColor } from '@oxy.so/bloom/color-presets';
 import { BloomColorScope } from '@oxy.so/bloom/theme';
+
+const ABOUT_AVATAR_SIZE = 80;
 
 /**
  * An account's "about" surface — joined date, location, website, verification,
@@ -210,15 +211,16 @@ function AccountInfoContent({
             @handle) and inline verified / federated / agent badges via the shared
             UserName, so it reads as the same identity surface as the profile. */}
         <View className="px-4 pt-4 pb-5 items-center">
-          <Avatar
+          <ZoomableAvatar
             source={avatarUri}
-            name={
-              profileData.design.displayName ??
-              profileData.name?.displayName ??
-              profileData.username
-            }
-            size={80}
-            variant={MEDIA_VARIANT_AVATAR_LG}
+            size={ABOUT_AVATAR_SIZE}
+            className="bg-muted"
+            style={{
+              width: ABOUT_AVATAR_SIZE,
+              height: ABOUT_AVATAR_SIZE,
+              borderRadius: ABOUT_AVATAR_SIZE / 2,
+            }}
+            imageStyle={{}}
           />
           <UserName
             name={profileData.design.displayName ?? profileData.name?.displayName}
