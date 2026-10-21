@@ -123,6 +123,8 @@ interface SeedPostOptions {
   id?: string;
   owner?: string;
   createdAt?: Date;
+  /** Override the nullable denormalized timestamp on its owner row. */
+  authorshipCreatedAt?: Date | null;
   type?: 'text' | 'image' | 'video' | 'poll' | 'boost' | 'quote';
   visibility?: 'public' | 'followers_only' | 'private';
   status?: 'draft' | 'published' | 'scheduled' | 'restricted';
@@ -167,7 +169,7 @@ async function seedPost(options: SeedPostOptions = {}): Promise<string> {
       ...(options.boostOf === undefined ? {} : { boostOf: options.boostOf }),
       ...(options.quoteOf === undefined ? {} : { quoteOf: options.quoteOf }),
     })
-    .returning({ id: posts.id });
+    .returning({ id: posts.id, createdAt: posts.createdAt });
   createdPostIds.push(post.id);
 
   if (options.owner) {
@@ -176,6 +178,10 @@ async function seedPost(options: SeedPostOptions = {}): Promise<string> {
       oxyUserId: options.owner,
       role: 'owner',
       status: 'accepted',
+      // Live writers copy the post's timestamp here (`insertChildRows`). Tests
+      // can model legacy rows whose nullable copy is missing.
+      postCreatedAt:
+        options.authorshipCreatedAt === undefined ? post.createdAt : options.authorshipCreatedAt,
     });
   }
   if (options.body !== undefined) {
@@ -252,6 +258,22 @@ describe('GET /statistics/user — the overview totals', () => {
     expect(typeof body.overview.totalViews).toBe('number');
     expect(body.overview.totalViews).toBe(7);
     expect(body.interactions).toEqual({ likes: 3, replies: 2, boosts: 1, shares: 1 });
+  });
+
+  it('falls back to the source post timestamp when the owner copy is null', async () => {
+    const userId = owner();
+    await seedPost({
+      owner: userId,
+      createdAt: new Date(),
+      authorshipCreatedAt: null,
+      views: 9,
+    });
+
+    const res = await call(getUserStatistics, { user: { id: userId }, query: {} });
+    const body = res.body as { overview: { totalPosts: number; totalViews: number } };
+
+    expect(body.overview.totalPosts).toBe(1);
+    expect(body.overview.totalViews).toBe(9);
   });
 
   it('answers zeros — never null — for a user with no posts at all', async () => {

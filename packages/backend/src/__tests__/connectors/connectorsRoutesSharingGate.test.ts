@@ -1,4 +1,5 @@
 import express from 'express';
+import { DeliveryAuthorizationDeniedError } from '@oxy.so/federation/node';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -150,6 +151,18 @@ describe('POST /federation/follow — fediverseSharing gate', () => {
     expect(connectorFor).not.toHaveBeenCalled();
     expect(deliver).not.toHaveBeenCalled();
     expect(getUserById).not.toHaveBeenCalled();
+  });
+
+  it('403s with the stable code when the delivery policy refuses the follow', async () => {
+    isFediverseSharingEnabled.mockResolvedValue(true);
+    deliver.mockRejectedValue(new DeliveryAuthorizationDeniedError());
+
+    const res = await request(app)
+      .post('/federation/follow')
+      .send({ actorUri: TARGET_ACTOR_URI })
+      .expect(403);
+
+    expect(res.body).toEqual({ error: 'DELIVERY_AUTHORIZATION_DENIED' });
   });
 });
 

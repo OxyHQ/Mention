@@ -56,6 +56,24 @@ export class OxyMediaStoreRequestError extends Error {
   }
 }
 
+/** The message oxy-api answers for {@link OxyMediaNotCacheObjectError}. */
+const NOT_CACHE_OBJECT_MESSAGE = 'Asset is not a federation media-cache object';
+const HTTP_FORBIDDEN = 403;
+
+/**
+ * oxy-api refused a cache-route delete because the file is not in the cache
+ * namespace (403 `Asset is not a federation media-cache object`). Before Oxy
+ * kept one row per owner per content hash (oxy#1444, 2026-09-30), a cache
+ * upload of bytes someone already held came back as THAT durable file's id, and
+ * the cache row recorded it. PERMANENT: the file is not the cache's to delete.
+ */
+export class OxyMediaNotCacheObjectError extends OxyMediaStoreRequestError {
+  constructor(detail: string) {
+    super('delete', HTTP_FORBIDDEN, detail);
+    this.name = 'OxyMediaNotCacheObjectError';
+  }
+}
+
 /**
  * oxy-api refused a durable federated upload because these BYTES already belong
  * to another owner or were uploaded by another application (409
@@ -478,12 +496,28 @@ async function uploadMediaToOxy(
 
 /** oxy-api's error code (`{ "error": "<CODE>", "message": … }`), when the body is that shape. */
 function errorCodeOf(body: string): string | undefined {
+  return errorFieldOf(body, 'error');
+}
+
+function errorFieldOf(body: string, field: 'error' | 'message'): string | undefined {
   try {
-    const parsed = JSON.parse(body) as { error?: unknown };
-    return typeof parsed.error === 'string' ? parsed.error : undefined;
+    const value = (JSON.parse(body) as Record<string, unknown>)[field];
+    return typeof value === 'string' ? value : undefined;
   } catch {
     return undefined;
   }
+}
+
+/**
+ * The cache namespace holds nothing to delete under this id: the object is
+ * already gone (404), or it never was a cache object
+ * ({@link OxyMediaNotCacheObjectError}). Either way, retrying cannot succeed.
+ */
+export function isAbsentFromCacheNamespace(error: unknown): boolean {
+  return (
+    error instanceof OxyMediaNotCacheObjectError ||
+    (error instanceof OxyMediaStoreRequestError && error.statusCode === HTTP_NOT_FOUND)
+  );
 }
 
 /**
@@ -549,6 +583,9 @@ async function deleteFromCacheNamespace(oxyFileId: string): Promise<void> {
 
   if (status !== HTTP_OK && status !== HTTP_NO_CONTENT) {
     const detail = await readErrorSnippet(response);
+    if (status === HTTP_FORBIDDEN && errorFieldOf(detail, 'message') === NOT_CACHE_OBJECT_MESSAGE) {
+      throw new OxyMediaNotCacheObjectError(detail);
+    }
     throw new OxyMediaStoreRequestError('delete', status, detail || 'no response body');
   }
 

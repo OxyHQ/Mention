@@ -20,7 +20,7 @@
  * a loading state and refetches shortly, instead of rendering an empty profile.
  */
 
-import type { User } from '@oxy.so/core';
+import { getErrorStatus, type User } from '@oxy.so/core';
 import { and, isNull } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { activityIdUnderActor } from './activitypub/helpers';
@@ -391,6 +391,12 @@ class FederatedProfileSync {
           });
         }
       } catch (err) {
+        // The viewed account no longer exists in Oxy (erased or never synced):
+        // there is nothing to sync, which is not a failure worth a warning.
+        if (getErrorStatus(err) === 404) {
+          logger.debug('[FedSync] background profile sync skipped: account not found in Oxy');
+          return;
+        }
         const message = err instanceof Error ? err.message : String(err);
         logger.warn('[FedSync] background profile sync failed', {
           error: message,

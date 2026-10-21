@@ -166,19 +166,6 @@ describe('gatherPool — muted lanes', () => {
 
     expect(idsOf(response)).toEqual([oid(2)]);
   });
-
-  it('applies on the cheap peekLatest probe too', async () => {
-    registry.register(sourceReturning('src', [makePost(5, { laneId: MUTED_LANE })]));
-
-    const latest = await engine.peekLatest(CHRONO, {
-      currentUserId: 'viewer',
-      mutedLaneIds: [MUTED_LANE],
-    });
-
-    // Otherwise the "new posts" indicator would announce a post the reader has
-    // asked never to be shown.
-    expect(latest).toBeUndefined();
-  });
 });
 
 describe('runPopularFallback — muted lanes', () => {

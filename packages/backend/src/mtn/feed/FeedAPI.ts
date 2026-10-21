@@ -150,12 +150,6 @@ export interface FeedAPI {
   readonly descriptor: FeedDescriptor;
 
   /**
-   * Peek at the latest item without consuming cursor.
-   * Used for "new posts" indicators.
-   */
-  peekLatest(context: FeedContext): Promise<HydratedPost | undefined>;
-
-  /**
    * Fetch a page of feed items.
    */
   fetch(options: FeedFetchOptions, context: FeedContext): Promise<FeedAPIResponse>;

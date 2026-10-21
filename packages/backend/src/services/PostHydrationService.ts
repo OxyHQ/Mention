@@ -220,14 +220,6 @@ export interface HydrationOptions {
   oxyClient?: OxyClient; // Per-request OxyServices instance with user's auth token
   maxDepth?: number;
   includeLinkMetadata?: boolean;
-  /**
-   * How long Clarity may hold the link-preview resolve open for a URL it has not
-   * finished indexing. Omitted on every feed and detail read, which answer with
-   * what Clarity already has (issue #1140). Only the pending-documents follow-up
-   * (`POST /posts/documents`) sets it: that call is off the render path, and its
-   * whole job is to wait for the cards the first read had to leave out.
-   */
-  linkMetadataWaitMs?: number;
   includeFullArticleBody?: boolean; // For feed, skip full article bodies
   includeFullMetadata?: boolean; // For feed, skip some metadata fields
   /**
@@ -1234,7 +1226,7 @@ export class PostHydrationService {
       this.buildPollMap(postsForHydration),
       this.buildAuthorPrivacyMap(postsForHydration, viewerContext),
       options.includeLinkMetadata !== false
-        ? this.buildClarityDocumentMap(postsForHydration, resolvedMap, options.linkMetadataWaitMs)
+        ? this.buildClarityDocumentMap(postsForHydration, resolvedMap)
         : Promise.resolve<ClarityDocumentMap>({ documents: new Map(), pending: new Set() }),
       this.buildOrphanFederatedAuthorMap(postsForHydration),
       // `undefined` (not an empty Map) when the caller did not ask, so a post
@@ -2357,8 +2349,8 @@ export class PostHydrationService {
    * resolution. Clarity owns fetching, caching and image hosting; `imageUrl` and
    * `faviconUrl` are served as Clarity returns them.
    *
-   * No `waitMs` unless the caller passes one: a feed or detail read answers with
-   * what Clarity already has. Asking it to wait up to 2s held every page carrying
+   * No `waitMs`: a hydrated read answers with what Clarity already has. Asking
+   * it to wait up to 2s held every page carrying
    * a not-yet-resolved link for the whole wait — about 2s of each production
    * `/search` in issue #1140. Stored posts are warmed at ingest
    * (`postEnrichment/clarityDocumentStep`) and at creation
@@ -2378,7 +2370,6 @@ export class PostHydrationService {
   private async buildClarityDocumentMap(
     nodes: HydratedGraphNode[],
     resolvedMap: Map<string, ResolvedVariant>,
-    waitMs?: number,
   ): Promise<ClarityDocumentMap> {
     const result: ClarityDocumentMap = { documents: new Map(), pending: new Set() };
 
@@ -2401,7 +2392,7 @@ export class PostHydrationService {
 
     if (uniqueUrls.size === 0) return result;
 
-    const resolved = await resolveClarityDocuments([...uniqueUrls], { waitMs });
+    const resolved = await resolveClarityDocuments([...uniqueUrls]);
 
     // The card a federated post ARRIVED with (FEP-8967) stands in for a link
     // Clarity has no document for — pending, or given up on — so the reader sees

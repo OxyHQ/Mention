@@ -18,8 +18,8 @@ import { onPostsStored } from '@/db/postObservers';
  * Every post the local cache stores with `documentsPending` is passed to
  * {@link requestPendingDocuments} ({@link registerPendingDocuments}, mounted once
  * at the app root) — no per-row hook, so a feed row costs nothing extra.
- * Ids are gathered into ONE `POST /posts/documents` call (the server holds it
- * open for a few seconds while Clarity finishes), and each answer is written
+ * Ids are gathered into ONE `POST /posts/documents` call (the server answers
+ * with what Clarity has at that moment, never waiting), and each answer is written
  * back through `updatePostEverywhere`, so every surface showing that post, and
  * its cached copy, gets the card. A post still pending is asked for again after a
  * longer pause, a bounded number of times; after that its cards are left for the

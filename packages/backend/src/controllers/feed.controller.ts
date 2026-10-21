@@ -1,3 +1,4 @@
+import { respondWithApiError } from '../utils/error';
 import type { SafetyRequester } from '@oxy.so/contracts';
 import type { Response } from 'express';
 import { and, desc, eq, inArray, isNotNull, notInArray, sql, type SQL } from 'drizzle-orm';
@@ -1118,6 +1119,7 @@ class FeedController {
 
       return res.json({ items, hasMore, nextCursor });
     } catch (error) {
+      if (respondWithApiError(res, error)) return;
       logger.error('[getRepliesFeed] Error:', error);
       return res.status(500).json({ message: 'Error fetching replies' });
     }
@@ -1334,6 +1336,7 @@ class FeedController {
 
       return res.json(transformed);
     } catch (error) {
+      if (respondWithApiError(res, error)) return;
       logger.error('Error fetching feed item', error);
       res.status(500).json({ error: 'Failed to fetch feed item' });
     }

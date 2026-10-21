@@ -37,6 +37,7 @@ import { isAbsoluteHttpUrl } from './shared/url';
 import { connectorRegistry } from './index';
 import { classifyQuery } from './resolve';
 import type { NetworkConnector } from '@oxy.so/federation';
+import { DeliveryAuthorizationDeniedError } from '@oxy.so/federation/node';
 import { postHydrationService } from '../services/PostHydrationService';
 import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
 import { safetyRequesterFor } from '../utils/safetyRequester';
@@ -430,6 +431,25 @@ async function handleLocalFollow(
 }
 
 /**
+ * A follow/unfollow the publication policy refuses (`authorizeFederationDelivery`
+ * — e.g. the caller's account protections forbid federation) is the caller's
+ * state, not a server fault: answer 403 with the stable code, and keep 500 for
+ * everything else.
+ */
+function respondFollowFailure(
+  res: Response,
+  err: unknown,
+  logMessage: string,
+  clientMessage: string,
+) {
+  if (err instanceof DeliveryAuthorizationDeniedError) {
+    return res.status(403).json({ error: err.code });
+  }
+  logger.error(logMessage, err);
+  return res.status(500).json({ error: clientMessage });
+}
+
+/**
  * POST /federation/follow
  * Follow a remote actor (ActivityPub or atproto), dispatched by protocol.
  */
@@ -490,8 +510,7 @@ router.post('/follow', async (req: AuthRequest, res: Response) => {
 
     return res.json({ success: true, pending, actorUri: canonicalActorUri });
   } catch (err) {
-    logger.error('Federation follow error:', err);
-    return res.status(500).json({ error: 'Follow failed' });
+    return respondFollowFailure(res, err, 'Federation follow error:', 'Follow failed');
   }
 });
 
@@ -531,8 +550,7 @@ router.post('/unfollow', async (req: AuthRequest, res: Response) => {
 
     return res.json({ success: true, actorUri: parsed.data.actorUri });
   } catch (err) {
-    logger.error('Federation unfollow error:', err);
-    return res.status(500).json({ error: 'Unfollow failed' });
+    return respondFollowFailure(res, err, 'Federation unfollow error:', 'Unfollow failed');
   }
 });
 

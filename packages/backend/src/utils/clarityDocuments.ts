@@ -2,7 +2,9 @@ import { parseHomiioCaseUrl } from '@mention/shared-types/homiio';
 import type { ClarityDocument } from '@mention/shared-types';
 import { ownProfileUrlHandle } from '@mention/shared-types/profileUrls';
 
+import { createHash } from 'node:crypto';
 import { config } from '../config';
+import { createCache } from './cache';
 import { getClarityClient } from './clarityClient';
 import { extractUrls } from './extractUrls';
 import { logger } from './logger';
@@ -128,6 +130,20 @@ function isClarityAssetUrl(value: string | undefined): value is string {
 }
 
 /**
+ * Resolved documents by URL, shared by every caller of
+ * {@link resolveClarityDocuments}. Every hydrated read that carries a link asked
+ * Clarity again for a document it had already resolved; a resolved card does not
+ * change within minutes, so it is served from here for that long. Only RESOLVED
+ * documents are stored, after {@link clarityHostedDocument}: a pending URL is
+ * asked again next time, which is what lets its card arrive.
+ */
+const documentCache = createCache({ name: 'ClarityDocumentCache', ttlSeconds: 10 * 60 });
+
+function documentCacheKey(url: string): string {
+  return `clarity-doc:v1:${createHash('sha256').update(url).digest('hex')}`;
+}
+
+/**
  * The most URLs Clarity's `POST /v1/resolve` accepts in one call; a larger body
  * is a 400 for the whole batch (`urlsSchema` in Clarity's `search-platform.ts`).
  */
@@ -139,9 +155,10 @@ export const CLARITY_RESOLVE_BATCH = 50;
  * carrying more than 50 distinct links lost EVERY card on it to one 400.
  *
  * `waitMs` is how long Clarity may hold the call open for URLs it has not
- * finished. Feed and detail reads omit it and answer with what Clarity already
- * has (issue #1140), so a first-seen URL comes back pending. Only callers off the
- * render path pass one.
+ * finished. Every read omits it and answers with what Clarity already has
+ * (issue #1140), so a first-seen URL comes back pending; only the composer's
+ * link previews pass one. A URL resolved in the last ten minutes is answered from
+ * {@link documentCache} without asking Clarity.
  *
  * Results are matched to the URLs we sent BY POSITION: Clarity answers one result
  * per requested URL, in request order, but echoes each URL canonicalised (fragment
@@ -161,9 +178,17 @@ export async function resolveClarityDocuments(
   const unique = [...new Set(urls)].filter((url) => parseHomiioCaseUrl(url) === null);
   if (unique.length === 0) return { documents, pending };
 
+  const cached = await documentCache.getMany<ClarityDocument>(unique.map(documentCacheKey));
+  const unresolved = unique.filter((url, index) => {
+    const document = cached[index];
+    if (document) documents.set(url, document);
+    return !document;
+  });
+  if (unresolved.length === 0) return { documents, pending };
+
   const batches: string[][] = [];
-  for (let start = 0; start < unique.length; start += CLARITY_RESOLVE_BATCH) {
-    batches.push(unique.slice(start, start + CLARITY_RESOLVE_BATCH));
+  for (let start = 0; start < unresolved.length; start += CLARITY_RESOLVE_BATCH) {
+    batches.push(unresolved.slice(start, start + CLARITY_RESOLVE_BATCH));
   }
 
   let client: Awaited<ReturnType<typeof getClarityClient>>;
@@ -173,9 +198,10 @@ export async function resolveClarityDocuments(
     logger.warn('[ClarityDocuments] Clarity client unavailable', {
       reason: error instanceof Error ? error.message : 'unknown',
     });
-    for (const url of unique) pending.add(url);
+    for (const url of unresolved) pending.add(url);
     return { documents, pending };
   }
+  const fresh: [string, ClarityDocument][] = [];
   await Promise.all(
     batches.map(async (batch) => {
       try {
@@ -186,7 +212,9 @@ export async function resolveClarityDocuments(
         batch.forEach((url, index) => {
           const resolution = response.data[index];
           if (resolution?.document) {
-            documents.set(url, clarityHostedDocument(resolution.document));
+            const document = clarityHostedDocument(resolution.document);
+            documents.set(url, document);
+            fresh.push([documentCacheKey(url), document]);
           } else if (!resolution || IN_PROGRESS_STATUSES.has(resolution.status)) {
             pending.add(url);
           }
@@ -201,5 +229,8 @@ export async function resolveClarityDocuments(
     }),
   );
 
+  // Fail-open and off the response path: a write that does not land only costs
+  // the next read a Clarity call.
+  void documentCache.setMany(fresh);
   return { documents, pending };
 }

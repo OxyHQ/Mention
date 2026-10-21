@@ -221,10 +221,6 @@ interface PinnedPostResponse {
   item?: HydratedPost | null;
 }
 
-interface MtnPeekResponse {
-  data?: HydratedPost | null;
-}
-
 function hasFeedDataEnvelope(response: FeedDataResponse): response is FeedDataEnvelope {
   return typeof response === 'object' && response !== null && 'data' in response;
 }
@@ -1091,23 +1087,6 @@ class FeedService {
       return await fetchPromise;
     } finally {
       if (inFlightRequests.get(cacheKey) === fetchPromise) inFlightRequests.delete(cacheKey);
-    }
-  }
-
-  /**
-   * Peek at the latest item in a feed
-   */
-  async peekMtnFeed(descriptor: FeedDescriptor): Promise<HydratedPost | null> {
-    try {
-      const response = await makeViewerAwarePublicRead<MtnPeekResponse>('/feed/mtn/peek', {
-        params: { descriptor },
-      });
-      return response.data ?? null;
-    } catch (error) {
-      // Peek is a best-effort "new posts available" probe; a failure must not
-      // surface to the user, but log it so it's not invisible.
-      logger.debug('Feed peek failed', { descriptor, ...normalizeApiError(error) });
-      return null;
     }
   }
 

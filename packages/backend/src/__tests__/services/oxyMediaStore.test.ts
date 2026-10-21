@@ -149,6 +149,7 @@ import {
   uploadCachedMedia,
   uploadFederatedMedia,
   deleteCachedMedia,
+  isAbsentFromCacheNamespace,
   isMediaStoreThrottled,
   resetWriteBudgetCooldowns,
   OxyMediaOwnedElsewhereError,
@@ -420,6 +421,21 @@ describe('oxyMediaStore.deleteCachedMedia', () => {
     respond = () => ({ statusCode: 404, body: 'not found' });
 
     await expect(deleteCachedMedia('missing')).rejects.toBeInstanceOf(OxyMediaStoreRequestError);
+  });
+
+  it('tells an id the cache namespace does not hold from a refused credential', async () => {
+    const refusal = (message: string) => () => ({
+      statusCode: 403,
+      body: JSON.stringify({ error: 'FORBIDDEN', message }),
+    });
+    respond = refusal('Asset is not a federation media-cache object');
+    const notCacheObject = await deleteCachedMedia('durable').catch((error: unknown) => error);
+    expect(isAbsentFromCacheNamespace(notCacheObject)).toBe(true);
+
+    respond = refusal('Missing required scope: federation:write');
+    const scopeRefused = await deleteCachedMedia('cached').catch((error: unknown) => error);
+    expect(scopeRefused).toBeInstanceOf(OxyMediaStoreRequestError);
+    expect(isAbsentFromCacheNamespace(scopeRefused)).toBe(false);
   });
 
   it('recovers from a 401 by invalidating the service token and retrying the DELETE once', async () => {

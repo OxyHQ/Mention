@@ -99,9 +99,10 @@ describe('persisted-resource federation authorization', () => {
         object: 'https://remote.example/bob',
       }),
     ).toBe(false);
+    // The shared engine's `sendFollow` sends the bare AS2 context.
     expect(
       await authorize({
-        '@context': AP_CONTEXT,
+        '@context': 'https://www.w3.org/ns/activitystreams',
         id: `${actor}/follow/1`,
         type: 'Follow',
         actor,

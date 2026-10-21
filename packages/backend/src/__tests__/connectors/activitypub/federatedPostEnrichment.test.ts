@@ -351,7 +351,9 @@ describe('Federated ingest — outbox backfill runs post-ingest enrichment', () 
     const result = await runOutboxSync();
 
     expect(result.newPostCount).toBe(1);
-    expect(mocks.resolveDocuments).toHaveBeenCalledTimes(1);
+    // Detached: the warm reaches Clarity after its cache read, not before the
+    // import returns.
+    await vi.waitFor(() => expect(mocks.resolveDocuments).toHaveBeenCalledTimes(1));
   });
 });
 

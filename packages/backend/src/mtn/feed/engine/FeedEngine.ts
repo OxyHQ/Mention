@@ -324,9 +324,8 @@ export class FeedEngine {
     const pool = await this.gatherPool(definition, ctx, exec, limit, measureOnly);
 
     // Phase 7: record the federated share of the merged candidate pool for this
-    // feed (a gauge keyed by the base feed type). Emitted from the served `run`
-    // path only — never from the cheap `peekLatest` probe — so the share reflects
-    // real page builds. Non-empty guard avoids a spurious 0 on an empty pool.
+    // feed (a gauge keyed by the base feed type). Non-empty guard avoids a
+    // spurious 0 on an empty pool.
     if (pool.length > 0) {
       let federatedCount = 0;
       for (const post of pool) {
@@ -347,50 +346,6 @@ export class FeedEngine {
           measureOnly,
         )
       : this.finalizeChronological(ctx, exec, pool, cursor, limit);
-  }
-
-  /**
-   * Peek at the newest item in a feed's scope for the "new posts" indicator.
-   * Deliberately cheap: it gathers the definition's sources (no cursor, no seen
-   * exclusion, no ranking, no slicing) and returns the single newest candidate,
-   * hydrated. The safety filter still applies via the merge.
-   */
-  async peekLatest(
-    definition: FeedDefinition,
-    context: FeedEngineContext,
-  ): Promise<HydratedPost | undefined> {
-    const exec: FeedExecution = definition.execution ?? {};
-    const ctx: FeedEngineContext = {
-      ...context,
-      cursor: undefined,
-      pageLimit: 1,
-      seenPostIds: undefined,
-      followingIdSet: followingSet(context.followingIds),
-    };
-
-    const pool = await this.gatherPool(definition, ctx, exec, 1, this.gateIsMeasureOnly(ctx));
-    if (pool.length === 0) return undefined;
-
-    let newest = pool[0];
-    let newestTs = new Date(newest.createdAt ?? 0).getTime();
-    for (const post of pool) {
-      const ts = new Date(post.createdAt ?? 0).getTime();
-      if (ts > newestTs) {
-        newest = post;
-        newestTs = ts;
-      }
-    }
-
-    const [hydrated] = await postHydrationService.hydratePosts([newest], {
-      viewerId: ctx.currentUserId,
-      oxyClient: ctx.oxyClient,
-      safetyRequester: ctx.safetyRequester,
-      maxDepth: exec.hydrateMaxDepth ?? 0,
-      viewerGraph: this.viewerGraphOption(ctx),
-      viewerPrivacy: this.viewerPrivacyOption(ctx),
-      viewerLanguages: ctx.viewerLanguages,
-    });
-    return hydrated;
   }
 
   /**
@@ -416,9 +371,9 @@ export class FeedEngine {
    *
    * Returns `undefined` — leaving hydration to its own live fetch — unless BOTH id
    * lists are present on the context. Only `loadViewerFeedContext` resolves the
-   * full graph (it always sets `followerIds`, possibly to `[]`); the peek path
-   * builds a partial context WITHOUT followers, so it must fall back to the live
-   * fetch rather than silently hydrate with an empty follower set. Anonymous
+   * full graph (it always sets `followerIds`, possibly to `[]`); a partial
+   * context WITHOUT followers must fall back to the live fetch rather than
+   * silently hydrate with an empty follower set. Anonymous
    * viewers (no `currentUserId`) never thread — hydration skips the viewer-graph
    * fetch entirely when there is no viewer.
    */
@@ -500,7 +455,7 @@ export class FeedEngine {
     const poolKeeps = this.resolveKeepPredicates(definition.filters, ctx);
     // The reader's own muted lanes ride alongside the definition's filters, so
     // they apply to EVERY definition — presets, author feeds, the lane tab
-    // itself, ordered feeds, `peekLatest`, and both mount points (`/feed/mtn`
+    // itself, ordered feeds, and both mount points (`/feed/mtn`
     // and `/feeds/:id/timeline`). `undefined` for a reader who muted nothing.
     const mutedLaneKeep = buildMutedLanePredicate(ctx);
     if (mutedLaneKeep) poolKeeps.push(mutedLaneKeep);
@@ -840,7 +795,7 @@ export class FeedEngine {
       // hydration resolves the viewer's identity a SECOND time to read them —
       // measured as a duplicate `starter_pack_members` CTE per feed request
       // whenever the Redis identity cache does not answer. `undefined` on a
-      // context that never resolved them (the peek path) leaves hydration to its
+      // context that never resolved them leaves hydration to its
       // own lookup, exactly as before.
       viewerLanguages: ctx.viewerLanguages,
     });
@@ -1123,7 +1078,7 @@ export class FeedEngine {
       // pool, which is the common deep-scroll case, not an edge one — re-fetched
       // `getUserFollowing` + `getUserFollowers` from Oxy per page while the answer
       // was already sitting on `ctx`. `viewerGraphOption` returns `undefined`
-      // whenever the context is partial (the peek path) or the viewer is
+      // whenever the context is partial or the viewer is
       // anonymous, so this cannot hydrate against an empty follower set.
       viewerGraph: this.viewerGraphOption(ctx),
       viewerPrivacy: this.viewerPrivacyOption(ctx),

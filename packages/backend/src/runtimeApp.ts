@@ -8,6 +8,7 @@ import { initConnectors } from './connectors';
 import { RedisStore } from './middleware/rateLimitStore';
 import { bruteForceProtection } from './middleware/security';
 import { createOptionalAuth } from './middleware/optionalAuth';
+import { routeRateLimitByBearer } from './mcp/middleware/mcpRateLimiter';
 import { requestObservability } from './middleware/requestObservability';
 import { contentAccessScope } from './services/contentAccessBatcher';
 import { count, sql } from 'drizzle-orm';
@@ -95,7 +96,7 @@ export function createRuntimeApp(activity?: RequestHandler) {
     prefix: 'rate-limit:api:',
     windowMs: 15 * 60 * 1000,
   });
-  const rateLimiter = createOxyRateLimit(oxy, { store: redisStore });
+  const rateLimiter = routeRateLimitByBearer(createOxyRateLimit(oxy, { store: redisStore }));
   const optionalAuth = createOptionalAuth(oxy);
   const routes = createAppRoutes({ oxy, optionalAuth });
 
