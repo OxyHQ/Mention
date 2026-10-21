@@ -2972,8 +2972,10 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   <>
                     {/* Main composer */}
                     <View
+                      className="border-border"
                       style={[
                         styles.postContainer,
+                        !showThreadTimeline && threadItems.length > 0 && styles.beastSeparator,
                         focusedItemId !== MAIN_ITEM_ID &&
                           threadItems.length > 0 &&
                           styles.unfocusedItem,
