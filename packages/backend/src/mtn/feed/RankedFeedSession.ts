@@ -57,6 +57,7 @@ export function rankedSessionBinding(
         video: ctx.videoFilters,
         languages: ctx.viewerBaseLanguages,
         sensitive: ctx.showSensitiveContent,
+        activitySubscriptions: [...new Set(ctx.activitySubscribedAuthorIds ?? [])].sort(),
         following: ctx.followingIds ? [...new Set(ctx.followingIds)].sort() : [],
         lists: ctx.subscribedListMemberIds ? [...new Set(ctx.subscribedListMemberIds)].sort() : [],
         communities: ctx.followedCommunityIds ? [...new Set(ctx.followedCommunityIds)].sort() : [],

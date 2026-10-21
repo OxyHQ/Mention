@@ -19,6 +19,7 @@
  * explainer breakdown fields, so `RankingExplainer.explainRanking` is unchanged.
  */
 
+import { activitySubscriptionSignal } from './activitySubscription';
 import { authoritySignal } from './authority';
 import { engagementSignal } from './engagement';
 import { negativePenaltySignal } from './negativePenalty';
@@ -49,6 +50,7 @@ export const RANKING_SIGNALS: readonly RankingSignal[] = [
   threadBoostSignal,
   negativePenaltySignal,
   optInSignal,
+  activitySubscriptionSignal,
   {
     id: 'friendEngagement',
     group: 'engagement',

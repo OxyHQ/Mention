@@ -30,6 +30,8 @@ import type { CachedUserSummary } from '../../../services/userSummaryCache';
  */
 export type CandidatePost = PostRecord & {
   friendEngagementCount?: number;
+  /** Matched an accepted author through the viewer's bell subscriptions. */
+  activitySubscriptionMatch?: boolean;
   /** Pre-scored sources (e.g. Explore's aggregation) attach the ranked score. */
   finalScore?: number;
   /**
@@ -186,6 +188,8 @@ export interface SourceModule {
 }
 
 export interface SignalModule {
+  /** False for preset-only signals whose context is not loaded by custom feeds. */
+  userComposable?: boolean;
   id: string;
   kind: 'signal';
   /**

@@ -198,6 +198,84 @@ describe('FeedEngine — explicit saved content', () => {
 });
 
 describe('FeedEngine — ranked mode', () => {
+  it.each([false, true])(
+    'forwards bell interest through ranking with Redis session=%s and preserves trusted dedupe',
+    async (session) => {
+      sessionMemory.enabled = session;
+      const bell = scored(1, 10, { oxyUserId: 'bell-author', activitySubscriptionMatch: true });
+      sessionMemory.posts.set(bell.id, bell);
+      registry.register({ ...sourceReturning('bell', [bell]), trusted: true });
+      registry.register(
+        sourceReturning('discovery', [{ ...bell, activitySubscriptionMatch: undefined }]),
+      );
+      const reject = vi.fn(() => false);
+      registry.register({ id: 'reject', kind: 'filter', keep: reject });
+      const def: FeedDefinition = {
+        id: 'for_you',
+        title: 'For You',
+        mode: 'ranked',
+        sources: [
+          { module: 'bell', enabled: true },
+          { module: 'discovery', enabled: true },
+        ],
+        signals: [],
+        filters: [],
+        discoveryFilters: [{ module: 'reject', enabled: true }],
+        execution: { sessionPagination: true },
+      };
+      const response = await engine.run(
+        def,
+        { currentUserId: 'viewer', activitySubscribedAuthorIds: ['bell-author'] },
+        { limit: 10 },
+      );
+      expect(response.items.map((post) => post.id)).toEqual([bell.id]);
+      expect(reject).not.toHaveBeenCalled();
+      expect(rankPosts.mock.calls[0]?.[2]).toMatchObject({
+        activitySubscribedAuthorIds: ['bell-author'],
+      });
+      expect(rankPosts.mock.calls[0]?.[0][0]).toMatchObject({ activitySubscriptionMatch: true });
+      expect(rankPosts.mock.calls[0]?.[0][0]).not.toHaveProperty('_discovery', true);
+    },
+  );
+
+  it.each(['primary', 'accepted-coauthor'] as const)(
+    'recognizes %s bell interest from another lane while preserving safety and numeric exclusions',
+    async (kind) => {
+      const author = 'bell-author';
+      const overrides: Partial<CandidatePost> =
+        kind === 'primary'
+          ? { oxyUserId: author }
+          : { authorship: [{ oxyUserId: author, role: 'collaborator', status: 'accepted' }] };
+      registry.register(
+        sourceReturning('discovery', [
+          scored(1, 10, overrides),
+          scored(2, 10, { ...overrides, content: { variants: [{ source: 'author', text: '3' }] } }),
+          scored(3, 10, { ...overrides, metadata: { isSensitive: true } }),
+        ]),
+      );
+      registry.register(safetyFilter);
+      const reject = vi.fn(() => false);
+      registry.register({ id: 'reject', kind: 'filter', keep: reject });
+      const result = await engine.run(
+        {
+          id: 'for_you',
+          title: 'For You',
+          mode: 'ranked',
+          sources: [{ module: 'discovery', enabled: true }],
+          signals: [],
+          filters: [{ module: 'safety', enabled: true }],
+          discoveryFilters: [{ module: 'reject', enabled: true }],
+        },
+        { currentUserId: 'viewer', activitySubscribedAuthorIds: [author] },
+        { limit: 10 },
+      );
+      expect(result.items.map((post) => post.id)).toEqual([id(1)]);
+      expect(reject).not.toHaveBeenCalled();
+      expect(rankPosts.mock.calls[0]?.[0][0]).toMatchObject({ activitySubscriptionMatch: true });
+      expect(rankPosts.mock.calls[0]?.[0][0]).not.toHaveProperty('_discovery', true);
+    },
+  );
+
   it.each([
     { location: 'discovery', trusted: false, enabled: true, reads: 1 },
     { location: 'discovery', trusted: true, enabled: true, reads: 0 },

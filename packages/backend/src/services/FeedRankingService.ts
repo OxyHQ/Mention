@@ -501,6 +501,7 @@ export class FeedRankingService {
       authoritativeSignals?: boolean;
       preserveCandidates?: boolean;
       followingIds?: string[]; // Array of Oxy user IDs
+      activitySubscribedAuthorIds?: string[];
       userBehavior?: RankingUserBehavior;
       feedSettings?: FeedRankingSettings; // User feed settings
       /**
@@ -666,6 +667,7 @@ export class FeedRankingService {
 
     // Calculate base scores for all posts in parallel (without diversity)
     // Preserve original index to maintain the source's createdAt sort order for tie-breaking
+    const activitySubscribedAuthorIdsSet = new Set(context.activitySubscribedAuthorIds ?? []);
     const postsWithBaseScores = await Promise.all(
       postsToRank.map(async (post, originalIndex) => {
         const score = await this.calculatePostScore(post, userId, {
@@ -675,6 +677,7 @@ export class FeedRankingService {
           feedSettings: context.feedSettings,
           engagementScoreCache,
           followingIdsSet,
+          activitySubscribedAuthorIdsSet,
           behaviorSets,
           authorFollowerCounts,
           showSensitiveContent: context.showSensitiveContent,

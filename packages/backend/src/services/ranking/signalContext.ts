@@ -114,6 +114,7 @@ export interface OptInSignalContext {
  */
 export interface RankablePost {
   friendEngagementCount?: number;
+  activitySubscriptionMatch?: boolean;
   id?: string;
   /** Written as a reply — the STORED discriminator (see `PostRecord`). */
   isReply?: boolean;
@@ -186,6 +187,7 @@ export interface CalculatePostScoreContext extends OptInSignalContext {
   /** Optional pre-calculated engagement scores (postId → score). */
   engagementScoreCache?: Map<string, number>;
   followingIdsSet?: Set<string>;
+  activitySubscribedAuthorIdsSet?: ReadonlySet<string>;
   behaviorSets?: BehaviorSets;
   /** Oxy authorId → follower count, for the author-authority signal. */
   authorFollowerCounts?: Map<string, number>;
@@ -216,6 +218,7 @@ export interface SignalContext {
   userId?: string;
   /** The viewer's following set (Oxy user ids) — resolved once. */
   followingIdsSet: Set<string>;
+  activitySubscribedAuthorIdsSet?: ReadonlySet<string>;
   userBehavior?: RankingUserBehavior;
   behaviorSets?: BehaviorSets;
   /** Oxy authorId → follower count, for the author-authority + cold-start signals. */
@@ -281,6 +284,7 @@ export function buildSignalContext(
     userId,
     rankingAsOf: context.rankingAsOf,
     authoritativeSignals: context.authoritativeSignals,
+    activitySubscribedAuthorIdsSet: context.activitySubscribedAuthorIdsSet,
     followingIdsSet: context.followingIdsSet ?? new Set(context.followingIds || []),
     userBehavior: context.userBehavior,
     behaviorSets: context.behaviorSets,

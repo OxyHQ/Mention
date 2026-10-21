@@ -30,6 +30,7 @@ import type { SignalModule } from '../types';
 const SIGNAL_WEIGHT_KEYS: Record<string, string> = {
   engagement: 'engagement',
   friendEngagement: 'friendEngagement',
+  activitySubscriptionBoost: 'activitySubscriptionBoost',
   recency: 'recency',
   authorRelationship: 'relationship',
   authorAuthority: 'authority',
@@ -63,7 +64,12 @@ const SIGNAL_WEIGHT_KEYS: Record<string, string> = {
 };
 
 export const signalModules: SignalModule[] = Object.entries(SIGNAL_WEIGHT_KEYS).map(
-  ([id, weightKey]) => ({ id, kind: 'signal', weightKey }),
+  ([id, weightKey]) => ({
+    id,
+    kind: 'signal',
+    weightKey,
+    ...(id === 'activitySubscriptionBoost' ? { userComposable: false } : {}),
+  }),
 );
 
 export function registerSignalModules(registry: FeedModuleRegistry = feedModuleRegistry): void {

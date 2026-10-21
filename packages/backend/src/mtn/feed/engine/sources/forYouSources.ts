@@ -26,6 +26,7 @@ import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 import {
   type CandidateUserBehavior,
   type GatherForYouCandidatesParams,
+  gatherActivitySubscriptionsLane,
   gatherFollowingLane,
   gatherSubscribedListsLane,
   gatherAffinityLane,
@@ -89,6 +90,7 @@ function forYouParams(ctx: FeedEngineContext, cap?: number): GatherForYouCandida
     rankingAsOf: ctx.rankingAsOf,
     candidateLimit: ctx.paginationSession ? cap : undefined,
     followingIds: ctx.followingIds ?? [],
+    activitySubscribedAuthorIds: ctx.activitySubscribedAuthorIds,
     subscribedListMemberIds: ctx.subscribedListMemberIds,
     followedCommunityIds: ctx.followedCommunityIds,
     userBehavior: ctx.userBehavior as CandidateUserBehavior | undefined,
@@ -329,7 +331,17 @@ export const globalDiscoverySource: SourceModule = {
   gather: async (ctx, _params, cap) => runForYouLane(ctx, gatherGlobalLane, cap),
 };
 
+/** Bell subscribers explicitly chose these authors; access remains public-only. */
+export const activitySubscriptionsSource: SourceModule = {
+  id: 'activitySubscriptions',
+  kind: 'source',
+  userComposable: false,
+  trusted: true,
+  gather: async (ctx, _params, cap) => runForYouLane(ctx, gatherActivitySubscriptionsLane, cap),
+};
+
 export const forYouSourceModules: SourceModule[] = [
+  activitySubscriptionsSource,
   followingSource,
   listsSource,
   topicSource,

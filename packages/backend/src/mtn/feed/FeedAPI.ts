@@ -33,6 +33,8 @@ export interface FeedContext {
   safetyRequester?: SafetyRequester;
   currentUserId?: string;
   followingIds?: string[];
+  /** Mention-local profile bells; explicit interest, never follow authorization. */
+  activitySubscribedAuthorIds?: string[];
   /**
    * The viewer's follower ids (accounts that follow the viewer), resolved ONCE
    * per feed request by `loadViewerFeedContext` alongside `followingIds`. Threaded
