@@ -64,7 +64,7 @@ let client: postgres.Sql | null = null;
  *   unmigrated deployment check `config.postgres.url` first.
  */
 export async function connectPostgres(): Promise<Database> {
-  return openPool({});
+  return openPool({ statementTimeoutMs: config.postgres.scriptStatementTimeoutMs });
 }
 
 /**
@@ -74,7 +74,8 @@ export async function connectPostgres(): Promise<Database> {
  * legitimately runs longer raises it for its own transaction with
  * `withStatementTimeout`. One-shot scripts and the deploy gate use
  * {@link connectPostgres}: they run alone, under an operator, bounded by their
- * task.
+ * task and by `PG_SCRIPT_STATEMENT_TIMEOUT_MS` (default 5 minutes), which a
+ * longer one-shot raises on its own task.
  *
  * A separate entry point rather than an options argument: the test suites hand
  * `connectPostgres` straight to `beforeAll`, and vitest reads a hook's first
@@ -84,7 +85,7 @@ export async function connectServingPostgres(): Promise<Database> {
   return openPool({ statementTimeoutMs: config.postgres.statementTimeoutMs });
 }
 
-async function openPool(options: { statementTimeoutMs?: number }): Promise<Database> {
+async function openPool(options: { statementTimeoutMs: number }): Promise<Database> {
   if (db) return db;
 
   const url = config.postgres.url;
@@ -104,15 +105,15 @@ async function openPool(options: { statementTimeoutMs?: number }): Promise<Datab
   const created = createDatabase({
     databaseUrl: url,
     schema,
+    // A startup parameter, so it holds from the connection's first statement;
+    // `@oxy.so/db` derives the client-side query deadline from it, which
+    // destroys a connection the server has gone silent on.
+    statementTimeoutMs: options.statementTimeoutMs,
     client: {
       max: maxPoolSize,
       idle_timeout: config.postgres.idleTimeoutSeconds,
       connect_timeout: config.postgres.connectTimeoutSeconds,
       max_lifetime: config.postgres.maxLifetimeSeconds,
-      // A startup parameter, so it holds from the connection's first statement.
-      ...(options.statementTimeoutMs
-        ? { connection: { statement_timeout: options.statementTimeoutMs } }
-        : {}),
       onnotice: (notice) => logger.debug('Postgres notice', { notice: notice.message }),
     },
   });
@@ -139,7 +140,7 @@ async function openPool(options: { statementTimeoutMs?: number }): Promise<Datab
 
   logger.info('Connected to PostgreSQL successfully', {
     maxPoolSize,
-    statementTimeoutMs: options.statementTimeoutMs ?? null,
+    statementTimeoutMs: options.statementTimeoutMs,
   });
   return db;
 }

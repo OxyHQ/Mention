@@ -199,6 +199,13 @@ const environmentSchema = z
     PG_CONNECT_TIMEOUT_SECONDS: integerFromEnv(10, { minimum: 1 }),
     PG_MAX_LIFETIME_SECONDS: integerFromEnv(1_800, { minimum: 1 }),
     /**
+     * `statement_timeout` for the pool a one-shot script or gate opens
+     * (`connectPostgres`); `@oxy.so/db`'s client-side query deadline follows it.
+     * A one-shot whose statements legitimately run longer raises it on its own
+     * task; 0 lifts both.
+     */
+    PG_SCRIPT_STATEMENT_TIMEOUT_MS: integerFromEnv(300_000),
+    /**
      * Per-statement timing, the per-request roundtrip tally, and the slow-query
      * log (`db/queryMetrics.ts`).
      *
@@ -809,6 +816,7 @@ export const config = {
     idleTimeoutSeconds: environment.PG_IDLE_TIMEOUT_SECONDS,
     connectTimeoutSeconds: environment.PG_CONNECT_TIMEOUT_SECONDS,
     maxLifetimeSeconds: environment.PG_MAX_LIFETIME_SECONDS,
+    scriptStatementTimeoutMs: environment.PG_SCRIPT_STATEMENT_TIMEOUT_MS,
     queryMetricsEnabled: environment.DB_QUERY_METRICS_ENABLED,
     slowQueryMs: environment.DB_SLOW_QUERY_MS,
     /**
