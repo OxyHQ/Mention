@@ -1,29 +1,27 @@
 import { useCallback, useState } from 'react';
 import { queryKeys } from '@oxy.so/services/ui/client';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { APP_COLOR_PRESETS, useBloomTheme, type AppColorName } from '@oxy.so/bloom/theme';
+import { useBloomTheme, type AppColorName } from '@oxy.so/bloom/theme';
 import { logger } from '@oxy.so/core/logger';
 import { isColorEntitled } from '@/lib/colorEntitlement';
+import { markPresetSelection } from '@/hooks/useAccountTheme';
 import { useMentionColorViewer } from '@/hooks/useMentionColorViewer';
 import { queryClient } from '@/lib/queryClient';
-import { useAppearanceStore } from '@/stores/appearanceStore';
-import { useThemeSourceStore } from '@/stores/themeSourceStore';
 
 /**
- * Hook that centralizes the color save sequence:
- * 1. Update Bloom theme for immediate effect.
- * 2. Save the color name to the Oxy user as the profile accent (`color`), plus —
- *    when the theme source is `account` — the portable account theme
- *    (`themePreference.colorPreset`) in the SAME profile write, so the preset
- *    rides other Oxy apps and survives the next cold boot (otherwise the theme
- *    bridge would reapply the previous account color).
- * 3. Save the hex to the Mention backend (for backward compat / profile design).
+ * The profile colour IS the Oxy account colour, so there is exactly one write:
+ * `color` and the portable `themePreference.colorPreset` go to Oxy in the SAME
+ * `updateMe`, and every Oxy app reads them back from there. Oxy's API is the
+ * authority on who may wear which preset (`oxy`/`faircoin` by handle, `mono` by
+ * benefit); the entitlement check here only keeps the picker honest and the
+ * request out of the way of a 400.
+ *
+ * The theme MODE stays what the account already has: choosing a colour must not
+ * overwrite a light/dark choice made elsewhere.
  */
 export function useAppColorSave() {
   const { oxyServices, user } = useAuth();
   const { mode, setColorPreset } = useBloomTheme();
-  const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
-  const source = useThemeSourceStore((state) => state.source);
   const viewer = useMentionColorViewer();
   const [saving, setSaving] = useState(false);
 
@@ -31,35 +29,26 @@ export function useAppColorSave() {
     async (name: AppColorName) => {
       if (!isColorEntitled(name, viewer))
         throw new Error('Color is not available for this account');
+      markPresetSelection();
       setSaving(true);
       setColorPreset(name);
-      const hex = APP_COLOR_PRESETS[name].hex;
-      const profileUpdate: Parameters<typeof oxyServices.users.updateMe>[0] = { color: name };
-      if (source === 'account') {
-        profileUpdate.themePreference = {
-          mode: mode === 'light' || mode === 'dark' ? mode : 'system',
-          colorPreset: name,
-        };
-      }
       try {
-        await Promise.all([
-          oxyServices.users.updateMe(profileUpdate),
-          updateMySettings({
-            appearance: { primaryColor: hex },
-          }),
-        ]);
-        // `oxyServices.users.updateMe` busts the SDK's internal HTTP response cache
-        // but NOT the React Query user caches that `useProfileData`/`useUserByUsername`
-        // read. Without this, the viewer's own profile keeps rendering the
-        // pre-change accent color (via `resolveProfileColor` → `BloomColorScope`)
-        // until the 5-minute staleTime elapses or a full reload. Scope the
-        // invalidation to the VIEWER'S OWN entries only: invalidating the whole
-        // `queryKeys.users.details()` subtree would drop every cached profile and
-        // user-card app-wide for a change to the viewer's own color. `detail(ownId)`
-        // prefix-matches the by-id entry AND any `detailForViewer(ownId, …)` entry;
-        // the by-username entry is a separate key and needs its own call. The
-        // viewer's own profile is always local, so no federated-resolve key applies.
-        // `updateMySettings` already invalidates the `['appearance', ...]` key.
+        await oxyServices.users.updateMe({
+          color: name,
+          themePreference: {
+            mode:
+              user?.themePreference?.mode ??
+              (mode === 'light' || mode === 'dark' ? mode : 'system'),
+            colorPreset: name,
+          },
+        });
+        // `updateMe` busts the SDK's HTTP response cache but NOT the React Query
+        // user caches `useProfileData`/`useUserByUsername` read, so the viewer's
+        // own profile would keep its old accent until the staleTime elapsed.
+        // Scope it to the VIEWER'S OWN entries: invalidating the whole
+        // `queryKeys.users.details()` subtree would drop every cached profile
+        // app-wide. `detail(ownId)` prefix-matches the by-id entry and any
+        // `detailForViewer(ownId, …)`; the by-username entry is a separate key.
         const ownId = user?.id;
         const ownUsername = user?.username;
         if (ownId) {
@@ -76,7 +65,7 @@ export function useAppColorSave() {
         setSaving(false);
       }
     },
-    [oxyServices, setColorPreset, updateMySettings, source, mode, user, viewer],
+    [oxyServices, setColorPreset, mode, user, viewer],
   );
 
   return { saveColor, saving };

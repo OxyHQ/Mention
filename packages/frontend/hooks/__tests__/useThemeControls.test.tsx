@@ -1,6 +1,6 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import { logger } from '@oxy.so/core/logger';
-import { useAccountThemeSync, useThemeControls } from '../useAccountTheme';
+import { markPresetSelection, useAccountThemeSync, useThemeControls } from '../useAccountTheme';
 
 /**
  * Theme changes write back to the Oxy account only when there is a session that
@@ -21,8 +21,10 @@ let mockEntitled = true;
 const mockHydrate = jest.fn();
 let mockSource: 'account' | 'app' = 'account';
 
+const mockUseAccountColor = jest.fn();
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ ...mockAuth, oxyServices: { users: { updateMe: mockUpdateMe } } }),
+  useAccountColor: (options: unknown) => mockUseAccountColor(options),
 }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
@@ -93,24 +95,6 @@ describe('useThemeControls', () => {
     expect(mockUpdateMe).not.toHaveBeenCalled();
   });
 
-  it('keeps a colour change local when signed out', async () => {
-    mockAuth = { canUsePrivateApi: false, user: undefined };
-    mount();
-    await act(() => controls.changeColorPreset('oxy'));
-    expect(mockSetColorPreset).toHaveBeenCalledWith('oxy');
-    expect(mockUpdateMe).not.toHaveBeenCalled();
-  });
-
-  it('refuses a colour the viewer is not entitled to, without applying or persisting it', async () => {
-    mockEntitled = false;
-    mount();
-    await expect(controls.changeColorPreset('mono')).rejects.toThrow(
-      'Color is not available for this account',
-    );
-    expect(mockSetColorPreset).not.toHaveBeenCalled();
-    expect(mockUpdateMe).not.toHaveBeenCalled();
-  });
-
   it('writes the portable theme to the account when signed in on the account source', async () => {
     mockAuth = { canUsePrivateApi: true, user: { username: 'ada' } };
     mount();
@@ -178,7 +162,16 @@ describe('useAccountThemeSync', () => {
     mountSync();
     expect(mockHydrate).toHaveBeenCalled();
     expect(mockSetMode).toHaveBeenCalledWith('dark');
-    expect(mockSetColorPreset).toHaveBeenCalledWith('oxy');
+  });
+
+  it('hands the account colour to the shared hook whatever the source, gated by entitlement', () => {
+    mockSource = 'app';
+    mockEntitled = false;
+    mockAuth = { canUsePrivateApi: true, isAuthenticated: true, user: { username: 'ada' } };
+    mountSync();
+    const { canUse } = mockUseAccountColor.mock.calls[0][0];
+    expect(canUse('oxy')).toBe(false);
+    expect(canUse('teal')).toBe(true);
   });
 
   it('leaves the local theme alone on the app source', () => {
@@ -247,7 +240,7 @@ describe('useAccountThemeSync', () => {
       mockColorPreset = 'teal';
       rerender();
       mount();
-      await act(() => controls.changeColorPreset('teal'));
+      markPresetSelection();
       mockEntitled = true;
       rerender();
       expect(mockSetColorPreset).not.toHaveBeenCalledWith('oxy');

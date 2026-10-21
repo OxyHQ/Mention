@@ -112,7 +112,6 @@ describe('user settings — read after write', () => {
     const record = await updateUserSettings(user, {
       set: {
         'appearance.themeMode': 'dark',
-        'appearance.primaryColor': '#ff0000',
         'privacy.profileVisibility': 'private',
         'privacy.hiddenWords': ['spoilers'],
         'privacy.showSensitiveContent': true,
@@ -127,7 +126,7 @@ describe('user settings — read after write', () => {
       },
     });
 
-    expect(record.appearance).toMatchObject({ themeMode: 'dark', primaryColor: '#ff0000' });
+    expect(record.appearance).toMatchObject({ themeMode: 'dark' });
     expect(record.privacy).toMatchObject({
       profileVisibility: 'private',
       hiddenWords: ['spoilers'],
@@ -165,15 +164,6 @@ describe('user settings — read after write', () => {
     const record = await updateUserSettings(user, { unset: { 'appearance.themeMode': '' } });
 
     expect(record.appearance.themeMode).toBe('system');
-  });
-
-  it('clears a nullable path to absent when unset', async () => {
-    const user = userId('unset-null');
-    await updateUserSettings(user, { set: { 'appearance.primaryColor': '#ff0000' } });
-
-    const record = await updateUserSettings(user, { unset: { 'appearance.primaryColor': '' } });
-
-    expect(record.appearance.primaryColor).toBeUndefined();
   });
 
   it('REPLACES a pinned song with a podcast, leaving no leftovers', async () => {

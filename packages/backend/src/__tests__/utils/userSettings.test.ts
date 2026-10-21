@@ -84,7 +84,7 @@ describe('buildSettingsResponseForViewer', () => {
     const result = buildSettingsResponseForViewer(
       {
         oxyUserId: 'target-user',
-        appearance: { themeMode: 'system', primaryColor: '#00f' },
+        appearance: { themeMode: 'system' },
         profileHeaderImage: 'banner-file',
         privacy: {
           profileVisibility: 'public',
@@ -101,7 +101,6 @@ describe('buildSettingsResponseForViewer', () => {
     expect(result).toBeTruthy();
     expect(result).toEqual({
       oxyUserId: 'target-user',
-      appearance: { primaryColor: '#00f' },
       profileHeaderImage: 'https://cloud.oxy.so/banner-file?variant=w1280',
       profileMedia: undefined,
     });
@@ -118,7 +117,7 @@ describe('buildSettingsResponseForViewer', () => {
     const result = buildSettingsResponseForViewer(
       {
         oxyUserId: 'target-user',
-        appearance: { themeMode: 'system', primaryColor: '#00f' },
+        appearance: { themeMode: 'system' },
         profileHeaderImage: 'banner-file',
         profileCustomization: {
           profileMedia: {

@@ -60,11 +60,11 @@ import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { DraftsIcon } from '@/assets/icons/drafts';
-import { PollIcon } from '@/assets/icons/poll-icon';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 // Import types separately (not lazy loaded)
-import type { ReplyPermission } from '@/components/Compose/ReplySettingsSheet';
+import type { ReplyPermission } from '@/components/Compose/replyPermission';
+import { ReplySettingsMenu } from '@/components/Compose/ReplySettingsMenu';
 import { useDrafts, type Draft } from '@/hooks/useDrafts';
 
 // New imports for refactored components and hooks
@@ -124,7 +124,6 @@ import { buildEditPost, buildMainPost, buildThreadPost } from '@/utils/postBuild
 import {
   type ComposerMediaItem,
   toComposerMediaType,
-  POLL_ATTACHMENT_KEY,
   ARTICLE_ATTACHMENT_KEY,
   EVENT_ATTACHMENT_KEY,
   ROOM_ATTACHMENT_KEY,
@@ -192,7 +191,6 @@ const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
 const ScheduleSheet = lazy(() => import('@/components/Compose/ScheduleSheet'));
 const PodcastPickerSheet = lazy(() => import('@/components/Compose/PodcastPickerSheet'));
 const JobPickerSheet = lazy(() => import('@/components/Compose/JobPickerSheet'));
-const ReplySettingsSheet = lazy(() => import('@/components/Compose/ReplySettingsSheet'));
 
 // Pre-computed stable style objects using layout constants
 const bottomLeftPadStyle = { marginLeft: BOTTOM_LEFT_PAD };
@@ -764,7 +762,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
 
   // Attachment order manager (needs detectedLinks)
   const attachmentOrderManager = useAttachmentOrder({
-    showPollCreator,
     article,
     event,
     room: attachedRoom,
@@ -1981,26 +1978,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     [removeThreadRoom],
   );
 
-  const handleThreadReplySettingsPress = useCallback(
-    (threadId: string) => {
-      const threadItem = threadItemsRef.current.find((t) => t.id === threadId);
-      if (!threadItem) return;
-      bottomSheet.setBottomSheetContent(
-        <Suspense fallback={null}>
-          <ReplySettingsSheet
-            onClose={() => bottomSheet.openBottomSheet(false)}
-            replyPermission={threadItem.replyPermission}
-            onReplyPermissionChange={(permission) => setThreadReplyPermission(threadId, permission)}
-            quotesDisabled={threadItem.quotesDisabled}
-            onQuotesDisabledChange={(disabled) => setThreadQuotesDisabled(threadId, disabled)}
-          />
-        </Suspense>,
-      );
-      bottomSheet.openBottomSheet(true);
-    },
-    [bottomSheet, threadItemsRef, setThreadReplyPermission, setThreadQuotesDisabled],
-  );
-
   const handleThreadSensitiveToggle = useCallback(
     (threadId: string) => {
       const threadItem = threadItemsRef.current.find((t) => t.id === threadId);
@@ -2046,8 +2023,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   );
   const InteractionIcon = anyoneCanInteract ? RiEarthLine : RiGroupLine;
   const SensitiveIcon = isSensitive ? RiAlertFill : RiAlertLine;
-
-  const [isReplySettingsOpen, setIsReplySettingsOpen] = useState(false);
 
   // Character count for the focused item IN THE LANGUAGE being edited — a limit
   // applies to the body a reader actually sees, and that is one body per language.
@@ -2712,45 +2687,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     setThreadEvent,
   ]);
 
-  // Update bottom sheet content when replyPermission or reviewReplies changes
-  useEffect(() => {
-    if (isReplySettingsOpen) {
-      bottomSheet.setBottomSheetContent(
-        <Suspense fallback={null}>
-          <ReplySettingsSheet
-            onClose={() => {
-              bottomSheet.openBottomSheet(false);
-              setIsReplySettingsOpen(false);
-            }}
-            replyPermission={replyPermission}
-            onReplyPermissionChange={setReplyPermission}
-            quotesDisabled={quotesDisabled}
-            onQuotesDisabledChange={setQuotesDisabled}
-          />
-        </Suspense>,
-      );
-    }
-  }, [bottomSheet, replyPermission, quotesDisabled, isReplySettingsOpen]);
-
-  const openReplySettings = useCallback(() => {
-    setIsReplySettingsOpen(true);
-    bottomSheet.setBottomSheetContent(
-      <Suspense fallback={null}>
-        <ReplySettingsSheet
-          onClose={() => {
-            bottomSheet.openBottomSheet(false);
-            setIsReplySettingsOpen(false);
-          }}
-          replyPermission={replyPermission}
-          onReplyPermissionChange={setReplyPermission}
-          quotesDisabled={quotesDisabled}
-          onQuotesDisabledChange={setQuotesDisabled}
-        />
-      </Suspense>,
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [replyPermission, quotesDisabled, bottomSheet]);
-
   return (
     <MentionSearchContext.Provider value={mentionSearchCache}>
       <SEO
@@ -2972,8 +2908,10 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   <>
                     {/* Main composer */}
                     <View
+                      className="border-border"
                       style={[
                         styles.postContainer,
+                        !showThreadTimeline && threadItems.length > 0 && styles.beastSeparator,
                         focusedItemId !== MAIN_ITEM_ID &&
                           threadItems.length > 0 &&
                           styles.unfocusedItem,
@@ -3039,106 +2977,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                             >
                               {attachmentOrder.map((key, index) => {
                                 const total = attachmentOrder.length;
-
-                                if (key === POLL_ATTACHMENT_KEY) {
-                                  if (!showPollCreator) return null;
-                                  return (
-                                    <AttachmentCarouselItem
-                                      key={key}
-                                      attachmentKey={key}
-                                      index={index}
-                                      total={total}
-                                      onMove={moveAttachment}
-                                      onRemove={removePoll}
-                                      wrapperStyle={styles.pollAttachmentWrapper}
-                                    >
-                                      <TouchableOpacity
-                                        className="border-border bg-muted"
-                                        style={styles.pollAttachmentCard}
-                                        activeOpacity={0.85}
-                                        onPress={focusPollCreator}
-                                      >
-                                        <View style={styles.pollAttachmentHeader}>
-                                          <View
-                                            className="bg-card"
-                                            style={styles.pollAttachmentBadge}
-                                          >
-                                            <PollIcon size={16} className="text-primary" />
-                                            <Text
-                                              className="text-primary"
-                                              style={styles.pollAttachmentBadgeText}
-                                            >
-                                              {t('compose.poll.title', { defaultValue: 'Poll' })}
-                                            </Text>
-                                          </View>
-                                          <Text
-                                            className="text-muted-foreground"
-                                            style={styles.pollAttachmentMeta}
-                                          >
-                                            {t('compose.poll.optionCount', {
-                                              count: pollOptions.length,
-                                              defaultValue:
-                                                pollOptions.length === 0
-                                                  ? 'No options yet'
-                                                  : pollOptions.length === 1
-                                                    ? '1 option'
-                                                    : `${pollOptions.length} options`,
-                                            })}
-                                          </Text>
-                                        </View>
-                                        <Text
-                                          className="text-foreground"
-                                          style={styles.pollAttachmentQuestion}
-                                          numberOfLines={2}
-                                        >
-                                          {pollTitle.trim() ||
-                                            t('compose.poll.placeholderQuestion', {
-                                              defaultValue: 'Ask a question...',
-                                            })}
-                                        </Text>
-                                        <View style={styles.pollAttachmentOptions}>
-                                          {(pollOptions.length > 0 ? pollOptions : ['', ''])
-                                            .slice(0, 2)
-                                            .map((option, optionIndex) => {
-                                              const trimmed = option?.trim?.() || '';
-                                              return (
-                                                <View
-                                                  key={`poll-opt-${optionIndex}`}
-                                                  className="border-border bg-card"
-                                                  style={styles.pollAttachmentOption}
-                                                >
-                                                  <Text
-                                                    className="text-muted-foreground"
-                                                    style={styles.pollAttachmentOptionText}
-                                                    numberOfLines={1}
-                                                  >
-                                                    {trimmed ||
-                                                      t('compose.poll.optionPlaceholder', {
-                                                        defaultValue: 'Option {{index}}',
-                                                        index: optionIndex + 1,
-                                                      })}
-                                                  </Text>
-                                                </View>
-                                              );
-                                            })}
-                                          {pollOptions.length > 2 ? (
-                                            <Text
-                                              style={[
-                                                styles.pollAttachmentMore,
-                                                { color: theme.colors.textTertiary },
-                                              ]}
-                                            >
-                                              {t('compose.poll.moreOptions', {
-                                                count: pollOptions.length - 2,
-                                                defaultValue: '+{{count}} more',
-                                              })}
-                                            </Text>
-                                          ) : null}
-                                        </View>
-                                      </TouchableOpacity>
-                                    </AttachmentCarouselItem>
-                                  );
-                                }
 
                                 if (key === ARTICLE_ATTACHMENT_KEY) {
                                   if (!(hasArticleContent && article)) return null;
@@ -3394,6 +3232,20 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                           </View>
                         ) : null}
 
+                        {/* Poll Creator */}
+                        {showPollCreator && (
+                          <PollCreator
+                            pollTitle={pollTitle}
+                            onTitleChange={setPollTitle}
+                            pollOptions={pollOptions}
+                            onAddOption={addPollOption}
+                            onOptionChange={updatePollOption}
+                            onRemoveOption={removePollOption}
+                            onRemove={removePoll}
+                            style={bottomLeftPadStyle}
+                          />
+                        )}
+
                         <View style={styles.toolbarWrapper}>
                           <ComposeToolbar
                             contentPaddingLeft={BOTTOM_LEFT_PAD}
@@ -3449,20 +3301,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                           />
                         )}
 
-                        {/* Poll Creator */}
-                        {showPollCreator && (
-                          <PollCreator
-                            pollTitle={pollTitle}
-                            onTitleChange={setPollTitle}
-                            pollOptions={pollOptions}
-                            onAddOption={addPollOption}
-                            onOptionChange={updatePollOption}
-                            onRemoveOption={removePollOption}
-                            onRemove={removePoll}
-                            style={bottomLeftPadStyle}
-                          />
-                        )}
-
                         {/* Location Display */}
                         {location && (
                           <LocationDisplay
@@ -3490,7 +3328,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                               replyPermission={replyPermission}
                               quotesDisabled={quotesDisabled}
                               isSensitive={isSensitive}
-                              onReplySettingsPress={openReplySettings}
+                              onReplyPermissionChange={setReplyPermission}
+                              onQuotesDisabledChange={setQuotesDisabled}
                               onSensitiveToggle={handleSensitiveToggle}
                             />
                           </View>
@@ -3535,7 +3374,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                         onArticleRemove={handleThreadArticleRemove}
                         onEventRemove={handleThreadEventRemove}
                         onRoomRemove={handleThreadRoomRemove}
-                        onReplySettingsPress={handleThreadReplySettingsPress}
+                        onReplyPermissionChange={setThreadReplyPermission}
+                        onQuotesDisabledChange={setThreadQuotesDisabled}
                         onSensitiveToggle={handleThreadSensitiveToggle}
                         onPodcastPress={openThreadPodcastPicker}
                         onPodcastRemove={removeThreadPodcast}
@@ -3832,15 +3672,21 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                 </Chip>
                 {!(postingMode === 'beast' && threadItems.length > 0) && (
                   <>
-                    <Chip
-                      size="xl"
-                      variant="subtle"
-                      onPress={openReplySettings}
-                      leadingIcon={InteractionIcon}
-                      trailingIcon={RiArrowDownSLine}
+                    <ReplySettingsMenu
+                      replyPermission={replyPermission}
+                      onReplyPermissionChange={setReplyPermission}
+                      quotesDisabled={quotesDisabled}
+                      onQuotesDisabledChange={setQuotesDisabled}
                     >
-                      {interactionLabel}
-                    </Chip>
+                      <Chip
+                        size="xl"
+                        variant="subtle"
+                        leadingIcon={InteractionIcon}
+                        trailingIcon={RiArrowDownSLine}
+                      >
+                        {interactionLabel}
+                      </Chip>
+                    </ReplySettingsMenu>
                     <Chip
                       size="xl"
                       variant="subtle"

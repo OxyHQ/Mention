@@ -90,6 +90,15 @@ import {
 } from '../../services/PostEngagementCommandService';
 import { deleteFederatedPostSubtree } from '../../services/FederatedPostDeletionService';
 import { applyInboundMove } from './move.service';
+import {
+  addressedLocalCommunity,
+  isSelfConsistentActivity,
+  referenceOnlyDelete,
+  relayToCommunityFollowers,
+  resolveLocalCommunityActor,
+} from './communityRelay';
+import { isBannedFromCommunity } from '../../db/communities/communityBanRepository';
+import { localCommunityOfPost } from '../../services/communities/communityPosting';
 
 /**
  * Whether a Note replies to one of our posts or mentions one of our users. Such
@@ -544,12 +553,19 @@ export class InboxProcessingService {
     // a genuine reply/post returns false and flows through unchanged.
     if (await this.handlePollVote(object, actorUri)) return;
 
+    // A Create addressed to a community HOSTED HERE (its `audience`, or a
+    // `to`/`cc` naming it) is the community's to take and relay (FEP-1b12), with
+    // no follower needed. Not for a copy another community relayed to us: that
+    // one is filed under the relaying community.
+    const addressedCommunity = relayedBy ? null : await addressedLocalCommunity(object);
+
     // Only process a Note some local user asked for: it replies to or mentions
     // one of our users, or its author — or the community that relayed it — is
     // followed here. The in-memory check first.
     const isFollowed = (remoteActorUri: string) =>
       existsFollow({ remoteActorUri, direction: 'outbound', statuses: ['accepted'] });
     if (
+      !addressedCommunity &&
       !addressesLocalUsers(object) &&
       !(await isFollowed(actorUri)) &&
       !(relayedBy && (await isFollowed(relayedBy)))
@@ -622,7 +638,6 @@ export class InboxProcessingService {
       return;
     }
     const { media, attachments, hashtags, summary, sensitive, variants, linkPreviews } = built;
-    const communityOxyUserId = await resolvePostCommunity(object, relayedBy);
 
     // Preserve the ORIGINAL publish date so a federated post reflects when it
     // was authored remotely, not when our inbox happened to receive it. The Note
@@ -664,6 +679,29 @@ export class InboxProcessingService {
       logger.debug('[Federation] dropped reply to a channel-authored post');
       return;
     }
+
+    // The community HOSTED HERE the post is written in: the one it is addressed
+    // to, or — for a reply — its thread's. A member its moderators banned is
+    // refused outright, silently (a throw would retry forever; see above). The
+    // community relays the post only when it speaks for its own actor alone: the
+    // signature proved who delivered it, `isSelfConsistentActivity` that they
+    // claim nobody else's post. Otherwise it is filed as any federated post is.
+    const localCommunity =
+      addressedCommunity ??
+      (threadLink
+        ? await resolveLocalCommunityActor(await localCommunityOfPost(threadLink.parentPostId))
+        : null);
+    if (
+      localCommunity &&
+      (await isBannedFromCommunity(localCommunity.oxyUserId, authorOxyUserId))
+    ) {
+      logger.debug('[Federation] dropped a post by a member banned from the community');
+      return;
+    }
+    const relayingCommunity =
+      localCommunity && isSelfConsistentActivity(activity, actorUri) ? localCommunity : null;
+    const communityOxyUserId =
+      relayingCommunity?.oxyUserId ?? (await resolvePostCommunity(object, relayedBy));
 
     // When this Note QUOTES another post, link it to the local quoted Post so
     // hydration embeds the quoted original (mirrors the native quote shape). The
@@ -749,6 +787,9 @@ export class InboxProcessingService {
     // FEP-8967 cards: the fallback for a link Clarity has not described yet.
     if (linkPreviews.length > 0) await storeRemoteLinkPreviews(createdPost.id, linkPreviews);
 
+    // The community relays the member's Create to its own followers.
+    if (relayingCommunity) await relayToCommunityFollowers(relayingCommunity, activity);
+
     // A federated reply to a LOCAL post notifies the parent owner exactly like a
     // native reply (`type:'reply'`, entityId = the new reply post). Only reached
     // when this Create is genuinely new — the `federation.activityId` dedup above
@@ -815,12 +856,22 @@ export class InboxProcessingService {
       postMatchesFederatedObjectSql(objectId),
       eq(posts.federationActorUri, actorUri),
     );
-    const [post] = await getDb().select({ id: posts.id }).from(posts).where(ownedByActor).limit(1);
+    const [post] = await getDb()
+      .select({ id: posts.id, communityOxyUserId: posts.communityOxyUserId })
+      .from(posts)
+      .where(ownedByActor)
+      .limit(1);
     if (!post) return;
 
     const deleted = await deleteFederatedPostSubtree(post.id, actorUri);
     if (deleted !== 'deleted') return;
     logger.debug('[Federation] deleted federated post');
+
+    // A community hosted here that relayed the post relays its retraction.
+    const community = await resolveLocalCommunityActor(post.communityOxyUserId);
+    if (community) {
+      await relayToCommunityFollowers(community, referenceOnlyDelete(activity, actorUri, objectId));
+    }
   }
 
   /**

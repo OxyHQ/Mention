@@ -1,5 +1,5 @@
 diff --git a/build/VideoPlayer.web.js b/build/VideoPlayer.web.js
-index de8d39050cecbc7519ac46c99029ecc3d355a412..999b1708b35a34f49c20edfa975cefdcee42dd10 100644
+index de8d390..999b170 100644
 --- a/build/VideoPlayer.web.js
 +++ b/build/VideoPlayer.web.js
 @@ -1,6 +1,15 @@
@@ -64,7 +64,7 @@ index de8d39050cecbc7519ac46c99029ecc3d355a412..999b1708b35a34f49c20edfa975cefdc
              });
          };
 diff --git a/src/VideoPlayer.web.tsx b/src/VideoPlayer.web.tsx
-index 6b5083eaf6505d376112acd6ee0995fa7b856f88..4327b2b1eed538c7f7cc5ce351c5fa7dbdc56c8d 100644
+index 6b5083e..4327b2b 100644
 --- a/src/VideoPlayer.web.tsx
 +++ b/src/VideoPlayer.web.tsx
 @@ -20,6 +20,15 @@ import type { VideoPlayerEvents } from './VideoPlayerEvents.types';

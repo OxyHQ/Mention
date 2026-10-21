@@ -16,12 +16,20 @@ import { isAbsoluteHttpUrl } from '../shared/url';
 import { actorService } from './actor.service';
 import { deliveryService } from './delivery.service';
 import {
+  communityPostObjectId,
+  federateCommunityBan,
+  federateCommunityRemoval,
+  federateCommunityUnban,
+  resolveLocalCommunityActors,
+} from './communityRelay';
+import {
   followService,
   type NoteSourcePost,
   type NoteReplyContext,
   type NoteMentionContext,
   type NotePollContext,
   type NoteQuoteContext,
+  type NoteCommunityContext,
 } from './follow.service';
 import { outboxSyncService } from './outbox.service';
 import { inboxProcessingService } from './inbox.service';
@@ -211,7 +219,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
         // A deletion broadcasts a Delete(Tombstone) of the post's canonical AP id
         // to the deleter's followers.
         await followService.federateDelete(
-          { id: String(event.post._id) },
+          { id: String(event.post._id), communityOxyUserId: event.post.communityOxyUserId },
           event.actorOxyUserId,
           event.actorUsername,
         );
@@ -490,8 +498,58 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     mentions?: NoteMentionContext,
     poll?: NotePollContext,
     quote?: NoteQuoteContext,
+    community?: NoteCommunityContext,
   ): Record<string, unknown> {
-    return followService.buildCreateNoteActivity(post, username, reply, mentions, poll, quote);
+    return followService.buildCreateNoteActivity(
+      post,
+      username,
+      reply,
+      mentions,
+      poll,
+      quote,
+      community,
+    );
+  }
+
+  /** The AP object id a post is known by on the fediverse (see `communityRelay.ts`). */
+  communityPostObjectId(postId: string): Promise<string | null> {
+    return communityPostObjectId(postId);
+  }
+
+  /** A moderator's removal of a post from a community hosted here, relayed by it. */
+  federateCommunityRemoval(params: Parameters<typeof federateCommunityRemoval>[0]): Promise<void> {
+    return federateCommunityRemoval(params);
+  }
+
+  /** A community's `Block` of the person it banned. */
+  federateCommunityBan(
+    communityOxyUserId: string,
+    bannedOxyUserId: string,
+    reason: string | null,
+  ): Promise<void> {
+    return federateCommunityBan(communityOxyUserId, bannedOxyUserId, reason);
+  }
+
+  /** The `Undo(Block)` of a lifted community ban. */
+  federateCommunityUnban(communityOxyUserId: string, bannedOxyUserId: string): Promise<void> {
+    return federateCommunityUnban(communityOxyUserId, bannedOxyUserId);
+  }
+
+  /**
+   * The community hosted here each post is written in, for a PULL surface (the
+   * outbox, `featured`, the per-post dereference), so a fetched Note names the
+   * same `audience` a pushed one does. One batched identity read.
+   */
+  async resolveCommunityContextByPost(
+    posts: ReadonlyArray<Pick<NoteSourcePost, 'id' | 'communityOxyUserId'>>,
+  ): Promise<Map<string, NoteCommunityContext>> {
+    const actors = await resolveLocalCommunityActors(posts.map((post) => post.communityOxyUserId));
+    const contexts = new Map<string, NoteCommunityContext>();
+    for (const post of posts) {
+      const actor = post.communityOxyUserId ? actors.get(post.communityOxyUserId) : undefined;
+      if (actor) contexts.set(post.id, { actorUri: actor.actorUri });
+    }
+    return contexts;
   }
 
   /**

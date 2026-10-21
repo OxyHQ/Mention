@@ -397,7 +397,8 @@ describe('a draft round-trips every field it keeps', () => {
     expect(restored.postingMode).toBe('beast');
     expect(restored.showPollCreator).toBe(true);
     expect(restored.pollTitle).toBe('Apply?');
-    expect(restored.attachmentOrder).toEqual(expect.arrayContaining(['poll', 'podcast', 'job']));
+    expect(restored.attachmentOrder).toEqual(expect.arrayContaining(['podcast', 'job']));
+    expect(restored.attachmentOrder).not.toContain('poll');
   });
 
   it('narrows what storage holds instead of trusting it', () => {

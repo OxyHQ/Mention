@@ -77,22 +77,12 @@ describe('PUT /profile/settings — postReadMoreAction + collapseLongBio', () =>
     await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, TEST_USER));
   });
 
-  it.each(['mono', 'monochrome', 'oxy', 'faircoin'])(
-    'rejects canonical preset %s through the legacy hex write',
-    async (primaryColor) => {
-      await request(app)
-        .put('/profile/settings')
-        .send({ appearance: { primaryColor } })
-        .expect(400);
-    },
-  );
-
-  it('preserves basic custom hex for a free account', async () => {
+  it('ignores a profile colour sent as appearance.primaryColor: the colour lives in Oxy', async () => {
     await request(app)
       .put('/profile/settings')
       .send({ appearance: { primaryColor: '#102030' } })
       .expect(200);
-    expect((await getSettings()).appearance).toMatchObject({ primaryColor: '#102030' });
+    expect((await getSettings()).appearance).not.toHaveProperty('primaryColor');
   });
 
   it('persists a valid postReadMoreAction value', async () => {
@@ -171,14 +161,12 @@ describe('PUT /profile/settings — postReadMoreAction + collapseLongBio', () =>
     });
   });
 
-  it('a later partial-appearance request (e.g. color picker sending only primaryColor) does not reset earlier appearance fields', async () => {
+  it('a later partial-appearance request (e.g. a request with only collapseLongBio) does not reset earlier appearance fields', async () => {
     // Regression test for the whole-subdocument-replace bug: `appearance` is a
     // the legacy ODM single-nested subdocument, so a request that builds it as one
     // nested object under `update['appearance']` silently backfills any field
     // not present in the request with schema defaults, wiping earlier values.
-    // `useAppColorSave.ts` sends exactly this kind of partial payload
-    // (`{ appearance: { primaryColor: hex } }`) when the user only taps a color
-    // swatch — it must not clobber `postReadMoreAction`/`themeMode` set earlier.
+    // A partial payload must not clobber `postReadMoreAction`/`themeMode` set earlier.
     await request(app)
       .put('/profile/settings')
       .send({ appearance: { postReadMoreAction: 'expandInline', themeMode: 'dark' } })
@@ -186,14 +174,14 @@ describe('PUT /profile/settings — postReadMoreAction + collapseLongBio', () =>
 
     await request(app)
       .put('/profile/settings')
-      .send({ appearance: { primaryColor: '#ff0000' } })
+      .send({ appearance: { collapseLongBio: false } })
       .expect(200);
 
     const settings = await getSettings();
     expect(settings.appearance).toMatchObject({
       postReadMoreAction: 'expandInline',
       themeMode: 'dark',
-      primaryColor: '#ff0000',
+      collapseLongBio: false,
     });
   });
 });

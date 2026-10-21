@@ -29,11 +29,6 @@ export function extractPublicProfileData(
 
   return {
     oxyUserId: userId,
-    appearance: doc?.appearance?.primaryColor
-      ? {
-          primaryColor: doc.appearance.primaryColor,
-        }
-      : undefined,
     profileHeaderImage: resolveProfileHeaderImage(doc?.profileHeaderImage),
     // Pinned Syra "profile media" (a song OR a podcast show) — already
     // denormalized + verified at save time, so it is public-safe and

@@ -1,6 +1,7 @@
 /**
  * The ONE definition of "may this person publish as that account", of "may this
- * person DELETE that account", and of "is that account a channel".
+ * person DELETE that account", of "may this person MODERATE that community", and
+ * of "is that account a channel" (or a community hosted here).
  *
  * The first two live together because they share the membership READ, not
  * because they share an answer — they deliberately do not. Publishing as a
@@ -56,7 +57,7 @@ import type { AccountKind } from '@oxy.so/contracts';
 import { isDelegatedActAsEligibleKind } from '@oxy.so/contracts';
 import type { AccountMember, AccountNode } from '@oxy.so/core';
 import type { PostUser } from '@mention/shared-types';
-import { isMentionChannel } from '@mention/shared-types/profileUrls';
+import { isMentionChannel, isMentionCommunity } from '@mention/shared-types/profileUrls';
 import { resolveUserSummaries } from './PostHydrationService';
 import { logger } from '../utils/logger';
 
@@ -546,4 +547,64 @@ export async function assertCanDeleteAccount(params: {
   }
 
   return kind;
+}
+
+/**
+ * The community hosted here behind `oxyUserId` ({@link isMentionCommunity}), or
+ * `null` — for a remote community, any other kind, or an id the identity path
+ * could not resolve. Through the same cached identity read as every kind
+ * question in this module.
+ */
+export async function resolveMentionCommunity(
+  oxyUserId: string | null | undefined,
+): Promise<PostUser | null> {
+  if (!oxyUserId) return null;
+  return (await resolveMentionCommunities([oxyUserId])).get(oxyUserId) ?? null;
+}
+
+/** {@link resolveMentionCommunity} for several ids in one batched read; misses are absent. */
+export async function resolveMentionCommunities(
+  oxyUserIds: ReadonlyArray<string | null | undefined>,
+): Promise<Map<string, PostUser>> {
+  const communities = new Map<string, PostUser>();
+  for (const [id, account] of await resolveAccounts(oxyUserIds)) {
+    if (isMentionCommunity(account)) communities.set(id, account);
+  }
+  return communities;
+}
+
+/**
+ * Refuse unless `callerId` MODERATES the community hosted here
+ * `communityOxyUserId`, and answer with the community.
+ *
+ * A community's moderators are its ACTIVE MEMBERS, whatever their role — the
+ * same answer Oxy publishes as its moderators collection (`GET
+ * /users/:id/moderators`) and the same grading a channel's writers get: a
+ * community can never be acted as (`isDelegatedActAsEligibleKind` refuses it),
+ * so nothing stronger than membership exists to ask for. Read through
+ * {@link readActiveMembership}, the one membership read behind every gate here,
+ * with the CALLER's own bearer.
+ *
+ *  - **404** — not a community hosted here (a remote community is moderated by
+ *    its own server, and nothing else has moderators).
+ *  - **403** — no caller, no client to ask Oxy with, or not an active member.
+ *  - **503** — Oxy could not answer. Fails closed: a moderation action removes
+ *    other people's work, so an unverifiable moderator is refused.
+ */
+export async function assertCanModerateCommunity(params: {
+  communityOxyUserId: string | null | undefined;
+  callerId: string | null | undefined;
+  memberReader: AccountMemberReader | undefined;
+}): Promise<PostUser> {
+  const target = params.communityOxyUserId?.trim();
+  const callerId = params.callerId?.trim();
+  const community = await resolveMentionCommunity(target);
+  if (!target || !community) {
+    throw new PublishAsAccessError(404, 'Community not found');
+  }
+  if (!callerId || !params.memberReader) {
+    throw new PublishAsAccessError(403, 'You do not moderate that community');
+  }
+  await readActiveMembership(target, callerId, params.memberReader);
+  return community;
 }

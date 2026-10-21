@@ -7,16 +7,14 @@ import { RadioGroup } from '@oxy.so/bloom/radio';
 import { CheckboxCard } from '@oxy.so/bloom/checkbox';
 import { Switch } from '@oxy.so/bloom/switch';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import {
+  GRANULAR_REPLY_OPTIONS,
+  toggleGranularPermission,
+  type GranularReplyPermission,
+  type ReplyPermission,
+} from './replyPermission';
 
-export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned' | 'nobody';
-
-type GranularPermission = 'followers' | 'following' | 'mentioned';
-
-const GRANULAR_OPTIONS: { value: GranularPermission; labelKey: string }[] = [
-  { value: 'followers', labelKey: 'Your followers' },
-  { value: 'following', labelKey: 'People you follow' },
-  { value: 'mentioned', labelKey: 'People you mention' },
-];
+export type { ReplyPermission };
 
 interface ReplySettingsSheetProps {
   onClose: () => void;
@@ -45,26 +43,8 @@ export default function ReplySettingsSheet({
   );
 
   const handleCheckboxToggle = useCallback(
-    (value: 'followers' | 'following' | 'mentioned') => {
-      const currentGranular = replyPermission.filter(
-        (p): p is 'followers' | 'following' | 'mentioned' =>
-          p === 'followers' || p === 'following' || p === 'mentioned',
-      );
-
-      let next: ReplyPermission[];
-      if (currentGranular.includes(value)) {
-        next = currentGranular.filter((p) => p !== value);
-      } else {
-        next = [...currentGranular, value];
-      }
-
-      // If no granular options selected, default back to 'anyone'
-      if (next.length === 0) {
-        next = ['anyone'];
-      }
-
-      onReplyPermissionChange(next);
-    },
+    (value: GranularReplyPermission) =>
+      onReplyPermissionChange(toggleGranularPermission(replyPermission, value)),
     [replyPermission, onReplyPermissionChange],
   );
 
@@ -82,7 +62,7 @@ export default function ReplySettingsSheet({
         ]}
       />
       <View className="gap-1">
-        {GRANULAR_OPTIONS.map((option) => (
+        {GRANULAR_REPLY_OPTIONS.map((option) => (
           <CheckboxCard
             key={option.value}
             title={t(option.labelKey)}

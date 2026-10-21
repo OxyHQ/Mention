@@ -101,7 +101,7 @@ export async function deleteAuthoredPost(
     const deleterOxyUserId = deletedPost.oxyUserId;
     federateAsResolvedActor(deleterOxyUserId, 'post delete', (username) => ({
       kind: 'post.delete',
-      post: { _id: deletedId },
+      post: { _id: deletedId, communityOxyUserId: deletedPost.communityOxyUserId },
       actorOxyUserId: deleterOxyUserId,
       actorUsername: username,
     }));

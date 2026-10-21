@@ -21,7 +21,6 @@ type Result = ReturnType<typeof useAttachmentOrder>;
 const EVENT = { name: 'Launch', date: '2026-10-01T18:00:00.000Z' };
 
 const base: Props = {
-  showPollCreator: false,
   article: null,
   event: null,
   room: null,

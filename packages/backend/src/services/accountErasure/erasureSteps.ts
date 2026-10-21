@@ -25,6 +25,7 @@ import { getDb } from '../../db/postgres';
 import { articles } from '../../db/schema/articles';
 import { blocklistProposals } from '../../db/schema/blocklist';
 import { laneMutes, lanes } from '../../db/schema/channels';
+import { communityBans } from '../../db/schema/communities';
 import {
   authorFollowerSnapshots,
   notifications,
@@ -703,6 +704,24 @@ export const ERASURE_STEPS: Readonly<Record<string, ErasureStep>> = {
     (ctx) =>
       and(eq(contentLabels.targetType, 'user'), eq(contentLabels.targetId, ctx.oxyUserId)) ??
       eq(contentLabels.targetId, ctx.oxyUserId),
+  ),
+  'community_bans.communityOxyUserId': deleteRows(
+    'account',
+    communityBans,
+    communityBans.communityOxyUserId,
+    accountIs(communityBans.communityOxyUserId),
+  ),
+  'community_bans.bannedOxyUserId': deleteRows(
+    'account',
+    communityBans,
+    communityBans.bannedOxyUserId,
+    accountIs(communityBans.bannedOxyUserId),
+  ),
+  'community_bans.bannedByOxyUserId': replaceAccount(
+    communityBans,
+    communityBans.bannedByOxyUserId,
+    communityBans.bannedOxyUserId,
+    ERASED_ACCOUNT_SENTINEL,
   ),
   // Mutes of the account's lanes go before the lanes, so none is left to the
   // `lane_id` cascade alone (the two account columns carry no constraint).

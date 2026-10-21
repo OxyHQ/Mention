@@ -31,6 +31,7 @@ export async function withShadowReceiptDatabase<T>(
   const { db, client } = createDatabase({
     databaseUrl,
     schema,
+    statementTimeoutMs: remaining,
     client: {
       max: 1,
       idle_timeout: 0,
@@ -38,7 +39,6 @@ export async function withShadowReceiptDatabase<T>(
       connect_timeout: Math.max(1, Math.ceil(remaining / 1000)),
       connection: {
         application_name: 'mention-shadow-receipt-maintenance',
-        statement_timeout: remaining,
         lock_timeout: remaining,
       },
       onnotice: () => undefined,

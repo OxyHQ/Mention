@@ -1451,14 +1451,21 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
     'post_media.mediaId',
     'an Oxy file id, or a remote URL for federated media the cache never rewrote',
   ],
+  ['community_bans.communityOxyUserId', 'an Oxy `community` account; a channel is never one'],
+  [
+    'community_bans.bannedOxyUserId',
+    'the person a community banned from posting in it; a channel never posts in a community ' +
+      '(a community post is written as oneself)',
+  ],
+  ['community_bans.bannedByOxyUserId', "the community's moderator, a person"],
   ['post_variant_alt_texts.mediaId', 'an Oxy file id the localized alt text describes'],
   ['post_variant_alt_texts.variantId', 'the language rendition the alt text belongs to'],
   ['post_variant_media.mediaId', 'an Oxy file id'],
   ['post_variant_media.variantId', 'the language rendition the media belongs to'],
   [
     'posts.communityOxyUserId',
-    'the Oxy account of a federated ActivityPub `Group` a post was written in; a channel is a local ' +
-      'account, never a community',
+    'the Oxy `community` account (federated or hosted here) a post was written in; a channel is ' +
+      'never a community',
   ],
   ['posts.contentArticleId', 'the Article row the post owns, removed by `articles.post_id`'],
   ['posts.contentEventId', 'an event attachment id'],

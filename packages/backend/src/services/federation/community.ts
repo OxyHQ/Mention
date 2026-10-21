@@ -6,8 +6,9 @@ import { resolveAccountKinds } from '../publishAsAccount';
  * Which of these federated actors are COMMUNITIES (a Lemmy, PieFed or Mbin
  * community, FEP-1b12), as their Oxy account ids.
  *
- * The ONE place this is decided: the ingest (`connectors/activitypub/apCommunity.ts`)
- * and the viewer's follow graph (`services/viewerFollowGraph.ts`) both ask here.
+ * The ONE place this is decided, for the ingest
+ * (`connectors/activitypub/apCommunity.ts`); everything downstream reads the
+ * decision back from `posts.community_oxy_user_id`.
  *
  * THE ANSWER IS OXY'S ACCOUNT KIND. Oxy records every federated account with
  * the kind `@oxy.so/federation`'s actor-type table gives it (`accountKindForActor`,
@@ -20,12 +21,11 @@ import { resolveAccountKinds } from '../publishAsAccount';
  *
  * The actor row only NARROWS the lookup. The table maps exactly one AS2 type to
  * a community (`LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND.community`, `Group`), so an
- * actor of any other type cannot be one and costs nothing: a viewer who follows
- * no `Group` pays no read, and one who does pays a batched cache read.
+ * actor of any other type cannot be one and costs nothing, and a `Group` costs a
+ * batched cache read.
  *
  * Fail-soft: an account Oxy could not be asked about resolves as no community,
- * which stores the post without one and leaves the community out of a feed
- * branch. Both recover on the next read.
+ * which stores the post without one.
  */
 export async function communityAccountIds(
   actors: readonly Pick<FederatedActorRecord, 'type' | 'oxyUserId'>[],

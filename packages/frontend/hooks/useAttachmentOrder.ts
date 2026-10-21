@@ -15,7 +15,6 @@ import type { Source } from './useSourcesManager';
 import type { JobAttachmentData } from './useJobAttachmentManager';
 
 interface UseAttachmentOrderProps {
-  showPollCreator: boolean;
   article: ArticleData | null;
   event: EventData | null;
   room: RoomAttachmentData | null;
@@ -31,7 +30,6 @@ interface UseAttachmentOrderProps {
 }
 
 export const useAttachmentOrder = ({
-  showPollCreator,
   article,
   event,
   room,
@@ -50,7 +48,6 @@ export const useAttachmentOrder = ({
   const activeKeys = useMemo(
     () =>
       attachmentKeysOf({
-        showPollCreator,
         article,
         event,
         room,
@@ -61,7 +58,7 @@ export const useAttachmentOrder = ({
         mediaIds,
         linkUrls,
       }),
-    [showPollCreator, article, event, room, podcast, job, location, sources, mediaIds, linkUrls],
+    [article, event, room, podcast, job, location, sources, mediaIds, linkUrls],
   );
 
   // Preserve the last computed ordering between attachment changes.

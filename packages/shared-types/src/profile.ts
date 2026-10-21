@@ -96,8 +96,6 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 export interface AppearanceSettings {
   /** Preferred app theme */
   themeMode: ThemeMode;
-  /** User-selected primary color in hex (e.g. #005c67) */
-  primaryColor?: string;
 }
 
 /**

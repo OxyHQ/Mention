@@ -387,8 +387,9 @@ export interface PostContent {
    */
   variants?: PostContentVariant[];
   /**
-   * The headline a federated `Page` or `Article` carries apart from its body (a
-   * Lemmy post's title). Absent on every native post.
+   * The headline a post carries apart from its body: a federated `Page` or
+   * `Article`'s (a Lemmy post's title), or a native post written in a community
+   * (optional there, one plain-text line). It federates as the `Page`'s `name`.
    */
   title?: string;
   /**
@@ -851,6 +852,18 @@ export interface CreatePostRequest {
    * for that, because a boost is already the right row with the right owner.
    */
   publishAsOxyUserId?: string;
+  /**
+   * Write this post IN a community hosted here (an Oxy account of kind
+   * `community`): the post stays the caller's, carries the community as
+   * `community`, appears on the community's page and in its members' Following
+   * feeds, and the community relays it to its fediverse followers (FEP-1b12).
+   *
+   * Refused (400) on a reply (a reply takes its thread's community), a boost,
+   * a post published as another account, a post that is not public, or an
+   * account that is not a community hosted here; refused (403) when a moderator
+   * banned the caller from it. `content.title` is accepted only alongside it.
+   */
+  communityOxyUserId?: string;
 }
 
 export interface CreateThreadPostRequest {

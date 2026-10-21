@@ -100,6 +100,7 @@ import { getMentionCustodialPrivateKey, getMentionCustodialPublicKey } from './m
 import {
   MENTION_NODE_INGEST_BATCH,
   MENTION_NODE_INGEST_MAX_ITERATIONS,
+  MENTION_NODE_INGEST_BODY_TIMEOUT_MS,
   MENTION_NODE_INGEST_FETCH_TIMEOUT_MS,
   MENTION_NODE_INGEST_MAX_BYTES,
   MENTION_NODE_EXPORT_BATCH,
@@ -148,6 +149,7 @@ function makeNodeClient(endpoint: string): NodeClient {
     baseUrl: endpoint,
     fetch: nodeFetch,
     headersTimeoutMs: MENTION_NODE_INGEST_FETCH_TIMEOUT_MS,
+    bodyTimeoutMs: MENTION_NODE_INGEST_BODY_TIMEOUT_MS,
     maxRedirects: 1,
     logMaxBytes: MENTION_NODE_INGEST_MAX_BYTES,
   });

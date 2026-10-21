@@ -239,7 +239,6 @@ const readBox = (
     attachmentOrder: reconcileAttachmentOrder(
       readArray(stored.attachmentOrder).filter(isString),
       attachmentKeysOf({
-        showPollCreator,
         article,
         event,
         room,

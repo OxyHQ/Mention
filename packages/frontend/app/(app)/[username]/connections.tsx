@@ -141,9 +141,14 @@ function AuthorizedConnectionsScreen() {
     refresh: refreshProfile,
   } = useProfileData(cleanUsername);
 
+  const color = resolveProfileColor(profileData?.design.color);
+
+  // Same split as ProfileShell: a preset is the Screen's claim, which themes the
+  // whole shell (sidebar, frame, bottom bar) on a split layout and only this
+  // column in the Deck; an exact seed has no claim, so it scopes the content.
   return (
-    <BloomColorScope {...resolveProfileColor(profileData?.design.color)} asChild>
-      <Screen>
+    <BloomColorScope seed={color?.seed} asChild>
+      <Screen colorPreset={color?.colorPreset}>
         <ConnectionsContent
           routeUsername={username}
           cleanUsername={cleanUsername}

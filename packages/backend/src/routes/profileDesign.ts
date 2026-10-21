@@ -23,9 +23,6 @@ interface PublicProfileDesignResponse {
   postsCount?: number;
   boostsCount?: number;
   repliesCount?: number;
-  appearance?: {
-    primaryColor?: string;
-  };
   profileHeaderImage?: string;
   profileMedia?: ProfileMedia;
   privacy?: {

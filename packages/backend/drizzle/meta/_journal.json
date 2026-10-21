@@ -617,6 +617,13 @@
       "when": 1792546801910,
       "tag": "0087_post_community_chrono_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1792604771692,
+      "tag": "0088_community_bans",
+      "breakpoints": true
     }
   ]
 }

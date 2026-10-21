@@ -66,6 +66,7 @@ const mocks = vi.hoisted(() => ({
   resolvePollContextByPost: vi.fn(),
   resolveQuoteContext: vi.fn(),
   resolveQuoteContextByPost: vi.fn(),
+  resolveCommunityContextByPost: vi.fn(async () => new Map()),
   getServiceOxyClient: vi.fn(),
   getUserFollowers: vi.fn(),
   getUserFollowing: vi.fn(),
@@ -94,6 +95,8 @@ vi.mock('../../../connectors/activitypub/ActivityPubConnector', () => ({
     resolvePollContextByPost: (...args: unknown[]) => mocks.resolvePollContextByPost(...args),
     resolveQuoteContext: (...args: unknown[]) => mocks.resolveQuoteContext(...args),
     resolveQuoteContextByPost: (...args: unknown[]) => mocks.resolveQuoteContextByPost(...args),
+    resolveCommunityContextByPost: (...args: unknown[]) =>
+      mocks.resolveCommunityContextByPost(...args),
   },
 }));
 

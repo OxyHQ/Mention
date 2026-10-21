@@ -1,7 +1,6 @@
 import { memo, useCallback, useMemo } from 'react';
 import {
   View,
-  Text,
   TouchableOpacity,
   ScrollView,
   type ImageStyle,
@@ -19,7 +18,6 @@ import ComposeMentionSummary from '@/components/Compose/ComposeMentionSummary';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
-import { PollIcon } from '@/assets/icons/poll-icon';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 // Deep imports rather than this directory's own barrel: the barrel re-exports
@@ -32,6 +30,7 @@ import { LocationDisplay } from '@/components/Compose/LocationDisplay';
 import { ComposeAltButton } from '@/components/Compose/ComposeAltButton';
 import ComposeIdentityHeader from '@/components/Compose/ComposeIdentityHeader';
 import InteractionSettingsPills from '@/components/Compose/InteractionSettingsPills';
+import type { ReplyPermission } from '@/components/Compose/replyPermission';
 import type { ThreadItem } from '@/hooks/useThreadManager';
 import type { ComposerMediaItem } from '@/utils/composeUtils';
 import type { MentionTextValue } from '@/utils/mentions';
@@ -52,29 +51,20 @@ export interface ComposeThreadItemStyles {
   timelineForeground: ViewStyle;
   postContainer: ViewStyle;
   unfocusedItem: ViewStyle;
+  beastSeparator: ViewStyle;
   threadTextInput: TextStyle;
   toolbarWrapper: ViewStyle;
   removeThreadBtn: ViewStyle;
   mediaPreviewContainer: ViewStyle;
   mediaPreviewScroll: ViewStyle;
   mediaPreviewItem: ViewStyle;
+  pollAttachmentWrapper: ViewStyle;
+  pollAttachmentRemoveButton: ViewStyle;
   mediaPreviewImage: ImageStyle;
   mediaReorderControls: ViewStyle;
   mediaReorderButton: ViewStyle;
   mediaReorderButtonDisabled: ViewStyle;
   mediaRemoveButton: ViewStyle;
-  pollAttachmentWrapper: ViewStyle;
-  pollAttachmentCard: ViewStyle;
-  pollAttachmentHeader: ViewStyle;
-  pollAttachmentBadge: ViewStyle;
-  pollAttachmentBadgeText: TextStyle;
-  pollAttachmentMeta: TextStyle;
-  pollAttachmentQuestion: TextStyle;
-  pollAttachmentOptions: ViewStyle;
-  pollAttachmentOption: ViewStyle;
-  pollAttachmentOptionText: TextStyle;
-  pollAttachmentMore: TextStyle;
-  pollAttachmentRemoveButton: ViewStyle;
   articleAttachmentWrapper: ViewStyle;
   articleAttachmentPreview: ViewStyle;
 }
@@ -123,7 +113,8 @@ interface ComposeThreadItemProps {
   onArticleRemove: (threadId: string) => void;
   onEventRemove: (threadId: string) => void;
   onRoomRemove: (threadId: string) => void;
-  onReplySettingsPress: (threadId: string) => void;
+  onReplyPermissionChange: (threadId: string, permissions: ReplyPermission[]) => void;
+  onQuotesDisabledChange: (threadId: string, disabled: boolean) => void;
   onSensitiveToggle: (threadId: string) => void;
   onPodcastPress: (threadId: string) => void;
   onPodcastRemove: (threadId: string) => void;
@@ -190,7 +181,8 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
     onArticleRemove,
     onEventRemove,
     onRoomRemove,
-    onReplySettingsPress,
+    onReplyPermissionChange,
+    onQuotesDisabledChange,
     onSensitiveToggle,
     onPodcastPress,
     onPodcastRemove,
@@ -215,7 +207,6 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
       item.sources.length > 0 && item.sources.some((s) => s.url.trim().length > 0);
     const itemHasPodcast = Boolean(item.podcast?.syraPodcastId);
     const itemHasAttachments =
-      item.showPollCreator ||
       item.mediaIds.length > 0 ||
       itemHasArticle ||
       itemHasEvent ||
@@ -267,9 +258,13 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
     );
     const handleEventRemove = useCallback(() => onEventRemove(threadId), [threadId, onEventRemove]);
     const handleRoomRemove = useCallback(() => onRoomRemove(threadId), [threadId, onRoomRemove]);
-    const handleReplySettingsPress = useCallback(
-      () => onReplySettingsPress(threadId),
-      [threadId, onReplySettingsPress],
+    const handleReplyPermissionChange = useCallback(
+      (permissions: ReplyPermission[]) => onReplyPermissionChange(threadId, permissions),
+      [threadId, onReplyPermissionChange],
+    );
+    const handleQuotesDisabledChange = useCallback(
+      (disabled: boolean) => onQuotesDisabledChange(threadId, disabled),
+      [threadId, onQuotesDisabledChange],
     );
     const handleSensitiveToggle = useCallback(
       () => onSensitiveToggle(threadId),
@@ -309,8 +304,12 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
     const showTimeline = postingMode === 'thread';
 
     const containerStyle = useMemo(
-      () => [styles.postContainer, !isFocused && styles.unfocusedItem],
-      [styles.postContainer, styles.unfocusedItem, isFocused],
+      () => [
+        styles.postContainer,
+        !showTimeline && styles.beastSeparator,
+        !isFocused && styles.unfocusedItem,
+      ],
+      [styles.postContainer, styles.beastSeparator, styles.unfocusedItem, isFocused, showTimeline],
     );
 
     const pollMarginStyle = useMemo(() => ({ marginLeft: BOTTOM_LEFT_PAD }), []);
@@ -324,7 +323,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
     );
 
     return (
-      <View style={containerStyle}>
+      <View className="border-border" style={containerStyle}>
         {showTimeline ? (
           <>
             {/* The connector's colour is the className, never an interpolated
@@ -405,93 +404,6 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={scrollPaddingStyle}
               >
-                {item.showPollCreator ? (
-                  <View style={styles.pollAttachmentWrapper}>
-                    <TouchableOpacity
-                      className="border-border bg-muted"
-                      style={styles.pollAttachmentCard}
-                      activeOpacity={0.85}
-                      onPress={handlePollPress}
-                    >
-                      <View style={styles.pollAttachmentHeader}>
-                        <View className="bg-card" style={styles.pollAttachmentBadge}>
-                          <PollIcon size={16} className="text-primary" />
-                          <Text className="text-primary" style={styles.pollAttachmentBadgeText}>
-                            {t('compose.poll.title', { defaultValue: 'Poll' })}
-                          </Text>
-                        </View>
-                        <Text className="text-muted-foreground" style={styles.pollAttachmentMeta}>
-                          {t('compose.poll.optionCount', {
-                            count: item.pollOptions.length,
-                            defaultValue:
-                              item.pollOptions.length === 0
-                                ? 'No options yet'
-                                : item.pollOptions.length === 1
-                                  ? '1 option'
-                                  : `${item.pollOptions.length} options`,
-                          })}
-                        </Text>
-                      </View>
-                      <Text
-                        className="text-foreground"
-                        style={styles.pollAttachmentQuestion}
-                        numberOfLines={2}
-                      >
-                        {item.pollTitle?.trim() ||
-                          t('compose.poll.placeholderQuestion', {
-                            defaultValue: 'Ask a question...',
-                          })}
-                      </Text>
-                      <View style={styles.pollAttachmentOptions}>
-                        {(item.pollOptions.length > 0 ? item.pollOptions : ['', ''])
-                          .slice(0, 2)
-                          .map((option, index) => {
-                            const trimmed = option?.trim?.() || '';
-                            return (
-                              <View
-                                key={`thread-${threadId}-poll-opt-${index}`}
-                                className="border-border bg-card"
-                                style={styles.pollAttachmentOption}
-                              >
-                                <Text
-                                  className="text-muted-foreground"
-                                  style={styles.pollAttachmentOptionText}
-                                  numberOfLines={1}
-                                >
-                                  {trimmed ||
-                                    t('compose.poll.optionPlaceholder', {
-                                      defaultValue: 'Option {{index}}',
-                                      index: index + 1,
-                                    })}
-                                </Text>
-                              </View>
-                            );
-                          })}
-                        {item.pollOptions.length > 2 ? (
-                          <Text
-                            style={[
-                              styles.pollAttachmentMore,
-                              { color: theme.colors.textTertiary },
-                            ]}
-                          >
-                            {t('compose.poll.moreOptions', {
-                              count: item.pollOptions.length - 2,
-                              defaultValue: '+{{count}} more',
-                            })}
-                          </Text>
-                        ) : null}
-                      </View>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={handlePollRemove}
-                      className="bg-card"
-                      style={styles.pollAttachmentRemoveButton}
-                      hitSlop={HIT_SLOP_SM}
-                    >
-                      <CloseIcon size={16} className="text-foreground" />
-                    </TouchableOpacity>
-                  </View>
-                ) : null}
                 {item.mediaIds.map((mediaItem, mediaIndex) => {
                   const mediaUrl = getFileDownloadUrl(mediaItem.id);
                   const mediaCount = item.mediaIds.length;
@@ -720,7 +632,8 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                 replyPermission={item.replyPermission}
                 quotesDisabled={item.quotesDisabled}
                 isSensitive={item.isSensitive}
-                onReplySettingsPress={handleReplySettingsPress}
+                onReplyPermissionChange={handleReplyPermissionChange}
+                onQuotesDisabledChange={handleQuotesDisabledChange}
                 onSensitiveToggle={handleSensitiveToggle}
               />
             </View>
