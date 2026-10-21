@@ -14,6 +14,7 @@ import type {
   FeedRankingSettings,
 } from '../../services/ranking/signalContext';
 import type { OxyClient } from '../../utils/privacyHelpers';
+import type { FeedSettings } from '../../db/userProfile/userSettingsRecord';
 
 export interface FeedAPIResponse {
   slices: FeedPostSlice[];
@@ -64,7 +65,7 @@ export interface FeedContext {
    */
   followedCommunityIds?: string[];
   userBehavior?: RankingUserBehavior;
-  feedSettings?: FeedRankingSettings;
+  feedSettings?: FeedRankingSettings & Partial<Pick<FeedSettings, 'following'>>;
   oxyClient?: OxyClient;
   /**
    * The viewer's DOMINANT learned coarse region (the highest-count

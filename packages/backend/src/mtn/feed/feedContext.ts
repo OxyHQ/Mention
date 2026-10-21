@@ -13,7 +13,7 @@
  */
 
 import { MtnConfig, toBaseLanguages, type FeedTuning } from '@mention/shared-types';
-import type { FeedRankingSettings } from '../../services/ranking/signalContext';
+import type { FeedContext } from './FeedAPI';
 import type { OxyClient } from '../../utils/privacyHelpers';
 import { getFollowingIds, getFollowerIds } from '../../utils/privacyHelpers';
 import { loadUserSettings } from '../../db/userProfile/userSettingsRepository';
@@ -86,7 +86,7 @@ export function resolveViewerBaseLanguages(
  */
 export async function loadFeedPreferences(userId: string | undefined): Promise<{
   feedTuning?: FeedTuning;
-  feedSettings?: FeedRankingSettings;
+  feedSettings?: FeedContext['feedSettings'];
   showSensitiveContent: boolean;
 }> {
   if (!userId) return { showSensitiveContent: false };

@@ -71,6 +71,14 @@ describe('loadViewerFeedContext — the viewer feed settings reach the context',
     expect(ctx.feedSettings?.diversity?.sameAuthorPenalty).toBe(0.6);
   });
 
+  it('carries the saved Following order through the viewer context', async () => {
+    await updateUserSettings(VIEWER, {
+      set: { 'feedSettings.following.sort': 'relevance' },
+    });
+    const ctx = await loadViewerFeedContext(VIEWER, undefined);
+    expect(ctx.feedSettings?.following?.sort).toBe('relevance');
+  });
+
   /**
    * The stored value has to be DISTINGUISHABLE from the default, or this suite
    * would pass against a context that still ignores the document and happens to
