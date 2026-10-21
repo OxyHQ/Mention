@@ -457,3 +457,17 @@ The complete Bun suite then passed 2,502 tests across 225 files after adding the
 new source to both strict registry inventories. The bell source database fixture
 also includes a newer reply and confirms that only eligible root posts are
 selected. Existing inventory equality checks and coverage thresholds remain intact.
+
+The first queue entry was removed before merge when independent review reproduced
+a bell-priority error for an accepted coauthor with explicit negative feedback.
+The correction filters matched author IDs against stored negatives and the
+existing authoritative privacy exclusions before supply, trust and scoring.
+Ranked-session binding also includes canonical negative author/topic sets, so
+changes invalidate frozen scores through the existing typed 410 recovery.
+No extra privacy query or schema change was added.
+
+After both negative-intent corrections, the static final tree passed full backend
+Vitest coverage (5,663 passed/four skipped tests, all configured floors met), the
+full Bun suite (2,505 tests across 225 files), and independent reproduction of the
+original coauthor case: hidden, muted and blocked matches now yield no bell match
+and multiplier one; an eligible coauthor still retains its intended boost.

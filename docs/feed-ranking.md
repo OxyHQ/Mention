@@ -345,7 +345,12 @@ membership uses one candidate-bounded database read, not one read per post.
 Following chronology, other feed presets, import admission and autonomous discovery
 are unchanged. A bell does not grant followers-only/private access. The For You
 continuation binding includes the viewer's subscription set, so changing it
-invalidates stale continuation state. Successful profile toggles and settings
+invalidates stale continuation state. Negative author/topic feedback and the
+existing request privacy exclusions are canonicalized into ranked-session
+binding too, so a newly hidden or muted interest cannot retain frozen priority.
+Bell matches carry eligible author IDs: an excluded accepted coauthor cannot
+provide a boost or discovery-quality exemption merely because the primary author
+is otherwise eligible. Successful profile toggles and settings
 removals refresh that viewer's For You cache; failed writes do not. Profile state
 and asynchronous results are scoped to the current account. Settings removals
 capture their originating viewer, recheck the authoritative SDK runtime before
