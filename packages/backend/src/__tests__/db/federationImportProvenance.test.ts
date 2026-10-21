@@ -6,7 +6,8 @@ import {
   federationPostImportReasons,
 } from '../../db/schema/federationImports';
 import { posts } from '../../db/schema/posts';
-import { likes, bookmarks } from '../../db/schema/engagement';
+import { likes, bookmarks, postSubscriptions } from '../../db/schema/engagement';
+import { postAuthorships } from '../../db/schema/postContent';
 import { federatedFollows } from '../../db/schema/federation';
 import { observeFederationImportReason } from '../../db/federation/importProvenanceRepository';
 import { clearFederationScope, federationScope, seedPost } from '../helpers/federationFixtures';
@@ -18,6 +19,9 @@ beforeAll(async () => {
   await connectPostgres();
 });
 afterEach(async () => {
+  await getDb()
+    .delete(postSubscriptions)
+    .where(eq(postSubscriptions.subscriberId, scope.localUserId));
   await clearFederationScope(scope);
 });
 afterAll(async () => {
@@ -172,6 +176,47 @@ describe('read-only import review', () => {
     );
     expect(row?.discoveryOnlyWithoutKnownNeed).toBe(false);
     expect(JSON.stringify(row)).not.toContain(scope.localUserId);
+  });
+
+  it('protects bell subscriptions to accepted coauthors without implying a follow or exposing subscribers', async () => {
+    const accepted = await remote('discovery_backfill');
+    const pending = await remote('discovery_backfill');
+    const subscribedAuthor = scope.user('subscribed-coauthor');
+    await getDb()
+      .insert(postAuthorships)
+      .values([
+        {
+          postId: accepted.id,
+          oxyUserId: subscribedAuthor,
+          role: 'collaborator',
+          status: 'accepted',
+          postCreatedAt: new Date(accepted.createdAt),
+        },
+        {
+          postId: pending.id,
+          oxyUserId: subscribedAuthor,
+          role: 'collaborator',
+          status: 'pending',
+          postCreatedAt: new Date(pending.createdAt),
+        },
+      ]);
+    await getDb()
+      .insert(postSubscriptions)
+      .values({ subscriberId: scope.localUserId, authorId: subscribedAuthor });
+    const report = await reportFederationImportReview({ postIds: [accepted.id, pending.id] });
+    const protectedRow = report.rows.find((row) => row.id === accepted.id);
+    expect(protectedRow?.hasProtocolFollow).toBe(false);
+    expect(protectedRow?.hasActivitySubscription).toBe(true);
+    expect(protectedRow?.protectionReasons).toContain('activity_subscription');
+    expect(protectedRow?.protectionReasons).toContain('authoritative_follow_graph_unverified');
+    expect(protectedRow?.discoveryOnlyWithoutKnownNeed).toBe(false);
+    expect(protectedRow?.disposition).toBe('protected');
+    expect(report.rows.find((row) => row.id === pending.id)?.hasActivitySubscription).toBe(false);
+    expect(report.rows.find((row) => row.id === pending.id)?.discoveryOnlyWithoutKnownNeed).toBe(
+      true,
+    );
+    expect(JSON.stringify(report)).not.toContain(scope.localUserId);
+    expect(JSON.stringify(report)).not.toContain(subscribedAuthor);
   });
 
   it('flags discovery-only rows for review while retaining the unverified-graph protection', async () => {

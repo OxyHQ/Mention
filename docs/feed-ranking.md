@@ -322,6 +322,37 @@ Ship the client recovery alongside the backend when possible; an older installed
 mobile client may show a pagination error until the reader refreshes. This was
 verified in the prior client source, not on a physical device.
 
+## Profile bell as explicit interest
+
+The profile bell's existing `post_subscriptions` edge is an explicit author-interest
+signal in For You. It remains separate from following and notification delivery.
+Only the authenticated viewer's subscriptions are loaded, only for For You;
+accepted coauthors count, pending invitations do not. A bounded candidate source
+supplies recent public, published posts from those authors even without a follow.
+It retains the usual language, visibility, seen-state and pinned-clock constraints.
+The source scans a 72-hour horizon, using the session source cap (at least ten,
+otherwise page size), or the existing 60-candidate cap on the stateless path.
+
+`activitySubscriptionBoost` multiplies eligible scores by at most 2, with a
+24-hour half-life for the extra boost and no boost after 72 hours. These are initial
+product bounds, not experimentally optimized values. Explicit negative feedback
+and sensitive/spam penalties neutralize this boost. Existing eligibility and author
+diversity selection still apply; the bell cannot promise top placement or a feed
+monopoly. Bell matches are trusted relationships for discovery-only quality gates,
+including accepted coauthors first found through another source. Shell coauthor
+membership uses one candidate-bounded database read, not one read per post.
+
+Following chronology, other feed presets, import admission and autonomous discovery
+are unchanged. A bell does not grant followers-only/private access. The For You
+continuation binding includes the viewer's subscription set, so changing it
+invalidates stale continuation state. Successful profile toggles and settings
+removals refresh that viewer's For You cache; failed writes do not. Profile state
+and asynchronous results are scoped to the current account. Settings removals
+capture their originating viewer, recheck the authoritative SDK runtime before
+service dispatch, and cancel pending transport work on an account change using the
+supported abort signal. Cancellation cannot undo a write already accepted by the
+server.
+
 ## Feed Interstitials (Recommendation Cards)
 
 Suggested users / custom feeds / starter packs spliced between post slices —

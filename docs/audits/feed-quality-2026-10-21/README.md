@@ -238,7 +238,8 @@ unknown and protected.
 
 `reportFederationImportReview.ts` is SELECT-only inside a repeatable-read,
 read-only transaction, bounded to 500 public federated rows and a 15-second query
-timeout. It reports known causes, references, protocol follows, engagement (including
+timeout. It reports known causes, references, protocol follows, activity-notification
+subscriptions to any accepted author, engagement (including
 positive remote likes/boosts/comments counters without local interaction rows), saves,
 views and conversation/community context without post bodies or private account
 identities. The `discoveryOnlyWithoutKnownNeed` flag is a triage group, **never a
@@ -410,3 +411,38 @@ backend. It cannot establish the new backend's production quality or performance
 Authenticated settings UI and native app background behavior have automated
 regression coverage, but were not exercised on a logged-in browser or a physical
 iOS/Android device during this integration pass.
+
+
+## Owner correction: profile bell means explicit interest
+
+The owner explicitly identified the profile notification bell as an author-interest
+signal. Backend commit `f1c3a425f` implements the existing viewer-owned
+`post_subscriptions` relationship as a source of
+bounded fresh candidates and an additional For You score multiplier; accepted
+coauthors count, pending invitations do not. The initial limits are a 72-hour
+candidate horizon, at most 2× score at publication, a 24-hour half-life for the extra
+boost, and a neutral multiplier after 72 hours. These are implementation bounds,
+not evidence of measured production improvement. Negative feedback, access rules,
+recommendation eligibility and author diversity still apply. No Following chronology,
+notification-delivery behavior, import admission or autonomous discovery policy changes.
+
+Independent review checked viewer isolation in the subscription lookup and source
+semijoin, a single bounded lookup for unresolved shell coauthors, both ranking paths,
+and continuation binding to the current subscription set. The profile toggle refetches
+status on account changes and fences stale asynchronous results. Successful toggles
+and settings removals refresh only the originating viewer's For You cache. Settings
+removals also recheck the authoritative SDK runtime after asynchronous query cancellation
+and before dispatch, then use the supported abort signal if the account changes during
+pending auth/transport work. Already accepted server writes cannot be undone by abort.
+The focused frontend regression run passed 24 tests across four suites plus typecheck,
+including paused cancellation → account switch → no unsubscribe dispatch, in-flight
+abort/listener cleanup, failed writes without ranking invalidation, and same-profile
+account switching.
+
+The read-only import review also recognizes a bell on any accepted author as
+`activity_subscription` preservation evidence. It reports only a boolean and reason,
+not the subscriber identity, and excludes such posts from
+`discoveryOnlyWithoutKnownNeed`. A real-database fixture checks accepted versus pending
+coauthors, absence of a follow, preserved unknown-follow-graph protection, and no private
+identity output. All 14 provenance/report tests pass. This is a diagnostic correction;
+there is still no cleanup write mode or deletion decision.

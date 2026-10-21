@@ -9,6 +9,7 @@ interface ReviewEvidence extends Record<string, unknown> {
   initialReason: FederationImportReason | null;
   reasons: FederationImportReason[];
   hasProtocolFollow: boolean;
+  hasActivitySubscription: boolean;
   hasReferences: boolean;
   hasEngagement: boolean;
   hasSaves: boolean;
@@ -63,6 +64,9 @@ export async function reportFederationImportReview(
         ARRAY(SELECT r.reason FROM federation_post_import_reasons r WHERE r.post_id = p.id ORDER BY r.reason) AS reasons,
         EXISTS(SELECT 1 FROM federated_follows f WHERE f.remote_actor_uri = p.federation_actor_uri
           AND f.direction = 'outbound' AND f.status = 'accepted') AS "hasProtocolFollow",
+        EXISTS(SELECT 1 FROM post_authorships a
+          INNER JOIN post_subscriptions subscription ON subscription.author_id = a.oxy_user_id
+          WHERE a.post_id = p.id AND a.status = 'accepted') AS "hasActivitySubscription",
         (EXISTS(SELECT 1 FROM posts ref WHERE ref.parent_post_id = p.id)
           OR EXISTS(SELECT 1 FROM posts ref WHERE ref.quote_of = p.id)
           OR EXISTS(SELECT 1 FROM posts ref WHERE ref.boost_of = p.id)
@@ -86,6 +90,7 @@ export async function reportFederationImportReview(
     if (row.reasons.some((reason) => reason !== 'discovery_backfill'))
       protectionReasons.push('required_or_requested_import');
     if (row.hasProtocolFollow) protectionReasons.push('accepted_protocol_follow');
+    if (row.hasActivitySubscription) protectionReasons.push('activity_subscription');
     if (row.hasReferences) protectionReasons.push('referenced_by_post');
     if (row.hasEngagement) protectionReasons.push('engagement');
     if (row.hasSaves) protectionReasons.push('saved');
@@ -100,6 +105,7 @@ export async function reportFederationImportReview(
         row.reasons.length > 0 &&
         row.reasons.every((reason) => reason === 'discovery_backfill') &&
         !row.hasProtocolFollow &&
+        !row.hasActivitySubscription &&
         !row.hasReferences &&
         !row.hasEngagement &&
         !row.hasSaves &&
