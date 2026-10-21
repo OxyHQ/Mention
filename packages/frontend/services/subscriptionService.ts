@@ -16,9 +16,13 @@ class SubscriptionService {
     return resp.data;
   }
 
-  async unsubscribe(authorId: string): Promise<{ subscribed: boolean }> {
+  async unsubscribe(
+    authorId: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<{ subscribed: boolean }> {
     const resp = await authenticatedClient.delete<{ subscribed: boolean }>(
       `/subscriptions/${authorId}`,
+      options,
     );
     return resp.data;
   }
