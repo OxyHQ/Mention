@@ -1,12 +1,11 @@
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
+import { useOxyIdentityRows } from '@/components/settings/useOxyIdentityRows';
 import { useMentionSettings } from '@/context/MentionSettingsContext';
 import { useProfileData } from '@/hooks/useProfileData';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { confirmDialog } from '@/utils/alerts';
-import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
-import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button } from '@oxy.so/bloom/button';
-import { SettingsProfilePage, SettingsValueField } from '@oxy.so/bloom/settings-modal';
+import { SettingsProfilePage } from '@oxy.so/bloom/settings-modal';
 import { useBloomTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
 import { createLogger } from '@oxy.so/core/logger';
@@ -27,6 +26,7 @@ export default function AccountSettingsContent() {
   const { resetTheme } = useBloomTheme();
   const resetAppearance = useAppearanceStore((state) => state.reset);
   const { afterClose, navigate } = useMentionSettings();
+  const identityRows = useOxyIdentityRows();
   const logout = async () => {
     if (
       !(await confirmDialog({
@@ -105,32 +105,7 @@ export default function AccountSettingsContent() {
         {
           key: 'identity',
           rows: [
-            {
-              key: 'avatar',
-              label: t('settings.profile.photo', {
-                defaultValue: 'Profile photo',
-              }),
-              control: (
-                <Avatar
-                  source={profile?.avatar}
-                  name={profile?.design.displayName ?? profile?.username}
-                  size={40}
-                  variant={MEDIA_VARIANT_AVATAR_LG}
-                />
-              ),
-            },
-            {
-              key: 'name',
-              label: t('settings.profile.name', { defaultValue: 'Name' }),
-              control: <SettingsValueField>{profile?.design.displayName}</SettingsValueField>,
-            },
-            {
-              key: 'handle',
-              label: t('settings.profile.username', {
-                defaultValue: 'Username',
-              }),
-              control: <SettingsValueField>@{profile?.username}</SettingsValueField>,
-            },
+            ...identityRows,
           ],
         },
         {

@@ -1,15 +1,13 @@
+import { useOxyIdentityRows } from '@/components/settings/useOxyIdentityRows';
 import { SettingsSelect } from '@/components/settings/SettingsSelect';
 import { BannerSection } from '@/components/Profile/EditProfile/BannerSection';
 import { PinnedMediaSection } from '@/components/Profile/EditProfile/PinnedMediaSection';
 import { useMentionSettings } from '@/context/MentionSettingsContext';
 import { useAppColorSave } from '@/hooks/useAppColorSave';
 import { useMentionColorViewer } from '@/hooks/useMentionColorViewer';
-import { useProfileData } from '@/hooks/useProfileData';
 import { entitledColorNames } from '@/lib/colorEntitlement';
-import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
-import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button } from '@oxy.so/bloom/button';
-import { SettingsGeneralPage, SettingsValueField } from '@oxy.so/bloom/settings-modal';
+import { SettingsGeneralPage } from '@oxy.so/bloom/settings-modal';
 import { COLOR_PRESET_REGISTRY, useBloomTheme } from '@oxy.so/bloom/theme';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useMemo } from 'react';
@@ -24,10 +22,10 @@ import { View } from 'react-native';
 export default function EditProfileSettingsPage() {
   const { t } = useTranslation();
   const { isAuthenticated, showBottomSheet, user } = useAuth();
-  const { data: profile } = useProfileData(user?.username);
   const { colorPreset } = useBloomTheme();
   const { saveColor } = useAppColorSave();
   const { afterClose } = useMentionSettings();
+  const identityRows = useOxyIdentityRows({ full: true });
   const viewer = useMentionColorViewer();
   const colorItems = useMemo(() => {
     const allowed = new Set<string>(entitledColorNames(viewer));
@@ -44,17 +42,6 @@ export default function EditProfileSettingsPage() {
       />
     );
 
-  const editInOxy = (
-    <Button
-      size="sm"
-      appearance="subtle"
-      tone="neutral"
-      onPress={() => afterClose(() => showBottomSheet?.('EditProfile'))}
-    >
-      {t('common.edit', { defaultValue: 'Edit' })}
-    </Button>
-  );
-
   return (
     <View className="gap-4">
       <SettingsGeneralPage
@@ -62,37 +49,25 @@ export default function EditProfileSettingsPage() {
           {
             key: 'identity',
             rows: [
+              ...identityRows,
               {
-                key: 'avatar',
-                label: t('settings.profile.photo', { defaultValue: 'Profile photo' }),
-                control: (
-                  <Avatar
-                    source={profile?.avatar}
-                    name={profile?.design.displayName ?? profile?.username}
-                    size={40}
-                    variant={MEDIA_VARIANT_AVATAR_LG}
-                  />
-                ),
-              },
-              {
-                key: 'name',
-                label: t('settings.profile.name', { defaultValue: 'Name' }),
-                control: <SettingsValueField>{profile?.design.displayName}</SettingsValueField>,
-              },
-              {
-                key: 'handle',
-                label: t('settings.profile.username', { defaultValue: 'Username' }),
-                control: <SettingsValueField>@{profile?.username}</SettingsValueField>,
-              },
-              {
-                key: 'oxy',
-                label: t('settings.editProfile.oxyRow', {
-                  defaultValue: 'Photo, name, bio, location and links',
-                }),
+                key: 'manage',
+                label: t('settings.editProfile.oxyAccount', { defaultValue: 'Oxy account' }),
                 description: t('settings.account.oxyDescription', {
                   defaultValue: 'Manage your shared Oxy identity, profile and security.',
                 }),
-                control: editInOxy,
+                control: (
+                  <Button
+                    size="sm"
+                    appearance="subtle"
+                    tone="neutral"
+                    onPress={() => afterClose(() => showBottomSheet?.('ManageAccount'))}
+                  >
+                    {t('settings.account.manageYourAccount', {
+                      defaultValue: 'Manage your account',
+                    })}
+                  </Button>
+                ),
               },
             ],
           },
