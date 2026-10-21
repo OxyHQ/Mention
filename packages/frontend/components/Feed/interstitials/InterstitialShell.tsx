@@ -1,9 +1,10 @@
 import type React from 'react';
 import { useCallback } from 'react';
-import { Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useRouter, type Href } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { Carousel, CarouselItem } from '@oxy.so/bloom/carousel';
+import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { RiArrowRightLine } from '@oxy.so/bloom/icons/RiArrowRightLine';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -16,7 +17,6 @@ import {
   INTERSTITIAL_SKELETON_ITEMS,
 } from './interstitialLayout';
 import { useInterstitialImpression, type ReportInterstitialEvent } from './interstitialTelemetry';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 /**
  * The frame every recommendation band shares.
@@ -35,7 +35,7 @@ import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface InterstitialShellProps<TItem> {
   title: string;
-  /** Destination of the header link (wide screens) and the trailing card. */
+  /** Destination of the grouped header button (wide screens) and the trailing card. */
   seeMoreHref: Href;
   /** The suggestions to show. Empty while `isLoading`. */
   items: readonly TItem[];
@@ -86,23 +86,9 @@ export function InterstitialShell<TItem>({
   const impressionRef = useInterstitialImpression(report, !isLoading && items.length > 0);
 
   const header = (
-    <View className="flex-row items-center gap-3">
-      <Text className="text-base leading-6 font-bold text-foreground flex-shrink" numberOfLines={1}>
-        {title}
-      </Text>
-      {isDesktop && (
-        <TouchableOpacity
-          onPress={handleSeeMore}
-          activeOpacity={0.7}
-          hitSlop={HIT_SLOP_MD}
-          style={styles.webCursor}
-          accessibilityRole="link"
-          accessibilityLabel={seeMoreLabel}
-        >
-          <Text className="text-primary text-sm leading-6 font-medium">{seeMoreLabel}</Text>
-        </TouchableOpacity>
-      )}
-    </View>
+    <Text className="text-base leading-6 font-bold text-foreground flex-shrink" numberOfLines={1}>
+      {title}
+    </Text>
   );
 
   return (
@@ -114,6 +100,27 @@ export function InterstitialShell<TItem>({
         accessibilityLabel={title}
         header={header}
         showArrows={isDesktop && !showSkeleton}
+        renderControls={({ previous, next }) => (
+          <ButtonGroup size="sm" accessibilityLabel={title}>
+            <ButtonGroupItem onPress={handleSeeMore} accessibilityLabel={seeMoreLabel}>
+              {seeMoreLabel}
+            </ButtonGroupItem>
+            <ButtonGroupItem
+              onPress={previous.onPress}
+              disabled={previous.disabled}
+              accessibilityLabel={previous.accessibilityLabel}
+              leadingIcon={previous.icon}
+              iconOnly
+            />
+            <ButtonGroupItem
+              onPress={next.onPress}
+              disabled={next.disabled}
+              accessibilityLabel={next.accessibilityLabel}
+              leadingIcon={next.icon}
+              iconOnly
+            />
+          </ButtonGroup>
+        )}
         showDots={false}
         gap={INTERSTITIAL_CARD_GAP}
         inset={INTERSTITIAL_EDGE_PADDING}
@@ -150,7 +157,7 @@ export function InterstitialShell<TItem>({
 }
 
 /**
- * The carousel's last card. A phone has no room for a header link, so the way
+ * The carousel's last card. A phone has no room for the grouped header controls, so the way
  * out of the band to the full screen is the card you reach by swiping past the
  * suggestions — the same gesture you were already making.
  */
@@ -177,5 +184,4 @@ const styles = StyleSheet.create({
   carousel: {
     gap: 12,
   },
-  webCursor: Platform.select({ web: { cursor: 'pointer' }, default: {} }),
 });

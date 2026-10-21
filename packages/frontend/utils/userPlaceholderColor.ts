@@ -1,4 +1,4 @@
-import { APP_COLOR_PRESETS } from '@oxy.so/bloom/theme';
+import { APP_COLOR_PRESETS, resolveProfileColor } from '@oxy.so/bloom/color-presets';
 
 /**
  * Returns the hex color for a user's profile color, to be used as
@@ -7,9 +7,6 @@ import { APP_COLOR_PRESETS } from '@oxy.so/bloom/theme';
 export function getUserPlaceholderColor(
   user?: { color?: string | null } | null,
 ): string | undefined {
-  const color = user?.color;
-  if (!color) return undefined;
-  // Matching the stored string against the preset names is what narrows it to a
-  // real preset, so an unknown or stale color simply yields no placeholder.
-  return Object.entries(APP_COLOR_PRESETS).find(([name]) => name === color)?.[1].hex;
+  const color = resolveProfileColor(user?.color);
+  return color?.seed ?? (color?.colorPreset ? APP_COLOR_PRESETS[color.colorPreset].hex : undefined);
 }

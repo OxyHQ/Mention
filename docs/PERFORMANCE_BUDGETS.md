@@ -27,7 +27,8 @@ past any of:
 | Largest single file | 7.5 MiB |
 
 Wired into `.github/workflows/ci.yml`'s "Enforce bundle budgets" step, which
-also diffs the PR's export against `main`'s baseline. This is the one item
+also diffs the merge-queue entry's export against `main`'s baseline (pull
+requests skip it; the queue entry is the tree that ships). This is the one item
 on the original SLO list that already has the property the rest of this
 document argues for: a number, a place it is measured, and a build that
 fails when the number is exceeded.
@@ -278,22 +279,29 @@ match; it is counted under `@oxy.so/contracts`.)
 ### Layout chunk preloads (2026-10-15)
 
 `asyncRoutes` splits every route file into its own chunk, the eight `_layout`
-files included, and expo-router requires every layout while it builds the route
-tree — on every URL, before anything renders (8 of 8 requested on `/`, `/@user`
-and `/p/<id>` alike). Only the startup JavaScript names them, so they were a
-second round trip that began once `__common` and `entry` had downloaded and run
-(~2.3 s into a cold load). `scripts/web-layout-preload.mjs` now writes one
-`<link rel="preload" as="script">` per layout chunk into the exported
-`index.html` (after `web-font-preload.mjs`, on `build` and `build:analyze`), so
-the preload scanner fetches them beside the scripts. Page chunks (`index`,
-`[id]`, …) are per-URL and this shell serves every path, so they are left alone.
+files included. Only the startup JavaScript names them, so they were a second
+round trip that began once `__common` and `entry` had downloaded and run (~2.3 s
+into a cold load). `scripts/web-layout-preload.mjs` writes one
+`<link rel="preload" as="script">` per layout that loads on every URL into the
+exported `index.html` (after `web-font-preload.mjs`, on `build` and
+`build:analyze`), so the preload scanner fetches them beside the scripts.
+
+Only three: the root layout, `(app)/_layout` and `(app)/(tabs)/_layout`.
+Measured on mention.earth with the preloads stripped, those three load on `/`,
+`/explore`, `/@user`, `/p/<id>`, `/login`, `/settings`, `/messages` and the
+rest; `(auth)`, `[username]`, `[username]/lane`, `explore` and `live-rooms` load
+only on their own branches (the first version preloaded all eight on the wrong
+assumption that expo-router requires every layout up front). On `/` the five
+unused ones drew Chrome's "preloaded but not used within a few seconds" warning
+and wasted a download. Branch layouts, like page chunks (`index`, `[id]`, …),
+are per-URL and this shell serves every path, so they are left alone.
 
 Gates: `validate-frontend-static-output.mjs` fails an export whose `index.html`
-does not preload exactly the layout chunks the startup JavaScript names, one per
-directory under `app/` that holds a `_layout` (a Metro or expo-router naming
-change fails the build instead of silently preloading part of the set);
+does not preload exactly those three chunks, resolved from the startup
+JavaScript's route context (a Metro or expo-router change that hides one fails
+the build instead of silently preloading part of the set);
 `web-layout-preload:selftest` mutation-tests that; `e2e/tests/layout-preload.spec.ts`
-asserts in a browser that the page requests exactly the preloaded layouts, each
+asserts in a browser that `/` requests exactly the preloaded layouts, each
 once and through its preload (a mismatched URL or CORS mode would download it
 twice).
 

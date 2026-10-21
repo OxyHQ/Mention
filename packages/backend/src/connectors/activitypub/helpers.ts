@@ -14,6 +14,7 @@ import { assertSafePublicUrl } from '@oxy.so/core/server';
 import { fetchUpstreamSingleHop, type SingleHopResult } from '../../utils/safeUpstreamFetch';
 import { isAbsoluteHttpUrl, getRemoteHost } from '../shared/url';
 import { escapeRegExp } from '@oxy.so/utils/text';
+import { networkUrlOf } from '../../utils/federation/mirrorTransports';
 
 /**
  * Low-level ActivityPub helpers used by more than one AP sub-service
@@ -784,9 +785,14 @@ export async function stripQuoteMarkerFromVariants<T extends { text: string }>(
     .where(eq(posts.id, quoteOf))
     .limit(1);
 
-  const urls = [declaredUri, quoted?.url, quoted?.activityId].filter(
-    (value): value is string => typeof value === 'string' && value.length > 0,
-  );
+  // The marker can be stored in either spelling: a mirror's URL as the note
+  // wrote it, or the upstream URL ingest rewrites it to.
+  const urls = [declaredUri, quoted?.url, quoted?.activityId]
+    .filter((value): value is string => typeof value === 'string' && value.length > 0)
+    .flatMap((value) => {
+      const upstream = networkUrlOf(value);
+      return upstream ? [value, upstream] : [value];
+    });
   if (urls.length === 0) return source;
 
   return source.map((variant) => {

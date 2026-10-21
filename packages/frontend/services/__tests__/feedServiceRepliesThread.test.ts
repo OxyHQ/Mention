@@ -60,6 +60,17 @@ describe('feedService replies feed', () => {
     );
   });
 
+  it('requests bounded nested previews when the tree preference is enabled', async () => {
+    await feedService.getFeed({
+      type: 'replies',
+      filters: { parentPostId: 'parent', includeNestedReplies: true },
+    });
+    expect(mockAuthenticatedGet).toHaveBeenCalledWith(
+      '/feed/replies/parent',
+      expect.objectContaining({ params: { includeNestedReplies: 1 } }),
+    );
+  });
+
   it('prefers the parent post id when a feed carries both, the order every thread match uses', async () => {
     await feedService.getFeed(
       { type: 'replies', filters: { parentPostId: 'parent', postId: 'other' } },

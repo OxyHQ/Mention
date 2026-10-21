@@ -28,6 +28,8 @@ const logger = createLogger('postInteractions');
  * in flight, as the per-row hooks did.
  */
 export interface PostInteractions {
+  /** Check the current session before opening a write flow or changing engagement. */
+  requireSession: () => boolean;
   toggleLike: (post: HydratedPost, source?: string) => Promise<void>;
   toggleDownvote: (post: HydratedPost) => Promise<void>;
   toggleSave: (post: HydratedPost, source?: string) => Promise<void>;
@@ -63,7 +65,12 @@ export interface PostMenuRequest {
  */
 export type BoundPostCommands = Pick<
   PostInteractions,
-  'openMenu' | 'openSources' | 'openInsights' | 'openCommunityNoteAbout' | 'prefetchProfile'
+  | 'requireSession'
+  | 'openMenu'
+  | 'openSources'
+  | 'openInsights'
+  | 'openCommunityNoteAbout'
+  | 'prefetchProfile'
 >;
 
 /** The canonical copy of a post right now, or the row's copy when the store has none. */
@@ -114,7 +121,9 @@ function createController(): Controller {
     }) as BoundPostCommands[K];
 
   const interactions: PostInteractions = {
+    requireSession: () => bound?.requireSession() ?? false,
     toggleLike: (post, source) => {
+      if (!interactions.requireSession()) return Promise.resolve();
       const store = usePostsStore.getState();
       const isLiked = currentPost(post).viewerState?.isLiked ?? false;
       return guarded(
@@ -127,6 +136,7 @@ function createController(): Controller {
       );
     },
     toggleDownvote: (post) => {
+      if (!interactions.requireSession()) return Promise.resolve();
       const store = usePostsStore.getState();
       const isDownvoted = currentPost(post).viewerState?.isDownvoted ?? false;
       return guarded(
@@ -138,8 +148,10 @@ function createController(): Controller {
         'downvote',
       );
     },
-    toggleSave,
+    toggleSave: (post, source) =>
+      interactions.requireSession() ? toggleSave(post, source) : Promise.resolve(),
     toggleBoost: (post, source) => {
+      if (!interactions.requireSession()) return Promise.resolve();
       const store = usePostsStore.getState();
       const isBoosted = currentPost(post).viewerState?.isBoosted ?? false;
       return guarded(
@@ -171,9 +183,8 @@ function createController(): Controller {
 }
 
 /**
- * Outside any provider (a test rendering one row, a preview) the engagement
- * commands still work — they need only the store — and the sheet/menu commands
- * log and do nothing.
+ * Outside a bound provider, writes are unavailable. Sharing remains public;
+ * sheet/menu commands log and do nothing.
  */
 const fallbackController = createController();
 

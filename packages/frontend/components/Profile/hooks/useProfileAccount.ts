@@ -1,9 +1,7 @@
 import { useMemo } from 'react';
 import type { Href } from '@/lib/navigation/router';
 import { getNormalizedUserHandle } from '@oxy.so/core';
-import type { AppColorName } from '@oxy.so/bloom/theme';
 import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
-import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
 import { canonicalProfileHref, type ProfileRouteFamily } from '../profileRoute';
 
 export interface ProfileAccount {
@@ -19,8 +17,6 @@ export interface ProfileAccount {
    * profile and without this, the lookup FAILED — a retry, not "not found".
    */
   notFound: boolean;
-  /** Bloom colour preset for the profile's scope. */
-  colorName: AppColorName | undefined;
   /** Refetches the identity and appearance payloads behind the profile chrome. */
   refresh: () => Promise<void>;
 }
@@ -51,10 +47,6 @@ export function useProfileAccount(routedUsername: string): ProfileAccount {
   // to the screen.
   const isFederated = username.includes('@');
   const { data: profileData, loading, notFound, refresh } = useProfileData(username);
-  const { colorName } = useProfileScreenColor({
-    username,
-    designColor: profileData?.design?.color,
-  });
 
   const handle = useMemo<string>(
     () =>
@@ -66,7 +58,7 @@ export function useProfileAccount(routedUsername: string): ProfileAccount {
     [profileData?.username, profileData?.instance, profileData?.isFederated, username],
   );
 
-  return { username, handle, isFederated, profileData, loading, notFound, colorName, refresh };
+  return { username, handle, isFederated, profileData, loading, notFound, refresh };
 }
 
 export interface ProfileCanonicalHrefOptions {

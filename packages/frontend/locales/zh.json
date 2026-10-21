@@ -1,4 +1,11 @@
 {
+  "post.threadPosition": "帖子串中的第 {{index}} / {{total}} 条帖子",
+  "post.viewConversation": "查看对话",
+  "post.threadContinuation": "帖子串后续（{{count}}）",
+  "postActions.signInRequired": "登录以与帖子互动。",
+  "postActions.sessionLoading": "正在加载会话，请稍后重试。",
+  "deck.mode.standard": "标准",
+  "deck.mode.label": "Deck 模式",
   "navigation.menu": "导航菜单",
   "Your post could not be published. {{detail}}": "你的帖子未能发布。{{detail}}",
   "You're posting too fast. Please wait a moment and try again.": "发帖过于频繁，请稍后再试。",
@@ -2755,5 +2762,9 @@
     "rateExplanation": "互动数除以浏览量 × 100。",
     "updating": "正在更新…",
     "total": "总计"
-  }
+  },
+  "post.repostOptions": "转发选项",
+  "post.repost": "转发",
+  "post.undoRepost": "撤销转发",
+  "post.quote": "引用"
 }

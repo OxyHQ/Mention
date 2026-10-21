@@ -1,4 +1,11 @@
 {
+  "post.threadPosition": "Публикация {{index}} из {{total}} в ветке",
+  "post.viewConversation": "Посмотреть обсуждение",
+  "post.threadContinuation": "Продолжение ветки ({{count}})",
+  "postActions.signInRequired": "Войдите, чтобы взаимодействовать с публикациями.",
+  "postActions.sessionLoading": "Сеанс загружается. Повторите попытку через несколько секунд.",
+  "deck.mode.standard": "Обычный",
+  "deck.mode.label": "Режим Deck",
   "navigation.menu": "Меню навигации",
   "Your post could not be published. {{detail}}": "Не удалось опубликовать пост. {{detail}}",
   "You're posting too fast. Please wait a moment and try again.": "Вы публикуете слишком часто. Подождите немного и попробуйте снова.",
@@ -2819,5 +2826,9 @@
     "total": "Всего",
     "dayCount_few": "{{count}} дня",
     "dayCount_many": "{{count}} дней"
-  }
+  },
+  "post.repostOptions": "Настройки репоста",
+  "post.repost": "Репост",
+  "post.undoRepost": "Отменить репост",
+  "post.quote": "Цитировать"
 }

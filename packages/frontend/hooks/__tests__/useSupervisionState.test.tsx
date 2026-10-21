@@ -10,8 +10,10 @@ const mockQuery: { data?: { self: null | { status: string } }; isSuccess: boolea
   data: undefined,
   isSuccess: true,
 };
-jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => mockAuth }));
-jest.mock('@oxy.so/services/ui', () => ({ useSupervision: () => mockQuery }));
+jest.mock('@oxy.so/services/ui/client', () => ({
+  useAuth: () => mockAuth,
+  useSupervision: () => mockQuery,
+}));
 let renderer: ReactTestRenderer;
 let result: ReturnType<typeof useSupervisionState>;
 function Probe() {

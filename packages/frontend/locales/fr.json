@@ -1,4 +1,11 @@
 {
+  "post.threadPosition": "Publication {{index}} sur {{total}} du fil",
+  "post.viewConversation": "Voir la conversation",
+  "post.threadContinuation": "Suite du fil ({{count}})",
+  "postActions.signInRequired": "Connectez-vous pour interagir avec les publications.",
+  "postActions.sessionLoading": "Votre session est en cours de chargement. Réessayez dans un instant.",
+  "deck.mode.standard": "Standard",
+  "deck.mode.label": "Mode Deck",
   "navigation.menu": "Menu de navigation",
   "Your post could not be published. {{detail}}": "Ton post n'a pas pu être publié. {{detail}}",
   "You're posting too fast. Please wait a moment and try again.": "Tu postes trop vite. Attends un instant et réessaie.",
@@ -2790,5 +2797,9 @@
     "updating": "Mise à jour…",
     "total": "Total",
     "dayCount_many": "{{count}} jours"
-  }
+  },
+  "post.repostOptions": "Options de republication",
+  "post.repost": "Republier",
+  "post.undoRepost": "Annuler la republication",
+  "post.quote": "Citer"
 }

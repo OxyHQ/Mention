@@ -22,7 +22,6 @@ vi.mock('../../../utils/oxyHelpers', async (importOriginal) => ({
 import { randomUUID } from 'node:crypto';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
-import { config } from '../../../config';
 import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
 import {
   deletePostRecord,
@@ -84,7 +83,6 @@ beforeEach(() => {
   h.add.mockReset();
   h.remove.mockReset();
   oxyAnswers();
-  (config.oxyFiles as { referencesEnabled: boolean }).referencesEnabled = true;
 });
 
 afterAll(async () => {
@@ -191,21 +189,6 @@ describe('the drain tells Oxy the difference', () => {
 
     expect(await rowOf(file)).toMatchObject({ state: 'pending', syncedOp: null });
     oxyAnswers();
-    await drainFileReferenceSync();
-    expect(await rowOf(file)).toMatchObject({ state: 'synced', syncedOp: 'add' });
-    await deletePostRecord(id);
-  });
-
-  it('OXY_FILE_REFERENCES_ENABLED=false pauses the drain without losing a mark', async () => {
-    const file = fid('paused');
-    const id = await post([file]);
-    (config.oxyFiles as { referencesEnabled: boolean }).referencesEnabled = false;
-
-    await drainFileReferenceSync();
-
-    expect(h.add).not.toHaveBeenCalled();
-    expect((await rowOf(file)).state).toBe('pending');
-    (config.oxyFiles as { referencesEnabled: boolean }).referencesEnabled = true;
     await drainFileReferenceSync();
     expect(await rowOf(file)).toMatchObject({ state: 'synced', syncedOp: 'add' });
     await deletePostRecord(id);

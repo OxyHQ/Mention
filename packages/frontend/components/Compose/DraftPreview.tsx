@@ -47,12 +47,14 @@ const DraftPreview: React.FC<DraftPreviewProps> = ({ draft, onBack, onEdit }) =>
     [user],
   );
 
-  const resolveMediaUrl = usePrivateMediaUrls([
-    ...draft.mediaIds.map((item) => item.id),
-    ...(draft.languages?.languages.flatMap((language) =>
-      language.items.flatMap((item) => item.media?.map((media) => media.id) ?? []),
-    ) ?? []),
-  ]);
+  const resolveMediaUrl = usePrivateMediaUrls(
+    [
+      ...draft.mediaIds.map((item) => item.id),
+      ...(draft.languages?.languages.flatMap((language) =>
+        language.items.flatMap((item) => item.media?.map((media) => media.id) ?? []),
+      ) ?? []),
+    ].map((fileId) => ({ fileId })),
+  );
 
   const { post, remainingThreadItems } = useMemo(
     () =>

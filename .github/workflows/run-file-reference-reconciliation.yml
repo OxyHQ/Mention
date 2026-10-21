@@ -3,12 +3,13 @@ name: Run Oxy file-reference reconciliation
 # Drives `reconcileOxyFileReferences` — the nightly file-reference
 # reconciliation (ADR 0043, docs/oxy-files.md), run once on demand.
 #
-# WHY IT EXISTS. The nightly run only starts between 02:00 and 06:00 UTC, in the
-# mode the deployed `OXY_FILE_REFERENCE_RECONCILE_MODE` names. The rollout reads
-# a dry run and then makes the first applied run — the backfill of every
-# existing post, banner and GIF into Oxy's references — while an operator is
-# watching. This runs the same function; its history rows are the nightly run's,
-# and the scheduler counts it as that night's run.
+# WHY IT EXISTS. The nightly run only starts between 02:00 and 06:00 UTC, and
+# always applies. Here an operator reads a dry run (nothing committed), or makes
+# an applied run without waiting for the night — as the rollout made the first
+# one, the backfill of every existing post, banner and GIF into Oxy's
+# references, while an operator was watching. This runs the same function; its
+# history rows are the nightly run's, and the scheduler counts an applied run
+# as that night's.
 #
 # Shaped like `run-gif-library-migration.yml`, for the same reasons: IN-VPC (the
 # database is private) and FROM `main` ONLY (the task reuses the live service's
@@ -152,8 +153,6 @@ jobs:
           CONFIRM_WRITE: ${{ inputs.confirm_write }}
         run: |
           set -euo pipefail
-          MAX_WAIT_SECS=3600
-          POLL_INTERVAL=15
           BACKFILL_TASK_DEF=""
           TASK_ARN=""
           TASK_STOPPED=true
@@ -228,8 +227,8 @@ jobs:
 
           echo "backfill task definition: $BACKFILL_TASK_DEF"
 
-          # The container is bounded by busybox `timeout` at 3300s, inside the
-          # 3600s wait above, so a sweep that outlives its window is stopped by
+          # The container is bounded by busybox `timeout` at 3300s from its start,
+          # which the wait below honours, so a sweep that outlives its window is stopped by
           # the container rather than left running by a workflow that cannot call
           # `ecs:StopTask`. Every entity type it committed stands; the session
           # it was in is released by Oxy when it expires.
@@ -251,10 +250,19 @@ jobs:
                  else [{name:"MODE", value:"dry_run"}] end
                )
              }]}')
+          # Where the service runs: its capacity provider strategy when it has
+          # one (the oxy-ec2 capacity, whose revisions are EC2-only), otherwise
+          # its launch type. A hard-coded FARGATE refuses an EC2-only revision.
+          PLACEMENT_STRATEGY=$(jq -c '.capacityProviderStrategy // []' <<<"$SERVICE_JSON")
+          if [[ "$PLACEMENT_STRATEGY" != "[]" ]]; then
+            PLACEMENT=(--capacity-provider-strategy "$PLACEMENT_STRATEGY")
+          else
+            PLACEMENT=(--launch-type "$(jq -r '.launchType // "FARGATE"' <<<"$SERVICE_JSON")")
+          fi
           RUN_TASK_JSON=$(aws ecs run-task \
             --cluster "$CLUSTER" \
             --task-definition "$BACKFILL_TASK_DEF" \
-            --launch-type FARGATE \
+            "${PLACEMENT[@]}" \
             --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SEC_GROUPS],assignPublicIp=$ASSIGN_IP}" \
             --overrides "$OVERRIDES" \
             --started-by "gh-reconcile-filerefs")
@@ -273,24 +281,11 @@ jobs:
 
           echo "task: $TASK_ARN"
           echo "Waiting for the task to stop…"
-          ELAPSED=0
-          while (( ELAPSED < MAX_WAIT_SECS )); do
-            LAST_STATUS=$(aws ecs describe-tasks \
-              --cluster "$CLUSTER" \
-              --tasks "$TASK_ARN" \
-              --query 'tasks[0].lastStatus' \
-              --output text)
-            echo "($ELAPSED s) backfill task status=$LAST_STATUS"
-            if [[ "$LAST_STATUS" == "STOPPED" ]]; then
-              TASK_STOPPED=true
-              break
-            fi
-            sleep "$POLL_INTERVAL"
-            ELAPSED=$((ELAPSED + POLL_INTERVAL))
-          done
-
-          if [[ "$TASK_STOPPED" != "true" ]]; then
-            echo "::error::Backfill exceeded ${MAX_WAIT_SECS}s. The deploy role cannot call ecs:StopTask; task $TASK_ARN may still be running and must be checked in ECS."
+          # Two deadlines, provisioning and the container's own bound from its
+          # start (.github/scripts/wait-one-shot-task.sh).
+          if bash .github/scripts/wait-one-shot-task.sh "$CLUSTER" "$TASK_ARN"; then
+            TASK_STOPPED=true
+          else
             exit 1
           fi
 

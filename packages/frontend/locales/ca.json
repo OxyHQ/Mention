@@ -1,4 +1,11 @@
 {
+  "post.threadPosition": "Publicació {{index}} de {{total}} del fil",
+  "post.viewConversation": "Mostra la conversa",
+  "post.threadContinuation": "Continuació del fil ({{count}})",
+  "postActions.signInRequired": "Inicia sessió per interactuar amb les publicacions.",
+  "postActions.sessionLoading": "La sessió s’està carregant. Torna-ho a provar d’aquí a un moment.",
+  "deck.mode.standard": "Normal",
+  "deck.mode.label": "Mode Deck",
   "navigation.menu": "Menú de navegació",
   "Your post could not be published. {{detail}}": "No s'ha pogut publicar la teva publicació. {{detail}}",
   "You're posting too fast. Please wait a moment and try again.": "Publiques massa de pressa. Espera un moment i torna-ho a provar.",
@@ -2787,5 +2794,9 @@
     "updating": "Actualitzant…",
     "total": "Total",
     "dayCount_many": "{{count}} dies"
-  }
+  },
+  "post.repostOptions": "Opcions de republicació",
+  "post.repost": "Republicar",
+  "post.undoRepost": "Desfer la republicació",
+  "post.quote": "Citar"
 }

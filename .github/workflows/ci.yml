@@ -198,6 +198,7 @@ jobs:
           bash .github/scripts/test-release-provenance.sh
           bash .github/scripts/test-deploy-ecs-image.sh
           bash .github/scripts/test-optional-task-bindings.sh
+          bash .github/scripts/test-wait-one-shot-task.sh
           bash .github/scripts/test-source-identity-reconciliation.sh
           bash .github/scripts/test-instagram-one-shot.sh
           bash .github/scripts/test-source-identity-recovery.sh
@@ -593,8 +594,8 @@ jobs:
           overwrite: true
           retention-days: 1
 
-  # Populate the baseline from main so every pull request can restore the same
-  # trusted report instead of each one rebuilding its own. Job shape ported from
+  # Populate the baseline from main so every merge-queue entry can restore the
+  # same trusted report instead of each one rebuilding its own. Job shape ported from
   # bluesky-social/social-app 783dfe2a1 ("Cache main bundle stats for PR checks",
   # MIT (c) 2023-2026 Bluesky Social PBC).
   #
@@ -700,19 +701,27 @@ jobs:
           path: ${{ runner.temp }}/mention-bundle-report.json
           key: mention-bundle-baseline-${{ github.sha }}
 
-  # Runs on a pull request AND on a merge-queue entry. The absolute ceilings in
-  # bundle-budgets.json are the hard gate, and the queue entry is the tree that
-  # ships, so it is the one they must hold for. It is NOT the baseline job's
-  # shape: a cache saved from a `gh-readonly-queue/...` ref is readable by that
-  # ref alone, so recording a baseline there would be work nobody can restore.
+  # Runs on a merge-queue entry. The absolute ceilings in bundle-budgets.json
+  # are the hard gate, and the queue entry is the tree that ships, so it is the
+  # one they must hold for. It is NOT the baseline job's shape: a cache saved
+  # from a `gh-readonly-queue/...` ref is readable by that ref alone, so
+  # recording a baseline there would be work nobody can restore.
+  #
+  # Not on pull_request. It ran on both, ~5 min a run, and this org shares 20
+  # Actions jobs across every repo: 2026-10-15..17 it was 103 runs, 495 runner
+  # minutes, on pull requests whose queue entry then measured the same export
+  # again. A pull request that breaks a ceiling still cannot merge — its queue
+  # entry fails `CI complete` — it just learns so at the queue instead of on the
+  # pull request. Run `bun run --cwd packages/frontend analyze-bundle` locally
+  # for the delta before then.
   frontend-bundle:
     name: Frontend bundle budget
-    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+    if: github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      # fetch-depth: 0 so origin/<base> and its history are present; the fallback
-      # baseline build below has to check the base commit out.
+      # fetch-depth: 0 so the queue's base commit is present for the scope diff
+      # and the baseline lookup below.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
@@ -730,11 +739,9 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
-      # The tip of the base branch, which is the commit frontend-bundle-baseline
-      # keyed its cache on. Deliberately not the pull request's merge base: a
-      # stale merge base would compare this build against a baseline nobody on
-      # main is running. A queue entry uses the commit the queue built it on,
-      # through the same CI_BASE_REVISION every other base reads.
+      # The commit the queue built this entry on, through the same
+      # CI_BASE_REVISION every other base reads: main's tip, which
+      # frontend-bundle-baseline keyed its cache on.
       - name: Resolve baseline commit
         id: baseline_commit
         if: steps.scope.outputs.run == 'true'
@@ -756,7 +763,7 @@ jobs:
       - name: Restore bundle baseline from the base branch
         id: restore_baseline
         if: steps.scope.outputs.run == 'true'
-        # Restore-only prevents PR-scoped fallback builds from creating caches.
+        # Restore-only: a cache saved from a queue ref is readable by nobody else.
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/mention-bundle-report.json
@@ -766,47 +773,10 @@ jobs:
       - name: Stage the restored baseline
         if: steps.scope.outputs.run == 'true' && steps.restore_baseline.outputs.cache-hit
         run: mv "$RUNNER_TEMP/mention-bundle-report.json" "$RUNNER_TEMP/mention-bundle-baseline.json"
-      # Fallback for a cache miss (first run after this job landed, an evicted
-      # entry, a base branch that never pushed). `git reset --hard` rather than
-      # the upstream `git reset` + `git restore .`: a mixed reset leaves files
-      # this branch added on disk as untracked, and the baseline export would
-      # then bundle them and understate the delta.
-      #
-      # Pull requests only. The comparison it feeds is advisory — the absolute
-      # ceilings are the only hard gate, and they are enforced below with or
-      # without a baseline — and on a queue entry it would put ~208s (measured,
-      # run 36509617655) of building someone else's commit on the path to main.
-      # A queue entry whose base has no cached baseline is judged on the ceilings
-      # alone, which is exactly what a push to main is judged on.
-      - name: Build the baseline bundle at the base commit
-        if: github.event_name == 'pull_request' && steps.scope.outputs.run == 'true' && !steps.restore_baseline.outputs.cache-hit
-        env:
-          BASELINE_SHA: ${{ steps.baseline_commit.outputs.sha }}
-          HEAD_SHA: ${{ steps.baseline_commit.outputs.head }}
-          NODE_ENV: production
-          EXPO_PUBLIC_ENV: production
-          EXPO_PUBLIC_API_URL: https://api.mention.earth
-        run: |
-          set -euo pipefail
-          git reset --hard "$BASELINE_SHA"
-          bun install --frozen-lockfile --ignore-scripts
-          bun run build:shared-types
-          bun run --cwd packages/frontend build:analyze
-          # No --ci: a base branch that already breaches a ceiling is main's
-          # problem to fix, not a reason to fail this pull request.
-          bun run --cwd packages/frontend analyze-bundle -- \
-            --json "$RUNNER_TEMP/mention-bundle-baseline.json"
-          git reset --hard "$HEAD_SHA"
-          rm -rf packages/frontend/dist
-          # This job is the only one that installs TWO dependency graphs into one
-          # runner: the base commit's, then this revision's. Bun's hoisted linker
-          # is not guaranteed to converge on the second install — taking the SDK
-          # 56 -> 57 bump, it left `@expo/cli` resolving the hoisted ws 7 that
-          # `@react-native/dev-middleware` pins instead of the ws 8 it depends on
-          # for `WebSocketServer`, and the export died inside @expo/cli. The
-          # lockfile records the nested copy correctly and a clean install
-          # produces it, so drop the baseline's tree rather than install over it.
-          rm -rf node_modules packages/*/node_modules
+      # A cache miss (an evicted entry, a base that never pushed) is judged on the
+      # ceilings alone, which is exactly what a push to main is judged on: the
+      # comparison is advisory, and rebuilding someone else's commit would put
+      # ~208s (measured, run 36509617655) on the path to main.
       - name: Install exact dependency graph
         if: steps.scope.outputs.run == 'true'
         run: bun install --frozen-lockfile --ignore-scripts
@@ -825,8 +795,7 @@ jobs:
         run: bun .github/scripts/validate-frontend-static-output.mjs packages/frontend/dist
       # The comparison is advisory and never fails on its own; the absolute
       # ceilings in bundle-budgets.json remain the only hard gate. `--baseline`
-      # is passed only when one is on disk — always, on a pull request (restored
-      # or built above); on a queue entry, only on a cache hit.
+      # is passed only when one is on disk, i.e. on a cache hit.
       - name: Enforce bundle budgets and compare against the baseline
         if: steps.scope.outputs.run == 'true'
         run: |
@@ -840,10 +809,8 @@ jobs:
             --json "$RUNNER_TEMP/mention-bundle-report.json" \
             "${baseline[@]}" \
             --markdown "$RUNNER_TEMP/mention-bundle-summary.md"
-      # Step summary rather than a pull request comment: this workflow runs on
-      # `pull_request` with contents: read, a comment needs pull-requests: write
-      # that forks never receive, and `pull_request_target` would run untrusted
-      # code with a write token.
+      # Step summary rather than a pull request comment: a comment needs
+      # pull-requests: write, which this workflow does not hold.
       - name: Publish bundle summary
         if: always() && steps.scope.outputs.run == 'true'
         run: |
@@ -884,13 +851,20 @@ jobs:
   #
   # Its own job, in parallel with everything else: measured ~6m cold against
   # the ~5m bundle budget, so it sits beside the critical path, not on it.
+  #
+  # On the merge queue and on push, not on pull_request: 2026-10-15..17 it was
+  # 103 pull-request runs, 527 runner minutes of this org's 20 shared Actions
+  # jobs, each repeated by the queue entry. Running at the queue keeps the
+  # property that matters — a change that breaks it cannot reach main, so it
+  # cannot block a release — and only moves when the author hears about it.
+  # Run `bun run test:e2e` locally first for a frontend change.
   # Scoped to the frontend leg — the suite gates the web build, and its backend
   # is production's, which a pull request's backend change cannot reach.
   # `packages/e2e/*` itself falls through ci-scope.sh's catch-all to every leg.
   e2e:
     name: Browser gate (e2e)
     needs: provenance
-    if: ${{ !cancelled() && needs.provenance.outputs.verified != 'true' }}
+    if: ${{ !cancelled() && needs.provenance.outputs.verified != 'true' && github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -1168,9 +1142,14 @@ jobs:
           # the merge queue: those jobs already ran, green, on this tree, and
           # were skipped for that reason alone. Then they must be skipped — a
           # job that ran anyway means the gating broke, and is worth a red.
+          #
+          # e2e does not run on pull_request (see its job), so there it must be
+          # skipped; on every other event it is judged like the rest.
           for job in quality tests backend-test e2e; do
             result="$(jq -r --arg job "$job" '.[$job].result' <<<"$RESULTS")"
-            if [ "$verified" = true ]; then
+            if [ "$job" = e2e ] && [ "$EVENT_NAME" = pull_request ]; then
+              [ "$result" = skipped ] || failures+=("e2e ran on pull_request, where it is left to the merge queue: $result")
+            elif [ "$verified" = true ]; then
               [ "$result" = skipped ] || failures+=("$job ran on a queue-verified push: $result")
             elif [ "$result" != success ]; then
               failures+=("$job did not pass: $result")
@@ -1180,18 +1159,21 @@ jobs:
             echo "::notice::${GITHUB_SHA} passed CI complete in the merge queue on this exact tree; the heavy jobs were not re-run."
           fi
 
-          # Exactly one of the bundle pair runs, chosen by event type (baseline on
-          # push and dispatch, the budget on pull_request and merge_group). Asserting
-          # the pairing rather than tolerating both being skipped is what stops a
-          # future `if:` edit retiring the bundle budget on both paths at once.
+          # The bundle pair runs by event type: the baseline on push and
+          # dispatch, the budget on merge_group, neither on pull_request (the
+          # queue entry measures it). Asserting the exact pair per event, rather
+          # than tolerating skips, is what stops a future `if:` edit retiring the
+          # bundle budget on the queue, the path that gates main.
           baseline="$(jq -r '."frontend-bundle-baseline".result' <<<"$RESULTS")"
-          pull_request="$(jq -r '."frontend-bundle".result' <<<"$RESULTS")"
-          case "$baseline/$pull_request" in
-            success/skipped | skipped/success) ;;
-            *)
-              failures+=("the bundle budget did not run on exactly one path: baseline=$baseline pull-request=$pull_request")
-              ;;
+          budget="$(jq -r '."frontend-bundle".result' <<<"$RESULTS")"
+          case "$EVENT_NAME" in
+            push | workflow_dispatch) expected=success/skipped ;;
+            merge_group) expected=skipped/success ;;
+            *) expected=skipped/skipped ;;
           esac
+          if [ "$baseline/$budget" != "$expected" ]; then
+            failures+=("the bundle jobs did not run as $EVENT_NAME requires ($expected): baseline=$baseline budget=$budget")
+          fi
 
           if [ ${#failures[@]} -gt 0 ]; then
             for failure in "${failures[@]}"; do

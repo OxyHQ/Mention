@@ -81,7 +81,9 @@ config.transformer = {
       keep_fnames: false,
     },
     output: {
-      ascii_only: true,
+      // Web assets are UTF-8: preserve locale text instead of expanding every
+      // non-ASCII character into a six-byte Unicode escape.
+      ascii_only: false,
       quote_style: 3,
       wrap_iife: true,
     },

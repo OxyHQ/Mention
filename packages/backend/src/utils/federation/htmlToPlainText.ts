@@ -1,6 +1,7 @@
 import { decode as decodeEntities } from 'he';
 import sanitizeHtml from 'sanitize-html';
 import { normalizeInlineText, normalizeMultilineText } from '@oxy.so/core';
+import { mirroredNetworkDomain, networkUrlOf } from './mirrorTransports';
 
 /**
  * Any `<a …>…</a>` anchor, capturing its attribute string and its inner HTML
@@ -113,9 +114,13 @@ function collapseAnchors(html: string, preserveMentionLinks: boolean): string {
         // that is a LOCAL handle naming someone else, so it takes the host of the
         // profile it links to: `@user@instance`.
         const handle =
-          url && LOCAL_HANDLE_LABEL_REGEX.test(label) ? `${visible}@${url.hostname}` : visible;
+          url && LOCAL_HANDLE_LABEL_REGEX.test(label)
+            ? `${visible}@${mirroredNetworkDomain(url.hostname) ?? url.hostname}`
+            : visible;
         if (preserveMentionLinks && label.startsWith('@') && !/[[\]\r\n]/.test(label) && url) {
-          const target = url.href.replace(/\(/g, '%28').replace(/\)/g, '%29');
+          // A mirror's profile is shown as the account it republishes.
+          const upstream = networkUrlOf(url.href);
+          const target = (upstream ?? url.href).replace(/\(/g, '%28').replace(/\)/g, '%29');
           return `[@${handle}](${target})`;
         }
         return handle;

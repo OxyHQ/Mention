@@ -530,13 +530,32 @@ for (const workflowName of workflowNames) {
       if (String(provenance?.if ?? '') !== "github.event_name == 'push'") {
         failures.push(`${workflowName}: the provenance job must run on push alone`);
       }
-      for (const job of ['quality', 'tests', 'backend-test', 'e2e']) {
+      const provenanceCondition = "!cancelled() && needs.provenance.outputs.verified != 'true'";
+      for (const job of ['quality', 'tests', 'backend-test']) {
         const condition = String(workflow?.jobs?.[job]?.if ?? '');
-        if (condition !== "${{ !cancelled() && needs.provenance.outputs.verified != 'true' }}") {
+        if (condition !== `\${{ ${provenanceCondition} }}`) {
           failures.push(
             `${workflowName}: ${job} may be skipped only on a queue-verified push; its if: must be exactly the provenance condition`,
           );
         }
+      }
+      // The browser gate and the bundle budget are left to the merge queue:
+      // skipped on pull_request, never on the queue entry that gates main.
+      if (
+        String(workflow?.jobs?.e2e?.if ?? '') !==
+        `\${{ ${provenanceCondition} && github.event_name != 'pull_request' }}`
+      ) {
+        failures.push(
+          `${workflowName}: e2e may be skipped only on a queue-verified push or a pull request; its if: must be exactly the provenance condition plus github.event_name != 'pull_request'`,
+        );
+      }
+      if (
+        String(workflow?.jobs?.['frontend-bundle']?.if ?? '') !==
+        "github.event_name == 'merge_group'"
+      ) {
+        failures.push(
+          `${workflowName}: the frontend bundle budget must run on merge_group, the tree that ships`,
+        );
       }
 
       /**

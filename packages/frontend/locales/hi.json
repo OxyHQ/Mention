@@ -1,4 +1,11 @@
 {
+  "post.threadPosition": "थ्रेड की {{total}} में से {{index}} पोस्ट",
+  "post.viewConversation": "बातचीत देखें",
+  "post.threadContinuation": "थ्रेड का अगला भाग ({{count}})",
+  "postActions.signInRequired": "पोस्ट पर प्रतिक्रिया देने के लिए साइन इन करें।",
+  "postActions.sessionLoading": "आपका सत्र लोड हो रहा है। थोड़ी देर में फिर कोशिश करें।",
+  "deck.mode.standard": "सामान्य",
+  "deck.mode.label": "Deck मोड",
   "navigation.menu": "नेविगेशन मेन्यू",
   "Your post could not be published. {{detail}}": "आपकी पोस्ट प्रकाशित नहीं हो सकी। {{detail}}",
   "You're posting too fast. Please wait a moment and try again.": "आप बहुत तेज़ी से पोस्ट कर रहे हैं। कृपया थोड़ा रुककर फिर कोशिश करें।",
@@ -2755,5 +2762,9 @@
     "rateExplanation": "इंटरैक्शन को व्यू से भाग देकर × 100।",
     "updating": "अपडेट हो रहा है…",
     "total": "कुल"
-  }
+  },
+  "post.repostOptions": "रीपोस्ट विकल्प",
+  "post.repost": "रीपोस्ट करें",
+  "post.undoRepost": "रीपोस्ट हटाएँ",
+  "post.quote": "उद्धृत करें"
 }

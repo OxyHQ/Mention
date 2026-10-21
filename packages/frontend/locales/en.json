@@ -1,4 +1,11 @@
 {
+  "post.threadPosition": "Post {{index}} of {{total}} in thread",
+  "post.viewConversation": "View conversation",
+  "post.threadContinuation": "Thread continuation ({{count}})",
+  "post.repostOptions": "Repost options",
+  "post.repost": "Repost",
+  "post.undoRepost": "Undo repost",
+  "post.quote": "Quote",
   "navigation.menu": "Navigation menu",
   "Your post could not be published. {{detail}}": "Your post could not be published. {{detail}}",
   "You're posting too fast. Please wait a moment and try again.": "You're posting too fast. Please wait a moment and try again.",
@@ -930,6 +937,8 @@
   "post.quotes.title": "Quotes",
   "post.quotes.description": "Posts quoting this post on Mention",
   "postActions": {
+    "signInRequired": "Sign in to interact with posts.",
+    "sessionLoading": "Your session is loading. Try again in a moment.",
     "insights": "Insights",
     "save": "Save",
     "unsave": "Unsave",
@@ -3039,6 +3048,10 @@
     "pendingAssessment": "This content is not available until its safety review is complete."
   },
   "deck": {
+    "mode": {
+      "standard": "Standard",
+      "label": "Deck mode"
+    },
     "resizable": "Allow resizing",
     "appearance": "Appearance",
     "solid": "Surface",

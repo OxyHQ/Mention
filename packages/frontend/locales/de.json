@@ -1,4 +1,11 @@
 {
+  "post.threadPosition": "Beitrag {{index}} von {{total}} im Thread",
+  "post.viewConversation": "Unterhaltung ansehen",
+  "post.threadContinuation": "Fortsetzung des Threads ({{count}})",
+  "postActions.signInRequired": "Melde dich an, um mit Beiträgen zu interagieren.",
+  "postActions.sessionLoading": "Deine Sitzung wird geladen. Versuche es gleich erneut.",
+  "deck.mode.standard": "Standard",
+  "deck.mode.label": "Deck-Modus",
   "navigation.menu": "Navigationsmenü",
   "Your post could not be published. {{detail}}": "Dein Beitrag konnte nicht veröffentlicht werden. {{detail}}",
   "You're posting too fast. Please wait a moment and try again.": "Du postest zu schnell. Warte einen Moment und versuche es erneut.",
@@ -2755,5 +2762,9 @@
     "rateExplanation": "Interaktionen geteilt durch Aufrufe × 100.",
     "updating": "Wird aktualisiert…",
     "total": "Gesamt"
-  }
+  },
+  "post.repostOptions": "Repost-Optionen",
+  "post.repost": "Reposten",
+  "post.undoRepost": "Repost rückgängig machen",
+  "post.quote": "Zitieren"
 }

@@ -42,9 +42,7 @@ jest.mock('expo-router', () => ({
 }));
 jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => mockSafeBack }));
 jest.mock('@/hooks/useProfileData', () => ({ useProfileData: () => mockProfile }));
-jest.mock('@/hooks/useProfileScreenColor', () => ({
-  useProfileScreenColor: () => ({ colorName: undefined }),
-}));
+
 jest.mock('@/hooks/useRecommendations', () => ({
   useRecommendations: () => ({
     recommendations: [],

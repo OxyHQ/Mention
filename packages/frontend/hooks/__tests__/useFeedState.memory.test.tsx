@@ -224,6 +224,8 @@ describe('useFeedState memory mode: one feed query', () => {
       expect(ids()).toEqual([]);
       await mount({ ...explore, type: 'replies', filters: { parentPostId: 'root' } });
       expect(ids()).toEqual([]);
+      await mount({ ...explore, filters: { parentPostId: 'root' } });
+      expect(ids()).toEqual([]);
     });
 
     it('reads for itself when the boot read failed', async () => {
@@ -361,15 +363,16 @@ describe('useFeedState memory mode: one feed query', () => {
       expect(ids()).toEqual(['r1', 'r9']);
     });
 
-    it('narrows a thread to the replies that answer it, and seeds the entity caches', async () => {
+    it('keeps a parent filter on other feeds from leaking unrelated posts into rows or caches', async () => {
       getFeedMock.mockResolvedValueOnce({
         ...page([]),
         items: [
           post('answer', { parentPostId: 'root' } as Partial<HydratedPost>),
-          post('elsewhere', { parentPostId: 'other' } as Partial<HydratedPost>),
+          post('other-thread', { parentPostId: 'elsewhere' } as Partial<HydratedPost>),
+          post('standalone'),
         ],
       });
-      await mount({ ...explore, type: 'replies', filters: { parentPostId: 'root' } });
+      await mount({ ...explore, filters: { parentPostId: 'root' } });
 
       expect(ids()).toEqual(['answer']);
       const cachePosts = usePostsStore.getState().cachePosts as jest.Mock;
@@ -379,6 +382,31 @@ describe('useFeedState memory mode: one feed query', () => {
           (item: HydratedPost) => item.id,
         ),
       ).toEqual(['answer']);
+    });
+
+    it('preserves server-selected spine and nested replies in the feed and entity caches', async () => {
+      getFeedMock.mockResolvedValueOnce({
+        ...page([]),
+        items: [
+          post('answer', { parentPostId: 'root' } as Partial<HydratedPost>),
+          post('spine-answer', { parentPostId: 'continuation' } as Partial<HydratedPost>),
+          post('nested-answer', { parentPostId: 'answer' } as Partial<HydratedPost>),
+        ],
+      });
+      await mount({ ...explore, type: 'replies', filters: { parentPostId: 'root' } });
+
+      expect(ids()).toEqual(['answer', 'spine-answer', 'nested-answer']);
+      const cachePosts = usePostsStore.getState().cachePosts as jest.Mock;
+      expect(cachePosts.mock.calls[0][0].map((item: HydratedPost) => item.id)).toEqual([
+        'answer',
+        'spine-answer',
+        'nested-answer',
+      ]);
+      expect(
+        (precacheActorsFromPosts as jest.Mock).mock.calls[0][0].map(
+          (item: HydratedPost) => item.id,
+        ),
+      ).toEqual(['answer', 'spine-answer', 'nested-answer']);
     });
   });
 

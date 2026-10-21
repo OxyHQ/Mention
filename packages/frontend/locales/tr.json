@@ -1,4 +1,11 @@
 {
+  "post.threadPosition": "Dizideki {{total}} gönderiden {{index}}. gönderi",
+  "post.viewConversation": "Sohbeti görüntüle",
+  "post.threadContinuation": "Dizinin devamı ({{count}})",
+  "postActions.signInRequired": "Gönderilerle etkileşim kurmak için giriş yapın.",
+  "postActions.sessionLoading": "Oturumunuz yükleniyor. Biraz sonra tekrar deneyin.",
+  "deck.mode.standard": "Standart",
+  "deck.mode.label": "Deck modu",
   "navigation.menu": "Gezinme menüsü",
   "Your post could not be published. {{detail}}": "Gönderin yayınlanamadı. {{detail}}",
   "You're posting too fast. Please wait a moment and try again.": "Çok hızlı gönderi paylaşıyorsun. Lütfen biraz bekleyip tekrar dene.",
@@ -2755,5 +2762,9 @@
     "rateExplanation": "Etkileşimler bölü görüntülemeler × 100.",
     "updating": "Güncelleniyor…",
     "total": "Toplam"
-  }
+  },
+  "post.repostOptions": "Yeniden paylaşım seçenekleri",
+  "post.repost": "Yeniden paylaş",
+  "post.undoRepost": "Yeniden paylaşımı geri al",
+  "post.quote": "Alıntıla"
 }

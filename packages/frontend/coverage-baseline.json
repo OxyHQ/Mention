@@ -535,7 +535,7 @@
     },
     "hooks/useProfileData.ts": {
       "statements": 92,
-      "branches": 84,
+      "branches": 85,
       "functions": 90,
       "lines": 93
     },
@@ -550,12 +550,6 @@
       "branches": 100,
       "functions": 100,
       "lines": 100
-    },
-    "hooks/useProfileScreenColor.ts": {
-      "statements": 61,
-      "branches": 50,
-      "functions": 50,
-      "lines": 60
     },
     "hooks/useProfileSongPreview.ts": {
       "statements": 0,
@@ -1806,10 +1800,10 @@
       "lines": 38
     },
     "utils/userPlaceholderColor.ts": {
-      "statements": 60,
-      "branches": 50,
-      "functions": 50,
-      "lines": 66
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "utils/video-feed-pagination.ts": {
       "statements": 100,

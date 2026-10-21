@@ -226,6 +226,71 @@ describe('getRepliesFeed — self-thread spine expansion', () => {
     expect(ids).toEqual([reply.id]);
   });
 
+  it.each(['best', 'oldest', 'recent'])(
+    'previews public children without changing %s root pagination',
+    async (sort) => {
+      const root = await seedPost(scope, { oxyUserId: OP });
+      const expected: string[] = [];
+      for (let i = 0; i < 3; i += 1) {
+        const parent = await seedPost(scope, {
+          oxyUserId: OTHER,
+          parentPostId: root.id,
+          isReply: true,
+        });
+        const child = await seedPost(scope, {
+          oxyUserId: OP,
+          parentPostId: parent.id,
+          isReply: true,
+        });
+        expected.push(parent.id, child.id);
+        await seedPost(scope, {
+          oxyUserId: OP,
+          parentPostId: parent.id,
+          isReply: true,
+          visibility: 'private',
+        });
+        // A preview is one hop; deeper replies are read by opening the child.
+        await seedPost(scope, { oxyUserId: OTHER, parentPostId: child.id, isReply: true });
+      }
+      const seen: string[] = [];
+      let cursor: string | undefined;
+      for (let i = 0; i < 3; i += 1) {
+        const flat = await fetchReplies(root.id, {
+          limit: '1',
+          sort,
+          ...(cursor ? { cursor } : {}),
+        });
+        const nested = await fetchReplies(root.id, {
+          limit: '1',
+          sort,
+          includeNestedReplies: '1',
+          ...(cursor ? { cursor } : {}),
+        });
+        expect(nested.hasMore).toBe(flat.hasMore);
+        expect(nested.nextCursor).toBe(flat.nextCursor);
+        expect(nested.items[0].id).toBe(flat.items[0].id);
+        expect(nested.items).toHaveLength(2);
+        seen.push(...nested.items.map((item) => item.id));
+        cursor = nested.nextCursor ?? undefined;
+      }
+      expect(new Set(seen)).toEqual(new Set(expected));
+      expect(seen).toHaveLength(expected.length);
+    },
+  );
+
+  it('never previews children of an excluded parent', async () => {
+    const root = await seedPost(scope, { oxyUserId: OP });
+    const parent = await seedPost(scope, {
+      oxyUserId: OTHER,
+      parentPostId: root.id,
+      isReply: true,
+    });
+    await seedPost(scope, { oxyUserId: OP, parentPostId: parent.id, isReply: true });
+    privacyMocks.loadPrivacyState.mockResolvedValueOnce({ excludedUserIds: new Set([OTHER]) });
+    const body = await fetchReplies(root.id, { includeNestedReplies: '1' });
+    expect(body.items).toEqual([]);
+  });
+
   it('returns an empty page for an unknown parent instead of failing', async () => {
     const body = await fetchReplies('019fffff-ffff-7fff-bfff-ffffffffffff');
 

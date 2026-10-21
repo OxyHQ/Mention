@@ -101,20 +101,37 @@
  *   bun packages/backend/dist/src/scripts/backfillPostLanguages.js [--all]
  * Pacing env (all optional): BACKFILL_ROWS_PER_SECOND, BACKFILL_WRITE_BATCH_SIZE,
  * BACKFILL_PAUSE_MS, BACKFILL_LOCK_TIMEOUT_MS, BACKFILL_STATEMENT_TIMEOUT_MS;
- * cursor env: START_AFTER_ID, RESET_CURSOR.
+ * read pacing: BACKFILL_PAGE_SIZE, BACKFILL_PAGE_PAUSE_MS,
+ * BACKFILL_MAX_PAGES_PER_SECOND, BACKFILL_MAX_ACTIVE_QUERIES (0 disables the
+ * load check), BACKFILL_LOAD_BACKOFF_MS; cursor env: START_AFTER_ID, RESET_CURSOR.
+ *
+ * ## The scan is paced too
+ *
+ * Writes were paced and the scan was not, and the scan alone doubled the shared
+ * instance's read IOPS (waits on `IO:DataFileRead`). It now reads only what the
+ * classifier needs — {@link SCAN_COLUMNS} from `posts`, by an index range scan
+ * on the id cursor, and the page's renditions in ONE query with only the
+ * primary's body — instead of whole records with their nine child tables. The
+ * full record is loaded only for a row whose rendition tag is rewritten. Pages
+ * are spaced by at least `BACKFILL_PAGE_PAUSE_MS` and at most
+ * `BACKFILL_MAX_PAGES_PER_SECOND`, and before each page the run waits while
+ * more than `BACKFILL_MAX_ACTIVE_QUERIES` other queries are active on this
+ * database (`pg_stat_activity` — no CloudWatch access needed).
  */
 
 import { isLiveEntityId } from '@oxy.so/db';
-import { and, asc, gt, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, gt, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
+import type { PostContentVariant } from '@mention/shared-types';
 import { getRemoteHost } from '../connectors/shared/url';
 import { connectPostgres, getDb, type Transaction } from '../db/postgres';
 import type { PostRecord } from '../db/posts/postRecord';
 import {
-  findPostRecords,
+  loadPostRecords,
   replacePostContent,
   updatePostRecord,
   type PostRecordPatch,
 } from '../db/posts/postRepository';
+import { postContentVariants } from '../db/schema/postContent';
 import { posts } from '../db/schema/posts';
 import {
   baselineContentClassifier,
@@ -139,7 +156,15 @@ import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 const SCRIPT_NAME = 'backfillPostLanguages';
 
 /** Posts scanned per page (stable ascending `id` cursor pagination). */
-const DEFAULT_PAGE_SIZE = 500;
+export const DEFAULT_PAGE_SIZE = 500;
+/** Minimum pause after each scanned page. */
+export const DEFAULT_PAGE_PAUSE_MS = 250;
+/** Upper bound on pages scanned per second. */
+export const DEFAULT_MAX_PAGES_PER_SECOND = 1;
+/** Other active queries on this database above which the scan waits (CLI default). */
+export const DEFAULT_MAX_ACTIVE_QUERIES = 6;
+/** How long the scan waits before checking the load again. */
+export const DEFAULT_LOAD_BACKOFF_MS = 5_000;
 /** Rows per write transaction. */
 export const DEFAULT_WRITE_BATCH_SIZE = 100;
 /** Upper bound on rows written per second across the run. */
@@ -221,9 +246,21 @@ export interface BackfillPacing {
   pauseMs: number;
   lockTimeoutMs: number;
   statementTimeoutMs: number;
-  /** Injectable for tests; real time otherwise. */
+  /** Minimum pause after each scanned page. */
+  pagePauseMs: number;
+  /** Upper bound on pages scanned per second (0 = unbounded). */
+  maxPagesPerSecond: number;
+  /**
+   * Wait before a page while more than this many OTHER queries are active on
+   * this database. `undefined` or 0 disables the check.
+   */
+  maxActiveQueries?: number;
+  /** Wait between load checks. */
+  loadBackoffMs: number;
+  /** Injectable for tests; real time and `pg_stat_activity` otherwise. */
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
+  activeQueries?: () => Promise<number>;
 }
 
 export interface BackfillPostLanguagesOptions {
@@ -257,6 +294,131 @@ export function paceDelayMs(
 }
 
 /**
+ * How long to wait after a scanned page: at least `pagePauseMs`, and long
+ * enough that pages are no closer together than `1 / maxPagesPerSecond`.
+ */
+export function pageDelayMs(
+  elapsedMs: number,
+  pacing: Pick<BackfillPacing, 'pagePauseMs' | 'maxPagesPerSecond'>,
+): number {
+  const intervalMs = pacing.maxPagesPerSecond > 0 ? 1000 / pacing.maxPagesPerSecond : 0;
+  return Math.max(pacing.pagePauseMs, Math.ceil(intervalMs - elapsedMs));
+}
+
+/** Queries other than this one currently active on this database. */
+async function countActiveQueries(): Promise<number> {
+  const [row] = await getDb().execute<{ active: number }>(sql`
+    select count(*)::int as active
+    from pg_stat_activity
+    where state = 'active' and datname = current_database() and pid <> pg_backend_pid()
+  `);
+  return Number(row?.active ?? 0);
+}
+
+/**
+ * The `posts` columns the classifier and the change check read — nothing else.
+ * The federation flag is computed exactly as `assembleFederation` decides a row
+ * is federated: any federation column present.
+ */
+const SCAN_COLUMNS = {
+  id: posts.id,
+  hashtags: posts.hashtags,
+  language: posts.language,
+  metadataIsSensitive: posts.metadataIsSensitive,
+  federationActorUri: posts.federationActorUri,
+  federationSensitive: posts.federationSensitive,
+  isFederated: sql<boolean>`(${posts.federationActivityId} is not null
+    or ${posts.federationActorUri} is not null
+    or ${posts.federationInReplyTo} is not null
+    or ${posts.federationUrl} is not null
+    or ${posts.federationSensitive} is not null
+    or ${posts.federationSpoilerText} is not null)`,
+  classificationLanguages: posts.classificationLanguages,
+  classificationTrendTerms: posts.classificationTrendTerms,
+  classificationVersion: posts.classificationVersion,
+  classificationStatus: posts.classificationStatus,
+};
+
+/** What one scanned post carries: the subset of a record {@link planPost} reads. */
+interface ScanPost {
+  id: string;
+  hashtags: string[];
+  language?: string;
+  isFederated: boolean;
+  federationActorUri?: string;
+  sensitive?: boolean;
+  classification: {
+    languages?: string[];
+    trendTerms?: string[];
+    version?: number;
+    status: string;
+  };
+  /** Every rendition, in order; only the primary carries its body. */
+  variants: PostContentVariant[];
+}
+
+/**
+ * One page of the scan: the narrow `posts` rows by the id cursor, then the
+ * page's renditions in ONE query (tag and source for all, the body for the
+ * primary only).
+ */
+async function scanPage(
+  filter: SQL | undefined,
+  afterId: string | null,
+  limit: number,
+): Promise<ScanPost[]> {
+  const rows = await getDb()
+    .select(SCAN_COLUMNS)
+    .from(posts)
+    .where(afterId ? and(filter, gt(posts.id, afterId)) : filter)
+    .orderBy(asc(posts.id))
+    .limit(limit);
+  if (rows.length === 0) return [];
+
+  const variantRows = await getDb()
+    .select({
+      postId: postContentVariants.postId,
+      tag: postContentVariants.tag,
+      source: postContentVariants.source,
+      body: sql<string>`case when ${postContentVariants.position} = 0 then ${postContentVariants.body} else '' end`,
+    })
+    .from(postContentVariants)
+    .where(
+      inArray(
+        postContentVariants.postId,
+        rows.map((row) => row.id),
+      ),
+    )
+    .orderBy(asc(postContentVariants.postId), asc(postContentVariants.position));
+  const variantsByPost = new Map<string, PostContentVariant[]>();
+  for (const row of variantRows) {
+    const list = variantsByPost.get(row.postId) ?? [];
+    list.push({
+      ...(row.tag ? { tag: row.tag } : {}),
+      source: row.source,
+      text: row.body,
+    });
+    variantsByPost.set(row.postId, list);
+  }
+
+  return rows.map((row) => ({
+    id: row.id,
+    hashtags: row.hashtags ?? [],
+    language: row.language ?? undefined,
+    isFederated: row.isFederated,
+    federationActorUri: row.federationActorUri ?? undefined,
+    sensitive: row.federationSensitive ?? row.metadataIsSensitive,
+    classification: {
+      languages: row.classificationLanguages ?? undefined,
+      trendTerms: row.classificationTrendTerms ?? undefined,
+      version: row.classificationVersion ?? undefined,
+      status: row.classificationStatus,
+    },
+    variants: variantsByPost.get(row.id) ?? [],
+  }));
+}
+
+/**
  * The primary AUTHOR rendition is tagged with a base language other than the
  * row's own primary classification language (including a tagged primary on a row
  * with no classification language at all).
@@ -279,23 +441,25 @@ const sameList = (a: readonly string[] | undefined, b: readonly string[]): boole
 
 /** One row's re-derived state, decided before anything is written. */
 interface PostLanguagePlan {
-  post: PostRecord;
+  postId: string;
   text: string;
   from: string;
   to: string;
   source: LanguageSource;
   patch: PostRecordPatch;
-  /** The re-tagged renditions, or `null` when the tag already agrees. */
-  retagged: PostRecord['content']['variants'] | null;
+  /** The resolved primary language the renditions are reconciled with. */
+  primaryLanguage: string | undefined;
+  /** Whether the primary rendition's tag changes. */
+  retag: boolean;
 }
 
 /** Re-derive one post. `null` when there is nothing to write. */
-async function planPost(post: PostRecord): Promise<PostLanguagePlan | null> {
-  const classification = post.postClassification;
+async function planPost(post: ScanPost): Promise<PostLanguagePlan | null> {
+  const classification = post.classification;
   // The PRIMARY rendition — the author's own words. Detecting a language from a
   // machine translation would just re-derive the language we asked the
   // translator for.
-  const text = resolveVariant(post.content).text;
+  const text = resolveVariant({ variants: post.variants }).text;
   // A boost or a media-only post has no words to derive a language from, and
   // stamping a version on it would only make its column-default scores look
   // computed. Left exactly as it is.
@@ -303,7 +467,7 @@ async function planPost(post: PostRecord): Promise<PostLanguagePlan | null> {
   const signals = await baselineContentClassifier.classify({
     text,
     hashtags: post.hashtags,
-    languages: declaredBaseLanguages(post.content),
+    languages: declaredBaseLanguages({ variants: post.variants }),
     // A row already classified under the CURRENT ruleset carries its languages
     // like a declaration: a different detector replaces them only on strong
     // evidence. An older stamp is not trusted that far (see the docblock).
@@ -311,14 +475,14 @@ async function planPost(post: PostRecord): Promise<PostLanguagePlan | null> {
       classification?.version === BASELINE_CLASSIFIER_VERSION
         ? classification.languages
         : undefined,
-    sensitive: post.federation?.sensitive ?? post.metadata.isSensitive,
-    isFederated: post.federation != null,
+    sensitive: post.sensitive,
+    isFederated: post.isFederated,
     // The author's instance host, read exactly as ingest reads it.
-    instanceDomain: post.federation?.actorUri ? getRemoteHost(post.federation.actorUri) : undefined,
+    instanceDomain: post.federationActorUri ? getRemoteHost(post.federationActorUri) : undefined,
   });
   const primaryLanguage = signals.languages[0];
   const restamp = classification?.version !== BASELINE_CLASSIFIER_VERSION;
-  const variants = post.content.variants ?? [];
+  const variants = post.variants;
   const reconciled = applyDetectedPrimaryTag(variants, primaryLanguage);
   const retag = reconciled !== variants;
 
@@ -331,7 +495,7 @@ async function planPost(post: PostRecord): Promise<PostLanguagePlan | null> {
   if (unchanged) return null;
 
   return {
-    post,
+    postId: post.id,
     text,
     from: classification?.languages?.[0] ?? NO_LANGUAGE,
     to: primaryLanguage ?? NO_LANGUAGE,
@@ -358,7 +522,8 @@ async function planPost(post: PostRecord): Promise<PostLanguagePlan | null> {
       },
       language: primaryLanguage ?? null,
     },
-    retagged: retag ? reconciled : null,
+    primaryLanguage,
+    retag,
   };
 }
 
@@ -490,26 +655,40 @@ async function writeGroup(
   plans: readonly PostLanguagePlan[],
   pacing: BackfillPacing,
 ): Promise<void> {
+  // The scan carries only what the classifier reads; a re-tag rewrites the
+  // whole content graph, so those rows (and only those) are loaded in full.
+  const retagIds = plans.filter((plan) => plan.retag).map((plan) => plan.postId);
+  const full = new Map<string, PostRecord>(
+    (retagIds.length > 0 ? await loadPostRecords(retagIds) : []).map((record) => [
+      record.id,
+      record,
+    ]),
+  );
   await getDb().transaction(async (tx: Transaction) => {
     await tx.execute(
       sql`select set_config('lock_timeout', ${String(pacing.lockTimeoutMs)}, true),
                  set_config('statement_timeout', ${String(pacing.statementTimeoutMs)}, true)`,
     );
     for (const plan of plans) {
-      await updatePostRecord(plan.post.id, plan.patch, tx);
-      if (plan.retagged) {
-        await replacePostContent(
-          plan.post.id,
-          { ...plan.post.content, variants: plan.retagged },
-          plan.post.mentions,
-          tx,
-        );
+      await updatePostRecord(plan.postId, plan.patch, tx);
+      const record = plan.retag ? full.get(plan.postId) : undefined;
+      if (record) {
+        const variants = record.content.variants ?? [];
+        const reconciled = applyDetectedPrimaryTag(variants, plan.primaryLanguage);
+        if (reconciled !== variants) {
+          await replacePostContent(
+            plan.postId,
+            { ...record.content, variants: reconciled },
+            record.mentions,
+            tx,
+          );
+        }
       }
     }
   });
   // The repository invalidated inside the transaction; a reader in between
   // could have re-cached the old row, so invalidate again now it is committed.
-  await Promise.all(plans.map((plan) => invalidatePostDetailCache(plan.post.id)));
+  await Promise.all(plans.map((plan) => invalidatePostDetailCache(plan.postId)));
 }
 
 function parseStartAfter(value: string | undefined): string | undefined {
@@ -538,8 +717,12 @@ export async function backfillPostLanguages(
     pauseMs: DEFAULT_PAUSE_MS,
     lockTimeoutMs: DEFAULT_LOCK_TIMEOUT_MS,
     statementTimeoutMs: DEFAULT_STATEMENT_TIMEOUT_MS,
+    pagePauseMs: DEFAULT_PAGE_PAUSE_MS,
+    maxPagesPerSecond: DEFAULT_MAX_PAGES_PER_SECOND,
+    loadBackoffMs: DEFAULT_LOAD_BACKOFF_MS,
     ...opts.pacing,
   };
+  const activeQueries = pacing.activeQueries ?? countActiveQueries;
   const sleep =
     pacing.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const now = pacing.now ?? Date.now;
@@ -583,6 +766,10 @@ export async function backfillPostLanguages(
     scopeCompletedEarlier: Boolean(stored?.completedAt),
     rowsPerSecond: pacing.rowsPerSecond,
     writeBatchSize: pacing.writeBatchSize,
+    pageSize,
+    pagePauseMs: pacing.pagePauseMs,
+    maxPagesPerSecond: pacing.maxPagesPerSecond,
+    maxActiveQueries: pacing.maxActiveQueries ?? 0,
   });
 
   const report = new LanguageChangeReport();
@@ -593,10 +780,23 @@ export async function backfillPostLanguages(
   let cursorWriteFailures = 0;
 
   for (;;) {
-    const page = await findPostRecords(
-      lastId ? and(baseFilter, gt(posts.id, lastId)) : baseFilter,
-      { orderBy: [asc(posts.id)], limit: pageSize },
-    );
+    // Back off while the database is busy with other work: the scan is the
+    // one load here that can wait.
+    if (pacing.maxActiveQueries) {
+      for (;;) {
+        const active = await activeQueries();
+        if (active <= pacing.maxActiveQueries) break;
+        logger.info(`[${SCRIPT_NAME}] database busy; waiting`, {
+          count: active,
+          limit: pacing.maxActiveQueries,
+          waitMs: pacing.loadBackoffMs,
+        });
+        await sleep(pacing.loadBackoffMs);
+      }
+    }
+
+    const pageStartedAt = now();
+    const page = await scanPage(baseFilter, lastId, pageSize);
 
     if (page.length === 0) break;
 
@@ -613,10 +813,10 @@ export async function backfillPostLanguages(
           from: plan.from,
           to: plan.to,
           source: plan.source,
-          retagged: plan.retagged !== null,
+          retagged: plan.retag,
         });
         updated += 1;
-        if (plan.retagged) retagged += 1;
+        if (plan.retag) retagged += 1;
       } catch (error) {
         failed += 1;
         logger.warn(`[${SCRIPT_NAME}] classify failed for post; skipping`, {
@@ -659,6 +859,7 @@ export async function backfillPostLanguages(
     logger.info(
       `[${SCRIPT_NAME}] progress: scanned ${scanned}, updated ${updated} (retagged ${retagged}), failed ${failed}`,
     );
+    await sleep(pageDelayMs(now() - pageStartedAt, pacing));
   }
 
   if (cursorScope && lastId) {
@@ -721,10 +922,21 @@ async function main(): Promise<void> {
     if (pauseMs !== undefined) pacing.pauseMs = pauseMs;
     if (lockTimeoutMs !== undefined) pacing.lockTimeoutMs = lockTimeoutMs;
     if (statementTimeoutMs !== undefined) pacing.statementTimeoutMs = statementTimeoutMs;
+    const pagePauseMs = envNumber('BACKFILL_PAGE_PAUSE_MS');
+    const maxPagesPerSecond = envNumber('BACKFILL_MAX_PAGES_PER_SECOND');
+    const maxActiveQueries = envNumber('BACKFILL_MAX_ACTIVE_QUERIES');
+    const loadBackoffMs = envNumber('BACKFILL_LOAD_BACKOFF_MS');
+    const pageSize = envNumber('BACKFILL_PAGE_SIZE');
+    if (pagePauseMs !== undefined) pacing.pagePauseMs = pagePauseMs;
+    if (maxPagesPerSecond !== undefined) pacing.maxPagesPerSecond = maxPagesPerSecond;
+    // The load check is on by default for the one-shot; 0 turns it off.
+    pacing.maxActiveQueries = maxActiveQueries ?? DEFAULT_MAX_ACTIVE_QUERIES;
+    if (loadBackoffMs !== undefined) pacing.loadBackoffMs = loadBackoffMs;
 
     await connectPostgres();
 
     const result = await backfillPostLanguages({
+      ...(pageSize !== undefined ? { batchSize: Math.max(1, Math.floor(pageSize)) } : {}),
       dryRun,
       all,
       startAfterId: process.env.START_AFTER_ID,

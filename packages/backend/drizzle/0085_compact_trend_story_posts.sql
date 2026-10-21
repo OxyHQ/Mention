@@ -1,0 +1,22 @@
+-- oxy:deploy-phase=post
+-- oxy:statement-timeout=600s
+-- Rewrite `trend_story_posts` without the space no-op upserts left.
+--
+-- `saveStoryMemberships` used to rewrite every existing membership on a re-run,
+-- changed or not, and Postgres writes a new row version for every UPDATE: the
+-- table recorded 5.3M updates (and 8.4M retention deletes) against 3.56M live
+-- rows. Production held those rows in 4.4 GB of heap where ~1.4 GB is live (~69%
+-- dead) plus 2.6 GB of indexes (2026-10-20). Deleted rows only free space inside
+-- the table; they never return it. The upsert now skips unchanged rows (same
+-- PR), so this rewrite stays small.
+--
+-- CLUSTER rewrites the heap in `(trend_id, post_id)` order — the order every
+-- reader reads in (`trendTermsSource`'s member list and `resolveTrendStory`'s
+-- probe both seek on `trend_id`) — and rebuilds every index. It takes ACCESS
+-- EXCLUSIVE on this table only, for the length of the rewrite. Measured over two
+-- minutes in production before writing this: zero index scans of the table and
+-- zero `posts` deletions (the only cascade into it on a request path); its one
+-- writer is the trend batch, which is background and fail-soft
+-- (`saveMembershipsFailSoft`). The runner's 3 s lock_timeout keeps the WAIT from
+-- queueing readers; post phase, so it never holds a deploy's pre-rollout window.
+CLUSTER "trend_story_posts" USING "trend_story_posts_trend_id_post_id_key";

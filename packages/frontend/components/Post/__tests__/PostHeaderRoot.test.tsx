@@ -65,3 +65,26 @@ it('renders one root node carrying both the padding and the row layout', () => {
 
   act(() => renderer?.unmount());
 });
+
+it('stacks the focused handle below the name and omits the relative timestamp', () => {
+  let renderer: TestRenderer.ReactTestRenderer | undefined;
+  act(() => {
+    renderer = TestRenderer.create(
+      <PostHeader
+        detail
+        user={{ displayName: 'Nate Isern', handle: 'nate' }}
+        date="2026-08-01T10:00:00.000Z"
+      />,
+    );
+  });
+  if (!renderer) throw new Error('render produced no tree');
+  const json = JSON.stringify(renderer.toJSON());
+  expect(json).toContain('@nate');
+  expect(json).not.toContain('·');
+  const column = renderer.root.findAll((node) => node.props.className === 'items-start')[0];
+  expect(column).toBeDefined();
+  const nameRow = column.findAll((node) => node.props.className === 'flex-row items-center')[0];
+  expect(nameRow.findAll((node) => node.props.name === 'Nate Isern').length).toBeGreaterThan(0);
+  expect(nameRow.findAll((node) => node.children.includes('@nate'))).toHaveLength(0);
+  act(() => renderer?.unmount());
+});

@@ -173,7 +173,8 @@ clock of a step sitting directly in front of a production promotion. Add it when
 the gate has earned the budget.
 
 It also runs BEFORE a merge: CI's `e2e` job (required through `CI complete`,
-on pull requests and merge-queue entries) builds the same production export,
+on merge-queue entries; not on pull requests, to spare the org's shared
+Actions jobs) builds the same production export,
 serves it with `wrangler pages dev` — the Pages runtime, so `_redirects` and
 `_headers` apply exactly as they do on the preview — and points
 `MENTION_E2E_CANDIDATE_ORIGIN` at it. Only the candidate's host differs from
