@@ -18,6 +18,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 
 const mockList: { onEndReached?: () => void; data?: Array<{ kind: string; key?: string }> } = {};
 const mockLoadMore = jest.fn();
+const mockRefresh = jest.fn();
 const mockSignIn = jest.fn(() => Promise.resolve());
 const mockAuth = { authenticated: true };
 const mockFeed = { isLoading: true };
@@ -94,7 +95,7 @@ jest.mock('@/hooks/useFeedState', () => ({
     isLoading: mockFeed.isLoading,
     error: null,
     feedScrollKey: 'for_you',
-    refresh: jest.fn(),
+    refresh: mockRefresh,
     loadMore: mockLoadMore,
     clearError: jest.fn(),
     fetchInitial: jest.fn(),
@@ -160,9 +161,55 @@ jest.mock('../FeedEmptyState', () => ({ FeedEmptyState: () => null }));
 
 // Every mock above must be installed first.
 import Feed from '../Feed.native';
+import { useFeedCore } from '../useFeedCore';
 
 const leadingKeys = () =>
   (mockList.data ?? []).filter((row) => row.kind === 'auxiliary').map((row) => row.key);
+
+it('refreshes feed and profile chrome concurrently and waits for both', async () => {
+  let finishFeed!: () => void;
+  let finishProfile!: () => void;
+  mockRefresh.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        finishFeed = resolve;
+      }),
+  );
+  const onRefresh = jest.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        finishProfile = resolve;
+      }),
+  );
+  let core!: ReturnType<typeof useFeedCore>;
+  function Harness() {
+    core = useFeedCore({ type: 'for_you', onRefresh });
+    return null;
+  }
+  let renderer!: TestRenderer.ReactTestRenderer;
+  act(() => {
+    renderer = TestRenderer.create(<Harness />);
+  });
+  let pending!: Promise<void>;
+  act(() => {
+    pending = core.handleRefresh();
+  });
+  expect(mockRefresh).toHaveBeenCalledTimes(1);
+  expect(onRefresh).toHaveBeenCalledTimes(1);
+  expect(core.refreshing).toBe(true);
+  await act(async () => {
+    finishFeed();
+  });
+  expect(core.refreshing).toBe(true);
+  await act(async () => {
+    finishProfile();
+    await pending;
+  });
+  expect(core.refreshing).toBe(false);
+  act(() => {
+    renderer.unmount();
+  });
+});
 
 describe('a pinned post holds the first presentation on native too (#1216)', () => {
   let renderer: TestRenderer.ReactTestRenderer | undefined;
