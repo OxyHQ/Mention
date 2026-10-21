@@ -389,7 +389,10 @@ warnings; changed TypeScript/JSON files passed Biome checks.
   138 Bun tests across nine files, using isolated migrated PostgreSQL databases.
   Coverage includes ranking/session progression, privacy, Following/Saved intent,
   gate evidence, import provenance, inbox/outbox validation and settings storage.
-- 185 frontend tests cover dwell/visibility/refresh, viewer isolation, saved
+- The full frontend suite passed 3,233 tests across 397 suites after correcting
+  a stale refresh-wiring assertion and adding a behavioral test that feed/profile
+  refreshes run concurrently and wait for both completions. The initial 185
+  targeted frontend tests cover dwell/visibility/refresh, viewer isolation, saved
   settings invalidation, Following persistence/rollback, request deduplication and
   one-shot expired-cursor recovery in memory and SQLite.
 - A real Chromium candidate smoke passed four flows: anonymous cold boot with
