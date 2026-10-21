@@ -274,8 +274,8 @@ describe('the topic source', () => {
    * `postClassification.topicRefs` OR the slug-only `postClassification.topics`.
    * The topic feed used to match only the latter, so a post classified with a
    * canonical `topicRefs` entry and no matching slug was counted as trending yet
-   * never returned. `topicSlugSql` is a correlated EXISTS over
-   * `post_classification_topic_refs` UNION an array containment — both halves
+   * never returned. `topicSlugSql` unions indexed topic-reference and
+   * array-containment identities — both halves
    * are asserted, on posts that carry only ONE of the two encodings.
    */
   it('matches a topic through topicRefs alone and through the slug list alone', async () => {
@@ -304,6 +304,37 @@ describe('the topic source', () => {
       31,
     );
     expect(idsOf(gathered)).toEqual([viaRefs.id, viaSlug.id]);
+  });
+
+  it('deduplicates both topic encodings and preserves nullable arrays and chronological cursors', async () => {
+    const newest = await create({
+      createdAt: at(0),
+      postClassification: {
+        topics: ['feedsrc-topic-page'],
+        topicRefs: [{ name: 'feedsrc-topic-page' }],
+      },
+    });
+    const refsOnly = await create({
+      createdAt: at(-1_000),
+      postClassification: { topicRefs: [{ name: 'feedsrc-topic-page' }] },
+    });
+    await db.update(posts).set({ classificationTopics: null }).where(eq(posts.id, refsOnly.id));
+    const oldest = await create({
+      createdAt: at(-2_000),
+      postClassification: { topics: ['feedsrc-topic-page'] },
+    });
+    const params = { slug: 'feedsrc-topic-page' };
+    expect(idsOf(await topicSource.gather({}, params, 2))).toEqual([newest.id, refsOnly.id]);
+    expect(
+      idsOf(
+        await topicSource.gather(
+          { cursor: ChronoCursor.build(refsOnly.id, refsOnly.createdAt) },
+          params,
+          2,
+        ),
+      ),
+    ).toEqual([oldest.id]);
+    expect(await topicSource.gather({}, { slug: 'feedsrc-absent-topic' }, 2)).toEqual([]);
   });
 });
 
@@ -419,6 +450,8 @@ describe('the keywords source', () => {
     const tagged = await create({ createdAt: at(0), hashtags: ['feedsrccats'] });
     await create({ hashtags: ['feedsrcdogs'] });
     await create({ hashtags: [] });
+    const untagged = await create();
+    await db.update(posts).set({ hashtags: null }).where(eq(posts.id, untagged.id));
 
     // The caller's tag is lowercased; the stored array is already canonical.
     const gathered = await keywordsSource.gather({}, { hashtags: ['FeedsrcCats'] }, 31);
@@ -446,6 +479,8 @@ describe('the keywords source', () => {
     });
     const inHashtags = await create({ createdAt: at(-2_000), hashtags: ['feedsrcwidgets'] });
     await create({ content: { variants: [{ source: 'author', text: 'unrelated' }] } });
+    // A nullable overlap must not hide a true body-match branch of the OR.
+    await db.update(posts).set({ hashtags: null }).where(eq(posts.id, inPrimaryBody.id));
 
     const gathered = await keywordsSource.gather({}, { keywords: ['FeedsrcWidgets'] }, 31);
     expect(idsOf(gathered)).toEqual([inPrimaryBody.id, inTranslation.id, inHashtags.id]);

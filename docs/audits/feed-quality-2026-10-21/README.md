@@ -76,9 +76,54 @@ subject to the same diversity objective as For You.
 
 Mean MCP elapsed time was approximately 2.4 seconds, including connector overhead,
 not backend handler latency. Backend ECS revisions moved from 675 to 676 and MCP
-from 389 to 390 during the audit. Exact deployed commit provenance is still pending;
-these pages must not be treated as a stable-build benchmark or a matched algorithm
+from 389 to 390 during the audit. Backend revision 676 was verified against ECR
+digest `sha256:93ac0267eb0a35d7e90fee1dd0eefa26b7933c00600fcf499a21e2049ffc119f`,
+tagged `deployed-2bfaf0cd6c8eadad13e4fcb77a23248caa0701a9`, pushed at 20:25:32 UTC;
+revision 675 used `c4ce21a`. MCP revision-to-commit attribution remains separate.
+These pages must not be treated as a stable-build benchmark or a matched algorithm
 comparison. They are one session, not the planned three-session coverage.
+
+### Confirmed source timeouts and additional bounded captures
+
+The anonymous canonical API retry around 20:43 UTC returned 40 PHP hashtag posts
+from 31 authors over two pages of 20, taking 1.530 and 15.009 seconds; the second
+response reported `hasMore: false`. An earlier PHP response was empty after
+15.492 seconds. `topic|technology` was empty after 15.493 seconds. These responses
+do not establish inventory exhaustion: CloudWatch `/oxy/ecs` recorded
+`[FeedEngine] Source failed; skipping` for module `keywords` at 20:38:31.119 UTC and
+module `topic` at 20:43:36.804 UTC, with PostgreSQL error `57014`,
+`canceling statement due to statement timeout`. Treat those failed windows as
+unavailable, preserving a retry, rather than a successful terminal page.
+
+The hashtag query wrapped the indexed `hashtags && text[]` predicate in
+`coalesce(..., false)`. The bounded code fix removes that wrapper: SQL `WHERE`
+already rejects null, including a null OR a nonmatching branch, while a matching
+body branch still succeeds. A bare overlap permits the existing hashtag GIN index
+to be considered. The topic helper now unions indexed matching IDs from topic refs
+and the classification array, then applies the caller's unchanged visibility,
+ordering and cursor filters. Both encodings, duplicate membership, null arrays,
+absence, publication status and chronological pagination are covered by database
+tests. These changes do not change import policy.
+
+A production read-only plan audit on ECS revision 676, task
+`598beba2b9f8450f812555ad4ced9088` (exit 0), confirmed the wrapped hashtag predicate
+walked `post_public_chrono_v1`; the direct overlap used a bitmap scan on
+`posts_hashtags_gin` (845 matching rows, 61 returned, execution 12.282 ms,
+314 shared hits/546 reads). The original topic predicate likewise walked the
+chronological index with a correlated topic-reference subplan. The union
+alternative used `posts_classification_topics_gin`, topic refs and primary-key
+lookup; `technology` had zero matches in that snapshot and executed in 9.605 ms
+(two shared hits/43 reads). Original query plans used EXPLAIN only; the optimized
+alternatives used EXPLAIN ANALYZE. Earlier actual timeouts are established by the
+logs, not by a synthetic old-query timing. These are isolated SELECT timings,
+not complete API response timings or a deployed before/after benchmark.
+
+Further canonical profile reads for `@nate` returned 23/22/20 flattened posts,
+20 slices per page, 65 unique IDs spanning 20 October to 2 July; media returned
+three posts then ended, and replies returned 20 then three. No repeated IDs were
+observed. These contextual counts are not page-limit defects. A later anonymous
+Trending sample returned 60 unique posts from 58 authors over three pages,
+0.818–0.831 seconds per page. These bounded observations are not load benchmarks.
 
 ## Owner calibration: concrete examples
 
@@ -90,9 +135,10 @@ asked for shorter questions and updates during this audit.
 | [Standalone “3”](https://mention.earth/p/01a15cbe-daae-72e7-a9e4-f213850a9066) | Do not recommend, even when following its author. Chronological Following delivery remains a separate behavior. | No import rejection authorized. |
 | [“Good morning or whenever”](https://mention.earth/p/01a15f2a-a903-7d83-8402-d5dbc2986d8b) | May recommend in For You when following the author; not from a stranger. | No import rejection authorized. |
 | [PHP warning control](https://mention.earth/p/01a15fc2-1598-75cb-8828-b7cb97f7478b) | Uncertain; owner suggested following may matter. No approval or rejection established. | No import rejection authorized. |
+| [Personal bicycle diary](https://mention.earth/p/01a15ed9-d134-7ed7-ba4a-d5f0e9843a75): wondering whether to ride in the drizzle | Do not recommend when the viewer does not follow the author. This is the owner's contextual assessment of this example. | Following delivery and import unchanged. No author-wide or short-post exclusion authorized. |
 
-These public items were inspected with no attached media, original, quote or parent.
-Two concrete judgements do not establish a universal threshold. A possible rule
+The first three public items were inspected with no attached media, original, quote or parent.
+These concrete judgements do not establish a universal threshold. A possible rule
 that relevant programming/security information may be recommended from unknown
 authors is the audit team's proposal, **not an owner-approved label**.
 
@@ -166,7 +212,8 @@ unknown and protected.
 
 `reportFederationImportReview.ts` is SELECT-only inside a repeatable-read,
 read-only transaction, bounded to 500 public federated rows and a 15-second query
-timeout. It reports known causes, references, protocol follows, engagement, saves,
+timeout. It reports known causes, references, protocol follows, engagement (including
+positive remote likes/boosts/comments counters without local interaction rows), saves,
 views and conversation/community context without post bodies or private account
 identities. The `discoveryOnlyWithoutKnownNeed` flag is a triage group, **never a
 deletion decision**. All rows retain `authoritative_follow_graph_unverified` until
@@ -252,7 +299,7 @@ descriptor routing, invalid and protected descriptors, anonymous personalized
 reads, scope rejection, exact capability headers and upstream refusals. Existing
 MCP integration and catalog tests remain required.
 
-Outstanding production evidence: exact deployed commits per capture, canonical multi-page captures for every available
+Outstanding production evidence: exact capture-to-revision mapping and MCP commit attribution, canonical multi-page captures for every available
 surface, quality examples reviewed by the owner, import-trigger attribution where
 available, comparative ranking samples and cross-platform client behavior. Empty
 account-specific surfaces need fixture coverage and must not be reported as
