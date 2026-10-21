@@ -85,7 +85,10 @@ export function registerHashtagsTools(server: MentionToolRegistrar): void {
       try {
         const tag = hashtag.replace(/^#/, '');
         const result = await fetchMtnFeed(`hashtag|${tag}`, { limit, cursor });
-        return { content: [{ type: 'text' as const, text: formatFeed(result) }] };
+        return {
+          content: [{ type: 'text' as const, text: formatFeed(result) }],
+          structuredContent: result,
+        };
       } catch (error) {
         return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
