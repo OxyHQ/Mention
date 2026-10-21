@@ -286,6 +286,11 @@ Direct always remains chronological. The existing feed settings screen owns
 the preference, and successful saves invalidate only that viewer's relevant
 cached feeds.
 
+Following (including Direct and relevance), Mutuals, List and Saved honor an
+explicit sensitive-content preference while retaining privacy/ACL checks.
+Hashtag, Topic, Trend and Lane keep their SFW/content-warning discovery policy;
+the existing Author/profile path is unchanged by this adjustment.
+
 ### Ranked pagination sessions
 
 Ranked presets opt into opaque `fs1:` continuations when Redis is available.
