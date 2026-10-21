@@ -205,19 +205,47 @@ export async function findActorsByUris(
  * mentions of a post (`@bob@remote.tld`). Projected: the caller needs the id
  * and nothing else. An acct we do not store, or one not yet linked to an Oxy
  * user, is simply absent.
+ *
+ * An acct names an actor by EITHER spelling: the `acct` it is addressed by, or
+ * the `networkAcct` of the network it belongs to. A bridged account is stored
+ * under its transport (`cloudflare@bird.makeup`) yet is `cloudflare@x.com` to
+ * every reader, so a handle typed the way readers know it must find it. The
+ * result is keyed by the spelling that was ASKED, and a direct `acct` match wins
+ * over a network one.
  */
 export async function findActorOxyUserIdsByAccts(
   accts: readonly string[],
   db: DatabaseOrTransaction = getDb(),
 ): Promise<Map<string, string>> {
   if (accts.length === 0) return new Map();
+  const asked = new Set(accts);
   const rows = await db
-    .select({ acct: federatedActors.acct, oxyUserId: federatedActors.oxyUserId })
+    .select({
+      acct: federatedActors.acct,
+      networkAcct: federatedActors.networkAcct,
+      oxyUserId: federatedActors.oxyUserId,
+    })
     .from(federatedActors)
-    .where(inArray(federatedActors.acct, [...accts]));
+    .where(
+      or(
+        inArray(federatedActors.acct, [...accts]),
+        inArray(federatedActors.networkAcct, [...accts]),
+      ),
+    );
   const out = new Map<string, string>();
   for (const row of rows) {
-    if (row.acct && row.oxyUserId) out.set(row.acct, row.oxyUserId);
+    if (!row.oxyUserId) continue;
+    if (row.acct && asked.has(row.acct)) out.set(row.acct, row.oxyUserId);
+  }
+  for (const row of rows) {
+    if (
+      row.oxyUserId &&
+      row.networkAcct &&
+      asked.has(row.networkAcct) &&
+      !out.has(row.networkAcct)
+    ) {
+      out.set(row.networkAcct, row.oxyUserId);
+    }
   }
   return out;
 }

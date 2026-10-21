@@ -45,6 +45,18 @@ describe('findActorOxyUserIdsByAccts', () => {
     );
   });
 
+  it('finds a bridged actor by the network spelling readers know it by', async () => {
+    await seedActor(scope, {
+      username: 'cloudflare',
+      oxyUserId: 'oxy-cloudflare',
+      networkAcct: 'cloudflare@x.example',
+    });
+
+    expect(await findActorOxyUserIdsByAccts(['cloudflare@x.example'])).toEqual(
+      new Map([['cloudflare@x.example', 'oxy-cloudflare']]),
+    );
+  });
+
   it('asks nothing for an empty list', async () => {
     expect(await findActorOxyUserIdsByAccts([])).toEqual(new Map());
   });
