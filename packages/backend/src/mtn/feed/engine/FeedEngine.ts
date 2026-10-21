@@ -83,6 +83,11 @@ export async function sliceTopWindow(
   }
 }
 
+function compareChronological(a: CandidatePost, b: CandidatePost): number {
+  const delta = new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
+  return delta || b.id.localeCompare(a.id);
+}
+
 const EMPTY_RESPONSE: SlicedFeedResponse = {
   slices: [],
   items: [],
@@ -115,6 +120,7 @@ const EMPTY_RESPONSE: SlicedFeedResponse = {
 function buildPopularCursor(
   last: CandidatePost | undefined,
   incomingCursor?: string,
+  servedIds: string[] = [],
 ): string | undefined {
   if (!last) return undefined;
 
@@ -133,7 +139,7 @@ function buildPopularCursor(
   return ScoreCursor.build(score, id, {
     asOf: inherited?.asOf ?? Date.now(),
     tiebreakAt: createdAt,
-    excludeIds: inherited?.excludeIds,
+    excludeIds: [...servedIds, ...(inherited?.excludeIds ?? [])],
     fromPopularFallback: true,
   });
 }
@@ -252,6 +258,34 @@ export class FeedEngine {
     // never-blank request was paying for it twice.
     const measureOnly = this.gateIsMeasureOnly(ctx);
 
+    // Seen-post de-prioritization for ranked personalized/discovery feeds.
+    if (exec.seenPosts && ctx.currentUserId) {
+      const seenPostIds = [
+        ...(await (ctx.seenPostIdsPrefetch ??
+          feedSeenPostsService.getSeenPostIds(ctx.currentUserId))),
+      ];
+      if (parsedScoreCursor?.id && !seenPostIds.includes(parsedScoreCursor.id)) {
+        seenPostIds.push(parsedScoreCursor.id);
+        feedSeenPostsService
+          .markPostsAsSeen(ctx.currentUserId, [parsedScoreCursor.id])
+          .catch((e) => {
+            logger.warn('[FeedEngine] Failed to mark cursor post as seen', e);
+          });
+      }
+      ctx.seenPostIds = seenPostIds;
+    }
+
+    // Keep cursor exclusions even if the delivery cache has expired or failed.
+    if (definition.mode === 'ranked') {
+      ctx.seenPostIds = Array.from(
+        new Set([
+          ...(ctx.seenPostIds ?? []),
+          ...(parsedScoreCursor?.excludeIds ?? []),
+          ...(parsedScoreCursor ? [parsedScoreCursor.id] : []),
+        ]),
+      );
+    }
+
     // Anonymous popular fallback (For You / Videos / Media): no viewer signals,
     // so we serve the engagement-sorted popular source directly. Note this
     // returns the page in `items` with an EMPTY `slices` — see
@@ -304,24 +338,11 @@ export class FeedEngine {
       );
     }
 
-    // Seen-post de-prioritization for ranked personalized/discovery feeds.
-    if (exec.seenPosts && ctx.currentUserId) {
-      const seenPostIds = [
-        ...(await (ctx.seenPostIdsPrefetch ??
-          feedSeenPostsService.getSeenPostIds(ctx.currentUserId))),
-      ];
-      if (parsedScoreCursor?.id && !seenPostIds.includes(parsedScoreCursor.id)) {
-        seenPostIds.push(parsedScoreCursor.id);
-        feedSeenPostsService
-          .markPostsAsSeen(ctx.currentUserId, [parsedScoreCursor.id])
-          .catch((e) => {
-            logger.warn('[FeedEngine] Failed to mark cursor post as seen', e);
-          });
-      }
-      ctx.seenPostIds = seenPostIds;
+    if (definition.mode === 'chronological' && !exec.ordered) {
+      return this.runChronological(definition, ctx, exec, cursor, limit, measureOnly);
     }
 
-    const pool = await this.gatherPool(definition, ctx, exec, limit, measureOnly);
+    const { pool } = await this.gatherPool(definition, ctx, exec, limit, measureOnly);
 
     // Phase 7: record the federated share of the merged candidate pool for this
     // feed (a gauge keyed by the base feed type). Non-empty guard avoids a
@@ -424,7 +445,7 @@ export class FeedEngine {
     exec: FeedExecution,
     limit: number,
     measureOnly: boolean,
-  ): Promise<CandidatePost[]> {
+  ): Promise<{ pool: CandidatePost[]; scanned: CandidatePost[]; hasMore: boolean }> {
     const cap = this.sourceCap(definition.mode, exec, limit);
 
     const enabledSources = definition.sources.filter((ref) => ref.enabled);
@@ -447,6 +468,14 @@ export class FeedEngine {
       });
       return [];
     });
+
+    // Consume a raw chronological window before filtering. Keep the overfetch
+    // row for the next page, including when several timelines are merged.
+    const raw = Array.from(new Map(sourceResults.flat().map((post) => [post.id, post])).values());
+    const chronological = definition.mode === 'chronological' && !exec.ordered;
+    const scanned = chronological ? raw.sort(compareChronological).slice(0, cap - 1) : raw;
+    const scannedIds = chronological ? new Set(scanned.map((post) => post.id)) : undefined;
+    const cursorExcluded = new Set(ScoreCursor.parse(ctx.cursor)?.excludeIds ?? []);
 
     // Always-on pool filters (safety, …) applied to EVERY candidate; the discovery
     // gate applies ONLY to non-trusted lanes (empty for feeds without a gate). The
@@ -479,6 +508,8 @@ export class FeedEngine {
         if (maxPool !== undefined && merged.size >= maxPool) break;
         const id = post?.id;
         if (!id || merged.has(id)) continue;
+        if (scannedIds && !scannedIds.has(id)) continue;
+        if (definition.mode === 'ranked' && cursorExcluded.has(id)) continue;
         if (poolKeeps.some((keep) => !keep(post))) continue;
 
         if (applyGate) {
@@ -547,7 +578,11 @@ export class FeedEngine {
       });
     }
 
-    return Array.from(merged.values());
+    return {
+      pool: Array.from(merged.values()),
+      scanned,
+      hasMore: chronological && raw.length >= cap,
+    };
   }
 
   /**
@@ -671,6 +706,7 @@ export class FeedEngine {
         // Absent otherwise, and ranking then resolves the set itself exactly as
         // it always has — so the request pays for one resolution either way.
         authorSummaries: ctx.authorSummaries,
+        rankingAsOf: ctx.rankingAsOf,
       });
       const ranked: RankedCandidate[] = [];
       for (const post of rankedPosts) {
@@ -854,6 +890,45 @@ export class FeedEngine {
     });
   }
 
+  /** Scan bounded source windows so rejected posts cannot terminate a timeline. */
+  private async runChronological(
+    definition: FeedDefinition,
+    ctx: FeedEngineContext,
+    exec: FeedExecution,
+    cursor: string | undefined,
+    limit: number,
+    measureOnly: boolean,
+  ): Promise<SlicedFeedResponse> {
+    const accepted: CandidatePost[] = [];
+    let scanCursor = cursor;
+    let hasMore = false;
+    // Bound work even when every candidate is muted. An empty page still carries
+    // the raw watermark, allowing the client to continue scanning.
+    for (let batch = 0; batch < 5; batch += 1) {
+      const result = await this.gatherPool(
+        definition,
+        { ...ctx, cursor: scanCursor },
+        exec,
+        limit,
+        measureOnly,
+      );
+      accepted.push(...result.pool);
+      hasMore = result.hasMore;
+      const last = result.scanned[result.scanned.length - 1];
+      const next = last ? ChronoCursor.build(last.id, last.createdAt) : undefined;
+      if (!next || !didCursorAdvance(next, scanCursor)) {
+        hasMore = false;
+        break;
+      }
+      scanCursor = next;
+      if (!hasMore || accepted.length >= limit) break;
+    }
+    return this.finalizeChronological(ctx, exec, accepted, cursor, limit, {
+      hasMore,
+      nextCursor: hasMore ? scanCursor : undefined,
+    });
+  }
+
   /**
    * Chronological finalize: sort by recency, thread slice, hydrate, chrono
    * cursor. Mirrors `FollowingFeed.fetch` (Hashtag/Author/List/Topic share it).
@@ -867,23 +942,19 @@ export class FeedEngine {
     pool: CandidatePost[],
     cursor: string | undefined,
     limit: number,
+    scan?: { hasMore: boolean; nextCursor: string | undefined },
   ): Promise<SlicedFeedResponse> {
     if (exec.ordered) {
       return this.finalizeOrdered(ctx, exec, pool, limit);
     }
 
-    if (pool.length === 0) return { ...EMPTY_RESPONSE };
+    if (pool.length === 0 && !scan?.hasMore) return { ...EMPTY_RESPONSE };
 
-    const sorted = pool.slice().sort((a, b) => {
-      const at = new Date(a.createdAt ?? 0).getTime();
-      const bt = new Date(b.createdAt ?? 0).getTime();
-      if (bt !== at) return bt - at;
-      return b.id.localeCompare(a.id);
-    });
+    const sorted = pool.slice().sort(compareChronological);
 
     const fetchLimit = Math.ceil(limit * (exec.overfetchMultiplier ?? 1));
-    const hasMore = sorted.length > fetchLimit;
-    const postsToProcess = hasMore ? sorted.slice(0, fetchLimit) : sorted;
+    const hasMore = scan?.hasMore ?? sorted.length > fetchLimit;
+    const postsToProcess = scan ? sorted : hasMore ? sorted.slice(0, fetchLimit) : sorted;
 
     const { slices: rawSlices } = await threadSlicingService.sliceFeed(postsToProcess, {
       enableThreadGrouping: exec.threadGrouping !== false,
@@ -903,8 +974,8 @@ export class FeedEngine {
       viewerLanguages: ctx.viewerLanguages,
     });
 
-    let nextCursor: string | undefined;
-    if (postsToProcess.length > 0 && hasMore) {
+    let nextCursor: string | undefined = scan?.nextCursor;
+    if (!scan && postsToProcess.length > 0 && hasMore) {
       const last = postsToProcess[postsToProcess.length - 1];
       nextCursor = ChronoCursor.build(last.id, last.createdAt);
       if (!didCursorAdvance(nextCursor, cursor)) {
@@ -1061,7 +1132,13 @@ export class FeedEngine {
     // could then get past.
     const sourceExhausted = candidates.length < fetch;
     const hasMore = !sourceExhausted || scanned < candidates.length;
-    const nextCursor = hasMore ? buildPopularCursor(candidates[scanned - 1], cursor) : undefined;
+    const nextCursor = hasMore
+      ? buildPopularCursor(
+          candidates[scanned - 1],
+          cursor,
+          page.map((post) => post.id),
+        )
+      : undefined;
 
     const hydrated = await postHydrationService.hydratePosts(page, {
       // The authenticated never-blank path reaches here too, and hydrating it as

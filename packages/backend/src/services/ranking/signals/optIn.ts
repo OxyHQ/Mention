@@ -86,11 +86,15 @@ export function conversationalBoost(post: RankablePost): number {
  *
  * @param followerCount - the post author's follower count, or `undefined`.
  */
-export function coldStartBoost(post: RankablePost, followerCount: number | undefined): number {
+export function coldStartBoost(
+  post: RankablePost,
+  followerCount: number | undefined,
+  rankingAsOf = Date.now(),
+): number {
   const { boost, windowMs, newAuthorFollowerThreshold } = R.optInSignals.coldStartBoost;
 
   const createdMs = new Date(post?.createdAt ?? NaN).getTime();
-  const isFreshPost = Number.isFinite(createdMs) && Date.now() - createdMs <= windowMs;
+  const isFreshPost = Number.isFinite(createdMs) && rankingAsOf - createdMs <= windowMs;
 
   const isColdAuthor =
     typeof followerCount === 'number' &&
@@ -390,7 +394,7 @@ export const OPT_IN_SIGNALS: readonly OptInScorer[] = [
   {
     id: 'coldStartBoost',
     score: (post, ctx) =>
-      coldStartBoost(post, ctx.authorFollowerCounts?.get(String(post.oxyUserId))),
+      coldStartBoost(post, ctx.authorFollowerCounts?.get(String(post.oxyUserId)), ctx.rankingAsOf),
   },
   { id: 'penalizeSeen', score: (post, ctx) => penalizeSeen(post, ctx.seenPostIdsSet) },
   { id: 'verifiedBoost', score: (post, ctx) => verifiedBoost(post, ctx.authorVerified) },

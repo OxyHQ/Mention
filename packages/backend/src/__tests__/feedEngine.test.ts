@@ -65,7 +65,7 @@ import { MtnConfig } from '@mention/shared-types';
 import { FeedEngine, sliceTopWindow } from '../mtn/feed/engine/FeedEngine';
 import { threadSlicingService } from '../services/ThreadSlicingService';
 import { FeedModuleRegistry } from '../mtn/feed/engine/FeedModuleRegistry';
-import { ScoreCursor } from '../mtn/feed/CursorBuilder';
+import { ScoreCursor, ChronoCursor } from '../mtn/feed/CursorBuilder';
 import type {
   CandidatePost,
   FeedDefinition,
@@ -428,6 +428,28 @@ describe('FeedEngine — ranked pagination coverage', () => {
   });
 });
 
+describe('FeedEngine — ranking session guards', () => {
+  it('excludes served cursor ids after score drift even when the seen cache is empty', async () => {
+    registry.register(sourceReturning('source', [scored(1, 4), scored(2, 3), scored(3, 2)]));
+    const definition: FeedDefinition = {
+      id: 'ranked',
+      title: 'Ranked',
+      mode: 'ranked',
+      sources: [{ module: 'source', enabled: true }],
+      filters: [],
+      signals: [],
+    };
+    const asOf = Date.UTC(2026, 9, 21);
+    const cursor = ScoreCursor.build(10, id(9), { asOf, excludeIds: [id(1)] });
+    const result = await engine.run(definition, { currentUserId: 'viewer' }, { limit: 1, cursor });
+    expect(result.items.map((post) => post.id)).toEqual([id(2)]);
+    expect(rankPosts.mock.calls[0]?.[2]).toEqual(expect.objectContaining({ rankingAsOf: asOf }));
+    expect(ScoreCursor.parse(result.nextCursor)?.excludeIds).toEqual(
+      expect.arrayContaining([id(1), id(2)]),
+    );
+  });
+});
+
 describe('FeedEngine — chronological mode', () => {
   it('orders by createdAt desc and dedupes', async () => {
     registry.register(sourceReturning('a', [makePost(3), makePost(1)]));
@@ -448,6 +470,70 @@ describe('FeedEngine — chronological mode', () => {
     // createdAt = 2020-01-n, so newest first: 3, 2, 1 (deduped).
     expect(result.items.map((i) => i.id)).toEqual([id(3), id(2), id(1)]);
     expect(rankPosts).not.toHaveBeenCalled();
+  });
+});
+
+describe('FeedEngine — filtered chronological pagination', () => {
+  function timeline(posts: CandidatePost[]): FeedDefinition {
+    registry.register({
+      id: 'timeline',
+      kind: 'source',
+      userComposable: false,
+      gather: async (ctx, _params, cap) => {
+        const boundary = ChronoCursor.parse(ctx.cursor);
+        return posts
+          .filter((post) => !boundary || new Date(post.createdAt!).getTime() < boundary.ts!)
+          .slice(0, cap);
+      },
+    });
+    registry.register({
+      id: 'visible',
+      kind: 'filter',
+      keep: (post) => !post.hashtags.includes('hidden'),
+    });
+    return {
+      id: 'timeline',
+      title: 'Timeline',
+      mode: 'chronological',
+      sources: [{ module: 'timeline', enabled: true }],
+      filters: [{ module: 'visible', enabled: true }],
+      signals: [],
+    };
+  }
+
+  it('fills past rejected windows and continues from the raw scan without skips', async () => {
+    const posts = Array.from({ length: 9 }, (_, n) =>
+      makePost(9 - n, {
+        hashtags: n < 3 || n === 5 ? ['hidden'] : [],
+      }),
+    );
+    const definition = timeline(posts);
+    const first = await engine.run(definition, {}, { limit: 2 });
+    expect(first.items.map((post) => post.id)).toEqual([id(6), id(5)]);
+    expect(first.hasMore).toBe(true);
+    // #4 was rejected after the visible #5 and must still advance the cursor.
+    expect(ChronoCursor.parse(first.nextCursor)?.id).toBe(id(4));
+    const second = await engine.run(definition, {}, { limit: 2, cursor: first.nextCursor });
+    expect(second.items.map((post) => post.id)).toEqual([id(3), id(2)]);
+    const third = await engine.run(definition, {}, { limit: 2, cursor: second.nextCursor });
+    expect(third.items.map((post) => post.id)).toEqual([id(1)]);
+    expect(third.hasMore).toBe(false);
+  });
+
+  it('returns an advancing cursor through an entirely rejected bounded scan', async () => {
+    const posts = Array.from({ length: 14 }, (_, n) =>
+      makePost(14 - n, {
+        hashtags: n < 11 ? ['hidden'] : [],
+      }),
+    );
+    const definition = timeline(posts);
+    const first = await engine.run(definition, {}, { limit: 2 });
+    expect(first.items).toEqual([]);
+    expect(first.hasMore).toBe(true);
+    expect(first.nextCursor).toBeTruthy();
+    const next = await engine.run(definition, {}, { limit: 2, cursor: first.nextCursor });
+    expect(next.items.map((post) => post.id)).toEqual([id(3), id(2), id(1)]);
+    expect(next.hasMore).toBe(false);
   });
 });
 
