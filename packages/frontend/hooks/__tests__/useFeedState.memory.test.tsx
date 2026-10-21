@@ -1,3 +1,4 @@
+import { notifyFeedRankingChanged } from '@/stores/feedRankingInvalidation';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
@@ -457,6 +458,20 @@ describe('useFeedState memory mode: one feed query', () => {
       expect(getFeedMock.mock.calls[2][0].cursor).toBeUndefined();
       expect(ids()).toEqual(['fresh']);
       expect(latest?.hasMore).toBe(true);
+    });
+
+    it('applies a persisted ranking change with one first-page read, retaining rows until it arrives', async () => {
+      await loadTwoPages();
+      const refreshed = deferred<SlicedFeedResponse>();
+      getFeedMock.mockImplementationOnce(() => refreshed.promise);
+      act(() => notifyFeedRankingChanged(explore.currentUserId));
+      await flush();
+      expect(getFeedMock).toHaveBeenCalledTimes(3);
+      expect(getFeedMock.mock.calls[2][0].cursor).toBeUndefined();
+      expect(ids()).toEqual(['p1', 'p2', 'p3']);
+      refreshed.resolve(page(['new-ranking']));
+      await flush();
+      expect(ids()).toEqual(['new-ranking']);
     });
 
     it('keeps the loaded rows on screen while the refresh is in flight', async () => {

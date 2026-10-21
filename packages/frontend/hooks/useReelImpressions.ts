@@ -1,3 +1,4 @@
+import { useFeedVisibility } from './useFeedVisibility';
 import { useEffect } from 'react';
 import { useFeedImpressionTracker } from '@/utils/feedTelemetry';
 
@@ -47,6 +48,9 @@ export function useReelImpressions({
     impressionResetKey,
     canReportImpressions,
   );
+
+  // An OS Picture-in-Picture window remains visible outside the foreground app.
+  useFeedVisibility(impressionTracker, pipOwnerId !== null && pipPlayingId !== undefined);
 
   // Read DURING render, deliberately. The condition the effect below has to
   // re-run on is "the tracker INSTANCE changed", and that is exactly what this
