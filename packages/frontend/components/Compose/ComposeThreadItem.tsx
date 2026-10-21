@@ -30,6 +30,7 @@ import { LocationDisplay } from '@/components/Compose/LocationDisplay';
 import { ComposeAltButton } from '@/components/Compose/ComposeAltButton';
 import ComposeIdentityHeader from '@/components/Compose/ComposeIdentityHeader';
 import InteractionSettingsPills from '@/components/Compose/InteractionSettingsPills';
+import type { ReplyPermission } from '@/components/Compose/replyPermission';
 import type { ThreadItem } from '@/hooks/useThreadManager';
 import type { ComposerMediaItem } from '@/utils/composeUtils';
 import type { MentionTextValue } from '@/utils/mentions';
@@ -112,7 +113,8 @@ interface ComposeThreadItemProps {
   onArticleRemove: (threadId: string) => void;
   onEventRemove: (threadId: string) => void;
   onRoomRemove: (threadId: string) => void;
-  onReplySettingsPress: (threadId: string) => void;
+  onReplyPermissionChange: (threadId: string, permissions: ReplyPermission[]) => void;
+  onQuotesDisabledChange: (threadId: string, disabled: boolean) => void;
   onSensitiveToggle: (threadId: string) => void;
   onPodcastPress: (threadId: string) => void;
   onPodcastRemove: (threadId: string) => void;
@@ -179,7 +181,8 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
     onArticleRemove,
     onEventRemove,
     onRoomRemove,
-    onReplySettingsPress,
+    onReplyPermissionChange,
+    onQuotesDisabledChange,
     onSensitiveToggle,
     onPodcastPress,
     onPodcastRemove,
@@ -255,9 +258,13 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
     );
     const handleEventRemove = useCallback(() => onEventRemove(threadId), [threadId, onEventRemove]);
     const handleRoomRemove = useCallback(() => onRoomRemove(threadId), [threadId, onRoomRemove]);
-    const handleReplySettingsPress = useCallback(
-      () => onReplySettingsPress(threadId),
-      [threadId, onReplySettingsPress],
+    const handleReplyPermissionChange = useCallback(
+      (permissions: ReplyPermission[]) => onReplyPermissionChange(threadId, permissions),
+      [threadId, onReplyPermissionChange],
+    );
+    const handleQuotesDisabledChange = useCallback(
+      (disabled: boolean) => onQuotesDisabledChange(threadId, disabled),
+      [threadId, onQuotesDisabledChange],
     );
     const handleSensitiveToggle = useCallback(
       () => onSensitiveToggle(threadId),
@@ -625,7 +632,8 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                 replyPermission={item.replyPermission}
                 quotesDisabled={item.quotesDisabled}
                 isSensitive={item.isSensitive}
-                onReplySettingsPress={handleReplySettingsPress}
+                onReplyPermissionChange={handleReplyPermissionChange}
+                onQuotesDisabledChange={handleQuotesDisabledChange}
                 onSensitiveToggle={handleSensitiveToggle}
               />
             </View>
