@@ -725,6 +725,104 @@ const NO_CHILD_ROWS: PostChildRows = {
 };
 
 /**
+ * Text/media evidence for gates evaluating bounded shell candidates. Four batched
+ * reads, independent of post count; no author, network or full-record hydration.
+ * This is a partial content projection, never a replacement for public hydration.
+ */
+export async function loadPostGateContent(
+  postIds: readonly string[],
+  db: DatabaseOrTransaction = getDb(),
+  options: { sources?: boolean; variantAlt?: boolean } = {},
+): Promise<Map<string, Pick<StoredPostContent, 'variants' | 'media' | 'attachments' | 'sources'>>> {
+  const ids = [...new Set(postIds)];
+  if (!ids.length) return new Map();
+  const variantIds = db
+    .select({ id: postContentVariants.id })
+    .from(postContentVariants)
+    .where(inArray(postContentVariants.postId, ids));
+  const [variants, media, variantMedia, attachments, sources, variantAlt] = await Promise.all([
+    db
+      .select(variantReadColumns)
+      .from(postContentVariants)
+      .where(inArray(postContentVariants.postId, ids))
+      .orderBy(asc(postContentVariants.position)),
+    db
+      .select()
+      .from(postMedia)
+      .where(inArray(postMedia.postId, ids))
+      .orderBy(asc(postMedia.position)),
+    db
+      .select()
+      .from(postVariantMedia)
+      .where(inArray(postVariantMedia.variantId, variantIds))
+      .orderBy(asc(postVariantMedia.position)),
+    db
+      .select()
+      .from(postAttachments)
+      .where(inArray(postAttachments.postId, ids))
+      .orderBy(asc(postAttachments.position)),
+    options.sources
+      ? db
+          .select()
+          .from(postSources)
+          .where(inArray(postSources.postId, ids))
+          .orderBy(asc(postSources.position))
+      : Promise.resolve([]),
+    options.variantAlt
+      ? db
+          .select()
+          .from(postVariantAltTexts)
+          .where(inArray(postVariantAltTexts.variantId, variantIds))
+      : Promise.resolve([]),
+  ]);
+  const children: PostChildRows = {
+    ...NO_CHILD_ROWS,
+    variantMedia: groupBy(
+      variantMedia,
+      (row) => row.variantId,
+      (row) => row,
+    ),
+    variantAltTexts: groupBy(
+      variantAlt,
+      (row) => row.variantId,
+      (row) => ({ mediaId: row.mediaId, description: row.description }),
+    ),
+  };
+  const variantsByPost = groupBy(
+    variants,
+    (row) => row.postId,
+    (row) => row,
+  );
+  const mediaByPost = groupBy(media, (row) => row.postId, toMediaItem);
+  const sourcesByPost = groupBy(
+    sources,
+    (row) => row.postId,
+    (row): PostSourceLink => compact({ url: row.url, title: optional(row.title) }),
+  );
+  const attachmentsByPost = groupBy(
+    attachments,
+    (row) => row.postId,
+    (row): PostAttachmentDescriptor =>
+      compact({
+        type: row.type,
+        id: optional(row.attachmentId),
+        mediaType: optional(row.mediaType),
+      }),
+  );
+  return new Map(
+    ids.map((id) => [
+      id,
+      {
+        variants: assembleVariants(variantsByPost.get(id) ?? [], children),
+        media: mediaByPost.get(id),
+        attachments: attachmentsByPost.get(id),
+        ...(options.sources ? { sources: sourcesByPost.get(id) } : {}),
+      },
+    ]),
+  );
+}
+
+/**
  * The `posts` row a shell was assembled from, carried on the shell so that
  * completing it needs only the child tables — see {@link completeShellRecords}.
  */
