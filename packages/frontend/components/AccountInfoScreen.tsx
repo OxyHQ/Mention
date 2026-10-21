@@ -34,6 +34,7 @@ import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedPr
 import type { ProfileRouteFamily } from '@/components/Profile/profileRoute';
 import { ProfileUnavailable } from '@/components/Profile/ProfileUnavailable';
 import { resolveProfileColor } from '@oxy.so/bloom/color-presets';
+import { Screen } from '@oxy.so/bloom/screen';
 import { BloomColorScope } from '@oxy.so/bloom/theme';
 
 const ABOUT_AVATAR_SIZE = 80;
@@ -72,14 +73,21 @@ function AccountInfoScreenContent({ routedFamily }: { routedFamily: ProfileRoute
     return <Redirect href={canonicalHref} />;
   }
 
+  const color = resolveProfileColor(profileData?.design.color);
+
+  // Same split as ProfileShell: a preset is the Screen's claim, which themes the
+  // whole shell on a split layout and only this column in the Deck; an exact
+  // seed has no claim, so it scopes the content.
   return (
-    <BloomColorScope {...resolveProfileColor(profileData?.design.color)} asChild>
-      <AccountInfoContent
-        profileData={profileData}
-        profileLoading={profileLoading}
-        notFound={notFound}
-        onRetry={refresh}
-      />
+    <BloomColorScope seed={color?.seed} asChild>
+      <Screen colorPreset={color?.colorPreset}>
+        <AccountInfoContent
+          profileData={profileData}
+          profileLoading={profileLoading}
+          notFound={notFound}
+          onRetry={refresh}
+        />
+      </Screen>
     </BloomColorScope>
   );
 }
