@@ -51,6 +51,8 @@ export interface FeedContext {
    * makes, and a For You page hydrates more than once. Absent for anonymous
    * viewers, and both lists always travel together.
    */
+  /** Existing request privacy union (blocks/mutes), used to expire stale ranked priority. */
+  excludedAuthorIds?: readonly string[];
   viewerPrivacy?: { blockedIds: readonly string[]; restrictedIds: readonly string[] };
   /**
    * Author ids from lists the viewer subscribes to. These are feed-inclusion

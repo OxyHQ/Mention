@@ -10,11 +10,10 @@ export async function activitySubscriptionMatches(
   ctx: FeedEngineContext,
 ): Promise<Map<string, string[]>> {
   const ids = new Set(
-    eligibleActivitySubscriptionAuthors(
-      ctx.activitySubscribedAuthorIds,
-      ctx.userBehavior,
-      ctx.viewerPrivacy?.blockedIds,
-    ),
+    eligibleActivitySubscriptionAuthors(ctx.activitySubscribedAuthorIds, ctx.userBehavior, [
+      ...(ctx.excludedAuthorIds ?? []),
+      ...(ctx.viewerPrivacy?.blockedIds ?? []),
+    ]),
   );
   const matches = new Map<string, string[]>();
   if (!ctx.currentUserId || !ids.size) return matches;

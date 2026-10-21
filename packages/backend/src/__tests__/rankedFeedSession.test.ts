@@ -97,6 +97,64 @@ describe('ranked feed session storage', () => {
     ).rejects.toMatchObject({ statusCode: 410, code: 'FEED_CURSOR_EXPIRED' });
   });
 
+  it.each(['hiddenAuthors', 'mutedAuthors', 'blockedAuthors', 'hiddenTopics'] as const)(
+    'expires pending scores after %s changes, but not reorder or positive activity',
+    async (field) => {
+      const ctx = { currentUserId: 'viewer', userBehavior: { [field]: ['b', 'a', 'a'] } };
+      const initial = { ...state(), binding: rankedSessionBinding(definition, ctx, 20) };
+      const cursor = await store.save(initial);
+      expect(
+        await store.load(
+          cursor,
+          rankedSessionBinding(
+            definition,
+            {
+              ...ctx,
+              seenPostIds: ['newly-delivered'],
+              userBehavior: {
+                [field]: ['a', 'b'],
+                preferredAuthors: [{ authorId: 'fresh-interest', weight: 1 }],
+              },
+            },
+            20,
+          ),
+        ),
+      ).toEqual(initial);
+      await expect(
+        store.load(
+          cursor,
+          rankedSessionBinding(
+            definition,
+            { ...ctx, userBehavior: { [field]: ['a', 'b', 'new-negative'] } },
+            20,
+          ),
+        ),
+      ).rejects.toMatchObject({ statusCode: 410, code: 'FEED_CURSOR_EXPIRED' });
+    },
+  );
+
+  it('expires pending scores for authoritative privacy exclusions', async () => {
+    const initial = state();
+    const cursor = await store.save(initial);
+    for (const privacy of [
+      { excludedAuthorIds: ['new-mute'] },
+      { viewerPrivacy: { blockedIds: ['new-block'], restrictedIds: [] } },
+    ]) {
+      await expect(
+        store.load(
+          cursor,
+          rankedSessionBinding(definition, { currentUserId: 'viewer', ...privacy }, 20),
+        ),
+      ).rejects.toMatchObject({
+        statusCode: 410,
+        code: 'FEED_CURSOR_EXPIRED',
+      });
+    }
+    expect(rankedSessionBinding(definition, { excludedAuthorIds: ['b', 'a', 'a'] }, 20)).toBe(
+      rankedSessionBinding(definition, { excludedAuthorIds: ['a', 'b'] }, 20),
+    );
+  });
+
   it('stores immutable minimal state with a thirty-minute lifetime', async () => {
     const initial = state();
     const cursor = await store.save(initial);

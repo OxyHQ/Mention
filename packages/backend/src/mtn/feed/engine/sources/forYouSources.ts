@@ -94,7 +94,7 @@ function forYouParams(ctx: FeedEngineContext, cap?: number): GatherForYouCandida
     activitySubscribedAuthorIds: eligibleActivitySubscriptionAuthors(
       ctx.activitySubscribedAuthorIds,
       ctx.userBehavior,
-      ctx.viewerPrivacy?.blockedIds,
+      [...(ctx.excludedAuthorIds ?? []), ...(ctx.viewerPrivacy?.blockedIds ?? [])],
     ),
     subscribedListMemberIds: ctx.subscribedListMemberIds,
     followedCommunityIds: ctx.followedCommunityIds,
