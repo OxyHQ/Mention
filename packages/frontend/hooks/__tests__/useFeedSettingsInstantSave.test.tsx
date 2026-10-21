@@ -24,6 +24,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 const mockGet = jest.fn();
 const mockPut = jest.fn();
 const mockToast = jest.fn();
+const mockRankingChanged = jest.fn();
+jest.mock('@/stores/feedRankingInvalidation', () => ({
+  notifyFeedRankingChanged: (...args: unknown[]) => mockRankingChanged(...args),
+}));
 
 const mockAuth: { user: { id: string } | null; canUsePrivateApi: boolean } = {
   user: { id: 'viewer-1' },
@@ -160,6 +164,7 @@ describe('useFeedSettings — instant save', () => {
 
     // The PUT is still in flight — nothing has come back from the server.
     expect(mockPut).toHaveBeenCalledTimes(1);
+    expect(mockRankingChanged).not.toHaveBeenCalled();
     // And the cache already holds the new value, which is what the screen reads.
     const key = ['viewer', 'viewer-1', 'feed-settings'];
     expect(client.getQueryData<typeof SERVER_SETTINGS>(key)?.quality.boostHighQuality).toBe(false);
@@ -169,6 +174,7 @@ describe('useFeedSettings — instant save', () => {
       await Promise.resolve();
     });
     await settle();
+    expect(mockRankingChanged).toHaveBeenCalledWith('viewer-1', false);
   });
 
   it('rolls the value back and raises a toast when the write fails', async () => {
@@ -196,6 +202,7 @@ describe('useFeedSettings — instant save', () => {
     // Back to what the server actually holds — not left showing the refused value.
     expect(latest!.settings.quality.boostHighQuality).toBe(true);
     // And the user was told. A silent revert is the failure this guards.
+    expect(mockRankingChanged).not.toHaveBeenCalled();
     expect(mockToast).toHaveBeenCalledWith(expect.stringContaining("Couldn't save"), {
       type: 'error',
     });

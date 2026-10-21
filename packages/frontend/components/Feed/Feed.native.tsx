@@ -435,14 +435,8 @@ const Feed = (props: FeedProps) => {
   // Impression tracking: reconcile the full viewable set on each change.
   // FlashList REQUIRES a stable onViewableItemsChanged identity (it warns/throws
   // on a changing callback), so this is created ONCE and reads both the tracker
-  // and the focus flag through ref objects. Only a FOCUSED feed REPORTS
-  // impressions — a background feed isn't actually being viewed by the user —
-  // but viewability itself is a fact about the list, so video visibility is
-  // published either way (a blurred screen's players are gated on focus anyway).
-  const isFocusedRef = useRef(isFocused);
-  useEffect(() => {
-    isFocusedRef.current = isFocused;
-  }, [isFocused]);
+  // through its ref. Reconcile geometry even while blurred; the shared core
+  // pauses the tracker clock and resumes these visible rows when focused.
   const handleViewableItemsChanged = useCallback(
     ({
       viewableItems,
@@ -470,7 +464,6 @@ const Feed = (props: FeedProps) => {
       }
       rowViewableKeysRef.current = rowKeys;
       publishViewableKeys();
-      if (!isFocusedRef.current) return;
       impressionTracker.current.syncVisible(visibleUris);
     },
     [impressionTracker, publishViewableKeys],

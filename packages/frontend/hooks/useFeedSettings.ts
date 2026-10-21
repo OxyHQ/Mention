@@ -1,3 +1,4 @@
+import { notifyFeedRankingChanged } from '@/stores/feedRankingInvalidation';
 import { useCallback, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -114,7 +115,7 @@ export function useFeedSettings(): UseFeedSettings {
     FeedSettings,
     Error,
     FeedSettings,
-    { previous: FeedSettings | undefined }
+    { previous: FeedSettings | undefined; viewerId?: string }
   >({
     mutationFn: async (next) => {
       const response = await authenticatedClient.put<UserSettingsResponse>('/profile/settings', {
@@ -126,7 +127,7 @@ export function useFeedSettings(): UseFeedSettings {
       await queryClient.cancelQueries({ queryKey });
       const previous = queryClient.getQueryData<FeedSettings>(queryKey);
       queryClient.setQueryData<FeedSettings>(queryKey, next);
-      return { previous };
+      return { previous, viewerId: user?.id };
     },
     onError: (error, _next, context) => {
       if (context?.previous !== undefined) {
@@ -139,6 +140,9 @@ export function useFeedSettings(): UseFeedSettings {
         }),
         { type: 'error' },
       );
+    },
+    onSuccess: (_data, _next, context) => {
+      notifyFeedRankingChanged(context?.viewerId, false);
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey });
