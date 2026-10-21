@@ -1,7 +1,34 @@
-import { useState, useCallback, useRef } from 'react';
+import {
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+  useCallback,
+  useRef,
+  useState,
+} from 'react';
 import type { TextInputInstance } from 'react-native';
 
-export const usePollManager = () => {
+/**
+ * Spelled out rather than inferred: the inferred ref type names React Native
+ * 0.88's internal `_TextInputInstance`, which a composite project cannot emit (TS2883).
+ */
+export interface PollManager {
+  showPollCreator: boolean;
+  setShowPollCreator: Dispatch<SetStateAction<boolean>>;
+  pollTitle: string;
+  setPollTitle: Dispatch<SetStateAction<string>>;
+  pollOptions: string[];
+  setPollOptions: Dispatch<SetStateAction<string[]>>;
+  pollTitleInputRef: RefObject<TextInputInstance | null>;
+  focusPollCreator: () => void;
+  addPollOption: () => void;
+  updatePollOption: (index: number, value: string) => void;
+  removePollOption: (index: number) => void;
+  removePoll: () => void;
+  clearPoll: () => void;
+}
+
+export const usePollManager = (): PollManager => {
   const [showPollCreator, setShowPollCreator] = useState(false);
   const [pollTitle, setPollTitle] = useState('');
   const [pollOptions, setPollOptions] = useState<string[]>([]);

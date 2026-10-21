@@ -1,6 +1,6 @@
 import { usePanelScrollContainer } from '@oxy.so/bloom/app-shell/hooks';
-import { useRef, useCallback, useEffect, useMemo } from 'react';
-import { Platform } from 'react-native';
+import { useRef, useCallback, useEffect, useMemo, type RefObject } from 'react';
+import { type Animated, Platform } from 'react-native';
 import {
   useLayoutScroll,
   extractOffsetY,
@@ -29,6 +29,18 @@ interface UseProfileScrollOptions {
   currentLaneId?: string;
 }
 
+/**
+ * Spelled out rather than inferred: the inferred type names React Native 0.88's
+ * internal `AnimatedValue` class, which a composite project cannot emit (TS2883).
+ */
+export interface ProfileScroll {
+  scrollY: Animated.Value;
+  scrollRef: RefObject<ScrollableRef | null>;
+  onScroll: (event: ScrollEvent) => void;
+  assignScrollRef: (node: ScrollableRefTarget | null) => void;
+  scrollToContent: (offset: number) => void;
+}
+
 interface ScrollSlice {
   hasMore: boolean;
   nextCursor?: string;
@@ -43,7 +55,7 @@ export function useProfileScroll({
   profileId,
   currentTab,
   currentLaneId,
-}: UseProfileScrollOptions) {
+}: UseProfileScrollOptions): ProfileScroll {
   const panel = usePanelScrollContainer<HTMLElement>();
   const { scrollY, createAnimatedScrollHandler, scrollToOffset, setScrollY } = useLayoutScroll();
   const claimScroll = useFocusedScrollable<ScrollableRef>();

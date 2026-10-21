@@ -28,7 +28,7 @@
     "coverage:policy-selftest": "node ./scripts/test-coverage-policy.mjs",
     "web-font-preload:selftest": "node ./scripts/test-web-font-preload.mjs",
     "web-layout-preload:selftest": "node ./scripts/test-web-layout-preload.mjs",
-    "typecheck": "node ./scripts/typecheck.mjs",
+    "typecheck": "tsc --noEmit",
     "lint": "expo lint .",
     "clean": "rm -rf dist .expo",
     "analyze-bundle": "bun ./scripts/analyze-bundle.js"
