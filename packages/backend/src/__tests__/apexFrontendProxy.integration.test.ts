@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, mock, spyOn, jest } from 'bun:test';
+import { oxyTrustProxy } from '@oxy.so/core/server';
 import express from 'express';
 import request from 'supertest';
 import https from 'node:https';
@@ -26,7 +27,7 @@ const SPA_SHELL =
  */
 function makeApp() {
   const app = express();
-  app.set('trust proxy', 1);
+  app.set('trust proxy', oxyTrustProxy);
 
   // Root welcome, host-gated exactly like app.ts.
   app.get('', (req, res, next) => {

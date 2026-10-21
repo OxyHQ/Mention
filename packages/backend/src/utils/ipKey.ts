@@ -13,11 +13,14 @@ import { getIpHashSalt } from '../config';
  * server-side salt. The `rl|` namespace prevents these keys from ever being
  * correlated with other derivations that reuse the same salt.
  *
- * Returns 'unknown' when no IP is resolvable. The salt is read at call time so
+ * The IP is `req.ip`, which the app's `oxyTrustProxy` resolves to the real
+ * client behind the ALB and Cloudflare; a forged X-Forwarded-For never moves it.
+ *
+ * Returns 'unknown' when no IP is resolvable (the socket already closed). The salt is read at call time so
  * tests and rotations don't require a module reload.
  */
 export function hashedIpKey(req: Request): string {
-  const ip = req.ip || req.socket.remoteAddress;
+  const ip = req.ip;
   if (!ip) {
     return 'unknown';
   }

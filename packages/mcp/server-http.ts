@@ -28,6 +28,7 @@ import { fingerprintMcpPrincipal, type AuthenticatedMcpToken } from './lib/http-
 import { logError, logInfo, logWarn } from './lib/logger.js';
 import { resolveMcpSession } from './lib/mcp-session.js';
 import { McpSessionRegistry } from './lib/session-registry.js';
+import { startSseKeepAlive } from './lib/sse-keepalive.js';
 import {
   authenticateMcpAccessToken,
   createCentralTokenIntrospector,
@@ -418,6 +419,9 @@ async function main() {
           legacySseSessions.delete(transport.sessionId);
         });
         await server.connect(transport);
+        // `connect` has sent the headers and the endpoint event; from here an
+        // idle stream would be cut by the ALB at 60 s without this.
+        startSseKeepAlive(res);
         return;
       }
 
