@@ -115,6 +115,7 @@ export interface OptInSignalContext {
 export interface RankablePost {
   friendEngagementCount?: number;
   activitySubscriptionMatch?: boolean;
+  activitySubscriptionAuthorIds?: string[];
   id?: string;
   /** Written as a reply — the STORED discriminator (see `PostRecord`). */
   isReply?: boolean;

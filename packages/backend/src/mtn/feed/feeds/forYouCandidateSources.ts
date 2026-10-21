@@ -1,3 +1,4 @@
+import { eligibleActivitySubscriptionAuthors } from '../../../services/activitySubscriptionInterest';
 /**
  * For You — multi-source candidate generation.
  *
@@ -75,6 +76,9 @@ import type { OxyClient } from '../../../utils/privacyHelpers';
 
 /** Minimal viewer-behavior shape this module reads. */
 export interface CandidateUserBehavior {
+  hiddenAuthors?: string[];
+  mutedAuthors?: string[];
+  blockedAuthors?: string[];
   preferredAuthors?: Array<{ authorId?: string; weight?: number }>;
   preferredTopics?: Array<{ topic?: string; weight?: number }>;
 }
@@ -357,10 +361,14 @@ function resolveRegion(params: GatherForYouCandidatesParams): string | undefined
 export async function gatherActivitySubscriptionsLane(
   params: GatherForYouCandidatesParams,
 ): Promise<CandidatePost[]> {
-  if (!params.activitySubscribedAuthorIds?.length) return [];
+  const eligibleIds = eligibleActivitySubscriptionAuthors(
+    params.activitySubscribedAuthorIds,
+    params.userBehavior,
+  );
+  if (!eligibleIds.length) return [];
   const since = recencyStart(params.rankingAsOf);
-  // Indexed subscriber→author→accepted-authorship semijoin avoids a growing IN
-  // parameter list and does not reinterpret a bell as followers-only access.
+  // The viewer-keyed semijoin is additionally restricted to eligible bell authors;
+  // persisted edges must not reintroduce a hidden/muted/blocked bell.
   const matchedPosts = getDb()
     .select({ id: postAuthorships.postId })
     .from(postSubscriptions)
@@ -368,6 +376,7 @@ export async function gatherActivitySubscriptionsLane(
     .where(
       and(
         eq(postSubscriptions.subscriberId, params.viewerId),
+        inArray(postSubscriptions.authorId, eligibleIds),
         eq(postAuthorships.status, 'accepted'),
         gte(postAuthorships.postCreatedAt, since),
       ),

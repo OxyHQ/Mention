@@ -65,11 +65,45 @@ describe('explicit bell interest in For You', () => {
     ).toBe(1);
     expect(
       activitySubscriptionSignal.score(
-        { ...post(0), oxyUserId: 'coauthor-owner', activitySubscriptionMatch: true },
+        {
+          ...post(0),
+          oxyUserId: 'coauthor-owner',
+          activitySubscriptionMatch: true,
+          activitySubscriptionAuthorIds: ['bell-author'],
+        },
         buildSignalContext('viewer', context),
       ),
     ).toBe(2);
   });
+  it.each(['hiddenAuthors', 'mutedAuthors', 'blockedAuthors'] as const)(
+    'ignores a %s bell coauthor while preserving another eligible coauthor',
+    (field) => {
+      const candidate = {
+        ...post(0),
+        oxyUserId: 'clean-owner',
+        activitySubscriptionMatch: true,
+        activitySubscriptionAuthorIds: ['bell-author'],
+      };
+      const ctx = buildSignalContext('viewer', {
+        ...context,
+        activitySubscribedAuthorIdsSet: new Set(['bell-author', 'eligible']),
+        userBehavior: { [field]: ['bell-author'] },
+      });
+      expect(activitySubscriptionSignal.score(candidate, ctx)).toBe(1);
+      expect(
+        activitySubscriptionSignal.score(
+          { ...candidate, activitySubscriptionAuthorIds: ['bell-author', 'eligible'] },
+          ctx,
+        ),
+      ).toBe(2);
+      expect(
+        activitySubscriptionSignal.score(
+          { ...candidate, activitySubscriptionAuthorIds: undefined },
+          ctx,
+        ),
+      ).toBe(1);
+    },
+  );
   it('never offsets negative viewer feedback or sensitive content', async () => {
     for (const userBehavior of [
       { hiddenAuthors: ['bell-author'] },

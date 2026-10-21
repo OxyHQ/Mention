@@ -1,3 +1,4 @@
+import { eligibleActivitySubscriptionAuthors } from '../../services/activitySubscriptionInterest';
 import { respondWithApiError } from '../../utils/error';
 import { canSeeUnratedMaterial } from '../../services/contentAccessBatcher';
 import { revalidateAnonymousFeed } from '../../services/revalidateAnonymousFeed';
@@ -515,6 +516,11 @@ class MtnFeedController {
       // the follow graph `loadViewerFeedContext` threads; see `viewerPrivacy` on
       // `HydrationOptions` for why this keeps the fail-closed contract.
       if (privacyState) {
+        context.activitySubscribedAuthorIds = eligibleActivitySubscriptionAuthors(
+          context.activitySubscribedAuthorIds,
+          context.userBehavior,
+          [...privacyState.excludedUserIds],
+        );
         context.viewerPrivacy = {
           blockedIds: [...privacyState.blockedUserIds],
           restrictedIds: [...privacyState.restrictedUserIds],

@@ -32,6 +32,7 @@ export type CandidatePost = PostRecord & {
   friendEngagementCount?: number;
   /** Matched an accepted author through the viewer's bell subscriptions. */
   activitySubscriptionMatch?: boolean;
+  activitySubscriptionAuthorIds?: string[];
   /** Pre-scored sources (e.g. Explore's aggregation) attach the ranked score. */
   finalScore?: number;
   /**

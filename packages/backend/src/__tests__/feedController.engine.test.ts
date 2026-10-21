@@ -46,9 +46,15 @@ const privacy = vi.hoisted(() => ({
     excludedUserIds: new Set<string>(),
   })),
 }));
-vi.mock('../mtn/UserPrivacyManager', () => ({
-  UserPrivacyManager: { loadPrivacyState: privacy.loadPrivacyState },
-}));
+vi.mock('../mtn/UserPrivacyManager', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../mtn/UserPrivacyManager')>();
+  return {
+    UserPrivacyManager: {
+      loadPrivacyState: privacy.loadPrivacyState,
+      excludesPost: original.UserPrivacyManager.excludesPost,
+    },
+  };
+});
 const oxyHelpers = vi.hoisted(() => ({
   createScopedOxyClient: vi.fn((_req?: unknown): unknown => undefined),
 }));
@@ -97,6 +103,7 @@ vi.mock('../connectors/federatedProfileSync', () => ({
   federatedProfileSync: { syncOnProfileView },
 }));
 
+import * as feedContext from '../mtn/feed/feedContext';
 import { mtnFeedController } from '../mtn/controllers/feed.controller';
 
 interface MockRes {
@@ -126,6 +133,37 @@ beforeEach(() => {
 });
 
 describe('MtnFeedController.getFeed → engine', () => {
+  it('removes real privacy mutes and Oxy blocks from bell intent before the engine', async () => {
+    const contextSpy = vi.spyOn(feedContext, 'loadViewerFeedContext').mockResolvedValueOnce({
+      currentUserId: 'bell-viewer',
+      activitySubscribedAuthorIds: ['muted', 'blocked', 'hidden', 'eligible'],
+      userBehavior: { hiddenAuthors: ['hidden'] },
+    });
+    privacy.loadPrivacyState.mockResolvedValueOnce({
+      mutedUserIds: new Set(['muted']),
+      blockedUserIds: new Set(['blocked']),
+      restrictedUserIds: new Set(),
+      excludedUserIds: new Set(['muted', 'blocked']),
+    });
+    try {
+      const res = makeRes();
+      await mtnFeedController.getFeed(
+        {
+          accessToken: 'session',
+          query: { descriptor: 'for_you' },
+          user: { id: 'bell-viewer' },
+        } as never,
+        res as never,
+      );
+      expect(res.statusCode).toBe(200);
+      expect(engineRun.mock.calls[0]?.[1]).toMatchObject({
+        activitySubscribedAuthorIds: ['eligible'],
+      });
+    } finally {
+      contextSpy.mockRestore();
+    }
+  });
+
   it.each([
     ['following', undefined, 'chronological'],
     ['following', 'relevance', 'ranked'],
