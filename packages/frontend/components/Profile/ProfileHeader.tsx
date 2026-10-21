@@ -21,9 +21,7 @@ import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { RiHand } from '@oxy.so/bloom/icons/RiHand';
 import { RiLineChartLine } from '@oxy.so/bloom/icons/RiLineChartLine';
 import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
-import { showContentDialog } from '@/components/common/ContentDialog';
 import { requestSettings } from '@/components/settings/settingsRoutes';
-import { EditProfileForm } from './EditProfile/EditProfileForm';
 import { usePoke } from './hooks/usePoke';
 import { useFederatedFollowSync } from './hooks/useFederatedFollowSync';
 import { LAYOUT } from './types';
@@ -48,6 +46,7 @@ const PROFILE_AVATAR_COLLAPSE_TRANSLATE_Y = 16;
  */
 // Settings is an app-level action with no profile-specific dependencies.
 const goSettings = () => requestSettings('/settings');
+const openEditProfile = () => requestSettings('/settings/edit-profile');
 
 export const ProfileHeader = memo(function ProfileHeader({
   username,
@@ -118,15 +117,6 @@ export const ProfileHeader = memo(function ProfileHeader({
       },
     ],
   }));
-
-  const openEditProfile = useCallback(() => {
-    const title = t('profile.editProfile');
-    showContentDialog({
-      label: title,
-      title,
-      render: () => <EditProfileForm />,
-    });
-  }, [t]);
 
   return (
     <View className="flex-row justify-between items-end mb-2.5">

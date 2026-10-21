@@ -1,20 +1,13 @@
-import { View } from 'react-native';
-import { useTranslation } from 'react-i18next';
-import { PageHeader } from '@oxy.so/bloom/page-header';
+import { useEffect } from 'react';
+import { requestSettings } from '@/components/settings/settingsRoutes';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { EditProfileForm } from '@/components/Profile/EditProfile/EditProfileForm';
 
+/** Compatibility address: Edit profile is a Settings page, not a screen. */
 export default function EditProfileScreen() {
-  const { t } = useTranslation();
   const safeBack = useSafeBack();
-  return (
-    <View className="flex-1">
-      <PageHeader
-        title={t('profile.editProfile')}
-        onBack={() => safeBack()}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-      />
-      <EditProfileForm />
-    </View>
-  );
+  useEffect(() => {
+    requestSettings('/settings/edit-profile');
+    safeBack();
+  }, [safeBack]);
+  return null;
 }
