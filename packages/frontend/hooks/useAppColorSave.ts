@@ -4,6 +4,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { useBloomTheme, type AppColorName } from '@oxy.so/bloom/theme';
 import { logger } from '@oxy.so/core/logger';
 import { isColorEntitled } from '@/lib/colorEntitlement';
+import { markPresetSelection } from '@/hooks/useAccountTheme';
 import { useMentionColorViewer } from '@/hooks/useMentionColorViewer';
 import { queryClient } from '@/lib/queryClient';
 
@@ -28,6 +29,7 @@ export function useAppColorSave() {
     async (name: AppColorName) => {
       if (!isColorEntitled(name, viewer))
         throw new Error('Color is not available for this account');
+      markPresetSelection();
       setSaving(true);
       setColorPreset(name);
       try {
