@@ -8,7 +8,7 @@ import type { ProfileData } from '@/hooks/useProfileData';
  * Centralized type definitions following industry standards
  */
 
-import type { FollowButton, useAuth } from '@oxy.so/services/ui/client';
+import type { FollowButton, FollowVerb, useAuth } from '@oxy.so/services/ui/client';
 
 // Tab configuration
 export const TAB_NAMES = [
@@ -150,6 +150,15 @@ export function profileTabsForAccountKind(kind: AccountKind | undefined): readon
   if (kind !== 'channel') return TAB_NAMES;
   const excluded = CHANNEL_EXCLUDED_TABS as readonly ProfileTab[];
   return [...TAB_NAMES.filter((tab) => !excluded.includes(tab)), ...CHANNEL_ONLY_TAB_NAMES];
+}
+
+/**
+ * The verb a profile's follow button speaks. Following a community is joining
+ * it; every other account is followed. The SDK button takes a verb, not a kind,
+ * so this kind→verb rule is the app's, and this is the one place it lives.
+ */
+export function followVerbForAccountKind(kind: AccountKind | undefined): FollowVerb {
+  return kind === 'community' ? 'join' : 'follow';
 }
 
 /**
@@ -452,6 +461,8 @@ export interface ProfileHeaderProps extends ProfileHeaderBaseProps {
   actorUri?: string;
   isFollowing?: boolean;
   FollowButtonComponent: FollowButtonComponent;
+  /** See {@link followVerbForAccountKind}. */
+  followVerb?: FollowVerb;
   /** Contact and notification controls rendered in the group beside Poke. */
   interactionActions?: React.ReactNode;
 }

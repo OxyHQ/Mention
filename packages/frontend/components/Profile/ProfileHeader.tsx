@@ -59,6 +59,7 @@ export const ProfileHeader = memo(function ProfileHeader({
   actorUri,
   isFollowing: initialIsFollowing,
   FollowButtonComponent,
+  followVerb,
   interactionActions,
 }: ProfileHeaderProps) {
   const router = useRouter();
@@ -216,6 +217,7 @@ export const ProfileHeader = memo(function ProfileHeader({
               userId={profileId}
               initiallyFollowing={initialIsFollowing}
               username={username}
+              verb={followVerb}
             />
           </View>
         ) : null}

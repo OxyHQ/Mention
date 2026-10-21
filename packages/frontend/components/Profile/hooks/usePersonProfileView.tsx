@@ -41,6 +41,7 @@ import { ProfileHeader } from '../ProfileHeader';
 import { profileBasePath } from '../profileRoute';
 import {
   buildProfileTabDescriptors,
+  followVerbForAccountKind,
   profileTabIndex,
   profileTabsForAccountKind,
   type LaneTabInput,
@@ -423,6 +424,7 @@ export function usePersonProfileView({
           currentUsername={currentUser?.username}
           profileId={profileData.id}
           FollowButtonComponent={OxyFollowButton}
+          followVerb={followVerbForAccountKind(profileData.kind)}
           interactionActions={
             canUsePrivateApi && !isOwnProfile ? (
               <>
