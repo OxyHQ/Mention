@@ -537,7 +537,10 @@ export function registerPostsTools(server: MentionToolRegistrar): void {
         const resultObj = result as Record<string, unknown>;
         const posts = Array.isArray(resultObj.posts) ? resultObj.posts : [];
         if (posts.length === 0) {
-          return { content: [{ type: 'text' as const, text: 'No saved posts found.' }] };
+          return {
+            content: [{ type: 'text' as const, text: 'No saved posts found.' }],
+            structuredContent: resultObj,
+          };
         }
         const formatted = posts
           .map((p: Record<string, unknown>) => formatPost(p))
@@ -546,6 +549,7 @@ export function registerPostsTools(server: MentionToolRegistrar): void {
           content: [
             { type: 'text' as const, text: `Saved posts (${posts.length}):\n\n${formatted}` },
           ],
+          structuredContent: resultObj,
         };
       } catch (error) {
         return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
