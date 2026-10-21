@@ -453,15 +453,15 @@ jobs:
           # the command and how to launch it.
           POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-mention.sh
           # The serving task's size, re-asserted on every revision (the render
-          # otherwise copies it from the RUNNING one). 1 vCPU / 2 GB since
-          # 2026-10-19: at 512/1024 the scheduler leader sat at 100% CPU while
-          # it built the sitemaps, and died during the 07:42Z build. Every
-          # one-shot this deploy launches (migrations) inherits it too. Raising
-          # it is an account-capacity question: the Fargate quota is 100 vCPU,
-          # and autoscaling `max` x this size x the 200% deploy surge must fit
-          # beside every other service.
-          TASK_CPU: '1024'
-          TASK_MEMORY: '2048'
+          # otherwise copies it from the RUNNING one). On the shared EC2
+          # capacity since 2026-10-21 these are the container's CPU SHARE (a
+          # floor under contention; it bursts into the whole instance, so the
+          # sitemap build that pinned 1 vCPU on Fargate gets more, not less)
+          # and its HARD memory limit: 6144, 3x the Fargate 2048 that the task
+          # reached 1,952 MB of. Placement reserves the memoryReservation
+          # (2048), not this. Every one-shot this deploy launches inherits it.
+          TASK_CPU: '512'
+          TASK_MEMORY: '6144'
         # The existing target group remains on `/`, which server.ts now serves
         # as the same readiness gate as `/health/ready`. ELB mutations belong
         # in oxy-infra because the deploy role intentionally lacks ELB access.
