@@ -1,4 +1,4 @@
-# Expo Router 58.0.23
+# Expo Router 58.0.24
 
 The experimental stack currently ignores `contentStyle` and hardcodes a white
 scene. Mention's Bloom AppShell owns the central surface, including its scoped
@@ -9,7 +9,7 @@ paints every screen with the panel's own fill, so no screen shows the one under
 it through itself.
 The npm package ships the compiled implementation, not its TypeScript source.
 Remove this hunk when upstream supports transparent scene styling. Both hunks
-are still needed in 58.0.23 (it keeps `backgroundColor: 'white'` and renders
+are still needed in 58.0.24 (it keeps `backgroundColor: 'white'` and renders
 `StackV5.HeaderConfig` unconditionally); the patch was re-made against it. The
 two 57.0.23 hunks for pending deep-link state (`useOnGetState`,
 `findMatchingState` in `fork/useLinking`) are gone: SDK 58 replaced that
@@ -18,13 +18,13 @@ browser gate (`packages/e2e/tests/deep-link-boot.spec.ts`) still covers the
 behaviour. This does not claim physical-device validation: verify Android rendering
 after installation.
 
-# expo-video 58.0.11
+# expo-video 58.0.12
 
 The web player calls `video.play()` and drops the returned promise. Removing,
 pausing or replacing media cancels a pending play, and the browser rejects it
 with an `AbortError` that surfaces as an unhandled rejection. The patch routes
 every call through `playVideo()`, which consumes only that expected
-cancellation and rethrows anything else. Still present in 58.0.11 (all five
+cancellation and rethrows anything else. Still present in 58.0.12 (all five
 calls); re-made against it. Remove when upstream handles the `play()` promise.
 
 # react-native-screens 4.30.0
