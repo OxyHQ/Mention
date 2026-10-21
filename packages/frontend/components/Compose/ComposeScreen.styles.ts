@@ -221,6 +221,11 @@ export const composeStyles = StyleSheet.create({
   unfocusedItem: {
     opacity: 0.4,
   },
+  // Beast posts are independent, so they are divided the way the feed divides
+  // posts (PostItem's hairline) instead of being joined by a thread line.
+  beastSeparator: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',

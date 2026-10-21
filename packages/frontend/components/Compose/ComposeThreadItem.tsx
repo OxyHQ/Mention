@@ -52,6 +52,7 @@ export interface ComposeThreadItemStyles {
   timelineForeground: ViewStyle;
   postContainer: ViewStyle;
   unfocusedItem: ViewStyle;
+  beastSeparator: ViewStyle;
   threadTextInput: TextStyle;
   toolbarWrapper: ViewStyle;
   removeThreadBtn: ViewStyle;
@@ -309,8 +310,12 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
     const showTimeline = postingMode === 'thread';
 
     const containerStyle = useMemo(
-      () => [styles.postContainer, !isFocused && styles.unfocusedItem],
-      [styles.postContainer, styles.unfocusedItem, isFocused],
+      () => [
+        styles.postContainer,
+        !showTimeline && styles.beastSeparator,
+        !isFocused && styles.unfocusedItem,
+      ],
+      [styles.postContainer, styles.beastSeparator, styles.unfocusedItem, isFocused, showTimeline],
     );
 
     const pollMarginStyle = useMemo(() => ({ marginLeft: BOTTOM_LEFT_PAD }), []);
@@ -324,7 +329,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
     );
 
     return (
-      <View style={containerStyle}>
+      <View className="border-border" style={containerStyle}>
         {showTimeline ? (
           <>
             {/* The connector's colour is the className, never an interpolated
