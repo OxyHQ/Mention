@@ -313,9 +313,18 @@ jobs:
           # MOVE_APPLICATION_ID is the Oxy application id of Oxy Move, the only
           # caller the `/imports/v1` ingest admits (docs/import.mdx). It is an
           # id, not a secret: the gate is the service token Oxy signs for it.
+          # MENTION_OXY_FOREGROUND_CATALOG_BINDING is the Oxy catalogue this backend
+          # approves for the signed-in who-to-follow ranking: Oxy's active `oxy`
+          # registration (id, version, digest). It is pinned HERE because this is
+          # the only place an environment value reaches the running service (the
+          # revision is derived from the live one; Terraform's is never adopted).
+          # A new catalogue version is registered by Oxy's deploy (oxy ADR 0048),
+          # which prints the binding; move it here and redeploy the configuration.
+          # Until then Oxy refuses the tickets: ticket_catalog_no_longer_current.
           TASK_ENV_OVERRIDES_JSON: >-
             {"WEB_SHELL_ORIGIN":"https://shell.mention.earth",
-             "MOVE_APPLICATION_ID":"4bac8f1baed68fd02d65d592"}
+             "MOVE_APPLICATION_ID":"4bac8f1baed68fd02d65d592",
+             "MENTION_OXY_FOREGROUND_CATALOG_BINDING":"{\"registrationId\":\"01a16014-f77e-7013-b414-50deb9b61c60\",\"version\":\"1.1.0\",\"digest\":\"8cb3806c6caaade2f2b7b11d7a057907eb9a0d957f75334b8cb55f5d2c7bb658\"}"}
           # OPTIONAL environment, merged into the lists above and below by
           # optional-task-bindings.sh (which states the rules in full). A
           # variable here comes from the repository variable of the same name.
