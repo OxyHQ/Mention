@@ -23,7 +23,9 @@ jest.mock('@oxy.so/core', () => ({
 }));
 jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: 'PageHeader' }));
 jest.mock('@/components/ZoomableAvatar', () => ({ ZoomableAvatar: 'ZoomableAvatar' }));
-jest.mock('@oxy.so/bloom/screen', () => ({ Screen: ({ children }: { children: unknown }) => children }));
+jest.mock('@oxy.so/bloom/screen', () => ({
+  Screen: ({ children }: { children: unknown }) => children,
+}));
 jest.mock('@oxy.so/bloom/settings-list', () => ({
   SettingsListGroup: 'SettingsListGroup',
   SettingsListItem: 'SettingsListItem',
