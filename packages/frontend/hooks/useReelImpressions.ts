@@ -32,6 +32,8 @@ export interface UseReelImpressionsOptions {
   impressionResetKey?: string | number;
   /** Whether impressions may be POSTed at all (the private-API / auth gate). */
   canReportImpressions: boolean;
+  /** Account owning this session; pending observations never cross accounts. */
+  viewerId?: string;
 }
 
 export function useReelImpressions({
@@ -42,11 +44,13 @@ export function useReelImpressions({
   feedDescriptor,
   impressionResetKey,
   canReportImpressions,
+  viewerId,
 }: UseReelImpressionsOptions): void {
   const impressionTracker = useFeedImpressionTracker(
     feedDescriptor,
     impressionResetKey,
     canReportImpressions,
+    viewerId,
   );
 
   // An OS Picture-in-Picture window remains visible outside the foreground app.
