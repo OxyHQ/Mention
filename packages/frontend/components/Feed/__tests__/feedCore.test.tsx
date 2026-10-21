@@ -167,47 +167,41 @@ const leadingKeys = () =>
   (mockList.data ?? []).filter((row) => row.kind === 'auxiliary').map((row) => row.key);
 
 it('refreshes feed and profile chrome concurrently and waits for both', async () => {
-  let finishFeed!: () => void;
-  let finishProfile!: () => void;
-  mockRefresh.mockImplementationOnce(
-    () =>
-      new Promise<void>((resolve) => {
-        finishFeed = resolve;
-      }),
-  );
-  const onRefresh = jest.fn(
-    () =>
-      new Promise<void>((resolve) => {
-        finishProfile = resolve;
-      }),
-  );
-  let core!: ReturnType<typeof useFeedCore>;
+  const feedGate = Promise.withResolvers<void>();
+  const profileGate = Promise.withResolvers<void>();
+  mockRefresh.mockReturnValueOnce(feedGate.promise);
+  const onRefresh = jest.fn(() => profileGate.promise);
+  const state: {
+    core?: ReturnType<typeof useFeedCore>;
+    renderer?: TestRenderer.ReactTestRenderer;
+    pending?: Promise<void>;
+  } = {};
   function Harness() {
-    core = useFeedCore({ type: 'for_you', onRefresh });
+    state.core = useFeedCore({ type: 'for_you', onRefresh });
     return null;
   }
-  let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(<Harness />);
+    state.renderer = TestRenderer.create(<Harness />);
   });
-  let pending!: Promise<void>;
   act(() => {
-    pending = core.handleRefresh();
+    if (!state.core) throw new Error('Feed core did not mount');
+    state.pending = state.core.handleRefresh();
   });
   expect(mockRefresh).toHaveBeenCalledTimes(1);
   expect(onRefresh).toHaveBeenCalledTimes(1);
-  expect(core.refreshing).toBe(true);
+  expect(state.core?.refreshing).toBe(true);
   await act(async () => {
-    finishFeed();
+    feedGate.resolve();
   });
-  expect(core.refreshing).toBe(true);
+  expect(state.core?.refreshing).toBe(true);
   await act(async () => {
-    finishProfile();
-    await pending;
+    profileGate.resolve();
+    if (!state.pending) throw new Error('Feed refresh did not start');
+    await state.pending;
   });
-  expect(core.refreshing).toBe(false);
+  expect(state.core?.refreshing).toBe(false);
   act(() => {
-    renderer.unmount();
+    state.renderer?.unmount();
   });
 });
 
