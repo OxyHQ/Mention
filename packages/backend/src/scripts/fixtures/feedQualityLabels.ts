@@ -1,8 +1,13 @@
 /**
  * Feed-quality LABELED set (Phase 7 eval harness).
  *
- * A small, hand-curated ground-truth set the offline eval (`evalFeedQuality.ts`)
- * scores the feed pipeline against. Each entry tags a real fediverse account (or a
+ * A historical, viewer-specific seed set the offline eval (`evalFeedQuality.ts`)
+ * scores the feed pipeline against. It is NOT universal content-quality ground
+ * truth or an import-eligibility classifier: some account-wide `junk` labels
+ * describe only language/interest mismatch and include legitimate authors. Do
+ * not use these labels to reject imports, delete posts or suppress whole accounts.
+ * The owner-reviewed, per-post calibration in docs/audits/feed-quality-2026-10-21
+ * records recommendation and import decisions separately. Each entry tags a real fediverse account (or a
  * specific post) as `junk` or `good` with a human-readable `reason`, and the
  * resolver joins it to the actual `Post` rows it authored so the classifier /
  * discovery gate / ranking can be recomputed over real content.
