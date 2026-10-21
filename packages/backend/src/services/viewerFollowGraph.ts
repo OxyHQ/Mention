@@ -13,16 +13,37 @@ import { findActorsByUris } from '../db/federation/actorRepository';
 import { distinctRemoteActorUris } from '../db/federation/followRepository';
 import { getFollowingIds, type OxyClient } from '../utils/privacyHelpers';
 import { logger } from '../utils/logger';
-import { communityAccountIds } from './federation/community';
+import { sql } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { posts } from '../db/schema/posts';
+
+/**
+ * Which of these accounts posts have been WRITTEN IN — the communities among
+ * them, local or remote alike, as the feed needs them.
+ *
+ * A community is followed like any account, but what it publishes is written by
+ * its members, so the Following feed reaches its posts by
+ * `posts.community_oxy_user_id` instead of by author. Asking the column itself
+ * is exact by construction — only a community is ever stored there (Oxy's kind
+ * decides it at write time, `apCommunity.ts` and `communityPosting.ts`), and a
+ * community nothing was written in has nothing to add — and it costs one probe
+ * of the partial `post_community_chrono_v1` per followed account, with no
+ * identity read.
+ */
+export async function communitiesAmong(accountIds: readonly string[]): Promise<string[]> {
+  const ids = [...new Set(accountIds.filter(Boolean))];
+  if (ids.length === 0) return [];
+  const rows = await getDb().execute<{ id: string }>(
+    sql`select candidate.id from unnest(${sql.param(ids)}::text[]) as candidate(id)
+        where exists (select 1 from ${posts} where ${posts.communityOxyUserId} = candidate.id)`,
+  );
+  return [...rows].map((row) => row.id);
+}
 
 /**
  * Merge oxyUserIds from accepted federated (ActivityPub) outbound follows into
- * `followingIds`, deduplicating in-place, and return the ones that are
- * COMMUNITIES ({@link communityAccountIds}). A community is followed like any
- * account, but what it publishes is written by its members, so the Following
- * feed reaches its posts by `posts.community_oxy_user_id` instead of by author.
- * The actor rows are already in hand here, and only a followed `Group` is looked
- * up, so a viewer who follows no community pays nothing extra.
+ * `followingIds`, deduplicating in-place, and return the COMMUNITIES the viewer
+ * follows ({@link communitiesAmong}) — hosted here or on Lemmy, PieFed, Mbin.
  *
  * `acceptedOutboundUris` lets a caller that ALREADY has the viewer's accepted
  * outbound follow uris in flight hand that same pending read in rather than
@@ -44,23 +65,24 @@ export async function mergeFederatedFollowIds(
       direction: 'outbound',
       statuses: ['accepted'],
     }));
-  if (fedFollowUris.length === 0) return [];
 
-  // No `oxyUserId <> null` filter: the loop below already skips an actor with
-  // no `oxyUserId`, and `<> null` in SQL is NULL — not true — so it would match
-  // nothing and quietly empty the follow graph.
-  const fedActors = await findActorsByUris(fedFollowUris);
+  if (fedFollowUris.length > 0) {
+    // No `oxyUserId <> null` filter: the loop below already skips an actor with
+    // no `oxyUserId`, and `<> null` in SQL is NULL — not true — so it would match
+    // nothing and quietly empty the follow graph.
+    const fedActors = await findActorsByUris(fedFollowUris);
 
-  const existing = new Set(followingIds);
-  for (const actor of fedActors) {
-    const id = actor.oxyUserId;
-    if (!id) continue;
-    if (!existing.has(id)) {
-      followingIds.push(id);
-      existing.add(id);
+    const existing = new Set(followingIds);
+    for (const actor of fedActors) {
+      const id = actor.oxyUserId;
+      if (!id) continue;
+      if (!existing.has(id)) {
+        followingIds.push(id);
+        existing.add(id);
+      }
     }
   }
-  return [...(await communityAccountIds(fedActors))];
+  return communitiesAmong(followingIds);
 }
 
 /**

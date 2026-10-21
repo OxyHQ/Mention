@@ -51,6 +51,7 @@ const mocks = vi.hoisted(() => ({
   resolvePollContextByPost: vi.fn(),
   resolveQuoteContext: vi.fn(),
   resolveQuoteContextByPost: vi.fn(),
+  resolveCommunityContextByPost: vi.fn(async () => new Map()),
   resolveAvatarUrl: vi.fn(),
   resolveMediaRef: vi.fn(),
   getServiceOxyClient: vi.fn(),
@@ -85,6 +86,8 @@ vi.mock('../../../connectors/activitypub/ActivityPubConnector', () => ({
     resolvePollContextByPost: (...args: unknown[]) => mocks.resolvePollContextByPost(...args),
     resolveQuoteContext: (...args: unknown[]) => mocks.resolveQuoteContext(...args),
     resolveQuoteContextByPost: (...args: unknown[]) => mocks.resolveQuoteContextByPost(...args),
+    resolveCommunityContextByPost: (...args: unknown[]) =>
+      mocks.resolveCommunityContextByPost(...args),
     fetchPublicKey: vi.fn(),
     processInboxActivity: vi.fn(),
   },
@@ -371,12 +374,13 @@ describe('GET /ap/users/:username/outbox?page=true — reuses buildCreateNoteAct
 
     expect(mocks.buildCreateNoteActivity).toHaveBeenCalledTimes(2);
     // The outbox passes NO reply context and the per-post mention + poll + quote
-    // contexts (all undefined here — the batch resolvers returned empty maps) as
-    // args 3-6.
+    // + community contexts (all undefined here — the batch resolvers returned
+    // empty maps) as args 3-7.
     expect(mocks.buildCreateNoteActivity).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({ id: newer.id }),
       'alice',
+      undefined,
       undefined,
       undefined,
       undefined,
@@ -471,6 +475,7 @@ describe('GET /ap/users/:username/outbox?page=true — reuses buildCreateNoteAct
       undefined,
       pollContext,
       undefined,
+      undefined,
     );
     expect(res.body.orderedItems).toEqual([{ type: 'Create', object: { type: 'Question' } }]);
   });
@@ -489,6 +494,7 @@ describe('GET /ap/users/:username/outbox?page=true — reuses buildCreateNoteAct
       undefined,
       undefined,
       quoteContext,
+      undefined,
     );
   });
 });
@@ -1022,6 +1028,7 @@ describe('GET /ap/users/:username/posts/:id — dereference', () => {
       undefined,
       undefined,
       undefined,
+      undefined,
     );
   });
 
@@ -1047,6 +1054,7 @@ describe('GET /ap/users/:username/posts/:id — dereference', () => {
       undefined,
       undefined,
       quoteContext,
+      undefined,
     );
   });
 

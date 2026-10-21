@@ -50,6 +50,7 @@ import { authorVariants, declaredBaseLanguages, toStoredContent } from './postVa
 import { recordRecentReplierForPost } from './PostRecentReplierService';
 import { parentHasPublished } from './scheduledChain';
 import { assertLaneAssignable } from '../utils/laneAssignment';
+import { resolveNativePostCommunity } from './communities/communityPosting';
 import {
   assertAnswersOperatedAccount,
   assertContinuesOwnThread,
@@ -84,9 +85,13 @@ export interface CreatePostParams {
    */
   laneId?: string | null;
   /**
-   * The community a FEDERATED post was published in (the Oxy account of an
-   * ActivityPub `Group`, resolved by `connectors/activitypub/apCommunity.ts`).
-   * Only the federated ingest sets it; the post stays authored by its writer.
+   * The community the post is written in; the post stays authored by its writer.
+   *
+   * On a FEDERATED ingest it is already decided (`apCommunity.ts`, or the inbox
+   * for a community hosted here) and stored as given. On a NATIVE post it is the
+   * community the author ASKED for, and {@link resolveNativePostCommunity} decides
+   * it: a reply takes its thread's instead, and a ban, a boost, a non-public post
+   * or an account that is not a community hosted here is refused.
    */
   communityOxyUserId?: string | null;
   /**
@@ -519,6 +524,19 @@ class PostCreationService {
       boostOf: params.boostOf,
     });
 
+    const communityOxyUserId =
+      params.federation != null
+        ? (params.communityOxyUserId ?? null)
+        : await resolveNativePostCommunity({
+            requestedCommunityOxyUserId: params.communityOxyUserId,
+            authorId,
+            publishedAsAccount,
+            parentPostId: params.parentPostId,
+            boostOf: params.boostOf,
+            visibility: params.visibility ?? PostVisibility.PUBLIC,
+            hasTitle: typeof params.content.title === 'string' && params.content.title.length > 0,
+          });
+
     let content = params.content;
     if (Array.isArray(content.media) && content.media.length > 0) {
       const enrichedMedia = await mediaMetadataService.enrichFromOxy(content.media as MediaItem[]);
@@ -645,7 +663,7 @@ class PostCreationService {
         ? ['nobody']
         : (params.replyPermission ?? ['anyone'])) as ReplyPermission[],
       laneId: params.laneId ?? null,
-      communityOxyUserId: params.communityOxyUserId ?? null,
+      communityOxyUserId,
       content: storedContent,
       // Reconciled from the FINALIZED stored bodies. Incoming metadata alone must
       // never create a notification recipient.

@@ -225,6 +225,16 @@ export function isMentionChannel(account: ProfileRouteAccount | null | undefined
   return account?.kind === 'channel' && !account.isFederated;
 }
 
+/**
+ * Whether the account is a community HOSTED HERE: an Oxy `community` account
+ * that is not a remote (Lemmy, PieFed, Mbin) group. Its members post into it, its
+ * moderators run it from Mention, and Mention relays its posts to the fediverse
+ * (FEP-1b12). A remote community is moderated by its own server.
+ */
+export function isMentionCommunity(account: ProfileRouteAccount | null | undefined): boolean {
+  return account?.kind === 'community' && !account.isFederated;
+}
+
 /** The family the account itself belongs to (see {@link isMentionChannel}). */
 export function profileRouteFamily(
   account: ProfileRouteAccount | null | undefined,

@@ -129,6 +129,11 @@ const OXY_ACCOUNT_COLUMN_NAMES: ReadonlySet<string> = new Set([
   // of an ActivityPub `Group`. The name is not one the predicate would otherwise
   // recognise.
   'community_oxy_user_id',
+  // The person a community's moderators banned from posting in it, and the
+  // moderator who did (`community_bans`). Oxy account ids, under names the
+  // predicate would not otherwise recognise.
+  'banned_oxy_user_id',
+  'banned_by_oxy_user_id',
   'local_user_id',
   'sender_oxy_user_id',
   'actor_id',

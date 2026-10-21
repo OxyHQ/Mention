@@ -87,14 +87,24 @@ env:
   #   merge_group  -> merge_group.base_sha: the commit the queue built this
   #                   entry on (main, or the entry ahead of it, which must pass
   #                   before this one can merge)
-  #   pull_request -> origin/<base_ref>: the tip of the branch it merges into
+  #   pull_request -> pull_request.base.sha: the tip of the branch it merges
+  #                   into AS THE MERGE COMMIT THIS RUN CHECKED OUT WAS BUILT
   #   push         -> event.before: what main pointed at beforehand
+  #
+  # Every arm is a commit id fixed by the event, never a branch name. The
+  # pull_request arm used to be `origin/<base_ref>`, which each job resolved
+  # when IT ran: a merge to main between two jobs of one run (or between a run
+  # and its rerun) gave them different bases, so the backend shards judged the
+  # scope against one main and the aggregate job against the next, and failed
+  # with "shard 1/3 produced no blob report"; the lockfile check likewise
+  # reported a package as BEHIND a version that was published after the run
+  # began. One run now has one base, and a rerun is judged exactly as before.
   #
   # `&&` binds tighter than `||` in expressions, so each line is one arm.
   CI_BASE_REVISION: >-
     ${{
       github.event_name == 'merge_group' && github.event.merge_group.base_sha ||
-      github.base_ref && format('origin/{0}', github.base_ref) ||
+      github.event_name == 'pull_request' && github.event.pull_request.base.sha ||
       github.event.before
     }}
 

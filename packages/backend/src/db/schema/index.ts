@@ -19,6 +19,7 @@ export * from './adminScripts';
 export * from './articles';
 export * from './blocklist';
 export * from './channels';
+export * from './communities';
 export * from './discovery';
 export * from './engagement';
 export * from './federation';

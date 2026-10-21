@@ -1,4 +1,4 @@
-import { Readable } from 'node:stream';
+import { PassThrough, Readable } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -206,6 +206,32 @@ describe('Meta error classes', () => {
     );
     expect(error).toBeInstanceOf(InstagramGraphError);
     expect((error as Error).message).not.toContain(TOKEN);
+  });
+
+  it('reads an oversized body as a bad response and a stalled one as transport', async () => {
+    h.fetch.mockResolvedValueOnce({
+      status: 200,
+      headers: {},
+      response: Readable.from([Buffer.alloc(8 * 1024 * 1024 + 1)]),
+    });
+    await expect(fetchBusinessDiscovery('zuck', { kind: 'interactive' })).rejects.toMatchObject({
+      kind: 'bad_response',
+    });
+
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const stalled = new PassThrough();
+      h.fetch.mockResolvedValueOnce({ status: 200, headers: {}, response: stalled });
+      stalled.write('{"id":');
+      const pending = fetchBusinessDiscovery('zuck', { kind: 'interactive' }).catch(
+        (err: unknown) => err,
+      );
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(await pending).toMatchObject({ kind: 'transport' });
+      expect(stalled.destroyed).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

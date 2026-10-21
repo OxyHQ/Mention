@@ -153,6 +153,7 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
     // + FEP-e232 Link tag); batch-resolve the whole page's quote references, deduped
     // (non-quote posts are absent → plain Note).
     const quoteContexts = await activityPubConnector.resolveQuoteContextByPost(pagePosts);
+    const communityContexts = await activityPubConnector.resolveCommunityContextByPost(pagePosts);
     const items = pagePosts.map((post) =>
       activityPubConnector.buildCreateNoteActivity(
         post,
@@ -161,6 +162,7 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
         mentionContexts.get(post.id),
         pollContexts.get(post.id),
         quoteContexts.get(post.id),
+        communityContexts.get(post.id),
       ),
     );
 
@@ -246,6 +248,7 @@ router.get('/users/:username/collections/featured', async (req: Request, res: Re
     const mentionContexts = await activityPubConnector.resolveMentionContextByPost(pinnedPosts);
     const pollContexts = await activityPubConnector.resolvePollContextByPost(pinnedPosts);
     const quoteContexts = await activityPubConnector.resolveQuoteContextByPost(pinnedPosts);
+    const communityContexts = await activityPubConnector.resolveCommunityContextByPost(pinnedPosts);
     const items = pinnedPosts.map(
       (post) =>
         activityPubConnector.buildCreateNoteActivity(
@@ -255,6 +258,7 @@ router.get('/users/:username/collections/featured', async (req: Request, res: Re
           mentionContexts.get(post.id),
           pollContexts.get(post.id),
           quoteContexts.get(post.id),
+          communityContexts.get(post.id),
         ).object as Record<string, unknown>,
     );
 
@@ -350,6 +354,11 @@ router.get('/users/:username/posts/:id', async (req: Request, res: Response) => 
     // quoted post, which serves the Note without quote fields.
     const quoteContext = await activityPubConnector.resolveQuoteContext(post);
 
+    // A post written in a community hosted here names it as its `audience`.
+    const communityContext = (await activityPubConnector.resolveCommunityContextByPost([post])).get(
+      post.id,
+    );
+
     // Build via the shared Note path, then unwrap the Create envelope: a
     // dereferenced Note/Question is the `object`, carrying its own top-level
     // `@context`.
@@ -360,6 +369,7 @@ router.get('/users/:username/posts/:id', async (req: Request, res: Response) => 
       mentionContext ?? undefined,
       pollContext ?? undefined,
       quoteContext ?? undefined,
+      communityContext,
     );
     const note = activity.object as Record<string, unknown>;
 

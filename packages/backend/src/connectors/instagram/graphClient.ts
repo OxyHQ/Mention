@@ -1,7 +1,7 @@
+import { readResponseBody, type ReadResponseBodyResult } from '@oxy.so/core/server';
 import { config, getMetaGraphAccessToken } from '../../config';
 import { logger } from '../../utils/logger';
 import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
-import { readBoundedResponseBody } from '../shared/httpBody';
 import { GRAPH_API_HOST, isInstagramGraphEnabled, isValidInstagramUsername } from './constants';
 import {
   acquireCallBudget,
@@ -269,7 +269,7 @@ export async function fetchBusinessDiscovery(
 
   let status: number;
   let headers: Record<string, string | string[] | undefined>;
-  let bodyText: string;
+  let read: ReadResponseBodyResult;
   try {
     const result = await fetchUpstreamSingleHop(url, {
       headers: {
@@ -282,18 +282,37 @@ export async function fetchBusinessDiscovery(
     });
     status = result.status;
     headers = result.headers;
-    bodyText = Buffer.from(
-      await readBoundedResponseBody(result.response, MAX_GRAPH_RESPONSE_BYTES),
-    ).toString('utf8');
+    read = await readResponseBody(result.response, {
+      maxBytes: MAX_GRAPH_RESPONSE_BYTES,
+      timeoutMs: GRAPH_TIMEOUT_MS,
+    });
   } catch (err) {
     // The transport error names the host at most; it is summarised, not echoed.
     const name = err instanceof Error ? err.name : 'Error';
     throw new InstagramGraphError('transport', `Graph API request failed (${name})`);
   }
+  // A body past the cap is this response's fault and will not shrink on a
+  // retry; a stalled or broken body is the transport's, like a failed request.
+  if (read.kind === 'too_large') {
+    throw new InstagramGraphError(
+      'bad_response',
+      `Graph API response exceeded ${MAX_GRAPH_RESPONSE_BYTES} bytes`,
+      { status },
+    );
+  }
+  if (read.kind === 'timeout') {
+    throw new InstagramGraphError(
+      'transport',
+      `Graph API response body did not end within ${GRAPH_TIMEOUT_MS} ms`,
+    );
+  }
+  if (read.kind === 'error') {
+    throw new InstagramGraphError('transport', `Graph API request failed (${read.error.name})`);
+  }
 
   let body: unknown;
   try {
-    body = JSON.parse(bodyText);
+    body = JSON.parse(read.body.toString('utf8'));
   } catch {
     body = undefined;
   }
