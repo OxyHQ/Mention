@@ -1,6 +1,12 @@
 import { scanTextEntities } from '@mention/shared-types/textEntities';
 
 /**
+ * Text that overshoots the limit by less than this fraction is shown whole:
+ * a "Read more" that reveals a few words isn't worth the tap.
+ */
+const TRUNCATION_TOLERANCE = 0.1;
+
+/**
  * Pure truncation logic shared by post body text and profile bios. Both
  * "Read more" (post, when the openPost setting is off) and profile bio use
  * the identical truncate/expand shape; only the UI around it differs, which
@@ -20,7 +26,7 @@ export function computeExpandableText(
     (length, mention) => length - mention.raw.length + (mention.label as string).length,
     text.length,
   );
-  const isTruncated = visibleLength > maxChars;
+  const isTruncated = visibleLength > maxChars * (1 + TRUNCATION_TOLERANCE);
   if (!isTruncated || isExpanded) {
     return { displayText: text, isTruncated };
   }

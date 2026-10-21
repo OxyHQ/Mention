@@ -77,7 +77,7 @@ describe('PostContentText — truncated link destination', () => {
     act(() => {
       renderer = TestRenderer.create(
         <BloomThemeProvider>
-          <PostContentText content={`${'a'.repeat(250)} ${source}`} postId="post-1" />
+          <PostContentText content={`${'a'.repeat(270)} ${source}`} postId="post-1" />
         </BloomThemeProvider>,
       );
     });

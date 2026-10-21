@@ -12,6 +12,14 @@ describe('computeExpandableText', () => {
     expect(result).toEqual({ displayText: text, isTruncated: false });
   });
 
+  it('does not truncate when text overshoots maxChars by less than 10%', () => {
+    const text = 'a'.repeat(215);
+    expect(computeExpandableText(text, 200, false)).toEqual({
+      displayText: text,
+      isTruncated: false,
+    });
+  });
+
   it('truncates with an ellipsis when text exceeds maxChars and not expanded', () => {
     const text = 'a'.repeat(250);
     const result = computeExpandableText(text, 200, false);
