@@ -335,3 +335,29 @@ available, comparative ranking samples and cross-platform client behavior. Empty
 account-specific surfaces need fixture coverage and must not be reported as
 production defects without eligible inventory. No claim of exhaustive completion
 or improved production feed quality follows from code tests alone.
+
+### Integrated client and contract validation
+
+The integration branch was built from main `d32a89e15` with both migrations
+(`0089` import provenance and `0090` Following ordering) applied by the disposable
+PostgreSQL test harness. Shared contracts/backend/MCP builds, frontend TypeScript,
+the production Expo web export, e2e TypeScript, migration lock checks, i18n and
+feed hot-path validators passed. Frontend lint returned zero errors and 229
+warnings; changed TypeScript/JSON files passed Biome checks.
+
+- 198 shared-types tests and 161 MCP tests passed.
+- 185 frontend tests cover dwell/visibility/refresh, viewer isolation, saved
+  settings invalidation, Following persistence/rollback, request deduplication and
+  one-shot expired-cursor recovery in memory and SQLite.
+- A real Chromium candidate smoke passed four flows: anonymous cold boot with
+  feed rows, `@nate` profile default/tab navigation, a profile reached from another
+  profile, and Home → Explore → post → back without a document recovery reload.
+  Candidate assets were served locally at the production app origin using the
+  repository's existing Playwright fixture; public API reads used production.
+  No authentication bypass, production settings write or post mutation was used.
+
+The browser run validates the candidate client against the currently deployed
+backend. It cannot establish the new backend's production quality or performance.
+Authenticated settings UI and native app background behavior have automated
+regression coverage, but were not exercised on a logged-in browser or a physical
+iOS/Android device during this integration pass.
