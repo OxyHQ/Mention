@@ -26,6 +26,13 @@ describe('Oxy runtime compatibility unit', () => {
     expect(servicesTypes).toMatch(new RegExp(`export \\{ ${hook} \\}`));
   });
 
+  it('gives the embedded Alia sheet the same Bloom runtime as Mention', () => {
+    const aliaRequire = createRequire(require.resolve('@alia.onl/sdk/package.json'));
+    expect(aliaRequire.resolve('@oxy.so/bloom/package.json')).toBe(
+      require.resolve('@oxy.so/bloom/package.json'),
+    );
+  });
+
   it('gives Services the same Core and Bloom runtime as Mention', () => {
     const servicesRequire = createRequire(SERVICES_PACKAGE);
 

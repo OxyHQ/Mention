@@ -95,7 +95,7 @@
     }
   },
   "dependencies": {
-    "@alia.onl/sdk": "^21.5.0",
+    "@alia.onl/sdk": "21.5.2",
     "@babel/plugin-transform-export-namespace-from": "^8.0.1",
     "@expo/app-integrity": "~58.0.2",
     "@expo/vector-icons": "^15.1.1",
