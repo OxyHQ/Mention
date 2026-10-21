@@ -9,6 +9,9 @@
 --
 -- Nullable, no default: metadata-only ALTERs that rewrite no row. Every
 -- existing post was written in no community and carries no title or link.
-ALTER TABLE "posts" ADD COLUMN "community_oxy_user_id" text;--> statement-breakpoint
-ALTER TABLE "posts" ADD COLUMN "content_title" text;--> statement-breakpoint
-ALTER TABLE "posts" ADD COLUMN "content_link_url" text;
+--
+-- `IF NOT EXISTS` so the columns can be added by hand ahead of the deploy,
+-- which 0087's CONCURRENTLY index build needs (see 0087).
+ALTER TABLE "posts" ADD COLUMN IF NOT EXISTS "community_oxy_user_id" text;--> statement-breakpoint
+ALTER TABLE "posts" ADD COLUMN IF NOT EXISTS "content_title" text;--> statement-breakpoint
+ALTER TABLE "posts" ADD COLUMN IF NOT EXISTS "content_link_url" text;
