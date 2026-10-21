@@ -249,10 +249,6 @@ export const userSettings = pgTable(
 
     // ── appearance ──
     appearanceThemeMode: text({ enum: THEME_MODES }).notNull().default('system'),
-    // Retired: the profile colour is the Oxy account colour. Nothing reads or
-    // writes this column any more; drop it in a follow-up migration once this code
-    // is live everywhere (a drop first would break the previous release).
-    appearancePrimaryColor: text(),
     appearancePostTextExpand: text({ enum: POST_TEXT_EXPANDS }).notNull().default('default'),
     appearancePostReadMoreAction: text({ enum: POST_READ_MORE_ACTIONS })
       .notNull()
