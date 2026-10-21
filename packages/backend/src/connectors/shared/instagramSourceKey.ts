@@ -1,6 +1,7 @@
 import { qualified } from '@oxy.so/db';
 import { eq, or, sql, type SQL } from 'drizzle-orm';
 import { postSourceKeys } from '../../db/schema/postContent';
+import { mirrorHosts } from '../../utils/federation/mirrorTransports';
 import { posts } from '../../db/schema/posts';
 
 /**
@@ -29,11 +30,11 @@ import { posts } from '../../db/schema/posts';
 export const INSTAGRAM_SOURCE_KEY_PREFIX = 'instagram:';
 
 /**
- * The ActivityPub bridges known to mirror Instagram with the shortcode as the
+ * The mirrors known to carry Instagram with the shortcode as the
  * Note's last path segment. A reviewed list, not a pattern: a host that merely
  * LOOKS like a bridge must not be able to claim another post's source key.
  */
-export const INSTAGRAM_AP_BRIDGE_HOSTS: ReadonlySet<string> = new Set(['kilogram.makeup']);
+export const INSTAGRAM_AP_BRIDGE_HOSTS: ReadonlySet<string> = new Set(mirrorHosts('instagram'));
 
 /** Instagram's shortcode alphabet. Length-bounded so junk cannot become a key. */
 const SHORTCODE_RE = /^[A-Za-z0-9_-]{5,64}$/;
