@@ -10,6 +10,7 @@ import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { getNormalizedUserHandle } from '@oxy.so/core';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import type { Trend } from '@/interfaces/Trend';
 import type { BloomIcon } from '@/components/settings/RowIcon';
@@ -214,7 +215,12 @@ export const TrendItemRow = memo(function TrendItemRow({
           ) : null}
           {faces.length > 0 ? (
             <View className="mt-1.5 flex-row">
-              <AvatarGroup items={faces} size={TREND_FACE_SIZE} max={faces.length} />
+              <AvatarGroup
+                items={faces}
+                size={TREND_FACE_SIZE}
+                max={faces.length}
+                variant={MEDIA_VARIANT_AVATAR}
+              />
             </View>
           ) : null}
         </View>
