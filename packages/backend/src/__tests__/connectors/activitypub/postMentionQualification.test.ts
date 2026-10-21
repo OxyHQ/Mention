@@ -45,6 +45,11 @@ describe('identityDomainOfActor', () => {
     );
   });
 
+  it('names the mirrored network for a mirror-host actor Oxy could not derive', () => {
+    expect(identityDomainOfActor({ networkAcct: null, domain: 'bird.makeup' })).toBe('x.com');
+    expect(identityDomainOfActor({ domain: 'kilogram.makeup' })).toBe('instagram.com');
+  });
+
   it('does not qualify an ordinary actor whose Oxy canonical acct is on its own host', () => {
     // Oxy returns a `canonicalAcct` for every source, so `networkAcct` is set on
     // ordinary actors too; only a DIFFERENT network domain is a relabel.
@@ -79,7 +84,7 @@ describe('identityDomainOfActor', () => {
     // body is left alone — never qualified onto the bridge host it arrived
     // through, which is what the old `domain` fallback would have done.
     for (const networkAcct of ['pabloiglesias', 'pabloiglesias@', '@x.com', '   ']) {
-      expect(identityDomainOfActor({ networkAcct, domain: 'mastox.eu' })).toBeUndefined();
+      expect(identityDomainOfActor({ networkAcct, domain: 'mastodon.example' })).toBeUndefined();
     }
   });
 

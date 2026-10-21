@@ -395,6 +395,8 @@ export class OutboxSyncService {
     actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri'> & {
       oxyUserId?: string;
       type?: string;
+      networkAcct?: string | null;
+      domain?: string | null;
     },
     limit = 20,
   ): Promise<number> {
@@ -418,6 +420,8 @@ export class OutboxSyncService {
     actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri'> & {
       oxyUserId?: string;
       type?: string;
+      networkAcct?: string | null;
+      domain?: string | null;
     },
     limitOrOptions: number | OutboxSyncOptions = 20,
   ): Promise<OutboxSyncResult> {
@@ -931,6 +935,17 @@ export class OutboxSyncService {
           // re-labelled bridged identity.
           dropFlattenedRetweets: dropsFlattenedReposts(getRemoteHost(actorUri) ?? ''),
           ingestPath: 'outbox',
+          // The outbox owner's own notes qualify their bare handles onto the
+          // identity network, exactly as the inbox does; a note by anyone else
+          // (a boosted original) is the dependency path's to qualify.
+          ...(authorUri === actor.uri
+            ? {
+                identityDomain: identityDomainOfActor({
+                  networkAcct: actor.networkAcct,
+                  domain: actor.domain ?? getRemoteHost(actor.uri),
+                }),
+              }
+            : {}),
         });
         if (built.skip) {
           logger.debug('[FedSync] skipped empty outbox note', {
