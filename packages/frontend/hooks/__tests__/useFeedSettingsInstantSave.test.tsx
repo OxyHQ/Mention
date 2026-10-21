@@ -144,6 +144,33 @@ describe('useFeedSettings — instant save', () => {
     }
   });
 
+  it('defaults older server responses to chronological and persists a chosen order', async () => {
+    mockGet.mockResolvedValue({ data: { feedSettings: { quality: { boostHighQuality: true } } } });
+    renderProbe();
+    await settle();
+    expect(latest!.settings.following.sort).toBe('chronological');
+    const next = { ...latest!.settings, following: { sort: 'relevance' as const } };
+    mockPut.mockResolvedValue({ data: { feedSettings: next } });
+    await act(async () => {
+      latest!.save(next);
+    });
+    await settle();
+    expect(mockPut).toHaveBeenCalledWith('/profile/settings', { feedSettings: next });
+    expect(mockRankingChanged).toHaveBeenCalledWith('viewer-1', false);
+  });
+
+  it('rolls a rejected Following order back to the persisted chronological choice', async () => {
+    renderProbe();
+    await settle();
+    mockPut.mockRejectedValue(new Error('save failed'));
+    await act(async () => {
+      latest!.save({ ...latest!.settings, following: { sort: 'relevance' } });
+    });
+    await settle();
+    expect(latest!.settings.following.sort).toBe('chronological');
+    expect(mockRankingChanged).not.toHaveBeenCalled();
+  });
+
   it('shows the new value immediately, before the server has answered', async () => {
     const next = { ...SERVER_SETTINGS, quality: { boostHighQuality: false } };
     let resolvePut: (value: unknown) => void = () => {};

@@ -134,7 +134,11 @@ and `app/(app)/videos.tsx` both write through the store directly. Client-wide
 Ranking preference saves notify `stores/feedRankingInvalidation` only after the
 server accepts them. Mounted feeds replace page one; held query and SQLite
 pages use the same viewer-scoped staleness rule. For You tuning targets For You.
-Never invalidate the whole feed-query family to apply a preference.
+Never invalidate the whole feed-query family to apply a preference. Following
+order is persisted as `feedSettings.following.sort` (`chronological` by default,
+or `relevance`) in the existing Feed Settings page. Algorithm presets preserve
+that choice. Explicit Following `filters.sort` values participate in query and
+transport deduplication; Following Direct never accepts that override.
 
 Feed impressions report once per post/session on hide, blur/background, teardown,
 or a deliberate 30-second client dwell cap. They do not report after five seconds:
