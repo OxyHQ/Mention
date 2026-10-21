@@ -1,6 +1,6 @@
 {
   "id": "7e0294a3-94de-462c-a6fd-dec96528d787",
-  "prevId": "663f33a1-0387-4e31-8cbc-97a5d91c482e",
+  "prevId": "7f3cab6b-6519-402c-b939-17370ae350ae",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2175,6 +2175,79 @@
           "value": "\"push_tokens\".\"platform\" in ('android', 'ios', 'unknown')"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.topic_affinity_posts": {
+      "name": "topic_affinity_posts",
+      "schema": "",
+      "columns": {
+        "post_id": {
+          "name": "post_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "oxy_user_id": {
+          "name": "oxy_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "topics": {
+          "name": "topics",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "topic_affinity_posts_recent_idx": {
+          "name": "topic_affinity_posts_recent_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "post_id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "topic_affinity_posts_post_id_posts_id_fk": {
+          "name": "topic_affinity_posts_post_id_posts_id_fk",
+          "tableFrom": "topic_affinity_posts",
+          "tableTo": "posts",
+          "columnsFrom": [
+            "post_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.topic_stats": {
@@ -10946,87 +11019,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.post_hashtags": {
-      "name": "post_hashtags",
-      "schema": "",
-      "columns": {
-        "post_id": {
-          "name": "post_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tag": {
-          "name": "tag",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "post_hashtags_tag_recent_idx": {
-          "name": "post_hashtags_tag_recent_idx",
-          "columns": [
-            {
-              "expression": "tag",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            },
-            {
-              "expression": "post_id",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "post_hashtags_post_id_posts_id_fk": {
-          "name": "post_hashtags_post_id_posts_id_fk",
-          "tableFrom": "post_hashtags",
-          "tableTo": "posts",
-          "columnsFrom": [
-            "post_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "post_hashtags_pkey": {
-          "name": "post_hashtags_pkey",
-          "columns": [
-            "post_id",
-            "tag"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.post_link_previews": {
       "name": "post_link_previews",
       "schema": "",
@@ -12165,6 +12157,46 @@
       },
       "isRLSEnabled": false
     },
+    "public.author_post_counts": {
+      "name": "author_post_counts",
+      "schema": "",
+      "columns": {
+        "oxy_user_id": {
+          "name": "oxy_user_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "posts_count": {
+          "name": "posts_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "replies_count": {
+          "name": "replies_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "boosts_count": {
+          "name": "boosts_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.post_equivalence_clusters": {
       "name": "post_equivalence_clusters",
       "schema": "",
@@ -13004,11 +13036,17 @@
           "method": "btree",
           "with": {}
         },
-        "posts_federation_actor_uri_idx": {
-          "name": "posts_federation_actor_uri_idx",
+        "posts_federation_actor_author_idx": {
+          "name": "posts_federation_actor_author_idx",
           "columns": [
             {
               "expression": "federation_actor_uri",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "oxy_user_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -15240,6 +15278,87 @@
         }
       },
       "isRLSEnabled": false
+    },
+    "public.post_hashtags": {
+      "name": "post_hashtags",
+      "schema": "",
+      "columns": {
+        "post_id": {
+          "name": "post_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tag": {
+          "name": "tag",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "post_hashtags_tag_recent_idx": {
+          "name": "post_hashtags_tag_recent_idx",
+          "columns": [
+            {
+              "expression": "tag",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "post_id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "post_hashtags_post_id_posts_id_fk": {
+          "name": "post_hashtags_post_id_posts_id_fk",
+          "tableFrom": "post_hashtags",
+          "tableTo": "posts",
+          "columnsFrom": [
+            "post_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "post_hashtags_pkey": {
+          "name": "post_hashtags_pkey",
+          "columns": [
+            "post_id",
+            "tag"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     }
   },
   "enums": {},
@@ -15247,41 +15366,7 @@
   "sequences": {},
   "roles": {},
   "policies": {},
-  "views": {
-    "public.topic_affinity_posts": {
-      "columns": {
-        "postId": {
-          "name": "postId",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "oxyUserId": {
-          "name": "oxyUserId",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "createdAt": {
-          "name": "createdAt",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "topics": {
-          "name": "topics",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "definition": "select \"posts\".\"id\" as post_id, \"posts\".\"oxy_user_id\" as oxy_user_id, \"posts\".\"created_at\" as created_at, \"posts\".\"classification_topics\" as topics from \"posts\" where \"posts\".\"visibility\" = 'public' and \"posts\".\"status\" = 'published' and \"posts\".\"type\" <> 'boost' and \"posts\".\"oxy_user_id\" is not null and cardinality(\"posts\".\"classification_topics\") > 0 and \"posts\".\"created_at\" >= now() - interval '30 days'",
-      "name": "topic_affinity_posts",
-      "schema": "public",
-      "isExisting": false,
-      "materialized": true
-    }
-  },
+  "views": {},
   "_meta": {
     "columns": {},
     "schemas": {},

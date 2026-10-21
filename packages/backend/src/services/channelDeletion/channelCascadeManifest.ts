@@ -214,6 +214,22 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     why: 'A denormalized replier projection for a destroyed post. `ON DELETE CASCADE` on `posts.id`.',
   },
   {
+    table: 'topic_affinity_posts',
+    column: 'postId',
+    scope: 'channel-posts',
+    action: 'database',
+    why: 'A trigger-maintained copy of a public post for topic affinity. `ON DELETE CASCADE` on `posts.id`.',
+  },
+  {
+    table: 'topic_affinity_posts',
+    column: 'oxyUserId',
+    scope: 'channel-account',
+    action: 'database',
+    why:
+      "Always the author of the row's own post (the trigger copies `posts.oxy_user_id`), so the channel's " +
+      'rows go with its posts: `ON DELETE CASCADE` on `topic_affinity_posts.post_id` → `posts.id`.',
+  },
+  {
     table: 'post_hashtags',
     column: 'postId',
     scope: 'channel-posts',
@@ -793,6 +809,15 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-account',
     action: 'delete-row',
     why: 'Denormalized follower counts used by feed ranking.',
+  },
+  {
+    table: 'author_post_counts',
+    column: 'oxyUserId',
+    scope: 'channel-account',
+    action: 'delete-row',
+    why:
+      "The channel's own post counts, kept by triggers on `posts`. Deleting its posts brings them to zero; " +
+      'the row still names the channel, so it goes too.',
   },
   {
     table: 'mention_signed_records',

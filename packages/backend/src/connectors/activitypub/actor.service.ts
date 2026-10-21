@@ -146,6 +146,7 @@ const store: FederatedActorStore<EngineFederatedActorRecord> = {
       actorUri: uri,
       oxyUserId: resolved.user.id,
       networkAcct: resolved.externalIdentity.canonicalAcct,
+      check: 'refresh',
     });
     if (projection.refusal) throw new Error('Source identity projection failed');
     return withEngineId({ ...row, oxyUserId: resolved.user.id });

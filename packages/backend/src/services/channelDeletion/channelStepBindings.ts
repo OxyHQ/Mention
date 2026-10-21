@@ -10,6 +10,7 @@ import { getDb } from '../../db/postgres';
 import { qualified } from '@oxy.so/db';
 import { postAuthorships, postMentions, postRecentRepliers } from '../../db/schema/postContent';
 import { articles } from '../../db/schema/articles';
+import { authorPostCounts } from '../../db/schema/posts';
 import { polls, pollVotes } from '../../db/schema/polls';
 import { postgates, threadgates } from '../../db/schema/gates';
 import {
@@ -289,6 +290,11 @@ export const STEP_BINDINGS: Readonly<Record<string, StepBinding>> = {
           .where(where)
           .returning({ id: userSettings.id })
       ).length,
+  },
+  'author_post_counts.oxyUserId|channel-account': {
+    phase: 'account',
+    table: authorPostCounts,
+    where: accountEq(authorPostCounts.oxyUserId),
   },
   'author_follower_snapshots.oxyUserId|channel-account': {
     phase: 'account',

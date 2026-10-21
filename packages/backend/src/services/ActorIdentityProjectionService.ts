@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, inArray, or, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { federatedActors } from '../db/schema/federation';
 import { mutes } from '../db/schema/engagement';
@@ -16,6 +16,19 @@ export interface ActorIdentityProjectionInput {
   dryRun?: boolean;
   /** Administrative batches own flushing; live callers invalidate immediately. */
   cacheInvalidation?: ActorProjectionCacheInvalidation;
+  /**
+   * Which of the source's posts to examine. See {@link unprojectedPosts}.
+   *
+   * - `'refresh'` — what a live actor refresh passes: the posts whose
+   *   `oxy_user_id` is not the current id. That is the drift writes produce (a
+   *   post ingested under the id the source had before), and the index answers
+   *   it without reading the source's posts.
+   * - `'audit'` (the default, and what the administrative reconciliation runs):
+   *   ALSO the posts whose owner authorship row disagrees with `oxy_user_id`.
+   *   No writer produces that, and finding it costs a probe per post of the
+   *   source, so it is not paid on every refresh.
+   */
+  check?: 'refresh' | 'audit';
 }
 export interface ActorIdentityProjectionResult {
   actorChanged: boolean;
@@ -70,6 +83,33 @@ export function createActorProjectionCacheBatch() {
 }
 
 /**
+ * The source's posts a projection to `oxyUserId` would move. `p` is the `posts`
+ * alias of the statement it goes in.
+ *
+ * Every check includes the posts whose `oxy_user_id` is not the current id.
+ * `posts_federation_actor_author_idx` carries `oxy_user_id` (migration 0069), so
+ * that half is a walk of the source's index entries, not a heap page per post.
+ *
+ * Only an `'audit'` adds the posts whose owner authorship row disagrees with
+ * their `oxy_user_id`. That column is the denormalized projection of the owner
+ * row and every writer keeps the two in one transaction (`insertChildRows`,
+ * `replacePostAuthorship`, the update below), so nothing produces the mismatch;
+ * production held none across 2,003,583 owner rows (2026-10-15). Looking for it
+ * costs a `post_authorships` probe per post of the source, and when every live
+ * refresh paid it, a refresh of an already-projected 2.6k-post actor read ~2.4k
+ * `posts` heap pages plus ~2.6k probes, 2.7 s cold: 230 slow-query entries a
+ * day, and 137 more for the `previous` read in the caller.
+ */
+function unprojectedPosts(input: ActorIdentityProjectionInput): SQL {
+  const staleColumn = sql`p.oxy_user_id is distinct from ${input.oxyUserId}`;
+  const moved =
+    input.check === 'refresh'
+      ? staleColumn
+      : sql`${staleColumn} or exists (select 1 from post_authorships owner where owner.post_id = p.id and owner.role = 'owner' and owner.oxy_user_id <> ${input.oxyUserId})`;
+  return sql`p.federation_actor_uri = ${input.actorUri} and (${moved})`;
+}
+
+/**
  * Project ONE source, never everything that happens to share its previous Oxy id.
  * No network calls run in the transaction. The caller obtains current authority
  * from Oxy; a later unlink runs this same operation with the restored source id.
@@ -98,10 +138,19 @@ export async function reconcileActorIdentityProjection(
       oxyUserId: input.oxyUserId,
     };
     if (!actor) return { ...result, refusal: 'actor_not_cached' as const };
+    // The other ids this source's posts still carry. The current id is left out
+    // on purpose: every reader below either drops it (`priorIds`) or adds it back
+    // (`changedIds`), and an already-projected source then answers this from
+    // `posts_federation_actor_author_idx` rather than a heap page per post.
     const previous = await tx
       .selectDistinct({ userId: posts.oxyUserId })
       .from(posts)
-      .where(eq(posts.federationActorUri, input.actorUri));
+      .where(
+        and(
+          eq(posts.federationActorUri, input.actorUri),
+          sql`${posts.oxyUserId} is distinct from ${input.oxyUserId}`,
+        ),
+      );
     result.previousUserIds = [
       ...new Set(
         [actor.oxyUserId, ...previous.map((row) => row.userId)].filter((id): id is string => !!id),
@@ -115,8 +164,7 @@ export async function reconcileActorIdentityProjection(
         and not exists (select 1 from post_authorships other where other.post_id = p.id and other.role <> 'owner' and other.oxy_user_id = ${input.oxyUserId}))::int as eligible,
         count(*) filter (where not exists (select 1 from post_authorships owner where owner.post_id = p.id and owner.role = 'owner')
         or exists (select 1 from post_authorships other where other.post_id = p.id and other.role <> 'owner' and other.oxy_user_id = ${input.oxyUserId}))::int as conflicts
-      from posts p where p.federation_actor_uri = ${input.actorUri} and (p.oxy_user_id is distinct from ${input.oxyUserId}
-        or exists (select 1 from post_authorships owner where owner.post_id = p.id and owner.role = 'owner' and owner.oxy_user_id <> ${input.oxyUserId}))
+      from posts p where ${unprojectedPosts(input)}
     `);
     result.postsChanged = counts.eligible;
     result.authorshipConflicts = counts.conflicts;
@@ -164,9 +212,7 @@ export async function reconcileActorIdentityProjection(
     result.clustersDissolved = clusters.count;
     if (result.postsChanged)
       await tx.execute(sql`with eligible as materialized (
-      select p.id from posts p where p.federation_actor_uri = ${input.actorUri}
-      and (p.oxy_user_id is distinct from ${input.oxyUserId}
-        or exists (select 1 from post_authorships owner where owner.post_id = p.id and owner.role = 'owner' and owner.oxy_user_id <> ${input.oxyUserId}))
+      select p.id from posts p where ${unprojectedPosts(input)}
       and exists (select 1 from post_authorships owner where owner.post_id = p.id and owner.role = 'owner')
       and not exists (select 1 from post_authorships other where other.post_id = p.id and other.role <> 'owner' and other.oxy_user_id = ${input.oxyUserId})
     ), changed_authors as (

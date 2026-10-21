@@ -639,7 +639,6 @@ for (const workflowName of workflowNames) {
  */
 {
   const CI_SECRET_ALLOWLIST = {
-    'add-to-roadmap.yml': ['ADD_TO_PROJECT_TOKEN'],
     'deploy-frontends.yml': [
       'CLOUDFLARE_ACCOUNT_ID',
       'CLOUDFLARE_API_TOKEN',

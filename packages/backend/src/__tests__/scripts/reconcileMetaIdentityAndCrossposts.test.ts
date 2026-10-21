@@ -130,6 +130,64 @@ it('remaps exactly one immutable source and its owner rows, idempotently', async
     ).postsChanged,
   ).toBe(0);
 });
+it('repairs a post that arrived under the previous id after the source was already projected', async () => {
+  // The actor row already carries the current id, so this refresh changes no
+  // actor; one post was ingested with the id it had before. Finding that post is
+  // the whole reason the projection looks at posts on a no-op refresh.
+  await actor(source, 'current-source');
+  const projected = await post(source, 'current-source');
+  const stale = await post(source, 'old-person');
+
+  const repaired = await reconcileActorIdentityProjection({
+    actorUri: source,
+    oxyUserId: 'current-source',
+    check: 'refresh',
+  });
+
+  expect(repaired.actorChanged).toBe(false);
+  expect(repaired.postsChanged).toBe(1);
+  expect(repaired.previousUserIds).toEqual(['current-source', 'old-person']);
+  for (const id of [projected.id, stale.id]) {
+    expect((await getDb().select().from(posts).where(eq(posts.id, id)))[0].oxyUserId).toBe(
+      'current-source',
+    );
+    expect(
+      (await getDb().select().from(postAuthorships).where(eq(postAuthorships.postId, id)))[0]
+        .oxyUserId,
+    ).toBe('current-source');
+  }
+
+  const steady = await reconcileActorIdentityProjection({
+    actorUri: source,
+    oxyUserId: 'current-source',
+    check: 'refresh',
+  });
+  expect(steady.postsChanged).toBe(0);
+  expect(steady.previousUserIds).toEqual(['current-source']);
+});
+it('leaves an owner row that disagrees with its post to the audit, not to a refresh', async () => {
+  await actor(source, 'current');
+  const divergent = await post(source, 'current');
+  await getDb()
+    .update(postAuthorships)
+    .set({ oxyUserId: 'old' })
+    .where(eq(postAuthorships.postId, divergent.id));
+
+  const refresh = await reconcileActorIdentityProjection({
+    actorUri: source,
+    oxyUserId: 'current',
+    check: 'refresh',
+  });
+  expect(refresh.postsChanged).toBe(0);
+
+  const audit = await reconcileActorIdentityProjection({ actorUri: source, oxyUserId: 'current' });
+  expect(audit.postsChanged).toBe(1);
+  expect(
+    (
+      await getDb().select().from(postAuthorships).where(eq(postAuthorships.postId, divergent.id))
+    )[0].oxyUserId,
+  ).toBe('current');
+});
 it('dry-run projects counts but never resolves Oxy or writes Mention', async () => {
   const info = vi.spyOn(logger, 'info').mockImplementation(() => undefined);
   await actor(source);

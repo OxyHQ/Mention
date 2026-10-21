@@ -703,9 +703,11 @@ export const posts = pgTable(
 
     // Source identity projection reads all posts for one immutable actor URI.
     // Keep local posts out of the index; reconciliation must not scan every
-    // post twice for each resolved source actor.
-    index('posts_federation_actor_uri_idx')
-      .on(t.federationActorUri)
+    // post twice for each resolved source actor. `oxy_user_id` rides in the key
+    // (migration 0069) so the projection's "posts not yet carrying this author"
+    // read is answered from the index entries instead of one heap page per post.
+    index('posts_federation_actor_author_idx')
+      .on(t.federationActorUri, t.oxyUserId)
       .where(sql`${t.federationActorUri} is not null`),
 
     // A remote note's web URL → our copy of it (`resolvePostIdFromNoteUrl`, the
@@ -1195,3 +1197,32 @@ export const postEquivalenceMembers = pgTable(
       .where(sql`${t.preferred}`),
   ],
 );
+
+/**
+ * `author_post_counts` — an author's public post counts, one row per author,
+ * read by primary key.
+ *
+ * The profile page and a profile's structured data show three numbers drawn
+ * from the author's public, published, uncollapsed posts
+ * (`db/posts/authorPostCounts.ts`). Counting them from `posts` read one heap
+ * page per post: the buckets and `crosspost_collapsed` live on the heap, and an
+ * author's posts are scattered across it. A 2,747-post author cost 2,567 heap
+ * pages, 6.4 s cold, and the count was in the slow-query log 1,351 times a day
+ * (production, 2026-10-14/15). See migration 0068.
+ *
+ * MAINTAINED ON WRITE by the `posts_author_counts_*` triggers (0068): a post
+ * entering the counted set adds its contribution and a post leaving it
+ * subtracts it, in the writing transaction. A row exists only for an author who
+ * has had a counted post; a missing row reads as zero. Nothing else may write
+ * these columns: the next trigger delta would land on top of the write and the
+ * counts would silently stop matching `posts`.
+ */
+export const authorPostCounts = pgTable('author_post_counts', {
+  oxyUserId: text().primaryKey(),
+  /** Counted posts that are not replies (`is_reply = false`). */
+  postsCount: integer().notNull().default(0),
+  /** Counted posts that are replies (`is_reply = true`). */
+  repliesCount: integer().notNull().default(0),
+  /** Counted posts of `type = 'boost'`; each is also in one of the two counts above. */
+  boostsCount: integer().notNull().default(0),
+});

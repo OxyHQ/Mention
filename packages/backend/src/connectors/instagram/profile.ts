@@ -93,6 +93,7 @@ export async function fetchAndUpsertInstagramGraphActor(
     actorUri,
     oxyUserId: resolved.user.id,
     networkAcct: canonicalAcct,
+    check: 'refresh',
   });
   if (projection.refusal) return null;
 

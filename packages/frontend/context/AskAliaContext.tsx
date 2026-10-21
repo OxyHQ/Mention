@@ -6,12 +6,21 @@ import { useAuth } from '@oxy.so/services/ui/client';
 
 const AskAliaSheet = lazy(() => import('@/components/AskAliaSheet'));
 
+/** What a screen asks Alia: a message sent as soon as the sheet opens, and what Alia should know. */
+export interface AskAliaRequest {
+  /** Sent as the person's first message; the conversation opens over the sheet. */
+  prompt: string;
+  /** Told to Alia with the message: what is on screen, which ids to look up. */
+  context?: string;
+}
+
 interface AskAliaContextType {
   /**
-   * Open the Alia chat sheet. Signed out, the sheet is not mounted (it could
+   * Open the Alia chat sheet, with a message already sent when `request` is given (a profile's
+   * "ask Alia about this", as X does with Grok). Signed out, the sheet is not mounted (it could
    * not call Alia), so this opens the Oxy sign-in dialog instead.
    */
-  open: () => void;
+  open: (request?: AskAliaRequest) => void;
 }
 
 const AskAliaContext = createContext<AskAliaContextType | undefined>(undefined);
@@ -35,7 +44,7 @@ export const AskAliaProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const { t } = useTranslation();
   const pathname = usePathname() || '/';
   const { canUsePrivateApi, signIn } = useAuth();
-  const [presentSignal, setPresentSignal] = useState(0);
+  const [ask, setAsk] = useState<{ id: number; request?: AskAliaRequest }>({ id: 0 });
 
   const welcomeSuggestions = useMemo(
     () => [
@@ -46,22 +55,32 @@ export const AskAliaProvider: React.FC<{ children: React.ReactNode }> = ({ child
     [t],
   );
 
-  const clientContext = `${t('alia.clientContext')} ${t('alia.onScreen', { path: pathname })}`;
+  const clientContext = [
+    t('alia.clientContext'),
+    t('alia.onScreen', { path: pathname }),
+    ask.request?.context,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
-  const open = useCallback(() => {
-    if (canUsePrivateApi) setPresentSignal((signal) => signal + 1);
-    else signIn().catch(() => {});
-  }, [canUsePrivateApi, signIn]);
+  const open = useCallback(
+    (request?: AskAliaRequest) => {
+      if (canUsePrivateApi) setAsk((current) => ({ id: current.id + 1, request }));
+      else signIn().catch(() => {});
+    },
+    [canUsePrivateApi, signIn],
+  );
 
   const value = useMemo<AskAliaContextType>(() => ({ open }), [open]);
 
   return (
     <AskAliaContext.Provider value={value}>
       {children}
-      {canUsePrivateApi && presentSignal > 0 && (
+      {canUsePrivateApi && ask.id > 0 && (
         <Suspense fallback={null}>
           <AskAliaSheet
-            presentSignal={presentSignal}
+            askId={ask.id}
+            prompt={ask.request?.prompt}
             clientContext={clientContext}
             welcomeSuggestions={welcomeSuggestions}
           />

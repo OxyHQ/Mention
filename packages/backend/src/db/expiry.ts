@@ -84,9 +84,11 @@ import {
   NOTIFICATION_RETENTION_SECONDS,
   TREND_GRAPH_RETENTION_SECONDS,
   TREND_SUMMARY_RETENTION_SECONDS,
+  TOPIC_AFFINITY_RETENTION_SECONDS,
   TRENDING_RETENTION_SECONDS,
   authorFollowerSnapshots,
   notifications,
+  topicAffinityPosts,
   trendGraphs,
   trendSummaries,
   trending,
@@ -159,6 +161,16 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'A rolling time series. The `risingCreators` delta only ever reads ' +
       'first/last INSIDE its window, so a sample older than the retention is ' +
       'unreachable by construction.',
+  },
+  {
+    table: topicAffinityPosts,
+    column: topicAffinityPosts.createdAt,
+    retentionSeconds: TOPIC_AFFINITY_RETENTION_SECONDS,
+    reason:
+      'A derived read model of the last 30 days of topic-bearing posts, kept ' +
+      'current by triggers on `posts` that only ever insert. Nothing else ages ' +
+      'a row out, and its only reader (`computeTopicAffinity`) bounds its own ' +
+      '`created_at` window by the same 30 days, so a row past it is unreachable.',
   },
   {
     table: feedInteractions,

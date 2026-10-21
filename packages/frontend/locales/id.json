@@ -2521,5 +2521,8 @@
   "alia.onScreen": "Dia sedang berada di layar {{path}}.",
   "alia.suggestion.news": "Apa yang sedang dibicarakan semua orang hari ini?",
   "alia.suggestion.write": "Bantu aku menulis sebuah kiriman",
-  "alia.suggestion.discover": "Sarankan akun dan topik untuk diikuti"
+  "alia.suggestion.discover": "Sarankan akun dan topik untuk diikuti",
+  "profile.actions.askAlia": "Tanya Alia tentang @{{handle}}",
+  "profile.askAlia.prompt": "Ceritakan tentang @{{handle}} di Mention: siapa mereka, apa yang mereka posting, dan dikenal karena apa.",
+  "profile.askAlia.context": "The person is looking at the Mention profile of {{name}} (@{{handle}}, user id {{id}}). If you have Mention tools, use them to look this account up and its recent posts before answering."
 }
