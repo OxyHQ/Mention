@@ -390,8 +390,8 @@ warnings; changed TypeScript/JSON files passed Biome checks.
   138 Bun tests across nine files, using isolated migrated PostgreSQL databases.
   Coverage includes ranking/session progression, privacy, Following/Saved intent,
   gate evidence, import provenance, inbox/outbox validation and settings storage.
-- After merging main `ff58809af`, the full frontend coverage run passed 3,241
-  tests across 400 suites. Regressions verify concurrent feed/profile refresh,
+- After merging main `63c64b008` and the bell controls, the full frontend
+  coverage run passed 3,251 tests across 401 suites. Regressions verify concurrent feed/profile refresh,
   one-shot recovery for simultaneous expired-cursor callbacks, poll-budget reset
   when switching remote profiles, and rule subscription cleanup. The strict
   coverage policy passed with 308 behavioral files and 303 measured pins,
@@ -446,3 +446,9 @@ not the subscriber identity, and excludes such posts from
 coauthors, absence of a follow, preserved unknown-follow-graph protection, and no private
 identity output. All 14 provenance/report tests pass. This is a diagnostic correction;
 there is still no cleanup write mode or deletion decision.
+
+Final pre-release integration also passed the complete backend Vitest coverage
+run: 5,651 passed and four skipped tests across 461 passed and two skipped files,
+with all configured coverage floors satisfied. The bell source/context/preset
+Bun/PostgreSQL selection passed 71 tests across six files; the final read-only
+provenance report change passed its 14 database regressions separately.
