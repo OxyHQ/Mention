@@ -1,5 +1,5 @@
+import { readResponseBody } from '@oxy.so/core/server';
 import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
-import { readBoundedResponseBody } from '../shared/httpBody';
 
 /**
  * Thin, SSRF-safe XRPC client for the AT Protocol.
@@ -12,8 +12,9 @@ import { readBoundedResponseBody } from '../shared/httpBody';
  *  - the URL is validated by `assertSafePublicUrl` (DNS resolution + private /
  *    reserved-range denylist) and the TCP connection is PINNED to the validated
  *    IP, closing the DNS-rebind TOCTOU window;
- *  - the response body is read with a hard byte cap so a hostile remote cannot
- *    make us buffer an unbounded payload;
+ *  - the response body is read with core's `readResponseBody`: a hard byte cap
+ *    so a hostile remote cannot make us buffer an unbounded payload, and a
+ *    whole-body deadline so one that stalls after its headers cannot hold us;
  *  - a time-to-first-byte deadline abandons slow/dead hosts.
  *
  * Redirects are NOT followed (XRPC / PLC / did:web endpoints answer directly);
@@ -70,8 +71,17 @@ async function safeGet(url: string, accept: string, maxBytes: number): Promise<B
     throw new XrpcError(`atproto GET ${url} returned ${status}`, status);
   }
 
-  const buffer = await readBoundedResponseBody(response, maxBytes);
-  return Buffer.from(buffer);
+  const result = await readResponseBody(response, { maxBytes, timeoutMs: XRPC_TIMEOUT_MS });
+  switch (result.kind) {
+    case 'ok':
+      return result.body;
+    case 'too_large':
+      throw new XrpcError(`atproto GET ${url} exceeded ${maxBytes} bytes`);
+    case 'timeout':
+      throw new XrpcError(`atproto GET ${url} body did not end within ${XRPC_TIMEOUT_MS} ms`);
+    case 'error':
+      throw new XrpcError(`atproto GET ${url} body failed: ${result.error.message}`);
+  }
 }
 
 /** Fetch + parse a JSON document from `url`. Throws {@link XrpcError} on failure. */
