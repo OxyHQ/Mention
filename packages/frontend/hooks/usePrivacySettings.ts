@@ -42,7 +42,6 @@ export interface PrivacySettings {
 
 export interface AppearanceSettings {
   themeMode?: 'light' | 'dark' | 'system' | 'adaptive';
-  primaryColor?: string;
 }
 
 export interface NotificationPreferences {

@@ -119,7 +119,6 @@ app.use('/profile', profileSettingsRoutes);
 
 interface ProfileDesignPayload {
   privacy?: { profileVisibility: 'public' | 'private' | 'followers_only' };
-  appearance?: { primaryColor?: string };
   profileHeaderImage?: string;
   profileMedia?: { type: string };
   postsCount?: number;
@@ -154,7 +153,6 @@ async function seedTarget(profileVisibility: 'public' | 'private' | 'followers_o
   await updateUserSettings(TARGET, {
     set: {
       'appearance.themeMode': 'dark',
-      'appearance.primaryColor': '#ff0000',
       profileHeaderImage: 'private-banner-file',
       'profileCustomization.coverPhotoEnabled': true,
       'profileCustomization.minimalistMode': true,
@@ -232,7 +230,6 @@ describe('GET /profile/settings/:userId profile-design visibility', () => {
     const settings = await getSettings();
 
     expect(settings.profileHeaderImage).toContain('private-banner-file');
-    expect(settings.appearance).toEqual({ primaryColor: '#ff0000' });
     expect(settings.profileMedia?.type).toBe('song');
   });
 
@@ -243,7 +240,6 @@ describe('GET /profile/settings/:userId profile-design visibility', () => {
     const settings = await getSettings();
 
     expect(settings.profileHeaderImage).toContain('private-banner-file');
-    expect(settings.appearance).toEqual({ primaryColor: '#ff0000' });
   });
 
   it('serves the owner their own private profile design', async () => {
@@ -262,7 +258,6 @@ describe('GET /profile/settings/:userId profile-design visibility', () => {
     // just made it impossible to fake.
     expect(settings.appearance).toEqual({
       themeMode: 'dark',
-      primaryColor: '#ff0000',
       postTextExpand: 'default',
       postReadMoreAction: 'openPost',
       collapseLongBio: true,

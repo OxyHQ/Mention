@@ -46,7 +46,7 @@ function deferred<T>() {
 
 const stored: UserAppearance = {
   oxyUserId: 'viewer-a',
-  appearance: { themeMode: 'system', primaryColor: '#aaaaaa' },
+  appearance: { themeMode: 'system' },
   profileHeaderImage: 'old-banner-file',
 };
 

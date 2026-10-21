@@ -314,27 +314,13 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
     let bannerChanged = false;
 
     // Dot-notation, same safe pattern as `profileMedia`/`externalEmbeds` below:
-    // each field is set at its own leaf path, so a partial `appearance` payload (e.g. the
-    // color picker sending only `primaryColor`) only touches the fields present in the
-    // request and leaves every other appearance field untouched.
+    // each field is set at its own leaf path, so a partial `appearance` payload only
+    // touches the fields present in the request and leaves every other appearance
+    // field untouched. The profile colour is not one of them: it is the Oxy account
+    // colour (`users.color`), written to Oxy and gated there.
     if (appearance) {
       if (appearance.themeMode && ['light', 'dark', 'system'].includes(appearance.themeMode)) {
         update['appearance.themeMode'] = appearance.themeMode;
-      }
-      if (typeof appearance.primaryColor === 'string' && appearance.primaryColor.trim()) {
-        // This legacy field stores a basic custom hex, never a Bloom identity or
-        // premium preset name. Canonical names are validated by Oxy updateMe.
-        if (!/^#[0-9a-f]{6}$/i.test(appearance.primaryColor.trim())) {
-          return sendErrorResponse(
-            res,
-            400,
-            'Bad Request',
-            'appearance.primaryColor must be a six-digit hex color',
-          );
-        }
-        update['appearance.primaryColor'] = appearance.primaryColor.trim();
-      } else if (appearance.primaryColor === null) {
-        unset['appearance.primaryColor'] = '';
       }
       if (['default', 'more', 'muchMore', 'all'].includes(appearance.postTextExpand)) {
         update['appearance.postTextExpand'] = appearance.postTextExpand;
