@@ -5,6 +5,7 @@ import { toast } from '@oxy.so/bloom/toast';
 import { subscriptionService } from '@/services/subscriptionService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { normalizeApiError } from '@/utils/apiError';
+import { notifyFeedRankingChanged } from '@/stores/feedRankingInvalidation';
 import { useDeferredToggle } from './useDeferredToggle';
 import type { UseSubscriptionReturn } from '../types';
 
@@ -30,24 +31,26 @@ export function useSubscription(
   }, [queryClient, currentUserId]);
 
   const fetchStatus = useCallback(async () => {
-    if (!profileId) return false;
+    if (!profileId || !currentUserId) return false;
     const { subscribed } = await subscriptionService.getStatus(profileId);
     return !!subscribed;
-  }, [profileId]);
+  }, [profileId, currentUserId]);
 
   const onEnable = useCallback(async () => {
     if (!profileId) return;
     await subscriptionService.subscribe(profileId);
     invalidateSubscriptionList();
+    notifyFeedRankingChanged(currentUserId, true);
     toast(t('subscription.subscribed'), { type: 'success' });
-  }, [profileId, invalidateSubscriptionList, t]);
+  }, [profileId, currentUserId, invalidateSubscriptionList, t]);
 
   const onDisable = useCallback(async () => {
     if (!profileId) return;
     await subscriptionService.unsubscribe(profileId);
     invalidateSubscriptionList();
+    notifyFeedRankingChanged(currentUserId, true);
     toast(t('subscription.unsubscribed'), { type: 'success' });
-  }, [profileId, invalidateSubscriptionList, t]);
+  }, [profileId, currentUserId, invalidateSubscriptionList, t]);
 
   const { active, loading, toggle } = useDeferredToggle({
     skip: isOwnProfile || !profileId || !currentUserId,

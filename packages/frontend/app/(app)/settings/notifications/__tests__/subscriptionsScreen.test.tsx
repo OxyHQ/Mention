@@ -5,6 +5,10 @@ import type { PostSubscriptionListResponse } from '@mention/shared-types';
 import enMessages from '@/locales/en.json';
 import ActivitySubscriptionsScreen from '@/components/settings/pages/notifications/subscriptions';
 import { useSubscription } from '@/components/Profile/hooks/useSubscription';
+const mockRankingChanged = jest.fn();
+jest.mock('@/stores/feedRankingInvalidation', () => ({
+  notifyFeedRankingChanged: (...args: unknown[]) => mockRankingChanged(...args),
+}));
 jest.mock('@oxy.so/bloom/settings-modal', () => {
   const { View } = jest.requireActual('react-native');
   return { SettingsCard: View, SettingsSection: View, SettingsRow: View };
@@ -333,6 +337,7 @@ describe('activity subscriptions screen', () => {
     mockUnsubscribe.mockReset().mockResolvedValue({ subscribed: false });
     mockSubscribe.mockReset().mockResolvedValue({ subscribed: true });
     mockGetStatus.mockReset().mockResolvedValue({ subscribed: false });
+    mockRankingChanged.mockReset();
   });
 
   afterEach(() => {
@@ -426,6 +431,7 @@ describe('activity subscriptions screen', () => {
     expect(mockUnsubscribe).toHaveBeenCalledWith('a-1');
     // Non-vacuous: the row is gone WHILE the server is still thinking.
     expect(client.isMutating()).toBe(1);
+    expect(mockRankingChanged).not.toHaveBeenCalled();
     const afterPress = renderedText(renderer);
     expect(afterPress).not.toContain('Ada Lovelace');
     expect(afterPress).toContain('Grace Hopper');
@@ -434,6 +440,26 @@ describe('activity subscriptions screen', () => {
       release();
     });
     await settle(client);
+    expect(mockRankingChanged).toHaveBeenCalledWith('viewer-1', true);
+  });
+
+  it('does not refresh ranking after a failed notification removal', async () => {
+    mockList.mockResolvedValue({
+      subscriptions: [
+        { author: author('a-1', 'ada', 'Ada Lovelace'), createdAt: '2026-07-02T00:00:00.000Z' },
+      ],
+    });
+    mockUnsubscribe.mockRejectedValue(new Error('failed'));
+    const client = makeClient();
+    const renderer = await renderScreen(client);
+    await act(async () => {
+      renderer.root
+        .findByProps({ accessibilityLabel: 'Turn off notifications for @ada' })
+        .props.onPress();
+    });
+    await settle(client);
+    expect(mockRankingChanged).not.toHaveBeenCalled();
+    expect(renderedText(renderer)).toContain('Ada Lovelace');
   });
 
   it('reflects a subscribe made from a profile, with no reload', async () => {

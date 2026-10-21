@@ -33,6 +33,7 @@ import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
 import { SEO } from '@/components/SEO';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { subscriptionService } from '@/services/subscriptionService';
+import { notifyFeedRankingChanged } from '@/stores/feedRankingInvalidation';
 import { normalizeApiError } from '@/utils/apiError';
 import { Button } from '@oxy.so/bloom/button';
 import { RiNotification3Fill } from '@oxy.so/bloom/icons/RiNotification3Fill';
@@ -83,21 +84,22 @@ export default function ActivitySubscriptionsScreen() {
           })),
         };
       });
-      return { previous };
+      return { previous, viewerId: user?.id, queryKey: subscriptionsKey };
     },
     onError: (mutationError, _authorId, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(subscriptionsKey, context.previous);
+        queryClient.setQueryData(context.queryKey, context.previous);
       }
       toast(normalizeApiError(mutationError).message || t('subscription.error'), { type: 'error' });
     },
-    onSuccess: () => {
+    onSuccess: (_data, _authorId, context) => {
+      notifyFeedRankingChanged(context?.viewerId, true);
       toast(t('subscription.unsubscribed'), { type: 'success' });
     },
     // Re-sync with the server either way: a success may have shifted the cursor
     // boundary, and a failed rollback still needs the authoritative list.
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: subscriptionsKey });
+    onSettled: (_data, _error, _authorId, context) => {
+      queryClient.invalidateQueries({ queryKey: context?.queryKey ?? subscriptionsKey });
     },
   });
 
