@@ -31,7 +31,7 @@ import { isFediverseSharingEnabled } from '../../services/fediverseSharing';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import type { LocalBoostEventPayload } from '@oxy.so/federation';
 import { deliveryService } from './delivery.service';
-import { relayToCommunityFollowers, resolveLocalCommunityActor } from './communityRelay';
+import { relayToCommunityFollowers, resolveCommunityAudience } from './communityRelay';
 import { resolveMediaRef } from '../../utils/mediaResolver';
 import {
   linkifyApHtml,
@@ -184,9 +184,9 @@ export interface NoteSourcePost {
    */
   quoteOf?: string | null;
   /**
-   * The community the post is written in. When it is a community HOSTED HERE the
-   * Note names it as its `audience` (FEP-1b12) and the community relays the
-   * activity to its own followers ({@link FollowService.federateNewPost}).
+   * The community the post is written in. The Note names it as its `audience`
+   * (FEP-1b12); a community hosted here relays the activity to its followers,
+   * a remote one is delivered it ({@link FollowService.federateNewPost}).
    */
   communityOxyUserId?: string | null;
 }
@@ -787,9 +787,10 @@ export class FollowService {
       const audienceInboxes = await this.resolveAudienceInboxes(
         options.extraAudienceOxyUserIds ?? [],
       );
-      // A post written in a community hosted here names it as its `audience`,
-      // and the community relays the Create to its own followers below.
-      const community = await resolveLocalCommunityActor(post.communityOxyUserId);
+      // A post written in a community names it as its `audience`. A community
+      // hosted here relays the Create to its own followers below; a remote one is
+      // delivered it at its inbox and announces it itself (FEP-1b12).
+      const community = await resolveCommunityAudience(post.communityOxyUserId);
       const activity = this.buildCreateNoteActivity(
         post,
         senderUsername,
@@ -804,9 +805,10 @@ export class FollowService {
           ...(reply?.parentAuthorInbox ? [reply.parentAuthorInbox] : []),
           ...(mentions?.inboxes ?? []),
           ...audienceInboxes,
+          ...(community?.inbox ? [community.inbox] : []),
         ],
       });
-      if (community) await relayToCommunityFollowers(community, activity);
+      if (community?.local) await relayToCommunityFollowers(community.local, activity);
     } catch (err) {
       logger.error('Failed to federate new post:', err);
       if (options.throwOnError) throw err;
@@ -1396,10 +1398,13 @@ export class FollowService {
 
     try {
       const activity = this.buildDeleteActivity(deleterUsername, post.id);
-      await deliveryService.deliverToFollowers(activity, deleterOxyUserId, deleterUsername);
-      // The community that relayed the post relays its deletion to the same followers.
-      const community = await resolveLocalCommunityActor(post.communityOxyUserId);
-      if (community) await relayToCommunityFollowers(community, activity);
+      // The community the post was written in takes its deletion too: a remote
+      // one at its inbox (it announces it), one hosted here by relaying it.
+      const community = await resolveCommunityAudience(post.communityOxyUserId);
+      await deliveryService.deliverToFollowers(activity, deleterOxyUserId, deleterUsername, {
+        extraInboxes: community?.inbox ? [community.inbox] : [],
+      });
+      if (community?.local) await relayToCommunityFollowers(community.local, activity);
     } catch (err) {
       logger.error('Failed to federate post delete:', err);
     }
@@ -1480,7 +1485,7 @@ export class FollowService {
       const poll = await this.resolvePollContext(post);
       // A quote post re-federates its quote reference; a non-quote post → null.
       const quote = await this.resolveQuoteContext(post);
-      const community = await resolveLocalCommunityActor(post.communityOxyUserId);
+      const community = await resolveCommunityAudience(post.communityOxyUserId);
       const activity = this.buildUpdateNoteActivity(
         post,
         editorUsername,
@@ -1494,9 +1499,10 @@ export class FollowService {
         extraInboxes: [
           ...(reply?.parentAuthorInbox ? [reply.parentAuthorInbox] : []),
           ...(mentions?.inboxes ?? []),
+          ...(community?.inbox ? [community.inbox] : []),
         ],
       });
-      if (community) await relayToCommunityFollowers(community, activity);
+      if (community?.local) await relayToCommunityFollowers(community.local, activity);
     } catch (err) {
       logger.error('Failed to federate post update:', err);
       if (options.throwOnError) throw err;

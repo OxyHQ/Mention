@@ -1,7 +1,8 @@
 import { authorsMayFederate } from '../../../services/postPublicationPolicy';
 import { filterFederatablePosts } from '../../../services/federation/publicationPolicy';
 import { Router, type Request, type Response } from 'express';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { announceCommunityPosts, resolveLocalCommunityActor } from '../communityRelay';
 import { logger } from '../../../utils/logger';
 import { activityPubConnector } from '../ActivityPubConnector';
 import { AP_CONTEXT } from '@oxy.so/federation';
@@ -75,7 +76,24 @@ function outboxScope(oxyUserId: string) {
 }
 
 /**
- * GET /ap/users/:username/outbox — User's public posts as OrderedCollection
+ * What a community's outbox publishes: the public, published ROOT posts written
+ * in it by members here (a remote member's are its own server's to serve).
+ * Served by the partial `post_community_chrono_v1`.
+ */
+function communityOutboxScope(communityOxyUserId: string) {
+  return and(
+    eq(posts.communityOxyUserId, communityOxyUserId),
+    eq(posts.visibility, 'public'),
+    eq(posts.status, 'published'),
+    eq(posts.isReply, false),
+    isNull(posts.federationActivityId),
+  );
+}
+
+/**
+ * GET /ap/users/:username/outbox — User's public posts as OrderedCollection.
+ * A COMMUNITY's outbox is the posts written in it, as the `Announce`s it relayed
+ * them as (FEP-1b12) — what Lemmy backfills a discovered community from.
  */
 router.get('/users/:username/outbox', async (req: Request, res: Response) => {
   if (!FEDERATION_ENABLED) return res.status(404).json({ error: 'Federation disabled' });
@@ -96,10 +114,12 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
     const userId = String(user._id || user.id);
     if (!(await authorsMayFederate([userId])))
       return res.status(404).json({ error: 'User not found' });
+    const community = await resolveLocalCommunityActor(userId);
+    const scope = community ? communityOutboxScope(userId) : outboxScope(userId);
     const [totals] = await getDb()
       .select({ count: sql<number>`count(*)::int` })
       .from(posts)
-      .where(outboxScope(userId));
+      .where(scope);
     const totalPosts = totals?.count ?? 0;
 
     if (!page) {
@@ -129,7 +149,6 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
     // accepted 24-hex ids would discard every uuid cursor and re-serve page one
     // forever. `chronoCursorSql` is both halves at once.
     const keyset = await chronoCursorSql(cursor);
-    const scope = outboxScope(userId);
     const overfetched = await findPostRecords(keyset ? and(scope, keyset) : scope, {
       orderBy: chronoOrderBy(),
       limit: PAGE_SIZE + 1,
@@ -154,17 +173,19 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
     // (non-quote posts are absent → plain Note).
     const quoteContexts = await activityPubConnector.resolveQuoteContextByPost(pagePosts);
     const communityContexts = await activityPubConnector.resolveCommunityContextByPost(pagePosts);
-    const items = pagePosts.map((post) =>
+    const buildCreate = (post: (typeof pagePosts)[number], authorUsername: string) =>
       activityPubConnector.buildCreateNoteActivity(
         post,
-        username,
+        authorUsername,
         undefined,
         mentionContexts.get(post.id),
         pollContexts.get(post.id),
         quoteContexts.get(post.id),
         communityContexts.get(post.id),
-      ),
-    );
+      );
+    const items = community
+      ? await announceCommunityPosts(community, pagePosts, buildCreate)
+      : pagePosts.map((post) => buildCreate(post, username));
 
     const pageId = cursor
       ? `${outboxUrl(username)}?page=true&cursor=${encodeURIComponent(cursor)}`

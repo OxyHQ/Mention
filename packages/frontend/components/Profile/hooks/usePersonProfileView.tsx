@@ -505,10 +505,10 @@ export function usePersonProfileView({
               />
             </View>
           )}
-          {/* A community HOSTED HERE also says who moderates it and lets a member
-              post in it; a remote one is moderated by its own server. */}
-          {isMentionCommunity(profileData) && profileData.id && (
-            <CommunityPanel communityId={profileData.id} />
+          {/* A community takes posts from here, hosted here or remote; one hosted
+              here also says who moderates it. */}
+          {profileData.kind === 'community' && profileData.id && (
+            <CommunityPanel communityId={profileData.id} hosted={isMentionCommunity(profileData)} />
           )}
           {profileData.movedTo && <ProfileMovedNotice movedTo={profileData.movedTo} />}
           {isPrivate && (

@@ -234,9 +234,13 @@ collection at `/ap/users/<name>/moderators`. Joining is following it; a remote
   only when it speaks for its own actor alone (`isSelfConsistentActivity`: the
   activity and its object on the actor's origin, the object attributed to the
   actor; the inbox already verified the signature) — otherwise it is stored like
-  any federated post, outside the community. A remote member's `Delete` of a
-  post in the community is relayed reference-only. A remote member's `Update` is
-  not relayed.
+  any federated post, outside the community. A remote member's `Update` of a
+  post in the community is relayed under the same rule (`Announce { Update }`),
+  and their `Delete` reference-only.
+- **The outbox.** A community's outbox is the posts members wrote here in it, as
+  the `Announce { Create }` it relayed each as — what Lemmy and PieFed backfill a
+  newly discovered community from (`communityOutboxScope`,
+  `announceCommunityPosts`). A remote member's post is its own server's to serve.
 - **The relay gate.** `authorizeFederationDelivery` admits an `Announce` of an
   activity only from a community hosted here, about a post still written in that
   community (and, for a local post, still federatable), or a reference-only
@@ -248,15 +252,38 @@ collection at `/ap/users/<name>/moderators`. Joining is following it; a remote
   moderator's `Delete` with the reason as `summary` (Lemmy's removal). A ban is
   a `community_bans` row: the person's posts and replies in it are refused here
   and dropped from the fediverse, and the community sends them a `Block` (an
-  `Undo` lifts it). A moderator cannot be banned. Reports on a community's posts
-  are ordinary reports.
+  `Undo` lifts it). A banned REMOTE follower stops being one — the follow row and
+  its Oxy edge go, which is what the Block does on their side (Mastodon
+  unfollows a blocker, Lemmy unsubscribes a banned member) — and a later Follow
+  is answered with `Reject` (`refusesFollower`, `@oxy.so/federation` 2.7.0). A
+  banned LOCAL member keeps their follow: Oxy lets nobody but the person move
+  their own follow graph, and a ban takes away posting, not reading what the
+  community publishes in public. A moderator cannot be banned. Reports on a
+  community's posts are ordinary reports.
 - **Following feed.** The communities a viewer follows are the followed accounts
   posts were written in (`communitiesAmong` in `services/viewerFollowGraph.ts`,
   one probe of `post_community_chrono_v1` each), hosted here or remote alike.
 
-Not yet: posting INTO a remote (Lemmy, PieFed, Mbin) community from Mention, the
-community's own outbox (it lists nothing; Lemmy backfills a newly discovered
-community from it), and refusing a banned remote account's `Follow`.
+## Posting into a remote community (FEP-1b12, outbound)
+
+A post written here in a REMOTE community (Lemmy, PieFed, Mbin — any `Group`
+Oxy records as a `community`) is the member's own `Create`, addressed the way a
+Lemmy user's instance addresses one: `audience` and `cc` name the community, a
+titled top-level post is a `Page` with that `name`, and the activity is
+delivered to the community's inbox beside the member's followers
+(`resolveCommunityAudience`). The community announces it to its followers; the
+copy it announces back to us is dropped, because the post is already ours
+(`resolveAnnouncedActivity`, `own-activity`). A reply in its thread takes the
+thread's community and goes the same way, so a comment carries `inReplyTo`, the
+community `audience` and the parent author's `Mention`. Its `Update` and `Delete`
+go to the community inbox too. The composer offers the communities the viewer
+joined (`GET /communities/joined`: Oxy follows plus accepted federated follows,
+narrowed by kind). The remote server enforces its own bans and rules.
+
+**A thread** may be written in a community (thread mode): the root names it and
+may carry the title, and each continuation, being a reply, takes the thread's
+community — in Lemmy terms a post and its author's own follow-up comments. A
+beast batch is n independent posts and is refused (400).
 
 ## Oxy owns bridge identity and public biography normalization
 

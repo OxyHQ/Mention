@@ -44,8 +44,10 @@ vi.mock('../../services/postSafetyAccess', () => ({
     new Map(records.map((record) => [record.id, { allowed: true }])),
 }));
 
+import { eq } from 'drizzle-orm';
 import { PostVisibility } from '@mention/shared-types';
-import { closePostgres, connectPostgres } from '../../db/postgres';
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { federatedActors } from '../../db/schema/federation';
 import { clearServiceScope, readPost, serviceScope, trackPost } from '../helpers/serviceFixtures';
 import { postCreationService } from '../../services/PostCreationService';
 import { CommunityPostError } from '../../services/communities/communityPosting';
@@ -67,6 +69,9 @@ const REPLIER = scope.user('replier');
 const BANNED = scope.user('banned');
 const COMMUNITY = scope.user('forum');
 const MODERATOR = scope.user('moderator');
+const LEMMY = scope.user('lemmy-technology');
+const LEMMY_ACTOR = 'https://lemmy.example/c/technology';
+const LEMMY_INBOX = 'https://lemmy.example/inbox';
 
 const accounts: Record<string, { kind: string; username: string }> = {
   [MEMBER]: { kind: 'personal', username: 'member' },
@@ -74,7 +79,9 @@ const accounts: Record<string, { kind: string; username: string }> = {
   [BANNED]: { kind: 'personal', username: 'banned' },
   [MODERATOR]: { kind: 'personal', username: 'moderator' },
   [COMMUNITY]: { kind: 'community', username: 'forum' },
+  [LEMMY]: { kind: 'community', username: 'technology@lemmy.example' },
 };
+const FEDERATED = new Set([LEMMY]);
 
 const memberReader = {
   accounts: {
@@ -101,6 +108,19 @@ const quiet = { skipNotifications: true, skipSocketEmit: true, skipFederationDel
 beforeAll(async () => {
   await connectPostgres();
   await clearServiceScope(scope);
+  await getDb()
+    .insert(federatedActors)
+    .values({
+      protocol: 'activitypub',
+      uri: LEMMY_ACTOR,
+      type: 'Group',
+      username: 'technology',
+      domain: 'lemmy.example',
+      acct: 'technology@lemmy.example',
+      inboxUrl: LEMMY_INBOX,
+      oxyUserId: LEMMY,
+    })
+    .onConflictDoNothing();
   await insertCommunityBan({
     communityOxyUserId: COMMUNITY,
     bannedOxyUserId: BANNED,
@@ -110,6 +130,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await getDb().delete(federatedActors).where(eq(federatedActors.uri, LEMMY_ACTOR));
   await deleteCommunityBan(COMMUNITY, BANNED);
   await clearServiceScope(scope);
   await closePostgres();
@@ -121,7 +142,8 @@ beforeEach(() => {
     const map = new Map();
     for (const id of ids) {
       const account = accounts[id];
-      if (account) map.set(id, { user: { id, ...account, name: {}, isFederated: false } });
+      if (account)
+        map.set(id, { user: { id, ...account, name: {}, isFederated: FEDERATED.has(id) } });
     }
     return map;
   });
@@ -269,5 +291,45 @@ describe('a community hosted here', () => {
         reason: null,
       }),
     ).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('delivers a post written in a REMOTE community, and its thread, to the community', async () => {
+    const post = await postCreationService.create({
+      oxyUserId: MEMBER,
+      content: { text: 'hello lemmy', title: 'From Mention' },
+      communityOxyUserId: LEMMY,
+      ...quiet,
+    });
+    trackPost(scope, post.id);
+    const reply = await postCreationService.create({
+      oxyUserId: REPLIER,
+      content: { text: 'a comment from Mention' },
+      parentPostId: post.id,
+      threadId: post.id,
+      ...quiet,
+    });
+    trackPost(scope, reply.id);
+    expect((await readPost(reply.id))?.communityOxyUserId).toBe(LEMMY);
+
+    h.deliverToFollowers.mockClear();
+    const stored = await readPost(post.id);
+    if (!stored) throw new Error('the post was not stored');
+    await followService.federateNewPost({ ...stored, visibility: 'public' }, MEMBER, 'member');
+    // One delivery — the member's followers plus the community's inbox; a remote
+    // community announces it itself, so nothing is relayed from here.
+    expect(h.deliverToFollowers).toHaveBeenCalledTimes(1);
+    const [create, , , options] = h.deliverToFollowers.mock.calls[0] as unknown as [
+      Record<string, unknown>,
+      string,
+      string,
+      { extraInboxes: string[] },
+    ];
+    expect(create.object).toMatchObject({
+      type: 'Page',
+      name: 'From Mention',
+      audience: LEMMY_ACTOR,
+    });
+    expect(create.cc).toContain(LEMMY_ACTOR);
+    expect(options.extraInboxes).toContain(LEMMY_INBOX);
   });
 });
