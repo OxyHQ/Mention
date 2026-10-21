@@ -83,6 +83,19 @@ revision 675 used `c4ce21a`. MCP revision-to-commit attribution remains separate
 These pages must not be treated as a stable-build benchmark or a matched algorithm
 comparison. They are one session, not the planned three-session coverage.
 
+A second traversal at 20:51–20:52 UTC used the same production backend revision
+676, not the new implementation. Ten For You pages yielded 209 flattened/unique
+posts and 112 authors, with no IDs repeated from the first traversal while served
+state remained active. Per-page author counts were 19/16/20/18/14/14/16/11/5/8;
+the cursor score reached zero on page seven. Page nine had 20 posts from five
+authors (The Verge 7, Elon Musk 7, DogeDesigner 3, Qasim 2, Rihard 1), without reply
+context. This repeats the deep-page concentration finding, without establishing
+that zero scores alone caused it. Explore returned 219 unique posts from 152
+authors, 208 overlapping the first 217-post traversal and 11 new to the sample;
+there were no within-traversal repeats. Explore's persistent refreshed ranking and
+For You's served-state behavior are distinct contracts, not automatically a
+duplicate defect. This is not a before/after quality comparison.
+
 ### Confirmed source timeouts and additional bounded captures
 
 The anonymous canonical API retry around 20:43 UTC returned 40 PHP hashtag posts
@@ -293,6 +306,23 @@ client presentation. A discovery improvement must not collapse the arrival of
 new authors and sources.
 
 ## Validation and remaining evidence
+
+Independent implementation review checked that bare-number eligibility is invoked
+only for For You/Explore recommendations, including fallback, and not ingestion,
+profiles or Following. Database shells are assembled before a numeric-caption
+decision; shared and author-rendition media/article/context must be preserved.
+Greeting and bicycle examples remain contextual labels rather than generic rules.
+
+Ranked continuation state stores IDs, scores and source progress, never post
+bodies. Viewer/definition/filter binding, current-record reload and hydration ACL
+checks remain separate protections. Sessions expire after 30 minutes or their
+5,000 scanned-ID budget; the Redis Lua operation atomically retains only three
+snapshots per session. The backend implementer additionally exercised the actual
+Lua against local Redis with 20 writes, confirming last-three retention, older-key
+deletion and positive TTL. Unit tests using a rewritten mock alone cannot prove
+Lua behavior. Immutable progress does not promise identical replay content when
+live records or engagement change. Source windows use a pinned clock and bounded
+candidate counts; failed queries must not become successful terminal pages.
 
 MCP tests cover canonical response preservation, empty continuation pages,
 descriptor routing, invalid and protected descriptors, anonymous personalized
