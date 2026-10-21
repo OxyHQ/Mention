@@ -104,9 +104,7 @@ export default function AccountSettingsContent() {
       sections={[
         {
           key: 'identity',
-          rows: [
-            ...identityRows,
-          ],
+          rows: [...identityRows],
         },
         {
           key: 'account',
