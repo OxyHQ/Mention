@@ -55,6 +55,14 @@ export interface FeedContext {
    * followers-only visibility checks.
    */
   subscribedListMemberIds?: string[];
+  /**
+   * The followed accounts that are COMMUNITIES (a subset of `followingIds`). The
+   * Following feed serves their PUBLIC posts by `posts.community_oxy_user_id`:
+   * a community's posts are written by its members, never by the community. A
+   * community follow is feed-inclusion like a list, never followers-only access
+   * to the members who wrote in it.
+   */
+  followedCommunityIds?: string[];
   userBehavior?: RankingUserBehavior;
   feedSettings?: FeedRankingSettings;
   oxyClient?: OxyClient;

@@ -1,6 +1,7 @@
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
 import { findActorsByUris } from '../../db/federation/actorRepository';
 import { logger } from '../../utils/logger';
+import { isCommunityActor } from '../../services/federation/community';
 import { isAbsoluteHttpUrl } from '../shared/url';
 import { actorService } from './actor.service';
 import { sameOrigin } from './helpers';
@@ -10,18 +11,8 @@ import { sameOrigin } from './helpers';
  * like (FEP-1b12). A member writes a post IN a community; the community relays
  * it to its followers (`apRelay.ts`). Mention stores the post as its writer's,
  * with the community it was written in as `posts.community_oxy_user_id`.
+ * Whether an actor IS one is `isCommunityActor` (`services/federation/community.ts`).
  */
-
-/**
- * Whether a federated actor is a COMMUNITY.
- *
- * The ONE place this is decided. Today it is Mention's own record of the actor's
- * AS2 type; when Oxy's account graph carries a `community` kind, this becomes
- * that test and nothing else changes.
- */
-export function isCommunityActor(actor: Pick<FederatedActorRecord, 'type'> | null): boolean {
-  return actor?.type === 'Group';
-}
 
 const AS_PUBLIC = new Set(['https://www.w3.org/ns/activitystreams#Public', 'as:Public', 'Public']);
 

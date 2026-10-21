@@ -55,6 +55,24 @@ export interface VideosQueryOptions {
  * A column is always present (there is no separate "missing field" state), so the disjunction collapses to one `IS NULL` — and unlike
  * `<>`, `IS NULL` is total, so no row is dropped by three-valued logic.
  */
+/**
+ * The PUBLIC posts written in one of the followed `communityIds` — the
+ * community half of the Following feed. A community's posts are authored by
+ * its members, so `followedAuthorsSql` cannot reach them; this reaches them by
+ * `community_oxy_user_id`, on `post_community_chrono_v1`, inside the same
+ * `since` window. PUBLIC only, and stated here rather than by each caller:
+ * following a community grants no followers-only access to the people who wrote
+ * in it. Matches NOTHING for an empty list.
+ */
+export function followedCommunitiesSql(communityIds: readonly string[], since?: Date): SQL {
+  if (communityIds.length === 0) return sql`false`;
+  return and(
+    sql`${posts.communityOxyUserId} = any(${sql.param([...communityIds])}::text[])`,
+    eq(posts.visibility, PostVisibility.PUBLIC),
+    since ? gte(posts.createdAt, since) : undefined,
+  ) as SQL;
+}
+
 export function notABoostSql(): SQL {
   return isNull(posts.boostOf);
 }

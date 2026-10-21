@@ -169,8 +169,9 @@ community). Any server can write any `audience`, and a community's profile lists
 its posts, so the claim is accepted only when the community vouches for the post:
 it relayed it, or the post is on the community's own origin. A reply-ancestor or
 boost import of a cross-instance post therefore stores none; the relayed copy
-does. Whether an actor is a community is `isCommunityActor`, today
-`federated_actors.type === 'Group'`, the one test to switch when Oxy's account
+does. Whether an actor is a community is `isCommunityActor`
+(`services/federation/community.ts`), today `federated_actors.type === 'Group'`,
+the one test to switch when Oxy's account
 graph carries a `community` kind. The card renders the writer's byline with an
 "in !name@instance" context row (`PostCommunityRow`); a reply does not repeat
 its thread's community.
@@ -185,9 +186,18 @@ community's outbox lists its posts, never its comments, and Mention does not wal
 a post's `replies`, so a view of a large community imports its latest posts and
 nothing else. Comments arrive by delivery, to followers of the community.
 
-Not yet: community posts in the Following timeline (`buildFollowingVisibilitySql`
-reads authors only; the same index serves the branch it needs), and posting or
-replying INTO a community from Mention.
+**Following a community** puts its posts in the Following feed, chronological
+and the For You following lane alike. A community is followed like any account,
+but its posts are its members', so no author clause reaches them:
+`mergeFederatedFollowIds` returns which accepted follows are communities (from
+the actor rows it already loads), and `followedCommunitiesSql` adds them as a
+PUBLIC-only branch on `post_community_chrono_v1`, inside the same recency window.
+A community follow, like a list, grants no followers-only access to the members.
+The branch exists only for a viewer who follows a community. Blocks and mutes
+still apply to the writer, and to the community itself
+(`UserPrivacyManager.excludesPost`).
+
+Not yet: posting or replying INTO a community from Mention.
 
 ## Oxy owns bridge identity and public biography normalization
 

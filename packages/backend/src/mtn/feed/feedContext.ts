@@ -131,6 +131,7 @@ export async function loadViewerFeedContext(
   let followingIds: string[] = [];
   let followerIds: string[] = [];
   let subscribedListMemberIds: string[] = [];
+  let followedCommunityIds: string[] = [];
   let userBehavior: UserBehaviorRecord | undefined;
   let feedPreferences: Awaited<ReturnType<typeof loadFeedPreferences>> = {
     showSensitiveContent: false,
@@ -159,7 +160,11 @@ export async function loadViewerFeedContext(
       // in-flight read the caller already needed for its own reasons, so the
       // merge costs one `federated_actors` lookup instead of two statements.
       try {
-        await mergeFederatedFollowIds(currentUserId, ids, acceptedOutboundFollowUris);
+        followedCommunityIds = await mergeFederatedFollowIds(
+          currentUserId,
+          ids,
+          acceptedOutboundFollowUris,
+        );
       } catch (error) {
         logger.warn('[feedContext] Failed to load federated following', error);
       }
@@ -229,6 +234,7 @@ export async function loadViewerFeedContext(
     followingIds,
     followerIds,
     subscribedListMemberIds,
+    followedCommunityIds,
     userBehavior,
     oxyClient,
     showSensitiveContent: feedPreferences.showSensitiveContent,

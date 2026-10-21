@@ -113,10 +113,8 @@ function excludeAuthorsFromResponse(
   response: Pick<SlicedFeedResponse, 'slices' | 'items' | 'totalCount'>,
   excludedUserIds: ReadonlySet<string>,
 ): void {
-  const isExcluded = (post: HydratedPost | undefined): boolean => {
-    const authorId = post?.user?.id;
-    return typeof authorId === 'string' && excludedUserIds.has(authorId);
-  };
+  const isExcluded = (post: HydratedPost | undefined): boolean =>
+    UserPrivacyManager.excludesPost(post, excludedUserIds);
 
   if (response.slices.length === 0) {
     response.items = response.items.filter((post) => !isExcluded(post));
