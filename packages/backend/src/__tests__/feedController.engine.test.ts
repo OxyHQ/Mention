@@ -134,7 +134,11 @@ describe('MtnFeedController.getFeed → engine', () => {
   ])('resolves %s with sort %s to %s', async (descriptor, sort, mode) => {
     const res = makeRes();
     await mtnFeedController.getFeed(
-      { query: { descriptor, sort }, user: { id: 'following-sort-viewer' } } as never,
+      {
+        accessToken: 'test-viewer-session',
+        query: { descriptor, sort },
+        user: { id: 'following-sort-viewer' },
+      } as never,
       res as never,
     );
     expect(res.statusCode).toBe(200);
@@ -146,6 +150,7 @@ describe('MtnFeedController.getFeed → engine', () => {
     const res = makeRes();
     await mtnFeedController.getFeed(
       {
+        accessToken: 'test-viewer-session',
         query: { descriptor: 'following', sort: 'popular' },
         user: { id: 'following-sort-viewer' },
       } as never,
