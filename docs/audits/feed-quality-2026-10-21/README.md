@@ -46,9 +46,8 @@ prove the historical state at import time.
 
 Consequently a post can be labelled “import reason unknown” even when its actor,
 original URL and conversation links are known. Do not infer “unnecessary import”
-from “no local followers now”. A future causal provenance change needs durable,
-bounded import-event data at each real entry point; populating old rows with a
-fabricated reason would invalidate the audit.
+from “no local followers now”. The new private ledger described below records causal evidence for future
+imports; populating old rows with a fabricated reason would invalidate the audit.
 
 ## Initial production sample
 
@@ -80,6 +79,110 @@ not backend handler latency. Backend ECS revisions moved from 675 to 676 and MCP
 from 389 to 390 during the audit. Exact deployed commit provenance is still pending;
 these pages must not be treated as a stable-build benchmark or a matched algorithm
 comparison. They are one session, not the planned three-session coverage.
+
+## Owner calibration: concrete examples
+
+These labels concern recommendation, not import or historical deletion. The owner
+asked for shorter questions and updates during this audit.
+
+| Public example | Owner assessment | Import decision |
+| --- | --- | --- |
+| [Standalone “3”](https://mention.earth/p/01a15cbe-daae-72e7-a9e4-f213850a9066) | Do not recommend, even when following its author. Chronological Following delivery remains a separate behavior. | No import rejection authorized. |
+| [“Good morning or whenever”](https://mention.earth/p/01a15f2a-a903-7d83-8402-d5dbc2986d8b) | May recommend in For You when following the author; not from a stranger. | No import rejection authorized. |
+| [PHP warning control](https://mention.earth/p/01a15fc2-1598-75cb-8828-b7cb97f7478b) | Uncertain; owner suggested following may matter. No approval or rejection established. | No import rejection authorized. |
+
+These public items were inspected with no attached media, original, quote or parent.
+Two concrete judgements do not establish a universal threshold. A possible rule
+that relevant programming/security information may be recommended from unknown
+authors is the audit team's proposal, **not an owner-approved label**.
+
+A production read-only PostgreSQL audit on ECS revision 676 (task
+`df20d0dc34944001a500baa0571bb12a`, exit 0) checked the live schema and a last-three-day
+public/published window: 13,719 posts; 13,715 had baseline version 11 with pending
+classification and four had no version; 4,902 had quality score zero, and 9,666 had
+zero likes, boosts and comments. These are stored baseline values, not owner quality
+labels. Stage B was disabled by default, with no task override observed.
+
+The standalone “3” had quality 0/spam 0.3; the greeting quality 0.5/spam 0;
+the PHP warning quality 0.7/spam 0 and two boosts. All three had a stored post
+reference protecting context. No accepted outbound protocol-follow row was found
+for these samples, which does not prove absence of follows in Oxy's authoritative
+graph. Sampled Defector/Dawn items from For You page nine had quality 0.64/spam
+0.45, no measured engagement, no protocol follows and no references; their original
+import cause remained unknown. None of these observations authorizes cleanup.
+
+Videos was also paginated for eight pages: 152 posts without repeated IDs, ending
+with 12 posts on page eight. That traversal followed the For You reads and shared
+served-state effects, so it was not an independent session.
+
+Further direct production API traversal was **anonymous**, with requested languages
+`en,es`, and must not be presented as @nate personalization evidence:
+
+| Surface | Bounded traversal | Diversity/repetition | Observed request times |
+| --- | --- | --- | --- |
+| Trending | Four pages: 20/20/20/7, final `hasMore: false` | 67 unique ids, 63 authors; no repeats. Top counts: n@bgme.me 3, Max Leibman 2, glyph 2. | 0.674–0.912 seconds |
+| Media | Ten pages of 20 | 200 unique ids, 170 authors; no repeats. Top counts: David Revoy 10, Tutanota 5, Natasha Jay 5. | 0.833–1.031 seconds |
+| `hashtag|php` | One empty final page | No item-level quality conclusion possible. | 15.492 seconds, one observation |
+
+The empty PHP-tag result and its timing warrant tracing the query but do not
+establish a persistent performance defect or absence of PHP content. These samples
+are bounded traversals, not exhaustive coverage or matched latency benchmarks.
+
+Additional @nate reads at 20:42 UTC found no own lists, eight saved posts on the
+first saved page, and 23 flattened posts on the first own-profile page with a valid
+continuation cursor. No private saved bodies are included here. These bounded
+observations establish inventory for coverage, not defects.
+
+The existing `scripts/fixtures/feedQualityLabels.ts` seeds five **whole actors** as
+`junk`, including legitimate German-language authors and David Revoy's webcomic
+for language/interest mismatch. That fixture conflates viewer relevance with
+intrinsic content quality and is **not trustworthy universal ground truth or an
+import-eligibility classifier**. Its scores cannot justify rejection, historical
+cleanup or actor suppression. The new per-post owner judgements above remain
+separate; this change adds an explicit warning without rewriting old labels into
+unreviewed new ones.
+
+## Durable provenance implementation
+
+Migration 0089 creates two private evidence tables: one immutable initial cause
+per post and at most eleven distinct observed reason rows per post. Both cascade
+with post removal. The posts foreign key is added `NOT VALID` then validated in a
+separate statement; no historical post scan or cause backfill is performed.
+
+The post-insert transaction writes the initial cause for instrumented ActivityPub
+imports. Inbox follow/mention/community, discovery backfill, followed outbox,
+requested profile, inbox Announce, boost-original, quoted-post and reply-ancestor
+paths carry explicit reasons. Generic unlabelled outbox calls record
+`unknown_outbox`, which is protected. Deduplicated observations append reasons
+without replacing the first cause; legacy posts first observed now retain a NULL
+initial cause. Native/remote post insertion also records reply/quote/boost
+necessity on imported targets within the relationship transaction.
+
+Evidence records no requesting user id and is not included in public post DTOs or
+metric labels. No feed read query joins these tables. Source identity remains the
+existing ActivityPub provenance; this ledger adds causal evidence rather than
+replacing it. AT Protocol and other uninstrumented connector histories remain
+unknown and protected.
+
+`reportFederationImportReview.ts` is SELECT-only inside a repeatable-read,
+read-only transaction, bounded to 500 public federated rows and a 15-second query
+timeout. It reports known causes, references, protocol follows, engagement, saves,
+views and conversation/community context without post bodies or private account
+identities. The `discoveryOnlyWithoutKnownNeed` flag is a triage group, **never a
+deletion decision**. All rows retain `authoritative_follow_graph_unverified` until
+that separate source has been checked; legacy/unknown origin is explicitly
+protected. There is no write switch, delete code or subjective-quality cutoff.
+
+Example local read-only invocation, after applying the migration through the normal
+deployment workflow:
+
+```sh
+FEDERATION_REVIEW_LIMIT=100 bun packages/backend/src/scripts/reportFederationImportReview.ts
+```
+
+The script requires the configured database connection but never prints its URL.
+Use `FEDERATION_REVIEW_AFTER_ID` to continue its bounded id-ordered scan. Its report
+must remain a private review artifact when linked with private graph evidence.
 
 ## Audit tooling change
 
