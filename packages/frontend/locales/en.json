@@ -458,6 +458,8 @@
   "settings.appearance.postTextLength.muchMore": "Much more",
   "settings.appearance.postTextLength.all": "Show all",
   "settings.account.manageAccount": "Manage account",
+  "settings.editProfile.look": "Look",
+  "settings.editProfile.oxyRow": "Photo, name, bio, location and links",
   "settings.editProfile.signInRequired": "Sign in to customize your profile",
   "settings.editProfile.signInRequiredDesc": "Choose your profile layout and accent color.",
   "settings.accentColor": "Accent color",
