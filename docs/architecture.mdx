@@ -95,7 +95,11 @@ viewer state, while mutations enforce identity.
 
 `PostHydrationService` is the only authority for post response DTOs. It performs
 bulk user resolution, bounded fallback work, and viewer-aware hydration without
-letting controllers build competing post shapes.
+letting controllers build competing post shapes. Concurrent identity misses share
+in-flight work per public user ID, including partially overlapping feed pages.
+New misses still resolve in bulk; each caller receives only its requested IDs.
+Flights are released on settlement, so degraded identities can be retried and
+this mechanism never becomes a second persistent cache.
 
 ### Commerce boundary (Mercaria)
 
@@ -213,6 +217,21 @@ on the persistence layer.
 Redis health is tracked locally with a shared connection attempt and circuit
 breaking. Normal operations do not issue a `PING`. A process never assumes
 singleton leadership when it cannot acquire the distributed lock.
+
+All advisory caches use `utils/cache.ts`. Each Redis read, write, or entire
+multi-batch write has a one-second response deadline. A socket can remain
+`ready` while the server stops answering; on expiry the cache returns a miss
+or no-op and reports a transport timeout to the existing supervisor, which
+destroys the socket and reconnects with backoff. Later write batches are
+cancelled, and completed operations clear their deadline. Cached computations
+therefore return their authoritative result even when persisting it stalls.
+This is confined to advisory caches: it does not change distributed-lock,
+security, queue, or authoritative-write semantics. Node-redis's command timeout
+only covers its send queue and is not forwarded by `execAsPipeline`, so it is
+not a response deadline. `cacheDeadline.redis.test.ts` verifies stalled-ready
+reads and pipelines plus recovery against a disposable Redis instance selected
+with `TEST_REDIS_DEADLINE_URL`. Use a dedicated disposable instance: the test
+briefly pauses it, so never share it with other test workers or production.
 
 PostgreSQL is the only application database. Schema changes go through
 `drizzle/` and `src/db/migrate.ts`, and nothing else — no migrations-constants

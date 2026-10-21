@@ -290,3 +290,29 @@ challenge.
 - API rate limiting excludes the apex browser asset plane.
 - Structured request logs include a request ID, normalized route template,
   duration, and result without secrets or private payloads.
+
+## Private Deck workspace
+
+`GET /deck` and `PUT /deck` require the current account's authenticated session.
+The session supplies ownership; no target account id is accepted. Both responses
+use `Cache-Control: private, no-store` and the raw `{ revision, state }` contract
+from `@mention/shared-types/deck`. An account with no workspace receives
+`{ revision: 0, state: null }`; the frontend supplies its current defaults.
+
+A PUT sends `{ baseRevision, state }`. Initial insertion and later updates are
+atomic compare-and-swap operations. Exactly one competing writer succeeds; a
+stale revision receives HTTP 409 with the latest `{ revision, state }`, allowing
+the client to reconcile its pending edits without silently replacing another
+device's workspace. Revisioned state includes ordered panels, their settings,
+independent navigation histories, selected entries, and Bloom scroll snapshots.
+Only references and UI configuration are stored, never fetched feed/profile data.
+
+Setting `syncEnabled: false` persists the preference while preserving the server's
+previous workspace. If none exists, the stored disabled workspace has empty
+panels/order. Disabled clients retain their local edits; enabling sync again sends
+the local snapshot with the current revision. Unauthenticated use stays local.
+The API rejects unknown fields, external navigation URLs, malformed Unicode,
+invalid dimensions/history/selection, over 24 panels, over 100 history entries or
+256 scroll offsets per panel, and bodies over 512 KiB. Account erasure removes the
+complete private document. Migration `0079_deck_workspaces` is additive and runs
+before deploying the image that serves these endpoints.
