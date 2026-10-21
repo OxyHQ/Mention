@@ -30,11 +30,11 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-const appearance = (viewerId: string, primaryColor: string): UserAppearance => ({
+const appearance = (viewerId: string, postTextExpand: 'more' | 'all'): UserAppearance => ({
   oxyUserId: viewerId,
   appearance: {
     themeMode: 'system',
-    primaryColor,
+    postTextExpand,
   },
 });
 
@@ -53,11 +53,11 @@ describe('appearanceStore viewer isolation', () => {
     useAppearanceStore.getState().resetViewerState();
     const requestB = useAppearanceStore.getState().loadMySettings(true);
 
-    pendingB.resolve({ data: appearance('viewer-b', '#bbbbbb') });
+    pendingB.resolve({ data: appearance('viewer-b', 'all') });
     await requestB;
     expect(useAppearanceStore.getState().mySettings?.oxyUserId).toBe('viewer-b');
 
-    pendingA.resolve({ data: appearance('viewer-a', '#aaaaaa') });
+    pendingA.resolve({ data: appearance('viewer-a', 'more') });
     await requestA;
     expect(useAppearanceStore.getState().mySettings?.oxyUserId).toBe('viewer-b');
   });
@@ -69,17 +69,17 @@ describe('appearanceStore viewer isolation', () => {
 
     const requestA = useAppearanceStore
       .getState()
-      .updateMySettings({ appearance: { primaryColor: '#aaaaaa' } });
+      .updateMySettings({ appearance: { postTextExpand: 'more' } });
     useAppearanceStore.getState().resetViewerState();
     const requestB = useAppearanceStore
       .getState()
-      .updateMySettings({ appearance: { primaryColor: '#bbbbbb' } });
+      .updateMySettings({ appearance: { postTextExpand: 'all' } });
 
-    pendingB.resolve({ data: appearance('viewer-b', '#bbbbbb') });
+    pendingB.resolve({ data: appearance('viewer-b', 'all') });
     await requestB;
     expect(useAppearanceStore.getState().mySettings?.oxyUserId).toBe('viewer-b');
 
-    pendingA.resolve({ data: appearance('viewer-a', '#aaaaaa') });
+    pendingA.resolve({ data: appearance('viewer-a', 'more') });
     await requestA;
     expect(useAppearanceStore.getState().mySettings?.oxyUserId).toBe('viewer-b');
     expect(mockInvalidateQueries).toHaveBeenCalledTimes(1);

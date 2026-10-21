@@ -33,7 +33,6 @@ export type PostReadMoreAction = 'openPost' | 'expandInline';
 
 export interface AppearanceSettings {
   themeMode: ThemeMode;
-  primaryColor?: string;
   postTextExpand?: PostTextExpand;
   postReadMoreAction?: PostReadMoreAction;
   collapseLongBio?: boolean;

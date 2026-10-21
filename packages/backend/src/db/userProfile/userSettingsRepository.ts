@@ -58,7 +58,6 @@ type WritableColumn = Exclude<keyof SettingsInsert, 'id' | 'oxyUserId' | 'create
  */
 export const SETTINGS_COLUMN_BY_PATH: Readonly<Record<string, WritableColumn>> = Object.freeze({
   'appearance.themeMode': 'appearanceThemeMode',
-  'appearance.primaryColor': 'appearancePrimaryColor',
   'appearance.postTextExpand': 'appearancePostTextExpand',
   'appearance.postReadMoreAction': 'appearancePostReadMoreAction',
   'appearance.collapseLongBio': 'appearanceCollapseLongBio',
@@ -366,7 +365,6 @@ function assembleRecord(row: SettingsRow, labelActions: LabelAction[]): UserSett
     oxyUserId: row.oxyUserId,
     appearance: {
       themeMode: row.appearanceThemeMode,
-      ...(row.appearancePrimaryColor ? { primaryColor: row.appearancePrimaryColor } : {}),
       postTextExpand: row.appearancePostTextExpand,
       postReadMoreAction: row.appearancePostReadMoreAction,
       collapseLongBio: row.appearanceCollapseLongBio,
