@@ -38,7 +38,11 @@ import { chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { discoverySafeSql } from '../../feedSafety';
 import { engagementScoreSql } from './discoverySources';
 import { logger } from '../../../../utils/logger';
-import { notABoostSql, notCollapsedCrosspostSql } from '../../../../utils/feedQueryBuilder';
+import {
+  excludeSeenSql,
+  notABoostSql,
+  notCollapsedCrosspostSql,
+} from '../../../../utils/feedQueryBuilder';
 import type { CandidatePost, SourceModule } from '../types';
 import { escapeRegExp } from '@oxy.so/utils/text';
 
@@ -93,7 +97,9 @@ export const friendsEngagedSource: SourceModule = {
     const followingIds = ctx.followingIds ?? [];
     if (followingIds.length === 0) return [];
 
-    const windowStart = new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
+    const windowStart = new Date(
+      (ctx.rankingAsOf ?? Date.now()) - MtnConfig.feed.candidateSources.recencyWindowMs,
+    );
     const db = getDb();
 
     // GROUP BY on the likes table — the direct port of the `$group` pipeline.
@@ -104,6 +110,7 @@ export const friendsEngagedSource: SourceModule = {
         and(
           inArray(likes.userId, followingIds),
           eq(likes.value, 1),
+          excludeSeenSql(ctx.seenPostIds ?? [], likes.postId),
           gte(likes.createdAt, windowStart),
         ),
       )
@@ -120,6 +127,7 @@ export const friendsEngagedSource: SourceModule = {
           inArray(posts.oxyUserId, followingIds),
           gte(posts.createdAt, windowStart),
           isNotNull(posts.boostOf),
+          excludeSeenSql(ctx.seenPostIds ?? [], posts.boostOf),
         ),
       )
       .limit(cap);
@@ -163,7 +171,8 @@ export const friendsEngagedSource: SourceModule = {
 
     return candidates
       .map((post) => {
-        post.finalScore = friendCountByPost.get(post.id) ?? 0;
+        post.friendEngagementCount = friendCountByPost.get(post.id) ?? 0;
+        post.finalScore = post.friendEngagementCount;
         return post;
       })
       .sort((a, b) => {

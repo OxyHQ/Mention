@@ -57,6 +57,12 @@ const baseline: Record<string, GoldenResult> = JSON.parse(
  * score production can never produce. The fixtures dropped the field and the two
  * entries were recaptured under the same pinned clock; the other 53 did not move,
  * which is what says the change touched only the dead term.
+ *
+ * 2026-10-21: intentionally re-baselined for the neutral engagement multiplier
+ * `1 + log1p(raw/10)`. Previously zero engagement erased every other signal.
+ * All 58 fixtures were recaptured at FIXED_NOW; 23 final scores changed. The
+ * capture asserted every non-engagement breakdown stayed bit-for-bit identical.
+ * Dedicated tests cover fresh zero-engagement ranking and mandatory safety zeros.
  */
 
 const expected: Record<string, GoldenResult> = baseline;

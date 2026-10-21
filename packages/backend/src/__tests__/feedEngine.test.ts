@@ -13,6 +13,42 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
  * the engine had stopped reading it.
  */
 
+const sessionMemory = vi.hoisted(() => ({
+  enabled: false,
+  states: new Map<string, unknown>(),
+  posts: new Map<string, unknown>(),
+  sequence: 0,
+}));
+vi.mock('../mtn/feed/RankedFeedSession', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../mtn/feed/RankedFeedSession')>();
+  return {
+    ...original,
+    rankedFeedSessionStore: {
+      available: () => sessionMemory.enabled,
+      save: async (state: unknown) => {
+        const key = `fs1:test-${++sessionMemory.sequence}`;
+        sessionMemory.states.set(key, JSON.parse(JSON.stringify(state)));
+        return key;
+      },
+      load: async (key: string, binding: string) => {
+        const state = sessionMemory.states.get(key) as
+          | { binding: string; expiresAt: number }
+          | undefined;
+        if (!state || state.binding !== binding || state.expiresAt <= Date.now())
+          throw original.expiredFeedCursor();
+        return JSON.parse(JSON.stringify(state));
+      },
+    },
+  };
+});
+vi.mock('../db/posts/postRepository', () => ({
+  loadPostRecords: async (ids: string[]) =>
+    ids.flatMap((id) => {
+      const post = sessionMemory.posts.get(id);
+      return post ? [{ ...(post as object) }] : [];
+    }),
+}));
+
 // --- Mock the heavy collaborators the engine calls. ---
 const rankPosts = vi.fn(
   async (posts: Array<Record<string, unknown>>, _userId?: unknown, _ctx?: unknown) => {
@@ -62,6 +98,8 @@ vi.mock('../services/FeedSeenPostsService', () => ({
 }));
 
 import { MtnConfig } from '@mention/shared-types';
+import { feedSeenPostsService } from '../services/FeedSeenPostsService';
+import { selectRankedPage } from '../mtn/feed/selectRankedPage';
 import { FeedEngine, sliceTopWindow } from '../mtn/feed/engine/FeedEngine';
 import { threadSlicingService } from '../services/ThreadSlicingService';
 import { FeedModuleRegistry } from '../mtn/feed/engine/FeedModuleRegistry';
@@ -106,6 +144,9 @@ let engine: FeedEngine;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  sessionMemory.enabled = false;
+  sessionMemory.states.clear();
+  sessionMemory.posts.clear();
   registry = new FeedModuleRegistry();
   engine = new FeedEngine(registry);
 });
@@ -429,6 +470,20 @@ describe('FeedEngine — ranked pagination coverage', () => {
 });
 
 describe('FeedEngine — ranking session guards', () => {
+  it('requires a refresh for old custom ranking scores after the engagement scale changes', async () => {
+    const definition: FeedDefinition = {
+      id: 'custom',
+      title: 'Custom',
+      mode: 'ranked',
+      sources: [],
+      filters: [],
+      signals: [],
+    };
+    await expect(
+      engine.run(definition, {}, { limit: 20, cursor: ScoreCursor.build(1, id(1)) }),
+    ).rejects.toMatchObject({ statusCode: 410, code: 'FEED_CURSOR_EXPIRED' });
+  });
+
   it('excludes served cursor ids after score drift even when the seen cache is empty', async () => {
     registry.register(sourceReturning('source', [scored(1, 4), scored(2, 3), scored(3, 2)]));
     const definition: FeedDefinition = {
@@ -440,7 +495,7 @@ describe('FeedEngine — ranking session guards', () => {
       signals: [],
     };
     const asOf = Date.UTC(2026, 9, 21);
-    const cursor = ScoreCursor.build(10, id(9), { asOf, excludeIds: [id(1)] });
+    const cursor = ScoreCursor.build(10, id(9), { asOf, excludeIds: [id(1)], rankingVersion: 2 });
     const result = await engine.run(definition, { currentUserId: 'viewer' }, { limit: 1, cursor });
     expect(result.items.map((post) => post.id)).toEqual([id(2)]);
     expect(rankPosts.mock.calls[0]?.[2]).toEqual(expect.objectContaining({ rankingAsOf: asOf }));
@@ -537,8 +592,8 @@ describe('FeedEngine — filtered chronological pagination', () => {
   });
 });
 
-describe('FeedEngine — soft-fail', () => {
-  it('one throwing source does not sink the feed', async () => {
+describe('FeedEngine — source failures', () => {
+  it('a failed chronological source cannot silently advance past its missing rows', async () => {
     const bad: SourceModule = {
       id: 'bad',
       kind: 'source',
@@ -561,8 +616,9 @@ describe('FeedEngine — soft-fail', () => {
       filters: [],
     };
 
-    const result = await engine.run(def, { currentUserId: 'viewer' }, { limit: 30 });
-    expect(result.items.map((i) => i.id)).toEqual([id(1)]);
+    await expect(engine.run(def, { currentUserId: 'viewer' }, { limit: 30 })).rejects.toMatchObject(
+      { statusCode: 503, code: 'FEED_SOURCE_UNAVAILABLE' },
+    );
   });
 });
 
@@ -616,7 +672,7 @@ describe('FeedEngine — ranked fallbacks', () => {
     expect(result.items.map((i) => i.id)).toEqual([id(9)]);
   });
 
-  it('does not pass showSensitiveContent into rankPosts', async () => {
+  it('keeps discovery ranking sensitive content disabled despite viewer opt-in', async () => {
     registry.register({
       id: 'lane',
       kind: 'source',
@@ -642,7 +698,7 @@ describe('FeedEngine — ranked fallbacks', () => {
       rankCtx && typeof rankCtx === 'object' && 'showSensitiveContent' in rankCtx
         ? rankCtx.showSensitiveContent
         : undefined,
-    ).toBeUndefined();
+    ).toBe(false);
   });
 });
 
@@ -670,5 +726,248 @@ describe('sliceTopWindow', () => {
     sliceFeed.mockImplementationOnce(foldInThrees).mockImplementationOnce(foldInThrees);
     expect(await sliceTopWindow(candidates, 5, options)).toHaveLength(8);
     expect(sliceFeed.mock.calls.map(([posts]) => posts.length)).toEqual([11, 22]);
+  });
+});
+
+describe('FeedEngine — persistent ranked windows', () => {
+  function registerPool(sourceId: string, posts: CandidatePost[], trusted = false): void {
+    for (const post of posts) sessionMemory.posts.set(post.id, post);
+    registry.register({
+      id: sourceId,
+      kind: 'source',
+      userComposable: false,
+      trusted,
+      gather: async (ctx, _params, cap) => {
+        const excluded = new Set(ctx.seenPostIds);
+        return posts.filter((post) => !excluded.has(post.id)).slice(0, cap);
+      },
+    });
+  }
+  function definition(sources: string[], cap?: number): FeedDefinition {
+    return {
+      id: 'session-test',
+      title: 'Session',
+      mode: 'ranked',
+      sources: sources.map((module) => ({ module, enabled: true })),
+      filters: [],
+      signals: [],
+      execution: { sessionPagination: true, maxDiscoveryShare: cap },
+    };
+  }
+
+  it('continues past sixty candidates without losing diversity deferrals or repeating served ids', async () => {
+    sessionMemory.enabled = true;
+    const posts = Array.from({ length: 125 }, (_, n) =>
+      scored(n + 1, 200 - n, { oxyUserId: `author-${Math.floor(n / 25)}` }),
+    );
+    registerPool('media', posts);
+    const def = definition(['media']);
+    let cursor: string | undefined;
+    const served: string[] = [];
+    for (let page = 0; page < 20; page += 1) {
+      const result = await engine.run(def, { currentUserId: 'viewer' }, { limit: 10, cursor });
+      served.push(...result.items.map((post) => post.id));
+      if (!result.hasMore) break;
+      cursor = result.nextCursor;
+    }
+    expect(served).toHaveLength(125);
+    expect(new Set(served).size).toBe(125);
+    expect(new Set(served)).toEqual(new Set(posts.map((post) => post.id)));
+  });
+
+  it('enforces the discovery share using trusted candidates below the score window', async () => {
+    sessionMemory.enabled = true;
+    registerPool(
+      'discovery',
+      Array.from({ length: 30 }, (_, n) => scored(n + 1, 100 - n)),
+    );
+    registerPool(
+      'trusted',
+      Array.from({ length: 15 }, (_, n) => scored(n + 101, 1)),
+      true,
+    );
+    const def = definition(['trusted', 'discovery'], 0.7);
+    const result = await engine.run(def, { currentUserId: 'viewer' }, { limit: 10 });
+    const trustedIds = new Set(Array.from({ length: 15 }, (_, n) => id(n + 101)));
+    expect(result.items).toHaveLength(10);
+    expect(result.items.filter((post) => trustedIds.has(post.id))).toHaveLength(3);
+    const continuation = sessionMemory.states.get(result.nextCursor!) as {
+      pending: Array<{ id: string }>;
+    };
+    expect(continuation.pending.some((post) => post.id === id(8))).toBe(true);
+    expect(JSON.stringify(continuation)).not.toContain('variants');
+  });
+
+  it('prioritizes author diversity when a trusted floor cannot be met without six posts by one author', async () => {
+    const trusted = Array.from({ length: 30 }, (_, n) =>
+      scored(n + 1, 100, { oxyUserId: 'one-author' }),
+    );
+    const discovery = Array.from({ length: 30 }, (_, n) =>
+      scored(n + 101, 1, { _discovery: true }),
+    );
+    const selected = selectRankedPage(
+      [...trusted, ...discovery],
+      (p) => p.oxyUserId,
+      (p) => p._discovery === true,
+      20,
+      0.7,
+    );
+    expect(selected).toHaveLength(20);
+    expect(selected.filter((p) => p.oxyUserId === 'one-author')).toHaveLength(3);
+    expect(selected.filter((p) => p._discovery)).toHaveLength(17);
+    expect(selected.every((p, i) => i === 0 || p.oxyUserId !== selected[i - 1].oxyUserId)).toBe(
+      true,
+    );
+  });
+
+  it('pins the seen penalty when a page is retried after another request marks posts as served', async () => {
+    sessionMemory.enabled = true;
+    registerPool(
+      'source',
+      Array.from({ length: 50 }, (_, n) => scored(n + 1, 100 - n)),
+    );
+    const def = definition(['source']);
+    def.execution = { ...def.execution, seenPosts: true };
+    const first = await engine.run(def, { currentUserId: 'viewer' }, { limit: 10 });
+    const second = await engine.run(
+      def,
+      { currentUserId: 'viewer' },
+      { limit: 10, cursor: first.nextCursor },
+    );
+    vi.mocked(feedSeenPostsService.getSeenPostIds).mockResolvedValueOnce(
+      second.items.map((p) => p.id),
+    );
+    const retry = await engine.run(
+      def,
+      { currentUserId: 'viewer' },
+      { limit: 10, cursor: first.nextCursor },
+    );
+    expect(retry.items.map((p) => p.id)).toEqual(second.items.map((p) => p.id));
+    expect(rankPosts.mock.calls.at(-1)?.[2]).toMatchObject({ seenPostIds: [] });
+  });
+
+  it.each(['for_you', 'explore'])(
+    'excludes bare numbers from %s recommendations even from a trusted followed source',
+    async (feedId) => {
+      sessionMemory.enabled = true;
+      const bare = scored(1, 100, { content: { variants: [{ source: 'author', text: '3' }] } });
+      const useful = scored(2, 0, {
+        content: {
+          variants: [{ source: 'author', text: 'PHP security warning https://www.php.net/' }],
+        },
+      });
+      registerPool('trusted', [bare, useful], true);
+      const def = { ...definition(['trusted']), id: feedId };
+      const result = await engine.run(
+        def,
+        { currentUserId: 'viewer', followingIds: [bare.oxyUserId] },
+        { limit: 10 },
+      );
+      expect(result.items.map((p) => p.id)).toEqual([useful.id]);
+      const following = await engine.run(
+        { ...def, id: 'following' },
+        { currentUserId: 'viewer' },
+        { limit: 10 },
+      );
+      expect(following.items.map((p) => p.id)).toContain(bare.id);
+    },
+  );
+
+  it('continues through a full intermediate source window already delivered by another source', async () => {
+    sessionMemory.enabled = true;
+    const posts = Array.from({ length: 30 }, (_, n) => scored(n + 1, 100 - n));
+    for (const post of posts) sessionMemory.posts.set(post.id, post);
+    let reads = 0;
+    registry.register({
+      id: 'overlapping',
+      kind: 'source',
+      userComposable: false,
+      gather: async () => {
+        reads += 1;
+        if (reads === 1) return posts.slice(0, 10);
+        if (reads === 2) return posts.slice(10, 20);
+        if (reads === 3) return posts.slice(0, 10); // Full overlap, but a different source boundary.
+        if (reads === 4) return posts.slice(20, 30);
+        return [];
+      },
+    });
+    const def = definition(['overlapping']);
+    const served: string[] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < 8; page += 1) {
+      const result = await engine.run(def, { currentUserId: 'viewer' }, { limit: 10, cursor });
+      served.push(...result.items.map((p) => p.id));
+      if (!result.hasMore) break;
+      cursor = result.nextCursor;
+    }
+    expect(new Set(served)).toEqual(new Set(posts.map((p) => p.id)));
+    expect(served).toHaveLength(30);
+  });
+
+  it('applies the numeric rule to anonymous popular fallback as well as ranked sources', async () => {
+    const bare = scored(1, 100, { content: { variants: [{ source: 'author', text: '3' }] } });
+    const useful = scored(2, 0);
+    registry.register(sourceReturning('popular', [bare, useful]));
+    const def = { ...definition([]), id: 'for_you', execution: { popularFallback: 'popular' } };
+    const result = await engine.run(def, {}, { limit: 10 });
+    expect(result.items.map((p) => p.id)).toEqual([useful.id]);
+  });
+
+  it('keeps a transiently failing source resumable while another source serves content', async () => {
+    sessionMemory.enabled = true;
+    registerPool(
+      'healthy',
+      Array.from({ length: 30 }, (_, n) => scored(n + 1, 100 - n)),
+    );
+    const recovering = scored(200, 300);
+    sessionMemory.posts.set(recovering.id, recovering);
+    let unavailable = true;
+    registry.register({
+      id: 'transient',
+      kind: 'source',
+      userComposable: false,
+      gather: async (ctx) => {
+        if (unavailable) throw new Error('temporary timeout');
+        return ctx.seenPostIds?.includes(recovering.id) ? [] : [recovering];
+      },
+    });
+    const def = definition(['healthy', 'transient']);
+    const first = await engine.run(def, { currentUserId: 'viewer' }, { limit: 10 });
+    expect(first.items).toHaveLength(10);
+    unavailable = false;
+    const second = await engine.run(
+      def,
+      { currentUserId: 'viewer' },
+      { limit: 10, cursor: first.nextCursor },
+    );
+    expect(second.items.map((post) => post.id)).toContain(recovering.id);
+  });
+
+  it('revalidates deleted and newly filtered pending records and rejects cross-viewer cursors', async () => {
+    sessionMemory.enabled = true;
+    const posts = Array.from({ length: 30 }, (_, n) => scored(n + 1, 100 - n));
+    registerPool('source', posts);
+    registry.register({
+      id: 'safe',
+      kind: 'filter',
+      keep: (post) => !post.hashtags.includes('hidden'),
+    });
+    const def = definition(['source']);
+    def.filters = [{ module: 'safe', enabled: true }];
+    const first = await engine.run(def, { currentUserId: 'viewer' }, { limit: 10 });
+    sessionMemory.posts.delete(id(11));
+    sessionMemory.posts.set(id(12), { ...posts[11], hashtags: ['hidden'] });
+    sessionMemory.posts.set(id(13), { ...posts[12], status: 'draft' });
+    const second = await engine.run(
+      def,
+      { currentUserId: 'viewer' },
+      { limit: 10, cursor: first.nextCursor },
+    );
+    expect(second.items.map((post) => post.id)).not.toContain(id(11));
+    expect(second.items.map((post) => post.id)).not.toContain(id(12));
+    expect(second.items.map((post) => post.id)).not.toContain(id(13));
+    await expect(
+      engine.run(def, { currentUserId: 'other-viewer' }, { limit: 10, cursor: first.nextCursor }),
+    ).rejects.toMatchObject({ statusCode: 410, code: 'FEED_CURSOR_EXPIRED' });
   });
 });

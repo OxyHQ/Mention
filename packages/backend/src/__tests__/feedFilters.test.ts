@@ -4,6 +4,7 @@ import { feedModuleRegistry } from '../mtn/feed/engine/FeedModuleRegistry';
 import { filterModules, registerFilterModules } from '../mtn/feed/engine/filters';
 import { registerSignalModules } from '../mtn/feed/engine/signals';
 import type { FeedEngineContext, FilterModule } from '../mtn/feed/engine/types';
+import { isStandaloneNumber } from '../mtn/feed/recommendationEligibility';
 import { classification, feedCandidate } from './fixtures/feedCandidate';
 
 registerFilterModules();
@@ -38,6 +39,20 @@ describe('safety filter', () => {
     expect(
       safety.keep(post({ postClassification: classification({ sensitive: true }) }), ctx, {}),
     ).toBe(false);
+  });
+});
+
+describe('explicit subscription sensitivity preference', () => {
+  const safety = filter('safety');
+  it('allows opted-in subscription content while keeping recommendations excluded', () => {
+    const sensitive = post({ metadata: { isSensitive: true } });
+    expect(
+      safety.keep(sensitive, { showSensitiveContent: true }, { allowViewerPreference: true }),
+    ).toBe(true);
+    expect(
+      safety.keep(sensitive, { showSensitiveContent: false }, { allowViewerPreference: true }),
+    ).toBe(false);
+    expect(safety.keep(sensitive, { showSensitiveContent: true }, {})).toBe(false);
   });
 });
 
@@ -327,5 +342,56 @@ describe('signal modules', () => {
     expect(feedModuleRegistry.getSignal('engagement')?.weightKey).toBe('engagement');
     expect(feedModuleRegistry.getSignal('authorAuthority')?.weightKey).toBe('authority');
     expect(feedModuleRegistry.getSignal('diversity')).toBeDefined();
+  });
+});
+
+describe('calibrated standalone number recommendation rule', () => {
+  const numeric = post({ content: { variants: [{ source: 'author', text: ' 3 ' }] } });
+  it('rejects only bare numeric text, without extrapolating to greetings, jokes or emoji', () => {
+    expect(isStandaloneNumber(numeric)).toBe(true);
+    for (const text of [
+      'Good morning or whenever',
+      '😂',
+      'PHP warning https://php.net',
+      '3 useful things',
+      '-3',
+      '',
+    ]) {
+      expect(
+        isStandaloneNumber(post({ content: { variants: [{ source: 'author', text }] } })),
+      ).toBe(false);
+    }
+  });
+  it('preserves media, polls, attachments, links and conversation context', () => {
+    for (const context of [
+      { parentPostId: 'parent' },
+      { quoteOf: 'quote' },
+      { threadId: 'thread' },
+      { isReply: true },
+      { hasLinks: true },
+      { boostOf: 'boost' },
+    ]) {
+      expect(isStandaloneNumber({ ...numeric, ...context })).toBe(false);
+    }
+    expect(
+      isStandaloneNumber(
+        post({
+          content: {
+            variants: [
+              { source: 'author', text: '3', media: [{ id: 'variant-photo', type: 'image' }] },
+            ],
+          },
+        }),
+      ),
+    ).toBe(false);
+    for (const content of [
+      { pollId: 'poll' },
+      { media: [{ id: 'image', type: 'image' as const }] },
+      { attachments: [{ type: 'media' as const, id: 'image', mediaType: 'image' as const }] },
+    ]) {
+      expect(isStandaloneNumber({ ...numeric, content: { ...numeric.content, ...content } })).toBe(
+        false,
+      );
+    }
   });
 });
