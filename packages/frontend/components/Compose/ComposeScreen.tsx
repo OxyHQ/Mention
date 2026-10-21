@@ -3232,6 +3232,20 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                           </View>
                         ) : null}
 
+                        {/* Poll Creator */}
+                        {showPollCreator && (
+                          <PollCreator
+                            pollTitle={pollTitle}
+                            onTitleChange={setPollTitle}
+                            pollOptions={pollOptions}
+                            onAddOption={addPollOption}
+                            onOptionChange={updatePollOption}
+                            onRemoveOption={removePollOption}
+                            onRemove={removePoll}
+                            style={bottomLeftPadStyle}
+                          />
+                        )}
+
                         <View style={styles.toolbarWrapper}>
                           <ComposeToolbar
                             contentPaddingLeft={BOTTOM_LEFT_PAD}
@@ -3284,20 +3298,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                             onChange={setCollaborators}
                             expanded={collaboratorSearchOpen}
                             onExpandedChange={setCollaboratorSearchOpen}
-                          />
-                        )}
-
-                        {/* Poll Creator */}
-                        {showPollCreator && (
-                          <PollCreator
-                            pollTitle={pollTitle}
-                            onTitleChange={setPollTitle}
-                            pollOptions={pollOptions}
-                            onAddOption={addPollOption}
-                            onOptionChange={updatePollOption}
-                            onRemoveOption={removePollOption}
-                            onRemove={removePoll}
-                            style={bottomLeftPadStyle}
                           />
                         )}
 
