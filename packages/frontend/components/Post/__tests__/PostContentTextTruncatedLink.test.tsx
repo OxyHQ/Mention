@@ -40,7 +40,7 @@ jest.mock('@/utils/openExternalLink', () => ({
 }));
 
 const FULL_URL = 'https://example.com/articles/a-very-long-article-slug';
-const LONG_POST = `${'a'.repeat(250)} ${FULL_URL}`;
+const LONG_POST = `${'a'.repeat(270)} ${FULL_URL}`;
 
 describe('PostContentText — truncated link destination', () => {
   beforeEach(() => {

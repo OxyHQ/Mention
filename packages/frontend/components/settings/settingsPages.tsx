@@ -4,6 +4,7 @@ import type { SettingsModalPage, SettingsNavGroup } from '@oxy.so/bloom/settings
 import { RiAccessibilityLine } from '@oxy.so/bloom/icons/RiAccessibilityLine';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
+import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
 import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
 import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
@@ -41,6 +42,7 @@ import Page21 from './pages/privacy/restricted';
 import Page22 from './pages/privacy/tags-mentions';
 import Page23 from './pages/privacy';
 import Page24 from './pages/thread-preferences';
+import EditProfilePage from './pages/edit-profile';
 
 export interface MentionSettingsPages {
   pages: Record<string, SettingsModalPage>;
@@ -58,6 +60,10 @@ export function useMentionSettingsPages(): MentionSettingsPages {
     account: {
       title: t('settings.account.manageAccount', { defaultValue: 'Account' }),
       content: <Page0 />,
+    },
+    'edit-profile': {
+      title: t('profile.editProfile'),
+      content: <EditProfilePage />,
     },
     about: {
       title: t('settings.aboutMention.title', { defaultValue: 'About' }),
@@ -182,6 +188,12 @@ export function useMentionSettingsPages(): MentionSettingsPages {
           page: 'account',
           label: pages.account.title,
           icon: RiUserLine,
+        },
+        {
+          key: 'edit-profile',
+          page: 'edit-profile',
+          label: pages['edit-profile'].title,
+          icon: RiEditLine,
         },
         {
           key: 'privacy',

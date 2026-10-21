@@ -1,9 +1,8 @@
 import { InsightsSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useState, useCallback } from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { ScreenScrollView } from '@oxy.so/bloom/screen';
 import { insightsService } from '@/services/insightsService';
 import { useTranslation } from 'react-i18next';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
@@ -11,12 +10,9 @@ import { usePostsStore } from '@/stores/postsStore';
 import type { HydratedPost } from '@mention/shared-types';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { EmptyState } from '@/components/common/EmptyState';
-import { asViewStyle } from '@/types/webStyles';
 import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { InsightsDashboard } from './InsightsDashboard';
-
-const webStickyViewStyle = asViewStyle({ position: 'sticky' });
 
 export interface InsightsViewProps {
   /**
@@ -54,7 +50,6 @@ export interface InsightsViewProps {
  */
 export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
   const { t } = useTranslation();
-  const theme = useTheme();
   const { user, canUsePrivateApi, isPrivateApiPending } = useAuth();
 
   const [selectedPeriod, setSelectedPeriod] = useState(30);
@@ -111,27 +106,20 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
   );
 
   return (
-    <>
-      <View
-        style={[
-          styles.stickyTabBar,
-          { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.background },
-        ]}
+    <ScreenScrollView>
+      <Tabs
+        value={activeTab}
+        onValueChange={(tabId) => setActiveTab(tabId as 'overview' | 'engagement' | 'publishing')}
+        variant="underline"
       >
-        <Tabs
-          value={activeTab}
-          onValueChange={(tabId) => setActiveTab(tabId as 'overview' | 'engagement' | 'publishing')}
-          variant="underline"
-        >
-          {[
-            { id: 'overview', label: t('insights.tabs.overview') },
-            { id: 'engagement', label: t('insights.tabs.engagement') },
-            { id: 'publishing', label: t('insights.publishing') },
-          ].map((tab: { id: string; label: string; count?: number }) => (
-            <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
-          ))}
-        </Tabs>
-      </View>
+        {[
+          { id: 'overview', label: t('insights.tabs.overview') },
+          { id: 'engagement', label: t('insights.tabs.engagement') },
+          { id: 'publishing', label: t('insights.publishing') },
+        ].map((tab: { id: string; label: string; count?: number }) => (
+          <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
+        ))}
+      </Tabs>
 
       {isPrivateApiPending || isLoading ? (
         <InsightsSkeleton />
@@ -184,18 +172,8 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
           isFetching={isFetching}
         />
       ) : null}
-    </>
+    </ScreenScrollView>
   );
 };
-
-const styles = StyleSheet.create({
-  stickyTabBar: {
-    ...(Platform.OS === 'web' ? webStickyViewStyle : { position: 'relative' as const }),
-    top: 0,
-    zIndex: 100,
-    backgroundColor: 'transparent',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-});
 
 export default InsightsView;

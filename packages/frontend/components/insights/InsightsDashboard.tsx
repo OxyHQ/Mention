@@ -1,7 +1,7 @@
 import type React from 'react';
 import { Fragment, useState } from 'react';
-import { View, StyleSheet, ScrollView, Platform } from 'react-native';
-import { useRouter,  } from '@/lib/navigation/router';
+import { View, StyleSheet } from 'react-native';
+import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import {
   BarListCard,
@@ -47,7 +47,6 @@ import {
   buildPublishingSummary,
 } from './insightsSeries';
 
-const IS_WEB = Platform.OS === 'web';
 const PERIOD_OPTIONS = [
   { labelKey: 'insights.period.7days', value: 7 },
   { labelKey: 'insights.period.30days', value: 30 },
@@ -586,13 +585,7 @@ export function InsightsDashboard({
       )}
     </>
   );
-  return IS_WEB ? (
-    <View style={styles.scrollContent}>{body}</View>
-  ) : (
-    <ScrollView className="flex-1" contentContainerStyle={styles.scrollContent}>
-      {body}
-    </ScrollView>
-  );
+  return <View style={styles.scrollContent}>{body}</View>;
 }
 
 const styles = StyleSheet.create({
