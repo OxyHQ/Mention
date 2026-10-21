@@ -18,7 +18,7 @@ import {
   SPAM_QUALITY_CONFIG,
   visibleText,
 } from '../../../../services/contentClassification/spamQuality';
-import { resolveVariant } from '../../../../services/postVariants';
+import { authorVariants, resolveVariant } from '../../../../services/postVariants';
 import { feedModuleRegistry, type FeedModuleRegistry } from '../FeedModuleRegistry';
 import type { CandidatePost, FeedEngineContext, FilterModule } from '../types';
 import { escapeRegExp } from '@oxy.so/utils/text';
@@ -46,6 +46,7 @@ function hasMedia(post: CandidatePost): boolean {
   if (Array.isArray(content?.media) && content.media.length > 0) return true;
   if (Array.isArray(content?.attachments) && content.attachments.some((a) => a?.type === 'media'))
     return true;
+  if (authorVariants(post.content).some((variant) => variant.media?.length)) return true;
   return false;
 }
 
@@ -54,14 +55,24 @@ function hasVideo(post: CandidatePost): boolean {
   const type = field<string>(post, 'type');
   if (type === PostType.VIDEO) return true;
   const content = field<{ media?: Array<{ type?: string }> }>(post, 'content');
-  return Array.isArray(content?.media) && content.media.some((m) => m?.type === 'video');
+  return (
+    (Array.isArray(content?.media) && content.media.some((m) => m?.type === 'video')) ||
+    authorVariants(post.content).some((variant) =>
+      variant.media?.some((media) => media.type === 'video'),
+    )
+  );
 }
 
 /** Whether the candidate carries a media item of a specific type. */
 function hasMediaType(post: CandidatePost, mediaType: 'image' | 'gif'): boolean {
   if (mediaType === 'image' && field<string>(post, 'type') === PostType.IMAGE) return true;
   const content = field<{ media?: Array<{ type?: string }> }>(post, 'content');
-  return Array.isArray(content?.media) && content.media.some((m) => m?.type === mediaType);
+  return (
+    (Array.isArray(content?.media) && content.media.some((m) => m?.type === mediaType)) ||
+    authorVariants(post.content).some((variant) =>
+      variant.media?.some((media) => media.type === mediaType),
+    )
+  );
 }
 
 /** Whether the candidate carries a poll. */
@@ -81,8 +92,14 @@ function hasPoll(post: CandidatePost): boolean {
 function hasAltText(post: CandidatePost): boolean {
   const content = field<{ media?: Array<{ alt?: string }> }>(post, 'content');
   return (
-    Array.isArray(content?.media) &&
-    content.media.some((m) => typeof m?.alt === 'string' && m.alt.trim().length > 0)
+    (Array.isArray(content?.media) &&
+      content.media.some((m) => typeof m?.alt === 'string' && m.alt.trim().length > 0)) ||
+    authorVariants(post.content).some(
+      (variant) =>
+        variant.media?.some(
+          (media) => typeof media.alt === 'string' && media.alt.trim().length > 0,
+        ) || Object.values(variant.alt ?? {}).some((alt) => alt.trim().length > 0),
+    )
   );
 }
 
@@ -402,6 +419,7 @@ export const noRepliesFilter: FilterModule = {
 /** `mediaOnly`: keeps only posts carrying media. */
 export const mediaOnlyFilter: FilterModule = {
   id: 'mediaOnly',
+  needsTextMedia: true,
   kind: 'filter',
   userComposable: true,
   keep: (post) => hasMedia(post),
@@ -410,6 +428,7 @@ export const mediaOnlyFilter: FilterModule = {
 /** `videoOnly`: keeps only posts carrying a video. */
 export const videoOnlyFilter: FilterModule = {
   id: 'videoOnly',
+  needsTextMedia: true,
   kind: 'filter',
   userComposable: true,
   keep: (post) => hasVideo(post),
@@ -453,6 +472,7 @@ export const excludeFollowingFilter: FilterModule = {
 /** `hasImage`: keep only posts carrying an image. */
 export const hasImageFilter: FilterModule = {
   id: 'hasImage',
+  needsTextMedia: true,
   kind: 'filter',
   userComposable: true,
   keep: (post) => hasMediaType(post, 'image'),
@@ -461,6 +481,7 @@ export const hasImageFilter: FilterModule = {
 /** `hasGif`: keep only posts carrying a GIF. */
 export const hasGifFilter: FilterModule = {
   id: 'hasGif',
+  needsTextMedia: true,
   kind: 'filter',
   userComposable: true,
   keep: (post) => hasMediaType(post, 'gif'),
@@ -469,6 +490,7 @@ export const hasGifFilter: FilterModule = {
 /** `hasPoll`: keep only posts carrying a poll. */
 export const hasPollFilter: FilterModule = {
   id: 'hasPoll',
+  needsTextMedia: true,
   kind: 'filter',
   userComposable: true,
   keep: (post) => hasPoll(post),
@@ -477,6 +499,8 @@ export const hasPollFilter: FilterModule = {
 /** `hasLink`: keep only posts that contain a link. */
 export const hasLinkFilter: FilterModule = {
   id: 'hasLink',
+  needsTextMedia: true,
+  needsSources: true,
   kind: 'filter',
   userComposable: true,
   keep: (post) => linkHosts(post).length > 0,
@@ -485,6 +509,8 @@ export const hasLinkFilter: FilterModule = {
 /** `hasAltText`: keep only posts whose media carries alt-text (accessibility). */
 export const hasAltTextFilter: FilterModule = {
   id: 'hasAltText',
+  needsTextMedia: true,
+  needsVariantAlt: true,
   kind: 'filter',
   userComposable: true,
   keep: (post) => hasAltText(post),
@@ -493,6 +519,7 @@ export const hasAltTextFilter: FilterModule = {
 /** `textOnly`: keep only text posts (no media, no poll). */
 export const textOnlyFilter: FilterModule = {
   id: 'textOnly',
+  needsTextMedia: true,
   kind: 'filter',
   userComposable: true,
   keep: (post) => !hasMedia(post) && !hasPoll(post),
@@ -568,6 +595,7 @@ export const minEngagementFilter: FilterModule = {
 /** `maxLength`: drop posts whose text exceeds `params.maxLength` characters. */
 export const maxLengthFilter: FilterModule = {
   id: 'maxLength',
+  needsTextMedia: true,
   kind: 'filter',
   userComposable: true,
   keep: (post, _ctx, params) => {
@@ -585,6 +613,7 @@ export const minLengthFilter: FilterModule = {
   id: 'minLength',
   kind: 'filter',
   userComposable: true,
+  needsTextMedia: true,
   keep: (post, ctx, params) => {
     const tuning = gateTuning(ctx, params, 'minLength');
     if (tuning?.enabled === false) return true;
@@ -601,6 +630,8 @@ export const minLengthFilter: FilterModule = {
 /** `domainAllowlist`: keep only posts linking to an allowed domain. */
 export const domainAllowlistFilter: FilterModule = {
   id: 'domainAllowlist',
+  needsTextMedia: true,
+  needsSources: true,
   kind: 'filter',
   userComposable: true,
   keep: (post, _ctx, params) => {
@@ -616,6 +647,8 @@ export const domainAllowlistFilter: FilterModule = {
 /** `domainDenylist`: drop posts linking to a denied domain. */
 export const domainDenylistFilter: FilterModule = {
   id: 'domainDenylist',
+  needsTextMedia: true,
+  needsSources: true,
   kind: 'filter',
   userComposable: true,
   keep: (post, _ctx, params) => {
@@ -630,6 +663,7 @@ export const domainDenylistFilter: FilterModule = {
 /** `customMuteWords`: drop posts matching any of `params.words` (viewer/per-feed mute). */
 export const customMuteWordsFilter: FilterModule = {
   id: 'customMuteWords',
+  needsTextMedia: true,
   kind: 'filter',
   userComposable: true,
   keep: (post, _ctx, params) => {
@@ -641,6 +675,7 @@ export const customMuteWordsFilter: FilterModule = {
 /** `keywordDenylist`: drop posts matching any of `params.keywords` (per-feed exclusion). */
 export const keywordDenylistFilter: FilterModule = {
   id: 'keywordDenylist',
+  needsTextMedia: true,
   kind: 'filter',
   userComposable: true,
   keep: (post, _ctx, params) => {
@@ -1046,6 +1081,7 @@ export function passesNativeEngagementOrMatch(
  */
 export const lowEffortGateFilter: FilterModule = {
   id: 'lowEffortGate',
+  needsTextMedia: true,
   kind: 'filter',
   userComposable: false,
   keep: (post, ctx, params) => {
@@ -1139,6 +1175,7 @@ export const minQualityFilter: FilterModule = {
  */
 export const noLowEffortFilter: FilterModule = {
   id: 'noLowEffort',
+  needsTextMedia: true,
   kind: 'filter',
   userComposable: true,
   keep: (post, _ctx, params) => {
@@ -1178,6 +1215,8 @@ export const noLowEffortFilter: FilterModule = {
  */
 export const linkCountFilter: FilterModule = {
   id: 'linkCount',
+  needsTextMedia: true,
+  needsSources: true,
   kind: 'filter',
   userComposable: true,
   keep: (post, _ctx, params) => {
@@ -1201,6 +1240,7 @@ export const linkCountFilter: FilterModule = {
  */
 export const noBotsFilter: FilterModule = {
   id: 'noBots',
+  needsTextMedia: true,
   kind: 'filter',
   userComposable: true,
   keep: (post) => {
