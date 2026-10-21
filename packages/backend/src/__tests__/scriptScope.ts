@@ -221,6 +221,10 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     scope: 'caller-scoped',
     reason: 'and(..., inArray(posts.id, postIds)) when given, and the suite always passes postIds.',
   },
+  foldTypedHandleMentions: {
+    scope: 'caller-scoped',
+    reason: 'and(..., inArray(posts.id, postIds)) when given, and the suite always passes postIds.',
+  },
   backfillFederatedBoostCounts: {
     scope: 'caller-scoped',
     reason:
