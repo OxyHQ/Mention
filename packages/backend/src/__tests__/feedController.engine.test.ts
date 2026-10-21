@@ -126,6 +126,35 @@ beforeEach(() => {
 });
 
 describe('MtnFeedController.getFeed → engine', () => {
+  it.each([
+    ['following', undefined, 'chronological'],
+    ['following', 'relevance', 'ranked'],
+    ['following', 'chronological', 'chronological'],
+    ['following_direct', 'relevance', 'chronological'],
+  ])('resolves %s with sort %s to %s', async (descriptor, sort, mode) => {
+    const res = makeRes();
+    await mtnFeedController.getFeed(
+      { query: { descriptor, sort }, user: { id: 'following-sort-viewer' } } as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(200);
+    expect(engineRun).toHaveBeenCalledOnce();
+    expect(engineRun.mock.calls[0]?.[0]).toMatchObject({ mode });
+  });
+
+  it('rejects an invalid Following override before running the feed', async () => {
+    const res = makeRes();
+    await mtnFeedController.getFeed(
+      {
+        query: { descriptor: 'following', sort: 'popular' },
+        user: { id: 'following-sort-viewer' },
+      } as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(400);
+    expect(engineRun).not.toHaveBeenCalled();
+  });
+
   it('runs the engine for a for_you descriptor and returns the response', async () => {
     const req = { query: { descriptor: 'for_you' }, user: undefined } as never;
     const res = makeRes();

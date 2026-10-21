@@ -554,12 +554,7 @@ class MtnFeedController {
         res.status(400).json({ success: false, error: 'Invalid Following sort' });
         return;
       }
-      const storedFollowing =
-        context.feedSettings && Reflect.get(context.feedSettings, 'following');
-      const storedSort =
-        storedFollowing && typeof storedFollowing === 'object'
-          ? Reflect.get(storedFollowing, 'sort')
-          : undefined;
+      const storedSort = context.feedSettings?.following?.sort;
       const followingSort =
         (requestedSort ?? storedSort) === 'relevance' ? 'relevance' : 'chronological';
       const definition = await resolveDefinition(descriptor, { ...context, followingSort });
