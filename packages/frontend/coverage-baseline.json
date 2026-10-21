@@ -2,44 +2,44 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 47.23,
-      "covered": 13197,
-      "total": 27941
+      "pct": 47.38,
+      "covered": 13347,
+      "total": 28167
     },
     "branches": {
-      "pct": 42.53,
-      "covered": 8741,
-      "total": 20551
+      "pct": 42.78,
+      "covered": 8916,
+      "total": 20837
     },
     "functions": {
-      "pct": 41.9,
-      "covered": 3046,
-      "total": 7268
+      "pct": 42.05,
+      "covered": 3089,
+      "total": 7345
     },
     "lines": {
-      "pct": 48.06,
-      "covered": 12010,
-      "total": 24989
+      "pct": 48.19,
+      "covered": 12143,
+      "total": 25196
     }
   },
   "pins": {
     "components/Feed/PostInteractionsBinder.tsx": {
-      "statements": 84,
-      "branches": 88,
-      "functions": 56,
-      "lines": 88
+      "statements": 89,
+      "branches": 91,
+      "functions": 71,
+      "lines": 91
     },
     "components/Feed/postInteractions.tsx": {
-      "statements": 97,
-      "branches": 77,
+      "statements": 98,
+      "branches": 84,
       "functions": 100,
       "lines": 97
     },
     "components/Feed/postMenuActions.tsx": {
-      "statements": 85,
-      "branches": 82,
-      "functions": 56,
-      "lines": 93
+      "statements": 87,
+      "branches": 83,
+      "functions": 57,
+      "lines": 94
     },
     "components/providers/AccountSwitchReset.tsx": {
       "statements": 98,
@@ -186,10 +186,10 @@
       "lines": 100
     },
     "hooks/useAccountTheme.ts": {
-      "statements": 98,
-      "branches": 90,
+      "statements": 100,
+      "branches": 94,
       "functions": 100,
-      "lines": 98
+      "lines": 100
     },
     "hooks/useAppColorSave.ts": {
       "statements": 0,
@@ -220,6 +220,12 @@
       "branches": 16,
       "functions": 50,
       "lines": 50
+    },
+    "hooks/useCommunities.ts": {
+      "statements": 100,
+      "branches": 85,
+      "functions": 100,
+      "lines": 100
     },
     "hooks/useCommunityNotes.ts": {
       "statements": 100,
@@ -301,7 +307,7 @@
     },
     "hooks/useFeedQuery.ts": {
       "statements": 100,
-      "branches": 96,
+      "branches": 97,
       "functions": 100,
       "lines": 100
     },
@@ -1091,6 +1097,12 @@
       "functions": 100,
       "lines": 100
     },
+    "services/communityService.ts": {
+      "statements": 100,
+      "branches": 62,
+      "functions": 100,
+      "lines": 100
+    },
     "services/customFeedsService.ts": {
       "statements": 0,
       "branches": 100,
@@ -1146,10 +1158,10 @@
       "lines": 0
     },
     "services/feedService.ts": {
-      "statements": 50,
-      "branches": 40,
+      "statements": 51,
+      "branches": 41,
       "functions": 42,
-      "lines": 51
+      "lines": 52
     },
     "services/feedTuningService.ts": {
       "statements": 0,
@@ -1489,7 +1501,7 @@
     },
     "utils/composeIntent.ts": {
       "statements": 97,
-      "branches": 90,
+      "branches": 91,
       "functions": 100,
       "lines": 99
     },

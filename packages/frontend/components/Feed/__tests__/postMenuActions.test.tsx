@@ -555,5 +555,22 @@ describe('what the actions do', () => {
     });
     expect(labels(own)).toContain('communities.postActions.remove');
     expect(labels(own)).not.toContain('communities.postActions.ban');
+
+    // A refusal says so; a cancelled confirmation sends nothing.
+    mockCommunities.removePost.mockRejectedValueOnce(new Error('403'));
+    await find(moderated, 'communities.postActions.remove').onPress();
+    expect(mockToast).toHaveBeenCalledWith('communities.postActions.removeFailed', {
+      type: 'error',
+    });
+    mockCommunities.ban.mockRejectedValueOnce(new Error('403'));
+    await find(moderated, 'communities.postActions.ban').onPress();
+    expect(mockToast).toHaveBeenCalledWith('communities.postActions.banFailed', { type: 'error' });
+    mockConfirm.mockResolvedValueOnce(false).mockResolvedValueOnce(false);
+    mockCommunities.removePost.mockClear();
+    mockCommunities.ban.mockClear();
+    await find(moderated, 'communities.postActions.remove').onPress();
+    await find(moderated, 'communities.postActions.ban').onPress();
+    expect(mockCommunities.removePost).not.toHaveBeenCalled();
+    expect(mockCommunities.ban).not.toHaveBeenCalled();
   });
 });

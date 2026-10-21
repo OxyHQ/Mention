@@ -34,7 +34,7 @@ import { toast } from '@oxy.so/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import type { CreatePostRequest, HydratedPost, PostUser } from '@mention/shared-types';
-import { COMMUNITY_POST_TITLE_MAX_LENGTH } from '@mention/shared-types';
+import { COMMUNITY_POST_TITLE_MAX_LENGTH } from '@mention/shared-types/community';
 import {
   MAX_POST_COLLABORATORS,
   MEDIA_VARIANT_AVATAR,
