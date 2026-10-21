@@ -26,16 +26,14 @@ describe('mirror transports', () => {
     expect(mirroredNetworkDomain('bird.makeup')).toBe('x.com');
   });
 
-  it('rewrites mirror URLs in a body without touching the prose around them', () => {
+  it('rewrites mirror URLs and stored mention links in a body, prose untouched', () => {
     expect(
-      rewriteMirrorUrls('see https://bird.makeup/users/a/statuses/1. ok https://example.org'),
-    ).toBe('see https://x.com/a/status/1. ok https://example.org');
-  });
-
-  it('rewrites a stored mirror mention link, label and destination together', () => {
-    expect(
-      rewriteMirrorUrls('thanks [@@elonmusk@bird.makeup](https://bird.makeup/users/elonmusk)!'),
-    ).toBe('thanks [@@elonmusk@x.com](https://x.com/elonmusk)!');
+      rewriteMirrorUrls(
+        'thanks [@@elonmusk@bird.makeup](https://bird.makeup/users/elonmusk)! see https://bird.makeup/users/a/statuses/1. ok https://example.org',
+      ),
+    ).toBe(
+      'thanks [@@elonmusk@x.com](https://x.com/elonmusk)! see https://x.com/a/status/1. ok https://example.org',
+    );
   });
 
   it('shows a mirror mention as the account on the real network', () => {

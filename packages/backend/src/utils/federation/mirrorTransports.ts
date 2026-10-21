@@ -12,8 +12,8 @@ import { scanTextEntities, trimUrlTrailingPunctuation } from '@mention/shared-ty
  * them (a tweet id; an Instagram shortcode). A shape that cannot be derived is
  * left alone rather than guessed. `bsky.brid.gy` is read by `./bridgy`, not here.
  *
- * Keep in step with the bridges Oxy trusts (`REVIEWED_REPOST_TRANSPORT_HOSTS`
- * names the same hosts for a different purpose).
+ * THE one list of mirror hosts in Mention: the repost gate and the Instagram
+ * source-key reader derive theirs from it, so a new mirror is added here once.
  */
 interface Mirror {
   network: 'x' | 'instagram';
@@ -34,8 +34,12 @@ const MIRRORS: Readonly<Record<string, Mirror>> = {
   },
 };
 
-/** The hosts {@link networkUrlOf} reads. */
-export const MIRROR_HOSTS = Object.keys(MIRRORS);
+/** The hosts that republish `network`, or every mirror host when none is given. */
+export function mirrorHosts(network?: Mirror['network']): string[] {
+  return Object.entries(MIRRORS)
+    .filter(([, mirror]) => !network || mirror.network === network)
+    .map(([host]) => host);
+}
 
 function profileOf(network: Mirror['network'], handle: string): string {
   return upstreamProfileUrl(FEDERATION_NETWORKS[network], handle);
