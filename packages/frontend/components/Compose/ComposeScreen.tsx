@@ -623,17 +623,18 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
 
   /**
    * Whether the post may be written IN a community, and the community it
-   * actually goes out in. One original post, written as the author themselves:
-   * a reply takes its thread's community on the server, a thread's continuations
-   * are replies, and a community post is never published as another account —
-   * the server refuses each, so the control is not offered. Derived like
+   * actually goes out in. An original post or a THREAD, written as the author
+   * themselves: a reply takes its thread's community on the server (and so do a
+   * thread's continuations, which are replies), a beast batch is n independent
+   * posts the server refuses to file under one community, and a community post
+   * is never published as another account. Derived like
    * {@link effectiveMainPublishAs}, so a choice the payload would drop is not
    * drawn either.
    */
   const communityEligible =
     !replyToPostId &&
     !isEditMode &&
-    threadItems.length === 0 &&
+    (threadItems.length === 0 || postingMode === 'thread') &&
     !effectiveMainPublishAs &&
     supervision.ready &&
     !supervision.supervised;
@@ -1505,6 +1506,11 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         await createThread({
           mode: postingMode,
           posts: allPosts,
+          // A thread written in a community: the root names it, the
+          // continuations inherit it as replies (thread mode only — see above).
+          ...(effectiveCommunity && postingMode === 'thread'
+            ? { communityOxyUserId: effectiveCommunity.id }
+            : {}),
           // One time for the whole batch. The per-post builders also carry it,
           // but `POST /posts/thread` reads it from the TOP level — the schedule
           // belongs to the batch, not to any one post in it.

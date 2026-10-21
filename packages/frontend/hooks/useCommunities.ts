@@ -7,7 +7,7 @@ import { publicQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const MODERATORS_STALE_MS = 5 * 60 * 1000;
 
-/** The communities hosted here the viewer joined — where the composer may post. */
+/** The communities the viewer joined, hosted here or remote — where the composer may post. */
 export function useJoinedCommunities(enabled = true) {
   const { user, canUsePrivateApi } = useAuth();
   return useQuery<PostUser[]>({

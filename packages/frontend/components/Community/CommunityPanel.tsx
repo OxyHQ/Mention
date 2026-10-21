@@ -16,13 +16,19 @@ const MODERATOR_AVATAR_SIZE = 24;
 const MAX_MODERATOR_AVATARS = 5;
 
 interface CommunityPanelProps {
-  /** The community hosted here this page is for. */
+  /** The community this page is for. */
   communityId: string;
+  /**
+   * Whether it is hosted HERE. A remote community (Lemmy, PieFed, Mbin) takes
+   * posts from here too, but its moderators and bans are its own server's.
+   */
+  hosted: boolean;
 }
 
 /**
- * What a community hosted here adds to its page: who moderates it, a way to post
- * in it, and — for its moderators — the way to its moderators and its bans.
+ * What a community adds to its page: a way to post in it and — for one hosted
+ * here — who moderates it and, for its moderators, the way to its moderators and
+ * its bans. A remote community's moderation is its own server's.
  *
  * The feed, the member count and the Join button are the ordinary profile's
  * (a community's posts are the profile feed's community branch, its members are
@@ -32,12 +38,19 @@ interface CommunityPanelProps {
  * server's `assertCanModerateCommunity` reads. Managing moderators is Oxy's
  * shared account-members surface, not a second implementation here.
  */
-export const CommunityPanel = memo(function CommunityPanel({ communityId }: CommunityPanelProps) {
+export const CommunityPanel = memo(function CommunityPanel({
+  communityId,
+  hosted,
+}: CommunityPanelProps) {
   const { t } = useTranslation();
   const router = useRouter();
   const { canUsePrivateApi, showBottomSheet } = useAuth();
-  const { data: moderators = [] } = useCommunityModerators(communityId);
-  const moderates = useOperatesAccount({ accountId: communityId, accountKind: 'community' });
+  const { data: moderators = [] } = useCommunityModerators(hosted ? communityId : null);
+  const operates = useOperatesAccount({
+    accountId: hosted ? communityId : null,
+    accountKind: 'community',
+  });
+  const moderates = hosted && operates;
 
   const moderatorItems = useMemo<AvatarGroupItem[]>(
     () =>

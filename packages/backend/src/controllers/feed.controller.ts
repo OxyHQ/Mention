@@ -1,3 +1,7 @@
+import {
+  CommunityPostError,
+  resolveNativePostCommunity,
+} from '../services/communities/communityPosting';
 import { respondWithApiError } from '../utils/error';
 import type { SafetyRequester } from '@oxy.so/contracts';
 import type { Response } from 'express';
@@ -540,8 +544,22 @@ class FeedController {
 
       // If reviewReplies is enabled, set visibility to pending or use a flag
       // For now, we'll still create it but mark it for review
+      // A reply is written in its thread's community, hosted here or remote — the
+      // same rule `POST /posts` applies through `PostCreationService`, including
+      // the refusal of a member its moderators banned.
+      const communityOxyUserId = await resolveNativePostCommunity({
+        requestedCommunityOxyUserId: null,
+        authorId: currentUserId,
+        publishedAsAccount: false,
+        parentPostId: postId,
+        boostOf: null,
+        visibility: PostVisibility.PUBLIC,
+        hasTitle: false,
+      });
+
       const reply = await insertPostRecord({
         oxyUserId: currentUserId,
+        communityOxyUserId,
         authorship: buildAuthorship(currentUserId, []),
         type: PostType.TEXT,
         // The body's ONLY home is the primary rendition. This path used to write
@@ -650,6 +668,9 @@ class FeedController {
         reply: hydratedReply,
       });
     } catch (error) {
+      if (error instanceof CommunityPostError) {
+        return res.status(error.status).json({ message: error.message });
+      }
       logger.error('Error creating reply', error);
       res.status(500).json({
         error: 'Failed to create reply',

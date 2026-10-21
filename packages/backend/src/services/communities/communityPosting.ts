@@ -3,7 +3,7 @@ import { COMMUNITY_POST_TITLE_MAX_LENGTH, PostVisibility } from '@mention/shared
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { isBannedFromCommunity } from '../../db/communities/communityBanRepository';
-import { resolveMentionCommunity } from '../publishAsAccount';
+import { resolveCommunities } from '../publishAsAccount';
 
 /**
  * Which community a post written HERE is written in — the one rule for a native
@@ -11,14 +11,16 @@ import { resolveMentionCommunity } from '../publishAsAccount';
  * author told nothing would believe they had posted in the community).
  *
  * A community is open: anybody its moderators have not banned may post in it,
- * as themselves. A post written in one stays its author's — it carries the
+ * as themselves — one hosted here (Mention enforces its bans) or a remote one
+ * (Lemmy, PieFed, Mbin: the post is delivered to it, and its own server decides). A post written in one stays its author's — it carries the
  * community in `posts.community_oxy_user_id`, the column the federated ingest
  * already fills for Lemmy, PieFed and Mbin posts, so the community's page, the
  * Following feed of its members and the card's "in" row need nothing new.
  *
- * A REPLY is written in its thread's community: it inherits its parent's, when
- * that is a community hosted here, so a whole conversation is relayed to the
- * community's followers like Lemmy's comments are. It never names one itself.
+ * A REPLY is written in its thread's community: it inherits its parent's, so a
+ * whole conversation reaches the community's followers like Lemmy's comments
+ * do (relayed here, or delivered to the remote community). It never names one
+ * itself.
  */
 
 /** A refusal carrying the status the HTTP layer answers with. */
@@ -32,17 +34,18 @@ export class CommunityPostError extends Error {
   }
 }
 
-/** The community a post (a reply's parent) was written in, when it is hosted here. */
-export async function localCommunityOfPost(postId: string): Promise<string | null> {
+/**
+ * The community a post (a reply's parent) was written in — hosted here or
+ * remote. The column only ever holds a community (the kind decides it when the
+ * post is written), so it is read as stored.
+ */
+export async function communityOfPost(postId: string): Promise<string | null> {
   const [row] = await getDb()
     .select({ communityOxyUserId: posts.communityOxyUserId })
     .from(posts)
     .where(eq(posts.id, postId))
     .limit(1);
-  const community = row?.communityOxyUserId
-    ? await resolveMentionCommunity(row.communityOxyUserId)
-    : null;
-  return community ? (row?.communityOxyUserId ?? null) : null;
+  return row?.communityOxyUserId ?? null;
 }
 
 /** A community post's title: one trimmed plain-text line, or a refusal. */
@@ -82,7 +85,7 @@ export async function resolveNativePostCommunity(params: {
 
   let communityId: string | null;
   if (params.parentPostId) {
-    communityId = await localCommunityOfPost(params.parentPostId);
+    communityId = await communityOfPost(params.parentPostId);
     if (requested && requested !== communityId) {
       throw new CommunityPostError(400, "A reply is written in its thread's community");
     }
@@ -95,7 +98,7 @@ export async function resolveNativePostCommunity(params: {
     if (params.visibility !== PostVisibility.PUBLIC) {
       throw new CommunityPostError(400, 'A community post is public');
     }
-    if (!(await resolveMentionCommunity(requested))) {
+    if (!(await resolveCommunities([requested])).has(requested)) {
       throw new CommunityPostError(400, 'That account is not a community');
     }
     communityId = requested;
