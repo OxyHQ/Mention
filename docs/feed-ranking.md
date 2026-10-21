@@ -210,8 +210,8 @@ against its original too).
 
 ## For You Ranking (`FeedRankingService.rankPosts`)
 
-`rankPosts` is the ONE ranking path for ForYou, Explore, Videos, and Media
-feeds.
+`rankPosts` is the shared ranking path for presets that compute personalized
+scores. Pre-scored sources retain their own score order.
 
 - Candidates (`mtn/feed/feeds/forYouCandidateSources.ts`): multi-source,
   bounded, parallel — following, affinity, topic/language/region match,
@@ -220,12 +220,18 @@ feeds.
   authority (bounded log-scale follower count), AI + deterministic
   quality/spam/toxicity (provenance-gated), engagement weights, diversity
   penalties (`sameAuthorPenalty`, `sameTopicPenalty`).
-- Author-diversity rerank (`diversifyByAuthor`) runs BEFORE page
-  truncation; only the page window is hydrated. `capDiscoveryShare` then bounds
-  the share of the page that may come from discovery lanes, guaranteeing a floor
-  for trusted content. Both DEFER rather than drop, and both run INSIDE the
-  already-selected window: a served page has to stay a prefix of the score order,
-  or the next page's `score < cursor` filter skips what they moved.
+- The engine's enabled signal modules are authoritative: a preset that excludes
+  engagement or affinity does not receive those multipliers implicitly. Safety
+  penalties remain mandatory. Zero engagement is a neutral multiplier of one;
+  positive engagement adds a logarithmic lift, so new posts can still rank on
+  freshness, quality and relevance.
+- Session pages select membership jointly (`selectRankedPage`), preserving the
+  author cap before applying the discovery-share target and spacing the chosen
+  authors. If concentrated trusted inventory makes both constraints impossible,
+  distinct discovery authors take priority over the trusted-share target.
+  Same-author overflow fills only an otherwise short page. Deferred candidates
+  stay in session state for later pages; only the selected page is hydrated.
+  The stateless score-cursor fallback keeps its existing page-window rerank.
 - `trustTierBoost` (opt-in) lifts by the author's Oxy standing
   (`new` → `verified`, read from the cached account summary). Lift-only, and
   neutral for an unresolved author — `restricted` accounts never reach Mention at
@@ -263,6 +269,46 @@ presentation behave correctly.
 The language filter describes the post text, not speech or text embedded inside
 video frames. Mention does not transcribe audio or OCR video as part of feed
 selection.
+
+For You and Explore also exclude a standalone decimal-digit text body from
+recommendations when it has no reply/thread/quote/boost context, links, media,
+poll, article or other structured content. This is a narrowly calibrated rule,
+not a minimum text length. It changes neither import admission nor Following,
+profiles or search; discovery sources remain enabled.
+
+### Following ordering
+
+`feedSettings.following.sort` persists `chronological` (the default) or
+`relevance`. Both use the same followed accounts, subscribed lists and community
+memberships; relevance adds ordering, not discovery or a popular fallback.
+`sort` is a per-request override only for the Following descriptor. Following
+Direct always remains chronological. The existing feed settings screen owns
+the preference, and successful saves invalidate only that viewer's relevant
+cached feeds.
+
+### Ranked pagination sessions
+
+Ranked presets opt into opaque `fs1:` continuations when Redis is available.
+Session state stores candidate IDs, scores, source cursors and delivery history,
+never post bodies. It is bound to the viewer, definition, selection settings and
+page size. Each page reloads pending posts and reapplies current filters and
+hydration privacy checks. Recency and the initial seen set are pinned; live
+content, safety and newly gathered engagement can still change a retried page.
+
+Sessions expire 30 minutes after creation and scan at most 5,000 distinct IDs.
+Redis atomically retains the latest three immutable continuation snapshots per
+session, so deep scrolling cannot accumulate quadratic historical state. Older
+snapshots, missing Redis state, incompatible bindings and exhausted budgets
+return HTTP 410 with `error.code = FEED_CURSOR_EXPIRED`. The client replaces the
+feed with page one once, scoped to the current viewer and descriptor; a failed
+restart does not create an automatic retry loop.
+
+Source progress is independent of what was selected or filtered. Bounded scans
+can return an empty page with a continuation. A failed source remains resumable,
+and overlapping source windows do not imply exhaustion. Page one falls back to
+stateless pagination when Redis is unavailable. Existing popular fallback
+cursors remain valid; incompatible old personalized score cursors restart
+through the same typed 410 contract after the scoring change.
 
 ## Feed Interstitials (Recommendation Cards)
 
