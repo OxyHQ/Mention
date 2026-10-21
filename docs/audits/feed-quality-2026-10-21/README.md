@@ -514,3 +514,48 @@ followers. Any future import rule needs contextual examples and measured preserv
 of followed/requested content, accepted bell interest, boosts, quotes and conversation
 dependencies, while continuing to discover worthwhile unfamiliar authors. The current
 review report keeps every row protected and performs no deletion.
+
+
+### Production database verification — 23:11 UTC
+
+The bounded read-only task `85e1c21149174497bcc4badfbd060edd` exited successfully
+on `oxy-mention:682`, captured at **2026-10-21 23:11:51.414 UTC**. The live service
+was independently verified as completed with two running tasks using release
+`b1b7b0b64ac8494169ec783d60eca4d275cbe8df`, image digest
+`sha256:b6eccc7e64a1a0a7ff1ff68b572283f181effd6179931000fd01f9c12a7d8d9d`.
+The connection and transaction were READ ONLY with a 15-second statement timeout.
+[Aggregate evidence](./postdeploy-import-evidence-2026-10-21.json) contains no post
+bodies, subscriber identities or credentials.
+
+Both migration SQL hashes (`0090` provenance and `0091` Following sort) matched
+the production ledger. The two cascade foreign keys and reason/order constraints
+were validated; `feed_following_sort` is NOT NULL with default `chronological`.
+Ledger `created_at` values are migration version timestamps, not observations of
+when a migration ran.
+
+The audit account already had **eight bell subscriptions**, with **87 public root,
+nonboost posts from six subscribed authors in the preceding 72 hours**. This is
+potential supply; language, negative-intent, seen-state and ranking rules may
+exclude it. No bell subscription was changed for the test.
+
+| Initial import cause | Recorded posts | Distinct remote actors within cause |
+| --- | ---: | ---: |
+| Discovery backfill | 147 | 10 |
+| Reply dependency | 52 | 38 |
+| Boost dependency | 10 | 10 |
+| Unknown historical origin (NULL) | 593 | 45 |
+
+All 209 posts with an instrumented initial cause in this sample were public and
+published. Discovery causes were recorded from **23:08:50.192 to 23:11:35.848 UTC**;
+minute buckets recorded 14, 43, 53 and 37 new discovery imports at 23:08–23:11.
+This directly verifies continued discovery import activity across several minutes
+after the new backend started. It does not measure quality, newly discovered
+accounts or reduced unnecessary import volume. Actor counts overlap across causes
+and must not be added as a global unique total.
+
+Later reason observations included 547 followed-outbox, 184 discovery, 61 reply,
+19 boost and one quote reason. These counts include observations of existing
+posts and multiple reasons per post; they are **not new-import counts**. The 593
+NULL initial causes remain honest unknown history despite newly recorded necessity
+reasons. There was no historical-origin backfill, deletion or import-policy change
+as part of this verification.
