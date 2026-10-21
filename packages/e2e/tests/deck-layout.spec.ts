@@ -250,10 +250,15 @@ test('panel settings use one modal, update only that panel and survive reload', 
 
 test('the trailing edge creates a real screen panel and its settings can remove it', async ({
   page,
+  candidate,
 }) => {
   await page.goto('/deck');
   await expect(page.getByTestId('mention-shell-panels-deck-0')).toBeVisible();
-  await page.evaluate(() => window.scrollTo(document.scrollingElement!.scrollWidth, 0));
+  await page.evaluate(() => {
+    const documentScroller = document.scrollingElement;
+    if (!documentScroller) throw new Error('Document scroll owner is unavailable');
+    window.scrollTo(documentScroller.scrollWidth, 0);
+  });
   const edge = page.getByTestId('mention-shell-panels-trailing-action');
   await edge.hover();
   await edge.getByRole('button', { name: 'Add panel', exact: true }).click();
@@ -276,6 +281,11 @@ test('the trailing edge creates a real screen panel and its settings can remove 
   await expect(
     page.locator('[data-bloom-panel-index][data-testid^="mention-shell-panels-deck-"]'),
   ).toHaveCount(4);
+  expect(
+    candidate.scriptErrors.filter(
+      (error) => !/Failed to load animation data from URL: .*AbortError/.test(error),
+    ),
+  ).toEqual([]);
 });
 
 test('topic and hashtag screens render their feeds inside the column scroll owner', async ({
