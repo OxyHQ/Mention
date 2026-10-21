@@ -184,26 +184,15 @@ describe('AccountBadge — which marker the account state chooses', () => {
     expect(render(<AccountBadge isFederated={false} kind={undefined} />).toJSON()).toBeNull();
   });
 
-  it.each([
-    ['community', 'RiGroupLine'],
-    ['organization', 'RiBuildingLine'],
-    ['bot', 'RiRobot2Line'],
-  ] as const)('draws its KIND marker — and ONLY it — for a remote %s', (kind, icon) => {
-    const onExplainNetwork = jest.fn();
-    const renderer = render(
-      <AccountBadge kind={kind} isFederated onExplainNetwork={onExplainNetwork} />,
-    );
+  it.each(['community', 'organization', 'bot'] as const)(
+    'draws the fediverse marker — and ONLY it — for a remote %s',
+    (kind) => {
+      const renderer = render(<AccountBadge kind={kind} isFederated />);
 
-    // Bloom glyphs are the test-support stand-ins, named after the icon.
-    const glyphs = renderer.root.findAll(
-      (node) => (node.type as { displayName?: string }).displayName === icon,
-    );
-    expect(glyphs).toHaveLength(1);
-    expect(icons(renderer, 'FediverseIcon')).toHaveLength(0);
-    expect(labels(renderer)).toEqual([enStrings[`accountBadge.${kind}`]]);
-    // A remote marker, so the network explainer is the one it is armed with.
-    expect(buttons(renderer)).toHaveLength(1);
-  });
+      expect(icons(renderer, 'FediverseIcon')).toHaveLength(1);
+      expect(labels(renderer)).toEqual([REMOTE_LABEL]);
+    },
+  );
 
   it('draws the fediverse marker — and ONLY it — for a channel that is also federated', () => {
     const renderer = render(<AccountBadge kind="channel" isFederated />);

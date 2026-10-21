@@ -9,9 +9,6 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { AccountKind } from '@oxy.so/core';
-import { RiBuildingLine } from '@oxy.so/bloom/icons/RiBuildingLine';
-import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
-import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
 import { isMentionChannel } from '@mention/shared-types/profileUrls';
 import { ChannelIcon } from '@/assets/icons/channel-icon';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
@@ -64,39 +61,8 @@ interface IdentityBadgeVisualProps {
   style?: StyleProp<ViewStyle>;
 }
 
-/** What a marker's icon is drawn with. */
-type MarkerIcon = React.ComponentType<{ size?: number; color?: string; className?: string }>;
-
-/** A Bloom icon, drawn at a marker's size and tone. */
-function bloomMarkerIcon(Icon: typeof RiGroupLine): MarkerIcon {
-  return function BloomMarkerIcon({ size, color, className }) {
-    return <Icon width={size} height={size} fill={color} className={className} />;
-  };
-}
-
-/**
- * The REMOTE kinds that draw their own marker instead of the fediverse one, with
- * the i18n key of what a screen reader hears. The kind is Oxy's, read from the
- * remote actor's AS2 type by `@oxy.so/federation`'s actor-type table: a `Group`
- * is a `community`, an `Organization` an `organization`, a `Service` or an
- * `Application` a `bot` — the same distinctions Mastodon draws as its "Group"
- * and "Automated" badges. A remote `channel` (a PeerTube channel) is not a
- * Mention channel, so it keeps the fediverse marker.
- */
-const REMOTE_KIND_MARKERS = {
-  community: { Icon: bloomMarkerIcon(RiGroupLine), labelKey: 'accountBadge.community' },
-  organization: { Icon: bloomMarkerIcon(RiBuildingLine), labelKey: 'accountBadge.organization' },
-  bot: { Icon: bloomMarkerIcon(RiRobot2Line), labelKey: 'accountBadge.bot' },
-} as const satisfies Partial<Record<AccountKind, { Icon: MarkerIcon; labelKey: string }>>;
-
-function remoteKindMarker(kind: AccountKind | undefined) {
-  return kind && kind in REMOTE_KIND_MARKERS
-    ? REMOTE_KIND_MARKERS[kind as keyof typeof REMOTE_KIND_MARKERS]
-    : undefined;
-}
-
 interface IdentityMarkerProps extends IdentityBadgeVisualProps {
-  Icon: MarkerIcon;
+  Icon: React.ComponentType<{ size?: number; color?: string; className?: string }>;
   a11yLabel: string;
   /**
    * Opt IN to interactivity. Absent → a plain icon that cannot be tapped and
@@ -203,13 +169,8 @@ export interface AccountBadgeProps extends IdentityBadgeVisualProps {
  *
  *  - A Mention channel ({@link isMentionChannel}) draws the channel marker. A
  *    channel is a local account, so it never competes with the fediverse one.
- *  - A remote community, organization or bot draws ITS KIND's marker
- *    ({@link REMOTE_KIND_MARKERS}). The kind is the fact that changes how the row
- *    reads — a community's posts are its members', a bot is automated — while
- *    "lives on another server" is already printed in its `@name@instance`
- *    handle. The kind is Oxy's own record of the remote actor's type, so it is a
- *    reviewed claim, not one an instance can make up for a local account.
- *  - Every other remote account draws the fediverse marker.
+ *  - Every remote account draws the fediverse marker, whatever its kind: a bot
+ *    or a community is not given an icon of its own.
  *
  * A local organization, project or bot draws nothing: its page names what it is
  * (`AccountCategoryLine`), and this line is unchanged for it.
@@ -243,12 +204,11 @@ function AccountBadgeMarker({
     );
   }
 
-  const remoteKind = remoteKindMarker(kind);
   return (
     <IdentityMarker
       {...visual}
-      Icon={remoteKind?.Icon ?? FediverseIcon}
-      a11yLabel={t(remoteKind?.labelKey ?? 'fediverse.remoteBadge.a11yLabel')}
+      Icon={FediverseIcon}
+      a11yLabel={t('fediverse.remoteBadge.a11yLabel')}
       onExplain={onExplainNetwork}
     />
   );
