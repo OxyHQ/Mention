@@ -864,6 +864,34 @@ describe('FeedEngine — filtered chronological pagination', () => {
     expect(third.hasMore).toBe(false);
   });
 
+  it.each([1, 1.5])(
+    'caps filtered and overfetched chronological pages at the requested limit (overfetch %s)',
+    async (overfetchMultiplier) => {
+      const posts = Array.from({ length: 61 }, (_, index) =>
+        makePost(61 - index, {
+          hashtags: index === 0 ? ['hidden'] : [],
+        }),
+      );
+      const definition = { ...timeline(posts), execution: { overfetchMultiplier } };
+      const served: string[] = [];
+      let cursor: string | undefined;
+      let hasMore = true;
+      for (let page = 0; page < 4 && hasMore; page += 1) {
+        const result = await engine.run(definition, {}, { limit: 20, cursor });
+        expect(result.slices.length).toBeLessThanOrEqual(20);
+        expect(result.items.length).toBeLessThanOrEqual(20);
+        served.push(...result.items.map((post) => post.id));
+        cursor = result.nextCursor;
+        hasMore = result.hasMore;
+      }
+      expect(hasMore).toBe(false);
+      expect(served).toEqual(
+        posts.filter((post) => !post.hashtags.includes('hidden')).map((post) => post.id),
+      );
+      expect(new Set(served).size).toBe(60);
+    },
+  );
+
   it('returns an advancing cursor through an entirely rejected bounded scan', async () => {
     const posts = Array.from({ length: 14 }, (_, n) =>
       makePost(14 - n, {
@@ -876,8 +904,11 @@ describe('FeedEngine — filtered chronological pagination', () => {
     expect(first.hasMore).toBe(true);
     expect(first.nextCursor).toBeTruthy();
     const next = await engine.run(definition, {}, { limit: 2, cursor: first.nextCursor });
-    expect(next.items.map((post) => post.id)).toEqual([id(3), id(2), id(1)]);
-    expect(next.hasMore).toBe(false);
+    expect(next.items.map((post) => post.id)).toEqual([id(3), id(2)]);
+    expect(next.hasMore).toBe(true);
+    const final = await engine.run(definition, {}, { limit: 2, cursor: next.nextCursor });
+    expect(final.items.map((post) => post.id)).toEqual([id(1)]);
+    expect(final.hasMore).toBe(false);
   });
 });
 

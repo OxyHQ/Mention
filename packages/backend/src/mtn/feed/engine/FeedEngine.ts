@@ -1308,9 +1308,18 @@ export class FeedEngine {
         limit,
         measureOnly,
       );
-      accepted.push(...result.pool);
-      hasMore = result.hasMore;
-      const last = result.scanned[result.scanned.length - 1];
+      const remaining = limit - accepted.length;
+      const visible = result.pool.slice().sort(compareChronological);
+      const deferred = visible.length > remaining;
+      accepted.push(...visible.slice(0, remaining));
+      hasMore = result.hasMore || deferred;
+      // A partially filled page or source overfetch may produce more visible
+      // rows than fit. Stop before those deferred rows, not at the raw scan tail:
+      // otherwise the next request would permanently skip them. When every
+      // visible row fits, consume the full raw watermark (including rejects).
+      const last = deferred
+        ? accepted[accepted.length - 1]
+        : result.scanned[result.scanned.length - 1];
       const next = last ? ChronoCursor.build(last.id, last.createdAt) : undefined;
       if (!next || !didCursorAdvance(next, scanCursor)) {
         hasMore = false;
