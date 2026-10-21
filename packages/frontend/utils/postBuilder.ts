@@ -85,6 +85,15 @@ interface BuildMainPostParams {
    */
   publishAsOxyUserId?: string;
   /**
+   * The community hosted here the post is written IN. The post stays the
+   * author's; the server refuses it on a reply, a boost, a post published as
+   * another account and a non-public post, and the composer offers it only where
+   * it can be taken.
+   */
+  communityOxyUserId?: string;
+  /** A community post's optional title (one plain line); ignored without a community. */
+  title?: string;
+  /**
    * The author renditions of this post, PRIMARY FIRST — order is what names the
    * primary. `null` when the author declared no language, which keeps a
    * single-language post's payload exactly what it has always been and leaves the
@@ -135,6 +144,8 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
     collaboratorIds,
     laneId,
     publishAsOxyUserId,
+    communityOxyUserId,
+    title,
     variantContent,
   } = params;
 
@@ -171,6 +182,7 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
   return {
     content: {
       text: postContent.trim(),
+      ...(communityOxyUserId && title?.trim() ? { title: title.trim() } : {}),
       ...(variantContent ? { variants: variantContent } : {}),
       media: mediaIds.map((m) => ({
         id: m.id,
@@ -220,6 +232,9 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
     // post: dropped, the post publishes under the caller's own name instead of
     // the account they chose, with a 201 and nothing to see.
     publishAsOxyUserId,
+    // Plain, for the same reason as `publishAsOxyUserId`: dropped, the post
+    // publishes outside the community the author chose, with a 201.
+    communityOxyUserId,
     ...(isSensitive ? { metadata: { isSensitive: true } } : {}),
     ...(wasScheduled && scheduledAt
       ? {

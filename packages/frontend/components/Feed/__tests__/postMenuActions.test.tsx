@@ -54,6 +54,15 @@ jest.mock('@/services/reportService', () => ({
     return mockReport;
   },
 }));
+const mockCommunities = {
+  removePost: jest.fn(async () => undefined),
+  ban: jest.fn(async () => undefined),
+};
+jest.mock('@/services/communityService', () => ({
+  get communityService() {
+    return mockCommunities;
+  },
+}));
 jest.mock('@/stores/laneInvalidation', () => ({ noteLaneListsChanged: jest.fn() }));
 const mockInvalidateCounts = jest.fn();
 jest.mock('@/stores/profileCountsInvalidation', () => ({
@@ -125,6 +134,7 @@ function build(
       isSaved: false,
       hasArticle: false,
       hasSources: false,
+      moderatesCommunity: false,
       onSave: jest.fn(async () => undefined),
       onOpenArticle: jest.fn(),
       onOpenSources: jest.fn(),
@@ -516,5 +526,34 @@ describe('what the actions do', () => {
     });
     await find(laneActions, 'lanes.postActions.muteLane').onPress();
     expect(mockToast).toHaveBeenCalledWith('lanes.postActions.muteLaneFailed', { type: 'error' });
+  });
+
+  it("offers a community's moderator removal and a ban, and only them", async () => {
+    const viewPost = makePost({
+      community: {
+        id: 'forum-1',
+        username: 'forum',
+        kind: 'community',
+      } as HydratedPost['community'],
+    });
+    expect(labels(build({ viewPost }))).not.toContain('communities.postActions.remove');
+
+    const moderated = build({ viewPost, moderatesCommunity: true });
+    await find(moderated, 'communities.postActions.remove').onPress();
+    expect(mockCommunities.removePost).toHaveBeenCalledWith('forum-1', 'p1');
+    expect(mockStore.updatePostEverywhere).toHaveBeenCalledWith('p1', expect.any(Function));
+    await find(moderated, 'communities.postActions.ban').onPress();
+    expect(mockCommunities.ban).toHaveBeenCalledWith('forum-1', 'author-1');
+
+    // A moderator's own post: removable, never a self-ban.
+    const own = build({
+      viewPost: makePost({
+        user: { id: 'viewer-1', username: 'me', name: {} } as HydratedPost['user'],
+        community: viewPost.community,
+      }),
+      moderatesCommunity: true,
+    });
+    expect(labels(own)).toContain('communities.postActions.remove');
+    expect(labels(own)).not.toContain('communities.postActions.ban');
   });
 });

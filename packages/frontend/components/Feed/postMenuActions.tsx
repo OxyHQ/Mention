@@ -32,6 +32,7 @@ import { muteService } from '@/services/muteService';
 import { lanesService } from '@/services/lanesService';
 import { noteLaneListsChanged } from '@/stores/laneInvalidation';
 import { reportService } from '@/services/reportService';
+import { communityService } from '@/services/communityService';
 import { List as ListIcon } from '@/assets/icons/list-icon';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { invalidateProfileCounts } from '@/stores/profileCountsInvalidation';
@@ -106,6 +107,12 @@ export interface PostMenuParams {
   isSaved: boolean;
   hasArticle: boolean;
   hasSources: boolean;
+  /**
+   * The viewer moderates the community hosted here the post is written in —
+   * an active member of it, read off the account graph by the binder. The
+   * server re-checks every action (`assertCanModerateCommunity`).
+   */
+  moderatesCommunity: boolean;
   onSave: () => Promise<void>;
   onOpenArticle: () => void;
   onOpenSources: () => void;
@@ -120,6 +127,7 @@ export interface PostMenuActions {
   articleAction: ActionMenuAction[];
   sourcesAction: ActionMenuAction[];
   muteReportAction: ActionMenuAction[];
+  communityModerationAction: ActionMenuAction[];
   copyLinkAction: ActionMenuAction[];
 }
 
@@ -133,6 +141,7 @@ export function buildPostMenuActions(
     isSaved,
     hasArticle,
     hasSources,
+    moderatesCommunity,
     onSave,
     onOpenArticle,
     onOpenSources,
@@ -628,6 +637,105 @@ export function buildPostMenuActions(
       });
     }
 
+    // A community moderator's two actions on a post written in it. Removing it
+    // takes it out of the community — it stays its author's — and banning its
+    // author refuses their posts there from now on. Neither is offered on the
+    // moderator's own post's author (a moderator cannot ban themselves).
+    const communityModerationAction: ActionMenuAction[] = [];
+    const community = viewPost?.community;
+    if (moderatesCommunity && community?.id && postId) {
+      const communityHandle = getNormalizedUserHandle(community) || '';
+      const authorHandle = getNormalizedUserHandle(viewPost?.user) || '';
+      communityModerationAction.push({
+        icon: <HideIcon size={20} className="text-muted-foreground" />,
+        label: t('communities.postActions.remove', {
+          community: communityHandle,
+          defaultValue: 'Remove from !{{community}}',
+        }),
+        onPress: async () => {
+          const confirmed = await confirmDialog({
+            title: t('communities.postActions.removeTitle', {
+              defaultValue: 'Remove this post from the community?',
+            }),
+            message: t('communities.postActions.removeMessage', {
+              defaultValue:
+                'It stays on its author’s profile, but leaves the community and its members’ feeds, here and on the fediverse.',
+            }),
+            okText: t('communities.postActions.removeConfirm', { defaultValue: 'Remove' }),
+            cancelText: t('postActions.cancel'),
+            destructive: true,
+          });
+          if (!confirmed) return;
+          try {
+            await communityService.removePost(community.id, postId);
+            updatePostEverywhere(postId, (prev) => ({ ...prev, community: undefined }));
+            toast(
+              t('communities.postActions.removed', { defaultValue: 'Removed from the community' }),
+              {
+                type: 'success',
+              },
+            );
+          } catch (e) {
+            logger.error('Failed to remove a post from its community', e);
+            toast(
+              t('communities.postActions.removeFailed', {
+                defaultValue: 'Could not remove the post',
+              }),
+              { type: 'error' },
+            );
+          }
+        },
+      });
+      const authorId = viewPost?.user?.id;
+      if (authorId && authorId !== viewerId) {
+        communityModerationAction.push({
+          icon: <ReportIcon size={20} className="text-destructive" />,
+          label: t('communities.postActions.ban', {
+            username: authorHandle,
+            community: communityHandle,
+            defaultValue: 'Ban @{{username}} from !{{community}}',
+          }),
+          color: theme.colors.error,
+          onPress: async () => {
+            const confirmed = await confirmDialog({
+              title: t('communities.postActions.banTitle', {
+                username: authorHandle,
+                defaultValue: 'Ban @{{username}}?',
+              }),
+              message: t('communities.postActions.banMessage', {
+                defaultValue:
+                  'They can no longer post or reply in this community. What they already posted stays until you remove it.',
+              }),
+              okText: t('communities.postActions.banConfirm', { defaultValue: 'Ban' }),
+              cancelText: t('postActions.cancel'),
+              destructive: true,
+            });
+            if (!confirmed) return;
+            try {
+              await communityService.ban(community.id, authorId);
+              void queryClient.invalidateQueries({
+                queryKey: viewerQueryKeys.communityBans(viewerId, community.id),
+              });
+              toast(
+                t('communities.postActions.banned', { defaultValue: 'Banned from the community' }),
+                {
+                  type: 'success',
+                },
+              );
+            } catch (e) {
+              logger.error('Failed to ban a member from a community', e);
+              toast(
+                t('communities.postActions.banFailed', { defaultValue: 'Could not ban them' }),
+                {
+                  type: 'error',
+                },
+              );
+            }
+          },
+        });
+      }
+    }
+
     const copyLinkAction = [
       {
         icon: <LinkIcon size={20} className="text-muted-foreground" />,
@@ -655,6 +763,7 @@ export function buildPostMenuActions(
       articleAction,
       sourcesAction,
       muteReportAction,
+      communityModerationAction,
       copyLinkAction,
     };
   }

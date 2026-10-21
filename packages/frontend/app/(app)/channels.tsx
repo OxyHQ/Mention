@@ -1,217 +1,38 @@
-import { ListSkeleton } from '@/components/loading/ContentSkeleton';
-import { useCallback, useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
-import { toast } from '@oxy.so/bloom/toast';
-import { Field } from '@oxy.so/bloom/field';
-import { InputGroup, InputGroupAddon } from '@oxy.so/bloom/input-group';
-import { TextFieldInput } from '@oxy.so/bloom/text-field';
-import { Item } from '@oxy.so/bloom/item';
-import { useAuth } from '@oxy.so/services/ui/client';
-import { getNormalizedUserHandle } from '@oxy.so/core';
-import type { AccountNode } from '@oxy.so/core';
-import { logger } from '@oxy.so/core/logger';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { useSafeBack } from '@/hooks/useSafeBack';
-import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { displayNameOrHandle } from '@/utils/displayName';
-import { FocusedScrollView } from '@/components/common/FocusedScrollView';
-import { useScreenReselect } from '@/context/ScreenReselectContext';
-import { SignInRequired } from '@/components/common/SignInRequired';
+import { OperatedAccountsScreen } from '@/components/OperatedAccounts/OperatedAccountsScreen';
 
 /**
- * The channels you operate, and the one place to create another.
- *
- * A channel is an Oxy ACCOUNT (`kind: 'channel'`), so this reads the account
- * graph rather than a Mention-local table, and creating one is
- * `POST /accounts` with the caller's OWN bearer — the same call that mints an
- * organization or a project. There is no privileged scope and no server-side
- * provisioning step: a signed-in person has already proven who they are, and a
- * channel is a child account under their own tree.
- *
- * What makes a channel different is enforced elsewhere and does not depend on
- * who created it: `createChildAccount` writes no auth method, so it is born with
- * no login, and `POST /accounts/:id/switch` refuses the kind — no session can
- * ever have a channel as its subject. That is why a channel is never in the
- * account switcher, and why publishing as one goes through the composer's
- * `publishAsOxyUserId` rather than by becoming it.
+ * The channels you operate, and the one place to create another. A channel is
+ * an Oxy account people follow without following the people who write for it;
+ * see `OperatedAccountsScreen` for what creating one is.
  */
-
-/** Mirrors the server's `username` rule so the error arrives before the request. */
-const HANDLE_REGEX = /^[a-zA-Z0-9_-]{3,30}$/;
-const MAX_TITLE_LENGTH = 100;
-
 export default function ChannelsScreen() {
-  const router = useRouter();
   const { t } = useTranslation();
-  const { user, oxyServices, canUsePrivateApi } = useAuth();
-  const safeBack = useSafeBack();
-  const queryClient = useQueryClient();
-
-  const [handle, setHandle] = useState('');
-  const [title, setTitle] = useState('');
-
-  const {
-    data: accounts = [],
-    isLoading,
-    refetch,
-  } = useQuery<AccountNode[]>({
-    queryKey: viewerQueryKeys.operatedAccounts(user?.id),
-    queryFn: () => oxyServices.accounts.list(),
-    enabled: canUsePrivateApi,
-  });
-  useScreenReselect({ refresh: refetch });
-
-  const channels = useMemo(
-    () => accounts.filter((account) => account.kind === 'channel'),
-    [accounts],
-  );
-
-  const trimmedHandle = handle.trim();
-  const trimmedTitle = title.trim();
-  const handleError = trimmedHandle.length > 0 && !HANDLE_REGEX.test(trimmedHandle);
-  const canCreate = HANDLE_REGEX.test(trimmedHandle) && trimmedTitle.length > 0;
-
-  const createMutation = useMutation({
-    mutationFn: () =>
-      oxyServices.accounts.create({
-        kind: 'channel',
-        username: trimmedHandle,
-        // A channel has a TITLE, not a given-and-family name, so it sets the
-        // explicit display name rather than having one composed from `first`.
-        name: { displayName: trimmedTitle },
-      }),
-    onSuccess: async (account) => {
-      setHandle('');
-      setTitle('');
-      // The picker in the composer reads the same key, so it must not keep
-      // serving a list this screen just added to.
-      await queryClient.invalidateQueries({
-        queryKey: viewerQueryKeys.operatedAccounts(user?.id),
-      });
-      toast.success(t('channels.created', { defaultValue: 'Channel created' }));
-      const created = getNormalizedUserHandle(account.account) ?? trimmedHandle;
-      router.push(`/c/${created}`);
-    },
-    onError: (error) => {
-      logger.error('[Channels] Failed to create a channel', error);
-      toast.error(t('channels.createFailed', { defaultValue: 'Failed to create the channel' }));
-    },
-  });
-
-  const openChannel = useCallback(
-    (account: AccountNode) => {
-      const target = getNormalizedUserHandle(account.account);
-      if (!target) return;
-      router.push(`/c/${target}`);
-    },
-    [router],
-  );
-
   return (
-    <View className="flex-1">
-      <PageHeader
-        title={t('channels.title', { defaultValue: 'Channels' })}
-        onBack={() => safeBack()}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-      />
-
-      <SignInRequired
-        label={t('channels.signInRequired', { defaultValue: 'Sign in to manage your channels' })}
-        description={t('channels.signInRequiredDesc', {
+    <OperatedAccountsScreen
+      kind="channel"
+      copy={{
+        title: t('channels.title', { defaultValue: 'Channels' }),
+        signInRequired: t('channels.signInRequired', {
+          defaultValue: 'Sign in to manage your channels',
+        }),
+        signInRequiredDesc: t('channels.signInRequiredDesc', {
           defaultValue:
             'A channel is an account people follow without following the people who write for it.',
-        })}
-      >
-        <FocusedScrollView className="flex-1" contentContainerClassName="pb-10">
-          <View className="px-4 pt-4 pb-2">
-            <Text className="text-foreground text-lg font-bold">
-              {t('channels.createTitle', { defaultValue: 'Create a channel' })}
-            </Text>
-            <Text className="text-muted-foreground text-[13px] mt-1">
-              {t('channels.createSubtitle', {
-                defaultValue:
-                  'A channel posts under its own name. People follow it without following you.',
-              })}
-            </Text>
-          </View>
-
-          <View className="px-4 gap-3">
-            <Field
-              error={
-                handleError
-                  ? t('channels.handleInvalid', {
-                      defaultValue: '3–30 characters: letters, numbers, _ or -',
-                    })
-                  : null
-              }
-            >
-              <InputGroup>
-                <InputGroupAddon>@</InputGroupAddon>
-                <TextFieldInput
-                  label={t('channels.handleLabel', { defaultValue: 'Channel handle' })}
-                  placeholder={t('channels.handlePlaceholder', { defaultValue: 'handle' })}
-                  value={handle}
-                  onChangeText={setHandle}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </InputGroup>
-            </Field>
-
-            <TextFieldInput
-              label={t('channels.titleLabel', { defaultValue: 'Channel name' })}
-              placeholder={t('channels.titlePlaceholder', { defaultValue: 'Channel name' })}
-              value={title}
-              onChangeText={setTitle}
-              maxLength={MAX_TITLE_LENGTH}
-            />
-
-            <Item
-              onPress={canCreate && !createMutation.isPending ? createMutation.mutate : undefined}
-              disabled={!canCreate || createMutation.isPending}
-              title={
-                createMutation.isPending
-                  ? t('channels.creating', { defaultValue: 'Creating…' })
-                  : t('channels.create', { defaultValue: 'Create channel' })
-              }
-            />
-          </View>
-
-          <View className="px-4 pt-8 pb-2">
-            <Text className="text-foreground text-lg font-bold">
-              {t('channels.yours', { defaultValue: 'Your channels' })}
-            </Text>
-          </View>
-
-          {isLoading ? (
-            <View className="py-8">
-              <ListSkeleton />
-            </View>
-          ) : channels.length === 0 ? (
-            <Text className="text-muted-foreground text-[14px] px-4 py-3">
-              {t('channels.none', { defaultValue: 'You do not operate any channel yet.' })}
-            </Text>
-          ) : (
-            channels.map((account) => {
-              const accountHandle = getNormalizedUserHandle(account.account) ?? '';
-              return (
-                <Item
-                  key={account.accountId}
-                  onPress={() => openChannel(account)}
-                  title={displayNameOrHandle(
-                    account.account.name?.displayName,
-                    accountHandle ? `@${accountHandle}` : '',
-                  )}
-                  subtitle={accountHandle ? `@${accountHandle}` : undefined}
-                />
-              );
-            })
-          )}
-        </FocusedScrollView>
-      </SignInRequired>
-    </View>
+        }),
+        createTitle: t('channels.createTitle', { defaultValue: 'Create a channel' }),
+        createSubtitle: t('channels.createSubtitle', {
+          defaultValue:
+            'A channel posts under its own name. People follow it without following you.',
+        }),
+        handleLabel: t('channels.handleLabel', { defaultValue: 'Channel handle' }),
+        titleLabel: t('channels.titleLabel', { defaultValue: 'Channel name' }),
+        create: t('channels.create', { defaultValue: 'Create channel' }),
+        yours: t('channels.yours', { defaultValue: 'Your channels' }),
+        none: t('channels.none', { defaultValue: 'You do not operate any channel yet.' }),
+        created: t('channels.created', { defaultValue: 'Channel created' }),
+        createFailed: t('channels.createFailed', { defaultValue: 'Failed to create the channel' }),
+      }}
+    />
   );
 }

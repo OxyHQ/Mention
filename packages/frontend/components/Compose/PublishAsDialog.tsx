@@ -89,11 +89,14 @@ const PublishAsDialog = memo(function PublishAsDialog({
   });
 
   // Every account the caller may act for EXCEPT their own, which the "Myself"
-  // row above the list already is. Kind is not a filter here: the server decides
-  // what the caller may publish as out of the account graph, and a UI that
-  // narrowed it further would hide accounts it would have accepted.
+  // row above the list already is, and except the communities they moderate: a
+  // community is posted IN (the composer's community chip), never published AS
+  // — the server refuses it. Otherwise kind is not a filter here: the server
+  // decides what the caller may publish as out of the account graph, and a UI
+  // that narrowed it further would hide accounts it would have accepted.
   const otherAccounts = useMemo(
-    () => accounts.filter((account) => account.accountId !== user?.id),
+    () =>
+      accounts.filter((account) => account.accountId !== user?.id && account.kind !== 'community'),
     [accounts, user?.id],
   );
 

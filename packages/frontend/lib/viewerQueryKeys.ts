@@ -52,6 +52,9 @@ export const publicQueryKeys = {
    * depend on who is asking and two readers must not hold separate copies of it.
    */
   postCorrections: (postId: string) => [...PUBLIC_ROOT, 'post-corrections', postId] as const,
+  /** A community's moderators — public, as Oxy publishes them (the Group's `attributedTo`). */
+  communityModerators: (communityId: string) =>
+    [...PUBLIC_ROOT, 'community-moderators', communityId] as const,
   /**
    * The topic catalogue behind the interests picker — the default grid when the
    * search box is empty, and the matches for a query otherwise.
@@ -278,6 +281,12 @@ export const viewerQueryKeys = {
    */
   operatedAccounts: (viewerId: ViewerId) =>
     [...viewerQueryKeys.all(viewerId), 'accounts', 'operated'] as const,
+  /** The communities hosted here the viewer joined — the composer's choice of where to post. */
+  joinedCommunities: (viewerId: ViewerId) =>
+    [...viewerQueryKeys.all(viewerId), 'communities', 'joined'] as const,
+  /** ONE community's bans, as its moderators read them. */
+  communityBans: (viewerId: ViewerId, communityId: string) =>
+    [...viewerQueryKeys.all(viewerId), 'communities', 'bans', communityId] as const,
   /**
    * The Mention-owned settings of ONE channel account, keyed by that account's
    * `oxyUserId` — not by the caller's, because a channel has no login of its own

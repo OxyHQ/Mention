@@ -563,6 +563,8 @@ class FeedService {
       // above, and the stakes are higher: dropped, the post is authored by the
       // person instead of by the channel, with a 201 either way.
       ...(request.publishAsOxyUserId && { publishAsOxyUserId: request.publishAsOxyUserId }),
+      // The community the post is written in — the same whitelist rule again.
+      ...(request.communityOxyUserId && { communityOxyUserId: request.communityOxyUserId }),
     };
 
     const response = await authenticatedClient.post<{ success?: boolean; post?: HydratedPost }>(

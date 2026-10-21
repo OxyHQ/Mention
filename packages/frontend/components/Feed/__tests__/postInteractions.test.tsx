@@ -83,6 +83,7 @@ jest.mock('@/components/Profile/pinnedPostQuery', () => ({
 jest.mock('@/services/muteService', () => ({ muteService: {} }));
 jest.mock('@/services/lanesService', () => ({ lanesService: {} }));
 jest.mock('@/services/reportService', () => ({ reportService: {} }));
+jest.mock('@/services/communityService', () => ({ communityService: {} }));
 jest.mock('@/stores/laneInvalidation', () => ({ noteLaneListsChanged: jest.fn() }));
 jest.mock('@/utils/alerts', () => ({ confirmDialog: jest.fn() }));
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn() }));

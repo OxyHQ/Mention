@@ -13,7 +13,7 @@ import { sanitizeHomiioCase, getHomiioCaseUrl } from '@mention/shared-types/homi
  *
  * Schema (see `docs/INTENT_URL.md`):
  *  text, url, mediaUrl, hashtags, via, mentions, replyToPostId, quotePostId,
- *  editPostId, pollOptions, pollDurationDays, articleTitle, articleBody,
+ *  editPostId, community, pollOptions, pollDurationDays, articleTitle, articleBody,
  *  eventName, eventDate, eventLocation, eventDescription, lat, lng, address,
  *  sources, scheduledFor, sensitive, replyPermission, quotesDisabled, lang,
  *  thread[0].text … thread[4].text.
@@ -96,6 +96,12 @@ export interface ComposeIntent {
   replyToPostId?: string;
   quotePostId?: string;
   editPostId?: string;
+  /**
+   * The community (an Oxy account id) the post is written in — what a
+   * community page's "Post" button opens the composer with. The server decides
+   * whether it is one the author may post in.
+   */
+  community?: string;
   poll?: ComposeIntentPollOptions;
   article?: ComposeIntentArticle;
   event?: ComposeIntentEvent;
@@ -361,6 +367,11 @@ export const parseComposeIntent = (raw: ComposeIntentRawParams): ComposeIntent =
     intent.editPostId = editPostIdValue;
   }
 
+  const communityValue = sanitizeText(firstString(raw.community));
+  if (communityValue !== undefined) {
+    intent.community = communityValue;
+  }
+
   const pollOptionsRaw = parsePipeList(firstString(raw.pollOptions));
   if (pollOptionsRaw.length >= MIN_POLL_OPTIONS) {
     const cleaned = pollOptionsRaw
@@ -522,6 +533,7 @@ export const hasIntentContent = (intent: ComposeIntent): boolean => {
       intent.replyToPostId ||
       intent.quotePostId ||
       intent.editPostId ||
+      intent.community ||
       intent.poll ||
       intent.article ||
       intent.event ||
