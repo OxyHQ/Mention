@@ -2,6 +2,7 @@ import { resolveAvatarUrl } from '../../utils/mediaResolver';
 import sanitizeHtml from 'sanitize-html';
 import { decode as decodeEntities } from 'he';
 import { normalizeInlineText } from '@oxy.so/core';
+import { readResponseJson } from '@oxy.so/core/server';
 import {
   createActorResolver,
   type ActorResolverConfig,
@@ -25,7 +26,6 @@ import { FEDERATION_ENABLED, isBlockedDomain } from './constants';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
 import { signedFetch, firstStringUrl, normalizeFederatedAcct, domainFromAcct } from './helpers';
-import { readBoundedResponseBody } from '../shared/httpBody';
 import { reportFederatedActorGone } from '../identity';
 import { resolveOxyIdentity } from '../oxyIdentity';
 import { reconcileActorIdentityProjection } from '../../services/ActorIdentityProjectionService';
@@ -160,10 +160,11 @@ const store: FederatedActorStore<EngineFederatedActorRecord> = {
 };
 
 /**
- * SSRF-safe bounded WebFinger fetch. Validates + IP-pins the URL, enforces the
- * 256 KiB cap, and returns the parsed JRD (or null on a non-2xx). A network /
- * parse / size-limit failure throws and is treated by the resolver as a failed
- * resolution.
+ * SSRF-safe bounded WebFinger fetch. Validates + IP-pins the URL, reads the body
+ * within the 256 KiB cap and {@link WEBFINGER_TIMEOUT_MS}, and returns the parsed
+ * JRD (or null on a non-2xx). A network, parse, size-limit or body-deadline
+ * failure throws, naming which, and the resolver treats it as a failed
+ * resolution (nothing is cached, so the next lookup tries again).
  */
 const fetchWebFinger: WebFingerFetch = async (url) => {
   const { response, status } = await fetchUpstreamSingleHop(url, {
@@ -175,8 +176,22 @@ const fetchWebFinger: WebFingerFetch = async (url) => {
     response.destroy();
     return null;
   }
-  const body = await readBoundedResponseBody(response, WEBFINGER_MAX_BYTES);
-  return JSON.parse(Buffer.from(body).toString('utf8')) as WebFingerJrd;
+  const result = await readResponseJson<WebFingerJrd>(response, {
+    maxBytes: WEBFINGER_MAX_BYTES,
+    timeoutMs: WEBFINGER_TIMEOUT_MS,
+  });
+  switch (result.kind) {
+    case 'ok':
+      return result.value;
+    case 'too_large':
+      throw new Error(`WebFinger response exceeded ${WEBFINGER_MAX_BYTES} bytes`);
+    case 'timeout':
+      throw new Error(`WebFinger response body did not end within ${WEBFINGER_TIMEOUT_MS} ms`);
+    case 'invalid_json':
+      throw new Error('WebFinger response is not JSON');
+    case 'error':
+      throw result.error;
+  }
 };
 
 /**
