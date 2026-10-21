@@ -74,9 +74,11 @@ paging. Authentication gates still wait for a resolved, usable session before
 revealing private content. Spinners belong to actions and media buffering, not
 initial screen reads. The pre-theme font splash retains only the brand mark.
 
-Deck's Metro route context is synchronous: resolve its modules when rendered,
-without wrapping already available screens in `React.lazy`/`Promise.resolve`.
-Actual lazy descendants may still use the panel's Suspense skeleton. The slow-read
+Deck's Metro route context uses `lazy` mode so the startup bundle does not import
+every screen. Stable lazy route components share resolved modules across panels
+and revisits; real chunk loads use the panel's Suspense skeleton. Failed imports
+reach Bloom's PanelErrorBoundary, whose retry resets only failed module records.
+Do not simulate asynchronous loading with `Promise.resolve` over eager imports. The slow-read
 Deck regression holds a topic response, checks the skeleton and working Back
 button, then checks that revisiting renders cached posts without another read.
 

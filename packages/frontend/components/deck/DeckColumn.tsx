@@ -7,7 +7,8 @@ import { PanelRouterProvider, PanelRouteSlot } from '@oxy.so/bloom/panel-routing
 import { Screen } from '@oxy.so/bloom/screen';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import NotFoundScreen from '@/components/NotFoundScreen';
-import { deckRoutes } from './deckRoutes';
+import { deckRoutes, retryFailedDeckRoutes } from './deckRoutes';
+import { PanelErrorBoundary } from '@oxy.so/bloom/error-boundary';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { usePanelNavigation } from '@oxy.so/bloom/app-shell';
@@ -206,17 +207,24 @@ export function DeckColumn({ panelId }: { panelId: string }) {
 }
 
 function DeckColumnContent() {
+  const { t } = useTranslation();
+  const navigation = usePanelNavigation();
   return (
     <PanelRouterProvider routes={deckRoutes} notFound={<NotFoundScreen />}>
-      <Suspense
-        fallback={
-          <Screen scroll="auto">
-            <FeedSkeleton />
-          </Screen>
-        }
+      <PanelErrorBoundary
+        resetKey={navigation.entry.key}
+        emptyState={{ action: { label: t('common.retry'), onPress: retryFailedDeckRoutes } }}
       >
-        <PanelRouteSlot />
-      </Suspense>
+        <Suspense
+          fallback={
+            <Screen scroll="auto">
+              <FeedSkeleton />
+            </Screen>
+          }
+        >
+          <PanelRouteSlot />
+        </Suspense>
+      </PanelErrorBoundary>
     </PanelRouterProvider>
   );
 }
