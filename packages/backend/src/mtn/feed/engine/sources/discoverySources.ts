@@ -1,3 +1,4 @@
+import { HIDDEN_TOPIC_MULTIPLIER } from '../../../../services/ranking/signals/negativePenalty';
 /**
  * Discovery / media source modules — the Videos, Media, Explore candidate
  * queries and the anonymous/never-blank "popular" fallbacks. Each reproduces the
@@ -21,7 +22,7 @@ import {
   type SQL,
 } from 'drizzle-orm';
 import { getDb } from '../../../../db/postgres';
-import { postMedia, posts } from '../../../../db/schema';
+import { postClassificationTopicRefs, postMedia, posts } from '../../../../db/schema';
 import { assemblePostRecords, assembleShellRecords } from '../../../../db/posts/postRepository';
 import {
   FeedQueryBuilder,
@@ -299,8 +300,31 @@ function resolveExploreRelevance(ctx: FeedEngineContext): SQL {
   return sql`least(${rankingWeight(cfg.maxBoost)}, (${product}))::double precision`;
 }
 
+/** Exact viewer topic penalty from negativePenalty, applied before SQL keysets. */
+function exploreNegativeTopicSql(ctx: FeedEngineContext): SQL {
+  const hiddenTopics = ctx.currentUserId ? (ctx.userBehavior?.hiddenTopics ?? []) : [];
+  if (!hiddenTopics.length) return sql`1::double precision`;
+  const names = sql.join(
+    [...new Set(hiddenTopics.map((name) => name.toLowerCase()))].map((name) => sql`${name}`),
+    sql`, `,
+  );
+  // Canonical refs replace the baseline topics when any refs exist; matching
+  // either representation unconditionally would penalize stale baseline tags.
+  const hasRefs = sql`exists (select 1 from ${postClassificationTopicRefs}
+    where ${postClassificationTopicRefs.postId} = ${posts.id})`;
+  const refMatch = sql`exists (select 1 from ${postClassificationTopicRefs}
+    where ${postClassificationTopicRefs.postId} = ${posts.id}
+      and lower(${postClassificationTopicRefs.name}) in (${names}))`;
+  const hashtagMatch = sql`exists (select 1 from unnest(${posts.hashtags}) as hidden_tag(value)
+    where lower(hidden_tag.value) in (${names}))`;
+  const baselineMatch = sql`exists (select 1 from unnest(${posts.classificationTopics}) as hidden_topic(value)
+    where lower(hidden_topic.value) in (${names}))`;
+  return sql`(case when (${hashtagMatch} or ${refMatch} or (not ${hasRefs} and ${baselineMatch}))
+    then ${rankingWeight(HIDDEN_TOPIC_MULTIPLIER)} else 1 end)::double precision`;
+}
+
 /**
- * The Explore score: `(1 + ln(1 + engagement)) × 0.5^(ageHours/halfLife) × relevance`.
+ * The Explore score: `(1 + ln(1 + engagement)) × 0.5^(ageHours/halfLife) × relevance × topicPenalty`.
  *
  * Returned as ONE `SQL` value that the caller uses in the SELECT, the keyset
  * WHERE and the ORDER BY alike. Postgres cannot reference a select alias from
@@ -317,12 +341,12 @@ function resolveExploreRelevance(ctx: FeedEngineContext): SQL {
  * (`lt`, `gte`, …) map a Date through the COLUMN and are unaffected — it is only
  * a hand-written template that has to spell the conversion out.
  */
-function exploreFinalScoreSql(now: Date, relevance: SQL): SQL<number> {
+function exploreFinalScoreSql(now: Date, relevance: SQL, negativeTopic: SQL): SQL<number> {
   const halfLifeHours = MtnConfig.ranking.recency.halfLifeMs / (1000 * 60 * 60);
   const ageHours = sql`(extract(epoch from (${now.toISOString()}::timestamptz - ${posts.createdAt})) / 3600.0)`;
   const recencyDecay = sql`power(0.5, ${ageHours} / ${halfLifeHours})`;
   const engagementBase = sql`(1 + ln(1 + ${engagementScoreSql()}))`;
-  return sql<number>`(${engagementBase} * ${recencyDecay} * ${relevance})::double precision`;
+  return sql<number>`(${engagementBase} * ${recencyDecay} * ${relevance} * ${negativeTopic})::double precision`;
 }
 
 /**
@@ -353,7 +377,15 @@ export const exploreSource: SourceModule = {
     const rankingAsOf = parsedCursor?.asOf ?? ctx.rankingAsOf ?? Date.now();
 
     const excludeUserIds: string[] = [];
-    if (currentUserId) excludeUserIds.push(currentUserId);
+    if (currentUserId)
+      excludeUserIds.push(
+        currentUserId,
+        ...(ctx.userBehavior?.hiddenAuthors ?? []),
+        ...(ctx.userBehavior?.mutedAuthors ?? []),
+        ...(ctx.userBehavior?.blockedAuthors ?? []),
+        ...(ctx.excludedAuthorIds ?? []),
+        ...(ctx.viewerPrivacy?.blockedIds ?? []),
+      );
     if (followingIds?.length) excludeUserIds.push(...followingIds);
 
     const rankingCeiling = new Date(rankingAsOf);
@@ -388,7 +420,11 @@ export const exploreSource: SourceModule = {
     const cursorExcluded = excludeSeenSql(parsedCursor?.excludeIds ?? []);
     if (cursorExcluded) conditions.push(cursorExcluded);
 
-    const finalScore = exploreFinalScoreSql(rankingCeiling, resolveExploreRelevance(ctx));
+    const finalScore = exploreFinalScoreSql(
+      rankingCeiling,
+      resolveExploreRelevance(ctx),
+      exploreNegativeTopicSql(ctx),
+    );
 
     if (parsedCursor && parsedCursor.score !== Infinity && Number.isFinite(parsedCursor.score)) {
       const { score, id } = parsedCursor;
