@@ -458,6 +458,8 @@
   "settings.appearance.postTextLength.muchMore": "更长",
   "settings.appearance.postTextLength.all": "全部显示",
   "settings.account.manageAccount": "管理账号",
+  "settings.editProfile.look": "外观",
+  "settings.editProfile.oxyRow": "头像、名称、简介、位置和链接",
   "settings.editProfile.signInRequired": "登录后即可自定义你的主页",
   "settings.editProfile.signInRequiredDesc": "选择你的主页布局和强调色。",
   "settings.accentColor": "强调色",

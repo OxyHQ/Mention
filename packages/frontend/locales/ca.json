@@ -462,6 +462,8 @@
   "settings.appearance.postTextLength.muchMore": "Molt més",
   "settings.appearance.postTextLength.all": "Mostra-ho tot",
   "settings.account.manageAccount": "Gestiona el compte",
+  "settings.editProfile.look": "Aspecte",
+  "settings.editProfile.oxyRow": "Foto, nom, bio, ubicació i enllaços",
   "settings.editProfile.signInRequired": "Inicia la sessió per personalitzar el teu perfil",
   "settings.editProfile.signInRequiredDesc": "Tria la disposició del perfil i el color d'accent.",
   "settings.accentColor": "Color d'accent",

@@ -458,6 +458,8 @@
   "settings.appearance.postTextLength.muchMore": "बहुत अधिक",
   "settings.appearance.postTextLength.all": "सब दिखाएँ",
   "settings.account.manageAccount": "खाता प्रबंधित करें",
+  "settings.editProfile.look": "रूप",
+  "settings.editProfile.oxyRow": "फ़ोटो, नाम, बायो, स्थान और लिंक",
   "settings.editProfile.signInRequired": "अपनी प्रोफ़ाइल अनुकूलित करने के लिए साइन इन करें",
   "settings.editProfile.signInRequiredDesc": "अपना प्रोफ़ाइल लेआउट और एक्सेंट रंग चुनें।",
   "settings.accentColor": "एक्सेंट रंग",

@@ -458,6 +458,8 @@
   "settings.appearance.postTextLength.muchMore": "かなり多め",
   "settings.appearance.postTextLength.all": "すべて表示",
   "settings.account.manageAccount": "アカウントを管理",
+  "settings.editProfile.look": "外観",
+  "settings.editProfile.oxyRow": "写真、名前、自己紹介、場所、リンク",
   "settings.editProfile.signInRequired": "プロフィールをカスタマイズするにはログインしてください",
   "settings.editProfile.signInRequiredDesc": "プロフィールのレイアウトとアクセントカラーを選べます。",
   "settings.accentColor": "アクセントカラー",

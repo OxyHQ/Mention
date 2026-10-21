@@ -462,6 +462,8 @@
   "settings.appearance.postTextLength.muchMore": "Beaucoup plus",
   "settings.appearance.postTextLength.all": "Tout afficher",
   "settings.account.manageAccount": "Gérer le compte",
+  "settings.editProfile.look": "Apparence",
+  "settings.editProfile.oxyRow": "Photo, nom, bio, lieu et liens",
   "settings.editProfile.signInRequired": "Connecte-toi pour personnaliser ton profil",
   "settings.editProfile.signInRequiredDesc": "Choisis la mise en page de ton profil et ta couleur d'accent.",
   "settings.accentColor": "Couleur d'accent",
