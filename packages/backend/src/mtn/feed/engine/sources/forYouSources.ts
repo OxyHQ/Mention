@@ -133,7 +133,8 @@ async function gatherFollowingTimeline(
 ): Promise<CandidatePost[]> {
   const { currentUserId, followingIds, subscribedListMemberIds, followedCommunityIds } = ctx;
   const listMemberIds = directOnly ? [] : subscribedListMemberIds;
-  if (!currentUserId || (!followingIds?.length && !listMemberIds?.length)) return [];
+  const communityIds = directOnly ? [] : followedCommunityIds;
+  if (!currentUserId) return [];
 
   const run = (since: Date | undefined) =>
     fetchChrono(
@@ -143,7 +144,7 @@ async function gatherFollowingTimeline(
           followingIds,
           listMemberIds,
           since,
-          followedCommunityIds,
+          communityIds,
         ),
         eq(posts.status, 'published'),
         notCollapsedCrosspostSql(),

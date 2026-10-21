@@ -175,6 +175,8 @@ export interface RankablePost {
  * {@link buildSignalContext} normalizes it into a {@link SignalContext}.
  */
 export interface CalculatePostScoreContext extends OptInSignalContext {
+  /** Frozen clock shared by every page in a ranking session. */
+  rankingAsOf?: number;
   followingIds?: string[];
   userBehavior?: RankingUserBehavior;
   feedSettings?: FeedRankingSettings;
@@ -205,6 +207,7 @@ export interface CalculatePostScoreContext extends OptInSignalContext {
  * and maps are already materialized for O(1) per-post lookups.
  */
 export interface SignalContext {
+  rankingAsOf?: number;
   /** The viewer's Oxy user id, or `undefined` for anonymous viewers. */
   userId?: string;
   /** The viewer's following set (Oxy user ids) — resolved once. */
@@ -272,6 +275,7 @@ export function buildSignalContext(
 ): SignalContext {
   return {
     userId,
+    rankingAsOf: context.rankingAsOf,
     followingIdsSet: context.followingIdsSet ?? new Set(context.followingIds || []),
     userBehavior: context.userBehavior,
     behaviorSets: context.behaviorSets,

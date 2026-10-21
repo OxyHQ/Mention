@@ -483,6 +483,7 @@ export class FeedRankingService {
     posts: T[],
     userId: string | undefined, // Oxy user ID
     context: {
+      rankingAsOf?: number;
       followingIds?: string[]; // Array of Oxy user IDs
       userBehavior?: RankingUserBehavior;
       feedSettings?: FeedRankingSettings; // User feed settings
@@ -534,6 +535,7 @@ export class FeedRankingService {
     } = {},
   ): Promise<T[]> {
     const rankingStartTime = Date.now();
+    const rankingAsOf = context.rankingAsOf ?? rankingStartTime;
 
     // Early return for empty posts
     if (posts.length === 0) {
@@ -629,7 +631,7 @@ export class FeedRankingService {
         const engagementScoreValue = engagementScoreCache.get(postId) || 0;
         // Simple recency boost
         const createdMs = new Date(post.createdAt ?? NaN).getTime();
-        const postAge = isNaN(createdMs) ? Infinity : (Date.now() - createdMs) / (1000 * 60 * 60);
+        const postAge = isNaN(createdMs) ? Infinity : (rankingAsOf - createdMs) / (1000 * 60 * 60);
         const recencyBoost = postAge < 24 ? Math.exp(-postAge / 24) : 0.1;
         return {
           post,
@@ -652,6 +654,7 @@ export class FeedRankingService {
       postsToRank.map(async (post, originalIndex) => {
         const score = await this.calculatePostScore(post, userId, {
           userBehavior,
+          rankingAsOf,
           feedSettings: context.feedSettings,
           engagementScoreCache,
           followingIdsSet,

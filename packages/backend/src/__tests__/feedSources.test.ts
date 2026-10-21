@@ -239,6 +239,27 @@ describe('the following source', () => {
     ]);
   });
 
+  it('includes community-only subscriptions but keeps Following Direct to authors', async () => {
+    const own = await create({ oxyUserId: VIEWER, createdAt: at(-1_000) });
+    const community = await create({
+      oxyUserId: STRANGER,
+      communityOxyUserId: 'feedsrc-community',
+    });
+    const ctx: FeedEngineContext = {
+      currentUserId: VIEWER,
+      followingIds: [],
+      subscribedListMemberIds: [],
+      followedCommunityIds: ['feedsrc-community'],
+    };
+    expect(idsOf(await followingSource.gather(ctx, { timeline: true }, 31))).toEqual([
+      community.id,
+      own.id,
+    ]);
+    expect(
+      idsOf(await followingSource.gather(ctx, { timeline: true, directOnly: true }, 31)),
+    ).toEqual([own.id]);
+  });
+
   it('returns nothing for an anonymous viewer', async () => {
     await create({ oxyUserId: FOLLOW });
     expect(await followingSource.gather({ seenPostIds: [] }, {}, 60)).toEqual([]);
