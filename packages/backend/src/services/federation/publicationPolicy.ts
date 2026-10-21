@@ -8,6 +8,12 @@ import { authorsMayFederate } from '../postPublicationPolicy';
 import type { PostRecord } from '../../db/posts/postRecord';
 import { authorPublicationPolicies, postAuthorIds } from '../postPublicationPolicy';
 import { loadPostSafetyDecisions } from '../postSafetyAccess';
+import { COMMUNITY_MODERATION_REASON_MAX_LENGTH } from '@mention/shared-types';
+import { getDb } from '../../db/postgres';
+import { posts } from '../../db/schema/posts';
+import { postMatchesFederatedObjectSql } from '../../connectors/shared/instagramSourceKey';
+import { actorUrl } from '../../connectors/activitypub/constants';
+import { resolveMentionCommunity } from '../publishAsAccount';
 
 /** Public protocol pages use current account policy, including every persisted coauthor. */
 export async function filterFederatablePosts(
@@ -54,7 +60,7 @@ const controlFields = {
 const narrowReference = z
   .object({
     id: iri,
-    type: z.enum(['Follow', 'Like', 'Announce']),
+    type: z.enum(['Follow', 'Like', 'Announce', 'Block']),
     actor: iri,
     object: iri,
     to: addressing,
@@ -80,6 +86,82 @@ const accept = z
   })
   .strict();
 
+/**
+ * A deletion a community relays: the member's own retraction or a moderator's
+ * removal (Lemmy's: a `Delete` by a moderator, the reason as `summary`).
+ * Reference-only like {@link cleanup}, plus the community addressing and the
+ * moderator's reason.
+ */
+const relayedDelete = z
+  .object({
+    id: iri,
+    type: z.literal('Delete'),
+    actor: iri,
+    to: addressing,
+    cc: addressing,
+    audience: iri.optional(),
+    summary: z.string().max(COMMUNITY_MODERATION_REASON_MAX_LENGTH).optional(),
+    object: z.union([iri, z.object({ id: iri, type: z.literal('Tombstone') }).strict()]),
+  })
+  .strict();
+/** A community banning a person (`Block`, the community as the actor and the target). */
+const communityBlock = z
+  .object({
+    ...controlFields,
+    type: z.literal('Block'),
+    object: iri,
+    target: iri,
+    summary: z.string().max(COMMUNITY_MODERATION_REASON_MAX_LENGTH).optional(),
+  })
+  .strict();
+
+/** The post a Note id names: a local post by its id, a federated one by its object id. */
+async function postForObjectId(objectId: string): Promise<PostRecord | null> {
+  let url: URL;
+  try {
+    url = new URL(objectId);
+  } catch {
+    return null;
+  }
+  if (url.hostname === config.federation.domain) {
+    const match = /^\/ap\/users\/[^/]+\/posts\/([^/]+)$/.exec(url.pathname);
+    return match ? loadPostRecord(decodeURIComponent(match[1])) : null;
+  }
+  const [row] = await getDb()
+    .select({ id: posts.id })
+    .from(posts)
+    .where(postMatchesFederatedObjectSql(objectId))
+    .limit(1);
+  return row ? loadPostRecord(row.id) : null;
+}
+
+/**
+ * A community hosted here relaying a member's activity (FEP-1b12): an
+ * `Announce` whose object is the member's `Create`/`Update` of a post WRITTEN IN
+ * that community, or a reference-only `Delete`. The community vouches for what
+ * it relays, so the post must still be in it and still public; a local post
+ * must also still be federatable under its authors' current policy.
+ */
+async function authorizeCommunityRelay(
+  activity: Record<string, unknown>,
+  inner: Record<string, unknown>,
+  senderAccountId: string,
+): Promise<boolean> {
+  const community = await resolveMentionCommunity(senderAccountId);
+  if (!community?.username || activity.actor !== actorUrl(community.username)) return false;
+  if (inner.type === 'Delete') return relayedDelete.safeParse(inner).success;
+  if (inner.type !== 'Create' && inner.type !== 'Update') return false;
+  const note = inner.object;
+  if (!note || typeof note !== 'object' || Array.isArray(note)) return false;
+  const { id: noteId, type: noteType } = note as Record<string, unknown>;
+  if (typeof noteId !== 'string' || !['Note', 'Question', 'Page'].includes(String(noteType)))
+    return false;
+  const post = await postForObjectId(noteId);
+  if (!post || post.communityOxyUserId !== senderAccountId) return false;
+  if (post.federation != null) return post.status === 'published' && post.visibility === 'public';
+  return (await filterFederatablePosts([post])).length === 1;
+}
+
 /** The sender comes from the app's durable job, never from the activity's actor URL. */
 export async function authorizeFederationDelivery({
   activity,
@@ -93,7 +175,24 @@ export async function authorizeFederationDelivery({
   if (!(await authorsMayFederate([senderAccountId]))) return false;
   if (activity.type === 'Follow') return follow.safeParse(activity).success;
   if (activity.type === 'Accept') return accept.safeParse(activity).success;
+  if (activity.type === 'Block') {
+    const community = await resolveMentionCommunity(senderAccountId);
+    return (
+      Boolean(community?.username) &&
+      activity.actor === actorUrl(String(community?.username)) &&
+      activity.target === activity.actor &&
+      communityBlock.safeParse(activity).success
+    );
+  }
   const object = activity.object;
+  if (
+    activity.type === 'Announce' &&
+    object &&
+    typeof object === 'object' &&
+    !Array.isArray(object) &&
+    ['Create', 'Update', 'Delete'].includes(String((object as { type?: unknown }).type))
+  )
+    return authorizeCommunityRelay(activity, object as Record<string, unknown>, senderAccountId);
   const objectType =
     object && typeof object === 'object' && 'type' in object ? object.type : undefined;
   const objectId =
@@ -117,7 +216,7 @@ export async function authorizeFederationDelivery({
     return false;
   if (
     ['Create', 'Update'].includes(String(activity.type)) &&
-    !['Note', 'Question'].includes(String(objectType))
+    !['Note', 'Question', 'Page'].includes(String(objectType))
   )
     return false;
   let url: URL;

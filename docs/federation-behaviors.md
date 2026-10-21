@@ -22,6 +22,7 @@ to oxy-api or `@oxy.so/federation`, and Mention adapts once it ships.
 | `Move` between two remote servers | Recorded and shown; follows not moved (Oxy) | `recordRemoteMove`, [OxyHQ/oxy#1502](https://github.com/OxyHQ/oxy/issues/1502) |
 | Remote handle changes | Supported | `freeStaleHandle` in `actor.service.ts` |
 | FEP-1b12 communities (Lemmy, PieFed, Mbin), inbound | Posts and comments, as their writers' | `apRelay.ts`, `apCommunity.ts` |
+| FEP-1b12 communities hosted here, outbound | Members' posts relayed as `Announce`; removals and bans | `communityRelay.ts`, `communityPosting.ts` |
 | Private signing keys at rest | None stored in Mention (custody in oxy-api) | migration 0061 |
 
 ## A handle that changed hands
@@ -200,7 +201,62 @@ The branch exists only for a viewer who follows a community. Blocks and mutes
 still apply to the writer, and to the community itself
 (`UserPrivacyManager.excludesPost`).
 
-Not yet: posting or replying INTO a community from Mention.
+## A community hosted here (FEP-1b12, outbound)
+
+A Mention community is an Oxy account of kind `community`, created like a
+channel (`POST /accounts`, the creator its owner) and moderated by its ACTIVE
+MEMBERS — the people Oxy lists at `GET /users/:id/moderators`. It is a `Group`
+whose actor (`@oxy.so/federation`) names that list in `attributedTo` and
+`moderators` and says `postingRestrictedToMods: false`; the engine serves the
+collection at `/ap/users/<name>/moderators`. Joining is following it; a remote
+`Follow` is accepted like any other.
+
+- **Posting.** `POST /posts` with `communityOxyUserId` writes a post IN it: the
+  post stays its author's and carries the community in
+  `posts.community_oxy_user_id`, the same column the ingest fills, so the
+  community's page, the "in" row and the members' Following feed need nothing
+  new. A reply takes its thread's community and names none itself. The one gate
+  is `resolveNativePostCommunity` (`services/communities/communityPosting.ts`):
+  a ban is a 403; a boost, a post published as another account, a non-public
+  post, a reply naming a community or an account that is not one hosted here is
+  a 400. A community post may carry a title (`content.title`, one plain line,
+  200 characters, Lemmy's cap); a titled top-level post federates as a `Page`
+  with that `name`, everything else as a `Note`.
+- **Relaying.** The member's own `Create` names the community as `audience` and
+  in `cc`, goes to the member's followers as usual, and the community then
+  re-sends it, wrapped in an `Announce` it signs, to the community's followers
+  (`connectors/activitypub/communityRelay.ts`). The same for an edit's `Update`
+  and a deletion's `Delete`. The outbox, `featured` and the per-post
+  dereference carry the same `audience`.
+- **Remote members.** A `Create` addressed to a community hosted here (its
+  `audience`, or a `to`/`cc` naming it), or replying in one of its threads, is
+  kept without a follower. A banned author's is dropped silently. It is relayed
+  only when it speaks for its own actor alone (`isSelfConsistentActivity`: the
+  activity and its object on the actor's origin, the object attributed to the
+  actor; the inbox already verified the signature) — otherwise it is stored like
+  any federated post, outside the community. A remote member's `Delete` of a
+  post in the community is relayed reference-only. A remote member's `Update` is
+  not relayed.
+- **The relay gate.** `authorizeFederationDelivery` admits an `Announce` of an
+  activity only from a community hosted here, about a post still written in that
+  community (and, for a local post, still federatable), or a reference-only
+  `Delete` (the moderator's `summary` allowed); and a `Block` only from a
+  community naming itself as `target`.
+- **Moderation** (`routes/communities.routes.ts`, gated by
+  `assertCanModerateCommunity` with the moderator's own bearer). Removing a post
+  clears its community — it stays its author's — and the community relays a
+  moderator's `Delete` with the reason as `summary` (Lemmy's removal). A ban is
+  a `community_bans` row: the person's posts and replies in it are refused here
+  and dropped from the fediverse, and the community sends them a `Block` (an
+  `Undo` lifts it). A moderator cannot be banned. Reports on a community's posts
+  are ordinary reports.
+- **Following feed.** The communities a viewer follows are the followed accounts
+  posts were written in (`communitiesAmong` in `services/viewerFollowGraph.ts`,
+  one probe of `post_community_chrono_v1` each), hosted here or remote alike.
+
+Not yet: posting INTO a remote (Lemmy, PieFed, Mbin) community from Mention, the
+community's own outbox (it lists nothing; Lemmy backfills a newly discovered
+community from it), and refusing a banned remote account's `Follow`.
 
 ## Oxy owns bridge identity and public biography normalization
 

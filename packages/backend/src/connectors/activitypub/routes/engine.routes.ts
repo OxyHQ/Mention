@@ -176,6 +176,10 @@ export const actorRouter = createActorRouter({
       inboxProcessingService.processInboxActivity(activity, verifiedActorUri),
   },
   fetchFollowPage,
+  // A community's moderators — its active members, as Oxy publishes them — for
+  // the `Group`'s `attributedTo` collection.
+  fetchModerators: async (userId) =>
+    (await getServiceOxyClient().users.moderators(userId)) as User[],
   logger: {
     debug: (message, detail) =>
       detail === undefined ? logger.debug(message) : logger.debug(message, detail),

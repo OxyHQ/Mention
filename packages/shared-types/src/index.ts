@@ -34,6 +34,7 @@ export * from './lane';
 
 // Channels (an Oxy account people follow without following the people who write for it)
 export * from './channel';
+export * from './community';
 
 // Activity subscriptions ("notify me when this account posts")
 export * from './subscription';

@@ -1,4 +1,5 @@
 import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
+import { CommunityPostError } from '../../services/communities/communityPosting';
 import {
   requesterPublicationPolicy,
   publicationVisibility,
@@ -783,6 +784,10 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       return res
         .status(error.status)
         .json({ code: 'PUBLICATION_UNAVAILABLE', message: error.message });
+    // A thread answering a community post is written in that community, so a
+    // member its moderators banned is refused here like a single reply.
+    if (error instanceof CommunityPostError)
+      return res.status(error.status).json({ message: error.message });
     logger.error('Error creating thread', error);
     res.status(500).json({ message: 'Error creating thread' });
   }

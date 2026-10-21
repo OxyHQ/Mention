@@ -577,6 +577,29 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     why: "A publisher's lanes. Posts that pointed at them are already gone; `lane_mutes.lane_id` cascades.",
   },
   {
+    table: 'community_bans',
+    column: 'communityOxyUserId',
+    disposition: 'delete-row',
+    phase: 'account',
+    why: 'The bans of a community that no longer exists: there is nothing left to refuse posts into.',
+  },
+  {
+    table: 'community_bans',
+    column: 'bannedOxyUserId',
+    disposition: 'delete-row',
+    phase: 'account',
+    why: 'Bans OF the account. An erased account posts nowhere, so the ban has nothing left to refuse.',
+  },
+  {
+    table: 'community_bans',
+    column: 'bannedByOxyUserId',
+    disposition: 'anonymise',
+    phase: 'account',
+    why:
+      "Bans the account made as a community's moderator. The ban is the community's decision and " +
+      'stays; who made it goes.',
+  },
+  {
     table: 'lane_mutes',
     column: 'laneOwnerOxyUserId',
     disposition: 'delete-row',

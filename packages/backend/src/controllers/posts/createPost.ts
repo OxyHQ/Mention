@@ -39,6 +39,10 @@ import { validatePublicShareTarget } from '../../utils/postAccessControl';
 import { LaneAssignmentError } from '../../utils/laneAssignment';
 import { assertParentAcceptsReplies, ChannelReplyError } from '../../utils/channelReplyGate';
 import { PublishAsAccessError } from '../../services/publishAsAccount';
+import {
+  CommunityPostError,
+  normalizeCommunityPostTitle,
+} from '../../services/communities/communityPosting';
 import { sanitizePodcast } from '../../utils/podcastReference';
 import { sanitizeJobInput, resolveJobContent } from '../../utils/jobPostAttachment';
 import {
@@ -91,6 +95,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       collaboratorHandles,
       laneId,
       publishAsOxyUserId,
+      communityOxyUserId,
     } = req.body;
 
     const publicationPolicy = await requesterPublicationPolicy(safetyRequesterFor(req));
@@ -264,11 +269,16 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     // Build complete content object. `text` is the API's convenience shape for a
     // single-language post; `PostCreationService` turns it into the primary variant
     // (nothing stores a second copy of the body).
+    // A community post's optional headline (one plain-text line). Whether this
+    // post may carry one — only a top-level post written in a community — is
+    // decided with the community, inside `create`.
+    const title = normalizeCommunityPostTitle(content?.title);
     const postContent: PostContent = {
       text: text || '',
       homiioCase: sanitizeHomiioCase(content?.homiioCase),
       media: normalizedMedia,
       ...(authorLanguageVariants.length > 0 ? { variants: authorLanguageVariants } : {}),
+      ...(title ? { title } : {}),
     };
 
     // Add video to media array if provided
@@ -534,6 +544,10 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       // AUTHOR, the writer as `writtenByOxyUserId`, and (for a channel)
       // `replyPermission: ['nobody']`, so no caller can route around any of it.
       publishAsOxyUserId: typeof publishAsOxyUserId === 'string' ? publishAsOxyUserId : null,
+      // Validated inside `create` (see `resolveNativePostCommunity`): a reply takes
+      // its thread's community instead, and a ban, a boost, a non-public post or
+      // an account that is not a community hosted here is refused.
+      communityOxyUserId: typeof communityOxyUserId === 'string' ? communityOxyUserId : null,
       memberReader: createUserScopedOxyServices(req),
       parentPostId: parentPostId || in_reply_to_status_id || null,
       threadId: threadId || null,
@@ -635,7 +649,11 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     if (error instanceof LaneAssignmentError) {
       return res.status(error.status).json({ message: error.message });
     }
-    if (error instanceof ChannelReplyError || error instanceof PublishAsAccessError) {
+    if (
+      error instanceof ChannelReplyError ||
+      error instanceof PublishAsAccessError ||
+      error instanceof CommunityPostError
+    ) {
       return res.status(error.status).json({ message: error.message });
     }
     logger.error('Error creating post', error);

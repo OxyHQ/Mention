@@ -500,6 +500,19 @@ export const webShellRateLimiter = rateLimit({
 });
 
 /**
+ * The community moderation router — removals and bans by a community's
+ * moderators. Each call costs an Oxy membership read before it writes, and a
+ * removal or a ban fans a delivery out to the community's followers, so it is
+ * capped per moderator well above any human rhythm (clearing a spam wave is a
+ * few dozen actions a minute) and far below a script's. Its own literal prefix,
+ * for the reason spelled out above `lanesStore`.
+ */
+export const communityModerationRateLimiter = rateLimit({
+  store: new RedisStore({ prefix: 'rate-limit:community-moderation:', windowMs: 60 * 1000 }),
+  ...complianceOptions(60, 'Too many moderation requests. Please slow down.'),
+});
+
+/**
  * The channel-deletion router — the preview and the deletion itself.
  *
  * The most expensive pair of routes an authenticated caller can reach. Both walk
