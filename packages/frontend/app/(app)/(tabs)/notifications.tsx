@@ -6,6 +6,7 @@ import { useRouter } from '@/lib/navigation/router';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen } from '@oxy.so/bloom/screen';
 import { Text } from '@oxy.so/bloom/typography';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiHand } from '@oxy.so/bloom/icons/RiHand';
@@ -604,10 +605,9 @@ const NotificationsScreen: React.FC = () => {
   return (
     <>
       <SEO title={t('seo.notifications.title')} description={t('seo.notifications.description')} />
-      <View className="flex-1 web:z-auto">
-        <View className="flex-1">
-          <StatusBar style={theme.isDark ? 'light' : 'dark'} />
-
+      <Screen
+        scroll="auto"
+        header={
           <PageHeader
             title={t('Notifications')}
             presentation="floating"
@@ -647,45 +647,48 @@ const NotificationsScreen: React.FC = () => {
               </>
             }
           />
+        }
+      >
+        <StatusBar style={theme.isDark ? 'light' : 'dark'} />
 
-          {canUsePrivateApi && (
-            <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
-              {[
-                { id: 'all', label: t('notifications.tabs.all'), count: unreadCount },
-                {
-                  id: 'mentions',
-                  label: t('notifications.tabs.mentions'),
-                  count: tabUnreadCounts.mentions,
-                },
-                {
-                  id: 'follows',
-                  label: t('notifications.tabs.follows'),
-                  count: tabUnreadCounts.follows,
-                },
-                {
-                  id: 'likes',
-                  label: t('notifications.tabs.likes'),
-                  count: tabUnreadCounts.likes,
-                },
-                {
-                  id: 'posts',
-                  label: t('notifications.tabs.posts'),
-                  count: tabUnreadCounts.posts,
-                },
-                {
-                  id: 'pokes',
-                  label: t('notifications.tabs.pokes', { defaultValue: 'Pokes' }),
-                  count: tabUnreadCounts.pokes,
-                },
-              ].map((tab: { id: string; label: string; count?: number }) => (
-                <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
-              ))}
-            </Tabs>
-          )}
+        {canUsePrivateApi && (
+          <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
+            {[
+              { id: 'all', label: t('notifications.tabs.all'), count: unreadCount },
+              {
+                id: 'mentions',
+                label: t('notifications.tabs.mentions'),
+                count: tabUnreadCounts.mentions,
+              },
+              {
+                id: 'follows',
+                label: t('notifications.tabs.follows'),
+                count: tabUnreadCounts.follows,
+              },
+              {
+                id: 'likes',
+                label: t('notifications.tabs.likes'),
+                count: tabUnreadCounts.likes,
+              },
+              {
+                id: 'posts',
+                label: t('notifications.tabs.posts'),
+                count: tabUnreadCounts.posts,
+              },
+              {
+                id: 'pokes',
+                label: t('notifications.tabs.pokes', { defaultValue: 'Pokes' }),
+                count: tabUnreadCounts.pokes,
+              },
+            ].map((tab: { id: string; label: string; count?: number }) => (
+              <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
+            ))}
+          </Tabs>
+        )}
 
-          {renderContent()}
-        </View>
-      </View>
+        {renderContent()}
+        {renderContent()}
+      </Screen>
     </>
   );
 };
