@@ -31,6 +31,7 @@ import { isFediverseSharingEnabled } from '../../services/fediverseSharing';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import type { LocalBoostEventPayload } from '@oxy.so/federation';
 import { deliveryService } from './delivery.service';
+import { relayToCommunityFollowers, resolveLocalCommunityActor } from './communityRelay';
 import { resolveMediaRef } from '../../utils/mediaResolver';
 import {
   linkifyApHtml,
@@ -182,6 +183,21 @@ export interface NoteSourcePost {
    * federates as an `Announce` — never as a quote.)
    */
   quoteOf?: string | null;
+  /**
+   * The community the post is written in. When it is a community HOSTED HERE the
+   * Note names it as its `audience` (FEP-1b12) and the community relays the
+   * activity to its own followers ({@link FollowService.federateNewPost}).
+   */
+  communityOxyUserId?: string | null;
+}
+
+/**
+ * The community a Note is written in (FEP-1b12): its `audience`, and an
+ * addressee in `cc`, which is how Lemmy, PieFed and Mbin file a post under a
+ * community. Resolved by the async caller, like every other context here.
+ */
+export interface NoteCommunityContext {
+  actorUri: string;
 }
 
 /**
@@ -511,6 +527,7 @@ export class FollowService {
     mentions?: NoteMentionContext,
     poll?: NotePollContext,
     quote?: NoteQuoteContext,
+    community?: NoteCommunityContext,
   ): Record<string, unknown> {
     const actor = actorUrl(username);
     const postId = post.id;
@@ -606,6 +623,13 @@ export class FollowService {
     if (mentions) {
       for (const href of mentions.cc) pushCc(href);
     }
+    if (community) pushCc(community.actorUri);
+
+    // A TOP-LEVEL post with a title is a `Page` — what Lemmy, PieFed and Mbin
+    // publish a community post as, and what the ingest reads a title from — so
+    // the title travels as its `name`. Everything else is a `Note` (a `Note`'s
+    // `name` is a Mastodon poll vote).
+    const title = !reply && typeof post.content.title === 'string' ? post.content.title : '';
 
     // The shared content object. A plain post serializes it as a `Note`; a poll
     // post reuses this EXACT object and only adds the poll structure + flips
@@ -613,8 +637,10 @@ export class FollowService {
     // never duplicate the attributedTo/content/url/tag/attachment assembly.
     const object: Record<string, unknown> = {
       id: noteId,
-      type: 'Note',
+      type: title ? 'Page' : 'Note',
+      ...(title ? { name: title } : {}),
       attributedTo: actor,
+      audience: community?.actorUri,
       // Only present on a reply — undefined is dropped by JSON serialization,
       // so a top-level Note carries no `inReplyTo`.
       inReplyTo: reply?.inReplyTo,
@@ -761,6 +787,9 @@ export class FollowService {
       const audienceInboxes = await this.resolveAudienceInboxes(
         options.extraAudienceOxyUserIds ?? [],
       );
+      // A post written in a community hosted here names it as its `audience`,
+      // and the community relays the Create to its own followers below.
+      const community = await resolveLocalCommunityActor(post.communityOxyUserId);
       const activity = this.buildCreateNoteActivity(
         post,
         senderUsername,
@@ -768,6 +797,7 @@ export class FollowService {
         mentions ?? undefined,
         poll ?? undefined,
         quote ?? undefined,
+        community ?? undefined,
       );
       await deliveryService.deliverToFollowers(activity, senderOxyUserId, senderUsername, {
         extraInboxes: [
@@ -776,6 +806,7 @@ export class FollowService {
           ...audienceInboxes,
         ],
       });
+      if (community) await relayToCommunityFollowers(community, activity);
     } catch (err) {
       logger.error('Failed to federate new post:', err);
       if (options.throwOnError) throw err;
@@ -1356,7 +1387,7 @@ export class FollowService {
    * {@link federateNewPost}; best-effort.
    */
   async federateDelete(
-    post: { id: string },
+    post: { id: string; communityOxyUserId?: string | null },
     deleterOxyUserId: string,
     deleterUsername: string,
   ): Promise<void> {
@@ -1366,6 +1397,9 @@ export class FollowService {
     try {
       const activity = this.buildDeleteActivity(deleterUsername, post.id);
       await deliveryService.deliverToFollowers(activity, deleterOxyUserId, deleterUsername);
+      // The community that relayed the post relays its deletion to the same followers.
+      const community = await resolveLocalCommunityActor(post.communityOxyUserId);
+      if (community) await relayToCommunityFollowers(community, activity);
     } catch (err) {
       logger.error('Failed to federate post delete:', err);
     }
@@ -1386,8 +1420,17 @@ export class FollowService {
     mentions?: NoteMentionContext,
     poll?: NotePollContext,
     quote?: NoteQuoteContext,
+    community?: NoteCommunityContext,
   ): Record<string, unknown> {
-    const created = this.buildCreateNoteActivity(post, username, reply, mentions, poll, quote);
+    const created = this.buildCreateNoteActivity(
+      post,
+      username,
+      reply,
+      mentions,
+      poll,
+      quote,
+      community,
+    );
     const note = created.object as Record<string, unknown>;
 
     const now = new Date();
@@ -1437,6 +1480,7 @@ export class FollowService {
       const poll = await this.resolvePollContext(post);
       // A quote post re-federates its quote reference; a non-quote post → null.
       const quote = await this.resolveQuoteContext(post);
+      const community = await resolveLocalCommunityActor(post.communityOxyUserId);
       const activity = this.buildUpdateNoteActivity(
         post,
         editorUsername,
@@ -1444,6 +1488,7 @@ export class FollowService {
         mentions ?? undefined,
         poll ?? undefined,
         quote ?? undefined,
+        community ?? undefined,
       );
       await deliveryService.deliverToFollowers(activity, editorOxyUserId, editorUsername, {
         extraInboxes: [
@@ -1451,6 +1496,7 @@ export class FollowService {
           ...(mentions?.inboxes ?? []),
         ],
       });
+      if (community) await relayToCommunityFollowers(community, activity);
     } catch (err) {
       logger.error('Failed to federate post update:', err);
       if (options.throwOnError) throw err;
