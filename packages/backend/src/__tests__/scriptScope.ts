@@ -252,6 +252,10 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     scope: 'caller-scoped',
     reason: 'Reads database-wide and writes nothing: it renders a report.',
   },
+  reportFederationImportReview: {
+    scope: 'caller-scoped',
+    reason: 'SELECT-only in a READ ONLY transaction; tests additionally pass their own postIds.',
+  },
   evalFeedQuality: {
     scope: 'caller-scoped',
     reason: 'Reads feed_interactions since a cutoff and scores them; no writes.',
