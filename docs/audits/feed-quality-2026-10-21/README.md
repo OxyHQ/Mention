@@ -96,6 +96,16 @@ there were no within-traversal repeats. Explore's persistent refreshed ranking a
 For You's served-state behavior are distinct contracts, not automatically a
 duplicate defect. This is not a before/after quality comparison.
 
+The third traversal at 20:59:46–21:00:09 UTC, still on the old production build,
+returned 209 unique For You posts from 95 authors, with no IDs repeated from
+either prior traversal. Cursor score was zero from page four; per-page author
+counts were 15/15/17/18/13/10/8/13/8/8. Explore returned 218 unique posts from 165
+authors, overlapping 160 IDs with traversal one and 169 with traversal two (49
+new to the second sample), with no within-traversal repeats. This completes three
+For You/Explore traversals; Following and Videos each have one traversal, with
+the other surfaces covered only as explicitly recorded. Shared served state and
+live refresh changes prevent independent before/after conclusions.
+
 ### Confirmed source timeouts and additional bounded captures
 
 The anonymous canonical API retry around 20:43 UTC returned 40 PHP hashtag posts
@@ -174,8 +184,11 @@ Videos was also paginated for eight pages: 152 posts without repeated IDs, endin
 with 12 posts on page eight. That traversal followed the For You reads and shared
 served-state effects, so it was not an independent session.
 
-Further direct production API traversal was **anonymous**, with requested languages
-`en,es`, and must not be presented as @nate personalization evidence:
+Further direct production API traversal was **anonymous**, with effective languages
+unspecified, and must not be presented as @nate personalization evidence. The
+scripts sent unsupported `languages=en,es` (or a combined `lang=en,es`); the
+controller supports a single valid `lang` and the `Accept-Language` header. Thus
+these captures do not establish English/Spanish-constrained results:
 
 | Surface | Bounded traversal | Diversity/repetition | Observed request times |
 | --- | --- | --- | --- |
@@ -306,6 +319,32 @@ client presentation. A discovery improvement must not collapse the arrival of
 new authors and sources.
 
 ## Validation and remaining evidence
+
+A supported-language smoke check at 20:57 UTC sent `?lang=en` and
+`Accept-Language: en,es;q=0.9`. Explore returned 26 items/20 slices in 0.903 seconds,
+Media 20 items/zero slices in 0.820 seconds, and Trending 20 items/20 slices in
+0.990 seconds, all successful with `hasMore: true`. The DTO had no top-level
+language evidence, so no language-match rate is inferred. Authenticated MCP reads
+used account-derived preferences separately.
+
+The audit also reproduced a false quality diagnostic: For You candidate shells
+omit normalized text/media, so existing `lowEffortGate` and `minLength` predicates
+mistook unassembled evidence for empty content, including shadow measurements.
+The correction supplies a separate gate-only view of persisted renditions, shared
+and rendition-specific media, and attachments. Scalar context (such as polls)
+is retained. Original shells remain deferred for ranking and final hydration;
+no network hydration or new classifier is introduced.
+
+Content-dependent custom pool filters use the same mechanism. Database tests
+verify exactly four SELECT batches for the ordinary text/media projection, five
+when cited sources are also requested, and six when sources plus rendition alt
+text are required, independent of duplicated input IDs or batch size. Empty input
+does no queries. Engine tests verify no evidence reads for absent/disabled content
+filters, viewer-disabled gates or trusted sources with only discovery gates.
+Text, shared/rendition-only media and scalar polls survive the low-effort check;
+genuinely empty content still fails that existing predicate. A min-length filter
+continues to mean text length; it is not silently changed into a media exception.
+No gate defaults, enforcement rollout, import eligibility or cleanup policy change.
 
 Independent implementation review checked that bare-number eligibility is invoked
 only for For You/Explore recommendations, including fallback, and not ingestion,

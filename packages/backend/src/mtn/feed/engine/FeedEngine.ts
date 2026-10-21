@@ -56,7 +56,7 @@ import type {
 } from './types';
 
 import { ApiError } from '../../../utils/error';
-import { loadPostRecords } from '../../../db/posts/postRepository';
+import { loadPostGateContent, loadPostRecords } from '../../../db/posts/postRepository';
 import {
   rankedFeedSessionStore,
   rankedSessionBinding,
@@ -556,6 +556,25 @@ export class FeedEngine {
     // Consume a raw chronological window before filtering. Keep the overfetch
     // row for the next page, including when several timelines are merged.
     const raw = Array.from(new Map(sourceResults.flat().map((post) => [post.id, post])).values());
+    const poolNeedsTextMedia = this.needsTextMedia(definition.filters, ctx);
+    const gateNeedsTextMedia = this.needsTextMedia(definition.discoveryFilters ?? [], ctx);
+    const gateViews = await this.prepareTextMediaViews(
+      sourceResults.flatMap((rows, index) =>
+        poolNeedsTextMedia ||
+        (gateNeedsTextMedia && !this.registry.getSource(enabledSources[index].module)?.trusted)
+          ? rows
+          : [],
+      ),
+      [
+        ...definition.filters,
+        ...(sourceResults.some(
+          (rows, index) =>
+            rows.length && !this.registry.getSource(enabledSources[index].module)?.trusted,
+        )
+          ? (definition.discoveryFilters ?? [])
+          : []),
+      ],
+    );
     const numberIds =
       definition.id === 'for_you' || definition.id === 'explore'
         ? await standaloneNumberIds(raw)
@@ -599,11 +618,12 @@ export class FeedEngine {
           continue;
         if (scannedIds && !scannedIds.has(id)) continue;
         if (definition.mode === 'ranked' && cursorExcluded.has(id)) continue;
-        if (poolKeeps.some((keep) => !keep(post))) continue;
+        const gateView = gateViews.get(id) ?? post;
+        if (poolKeeps.some((keep) => !keep(gateView))) continue;
 
         if (!isTrusted) post._discovery = true;
         if (applyGate) {
-          const rejectedBy = firstRejection(gateKeeps.authorFree, post);
+          const rejectedBy = firstRejection(gateKeeps.authorFree, gateView);
           if (rejectedBy) {
             gatedCount += 1;
             recordDiscoveryGated(rejectedBy, sourceModule, measureOnly);
@@ -650,7 +670,7 @@ export class FeedEngine {
       } else {
         ctx.authorSummaries = summaries;
         for (const { post, source } of gated) {
-          const rejectedBy = firstRejection(gateKeeps.authorAware, post);
+          const rejectedBy = firstRejection(gateKeeps.authorAware, gateViews.get(post.id) ?? post);
           if (!rejectedBy) continue;
           gatedCount += 1;
           recordDiscoveryGated(rejectedBy, source, measureOnly);
@@ -894,6 +914,49 @@ export class FeedEngine {
       }
     }
     return keeps;
+  }
+
+  private needsTextMedia(refs: ModuleRef[], ctx: FeedEngineContext): boolean {
+    return refs.some((ref) => {
+      if (!ref.enabled || !this.registry.getFilter(ref.module)?.needsTextMedia) return false;
+      if (ref.params?.viewerGateTuning === true) {
+        if (ref.module === 'minLength' && ctx.feedTuning?.forYou?.minLength?.enabled === false)
+          return false;
+        if (
+          ref.module === 'lowEffortGate' &&
+          ctx.feedTuning?.forYou?.lowEffortGate?.enabled === false
+        )
+          return false;
+      }
+      return true;
+    });
+  }
+
+  /** Gate-only evidence; original shells stay deferred until final hydration. */
+  private async prepareTextMediaViews(
+    candidates: CandidatePost[],
+    refs: ModuleRef[],
+  ): Promise<Map<string, CandidatePost>> {
+    const shells = new Map(
+      candidates.filter((post) => post._unassembled).map((post) => [post.id, post]),
+    );
+    if (!shells.size) return new Map();
+    const filters = refs
+      .filter((ref) => ref.enabled)
+      .map((ref) => this.registry.getFilter(ref.module));
+    const evidence = await loadPostGateContent([...shells.keys()], undefined, {
+      sources: filters.some((filter) => filter?.needsSources),
+      variantAlt: filters.some((filter) => filter?.needsVariantAlt),
+    });
+    return new Map(
+      [...shells].map(([id, post]) => [
+        id,
+        {
+          ...post,
+          content: { ...post.content, ...evidence.get(id) },
+        },
+      ]),
+    );
   }
 
   /**
@@ -1370,6 +1433,10 @@ export class FeedEngine {
       ? Math.ceil(limit * MtnConfig.feed.sliceOverfetchMultiplier) + 1
       : limit + 1;
     const candidates = await source.gather({ ...ctx, cursor, pageLimit: limit }, {}, fetch);
+    const gateViews = await this.prepareTextMediaViews(
+      this.needsTextMedia(definition.discoveryFilters ?? [], ctx) ? candidates : [],
+      definition.discoveryFilters ?? [],
+    );
 
     // The ONE path that never passes through `gatherPool`, so the reader's muted
     // lanes have to be applied here too — `neverBlank` reaches it from an
@@ -1393,7 +1460,7 @@ export class FeedEngine {
       scanned += 1;
       if (numberIds.has(post.id)) continue;
       if (mutedLaneKeep && !mutedLaneKeep(post)) continue;
-      const rejectedBy = firstRejection(gateAll, post);
+      const rejectedBy = firstRejection(gateAll, gateViews.get(post.id) ?? post);
       if (rejectedBy) {
         recordDiscoveryGated(rejectedBy, popularSourceId, measureOnly);
         if (!measureOnly) continue;

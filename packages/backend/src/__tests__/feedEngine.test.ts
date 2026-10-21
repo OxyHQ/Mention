@@ -19,6 +19,17 @@ const sessionMemory = vi.hoisted(() => ({
   posts: new Map<string, unknown>(),
   sequence: 0,
 }));
+const gateContentLoad = vi.hoisted(() =>
+  vi.fn(
+    async (ids: string[]) =>
+      new Map(
+        ids.map((id) => [
+          id,
+          { variants: [{ source: 'author' as const, text: 'Persisted useful text' }] },
+        ]),
+      ),
+  ),
+);
 vi.mock('../mtn/feed/RankedFeedSession', async (importOriginal) => {
   const original = await importOriginal<typeof import('../mtn/feed/RankedFeedSession')>();
   return {
@@ -42,6 +53,7 @@ vi.mock('../mtn/feed/RankedFeedSession', async (importOriginal) => {
   };
 });
 vi.mock('../db/posts/postRepository', () => ({
+  loadPostGateContent: gateContentLoad,
   loadPostRecords: async (ids: string[]) =>
     ids.flatMap((id) => {
       const post = sessionMemory.posts.get(id);
@@ -152,6 +164,113 @@ beforeEach(() => {
 });
 
 describe('FeedEngine — ranked mode', () => {
+  it.each([
+    { location: 'discovery', trusted: false, enabled: true, reads: 1 },
+    { location: 'discovery', trusted: true, enabled: true, reads: 0 },
+    { location: 'pool', trusted: true, enabled: true, reads: 1 },
+    { location: 'pool', trusted: false, enabled: false, reads: 0 },
+  ])(
+    'prepares only applicable shell content ($location/$trusted/$enabled)',
+    async ({ location, trusted, enabled, reads }) => {
+      const shell = scored(1, 5, { _unassembled: true, content: { variants: [] } });
+      const keep = vi.fn(
+        (post: CandidatePost) => post.content.variants?.[0]?.text === 'Persisted useful text',
+      );
+      registry.register({ ...sourceReturning('source', [shell, shell]), trusted });
+      registry.register({ id: 'contentGate', kind: 'filter', needsTextMedia: true, keep });
+      const refs = [{ module: 'contentGate', enabled }];
+      await engine.run(
+        {
+          id: 'content-gate-test',
+          title: 'Test',
+          mode: 'ranked',
+          sources: [{ module: 'source', enabled: true }],
+          signals: [],
+          filters: location === 'pool' ? refs : [],
+          discoveryFilters: location === 'discovery' ? refs : [],
+        },
+        { currentUserId: 'viewer' },
+        { limit: 20 },
+      );
+      expect(gateContentLoad).toHaveBeenCalledTimes(reads);
+      if (reads) {
+        expect(gateContentLoad).toHaveBeenCalledWith([shell.id], undefined, {
+          sources: false,
+          variantAlt: false,
+        });
+        expect(keep).toHaveReturnedWith(true);
+      }
+      expect(shell.content.variants).toEqual([]);
+      expect(rankPosts.mock.calls[0]?.[0][0]).toMatchObject({
+        _unassembled: true,
+        content: { variants: [] },
+      });
+    },
+  );
+
+  it('does not project content for score-only filters or viewer-disabled content gates', async () => {
+    registry.register(
+      sourceReturning('source', [scored(1, 5, { _unassembled: true, content: { variants: [] } })]),
+    );
+    registry.register({ id: 'minLength', kind: 'filter', needsTextMedia: true, keep: () => true });
+    registry.register({ id: 'scoreOnly', kind: 'filter', keep: () => true });
+    await engine.run(
+      {
+        id: 'disabled-content-gate',
+        title: 'Test',
+        mode: 'ranked',
+        sources: [{ module: 'source', enabled: true }],
+        signals: [],
+        filters: [{ module: 'scoreOnly', enabled: true }],
+        discoveryFilters: [
+          { module: 'minLength', enabled: true, params: { viewerGateTuning: true } },
+        ],
+      },
+      { currentUserId: 'viewer', feedTuning: { forYou: { minLength: { enabled: false } } } },
+      { limit: 20 },
+    );
+    expect(gateContentLoad).not.toHaveBeenCalled();
+  });
+
+  it('requests extra content tables only for enabled applicable filters', async () => {
+    const shell = scored(1, 5, { _unassembled: true, content: { variants: [] } });
+    registry.register({ ...sourceReturning('source', [shell]), trusted: true });
+    registry.register({
+      id: 'links',
+      kind: 'filter',
+      needsTextMedia: true,
+      needsSources: true,
+      keep: () => true,
+    });
+    registry.register({
+      id: 'alt',
+      kind: 'filter',
+      needsTextMedia: true,
+      needsVariantAlt: true,
+      keep: () => true,
+    });
+    const def: FeedDefinition = {
+      id: 'projection-options',
+      title: 'Test',
+      mode: 'ranked',
+      signals: [],
+      sources: [{ module: 'source', enabled: true }],
+      filters: [{ module: 'links', enabled: true }],
+      discoveryFilters: [{ module: 'alt', enabled: true }],
+    };
+    await engine.run(def, { currentUserId: 'viewer' }, { limit: 20 });
+    expect(gateContentLoad).toHaveBeenLastCalledWith([shell.id], undefined, {
+      sources: true,
+      variantAlt: false,
+    });
+    def.filters.push({ module: 'alt', enabled: true });
+    await engine.run(def, { currentUserId: 'viewer' }, { limit: 20 });
+    expect(gateContentLoad).toHaveBeenLastCalledWith([shell.id], undefined, {
+      sources: true,
+      variantAlt: true,
+    });
+  });
+
   it('dedupes across sources, applies a filter, and orders by composed score', async () => {
     // Two sources with an overlapping post; a filter drops post #3.
     registry.register(sourceReturning('a', [scored(1, 1), scored(2, 5)]));

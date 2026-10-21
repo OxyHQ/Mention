@@ -223,6 +223,11 @@ export interface FilterModule {
    * builder catalog and the offline eval harness all keep the shape they have.
    */
   needsAuthor?: boolean;
+  /** Requires persisted rendition/media evidence before evaluating a shell. */
+  needsTextMedia?: boolean;
+  /** Additional content evidence needed only by cited-link or alt-text filters. */
+  needsSources?: boolean;
+  needsVariantAlt?: boolean;
   /** Optional in-memory predicate applied to the merged candidate pool. */
   keep?(post: CandidatePost, ctx: FeedEngineContext, params: Record<string, unknown>): boolean;
 }
