@@ -516,6 +516,7 @@ class MtnFeedController {
       // the follow graph `loadViewerFeedContext` threads; see `viewerPrivacy` on
       // `HydrationOptions` for why this keeps the fail-closed contract.
       if (privacyState) {
+        context.excludedAuthorIds = [...privacyState.excludedUserIds];
         context.activitySubscribedAuthorIds = eligibleActivitySubscriptionAuthors(
           context.activitySubscribedAuthorIds,
           context.userBehavior,

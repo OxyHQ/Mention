@@ -233,7 +233,7 @@ export class FeedEngine {
       activitySubscribedAuthorIds: eligibleActivitySubscriptionAuthors(
         context.activitySubscribedAuthorIds,
         context.userBehavior,
-        context.viewerPrivacy?.blockedIds,
+        [...(context.excludedAuthorIds ?? []), ...(context.viewerPrivacy?.blockedIds ?? [])],
       ),
     };
     const exec: FeedExecution = definition.execution ?? {};
