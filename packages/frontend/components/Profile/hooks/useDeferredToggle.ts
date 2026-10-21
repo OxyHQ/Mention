@@ -36,18 +36,23 @@ export function useDeferredToggle({
   const [loading, setLoading] = useState(false);
   const fetchedRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const generationRef = useRef(0);
+  const pendingRef = useRef(false);
 
   useEffect(() => {
-    if (skip) return;
-
+    const generation = ++generationRef.current;
     fetchedRef.current = false;
+    pendingRef.current = false;
+    setActive(false);
+    setLoading(false);
+    if (skip) return;
     let cancelled = false;
 
     timerRef.current = setTimeout(async () => {
       timerRef.current = null;
       try {
         const status = await fetchStatus();
-        if (!cancelled) {
+        if (!cancelled && generation === generationRef.current && !pendingRef.current) {
           setActive(status);
           fetchedRef.current = true;
         }
@@ -58,6 +63,7 @@ export function useDeferredToggle({
 
     return () => {
       cancelled = true;
+      generationRef.current += 1;
       if (timerRef.current) {
         clearTimeout(timerRef.current);
         timerRef.current = null;
@@ -66,7 +72,11 @@ export function useDeferredToggle({
   }, [skip, fetchStatus]);
 
   const toggle = useCallback(async () => {
-    if (skip || loading) return;
+    if (skip || pendingRef.current) return;
+    // Invalidate any deferred read already in flight before this press.
+    const generation = ++generationRef.current;
+    pendingRef.current = true;
+    setLoading(true);
 
     // Cancel the deferred timer to prevent concurrent fetches
     if (timerRef.current) {
@@ -87,15 +97,16 @@ export function useDeferredToggle({
     if (!fetchedRef.current) {
       try {
         const status = await fetchStatus();
+        if (generation !== generationRef.current) return;
         setActive(status);
         current = status;
         fetchedRef.current = true;
       } catch {
+        if (generation !== generationRef.current) return;
         // Continue with default state
       }
     }
 
-    setLoading(true);
     const previousState = current;
     setActive(!previousState);
 
@@ -106,12 +117,15 @@ export function useDeferredToggle({
         await onDisable();
       }
     } catch (error) {
-      setActive(previousState);
+      if (generation === generationRef.current) setActive(previousState);
       throw error;
     } finally {
-      setLoading(false);
+      if (generation === generationRef.current) {
+        pendingRef.current = false;
+        setLoading(false);
+      }
     }
-  }, [skip, loading, active, fetchStatus, onEnable, onDisable]);
+  }, [skip, active, fetchStatus, onEnable, onDisable]);
 
   return { active, loading, toggle };
 }
