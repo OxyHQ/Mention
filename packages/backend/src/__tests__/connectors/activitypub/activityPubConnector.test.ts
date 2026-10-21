@@ -101,7 +101,7 @@ describe('ActivityPubConnector.fetchPosts', () => {
 
     expect(mocks.syncOutboxPostsDetailed).toHaveBeenCalledWith(
       expect.objectContaining({ outboxUrl: OUTBOX_URL }),
-      { limit: 30, startPageUrl: `${OUTBOX_URL}?page=1` },
+      { limit: 30, startPageUrl: `${OUTBOX_URL}?page=1`, importReason: 'requested_profile' },
     );
     expect(result).toEqual({ posts: [], cursor: `${OUTBOX_URL}?page=2` });
   });
@@ -111,7 +111,7 @@ describe('ActivityPubConnector.fetchPosts', () => {
 
     expect(mocks.syncOutboxPostsDetailed).toHaveBeenCalledWith(
       expect.objectContaining({ outboxUrl: OUTBOX_URL }),
-      { limit: 20, startPageUrl: undefined },
+      { limit: 20, startPageUrl: undefined, importReason: 'requested_profile' },
     );
   });
 

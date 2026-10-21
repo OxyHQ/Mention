@@ -46,7 +46,7 @@ function hasMedia(post: CandidatePost): boolean {
   if (Array.isArray(content?.media) && content.media.length > 0) return true;
   if (Array.isArray(content?.attachments) && content.attachments.some((a) => a?.type === 'media'))
     return true;
-  if (authorVariants(post.content).some((variant) => variant.media?.length)) return true;
+  if (authorVariants(post.content ?? {}).some((variant) => variant.media?.length)) return true;
   return false;
 }
 
@@ -57,7 +57,7 @@ function hasVideo(post: CandidatePost): boolean {
   const content = field<{ media?: Array<{ type?: string }> }>(post, 'content');
   return (
     (Array.isArray(content?.media) && content.media.some((m) => m?.type === 'video')) ||
-    authorVariants(post.content).some((variant) =>
+    authorVariants(post.content ?? {}).some((variant) =>
       variant.media?.some((media) => media.type === 'video'),
     )
   );
@@ -69,7 +69,7 @@ function hasMediaType(post: CandidatePost, mediaType: 'image' | 'gif'): boolean 
   const content = field<{ media?: Array<{ type?: string }> }>(post, 'content');
   return (
     (Array.isArray(content?.media) && content.media.some((m) => m?.type === mediaType)) ||
-    authorVariants(post.content).some((variant) =>
+    authorVariants(post.content ?? {}).some((variant) =>
       variant.media?.some((media) => media.type === mediaType),
     )
   );
@@ -94,7 +94,7 @@ function hasAltText(post: CandidatePost): boolean {
   return (
     (Array.isArray(content?.media) &&
       content.media.some((m) => typeof m?.alt === 'string' && m.alt.trim().length > 0)) ||
-    authorVariants(post.content).some(
+    authorVariants(post.content ?? {}).some(
       (variant) =>
         variant.media?.some(
           (media) => typeof media.alt === 'string' && media.alt.trim().length > 0,

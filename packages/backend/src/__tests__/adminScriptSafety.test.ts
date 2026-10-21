@@ -24,6 +24,8 @@ const READ_ONLY_SCRIPTS = new Set([
   'inspectTrendTerms.ts',
   // Exact source identifiers, one SELECT in a read-only transaction; no resolver or writes.
   'inspectFederatedIdentityCache.ts',
+  // Bounded SELECT evidence in an explicit READ ONLY transaction; no mutation mode.
+  'reportFederationImportReview.ts',
   // Re-derives one field from a pure function over data already on the post.
   // Idempotent, and the ingest path rewrites the same field anyway.
   'rebaselineTrendTerms.ts',

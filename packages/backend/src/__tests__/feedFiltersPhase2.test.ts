@@ -25,6 +25,11 @@ describe('excludeFollowing filter', () => {
 });
 
 describe('hasImage / hasGif / hasPoll / hasLink filters', () => {
+  it('treats missing rendition content as absent media without throwing', () => {
+    for (const filter of ['mediaOnly', 'videoOnly', 'hasImage', 'hasGif', 'hasAltText']) {
+      expect(keepOf(filter)(post({ type: PostType.TEXT }), {}, {})).toBe(false);
+    }
+  });
   it('hasImage keeps image posts only', () => {
     const keep = keepOf('hasImage');
     expect(keep(post({ content: { media: [{ type: 'image' }] } }), {}, {})).toBe(true);
