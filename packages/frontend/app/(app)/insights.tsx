@@ -1,6 +1,6 @@
 import type React from 'react';
-import { View } from 'react-native';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen } from '@oxy.so/bloom/screen';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
@@ -24,17 +24,20 @@ const InsightsScreen: React.FC = () => {
   return (
     <>
       <SEO title={t('seo.insights.title')} description={t('seo.insights.description')} />
-      <View className="flex-1">
+      <Screen
+        scroll="auto"
+        header={
+          <PageHeader
+            title={t('Insights')}
+            presentation="floating"
+            onBack={() => safeBack()}
+            backLabel={t('common.back', { defaultValue: 'Back' })}
+          />
+        }
+      >
         <StatusBar style={theme.isDark ? 'light' : 'dark'} />
-
-        <PageHeader
-          title={t('Insights')}
-          onBack={() => safeBack()}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
-
         <LazyInsightsView />
-      </View>
+      </Screen>
     </>
   );
 };

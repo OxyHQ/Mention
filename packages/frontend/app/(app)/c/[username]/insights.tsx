@@ -1,12 +1,12 @@
 import { InsightsSkeleton } from '@/components/loading/ContentSkeleton';
-import { useMemo } from 'react';
-import { View } from 'react-native';
+import { useMemo, type ReactNode } from 'react';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle, type AccountNode } from '@oxy.so/core';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen } from '@oxy.so/bloom/screen';
 
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -83,6 +83,7 @@ export default function ChannelInsightsScreen() {
   const header = (
     <PageHeader
       title={t('insights.title')}
+      presentation="floating"
       // Whose numbers these are. The display name comes straight off the account
       // DTO; a channel with none falls back to the handle the reader navigated
       // by, never to a raw id.
@@ -92,48 +93,35 @@ export default function ChannelInsightsScreen() {
     />
   );
 
+  let content: ReactNode;
   if (!isAuthenticated) {
-    return (
-      <View className="flex-1">
-        {header}
-        <OxyAuthPrompt
-          label={t('channels.signInRequired', { defaultValue: 'Sign in to manage your channels' })}
-          description={t('channels.signInRequiredDesc', {
-            defaultValue:
-              'A channel is an account people follow without following the people who write for it.',
-          })}
-        />
-      </View>
+    content = (
+      <OxyAuthPrompt
+        label={t('channels.signInRequired', { defaultValue: 'Sign in to manage your channels' })}
+        description={t('channels.signInRequiredDesc', {
+          defaultValue:
+            'A channel is an account people follow without following the people who write for it.',
+        })}
+      />
     );
-  }
-
-  if (!readsReady || accountsPending) {
-    return (
-      <View className="flex-1">
-        {header}
-        <InsightsSkeleton />
-      </View>
+  } else if (!readsReady || accountsPending) {
+    content = <InsightsSkeleton />;
+  } else if (!channel) {
+    content = (
+      <EmptyState
+        title={t('channels.insights.operatorOnly', {
+          defaultValue: 'Only an operator can see this channel’s insights',
+        })}
+        sticker="operatorOnly"
+      />
     );
-  }
-
-  if (!channel) {
-    return (
-      <View className="flex-1">
-        {header}
-        <EmptyState
-          title={t('channels.insights.operatorOnly', {
-            defaultValue: 'Only an operator can see this channel’s insights',
-          })}
-          sticker="operatorOnly"
-        />
-      </View>
-    );
+  } else {
+    content = <LazyInsightsView accountId={channel.accountId} />;
   }
 
   return (
-    <View className="flex-1">
-      {header}
-      <LazyInsightsView accountId={channel.accountId} />
-    </View>
+    <Screen scroll="auto" header={header}>
+      {content}
+    </Screen>
   );
 }
