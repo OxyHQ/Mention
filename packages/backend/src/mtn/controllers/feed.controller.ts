@@ -496,6 +496,7 @@ class MtnFeedController {
           feedOxyClient,
           acceptedOutboundFollowUris,
           requestLanguageTags,
+          { activitySubscriptions: feedSource === 'for_you' },
         ),
         // `computeMutualIds` soft-fails each branch to `[]`, so a lookup failure
         // never breaks the feed.

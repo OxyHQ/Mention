@@ -53,9 +53,9 @@
  */
 
 import { MtnConfig, PostVisibility } from '@mention/shared-types';
-import { and, arrayOverlaps, desc, eq, gte, lte, or, type SQL } from 'drizzle-orm';
+import { and, arrayOverlaps, desc, eq, gte, inArray, lte, or, type SQL } from 'drizzle-orm';
 import { getDb } from '../../../db/postgres';
-import { posts } from '../../../db/schema';
+import { posts, postAuthorships, postSubscriptions } from '../../../db/schema';
 import { assembleShellRecords } from '../../../db/posts/postRepository';
 import { ContentAffinityService } from '../../../services/ContentAffinityService';
 import { sensitiveExcludeSql, isSensitivePost } from '../feedSafety';
@@ -86,6 +86,7 @@ export interface GatherForYouCandidatesParams {
   viewerId: string;
   /** Author ids the viewer actually follows (including accepted federated follows). */
   followingIds: string[];
+  activitySubscribedAuthorIds?: string[];
   /** Author ids from subscribed lists; feed-inclusion only, never follow authorization. */
   subscribedListMemberIds?: string[];
   /** The followed accounts that are communities (see `FeedContext.followedCommunityIds`). */
@@ -351,6 +352,40 @@ function resolveRegion(params: GatherForYouCandidatesParams): string | undefined
 }
 
 // --- Individual candidate lanes (each self-contained; wrapped by engine sources). ---
+
+/** Bell interest adds supply even when the author is outside follows/affinity. */
+export async function gatherActivitySubscriptionsLane(
+  params: GatherForYouCandidatesParams,
+): Promise<CandidatePost[]> {
+  if (!params.activitySubscribedAuthorIds?.length) return [];
+  const since = recencyStart(params.rankingAsOf);
+  // Indexed subscriber→author→accepted-authorship semijoin avoids a growing IN
+  // parameter list and does not reinterpret a bell as followers-only access.
+  const matchedPosts = getDb()
+    .select({ id: postAuthorships.postId })
+    .from(postSubscriptions)
+    .innerJoin(postAuthorships, eq(postAuthorships.oxyUserId, postSubscriptions.authorId))
+    .where(
+      and(
+        eq(postSubscriptions.subscriberId, params.viewerId),
+        eq(postAuthorships.status, 'accepted'),
+        gte(postAuthorships.postCreatedAt, since),
+      ),
+    );
+  const candidates = await runSource(
+    'activity-subscriptions',
+    withViewerLanguage(
+      [
+        ...buildBaseConditions(params.seenPostIds, since, params.rankingAsOf),
+        inArray(posts.id, matchedPosts),
+      ],
+      params.viewerLanguages,
+    ),
+    params.candidateLimit ?? MtnConfig.feed.candidateSources.perSource.following,
+    params.candidateLimit !== undefined,
+  );
+  return candidates.map((post) => ({ ...post, activitySubscriptionMatch: true }));
+}
 
 /** FOLLOWING: posts from followed authors (sensitive allowed at query level). */
 export async function gatherFollowingLane(

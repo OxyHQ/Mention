@@ -1,3 +1,4 @@
+import { activitySubscriptionMatches } from '../activitySubscriptionMatches';
 /**
  * Feed Engine
  *
@@ -556,6 +557,8 @@ export class FeedEngine {
     // Consume a raw chronological window before filtering. Keep the overfetch
     // row for the next page, including when several timelines are merged.
     const raw = Array.from(new Map(sourceResults.flat().map((post) => [post.id, post])).values());
+    const bellMatches =
+      definition.id === 'for_you' ? await activitySubscriptionMatches(raw, ctx) : new Set<string>();
     const poolNeedsTextMedia = this.needsTextMedia(definition.filters, ctx);
     const gateNeedsTextMedia = this.needsTextMedia(definition.discoveryFilters ?? [], ctx);
     const gateViews = await this.prepareTextMediaViews(
@@ -609,9 +612,11 @@ export class FeedEngine {
     let gatedCount = 0;
     for (let i = 0; i < sourceResults.length; i += 1) {
       const sourceModule = enabledSources[i].module;
-      const isTrusted = this.registry.getSource(sourceModule)?.trusted === true;
-      const applyGate = !isTrusted && hasGate;
+      const trustedSource = this.registry.getSource(sourceModule)?.trusted === true;
       for (const post of sourceResults[i]) {
+        if (bellMatches.has(post.id)) post.activitySubscriptionMatch = true;
+        const isTrusted = trustedSource || post.activitySubscriptionMatch === true;
+        const applyGate = !isTrusted && hasGate;
         if (maxPool !== undefined && merged.size >= maxPool) break;
         const id = post?.id;
         if (!id || numberIds.has(id) || merged.has(id) || session?.scannedIds.includes(id))
@@ -802,6 +807,7 @@ export class FeedEngine {
                 state.phase === 'popular' ? (post.engagementScore ?? 0) : (post.finalScore ?? 0),
             }))
           : await feedRankingService.rankPosts(batch.pool, ctx.currentUserId, {
+              activitySubscribedAuthorIds: ctx.activitySubscribedAuthorIds,
               followingIds: ctx.followingIds,
               userBehavior: ctx.userBehavior,
               feedSettings: ctx.feedSettings,
@@ -1034,6 +1040,7 @@ export class FeedEngine {
       }
     } else {
       const rankedPosts = await feedRankingService.rankPosts(pool, ctx.currentUserId, {
+        activitySubscribedAuthorIds: ctx.activitySubscribedAuthorIds,
         followingIds: ctx.followingIds,
         userBehavior: ctx.userBehavior,
         feedSettings: ctx.feedSettings,

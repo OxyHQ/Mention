@@ -79,9 +79,14 @@ describe('preset definitions include Phase 2b signals', () => {
    * prefix invariant `FeedEngine.finalizeRanked`'s score cursor pages on, and
    * could drop landscape videos from every page.
    */
-  it("videosDefinition signals are forYou's, plus portraitBoost", () => {
+  it('videosDefinition retains shared signals plus portraitBoost, without ForYou bell priority', () => {
     const forYouIds = forYouDefinition.signals.map((ref) => ref.module);
     const videoIds = videosDefinition.signals.map((ref) => ref.module);
-    expect(videoIds).toEqual([...forYouIds, 'portraitBoost']);
+    expect(videoIds).toEqual([
+      ...forYouIds.filter((id) => id !== 'activitySubscriptionBoost'),
+      'portraitBoost',
+    ]);
+    expect(forYouIds).toContain('activitySubscriptionBoost');
+    expect(videoIds).not.toContain('activitySubscriptionBoost');
   });
 });

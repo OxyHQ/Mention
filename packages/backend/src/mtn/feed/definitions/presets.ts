@@ -251,6 +251,7 @@ export const forYouDefinition: FeedDefinition = {
   title: 'For You',
   mode: 'ranked',
   sources: [
+    enabled('activitySubscriptions'),
     enabled('following'),
     enabled('lists'),
     enabled('affinity'),
@@ -259,7 +260,7 @@ export const forYouDefinition: FeedDefinition = {
     enabled('trending'),
     enabled('globalDiscovery'),
   ],
-  signals: buildPresetRankingSignals(),
+  signals: [...buildPresetRankingSignals(), enabled('activitySubscriptionBoost')],
   filters: [enabled('safety')],
   // Phase 4: the discovery gate applies ONLY to non-trusted lanes. `filters` stays
   // `[safety]` (always-on, every lane); the gate goes here so following/affinity/

@@ -78,6 +78,25 @@ describe('ranked feed session storage', () => {
     );
   });
 
+  it('rejects a continuation after the viewer disables a bell, while ignoring graph order', async () => {
+    const initial = state();
+    const ctx = { currentUserId: 'viewer', activitySubscribedAuthorIds: ['b', 'a'] };
+    initial.binding = rankedSessionBinding(definition, ctx, 20);
+    const cursor = await store.save(initial);
+    expect(
+      await store.load(
+        cursor,
+        rankedSessionBinding(definition, { ...ctx, activitySubscribedAuthorIds: ['a', 'b'] }, 20),
+      ),
+    ).toEqual(initial);
+    await expect(
+      store.load(
+        cursor,
+        rankedSessionBinding(definition, { ...ctx, activitySubscribedAuthorIds: ['a'] }, 20),
+      ),
+    ).rejects.toMatchObject({ statusCode: 410, code: 'FEED_CURSOR_EXPIRED' });
+  });
+
   it('stores immutable minimal state with a thirty-minute lifetime', async () => {
     const initial = state();
     const cursor = await store.save(initial);
