@@ -58,6 +58,7 @@ import { accountListMembers, accountLists } from '../../db/schema/lists';
 import { reports } from '../../db/schema/moderation';
 import { mcpConnections } from '../../db/schema/mcp';
 import { userSettings } from '../../db/schema/userProfile';
+import { deckWorkspaces } from '../../db/schema/deck';
 import { lanes } from '../../db/schema/channels';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { CHANNEL_CASCADE } from '../../services/channelDeletion/channelCascadeManifest';
@@ -100,6 +101,7 @@ afterEach(async () => {
   await db.delete(reports).where(like(reports.reporter, `${SCOPE_PREFIX}%`));
   await db.delete(mcpConnections).where(like(mcpConnections.oxyUserId, `${SCOPE_PREFIX}%`));
   await db.delete(userSettings).where(like(userSettings.oxyUserId, `${SCOPE_PREFIX}%`));
+  await db.delete(deckWorkspaces).where(like(deckWorkspaces.oxyUserId, `${SCOPE_PREFIX}%`));
   await db.delete(lanes).where(like(lanes.ownerId, `${SCOPE_PREFIX}%`));
   await db.delete(federatedFollows).where(like(federatedFollows.localUserId, `${SCOPE_PREFIX}%`));
   await db.delete(trending).where(like(trending.name, `${SCOPE_PREFIX}%`));
@@ -172,6 +174,30 @@ describe('ChannelDeletionService — the manifest binding', () => {
 });
 
 describe('ChannelDeletionService — what happens to real rows', () => {
+  it('previews and deletes the channel-owned Deck workspace while preserving other accounts', async () => {
+    const state = { syncEnabled: true, panels: {}, order: [] };
+    await getDb()
+      .insert(deckWorkspaces)
+      .values([
+        { oxyUserId: CHANNEL, revision: 1, state },
+        { oxyUserId: VIEWER, revision: 1, state },
+      ]);
+    const read = (owner: string) =>
+      getDb().select().from(deckWorkspaces).where(eq(deckWorkspaces.oxyUserId, owner));
+
+    const preview = await deleteChannelContent(CHANNEL, { dryRun: true });
+    expect(preview.steps['deck_workspaces.oxyUserId']).toBe(1);
+    expect(await read(CHANNEL)).toHaveLength(1);
+
+    const deleted = await deleteChannelContent(CHANNEL, { dryRun: false });
+    expect(deleted.steps['deck_workspaces.oxyUserId']).toBe(1);
+    expect(await read(CHANNEL)).toEqual([]);
+    expect((await read(VIEWER))[0].state).toEqual(state);
+
+    const repeated = await deleteChannelContent(CHANNEL, { dryRun: false });
+    expect(repeated.steps['deck_workspaces.oxyUserId']).toBe(0);
+  });
+
   it("destroys the channel posts and a stranger's boost of one, and keeps their quote", async () => {
     const channelPost = await seedChannelPost();
     const boost = await seedPost(scope, {
