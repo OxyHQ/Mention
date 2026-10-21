@@ -458,6 +458,8 @@
   "settings.appearance.postTextLength.muchMore": "Çok daha fazla",
   "settings.appearance.postTextLength.all": "Tümünü göster",
   "settings.account.manageAccount": "Hesabı yönet",
+  "settings.editProfile.look": "Görünüm",
+  "settings.editProfile.oxyRow": "Fotoğraf, ad, biyografi, konum ve bağlantılar",
   "settings.editProfile.signInRequired": "Profilini özelleştirmek için giriş yap",
   "settings.editProfile.signInRequiredDesc": "Profil düzenini ve vurgu rengini seç.",
   "settings.accentColor": "Vurgu rengi",

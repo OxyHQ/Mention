@@ -466,6 +466,8 @@
   "settings.appearance.postTextLength.muchMore": "Намного больше",
   "settings.appearance.postTextLength.all": "Показывать целиком",
   "settings.account.manageAccount": "Управление аккаунтом",
+  "settings.editProfile.look": "Внешний вид",
+  "settings.editProfile.oxyRow": "Фото, имя, описание, местоположение и ссылки",
   "settings.editProfile.signInRequired": "Войдите, чтобы настроить профиль",
   "settings.editProfile.signInRequiredDesc": "Выберите оформление профиля и акцентный цвет.",
   "settings.accentColor": "Акцентный цвет",

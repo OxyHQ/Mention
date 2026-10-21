@@ -474,6 +474,8 @@
   "settings.appearance.postTextLength.muchMore": "أطول بكثير",
   "settings.appearance.postTextLength.all": "عرض الكل",
   "settings.account.manageAccount": "إدارة الحساب",
+  "settings.editProfile.look": "المظهر",
+  "settings.editProfile.oxyRow": "الصورة والاسم والنبذة والموقع والروابط",
   "settings.editProfile.signInRequired": "سجّل الدخول لتخصيص ملفك الشخصي",
   "settings.editProfile.signInRequiredDesc": "اختر تخطيط ملفك الشخصي ولون التمييز.",
   "settings.accentColor": "لون التمييز",

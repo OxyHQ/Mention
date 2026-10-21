@@ -458,6 +458,8 @@
   "settings.appearance.postTextLength.muchMore": "Jauh lebih banyak",
   "settings.appearance.postTextLength.all": "Tampilkan semua",
   "settings.account.manageAccount": "Kelola akun",
+  "settings.editProfile.look": "Tampilan",
+  "settings.editProfile.oxyRow": "Foto, nama, bio, lokasi, dan tautan",
   "settings.editProfile.signInRequired": "Masuk untuk menyesuaikan profilmu",
   "settings.editProfile.signInRequiredDesc": "Pilih tata letak profil dan warna aksenmu.",
   "settings.accentColor": "Warna aksen",

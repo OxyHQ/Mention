@@ -17,6 +17,7 @@ export const SETTINGS_PAGE_IDS = [
   'accessibility',
   'appearance',
   'connected-ai',
+  'edit-profile',
   'external-media',
   'fediverse',
   'fediverse/node',

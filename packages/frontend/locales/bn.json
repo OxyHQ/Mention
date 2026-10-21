@@ -458,6 +458,8 @@
   "settings.appearance.postTextLength.muchMore": "অনেক বেশি",
   "settings.appearance.postTextLength.all": "সবটুকু দেখান",
   "settings.account.manageAccount": "অ্যাকাউন্ট পরিচালনা করুন",
+  "settings.editProfile.look": "চেহারা",
+  "settings.editProfile.oxyRow": "ছবি, নাম, বায়ো, অবস্থান এবং লিংক",
   "settings.editProfile.signInRequired": "আপনার প্রোফাইল কাস্টমাইজ করতে সাইন ইন করুন",
   "settings.editProfile.signInRequiredDesc": "আপনার প্রোফাইলের লেআউট ও অ্যাকসেন্ট রঙ বেছে নিন।",
   "settings.accentColor": "অ্যাকসেন্ট রঙ",

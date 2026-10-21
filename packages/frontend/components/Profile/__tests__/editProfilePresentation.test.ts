@@ -5,36 +5,12 @@ const FRONTEND = join(__dirname, '..', '..', '..');
 const read = (relativePath: string) => readFileSync(join(FRONTEND, relativePath), 'utf8');
 
 describe('Edit Profile presentation', () => {
-  it('keeps the navigable route below the native camera safe area', () => {
-    const route = read('app/(app)/edit-profile.tsx');
-    // Bloom's PageHeader pads the native safe-area top itself unless told not to.
-    expect(route).toMatch(/<PageHeader\b/);
-    expect(route).not.toMatch(/safeArea=\{false\}/);
-    expect(route).toMatch(/<EditProfileForm\s*\/>/);
-  });
-
-  it('opens the profile button in the app-level Bloom content dialog', () => {
+  it('opens Edit profile as a Settings page from the profile button and the direct route', () => {
     const header = read('components/Profile/ProfileHeader.tsx');
-    const dialog = read('components/common/ContentDialog.tsx');
-    expect(header).toMatch(/showContentDialog\(\{/);
-    expect(header).toMatch(/render: \(\) => <EditProfileForm \/>/);
-    expect(header).not.toMatch(/router\.push\(['"]\/edit-profile/);
-    expect(dialog).toMatch(/from '@oxy\.so\/bloom\/dialog'/);
-    expect(dialog).toMatch(/placement=\{\{ base: 'bottom', md: 'center' \}\}/);
-  });
-
-  it('shares one form between the route and dialog instead of duplicating editor state', () => {
     const route = read('app/(app)/edit-profile.tsx');
-    const header = read('components/Profile/ProfileHeader.tsx');
-    expect(route).not.toMatch(/BannerSection|PinnedMediaSection|ColorSwatchPicker/);
-    expect(header).not.toMatch(/BannerSection|PinnedMediaSection|ColorSwatchPicker/);
-    expect(read('components/Profile/EditProfile/EditProfileForm.tsx')).toMatch(
-      /<BannerSection \/>[\s\S]+<ColorSwatchPicker[\s\S]+<PinnedMediaSection \/>/,
-    );
-  });
-
-  it('keeps the direct route available for deep links and accessibility', () => {
-    expect(read('app/(app)/edit-profile.tsx')).toMatch(/export default function EditProfileScreen/);
+    expect(header).toMatch(/requestSettings\('\/settings\/edit-profile'\)/);
+    expect(route).toMatch(/requestSettings\('\/settings\/edit-profile'\)/);
+    expect(read('components/settings/settingsRoutes.ts')).toMatch(/'edit-profile'/);
   });
 
   it('presents the header at its real 3:1 ratio with accessible edit and remove actions', () => {
