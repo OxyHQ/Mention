@@ -200,6 +200,36 @@ describe('createApp', () => {
     expect(apex.headers['cache-control'] ?? '').not.toContain('no-store');
   });
 
+  /**
+   * Behind the ALB the socket peer is private; behind Cloudflare too, the ALB
+   * appends Cloudflare's edge after the client. Every IP-keyed limiter reads
+   * `req.ip`, so it must be the client in both shapes and never a forged entry.
+   */
+  it('resolves req.ip to the real client behind the ALB and Cloudflare', async () => {
+    const { createApp } = await import('../app');
+    const deps = createDependencies();
+    const whoami = express.Router();
+    whoami.get('/whoami', (req, res) => res.json({ ip: req.ip }));
+    deps.routes.publicApi = whoami;
+    const app = createApp(deps);
+    const ipFor = async (forwardedFor: string) => {
+      const response = await request(app)
+        .get('/whoami')
+        .set('Host', 'api.mention.earth')
+        .set('X-Forwarded-For', forwardedFor)
+        .expect(200);
+      return (response.body as { ip: string }).ip;
+    };
+
+    // Grey (DNS only): the ALB appends the client.
+    expect(await ipFor('203.0.113.7')).toBe('203.0.113.7');
+    // Orange (proxied): Cloudflare appends the client, the ALB appends Cloudflare.
+    expect(await ipFor('203.0.113.7, 172.70.1.2')).toBe('203.0.113.7');
+    // A forged left-most entry is never believed, in either shape.
+    expect(await ipFor('198.51.100.9, 203.0.113.7')).toBe('203.0.113.7');
+    expect(await ipFor('198.51.100.9, 203.0.113.7, 172.70.1.2')).toBe('203.0.113.7');
+  });
+
   it('bypasses API throttles only for the apex web plane', async () => {
     const { createApp } = await import('../app');
     const deps = createDependencies();

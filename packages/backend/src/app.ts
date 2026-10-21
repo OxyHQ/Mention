@@ -1,6 +1,10 @@
 import { withAliaSdkCsp } from '@alia.onl/sdk/csp';
 import type { PublicDeploymentInfo } from '@mention/shared-types/deployment';
-import { createOxySecurityHeaders, type OxyCspExtensions } from '@oxy.so/core/server';
+import {
+  createOxySecurityHeaders,
+  oxyTrustProxy,
+  type OxyCspExtensions,
+} from '@oxy.so/core/server';
 import compression from 'compression';
 import express, { type ErrorRequestHandler, type Request, type RequestHandler } from 'express';
 import type { AppRoutes } from './appRoutes';
@@ -104,8 +108,11 @@ export function createApp(deps: CreateAppDependencies): express.Express {
   const { middleware, routes } = deps;
   const app = express();
 
+  // The real client behind the ALB, and behind Cloudflare in front of it when the
+  // hostname is proxied (mention.earth is): `trust proxy = 1` answered Cloudflare's
+  // edge there, so every anonymous limiter keyed the whole apex on a few addresses.
+  app.set('trust proxy', oxyTrustProxy);
   if (middleware.activity) app.use(middleware.activity);
-  app.set('trust proxy', 1);
   app.use(middleware.requestObservability);
   // One content-decision scope per request: its Oxy policy questions batch together.
   app.use(middleware.contentAccessScope);
