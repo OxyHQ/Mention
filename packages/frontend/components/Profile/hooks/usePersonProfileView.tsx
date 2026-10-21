@@ -8,7 +8,9 @@ import { useTranslation } from 'react-i18next';
 import { FollowButton as OxyFollowButton, useAuth, useFollow } from '@oxy.so/services/ui/client';
 import { logger } from '@oxy.so/core/logger';
 import type { FeedType } from '@mention/shared-types';
+import { Badge } from '@oxy.so/bloom/badge';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
+import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
 import { AlloIcon } from '@/assets/icons/allo-icon';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
@@ -140,8 +142,10 @@ export interface PersonProfileView extends ProfileAccount {
  * scroll chrome, and every value here is tuned against the others — a second
  * copy would be correct for exactly as long as nobody touched either.
  *
- * This serves more than people: only a `channel` routes to `/c/<handle>`, so an
- * ORGANIZATION, PROJECT or BOT renders through here at `/@<handle>` too.
+ * This serves more than people: only a Mention channel routes to `/c/<handle>`,
+ * so an ORGANIZATION, PROJECT or BOT renders through here at `/@<handle>` too, and
+ * so does every remote account — a remote COMMUNITY, with its own label and its
+ * followers counted as members, and a remote CHANNEL (a PeerTube channel).
  */
 export function usePersonProfileView({
   active = true,
@@ -478,6 +482,19 @@ export function usePersonProfileView({
               so this renders nothing for the overwhelming majority of
               profiles. */}
           <AccountCategoryLine accountCategories={profileData.accountCategories} align="start" />
+          {/* A community's page is a remote profile like any other; this says
+              what it is — a forum its members post into, which the follow
+              button joins. */}
+          {profileData.kind === 'community' && (
+            <View className="flex-row mb-3">
+              <Badge
+                content={t('profile.communityLabel')}
+                icon={RiGroupLine}
+                size="label-small"
+                variant="subtle"
+              />
+            </View>
+          )}
           {profileData.movedTo && <ProfileMovedNotice movedTo={profileData.movedTo} />}
           {isPrivate && (
             <View className="flex-row items-center gap-2 flex-wrap">

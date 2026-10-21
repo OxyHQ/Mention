@@ -1,7 +1,6 @@
-import type { FederatedActorRecord } from '../../db/federation/actorRecord';
 import { findActorsByUris } from '../../db/federation/actorRepository';
 import { logger } from '../../utils/logger';
-import { isCommunityActor } from '../../services/federation/community';
+import { communityAccountIds } from '../../services/federation/community';
 import { isAbsoluteHttpUrl } from '../shared/url';
 import { actorService } from './actor.service';
 import { sameOrigin } from './helpers';
@@ -11,7 +10,7 @@ import { sameOrigin } from './helpers';
  * like (FEP-1b12). A member writes a post IN a community; the community relays
  * it to its followers (`apRelay.ts`). Mention stores the post as its writer's,
  * with the community it was written in as `posts.community_oxy_user_id`.
- * Whether an actor IS one is `isCommunityActor` (`services/federation/community.ts`).
+ * Whether an actor IS one is `communityAccountIds` (`services/federation/community.ts`).
  */
 
 const AS_PUBLIC = new Set(['https://www.w3.org/ns/activitystreams#Public', 'as:Public', 'Public']);
@@ -63,16 +62,16 @@ export async function resolvePostCommunity(
 
   try {
     const known = await findActorsByUris(candidates);
-    const community = (actor: FederatedActorRecord | null | undefined) =>
-      actor && isCommunityActor(actor) && actor.oxyUserId ? actor.oxyUserId : null;
+    const knownCommunities = await communityAccountIds(known);
     for (const uri of candidates) {
-      const found = community(known.find((actor) => actor.uri === uri));
-      if (found) return found;
+      const id = known.find((actor) => actor.uri === uri)?.oxyUserId;
+      if (id && knownCommunities.has(id)) return id;
     }
     for (const uri of declared) {
       if (known.some((actor) => actor.uri === uri)) continue;
-      const found = community(await actorService.getOrFetchActor(uri));
-      if (found) return found;
+      const fetched = await actorService.getOrFetchActor(uri);
+      if (!fetched?.oxyUserId) continue;
+      if ((await communityAccountIds([fetched])).has(fetched.oxyUserId)) return fetched.oxyUserId;
     }
   } catch (err) {
     logger.info('[Federation] could not resolve the community of a post', {

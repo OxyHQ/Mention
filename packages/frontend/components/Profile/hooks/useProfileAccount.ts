@@ -41,10 +41,10 @@ export interface ProfileAccount {
 export function useProfileAccount(routedUsername: string): ProfileAccount {
   const username = routedUsername.startsWith('@') ? routedUsername.slice(1) : routedUsername;
 
-  // A federated handle carries its instance in the segment itself. Channels are
-  // local-only accounts, so this can only ever be true on the person route — but
-  // it is read the same way on both, because the rule belongs to the handle, not
-  // to the screen.
+  // A federated handle carries its instance in the segment itself. A Mention
+  // channel is a local account, so this can only ever be true on the person
+  // route — but it is read the same way on both, because the rule belongs to the
+  // handle, not to the screen.
   const isFederated = username.includes('@');
   const { data: profileData, loading, notFound, refresh } = useProfileData(username);
 
@@ -64,8 +64,8 @@ export function useProfileAccount(routedUsername: string): ProfileAccount {
 export interface ProfileCanonicalHrefOptions {
   /**
    * Which route FILE is mounted. It says nothing about what the account is —
-   * that comes back as `profileData.kind`, and this is how the two are
-   * reconciled.
+   * that comes back as `profileData.kind` and `profileData.isFederated`, and this
+   * is how the two are reconciled.
    */
   routedFamily: ProfileRouteFamily;
   account: ProfileAccount;
@@ -93,7 +93,7 @@ export function useProfileCanonicalHref({
 }: ProfileCanonicalHrefOptions): Href | null {
   return canonicalProfileHref({
     routedFamily,
-    kind: account.profileData?.kind,
+    account: account.profileData ?? undefined,
     handle: account.handle,
     resolved: Boolean(account.profileData),
     subpath,

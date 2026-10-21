@@ -182,6 +182,11 @@ describe('mapProfileOg', () => {
     expect(mapProfileOg({ username: 'news@example.org', kind: 'channel' })?.url).toBe(
       'https://mention.earth/c/news@example.org',
     );
+    // A REMOTE channel (PeerTube) is an ordinary remote profile, not a Mention channel.
+    expect(
+      mapProfileOg({ username: 'videos@peertube.example', kind: 'channel', isFederated: true })
+        ?.url,
+    ).toBe('https://mention.earth/@videos@peertube.example');
     // Everything else a path segment cannot carry is still encoded.
     expect(mapProfileOg({ username: 'a/b?c#d' })?.url).toBe('https://mention.earth/@a%2Fb%3Fc%23d');
   });
@@ -546,9 +551,16 @@ describe('mapPostOg for search', () => {
     expect(mapPostOg(post({}), 'p1', SAFE).robots).toBe('index,follow');
   });
 
-  it("marks a channel's post as the organization's", () => {
-    const og = mapPostOg(post({ user: { ...author, kind: 'channel' } }), 'p1', SAFE);
-    expect((og.jsonLd?.author as Record<string, unknown>)['@type']).toBe('Organization');
+  it.each([
+    ['personal', 'Person'],
+    ['organization', 'Organization'],
+    ['project', 'Organization'],
+    ['channel', 'Organization'],
+    ['bot', 'Organization'],
+    ['community', 'Organization'],
+  ] as const)("types a %s author's post as schema.org %s", (kind, type) => {
+    const og = mapPostOg(post({ user: { ...author, kind } }), 'p1', SAFE);
+    expect((og.jsonLd?.author as Record<string, unknown>)['@type']).toBe(type);
   });
 });
 

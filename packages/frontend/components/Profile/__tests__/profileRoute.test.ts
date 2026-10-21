@@ -31,8 +31,9 @@ import {
   canonicalProfileHref,
   profileBasePath,
   profileHrefForUser,
-  profileRouteFamilyForKind,
+  profileRouteFamily,
   profileSubPath,
+  type ProfileRouteAccount,
   type ProfileRouteFamily,
 } from '@/components/Profile/profileRoute';
 
@@ -47,26 +48,28 @@ const ALL_KINDS: (AccountKind | undefined)[] = [
   'project',
   'bot',
   'channel',
+  'community',
 ];
+
+/** Every kind, local and remote: the whole input the family is read from. */
+const ALL_ACCOUNTS: ProfileRouteAccount[] = ALL_KINDS.flatMap((kind) => [
+  { kind },
+  { kind, isFederated: true },
+]);
 
 const FAMILIES: ProfileRouteFamily[] = ['person', 'channel'];
 
-describe('profileRouteFamilyForKind', () => {
-  it('sends a channel to the channel family', () => {
-    expect(profileRouteFamilyForKind('channel')).toBe('channel');
+describe('profileRouteFamily', () => {
+  it('sends only a LOCAL channel to the channel family', () => {
+    // A remote channel (a PeerTube channel) and a remote community are remote
+    // profiles like any other, on the person family.
+    expect(ALL_ACCOUNTS.filter((account) => profileRouteFamily(account) === 'channel')).toEqual([
+      { kind: 'channel' },
+    ]);
   });
 
-  it.each(ALL_KINDS.filter((kind) => kind !== 'channel'))(
-    'sends kind %s to the person family',
-    (kind) => {
-      expect(profileRouteFamilyForKind(kind)).toBe('person');
-    },
-  );
-
-  it('reads an absent kind as a person, never as a channel', () => {
-    // Every federated and unresolved profile arrives without a kind. Reading
-    // that as a channel would route the whole fediverse through `/c/`.
-    expect(profileRouteFamilyForKind(undefined)).toBe('person');
+  it('reads an absent account as a person, never as a channel', () => {
+    expect(profileRouteFamily(undefined)).toBe('person');
   });
 });
 
@@ -89,7 +92,7 @@ describe('canonicalProfileHref', () => {
     expect(
       canonicalProfileHref({
         routedFamily: 'person',
-        kind: 'channel',
+        account: { kind: 'channel' },
         handle: 'news',
         resolved: true,
       }),
@@ -100,7 +103,7 @@ describe('canonicalProfileHref', () => {
     expect(
       canonicalProfileHref({
         routedFamily: 'channel',
-        kind: 'personal',
+        account: { kind: 'personal' },
         handle: 'nate',
         resolved: true,
       }),
@@ -111,7 +114,7 @@ describe('canonicalProfileHref', () => {
     expect(
       canonicalProfileHref({
         routedFamily: 'channel',
-        kind: 'channel',
+        account: { kind: 'channel' },
         handle: 'news',
         resolved: true,
       }),
@@ -119,7 +122,7 @@ describe('canonicalProfileHref', () => {
     expect(
       canonicalProfileHref({
         routedFamily: 'person',
-        kind: 'personal',
+        account: { kind: 'personal' },
         handle: 'nate',
         resolved: true,
       }),
@@ -133,7 +136,7 @@ describe('canonicalProfileHref', () => {
     expect(
       canonicalProfileHref({
         routedFamily: 'person',
-        kind: undefined,
+        account: { kind: undefined },
         handle: 'news',
         resolved: false,
       }),
@@ -144,7 +147,7 @@ describe('canonicalProfileHref', () => {
     expect(
       canonicalProfileHref({
         routedFamily: 'channel',
-        kind: 'personal',
+        account: { kind: 'personal' },
         handle: '',
         resolved: true,
       }),
@@ -162,10 +165,10 @@ describe('canonicalProfileHref', () => {
    */
   it('reaches a fixed point in one hop, from every route and every kind', () => {
     for (const routedFamily of FAMILIES) {
-      for (const kind of ALL_KINDS) {
+      for (const account of ALL_ACCOUNTS) {
         const first = canonicalProfileHref({
           routedFamily,
-          kind,
+          account,
           handle: 'acct',
           resolved: true,
         });
@@ -178,7 +181,7 @@ describe('canonicalProfileHref', () => {
           : 'person';
         const second = canonicalProfileHref({
           routedFamily: landedFamily,
-          kind,
+          account,
           handle: 'acct',
           resolved: true,
         });
@@ -193,12 +196,12 @@ describe('canonicalProfileHref', () => {
   // always wrong for any given kind.
   it('actually redirects half the grid, so the fixed-point test is not vacuous', () => {
     const redirects = FAMILIES.flatMap((routedFamily) =>
-      ALL_KINDS.map((kind) =>
-        canonicalProfileHref({ routedFamily, kind, handle: 'acct', resolved: true }),
+      ALL_ACCOUNTS.map((account) =>
+        canonicalProfileHref({ routedFamily, account, handle: 'acct', resolved: true }),
       ),
     ).filter((href) => href !== null);
 
-    expect(redirects).toHaveLength(ALL_KINDS.length);
+    expect(redirects).toHaveLength(ALL_ACCOUNTS.length);
   });
 });
 
@@ -219,7 +222,7 @@ describe('canonicalProfileHref — sub-routes', () => {
     expect(
       canonicalProfileHref({
         routedFamily: 'person',
-        kind: 'channel',
+        account: { kind: 'channel' },
         handle: 'news',
         resolved: true,
         subpath: 'about',
@@ -228,7 +231,7 @@ describe('canonicalProfileHref — sub-routes', () => {
     expect(
       canonicalProfileHref({
         routedFamily: 'channel',
-        kind: 'personal',
+        account: { kind: 'personal' },
         handle: 'nate',
         resolved: true,
         subpath: 'about',
@@ -240,7 +243,7 @@ describe('canonicalProfileHref — sub-routes', () => {
     expect(
       canonicalProfileHref({
         routedFamily: 'channel',
-        kind: 'channel',
+        account: { kind: 'channel' },
         handle: 'news',
         resolved: true,
         subpath: 'about',
@@ -257,10 +260,10 @@ describe('canonicalProfileHref — sub-routes', () => {
   it('reaches a fixed point in one hop for a sub-route too', () => {
     let redirects = 0;
     for (const routedFamily of FAMILIES) {
-      for (const kind of ALL_KINDS) {
+      for (const account of ALL_ACCOUNTS) {
         const first = canonicalProfileHref({
           routedFamily,
-          kind,
+          account,
           handle: 'acct',
           resolved: true,
           subpath: 'about',
@@ -275,7 +278,7 @@ describe('canonicalProfileHref — sub-routes', () => {
         expect(
           canonicalProfileHref({
             routedFamily: landedFamily,
-            kind,
+            account,
             handle: 'acct',
             resolved: true,
             subpath: 'about',
@@ -284,7 +287,7 @@ describe('canonicalProfileHref — sub-routes', () => {
       }
     }
     // Vacuity floor, same as the root case.
-    expect(redirects).toBe(ALL_KINDS.length);
+    expect(redirects).toBe(ALL_ACCOUNTS.length);
   });
 });
 
@@ -319,6 +322,17 @@ describe('profileHrefForUser', () => {
     ).toBe('/@r74n@mastodon.gamedev.place');
   });
 
+  it('sends a remote channel to its `/@` page', () => {
+    expect(
+      profileHrefForUser({
+        username: 'videos',
+        isFederated: true,
+        instance: 'peertube.example',
+        kind: 'channel',
+      }),
+    ).toBe('/@videos@peertube.example');
+  });
+
   it('sends a channel to `/c/`, without a redirect on the way', () => {
     // The whole reason the account object is passed rather than a handle: the
     // family is only knowable from `kind`, and a caller holding a bare string
@@ -349,7 +363,7 @@ describe('profileHrefForUser', () => {
     expect(
       canonicalProfileHref({
         routedFamily: 'channel',
-        kind: 'channel',
+        account: { kind: 'channel' },
         handle: 'notas',
         resolved: true,
       }),

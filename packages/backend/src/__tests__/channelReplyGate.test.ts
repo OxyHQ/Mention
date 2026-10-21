@@ -46,6 +46,8 @@ import {
 const scope = postScope('channel-reply-gate');
 const CHANNEL_ACCOUNT = scope.user('channel');
 const PERSON = scope.user('person');
+/** A PeerTube channel: Oxy's kind is `channel`, but it is a remote account. */
+const REMOTE_CHANNEL = scope.user('remote-channel');
 
 beforeAll(async () => {
   await connectPostgres();
@@ -54,9 +56,10 @@ beforeAll(async () => {
 beforeEach(() => {
   resolveUserSummaries.mockReset();
   resolveUserSummaries.mockImplementation(async (ids: string[]) => {
-    const map = new Map<string, { user: { id: string; kind?: string } }>();
+    const map = new Map<string, { user: { id: string; kind?: string; isFederated?: boolean } }>();
     for (const id of ids) {
-      map.set(id, { user: { id, kind: id === CHANNEL_ACCOUNT ? 'channel' : 'personal' } });
+      const kind = id === CHANNEL_ACCOUNT || id === REMOTE_CHANNEL ? 'channel' : 'personal';
+      map.set(id, { user: { id, kind, isFederated: id === REMOTE_CHANNEL || undefined } });
     }
     return map;
   });
@@ -77,6 +80,7 @@ describe('postIsAuthoredByChannel', () => {
 
   it.each([
     ['a person', { oxyUserId: PERSON }],
+    ['a remote channel', { oxyUserId: REMOTE_CHANNEL }],
     ['an absent author', {}],
     ['an explicit null author', { oxyUserId: null }],
     ['a null post', null],

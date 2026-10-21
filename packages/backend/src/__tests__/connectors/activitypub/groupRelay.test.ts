@@ -13,6 +13,8 @@ import { like } from 'drizzle-orm';
 const h = vi.hoisted(() => ({
   creator: null as null | { create: (params: Record<string, unknown>) => Promise<unknown> },
   fetchUpstreamSingleHop: vi.fn(),
+  /** The Oxy accounts whose kind is `community` — Oxy's answer, not the actor row's. */
+  communityAccounts: new Set<string>(),
 }));
 
 vi.mock('../../../connectors/activitypub/crypto', () => ({
@@ -42,7 +44,15 @@ vi.mock('../../../services/serviceRegistry', () => ({
 }));
 vi.mock('../../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn().mockResolvedValue([]) },
-  resolveUserSummaries: vi.fn(async () => new Map()),
+  resolveUserSummaries: vi.fn(
+    async (ids: string[]) =>
+      new Map(
+        ids.map((id) => [
+          id,
+          { user: { id, kind: h.communityAccounts.has(id) ? 'community' : 'personal' } },
+        ]),
+      ),
+  ),
 }));
 
 import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
@@ -62,6 +72,7 @@ const scope = federationScope('group-relay');
 const COMMUNITY_URI = `${scope.origin}/c/technology`;
 const MEMBER_URI = `${scope.origin}/u/alice`;
 const COMMUNITY_OXY = scope.user('technology');
+h.communityAccounts.add(COMMUNITY_OXY);
 const MEMBER_OXY = scope.user('alice');
 const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 /** A known account on ANOTHER origin than the community's. */

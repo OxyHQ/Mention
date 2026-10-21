@@ -26,6 +26,8 @@
  * author's choosing. Every answer in this module is syntactic.
  */
 
+import type { AccountKind } from '@oxy.so/contracts';
+
 /**
  * Our minted ActivityPub actor URI — `https://<us>/ap/users/<username>`.
  *
@@ -189,4 +191,43 @@ export function ownProfileUrlHandle(url: string, hosts: readonly string[]): stri
   handle = handle.replace(/^@+/, '').trim();
   if (!handle || ROUTE_HOSTILE_HANDLE.test(handle)) return undefined;
   return handle;
+}
+
+/**
+ * Which URL family a profile page belongs to: `/c/<handle>` or `/@<handle>`.
+ *
+ * The two are never interchangeable, and the ACCOUNT is the only thing that
+ * decides which — nothing about the URL a reader arrived on does. The frontend's
+ * links and redirects and the web shell's canonical URL all read it here.
+ */
+export type ProfileRouteFamily = 'channel' | 'person';
+
+/** The account facts the profile family is read from. */
+export interface ProfileRouteAccount {
+  /** The Oxy account kind. Absent reads as `personal`, which is never a channel. */
+  kind?: AccountKind | null;
+  /** Set on an account Oxy records for a remote (fediverse / atproto) actor. */
+  isFederated?: boolean | null;
+}
+
+/**
+ * Whether the account is a MENTION CHANNEL: the publishing product an Oxy
+ * `channel` account is here — its page at `/c/<handle>`, its posts taking no
+ * replies (`utils/channelReplyGate`).
+ *
+ * A REMOTE account Oxy records as `channel` is not one. That is `@oxy.so/federation`
+ * reading a fediverse `Group` that only moderators post into (a PeerTube video
+ * channel): its page is an ordinary remote profile, and its posts take the
+ * comments its own server accepts. Every other kind, a remote community
+ * included, is a `person`-family page.
+ */
+export function isMentionChannel(account: ProfileRouteAccount | null | undefined): boolean {
+  return account?.kind === 'channel' && !account.isFederated;
+}
+
+/** The family the account itself belongs to (see {@link isMentionChannel}). */
+export function profileRouteFamily(
+  account: ProfileRouteAccount | null | undefined,
+): ProfileRouteFamily {
+  return isMentionChannel(account) ? 'channel' : 'person';
 }

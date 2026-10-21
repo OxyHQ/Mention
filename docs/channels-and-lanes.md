@@ -202,7 +202,13 @@ workarounds.
   and no `ChannelFollow`/`ChannelMember` model; following is a normal Oxy
   follow and membership lives in the account graph. `webShell.routes.ts`
   redirects `/@handle` to `/c/<handle>` for a channel **after** the
-  ActivityPub-Accept branch — never redirect an AP endpoint path.
+  ActivityPub-Accept branch — never redirect an AP endpoint path. A channel
+  here is a LOCAL `channel` account (`isMentionChannel`,
+  `@mention/shared-types/profileUrls`, which the app's links, both web-shell
+  redirects and the reply gate read). A remote account Oxy records as
+  `channel` (a PeerTube channel: a `Group` with `postingRestrictedToMods`) is
+  an ordinary remote profile at `/@<handle>@<instance>`, and its posts take
+  replies.
 - **A notification addressed to a channel needs READ-TIME recipient
   expansion, because no session can ever BE the channel.**
   `isDelegatedActAsEligibleKind('channel') === false` refuses a channel as a session

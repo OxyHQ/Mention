@@ -48,7 +48,7 @@ describe('colour entitlement', () => {
 
   it('matches the handle regardless of case or padding', () => {
     expect(isColorEntitled('oxy', { username: '  Oxy ', mentionMono: false })).toBe(true);
-    expect(isColorEntitled('faircoin', { username: '  FairCoin ', mentionMono: true })).toBe(false);
+    expect(isColorEntitled('faircoin', { username: '  FairCoin ', mentionMono: false })).toBe(true);
   });
 
   it('offers only canonical Oxy presets for all viewers and rejects unsupported free colors', () => {
