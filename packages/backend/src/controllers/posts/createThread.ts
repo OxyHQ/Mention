@@ -1,5 +1,8 @@
 import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
-import { CommunityPostError } from '../../services/communities/communityPosting';
+import {
+  CommunityPostError,
+  normalizeCommunityPostTitle,
+} from '../../services/communities/communityPosting';
 import {
   requesterPublicationPolicy,
   publicationVisibility,
@@ -169,6 +172,18 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     // opens any account's posts to replies from a third party: every entry is
     // authored by one of the caller's own accounts, so the reply gate refuses
     // everybody else on a continuation exactly as it does on the root.
+    // A THREAD may be written in a community: the root names it, and every
+    // continuation is a reply that takes its thread's community (`create`), so a
+    // thread in a Lemmy community is a post with its author's own follow-up
+    // comments. A beast batch is n independent posts, which a community is not.
+    const threadCommunity =
+      typeof req.body.communityOxyUserId === 'string' ? req.body.communityOxyUserId : null;
+    if (threadCommunity && mode !== 'thread') {
+      return res
+        .status(400)
+        .json({ message: 'A community takes a single post or a thread, not a batch' });
+    }
+
     const batchAccount = req.body.publishAsOxyUserId;
     if (mode !== 'thread' && typeof batchAccount === 'string') {
       return res
@@ -460,10 +475,14 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       // fallback: a multilingual entry that stored `content.text` instead would
       // lose every rendition it was written in.
       const authorLanguageVariants = entryVariants[i];
+      // The ROOT of a thread written in a community may carry its title.
+      const title =
+        i === 0 && threadCommunity ? normalizeCommunityPostTitle(content?.title) : undefined;
       const postContent: PostContent = {
         text: authorLanguageVariants[0]?.text ?? content?.text ?? '',
         media: normalizeMediaItems(content?.media),
         ...(authorLanguageVariants.length > 0 ? { variants: authorLanguageVariants } : {}),
+        ...(title ? { title } : {}),
       };
 
       if (processedContentLocation) {
@@ -614,6 +633,8 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         // entry; in beast mode it is the entry's own.
         publishAsOxyUserId: accountForEntry(i),
         memberReader: batchMemberReader,
+        // The root names the community; continuations inherit it as replies.
+        ...(i === 0 && threadCommunity ? { communityOxyUserId: threadCommunity } : {}),
         // For thread mode: chain each continuation post to the immediately
         // previous post (sequential thread), with a shared threadId root.
         // For beast mode: all posts are independent.

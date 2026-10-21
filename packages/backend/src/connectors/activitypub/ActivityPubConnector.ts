@@ -21,7 +21,7 @@ import {
   federateCommunityBan,
   federateCommunityRemoval,
   federateCommunityUnban,
-  resolveLocalCommunityActors,
+  resolveCommunityAudiences,
 } from './communityRelay';
 import {
   followService,
@@ -539,14 +539,14 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
   }
 
   /**
-   * The community hosted here each post is written in, for a PULL surface (the
+   * The community each post is written in, for a PULL surface (the
    * outbox, `featured`, the per-post dereference), so a fetched Note names the
    * same `audience` a pushed one does. One batched identity read.
    */
   async resolveCommunityContextByPost(
     posts: ReadonlyArray<Pick<NoteSourcePost, 'id' | 'communityOxyUserId'>>,
   ): Promise<Map<string, NoteCommunityContext>> {
-    const actors = await resolveLocalCommunityActors(posts.map((post) => post.communityOxyUserId));
+    const actors = await resolveCommunityAudiences(posts.map((post) => post.communityOxyUserId));
     const contexts = new Map<string, NoteCommunityContext>();
     for (const post of posts) {
       const actor = post.communityOxyUserId ? actors.get(post.communityOxyUserId) : undefined;

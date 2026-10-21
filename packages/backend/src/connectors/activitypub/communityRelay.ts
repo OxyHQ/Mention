@@ -7,6 +7,8 @@ import { resolveMentionCommunities } from '../../services/publishAsAccount';
 import { resolveUserSummaries } from '../../services/PostHydrationService';
 import { loadPostRecord } from '../../db/posts/postRepository';
 import { findActorsByOxyUserIds } from '../../db/federation/actorRepository';
+import { deleteFollowById, findInboundFollow } from '../../db/federation/followRepository';
+import { bridgeFollowEdge } from './followBridge';
 import { isAbsoluteHttpUrl } from '../shared/url';
 import { actorUrl, followersUrl, resolveOxyUser } from './constants';
 import { deliveryService } from './delivery.service';
@@ -59,6 +61,49 @@ export async function resolveLocalCommunityActors(
     if (username) actors.set(oxyUserId, { oxyUserId, username, actorUri: actorUrl(username) });
   }
   return actors;
+}
+
+/**
+ * Where a post written in a community is addressed (FEP-1b12): the community's
+ * actor, named as the Note's `audience` and in `cc`. A community hosted HERE
+ * relays the post itself (`local`); a REMOTE one (Lemmy, PieFed, Mbin) is
+ * delivered the member's activity at its `inbox`, and announces it to its own
+ * followers — the same Create a Lemmy user's instance sends it.
+ */
+export interface CommunityAudience {
+  actorUri: string;
+  inbox?: string;
+  local?: LocalCommunityActor;
+}
+
+/** {@link CommunityAudience} for several communities: one identity read, one actor read. */
+export async function resolveCommunityAudiences(
+  oxyUserIds: ReadonlyArray<string | null | undefined>,
+): Promise<Map<string, CommunityAudience>> {
+  const ids = [...new Set(oxyUserIds.filter((id): id is string => Boolean(id)))];
+  const audiences = new Map<string, CommunityAudience>();
+  if (ids.length === 0) return audiences;
+  const local = await resolveLocalCommunityActors(ids);
+  for (const [id, actor] of local) audiences.set(id, { actorUri: actor.actorUri, local: actor });
+  const remoteIds = ids.filter((id) => !local.has(id));
+  if (remoteIds.length > 0) {
+    for (const actor of await findActorsByOxyUserIds(remoteIds)) {
+      if (!actor.oxyUserId || !actor.uri || actor.type !== 'Group') continue;
+      audiences.set(actor.oxyUserId, {
+        actorUri: actor.uri,
+        inbox: actor.sharedInboxUrl || actor.inboxUrl || undefined,
+      });
+    }
+  }
+  return audiences;
+}
+
+/** {@link resolveCommunityAudiences} for one community. */
+export async function resolveCommunityAudience(
+  oxyUserId: string | null | undefined,
+): Promise<CommunityAudience | null> {
+  if (!oxyUserId) return null;
+  return (await resolveCommunityAudiences([oxyUserId])).get(oxyUserId) ?? null;
 }
 
 /** Addressees of an AP addressing field, bounded so a hostile object costs little. */
@@ -309,15 +354,33 @@ async function deliverToBannedPerson(
   }
 }
 
-/** Federate a ban: the community `Block`s the banned remote account. */
-export function federateCommunityBan(
+/**
+ * Federate a ban: the community `Block`s the banned remote account and stops
+ * counting it as a follower. That is what the Block does on the other side —
+ * Mastodon unfollows a blocker, Lemmy unsubscribes a banned member — so the
+ * follow row and its Oxy edge go too, and a later Follow is answered with Reject
+ * (`refusesFollower` in the inbound dispatcher). A LOCAL member keeps their
+ * follow: Oxy lets nobody but the person move their own follow graph, and the
+ * ban takes away posting, not reading what the community publishes in public.
+ */
+export async function federateCommunityBan(
   communityOxyUserId: string,
   bannedOxyUserId: string,
   reason: string | null,
 ): Promise<void> {
-  return deliverToBannedPerson(communityOxyUserId, bannedOxyUserId, (community, actorUri) =>
+  await deliverToBannedPerson(communityOxyUserId, bannedOxyUserId, (community, actorUri) =>
     buildCommunityBlock(community, actorUri, reason),
   );
+  try {
+    const [actor] = await findActorsByOxyUserIds([bannedOxyUserId]);
+    if (!actor?.uri) return;
+    const follow = await findInboundFollow(actor.uri, communityOxyUserId);
+    if (!follow) return;
+    await bridgeFollowEdge(bannedOxyUserId, communityOxyUserId, 'unfollow');
+    await deleteFollowById(follow.id);
+  } catch (err) {
+    logger.error('[Federation] failed to drop a banned follower', err);
+  }
 }
 
 /** Federate a lifted ban: the community's `Undo(Block)`. */
@@ -328,4 +391,32 @@ export function federateCommunityUnban(
   return deliverToBannedPerson(communityOxyUserId, bannedOxyUserId, (community, actorUri) =>
     buildCommunityUnblock(community, actorUri),
   );
+}
+
+/**
+ * A community's OUTBOX items: the posts its members wrote here in it, each as
+ * the `Announce { Create }` the community relayed it as — the shape Lemmy and
+ * PieFed backfill a newly discovered community from. A remote member's post is
+ * not listed: its Create is its own server's to serve, and a copy minted here
+ * would not dereference. A post whose author does not federate is skipped.
+ */
+export async function announceCommunityPosts<TPost extends { oxyUserId?: string | null }>(
+  community: LocalCommunityActor,
+  posts: readonly TPost[],
+  buildCreate: (post: TPost, authorUsername: string) => Record<string, unknown>,
+): Promise<Record<string, unknown>[]> {
+  const authorIds = [...new Set(posts.map((post) => post.oxyUserId).filter(Boolean))] as string[];
+  const [summaries, sharing] = await Promise.all([
+    resolveUserSummaries(authorIds),
+    Promise.all(authorIds.map(async (id) => [id, await isFediverseSharingEnabled(id)] as const)),
+  ]);
+  const federating = new Set(sharing.filter(([, enabled]) => enabled).map(([id]) => id));
+  const items: Record<string, unknown>[] = [];
+  for (const post of posts) {
+    const authorId = post.oxyUserId;
+    const username = authorId ? summaries.get(authorId)?.user.username?.trim() : undefined;
+    if (!authorId || !username || !federating.has(authorId)) continue;
+    items.push(buildCommunityAnnounce(community, buildCreate(post, username)));
+  }
+  return items;
 }

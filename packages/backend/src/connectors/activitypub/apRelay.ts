@@ -8,6 +8,19 @@ import {
 } from './helpers';
 import { primaryApType } from './apSchemas';
 import { isAbsoluteHttpUrl } from '../shared/url';
+import { isSameFederationHost } from '@oxy.so/federation';
+import { OWN_DOMAINS } from './ownDomain';
+
+/** Whether an actor URI is on one of our own hosts — one of our users. */
+function isOwnActorUri(uri: string): boolean {
+  let host: string;
+  try {
+    host = new URL(uri).hostname;
+  } catch {
+    return false;
+  }
+  return OWN_DOMAINS.some((domain) => isSameFederationHost(domain, host));
+}
 
 /**
  * An `Announce` whose object is an ACTIVITY — how a community relays its members.
@@ -86,6 +99,8 @@ const ACTIVITY_TYPES: ReadonlySet<string> = new Set([
  * - `Lock`, `Add`/`Remove` (moderators, featured posts), `Block` (community
  *   bans), `Flag`: community moderation, which Mention does not model.
  * - A nested `Announce`: one level of relay is the protocol; more is a loop.
+ * - An activity by one of OUR users: a remote community relaying a post written
+ *   here back to us. We already hold it.
  *
  * `Like` and `Undo(Like)` are kept only when they concern a LOCAL post — see
  * {@link unprocessedReason}.
@@ -209,6 +224,12 @@ export async function resolveAnnouncedActivity(
   }
 
   if (!handles.has(type)) return { kind: 'dropped', reason: `unsupported-${type}` };
+  // A remote community announcing OUR member's own activity back to us — what
+  // every post written here into a Lemmy community comes back as. The post is
+  // already ours; processing the copy would import our own user as a remote
+  // author (and our own domain is not one we fetch actors from).
+  const innerActor = extractActorUri(embedded.actor);
+  if (innerActor && isOwnActorUri(innerActor)) return { kind: 'dropped', reason: 'own-activity' };
   const unprocessed = unprocessedReason(type, embedded);
   if (unprocessed) return { kind: 'dropped', reason: unprocessed };
 

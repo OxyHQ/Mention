@@ -853,15 +853,16 @@ export interface CreatePostRequest {
    */
   publishAsOxyUserId?: string;
   /**
-   * Write this post IN a community hosted here (an Oxy account of kind
-   * `community`): the post stays the caller's, carries the community as
-   * `community`, appears on the community's page and in its members' Following
-   * feeds, and the community relays it to its fediverse followers (FEP-1b12).
+   * Write this post IN a community (an Oxy account of kind `community`): the
+   * post stays the caller's, carries the community as `community`, and appears on
+   * the community's page and in its members' Following feeds. A community hosted
+   * here relays it to its fediverse followers; a remote one (Lemmy, PieFed, Mbin)
+   * is delivered it and announces it itself (FEP-1b12).
    *
    * Refused (400) on a reply (a reply takes its thread's community), a boost,
    * a post published as another account, a post that is not public, or an
-   * account that is not a community hosted here; refused (403) when a moderator
-   * banned the caller from it. `content.title` is accepted only alongside it.
+   * account that is not a community; refused (403) when a moderator here banned
+   * the caller from it. `content.title` is accepted only alongside it.
    */
   communityOxyUserId?: string;
 }
@@ -942,6 +943,13 @@ export interface CreateThreadRequest {
    * root.
    */
   publishAsOxyUserId?: string;
+  /**
+   * Write the thread IN a community (hosted here or remote): the root carries
+   * it, and every continuation, being a reply, takes its thread's community.
+   * Thread mode only — a beast batch is refused (400). The root's
+   * `content.title` is its optional title.
+   */
+  communityOxyUserId?: string;
 }
 
 export interface UpdatePostRequest {

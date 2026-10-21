@@ -8,8 +8,8 @@
  * is `POST /posts` with `communityOxyUserId`; joining it is an ordinary Oxy
  * follow; its moderators are public at Oxy's `GET /users/:id/moderators`.
  *
- *  - `GET    /communities/joined` — the communities hosted here the caller joined
- *    (the composer's choice of where to post)
+ *  - `GET    /communities/joined` — the communities the caller joined, hosted
+ *    here or remote (the composer's choice of where to post)
  *  - `POST   /communities/:communityId/posts/:postId/removal` `{ reason? }`
  *  - `GET    /communities/:communityId/bans`
  *  - `POST   /communities/:communityId/bans` `{ userId, reason? }`
@@ -20,8 +20,8 @@ import { Router, type Response } from 'express';
 import type { CommunityBansResponse, JoinedCommunitiesResponse } from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { getRequiredOxyUserId } from '@oxy.so/core/server';
-import { PublishAsAccessError, resolveMentionCommunities } from '../services/publishAsAccount';
-import { getFollowingIdSet } from '../utils/privacyHelpers';
+import { PublishAsAccessError } from '../services/publishAsAccount';
+import { listJoinedCommunities } from '../services/communities/joinedCommunities';
 import { CommunityPostError } from '../services/communities/communityPosting';
 import {
   banFromCommunity,
@@ -72,21 +72,17 @@ function sendModerationError(res: Response, error: unknown, context: string): Re
 const limiters = config.runtime.isProduction ? [communityModerationRateLimiter] : [];
 
 /**
- * The communities hosted here the caller follows (joining one is following it),
- * read through the same cached following list the feed uses and the same
- * cached identity read every kind question uses.
+ * The communities the caller joined (joining one is following it), hosted here
+ * or remote — see `listJoinedCommunities`.
  */
 router.get('/joined', async (req: AuthRequest, res: Response) => {
   try {
-    const followed = await getFollowingIdSet(
+    const communities = await listJoinedCommunities(
       getRequiredOxyUserId(req),
       createUserScopedOxyServices(req),
     );
-    const communities = await resolveMentionCommunities([...followed]);
     res.set('Cache-Control', 'private, no-store');
-    return sendSuccessResponse<JoinedCommunitiesResponse>(res, 200, {
-      communities: [...communities.values()],
-    });
+    return sendSuccessResponse<JoinedCommunitiesResponse>(res, 200, { communities });
   } catch (error) {
     return sendModerationError(res, error, 'joined communities');
   }

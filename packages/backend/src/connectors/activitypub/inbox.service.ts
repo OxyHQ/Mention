@@ -48,7 +48,6 @@ import { actorService } from './actor.service';
 import { requireActorOxyUserId } from '../shared/ActorResolutionPendingError';
 import { outboxSyncService } from './outbox.service';
 import { deliveryService } from './delivery.service';
-import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import {
   asRecord,
   extractAnnouncedObjectUri,
@@ -92,6 +91,7 @@ import {
 } from '../../services/PostEngagementCommandService';
 import { deleteFederatedPostSubtree } from '../../services/FederatedPostDeletionService';
 import { applyInboundMove } from './move.service';
+import { bridgeFollowEdge } from './followBridge';
 import {
   addressedLocalCommunity,
   isSelfConsistentActivity,
@@ -100,7 +100,7 @@ import {
   resolveLocalCommunityActor,
 } from './communityRelay';
 import { isBannedFromCommunity } from '../../db/communities/communityBanRepository';
-import { localCommunityOfPost } from '../../services/communities/communityPosting';
+import { communityOfPost } from '../../services/communities/communityPosting';
 
 /**
  * Whether a Note replies to one of our posts or mentions one of our users. Such
@@ -693,7 +693,7 @@ export class InboxProcessingService {
     const localCommunity =
       addressedCommunity ??
       (threadLink
-        ? await resolveLocalCommunityActor(await localCommunityOfPost(threadLink.parentPostId))
+        ? await resolveLocalCommunityActor(await communityOfPost(threadLink.parentPostId))
         : null);
     if (
       localCommunity &&
@@ -1242,6 +1242,16 @@ export class InboxProcessingService {
 
       logger.debug('[Federation] updated federated post');
 
+      // A community hosted here relays its member's edit (`Announce { Update }`),
+      // under the same rule as their Create: only an activity that speaks for its
+      // own actor alone, and never one another community relayed to us.
+      const community = relayedBy
+        ? null
+        : await resolveLocalCommunityActor(existingPost.communityOxyUserId);
+      if (community && isSelfConsistentActivity(activity, actorUri)) {
+        await relayToCommunityFollowers(community, activity);
+      }
+
       // Notify only NEWLY-added local mentions (diff against the post's prior
       // mentions), so a redelivered/unchanged Update never re-notifies while an
       // edit that adds a mention still reaches that user. Only meaningful when the
@@ -1279,26 +1289,6 @@ export class InboxProcessingService {
 
 export const inboxProcessingService = new InboxProcessingService();
 export default inboxProcessingService;
-
-/**
- * Bridge a federated follow edge into the Oxy follow graph via oxy-api's service
- * route `POST /federation/follow`. Idempotent on both sides: `follow` is a no-op
- * when the edge already exists and `unfollow` when it does not. Throws on
- * transport/HTTP failure so the BullMQ inbox job retries — the whole inbound-follow
- * (and Undo) sequence is retry-safe, so re-running converges. The engine's identity
- * adapter calls this for both directions.
- */
-async function bridgeFollowEdge(
-  followerUserId: string,
-  targetUserId: string,
-  action: 'follow' | 'unfollow',
-): Promise<void> {
-  await getServiceOxyClient().serviceRequest('POST', '/federation/follow', {
-    followerUserId,
-    targetUserId,
-    action,
-  });
-}
 
 /**
  * The shared inbound dispatcher. The engine validates the untrusted activity, owns
@@ -1367,7 +1357,13 @@ const inboundDispatcherConfig: InboundDispatcherConfig = {
   delivery: {
     sendAccept: (localOxyUserId, localUsername, followActivityId, remoteActorUri) =>
       deliveryService.sendAccept(localOxyUserId, localUsername, followActivityId, remoteActorUri),
+    sendReject: (localOxyUserId, localUsername, followActivityId, remoteActorUri) =>
+      deliveryService.sendReject(localOxyUserId, localUsername, followActivityId, remoteActorUri),
   },
+  // A community hosted here refuses a follower its moderators banned: the
+  // Follow is answered with Reject and no edge is written (`community_bans`).
+  refusesFollower: (localUserId, followerOxyUserId) =>
+    isBannedFromCommunity(localUserId, followerOxyUserId),
   // Fail-soft: the Oxy edge is already committed, so a notification failure must
   // never fail (and thus retry) the follow. Imported lazily — `notificationUtils`
   // reaches the `server` singleton, and this module is itself pulled in by `server`.

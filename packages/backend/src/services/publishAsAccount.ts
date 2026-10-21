@@ -562,6 +562,22 @@ export async function resolveMentionCommunity(
   return (await resolveMentionCommunities([oxyUserId])).get(oxyUserId) ?? null;
 }
 
+/**
+ * The COMMUNITIES among several ids — hosted here or remote (a Lemmy, PieFed or
+ * Mbin `Group`) alike, by Oxy's kind — in one batched read; misses are absent.
+ * Where a post may be written: in a community hosted here Mention is the
+ * authority, in a remote one its own server is.
+ */
+export async function resolveCommunities(
+  oxyUserIds: ReadonlyArray<string | null | undefined>,
+): Promise<Map<string, PostUser>> {
+  const communities = new Map<string, PostUser>();
+  for (const [id, account] of await resolveAccounts(oxyUserIds)) {
+    if (account.kind === 'community') communities.set(id, account);
+  }
+  return communities;
+}
+
 /** {@link resolveMentionCommunity} for several ids in one batched read; misses are absent. */
 export async function resolveMentionCommunities(
   oxyUserIds: ReadonlyArray<string | null | undefined>,

@@ -26,8 +26,8 @@ interface CommunityPickerSheetProps {
 const keyExtractor = (community: PostUser) => community.id;
 
 /**
- * Picks the community a post is written IN — one of the communities hosted here
- * the author joined. The post stays the author's: it goes out under their name,
+ * Picks the community a post is written IN — one the author joined, hosted here
+ * or remote (Lemmy, PieFed, Mbin). The post stays the author's: it goes out under their name,
  * and the community relays it to its members. Which communities may take it is
  * the server's call (`resolveNativePostCommunity`); this only offers the joined
  * ones, and the way to find more.
