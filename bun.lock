@@ -99,7 +99,7 @@
         "@oxy.so/bloom": "catalog:",
         "@oxy.so/contracts": "catalog:",
         "@oxy.so/core": "catalog:",
-        "@oxy.so/homiio-sdk": "0.1.0",
+        "@oxy.so/homiio-sdk": "0.1.1",
         "@oxy.so/mention-contracts": "workspace:*",
         "@oxy.so/services": "catalog:",
         "@oxy.so/stickers": "^0.1.1",
@@ -265,7 +265,7 @@
     "@oxy.so/bloom": "catalog:",
     "@oxy.so/contracts": "catalog:",
     "@oxy.so/core": "4.5.0",
-    "@oxy.so/homiio-contracts": "0.1.0",
+    "@oxy.so/homiio-contracts": "0.1.1",
     "@oxy.so/mcp": "catalog:",
     "@oxy.so/protocol": "catalog:",
     "@oxy.so/services": "11.2.0",
@@ -962,9 +962,9 @@
 
     "@oxy.so/federation": ["@oxy.so/federation@2.2.1", "", { "dependencies": { "@oxy.so/contracts": "^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0", "@oxy.so/core": "^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0" }, "peerDependencies": { "express": "^4.18.0 || ^5.0.0" }, "optionalPeers": ["express"] }, "sha512-v2KpvCD0fI4E0Mih0LtX//kHiWrKesEFzULOT1DdRu/7/ChvMEOsInSJDAGrlucEqGnEktyDmIVex80wyA2bnQ=="],
 
-    "@oxy.so/homiio-contracts": ["@oxy.so/homiio-contracts@0.1.0", "", { "dependencies": { "zod": "^4.3.6" } }, "sha512-nn2t2fn3WYPq/jNK9BS+vayHNZT0vunstVR9HXl9RN4niOmjQwDK3VmB6DZGo5nRHYvZA7BStqsyM3jSB2PJtg=="],
+    "@oxy.so/homiio-contracts": ["@oxy.so/homiio-contracts@0.1.1", "", { "dependencies": { "zod": "^4.3.6" } }, "sha512-SOP3xvOPDqAuQfTB+0EKF93vgRvgT7OY6tj2dQIpigRMBa/hUKkDdGOWqSMkEsAwhrTKfiGoERJkjsXxQ4xXkA=="],
 
-    "@oxy.so/homiio-sdk": ["@oxy.so/homiio-sdk@0.1.0", "", { "dependencies": { "@oxy.so/homiio-contracts": "0.1.0" } }, "sha512-tnfngNHZLD1ucoI2igeFADEBK/h4JbLrd/Ju58vT84uBIWt3KFrP+pWdMJrRtkn6WcAqt8wTytI4BEzXlPoEXQ=="],
+    "@oxy.so/homiio-sdk": ["@oxy.so/homiio-sdk@0.1.1", "", { "dependencies": { "@oxy.so/homiio-contracts": "0.1.1" } }, "sha512-t6yTlmgpB1EC5ZEdtxbjTigZTf9C5LRqd2PekQNlIX029KI2oxlGxQkrp8f2UHgc/IUwxFDXfCEP0kNd9AtmiA=="],
 
     "@oxy.so/mcp": ["@oxy.so/mcp@1.1.0", "", { "dependencies": { "@modelcontextprotocol/sdk": "^1.30.0", "@oxy.so/contracts": "^4.9.0", "zod": "^4.5.4" } }, "sha512-dVue2Ug50d7Zwl2wZv8x6yYBOAAWUXcdh2yz1Su2ufcST+ahv/ode6zVX887zWCyoADUWiWNhc2bYZwTsdBqjQ=="],
 

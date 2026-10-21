@@ -1,4 +1,9 @@
-import { EventAttendees, EventState, EventEdit, EventRegistration } from '@oxy.so/mention-contracts';
+import {
+  EventAttendees,
+  EventState,
+  EventEdit,
+  EventRegistration,
+} from '@oxy.so/mention-contracts';
 import { authenticatedClient, publicClient } from '@/utils/api';
 const path = (id: string) => `/posts/${encodeURIComponent(id)}/event`;
 export const eventsService = {

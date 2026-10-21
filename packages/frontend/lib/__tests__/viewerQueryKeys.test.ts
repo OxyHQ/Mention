@@ -434,3 +434,23 @@ describe('Mention personalization key', () => {
     );
   });
 });
+
+describe('event attendance keys', () => {
+  it('isolates accounts and organizer rosters while retaining an invalidation prefix', () => {
+    const detail = viewerQueryKeys.event('a', 'event-1');
+    expect(detail).not.toEqual(viewerQueryKeys.event('b', 'event-1'));
+    expect(detail).not.toEqual(viewerQueryKeys.event(null, 'event-1'));
+    expect(detail).not.toEqual(viewerQueryKeys.event('a', 'event-2'));
+    expect(viewerQueryKeys.eventAttendees('a', 'event-1', true)).toEqual([
+      ...detail,
+      'attendees',
+      true,
+    ]);
+    expect(viewerQueryKeys.eventAttendees('a', 'event-1', false)).not.toEqual(
+      viewerQueryKeys.eventAttendees('a', 'event-1', true),
+    );
+    expect(viewerQueryKeys.eventAttendees('a', 'event-1', true)).not.toEqual(
+      viewerQueryKeys.eventAttendees('b', 'event-1', true),
+    );
+  });
+});

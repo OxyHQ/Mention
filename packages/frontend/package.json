@@ -179,7 +179,7 @@
     "web-vitals": "^6.2.3",
     "zod": "catalog:",
     "zustand": "^5.0.14",
-    "@oxy.so/homiio-sdk": "0.1.0",
+    "@oxy.so/homiio-sdk": "0.1.1",
     "@oxy.so/mention-contracts": "workspace:*"
   },
   "devDependencies": {

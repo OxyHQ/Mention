@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { EventEditor } from '@/components/Compose/EventEditor';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { eventsService } from '@/services/eventsService';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import type { EventState } from '@oxy.so/mention-contracts';
@@ -31,7 +32,7 @@ function EventDetail({ id, viewerId, signIn }: { id: string; viewerId?: string; 
   const { t } = useTranslation();
   const back = useSafeBack();
   const cache = useQueryClient();
-  const key = ['event', viewerId ?? null, id];
+  const key = viewerQueryKeys.event(viewerId, id);
   const query = useQuery({
     queryKey: key,
     queryFn: () => eventsService.get(id, !!viewerId),
@@ -45,7 +46,7 @@ function EventDetail({ id, viewerId, signIn }: { id: string; viewerId?: string; 
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [roster, setRoster] = useState(false);
   const attendees = useInfiniteQuery({
-    queryKey: [...key, 'attendees', !!event?.canManage],
+    queryKey: viewerQueryKeys.eventAttendees(viewerId, id, !!event?.canManage),
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) =>
       eventsService.attendees(id, !!event?.canManage, !!viewerId, pageParam),

@@ -107,6 +107,11 @@ export const viewerQueryKeys = {
    */
   poll: (viewerId: ViewerId, pollId: string) =>
     [...viewerQueryKeys.postsRoot(viewerId), 'poll', pollId] as const,
+  /** Event attendance and organizer rosters never cross viewer accounts. */
+  event: (viewerId: ViewerId, postId: string) =>
+    [...viewerQueryKeys.postsRoot(viewerId), 'event', postId] as const,
+  eventAttendees: (viewerId: ViewerId, postId: string, canManage: boolean) =>
+    [...viewerQueryKeys.event(viewerId, postId), 'attendees', canManage] as const,
   pinnedPost: (viewerId: ViewerId, profileId: string) =>
     [...viewerQueryKeys.postsRoot(viewerId), 'pinned', profileId] as const,
   /**

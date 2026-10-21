@@ -1,19 +1,19 @@
 [
   {
     "repo": "Homiio",
-    "sourceHead": "4fca9605a8088c2c8b41ab8c7e5dc11b3774c034",
+    "sourceHead": "acc951d1303df743ac6b27eefc697a4de18b722a",
     "name": "@oxy.so/homiio-contracts",
-    "version": "0.1.0",
-    "sha256": "de0173c90b3ef5b46bf5161af157d509bd75a0c2aece1c6225c38b6a9655d1d9",
-    "integrity": "sha512-nn2t2fn3WYPq/jNK9BS+vayHNZT0vunstVR9HXl9RN4niOmjQwDK3VmB6DZGo5nRHYvZA7BStqsyM3jSB2PJtg=="
+    "version": "0.1.1",
+    "sha256": "87c9198eeef9f8c6b1c7adcf562a1069ea400706acb7f5f76aabaf31bfd01e79",
+    "integrity": "sha512-SOP3xvOPDqAuQfTB+0EKF93vgRvgT7OY6tj2dQIpigRMBa/hUKkDdGOWqSMkEsAwhrTKfiGoERJkjsXxQ4xXkA=="
   },
   {
     "repo": "Homiio",
-    "sourceHead": "4fca9605a8088c2c8b41ab8c7e5dc11b3774c034",
+    "sourceHead": "acc951d1303df743ac6b27eefc697a4de18b722a",
     "name": "@oxy.so/homiio-sdk",
-    "version": "0.1.0",
-    "sha256": "41325975ca96eab1f90db9a005ce4700a94d4954e9a1314de9dbe201f982eb48",
-    "integrity": "sha512-tnfngNHZLD1ucoI2igeFADEBK/h4JbLrd/Ju58vT84uBIWt3KFrP+pWdMJrRtkn6WcAqt8wTytI4BEzXlPoEXQ=="
+    "version": "0.1.1",
+    "sha256": "73bb208ad2f1c15c14c52726c7567048b2ff23bc6f710ea3461db47b322d69be",
+    "integrity": "sha512-t6yTlmgpB1EC5ZEdtxbjTigZTf9C5LRqd2PekQNlIX029KI2oxlGxQkrp8f2UHgc/IUwxFDXfCEP0kNd9AtmiA=="
   },
   {
     "repo": "Syra",

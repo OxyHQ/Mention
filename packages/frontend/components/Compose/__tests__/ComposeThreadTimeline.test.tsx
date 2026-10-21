@@ -103,6 +103,11 @@ jest.mock('@/components/Compose/InteractionSettingsPills', () => {
   return { __esModule: true, default: RNView };
 });
 
+// Provider attachment behavior has dedicated tests; this suite measures thread connectors.
+jest.mock('@/components/Podcast/PostPodcastAttachment', () => ({
+  PostPodcastAttachment: () => null,
+}));
+
 // The room attachment card draws Bloom icons, which Jest cannot load untranspiled.
 jest.mock('@/components/RoomCard', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');

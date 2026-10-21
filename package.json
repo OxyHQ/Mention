@@ -150,7 +150,7 @@
     "@fastify/busboy": "3.2.2",
     "@oxy.so/protocol": "catalog:",
     "@oxy.so/mcp": "catalog:",
-    "@oxy.so/homiio-contracts": "0.1.0",
+    "@oxy.so/homiio-contracts": "0.1.1",
     "@syra.fm/contracts": "0.1.0"
   },
   "patchedDependencies": {
