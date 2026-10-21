@@ -1,4 +1,6 @@
 import { useTranslation } from 'react-i18next';
+import NotFoundScreen from '@/components/NotFoundScreen';
+import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
 import { OperatedAccountsScreen } from '@/components/OperatedAccounts/OperatedAccountsScreen';
 
 /**
@@ -7,7 +9,7 @@ import { OperatedAccountsScreen } from '@/components/OperatedAccounts/OperatedAc
  * its moderators, and Mention relays its posts to the fediverse as a Lemmy-style
  * `Group`. See `OperatedAccountsScreen` for what creating one is.
  */
-export default function CommunitiesScreen() {
+function CommunitiesScreen() {
   const { t } = useTranslation();
   return (
     <OperatedAccountsScreen
@@ -38,4 +40,9 @@ export default function CommunitiesScreen() {
       }}
     />
   );
+}
+
+/** Communities are a private preview: everyone else sees the page that does not exist. */
+export default function CommunitiesRoute() {
+  return useCommunitiesPreview() ? <CommunitiesScreen /> : <NotFoundScreen />;
 }

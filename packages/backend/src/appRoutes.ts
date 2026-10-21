@@ -39,6 +39,7 @@ import lanesRoutes, { publicLanesRouter } from './routes/lanes.routes';
 import channelWritersRoutes from './routes/channelWriters.routes';
 import channelDeletionRoutes from './routes/channelDeletion.routes';
 import communitiesRoutes from './routes/communities.routes';
+import { requireCommunitiesPreview } from './services/communities/communityPreview';
 import reportsRoutes from './routes/reports.routes';
 import communityNotesRoutes from './routes/communityNotes.routes';
 import { createCrowdSourceWebhookRoutes } from './routes/crowdSourceWebhook.routes';
@@ -198,7 +199,7 @@ export function createAppRoutes({ oxy, optionalAuth }: CreateAppRoutesDependenci
   // a second prefix for the same noun (`/posts` and `/statistics` are split the
   // same way).
   authenticatedApi.use('/channels', channelDeletionRoutes);
-  authenticatedApi.use('/communities', communitiesRoutes);
+  authenticatedApi.use('/communities', requireCommunitiesPreview, communitiesRoutes);
   authenticatedApi.use('/reports', reportsRoutes);
   // Writing and rating a note are acts of a person, and CrowdSource is told who
   // by an id it has to be able to trust — so the session, not the body, names

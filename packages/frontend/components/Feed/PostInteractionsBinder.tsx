@@ -1,4 +1,5 @@
 import { lazy, Suspense, useContext, useEffect, useMemo } from 'react';
+import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
 import { useRouter } from '@/lib/navigation/router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -48,6 +49,7 @@ export function PostInteractionsBinder() {
   const queryClient = useQueryClient();
   const noteHandlers = useCommunityNoteHandlerContext();
   const viewerId = user?.id;
+  const communitiesPreview = useCommunitiesPreview();
 
   const commands = useMemo<BoundPostCommands>(() => {
     const deps = {
@@ -171,7 +173,12 @@ export function PostInteractionsBinder() {
         // (an active member, the rule the server enforces) — read from the cache
         // the composer and the community page fill, and fetched once otherwise.
         const community = post.community;
-        if (!canUsePrivateApi || !community?.id || !isMentionCommunity(community)) {
+        if (
+          !communitiesPreview ||
+          !canUsePrivateApi ||
+          !community?.id ||
+          !isMentionCommunity(community)
+        ) {
           show(false);
           return;
         }
@@ -197,6 +204,7 @@ export function PostInteractionsBinder() {
     noteHandlers,
     interactions,
     oxyServices,
+    communitiesPreview,
   ]);
 
   useEffect(() => {
