@@ -1,3 +1,4 @@
+import { EXPLORE_RANKING_VERSION } from '../CursorBuilder';
 import { eligibleActivitySubscriptionAuthors } from '../../../services/activitySubscriptionInterest';
 import { activitySubscriptionMatches } from '../activitySubscriptionMatches';
 /**
@@ -250,6 +251,16 @@ export class FeedEngine {
       !isRankedSessionCursor(cursor) &&
       !parsedScoreCursor?.fromPopularFallback &&
       parsedScoreCursor?.rankingVersion !== 2
+    )
+      throw expiredFeedCursor();
+
+    // Explore's source SQL score changed too. Old stateless boundaries cannot
+    // be compared to the new ordering, even when current preferences are empty.
+    if (
+      cursor &&
+      definition.id === 'explore' &&
+      !isRankedSessionCursor(cursor) &&
+      parsedScoreCursor?.rankingVersion !== EXPLORE_RANKING_VERSION
     )
       throw expiredFeedCursor();
 
@@ -1232,7 +1243,7 @@ export class FeedEngine {
             ? undefined
             : {
                 asOf: ctx.rankingAsOf,
-                rankingVersion: 2,
+                rankingVersion: definition.id === 'explore' ? EXPLORE_RANKING_VERSION : 2,
                 // Keep a bounded rolling guard rather than only the cursor row.
                 // Current-page ids come first so the most recent boundary is
                 // always protected when the 100-id cap is reached.

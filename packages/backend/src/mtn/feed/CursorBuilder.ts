@@ -26,6 +26,9 @@ import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema';
 import { and, eq, gt, lt, or, sql, type SQL } from 'drizzle-orm';
 
+/** Explore source ordering now includes explicit negative author/topic intent. */
+export const EXPLORE_RANKING_VERSION = 3;
+
 // --- Score-based cursor (for ranked feeds: for_you, explore) ---
 
 export interface ScoreCursorData {
