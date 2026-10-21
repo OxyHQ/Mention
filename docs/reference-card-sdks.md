@@ -2,7 +2,7 @@
 
 The browser resolves Homiio case cards with `@oxy.so/homiio-sdk` 0.1.2
 (`POST https://api.homiio.com/api/v1/cases/batch`) and Syra podcast cards with
-`@syra.fm/sdk` 0.19.0 (`POST https://api.syra.fm/api/podcasts/public-cards`).
+`@syra.fm/sdk` 0.21.1 (`POST https://api.syra.fm/api/podcasts/public-cards`).
 Both are anonymous, `no-store` batch reads whose CORS allows `https://mention.earth`
 and `https://www.mention.earth`; any other Mention origin must be added on the
 provider. Mention's web CSP lists both API origins in `connect-src`
@@ -14,7 +14,7 @@ into the app is `lib/notificationValidation`, and a second consumer would make
 Metro hoist it into `__common`. `lib/references/homiioCases.ts` imports
 `@oxy.so/homiio-sdk/client` (checks responses by hand) on first use, and the URL
 and case-ID helpers in `@mention/shared-types/homiio` come from
-`@oxy.so/homiio-contracts/links`. `@syra.fm/sdk` 0.19.0's client entry carries
+`@oxy.so/homiio-contracts/links`. `@syra.fm/sdk` 0.21.1's client entry carries
 no Zod. The events screen imports `@oxy.so/mention-contracts` for types only;
 the API validates every command.
 

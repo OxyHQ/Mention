@@ -16,7 +16,7 @@
       "@oxy.so/mcp": "1.3.1",
       "@oxy.so/services": "12.6.0",
       "@oxy.so/utils": "^1.3.0",
-      "@syra.fm/sdk": "0.19.1",
+      "@syra.fm/sdk": "0.21.1",
       "@types/bun": "1.4.3",
       "@types/jsonwebtoken": "^9.0.10",
       "@types/node": "^26.6.5",

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { PanResponder, type LayoutChangeEvent } from 'react-native';
+import { PanResponder, type LayoutChangeEvent, type PanResponderInstance } from 'react-native';
 import {
   useSharedValue,
   useAnimatedStyle,
@@ -179,6 +179,13 @@ export interface ReelChromeParams {
   onSessionEnd: (postId: string) => void;
   onRegisterTransportSeek: RegisterTransportSeek;
 }
+
+/**
+ * The scrubber's responder, as a named type. Inferred, the hook's return type
+ * would name React Native 0.88's internal `GestureResponderHandlerMethods`,
+ * which a composite project cannot emit (TS2883).
+ */
+export interface ReelScrubResponder extends PanResponderInstance {}
 
 export function useReelChrome({
   player,
@@ -693,7 +700,7 @@ export function useReelChrome({
     [duration, player, progress],
   );
 
-  const panResponder = useMemo(
+  const panResponder: ReelScrubResponder = useMemo(
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useProfileScroll } from './useProfileScroll';
+import { type Dispatch, type SetStateAction, useState } from 'react';
+import { type ProfileScroll, useProfileScroll } from './useProfileScroll';
 import type { ProfileTab } from '../types';
 
 export interface ProfileChromeOptions {
@@ -7,10 +7,13 @@ export interface ProfileChromeOptions {
   currentTab: ProfileTab;
   currentLaneId?: string;
 }
-export type ProfileChrome = ReturnType<typeof useProfileChrome>;
+export interface ProfileChrome extends ProfileScroll {
+  contentHeight: number;
+  setContentHeight: Dispatch<SetStateAction<number>>;
+}
 
 /** Profile pagination/restoration stays product-owned; Bloom owns header geometry. */
-export function useProfileChrome(options: ProfileChromeOptions) {
+export function useProfileChrome(options: ProfileChromeOptions): ProfileChrome {
   const scroll = useProfileScroll(options);
   const [contentHeight, setContentHeight] = useState(0);
   return { ...scroll, contentHeight, setContentHeight };
