@@ -55,6 +55,8 @@
 import type { AccountKind } from '@oxy.so/contracts';
 import { isDelegatedActAsEligibleKind } from '@oxy.so/contracts';
 import type { AccountMember, AccountNode } from '@oxy.so/core';
+import type { PostUser } from '@mention/shared-types';
+import { isMentionChannel } from '@mention/shared-types/profileUrls';
 import { resolveUserSummaries } from './PostHydrationService';
 import { logger } from '../utils/logger';
 
@@ -286,30 +288,49 @@ export async function resolveAccountKinds(
   oxyUserIds: ReadonlyArray<string | null | undefined>,
 ): Promise<Map<string, AccountKind>> {
   const kinds = new Map<string, AccountKind>();
-  const ids = [...new Set(oxyUserIds.filter((id): id is string => Boolean(id)))];
-  if (ids.length === 0) return kinds;
-  try {
-    const summaries = await resolveUserSummaries(ids);
-    for (const id of ids) {
-      const kind = summaries.get(id)?.user.kind;
-      if (kind) kinds.set(id, kind);
-    }
-  } catch (error) {
-    logger.warn('[publishAsAccount] Failed to resolve account kinds', error);
+  for (const [id, account] of await resolveAccounts(oxyUserIds)) {
+    if (account.kind) kinds.set(id, account.kind);
   }
   return kinds;
 }
 
 /**
- * Whether this Oxy account is a channel — the question `utils/channelReplyGate`
- * asks about a post's author, on every reply.
+ * The Oxy accounts behind several ids, through the cached identity path, and
+ * fail-soft to an empty map — the one read under {@link resolveAccountKinds} and
+ * {@link isChannelAccount}.
+ */
+async function resolveAccounts(
+  oxyUserIds: ReadonlyArray<string | null | undefined>,
+): Promise<Map<string, PostUser>> {
+  const accounts = new Map<string, PostUser>();
+  const ids = [...new Set(oxyUserIds.filter((id): id is string => Boolean(id)))];
+  if (ids.length === 0) return accounts;
+  try {
+    const summaries = await resolveUserSummaries(ids);
+    for (const id of ids) {
+      const user = summaries.get(id)?.user;
+      if (user) accounts.set(id, user);
+    }
+  } catch (error) {
+    logger.warn('[publishAsAccount] Failed to resolve account kinds', error);
+  }
+  return accounts;
+}
+
+/**
+ * Whether this Oxy account is a Mention channel — the question
+ * `utils/channelReplyGate` asks about a post's author, on every reply.
+ *
+ * `isMentionChannel`, so a REMOTE account Oxy records as `channel` (a PeerTube
+ * channel) is not one: its posts take the comments its own server accepts.
  *
  * Fail-soft to `false`, deliberately: see that module on why an unresolvable
  * author must read as not-a-channel rather than refusing every reply on the site
  * for the duration of an identity outage.
  */
 export async function isChannelAccount(oxyUserId: string | null | undefined): Promise<boolean> {
-  return (await resolveAccountKind(oxyUserId)) === 'channel';
+  if (!oxyUserId) return false;
+  return isMentionChannel((await resolveAccounts([oxyUserId])).get(oxyUserId));
 }
 
 /**

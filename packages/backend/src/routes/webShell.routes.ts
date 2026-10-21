@@ -31,6 +31,7 @@
  */
 import { externalIdentityReferenceSchema } from '@oxy.so/contracts';
 import { getNormalizedUserHandle } from '@oxy.so/core';
+import { profileRouteFamily } from '@mention/shared-types/profileUrls';
 import { Router, type Request, type Response } from 'express';
 import { config } from '../config';
 import { loadPostRecord } from '../db/posts/postRepository';
@@ -669,8 +670,8 @@ router.get(
       return;
     }
 
-    // A channel account's page is `/c/<handle>`, not `/@<handle>`.
-    if (isProfileRoot && profile?.kind === 'channel' && profile.username) {
+    // A Mention channel's page is `/c/<handle>`, not `/@<handle>`.
+    if (isProfileRoot && profile && profileRouteFamily(profile) === 'channel' && profile.username) {
       return res.redirect(301, CHANNEL_PATH_PREFIX + encodeURIComponent(profile.username));
     }
 
@@ -729,7 +730,7 @@ router.get(
         );
         return;
       }
-      if (profile.kind !== 'channel' && profile.username) {
+      if (profileRouteFamily(profile) !== 'channel' && profile.username) {
         res.redirect(301, canonicalProfilePath(profile));
         return;
       }

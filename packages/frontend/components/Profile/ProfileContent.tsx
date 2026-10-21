@@ -150,6 +150,7 @@ export const ProfileContent = memo(function ProfileContent({
         <ProfileStats
           followingCount={followingCount}
           followerCount={followerCount}
+          accountKind={profileData.kind}
           postsCount={profileData.postsCount ?? 0}
           boostsCount={profileData.boostsCount ?? 0}
           repliesCount={profileData.repliesCount ?? 0}

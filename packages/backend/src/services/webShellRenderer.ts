@@ -14,6 +14,8 @@
  */
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { AccountKind } from '@oxy.so/core';
+import { localActorTypeForAccountKind, type LocalActorType } from '@oxy.so/federation';
+import { profileRouteFamily } from '@mention/shared-types/profileUrls';
 import type { HydratedPost } from '@mention/shared-types';
 import type { RemoteProfileStats } from '@mention/shared-types/profile';
 import { siteStructuredData } from '@mention/shared-types/seo';
@@ -112,26 +114,51 @@ export interface OxyProfileData {
   type?: string;
   federation?: { actorUri?: string; domain?: string };
   /**
-   * The Oxy account classification. Only `channel` is acted on here, and only to
-   * decide which canonical URL the profile lives at — see
-   * {@link canonicalProfilePath}.
+   * The Oxy account classification: which canonical URL the profile lives at
+   * ({@link canonicalProfilePath}) and what schema.org calls it
+   * ({@link schemaOrgProfileType}).
    */
   kind?: AccountKind;
 }
 
 /**
- * Where a profile canonically lives on the web: `/c/<handle>` for a channel
- * account, `/@<handle>` for everyone else.
+ * Where a profile canonically lives on the web: `/c/<handle>` for a Mention
+ * channel, `/@<handle>` for everyone else — `profileRouteFamily`, the rule the
+ * app's own links and redirects read.
  *
  * ONE definition, so the OG `og:url` a crawler reads and the redirect a browser
  * follows cannot disagree — a canonical URL that redirects is a canonical URL
  * that is wrong.
  */
-export function canonicalProfilePath(profile: OxyProfileData): string {
+export function canonicalProfilePath(
+  profile: Pick<OxyProfileData, 'username' | 'kind' | 'isFederated'>,
+): string {
   const username = profile.username ?? '';
-  return profile.kind === 'channel'
+  return profileRouteFamily(profile) === 'channel'
     ? `/c/${handlePathSegment(username)}`
     : `/@${handlePathSegment(username)}`;
+}
+
+/**
+ * The schema.org type of an account, from the AS2 type `@oxy.so/federation`
+ * announces for its kind — one table for what the fediverse and search engines
+ * are told an account is.
+ *
+ * schema.org has no counterpart for two of the AS2 types, and Google reads a
+ * `ProfilePage`'s `mainEntity` only as a `Person` or an `Organization`. So a
+ * `Service` (a bot) and a `Group` (a community) are `Organization`: neither is
+ * an individual human, and schema.org's `Organization` is "a school, NGO,
+ * corporation, club, etc." — a community is the club.
+ */
+const SCHEMA_ORG_TYPE_BY_ACTOR_TYPE = {
+  Person: 'Person',
+  Organization: 'Organization',
+  Service: 'Organization',
+  Group: 'Organization',
+} as const satisfies Record<LocalActorType, 'Person' | 'Organization'>;
+
+export function schemaOrgProfileType(kind: AccountKind | undefined): 'Person' | 'Organization' {
+  return SCHEMA_ORG_TYPE_BY_ACTOR_TYPE[localActorTypeForAccountKind(kind)];
 }
 
 /**
@@ -403,7 +430,7 @@ export function mapProfileOg(
       ...(createdAt ? { dateCreated: createdAt } : {}),
       ...(data.updatedAt ? { dateModified: data.updatedAt } : {}),
       mainEntity: {
-        '@type': data.kind === 'channel' ? 'Organization' : 'Person',
+        '@type': schemaOrgProfileType(data.kind),
         ...(data.id ? { identifier: data.id } : {}),
         name,
         alternateName: `@${username}`,
@@ -599,7 +626,7 @@ export function mapPostOg(
 
 /**
  * A post's author as schema.org reads one. Its `url` is the author's canonical
- * profile — `/c/` for a channel, the same rule {@link canonicalProfilePath}
+ * profile — `/c/` for a Mention channel, the same rule {@link canonicalProfilePath}
  * applies — because a profile link that redirects is not the profile.
  */
 function authorJsonLd(
@@ -609,11 +636,17 @@ function authorJsonLd(
   image: string | undefined,
 ): Record<string, unknown> {
   return {
-    '@type': user.kind === 'channel' ? 'Organization' : 'Person',
+    '@type': schemaOrgProfileType(user.kind),
     name,
     alternateName: handle ? `@${handle}` : name,
     ...(handle
-      ? { url: `${WEB_ORIGIN}${canonicalProfilePath({ username: handle, kind: user.kind })}` }
+      ? {
+          url: `${WEB_ORIGIN}${canonicalProfilePath({
+            username: handle,
+            kind: user.kind,
+            isFederated: user.isFederated,
+          })}`,
+        }
       : {}),
     ...(image ? { image } : {}),
   };

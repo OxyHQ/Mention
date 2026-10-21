@@ -168,7 +168,7 @@ describe('AccountBadge — which marker the account state chooses', () => {
 
   // The two fixtures that stop the test above from also passing for a component
   // that hands a marker to EVERY account.
-  it.each(['personal', 'organization', 'project', 'bot'] as const)(
+  it.each(['personal', 'organization', 'project', 'bot', 'community'] as const)(
     'draws nothing at all for a local %s account',
     (kind) => {
       const renderer = render(<AccountBadge kind={kind} />);
@@ -182,6 +182,27 @@ describe('AccountBadge — which marker the account state chooses', () => {
   it('draws nothing when the account state says nothing', () => {
     expect(render(<AccountBadge />).toJSON()).toBeNull();
     expect(render(<AccountBadge isFederated={false} kind={undefined} />).toJSON()).toBeNull();
+  });
+
+  it.each([
+    ['community', 'RiGroupLine'],
+    ['organization', 'RiBuildingLine'],
+    ['bot', 'RiRobot2Line'],
+  ] as const)('draws its KIND marker — and ONLY it — for a remote %s', (kind, icon) => {
+    const onExplainNetwork = jest.fn();
+    const renderer = render(
+      <AccountBadge kind={kind} isFederated onExplainNetwork={onExplainNetwork} />,
+    );
+
+    // Bloom glyphs are the test-support stand-ins, named after the icon.
+    const glyphs = renderer.root.findAll(
+      (node) => (node.type as { displayName?: string }).displayName === icon,
+    );
+    expect(glyphs).toHaveLength(1);
+    expect(icons(renderer, 'FediverseIcon')).toHaveLength(0);
+    expect(labels(renderer)).toEqual([enStrings[`accountBadge.${kind}`]]);
+    // A remote marker, so the network explainer is the one it is armed with.
+    expect(buttons(renderer)).toHaveLength(1);
   });
 
   it('draws the fediverse marker — and ONLY it — for a channel that is also federated', () => {

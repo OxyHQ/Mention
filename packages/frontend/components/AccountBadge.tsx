@@ -9,13 +9,18 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { AccountKind } from '@oxy.so/core';
+import { RiBuildingLine } from '@oxy.so/bloom/icons/RiBuildingLine';
+import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
+import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
+import { isMentionChannel } from '@mention/shared-types/profileUrls';
 import { ChannelIcon } from '@/assets/icons/channel-icon';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 /**
  * The quiet marker that sits beside a name saying what KIND of account it is —
- * remote or a channel.
+ * remote (and, for a remote community, organization or bot, which kind) or a
+ * Mention channel.
  *
  * EVERY remote account draws the SAME fediverse icon, whichever network it
  * lives on (ActivityPub, including bridged X and Instagram accounts; Instagram
@@ -59,8 +64,39 @@ interface IdentityBadgeVisualProps {
   style?: StyleProp<ViewStyle>;
 }
 
+/** What a marker's icon is drawn with. */
+type MarkerIcon = React.ComponentType<{ size?: number; color?: string; className?: string }>;
+
+/** A Bloom icon, drawn at a marker's size and tone. */
+function bloomMarkerIcon(Icon: typeof RiGroupLine): MarkerIcon {
+  return function BloomMarkerIcon({ size, color, className }) {
+    return <Icon width={size} height={size} fill={color} className={className} />;
+  };
+}
+
+/**
+ * The REMOTE kinds that draw their own marker instead of the fediverse one, with
+ * the i18n key of what a screen reader hears. The kind is Oxy's, read from the
+ * remote actor's AS2 type by `@oxy.so/federation`'s actor-type table: a `Group`
+ * is a `community`, an `Organization` an `organization`, a `Service` or an
+ * `Application` a `bot` — the same distinctions Mastodon draws as its "Group"
+ * and "Automated" badges. A remote `channel` (a PeerTube channel) is not a
+ * Mention channel, so it keeps the fediverse marker.
+ */
+const REMOTE_KIND_MARKERS = {
+  community: { Icon: bloomMarkerIcon(RiGroupLine), labelKey: 'accountBadge.community' },
+  organization: { Icon: bloomMarkerIcon(RiBuildingLine), labelKey: 'accountBadge.organization' },
+  bot: { Icon: bloomMarkerIcon(RiRobot2Line), labelKey: 'accountBadge.bot' },
+} as const satisfies Partial<Record<AccountKind, { Icon: MarkerIcon; labelKey: string }>>;
+
+function remoteKindMarker(kind: AccountKind | undefined) {
+  return kind && kind in REMOTE_KIND_MARKERS
+    ? REMOTE_KIND_MARKERS[kind as keyof typeof REMOTE_KIND_MARKERS]
+    : undefined;
+}
+
 interface IdentityMarkerProps extends IdentityBadgeVisualProps {
-  Icon: React.ComponentType<{ size?: number; color?: string; className?: string }>;
+  Icon: MarkerIcon;
   a11yLabel: string;
   /**
    * Opt IN to interactivity. Absent → a plain icon that cannot be tapped and
@@ -132,13 +168,16 @@ function IdentityMarker({
 }
 
 export interface AccountBadgeProps extends IdentityBadgeVisualProps {
-  /** The Oxy account kind. `channel` is the only value that draws a marker. */
+  /**
+   * The Oxy account kind. A local `channel` draws the channel marker; a remote
+   * `community`, `organization` or `bot` draws its own marker.
+   */
   kind?: AccountKind;
   /** Whether the account lives on another network (any network). */
   isFederated?: boolean;
   /**
-   * Opt IN to the fediverse explainer. Honoured ONLY by the federated marker.
-   * Passing it alongside a `channel` kind does nothing, so wiring the fediverse
+   * Opt IN to the fediverse explainer. Honoured ONLY by the remote markers.
+   * Passing it alongside a Mention channel does nothing, so wiring the fediverse
    * dialog to a channel icon is not something a call site can do by mistake.
    */
   onExplainNetwork?: () => void;
@@ -158,33 +197,29 @@ export interface AccountBadgeProps extends IdentityBadgeVisualProps {
  * per-surface `isFederated ? … : kind === 'channel' ? … : null` is exactly the
  * shape that gets copied to four screens and updated on three.
  *
- * WHEN BOTH ARE TRUE, FEDERATION WINS AND ONLY ONE MARKER IS DRAWN. Two
- * reasons, in order:
+ * ONE MARKER, NEVER TWO. The identity line already carries the name, the
+ * `@handle`, and up to three other markers (verified, agent, automated) before
+ * the time and the lane chip, so it can afford one quiet fact about the account:
  *
- *  1. The identity line already carries the name, the `@handle`, and up to
- *     three other markers (verified, agent, automated) before the time and the
- *     lane chip. It can afford one quiet fact about the account, and the two
- *     candidates are not equally worth the slot: "lives on another server"
- *     changes what a reader can expect (the posts arrive by federation, some
- *     interactions do not work, the handle is not ours to vouch for), whereas
- *     "is a channel" is an editorial description the page states plainly the
- *     moment it is opened.
- *  2. It is a rule for a case that does not yet exist, which is the cheapest
- *     time to fix it. Mention never asks for a kind when it resolves a remote
- *     actor — `@oxy.so/federation`'s identity bridge sends no `kind` key at all,
- *     and `NormalizedExternalActor` has no field to carry one — so every
- *     federated account lands on Oxy's default kind. A `channel` arriving with
- *     `isFederated` would therefore mean the kind came from somewhere that has
- *     not been reviewed, and the safe reading of an unreviewed claim is to
- *     believe the fact we established ourselves (we federated it) over the one
- *     we did not.
+ *  - A Mention channel ({@link isMentionChannel}) draws the channel marker. A
+ *    channel is a local account, so it never competes with the fediverse one.
+ *  - A remote community, organization or bot draws ITS KIND's marker
+ *    ({@link REMOTE_KIND_MARKERS}). The kind is the fact that changes how the row
+ *    reads — a community's posts are its members', a bot is automated — while
+ *    "lives on another server" is already printed in its `@name@instance`
+ *    handle. The kind is Oxy's own record of the remote actor's type, so it is a
+ *    reviewed claim, not one an instance can make up for a local account.
+ *  - Every other remote account draws the fediverse marker.
+ *
+ * A local organization, project or bot draws nothing: its page names what it is
+ * (`AccountCategoryLine`), and this line is unchanged for it.
  */
 export function AccountBadge(props: AccountBadgeProps) {
   // Most accounts draw no marker at all, and this sits in every post header
   // (twice). Deciding that BEFORE any hook keeps the common case at zero hook
   // slots — `useTranslation` alone is a dozen, plus an i18n listener, per
   // instance (#1103).
-  if (!props.isFederated && props.kind !== 'channel') return null;
+  if (!props.isFederated && !isMentionChannel(props)) return null;
   return <AccountBadgeMarker {...props} />;
 }
 
@@ -197,18 +232,7 @@ function AccountBadgeMarker({
 }: AccountBadgeProps) {
   const { t } = useTranslation();
 
-  if (isFederated) {
-    return (
-      <IdentityMarker
-        {...visual}
-        Icon={FediverseIcon}
-        a11yLabel={t('fediverse.remoteBadge.a11yLabel')}
-        onExplain={onExplainNetwork}
-      />
-    );
-  }
-
-  if (kind === 'channel') {
+  if (isMentionChannel({ kind, isFederated })) {
     return (
       <IdentityMarker
         {...visual}
@@ -219,7 +243,15 @@ function AccountBadgeMarker({
     );
   }
 
-  return null;
+  const remoteKind = remoteKindMarker(kind);
+  return (
+    <IdentityMarker
+      {...visual}
+      Icon={remoteKind?.Icon ?? FediverseIcon}
+      a11yLabel={t(remoteKind?.labelKey ?? 'fediverse.remoteBadge.a11yLabel')}
+      onExplain={onExplainNetwork}
+    />
+  );
 }
 
 /**

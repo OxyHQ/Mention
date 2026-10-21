@@ -13,16 +13,16 @@ import { findActorsByUris } from '../db/federation/actorRepository';
 import { distinctRemoteActorUris } from '../db/federation/followRepository';
 import { getFollowingIds, type OxyClient } from '../utils/privacyHelpers';
 import { logger } from '../utils/logger';
-import { isCommunityActor } from './federation/community';
+import { communityAccountIds } from './federation/community';
 
 /**
  * Merge oxyUserIds from accepted federated (ActivityPub) outbound follows into
  * `followingIds`, deduplicating in-place, and return the ones that are
- * COMMUNITIES ({@link isCommunityActor}). A community is followed like any
+ * COMMUNITIES ({@link communityAccountIds}). A community is followed like any
  * account, but what it publishes is written by its members, so the Following
  * feed reaches its posts by `posts.community_oxy_user_id` instead of by author.
- * The actor rows are already in hand here, so knowing which follows are
- * communities costs nothing extra.
+ * The actor rows are already in hand here, and only a followed `Group` is looked
+ * up, so a viewer who follows no community pays nothing extra.
  *
  * `acceptedOutboundUris` lets a caller that ALREADY has the viewer's accepted
  * outbound follow uris in flight hand that same pending read in rather than
@@ -52,17 +52,15 @@ export async function mergeFederatedFollowIds(
   const fedActors = await findActorsByUris(fedFollowUris);
 
   const existing = new Set(followingIds);
-  const communityIds: string[] = [];
   for (const actor of fedActors) {
     const id = actor.oxyUserId;
     if (!id) continue;
-    if (isCommunityActor(actor)) communityIds.push(id);
     if (!existing.has(id)) {
       followingIds.push(id);
       existing.add(id);
     }
   }
-  return communityIds;
+  return [...(await communityAccountIds(fedActors))];
 }
 
 /**

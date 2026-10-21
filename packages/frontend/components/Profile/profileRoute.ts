@@ -1,19 +1,21 @@
 import type { Href } from '@/lib/navigation/router';
 import { getNormalizedUserHandle, type AccountKind, type UserHandleInput } from '@oxy.so/core';
+import {
+  profileRouteFamily,
+  type ProfileRouteAccount,
+  type ProfileRouteFamily,
+} from '@mention/shared-types/profileUrls';
 
 /**
- * Which URL family a profile page belongs to.
+ * Which URL family a profile page belongs to — `profileRouteFamily`
+ * (`@mention/shared-types/profileUrls`), the rule the web shell's canonical URL
+ * reads too.
  *
- * A channel account's page is `/c/<handle>`, everybody else's is `/@<handle>`.
- * The two are never interchangeable, and the ACCOUNT's own kind is the only
- * thing that decides which — nothing about the URL a reader arrived on does.
+ * A Mention channel's page is `/c/<handle>`, everybody else's is `/@<handle>`:
+ * a REMOTE `channel` (a PeerTube channel) and a remote `community` are
+ * person-family pages, and the community's own header says what it is.
  */
-export type ProfileRouteFamily = 'channel' | 'person';
-
-/** The family the account itself belongs to. An absent kind reads as a person. */
-export function profileRouteFamilyForKind(kind: AccountKind | undefined): ProfileRouteFamily {
-  return kind === 'channel' ? 'channel' : 'person';
-}
+export { profileRouteFamily, type ProfileRouteAccount, type ProfileRouteFamily };
 
 /** The route a given family serves a handle at. */
 export function profileBasePath(family: ProfileRouteFamily, handle: string): Href {
@@ -44,7 +46,7 @@ export function profileSubPath(family: ProfileRouteFamily, handle: string, subpa
  * exists to remove.
  */
 export interface ProfileLinkTarget extends UserHandleInput {
-  /** Absent on most DTOs; when present it is what sends a channel to `/c/`. */
+  /** Absent on most DTOs; when present it is what sends a Mention channel to `/c/`. */
   kind?: AccountKind;
 }
 
@@ -72,7 +74,7 @@ export function profileHrefForUser(
 ): Href | null {
   const handle = getNormalizedUserHandle(user);
   if (!handle) return null;
-  const family = profileRouteFamilyForKind(user?.kind);
+  const family = profileRouteFamily(user);
   return subpath ? profileSubPath(family, handle, subpath) : profileBasePath(family, handle);
 }
 
@@ -99,7 +101,8 @@ export function profileHrefForUser(
  */
 export function canonicalProfileHref(params: {
   routedFamily: ProfileRouteFamily;
-  kind: AccountKind | undefined;
+  /** The resolved account's kind and federation, which decide its family. */
+  account: ProfileRouteAccount | undefined;
   /** Resolved, never the raw URL segment — the redirect target must be canonical. */
   handle: string;
   /** False while the account is still resolving. */
@@ -115,7 +118,7 @@ export function canonicalProfileHref(params: {
   subpath?: string;
 }): Href | null {
   if (!params.resolved || !params.handle) return null;
-  const target = profileRouteFamilyForKind(params.kind);
+  const target = profileRouteFamily(params.account);
   if (target === params.routedFamily) return null;
   return params.subpath
     ? profileSubPath(target, params.handle, params.subpath)

@@ -464,6 +464,8 @@ export interface ProfileStatsProps {
    */
   followingCount: number | undefined;
   followerCount: number | undefined;
+  /** A community's followers are its MEMBERS, and the stat says so. */
+  accountKind?: AccountKind;
   postsCount: number;
   boostsCount: number;
   repliesCount: number;

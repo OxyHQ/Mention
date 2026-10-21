@@ -26,10 +26,15 @@ metadata. Do not infer eligibility from `metadata.isSensitive` alone.
 
 ## Profile structured data
 
-A public profile's JSON-LD is a `ProfilePage` whose `mainEntity` is the person
-(or, for a channel, the organization): name, `@handle`, bio, avatar, its URL,
-`sameAs` for its public links, followers as `interactionStatistic` and posts
-written and accounts followed as `agentInteractionStatistic`.
+A public profile's JSON-LD is a `ProfilePage` whose `mainEntity` is a `Person`
+or an `Organization`, from the AS2 type `@oxy.so/federation` announces for the
+account's kind (`schemaOrgProfileType`): `Person` for a personal account,
+`Organization` for every other kind — schema.org has no type for a bot or an
+online community, and Google reads a profile's entity only as one of the two. A
+post's author uses the same mapping. The entity carries name, `@handle`, bio,
+avatar, its URL, `sameAs` for its public links, followers as
+`interactionStatistic` and posts written and accounts followed as
+`agentInteractionStatistic`.
 
 A federated profile is an Oxy account Mention minted when it first resolved the
 actor, so its Oxy `createdAt` is a discovery date and its Oxy follow graph holds

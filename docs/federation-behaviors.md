@@ -169,10 +169,13 @@ community). Any server can write any `audience`, and a community's profile lists
 its posts, so the claim is accepted only when the community vouches for the post:
 it relayed it, or the post is on the community's own origin. A reply-ancestor or
 boost import of a cross-instance post therefore stores none; the relayed copy
-does. Whether an actor is a community is `isCommunityActor`
-(`services/federation/community.ts`), today `federated_actors.type === 'Group'`,
-the one test to switch when Oxy's account
-graph carries a `community` kind. The card renders the writer's byline with an
+does. Whether an actor is a community is `communityAccountIds`
+(`services/federation/community.ts`): Oxy's account kind, `community`, read
+from the user-summary cache. Oxy records the kind with `@oxy.so/federation`'s
+actor-type table (`accountKindForActor`), which also reads
+`postingRestrictedToMods`: a PeerTube channel or a moderators-only `Group` is a
+`channel`, not a community. Only a `Group` actor is looked up, since no other
+type maps to `community`. The card renders the writer's byline with an
 "in !name@instance" context row (`PostCommunityRow`); a reply does not repeat
 its thread's community.
 
@@ -189,8 +192,8 @@ nothing else. Comments arrive by delivery, to followers of the community.
 **Following a community** puts its posts in the Following feed, chronological
 and the For You following lane alike. A community is followed like any account,
 but its posts are its members', so no author clause reaches them:
-`mergeFederatedFollowIds` returns which accepted follows are communities (from
-the actor rows it already loads), and `followedCommunitiesSql` adds them as a
+`mergeFederatedFollowIds` returns which accepted follows are communities
+(`communityAccountIds` over the actor rows it already loads), and `followedCommunitiesSql` adds them as a
 PUBLIC-only branch on `post_community_chrono_v1`, inside the same recency window.
 A community follow, like a list, grants no followers-only access to the members.
 The branch exists only for a viewer who follows a community. Blocks and mutes

@@ -13,6 +13,7 @@ import type { ProfileStatsProps } from './types';
 export const ProfileStats = memo(function ProfileStats({
   followingCount,
   followerCount,
+  accountKind,
   postsCount,
   boostsCount,
   repliesCount,
@@ -64,7 +65,7 @@ export const ProfileStats = memo(function ProfileStats({
             {formatCompactNumber(followerCount)}
           </Text>
           <Text className="text-muted-foreground" style={styles.statLabel}>
-            {t('profile.followers')}
+            {t(accountKind === 'community' ? 'profile.members' : 'profile.followers')}
           </Text>
         </TouchableOpacity>
       )}
