@@ -11,6 +11,8 @@ import type { FeedType } from '@mention/shared-types';
 import { Badge } from '@oxy.so/bloom/badge';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
+import { isMentionCommunity } from '@mention/shared-types/profileUrls';
+import { CommunityPanel } from '@/components/Community/CommunityPanel';
 import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
 import { AlloIcon } from '@/assets/icons/allo-icon';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
@@ -496,6 +498,11 @@ export function usePersonProfileView({
                 variant="subtle"
               />
             </View>
+          )}
+          {/* A community HOSTED HERE also says who moderates it and lets a member
+              post in it; a remote one is moderated by its own server. */}
+          {isMentionCommunity(profileData) && profileData.id && (
+            <CommunityPanel communityId={profileData.id} />
           )}
           {profileData.movedTo && <ProfileMovedNotice movedTo={profileData.movedTo} />}
           {isPrivate && (

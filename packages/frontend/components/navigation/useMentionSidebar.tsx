@@ -12,6 +12,8 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import type { AccountDialogMenuItem } from '@oxy.so/services';
 import { RiDashboardLine } from '@oxy.so/bloom/icons/RiDashboardLine';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
+import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
+import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { LogoIcon } from '@/assets/logo';
@@ -31,6 +33,14 @@ import { Bell, BellActive } from '@/assets/icons/bell-icon';
 
 function LiveRoomsIcon({ size = 24, color }: { size?: number; color?: string }) {
   return <RiBroadcastLine width={size} height={size} fill={color} />;
+}
+
+function CommunitiesIcon({ size = 24, color }: { size?: number; color?: string }) {
+  return <RiGroupLine width={size} height={size} fill={color} />;
+}
+
+function CommunitiesIconActive({ size = 24, color }: { size?: number; color?: string }) {
+  return <RiGroupFill width={size} height={size} fill={color} />;
 }
 
 function paintNavigationIcon(icon: React.ReactNode, width?: number, fill?: string) {
@@ -161,6 +171,12 @@ export function useMentionSidebar(): SidebarProps {
         icon: <ChannelIcon />,
         iconActive: <ChannelIconActive />,
         route: '/channels',
+      },
+      {
+        title: t('sidebar.communities', { defaultValue: 'Communities' }),
+        icon: <CommunitiesIcon />,
+        iconActive: <CommunitiesIconActive />,
+        route: '/communities',
       },
       {
         title: t('sidebar.saved'),

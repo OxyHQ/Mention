@@ -37,6 +37,8 @@ describe('viewer-scoped private cache', () => {
       viewerQueryKeys.operatedLanes(viewerId, 'channel-account-1'),
       viewerQueryKeys.operatedAccounts(viewerId),
       viewerQueryKeys.channelAccountSettings(viewerId, 'channel-account-1'),
+      viewerQueryKeys.joinedCommunities(viewerId),
+      viewerQueryKeys.communityBans(viewerId, 'community-1'),
       viewerQueryKeys.pokesRoot(viewerId),
       viewerQueryKeys.pokes(viewerId, 'received'),
       viewerQueryKeys.notificationsRoot(viewerId),
@@ -349,6 +351,15 @@ describe('viewer-scoped private cache', () => {
     // Sorted before joining, so the same set in a different order is one entry.
     expect(one).toEqual(other);
     expect(publicQueryKeys.profileLinkMentions(['a.example'])).not.toEqual(one);
+  });
+
+  it("keys a community's moderators by the community alone", () => {
+    expect(publicQueryKeys.communityModerators('community-1')).toEqual(
+      publicQueryKeys.communityModerators('community-1'),
+    );
+    expect(publicQueryKeys.communityModerators('community-2')).not.toEqual(
+      publicQueryKeys.communityModerators('community-1'),
+    );
   });
 
   it('gives the marketplace categories a viewer-free key', () => {
