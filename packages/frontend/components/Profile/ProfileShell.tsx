@@ -70,6 +70,12 @@ export interface ProfileShellProps {
    */
   active?: boolean;
   /**
+   * The account's colour, when the shell frames pages of an account it draws no
+   * chrome for (`active` false): the followers list and About theme by it too.
+   * Defaults to the drawn profile's own.
+   */
+  accentColor?: string;
+  /**
    * Which anatomy the loading skeleton should hold space for. Defaults to a
    * person; a channel's page is a different shape, not a smaller one.
    */
@@ -86,9 +92,7 @@ export interface ProfileShellProps {
  */
 export function ProfileShell(props: ProfileShellProps) {
   const { scrollPosition } = useLayoutScroll();
-  const color = resolveProfileColor(
-    props.active === false ? undefined : props.profileData?.design.color,
-  );
+  const color = resolveProfileColor(props.accentColor ?? props.profileData?.design.color);
   // A preset is the profile's `Screen` claim, which themes the whole shell (the
   // sidebar, the frame, the bottom bar) on a split layout and only this column
   // in the Deck. An exact seed has no claim, so it scopes the content alone.

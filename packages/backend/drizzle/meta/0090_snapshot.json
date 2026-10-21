@@ -1,6 +1,6 @@
 {
-  "id": "bbfb7aa8-64fb-41d6-9f49-76516c57f40f",
-  "prevId": "6218d542-e30f-4f0d-825a-ae64f66025db",
+  "id": "44ecb32a-31d1-41fa-9a6f-571bcca6e48d",
+  "prevId": "4ce546a3-c6c6-4242-8101-e50697cd1013",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -15881,12 +15881,6 @@
           "notNull": true,
           "default": "'system'"
         },
-        "appearance_primary_color": {
-          "name": "appearance_primary_color",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "appearance_post_text_expand": {
           "name": "appearance_post_text_expand",
           "type": "text",
@@ -16100,13 +16094,6 @@
           "type": "text[]",
           "primaryKey": false,
           "notNull": false
-        },
-        "feed_following_sort": {
-          "name": "feed_following_sort",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'chronological'"
         },
         "feed_diversity_enabled": {
           "name": "feed_diversity_enabled",
@@ -16384,10 +16371,6 @@
       },
       "policies": {},
       "checkConstraints": {
-        "user_settings_following_sort_check": {
-          "name": "user_settings_following_sort_check",
-          "value": "\"user_settings\".\"feed_following_sort\" in ('chronological', 'relevance')"
-        },
         "user_settings_theme_mode_check": {
           "name": "user_settings_theme_mode_check",
           "value": "\"user_settings\".\"appearance_theme_mode\" in ('light', 'dark', 'system', 'adaptive')"

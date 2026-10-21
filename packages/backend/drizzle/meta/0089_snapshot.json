@@ -1,5 +1,5 @@
 {
-  "id": "6218d542-e30f-4f0d-825a-ae64f66025db",
+  "id": "4ce546a3-c6c6-4242-8101-e50697cd1013",
   "prevId": "035df46c-97c9-43ed-889e-61ed334836ab",
   "version": "7",
   "dialect": "postgresql",
@@ -5002,116 +5002,6 @@
         "federation_delivery_queue_attempts_check": {
           "name": "federation_delivery_queue_attempts_check",
           "value": "\"federation_delivery_queue\".\"attempts\" >= 0"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.federation_post_import_reasons": {
-      "name": "federation_post_import_reasons",
-      "schema": "",
-      "columns": {
-        "post_id": {
-          "name": "post_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "date_trunc('milliseconds', now())"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "federation_post_import_reasons_post_id_federation_post_imports_post_id_fk": {
-          "name": "federation_post_import_reasons_post_id_federation_post_imports_post_id_fk",
-          "tableFrom": "federation_post_import_reasons",
-          "tableTo": "federation_post_imports",
-          "columnsFrom": [
-            "post_id"
-          ],
-          "columnsTo": [
-            "post_id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "federation_post_import_reasons_post_id_reason_pk": {
-          "name": "federation_post_import_reasons_post_id_reason_pk",
-          "columns": [
-            "post_id",
-            "reason"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "federation_post_import_reasons_reason_check": {
-          "name": "federation_post_import_reasons_reason_check",
-          "value": "\"federation_post_import_reasons\".\"reason\" in ('discovery_backfill', 'followed_outbox', 'requested_profile', 'inbox_follow', 'inbox_mention', 'inbox_community', 'inbox_announce', 'boost_dependency', 'quote_dependency', 'reply_dependency', 'unknown_outbox')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.federation_post_imports": {
-      "name": "federation_post_imports",
-      "schema": "",
-      "columns": {
-        "post_id": {
-          "name": "post_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "initial_reason": {
-          "name": "initial_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "date_trunc('milliseconds', now())"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "federation_post_imports_post_id_posts_id_fk": {
-          "name": "federation_post_imports_post_id_posts_id_fk",
-          "tableFrom": "federation_post_imports",
-          "tableTo": "posts",
-          "columnsFrom": [
-            "post_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "federation_post_imports_reason_check": {
-          "name": "federation_post_imports_reason_check",
-          "value": "\"federation_post_imports\".\"initial_reason\" in ('discovery_backfill', 'followed_outbox', 'requested_profile', 'inbox_follow', 'inbox_mention', 'inbox_community', 'inbox_announce', 'boost_dependency', 'quote_dependency', 'reply_dependency', 'unknown_outbox')"
         }
       },
       "isRLSEnabled": false
@@ -15880,12 +15770,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'system'"
-        },
-        "appearance_primary_color": {
-          "name": "appearance_primary_color",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "appearance_post_text_expand": {
           "name": "appearance_post_text_expand",

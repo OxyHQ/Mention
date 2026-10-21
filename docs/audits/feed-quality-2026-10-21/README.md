@@ -216,7 +216,7 @@ unreviewed new ones.
 
 ## Durable provenance implementation
 
-Migration 0089 creates two private evidence tables: one immutable initial cause
+Migration 0090 creates two private evidence tables: one immutable initial cause
 per post and at most eleven distinct observed reason rows per post. Both cascade
 with post removal. The posts foreign key is added `NOT VALID` then validated in a
 separate statement; no historical post scan or cause backfill is performed.
@@ -378,7 +378,7 @@ or improved production feed quality follows from code tests alone.
 ### Integrated client and contract validation
 
 The integration branch was built from main `d32a89e15` with both migrations
-(`0089` import provenance and `0090` Following ordering) applied by the disposable
+(`0090` import provenance and `0091` Following ordering) applied by the disposable
 PostgreSQL test harness. Shared contracts/backend/MCP builds, frontend TypeScript,
 the production Expo web export, e2e TypeScript, migration lock checks, i18n and
 feed hot-path validators passed. Frontend lint returned zero errors and 229

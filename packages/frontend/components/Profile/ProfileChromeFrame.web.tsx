@@ -155,6 +155,7 @@ export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps
           chrome={view.chrome}
           loading={loading}
           profileData={view.profileData}
+          accentColor={view.accountColor}
           notFound={view.notFound}
           onRetry={view.refresh}
           banner={{ uri: view.bannerUri }}

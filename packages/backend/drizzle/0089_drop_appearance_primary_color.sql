@@ -1,0 +1,11 @@
+-- oxy:deploy-phase=post
+-- The profile colour is the Oxy account colour (`users.color`), written to Oxy and
+-- entitlement-checked there. Mention's own hex copy stopped being written, accepted
+-- or read in #1556, so nothing in a running release touches this column any more.
+-- It is `post` so it only runs once the release without the column is live: the
+-- previous release still selected it.
+--
+-- Metadata-only on Postgres (the column is dropped from the catalog, no rewrite);
+-- `user_settings` is a hot table, so the ACCESS EXCLUSIVE lock is held for the
+-- instant of the catalog change.
+ALTER TABLE "user_settings" DROP COLUMN IF EXISTS "appearance_primary_color";
