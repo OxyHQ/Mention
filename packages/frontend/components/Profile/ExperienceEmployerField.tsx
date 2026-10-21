@@ -1,3 +1,4 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { organizationDirectoryQueryKeys } from '@/lib/viewerQueryKeys';
 import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
@@ -14,7 +15,6 @@ import {
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button } from '@oxy.so/bloom/button';
 import { Item } from '@oxy.so/bloom/item';
-import { Loading } from '@oxy.so/bloom/loading';
 import {
   Select,
   SelectContent,
@@ -183,7 +183,7 @@ export function ExperienceEmployerField({
           {debounced.length >= 2 && debounced === query.trim() && !creating ? (
             <View>
               {results.isPending ? (
-                <Loading size="sm" />
+                <ListSkeleton count={2} />
               ) : results.isError ? (
                 <View className="gap-2">
                   <Text className="text-muted-foreground text-sm">

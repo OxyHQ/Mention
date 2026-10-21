@@ -1,3 +1,6 @@
+jest.mock('@/services/socketService', () => ({
+  socketService: { subscribeToFeedUpdates: jest.fn(() => jest.fn()) },
+}));
 import React from 'react';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -112,6 +115,7 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 jest.mock('@oxy.so/bloom/error-boundary', () => ({
   ErrorBoundary: ({ children }: { children?: React.ReactNode }) => children ?? null,
 }));
+jest.mock('@oxy.so/bloom/screen', () => ({ useScreenViewport: () => null }));
 jest.mock('@oxy.so/bloom/scroll', () => ({ useScrollRestoration: () => undefined }));
 jest.mock('@oxy.so/bloom/layout', () => ({ useHeaderDockInset: () => 0 }));
 
@@ -124,12 +128,6 @@ jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) =>
 
 jest.mock('@/hooks/usePrivacyControls', () => ({
   usePrivacyControls: () => ({ blockedSet: new Set<string>() }),
-}));
-
-jest.mock('@/components/shell/PanelChrome', () => ({
-  usePanelChromeTopInset: () => 0,
-  PANEL_HEADER_HEIGHT: 56,
-  PANEL_CHROME_TOP_INSET: 56,
 }));
 
 jest.mock('@/utils/feedTelemetry', () => ({

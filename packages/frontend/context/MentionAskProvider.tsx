@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useMemo } from 'react';
-import { usePathname } from 'expo-router';
+import { usePathname } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { AliaAskProvider } from '@alia.onl/sdk/ask';
 

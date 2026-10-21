@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react';
 import { Pressable, Text } from 'react-native';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
@@ -28,6 +28,7 @@ export const FollowedByRow = memo(function FollowedByRow({
   profileId,
   username,
 }: FollowedByRowProps) {
+  const router = useRouter();
   const { t } = useTranslation();
   const { mutuals, total, isPending } = useMutualFollowers(profileId);
 

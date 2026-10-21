@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useCallback, useState } from 'react';
 import { View } from 'react-native';
-import { Redirect, router, type Href } from 'expo-router';
+import { useRouter, Redirect, type Href } from '@/lib/navigation/router';
 
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import {
@@ -40,6 +40,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   laneId,
   isRootTab = false,
 }) => {
+  const router = useRouter();
   // Active tab — local state so switching tabs does not remount the page.
   // Held as the tab's KEY, not its index: the strip's length depends on how
   // many lanes the publisher has, so an index means a different tab before and
@@ -54,10 +55,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   // WEB does the opposite — there the route owns the selection and each tab
   // is pushed, which is what makes Back return to the tab you came from. It
   // can, because there the strip outlives the navigation; here it does not.
-  const onSelectTab = useCallback((descriptor: ProfileTabDescriptor, href: Href) => {
-    setActiveTabKey(descriptor.key);
-    router.replace(href);
-  }, []);
+  const onSelectTab = useCallback(
+    (descriptor: ProfileTabDescriptor, href: Href) => {
+      setActiveTabKey(descriptor.key);
+      router.replace(href);
+    },
+    [router],
+  );
 
   const view = usePersonProfileView({ activeKey: activeTabKey, onSelectTab, username });
 

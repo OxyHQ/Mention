@@ -75,6 +75,7 @@ jest.mock('react-native-reanimated', () => ({
 }));
 
 jest.mock('expo-router', () => ({
+  useRouter: () => jest.requireMock('expo-router').router,
   usePathname: () => '/',
   useIsFocused: () => true,
   // `TabPagerProvider` reads the router imperatively to pop anything pushed

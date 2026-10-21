@@ -95,3 +95,52 @@ describe('feed broadcasts carry invalidation, not content authority', () => {
     expect(mockAddPosts).not.toHaveBeenCalled();
   });
 });
+
+describe('panel feed subscriptions share the transport', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.clearAllMocks();
+    mockGetFeed.mockResolvedValue({ items: [] });
+    socketService.connect('viewer-a', 'token-a');
+  });
+  afterEach(() => {
+    socketService.disconnect();
+    jest.useRealTimers();
+  });
+  it('delivers to both panels and unsubscribing one preserves the other and the personal room', () => {
+    const first = jest.fn();
+    const second = jest.fn();
+    const stopFirst = socketService.subscribeToFeedUpdates('for_you', first);
+    const stopSecond = socketService.subscribeToFeedUpdates('for_you', second);
+    expect(
+      mockSocket.emit.mock.calls.filter(
+        ([event, payload]) => event === 'joinFeed' && payload.feedType === 'for_you',
+      ),
+    ).toHaveLength(1);
+    signal();
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(1);
+    stopFirst();
+    signal();
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(2);
+    stopSecond();
+    signal();
+    expect(second).toHaveBeenCalledTimes(2);
+    expect(mockSocket.emit.mock.calls.filter(([event]) => event === 'leaveFeed')).toHaveLength(0);
+  });
+  it('rejects unknown rooms and refreshes supported subscriptions on reconnect', () => {
+    const invalid = jest.fn();
+    const live = jest.fn();
+    const stopInvalid = socketService.subscribeToFeedUpdates('user:someone-else', invalid);
+    const stopLive = socketService.subscribeToFeedUpdates('explore', live);
+    mockHandlers.get('connect')?.();
+    expect(live).toHaveBeenCalledTimes(1);
+    expect(invalid).not.toHaveBeenCalled();
+    expect(
+      mockSocket.emit.mock.calls.some(([, payload]) => payload?.feedType === 'user:someone-else'),
+    ).toBe(false);
+    stopInvalid();
+    stopLive();
+  });
+});

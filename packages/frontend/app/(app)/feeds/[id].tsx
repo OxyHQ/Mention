@@ -1,3 +1,4 @@
+import { DetailSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
@@ -22,7 +23,7 @@ import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { RiPushpinFill } from '@oxy.so/bloom/icons/RiPushpinFill';
 import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
 import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { customFeedsService, type CustomFeedDetail } from '@/services/customFeedsService';
@@ -213,6 +214,7 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
   onShare: () => void;
   onClose: () => void;
 }) {
+  const router = useRouter();
   const theme = useTheme();
   const { t } = useTranslation();
   const creatorHandle = profileHandle(feed.owner);
@@ -348,6 +350,7 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
 
 // Profiles tab
 const ProfilesTab = React.memo(function ProfilesTab({ members }: { members: FeedProfile[] }) {
+  const router = useRouter();
   if (members.length === 0) {
     return <EmptyState title="No profiles yet" sticker="feedPageEmpty" />;
   }
@@ -545,11 +548,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
   }, [isFetchingNextPage, hasNextPage, fetchNextPage]);
 
   if (reviewsQuery.isPending) {
-    return (
-      <View className="p-10 items-center justify-center gap-3">
-        <SpinnerIcon size={28} className="text-primary" />
-      </View>
-    );
+    return <ListSkeleton />;
   }
 
   return (
@@ -646,6 +645,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
 });
 
 function CustomFeedTimelineScreen() {
+  const router = useRouter();
   const theme = useTheme();
   const { t } = useTranslation();
   const safeBack = useSafeBack();
@@ -704,7 +704,7 @@ function CustomFeedTimelineScreen() {
 
   const onEdit = useCallback(() => {
     router.push(`/feeds/${feedId}/edit`);
-  }, [feedId]);
+  }, [feedId, router]);
 
   /**
    * Subscribe / unsubscribe. `POST|DELETE /feeds/:id/like` is the ONE
@@ -834,9 +834,7 @@ function CustomFeedTimelineScreen() {
           </Text>
         </View>
       ) : isLoading ? (
-        <View className="flex-1 items-center justify-center">
-          <SpinnerIcon size={24} className="text-primary" />
-        </View>
+        <DetailSkeleton />
       ) : activeTab === 'recent' ? (
         // `recent` is the ONLY feed tab and it is the virtualized, scroll-owning
         // Feed (NOT scrollEnabled={false}) — it owns the document scroll on web

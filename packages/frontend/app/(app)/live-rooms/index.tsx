@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useEffect, useState, useCallback, useContext } from 'react';
 import { View, Text, RefreshControl, Platform } from 'react-native';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Button } from '@oxy.so/bloom/button';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
@@ -47,6 +47,7 @@ const SectionHeader = ({
 );
 
 const LiveRoomsScreen = () => {
+  const router = useRouter();
   const { canUsePrivateApi } = useAuth();
   const theme = useTheme();
   const { t } = useTranslation();

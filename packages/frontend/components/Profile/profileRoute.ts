@@ -1,4 +1,4 @@
-import type { Href } from 'expo-router';
+import type { Href } from '@/lib/navigation/router';
 import { getNormalizedUserHandle, type AccountKind, type UserHandleInput } from '@oxy.so/core';
 
 /**

@@ -1,3 +1,4 @@
+import { FeedSkeleton, FormSkeleton } from '@/components/loading/ContentSkeleton';
 import { homiioCaseFromText } from '@mention/shared-types/homiio';
 import { HomiioCaseCard } from '@/components/Post/Attachments/HomiioCaseCard';
 import { useSupervisionState } from '@/hooks/useSupervisionState';
@@ -8,7 +9,6 @@ import { View, Text, TouchableOpacity, Pressable, ScrollView } from 'react-nativ
 // this is a MOVE: the stylesheet left, the several hundred `styles.x` references
 // did not change.
 import { composeStyles as styles } from './ComposeScreen.styles';
-import { Loading } from '@oxy.so/bloom/loading';
 import Ionicons from '@/components/common/Ionicons';
 import { logger } from '@oxy.so/core/logger';
 import { classifyApiError, normalizeApiError, type ApiErrorReason } from '@/utils/apiError';
@@ -19,7 +19,7 @@ import * as ExpoLocation from 'expo-location';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useQueryClient } from '@tanstack/react-query';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useComposeExit, type ComposePresentation } from './useComposeExit';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
@@ -208,6 +208,7 @@ export interface ComposeScreenProps {
 }
 
 const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
+  const router = useRouter();
   const theme = useTheme();
   const haptic = useHaptics();
   const { dismiss, leaveAfterPublish } = useComposeExit(presentation);
@@ -2989,12 +2990,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
               {replyToPostId &&
                 (replyLoading ? (
                   <View style={styles.replyPreviewLoading}>
-                    <Loading
-                      className="text-primary"
-                      variant="inline"
-                      size="sm"
-                      style={{ flex: undefined }}
-                    />
+                    <FeedSkeleton count={1} />
                   </View>
                 ) : replyToPost ? (
                   <View className="border-b border-border">
@@ -4141,9 +4137,7 @@ const ComposeScreen = ({ presentation = 'pushed' }: ComposeScreenProps) => {
   if (!isAuthResolved || isPrivateApiPending) {
     return (
       <SafeAreaView className="flex-1 bg-card" edges={['top']}>
-        <View className="flex-1 items-center justify-center">
-          <Loading />
-        </View>
+        <FormSkeleton />
       </SafeAreaView>
     );
   }

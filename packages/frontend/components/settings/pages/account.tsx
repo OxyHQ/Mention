@@ -1,3 +1,4 @@
+import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { useMentionSettings } from '@/context/MentionSettingsContext';
 import { useProfileData } from '@/hooks/useProfileData';
 import { useAppearanceStore } from '@/stores/appearanceStore';
@@ -5,7 +6,6 @@ import { confirmDialog } from '@/utils/alerts';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button } from '@oxy.so/bloom/button';
-import { Loading } from '@oxy.so/bloom/loading';
 import { SettingsProfilePage, SettingsValueField } from '@oxy.so/bloom/settings-modal';
 import { useBloomTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
@@ -76,7 +76,7 @@ export default function AccountSettingsContent() {
         ]}
       />
     );
-  if (!isAuthResolved || (isAuthenticated && !profile)) return <Loading />;
+  if (!isAuthResolved || (isAuthenticated && !profile)) return <SettingsSkeleton />;
   if (!isAuthenticated)
     return (
       <View className="gap-4">

@@ -1,3 +1,4 @@
+import DeckSettingsPage from './pages/deck';
 import { useTranslation } from 'react-i18next';
 import type { SettingsModalPage, SettingsNavGroup } from '@oxy.so/bloom/settings-modal';
 import { RiAccessibilityLine } from '@oxy.so/bloom/icons/RiAccessibilityLine';
@@ -52,6 +53,7 @@ export interface MentionSettingsPages {
 export function useMentionSettingsPages(): MentionSettingsPages {
   const { t } = useTranslation();
   const pages = {
+    deck: { title: t('deck.workspace.title', 'Deck'), content: <DeckSettingsPage /> },
     account: {
       title: t('settings.account.manageAccount', { defaultValue: 'Account' }),
       content: <Page0 />,
@@ -217,6 +219,12 @@ export function useMentionSettingsPages(): MentionSettingsPages {
           page: 'accessibility',
           label: pages.accessibility.title,
           icon: RiAccessibilityLine,
+        },
+        {
+          key: 'deck',
+          page: 'deck',
+          label: pages.deck.title,
+          icon: RiListUnordered,
         },
         {
           key: 'feed',

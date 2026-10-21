@@ -1,5 +1,5 @@
+import { FormSkeleton } from '@/components/loading/ContentSkeleton';
 import { lazy, Suspense } from 'react';
-import { Loading } from '@oxy.so/bloom/loading';
 import type { ComposeScreenProps } from './ComposeScreen';
 
 // The composer is served by two routes, `/compose` and the `/write` tab. Each
@@ -11,7 +11,7 @@ const ComposeScreen = lazy(() => import('./ComposeScreen'));
 
 export default function LazyComposeScreen(props: ComposeScreenProps) {
   return (
-    <Suspense fallback={<Loading />}>
+    <Suspense fallback={<FormSkeleton />}>
       <ComposeScreen {...props} />
     </Suspense>
   );

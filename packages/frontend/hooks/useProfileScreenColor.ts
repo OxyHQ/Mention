@@ -1,6 +1,5 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { APP_COLOR_PRESETS, type AppColorName } from '@oxy.so/bloom/theme';
-import { useScreenColor } from '@/context/ScreenColorContext';
 
 interface ProfileScreenColorInput {
   username: string | undefined;
@@ -21,17 +20,7 @@ function resolveForcedColor(username: string | undefined): AppColorName | undefi
   return FORCED_BRAND_COLORS[username.toLowerCase()];
 }
 
-/**
- * The color preset a profile is themed with: a forced brand color when the
- * handle has one, else the profile's own `design.color` when it names a real
- * preset, else `undefined` (inherit the app theme).
- *
- * Pure, and deliberately separate from {@link useProfileScreenColor}: the hook
- * also PUBLISHES the color to the surrounding screen (`ScreenColorContext`),
- * which is right for a profile screen and wrong for anything that merely shows
- * a profile in passing — a hover preview must not repaint the screen behind it.
- * Those callers scope the preset to their own subtree with `BloomColorScope`.
- */
+/** Resolve a profile recipe; Bloom Screen applies it to its own host. */
 export function resolveProfileColorName(
   username: string | undefined,
   designColor: string | undefined,
@@ -42,27 +31,15 @@ export function resolveProfileColorName(
   return designColor in APP_COLOR_PRESETS ? (designColor as AppColorName) : undefined;
 }
 
-/**
- * Resolves the color preset for a visited profile screen and propagates it to
- * the layout (SignInBanner, middle column) via `ScreenColorContext`. The
- * screen wraps its content with `<ProfileColorScope colorName>` to apply the
- * preset to the subtree.
- */
+/** Resolve the recipe without mutating a surrounding screen or global theme. */
 export function useProfileScreenColor({
   username,
   designColor,
 }: ProfileScreenColorInput): ProfileScreenColorResult {
-  const { setScreenColor } = useScreenColor();
-
   const colorName = useMemo<AppColorName | undefined>(
     () => resolveProfileColorName(username, designColor),
     [username, designColor],
   );
-
-  useEffect(() => {
-    setScreenColor(colorName);
-    return () => setScreenColor(undefined);
-  }, [colorName, setScreenColor]);
 
   return { colorName };
 }

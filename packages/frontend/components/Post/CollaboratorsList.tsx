@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useCallback } from 'react';
 import { View, FlatList } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Button } from '@oxy.so/bloom/button';

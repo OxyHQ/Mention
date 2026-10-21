@@ -1,4 +1,5 @@
 {
+  "navigation.menu": "Menu navigasi",
   "Your post could not be published. {{detail}}": "Postingan kamu tidak bisa diterbitkan. {{detail}}",
   "You're posting too fast. Please wait a moment and try again.": "Kamu memposting terlalu cepat. Tunggu sebentar lalu coba lagi.",
   "No connection. Check your network and try again.": "Tidak ada koneksi. Periksa jaringanmu lalu coba lagi.",
@@ -736,6 +737,9 @@
   "videos.sharing_not_available": "Berbagi tidak tersedia",
   "videos.copy_link_manually": "Salin tautannya secara manual",
   "videos.share_failed": "Gagal membagikan postingan",
+  "videos.load_failed": "Video tidak dapat dimuat",
+  "videos.load_failed_description": "Periksa koneksi Anda dan coba lagi.",
+  "videos.empty_description": "Video akan muncul di sini saat ada konten untuk ditonton. Kembali lagi nanti.",
   "videos.no_posts_found": "Postingan tidak ditemukan",
   "videos.no_video_posts_yet": "Belum ada postingan video",
   "videos.loading": "Memuat...",
@@ -2652,5 +2656,46 @@
     "retryDescription": "Coba lagi untuk memuat perlindungan akun saat ini.",
     "privatePost": "Hanya wali dan kontak yang disetujui yang dapat membaca postingan Anda.",
     "pendingAssessment": "Konten ini tidak tersedia sampai tinjauan keamanannya selesai."
+  },
+  "deck": {
+    "resizable": "Izinkan perubahan ukuran",
+    "appearance": "Tampilan",
+    "solid": "Permukaan",
+    "plain": "Polos",
+    "color": "Warna dasar",
+    "colorDescription": "Profil yang terbuka menggunakan warnanya sendiri.",
+    "inherit": "Bawaan aplikasi",
+    "width": "Lebar panel",
+    "reset": "Atur ulang pengaturan panel",
+    "settings": "Pengaturan panel",
+    "subtitle": "Linimasa Anda, berdampingan",
+    "history": "Riwayat kolom",
+    "back": "Kembali di kolom ini",
+    "forward": "Maju di kolom ini",
+    "source": "Linimasa kolom",
+    "sources": {
+      "explore": "Jelajahi",
+      "trending": "Tren",
+      "following": "Mengikuti",
+      "saved": "Tersimpan"
+    },
+    "signInDescription": "Masuk untuk melihat linimasa pribadi Anda di kolom ini.",
+    "signIn": "Masuk",
+    "browseExplore": "Buka Jelajahi",
+    "addPanel": "Tambah panel",
+    "removePanel": "Hapus panel",
+    "liveUpdates": "Perbarui secara langsung",
+    "pauseWhileReading": "Jeda pembaruan saat membaca",
+    "liveRequiresSignIn": "Masuk untuk menerima pembaruan langsung",
+    "workspace": {
+      "title": "Deck",
+      "sync": "Sinkronkan antarperangkat",
+      "description": "Simpan panel, halaman, riwayat navigasi, dan posisi membaca ke akun Anda.",
+      "anonymous": "Masuk untuk menyinkronkan Deck. Ruang kerja disimpan di perangkat ini.",
+      "error": "Perubahan disimpan di perangkat ini. Sinkronisasi akan dicoba lagi secara otomatis.",
+      "local": "Ruang kerja tetap di perangkat ini. Aktifkan sinkronisasi untuk membagikannya ke perangkat lain.",
+      "saved": "Deck Anda tersimpan di akun.",
+      "saving": "Ruang kerja langsung tersedia. Menyimpan ke akun…"
+    }
   }
 }

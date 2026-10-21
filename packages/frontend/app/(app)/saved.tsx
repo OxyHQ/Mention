@@ -1,11 +1,12 @@
+import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
+import { Screen } from '@oxy.so/bloom/screen';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@oxy.so/bloom/button';
 import { Dialog, useDialogControl, type DialogAction } from '@oxy.so/bloom/dialog';
 import { Item } from '@oxy.so/bloom/item';
-import { Loading } from '@oxy.so/bloom/loading';
 import { HeaderDockProvider, StickySection } from '@oxy.so/bloom/layout';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Search } from '@oxy.so/bloom/search';
@@ -257,11 +258,7 @@ const SavedPostsScreen: React.FC = () => {
   const listEmpty = useMemo(() => {
     const initialLoading = isPrivateApiPending || (canUsePrivateApi && savedPostsPending);
     if (initialLoading) {
-      return (
-        <View className="items-center justify-center pt-[60px]">
-          <Loading className="text-primary" size="lg" />
-        </View>
-      );
+      return <FeedSkeleton />;
     }
 
     if (savedPostsFailed) {
@@ -318,9 +315,7 @@ const SavedPostsScreen: React.FC = () => {
   ]);
 
   const listFooter = isFetchingNextPage ? (
-    <View className="items-center justify-center py-4">
-      <Loading className="text-primary" size="sm" />
-    </View>
+    <FeedSkeleton count={2} />
   ) : (
     <View style={styles.listFooterSpace} />
   );
@@ -328,10 +323,12 @@ const SavedPostsScreen: React.FC = () => {
   return (
     <>
       <SEO title={t('seo.saved.title')} description={t('seo.saved.description')} />
-      <HeaderDockProvider scrollY={scrollPosition}>
-        <View className="flex-1 web:z-auto">
+      <HeaderDockProvider scrollY={Platform.OS === 'web' ? undefined : scrollPosition}>
+        <Screen
+          scroll="auto"
+          header={<PageHeader title={t('screens.saved.title')} presentation="floating" />}
+        >
           <StatusBar style={theme.isDark ? 'light' : 'dark'} />
-          <PageHeader title={t('screens.saved.title')} presentation="floating" />
 
           {/* Search and folder tabs dock under the header. Creating a folder
                         is an action, not a section, so it lives in the FAB. */}
@@ -376,7 +373,7 @@ const SavedPostsScreen: React.FC = () => {
               />
             </PageAction>
           ) : null}
-        </View>
+        </Screen>
       </HeaderDockProvider>
 
       <Dialog

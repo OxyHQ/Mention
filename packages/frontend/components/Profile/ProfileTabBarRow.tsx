@@ -1,6 +1,6 @@
 import type React from 'react';
 import { TouchableOpacity, View } from 'react-native';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { RiGitMergeLine } from '@oxy.so/bloom/icons/RiGitMergeLine';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
@@ -28,6 +28,7 @@ export interface ProfileTabBarRowProps {
  * genuinely the same.
  */
 export function ProfileTabBarRow({ children, showLanes }: ProfileTabBarRowProps) {
+  const router = useRouter();
   const { t } = useTranslation();
   const { colors } = useTheme();
   // Opaque in the column's own colour: the row pins over the scrolling profile

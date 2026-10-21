@@ -32,12 +32,14 @@ const NotificationSkeletonRow: React.FC = () => (
  * of shimmering rows that mimic the real notification rows so the screen feels
  * instant (same treatment the feed uses) instead of a centered spinner.
  */
-export const NotificationSkeleton: React.FC = () => (
-  <View className="w-full" accessibilityRole="progressbar">
-    {Array.from({ length: PLACEHOLDER_ROWS }).map((_, index) => (
+export const NotificationSkeleton: React.FC<{ count?: number }> = ({
+  count = PLACEHOLDER_ROWS,
+}) => (
+  <Skeleton.Region className="w-full">
+    {Array.from({ length: count }).map((_, index) => (
       <NotificationSkeletonRow key={index} />
     ))}
-  </View>
+  </Skeleton.Region>
 );
 
 export default NotificationSkeleton;

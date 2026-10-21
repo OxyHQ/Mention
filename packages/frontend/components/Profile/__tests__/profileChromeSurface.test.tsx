@@ -35,7 +35,7 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 
 jest.mock('@oxy.so/bloom/icons', () => ({ RiGitMergeLine: () => null }));
 
-jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({

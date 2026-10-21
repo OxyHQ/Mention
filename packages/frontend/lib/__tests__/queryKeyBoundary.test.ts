@@ -9,6 +9,8 @@ const SKIPPED_DIRECTORIES = new Set([
   '__perf__',
   'coverage',
   'node_modules',
+  // Local shared-package mirror; governed by Bloom's own boundaries.
+  'bloom-local',
   '.expo',
 ]);
 

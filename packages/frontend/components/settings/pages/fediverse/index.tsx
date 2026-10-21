@@ -1,3 +1,4 @@
+import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { showFediverseInfo } from '@/components/Fediverse/FediverseInfoDialog';
 import { SettingsSelect } from '@/components/settings/SettingsSelect';
 import { WEB_BASE_URL } from '@/config';
@@ -7,7 +8,6 @@ import { useFediversePreferredLanguage } from '@/hooks/useFediversePreferredLang
 import { confirmDialog } from '@/utils/alerts';
 import { api } from '@/utils/api';
 import { Button } from '@oxy.so/bloom/button';
-import { Loading } from '@oxy.so/bloom/loading';
 import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { Switch } from '@oxy.so/bloom/switch';
 import { toast } from '@oxy.so/bloom/toast';
@@ -243,9 +243,7 @@ export default function FediverseSettingsScreen() {
   return (
     <View className="gap-4">
       {!isAuthResolved || isPrivateApiPending ? (
-        <View className="flex-1 items-center justify-center">
-          <Loading />
-        </View>
+        <SettingsSkeleton />
       ) : !canUsePrivateApi ? (
         <OxyAuthPrompt
           label={t('fediverse.settings.signInRequired', {

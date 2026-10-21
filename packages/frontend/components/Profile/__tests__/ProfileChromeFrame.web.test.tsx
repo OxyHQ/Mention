@@ -19,7 +19,7 @@ const mockScrollToContent = jest.fn();
 let mockView: Record<string, unknown>;
 
 jest.mock('expo-router', () => ({
-  router: { push: (href: string) => mockPush(href) },
+  useRouter: () => ({ push: (href: string) => mockPush(href) }),
   usePathname: () => mockPathname,
 }));
 jest.mock('@oxy.so/bloom/theme', () => ({

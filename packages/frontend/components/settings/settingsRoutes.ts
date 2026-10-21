@@ -21,6 +21,7 @@ export const SETTINGS_PAGE_IDS = [
   'fediverse',
   'fediverse/node',
   'feed',
+  'deck',
   'for-you',
   'interests',
   'language',

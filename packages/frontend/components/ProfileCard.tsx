@@ -1,6 +1,6 @@
 import { useMemo, type ReactNode } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { FollowButton } from '@oxy.so/services/ui/client';
 import { ContactRow } from '@oxy.so/bloom/chat-people/contact-row';

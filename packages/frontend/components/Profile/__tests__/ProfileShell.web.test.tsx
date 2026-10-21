@@ -1,3 +1,20 @@
+jest.mock('@oxy.so/bloom/screen', () => ({
+  Screen: (props: {
+    header?: React.ReactNode;
+    bottomBar?: React.ReactNode;
+    children?: React.ReactNode;
+  }) => {
+    mockScreen(props);
+    return (
+      <>
+        {props.header}
+        {props.children}
+        {props.bottomBar}
+      </>
+    );
+  },
+}));
+
 import type React from 'react';
 import { Animated, Text, View } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
@@ -5,6 +22,7 @@ import { ProfileShell, type ProfileShellProps } from '../ProfileShell';
 
 const mockScrollPosition = { value: 0 };
 const mockHeader = jest.fn();
+const mockScreen = jest.fn();
 const mockTabs = jest.fn();
 const mockList = jest.fn();
 const mockDock = jest.fn();
@@ -175,8 +193,8 @@ test('web paints the header block, and leaves the page and the feed to the conte
   act(() => {
     tree = TestRenderer.create(<ProfileShell {...webProps()}>{navigator}</ProfileShell>);
   });
-  const [root, header] = tree.root.findAllByType(View);
-  expect(root.props.style).toBeUndefined();
+  const [header] = tree.root.findAllByType(View);
+  expect(mockScreen.mock.calls.at(-1)?.[0].style).toBeUndefined();
   expect(header.props.style).toMatchObject({ backgroundColor: 'rgb(20, 55, 84)' });
   act(() => tree.unmount());
 });
@@ -201,7 +219,10 @@ test('ready, it draws the same chrome as native around the navigator', () => {
   act(() => {
     tree = TestRenderer.create(<ProfileShell {...webProps()}>{navigator}</ProfileShell>);
   });
-  expect(mockHeader.mock.calls.at(-1)?.[0]).toMatchObject({ placement: 'overlap' });
+  expect(mockScreen.mock.calls.at(-1)?.[0]).toMatchObject({
+    scroll: 'auto',
+    headerPlacement: 'overlay',
+  });
   expect(mockCover.mock.calls.at(-1)?.[0]).toMatchObject({
     testID: 'profile-hero',
     coverHeight: 170,

@@ -1,7 +1,7 @@
-import type { Href } from 'expo-router';
+import type { Href } from '@/lib/navigation/router';
 import { memo, useCallback } from 'react';
 import { Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Card } from '@oxy.so/bloom/card';
@@ -68,6 +68,7 @@ interface OrganizationJobRowProps {
  * badge below is mostly seen by the operator viewing their own tab.
  */
 const OrganizationJobRow = memo(function OrganizationJobRow({ job }: OrganizationJobRowProps) {
+  const router = useRouter();
   const { t } = useTranslation();
   const vocabulary = useJobVocabulary();
 
@@ -78,7 +79,7 @@ const OrganizationJobRow = memo(function OrganizationJobRow({ job }: Organizatio
     } catch {
       router.push(`/jobs/${job.id}`);
     }
-  }, [job.canonicalUrl, job.id]);
+  }, [job.canonicalUrl, job.id, router]);
 
   const isPublished = job.status === 'published';
   const badges = [

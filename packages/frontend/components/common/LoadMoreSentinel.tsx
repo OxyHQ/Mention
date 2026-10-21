@@ -1,3 +1,4 @@
+import { usePanelScrollContainer } from '@oxy.so/bloom/app-shell/hooks';
 import { useEffect, useRef } from 'react';
 import { Platform, View } from 'react-native';
 
@@ -25,6 +26,7 @@ export function LoadMoreSentinel({
   enabled,
   rootMargin = '600px',
 }: LoadMoreSentinelProps) {
+  const panel = usePanelScrollContainer<HTMLElement>();
   const viewRef = useRef<View>(null);
 
   // The observer closes over `onLoadMore` and re-subscribes when its identity
@@ -63,11 +65,11 @@ export function LoadMoreSentinel({
           onLoadMore();
         }
       },
-      { rootMargin },
+      { root: panel?.current ?? null, rootMargin },
     );
     observer.observe(element as Element);
     return () => observer.disconnect();
-  }, [enabled, onLoadMore, rootMargin]);
+  }, [enabled, onLoadMore, rootMargin, panel]);
 
   return <View ref={viewRef} style={SENTINEL_STYLE} />;
 }

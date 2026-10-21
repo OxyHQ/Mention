@@ -1,4 +1,5 @@
 {
+  "navigation.menu": "Menú de navegació",
   "Your post could not be published. {{detail}}": "No s'ha pogut publicar la teva publicació. {{detail}}",
   "You're posting too fast. Please wait a moment and try again.": "Publiques massa de pressa. Espera un moment i torna-ho a provar.",
   "No connection. Check your network and try again.": "Sense connexió. Comprova la xarxa i torna-ho a provar.",
@@ -745,6 +746,9 @@
   "videos.sharing_not_available": "Compartició no disponible",
   "videos.copy_link_manually": "Copia l'enllaç manualment",
   "videos.share_failed": "No s'ha pogut compartir la publicació",
+  "videos.load_failed": "No s’han pogut carregar els vídeos",
+  "videos.load_failed_description": "Comprova la connexió i torna-ho a provar.",
+  "videos.empty_description": "Els vídeos apareixeran aquí quan hi hagi contingut per veure. Torna aviat.",
   "videos.no_posts_found": "No s'ha trobat cap publicació",
   "videos.no_video_posts_yet": "Encara no hi ha publicacions amb vídeo",
   "videos.loading": "S'està carregant...",
@@ -2683,5 +2687,46 @@
     "retryDescription": "Torna-ho a provar per carregar les proteccions actuals del compte.",
     "privatePost": "Només el teu tutor i els contactes aprovats poden llegir les teves publicacions.",
     "pendingAssessment": "Aquest contingut no estarà disponible fins que se n’hagi completat la revisió de seguretat."
+  },
+  "deck": {
+    "resizable": "Permetre redimensionar",
+    "appearance": "Aparença",
+    "solid": "Superfície",
+    "plain": "Pla",
+    "color": "Color base",
+    "colorDescription": "Els perfils fan servir el seu color mentre estan oberts.",
+    "inherit": "Per defecte de l’app",
+    "width": "Amplada del tauler",
+    "reset": "Restableix la configuració del tauler",
+    "settings": "Configuració del tauler",
+    "subtitle": "Els teus feeds, l’un al costat de l’altre",
+    "history": "Historial de la columna",
+    "back": "Enrere en aquesta columna",
+    "forward": "Endavant en aquesta columna",
+    "source": "Feed de la columna",
+    "sources": {
+      "explore": "Explora",
+      "trending": "Tendències",
+      "following": "Seguint",
+      "saved": "Desats"
+    },
+    "signInDescription": "Inicia la sessió per veure el teu feed personal en aquesta columna.",
+    "signIn": "Inicia la sessió",
+    "browseExplore": "Ves a Explora",
+    "addPanel": "Afegeix un panell",
+    "removePanel": "Elimina el panell",
+    "liveUpdates": "Actualitza en temps real",
+    "pauseWhileReading": "Pausa les actualitzacions mentre llegeixes",
+    "liveRequiresSignIn": "Inicia sessió per rebre actualitzacions en temps real",
+    "workspace": {
+      "title": "Deck",
+      "sync": "Sincronitza entre dispositius",
+      "description": "Desa els panells, pàgines, historial de navegació i posicions de lectura al teu compte.",
+      "anonymous": "Inicia sessió per sincronitzar Deck. El teu espai es desa en aquest dispositiu.",
+      "error": "Els canvis estan desats en aquest dispositiu. La sincronització no ha acabat i es tornarà a intentar automàticament.",
+      "local": "El teu espai es queda en aquest dispositiu. Activa la sincronització per compartir-lo amb els altres dispositius.",
+      "saved": "El teu Deck està desat al teu compte.",
+      "saving": "El teu espai està disponible immediatament. Desant al teu compte…"
+    }
   }
 }

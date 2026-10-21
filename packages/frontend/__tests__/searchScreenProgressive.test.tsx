@@ -1,3 +1,4 @@
+jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'));
 jest.mock('@/hooks/useSupervisionState', () => ({
   useSupervisionState: () => ({ ready: true, supervised: false, isError: false }),
 }));
@@ -28,6 +29,7 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('expo-router', () => ({
+  useRouter: () => jest.requireMock('expo-router').router,
   router: { push: jest.fn() },
   useLocalSearchParams: () => ({ q: 'rust' }),
 }));

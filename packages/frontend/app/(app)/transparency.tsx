@@ -1,8 +1,8 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import type {
   FederationBlockCategory,
@@ -156,9 +156,7 @@ export default function TransparencyScreen() {
         <SectionTitle>{t('transparency.list.title')}</SectionTitle>
 
         {blocksQuery.isPending ? (
-          <View className="items-center py-10">
-            <Loading />
-          </View>
+          <ListSkeleton />
         ) : blocksQuery.isError ? (
           <Paragraph>{t('transparency.list.error')}</Paragraph>
         ) : blocks && blocks.length > 0 ? (

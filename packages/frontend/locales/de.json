@@ -1,4 +1,5 @@
 {
+  "navigation.menu": "Navigationsmenü",
   "Your post could not be published. {{detail}}": "Dein Beitrag konnte nicht veröffentlicht werden. {{detail}}",
   "You're posting too fast. Please wait a moment and try again.": "Du postest zu schnell. Warte einen Moment und versuche es erneut.",
   "No connection. Check your network and try again.": "Keine Verbindung. Prüfe dein Netzwerk und versuche es erneut.",
@@ -736,6 +737,9 @@
   "videos.sharing_not_available": "Teilen nicht verfügbar",
   "videos.copy_link_manually": "Bitte kopiere den Link manuell",
   "videos.share_failed": "Beitrag konnte nicht geteilt werden",
+  "videos.load_failed": "Videos konnten nicht geladen werden",
+  "videos.load_failed_description": "Prüfe deine Verbindung und versuche es erneut.",
+  "videos.empty_description": "Hier erscheinen Videos, sobald es etwas anzusehen gibt. Schau bald wieder vorbei.",
   "videos.no_posts_found": "Keine Beiträge gefunden",
   "videos.no_video_posts_yet": "Noch keine Videobeiträge",
   "videos.loading": "Wird geladen …",
@@ -2652,5 +2656,46 @@
     "retryDescription": "Versuche es erneut, um die aktuellen Schutzeinstellungen des Kontos zu laden.",
     "privatePost": "Nur deine erziehungsberechtigte Person und genehmigte Kontakte können deine Beiträge lesen.",
     "pendingAssessment": "Dieser Inhalt ist erst verfügbar, wenn seine Sicherheitsprüfung abgeschlossen ist."
+  },
+  "deck": {
+    "resizable": "Größe ändern erlauben",
+    "appearance": "Darstellung",
+    "solid": "Fläche",
+    "plain": "Schlicht",
+    "color": "Grundfarbe",
+    "colorDescription": "Geöffnete Profile verwenden ihre eigene Farbe.",
+    "inherit": "App-Standard",
+    "width": "Panelbreite",
+    "reset": "Paneleinstellungen zurücksetzen",
+    "settings": "Paneleinstellungen",
+    "subtitle": "Deine Feeds nebeneinander",
+    "history": "Spaltenverlauf",
+    "back": "In dieser Spalte zurück",
+    "forward": "In dieser Spalte vorwärts",
+    "source": "Feed dieser Spalte",
+    "sources": {
+      "explore": "Entdecken",
+      "trending": "Trends",
+      "following": "Gefolgt",
+      "saved": "Gespeichert"
+    },
+    "signInDescription": "Melde dich an, um deinen persönlichen Feed in dieser Spalte zu sehen.",
+    "signIn": "Anmelden",
+    "browseExplore": "Entdecken öffnen",
+    "addPanel": "Panel hinzufügen",
+    "removePanel": "Panel entfernen",
+    "liveUpdates": "In Echtzeit aktualisieren",
+    "pauseWhileReading": "Aktualisierungen beim Lesen pausieren",
+    "liveRequiresSignIn": "Für Live-Aktualisierungen anmelden",
+    "workspace": {
+      "title": "Deck",
+      "sync": "Geräteübergreifend synchronisieren",
+      "description": "Speichere deine Panels, Seiten, den Navigationsverlauf und Lesepositionen in deinem Konto.",
+      "anonymous": "Melde dich an, um Deck zu synchronisieren. Dein Arbeitsbereich wird auf diesem Gerät gespeichert.",
+      "error": "Änderungen sind auf diesem Gerät gespeichert. Die Synchronisierung wird automatisch erneut versucht.",
+      "local": "Dein Arbeitsbereich bleibt auf diesem Gerät. Aktiviere die Synchronisierung, um ihn auf deinen anderen Geräten zu nutzen.",
+      "saved": "Dein Deck ist in deinem Konto gespeichert.",
+      "saving": "Dein Arbeitsbereich ist sofort verfügbar. Wird in deinem Konto gespeichert…"
+    }
   }
 }

@@ -18,7 +18,7 @@ import { useTimeAgo } from '@/hooks/useTimeAgo';
 import { displayNameOrHandle } from '@/utils/displayName';
 import type { HydratedAuthor, PostUser } from '@mention/shared-types';
 import { getNormalizedUserHandle } from '@oxy.so/core';
-import { Link, type Href } from 'expo-router';
+import { Link, type Href } from '@/lib/navigation/router';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
@@ -406,7 +406,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
           />
         </ProfileHoverCard>
       )}
-      <View className="flex-1" style={{ gap: HEADER_CONTENT_GAP }}>
+      <View className="flex-1 min-w-0" style={{ gap: HEADER_CONTENT_GAP }}>
         {contextTop}
         <View className="flex-row items-end" style={{ gap: ROW_GAP }}>
           {/* Bluesky-style identity line: the display name takes the space it
@@ -464,7 +464,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
             <ProfileHoverCard
               username={user.handle}
               disable={disableHoverCard}
-              style={{ minWidth: 0 }}
+              style={{ minWidth: 0, flexShrink: 1 }}
             >
               <View className="flex-row items-end flex-shrink" style={{ minWidth: 0 }}>
                 <UserName
@@ -474,7 +474,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
                   verified={user.verified}
                   href={userHref}
                   asHeading={nameAsHeading}
-                  style={{ container: { flexShrink: 0 } }}
+                  style={{ container: { flexShrink: 1, minWidth: 0 } }}
                 />
                 {hasDisplayName && user.handle ? (
                   <Text

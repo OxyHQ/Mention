@@ -29,6 +29,8 @@ export const publicQueryKeys = {
   customFeedReviews: (feedId: string) => [...PUBLIC_ROOT, 'custom-feed-reviews', feedId] as const,
   externalActorResolve: (query: string) =>
     [...PUBLIC_ROOT, 'external-actor-resolve', query] as const,
+  mentionResolve: (uri: string) =>
+    [...PUBLIC_ROOT, 'external-actor-resolve', uri, 'mention'] as const,
   feedModules: () => [...PUBLIC_ROOT, 'feed-modules'] as const,
   /**
    * Who the profile links pasted into one composer body name — one key for the
@@ -471,6 +473,10 @@ export const viewerQueryKeys = {
   profileLists: (viewerId: ViewerId, profileId: string | null | undefined, isOwnProfile: boolean) =>
     [...viewerQueryKeys.all(viewerId), 'profile-lists', profileId ?? '', isOwnProfile] as const,
   weeklyRecap: (viewerId: ViewerId) => [...viewerQueryKeys.all(viewerId), 'weekly-recap'] as const,
+  weeklyRecapPosts: (viewerId: ViewerId) =>
+    [...viewerQueryKeys.weeklyRecap(viewerId), 'rolling-seven-days'] as const,
+  weeklyRecapSummary: (viewerId: ViewerId) =>
+    [...viewerQueryKeys.weeklyRecap(viewerId), 'summary'] as const,
   /**
    * Keyed on the SUBJECT as well as the viewer, because one viewer reads several
    * accounts' insights: their own, and every channel they operate. Without the

@@ -1,9 +1,10 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiListUnordered } from '@oxy.so/bloom/icons/RiListUnordered';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { Checkbox } from '@oxy.so/bloom/checkbox';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { toast } from '@oxy.so/bloom/toast';
@@ -44,6 +45,7 @@ function extractMemberIds(list: unknown): string[] {
  * change so list-backed feeds refresh automatically.
  */
 export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToListSheetProps) {
+  const router = useRouter();
   const theme = useTheme();
   const { t } = useTranslation();
   const [rows, setRows] = useState<ListRow[]>([]);
@@ -130,7 +132,7 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
   const goCreate = useCallback(() => {
     onClose();
     router.push('/lists/create');
-  }, [onClose]);
+  }, [onClose, router]);
 
   return (
     <View className="bg-background px-4 pt-3 pb-2">
@@ -149,9 +151,7 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
       </View>
 
       {loading ? (
-        <View className="items-center justify-center py-10">
-          <SpinnerIcon size={26} className="text-primary" />
-        </View>
+        <ListSkeleton />
       ) : error ? (
         <View className="items-center justify-center py-8 gap-3">
           <Text className="text-muted-foreground text-sm text-center">{error}</Text>

@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import type { Href } from 'expo-router';
+import type { Href } from '@/lib/navigation/router';
 
 /**
  * The root PAGES of the mobile shell, in pager order — the single table.

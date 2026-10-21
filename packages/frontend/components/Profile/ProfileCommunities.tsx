@@ -1,6 +1,6 @@
 import { memo, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Image } from 'react-native';
-import { router } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import type { ProfileCommunitiesProps, Community } from './types';
 
@@ -28,13 +28,14 @@ export const ProfileCommunities = memo(function ProfileCommunities({
 });
 
 const CommunityCard = memo(function CommunityCard({ community }: { community: Community }) {
+  const router = useRouter();
   const { t } = useTranslation();
 
   const handleViewPress = useCallback(() => {
     if (community.id) {
       router.push(`/community/${community.id}`);
     }
-  }, [community.id]);
+  }, [community.id, router]);
 
   return (
     <View className="bg-muted border border-border rounded-xl p-3 mb-3">

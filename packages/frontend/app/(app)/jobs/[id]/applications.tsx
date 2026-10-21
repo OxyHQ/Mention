@@ -1,13 +1,13 @@
+import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useContext, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Card } from '@oxy.so/bloom/card';
 import { Chip } from '@oxy.so/bloom/chip';
 import { VirtualList } from '@oxy.so/bloom/list';
-import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { MentionJobApplication, MentionJobApplicationStatus } from '@mention/shared-types';
@@ -159,9 +159,7 @@ export default function JobApplicationsScreen() {
       {filterRow}
       <View className="flex-1 min-h-0">
         {applicationsQuery.isPending ? (
-          <View className="flex-1 items-center justify-center">
-            <Loading className="text-primary" size="lg" />
-          </View>
+          <ListSkeleton />
         ) : applicationsQuery.isError ? (
           <ErrorState
             title={t('jobs.applications.errorTitle', {
@@ -226,7 +224,7 @@ export default function JobApplicationsScreen() {
             ListFooterComponent={
               <View className="items-center justify-center py-4">
                 <LoadMoreSentinel onLoadMore={handleEndReached} enabled={!!hasNextPage} />
-                {isFetchingNextPage ? <Loading className="text-primary" size="sm" /> : null}
+                {isFetchingNextPage ? <ListSkeleton count={2} /> : null}
               </View>
             }
           />

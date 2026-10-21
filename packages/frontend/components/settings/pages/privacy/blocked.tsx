@@ -1,3 +1,4 @@
+import { ListSkeleton, SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { EmptyState } from '@/components/common/EmptyState';
 import { queryClient } from '@/lib/queryClient';
 import { refreshPrivacyLists } from '@/services/privacyService';
@@ -261,9 +262,7 @@ export default function BlockedUsersScreen() {
   if (!isAuthResolved || isPrivateApiPending) {
     return (
       <View className="gap-4">
-        <View className="flex-1 items-center justify-center">
-          <Loading />
-        </View>
+        <SettingsSkeleton />
       </View>
     );
   }
@@ -299,9 +298,7 @@ export default function BlockedUsersScreen() {
                 label={t('settings.privacy.searchUsersToBlock')}
                 onClearText={() => handleSearch('')}
               />
-              {searching && (
-                <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
-              )}
+              {searching && <ListSkeleton count={2} />}
             </View>
           </SettingsCard>
         </SettingsSection>
@@ -358,9 +355,7 @@ export default function BlockedUsersScreen() {
         <SettingsSection label={t('settings.privacy.blockedUsers')}>
           <SettingsCard>
             {loading ? (
-              <View className="py-10 items-center">
-                <Loading className="text-primary" size="lg" style={{ flex: undefined }} />
-              </View>
+              <ListSkeleton />
             ) : blockedUsers.length === 0 ? (
               <View className="py-4">
                 <EmptyState

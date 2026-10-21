@@ -1,3 +1,4 @@
+jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'));
 import { Text } from 'react-native';
 import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider, notifyManager } from '@tanstack/react-query';

@@ -143,6 +143,11 @@
       "types": "./dist/homiio.d.ts",
       "import": "./dist/homiio.js",
       "require": "./dist/homiio.js"
+    },
+    "./deck": {
+      "types": "./dist/deck.d.ts",
+      "import": "./dist/deck.js",
+      "require": "./dist/deck.js"
     }
   },
   "scripts": {

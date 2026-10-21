@@ -1,3 +1,4 @@
+import { useFeedLiveUpdates } from './FeedUpdatePolicy';
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import type { View } from 'react-native';
@@ -5,7 +6,7 @@ import type { FeedType } from '@mention/shared-types';
 import { ErrorBoundary } from '@oxy.so/bloom/error-boundary';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { createLogger } from '@oxy.so/core/logger';
 import { useFeedState } from '@/hooks/useFeedState';
@@ -130,6 +131,8 @@ export function useFeedCore(props: FeedProps) {
     clearError: feedClearError,
     fetchInitial: feedFetchInitial,
   } = feedState;
+
+  useFeedLiveUpdates(type, feedRefresh, canUsePrivateApi);
 
   // Slices (or items) into rows with thread state, the server's recommendation
   // cards spliced in, and a preview's bound applied.

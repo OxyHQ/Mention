@@ -4,7 +4,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { starterPacksService, type StarterPackSummary } from '@/services/starterPacksService';
-import { router, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect } from '@/lib/navigation/router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { SEO } from '@/components/SEO';
 import {
@@ -20,6 +20,7 @@ import { SignInRequired } from '@/components/common/SignInRequired';
 const IS_WEB = Platform.OS === 'web';
 
 export default function StarterPacksScreen() {
+  const router = useRouter();
   const { t } = useTranslation();
   const safeBack = useSafeBack();
   const { canUsePrivateApi } = useAuth();

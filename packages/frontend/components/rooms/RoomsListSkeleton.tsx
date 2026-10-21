@@ -61,7 +61,7 @@ const RoomRowSkeleton: React.FC = () => (
 );
 
 export const RoomsListSkeleton: React.FC = () => (
-  <View className="mt-4" accessibilityRole="progressbar">
+  <Skeleton.Region className="w-full mt-4">
     <View className="px-4">
       {Array.from({ length: FEATURED_PLACEHOLDERS }).map((_, index) => (
         <FeaturedRoomSkeleton key={`featured-${index}`} />
@@ -70,7 +70,7 @@ export const RoomsListSkeleton: React.FC = () => (
     {Array.from({ length: ROW_PLACEHOLDERS }).map((_, index) => (
       <RoomRowSkeleton key={`row-${index}`} />
     ))}
-  </View>
+  </Skeleton.Region>
 );
 
 export default RoomsListSkeleton;

@@ -1,6 +1,7 @@
+import { FormSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Avatar } from '@oxy.so/bloom/avatar';
@@ -54,6 +55,7 @@ const MAX_MEMBERS = 150;
  * the owner); this screen re-verifies ownership once the pack loads.
  */
 export default function EditStarterPackScreen() {
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const packId = String(id);
   const { user, oxyServices } = useAuth();
@@ -248,7 +250,7 @@ export default function EditStarterPackScreen() {
       logger.error('Failed to delete starter pack', e);
       toast('Failed to delete starter pack', { type: 'error' });
     }
-  }, [packId]);
+  }, [packId, router]);
 
   const header = (
     <PageHeader
@@ -262,9 +264,7 @@ export default function EditStarterPackScreen() {
     return (
       <View className="flex-1">
         {header}
-        <View className="flex-1 items-center justify-center">
-          <SpinnerIcon size={28} className="text-primary" />
-        </View>
+        <FormSkeleton />
       </View>
     );
   }
@@ -332,7 +332,7 @@ export default function EditStarterPackScreen() {
 
         {searching && (
           <View className="flex-row items-center gap-2 mt-2.5">
-            <SpinnerIcon size={16} className="text-primary" />
+            <ListSkeleton count={2} />
             <Text className="text-muted-foreground text-xs font-primary">Searching…</Text>
           </View>
         )}
