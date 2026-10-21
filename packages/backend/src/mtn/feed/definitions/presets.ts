@@ -376,14 +376,9 @@ export const videosDefinition: FeedDefinition = {
   // score cursor depends on and could drop landscape videos from every page.
   signals: [...buildPresetRankingSignals(), enabled('portraitBoost')],
   filters: [enabled('safety')],
-  // KNOWN SECOND EFFECT, taken deliberately. `FeedEngine.gatherPool` stamps
-  // `_discovery` on non-trusted candidates only when a gate exists, and
-  // `languageMismatchPenalty` — in this preset's default Phase-2b signal set —
-  // fires only on `_discovery`. So giving Videos a gate also switches on an
-  // off-language downrank across its pool. That is the right outcome rather than
-  // an accident to route around: the reels screen is a recommendation surface and
-  // a video in a language the reader does not read is the case that penalty was
-  // written for. Asserted in `presetsPhase2b.test.ts` so it stays a decision.
+  // Videos are discovery-origin candidates even if the quality gate is disabled.
+  // Their language mismatch signal therefore remains independent of gate rollout;
+  // the recommendation gate separately controls content-warning eligibility.
   discoveryFilters: resolveRecommendationGate(),
   execution: {
     sessionPagination: true,

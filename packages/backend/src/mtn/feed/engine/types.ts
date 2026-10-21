@@ -42,9 +42,9 @@ export type CandidatePost = PostRecord & {
   _feedCursor?: string;
   /**
    * DISCOVERY marker. Stamped `true` by the engine on candidates that came from
-   * a NON-trusted (discovery) source and passed the definition's
-   * `discoveryFilters`. Read by the discovery-gate lane-scoping and the
-   * `languageMismatchPenalty` ranking signal.
+   * a NON-trusted source, regardless of whether discovery filters are enabled.
+   * This records origin, not a quality verdict; share selection and discovery-
+   * scoped ranking signals read it even when quality gates are disabled.
    */
   _discovery?: boolean;
   /**
@@ -174,8 +174,8 @@ export interface SourceModule {
    * chosen graph (following / subscribed lists / affinity), so its candidates are
    * NEVER subjected to the discovery gate (`FeedDefinition.discoveryFilters`) nor
    * marked `_discovery`. Absent/`false` = a DISCOVERY source (topics / language /
-   * region / trending / global), whose candidates ARE gated. Only meaningful for
-   * ranked multi-source definitions that declare `discoveryFilters` (For You).
+   * region / trending / global), whose candidates are marked by origin and are
+   * additionally gated when the definition enables discovery filters.
    */
   trusted?: boolean;
   gather(
@@ -299,16 +299,12 @@ export interface FeedExecution {
    */
   preScored?: boolean;
   /**
-   * DISCOVERY-SHARE CAP (Phase 5) — the maximum SHARE (0..1) of a rendered ranked
-   * page that may come from DISCOVERY lanes (slices whose anchor post carries the
-   * opaque `_discovery` marker). After author diversification, and INSIDE the
-   * already-selected page window, `capDiscoveryShare` DEFERS — never drops (same
-   * contract as `diversifyByAuthor`) — discovery slices beyond
-   * `floor(maxDiscoveryShare · limit)` to the page tail, guaranteeing a floor for
-   * trusted (following / affinity / lists) content. Running it on a deeper pool
-   * and truncating afterwards would make that deferral a silent drop; see
-   * `FeedEngine.finalizeRanked`. Unset (every feed except For You) = no cap. On a
-   * thin follow graph the cap is simply unmet and discovery backfills the page.
+   * Maximum preferred discovery share (0..1) of a ranked session page, measured
+   * from its anchors' `_discovery` origin markers. Joint page selection preserves
+   * deferred candidates independently of source progress. Author diversity takes
+   * priority when a concentrated trusted pool cannot satisfy the trusted floor;
+   * discovery then fills the page. Unset means no share preference. The stateless
+   * degradation path only reorders its fixed score window to avoid cursor loss.
    */
   maxDiscoveryShare?: number;
 }
