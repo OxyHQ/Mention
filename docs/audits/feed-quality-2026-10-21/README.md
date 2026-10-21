@@ -452,3 +452,8 @@ run: 5,651 passed and four skipped tests across 461 passed and two skipped files
 with all configured coverage floors satisfied. The bell source/context/preset
 Bun/PostgreSQL selection passed 71 tests across six files; the final read-only
 provenance report change passed its 14 database regressions separately.
+
+The complete Bun suite then passed 2,502 tests across 225 files after adding the
+new source to both strict registry inventories. The bell source database fixture
+also includes a newer reply and confirms that only eligible root posts are
+selected. Existing inventory equality checks and coverage thresholds remain intact.

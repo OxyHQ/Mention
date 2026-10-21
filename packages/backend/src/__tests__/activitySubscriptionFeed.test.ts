@@ -53,6 +53,11 @@ describe('bell subscriptions are interest, not follow authorization', () => {
         { subscriberId: other, authorId: scope.user('unrelated') },
       ]);
     const fresh = await seedPost(scope, { oxyUserId: author, createdAt: new Date(now - 1000) });
+    await seedPost(scope, {
+      oxyUserId: author,
+      parentPostId: fresh.id,
+      createdAt: new Date(now - 500),
+    });
     const collab = await seedPost(scope, {
       oxyUserId: scope.user('owner'),
       authorship: [

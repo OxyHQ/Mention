@@ -19,6 +19,7 @@ describe('resolveDefinition', () => {
     expect(def).not.toBeNull();
     expect(def!.mode).toBe('ranked');
     expect(sourceIds(def!)).toEqual([
+      'activitySubscriptions',
       'following',
       'lists',
       'affinity',

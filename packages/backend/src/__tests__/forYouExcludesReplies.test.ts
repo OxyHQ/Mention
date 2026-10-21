@@ -568,7 +568,8 @@ describe('reply policy — every registered source has a declared intent', () =>
   type ReplyPolicy = 'roots-only' | 'includes-replies' | 'replies-only' | 'boosts-only';
 
   const DECLARED_POLICY: Record<string, ReplyPolicy> = {
-    // For You lanes — all eight share `buildBaseMatch`.
+    // For You recommendation lanes share the roots-only base predicate.
+    activitySubscriptions: 'roots-only',
     following: 'roots-only', // ranked lane; the CHRONOLOGICAL timeline branch keeps replies
     lists: 'roots-only', // ranked lane; the chronological list branch keeps replies
     topic: 'roots-only', // ranked lane; the chronological topic branch keeps replies
