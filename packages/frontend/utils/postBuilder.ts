@@ -331,9 +331,7 @@ export const buildThreadPost = (
 
   // The box's own order when it has one, otherwise the default card order.
   const threadOrder =
-    item.attachmentOrder.length > 0
-      ? item.attachmentOrder
-      : attachmentKeysOf(item);
+    item.attachmentOrder.length > 0 ? item.attachmentOrder : attachmentKeysOf(item);
 
   const threadAttachmentsPayload = buildAttachmentsPayload(threadOrder, item.mediaIds, {
     includePoll: threadHasPoll,
