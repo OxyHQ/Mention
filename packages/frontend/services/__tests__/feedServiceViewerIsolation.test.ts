@@ -146,6 +146,28 @@ describe('feedService viewer request isolation', () => {
     await expect(requestA).resolves.toEqual(responseA);
   });
 
+  it('isolates Following request orders and never applies a sort to Following Direct', async () => {
+    const pending = deferred<{ data: unknown }>();
+    mockGetAccessToken.mockReturnValue('token');
+    setFeedViewerRequestScope('following-sort-viewer');
+    mockAuthenticatedGet.mockReturnValue(pending.promise);
+    const chronological = feedService.getFeed({
+      type: 'following',
+      filters: { sort: 'chronological' },
+    });
+    const relevance = feedService.getFeed({ type: 'following', filters: { sort: 'relevance' } });
+    const direct = feedService.getMtnFeed('following_direct', { sort: 'relevance' });
+    expect(mockAuthenticatedGet).toHaveBeenCalledTimes(3);
+    expect(mockAuthenticatedGet.mock.calls.map((call) => call[1].params)).toEqual([
+      expect.objectContaining({ descriptor: 'following', sort: 'chronological' }),
+      expect.objectContaining({ descriptor: 'following', sort: 'relevance' }),
+      expect.objectContaining({ descriptor: 'following_direct' }),
+    ]);
+    expect(mockAuthenticatedGet.mock.calls[2][1].params).not.toHaveProperty('sort');
+    pending.resolve({ data: { items: [], hasMore: false } });
+    await Promise.all([chronological, relevance, direct]);
+  });
+
   it('keeps concurrent page sizes separate while sharing identical reads', async () => {
     const pending = deferred<{ data: unknown }>();
     mockGetAccessToken.mockReturnValue('page-size-token');

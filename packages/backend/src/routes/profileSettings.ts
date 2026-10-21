@@ -1,3 +1,4 @@
+import { isFollowingFeedSort } from '@mention/shared-types/feed';
 import { Router, type Response } from 'express';
 import type { ProfileMedia } from '../db/userProfile/userSettingsRecord';
 import { deleteUserBehavior } from '../db/userProfile/userBehaviorRepository';
@@ -516,6 +517,17 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
     }
 
     if (feedSettings) {
+      if (feedSettings.following !== undefined) {
+        if (!isFollowingFeedSort(feedSettings.following?.sort)) {
+          return sendErrorResponse(
+            res,
+            400,
+            'Bad Request',
+            'feedSettings.following.sort must be chronological or relevance',
+          );
+        }
+        update['feedSettings.following.sort'] = feedSettings.following.sort;
+      }
       // Validate and set diversity settings
       if (feedSettings.diversity) {
         if (typeof feedSettings.diversity.enabled === 'boolean') {
