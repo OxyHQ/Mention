@@ -1455,6 +1455,11 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
   ['post_variant_alt_texts.variantId', 'the language rendition the alt text belongs to'],
   ['post_variant_media.mediaId', 'an Oxy file id'],
   ['post_variant_media.variantId', 'the language rendition the media belongs to'],
+  [
+    'posts.communityOxyUserId',
+    'the Oxy account of a federated ActivityPub `Group` a post was written in; a channel is a local ' +
+      'account, never a community',
+  ],
   ['posts.contentArticleId', 'the Article row the post owns, removed by `articles.post_id`'],
   ['posts.contentEventId', 'an event attachment id'],
   ['posts.contentHomiioCaseId', 'a Homiio case id, owned by Homiio'],

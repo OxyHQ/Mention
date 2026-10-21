@@ -73,6 +73,18 @@ export function previewableUrls(text: string): string[] {
 }
 
 /**
+ * The links a POST gets cards for, in card order: the link a federated `Page`
+ * is about (`content.linkUrl`, which its title links to) first, then the links
+ * in the body. The one answer for the ingest warm and for hydration.
+ */
+export function postPreviewableUrls(
+  content: { linkUrl?: string } | null | undefined,
+  text: string | null | undefined,
+): string[] {
+  return [...new Set([...previewableUrls(content?.linkUrl ?? ''), ...previewableUrls(text ?? '')])];
+}
+
+/**
  * Clarity statuses that mean "still working on it": asking again later can
  * produce a document. `blocked`, `failed` and `removed` are final, so a URL in
  * one of those states is never reported as pending and nobody retries it.

@@ -15,6 +15,7 @@ import { fetchUpstreamSingleHop, type SingleHopResult } from '../../utils/safeUp
 import { isAbsoluteHttpUrl, getRemoteHost } from '../shared/url';
 import { escapeRegExp } from '@oxy.so/utils/text';
 import { networkUrlOf } from '../../utils/federation/mirrorTransports';
+import { isApPostObjectType } from './apSchemas';
 
 /**
  * Low-level ActivityPub helpers used by more than one AP sub-service
@@ -336,7 +337,8 @@ export function signedFetch(
   );
 }
 
-function sameOrigin(left: string, right: string): boolean {
+/** Whether two URLs share scheme and host — the unit of trust in ActivityPub. */
+export function sameOrigin(left: string, right: string): boolean {
   try {
     const a = new URL(left);
     const b = new URL(right);
@@ -351,26 +353,28 @@ function isPubliclyAddressed(to?: unknown, cc?: unknown): boolean {
   return addressees.includes('https://www.w3.org/ns/activitystreams#Public');
 }
 
-export interface FetchedAnnouncedNote {
-  note: Record<string, unknown>;
+export interface FetchedOriginDocument {
+  document: Record<string, unknown>;
   finalUrl: string;
 }
 
 /**
- * Fetch an announced Note/Article under the stricter boost-import contract:
- * every hop must be a public http(s) URL, redirects are re-validated, the final
- * object id must match the fetched IRI, the author must share the object's
- * origin, and only public notes are importable as public boost originals.
+ * Fetch an ActivityPub document from ITS OWN origin, under the strict import
+ * contract: every hop must be a public http(s) URL, redirects are re-validated
+ * (at most {@link MAX_ACTIVITYPUB_REDIRECTS}), and the document's `id` must share
+ * the origin it was finally served from. What comes back is what that origin
+ * says, never what a third party embedded about it.
+ *
+ * Shared by the boost import ({@link fetchVerifiedAnnouncedNote}) and the
+ * verification of an activity a community relays (`apRelay.ts`).
  */
-export async function fetchVerifiedAnnouncedNote(
-  objectUri: string,
-): Promise<FetchedAnnouncedNote | null> {
-  let currentUrl = objectUri;
+export async function fetchFromOrigin(uri: string): Promise<FetchedOriginDocument | null> {
+  let currentUrl = uri;
 
   for (let hop = 0; hop <= MAX_ACTIVITYPUB_REDIRECTS; hop++) {
     const guard = await assertSafePublicUrl(currentUrl);
     if (!guard.ok) {
-      logger.info('[FedSync] blocked boosted object fetch', {
+      logger.info('[FedSync] blocked remote object fetch', {
         result: guard.reason,
       });
       return null;
@@ -381,7 +385,7 @@ export async function fetchVerifiedAnnouncedNote(
       res = await signedFetch(currentUrl, AP_CONTENT_TYPE, { redirect: 'manual' });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.info('[FedSync] error fetching boosted object', {
+      logger.info('[FedSync] error fetching remote object', {
         error: message,
       });
       return null;
@@ -390,7 +394,7 @@ export async function fetchVerifiedAnnouncedNote(
     if (REDIRECT_STATUS_CODES.has(res.status)) {
       const location = res.headers.get('location');
       if (hop === MAX_ACTIVITYPUB_REDIRECTS || !location) {
-        logger.info('[FedSync] boosted object redirect failed');
+        logger.info('[FedSync] remote object redirect failed');
         return null;
       }
       currentUrl = new URL(location, currentUrl).toString();
@@ -398,47 +402,69 @@ export async function fetchVerifiedAnnouncedNote(
     }
 
     if (!res.ok) {
-      logger.info('[FedSync] failed to fetch boosted object', {
+      logger.info('[FedSync] failed to fetch remote object', {
         status: res.status,
         statusText: res.statusText,
       });
       return null;
     }
 
-    let note: Record<string, unknown>;
+    let document: Record<string, unknown> | null;
     try {
-      note = (await res.json()) as Record<string, unknown>;
+      document = asRecord(await res.json());
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.info('[FedSync] failed to parse boosted object', {
+      logger.info('[FedSync] failed to parse remote object', {
         error: message,
       });
       return null;
     }
+    if (!document) return null;
 
-    if (!note || (note.type !== 'Note' && note.type !== 'Article')) return null;
-
-    const noteId = typeof note.id === 'string' ? note.id : undefined;
-    if (!noteId || !sameOrigin(noteId, currentUrl)) {
-      logger.info('[FedSync] boosted object id is missing or not same-origin; skipping');
+    const documentId = typeof document.id === 'string' ? document.id : undefined;
+    if (!documentId || !sameOrigin(documentId, currentUrl)) {
+      logger.info('[FedSync] remote object id is missing or not same-origin; skipping');
       return null;
     }
 
-    const authorUri = extractActorUri(note.attributedTo);
-    if (!authorUri || !sameOrigin(authorUri, noteId)) {
-      logger.info('[FedSync] boosted object author is missing or not same-origin; skipping');
-      return null;
-    }
-
-    if (!isPubliclyAddressed(note.to, note.cc)) {
-      logger.info('[FedSync] boosted object is not public; skipping boost import');
-      return null;
-    }
-
-    return { note, finalUrl: currentUrl };
+    return { document, finalUrl: currentUrl };
   }
 
   return null;
+}
+
+export interface FetchedAnnouncedNote {
+  note: Record<string, unknown>;
+  finalUrl: string;
+}
+
+/**
+ * Fetch an announced post object under the stricter boost-import contract
+ * ({@link fetchFromOrigin}), then require a post type, an author sharing the
+ * object's origin, and public addressing: only public posts are importable as
+ * public boost originals.
+ */
+export async function fetchVerifiedAnnouncedNote(
+  objectUri: string,
+): Promise<FetchedAnnouncedNote | null> {
+  const fetched = await fetchFromOrigin(objectUri);
+  if (!fetched) return null;
+  const { document: note, finalUrl } = fetched;
+
+  if (!isApPostObjectType(note.type)) return null;
+
+  const authorUri = extractActorUri(note.attributedTo);
+  if (!authorUri || !sameOrigin(authorUri, String(note.id))) {
+    logger.info('[FedSync] boosted object author is missing or not same-origin; skipping');
+    return null;
+  }
+
+  if (!isPubliclyAddressed(note.to, note.cc)) {
+    logger.info('[FedSync] boosted object is not public; skipping boost import');
+    return null;
+  }
+
+  return { note, finalUrl };
 }
 
 /**

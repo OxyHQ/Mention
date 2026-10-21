@@ -1,0 +1,25 @@
+-- oxy:deploy-phase=pre
+-- A community's posts, newest first: the community branch of the profile feed
+-- (`fetchAuthored`), which runs for EVERY profile read.
+--
+-- Partial on `community_oxy_user_id is not null`. The column is new (0086) and
+-- NULL on every existing row, so the index starts empty and only community posts
+-- ever enter it; for any other author the branch is one empty index probe.
+--
+-- CREATE INDEX takes SHARE on `posts`: reads continue, writes wait for the build,
+-- which scans the table once. Build it CONCURRENTLY by hand before deploying,
+-- with the same name and definition, and this statement passes over it. The
+-- index names a 0086 column, so add 0086's columns first (its ALTERs are
+-- `IF NOT EXISTS` for this):
+--
+--   ALTER TABLE "posts" ADD COLUMN IF NOT EXISTS "community_oxy_user_id" text;
+--   ALTER TABLE "posts" ADD COLUMN IF NOT EXISTS "content_title" text;
+--   ALTER TABLE "posts" ADD COLUMN IF NOT EXISTS "content_link_url" text;
+--
+--   CREATE INDEX CONCURRENTLY IF NOT EXISTS "post_community_chrono_v1" ON "posts"
+--     USING btree ("community_oxy_user_id","created_at" DESC NULLS LAST,"id" DESC NULLS LAST)
+--     WHERE "posts"."community_oxy_user_id" is not null;
+--
+-- A failed CONCURRENTLY build leaves an INVALID index that IF NOT EXISTS skips;
+-- check `pg_index.indisvalid` for it and rebuild before deploying.
+CREATE INDEX IF NOT EXISTS "post_community_chrono_v1" ON "posts" USING btree ("community_oxy_user_id","created_at" DESC NULLS LAST,"id" DESC NULLS LAST) WHERE "posts"."community_oxy_user_id" is not null;

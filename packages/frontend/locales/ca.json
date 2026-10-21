@@ -2475,7 +2475,8 @@
   "post": {
     "job": {
       "label": "Job"
-    }
+    },
+    "inCommunity": "a !{{handle}}"
   },
   "common": {
     "add": "Add",

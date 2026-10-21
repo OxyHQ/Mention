@@ -603,6 +603,20 @@
       "when": 1792505949822,
       "tag": "0085_compact_trend_story_posts",
       "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1792546800381,
+      "tag": "0086_federated_community_posts",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1792546801910,
+      "tag": "0087_post_community_chrono_idx",
+      "breakpoints": true
     }
   ]
 }

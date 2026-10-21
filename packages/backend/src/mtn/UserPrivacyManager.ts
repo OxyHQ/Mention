@@ -108,6 +108,24 @@ export class UserPrivacyManager {
   }
 
   /**
+   * Whether a hydrated post is hidden from a viewer who blocked or muted
+   * `excludedUserIds`: its writer is one of them, or the COMMUNITY it was written
+   * in is. A followed community's post by a muted member stays hidden, and so
+   * does every post of a community the viewer muted.
+   */
+  static excludesPost(
+    post: { user?: { id?: string }; community?: { id?: string } } | undefined,
+    excludedUserIds: ReadonlySet<string>,
+  ): boolean {
+    const authorId = post?.user?.id;
+    const communityId = post?.community?.id;
+    return (
+      (typeof authorId === 'string' && excludedUserIds.has(authorId)) ||
+      (typeof communityId === 'string' && excludedUserIds.has(communityId))
+    );
+  }
+
+  /**
    * Check if a specific user is blocked or muted.
    */
   static isExcluded(userId: string, privacyState: PrivacyState): boolean {

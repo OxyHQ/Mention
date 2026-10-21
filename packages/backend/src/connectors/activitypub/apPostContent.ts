@@ -12,9 +12,11 @@ import { htmlToInlineLabel, htmlToPlainText } from '../../utils/federation/htmlT
 import { normalizePostHashtags } from '../../utils/textProcessing';
 import type { PostRecordFederation } from '../../db/posts/postRecord';
 import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
+import { isAbsoluteHttpUrl } from '../shared/url';
+import { isMediaLinkAttachment, type ApAttachment } from './apMedia';
 import { extractApHashtags, extractApMedia } from './helpers';
 import { extractApLinkPreviews, type RemoteLinkPreview } from './apLinkPreview';
-import { extractApLanguage, getApContentMap } from './apLanguage';
+import { declaredApLanguage, extractApLanguage, getApContentMap } from './apLanguage';
 import { primaryApType } from './apSchemas';
 import { expandVariantTcoLinks } from './tcoLinks';
 import { rewriteMirrorUrls } from '../../utils/federation/mirrorTransports';
@@ -94,6 +96,10 @@ export interface BuiltFederatedNoteContent {
   hashtags: string[];
   /** Content-warning summary (AP `summary`), when present and non-empty. */
   summary: string | undefined;
+  /** The headline of a `Page`/`Article` ({@link extractApTitle}). */
+  title: string | undefined;
+  /** The link a `Page`/`Article` is about ({@link extractApSubjectLink}). */
+  linkUrl: string | undefined;
   /**
    * FEP-8967 link cards the Note carried (`apLinkPreview.ts`). Stored beside
    * the post by the ingest paths, never inside its content.
@@ -310,7 +316,7 @@ function resolveApPrimaryTag(
   object: Record<string, unknown>,
   primaryHtml: string,
 ): string | undefined {
-  const declared = canonicalizeLanguageTag(object.language);
+  const declared = canonicalizeLanguageTag(declaredApLanguage(object));
   if (declared !== null) return declared;
 
   const contentMap = getApContentMap(object);
@@ -437,6 +443,80 @@ export function extractApSummary(
 }
 
 /**
+ * The AS2 types whose `name` is a HEADLINE — a Lemmy/PieFed/Mbin post (`Page`)
+ * and a blog article (`Article`). A `Note`'s `name` is not one: Mastodon puts a
+ * poll vote's chosen option there.
+ */
+const HEADLINE_OBJECT_TYPES: ReadonlySet<string> = new Set(['Page', 'Article']);
+
+/** Lemmy caps a title at 200 characters; this only bounds a hostile origin. */
+const MAX_FEDERATED_TITLE_LENGTH = 300;
+
+/** The longest subject link stored, the same bound the FEP-8967 cards use. */
+const MAX_FEDERATED_LINK_LENGTH = 2048;
+
+function hasHeadline(object: Record<string, unknown>): boolean {
+  return HEADLINE_OBJECT_TYPES.has(primaryApType(object.type) ?? '');
+}
+
+/**
+ * The headline of a `Page`/`Article`, from its AS2 `name`, as one plain-text
+ * line. Stored apart from the body (`content.title`), never folded into it.
+ */
+export function extractApTitle(
+  object: Record<string, unknown>,
+  customEmojiNames: readonly string[] = extractDeclaredCustomEmojiNames(object),
+): string | undefined {
+  if (!hasHeadline(object)) return undefined;
+  const label = htmlToInlineLabel(object.name);
+  if (label === undefined) return undefined;
+  const title = normalizeInlineText(removeDeclaredCustomEmoji(label, customEmojiNames));
+  if (title.length === 0) return undefined;
+  return title.length > MAX_FEDERATED_TITLE_LENGTH
+    ? `${title.slice(0, MAX_FEDERATED_TITLE_LENGTH - 1)}…`
+    : title;
+}
+
+/**
+ * The link a `Page`/`Article` is ABOUT: a Lemmy link post attaches it as
+ * `{ type: 'Link', href }`, apart from the body. A `Link` to an image or video is
+ * media instead ({@link isMediaLinkAttachment}), and a `Note`'s `Link`
+ * attachments are FEP-8967 cards for links already in its body.
+ */
+export function extractApSubjectLink(object: Record<string, unknown>): string | undefined {
+  if (!hasHeadline(object) || !Array.isArray(object.attachment)) return undefined;
+  for (const entry of object.attachment) {
+    if (!entry || typeof entry !== 'object') continue;
+    const attachment = entry as ApAttachment;
+    if (primaryApType(attachment.type) !== 'Link' || isMediaLinkAttachment(attachment)) continue;
+    const href = typeof attachment.href === 'string' ? attachment.href.trim() : '';
+    if (href.length > 0 && href.length <= MAX_FEDERATED_LINK_LENGTH && isAbsoluteHttpUrl(href)) {
+      return href;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Whether built content has anything a reader would see — the ONE answer to it
+ * for the create guard, the edit path and the inbox `Update`.
+ */
+export function hasStorableContent(
+  built: Pick<
+    BuiltFederatedNoteContent,
+    'variants' | 'media' | 'attachments' | 'summary' | 'title'
+  >,
+): boolean {
+  return (
+    built.variants.some((variant) => variant.text.trim().length > 0) ||
+    built.media.length > 0 ||
+    built.attachments.length > 0 ||
+    built.summary !== undefined ||
+    built.title !== undefined
+  );
+}
+
+/**
  * Assemble the storable fields of a federated Note from its AP object WITHOUT
  * the empty-note guard: `contentMap`-aware body extraction, hashtag
  * normalization, media materialization, the all-hashtag "don't blank" restore,
@@ -548,6 +628,8 @@ async function assembleFederatedNoteContent(
     attachments,
     hashtags,
     summary,
+    title: extractApTitle(object, customEmojiNames),
+    linkUrl: extractApSubjectLink(object),
     linkPreviews: extractApLinkPreviews(object),
     sensitive,
     variants,
@@ -561,10 +643,11 @@ async function assembleFederatedNoteContent(
  * shared extraction.
  *
  * Returns `{ skip: true }` when the Note carries nothing worth storing — no
- * text, no surviving media/attachments, and no content-warning summary — so the
- * caller drops it instead of persisting a blank post. A content-warning-only
- * post (empty body + non-empty `summary`) is intentionally KEPT: the CW label is
- * meaningful content the frontend renders.
+ * text, no surviving media/attachments, no content-warning summary and no title
+ * ({@link hasStorableContent}) — so the caller drops it instead of persisting a
+ * blank post. A content-warning-only post (empty body + non-empty `summary`) is
+ * intentionally KEPT: the CW label is meaningful content the frontend renders. So
+ * is a title-only `Page`: a Lemmy link post is a title and a link.
  *
  * Polls are not extracted from AP here (federation does not materialize AP
  * `Question` options into a Mention poll), so the guard does not consider them —
@@ -584,13 +667,7 @@ export async function buildFederatedNoteContent(
     return { skip: true, reason: 'bridge-flattened-retweet' };
   }
 
-  const hasText = built.variants.some((variant) => variant.text.trim().length > 0);
-  if (
-    !hasText &&
-    built.media.length === 0 &&
-    built.attachments.length === 0 &&
-    built.summary === undefined
-  ) {
+  if (!hasStorableContent(built)) {
     const reason = built.customEmojiRemoved
       ? 'empty-after-custom-emoji-removal'
       : 'empty-federated-note';
@@ -684,11 +761,7 @@ export async function buildFederatedNoteContentForEdit(
   ctx: BuildFederatedNoteContentContext = {},
 ): Promise<BuiltFederatedNoteContent> {
   const built = await assembleFederatedNoteContent(object, ownerOxyUserId, ctx);
-  const hasContent =
-    built.variants.some((variant) => variant.text.trim().length > 0) ||
-    built.media.length > 0 ||
-    built.attachments.length > 0 ||
-    built.summary !== undefined;
+  const hasContent = hasStorableContent(built);
   recordContentDecision(
     ctx.ingestPath,
     !hasContent && built.customEmojiRemoved

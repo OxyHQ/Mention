@@ -71,9 +71,16 @@ const privacy = vi.hoisted(() => ({
     }),
   ),
 }));
-vi.mock('../mtn/UserPrivacyManager', () => ({
-  UserPrivacyManager: { loadPrivacyState: privacy.loadPrivacyState },
-}));
+// Only the I/O is stubbed; which posts an exclusion hides is the real rule.
+vi.mock('../mtn/UserPrivacyManager', async (importOriginal) => {
+  const { UserPrivacyManager } = await importOriginal<typeof import('../mtn/UserPrivacyManager')>();
+  return {
+    UserPrivacyManager: {
+      loadPrivacyState: privacy.loadPrivacyState,
+      excludesPost: UserPrivacyManager.excludesPost,
+    },
+  };
+});
 
 vi.mock('../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),

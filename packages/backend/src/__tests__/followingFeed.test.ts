@@ -34,6 +34,7 @@ import { insertPostRecord } from '../db/posts/postRepository';
 import type { PostRecord, PostRecordInput } from '../db/posts/postRecord';
 import { followingSource } from '../mtn/feed/engine/sources/forYouSources';
 import type { CandidatePost, FeedEngineContext } from '../mtn/feed/engine/types';
+import { UserPrivacyManager } from '../mtn/UserPrivacyManager';
 
 let db: Database;
 const created: string[] = [];
@@ -42,6 +43,8 @@ const VIEWER = 'followfeed-viewer';
 const FOLLOWED = 'followfeed-followed';
 const LIST_ONLY = 'followfeed-list-only';
 const STRANGER = 'followfeed-stranger';
+const COMMUNITY = 'followfeed-community';
+const BLOCKED = 'followfeed-blocked';
 
 const HORIZON = Date.now() + 60_000;
 
@@ -233,5 +236,40 @@ describe("the following timeline's visibility authorization", () => {
     expect(idsOf(await followingSource.gather(ctx, { timeline: true }, 31))).toEqual([
       collaborated.id,
     ]);
+  });
+
+  it("serves a followed community's public posts by any member, and hides a blocked one's", async () => {
+    // Written IN the community by people the viewer does not follow — a
+    // community's posts are its members', so no author clause reaches them.
+    const memberPost = await create({ communityOxyUserId: COMMUNITY, createdAt: at(0) });
+    const blockedPost = await create({
+      oxyUserId: BLOCKED,
+      authorship: [{ oxyUserId: BLOCKED, role: 'owner', status: 'accepted' }],
+      communityOxyUserId: COMMUNITY,
+      createdAt: at(-1_000),
+    });
+    // Following a community grants no followers-only access to its members.
+    await create({ communityOxyUserId: COMMUNITY, visibility: PostVisibility.FOLLOWERS_ONLY });
+
+    const ctx: FeedEngineContext = {
+      currentUserId: VIEWER,
+      followingIds: [COMMUNITY],
+      followedCommunityIds: [COMMUNITY],
+      subscribedListMemberIds: [],
+    };
+    expect(idsOf(await followingSource.gather(ctx, { timeline: true }, 31))).toEqual([
+      memberPost.id,
+      blockedPost.id,
+    ]);
+    // The viewer's block applies to the WRITER of a community post, as it does
+    // to any post (`excludeAuthorsFromResponse` runs on this rule).
+    const excluded = new Set([BLOCKED]);
+    const community = { id: COMMUNITY };
+    expect(UserPrivacyManager.excludesPost({ user: { id: BLOCKED }, community }, excluded)).toBe(
+      true,
+    );
+    expect(UserPrivacyManager.excludesPost({ user: { id: STRANGER }, community }, excluded)).toBe(
+      false,
+    );
   });
 });

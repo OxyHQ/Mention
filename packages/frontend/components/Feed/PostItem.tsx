@@ -29,6 +29,7 @@ import { ProfileHoverCard } from '../ProfileHoverCard';
 import PostContentText from '../Post/PostContentText';
 import PostLaneChip from '../Post/PostLaneChip';
 import PostCrosspostRow from '../Post/PostCrosspostRow';
+import PostCommunityRow from '../Post/PostCommunityRow';
 import ContentWarning from '../Post/ContentWarning';
 import { CommunityNoteCard } from '@/components/CommunityNotes/CommunityNoteCard';
 import PostCorrectionNotice from '../Post/PostCorrectionNotice';
@@ -40,6 +41,7 @@ import type { NestedPostRenderer } from '../Post/Attachments/PostAttachmentNeste
 import { RiCornerDownRightLine } from '@oxy.so/bloom/icons/RiCornerDownRightLine';
 import { RiLinkM } from '@oxy.so/bloom/icons/RiLinkM';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { Text as BloomText } from '@oxy.so/bloom/typography';
 import { useTranslation } from 'react-i18next';
 import { usePostInteractions } from './postInteractions';
 import { showRepostMenu } from './showRepostMenu';
@@ -64,6 +66,7 @@ import { formatFullTimestamp } from '@/utils/dateUtils';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { postAcceptsReplies, reportableReplyPermission } from '@/utils/postReplies';
 import { resolveReplyContextRow } from '@/utils/replyContextRow';
+import { openExternalLink } from '@/utils/openExternalLink';
 
 // Lazy load modals/sheets only when the user opens them.
 const PostArticleModal = lazy(() => import('@/components/Post/PostArticleModal'));
@@ -452,6 +455,13 @@ const PostItem: React.FC<PostItemProps> = ({
   // drives the "Reposted by" row's link and its hover preview from one value.
   const reposterHandle = useMemo(() => getNormalizedUserHandle(reposter) ?? undefined, [reposter]);
   const reposterHref = useMemo(() => profileHrefForUser(reposter), [reposter]);
+  // The community a federated post was written in ("in !name@instance").
+  const community = viewPost?.community;
+  const communityHandle = useMemo(
+    () => getNormalizedUserHandle(community) ?? undefined,
+    [community],
+  );
+  const communityHref = useMemo(() => profileHrefForUser(community), [community]);
 
   // Pass the originating feed descriptor as the engagement `source` so the
   // backend can attribute a like/save/boost to the surface it happened on
@@ -533,6 +543,17 @@ const PostItem: React.FC<PostItemProps> = ({
   const openSourcesSheet = useCallback(() => {
     interactions.openSources(sourcesList);
   }, [interactions, sourcesList]);
+
+  // A federated link post's title opens the link it is about; the rest of the
+  // card still opens the post.
+  const titleLinkUrl = content.title ? content.linkUrl : undefined;
+  const openTitleLink = useCallback(
+    (event: GestureResponderEvent) => {
+      event.stopPropagation();
+      if (titleLinkUrl) void openExternalLink(titleLinkUrl);
+    },
+    [titleLinkUrl],
+  );
 
   const openArticleSheet = useCallback(() => {
     if (hasArticle) {
@@ -736,7 +757,7 @@ const PostItem: React.FC<PostItemProps> = ({
       boostUnavailable ||
       !isNested,
   );
-  const headerToBlocksGap = content.text ? SECTION_GAP : HEADER_CONTENT_GAP;
+  const headerToBlocksGap = content.text || content.title ? SECTION_GAP : HEADER_CONTENT_GAP;
 
   // Read off the POST, never passed in — see `resolveReplyContextRow` for the
   // rule and why it lives there rather than in each caller.
@@ -746,10 +767,11 @@ const PostItem: React.FC<PostItemProps> = ({
     author.name?.displayName,
     authorHandle ? `@${authorHandle}` : '',
   );
-  const postTextSummary = content.text
-    ? content.text.length > 80
-      ? `${content.text.substring(0, 80)}...`
-      : content.text
+  const summaryText = content.title ?? content.text;
+  const postTextSummary = summaryText
+    ? summaryText.length > 80
+      ? `${summaryText.substring(0, 80)}...`
+      : summaryText
     : '';
   const postAccessibilityLabel = postTextSummary
     ? `${postAuthor}: ${postTextSummary}`
@@ -849,6 +871,18 @@ const PostItem: React.FC<PostItemProps> = ({
   // to" all say something about how this post came to be in front of the
   // reader; this says something about the post itself, and the ordering keeps
   // the more urgent context nearest the name.
+  // Where a federated post was written — "in !technology@lemmy.world". A reply
+  // belongs to its thread's community, so only a post that starts one says it.
+  if (communityHandle && !viewPost.replyContext) {
+    contextRows.push(
+      <PostCommunityRow
+        key="community"
+        handle={communityHandle}
+        href={communityHref}
+        iconColor={theme.colors.textSecondary}
+      />,
+    );
+  }
   if (viewPost.crosspost) {
     contextRows.push(
       <PostCrosspostRow
@@ -894,7 +928,8 @@ const PostItem: React.FC<PostItemProps> = ({
 
   const hasPostBody = Boolean(
     spoilerText ||
-      (!isContentGated && (content.text || threadPosition || (corrections && viewPostId))),
+      (!isContentGated &&
+        (content.title || content.text || threadPosition || (corrections && viewPostId))),
   );
   const postBody = (
     <>
@@ -904,6 +939,15 @@ const PostItem: React.FC<PostItemProps> = ({
           revealed={isContentWarningOpen}
           onToggle={toggleContentWarning}
         />
+      ) : null}
+      {content.title && !isContentGated ? (
+        <BloomText
+          variant="headline-semibold"
+          accessibilityRole={titleLinkUrl ? 'link' : undefined}
+          onPress={titleLinkUrl ? openTitleLink : undefined}
+        >
+          {content.title}
+        </BloomText>
       ) : null}
       {(content.text || threadPosition) && !isContentGated ? (
         <PostContentText

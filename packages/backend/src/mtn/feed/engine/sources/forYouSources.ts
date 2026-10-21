@@ -15,7 +15,10 @@ import { accountListMembers, posts } from '../../../../db/schema';
 import { assemblePostRecords } from '../../../../db/posts/postRepository';
 import { followedAuthorsSql } from '../../../../utils/postAuthorship';
 import { topicSlugSql } from '../../../../utils/postTopicMatch';
-import { notCollapsedCrosspostSql } from '../../../../utils/feedQueryBuilder';
+import {
+  followedCommunitiesSql,
+  notCollapsedCrosspostSql,
+} from '../../../../utils/feedQueryBuilder';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { fetchWithRecencyFallback } from '../../../../utils/feedUtils';
 import { logger } from '../../../../utils/logger';
@@ -44,6 +47,7 @@ export function buildFollowingVisibilitySql(
   followingIds: string[] = [],
   subscribedListMemberIds: string[] = [],
   since?: Date,
+  followedCommunityIds: string[] = [],
 ): SQL {
   const followAuthorizedIds = Array.from(new Set([currentUserId, ...followingIds]));
   const publicOnlyListIds = Array.from(
@@ -59,15 +63,22 @@ export function buildFollowingVisibilitySql(
     inArray(posts.visibility, [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY]),
   ) as SQL;
 
-  if (publicOnlyListIds.length === 0) return followed;
-
-  return or(
-    followed,
-    and(
-      followedAuthorsSql(publicOnlyListIds, since),
-      eq(posts.visibility, PostVisibility.PUBLIC),
-    ) as SQL,
-  ) as SQL;
+  // The public-only branches: subscribed lists, and the posts written in a
+  // followed community by people the viewer may not follow. Each is added only
+  // when it can match, so a viewer who has neither reads the plain follow clause.
+  const publicOnly: SQL[] = [];
+  if (publicOnlyListIds.length > 0) {
+    publicOnly.push(
+      and(
+        followedAuthorsSql(publicOnlyListIds, since),
+        eq(posts.visibility, PostVisibility.PUBLIC),
+      ) as SQL,
+    );
+  }
+  if (followedCommunityIds.length > 0) {
+    publicOnly.push(followedCommunitiesSql(followedCommunityIds, since));
+  }
+  return publicOnly.length === 0 ? followed : (or(followed, ...publicOnly) as SQL);
 }
 
 /** Translate the engine context into For You lane params (null when anonymous). */
@@ -77,6 +88,7 @@ function forYouParams(ctx: FeedEngineContext): GatherForYouCandidatesParams | nu
     viewerId: ctx.currentUserId,
     followingIds: ctx.followingIds ?? [],
     subscribedListMemberIds: ctx.subscribedListMemberIds,
+    followedCommunityIds: ctx.followedCommunityIds,
     userBehavior: ctx.userBehavior as CandidateUserBehavior | undefined,
     viewerRegion: ctx.viewerRegion,
     viewerLanguages: ctx.viewerBaseLanguages,
@@ -119,14 +131,20 @@ async function gatherFollowingTimeline(
   cap: number,
   directOnly = false,
 ): Promise<CandidatePost[]> {
-  const { currentUserId, followingIds, subscribedListMemberIds } = ctx;
+  const { currentUserId, followingIds, subscribedListMemberIds, followedCommunityIds } = ctx;
   const listMemberIds = directOnly ? [] : subscribedListMemberIds;
   if (!currentUserId || (!followingIds?.length && !listMemberIds?.length)) return [];
 
   const run = (since: Date | undefined) =>
     fetchChrono(
       [
-        buildFollowingVisibilitySql(currentUserId, followingIds, listMemberIds, since),
+        buildFollowingVisibilitySql(
+          currentUserId,
+          followingIds,
+          listMemberIds,
+          since,
+          followedCommunityIds,
+        ),
         eq(posts.status, 'published'),
         notCollapsedCrosspostSql(),
       ],

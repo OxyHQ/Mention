@@ -21,6 +21,7 @@ to oxy-api or `@oxy.so/federation`, and Mention adapts once it ships.
 | `Move` to a local account | Supported (Oxy applies it) | `move.service.ts` |
 | `Move` between two remote servers | Recorded and shown; follows not moved (Oxy) | `recordRemoteMove`, [OxyHQ/oxy#1502](https://github.com/OxyHQ/oxy/issues/1502) |
 | Remote handle changes | Supported | `freeStaleHandle` in `actor.service.ts` |
+| FEP-1b12 communities (Lemmy, PieFed, Mbin), inbound | Posts and comments, as their writers' | `apRelay.ts`, `apCommunity.ts` |
 | Private signing keys at rest | None stored in Mention (custody in oxy-api) | migration 0061 |
 
 ## A handle that changed hands
@@ -110,6 +111,93 @@ Do not "fix" the third case by parsing the prefix into an author and fetching
 them — that reconstructs from prose a relationship the bridge already
 destroyed, and it is the fragility that was deliberately removed from the
 identity path.
+
+## A community relays its members (FEP-1b12)
+
+A Lemmy, PieFed or Mbin community is an ActivityPub `Group`. Members address
+their activities to it, and it re-sends each one to its followers wrapped in an
+`Announce` it signs: `Announce { Create { Page } }` for a post,
+`Announce { Create { Note } }` for a comment, and the same for `Update`,
+`Delete` and every vote. Read as a boost, that is a boost of a `Create`, which
+is not a post, so every community post was dropped.
+
+`resolveAnnouncedActivity` (`apRelay.ts`) is the one reader of an `Announce`,
+for the inbox and the outbox backfill alike. An embedded object whose type is an
+activity is RELAYED: the inner activity is processed as if its own actor had
+delivered it, so the post is the member's and every ownership check (an
+`Update` or `Delete` of the post) scopes to the member, never to the community.
+Anything else is a boost, as before.
+
+- **Verification.** The embedded activity is trusted only when it, its actor and
+  any object it embeds share the relaying community's origin, whose key signed
+  the delivery: that server already speaks for every account on its origin, so
+  the embedded copy grants it nothing it could not deliver directly (FEP-fe34's
+  origin rule). Otherwise — a member of another instance, the common case in a
+  big community — the activity is re-fetched by its id from its own origin
+  through `fetchFromOrigin` (signed, SSRF-safe, redirects re-validated, the id
+  must come back unchanged with an actor on the same origin), and that copy is
+  processed. One that does not verify is dropped.
+- **What is dropped before any fetch.** `Dislike` and `Undo(Dislike)` (Mention
+  takes no downvote from the fediverse); `Lock`, `Add`/`Remove`, `Block` and
+  `Flag` (community moderation Mention does not model); a nested `Announce`; and
+  every vote on a post that is not LOCAL. A community relays every vote on every
+  post and comment, which is most of what it sends, and Mention records
+  engagement aimed at its own users' posts, never a mirror of a remote tally.
+- **The follow gate.** A relayed `Create` is kept when the COMMUNITY is followed
+  here, as well as on the usual grounds (its author is followed, or it replies to
+  or mentions a local user). Deliveries only arrive for communities somebody
+  follows.
+
+A `Page` (a Lemmy post) is stored like a `Note` through the same builder, with
+two fields a `Note` does not have, read only from `Page` and `Article` (a
+`Note`'s `name` is a Mastodon poll vote):
+
+- **Title** — the AS2 `name`, one plain-text line in `posts.content_title`. It is
+  never folded into the body.
+- **Link** — a link post's `attachment` of type `Link`, in
+  `posts.content_link_url`. Hydration previews it like a link in the body, first,
+  and the card's title links to it. A `Link` to an image or video (a Lemmy image
+  post) is media instead.
+
+Lemmy declares `language` as `{ identifier, name }`, and `und` declares nothing
+(`declaredApLanguage`).
+
+**The community a post was written in** is `posts.community_oxy_user_id`, the
+community's Oxy account. `resolvePostCommunity` reads it from the object's
+`audience` (or, for older Lemmy, a `to`/`cc` addressee that is already a known
+community). Any server can write any `audience`, and a community's profile lists
+its posts, so the claim is accepted only when the community vouches for the post:
+it relayed it, or the post is on the community's own origin. A reply-ancestor or
+boost import of a cross-instance post therefore stores none; the relayed copy
+does. Whether an actor is a community is `isCommunityActor`
+(`services/federation/community.ts`), today `federated_actors.type === 'Group'`,
+the one test to switch when Oxy's account
+graph carries a `community` kind. The card renders the writer's byline with an
+"in !name@instance" context row (`PostCommunityRow`); a reply does not repeat
+its thread's community.
+
+**A community's profile** lists the posts written in it: the profile feed's
+third branch (`fetchAuthored`), on the partial `post_community_chrono_v1`
+(migration 0087; build it `CONCURRENTLY` first on a large database, see the
+migration). The outbox backfill of a community is bounded exactly like any
+actor's: 20 candidates per profile view behind the 15-minute cooldown, 100
+activities for the recent backfill, at most 100 items inspected per page. A
+community's outbox lists its posts, never its comments, and Mention does not walk
+a post's `replies`, so a view of a large community imports its latest posts and
+nothing else. Comments arrive by delivery, to followers of the community.
+
+**Following a community** puts its posts in the Following feed, chronological
+and the For You following lane alike. A community is followed like any account,
+but its posts are its members', so no author clause reaches them:
+`mergeFederatedFollowIds` returns which accepted follows are communities (from
+the actor rows it already loads), and `followedCommunitiesSql` adds them as a
+PUBLIC-only branch on `post_community_chrono_v1`, inside the same recency window.
+A community follow, like a list, grants no followers-only access to the members.
+The branch exists only for a viewer who follows a community. Blocks and mutes
+still apply to the writer, and to the community itself
+(`UserPrivacyManager.excludesPost`).
+
+Not yet: posting or replying INTO a community from Mention.
 
 ## Oxy owns bridge identity and public biography normalization
 

@@ -73,8 +73,9 @@ import { escapeRegExp } from '@oxy.so/utils/text';
  * distinct posts. `union` de-duplicates on `(id, created_at)`, and `id` is the
  * primary key, so the pair is exactly as unique as the id.
  *
- * Both branches take the SAME `cap`, which is what makes the merge correct: the
- * newest `cap` rows overall must be among the newest `cap` of each branch.
+ * Every branch takes the SAME `cap`, which is what makes the merge correct: the
+ * newest `cap` rows overall must be among the newest `cap` of each branch. The
+ * third branch is a community's posts, which its members author.
  *
  * Measured on 624k posts, page of 21 — flat across author size, where every
  * previous shape traded one size against the other:
@@ -120,7 +121,17 @@ export async function fetchAuthored(
     )
     .limit(cap);
 
-  const merged = await union(ownerBranch, authorshipBranch)
+  // A COMMUNITY's profile is the posts its members wrote in it — authored by
+  // them, so neither branch above reaches one. Served by the partial
+  // `post_community_chrono_v1`; for every other author it is one empty probe.
+  const communityBranch = db
+    .select({ id: posts.id, createdAt: posts.createdAt })
+    .from(posts)
+    .where(and(eq(posts.communityOxyUserId, authorId), ...where))
+    .orderBy(...chronoOrderBy())
+    .limit(cap);
+
+  const merged = await union(ownerBranch, authorshipBranch, communityBranch)
     .orderBy(sql`created_at desc nulls last`, sql`id desc nulls last`)
     .limit(cap);
 

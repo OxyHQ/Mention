@@ -260,6 +260,8 @@ export function toStoredContent(
 
   return {
     ...(variants.length > 0 ? { variants } : {}),
+    title: content.title,
+    linkUrl: content.linkUrl,
     media: content.media,
     article: content.article,
     poll: content.poll,

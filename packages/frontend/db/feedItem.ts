@@ -49,6 +49,7 @@ type HandledPostKey =
   | 'permissions'
   | 'metadata'
   | 'lane'
+  | 'community'
   | 'crosspost'
   | 'importedFrom'
   | 'parentPostId'
@@ -135,6 +136,9 @@ export function toFeedItem(
     // today, but part of the DTO, so the cache carries it for the same reason
     // as `crosspost` above, with the same `SCHEMA_VERSION` bump (v12).
     importedFrom: post.importedFrom,
+    // The community a federated post was written in — its "in !community" row,
+    // with the same `SCHEMA_VERSION` bump (v15) as every key before it.
+    community: post.community,
     originalPost,
     quotedPost,
     boost,

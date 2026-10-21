@@ -27,6 +27,8 @@ export interface ApUrlEntry {
 export interface ApAttachment {
   type?: string;
   mediaType?: string;
+  /** The target of a `Link` attachment (a Lemmy post's image or subject link). */
+  href?: string;
   /** Accessibility text on Mastodon/Pleroma attachments. */
   name?: string;
   width?: number;
@@ -236,6 +238,18 @@ export function resolveApAttachment(
 }
 
 /**
+ * Whether an attachment is a `Link` to a FILE: a Lemmy/PieFed image post
+ * attaches its image as `{ type: 'Link', href, mediaType: 'image/png' }`, with no
+ * `url`. Only a DECLARED image/video type counts, so the `Link` a link post (or a
+ * FEP-8967 card, `text/html`) attaches stays a link.
+ */
+export function isMediaLinkAttachment(attachment: ApAttachment): boolean {
+  if (attachment.type !== 'Link' || typeof attachment.href !== 'string') return false;
+  const mime = normalizeMime(attachment.mediaType ?? '');
+  return mime.startsWith('image/') || mime.startsWith('video/');
+}
+
+/**
  * Extract media items + attachment descriptors from an AP Note's `attachment` array.
  * Output shape is intentionally fixed to match `MediaItem` (`{ id, type }`) and the
  * Post `attachments` descriptor — the frontend and native posts depend on it.
@@ -249,7 +263,11 @@ export function extractApMediaFromNote(note: { attachment?: unknown }): {
 
   if (!Array.isArray(note.attachment)) return { media, attachments };
 
-  for (const att of note.attachment) {
+  for (const entry of note.attachment) {
+    const att =
+      entry && typeof entry === 'object' && isMediaLinkAttachment(entry as ApAttachment)
+        ? { ...(entry as ApAttachment), url: (entry as ApAttachment).href }
+        : entry;
     const resolved = resolveApAttachment(att as ApAttachment);
     if (!resolved) continue;
     const patch = patchFromApAttachment(att as ApAttachment);

@@ -30,6 +30,7 @@ const PERSISTED_POST_KEYS = [
   'authors',
   'authorship',
   'boost',
+  'community',
   'communityNote',
   'content',
   'context',
@@ -53,7 +54,7 @@ const PERSISTED_POST_KEYS = [
 ] as const;
 
 /** The version that must ship with the key set above. */
-const VERSION_FOR_THESE_KEYS = 14;
+const VERSION_FOR_THESE_KEYS = 15;
 
 function makeFullyPopulatedPost(): HydratedPost {
   return {
@@ -106,6 +107,11 @@ function makeFullyPopulatedPost(): HydratedPost {
       updatedAt: '2026-08-02T00:00:00.000Z',
     },
     lane: { id: 'lane-1', name: 'Opinion', displayMode: 'mixed' },
+    community: {
+      id: 'community-1',
+      username: 'technology@lemmy.example',
+      name: { displayName: 'Technology' },
+    },
     crosspost: {
       variants: [
         { network: 'instagram.com', label: 'Instagram', postId: 'post-1', rendered: true },

@@ -53,7 +53,7 @@
  */
 
 import { MtnConfig, PostVisibility } from '@mention/shared-types';
-import { and, arrayOverlaps, desc, eq, gte, type SQL } from 'drizzle-orm';
+import { and, arrayOverlaps, desc, eq, gte, or, type SQL } from 'drizzle-orm';
 import { getDb } from '../../../db/postgres';
 import { posts } from '../../../db/schema';
 import { assembleShellRecords } from '../../../db/posts/postRepository';
@@ -63,6 +63,7 @@ import { viewerLanguageSql } from '../feedLanguage';
 import { logger } from '../../../utils/logger';
 import { followedAuthorsSql } from '../../../utils/postAuthorship';
 import {
+  followedCommunitiesSql,
   excludeSeenSql,
   notABoostSql,
   notCollapsedCrosspostSql,
@@ -85,6 +86,8 @@ export interface GatherForYouCandidatesParams {
   followingIds: string[];
   /** Author ids from subscribed lists; feed-inclusion only, never follow authorization. */
   subscribedListMemberIds?: string[];
+  /** The followed accounts that are communities (see `FeedContext.followedCommunityIds`). */
+  followedCommunityIds?: string[];
   /** Viewer behavior document, or undefined when the viewer has none yet. */
   userBehavior?: CandidateUserBehavior;
   /**
@@ -349,10 +352,24 @@ export async function gatherFollowingLane(
   // The window rides on the authorship index too, not only on `posts` — see
   // `followedAuthorsSql`: 9,712 buffers against 1,227 for 300 followed authors.
   const since = recencyStart();
+  // A followed community's posts are written by its members: reached by
+  // `community_oxy_user_id`, and only when the viewer follows one, so everyone
+  // else reads the plain author clause.
+  const communityIds = (params.followedCommunityIds ?? []).slice(
+    0,
+    MtnConfig.feed.candidateSources.maxAuthorIds,
+  );
+  const followed =
+    communityIds.length > 0
+      ? (or(
+          followedAuthorsSql(followingIds, since),
+          followedCommunitiesSql(communityIds, since),
+        ) as SQL)
+      : followedAuthorsSql(followingIds, since);
   return runSource(
     'following',
     withViewerLanguage(
-      [...buildBaseConditions(params.seenPostIds, since), followedAuthorsSql(followingIds, since)],
+      [...buildBaseConditions(params.seenPostIds, since), followed],
       params.viewerLanguages,
     ),
     MtnConfig.feed.candidateSources.perSource.following,
