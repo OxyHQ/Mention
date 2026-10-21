@@ -865,3 +865,25 @@ describe('FeedRankingService recalibrated diversity penalties', () => {
     expect(secondScore / firstScore).toBeCloseTo(MtnConfig.ranking.diversity.sameAuthorPenalty, 5);
   });
 });
+
+describe('ranking session clock', () => {
+  it('keeps time-sensitive scores stable across pages while an unpinned score ages', async () => {
+    vi.useFakeTimers();
+    try {
+      const asOf = Date.UTC(2026, 9, 21, 12);
+      vi.setSystemTime(asOf);
+      const post = makePost({
+        createdAt: new Date(asOf - 2 * 60 * 60 * 1000),
+        stats: { likesCount: 60 },
+      });
+      const context = { rankingAsOf: asOf, enabledSignals: new Set(['coldStartBoost']) };
+      const first = await scoreWith({ ...post }, context);
+      vi.setSystemTime(asOf + 48 * 60 * 60 * 1000);
+      const second = await scoreWith({ ...post }, context);
+      expect(second).toBe(first);
+      expect(await scoreWith({ ...post })).toBeLessThan(first);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
