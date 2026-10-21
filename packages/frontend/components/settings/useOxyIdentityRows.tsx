@@ -1,4 +1,3 @@
-import { useMentionSettings } from '@/context/MentionSettingsContext';
 import { useProfileData } from '@/hooks/useProfileData';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { Avatar } from '@oxy.so/bloom/avatar';
@@ -18,14 +17,11 @@ export function useOxyIdentityRows({ full = false }: { full?: boolean } = {}): S
   const { t } = useTranslation();
   const { user, showBottomSheet, openAvatarPicker } = useAuth();
   const { data: profile } = useProfileData(user?.username);
-  const { afterClose } = useMentionSettings();
   const notSet = t('settings.editProfile.notSet', { defaultValue: 'Not set' });
 
   const value = (text: string | undefined, fieldType: OxyProfileField) => (
     <Pressable
-      onPress={() =>
-        afterClose(() => showBottomSheet?.({ screen: 'EditProfileField', props: { fieldType } }))
-      }
+      onPress={() => showBottomSheet?.({ screen: 'EditProfileField', props: { fieldType } })}
       accessibilityRole="button"
     >
       <SettingsValueField muted={!text}>{text || notSet}</SettingsValueField>
@@ -37,10 +33,7 @@ export function useOxyIdentityRows({ full = false }: { full?: boolean } = {}): S
       key: 'avatar',
       label: t('settings.profile.photo', { defaultValue: 'Profile photo' }),
       control: (
-        <Pressable
-          onPress={() => afterClose(() => void openAvatarPicker())}
-          accessibilityRole="button"
-        >
+        <Pressable onPress={() => void openAvatarPicker()} accessibilityRole="button">
           <Avatar
             source={profile?.avatar}
             name={profile?.design.displayName ?? profile?.username}

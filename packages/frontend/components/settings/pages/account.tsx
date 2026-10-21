@@ -122,7 +122,7 @@ export default function AccountSettingsContent() {
                   size="sm"
                   appearance="subtle"
                   tone="neutral"
-                  onPress={() => afterClose(() => showBottomSheet?.('ManageAccount'))}
+                  onPress={() => showBottomSheet?.('ManageAccount')}
                 >
                   {t('common.manage', { defaultValue: 'Manage' })}
                 </Button>
