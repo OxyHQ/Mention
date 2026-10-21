@@ -103,6 +103,12 @@ export function classifyFeedFailure(error: unknown): FeedFailure {
   return { kind: 'client', status, code, message };
 }
 
+/** An expired ranked session needs a fresh page one, never a retry of its cursor. */
+export function isFeedCursorExpired(error: unknown): boolean {
+  const { status, code } = normalizeApiError(error);
+  return status === 410 && code === 'FEED_CURSOR_EXPIRED';
+}
+
 /** `true` for a failure worth asking again about. */
 export function isRetryableFeedFailure(failure: FeedFailure): boolean {
   return failure.kind !== 'client';
@@ -129,7 +135,10 @@ export function logFeedFailure(
     code: failure.code,
     reason: failure.message,
   };
-  if (failure.kind === 'client') {
+  if (
+    failure.kind === 'client' &&
+    !(failure.status === 410 && failure.code === 'FEED_CURSOR_EXPIRED')
+  ) {
     log.error(message, undefined, merged);
     return;
   }
