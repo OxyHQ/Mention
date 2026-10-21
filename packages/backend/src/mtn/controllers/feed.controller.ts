@@ -1,3 +1,4 @@
+import { eligibleActivitySubscriptionAuthors } from '../../services/activitySubscriptionInterest';
 import { respondWithApiError } from '../../utils/error';
 import { canSeeUnratedMaterial } from '../../services/contentAccessBatcher';
 import { revalidateAnonymousFeed } from '../../services/revalidateAnonymousFeed';
@@ -496,6 +497,7 @@ class MtnFeedController {
           feedOxyClient,
           acceptedOutboundFollowUris,
           requestLanguageTags,
+          { activitySubscriptions: feedSource === 'for_you' },
         ),
         // `computeMutualIds` soft-fails each branch to `[]`, so a lookup failure
         // never breaks the feed.
@@ -514,6 +516,12 @@ class MtnFeedController {
       // the follow graph `loadViewerFeedContext` threads; see `viewerPrivacy` on
       // `HydrationOptions` for why this keeps the fail-closed contract.
       if (privacyState) {
+        context.excludedAuthorIds = [...privacyState.excludedUserIds];
+        context.activitySubscribedAuthorIds = eligibleActivitySubscriptionAuthors(
+          context.activitySubscribedAuthorIds,
+          context.userBehavior,
+          [...privacyState.excludedUserIds],
+        );
         context.viewerPrivacy = {
           blockedIds: [...privacyState.blockedUserIds],
           restrictedIds: [...privacyState.restrictedUserIds],
@@ -544,7 +552,20 @@ class MtnFeedController {
       // Resolve the descriptor to a composable feed DEFINITION and run it through
       // the engine. Custom feeds resolve via the viewer context (owner/visibility
       // checked); `feedgen|uri` (external stub) is the only remaining legacy path.
-      const definition = await resolveDefinition(descriptor, context);
+      const requestedSort = queryString(req.query.sort);
+      if (
+        feedSource === 'following' &&
+        requestedSort !== undefined &&
+        requestedSort !== 'chronological' &&
+        requestedSort !== 'relevance'
+      ) {
+        res.status(400).json({ success: false, error: 'Invalid Following sort' });
+        return;
+      }
+      const storedSort = context.feedSettings?.following?.sort;
+      const followingSort =
+        (requestedSort ?? storedSort) === 'relevance' ? 'relevance' : 'chronological';
+      const definition = await resolveDefinition(descriptor, { ...context, followingSort });
       const feedApi = definition ? null : resolveLegacyFeed(descriptor);
       const runFeed = definition
         ? () => feedEngine.run(definition, context, { cursor, limit })

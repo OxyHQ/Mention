@@ -221,6 +221,12 @@ describe('viewer-scoped private cache', () => {
     ).toBe(false);
   });
 
+  it('keeps explicit Following orders in separate feed caches', () => {
+    expect(
+      viewerQueryKeys.feed('viewer', 'following', undefined, { sort: 'chronological' }),
+    ).not.toEqual(viewerQueryKeys.feed('viewer', 'following', undefined, { sort: 'relevance' }));
+  });
+
   it('keys a feed on its viewer, type, profile and filters, normalised like its scroll key', () => {
     const thread = viewerQueryKeys.feed('viewer-a', 'replies', undefined, {
       postId: 'p1',

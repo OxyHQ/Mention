@@ -1,7 +1,11 @@
 import { PassThrough } from 'node:stream';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { asc, like } from 'drizzle-orm';
+import { asc, eq, like } from 'drizzle-orm';
+import {
+  federationPostImports,
+  federationPostImportReasons,
+} from '../../../db/schema/federationImports';
 import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
 import { posts } from '../../../db/schema/posts';
 import { findPostRecords, loadPostRecord } from '../../../db/posts/postRepository';
@@ -268,6 +272,47 @@ describe('OutboxSyncService — collection-level zod validation', () => {
 });
 
 describe('OutboxSyncService — per-item zod validation', () => {
+  it('records discovery origin and later requested-profile necessity without changing origin', async () => {
+    stubOutbox(
+      { type: 'OrderedCollection', totalItems: 1, first: FIRST_PAGE_URL },
+      {
+        type: 'OrderedCollectionPage',
+        id: FIRST_PAGE_URL,
+        orderedItems: [createNoteActivity('origin', '2023-04-01T12:00:00Z')],
+      },
+    );
+    const actor = {
+      uri: ACTOR_URI,
+      acct: 'alice@mastodon.social',
+      outboxUrl: OUTBOX_URL,
+      oxyUserId: 'oxy_alice',
+    };
+    await outboxSyncService.syncOutboxPostsDetailed(actor, {
+      ...syncOptions,
+      importReason: 'discovery_backfill',
+    });
+    const [post] = await importedPosts();
+    if (!post) throw new Error('Expected imported post');
+    await outboxSyncService.syncOutboxPostsDetailed(actor, {
+      ...syncOptions,
+      importReason: 'requested_profile',
+    });
+    const [origin] = await getDb()
+      .select()
+      .from(federationPostImports)
+      .where(eq(federationPostImports.postId, post.id));
+    const reasons = await getDb()
+      .select()
+      .from(federationPostImportReasons)
+      .where(eq(federationPostImportReasons.postId, post.id));
+    expect(origin?.initialReason).toBe('discovery_backfill');
+    expect(reasons.map((row) => row.reason).sort()).toEqual([
+      'discovery_backfill',
+      'requested_profile',
+    ]);
+    expect(await importedPosts()).toHaveLength(1);
+  });
+
   it('imports only the valid items and skips malformed ones in a mixed page', async () => {
     stubOutbox(
       { type: 'OrderedCollection', totalItems: 3, first: FIRST_PAGE_URL },

@@ -6,6 +6,7 @@ import type {
   FeedInterstitialEventInput,
   TrendEventInput,
 } from '@mention/shared-types';
+import { buildFeedDescriptor, isAuthorFeedFilter } from '@mention/shared-types/mtn/feedDescriptor';
 import { FEED_INTERACTION_BATCH_LIMIT } from '@mention/shared-types/feed';
 import { feedService } from '@/services/feedService';
 import { trendingService } from '@/services/trendingService';
@@ -118,7 +119,7 @@ export function flushFeedInteractions(): void {
  * `feedService` routes the fetch:
  *  - saved feed → 'saved'
  *  - a lane tab → 'lane|<laneId>'
- *  - a profile feed (userId present) → 'author|<userId>'
+ *  - a profile feed (userId present) → 'author|<userId>|<tab>'
  *  - hashtag/topic/custom scoped filters → their descriptor form
  *  - everything else → the FeedType used directly (for_you/following/explore/…)
  *
@@ -135,7 +136,8 @@ export function resolveFeedDescriptor(
   filters?: FeedFilters,
 ): string {
   if (filters?.laneId) return `lane|${filters.laneId}`;
-  if (userId) return `author|${userId}`;
+  if (userId)
+    return buildFeedDescriptor('author', userId, isAuthorFeedFilter(type) ? type : 'posts');
   if (filters?.hashtag) return `hashtag|${filters.hashtag}`;
   if (filters?.topic) return `topic|${filters.topic}`;
   if (filters?.customFeedId) return `custom|${filters.customFeedId}`;
@@ -145,19 +147,10 @@ export function resolveFeedDescriptor(
 // A post must be ≥50% visible for at least this long before it counts as seen.
 const MIN_VISIBLE_MS = 1000;
 
-// Safety-net cadence: a qualified post that the user parks on (never scrolls
-// away, feed never unmounts) is reported on this interval so its impression is
-// never lost. The COMMON path (scroll-away / unmount) reports immediately with
-// the full dwell; this only covers the parked-indefinitely case.
-const SAFETY_FLUSH_INTERVAL_MS = 5000;
-
-// Bounded lifetime for the safety timer: after this many flushes with no new
-// visibility change, the timer stops itself (with a final flush) so an idle feed
-// the user parks on never holds a live interval indefinitely. Any real scroll /
-// visibility change re-arms it (and resets the budget) via `setVisible`, so a
-// later-qualifying post is still covered. With SAFETY_FLUSH_INTERVAL_MS=5s this
-// caps a fully idle parked feed at ~30s of timer activity.
-const MAX_SAFETY_FLUSHES = 6;
+// The server accepts one dwell sample per counted view. Sending at 5s
+// permanently truncated longer reads. Wait for hide/teardown or this deliberate
+// 30s client measurement cap, without another impression or protocol change.
+const MAX_MEASURED_DWELL_MS = 30_000;
 
 interface PendingImpression {
   postUri: string;
@@ -181,9 +174,9 @@ interface PendingImpression {
  * descriptor changes or the feed refreshes so a new feed session re-counts.
  *
  * Reporting model: an impression is sent EXACTLY ONCE per post per session, with
- * the FULL accumulated visible dwell. It is emitted on scroll-away (`setHidden`)
- * or feed teardown (`dispose`) — whichever comes first after the post has been
- * visible ≥1s — so no post is double-counted and the dwell value is complete.
+ * accumulated visible dwell, capped at 30s. It is emitted on scroll-away,
+ * background/blur, teardown or the measurement cap, whichever comes first
+ * after at least 1s of visibility. A resumed post never doubles its impression.
  */
 export class FeedImpressionTracker {
   private readonly descriptor: string;
@@ -194,10 +187,9 @@ export class FeedImpressionTracker {
   // exactly as before.
   private readonly canReport: () => boolean;
   private readonly pending = new Map<string, PendingImpression>();
-  private safetyTimer: ReturnType<typeof setInterval> | null = null;
-  // Flushes elapsed since the timer was last (re)armed. Reset on every re-arm
-  // so a real scroll/visibility change always grants a fresh safety budget.
-  private safetyFlushesSinceArm = 0;
+  private safetyTimer: ReturnType<typeof setTimeout> | null = null;
+  private active = true;
+  private readonly visible = new Set<string>();
   private disposed = false;
 
   constructor(descriptor: string, canReport: () => boolean = () => true) {
@@ -208,13 +200,14 @@ export class FeedImpressionTracker {
   /** Mark a post as ≥50% visible (idempotent while it stays visible). */
   setVisible(postUri: string): void {
     if (this.disposed || !postUri) return;
+    this.visible.add(postUri);
     const entry = this.pending.get(postUri);
     const now = Date.now();
     if (!entry) {
       this.pending.set(postUri, {
         postUri,
         durationMs: 0,
-        visibleSince: now,
+        visibleSince: this.active ? now : null,
         qualified: false,
         sent: false,
       });
@@ -222,7 +215,7 @@ export class FeedImpressionTracker {
       return;
     }
     // Already tracked; only (re)start the visible span if it was hidden.
-    if (entry.visibleSince === null && !entry.sent) {
+    if (this.active && entry.visibleSince === null && !entry.sent) {
       entry.visibleSince = now;
       this.ensureSafetyTimer();
     }
@@ -234,8 +227,9 @@ export class FeedImpressionTracker {
    */
   setHidden(postUri: string): void {
     if (this.disposed || !postUri) return;
+    this.visible.delete(postUri);
     const entry = this.pending.get(postUri);
-    if (!entry || entry.visibleSince === null) return;
+    if (!entry) return;
     this.accrue(entry, Date.now());
     this.report(entry);
   }
@@ -251,7 +245,7 @@ export class FeedImpressionTracker {
     const visibleSet = new Set(visibleUris);
     // Hide entries that dropped out of the viewable set.
     for (const entry of this.pending.values()) {
-      if (entry.visibleSince !== null && !visibleSet.has(entry.postUri)) {
+      if (!visibleSet.has(entry.postUri)) {
         this.setHidden(entry.postUri);
       }
     }
@@ -261,7 +255,7 @@ export class FeedImpressionTracker {
     }
   }
 
-  dispose(): void {
+  dispose(reportPending = true): void {
     if (this.disposed) return;
     this.disposed = true;
     this.stopSafetyTimer();
@@ -269,73 +263,87 @@ export class FeedImpressionTracker {
     const now = Date.now();
     for (const entry of this.pending.values()) {
       if (entry.visibleSince !== null) this.accrue(entry, now);
-      this.report(entry);
+      if (reportPending) this.report(entry);
     }
     this.pending.clear();
+    this.visible.clear();
     // The feed is going away, so there is no later flush to ride on — send
     // what is queued now rather than stranding this session's impressions.
-    flushFeedInteractions();
+    if (reportPending) flushFeedInteractions();
   }
 
-  // (Re)arm the bounded safety timer. Called on every real visibility change so
-  // a fresh scroll always grants a new flush budget: if a timer is already
-  // running we just reset the budget, otherwise we start one. The timer stops
-  // itself once the budget is spent (see `safetyFlush`); the next visibility
-  // change starts it again.
+  /** Pause the clock while preserving viewport membership for resume. */
+  setActive(active: boolean): void {
+    if (this.disposed || this.active === active) return;
+    this.active = active;
+    const now = Date.now();
+    for (const entry of this.pending.values()) {
+      if (!active) this.accrue(entry, now);
+      else if (this.visible.has(entry.postUri) && !entry.sent) entry.visibleSince = now;
+    }
+    // A background/blur is the end of a viewing opportunity. Report its full
+    // dwell now; a later resume still dedupes the impression within this session.
+    if (!active) {
+      for (const entry of this.pending.values()) this.report(entry);
+      this.stopSafetyTimer();
+      flushFeedInteractions();
+    } else this.ensureSafetyTimer();
+  }
+
+  getVisibleUris(): string[] {
+    return [...this.visible];
+  }
+  isActive(): boolean {
+    return this.active;
+  }
+
   private ensureSafetyTimer(): void {
-    if (this.disposed) return;
-    this.safetyFlushesSinceArm = 0;
-    if (this.safetyTimer) return;
-    this.safetyTimer = setInterval(() => this.safetyFlush(), SAFETY_FLUSH_INTERVAL_MS);
+    this.stopSafetyTimer();
+    if (this.disposed || !this.active) return;
+    let remaining = Infinity;
+    const now = Date.now();
+    for (const entry of this.pending.values()) {
+      if (entry.sent || entry.visibleSince === null) continue;
+      remaining = Math.min(
+        remaining,
+        MAX_MEASURED_DWELL_MS - entry.durationMs - Math.max(0, now - entry.visibleSince),
+      );
+    }
+    if (Number.isFinite(remaining)) {
+      this.safetyTimer = setTimeout(() => this.safetyFlush(), Math.max(1, remaining));
+    }
   }
 
   private stopSafetyTimer(): void {
-    if (this.safetyTimer) {
-      clearInterval(this.safetyTimer);
-      this.safetyTimer = null;
-    }
+    if (this.safetyTimer !== null) clearTimeout(this.safetyTimer);
+    this.safetyTimer = null;
   }
 
   // Fold the in-progress visible span (visibleSince → `now`) into the total,
   // end the span, and re-evaluate the MIN_VISIBLE_MS qualification gate.
   private accrue(entry: PendingImpression, now: number): void {
     if (entry.visibleSince !== null) {
-      entry.durationMs += Math.max(0, now - entry.visibleSince);
+      entry.durationMs = Math.min(
+        MAX_MEASURED_DWELL_MS,
+        entry.durationMs + Math.max(0, now - entry.visibleSince),
+      );
       entry.visibleSince = null;
     }
     if (entry.durationMs >= MIN_VISIBLE_MS) entry.qualified = true;
   }
 
-  // Safety net for posts the user parks on without ever scrolling away: snapshot
-  // their running dwell and report once they qualify. Keeps the span open so a
-  // later scroll-away is a no-op (already sent).
-  //
-  // The timer has a BOUNDED lifetime: it stops once every tracked post has been
-  // reported, OR after MAX_SAFETY_FLUSHES with no new visibility change — so an
-  // idle feed the user parks on never runs the interval forever. Both stop paths
-  // run a flush first, so no qualified impression is lost. A subsequent scroll /
-  // visibility change re-arms the timer (and resets the budget) via setVisible.
   private safetyFlush(): void {
-    if (this.disposed) return;
-    this.safetyFlushesSinceArm += 1;
+    this.safetyTimer = null;
+    if (this.disposed || !this.active) return;
     const now = Date.now();
-    let anyUnsent = false;
     for (const entry of this.pending.values()) {
-      if (entry.sent) continue;
-      anyUnsent = true;
-      if (entry.visibleSince !== null) {
-        entry.durationMs += Math.max(0, now - entry.visibleSince);
-        entry.visibleSince = now; // keep visible; re-anchor for next tick
-        if (entry.durationMs >= MIN_VISIBLE_MS) entry.qualified = true;
-        this.report(entry);
-      }
+      if (entry.sent || entry.visibleSince === null) continue;
+      this.accrue(entry, now);
+      entry.visibleSince = now;
+      if (entry.durationMs >= MAX_MEASURED_DWELL_MS) this.report(entry);
     }
-    // Everything reported, or the bounded budget is spent: stop until the next
-    // real visibility change re-arms us. The flush above already emitted any
-    // qualified impressions, so stopping here loses nothing.
-    if (!anyUnsent || this.safetyFlushesSinceArm >= MAX_SAFETY_FLUSHES) {
-      this.stopSafetyTimer();
-    }
+    // Anonymous sessions must not poll indefinitely waiting for authentication.
+    if (this.canReport()) this.ensureSafetyTimer();
   }
 
   // Emit the impression exactly once per post (with the accumulated dwell).
@@ -372,8 +380,11 @@ export function useFeedImpressionTracker(
   descriptor: string,
   resetKey?: string | number,
   canReport = true,
+  viewerId?: string,
 ): { current: FeedImpressionTracker } {
   const trackerRef = useRef<FeedImpressionTracker | null>(null);
+  const viewerRef = useRef(viewerId);
+  const descriptorRef = useRef(descriptor);
   // The session identity the current tracker was built for. A change in either
   // the descriptor or the reset key starts a new session.
   const sessionKeyRef = useRef<string>(`${descriptor}::${resetKey ?? ''}`);
@@ -384,7 +395,6 @@ export function useFeedImpressionTracker(
   // reporting once `canReport` becomes true, without a session reset that would
   // drop in-progress dwell.
   const canReportRef = useRef(canReport);
-  canReportRef.current = canReport;
   const canReportGetterRef = useRef<() => boolean>(() => canReportRef.current);
 
   // Lazily create on first render so the very first viewable rows are tracked
@@ -400,11 +410,28 @@ export function useFeedImpressionTracker(
   // tracker is live for this render's viewability callbacks (no missed first
   // page after a refresh).
   const sessionKey = `${descriptor}::${resetKey ?? ''}`;
-  if (sessionKeyRef.current !== sessionKey) {
+  const viewerChanged = viewerRef.current !== viewerId;
+  if (sessionKeyRef.current !== sessionKey || viewerChanged) {
+    const sameDescriptor = descriptorRef.current === descriptor && !viewerChanged;
+    const visible = sameDescriptor ? trackerRef.current.getVisibleUris() : [];
+    const active = trackerRef.current.isActive();
     sessionKeyRef.current = sessionKey;
-    trackerRef.current.dispose();
+    // Never submit the outgoing account's pending observations with the new
+    // account's credentials. No report is preferable to cross-account learning.
+    if (viewerChanged) {
+      pendingInteractions.length = 0;
+      if (flushTimer !== null) clearTimeout(flushTimer);
+      flushTimer = null;
+    }
+    trackerRef.current.dispose(!viewerChanged);
+    viewerRef.current = viewerId;
+    descriptorRef.current = descriptor;
     trackerRef.current = new FeedImpressionTracker(descriptor, canReportGetterRef.current);
+    trackerRef.current.setActive(active);
+    trackerRef.current.syncVisible(visible);
   }
+
+  canReportRef.current = canReport;
 
   // Dispose on unmount so a navigated-away feed flushes and stops its timer.
   useEffect(

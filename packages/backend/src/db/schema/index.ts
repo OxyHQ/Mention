@@ -23,6 +23,7 @@ export * from './communities';
 export * from './discovery';
 export * from './engagement';
 export * from './federation';
+export * from './federationImports';
 export * from './feeds';
 export * from './gates';
 export * from './imports';

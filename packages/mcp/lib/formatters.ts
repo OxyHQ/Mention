@@ -58,7 +58,7 @@ interface PostData {
   /** A boost's original, as hydration attaches it (null when it is gone). */
   originalPost?: PostData | null;
   /** Hydrated posts carry their audience here; `visibility` is the raw row's. */
-  metadata?: { visibility?: string };
+  metadata?: { visibility?: string; createdAt?: string };
   authors?: Array<{
     id?: string;
     username?: string;
@@ -106,7 +106,7 @@ export function formatPost(post: PostData): string {
   // Say when a post is NOT public, so a client never repeats a followers-only
   // or private post to an audience its author did not choose.
   const visibility = post.metadata?.visibility ?? post.visibility;
-  const date = post.date || post.createdAt || '';
+  const date = post.metadata?.createdAt || post.date || post.createdAt || '';
 
   const rawStats = (post.stats || post.engagement || {}) as Record<string, number | undefined>;
   const likesCount = rawStats.likesCount ?? rawStats.likes ?? 0;

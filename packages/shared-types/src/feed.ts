@@ -13,6 +13,13 @@ export interface FeedBoost extends HydratedPost {
   originalPostId?: string;
 }
 
+/** Following defaults to chronological; relevance is an explicit reader choice. */
+export const FOLLOWING_FEED_SORTS = ['chronological', 'relevance'] as const;
+export type FollowingFeedSort = (typeof FOLLOWING_FEED_SORTS)[number];
+export function isFollowingFeedSort(value: unknown): value is FollowingFeedSort {
+  return value === 'chronological' || value === 'relevance';
+}
+
 // Feed types and actions
 export type FeedType =
   | 'posts'

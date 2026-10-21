@@ -1,3 +1,5 @@
+import { eligibleActivitySubscriptionAuthors } from '../../../services/activitySubscriptionInterest';
+import { activitySubscriptionMatches } from '../activitySubscriptionMatches';
 /**
  * Feed Engine
  *
@@ -25,6 +27,8 @@ import { threadSlicingService } from '../../../services/ThreadSlicingService';
 import { FeedResponseBuilder } from '../../../utils/FeedResponseBuilder';
 import { ScoreCursor, ChronoCursor, didCursorAdvance } from '../CursorBuilder';
 import { diversifyByAuthor } from '../diversifyByAuthor';
+import { selectRankedPage } from '../selectRankedPage';
+import { standaloneNumberIds, isStandaloneNumber } from '../recommendationEligibility';
 import { capDiscoveryShare } from '../capDiscoveryShare';
 import {
   type RankedCandidate,
@@ -52,6 +56,18 @@ import type {
   FilterModule,
   ModuleRef,
 } from './types';
+
+import { ApiError } from '../../../utils/error';
+import { loadPostGateContent, loadPostRecords } from '../../../db/posts/postRepository';
+import {
+  rankedFeedSessionStore,
+  rankedSessionBinding,
+  isRankedSessionCursor,
+  expiredFeedCursor,
+  RANKED_SESSION_TTL_MS,
+  RANKED_SESSION_MAX_SCANNED,
+  type RankedFeedSession,
+} from '../RankedFeedSession';
 
 export interface FeedEngineRunOptions {
   cursor?: string;
@@ -81,6 +97,11 @@ export async function sliceTopWindow(
     if (slices.length > limit || window >= candidates.length) return slices;
     window = Math.min(candidates.length, window * 2);
   }
+}
+
+function compareChronological(a: CandidatePost, b: CandidatePost): number {
+  const delta = new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
+  return delta || b.id.localeCompare(a.id);
 }
 
 const EMPTY_RESPONSE: SlicedFeedResponse = {
@@ -115,6 +136,7 @@ const EMPTY_RESPONSE: SlicedFeedResponse = {
 function buildPopularCursor(
   last: CandidatePost | undefined,
   incomingCursor?: string,
+  servedIds: string[] = [],
 ): string | undefined {
   if (!last) return undefined;
 
@@ -133,7 +155,7 @@ function buildPopularCursor(
   return ScoreCursor.build(score, id, {
     asOf: inherited?.asOf ?? Date.now(),
     tiebreakAt: createdAt,
-    excludeIds: inherited?.excludeIds,
+    excludeIds: [...servedIds, ...(inherited?.excludeIds ?? [])],
     fromPopularFallback: true,
   });
 }
@@ -206,9 +228,30 @@ export class FeedEngine {
     context: FeedEngineContext,
     options: FeedEngineRunOptions,
   ): Promise<SlicedFeedResponse> {
+    context = {
+      ...context,
+      activitySubscribedAuthorIds: eligibleActivitySubscriptionAuthors(
+        context.activitySubscribedAuthorIds,
+        context.userBehavior,
+        [...(context.excludedAuthorIds ?? []), ...(context.viewerPrivacy?.blockedIds ?? [])],
+      ),
+    };
     const exec: FeedExecution = definition.execution ?? {};
     const { cursor, limit } = options;
     const parsedScoreCursor = ScoreCursor.parse(cursor);
+
+    // The neutral engagement base changes the score scale. Never compare an
+    // old in-flight ranking boundary against this revision's scores.
+    if (
+      cursor &&
+      definition.mode === 'ranked' &&
+      !exec.ordered &&
+      !exec.preScored &&
+      !isRankedSessionCursor(cursor) &&
+      !parsedScoreCursor?.fromPopularFallback &&
+      parsedScoreCursor?.rankingVersion !== 2
+    )
+      throw expiredFeedCursor();
 
     // Per-request engine context the modules read.
     const ctx: FeedEngineContext = {
@@ -251,6 +294,44 @@ export class FeedEngine {
     // both the pool gate and the popular fallback need the answer, so a
     // never-blank request was paying for it twice.
     const measureOnly = this.gateIsMeasureOnly(ctx);
+
+    // Seen-post de-prioritization for ranked personalized/discovery feeds.
+    if (exec.seenPosts && ctx.currentUserId) {
+      const seenPostIds = [
+        ...(await (ctx.seenPostIdsPrefetch ??
+          feedSeenPostsService.getSeenPostIds(ctx.currentUserId))),
+      ];
+      if (parsedScoreCursor?.id && !seenPostIds.includes(parsedScoreCursor.id)) {
+        seenPostIds.push(parsedScoreCursor.id);
+        feedSeenPostsService
+          .markPostsAsSeen(ctx.currentUserId, [parsedScoreCursor.id])
+          .catch((e) => {
+            logger.warn('[FeedEngine] Failed to mark cursor post as seen', e);
+          });
+      }
+      ctx.seenPostIds = seenPostIds;
+    }
+
+    // Keep cursor exclusions even if the delivery cache has expired or failed.
+    if (definition.mode === 'ranked') {
+      ctx.seenPostIds = Array.from(
+        new Set([
+          ...(ctx.seenPostIds ?? []),
+          ...(parsedScoreCursor?.excludeIds ?? []),
+          ...(parsedScoreCursor ? [parsedScoreCursor.id] : []),
+        ]),
+      );
+    }
+
+    // New sessions are opt-in per preset. In-flight score cursors keep their
+    // existing contract, and Redis outages on page one use that stateless path.
+    if (
+      isRankedSessionCursor(cursor) ||
+      (!cursor && exec.sessionPagination && rankedFeedSessionStore.available())
+    ) {
+      if (!exec.sessionPagination || definition.mode !== 'ranked') throw expiredFeedCursor();
+      return this.runRankedSession(definition, ctx, exec, cursor, limit, measureOnly);
+    }
 
     // Anonymous popular fallback (For You / Videos / Media): no viewer signals,
     // so we serve the engagement-sorted popular source directly. Note this
@@ -304,24 +385,11 @@ export class FeedEngine {
       );
     }
 
-    // Seen-post de-prioritization for ranked personalized/discovery feeds.
-    if (exec.seenPosts && ctx.currentUserId) {
-      const seenPostIds = [
-        ...(await (ctx.seenPostIdsPrefetch ??
-          feedSeenPostsService.getSeenPostIds(ctx.currentUserId))),
-      ];
-      if (parsedScoreCursor?.id && !seenPostIds.includes(parsedScoreCursor.id)) {
-        seenPostIds.push(parsedScoreCursor.id);
-        feedSeenPostsService
-          .markPostsAsSeen(ctx.currentUserId, [parsedScoreCursor.id])
-          .catch((e) => {
-            logger.warn('[FeedEngine] Failed to mark cursor post as seen', e);
-          });
-      }
-      ctx.seenPostIds = seenPostIds;
+    if (definition.mode === 'chronological' && !exec.ordered) {
+      return this.runChronological(definition, ctx, exec, cursor, limit, measureOnly);
     }
 
-    const pool = await this.gatherPool(definition, ctx, exec, limit, measureOnly);
+    const { pool } = await this.gatherPool(definition, ctx, exec, limit, measureOnly);
 
     // Phase 7: record the federated share of the merged candidate pool for this
     // feed (a gauge keyed by the base feed type). Non-empty guard avoids a
@@ -424,20 +492,44 @@ export class FeedEngine {
     exec: FeedExecution,
     limit: number,
     measureOnly: boolean,
-  ): Promise<CandidatePost[]> {
-    const cap = this.sourceCap(definition.mode, exec, limit);
+    session?: RankedFeedSession,
+  ): Promise<{ pool: CandidatePost[]; scanned: CandidatePost[]; hasMore: boolean }> {
+    const cap = session ? Math.max(10, limit) : this.sourceCap(definition.mode, exec, limit);
 
     const enabledSources = definition.sources.filter((ref) => ref.enabled);
     const results = await Promise.allSettled(
-      enabledSources.map((ref) => {
+      enabledSources.map((ref, index) => {
         const source = this.registry.getSource(ref.module);
         if (!source) {
           logger.warn('[FeedEngine] Unknown source module; skipping', { module: ref.module });
           return Promise.resolve<CandidatePost[]>([]);
         }
-        return source.gather(ctx, ref.params ?? {}, cap);
+        const key = `${index}:${ref.module}`;
+        if (session?.exhaustedSources.includes(key)) return Promise.resolve<CandidatePost[]>([]);
+        return source.gather(
+          session ? { ...ctx, cursor: session.sourceCursors[key] } : ctx,
+          ref.params ?? {},
+          cap,
+        );
       }),
     );
+
+    if (
+      (!session && results.some((result) => result.status === 'rejected')) ||
+      (session &&
+        results.length &&
+        results.every(
+          (result, index) =>
+            result.status === 'rejected' ||
+            session.exhaustedSources.includes(`${index}:${enabledSources[index].module}`),
+        ))
+    ) {
+      throw new ApiError(
+        503,
+        'Feed sources are temporarily unavailable',
+        'FEED_SOURCE_UNAVAILABLE',
+      );
+    }
 
     const sourceResults: CandidatePost[][] = results.map((r, i) => {
       if (r.status === 'fulfilled') return r.value;
@@ -447,6 +539,64 @@ export class FeedEngine {
       });
       return [];
     });
+
+    if (session) {
+      for (let index = 0; index < sourceResults.length; index += 1) {
+        const ref = enabledSources[index];
+        const key = `${index}:${ref.module}`;
+        if (results[index].status !== 'fulfilled' || session.exhaustedSources.includes(key))
+          continue;
+        const rows = sourceResults[index];
+        const last = rows[rows.length - 1];
+        const previousCursor = session.sourceCursors[key];
+        const source = this.registry.getSource(ref.module);
+        if (last) {
+          session.sourceCursors[key] =
+            source?.pagination === 'popular'
+              ? buildPopularCursor(last, session.sourceCursors[key])
+              : source?.pagination === 'score'
+                ? ScoreCursor.build(last.finalScore ?? 0, last.id, { asOf: session.asOf })
+                : ChronoCursor.build(last.id, last.createdAt);
+        }
+        if (rows.length < cap || (last && session.sourceCursors[key] === previousCursor))
+          session.exhaustedSources.push(key);
+      }
+    }
+
+    // Consume a raw chronological window before filtering. Keep the overfetch
+    // row for the next page, including when several timelines are merged.
+    const raw = Array.from(new Map(sourceResults.flat().map((post) => [post.id, post])).values());
+    const bellMatches =
+      definition.id === 'for_you'
+        ? await activitySubscriptionMatches(raw, ctx)
+        : new Map<string, string[]>();
+    const poolNeedsTextMedia = this.needsTextMedia(definition.filters, ctx);
+    const gateNeedsTextMedia = this.needsTextMedia(definition.discoveryFilters ?? [], ctx);
+    const gateViews = await this.prepareTextMediaViews(
+      sourceResults.flatMap((rows, index) =>
+        poolNeedsTextMedia ||
+        (gateNeedsTextMedia && !this.registry.getSource(enabledSources[index].module)?.trusted)
+          ? rows
+          : [],
+      ),
+      [
+        ...definition.filters,
+        ...(sourceResults.some(
+          (rows, index) =>
+            rows.length && !this.registry.getSource(enabledSources[index].module)?.trusted,
+        )
+          ? (definition.discoveryFilters ?? [])
+          : []),
+      ],
+    );
+    const numberIds =
+      definition.id === 'for_you' || definition.id === 'explore'
+        ? await standaloneNumberIds(raw)
+        : new Set<string>();
+    const chronological = definition.mode === 'chronological' && !exec.ordered;
+    const scanned = chronological ? raw.sort(compareChronological).slice(0, cap - 1) : raw;
+    const scannedIds = chronological ? new Set(scanned.map((post) => post.id)) : undefined;
+    const cursorExcluded = new Set(ScoreCursor.parse(ctx.cursor)?.excludeIds ?? []);
 
     // Always-on pool filters (safety, …) applied to EVERY candidate; the discovery
     // gate applies ONLY to non-trusted lanes (empty for feeds without a gate). The
@@ -462,7 +612,7 @@ export class FeedEngine {
     const gateKeeps = this.resolveGateKeeps(definition.discoveryFilters ?? [], ctx);
     const hasGate = gateKeeps.authorFree.length + gateKeeps.authorAware.length > 0;
 
-    const maxPool = exec.maxPool;
+    const maxPool = session ? undefined : exec.maxPool;
 
     const merged = new Map<string, CandidatePost>();
     // Collected ONLY when a second pass is going to run. Each entry keeps the
@@ -473,16 +623,26 @@ export class FeedEngine {
     let gatedCount = 0;
     for (let i = 0; i < sourceResults.length; i += 1) {
       const sourceModule = enabledSources[i].module;
-      const isTrusted = this.registry.getSource(sourceModule)?.trusted === true;
-      const applyGate = !isTrusted && hasGate;
+      const trustedSource = this.registry.getSource(sourceModule)?.trusted === true;
       for (const post of sourceResults[i]) {
+        if (definition.id === 'for_you') {
+          post.activitySubscriptionAuthorIds = bellMatches.get(post.id) ?? [];
+          post.activitySubscriptionMatch = post.activitySubscriptionAuthorIds.length > 0;
+        }
+        const isTrusted = trustedSource || post.activitySubscriptionMatch === true;
+        const applyGate = !isTrusted && hasGate;
         if (maxPool !== undefined && merged.size >= maxPool) break;
         const id = post?.id;
-        if (!id || merged.has(id)) continue;
-        if (poolKeeps.some((keep) => !keep(post))) continue;
+        if (!id || numberIds.has(id) || merged.has(id) || session?.scannedIds.includes(id))
+          continue;
+        if (scannedIds && !scannedIds.has(id)) continue;
+        if (definition.mode === 'ranked' && cursorExcluded.has(id)) continue;
+        const gateView = gateViews.get(id) ?? post;
+        if (poolKeeps.some((keep) => !keep(gateView))) continue;
 
+        if (!isTrusted) post._discovery = true;
         if (applyGate) {
-          const rejectedBy = firstRejection(gateKeeps.authorFree, post);
+          const rejectedBy = firstRejection(gateKeeps.authorFree, gateView);
           if (rejectedBy) {
             gatedCount += 1;
             recordDiscoveryGated(rejectedBy, sourceModule, measureOnly);
@@ -529,7 +689,7 @@ export class FeedEngine {
       } else {
         ctx.authorSummaries = summaries;
         for (const { post, source } of gated) {
-          const rejectedBy = firstRejection(gateKeeps.authorAware, post);
+          const rejectedBy = firstRejection(gateKeeps.authorAware, gateViews.get(post.id) ?? post);
           if (!rejectedBy) continue;
           gatedCount += 1;
           recordDiscoveryGated(rejectedBy, source, measureOnly);
@@ -547,7 +707,198 @@ export class FeedEngine {
       });
     }
 
-    return Array.from(merged.values());
+    return {
+      pool: Array.from(merged.values()),
+      scanned,
+      hasMore: chronological && raw.length >= cap,
+    };
+  }
+
+  /**
+   * Persist the unserved ranking window separately from source progress. A page
+   * can now promote diversity/trusted content without stranding what it deferred.
+   */
+  private async runRankedSession(
+    definition: FeedDefinition,
+    context: FeedEngineContext,
+    exec: FeedExecution,
+    cursor: string | undefined,
+    limit: number,
+    measureOnly: boolean,
+  ): Promise<SlicedFeedResponse> {
+    const binding = rankedSessionBinding(definition, context, limit);
+    const state: RankedFeedSession = cursor
+      ? await rankedFeedSessionStore.load(cursor, binding)
+      : {
+          binding,
+          asOf: context.rankingAsOf ?? Date.now(),
+          expiresAt: Date.now() + RANKED_SESSION_TTL_MS,
+          pending: [],
+          scannedIds: [],
+          initialSeenIds: context.seenPostIds ?? [],
+          deliveredIds: [],
+          sourceCursors: {},
+          exhaustedSources: [],
+          phase: !context.currentUserId && exec.popularFallback ? 'popular' : 'ranked',
+        };
+    const ctx: FeedEngineContext = {
+      ...context,
+      cursor: undefined,
+      paginationSession: true,
+      rankingAsOf: state.asOf,
+    };
+    const metadata = new Map(state.pending.map((item) => [item.id, item]));
+    const records = state.pending.length
+      ? await loadPostRecords(state.pending.map((item) => item.id))
+      : [];
+    let candidates: CandidatePost[] = records
+      .filter((post) => post.status === 'published')
+      .map((post) => ({
+        ...post,
+        finalScore: metadata.get(post.id)?.score ?? 0,
+        _discovery: metadata.get(post.id)?.discovery === true,
+      }));
+    // Reload records and reapply current quality/safety rules on every page.
+    // Hydration below additionally rechecks ACLs, including blocked accounts.
+    const poolKeeps = this.resolveKeepPredicates(definition.filters, ctx);
+    const mutedLaneKeep = buildMutedLanePredicate(ctx);
+    if (mutedLaneKeep) poolKeeps.push(mutedLaneKeep);
+    const gates = this.resolveGateKeeps(definition.discoveryFilters ?? [], ctx);
+    if (gates.authorAware.length && candidates.length)
+      ctx.authorSummaries = await resolveAuthorQuality(candidates, (post) => post.oxyUserId);
+    candidates = candidates.filter(
+      (post) =>
+        poolKeeps.every((keep) => keep(post)) &&
+        (!post._discovery ||
+          measureOnly ||
+          !firstRejection([...gates.authorFree, ...gates.authorAware], post)),
+    );
+    const delivered = new Set(state.deliveredIds);
+    candidates = candidates.filter(
+      (post) =>
+        !delivered.has(post.id) &&
+        (!(definition.id === 'for_you' || definition.id === 'explore') ||
+          !isStandaloneNumber(post)),
+    );
+
+    const activeDefinition = (): FeedDefinition =>
+      state.phase === 'popular' && exec.popularFallback
+        ? { ...definition, sources: [{ module: exec.popularFallback, enabled: true }] }
+        : definition;
+    const exhausted = () =>
+      activeDefinition()
+        .sources.filter((ref) => ref.enabled)
+        .every((ref, index) => state.exhaustedSources.includes(`${index}:${ref.module}`));
+
+    // At most two new bounded source windows per request. Rejected windows keep
+    // a continuation, never masquerade as the end of the source.
+    for (let scan = 0; scan < 2 && candidates.length < limit * 3; scan += 1) {
+      if (exhausted()) {
+        if (
+          candidates.length ||
+          state.phase === 'popular' ||
+          !exec.popularFallback ||
+          !exec.neverBlank
+        )
+          break;
+        state.phase = 'popular';
+        state.sourceCursors = {};
+        state.exhaustedSources = [];
+      }
+      if (state.scannedIds.length >= RANKED_SESSION_MAX_SCANNED) throw expiredFeedCursor();
+      ctx.seenPostIds = [
+        ...new Set([...state.initialSeenIds, ...state.scannedIds, ...state.deliveredIds]),
+      ];
+      const batch = await this.gatherPool(activeDefinition(), ctx, exec, limit, measureOnly, state);
+      state.scannedIds = [
+        ...new Set([...state.scannedIds, ...batch.scanned.map((post) => post.id)]),
+      ];
+      const ranked =
+        state.phase === 'popular' || exec.preScored
+          ? batch.pool.map((post) => ({
+              ...post,
+              finalScore:
+                state.phase === 'popular' ? (post.engagementScore ?? 0) : (post.finalScore ?? 0),
+            }))
+          : await feedRankingService.rankPosts(batch.pool, ctx.currentUserId, {
+              activitySubscribedAuthorIds: ctx.activitySubscribedAuthorIds,
+              followingIds: ctx.followingIds,
+              userBehavior: ctx.userBehavior,
+              feedSettings: ctx.feedSettings,
+              enabledSignals: this.resolveEnabledSignalKeys(definition),
+              authoritativeSignals: true,
+              showSensitiveContent:
+                ctx.showSensitiveContent === true &&
+                definition.filters.some(
+                  (ref) =>
+                    ref.enabled &&
+                    ref.module === 'safety' &&
+                    ref.params?.allowViewerPreference === true,
+                ),
+              preserveCandidates: true,
+              rankingAsOf: state.asOf,
+              seenPostIds: state.initialSeenIds,
+              mutualIds: ctx.mutualIds,
+              viewerBaseLanguages: ctx.viewerBaseLanguages,
+              authorSummaries: ctx.authorSummaries,
+            });
+      candidates.push(...ranked.filter((post) => !delivered.has(post.id)));
+    }
+    candidates.sort(
+      (a, b) => (b.finalScore ?? 0) - (a.finalScore ?? 0) || b.id.localeCompare(a.id),
+    );
+    candidates = [...new Map(candidates.map((post) => [post.id, post])).values()];
+
+    // Slice the bounded pool, then select from the whole result. Deferred
+    // candidates remain in `pending`, independent of the source watermark.
+    const { slices } = await threadSlicingService.sliceFeed(candidates, {
+      enableThreadGrouping: exec.threadGrouping !== false,
+      enableReplyContext: exec.replyContext === true,
+      maxSliceSize: MtnConfig.feed.maxSliceSize,
+      viewerId: ctx.currentUserId,
+    });
+    const selected = selectRankedPage(
+      slices,
+      sliceAuthorKey,
+      sliceIsDiscovery,
+      limit,
+      exec.maxDiscoveryShare,
+      ctx.feedSettings?.diversity?.maxConsecutiveSameAuthor ?? 1,
+    );
+    const selectedIds = new Set(
+      selected.flatMap((slice) => slice.items.map((item) => item.post.id)),
+    );
+    state.deliveredIds = [...new Set([...state.deliveredIds, ...selectedIds])];
+    state.pending = candidates
+      .filter((post) => !selectedIds.has(post.id))
+      .map((post) => ({
+        id: post.id,
+        score: post.finalScore ?? 0,
+        discovery: post._discovery === true,
+      }));
+    const hasMore =
+      state.pending.length > 0 ||
+      !exhausted() ||
+      (state.phase === 'ranked' && exec.neverBlank === true && Boolean(exec.popularFallback));
+    const nextCursor = hasMore ? await rankedFeedSessionStore.save(state) : undefined;
+    const hydrated = await postHydrationService.hydrateSlices(selected, {
+      viewerId: ctx.currentUserId,
+      oxyClient: ctx.oxyClient,
+      safetyRequester: ctx.safetyRequester,
+      maxDepth: exec.hydrateMaxDepth ?? 0,
+      includeLinkMetadata: true,
+      viewerGraph: this.viewerGraphOption(ctx),
+      viewerPrivacy: this.viewerPrivacyOption(ctx),
+      viewerLanguages: ctx.viewerLanguages,
+    });
+    if (exec.seenPosts && ctx.currentUserId) this.markSlicesSeen(ctx.currentUserId, hydrated);
+    return {
+      slices: hydrated,
+      items: FeedResponseBuilder.flattenSlicesToItems(hydrated),
+      totalCount: FeedResponseBuilder.flattenSlicesToItems(hydrated).length,
+      hasMore,
+      nextCursor,
+    };
   }
 
   /**
@@ -583,6 +934,49 @@ export class FeedEngine {
       }
     }
     return keeps;
+  }
+
+  private needsTextMedia(refs: ModuleRef[], ctx: FeedEngineContext): boolean {
+    return refs.some((ref) => {
+      if (!ref.enabled || !this.registry.getFilter(ref.module)?.needsTextMedia) return false;
+      if (ref.params?.viewerGateTuning === true) {
+        if (ref.module === 'minLength' && ctx.feedTuning?.forYou?.minLength?.enabled === false)
+          return false;
+        if (
+          ref.module === 'lowEffortGate' &&
+          ctx.feedTuning?.forYou?.lowEffortGate?.enabled === false
+        )
+          return false;
+      }
+      return true;
+    });
+  }
+
+  /** Gate-only evidence; original shells stay deferred until final hydration. */
+  private async prepareTextMediaViews(
+    candidates: CandidatePost[],
+    refs: ModuleRef[],
+  ): Promise<Map<string, CandidatePost>> {
+    const shells = new Map(
+      candidates.filter((post) => post._unassembled).map((post) => [post.id, post]),
+    );
+    if (!shells.size) return new Map();
+    const filters = refs
+      .filter((ref) => ref.enabled)
+      .map((ref) => this.registry.getFilter(ref.module));
+    const evidence = await loadPostGateContent([...shells.keys()], undefined, {
+      sources: filters.some((filter) => filter?.needsSources),
+      variantAlt: filters.some((filter) => filter?.needsVariantAlt),
+    });
+    return new Map(
+      [...shells].map(([id, post]) => [
+        id,
+        {
+          ...post,
+          content: { ...post.content, ...evidence.get(id) },
+        },
+      ]),
+    );
   }
 
   /**
@@ -660,6 +1054,7 @@ export class FeedEngine {
       }
     } else {
       const rankedPosts = await feedRankingService.rankPosts(pool, ctx.currentUserId, {
+        activitySubscribedAuthorIds: ctx.activitySubscribedAuthorIds,
         followingIds: ctx.followingIds,
         userBehavior: ctx.userBehavior,
         feedSettings: ctx.feedSettings,
@@ -671,6 +1066,14 @@ export class FeedEngine {
         // Absent otherwise, and ranking then resolves the set itself exactly as
         // it always has — so the request pays for one resolution either way.
         authorSummaries: ctx.authorSummaries,
+        rankingAsOf: ctx.rankingAsOf,
+        authoritativeSignals: true,
+        showSensitiveContent:
+          ctx.showSensitiveContent === true &&
+          definition.filters.some(
+            (ref) =>
+              ref.enabled && ref.module === 'safety' && ref.params?.allowViewerPreference === true,
+          ),
       });
       const ranked: RankedCandidate[] = [];
       for (const post of rankedPosts) {
@@ -829,6 +1232,7 @@ export class FeedEngine {
             ? undefined
             : {
                 asOf: ctx.rankingAsOf,
+                rankingVersion: 2,
                 // Keep a bounded rolling guard rather than only the cursor row.
                 // Current-page ids come first so the most recent boundary is
                 // always protected when the 100-id cap is reached.
@@ -854,6 +1258,45 @@ export class FeedEngine {
     });
   }
 
+  /** Scan bounded source windows so rejected posts cannot terminate a timeline. */
+  private async runChronological(
+    definition: FeedDefinition,
+    ctx: FeedEngineContext,
+    exec: FeedExecution,
+    cursor: string | undefined,
+    limit: number,
+    measureOnly: boolean,
+  ): Promise<SlicedFeedResponse> {
+    const accepted: CandidatePost[] = [];
+    let scanCursor = cursor;
+    let hasMore = false;
+    // Bound work even when every candidate is muted. An empty page still carries
+    // the raw watermark, allowing the client to continue scanning.
+    for (let batch = 0; batch < 5; batch += 1) {
+      const result = await this.gatherPool(
+        definition,
+        { ...ctx, cursor: scanCursor },
+        exec,
+        limit,
+        measureOnly,
+      );
+      accepted.push(...result.pool);
+      hasMore = result.hasMore;
+      const last = result.scanned[result.scanned.length - 1];
+      const next = last ? ChronoCursor.build(last.id, last.createdAt) : undefined;
+      if (!next || !didCursorAdvance(next, scanCursor)) {
+        hasMore = false;
+        break;
+      }
+      scanCursor = next;
+      if (!hasMore || accepted.length >= limit) break;
+    }
+    return this.finalizeChronological(ctx, exec, accepted, cursor, limit, {
+      hasMore,
+      nextCursor: hasMore ? scanCursor : undefined,
+    });
+  }
+
   /**
    * Chronological finalize: sort by recency, thread slice, hydrate, chrono
    * cursor. Mirrors `FollowingFeed.fetch` (Hashtag/Author/List/Topic share it).
@@ -867,23 +1310,19 @@ export class FeedEngine {
     pool: CandidatePost[],
     cursor: string | undefined,
     limit: number,
+    scan?: { hasMore: boolean; nextCursor: string | undefined },
   ): Promise<SlicedFeedResponse> {
     if (exec.ordered) {
       return this.finalizeOrdered(ctx, exec, pool, limit);
     }
 
-    if (pool.length === 0) return { ...EMPTY_RESPONSE };
+    if (pool.length === 0 && !scan?.hasMore) return { ...EMPTY_RESPONSE };
 
-    const sorted = pool.slice().sort((a, b) => {
-      const at = new Date(a.createdAt ?? 0).getTime();
-      const bt = new Date(b.createdAt ?? 0).getTime();
-      if (bt !== at) return bt - at;
-      return b.id.localeCompare(a.id);
-    });
+    const sorted = pool.slice().sort(compareChronological);
 
     const fetchLimit = Math.ceil(limit * (exec.overfetchMultiplier ?? 1));
-    const hasMore = sorted.length > fetchLimit;
-    const postsToProcess = hasMore ? sorted.slice(0, fetchLimit) : sorted;
+    const hasMore = scan?.hasMore ?? sorted.length > fetchLimit;
+    const postsToProcess = scan ? sorted : hasMore ? sorted.slice(0, fetchLimit) : sorted;
 
     const { slices: rawSlices } = await threadSlicingService.sliceFeed(postsToProcess, {
       enableThreadGrouping: exec.threadGrouping !== false,
@@ -903,8 +1342,8 @@ export class FeedEngine {
       viewerLanguages: ctx.viewerLanguages,
     });
 
-    let nextCursor: string | undefined;
-    if (postsToProcess.length > 0 && hasMore) {
+    let nextCursor: string | undefined = scan?.nextCursor;
+    if (!scan && postsToProcess.length > 0 && hasMore) {
       const last = postsToProcess[postsToProcess.length - 1];
       nextCursor = ChronoCursor.build(last.id, last.createdAt);
       if (!didCursorAdvance(nextCursor, cursor)) {
@@ -1015,6 +1454,10 @@ export class FeedEngine {
       ? Math.ceil(limit * MtnConfig.feed.sliceOverfetchMultiplier) + 1
       : limit + 1;
     const candidates = await source.gather({ ...ctx, cursor, pageLimit: limit }, {}, fetch);
+    const gateViews = await this.prepareTextMediaViews(
+      this.needsTextMedia(definition.discoveryFilters ?? [], ctx) ? candidates : [],
+      definition.discoveryFilters ?? [],
+    );
 
     // The ONE path that never passes through `gatherPool`, so the reader's muted
     // lanes have to be applied here too — `neverBlank` reaches it from an
@@ -1027,13 +1470,18 @@ export class FeedEngine {
       ctx.authorSummaries = await resolveAuthorQuality(candidates, (post) => post.oxyUserId);
     }
 
+    const numberIds =
+      definition.id === 'for_you' || definition.id === 'explore'
+        ? await standaloneNumberIds(candidates)
+        : new Set<string>();
     const page: CandidatePost[] = [];
     let scanned = 0;
     for (const post of candidates) {
       if (page.length >= limit) break;
       scanned += 1;
+      if (numberIds.has(post.id)) continue;
       if (mutedLaneKeep && !mutedLaneKeep(post)) continue;
-      const rejectedBy = firstRejection(gateAll, post);
+      const rejectedBy = firstRejection(gateAll, gateViews.get(post.id) ?? post);
       if (rejectedBy) {
         recordDiscoveryGated(rejectedBy, popularSourceId, measureOnly);
         if (!measureOnly) continue;
@@ -1061,7 +1509,13 @@ export class FeedEngine {
     // could then get past.
     const sourceExhausted = candidates.length < fetch;
     const hasMore = !sourceExhausted || scanned < candidates.length;
-    const nextCursor = hasMore ? buildPopularCursor(candidates[scanned - 1], cursor) : undefined;
+    const nextCursor = hasMore
+      ? buildPopularCursor(
+          candidates[scanned - 1],
+          cursor,
+          page.map((post) => post.id),
+        )
+      : undefined;
 
     const hydrated = await postHydrationService.hydratePosts(page, {
       // The authenticated never-blank path reaches here too, and hydrating it as

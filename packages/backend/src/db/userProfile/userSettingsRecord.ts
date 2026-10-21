@@ -1,3 +1,4 @@
+import type { FollowingFeedSort } from '@mention/shared-types';
 /**
  * `UserSettingsRecord` — the ONE shape a user's settings have once they leave
  * the database.
@@ -150,6 +151,7 @@ export interface NotificationPreferences {
 }
 
 export interface FeedSettings {
+  following: { sort: FollowingFeedSort };
   diversity: {
     enabled: boolean;
     sameAuthorPenalty: number;

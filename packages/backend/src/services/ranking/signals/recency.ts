@@ -20,13 +20,13 @@ export function recencyScore(
   createdAt: Date | string | undefined,
   halfLifeHours?: number,
   maxAgeHours?: number,
+  rankingAsOf = Date.now(),
 ): number {
   const postDate = new Date(createdAt ?? NaN);
   if (isNaN(postDate.getTime())) {
     return 0; // Invalid date, treat as very old post
   }
-  const now = new Date();
-  const ageHours = (now.getTime() - postDate.getTime()) / (1000 * 60 * 60);
+  const ageHours = (rankingAsOf - postDate.getTime()) / (1000 * 60 * 60);
 
   const maxAge = maxAgeHours || R.recency.maxAgeMs / (1000 * 60 * 60);
   // If post is older than max age, return 0
@@ -57,5 +57,6 @@ export const recencySignal: RankingSignal = {
       post.createdAt,
       ctx.feedSettings?.recency?.halfLifeHours,
       ctx.feedSettings?.recency?.maxAgeHours,
+      ctx.rankingAsOf,
     ),
 };

@@ -69,11 +69,16 @@ export function normalizeApiError(error: unknown): NormalizedApiError {
     if (isAxiosError(candidate)) {
       const status = candidate.response?.status;
       const body = candidate.response?.data;
-      const serverMessage = isRecord(body)
-        ? (readString((body as ServerErrorBody).message) ??
-          readString((body as ServerErrorBody).error))
-        : undefined;
-      const serverCode = isRecord(body) ? readString((body as ServerErrorBody).code) : undefined;
+      const nestedError = isRecord(body) && isRecord(body.error) ? body.error : undefined;
+      const serverMessage =
+        readString(nestedError?.message) ??
+        (isRecord(body)
+          ? (readString((body as ServerErrorBody).message) ??
+            readString((body as ServerErrorBody).error))
+          : undefined);
+      const serverCode =
+        readString(nestedError?.code) ??
+        (isRecord(body) ? readString((body as ServerErrorBody).code) : undefined);
 
       let code = serverCode;
       if (!code) {

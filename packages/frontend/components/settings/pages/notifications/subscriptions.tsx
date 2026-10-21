@@ -15,7 +15,7 @@ import type { PostSubscriptionItem, PostSubscriptionListResponse } from '@mentio
 import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { toast } from '@oxy.so/bloom/toast';
 import { getNormalizedUserHandle } from '@oxy.so/core';
-import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
+import { OxyAuthPrompt, useAuth, useAuthStore } from '@oxy.so/services/ui/client';
 import {
   useInfiniteQuery,
   useMutation,
@@ -33,6 +33,7 @@ import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
 import { SEO } from '@/components/SEO';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { subscriptionService } from '@/services/subscriptionService';
+import { notifyFeedRankingChanged } from '@/stores/feedRankingInvalidation';
 import { normalizeApiError } from '@/utils/apiError';
 import { Button } from '@oxy.so/bloom/button';
 import { RiNotification3Fill } from '@oxy.so/bloom/icons/RiNotification3Fill';
@@ -41,6 +42,7 @@ const PAGE_LIMIT = 50;
 const SKELETON_ROWS = 6;
 
 type SubscriptionPages = InfiniteData<PostSubscriptionListResponse>;
+type UnsubscribeAction = { authorId: string; viewerId: string | undefined };
 
 export default function ActivitySubscriptionsScreen() {
   const { t } = useTranslation();
@@ -66,14 +68,32 @@ export default function ActivitySubscriptionsScreen() {
   );
 
   const unsubscribeMutation = useMutation({
-    mutationFn: (authorId: string) => subscriptionService.unsubscribe(authorId),
+    mutationFn: async ({ authorId, viewerId }: UnsubscribeAction) => {
+      // onMutate can await cancellation while the account changes. Read the
+      // SDK runtime at dispatch, rather than the render that created this action.
+      const controller = new AbortController();
+      const cancelIfViewerChanged = () => {
+        if (!viewerId || useAuthStore.getState().user?.id !== viewerId) controller.abort();
+      };
+      const stopWatching = useAuthStore.subscribe(cancelIfViewerChanged);
+      try {
+        cancelIfViewerChanged();
+        if (controller.signal.aborted) throw new Error(t('subscription.error'));
+        // Also cancel an SDK auth preflight or queued request if the account
+        // changes after dispatch. Already completed writes remain viewer-scoped.
+        return await subscriptionService.unsubscribe(authorId, { signal: controller.signal });
+      } finally {
+        stopWatching();
+      }
+    },
     // Optimistically drop the row from every loaded page so the list responds
     // instantly. `onError` restores the exact snapshot rather than re-inserting,
     // which would put the row back in the wrong position.
-    onMutate: async (authorId: string) => {
-      await queryClient.cancelQueries({ queryKey: subscriptionsKey });
-      const previous = queryClient.getQueryData<SubscriptionPages>(subscriptionsKey);
-      queryClient.setQueryData<SubscriptionPages>(subscriptionsKey, (prev) => {
+    onMutate: async ({ authorId, viewerId }: UnsubscribeAction) => {
+      const queryKey = viewerQueryKeys.subscriptions(viewerId);
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<SubscriptionPages>(queryKey);
+      queryClient.setQueryData<SubscriptionPages>(queryKey, (prev) => {
         if (!prev) return prev;
         return {
           ...prev,
@@ -83,21 +103,22 @@ export default function ActivitySubscriptionsScreen() {
           })),
         };
       });
-      return { previous };
+      return { previous, viewerId, queryKey };
     },
     onError: (mutationError, _authorId, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(subscriptionsKey, context.previous);
+        queryClient.setQueryData(context.queryKey, context.previous);
       }
       toast(normalizeApiError(mutationError).message || t('subscription.error'), { type: 'error' });
     },
-    onSuccess: () => {
+    onSuccess: (_data, _authorId, context) => {
+      notifyFeedRankingChanged(context?.viewerId, true);
       toast(t('subscription.unsubscribed'), { type: 'success' });
     },
     // Re-sync with the server either way: a success may have shifted the cursor
     // boundary, and a failed rollback still needs the authoritative list.
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: subscriptionsKey });
+    onSettled: (_data, _error, _authorId, context) => {
+      queryClient.invalidateQueries({ queryKey: context?.queryKey ?? subscriptionsKey });
     },
   });
 
@@ -130,7 +151,7 @@ export default function ActivitySubscriptionsScreen() {
               tone="neutral"
               iconOnly
               leadingIcon={RiNotification3Fill}
-              onPress={() => unsubscribe(item.author.id)}
+              onPress={() => unsubscribe({ authorId: item.author.id, viewerId: user?.id })}
               disabled={isUnsubscribing}
               accessibilityLabel={label}
             />
@@ -138,7 +159,7 @@ export default function ActivitySubscriptionsScreen() {
         />
       );
     },
-    [t, unsubscribe, isUnsubscribing],
+    [t, unsubscribe, isUnsubscribing, user?.id],
   );
 
   const listHeader = useMemo(

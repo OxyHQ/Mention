@@ -1,3 +1,5 @@
+import type { FollowingFeedSort } from '@mention/shared-types';
+import { notifyFeedRankingChanged } from '@/stores/feedRankingInvalidation';
 import { useCallback, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -9,6 +11,7 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
 
 export interface FeedSettings {
+  following: { sort: FollowingFeedSort };
   diversity: {
     enabled: boolean;
     sameAuthorPenalty: number; // 0.5 - 1.0
@@ -26,6 +29,7 @@ export interface FeedSettings {
 }
 
 export const DEFAULT_FEED_SETTINGS: FeedSettings = {
+  following: { sort: 'chronological' },
   diversity: {
     enabled: true,
     sameAuthorPenalty: 0.95,
@@ -45,6 +49,7 @@ function withDefaults(partial: Partial<FeedSettings> | undefined): FeedSettings 
   return {
     ...DEFAULT_FEED_SETTINGS,
     ...partial,
+    following: { ...DEFAULT_FEED_SETTINGS.following, ...partial?.following },
     diversity: { ...DEFAULT_FEED_SETTINGS.diversity, ...partial?.diversity },
     recency: { ...DEFAULT_FEED_SETTINGS.recency, ...partial?.recency },
     quality: { ...DEFAULT_FEED_SETTINGS.quality, ...partial?.quality },
@@ -114,7 +119,7 @@ export function useFeedSettings(): UseFeedSettings {
     FeedSettings,
     Error,
     FeedSettings,
-    { previous: FeedSettings | undefined }
+    { previous: FeedSettings | undefined; viewerId?: string }
   >({
     mutationFn: async (next) => {
       const response = await authenticatedClient.put<UserSettingsResponse>('/profile/settings', {
@@ -126,7 +131,7 @@ export function useFeedSettings(): UseFeedSettings {
       await queryClient.cancelQueries({ queryKey });
       const previous = queryClient.getQueryData<FeedSettings>(queryKey);
       queryClient.setQueryData<FeedSettings>(queryKey, next);
-      return { previous };
+      return { previous, viewerId: user?.id };
     },
     onError: (error, _next, context) => {
       if (context?.previous !== undefined) {
@@ -139,6 +144,9 @@ export function useFeedSettings(): UseFeedSettings {
         }),
         { type: 'error' },
       );
+    },
+    onSuccess: (_data, _next, context) => {
+      notifyFeedRankingChanged(context?.viewerId, false);
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey });

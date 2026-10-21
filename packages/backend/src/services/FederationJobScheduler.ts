@@ -628,7 +628,7 @@ class FederationJobScheduler {
         await Promise.allSettled(
           batch.map((actor) =>
             activityPubConnector
-              .syncOutboxPosts(actor, 20)
+              .syncOutboxPosts(actor, 20, 'followed_outbox')
               .catch((err) => logger.debug('[FedSync] outbox sync failed', err)),
           ),
         );
@@ -743,6 +743,7 @@ class FederationJobScheduler {
       },
       {
         limit: Math.min(OUTBOX_RECENT_BACKFILL_BATCH_SIZE, remaining),
+        importReason: 'discovery_backfill',
         maxPages: OUTBOX_RECENT_BACKFILL_MAX_PAGES_PER_RUN,
         startPageUrl: outboxChanged ? undefined : previousState?.cursorUrl,
         startItemOffset: outboxChanged ? 0 : (previousState?.cursorItemOffset ?? 0),

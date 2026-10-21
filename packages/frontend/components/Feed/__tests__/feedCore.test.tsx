@@ -1,3 +1,4 @@
+jest.mock('@/hooks/useFeedVisibility', () => ({ useFeedVisibility: jest.fn() }));
 jest.mock('@/services/socketService', () => ({
   socketService: { subscribeToFeedUpdates: jest.fn(() => jest.fn()) },
 }));
@@ -17,6 +18,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 
 const mockList: { onEndReached?: () => void; data?: Array<{ kind: string; key?: string }> } = {};
 const mockLoadMore = jest.fn();
+const mockRefresh = jest.fn();
 const mockSignIn = jest.fn(() => Promise.resolve());
 const mockAuth = { authenticated: true };
 const mockFeed = { isLoading: true };
@@ -93,7 +95,7 @@ jest.mock('@/hooks/useFeedState', () => ({
     isLoading: mockFeed.isLoading,
     error: null,
     feedScrollKey: 'for_you',
-    refresh: jest.fn(),
+    refresh: mockRefresh,
     loadMore: mockLoadMore,
     clearError: jest.fn(),
     fetchInitial: jest.fn(),
@@ -159,9 +161,49 @@ jest.mock('../FeedEmptyState', () => ({ FeedEmptyState: () => null }));
 
 // Every mock above must be installed first.
 import Feed from '../Feed.native';
+import { useFeedCore } from '../useFeedCore';
 
 const leadingKeys = () =>
   (mockList.data ?? []).filter((row) => row.kind === 'auxiliary').map((row) => row.key);
+
+it('refreshes feed and profile chrome concurrently and waits for both', async () => {
+  const feedGate = Promise.withResolvers<void>();
+  const profileGate = Promise.withResolvers<void>();
+  mockRefresh.mockReturnValueOnce(feedGate.promise);
+  const onRefresh = jest.fn(() => profileGate.promise);
+  const state: {
+    core?: ReturnType<typeof useFeedCore>;
+    renderer?: TestRenderer.ReactTestRenderer;
+    pending?: Promise<void>;
+  } = {};
+  function Harness() {
+    state.core = useFeedCore({ type: 'for_you', onRefresh });
+    return null;
+  }
+  act(() => {
+    state.renderer = TestRenderer.create(<Harness />);
+  });
+  act(() => {
+    if (!state.core) throw new Error('Feed core did not mount');
+    state.pending = state.core.handleRefresh();
+  });
+  expect(mockRefresh).toHaveBeenCalledTimes(1);
+  expect(onRefresh).toHaveBeenCalledTimes(1);
+  expect(state.core?.refreshing).toBe(true);
+  await act(async () => {
+    feedGate.resolve();
+  });
+  expect(state.core?.refreshing).toBe(true);
+  await act(async () => {
+    profileGate.resolve();
+    if (!state.pending) throw new Error('Feed refresh did not start');
+    await state.pending;
+  });
+  expect(state.core?.refreshing).toBe(false);
+  act(() => {
+    state.renderer?.unmount();
+  });
+});
 
 describe('a pinned post holds the first presentation on native too (#1216)', () => {
   let renderer: TestRenderer.ReactTestRenderer | undefined;

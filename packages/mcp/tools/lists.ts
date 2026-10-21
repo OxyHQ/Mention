@@ -175,9 +175,13 @@ export function registerListsTools(server: MentionToolRegistrar): void {
         if (limit) query.limit = limit;
         if (cursor) query.cursor = cursor;
 
-        const result = await api.get(`/lists/${encodeURIComponent(id)}/timeline`, query);
+        const result = await api.get<Record<string, unknown>>(
+          `/lists/${encodeURIComponent(id)}/timeline`,
+          query,
+        );
         return {
-          content: [{ type: 'text' as const, text: formatFeed(result as Record<string, unknown>) }],
+          content: [{ type: 'text' as const, text: formatFeed(result) }],
+          structuredContent: result,
         };
       } catch (error) {
         return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };

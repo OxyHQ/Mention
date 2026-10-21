@@ -33,7 +33,7 @@ describe('profile refresh wiring', () => {
   it('runs screen-owned refresh beside the feed refresh, for both platforms', () => {
     // One refresh path in the shared core; both platform Feeds call it.
     expect(read('components/Feed/useFeedCore.tsx')).toMatch(
-      /Promise\.all\(\[feedRefresh\(\), onRefresh\?\.\(\)\]\)/,
+      /Promise\.all\(\[refreshSession\(\), onRefresh\?\.\(\)\]\)/,
     );
     for (const platform of ['native', 'web']) {
       expect(read(`components/Feed/Feed.${platform}.tsx`)).toMatch(/useFeedCore\(props\)/);

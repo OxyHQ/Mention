@@ -1972,6 +1972,7 @@ export default function VideosScreen() {
     // attributed to the same descriptor the feed was served under.
     feedDescriptor: resolveFeedDescriptor(activeFeed),
     impressionResetKey: viewerId,
+    viewerId,
     canReportImpressions: canUsePrivateApi,
   });
 

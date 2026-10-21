@@ -61,6 +61,8 @@ import type {
  * the predicate every "is this ours?" gate in the codebase already uses.
  */
 export interface PostRecordFederation {
+  /** WRITE-SIDE ONLY: actual trigger, recorded privately in the insert transaction. */
+  importReason?: import('../schema/federationImports').FederationImportReason;
   /** The inbound AP activity URI. Globally unique where present. */
   activityId?: string;
   /** The verified AP actor/signing URI that authored the activity. */

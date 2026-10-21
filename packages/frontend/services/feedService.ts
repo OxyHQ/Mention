@@ -1,3 +1,4 @@
+import { isFollowingFeedSort, type FollowingFeedSort } from '@mention/shared-types/feed';
 import { buildFeedDescriptor, isAuthorFeedFilter } from '@mention/shared-types/mtn/feedDescriptor';
 import type { AuthorFeedFilter } from '@mention/shared-types/mtn/feedDescriptor';
 import type {
@@ -453,6 +454,10 @@ class FeedService {
         // Route standard feeds through MTN descriptor-based API
         const descriptor: FeedDescriptor = (request.type || 'for_you') as FeedDescriptor;
         return await this.getMtnFeed(descriptor, {
+          sort:
+            descriptor === 'following' && isFollowingFeedSort(request.filters?.sort)
+              ? request.filters.sort
+              : undefined,
           cursor: request.cursor,
           limit: request.limit || 20,
           signal: options?.signal,
@@ -1009,17 +1014,19 @@ class FeedService {
    */
   async getMtnFeed(
     descriptor: FeedDescriptor,
-    options?: { cursor?: string; limit?: number; signal?: AbortSignal },
+    options?: { cursor?: string; limit?: number; signal?: AbortSignal; sort?: FollowingFeedSort },
   ): Promise<FeedServiceResponse> {
     const params: Record<string, unknown> = { descriptor };
     if (options?.cursor) params.cursor = options.cursor;
     if (options?.limit) params.limit = options.limit;
+    const sort = descriptor === 'following' ? options?.sort : undefined;
+    if (sort) params.sort = sort;
 
     // Dedup in-flight within one exact viewer generation. Authenticated accounts
     // must never share personalized hydration merely because both are `auth`.
     // Page size remains part of the key because the profile media grid and feed
     // can request the same descriptor with different limits.
-    const cacheKey = `mtn|${requestIdentityDedupeMarker()}|${descriptor}|${options?.cursor || 'initial'}|${options?.limit ?? 'default'}`;
+    const cacheKey = `mtn|${requestIdentityDedupeMarker()}|${descriptor}|${options?.cursor || 'initial'}|${options?.limit ?? 'default'}|${sort ?? 'stored'}`;
 
     // In-flight sharing is ONLY safe for signal-less requests. A request that
     // carries an AbortSignal is owned by a single caller whose lifecycle controls

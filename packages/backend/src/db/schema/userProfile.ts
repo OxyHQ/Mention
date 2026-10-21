@@ -1,3 +1,4 @@
+import { FOLLOWING_FEED_SORTS, type FollowingFeedSort } from '@mention/shared-types/feed';
 /**
  * Per-viewer state: `user_behaviors` (+ its three preference child tables) and
  * `user_settings` (+ its label-action child table).
@@ -325,6 +326,7 @@ export const userSettings = pgTable(
     interestTags: text().array(),
 
     // ── feedSettings ──
+    feedFollowingSort: text().$type<FollowingFeedSort>().notNull().default('chronological'),
     feedDiversityEnabled: boolean().notNull().default(true),
     feedSameAuthorPenalty: doublePrecision().notNull().default(0.95),
     feedSameTopicPenalty: doublePrecision().notNull().default(0.92),
@@ -389,6 +391,10 @@ export const userSettings = pgTable(
     index('user_settings_profile_header_image_idx')
       .on(t.profileHeaderImage)
       .where(sql`${t.profileHeaderImage} is not null`),
+    check(
+      'user_settings_following_sort_check',
+      sql`${t.feedFollowingSort} in (${sql.raw(inList(FOLLOWING_FEED_SORTS))})`,
+    ),
     check(
       'user_settings_theme_mode_check',
       sql`${t.appearanceThemeMode} in (${sql.raw(inList(THEME_MODES))})`,

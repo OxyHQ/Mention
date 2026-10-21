@@ -1,3 +1,4 @@
+import { isFeedCacheStaleForRanking } from './feedRankingInvalidation';
 import type { FeedQueryIdentity } from '@/lib/viewerQueryKeys';
 import { isFeedCacheStale } from '@/stores/engagementInvalidation';
 import { isLaneFeedCacheStale } from '@/stores/laneInvalidation';
@@ -36,6 +37,7 @@ export function isFeedReadStale(feed: FeedReadIdentity, readAt: number): boolean
     isLaneFeedCacheStale(feed.userId, feed.viewerId, feed.filters?.laneId, readAt) ||
     isFeedCacheStaleForSafety(readAt) ||
     isFeedCacheStaleForByline(readAt) ||
-    isFeedCacheStaleForReaderLanguages(readAt)
+    isFeedCacheStaleForReaderLanguages(readAt) ||
+    isFeedCacheStaleForRanking(feed, readAt)
   );
 }

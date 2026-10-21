@@ -24,6 +24,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 const mockGet = jest.fn();
 const mockPut = jest.fn();
 const mockToast = jest.fn();
+const mockRankingChanged = jest.fn();
+jest.mock('@/stores/feedRankingInvalidation', () => ({
+  notifyFeedRankingChanged: (...args: unknown[]) => mockRankingChanged(...args),
+}));
 
 const mockAuth: { user: { id: string } | null; canUsePrivateApi: boolean } = {
   user: { id: 'viewer-1' },
@@ -140,6 +144,33 @@ describe('useFeedSettings — instant save', () => {
     }
   });
 
+  it('defaults older server responses to chronological and persists a chosen order', async () => {
+    mockGet.mockResolvedValue({ data: { feedSettings: { quality: { boostHighQuality: true } } } });
+    renderProbe();
+    await settle();
+    expect(latest!.settings.following.sort).toBe('chronological');
+    const next = { ...latest!.settings, following: { sort: 'relevance' as const } };
+    mockPut.mockResolvedValue({ data: { feedSettings: next } });
+    await act(async () => {
+      latest!.save(next);
+    });
+    await settle();
+    expect(mockPut).toHaveBeenCalledWith('/profile/settings', { feedSettings: next });
+    expect(mockRankingChanged).toHaveBeenCalledWith('viewer-1', false);
+  });
+
+  it('rolls a rejected Following order back to the persisted chronological choice', async () => {
+    renderProbe();
+    await settle();
+    mockPut.mockRejectedValue(new Error('save failed'));
+    await act(async () => {
+      latest!.save({ ...latest!.settings, following: { sort: 'relevance' } });
+    });
+    await settle();
+    expect(latest!.settings.following.sort).toBe('chronological');
+    expect(mockRankingChanged).not.toHaveBeenCalled();
+  });
+
   it('shows the new value immediately, before the server has answered', async () => {
     const next = { ...SERVER_SETTINGS, quality: { boostHighQuality: false } };
     let resolvePut: (value: unknown) => void = () => {};
@@ -160,6 +191,7 @@ describe('useFeedSettings — instant save', () => {
 
     // The PUT is still in flight — nothing has come back from the server.
     expect(mockPut).toHaveBeenCalledTimes(1);
+    expect(mockRankingChanged).not.toHaveBeenCalled();
     // And the cache already holds the new value, which is what the screen reads.
     const key = ['viewer', 'viewer-1', 'feed-settings'];
     expect(client.getQueryData<typeof SERVER_SETTINGS>(key)?.quality.boostHighQuality).toBe(false);
@@ -169,6 +201,7 @@ describe('useFeedSettings — instant save', () => {
       await Promise.resolve();
     });
     await settle();
+    expect(mockRankingChanged).toHaveBeenCalledWith('viewer-1', false);
   });
 
   it('rolls the value back and raises a toast when the write fails', async () => {
@@ -196,6 +229,7 @@ describe('useFeedSettings — instant save', () => {
     // Back to what the server actually holds — not left showing the refused value.
     expect(latest!.settings.quality.boostHighQuality).toBe(true);
     // And the user was told. A silent revert is the failure this guards.
+    expect(mockRankingChanged).not.toHaveBeenCalled();
     expect(mockToast).toHaveBeenCalledWith(expect.stringContaining("Couldn't save"), {
       type: 'error',
     });

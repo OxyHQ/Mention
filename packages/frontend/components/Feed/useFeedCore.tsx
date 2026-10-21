@@ -1,3 +1,4 @@
+import { useFeedVisibility } from '@/hooks/useFeedVisibility';
 import { useFeedLiveUpdates } from './FeedUpdatePolicy';
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
@@ -134,7 +135,12 @@ export function useFeedCore(props: FeedProps) {
     fetchInitial: feedFetchInitial,
   } = feedState;
 
-  useFeedLiveUpdates(type, feedRefresh, canUsePrivateApi);
+  const [impressionRefresh, setImpressionRefresh] = useState(0);
+  const refreshSession = useCallback(async () => {
+    await feedRefresh();
+    setImpressionRefresh((value) => value + 1);
+  }, [feedRefresh]);
+  useFeedLiveUpdates(type, refreshSession, canUsePrivateApi);
 
   // Slices (or items) into rows with thread state, the server's recommendation
   // cards spliced in, and a preview's bound applied.
@@ -206,20 +212,26 @@ export function useFeedCore(props: FeedProps) {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([feedRefresh(), onRefresh?.()]);
+      await Promise.all([refreshSession(), onRefresh?.()]);
     } catch (err) {
       logFeedFailure(logger, 'Feed refresh failed', classifyFeedFailure(err));
     } finally {
       setRefreshing(false);
     }
-  }, [feedRefresh, onRefresh]);
+  }, [refreshSession, onRefresh]);
 
   // Feed-ranking telemetry. The session resets when the descriptor changes or
   // the feed is reloaded, so impressions count once per post per session.
   // `canUsePrivateApi` keeps an anonymous (or still-resolving) viewer from ever
   // POSTing, which would 401 `/feed/mtn/interactions` in a loop.
   const feedDescriptor = resolveFeedDescriptor(type, userId, filters);
-  const impressionTracker = useFeedImpressionTracker(feedDescriptor, reloadKey, canUsePrivateApi);
+  const impressionTracker = useFeedImpressionTracker(
+    feedDescriptor,
+    JSON.stringify([currentUserId, reloadKey, impressionRefresh]),
+    canUsePrivateApi,
+    currentUserId,
+  );
+  useFeedVisibility(impressionTracker);
 
   const receivesOwnNewPost = feedReceivesOwnNewPost({ type, userId, filters, currentUserId });
 

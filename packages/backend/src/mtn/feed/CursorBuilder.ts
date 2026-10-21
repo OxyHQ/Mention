@@ -29,6 +29,8 @@ import { and, eq, gt, lt, or, sql, type SQL } from 'drizzle-orm';
 // --- Score-based cursor (for ranked feeds: for_you, explore) ---
 
 export interface ScoreCursorData {
+  /** Scoring formula revision; older score boundaries cannot cross revisions. */
+  rankingVersion?: number;
   score: number;
   id: string;
   /**
@@ -73,6 +75,7 @@ export interface ScoreCursorData {
 }
 
 export interface ScoreCursorBuildOptions {
+  rankingVersion?: number;
   asOf?: Date | number;
   excludeIds?: Iterable<string>;
   /** See {@link ScoreCursorData.tiebreakAt}. */
@@ -94,6 +97,7 @@ interface ScoreCursorCompatV1Payload {
   t?: number;
   /** See {@link ScoreCursorData.fromPopularFallback}. Additive: an older parser ignores it. */
   f?: 1;
+  r?: number;
 }
 
 /** A millisecond timestamp we are willing to treat as a keyset boundary. */
@@ -142,6 +146,7 @@ export const ScoreCursor = {
         options?.tiebreakAt instanceof Date ? options.tiebreakAt.getTime() : options?.tiebreakAt;
       const metadata: ScoreCursorCompatV1Payload = {
         a: rawAsOf,
+        ...(options?.rankingVersion === undefined ? {} : { r: options.rankingVersion }),
         x: normalizeExcludedIds(id, options?.excludeIds),
         ...(isValidCursorTimestamp(rawTiebreakAt) ? { t: rawTiebreakAt } : {}),
         ...(options?.fromPopularFallback === true ? { f: 1 } : {}),
@@ -182,6 +187,7 @@ export const ScoreCursor = {
             return {
               score,
               id,
+              ...(Number.isSafeInteger(metadata.r) ? { rankingVersion: metadata.r } : {}),
               asOf: metadata.a,
               ...(isValidCursorTimestamp(metadata.t) ? { tiebreakAt: metadata.t } : {}),
               ...(metadata.f === 1 ? { fromPopularFallback: true as const } : {}),

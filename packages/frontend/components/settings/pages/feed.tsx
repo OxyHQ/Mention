@@ -1,3 +1,4 @@
+import { SettingsSelect } from '@/components/settings/SettingsSelect';
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { Slider } from '@oxy.so/bloom/slider';
 import { DEFAULT_FEED_SETTINGS, useFeedSettings, type FeedSettings } from '@/hooks/useFeedSettings';
@@ -67,6 +68,7 @@ export default function FeedSettingsScreen() {
     (updates: Partial<FeedSettings>): FeedSettings => ({
       ...settings,
       ...updates,
+      following: { ...settings.following, ...updates.following },
       diversity: { ...settings.diversity, ...updates.diversity },
       recency: { ...settings.recency, ...updates.recency },
       quality: { ...settings.quality, ...updates.quality },
@@ -100,6 +102,7 @@ export default function FeedSettingsScreen() {
       save({
         ...DEFAULT_FEED_SETTINGS,
         ...preset.settings,
+        following: settings.following,
         diversity: {
           ...DEFAULT_FEED_SETTINGS.diversity,
           ...preset.settings.diversity,
@@ -114,7 +117,7 @@ export default function FeedSettingsScreen() {
         },
       });
     },
-    [save],
+    [save, settings.following],
   );
 
   const resetToDefaults = useCallback(async () => {
@@ -157,6 +160,24 @@ export default function FeedSettingsScreen() {
     <View className="gap-4">
       {isSaving ? <Loading variant="inline" size="sm" /> : null}
       <View className="gap-4">
+        <SettingsSection label={t('settings.feed.following.title')}>
+          <SettingsCard>
+            <SettingsRow
+              label={t('settings.feed.following.order')}
+              description={t('settings.feed.following.description')}
+            >
+              <SettingsSelect
+                label={t('settings.feed.following.order')}
+                value={settings.following.sort}
+                onChange={(sort) => commit({ following: { sort } })}
+                items={[
+                  { value: 'chronological', label: t('settings.feed.following.chronological') },
+                  { value: 'relevance', label: t('settings.feed.following.relevance') },
+                ]}
+              />
+            </SettingsRow>
+          </SettingsCard>
+        </SettingsSection>
         {/* Presets */}
         <SettingsSection label={t('settings.feed.presets.title')}>
           <SettingsCard>

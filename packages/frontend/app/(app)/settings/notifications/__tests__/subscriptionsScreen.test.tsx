@@ -5,6 +5,10 @@ import type { PostSubscriptionListResponse } from '@mention/shared-types';
 import enMessages from '@/locales/en.json';
 import ActivitySubscriptionsScreen from '@/components/settings/pages/notifications/subscriptions';
 import { useSubscription } from '@/components/Profile/hooks/useSubscription';
+const mockRankingChanged = jest.fn();
+jest.mock('@/stores/feedRankingInvalidation', () => ({
+  notifyFeedRankingChanged: (...args: unknown[]) => mockRankingChanged(...args),
+}));
 jest.mock('@oxy.so/bloom/settings-modal', () => {
   const { View } = jest.requireActual('react-native');
   return { SettingsCard: View, SettingsSection: View, SettingsRow: View };
@@ -99,6 +103,7 @@ jest.mock('expo-router', () => ({
 
 jest.mock('@/context/MentionSettingsContext', () => ({ useSettingsBack: () => jest.fn() }));
 
+const mockAuthListeners = new Set<() => void>();
 const mockAuth = {
   user: { id: 'viewer-1' },
   canUsePrivateApi: true,
@@ -109,6 +114,13 @@ jest.mock('@oxy.so/services/ui/client', () => {
   const { Text, View } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
     useAuth: () => mockAuth,
+    useAuthStore: {
+      getState: () => mockAuth,
+      subscribe: (listener: () => void) => {
+        mockAuthListeners.add(listener);
+        return () => mockAuthListeners.delete(listener);
+      },
+    },
     OxyAuthPrompt: ({ label }: { label?: string }) => <Text>{label}</Text>,
     FollowButton: () => <View testID="follow-button" />,
   };
@@ -329,10 +341,13 @@ async function renderScreen(client: QueryClient) {
 
 describe('activity subscriptions screen', () => {
   beforeEach(() => {
+    mockAuth.user = { id: 'viewer-1' };
+    mockAuthListeners.clear();
     mockList.mockReset();
     mockUnsubscribe.mockReset().mockResolvedValue({ subscribed: false });
     mockSubscribe.mockReset().mockResolvedValue({ subscribed: true });
     mockGetStatus.mockReset().mockResolvedValue({ subscribed: false });
+    mockRankingChanged.mockReset();
   });
 
   afterEach(() => {
@@ -423,9 +438,10 @@ describe('activity subscriptions screen', () => {
     // lands a turn later — but still while the request is unanswered.
     await flush();
 
-    expect(mockUnsubscribe).toHaveBeenCalledWith('a-1');
+    expect(mockUnsubscribe).toHaveBeenCalledWith('a-1', { signal: expect.any(AbortSignal) });
     // Non-vacuous: the row is gone WHILE the server is still thinking.
     expect(client.isMutating()).toBe(1);
+    expect(mockRankingChanged).not.toHaveBeenCalled();
     const afterPress = renderedText(renderer);
     expect(afterPress).not.toContain('Ada Lovelace');
     expect(afterPress).toContain('Grace Hopper');
@@ -434,6 +450,90 @@ describe('activity subscriptions screen', () => {
       release();
     });
     await settle(client);
+    expect(mockRankingChanged).toHaveBeenCalledWith('viewer-1', true);
+  });
+
+  it('does not dispatch a removal after the account changes during query cancellation', async () => {
+    mockList.mockResolvedValue({
+      subscriptions: [
+        { author: author('a-1', 'ada', 'Ada Lovelace'), createdAt: '2026-07-02T00:00:00.000Z' },
+      ],
+    });
+    const client = makeClient();
+    const renderer = await renderScreen(client);
+    let release!: () => void;
+    const cancellation = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    jest.spyOn(client, 'cancelQueries').mockReturnValueOnce(cancellation);
+    await act(async () => {
+      renderer.root
+        .findByProps({ accessibilityLabel: 'Turn off notifications for @ada' })
+        .props.onPress();
+    });
+    expect(client.isMutating()).toBe(1);
+    expect(mockUnsubscribe).not.toHaveBeenCalled();
+    // Change the authoritative store even before React re-renders the screen.
+    mockAuth.user = { id: 'viewer-2' };
+    await act(async () => {
+      release();
+    });
+    await settle(client);
+    expect(mockUnsubscribe).not.toHaveBeenCalled();
+    expect(mockRankingChanged).not.toHaveBeenCalled();
+    expect(mockAuthListeners.size).toBe(0);
+  });
+
+  it('aborts an in-flight removal when its account changes and removes its listener', async () => {
+    mockList.mockResolvedValue({
+      subscriptions: [
+        { author: author('a-1', 'ada', 'Ada Lovelace'), createdAt: '2026-07-02T00:00:00.000Z' },
+      ],
+    });
+    let requestSignal: AbortSignal | undefined;
+    mockUnsubscribe.mockImplementation((_authorId, { signal }: { signal: AbortSignal }) => {
+      requestSignal = signal;
+      return new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(new Error('cancelled')), { once: true });
+      });
+    });
+    const client = makeClient();
+    const renderer = await renderScreen(client);
+    await act(async () => {
+      renderer.root
+        .findByProps({ accessibilityLabel: 'Turn off notifications for @ada' })
+        .props.onPress();
+    });
+    await flush();
+    expect(requestSignal?.aborted).toBe(false);
+    expect(mockAuthListeners.size).toBe(1);
+    await act(async () => {
+      mockAuth.user = { id: 'viewer-2' };
+      for (const listener of mockAuthListeners) listener();
+    });
+    await settle(client);
+    expect(requestSignal?.aborted).toBe(true);
+    expect(mockRankingChanged).not.toHaveBeenCalled();
+    expect(mockAuthListeners.size).toBe(0);
+  });
+
+  it('does not refresh ranking after a failed notification removal', async () => {
+    mockList.mockResolvedValue({
+      subscriptions: [
+        { author: author('a-1', 'ada', 'Ada Lovelace'), createdAt: '2026-07-02T00:00:00.000Z' },
+      ],
+    });
+    mockUnsubscribe.mockRejectedValue(new Error('failed'));
+    const client = makeClient();
+    const renderer = await renderScreen(client);
+    await act(async () => {
+      renderer.root
+        .findByProps({ accessibilityLabel: 'Turn off notifications for @ada' })
+        .props.onPress();
+    });
+    await settle(client);
+    expect(mockRankingChanged).not.toHaveBeenCalled();
+    expect(renderedText(renderer)).toContain('Ada Lovelace');
   });
 
   it('reflects a subscribe made from a profile, with no reload', async () => {

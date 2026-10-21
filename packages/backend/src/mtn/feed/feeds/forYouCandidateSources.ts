@@ -1,3 +1,4 @@
+import { eligibleActivitySubscriptionAuthors } from '../../../services/activitySubscriptionInterest';
 /**
  * For You — multi-source candidate generation.
  *
@@ -53,9 +54,9 @@
  */
 
 import { MtnConfig, PostVisibility } from '@mention/shared-types';
-import { and, arrayOverlaps, desc, eq, gte, or, type SQL } from 'drizzle-orm';
+import { and, arrayOverlaps, desc, eq, gte, inArray, lte, or, type SQL } from 'drizzle-orm';
 import { getDb } from '../../../db/postgres';
-import { posts } from '../../../db/schema';
+import { posts, postAuthorships, postSubscriptions } from '../../../db/schema';
 import { assembleShellRecords } from '../../../db/posts/postRepository';
 import { ContentAffinityService } from '../../../services/ContentAffinityService';
 import { sensitiveExcludeSql, isSensitivePost } from '../feedSafety';
@@ -75,15 +76,21 @@ import type { OxyClient } from '../../../utils/privacyHelpers';
 
 /** Minimal viewer-behavior shape this module reads. */
 export interface CandidateUserBehavior {
+  hiddenAuthors?: string[];
+  mutedAuthors?: string[];
+  blockedAuthors?: string[];
   preferredAuthors?: Array<{ authorId?: string; weight?: number }>;
   preferredTopics?: Array<{ topic?: string; weight?: number }>;
 }
 
 /** Inputs to candidate gathering, resolved by the caller. */
 export interface GatherForYouCandidatesParams {
+  candidateLimit?: number;
+  rankingAsOf?: number;
   viewerId: string;
   /** Author ids the viewer actually follows (including accepted federated follows). */
   followingIds: string[];
+  activitySubscribedAuthorIds?: string[];
   /** Author ids from subscribed lists; feed-inclusion only, never follow authorization. */
   subscribedListMemberIds?: string[];
   /** The followed accounts that are communities (see `FeedContext.followedCommunityIds`). */
@@ -147,7 +154,7 @@ const sharedContentAffinityService = new ContentAffinityService();
  * root's children with its OWN query, so the root entering this pool is enough to
  * render the whole chain.
  */
-function buildBaseConditions(seenPostIds: string[], since: Date): SQL[] {
+function buildBaseConditions(seenPostIds: string[], since: Date, asOf?: number): SQL[] {
   const conditions: SQL[] = [
     eq(posts.visibility, PostVisibility.PUBLIC),
     eq(posts.status, 'published'),
@@ -156,6 +163,7 @@ function buildBaseConditions(seenPostIds: string[], since: Date): SQL[] {
     eq(posts.isReply, false),
     notABoostSql(),
   ];
+  if (asOf !== undefined) conditions.push(lte(posts.createdAt, new Date(asOf)));
   const seen = excludeSeenSql(seenPostIds);
   if (seen) conditions.push(seen);
   return conditions;
@@ -229,7 +237,12 @@ function toUnassembledCandidates(rows: readonly (typeof posts.$inferSelect)[]): 
 }
 
 /** Run a bounded source query; soft-fail to `[]` so one bad source never sinks the feed. */
-async function runSource(label: string, conditions: SQL[], cap: number): Promise<CandidatePost[]> {
+async function runSource(
+  label: string,
+  conditions: SQL[],
+  cap: number,
+  failOnError = false,
+): Promise<CandidatePost[]> {
   try {
     const db = getDb();
     const rows = await db
@@ -253,6 +266,7 @@ async function runSource(label: string, conditions: SQL[], cap: number): Promise
     // make the final page — see `toUnassembledCandidates`.
     return toUnassembledCandidates(rows);
   } catch (error) {
+    if (failOnError) throw error;
     logger.warn(`[ForYouCandidates] source "${label}" failed; skipping`, error);
     return [];
   }
@@ -305,8 +319,8 @@ async function resolveAffinityAuthorIds(params: GatherForYouCandidatesParams): P
  * The recency-window start used by every For You lane. Computed inside the call
  * (never at module scope) so the window tracks request time.
  */
-function recencyStart(): Date {
-  return new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
+function recencyStart(asOf = Date.now()): Date {
+  return new Date(asOf - MtnConfig.feed.candidateSources.recencyWindowMs);
 }
 
 /** Followed author ids, clamped to the id-set cap. */
@@ -343,15 +357,53 @@ function resolveRegion(params: GatherForYouCandidatesParams): string | undefined
 
 // --- Individual candidate lanes (each self-contained; wrapped by engine sources). ---
 
+/** Bell interest adds supply even when the author is outside follows/affinity. */
+export async function gatherActivitySubscriptionsLane(
+  params: GatherForYouCandidatesParams,
+): Promise<CandidatePost[]> {
+  const eligibleIds = eligibleActivitySubscriptionAuthors(
+    params.activitySubscribedAuthorIds,
+    params.userBehavior,
+  );
+  if (!eligibleIds.length) return [];
+  const since = recencyStart(params.rankingAsOf);
+  // The viewer-keyed semijoin is additionally restricted to eligible bell authors;
+  // persisted edges must not reintroduce a hidden/muted/blocked bell.
+  const matchedPosts = getDb()
+    .select({ id: postAuthorships.postId })
+    .from(postSubscriptions)
+    .innerJoin(postAuthorships, eq(postAuthorships.oxyUserId, postSubscriptions.authorId))
+    .where(
+      and(
+        eq(postSubscriptions.subscriberId, params.viewerId),
+        inArray(postSubscriptions.authorId, eligibleIds),
+        eq(postAuthorships.status, 'accepted'),
+        gte(postAuthorships.postCreatedAt, since),
+      ),
+    );
+  const candidates = await runSource(
+    'activity-subscriptions',
+    withViewerLanguage(
+      [
+        ...buildBaseConditions(params.seenPostIds, since, params.rankingAsOf),
+        inArray(posts.id, matchedPosts),
+      ],
+      params.viewerLanguages,
+    ),
+    params.candidateLimit ?? MtnConfig.feed.candidateSources.perSource.following,
+    params.candidateLimit !== undefined,
+  );
+  return candidates.map((post) => ({ ...post, activitySubscriptionMatch: true }));
+}
+
 /** FOLLOWING: posts from followed authors (sensitive allowed at query level). */
 export async function gatherFollowingLane(
   params: GatherForYouCandidatesParams,
 ): Promise<CandidatePost[]> {
   const followingIds = resolveFollowingIds(params);
-  if (followingIds.length === 0) return [];
   // The window rides on the authorship index too, not only on `posts` — see
   // `followedAuthorsSql`: 9,712 buffers against 1,227 for 300 followed authors.
-  const since = recencyStart();
+  const since = recencyStart(params.rankingAsOf);
   // A followed community's posts are written by its members: reached by
   // `community_oxy_user_id`, and only when the viewer follows one, so everyone
   // else reads the plain author clause.
@@ -359,6 +411,7 @@ export async function gatherFollowingLane(
     0,
     MtnConfig.feed.candidateSources.maxAuthorIds,
   );
+  if (followingIds.length === 0 && communityIds.length === 0) return [];
   const followed =
     communityIds.length > 0
       ? (or(
@@ -369,10 +422,18 @@ export async function gatherFollowingLane(
   return runSource(
     'following',
     withViewerLanguage(
-      [...buildBaseConditions(params.seenPostIds, since), followed],
+      [
+        ...buildBaseConditions(
+          params.seenPostIds,
+          since,
+          params.candidateLimit === undefined ? undefined : params.rankingAsOf,
+        ),
+        followed,
+      ],
       params.viewerLanguages,
     ),
-    MtnConfig.feed.candidateSources.perSource.following,
+    params.candidateLimit ?? MtnConfig.feed.candidateSources.perSource.following,
+    params.candidateLimit !== undefined,
   );
 }
 
@@ -382,17 +443,22 @@ export async function gatherSubscribedListsLane(
 ): Promise<CandidatePost[]> {
   const subscribedListMemberIds = resolveSubscribedListIds(params);
   if (subscribedListMemberIds.length === 0) return [];
-  const since = recencyStart();
+  const since = recencyStart(params.rankingAsOf);
   return runSource(
     'subscribed-lists',
     withViewerLanguage(
       [
-        ...buildBaseConditions(params.seenPostIds, since),
+        ...buildBaseConditions(
+          params.seenPostIds,
+          since,
+          params.candidateLimit === undefined ? undefined : params.rankingAsOf,
+        ),
         followedAuthorsSql(subscribedListMemberIds, since),
       ],
       params.viewerLanguages,
     ),
-    MtnConfig.feed.candidateSources.perSource.following,
+    params.candidateLimit ?? MtnConfig.feed.candidateSources.perSource.following,
+    params.candidateLimit !== undefined,
   );
 }
 
@@ -407,17 +473,22 @@ export async function gatherAffinityLane(
 ): Promise<CandidatePost[]> {
   const affinityAuthorIds = await resolveAffinityAuthorIds(params);
   if (affinityAuthorIds.length === 0) return [];
-  const since = recencyStart();
+  const since = recencyStart(params.rankingAsOf);
   return runSource(
     'affinity',
     withViewerLanguage(
       [
-        ...buildBaseConditions(params.seenPostIds, since),
+        ...buildBaseConditions(
+          params.seenPostIds,
+          since,
+          params.candidateLimit === undefined ? undefined : params.rankingAsOf,
+        ),
         followedAuthorsSql(affinityAuthorIds, since),
       ],
       params.viewerLanguages,
     ),
-    MtnConfig.feed.candidateSources.perSource.affinity,
+    params.candidateLimit ?? MtnConfig.feed.candidateSources.perSource.affinity,
+    params.candidateLimit !== undefined,
   );
 }
 
@@ -435,12 +506,17 @@ export async function gatherTopicsLane(
     'topics',
     withDiscoveryGuards(
       [
-        ...buildBaseConditions(params.seenPostIds, recencyStart()),
+        ...buildBaseConditions(
+          params.seenPostIds,
+          recencyStart(params.rankingAsOf),
+          params.candidateLimit === undefined ? undefined : params.rankingAsOf,
+        ),
         arrayOverlaps(posts.classificationTopics, preferredTopics),
       ],
       params,
     ),
-    MtnConfig.feed.candidateSources.perSource.topics,
+    params.candidateLimit ?? MtnConfig.feed.candidateSources.perSource.topics,
+    params.candidateLimit !== undefined,
   );
 }
 
@@ -454,12 +530,17 @@ export async function gatherRegionLane(
     'region',
     withDiscoveryGuards(
       [
-        ...buildBaseConditions(params.seenPostIds, recencyStart()),
+        ...buildBaseConditions(
+          params.seenPostIds,
+          recencyStart(params.rankingAsOf),
+          params.candidateLimit === undefined ? undefined : params.rankingAsOf,
+        ),
         eq(posts.classificationRegion, region),
       ],
       params,
     ),
-    MtnConfig.feed.candidateSources.perSource.region,
+    params.candidateLimit ?? MtnConfig.feed.candidateSources.perSource.region,
+    params.candidateLimit !== undefined,
   );
 }
 
@@ -482,7 +563,11 @@ export async function gatherTrendingLane(
     // The roots-only rule is in `buildBaseConditions` now, so this lane no longer
     // states it — it was the only lane that ever did, which is exactly the bug.
     const conditions = withDiscoveryGuards(
-      buildBaseConditions(params.seenPostIds, recencyStart()),
+      buildBaseConditions(
+        params.seenPostIds,
+        recencyStart(params.rankingAsOf),
+        params.candidateLimit === undefined ? undefined : params.rankingAsOf,
+      ),
       params,
     );
     const rows = await db
@@ -490,9 +575,10 @@ export async function gatherTrendingLane(
       .from(posts)
       .where(and(...conditions))
       .orderBy(desc(engagementScore), desc(posts.createdAt), desc(posts.id))
-      .limit(cfg.perSource.trending);
+      .limit(params.candidateLimit ?? cfg.perSource.trending);
     return toUnassembledCandidates(rows);
   } catch (error) {
+    if (params.candidateLimit !== undefined) throw error;
     logger.warn('[ForYouCandidates] source "trending" failed; skipping', error);
     return [];
   }
@@ -504,8 +590,16 @@ export async function gatherGlobalLane(
 ): Promise<CandidatePost[]> {
   return runSource(
     'global',
-    withDiscoveryGuards(buildBaseConditions(params.seenPostIds, recencyStart()), params),
-    MtnConfig.feed.candidateSources.perSource.global,
+    withDiscoveryGuards(
+      buildBaseConditions(
+        params.seenPostIds,
+        recencyStart(params.rankingAsOf),
+        params.candidateLimit === undefined ? undefined : params.rankingAsOf,
+      ),
+      params,
+    ),
+    params.candidateLimit ?? MtnConfig.feed.candidateSources.perSource.global,
+    params.candidateLimit !== undefined,
   );
 }
 

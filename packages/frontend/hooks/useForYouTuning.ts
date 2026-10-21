@@ -1,3 +1,4 @@
+import { notifyFeedRankingChanged } from '@/stores/feedRankingInvalidation';
 import { useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -43,20 +44,23 @@ export function useForYouTuning(): UseForYouTuning {
     ForYouFeedTuning,
     Error,
     ForYouFeedTuning,
-    { previous: ForYouFeedTuning | undefined }
+    { previous: ForYouFeedTuning | undefined; viewerId?: string }
   >({
     mutationFn: (next) => feedTuningService.update(next),
     onMutate: async (next) => {
       await queryClient.cancelQueries({ queryKey });
       const previous = queryClient.getQueryData<ForYouFeedTuning>(queryKey);
       queryClient.setQueryData<ForYouFeedTuning>(queryKey, next);
-      return { previous };
+      return { previous, viewerId: user?.id };
     },
     onError: (error, _next, context) => {
       if (context?.previous !== undefined) {
         queryClient.setQueryData<ForYouFeedTuning>(queryKey, context.previous);
       }
       logger.warn('Failed to persist For You tuning', { error });
+    },
+    onSuccess: (_data, _next, context) => {
+      notifyFeedRankingChanged(context?.viewerId, true);
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey });

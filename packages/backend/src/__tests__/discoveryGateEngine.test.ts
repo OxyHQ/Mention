@@ -4,19 +4,21 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
  * PHASE 4a DISCOVERY-GATE LANE-SCOPING in the FeedEngine.
  *
  * Asserts the engine only applies `definition.discoveryFilters` to candidates
- * from NON-trusted sources, stamps the opaque `_discovery` marker on the ones that
- * survive, never gates trusted lanes, honors shadow vs enforce mode, and still
+ * from NON-trusted sources, marks their origin independently of gate activation,
+ * never gates or marks trusted lanes, honors shadow vs enforce mode, and still
  * falls back to popular when the gate empties the pool (never-blank). Heavy
  * collaborators are faked (no DB / Redis / Oxy); the rankPosts mock captures the
  * merged pool so the `_discovery` marks are observable.
  */
 
 let capturedPool: Array<Record<string, unknown>> = [];
-const rankPosts = vi.fn(async (posts: Array<Record<string, unknown>>) => {
-  capturedPool = posts;
-  for (const p of posts) p.finalScore = 1;
-  return posts;
-});
+const rankPosts = vi.fn(
+  async (posts: Array<Record<string, unknown>>, _userId?: unknown, _ctx?: unknown) => {
+    capturedPool = posts;
+    for (const p of posts) p.finalScore = 1;
+    return posts;
+  },
+);
 vi.mock('../services/FeedRankingService', () => ({
   feedRankingService: {
     rankPosts: (...args: unknown[]) => rankPosts(...(args as Parameters<typeof rankPosts>)),
@@ -248,25 +250,59 @@ describe('never-blank', () => {
   });
 });
 
-describe('no discoveryFilters → nothing gated or marked', () => {
-  it('a feed without discoveryFilters never marks `_discovery`', async () => {
-    registry.register(source('disc', [junkPost(1)]));
-    registry.register(source('popular', [makePost(9)]));
-    const plain: FeedDefinition = {
-      id: 'plain',
-      title: 'Plain',
-      mode: 'ranked',
-      sources: [{ module: 'disc', enabled: true }],
-      signals: [],
-      filters: [],
-      execution: {},
-    };
+describe('discovery origin is independent of quality-gate activation', () => {
+  it.each([
+    { gateState: 'absent', shadow: false },
+    { gateState: 'disabled', shadow: false },
+    { gateState: 'absent', shadow: true },
+    { gateState: 'disabled', shadow: true },
+  ])(
+    'keeps origin and language signal when gates are $gateState (shadow=$shadow)',
+    async ({ gateState, shadow }) => {
+      setShadow(shadow);
+      registry.register({
+        id: 'languageMismatchPenalty',
+        kind: 'signal',
+        weightKey: 'languageMismatchPenalty',
+      });
+      const reject = vi.fn(() => false);
+      registry.register({ id: 'unusedGate', kind: 'filter', keep: reject });
+      registry.register(source('trusted', [junkPost(2)], true));
+      registry.register(source('disc', [junkPost(1)]));
+      const plain: FeedDefinition = {
+        id: 'plain',
+        title: 'Plain',
+        mode: 'ranked',
+        sources: [
+          { module: 'trusted', enabled: true },
+          { module: 'disc', enabled: true },
+        ],
+        signals: [{ module: 'languageMismatchPenalty', enabled: true }],
+        filters: [],
+        ...(gateState === 'disabled'
+          ? { discoveryFilters: [{ module: 'unusedGate', enabled: false }] }
+          : {}),
+        execution: {},
+      };
 
-    await engine.run(plain, { currentUserId: 'v' }, { limit: 30 });
+      const result = await engine.run(
+        plain,
+        { currentUserId: 'v', viewerBaseLanguages: ['en'] },
+        { limit: 30 },
+      );
 
-    expect(idsOf(capturedPool)).toEqual([id(1)]);
-    expect(markOf(capturedPool, id(1))).toBeUndefined();
-  });
+      expect(reject).not.toHaveBeenCalled();
+      expect(rankPosts.mock.calls[0]?.[2]).toMatchObject({
+        enabledSignals: new Set(['languageMismatchPenalty']),
+        viewerBaseLanguages: ['en'],
+      });
+      expect(resolveUserSummaries).not.toHaveBeenCalled();
+      expect(idsOf(capturedPool)).toEqual([id(2), id(1)]);
+      expect(result.items.map((post) => post.id)).toEqual([id(2), id(1)]);
+      expect(markOf(capturedPool, id(2))).toBeUndefined();
+      expect(markOf(capturedPool, id(1))).toBe(true);
+    },
+  );
 });
 
 /**

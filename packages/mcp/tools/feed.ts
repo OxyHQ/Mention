@@ -1,6 +1,7 @@
 import { z } from 'zod/v4';
+import { isValidFeedDescriptor, parseFeedDescriptor } from '@mention/shared-types';
 import { api, formatApiError } from '../lib/api-client.js';
-import { withAuthGuard } from '../lib/auth-guard.js';
+import { authRequiredResponse, getMcpToken, withAuthGuard } from '../lib/auth-guard.js';
 import { fetchMtnFeed, paginationParams } from '../lib/mtn-feed.js';
 import { formatFeed } from '../lib/formatters.js';
 import type { MentionToolRegistrar } from '../lib/tool-registry.js';
@@ -8,15 +9,47 @@ import type { MentionToolRegistrar } from '../lib/tool-registry.js';
 export function registerFeedTools(server: MentionToolRegistrar): void {
   server.tool(
     'get-feed',
-    'Get the main discovery feed (public trending/explore content).',
+    'Get a feed by descriptor (default: explore). Returns the complete API feed as structuredContent, including slices, timestamps, reasons and pagination. Personalized feeds require authorization. Use get-saved-posts and get-list-timeline for saved posts and lists.',
     {
+      descriptor: z
+        .string()
+        .refine(isValidFeedDescriptor, 'Invalid feed descriptor')
+        .refine(
+          (value) => value !== 'saved' && !value.startsWith('list|'),
+          'Use get-saved-posts or get-list-timeline for this feed',
+        )
+        .optional()
+        .describe(
+          'explore, for_you, following, following_direct, trending, videos, media, mutuals, friends_popular, friends_of_friends, author|id[|filter], hashtag|tag, topic|topic, trend|term, lane|id, custom|id, feedgen|uri',
+        ),
       limit: z.number().optional().describe('Number of posts (default: 20, max: 100)'),
       cursor: z.string().optional().describe('Pagination cursor from a previous response'),
     },
-    async ({ limit, cursor }) => {
+    async ({ descriptor = 'explore', limit, cursor }) => {
       try {
-        const result = await fetchMtnFeed('explore', { limit, cursor });
-        return { content: [{ type: 'text' as const, text: formatFeed(result) }] };
+        if (!isValidFeedDescriptor(descriptor)) throw new Error('Invalid feed descriptor');
+        const { source } = parseFeedDescriptor(descriptor);
+        if (
+          [
+            'for_you',
+            'following',
+            'following_direct',
+            'videos',
+            'media',
+            'mutuals',
+            'friends_popular',
+            'friends_of_friends',
+            'custom',
+          ].includes(source) &&
+          !getMcpToken()
+        ) {
+          return authRequiredResponse();
+        }
+        const result = await fetchMtnFeed(descriptor, { limit, cursor });
+        return {
+          content: [{ type: 'text' as const, text: formatFeed(result) }],
+          structuredContent: result,
+        };
       } catch (error) {
         return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
@@ -33,7 +66,10 @@ export function registerFeedTools(server: MentionToolRegistrar): void {
     withAuthGuard(async ({ limit, cursor }) => {
       try {
         const result = await fetchMtnFeed('for_you', { limit, cursor });
-        return { content: [{ type: 'text' as const, text: formatFeed(result) }] };
+        return {
+          content: [{ type: 'text' as const, text: formatFeed(result) }],
+          structuredContent: result,
+        };
       } catch (error) {
         return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
@@ -50,7 +86,10 @@ export function registerFeedTools(server: MentionToolRegistrar): void {
     async ({ limit, cursor }) => {
       try {
         const result = await fetchMtnFeed('explore', { limit, cursor });
-        return { content: [{ type: 'text' as const, text: formatFeed(result) }] };
+        return {
+          content: [{ type: 'text' as const, text: formatFeed(result) }],
+          structuredContent: result,
+        };
       } catch (error) {
         return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
@@ -67,7 +106,10 @@ export function registerFeedTools(server: MentionToolRegistrar): void {
     withAuthGuard(async ({ limit, cursor }) => {
       try {
         const result = await fetchMtnFeed('following', { limit, cursor });
-        return { content: [{ type: 'text' as const, text: formatFeed(result) }] };
+        return {
+          content: [{ type: 'text' as const, text: formatFeed(result) }],
+          structuredContent: result,
+        };
       } catch (error) {
         return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
@@ -84,7 +126,10 @@ export function registerFeedTools(server: MentionToolRegistrar): void {
     withAuthGuard(async ({ limit, cursor }) => {
       try {
         const result = await fetchMtnFeed('videos', { limit, cursor });
-        return { content: [{ type: 'text' as const, text: formatFeed(result) }] };
+        return {
+          content: [{ type: 'text' as const, text: formatFeed(result) }],
+          structuredContent: result,
+        };
       } catch (error) {
         return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
@@ -102,7 +147,10 @@ export function registerFeedTools(server: MentionToolRegistrar): void {
     async ({ userId, limit, cursor }) => {
       try {
         const result = await fetchMtnFeed(`author|${userId}`, { limit, cursor });
-        return { content: [{ type: 'text' as const, text: formatFeed(result) }] };
+        return {
+          content: [{ type: 'text' as const, text: formatFeed(result) }],
+          structuredContent: result,
+        };
       } catch (error) {
         return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
@@ -119,12 +167,13 @@ export function registerFeedTools(server: MentionToolRegistrar): void {
     },
     async ({ parentId, limit, cursor }) => {
       try {
-        const result = await api.get(
+        const result = await api.get<Record<string, unknown>>(
           `/feed/replies/${encodeURIComponent(parentId)}`,
           paginationParams(limit, cursor),
         );
         return {
-          content: [{ type: 'text' as const, text: formatFeed(result as Record<string, unknown>) }],
+          content: [{ type: 'text' as const, text: formatFeed(result) }],
+          structuredContent: result,
         };
       } catch (error) {
         return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
@@ -140,7 +189,9 @@ export function registerFeedTools(server: MentionToolRegistrar): void {
     },
     async ({ id }) => {
       try {
-        const result = await api.get(`/feed/item/${encodeURIComponent(id)}`);
+        const result = await api.get<Record<string, unknown>>(
+          `/feed/item/${encodeURIComponent(id)}`,
+        );
         return {
           content: [
             {
@@ -148,6 +199,7 @@ export function registerFeedTools(server: MentionToolRegistrar): void {
               text: formatFeed({ items: [result as Record<string, unknown>] }),
             },
           ],
+          structuredContent: result,
         };
       } catch (error) {
         return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };

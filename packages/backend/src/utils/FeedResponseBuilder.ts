@@ -155,7 +155,7 @@ export class FeedResponseBuilder {
 
     // Calculate cursor from last slice's anchor post (first post in the slice)
     let nextCursor: string | undefined;
-    if (slicesToReturn.length > 0 && hasMore) {
+    if (hasMore && (cursorFromLastSlice || slicesToReturn.length > 0)) {
       if (cursorFromLastSlice) {
         nextCursor = cursorFromLastSlice;
       } else {

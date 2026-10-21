@@ -108,6 +108,8 @@ function resolveError(
   }
   const module = registry.getSignal(ref.module);
   if (!module) return `Unknown signal module: "${ref.module}"`;
+  if (module.userComposable === false)
+    return `Signal module "${ref.module}" is not available in custom feeds`;
   return null;
 }
 
