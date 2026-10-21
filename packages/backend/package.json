@@ -37,7 +37,7 @@
     "@oxy.so/contracts": "catalog:",
     "@oxy.so/core": "catalog:",
     "@oxy.so/db": "^1.4.0",
-    "@oxy.so/federation": "^2.6.0",
+    "@oxy.so/federation": "^2.7.0",
     "@oxy.so/mcp": "catalog:",
     "@oxy.so/mention-contracts": "workspace:*",
     "@oxy.so/protocol": "catalog:",
