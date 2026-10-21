@@ -43,7 +43,8 @@ export async function reportFederationImportReview(
       WITH page AS (
         SELECT p.id, p.federation_url, p.federation_actor_uri, p.parent_post_id,
                p.quote_of, p.boost_of, p.thread_id, p.is_reply, p.stats_views_count,
-               p.community_oxy_user_id
+               p.community_oxy_user_id, p.stats_likes_count, p.stats_boosts_count,
+               p.stats_comments_count
         FROM posts p
         WHERE p.federation_actor_uri IS NOT NULL AND p.visibility = 'public'
           AND p.status = 'published'
@@ -67,7 +68,9 @@ export async function reportFederationImportReview(
           OR EXISTS(SELECT 1 FROM posts ref WHERE ref.boost_of = p.id)
           OR EXISTS(SELECT 1 FROM posts ref WHERE ref.thread_id = p.id AND ref.id <> p.id)) AS "hasReferences",
         (EXISTS(SELECT 1 FROM likes l WHERE l.post_id = p.id)
-          OR EXISTS(SELECT 1 FROM feed_interactions interaction WHERE interaction.post_uri = p.id)) AS "hasEngagement",
+          OR EXISTS(SELECT 1 FROM feed_interactions interaction WHERE interaction.post_uri = p.id)
+          OR p.stats_likes_count > 0 OR p.stats_boosts_count > 0
+          OR p.stats_comments_count > 0) AS "hasEngagement",
         EXISTS(SELECT 1 FROM bookmarks b WHERE b.post_id = p.id) AS "hasSaves",
         p.stats_views_count > 0 AS "hasViews",
         (p.parent_post_id IS NOT NULL OR p.quote_of IS NOT NULL OR p.boost_of IS NOT NULL
