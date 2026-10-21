@@ -1,3 +1,5 @@
+import { mirroredNetworkDomain } from '../../utils/federation/mirrorTransports';
+
 /**
  * The network an actor's IDENTITY belongs to, which is not always the host the
  * actor was fetched from.
@@ -37,7 +39,12 @@ export function identityDomainOfActor(
       return networkDomain;
     }
   }
-  // Deliberately NOT falling back to `domain`. That fallback would make this
+  // A mirror host is transport by definition, so an actor served from one whose
+  // identity Oxy could not derive (no `networkAcct`) still belongs to the
+  // network it mirrors: its bare handles mean x.com / instagram.com accounts.
+  const mirrored = mirroredNetworkDomain(actor?.domain?.trim().toLowerCase() ?? '');
+  if (mirrored) return mirrored;
+  // Deliberately NOT falling back to any other `domain`. That fallback would make this
   // answer for every ordinary federated actor too — measured against production
   // before removing it: 1,266 of 5,000 sampled posts would have been rewritten,
   // and the samples were ordinary Finnish and Dutch Mastodon posts, not bridge
