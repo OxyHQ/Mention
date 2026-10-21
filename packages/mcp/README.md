@@ -185,6 +185,23 @@ their existing scopes instead of granting those views through `social.read`.
 Other backend access checks, including private custom feeds, remain authoritative.
 No `sort` option is exposed while the MTN controller does not accept one.
 
+MTN feed tools (`get-feed`, For You, Explore, Following, Videos, user feeds and
+hashtag feeds) accept an optional `lang` containing one language tag, such as
+`es`, `en-US` or `pt-BR`. They validate it with the backend's shared language
+parser and send the canonical tag as `?lang=`. Comma-separated lists and malformed
+tags are rejected before the API request. Omitting it preserves existing requests.
+
+This is an explicit request preference, not an owner-profile lookup or setting
+change. The delegated MCP Oxy client cannot read `users.me()`; without an owner
+language cache populated by the app, account languages can be unavailable. The
+backend uses the explicit tag as its readability fallback in that case, while
+available account languages still determine the readability set. Do not infer
+account preferences from an omitted tag or from the language of the conversation.
+Use the same language when continuing a feed session; changing readability can
+invalidate its cursor through the normal typed recovery response. Backend errors
+retain their public message and code in readable MCP errors, including HTTP 410
+`FEED_CURSOR_EXPIRED`; refresh the feed without the obsolete cursor to recover.
+
 For audits, count ranked blocks using `slices` when populated; `items` is their
 flattened mirror and may include conversation context. A page requested with
 `limit: 20` can legitimately contain more than 20 flattened posts. Read requests
