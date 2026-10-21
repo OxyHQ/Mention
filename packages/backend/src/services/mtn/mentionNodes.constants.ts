@@ -63,6 +63,14 @@ export const MENTION_NODE_INGEST_MAX_ITERATIONS = 50;
 /** Time-to-first-byte deadline for a node head/log fetch (kept short). */
 export const MENTION_NODE_INGEST_FETCH_TIMEOUT_MS = 8_000;
 
+/**
+ * Deadline for reading a whole node head/log response body once its headers
+ * arrived. A node that sends headers and stalls ends this attempt with a
+ * transient `ResponseTimeoutError`; the next sweep retries from the local head.
+ * A blob read keeps `NodeClient`'s own `DEFAULT_BLOB_BODY_TIMEOUT_MS`.
+ */
+export const MENTION_NODE_INGEST_BODY_TIMEOUT_MS = 15_000;
+
 /** Max bytes read from a single `/oxy/log` response before the stream is cut. */
 export const MENTION_NODE_INGEST_MAX_BYTES = 2 * 1024 * 1024; // 2 MiB
 
