@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { infiniteQueryOptions, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  infiniteQueryOptions,
+  type QueryClient,
+  useInfiniteQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import type { FeedType } from '@mention/shared-types';
 import { createLogger } from '@oxy.so/core/logger';
-import { feedService, type ExtendedFeedRequest } from '@/services/feedService';
+import { requestFeedPage, takeBootFeedRead } from '@/services/feedPageRead';
 import { usePostsStore } from '@/stores/postsStore';
 import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -18,10 +23,10 @@ import { feedThreadParentId, mergeFeedPageContent, type FeedFilters } from '@/ut
 import { useDeepCompareMemo } from './useDeepCompare';
 import type { UseFeedStateReturn } from './useFeedState';
 import { useReloadOnFeedRuleChange } from './useReloadOnFeedRuleChange';
+import { isDbAvailable } from '@/db';
+import { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
 
 const logger = createLogger('useFeedQuery');
-
-const FEED_PAGE_SIZE = 20;
 
 // Federated outbox-sync polling: when a profile feed responds with `pending`
 // (its ActivityPub outbox is still syncing in the background), we refetch a few
@@ -31,38 +36,34 @@ const FEED_PAGE_SIZE = 20;
 // is the (bounded) poll budget, so we never poll indefinitely.
 export const FED_PENDING_POLL_DELAYS_MS = [1000, 2500, 5000] as const;
 
-/** One feed, as the reader it is read for sees it. */
-type FeedQueryTarget = FeedReadIdentity;
-
 /**
  * Read one page of a feed, exactly as the feed's earlier local-state reader did:
  * a thread's replies narrowed to that thread, the page normalised, and its posts
  * and actors seeded into the entity caches every row overlays.
  */
 async function readFeedPage(
-  feed: FeedQueryTarget,
+  feed: FeedReadIdentity,
   cursor: FeedPageParam,
   signal: AbortSignal,
 ): Promise<FeedPage> {
   // No retry wrapper here: `feedService` owns the one policy (see
   // `utils/feedRetry`), so this read has already exhausted its attempts by
   // the time it rejects — and the query stays fetching for all of them, which
-  // is why a blip never flashes an error screen.
-  const request: ExtendedFeedRequest = {
-    type: feed.type,
-    limit: FEED_PAGE_SIZE,
-    cursor,
-    filters: feed.filters,
-  };
-  const response = await (feed.userId
-    ? feedService.getUserFeed(feed.userId, request, { signal })
-    : feedService.getFeed(request, { signal }));
+  // is why a blip never flashes an error screen. The home feed's first page
+  // may already have been read while the app booted, for this same viewer.
+  // Not awaited when there is none: the read must leave in this same tick, while
+  // the feed is still rendering.
+  const bootRead = takeBootFeedRead(feed, cursor);
+  const response = (bootRead && (await bootRead)) ?? (await requestFeedPage(feed, cursor, signal));
 
   // When scoped to a thread, narrow the results to the posts that answer it.
   const parentId = feedThreadParentId(feed.filters);
-  const items = parentId
-    ? (response.items ?? []).filter((item) => String(item.parentPostId) === parentId)
-    : (response.items ?? []);
+  // The replies endpoint owns membership: it also includes replies to the
+  // author's continuation spine and bounded nested previews.
+  const items =
+    parentId && feed.type !== 'replies'
+      ? (response.items ?? []).filter((item) => String(item.parentPostId) === parentId)
+      : (response.items ?? []);
   const content = mergeFeedPageContent(undefined, {
     items,
     slices: response.slices,
@@ -85,7 +86,7 @@ async function readFeedPage(
   };
 }
 
-function feedQueryOptions(feed: FeedQueryTarget) {
+function feedQueryOptions(feed: FeedReadIdentity) {
   return infiniteQueryOptions({
     queryKey: viewerQueryKeys.feed(feed.viewerId, feed.type, feed.userId, feed.filters),
     queryFn: async ({ pageParam, signal, client, queryKey }): Promise<FeedPage> => {
@@ -132,6 +133,33 @@ function feedQueryOptions(feed: FeedQueryTarget) {
     retry: false,
   });
 }
+
+/**
+ * Start a feed's first page before its `<Feed>` mounts — from a route id, or
+ * before React renders at all. Only a feed with no state is read, and the
+ * feed's observer joins this read rather than starting another. `viewerId` must
+ * be the RESOLVED viewer (`undefined` when signed out): the read is cached
+ * under that viewer's key and nobody else's. A feed this device serves from
+ * SQLite (native, unscoped) is not a query, so it is left to its `<Feed>`.
+ */
+export function prefetchFeed(queryClient: QueryClient, feed: FeedReadIdentity): void {
+  const scoped = Boolean(feed.filters && Object.keys(feed.filters).length > 0);
+  if (!resolveUseMemoryFeed(scoped, isDbAvailable())) return;
+  startFeedRead(queryClient, feedQueryOptions(feed));
+}
+
+function startFeedRead(queryClient: QueryClient, options: ReturnType<typeof feedQueryOptions>) {
+  if (queryClient.getQueryState(options.queryKey)) return;
+  // Never rejects: a failure is the query's state, which the observer reads.
+  void queryClient.prefetchInfiniteQuery(options);
+}
+
+/**
+ * A replies list read this recently was read for the navigation in progress
+ * (the post screen prefetches it from the route id), so mounting does not read
+ * it a second time.
+ */
+const REPLIES_REREAD_AFTER_MS = 10_000;
 
 function ignoreRejection(): void {
   // The failure is already the query's state — the feed renders it from
@@ -180,7 +208,7 @@ export function useFeedQuery({
   // Callers rebuild `filters` inline; compared by value so an equal object
   // keeps the same options, and the same `reload`.
   const feed = useDeepCompareMemo(
-    (): FeedQueryTarget => ({ type, userId, filters, viewerId }),
+    (): FeedReadIdentity => ({ type, userId, filters, viewerId }),
     [type, userId, filters, viewerId],
   );
   const options = useMemo(() => feedQueryOptions(feed), [feed]);
@@ -195,10 +223,7 @@ export function useFeedQuery({
   // (it takes no `enabled`): it fires only when the query has no state at all,
   // so a cached, in-flight or failed read is left to the observer, and the
   // observer joins this read rather than starting another.
-  if (active && !queryClient.getQueryState(queryKey)) {
-    // Never rejects: a failure is the query's state, which the observer reads.
-    void queryClient.prefetchInfiniteQuery(options);
-  }
+  if (active) startFeedRead(queryClient, options);
 
   const { data, error, isFetching, hasNextPage, fetchNextPage, dataUpdatedAt } = useInfiniteQuery({
     ...options,
@@ -227,9 +252,10 @@ export function useFeedQuery({
   // A warm start judges the read it holds. A cold feed is already loading
   // itself, so only a cached read is asked about.
   //
-  // A thread's replies always read again: the list seeds instantly from the
-  // cache (no flash) but server-side changes — new, deleted, duplicate
-  // replies — must show on navigation, not only on a hard reload. Freshness
+  // A thread's replies read again on every navigation (unless the read is the
+  // one this navigation just made): the list seeds instantly from the cache
+  // (no flash) but server-side changes — new, deleted, duplicate replies —
+  // must show on navigation, not only on a hard reload. Freshness
   // wins over scroll preservation there, and a replies list has no
   // deep-scroll context worth keeping.
   //
@@ -240,7 +266,10 @@ export function useFeedQuery({
     if (!active) return;
     const state = queryClient.getQueryState(queryKey);
     if (state?.data === undefined || state.fetchStatus !== 'idle') return;
-    const stale = feed.type === 'replies' || isFeedReadStale(feed, state.dataUpdatedAt);
+    const stale =
+      feed.type === 'replies'
+        ? Date.now() - state.dataUpdatedAt > REPLIES_REREAD_AFTER_MS
+        : isFeedReadStale(feed, state.dataUpdatedAt);
     if (stale) void reload();
   }, [active, queryClient, queryKey, feed, reload]);
 

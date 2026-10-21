@@ -4,7 +4,7 @@ import { startPlatformActivity } from './src/runtime/platformActivity';
 import { getRuntimeHealthState } from './src/utils/runtimeHealth';
 import { hostname } from 'node:os';
 import { config, validateEnvironment } from './src/config';
-import { connectPostgres, getPostgresClient } from './src/db/postgres';
+import { connectServingPostgres, getPostgresClient } from './src/db/postgres';
 import { assertPostgresMigrationsCurrent } from './src/db/migrationsFolder';
 import { registerAllModules } from './src/mtn/feed/engine';
 import { startWorkers } from './src/queue/workers';
@@ -82,7 +82,7 @@ const bootServer = async () => {
   // ONE store opens here, and it is Postgres. `getDb()` throws until this
   // resolves, so a task that skipped it would answer the health check and then
   // fail every query.
-  await connectPostgres();
+  await connectServingPostgres();
 
   // Production migrations run as a deployment one-shot with the exact image
   // that will be rolled out. Web tasks never mutate schema during a scale-out;

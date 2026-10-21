@@ -1,5 +1,4 @@
-import { useAuth } from '@oxy.so/services/ui/client';
-import { useSupervision } from '@oxy.so/services/ui';
+import { useAuth, useSupervision } from '@oxy.so/services/ui/client';
 
 /** Presentation readiness derives from the shared live supervision query. */
 export function useSupervisionState() {

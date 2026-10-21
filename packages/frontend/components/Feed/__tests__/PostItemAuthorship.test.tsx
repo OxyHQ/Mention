@@ -4,6 +4,7 @@ import { PostVisibility } from '@mention/shared-types';
 import type { HydratedAuthor, HydratedPost, PostUser } from '@mention/shared-types';
 
 import PostItem from '../PostItem';
+import type { NestedPostRenderer } from '../../Post/Attachments/PostAttachmentNested';
 
 /**
  * `PostItem` decides two things about authorship that only it can see, and both
@@ -22,6 +23,7 @@ import PostItem from '../PostItem';
  */
 
 interface CapturedHeaderProps {
+  children?: React.ReactNode;
   boostedBy?: PostUser;
   authors?: HydratedAuthor[];
   onPressCollaborators?: () => void;
@@ -31,7 +33,7 @@ jest.mock('../../Post/PostHeader', () => ({
   __esModule: true,
   default: (props: CapturedHeaderProps) => {
     mockHeaderProps.push(props);
-    return null;
+    return props.children;
   },
 }));
 
@@ -89,13 +91,30 @@ jest.mock('@oxy.so/bloom/icons', () => ({ RiChat3Fill: 'RiChat3Fill', RiMoreFill
 jest.mock('@/assets/icons/pin-icon', () => ({ PinIcon: () => null }));
 jest.mock('@/assets/icons/boost-icon', () => ({ BoostIcon: () => null }));
 
-jest.mock('../../Post/PostContentText', () => ({ __esModule: true, default: () => null }));
+jest.mock('../../Post/PostContentText', () => ({ __esModule: true, default: 'PostContentText' }));
 jest.mock('../../Post/PostLaneChip', () => ({ __esModule: true, default: () => null }));
 jest.mock('../../Post/ContentWarning', () => ({ __esModule: true, default: () => null }));
-jest.mock('../../Post/PostActions', () => ({ __esModule: true, default: () => null }));
-jest.mock('../../Post/PostDetailStats', () => ({ __esModule: true, default: () => null }));
+jest.mock('../../Post/PostActions', () => ({ __esModule: true, default: 'PostActions' }));
+jest.mock('../../Post/PostDetailStats', () => ({ __esModule: true, default: 'PostDetailStats' }));
 jest.mock('../../Post/PostLocation', () => ({ __esModule: true, default: () => null }));
-jest.mock('../../Post/PostAttachmentsRow', () => ({ __esModule: true, default: () => null }));
+jest.mock('../../Post/PostAttachmentsRow', () => ({
+  __esModule: true,
+  default: ({
+    nestedPost,
+    nestingDepth,
+    renderNestedPost,
+  }: {
+    nestedPost?: HydratedPost;
+    nestingDepth: number;
+    renderNestedPost?: NestedPostRenderer;
+  }) => {
+    if (!nestedPost || !renderNestedPost) return null;
+    const Nested = jest.requireActual('../../Post/Attachments/PostAttachmentNested').default;
+    return (
+      <Nested nestedPost={nestedPost} nestingDepth={nestingDepth} renderPost={renderNestedPost} />
+    );
+  },
+}));
 jest.mock('@/hooks/usePostLanguagePicker', () => ({
   usePostLanguagePicker: () => () => undefined,
 }));
@@ -282,5 +301,40 @@ describe('PostItem boost wiring', () => {
   it('leaves it unset when no boost surfaced the row', () => {
     render(<PostItem post={postWith([channel, writer])} />);
     expect(lastHeader().boostedBy).toBeUndefined();
+  });
+});
+
+it('renders a hydrated quote in the same commit as its parent, without an empty suspense frame', () => {
+  mockHeaderProps.length = 0;
+  const quote = { ...postWith([writer]), id: 'quoted-post' };
+  render(<PostItem post={{ ...postWith([owner]), quotedPost: quote }} />);
+  expect(mockHeaderProps.map((header) => header.authors?.[0]?.id)).toEqual([owner.id, writer.id]);
+});
+
+it('aligns focused actions with the full-width text and keeps them before metadata', () => {
+  let feed: TestRenderer.ReactTestRenderer | undefined;
+  let detail: TestRenderer.ReactTestRenderer | undefined;
+  act(() => {
+    feed = TestRenderer.create(<PostItem post={postWith([owner])} />);
+    detail = TestRenderer.create(<PostItem post={postWith([owner])} isPostDetail />);
+  });
+  if (!feed || !detail) throw new Error('Post render did not complete');
+  const host = (tree: TestRenderer.ReactTestRenderer, name: string) =>
+    tree.root.findAll((node) => typeof node.type === 'string' && node.type === name)[0];
+  const feedActions = host(feed, 'PostActions');
+  const detailActions = host(detail, 'PostActions');
+  expect(feedActions.parent?.props.style).toEqual({ paddingLeft: 64, paddingRight: 12 });
+  const bodyInset = host(detail, 'PostContentText').parent?.props.style.paddingHorizontal;
+  expect(detailActions.parent?.props.style).toEqual({
+    paddingLeft: bodyInset,
+    paddingRight: bodyInset,
+  });
+  const rendered = JSON.stringify(detail.toJSON());
+  expect(rendered.indexOf('PostActions')).toBeLessThan(rendered.indexOf('PostDetailStats'));
+  expect(host(detail, 'PostContentText').parent?.props.style.paddingHorizontal).toBe(12);
+  expect(lastHeader().children).toBeNull();
+  act(() => {
+    feed?.unmount();
+    detail?.unmount();
   });
 });

@@ -1,4 +1,11 @@
 {
+  "post.threadPosition": "Postingan {{index}} dari {{total}} dalam utas",
+  "post.viewConversation": "Lihat percakapan",
+  "post.threadContinuation": "Lanjutan utas ({{count}})",
+  "postActions.signInRequired": "Masuk untuk berinteraksi dengan postingan.",
+  "postActions.sessionLoading": "Sesi Anda sedang dimuat. Coba lagi sebentar.",
+  "deck.mode.standard": "Standar",
+  "deck.mode.label": "Mode Deck",
   "navigation.menu": "Menu navigasi",
   "Your post could not be published. {{detail}}": "Postingan kamu tidak bisa diterbitkan. {{detail}}",
   "You're posting too fast. Please wait a moment and try again.": "Kamu memposting terlalu cepat. Tunggu sebentar lalu coba lagi.",
@@ -2755,5 +2762,9 @@
     "rateExplanation": "Interaksi dibagi tayangan × 100.",
     "updating": "Memperbarui…",
     "total": "Total"
-  }
+  },
+  "post.repostOptions": "Opsi repost",
+  "post.repost": "Repost",
+  "post.undoRepost": "Batalkan repost",
+  "post.quote": "Kutip"
 }

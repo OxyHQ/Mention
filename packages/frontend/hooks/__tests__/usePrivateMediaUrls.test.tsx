@@ -12,8 +12,8 @@ jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => mockAuth }));
 let client: QueryClient;
 let renderer: ReactTestRenderer;
 let resolve: ReturnType<typeof usePrivateMediaUrls>;
-function Probe({ ids }: { ids: readonly string[] }) {
-  resolve = usePrivateMediaUrls(ids);
+function Probe({ ids, variant }: { ids: readonly string[]; variant?: string }) {
+  resolve = usePrivateMediaUrls(ids.map((fileId) => ({ fileId, variant })));
   return null;
 }
 async function settle() {
@@ -21,21 +21,21 @@ async function settle() {
     await new Promise((done) => setTimeout(done, 10));
   });
 }
-async function render(ids: readonly string[]) {
+async function render(ids: readonly string[], variant?: string) {
   await act(async () => {
     renderer = TestRenderer.create(
       <QueryClientProvider client={client}>
-        <Probe ids={ids} />
+        <Probe ids={ids} variant={variant} />
       </QueryClientProvider>,
     );
   });
   await settle();
 }
-async function update(ids: readonly string[]) {
+async function update(ids: readonly string[], variant?: string) {
   await act(async () =>
     renderer.update(
       <QueryClientProvider client={client}>
-        <Probe ids={ids} />
+        <Probe ids={ids} variant={variant} />
       </QueryClientProvider>,
     ),
   );
@@ -114,4 +114,20 @@ it('hides retained scoped URLs when a current access check is denied', async () 
   await settle();
   expect(resolve('file')).toBe('');
   expect(mockUrls).toHaveBeenCalledTimes(2);
+});
+
+it('requests the image preview variant and never reuses an original-resolution cache entry', async () => {
+  mockUrls.mockImplementation(async (requests: { fileId: string; variant?: string }[]) =>
+    Object.fromEntries(
+      requests.map(({ fileId, variant }) => [
+        fileId,
+        `https://scoped.example/${fileId}/${variant ?? 'original'}`,
+      ]),
+    ),
+  );
+  await render(['image']);
+  expect(resolve('image')).toBe('https://scoped.example/image/original');
+  await update(['image'], 'w640');
+  expect(mockUrls.mock.calls.at(-1)?.[0]).toEqual([{ fileId: 'image', variant: 'w640' }]);
+  expect(resolve('image')).toBe('https://scoped.example/image/w640');
 });

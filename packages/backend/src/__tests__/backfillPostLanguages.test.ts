@@ -347,4 +347,46 @@ describe('backfillPostLanguages', () => {
       await clearAdminScriptCursor('backfillPostLanguages', cursorScope);
     }
   });
+
+  it('paces the scan: waits out a busy database, then spaces pages by the page budget', async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 2; i += 1) {
+      ids.push(
+        await seedUnclassified({ content: { variants: [{ source: 'author', text: SPANISH }] } }),
+      );
+    }
+    ids.sort();
+    const sleeps: number[] = [];
+    // Busy twice, then quiet.
+    const load = [9, 9];
+    let probes = 0;
+
+    await backfillPostLanguages({
+      dryRun: true,
+      batchSize: 1,
+      startAfterId: ids[0],
+      pacing: {
+        pagePauseMs: 50,
+        maxPagesPerSecond: 2,
+        maxActiveQueries: 6,
+        loadBackoffMs: 777,
+        now: () => 0,
+        activeQueries: async () => {
+          probes += 1;
+          return load.shift() ?? 0;
+        },
+        sleep: async (ms) => {
+          sleeps.push(ms);
+        },
+      },
+    });
+
+    expect(sleeps.slice(0, 2)).toEqual([777, 777]);
+    const pageSleeps = sleeps.slice(2);
+    // At least the seeded row after the cursor was a page; 2 pages/s ⇒ ≥ 500 ms apart.
+    expect(pageSleeps.length).toBeGreaterThanOrEqual(1);
+    for (const ms of pageSleeps) expect(ms).toBeGreaterThanOrEqual(500);
+    // One load check per page, plus the two busy retries and the final empty page.
+    expect(probes).toBe(pageSleeps.length + 3);
+  });
 });

@@ -1,11 +1,7 @@
 import { authenticatedClient } from '@/utils/api';
-import type { SavedFeed } from '@mention/shared-types';
+import type { FeedPreferences, SavedFeed } from '@mention/shared-types';
 import { logger } from '@oxy.so/core/logger';
 import { normalizeApiError } from '@/utils/apiError';
-
-interface FeedPreferencesResponse {
-  savedFeeds: SavedFeed[];
-}
 
 /**
  * Run a feed-preferences request, logging and rethrowing (with the original
@@ -32,16 +28,19 @@ async function run<T>(operation: string, request: () => Promise<T>): Promise<T> 
  * a signed-in caller always receives the full catalog.
  */
 class FeedPreferencesService {
-  async get(): Promise<SavedFeed[]> {
+  async get(): Promise<FeedPreferences> {
     return run('get', async () => {
-      const res = await authenticatedClient.get<FeedPreferencesResponse>('/feed/preferences');
-      return res.data.savedFeeds ?? [];
+      const res = await authenticatedClient.get<FeedPreferences>('/feed/preferences');
+      return {
+        savedFeeds: res.data.savedFeeds ?? [],
+        customFeedTitles: res.data.customFeedTitles ?? {},
+      };
     });
   }
 
   async update(savedFeeds: SavedFeed[]): Promise<SavedFeed[]> {
     return run('update', async () => {
-      const res = await authenticatedClient.put<FeedPreferencesResponse>('/feed/preferences', {
+      const res = await authenticatedClient.put<FeedPreferences>('/feed/preferences', {
         savedFeeds,
       });
       return res.data.savedFeeds ?? savedFeeds;

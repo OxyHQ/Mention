@@ -962,7 +962,7 @@ async function main(): Promise<void> {
     if (args.online) {
       const { resolveDiscoveryGateBucket } = await import('../mtn/feed/discoveryGateExperiment.js');
       const since = new Date(Date.now() - args.onlineWindowMs);
-      // Reads POSTGRES, because `trackFeedInteraction` writes Postgres. A reader
+      // Reads POSTGRES, because `trackFeedInteractions` writes Postgres. A reader
       // and writer on different stores would report a shrinking engagement rate
       // as its window slid past the last write, with nothing anywhere saying why.
       const grouped = await getDb()

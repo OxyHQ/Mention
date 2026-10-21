@@ -1,7 +1,7 @@
 import { InsightsSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useMemo, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '@oxy.so/bloom/page-header';
@@ -111,8 +111,7 @@ export default function TrendGraphScreen() {
             <TouchableOpacity
               accessibilityRole="button"
               onPress={() => void refetch()}
-              className="rounded-full bg-primary px-4 py-2"
-              style={styles.webCursor}
+              className="rounded-full bg-primary px-4 py-2 web:cursor-pointer"
             >
               <Text className="font-primary text-sm font-semibold text-primary-foreground leading-6">
                 {t('trendGraph.retry')}
@@ -277,8 +276,7 @@ function TermRow({
       accessibilityRole="button"
       activeOpacity={0.7}
       onPress={() => navigateToTerm(term, 'graph')}
-      className="flex-row items-baseline justify-between py-1.5"
-      style={styles.webCursor}
+      className="web:cursor-pointer flex-row items-baseline justify-between py-1.5"
     >
       <Text
         className={`mr-3 shrink font-primary text-foreground ${emphasis ? 'text-[15px] font-bold' : 'text-[14px]'} leading-6`}
@@ -323,8 +321,7 @@ function FilterRow({
             accessibilityRole="button"
             activeOpacity={0.7}
             onPress={() => onSelect(value)}
-            className={`rounded-full px-3 py-1.5 ${isActive ? 'bg-primary' : 'bg-muted'}`}
-            style={styles.webCursor}
+            className={`web:cursor-pointer rounded-full px-3 py-1.5 ${isActive ? 'bg-primary' : 'bg-muted'}`}
           >
             <Text
               className={`font-primary text-[13px] font-medium ${isActive ? 'text-primary-foreground' : 'text-foreground'} leading-6`}
@@ -339,7 +336,6 @@ function FilterRow({
 }
 
 const styles = StyleSheet.create({
-  webCursor: Platform.select({ web: { cursor: 'pointer' }, default: {} }),
   // Hairline separators, the same weight `TrendItemRow` uses — the app draws
   // lists with rules, not with cards.
   branchBorder: { borderBottomWidth: 0.5 },

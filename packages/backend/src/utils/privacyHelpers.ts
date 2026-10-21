@@ -1,6 +1,5 @@
 import { createCache } from './cache';
 import { getServiceOxyClient } from './oxyHelpers';
-import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { logger } from './logger';
 
 /**
@@ -451,9 +450,11 @@ export interface ViewerGraphContext {
  * must not be swallowed — see `OxyPrivacyUnavailableError`), while a
  * follow-graph fetch failure soft-fails to an empty list, exactly as today.
  *
+ * All four are answered by ONE read of the per-viewer relations cache.
+ *
  * @param viewerId - the authenticated viewer; `undefined` resolves to `undefined`
- * @param client - per-request scoped Oxy client; falls back to the runtime
- *   client for the follow-graph half only, matching `buildViewerContext`
+ * @param client - per-request scoped Oxy client. Without one the privacy half
+ *   cannot be resolved, so the call fails closed before reading anything.
  */
 export async function resolveViewerPrivacyAndGraph(
   viewerId: string | undefined,
@@ -466,16 +467,41 @@ export async function resolveViewerPrivacyAndGraph(
   | undefined
 > {
   if (!viewerId) return undefined;
+  if (!client) {
+    throw new OxyPrivacyUnavailableError('blocked', { code: 'MISSING_PRIVACY_CLIENT' });
+  }
 
-  const oxyForFollows = client || getRuntimeOxyClient();
+  // All four lists through ONE cache read: each list is still computed, served
+  // stale or fails on its own, exactly as `cachedRelation` would serve it.
+  const [blocked, restricted, following, followers] = viewerRelationsCache
+    .getOrComputeEach<string[]>([
+      {
+        key: viewerRelationKey('blocked', viewerId),
+        compute: () => readPrivacyList(() => client.privacy.blocked(), 'blocked'),
+      },
+      {
+        key: viewerRelationKey('restricted', viewerId),
+        compute: () => readPrivacyList(() => client.privacy.restricted(), 'restricted'),
+      },
+      {
+        key: viewerRelationKey('following', viewerId),
+        compute: async () => extractFollowingIds(await client.follows.following(viewerId)),
+      },
+      {
+        key: viewerRelationKey('followers', viewerId),
+        compute: async () => extractFollowersIds(await client.follows.followers(viewerId)),
+      },
+    ])
+    // A fresh array per caller, as `cachedRelation` hands out.
+    .map((read) => read.then((ids) => [...ids]));
   const [blockedIds, restrictedIds, followingIds, followerIds] = await Promise.all([
-    getBlockedUserIds(client, viewerId),
-    getRestrictedUserIds(client, viewerId),
-    getFollowingIds(viewerId, oxyForFollows).catch((error: unknown) => {
+    blocked,
+    restricted,
+    following.catch((error: unknown) => {
       logger.warn('[OxyPrivacy] follows.following failed:', error);
       return [];
     }),
-    getFollowerIds(viewerId, oxyForFollows).catch((error: unknown) => {
+    followers.catch((error: unknown) => {
       logger.warn('[OxyPrivacy] follows.followers failed:', error);
       return [];
     }),

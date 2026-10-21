@@ -395,14 +395,23 @@ const notifySnapshotKeys = <T>(
   for (const key of new Set(keys)) {
     if (!key) continue;
     cache.delete(key);
-    const listeners = listenersByKey.get(key);
-    if (!listeners?.size) {
-      revisionsByKey.delete(key);
-      continue;
-    }
-    revisionsByKey.set(key, (revisionsByKey.get(key) ?? 0) + 1);
-    for (const listener of listeners) listener();
+    wakeSnapshotKey(listenersByKey, revisionsByKey, key);
   }
+};
+
+/** Moves `key`'s revision and runs its listeners; a key nobody watches forgets its revision. */
+const wakeSnapshotKey = (
+  listenersByKey: Map<string, Set<SnapshotListener>>,
+  revisionsByKey: Map<string, number>,
+  key: string,
+) => {
+  const listeners = listenersByKey.get(key);
+  if (!listeners?.size) {
+    revisionsByKey.delete(key);
+    return;
+  }
+  revisionsByKey.set(key, (revisionsByKey.get(key) ?? 0) + 1);
+  for (const listener of listeners) listener();
 };
 
 const notifyViewCountChanges = (postIds: Iterable<string>) =>
@@ -418,6 +427,34 @@ const notifyPostChanges = (postIds: Iterable<string>) => {
 
 const notifyFeedChanges = (feedKeys: Iterable<string>) =>
   notifySnapshotKeys(feedSnapshotCache, feedSnapshotListeners, feedSnapshotRevisions, feedKeys);
+
+/**
+ * A page appended to a feed: the held snapshot is EXTENDED by the rows that
+ * joined it instead of evicted, so the next read does not walk the whole feed
+ * back out of SQLite — every page used to re-read every row the feed had ever
+ * loaded. `appended` is what the writer reports it inserted; `null` (unknown)
+ * falls back to reading the feed again.
+ */
+const notifyFeedAppended = (feedKey: string, appended: FeedItem[] | null | undefined) => {
+  const held = feedSnapshotCache.get(feedKey);
+  if (!held || !appended) {
+    notifyFeedChanges([feedKey]);
+    return;
+  }
+  for (const item of appended) {
+    if (item.id && !postSnapshotCache.has(item.id)) {
+      setBoundedSnapshot(postSnapshotCache, item.id, item, MAX_POST_SNAPSHOTS);
+    }
+  }
+  const items = appended.length > 0 ? [...held.items, ...appended] : held.items;
+  setBoundedSnapshot(
+    feedSnapshotCache,
+    feedKey,
+    { items, meta: dbGetFeedMeta(feedKey) },
+    MAX_FEED_SNAPSHOTS,
+  );
+  wakeSnapshotKey(feedSnapshotListeners, feedSnapshotRevisions, feedKey);
+};
 
 const invalidateAllSnapshots = () => {
   const feedKeys = new Set([
@@ -624,9 +661,10 @@ export const usePostsStore = create<PostsStoreState>()(
         const keepCachedFeed =
           isPendingEmptyInitialLoad && Boolean(dbGetFeedMeta(feedKey)?.lastUpdated);
 
+        let appended: FeedItem[] | null | undefined = null;
         if (request.cursor) {
           // Append mode
-          dbAppendFeedItems(feedKey, items, {
+          appended = dbAppendFeedItems(feedKey, items, {
             hasMore: response.hasMore || false,
             nextCursor: response.nextCursor,
             totalCount: items.length,
@@ -647,7 +685,8 @@ export const usePostsStore = create<PostsStoreState>()(
 
         if (!keepCachedFeed && (!request.cursor || items.length > 0)) {
           notifyPostChanges(collectWrittenPostIds(items));
-          notifyFeedChanges([feedKey]);
+          if (request.cursor) notifyFeedAppended(feedKey, appended);
+          else notifyFeedChanges([feedKey]);
         }
 
         set((s) => ({
@@ -872,7 +911,7 @@ export const usePostsStore = create<PostsStoreState>()(
         precacheActorsFromPosts(items);
 
         // Append to SQLite — dedup handled by PRIMARY KEY
-        dbAppendFeedItems(feedKey, items, {
+        const appended = dbAppendFeedItems(feedKey, items, {
           hasMore: response.hasMore || false,
           nextCursor: response.nextCursor,
           totalCount: items.length,
@@ -881,7 +920,7 @@ export const usePostsStore = create<PostsStoreState>()(
         persistRelatedPosts(items);
 
         notifyPostChanges(collectWrittenPostIds(items));
-        notifyFeedChanges([feedKey]);
+        notifyFeedAppended(feedKey, appended);
 
         set((s) => ({
           feedUI: {
@@ -1841,15 +1880,23 @@ const getPostSnapshot = (postId: string, _revision: number): FeedItem | null => 
   return post;
 };
 
-const useFeedSnapshot = (feedKey: string): FeedSnapshot => {
+const EMPTY_FEED_SNAPSHOT: FeedSnapshot = { items: [], meta: null };
+
+/** `feedKey` null: a reader this feed does not serve, subscribed to nothing. */
+const useFeedSnapshot = (feedKey: string | null): FeedSnapshot => {
   const subscribe = useCallback(
     (listener: SnapshotListener) =>
-      subscribeToSnapshotKey(feedSnapshotListeners, feedSnapshotRevisions, feedKey, listener),
+      feedKey
+        ? subscribeToSnapshotKey(feedSnapshotListeners, feedSnapshotRevisions, feedKey, listener)
+        : () => undefined,
     [feedKey],
   );
-  const getRevision = useCallback(() => feedSnapshotRevisions.get(feedKey) ?? 0, [feedKey]);
+  const getRevision = useCallback(
+    () => (feedKey ? (feedSnapshotRevisions.get(feedKey) ?? 0) : 0),
+    [feedKey],
+  );
   const revision = useSyncExternalStore(subscribe, getRevision, getRevision);
-  return getFeedSnapshot(feedKey, revision);
+  return feedKey ? getFeedSnapshot(feedKey, revision) : EMPTY_FEED_SNAPSHOT;
 };
 
 /**
@@ -1945,10 +1992,15 @@ export const useViewCountSelector = (postId: string | undefined): number | null 
   return postId ? getViewCountSnapshot(postId, revision) : undefined;
 };
 
-export const useFeedSelector = (type: FeedType) => {
+/**
+ * A feed's rows and state from SQLite. `enabled: false` (a feed this hook
+ * instance does not serve) subscribes to nothing, so no write to the feed wakes
+ * it.
+ */
+export const useFeedSelector = (type: FeedType, enabled = true) => {
   const feedKey = buildFeedKey(type);
-  const ui = usePostsStore((s) => s.feedUI[feedKey]);
-  const { items, meta } = useFeedSnapshot(feedKey);
+  const ui = usePostsStore((s) => (enabled ? s.feedUI[feedKey] : undefined));
+  const { items, meta } = useFeedSnapshot(enabled ? feedKey : null);
 
   return {
     items,
@@ -1965,10 +2017,11 @@ export const useFeedSelector = (type: FeedType) => {
   };
 };
 
-export const useUserFeedSelector = (userId: string, type: FeedType) => {
+/** {@link useFeedSelector} for a profile's feed. */
+export const useUserFeedSelector = (userId: string, type: FeedType, enabled = true) => {
   const feedKey = buildFeedKey(type, userId);
-  const ui = usePostsStore((s) => s.feedUI[feedKey]);
-  const { items, meta } = useFeedSnapshot(feedKey);
+  const ui = usePostsStore((s) => (enabled ? s.feedUI[feedKey] : undefined));
+  const { items, meta } = useFeedSnapshot(enabled ? feedKey : null);
 
   return {
     items,

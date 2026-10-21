@@ -133,26 +133,31 @@ export function memSetFeedItems(feedKey: string, items: FeedItem[], meta: FeedMe
  * Append items to an existing feed (pagination). De-dupes against existing ids,
  * mirroring the SQLite PRIMARY KEY `INSERT OR IGNORE` behaviour.
  */
+/** Returns the items that joined the feed, in order (see `appendFeedItems`). */
 export function memAppendFeedItems(
   feedKey: string,
   items: FeedItem[],
   meta: Partial<FeedMetaData>,
-): void {
-  if (!feedKey || items.length === 0) return;
+): FeedItem[] {
+  if (!feedKey || items.length === 0) return [];
   memUpsertPosts(items);
 
   const existing = feedItems.get(feedKey) ?? [];
   const seen = new Set(existing);
   const next = existing.slice();
+  const appended: FeedItem[] = [];
   for (const item of items) {
     const id = resolveId(item);
     if (id && !seen.has(id)) {
       seen.add(id);
       next.push(id);
+      const stored = posts.get(id);
+      if (stored) appended.push(stored);
     }
   }
   feedItems.set(feedKey, next);
   applyMeta(feedKey, meta, next.length);
+  return appended;
 }
 
 export function memGetAllFeedItems(feedKey: string): FeedItem[] {

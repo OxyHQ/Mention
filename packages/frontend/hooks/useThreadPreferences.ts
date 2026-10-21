@@ -39,7 +39,7 @@ interface ThreadPreferencesState {
 }
 
 const DEFAULTS = {
-  treeView: false,
+  treeView: true,
   sortOrder: 'top' as SortOrder,
   voteStyle: 'heart' as VoteStyle,
 };

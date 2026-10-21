@@ -1,6 +1,6 @@
 import { sanitizePodcast } from '../utils/podcastReference';
 import { sanitizeHomiioCase, homiioCaseFromText } from '@mention/shared-types/homiio';
-import { hydratePostMedia } from './hydratePostMedia';
+import { hydratePostMedia, prefetchPostMediaAccess } from './hydratePostMedia';
 import type { SafetyRequester, SafetyDecision } from '@oxy.so/contracts';
 import {
   loadPostSafetyDecisions,
@@ -45,17 +45,19 @@ import { posts } from '../db/schema/posts';
 import { userSettings } from '../db/schema/userProfile';
 import {
   CHRONO_DESC,
+  completeShellRecords,
   countQuotesOf,
   findBoostedPostIds,
   findPostRecords,
   loadPostRecords,
 } from '../db/posts/postRepository';
-import type { PostRecordFederation } from '../db/posts/postRecord';
+import type { PostRecord, PostRecordFederation } from '../db/posts/postRecord';
 import type { FederatedActorRecord } from '../db/federation/actorRecord';
 import { findActorsByUris } from '../db/federation/actorRepository';
 import { loadImportProvenance, type PostImportHydration } from '../db/imports/postImportRepository';
 import { disclosesWriters, loadSigningChannelIds } from './channelWriterDisclosure';
 import { loadShownNotes } from './communityNotes/CommunityNotesService';
+import { getOrLoadPostRecords } from './postDetailCache';
 import { deriveBridgyActorUri } from '../connectors/activitypub/bridgy';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
@@ -399,8 +401,7 @@ interface ExtendedViewerContext extends ViewerContext {
 
 /**
  * Loading a reply's PARENT, only to answer "whom does this reply answer" (see
- * `buildReplyParentAuthorMap`) and to answer the same question by id (see
- * `canViewerReadPostId`).
+ * `buildReplyParentAuthorMap`).
  *
  * A WHOLE record rather than a projection, deliberately. Two of the four fields
  * the ACL reads are not columns of `posts`: `authorship` is `post_authorships`,
@@ -411,12 +412,42 @@ interface ExtendedViewerContext extends ViewerContext {
  * gate stops gating rather than erroring. The parent's body is never rendered
  * from here; it is thrown away the moment its author id is taken.
  */
-async function loadReplyParents(
-  postIds: readonly string[],
-  db?: DatabaseOrTransaction,
-): Promise<RawPost[]> {
-  const records = await loadPostRecords([...postIds], db);
+async function loadReplyParents(postIds: readonly string[]): Promise<RawPost[]> {
+  // Through the viewer-agnostic record cache: a thread's parent is the same row
+  // for every reply under it and every reader of them, and it is the cache that
+  // edits, visibility, authorship and deletes already invalidate.
+  const records = await getOrLoadPostRecords(postIds, (ids) => loadPostRecords(ids));
   return records as unknown as RawPost[];
+}
+
+/**
+ * The parents a set of posts replies to that are not among those posts.
+ * Deduplicated, in first-seen order.
+ */
+function externalParentIds(posts: Iterable<RawPost>, present: { has(id: string): boolean }) {
+  const ids = new Set<string>();
+  for (const post of posts) {
+    const parentId = post.parentPostId ? String(post.parentPostId) : '';
+    if (parentId && !present.has(parentId)) ids.add(parentId);
+  }
+  return [...ids];
+}
+
+/** Every Oxy file a stored post can render: its media and each rendition's own. */
+function storedMediaIds(post: RawPost): string[] {
+  const content = post.content;
+  if (!content) return [];
+  const ids: string[] = [];
+  const collect = (items: unknown) => {
+    if (!Array.isArray(items)) return;
+    for (const item of items) {
+      const id = typeof item === 'string' ? item : (item as { id?: unknown } | null)?.id;
+      if (id) ids.push(String(id));
+    }
+  };
+  collect(content.media);
+  for (const variant of content.variants ?? []) collect(variant.media);
+  return ids;
 }
 
 /**
@@ -1023,26 +1054,36 @@ export class PostHydrationService {
     }
 
     const maxDepth = Math.max(0, options.maxDepth ?? 1);
+    const normalizedPosts = rawPosts.map(
+      (p): RawPost =>
+        typeof (p as { toObject?: () => RawPost }).toObject === 'function'
+          ? (p as { toObject: () => RawPost }).toObject()
+          : (p as RawPost),
+    );
+    // The page's own reply parents are known from the rows in hand, so their
+    // read starts NOW, beside the viewer context and the reference walk, instead
+    // of after both. It is a read, never a disclosure: what a parent may reveal
+    // is decided below, under the same ACL as every other post in the graph.
+    const pageIds = new Set(normalizedPosts.filter(Boolean).map((post) => this.resolveId(post)));
+    const earlyParentIds = externalParentIds(normalizedPosts.filter(Boolean), pageIds);
+    const earlyParents = earlyParentIds.length
+      ? loadReplyParents(earlyParentIds)
+      : Promise.resolve<RawPost[]>([]);
+    // Awaited below; until then a rejection must not surface as unhandled.
+    earlyParents.catch(() => undefined);
     const viewerContext = await this.buildViewerContext(rawPosts, options.viewerId, options);
 
-    const initialPosts = rawPosts
-      .map(
-        (p): RawPost =>
-          typeof (p as { toObject?: () => RawPost }).toObject === 'function'
-            ? (p as { toObject: () => RawPost }).toObject()
-            : (p as RawPost),
-      )
-      .filter((post) => {
-        if (!post) return false;
-        const authorId = post.oxyUserId ? String(post.oxyUserId) : undefined;
-        if (authorId) return !viewerContext.blockedIds.has(authorId);
-        // A FEDERATED post whose Oxy author link is missing (a legacy "orphan",
-        // ingested before the federated-actor → Oxy-user link was enforced) is
-        // NOT a data error — it still renders in a degraded form (see
-        // buildPostSummary) so the post itself, and any boost/quote referencing
-        // it, is not blank. A native post with no author IS a data error → drop.
-        return Boolean(post.federation?.activityId);
-      });
+    const initialPosts = normalizedPosts.filter((post) => {
+      if (!post) return false;
+      const authorId = post.oxyUserId ? String(post.oxyUserId) : undefined;
+      if (authorId) return !viewerContext.blockedIds.has(authorId);
+      // A FEDERATED post whose Oxy author link is missing (a legacy "orphan",
+      // ingested before the federated-actor → Oxy-user link was enforced) is
+      // NOT a data error — it still renders in a degraded form (see
+      // buildPostSummary) so the post itself, and any boost/quote referencing
+      // it, is not blank. A native post with no author IS a data error → drop.
+      return Boolean(post.federation?.activityId);
+    });
 
     if (initialPosts.length === 0) {
       return [];
@@ -1063,19 +1104,27 @@ export class PostHydrationService {
     const collectedPosts = Array.from(graph.values());
     if (options.viewerId && !options.safetyRequester)
       throw new Error('Authenticated hydration requires an explicit safety requester');
-    const parentIds = [
-      ...new Set(
-        collectedPosts.flatMap(({ post }) =>
-          post.parentPostId ? [String(post.parentPostId)] : [],
-        ),
-      ),
-    ].filter((id) => !graph.has(id));
-    // The parents and the safety evidence for the whole graph (parents included)
-    // are independent reads, so neither waits for the other.
-    const [preloadedReplyParents, assessments] = await Promise.all([
-      parentIds.length ? loadReplyParents(parentIds) : Promise.resolve<RawPost[]>([]),
+    const parentIds = externalParentIds(
+      collectedPosts.map(({ post }) => post),
+      graph,
+    );
+    // Only the parents of posts the reference walk added are still unread; the
+    // page's own were started above. Those and the safety evidence for the whole
+    // graph (parents included) are independent reads, so neither waits for the
+    // other.
+    const earlyParentIdSet = new Set(earlyParentIds);
+    const lateParentIds = parentIds.filter((id) => !earlyParentIdSet.has(id));
+    const wantedParentIds = new Set(parentIds);
+    const [earlyParentRows, lateParentRows, assessments] = await Promise.all([
+      earlyParents,
+      lateParentIds.length ? loadReplyParents(lateParentIds) : Promise.resolve<RawPost[]>([]),
       loadPostSafetyAssessments([...graph.keys(), ...parentIds]),
     ]);
+    // A parent the walk pulled into the graph itself is a graph node, not a
+    // parent to preload — exactly the set `parentIds` excludes.
+    const preloadedReplyParents = [...earlyParentRows, ...lateParentRows].filter((post) =>
+      wantedParentIds.has(this.resolveId(post)),
+    );
     const policyPosts = [
       ...Array.from(graph, ([id, { post }]) => ({ ...post, id })),
       ...preloadedReplyParents.map((post) => ({ ...post, id: this.resolveId(post) })),
@@ -1112,6 +1161,13 @@ export class PostHydrationService {
     // the link previews extracted from the text — reads the resolved rendition, so
     // a reader never sees one language's text beside another language's images.
     const resolvedMap = this.buildResolvedVariantMap(postsForHydration, viewerContext);
+    // The viewer's file ACL depends only on which files these (already admitted)
+    // posts can render, so Oxy is asked now, beside the hydration reads below,
+    // rather than after every summary has been built.
+    const mediaAccess = prefetchPostMediaAccess(
+      postsForHydration.flatMap(({ post }) => storedMediaIds(post)),
+      safetyRequester,
+    );
 
     // Run independent hydration steps in parallel to minimize waterfall latency.
     // Dependency chain: loadRecentReplierProjection → buildUserMap → buildReplierAvatarsFromUserMap
@@ -1223,6 +1279,7 @@ export class PostHydrationService {
     await hydratePostMedia(
       summaries.filter((summary): summary is HydratedPostSummary => summary !== null),
       safetyRequester,
+      mediaAccess,
     );
     for (const summary of summaries) {
       if (summary) {
@@ -1423,15 +1480,15 @@ export class PostHydrationService {
     // — to avoid paying for a 9-table join on every candidate ranking then
     // discards. This is the one choke point every ranked/sliced feed's posts
     // pass through before hydration, so it is where the DEFERRED join finally
-    // happens, for exactly the page that survived to here. Any other feed
-    // type, which never produces a shell, pays nothing extra: the scan below
-    // finds nothing and `unassembledIds` stays empty.
-    const unassembledIds = allRawPosts
-      .filter((post) => (post as { _unassembled?: boolean })._unassembled === true)
-      .map((post) => (post as { id: string }).id);
-    if (unassembledIds.length > 0) {
-      const assembled = await loadPostRecords(unassembledIds);
-      const assembledById = new Map(assembled.map((record) => [record.id, record]));
+    // happens, for exactly the page that survived to here — from the `posts`
+    // rows the shells already carry, so only the child tables are read. Any
+    // other feed type, which never produces a shell, pays nothing extra: the
+    // scan below finds nothing and `unassembled` stays empty.
+    const unassembled = allRawPosts.filter(
+      (post) => (post as { _unassembled?: boolean })._unassembled === true,
+    ) as PostRecord[];
+    if (unassembled.length > 0) {
+      const assembledById = await completeShellRecords(unassembled);
       for (let i = 0; i < allRawPosts.length; i++) {
         const shell = allRawPosts[i] as { id?: string; _unassembled?: boolean };
         if (shell._unassembled !== true) continue;
@@ -2506,7 +2563,9 @@ export class PostHydrationService {
     options?: Pick<HydrationOptions, 'oxyClient' | 'operatedAccountReader' | 'safetyRequester'>,
     db: DatabaseOrTransaction = getDb(),
   ): Promise<boolean> {
-    const [post] = await loadReplyParents([postId], db);
+    // Read fresh, through the caller's handle: this answer may authorize a write
+    // inside that caller's transaction, so it never comes from a cache.
+    const [post] = (await loadPostRecords([postId], db)) as unknown as RawPost[];
     if (!post) return false;
 
     if (viewerId && !options?.safetyRequester)

@@ -9,9 +9,7 @@ import {
   FlatList,
   Platform,
   Share,
-  type ViewStyle,
   type TextStyle,
-  type ImageStyle,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { toast } from '@oxy.so/bloom/toast';
@@ -2071,6 +2069,7 @@ export default function VideosScreen() {
         scroll="auto"
         active={isFocused}
         headerPlacement="overlay"
+        contentClearance={0}
         testID="videos-screen"
         style={{ backgroundColor: posts.length === 0 ? theme.colors.background : '#000000' }}
         header={
@@ -2257,49 +2256,7 @@ const TEXT_SHADOW_HANDLE: Pick<
   textShadowRadius: 4,
 };
 
-type VideosStyles = {
-  list: ViewStyle;
-  listContent: ViewStyle;
-  videoContainer: ViewStyle;
-  video: ViewStyle;
-  videoPlaceholder: ViewStyle;
-  posterLayer: ViewStyle;
-  poster: ImageStyle;
-  tapLayer: ViewStyle;
-  heartPop: ViewStyle;
-  pauseAffordance: ViewStyle;
-  pauseAffordanceInner: ViewStyle;
-  bufferSpinner: ViewStyle;
-  bufferSpinnerInner: ViewStyle;
-  scrubberHitArea: ViewStyle;
-  scrubberTrack: ViewStyle;
-  scrubberTrackActive: ViewStyle;
-  scrubberFill: ViewStyle;
-  overlay: ViewStyle;
-  gradientOverlay: ViewStyle;
-  rightActions: ViewStyle;
-  actionCount: TextStyle;
-  bottomInfo: ViewStyle;
-  userInfo: ViewStyle;
-  userHeaderRow: ViewStyle;
-  userHeader: ViewStyle;
-  onVideoFollow: ViewStyle;
-  userAvatar: ViewStyle;
-  userNameContainer: ViewStyle;
-  userNameRow: ViewStyle;
-  userFullName: TextStyle;
-  userHandle: TextStyle;
-  verifiedIcon: ViewStyle;
-  caption: ViewStyle;
-  postText: TextStyle;
-  postLink: TextStyle;
-  captionToggle: TextStyle;
-  soundRow: ViewStyle;
-  soundIcon: TextStyle;
-  soundText: TextStyle;
-};
-
-const styles = StyleSheet.create<VideosStyles>({
+const styles = StyleSheet.create({
   list: {
     flex: 1,
   },

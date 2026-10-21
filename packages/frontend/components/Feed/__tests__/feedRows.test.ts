@@ -94,12 +94,14 @@ function slot(kind: FeedInterstitialSlot['kind'], afterSliceKey: string): FeedIn
 const NO_BLOCKS = new Set<string>();
 
 function build(params: {
+  leadingPostId?: string;
   slices?: FeedPostSlice[];
   items?: HydratedPost[];
   interstitials?: FeedInterstitialSlot[];
   blockedSet?: Set<string>;
 }): FeedRow[] {
   return buildFeedRows({
+    leadingPostId: params.leadingPostId,
     slices: params.slices,
     items: params.items ?? [],
     interstitials: params.interstitials,
@@ -497,5 +499,100 @@ describe('renderFeedRow — a recycled cell never inherits another card', () => 
     act(() => renderer!.update(React.createElement(Cell, { row: second })));
     expect(mockInterstitialMounts).toBe(2);
     act(() => renderer!.unmount());
+  });
+});
+
+describe('profile pinned post deduplication', () => {
+  it.each(['flat', 'slices'])(
+    'excludes the pinned post across pages and restores it on unpin (%s)',
+    (mode) => {
+      const data =
+        mode === 'flat'
+          ? { items: [post('latest'), post('older'), post('latest')] }
+          : { slices: [slice('latest'), slice('older'), slice('latest')] };
+      expect(build({ ...data, leadingPostId: 'latest' }).map((row) => asPost(row).item.id)).toEqual(
+        ['older'],
+      );
+      expect(build(data).map((row) => asPost(row).item.id)).toEqual(['latest', 'older']);
+      expect(build({ ...data, leadingPostId: 'older' }).map((row) => asPost(row).item.id)).toEqual([
+        'latest',
+      ]);
+    },
+  );
+
+  it('recomputes thread positions after excluding the pinned parent', () => {
+    const rows = build({ slices: [threadSlice(['pinned', 'reply'])], leadingPostId: 'pinned' });
+    expect(rows).toHaveLength(1);
+    expect(asPost(rows[0]).item.id).toBe('reply');
+    expect(asPost(rows[0]).isThreadChild).toBe(false);
+  });
+});
+
+describe('reply branches', () => {
+  function reply(id: string, parentPostId: string, replies = 0): HydratedPost {
+    return { ...post(id), parentPostId, engagement: { replies } } as HydratedPost;
+  }
+  function branches(items: HydratedPost[], blockedSet = NO_BLOCKS) {
+    return buildFeedRows({
+      items,
+      type: 'replies',
+      blockedSet,
+      threaded: true,
+      threadPostId: 'focus',
+    }).map(asPost);
+  }
+
+  it('keeps a sibling trunk through descendants and closes each independent conversation', () => {
+    const rows = branches([
+      reply('a', 'focus', 2),
+      reply('b', 'a', 1),
+      reply('c', 'b'),
+      reply('d', 'a'),
+      reply('e', 'focus'),
+    ]);
+    expect(rows.map((row) => [row.item.id, row.nestingDepth, row.replyBranch])).toEqual([
+      ['a', 0, { continuingDepths: [], endsGroup: false }],
+      ['b', 1, { continuingDepths: [0], endsGroup: false }],
+      ['c', 2, { continuingDepths: [0], endsGroup: false }],
+      ['d', 1, { continuingDepths: [], endsGroup: true }],
+      ['e', 0, { continuingDepths: [], endsGroup: true }],
+    ]);
+    // A nested reply has an elbow to its actual parent, never a straight line
+    // implying it answers the previous flattened row (which may be a cousin).
+    expect(rows.every((row) => !row.isThreadChild)).toBe(true);
+    expect(rows.filter((row) => row.isThreadParent).map((row) => row.item.id)).toEqual(['a', 'b']);
+  });
+
+  it('offers the conversation when the bounded preview omits children', () => {
+    const rows = branches([reply('a', 'focus', 5), reply('b', 'a', 2)]);
+    expect(rows[0]).toMatchObject({ isIncompleteThread: true, truncatedChildCount: 4 });
+    expect(rows[1]).toMatchObject({ isIncompleteThread: true, truncatedChildCount: 2 });
+  });
+
+  it('caps indentation and offers deeper replies without drawing a dangling outgoing line', () => {
+    const rows = branches([
+      reply('a', 'focus'),
+      reply('b', 'a'),
+      reply('c', 'b'),
+      reply('d', 'c'),
+      reply('e', 'd'),
+    ]);
+    expect(rows.map((row) => row.item.id)).toEqual(['a', 'b', 'c', 'd']);
+    expect(rows[3]).toMatchObject({
+      nestingDepth: 3,
+      isThreadParent: false,
+      isIncompleteThread: true,
+      truncatedChildCount: 1,
+      replyBranch: { continuingDepths: [], endsGroup: true },
+    });
+  });
+
+  it('does not connect replies whose parent is absent or filtered', () => {
+    const hidden = { ...reply('a', 'focus'), user: { id: 'blocked' } } as HydratedPost;
+    const rows = branches([hidden, reply('b', 'a'), reply('c', 'missing')], new Set(['blocked']));
+    expect(rows.map((row) => [row.nestingDepth, row.replyBranch?.endsGroup])).toEqual([
+      [0, true],
+      [0, true],
+    ]);
   });
 });

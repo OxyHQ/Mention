@@ -32,19 +32,8 @@
  */
 
 import { MtnConfig, PostType, PostVisibility } from '@mention/shared-types';
-import {
-  and,
-  eq,
-  exists,
-  gt,
-  gte,
-  inArray,
-  isNull,
-  notInArray,
-  or,
-  sql,
-  type SQL,
-} from 'drizzle-orm';
+import { and, eq, exists, gt, gte, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
+import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { qualified } from '@oxy.so/db';
 import { getDb } from '../db/postgres';
 import { postAttachments, postMedia, posts } from '../db/schema';
@@ -135,13 +124,26 @@ export function notCollapsedCrosspostSql(): SQL {
  * Exclude post ids the viewer has already been shown.
  *
  * Returns `undefined` for an empty set so the caller can drop the term entirely
- * rather than emit a degenerate `NOT IN ()`. The ids are not shape-checked
+ * rather than emit a degenerate `<> all('{}')`. The ids are not shape-checked
  * (`@oxy.so/db`): a text id that names no row already produces exactly the
  * "no such post" answer the caller wanted.
+ *
+ * ONE array parameter, not one parameter per id. The seen set runs to 1,000 ids,
+ * and `NOT IN ($1, …, $1000)` is a different statement text for every set size:
+ * each one is parsed, planned and prepared again on its connection, and each
+ * prepared copy stays on the server. `<> all($1::text[])` is one statement
+ * whatever the set holds.
+ *
+ * `column` is the post id to test, `posts.id` unless the scan drives from a
+ * child table: the Videos lane tests `post_media.post_id`, so a seen post is
+ * stepped over on the media index entry instead of by a probe into `posts`.
  */
-export function excludeSeenSql(seenPostIds: readonly string[]): SQL | undefined {
+export function excludeSeenSql(
+  seenPostIds: readonly string[],
+  column: AnyPgColumn = posts.id,
+): SQL | undefined {
   if (seenPostIds.length === 0) return undefined;
-  return notInArray(posts.id, [...seenPostIds]);
+  return sql`${qualified(column)} <> all(${sql.param([...seenPostIds])}::text[])`;
 }
 
 /**
@@ -161,7 +163,7 @@ export function excludeSeenSql(seenPostIds: readonly string[]): SQL | undefined 
  */
 export function authorNotInSql(ids: readonly string[]): SQL | undefined {
   if (ids.length === 0) return undefined;
-  return or(isNull(posts.oxyUserId), notInArray(posts.oxyUserId, [...ids])) as SQL;
+  return sql`(${qualified(posts.oxyUserId)} is null or ${qualified(posts.oxyUserId)} <> all(${sql.param([...ids])}::text[]))`;
 }
 
 export class FeedQueryBuilder {
@@ -303,8 +305,8 @@ export class FeedQueryBuilder {
   }
 
   /**
-   * The `posts`-side half of the Videos lane: publication state, not a boost, and
-   * not already seen — the companion to
+   * The `posts`-side half of the Videos lane: publication state and not a boost —
+   * the companion to
    * {@link FeedQueryBuilder.videoMediaConditions} for the media-driven scan,
    * which applies the two halves to the two tables it joins.
    *
@@ -313,18 +315,13 @@ export class FeedQueryBuilder {
    * than eyeballed: `videosLaneChrono.test.ts` drives both formulations over the
    * fixtures that distinguish them and requires the same posts back.
    */
-  static videoPostConditions(seenPostIds: readonly string[]): SQL {
-    const conditions: SQL[] = [
+  static videoPostConditions(): SQL {
+    return and(
       eq(posts.visibility, PostVisibility.PUBLIC),
       eq(posts.status, 'published'),
       notCollapsedCrosspostSql(),
       notABoostSql(),
-    ];
-
-    const seen = excludeSeenSql(seenPostIds);
-    if (seen) conditions.push(seen);
-
-    return and(...conditions) as SQL;
+    ) as SQL;
   }
 
   /**

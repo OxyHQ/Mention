@@ -99,8 +99,19 @@ export const viewerQueryKeys = {
     ['mention', 'viewer', viewerCacheId(viewerId), 'minimal-profile', handle] as const,
   postAccess: (viewerId: ViewerId, postId: string) =>
     ['mention', 'viewer', viewerCacheId(viewerId), 'post-access', postId] as const,
-  composeMedia: (viewerId: ViewerId, privateReady: boolean, ids: readonly string[]) =>
-    ['mention', 'viewer', viewerCacheId(viewerId), 'compose-media', privateReady, ids] as const,
+  composeMedia: (
+    viewerId: ViewerId,
+    privateReady: boolean,
+    requests: readonly { fileId: string; variant?: string }[],
+  ) =>
+    [
+      'mention',
+      'viewer',
+      viewerCacheId(viewerId),
+      'compose-media',
+      privateReady,
+      requests,
+    ] as const,
 
   all: (viewerId: ViewerId) => ['viewer', viewerCacheId(viewerId)] as const,
   /**
@@ -307,8 +318,12 @@ export const viewerQueryKeys = {
     [...viewerQueryKeys.notificationsRoot(viewerId), 'unread-count'] as const,
   similarProfiles: (viewerId: ViewerId, sourceUserId: string | null | undefined) =>
     [...viewerQueryKeys.all(viewerId), 'similar-profiles', sourceUserId ?? ''] as const,
-  profileReputation: (viewerId: ViewerId, profileId: string | null | undefined) =>
-    [...viewerQueryKeys.all(viewerId), 'profile-reputation', profileId ?? ''] as const,
+  /**
+   * The viewer's Oxy block and restrict lists, as ids. One app-wide entry, so
+   * every mounted feed shares one read instead of each asking Oxy on mount.
+   */
+  privacyLists: (viewerId: ViewerId) =>
+    [...viewerQueryKeys.all(viewerId), 'privacy-lists'] as const,
   mutualFollowers: (viewerId: ViewerId, profileId: string | null | undefined) =>
     [...viewerQueryKeys.all(viewerId), 'mutual-followers', profileId ?? ''] as const,
   knownLikers: (viewerId: ViewerId, postId: string | null | undefined) =>
@@ -323,8 +338,6 @@ export const viewerQueryKeys = {
     [...viewerQueryKeys.all(viewerId), 'connections-mutuals', profileId ?? ''] as const,
   customFeedsRoot: (viewerId: ViewerId) =>
     [...viewerQueryKeys.all(viewerId), 'custom-feeds'] as const,
-  customFeedTitles: (viewerId: ViewerId) =>
-    [...viewerQueryKeys.customFeedsRoot(viewerId), 'titles'] as const,
   customFeed: (viewerId: ViewerId, feedId: string) =>
     [...viewerQueryKeys.customFeedsRoot(viewerId), 'detail', feedId] as const,
   customFeedMarketplace: (viewerId: ViewerId, filters: Readonly<Record<string, unknown>>) =>

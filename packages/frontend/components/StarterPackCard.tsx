@@ -1,12 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import {
-  View,
-  StyleSheet,
-  TouchableOpacity,
-  type ColorValue,
-  type StyleProp,
-  type ViewStyle,
-} from 'react-native';
+import { View, StyleSheet, TouchableOpacity, type ColorValue, type StyleProp } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
 import { IconCircle } from '@oxy.so/bloom/icon-circle';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
@@ -53,7 +46,7 @@ interface StarterPackCardProps {
  * through `style.color` (the `primary` half of its tint pair), which this app
  * icon takes as a `color` prop.
  */
-function StarterPackGlyph({ style }: { style?: StyleProp<ViewStyle & { color?: ColorValue }> }) {
+function StarterPackGlyph({ style }: { style?: StyleProp<{ color?: ColorValue }> }) {
   const color = StyleSheet.flatten(style)?.color;
   return <StarterPackIcon size={22} color={typeof color === 'string' ? color : undefined} />;
 }

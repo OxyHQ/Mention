@@ -51,7 +51,11 @@ vi.mock('../../mtn/UserPrivacyManager', () => ({
 }));
 
 const oxyMocks = vi.hoisted(() => ({
-  scopedClient: {},
+  // The viewer's relations: nobody blocked, restricted or followed.
+  scopedClient: {
+    privacy: { blocked: async () => [], restricted: async () => [] },
+    follows: { following: async () => [], followers: async () => [] },
+  },
   createScopedOxyClient: vi.fn(),
 }));
 oxyMocks.createScopedOxyClient.mockReturnValue(oxyMocks.scopedClient);

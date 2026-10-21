@@ -1,7 +1,7 @@
 import { usePanelScrollContainer } from '@oxy.so/bloom/app-shell/hooks';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, memo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import { useOwnerVirtualizer } from '@/hooks/useOwnerVirtualizer.web';
 import { useScreenViewport } from '@oxy.so/bloom/screen';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
@@ -14,12 +14,16 @@ import { type FeedProps, FeedErrorBoundary, areFeedPropsEqual, useFeedCore } fro
 
 // Estimated row height (px) before a row is measured. Post rows vary widely
 // (text-only vs. media vs. threads), so this is only the first-paint guess;
-// `measureElement` replaces it with the real height once each row mounts.
-const ESTIMATED_ROW_HEIGHT = 140;
+// `measureElement` replaces it with the real height once each row mounts. Near
+// a typical post with media rather than a one-line text post: an estimate far
+// below the real heights mounts two or three times the rows the first paint
+// can show.
+const ESTIMATED_ROW_HEIGHT = 400;
 
 // Small overscan keeps the mounted-row count bounded (~viewport + a handful) so
 // the DOM never holds the whole feed — the whole point of virtualizing on web.
-const OVERSCAN_ROWS = 8;
+// Rows are tall, so three on each side is already a screen or more.
+const OVERSCAN_ROWS = 3;
 
 // The load-more sentinel is observed `rootMargin` before it actually enters the
 // viewport, so the next page is requested ahead of the reader reaching the end.
@@ -131,14 +135,6 @@ function VirtualizedWebFeed(props: FeedProps) {
   // wrapper is collapsed — see the hook for why the old row-count key was
   // wrong once a feed can be mounted and hidden at once.
   const scrollMargin = useScrollMarginOrigin(wrapperRef);
-
-  // `contentContainerStyle` (a caller-provided RN style, e.g. paddingBottom) is
-  // flattened to a CSS object for the DOM wrapper. It sits OUTSIDE the measured
-  // spacer so the virtual math stays exact.
-  const contentContainerCss = useMemo(
-    () => StyleSheet.flatten(merged.contentContainerStyle) as React.CSSProperties | undefined,
-    [merged.contentContainerStyle],
-  );
 
   const count = feedRows.length;
 
@@ -320,7 +316,7 @@ function VirtualizedWebFeed(props: FeedProps) {
           // `contentContainerStyle` wraps the measured container so
           // padding lives OUTSIDE the spacer (the spacer is exactly the
           // virtual height, and `scrollMargin` reads the spacer's top).
-          <div style={contentContainerCss}>
+          <View style={merged.contentContainerStyle}>
             <div
               ref={wrapperRef}
               style={{ height: spacerHeight, width: '100%', position: 'relative' }}
@@ -358,7 +354,7 @@ function VirtualizedWebFeed(props: FeedProps) {
                 style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: 1 }}
               />
             </div>
-          </div>
+          </View>
         )}
 
         {core.footer}

@@ -17,8 +17,36 @@ belong to Bloom. Restored `activePanel` is passive: loading Deck does not scroll
 horizontally to the last selected column. Adding a column issues Bloom's transient
 `revealPanel` request so the new column comes into view. This request is excluded
 from local/account workspace snapshots and cleared on account activation.
+Bloom waits for the compositor's own transitions before revealing the expanded
+column; content animations do not delay it. A superseded request or unmounted
+layout cancels the pending reveal. Reduced motion keeps the same destination
+without animated scrolling.
 Do not reimplement these with window measurements or nested
 application scroll containers.
+
+Bloom's compact sidebar mode switch (`modesPresentation="toggle"`) changes composition without navigating: the current
+Expo page stays mounted in the same `main` panel and is always the first column.
+This application column cannot be removed, resized or assigned a different feed;
+ordinary app navigation changes the page it shows. Additional columns retain their
+own configurable feeds and histories. An untouched legacy leading Explore slot
+is replaced by this application column; any customized legacy column is retained
+as an additional column, with its settings and history intact.
+
+Additional columns opt into Bloom's `reorderable` header grip. Bloom owns pointer
+and keyboard movement and reports `onPanelOrderChange`; Mention persists only
+the saved-column order through the existing account cache/sync. The main column
+stays fixed. Reordering preserves panel IDs, navigation, scroll snapshots and
+hidden legacy slots.
+
+Bloom owns panel movement and document/column scroll handoff through
+`panelLayout.transition="exit-before-enter"`: outgoing context chrome fades away,
+the retained layout changes geometry, and incoming panels appear. The same
+sequence runs in reverse on exit, with reduced-motion behavior owned by Bloom.
+Panel invitations use the descriptor's
+`bottomBar` slot; the route Screen composes and measures that footer without an
+application wrapper. The selected mode is stored locally per account, separately
+from synchronized column configuration. Phones retain normal layout; returning
+to desktop restores the selected mode.
 
 Each route renders `Screen scroll="auto"`, with its `PageHeader` in `header` and
 optional `PageFooter` in `bottomBar`. Header material follows that Screen's owner.
@@ -66,9 +94,11 @@ still require skeletons and may fail or take time.
 
 ## Deck as the home screen
 
-On desktop, **Settings → Deck → Make Deck my home screen** opens `/deck` when
-visiting `/`, including the Home and Mention-logo links. The root shell replaces
-the route using Expo Router; Back does not revisit an intermediate home redirect.
+On desktop, **Settings → Deck → Make Deck my home screen** opens the Deck
+composition when visiting `/`, including the Home and Mention-logo links.
+Home remains the fixed first column, with configured columns beside it. A cold
+`/deck` link activates Deck mode and resolves to Home. Mode switches preserve the
+current route; navigation continues inside the fixed application column.
 Explicit deep links remain unchanged, and Home rendered inside a Deck panel stays
 the regular feed. Phones and tablets retain normal Home even when this account
 preference is enabled; the switch appears only where Deck is available.
@@ -139,6 +169,17 @@ production already runs it.
   disabled-layout preservation and account erasure against PostgreSQL.
 - Check normal document pages, Deck horizontal scrolling, compact settings and
   native list ownership; headers and indicators must follow the correct owner.
+- Enter and leave Deck from a post; its mounted content, reading position and
+  sign-in footer must stay in the first panel.
+- Reorder additional columns by pointer and keyboard, preserving their DOM,
+  history and horizontal offset. The first application column stays fixed.
+- Add a column from the trailing action, verify that its final box is revealed,
+  then remove it through its settings.
+
+Browser geometry assertions and raw pointer coordinates must wait for the
+configured column widths to settle. Visibility alone does not mean that an
+entrance transition has finished. The release gate uses `expectDeckColumnWidths`
+for these checks rather than fixed sleeps or relaxed geometry tolerances.
 
 Browser fixtures may mock the HTTP contract; PostgreSQL tests separately establish
 server behavior. Neither proves that production has been deployed.

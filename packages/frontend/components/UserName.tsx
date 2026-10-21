@@ -19,6 +19,7 @@ const UserName: React.FC<UserNameProps> = ({
   isAgent,
   isAutomated,
   href,
+  onPress,
   asHeading,
   onExplainNetwork,
   onExplainChannel,
@@ -157,7 +158,15 @@ const UserName: React.FC<UserNameProps> = ({
       role={asHeading ? 'heading' : undefined}
     >
       {href ? (
-        <Link href={href} push asChild onPress={(event) => event.stopPropagation()}>
+        <Link
+          href={href}
+          push
+          asChild
+          onPress={(event) => {
+            event.stopPropagation();
+            onPress?.();
+          }}
+        >
           <Text>{primaryText}</Text>
         </Link>
       ) : (
@@ -227,9 +236,13 @@ const UserName: React.FC<UserNameProps> = ({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'column',
+    minWidth: 0,
+    maxWidth: '100%',
   },
   nameRow: {
     flexDirection: 'row',
+    // Centered identity stacks still constrain the row before text ellipsizes.
+    maxWidth: '100%',
     alignItems: 'center',
     // Allow the row to shrink below its content's intrinsic width when a
     // constraining parent requests it, so the name Text can ellipsize.
@@ -248,6 +261,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   handle: {
+    maxWidth: '100%',
     fontSize: 15,
     lineHeight: 20,
   },

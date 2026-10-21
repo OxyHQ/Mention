@@ -117,7 +117,52 @@ function keyFor(userId: string): string {
 const cache = createCache({ name: 'UserSummaryCache', ttlSeconds: SUMMARY_TTL_SECONDS });
 
 /**
- * Batch-read cached summaries for many user ids in a single Redis round-trip.
+ * How long this task keeps a summary it read from Redis, and how many it keeps.
+ *
+ * The same few hundred authors fill every feed page this task serves, so each
+ * hydration was paying a Redis `MGET` and a JSON parse per author for entries
+ * that had not changed. A short-lived, bounded in-process copy answers those.
+ *
+ * Kept SHORT because it is per task: {@link invalidate} clears it on the task
+ * that runs it, and `userInvalidationSubscriber` — which runs on EVERY task —
+ * clears it everywhere on each identity change Oxy broadcasts. A Mention-side
+ * invalidation that Oxy does not broadcast (a starter-pack score) reaches the
+ * other tasks within this TTL.
+ */
+const LOCAL_TTL_MS = 15_000;
+const LOCAL_MAX_ENTRIES = 5_000;
+
+/**
+ * The in-process copy. Insertion-ordered, so the oldest entry is the first key
+ * and overflow evicts it; a hit is re-inserted so a busy author stays.
+ *
+ * It holds ONLY what Redis returned — never a value merely written — so it is a
+ * strict front for the shared cache and never knows something Redis does not.
+ * Entries are shared between callers and must be treated as read-only.
+ */
+const local = new Map<string, { value: CachedUserSummary; expiresAt: number }>();
+
+function readLocal(userId: string): CachedUserSummary | undefined {
+  const entry = local.get(userId);
+  if (!entry) return undefined;
+  local.delete(userId);
+  if (entry.expiresAt <= Date.now()) return undefined;
+  local.set(userId, entry);
+  return entry.value;
+}
+
+function writeLocal(userId: string, value: CachedUserSummary): void {
+  local.delete(userId);
+  local.set(userId, { value, expiresAt: Date.now() + LOCAL_TTL_MS });
+  if (local.size > LOCAL_MAX_ENTRIES) {
+    const oldest = local.keys().next();
+    if (!oldest.done) local.delete(oldest.value);
+  }
+}
+
+/**
+ * Batch-read cached summaries for many user ids: this task's short-lived copy
+ * first, then a single Redis round-trip for the rest.
  *
  * Returns a map of `userId -> CachedUserSummary` containing ONLY the hits;
  * misses are simply absent so the caller can compute the miss set. Degrades to
@@ -125,13 +170,21 @@ const cache = createCache({ name: 'UserSummaryCache', ttlSeconds: SUMMARY_TTL_SE
  */
 export async function mget(userIds: string[]): Promise<Map<string, CachedUserSummary>> {
   const result = new Map<string, CachedUserSummary>();
-  if (userIds.length === 0) {
+  const remoteIds: string[] = [];
+  for (const userId of userIds) {
+    const hit = readLocal(userId);
+    if (hit) result.set(userId, hit);
+    else remoteIds.push(userId);
+  }
+  if (remoteIds.length === 0) {
     return result;
   }
 
-  const values = await cache.getMany<CachedUserSummary>(userIds.map(keyFor));
+  const values = await cache.getMany<CachedUserSummary>(remoteIds.map(keyFor));
   values.forEach((value, index) => {
-    if (value) result.set(userIds[index], value);
+    if (!value) return;
+    result.set(remoteIds[index], value);
+    writeLocal(remoteIds[index], value);
   });
   return result;
 }
@@ -153,12 +206,13 @@ export async function mset(entries: Map<string, CachedUserSummary>): Promise<voi
 }
 
 /**
- * Evict cached identities for a set of user ids so the next hydration re-reads
- * the authoritative Oxy user. Called from the federated-actor identity bridge
+ * Evict cached identities for a set of user ids — this task's copy and the
+ * shared Redis entry — so the next hydration re-reads the authoritative Oxy user. Called from the federated-actor identity bridge
  * ({@link resolveOxyExternalUser}) after a successful re-resolve — an avatar or
  * display-name refresh on a federated actor must not be masked by a warm 10-min
  * cache entry. A failure degrades to a no-op (the entry simply ages out via TTL).
  */
 export async function invalidate(userIds: string[]): Promise<void> {
+  for (const userId of userIds) local.delete(userId);
   await cache.delete(userIds.map(keyFor));
 }

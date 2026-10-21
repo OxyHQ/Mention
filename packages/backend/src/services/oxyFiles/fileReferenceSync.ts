@@ -1,6 +1,5 @@
 import { inArray } from 'drizzle-orm';
 import type { ServiceFileReference, ServiceFileReferenceResult } from '@oxy.so/core';
-import { config } from '../../config';
 import { getDb } from '../../db/postgres';
 import {
   countStuckFileReferences,
@@ -43,8 +42,8 @@ import { describeOxyError, oxyErrorStatus } from './oxyErrors';
  * (429, 5xx, transport, a missing scope) is retried with backoff; nothing is
  * read as an answer that is not one.
  *
- * Runs on the periodic queue (one run across the fleet). `OXY_FILE_REFERENCES_ENABLED=false`
- * PAUSES it: marks keep accumulating and nothing is lost.
+ * Runs on the periodic queue (one run across the fleet), always: an application
+ * file nobody references is collected by Oxy, so the GIF library depends on it.
  */
 
 const STUCK_METRIC = 'oxy_file_reference_stuck';
@@ -235,10 +234,6 @@ async function drainOneBatch(): Promise<FileReferenceSyncResult> {
  */
 export async function drainFileReferenceSync(): Promise<FileReferenceSyncResult> {
   const total = emptyResult();
-  if (!config.oxyFiles.referencesEnabled) {
-    logger.debug('[FileReferences] paused by OXY_FILE_REFERENCES_ENABLED=false');
-    return total;
-  }
   for (let batch = 0; batch < MAX_BATCHES_PER_RUN; batch += 1) {
     const result = await drainOneBatch();
     addInto(total, result);
@@ -298,12 +293,6 @@ export async function clearFileReferencesBeforeDelete(
     keys.push({ fileId: row.poster, entityType: 'video_poster', entityId: row.video });
   }
   if (keys.length === 0) return clear;
-
-  if (!config.oxyFiles.referencesEnabled) {
-    // Paused: nothing can be sent, so nothing is certainly clear.
-    for (const key of keys) clear.delete(key.fileId);
-    return clear;
-  }
 
   await forceResendFileReferences(keys);
   await syncFileReferenceRows(await findFileReferences(keys));

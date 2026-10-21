@@ -1,7 +1,7 @@
 import type { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { getBaseLanguage, getPrimaryLanguage } from '@oxy.so/core';
-import { and, asc, desc, eq, gte, lte, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, isNull, lte, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { qualified } from '@oxy.so/db';
@@ -109,6 +109,9 @@ function requestedStatsDays(value: unknown): number {
  * statement timeout for larger ones, against 24 ms and 746 probes this way. The
  * copy equals `posts.created_at` by construction (`authorshipChronoSync.test.ts`).
  *
+ * Legacy/imported owner rows can have a null timestamp copy. Fall back to the
+ * canonical `posts.created_at` only for those rows; the common branch remains
+ * a direct range predicate on the author chronology index.
  * `post_authorships_one_owner_per_post` keeps the join from fanning a post out
  * into two rows.
  */
@@ -117,8 +120,14 @@ function ownedPostsCreatedBetween(userId: string, start: Date, end: Date): SQL |
     eq(postAuthorships.oxyUserId, userId),
     eq(postAuthorships.status, 'accepted'),
     eq(postAuthorships.role, 'owner'),
-    gte(postAuthorships.postCreatedAt, start),
-    lte(postAuthorships.postCreatedAt, end),
+    or(
+      and(gte(postAuthorships.postCreatedAt, start), lte(postAuthorships.postCreatedAt, end)),
+      and(
+        isNull(postAuthorships.postCreatedAt),
+        gte(posts.createdAt, start),
+        lte(posts.createdAt, end),
+      ),
+    ),
   );
 }
 

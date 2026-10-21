@@ -291,6 +291,21 @@ describe('cache.getOrCompute', () => {
     client.isReady = false;
     await expect(cache.getOrCompute('k', async () => 'fresh')).resolves.toBe('fresh');
   });
+
+  it('decides a batch with ONE read and serves each key on its own', async () => {
+    client.mGet.mockResolvedValue([JSON.stringify('cached'), null, null]);
+    const [hit, miss, failed] = cache.getOrComputeEach<string>([
+      { key: 'ka', compute: vi.fn() },
+      { key: 'kb', compute: async () => 'fresh' },
+      { key: 'kc', compute: async () => Promise.reject(new Error('down')) },
+    ]);
+
+    await expect(hit).resolves.toBe('cached');
+    await expect(miss).resolves.toBe('fresh');
+    await expect(failed).rejects.toThrow('down');
+    expect(client.mGet).toHaveBeenCalledTimes(1);
+    expect(client.get).not.toHaveBeenCalled();
+  });
 });
 
 describe('cache.getOrCompute with stale-while-revalidate', () => {

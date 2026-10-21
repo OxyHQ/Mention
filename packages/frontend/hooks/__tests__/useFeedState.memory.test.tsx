@@ -12,7 +12,8 @@ import { noteLaneListsChanged, resetLaneInvalidation } from '@/stores/laneInvali
 import { invalidateSafetyFilters, resetSafetyInvalidation } from '@/stores/safetyInvalidation';
 import { resetBylineInvalidation } from '@/stores/bylineInvalidation';
 import { useFeedState, type UseFeedStateOptions, type UseFeedStateReturn } from '../useFeedState';
-import { FED_PENDING_POLL_DELAYS_MS } from '../useFeedQuery';
+import { FED_PENDING_POLL_DELAYS_MS, prefetchFeed } from '../useFeedQuery';
+import { __feedPageReadForTests, startBootFeedRead } from '@/services/feedPageRead';
 
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
 
@@ -207,6 +208,47 @@ describe('useFeedState memory mode: one feed query', () => {
   });
 
   describe('cold start', () => {
+    it("takes the home feed's boot read for the viewer it was read as", async () => {
+      __feedPageReadForTests.reset();
+      getFeedMock.mockResolvedValueOnce(page(['booted'], undefined));
+      startBootFeedRead('viewer-a');
+      await mount({ ...explore, type: 'for_you' });
+
+      expect(getFeedMock).toHaveBeenCalledTimes(1);
+      expect(ids()).toEqual(['booted']);
+    });
+
+    it('reads a page that carries no items as an empty page', async () => {
+      getFeedMock.mockResolvedValue({ hasMore: false });
+      await mount(explore);
+      expect(ids()).toEqual([]);
+      await mount({ ...explore, type: 'replies', filters: { parentPostId: 'root' } });
+      expect(ids()).toEqual([]);
+      await mount({ ...explore, filters: { parentPostId: 'root' } });
+      expect(ids()).toEqual([]);
+    });
+
+    it('reads for itself when the boot read failed', async () => {
+      __feedPageReadForTests.reset();
+      getFeedMock
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValueOnce(page(['fresh'], undefined));
+      startBootFeedRead('viewer-a');
+      await mount({ ...explore, type: 'for_you' });
+
+      expect(getFeedMock).toHaveBeenCalledTimes(2);
+      expect(ids()).toEqual(['fresh']);
+    });
+
+    it('starts a feed ahead of its mount only when it is a query', async () => {
+      prefetchFeed(queryClient, { type: 'explore', viewerId: 'viewer-a' });
+      expect(getFeedMock).toHaveBeenCalledTimes(1);
+
+      isDbAvailableMock.mockReturnValue(true);
+      prefetchFeed(queryClient, { type: 'following', viewerId: 'viewer-a' });
+      expect(getFeedMock).toHaveBeenCalledTimes(1);
+    });
+
     it('asks for the first page while it renders, before anything commits', async () => {
       getFeedMock.mockResolvedValueOnce(page(['p1'], undefined));
       let requestsDuringFirstRender: number | undefined;
@@ -287,7 +329,7 @@ describe('useFeedState memory mode: one feed query', () => {
       expect(ids()).toEqual(['l2']);
     });
 
-    it("always reads a thread's replies again, page 1 only", async () => {
+    it("reads a thread's replies again on a later visit, page 1 only", async () => {
       const thread: UseFeedStateOptions = {
         ...explore,
         type: 'replies',
@@ -301,8 +343,19 @@ describe('useFeedState memory mode: one feed query', () => {
       await loadMore();
       unmount(first);
 
-      getFeedMock.mockResolvedValueOnce({ ...page([]), items: [reply('r1'), reply('r9')] });
-      await mount(thread);
+      // Within seconds of the read it is this same visit's (the post screen
+      // prefetches its replies): mounting does not read them twice.
+      unmount(await mount(thread));
+      expect(getFeedMock).toHaveBeenCalledTimes(2);
+
+      const later = Date.now() + 60_000;
+      const clock = jest.spyOn(Date, 'now').mockReturnValue(later);
+      try {
+        getFeedMock.mockResolvedValueOnce({ ...page([]), items: [reply('r1'), reply('r9')] });
+        await mount(thread);
+      } finally {
+        clock.mockRestore();
+      }
 
       expect(ids(renders[0])).toEqual(['r1', 'r2']);
       expect(getFeedMock).toHaveBeenCalledTimes(3);
@@ -310,15 +363,16 @@ describe('useFeedState memory mode: one feed query', () => {
       expect(ids()).toEqual(['r1', 'r9']);
     });
 
-    it('narrows a thread to the replies that answer it, and seeds the entity caches', async () => {
+    it('keeps a parent filter on other feeds from leaking unrelated posts into rows or caches', async () => {
       getFeedMock.mockResolvedValueOnce({
         ...page([]),
         items: [
           post('answer', { parentPostId: 'root' } as Partial<HydratedPost>),
-          post('elsewhere', { parentPostId: 'other' } as Partial<HydratedPost>),
+          post('other-thread', { parentPostId: 'elsewhere' } as Partial<HydratedPost>),
+          post('standalone'),
         ],
       });
-      await mount({ ...explore, type: 'replies', filters: { parentPostId: 'root' } });
+      await mount({ ...explore, filters: { parentPostId: 'root' } });
 
       expect(ids()).toEqual(['answer']);
       const cachePosts = usePostsStore.getState().cachePosts as jest.Mock;
@@ -328,6 +382,31 @@ describe('useFeedState memory mode: one feed query', () => {
           (item: HydratedPost) => item.id,
         ),
       ).toEqual(['answer']);
+    });
+
+    it('preserves server-selected spine and nested replies in the feed and entity caches', async () => {
+      getFeedMock.mockResolvedValueOnce({
+        ...page([]),
+        items: [
+          post('answer', { parentPostId: 'root' } as Partial<HydratedPost>),
+          post('spine-answer', { parentPostId: 'continuation' } as Partial<HydratedPost>),
+          post('nested-answer', { parentPostId: 'answer' } as Partial<HydratedPost>),
+        ],
+      });
+      await mount({ ...explore, type: 'replies', filters: { parentPostId: 'root' } });
+
+      expect(ids()).toEqual(['answer', 'spine-answer', 'nested-answer']);
+      const cachePosts = usePostsStore.getState().cachePosts as jest.Mock;
+      expect(cachePosts.mock.calls[0][0].map((item: HydratedPost) => item.id)).toEqual([
+        'answer',
+        'spine-answer',
+        'nested-answer',
+      ]);
+      expect(
+        (precacheActorsFromPosts as jest.Mock).mock.calls[0][0].map(
+          (item: HydratedPost) => item.id,
+        ),
+      ).toEqual(['answer', 'spine-answer', 'nested-answer']);
     });
   });
 

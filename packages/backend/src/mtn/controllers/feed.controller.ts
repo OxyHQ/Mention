@@ -36,7 +36,7 @@ import {
 import { FeedResponseBuilder } from '../../utils/FeedResponseBuilder';
 import { queryString } from '../../utils/queryParams';
 import { UserPrivacyManager } from '../UserPrivacyManager';
-import { trackFeedInteraction } from '../feed/FeedInteractionTracker';
+import { trackFeedInteractions } from '../feed/FeedInteractionTracker';
 import { parseFeedInteractionBatch } from '../feed/interactionTelemetry';
 import { federatedProfileSync } from '../../connectors/federatedProfileSync';
 import { ownerHasProfileAffectingLane } from '../../services/laneVisibility';
@@ -47,6 +47,7 @@ import { createScopedOxyClient } from '../../utils/oxyHelpers';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { findActorsByUris } from '../../db/federation/actorRepository';
 import { distinctRemoteActorUris } from '../../db/federation/followRepository';
+import { feedSeenPostsService } from '../../services/FeedSeenPostsService';
 import { anonFeedCache, type AnonFeedEntry } from '../../services/anonFeedCache';
 import {
   captureHydrationRevisions,
@@ -193,20 +194,26 @@ async function computeMutualIds(
   currentUserId: string,
   acceptedOutboundFollowUris?: Promise<string[]>,
 ): Promise<string[]> {
-  let oxyMutualIds: string[] = [];
-  try {
-    const ids = await getRuntimeOxyClient().follows.mutualIds({ limit: MAX_MUTUAL_IDS });
-    oxyMutualIds = ids.filter((id) => id.length > 0);
-  } catch (error) {
-    logger.warn('[MtnFeedController] Failed to load Oxy mutual ids', error);
-  }
-
-  let federatedMutualIds: string[] = [];
-  try {
-    federatedMutualIds = await getFederatedMutualIds(currentUserId, acceptedOutboundFollowUris);
-  } catch (error) {
-    logger.warn('[MtnFeedController] Failed to load federated mutual ids', error);
-  }
+  // The two sources are independent, so neither waits for the other.
+  const [oxyMutualIds, federatedMutualIds] = await Promise.all([
+    (async () => {
+      try {
+        const ids = await getRuntimeOxyClient().follows.mutualIds({ limit: MAX_MUTUAL_IDS });
+        return ids.filter((id) => id.length > 0);
+      } catch (error) {
+        logger.warn('[MtnFeedController] Failed to load Oxy mutual ids', error);
+        return [];
+      }
+    })(),
+    (async () => {
+      try {
+        return await getFederatedMutualIds(currentUserId, acceptedOutboundFollowUris);
+      } catch (error) {
+        logger.warn('[MtnFeedController] Failed to load federated mutual ids', error);
+        return [];
+      }
+    })(),
+  ]);
 
   return Array.from(new Set([...oxyMutualIds, ...federatedMutualIds])).slice(0, MAX_MUTUAL_IDS);
 }
@@ -451,6 +458,11 @@ class MtnFeedController {
       // never rejects (soft-fails to `[]`), so leaving it un-awaited on a blank page
       // cannot surface an unhandled rejection.
       const muteWordsPromise = loadMuteWords(currentUserId);
+      // The seen set the engine excludes on ranked feeds, started here for the
+      // same reason. Never rejects (Redis failures fall back to memory).
+      const seenPostIdsPrefetch = currentUserId
+        ? feedSeenPostsService.getSeenPostIds(currentUserId)
+        : undefined;
 
       // The viewer's accepted OUTBOUND federated follows, read ONCE and handed to
       // both consumers as the same pending read: the feed context merges it into
@@ -497,6 +509,7 @@ class MtnFeedController {
 
       context.privacyOxyClient = requestOxyClient;
       context.safetyRequester = safetyRequesterFor(req);
+      context.seenPostIdsPrefetch = seenPostIdsPrefetch;
       // Thread the privacy lists this request already paid for into hydration,
       // which otherwise re-asks Oxy for both on every hydration call the page
       // makes — and a For You page hydrates more than once. Same arrangement as
@@ -696,34 +709,24 @@ class MtnFeedController {
 
       // One timestamp for the whole batch: the entries were observed together on
       // the client, and the queue's flush delay is not per-entry information.
+      // One call for the batch, not one per entry: it writes the raw rows in one
+      // insert and the viewer's preference signals in one locked write, and each
+      // side effect fails soft on its own (`trackFeedInteractions`).
       const timestamp = new Date();
-      // `allSettled`, not `all`: each entry's side effects are independent, so a
-      // single failure must not discard the rest of the batch. `trackFeedInteraction`
-      // already logs its own failures; this only reports how many did not land, so
-      // a systematically failing batch stays visible.
-      const results = await Promise.allSettled(
-        parsed.interactions.map((interaction) =>
-          trackFeedInteraction({ ...interaction, userId, timestamp }),
-        ),
+      const counts = await trackFeedInteractions(
+        parsed.interactions.map((interaction) => ({ ...interaction, userId, timestamp })),
       );
-      const failed = results.filter((result) => result.status === 'rejected').length;
-      if (failed > 0) {
-        logger.warn('[MtnFeedController] recordInteraction: some entries failed', {
-          failed,
-          total: parsed.interactions.length,
-        });
-      }
 
-      // Positional pairing: `allSettled` preserves the input order, so result i
-      // belongs to interaction i. Only entries that COUNTED a view resolve to a
-      // number — everything else (a click, a duplicate impression, a self-view)
-      // resolves to null and is left out, so the map stays the honest "what
-      // changed" set rather than a mirror of the request.
+      // Positional pairing: count i belongs to interaction i. Only entries that
+      // COUNTED a view resolve to a number — everything else (a click, a
+      // duplicate impression, a self-view) resolves to null and is left out, so
+      // the map stays the honest "what changed" set rather than a mirror of the
+      // request.
       const viewCounts: FeedPostViewCounts = {};
-      results.forEach((result, index) => {
+      counts.forEach((count, index) => {
         const entry = parsed.interactions[index];
-        if (!entry || result.status !== 'fulfilled' || result.value === null) return;
-        viewCounts[entry.postUri] = result.value;
+        if (!entry || count === null) return;
+        viewCounts[entry.postUri] = count;
       });
 
       const counted = Object.keys(viewCounts).length > 0;
@@ -741,7 +744,7 @@ class MtnFeedController {
    * subscribe / use / dismiss / see-more).
    *
    * Deliberately NOT `recordInteraction` above: that route requires a `postUri`
-   * and feeds POST ranking through `trackFeedInteraction`, so card engagement
+   * and feeds POST ranking through `trackFeedInteractions`, so card engagement
    * sent there would corrupt author/topic affinity with engagement that never
    * touched a post. Card events land as low-cardinality counters and nothing
    * else — no ranking signal, no per-row documents.

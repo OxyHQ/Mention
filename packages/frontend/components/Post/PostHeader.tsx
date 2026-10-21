@@ -1,3 +1,4 @@
+import { POST_AVATAR_SIZE } from '@/styles/shared';
 import React, { useMemo } from 'react';
 import { Text, View, TouchableOpacity } from 'react-native';
 import { LiveAvatar } from '@/components/ui/LiveAvatar';
@@ -90,6 +91,10 @@ interface PostHeaderProps {
    */
   avatarVariant?: string;
   avatarSize?: number;
+  /** Inline avatar and full-width body for an embedded quoted post. */
+  compact?: boolean;
+  /** Focused post: stack the handle beneath the name and omit relative time. */
+  detail?: boolean;
   avatarGap?: number;
   /**
    * Replaces the relative-time label ("now", "5m", …) in the identity line.
@@ -147,6 +152,8 @@ interface PostHeaderProps {
    */
   nameAsHeading?: boolean;
   onPressAvatar?: () => void;
+  /** Runs when the author's name link is pressed, before it navigates. */
+  onPressName?: () => void;
   /**
    * Collaborative BYLINES only (owner + ≥1 accepted collaborator, or a channel
    * naming its writer): tapping the avatar — which represents the group — opens
@@ -212,7 +219,9 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   contextTop,
   avatarSource,
   avatarVariant,
-  avatarSize = 36,
+  avatarSize = POST_AVATAR_SIZE,
+  compact = false,
+  detail = false,
   timeSlot,
   laneSlot,
   isEdited,
@@ -223,6 +232,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   onPressTime,
   nameAsHeading,
   onPressAvatar,
+  onPressName,
   onPressCollaborators,
   onPressMenu,
   linkAuthors,
@@ -345,70 +355,113 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   const contextRowCount = contextTop ? React.Children.toArray(contextTop).length : 0;
   const headerTopOffset = contextRowCount * (POST_CONTEXT_ROW_HEIGHT + HEADER_CONTENT_GAP);
 
-  // ONE node carries both the horizontal padding and the row layout. They used
-  // to be two nested Views with a single child between them, which is a whole
-  // react-native primitive per post — and under NativeWind's global class-name
-  // polyfill a primitive is a `react-native-css` interop component, not a bare
-  // View. Padding and `flex-row` do not interact, so the merge is a no-op on
-  // screen.
+  const avatar = showAvatarCluster ? (
+    // A magnetic bubble cluster in the slot the solo avatar occupies —
+    // `size` is the cluster box diameter, matched to the solo avatar so
+    // the layout never shifts.
+    //
+    // What a tap means follows the byline, not the cluster: a
+    // collaborative byline's cluster stands for the whole group and opens
+    // the author list (which lists each @username), while an
+    // attribution pair still has ONE author, so it goes where that
+    // author's avatar has always gone. The pair keeps the author's hover
+    // preview for the same reason; the group has no single subject to
+    // preview, so `username` is withheld and the card renders inert.
+    //
+    // The cluster is a Bloom `AvatarGroup` and not a `LiveAvatar`, so a
+    // reposted row cannot carry the Syra live badge — the badge belongs to
+    // one person and this slot no longer represents one.
+    <ProfileHoverCard
+      username={isCollabByline ? undefined : user.handle}
+      disable={disableHoverCard}
+    >
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel={
+          isCollabByline
+            ? t('collab.viewCollaborators', { defaultValue: 'View collaborators' })
+            : displayNameOrHandle(user.displayName, user.handle ? `@${user.handle}` : '')
+        }
+        disabled={isCollabByline ? !onPressCollaborators : !onPressAvatar}
+        onPress={isCollabByline ? onPressCollaborators : onPressAvatar}
+        style={{ marginTop: compact ? 0 : headerTopOffset, marginRight: compact ? 0 : 12 }}
+      >
+        <AvatarGroup
+          layout="cluster"
+          items={collabAvatars}
+          size={avatarSize}
+          variant={avatarVariant}
+          max={20}
+        />
+      </TouchableOpacity>
+    </ProfileHoverCard>
+  ) : (
+    <ProfileHoverCard username={user.handle} disable={disableHoverCard}>
+      <LiveAvatar
+        userId={authorUserId}
+        source={avatarSource}
+        variant={avatarVariant}
+        size={avatarSize}
+        placeholderColor={placeholderColor}
+        onPress={onPressAvatar}
+        style={{ marginTop: compact ? 0 : headerTopOffset, marginRight: compact ? 0 : 12 }}
+      />
+    </ProfileHoverCard>
+  );
+
+  const menu = onPressMenu ? (
+    <TouchableOpacity
+      accessibilityLabel="Post options"
+      hitSlop={HIT_SLOP_MD}
+      className={compact ? 'ml-auto shrink-0 px-2' : 'px-2'}
+      style={{ marginTop: compact ? 0 : headerTopOffset }}
+      onPress={onPressMenu}
+    >
+      <RiMoreFill width={18} height={18} fill={theme.colors.textSecondary} />
+    </TouchableOpacity>
+  ) : null;
+
+  const identityName = (
+    <UserName
+      name={hasDisplayName ? user.displayName : user.handle ? `@${user.handle}` : undefined}
+      verified={user.verified}
+      href={userHref}
+      onPress={onPressName}
+      asHeading={nameAsHeading}
+      style={{ container: { flexShrink: 1, minWidth: 0 } }}
+    />
+  );
+  const identityHandle =
+    hasDisplayName && user.handle ? (
+      <Text
+        className="text-muted-foreground text-[15px] leading-tight"
+        style={{ flexShrink: 10, minWidth: 0 }}
+        numberOfLines={1}
+        ellipsizeMode="tail"
+      >
+        {`${detail ? '' : '\u00A0'}@${user.handle}`}
+      </Text>
+    ) : null;
+  const identityBadge = (
+    <AccountBadge
+      isFederated={user.isFederated}
+      kind={user.kind}
+      size={13}
+      className="text-muted-foreground"
+      containerClassName="self-center ml-1"
+    />
+  );
+
   return (
     <View className="flex-row items-start justify-between" style={{ paddingHorizontal }}>
-      {showAvatarCluster ? (
-        // A magnetic bubble cluster in the slot the solo avatar occupies —
-        // `size` is the cluster box diameter, matched to the solo avatar so
-        // the layout never shifts.
-        //
-        // What a tap means follows the byline, not the cluster: a
-        // collaborative byline's cluster stands for the whole group and opens
-        // the author list (which lists each @username), while an
-        // attribution pair still has ONE author, so it goes where that
-        // author's avatar has always gone. The pair keeps the author's hover
-        // preview for the same reason; the group has no single subject to
-        // preview, so `username` is withheld and the card renders inert.
-        //
-        // The cluster is a Bloom `AvatarGroup` and not a `LiveAvatar`, so a
-        // reposted row cannot carry the Syra live badge — the badge belongs to
-        // one person and this slot no longer represents one.
-        <ProfileHoverCard
-          username={isCollabByline ? undefined : user.handle}
-          disable={disableHoverCard}
-        >
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel={
-              isCollabByline
-                ? t('collab.viewCollaborators', { defaultValue: 'View collaborators' })
-                : displayNameOrHandle(user.displayName, user.handle ? `@${user.handle}` : '')
-            }
-            disabled={isCollabByline ? !onPressCollaborators : !onPressAvatar}
-            onPress={isCollabByline ? onPressCollaborators : onPressAvatar}
-            style={{ marginTop: headerTopOffset, marginRight: 12 }}
-          >
-            <AvatarGroup
-              layout="cluster"
-              items={collabAvatars}
-              size={avatarSize}
-              variant={avatarVariant}
-              max={20}
-            />
-          </TouchableOpacity>
-        </ProfileHoverCard>
-      ) : (
-        <ProfileHoverCard username={user.handle} disable={disableHoverCard}>
-          <LiveAvatar
-            userId={authorUserId}
-            source={avatarSource}
-            variant={avatarVariant}
-            size={avatarSize}
-            placeholderColor={placeholderColor}
-            onPress={onPressAvatar}
-            style={{ marginTop: headerTopOffset, marginRight: 12 }}
-          />
-        </ProfileHoverCard>
-      )}
+      {compact ? null : avatar}
       <View className="flex-1 min-w-0" style={{ gap: HEADER_CONTENT_GAP }}>
         {contextTop}
-        <View className="flex-row items-end" style={{ gap: ROW_GAP }}>
+        <View
+          className={compact ? 'flex-row items-center' : 'flex-row items-end'}
+          style={{ gap: ROW_GAP }}
+        >
+          {compact ? avatar : null}
           {/* Bluesky-style identity line: the display name takes the space it
               needs (no width cap); the @handle gives way first (shrinks
               aggressively); the trailing "\u00B7 time" never wraps and stays visible.
@@ -466,38 +519,31 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               disable={disableHoverCard}
               style={{ minWidth: 0, flexShrink: 1 }}
             >
-              <View className="flex-row items-end flex-shrink" style={{ minWidth: 0 }}>
-                <UserName
-                  name={
-                    hasDisplayName ? user.displayName : user.handle ? `@${user.handle}` : undefined
-                  }
-                  verified={user.verified}
-                  href={userHref}
-                  asHeading={nameAsHeading}
-                  style={{ container: { flexShrink: 1, minWidth: 0 } }}
-                />
-                {hasDisplayName && user.handle ? (
-                  <Text
-                    className="text-muted-foreground text-[15px] leading-tight"
-                    style={{ flexShrink: 10, minWidth: 0 }}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                  >
-                    {`\u00A0@${user.handle}`}
-                  </Text>
-                ) : null}
-                <AccountBadge
-                  isFederated={user.isFederated}
-                  kind={user.kind}
-                  size={13}
-                  className="text-muted-foreground"
-                  containerClassName="self-center ml-1"
-                />
+              <View
+                className={detail ? 'items-start' : 'flex-row items-end flex-shrink'}
+                style={{ minWidth: 0 }}
+              >
+                {detail ? (
+                  <>
+                    <View className="flex-row items-center">
+                      {identityName}
+                      {identityBadge}
+                    </View>
+                    {identityHandle}
+                  </>
+                ) : (
+                  <>
+                    {identityName}
+                    {identityHandle}
+                    {identityBadge}
+                  </>
+                )}
               </View>
             </ProfileHoverCard>
           )}
           {timeSlot ??
-            (timeText &&
+            (!detail &&
+              timeText &&
               (postHref ? (
                 <Link
                   href={postHref}
@@ -540,6 +586,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               <BoostIcon size={INDICATOR_ICON_SIZE} className="text-muted-foreground" />
             </View>
           )}
+          {compact ? menu : null}
           {showReply && (
             <View className="flex-row items-center" style={{ gap: ROW_GAP }}>
               <RiChat3Fill size="xs" fill={theme.colors.textSecondary} />
@@ -550,17 +597,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
         {bylineSlot}
         {children ? <View>{children}</View> : null}
       </View>
-      {onPressMenu ? (
-        <TouchableOpacity
-          accessibilityLabel="Post options"
-          hitSlop={HIT_SLOP_MD}
-          className="px-2"
-          style={{ marginTop: headerTopOffset }}
-          onPress={onPressMenu}
-        >
-          <RiMoreFill width={18} height={18} fill={theme.colors.textSecondary} />
-        </TouchableOpacity>
-      ) : null}
+      {compact ? null : menu}
     </View>
   );
 };

@@ -1,5 +1,5 @@
 import { getDb, isDbAvailable } from '../database';
-import { getAllFeedItems } from '../feedQueries';
+import { appendFeedItems, getAllFeedItems } from '../feedQueries';
 import { postToRow, type FeedItem } from '../schema';
 
 jest.mock('../database', () => ({
@@ -92,5 +92,37 @@ describe('getAllFeedItems with reuse', () => {
   it('drops a feed entry whose post no longer exists, as the join did', () => {
     const items = getAllFeedItems('home', () => undefined);
     expect(items.map((item) => item.id)).toEqual(['a', 'b', 'c']);
+  });
+});
+
+/**
+ * An append reports what it inserted, so a reader holding the feed extends it by
+ * those rows instead of reading every row back (`postsStore` notifyFeedAppended).
+ */
+describe('appendFeedItems', () => {
+  it('reports the posts that joined the feed, and null when the write failed', () => {
+    mockIsDbAvailable.mockReturnValue(true);
+    const inFeed = new Set(['a']);
+    const db = {
+      execSync: jest.fn(),
+      getFirstSync: jest.fn(() => null),
+      getAllSync: jest.fn(() => []),
+      runSync: jest.fn((query: string, ...params: unknown[]) => {
+        if (!query.includes('INTO feed_items')) return { changes: 1, lastInsertRowId: 0 };
+        const id = String(params[1]);
+        const joined = !inFeed.has(id);
+        inFeed.add(id);
+        return { changes: joined ? 1 : 0, lastInsertRowId: 0 };
+      }),
+    };
+    mockGetDb.mockReturnValue(db);
+
+    const appended = appendFeedItems('home', [makePost('a'), makePost('b')], {});
+    expect(appended?.map((item) => item.id)).toEqual(['b']);
+
+    db.execSync.mockImplementation((query: string) => {
+      if (query === 'BEGIN TRANSACTION') throw new Error('database is locked');
+    });
+    expect(appendFeedItems('home', [makePost('c')], {})).toBeNull();
   });
 });

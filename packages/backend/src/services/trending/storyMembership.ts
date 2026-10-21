@@ -286,6 +286,12 @@ export async function saveStoryMemberships(stories: readonly StoredStoryInput[])
     });
 
     if (memberships.length === 0) continue;
+    // A membership that is already stored as computed is left alone. Postgres
+    // writes a new row version for every UPDATE, changed or not, so rewriting
+    // unchanged rows on each re-run (a backfill re-scoring existing stories)
+    // left `trend_story_posts` at ~69% dead space: 5.3M no-op updates on a
+    // 3.5M-row table, measured 2026-10-20. `returning` therefore counts the rows
+    // inserted or actually changed.
     const landed = await getDb()
       .insert(trendStoryPosts)
       .values(memberships)
@@ -296,6 +302,8 @@ export async function saveStoryMemberships(stories: readonly StoredStoryInput[])
           matchedTerms: sql`excluded.matched_terms`,
           evidence: sql`excluded.evidence`,
         },
+        setWhere: sql`(${trendStoryPosts.relevance}, ${trendStoryPosts.matchedTerms}, ${trendStoryPosts.evidence})
+          is distinct from (excluded.relevance, excluded.matched_terms, excluded.evidence)`,
       })
       .returning({ id: trendStoryPosts.id });
     inserted += landed.length;

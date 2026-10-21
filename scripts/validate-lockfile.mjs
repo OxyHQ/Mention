@@ -94,12 +94,22 @@ const ALLOWED_PACKAGE_NAME_ALIASES = [
   '@jest/react-is-19:react-is',
 ];
 
-// Bloom 1.x, Services 30 and Core 21 are one compatibility unit. Bun can
-// auto-install an older peer under Syra when its declared range trails
+// Bloom, Services, Core, Contracts and Protocol are one compatibility unit.
+// Bun can auto-install an older peer under Syra when its declared range trails
 // the Oxy release cadence, even though the root override is authoritative. That
 // leaves the bundle able to reach Services code importing removed Bloom APIs.
+// Contracts and Protocol are dependencies rather than peers, which is the same
+// risk from the other side: Core pins Contracts EXACTLY, so a catalog that trails
+// it installs Core its own nested Contracts with nothing failing, and the app
+// then validates against one schema set while Core speaks another.
 // Keep this a lockfile property rather than trusting the hoisted package only.
-const OXY_RUNTIME_SINGLETONS = ['@oxy.so/bloom', '@oxy.so/core', '@oxy.so/services'];
+const OXY_RUNTIME_SINGLETONS = [
+  '@oxy.so/bloom',
+  '@oxy.so/contracts',
+  '@oxy.so/core',
+  '@oxy.so/protocol',
+  '@oxy.so/services',
+];
 
 /**
  * Override-masked range violations that are deliberate, keyed
@@ -309,7 +319,7 @@ for (const packageName of OXY_RUNTIME_SINGLETONS) {
   auditedOxyRuntimeSingletons += 1;
   if (resolutions.length !== 1) {
     failures.push(
-      `${packageName}: expected one Oxy runtime resolution, found ${resolutions.length} (${resolutions.map(([key]) => key).join(', ') || 'none'}) — Bloom, Services and Core must move as one compatibility unit`,
+      `${packageName}: expected one Oxy runtime resolution, found ${resolutions.length} (${resolutions.map(([key]) => key).join(', ') || 'none'}) — Bloom, Services, Core, Contracts and Protocol must move as one compatibility unit`,
     );
     continue;
   }

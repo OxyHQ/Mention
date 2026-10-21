@@ -2,7 +2,11 @@ import { useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { FeedDescriptor } from '@mention/shared-types/mtn/feedDescriptor';
-import { PRESET_FEEDS, type SavedFeed } from '@mention/shared-types/mtn/presetFeeds';
+import {
+  type FeedPreferences,
+  PRESET_FEEDS,
+  type SavedFeed,
+} from '@mention/shared-types/mtn/presetFeeds';
 import { feedPreferencesService } from '@/services/feedPreferencesService';
 import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -21,6 +25,8 @@ function anonSavedFeeds(): SavedFeed[] {
   }));
 }
 
+const NO_TITLES: Readonly<Record<string, string>> = {};
+
 /** A feed the caller can pin — either a preset (already saved) or a custom feed. */
 export interface PinnableFeed {
   key: string;
@@ -32,6 +38,8 @@ export interface UseFeedPreferences {
   savedFeeds: SavedFeed[];
   /** The pinned subset, ordered by `order`. */
   pinnedFeeds: SavedFeed[];
+  /** Pinned custom feeds' titles by feed id, as the server last answered. */
+  customFeedTitles: Readonly<Record<string, string>>;
   /** Whether a given key is currently pinned. */
   isPinned: (key: string) => boolean;
   /** Pin a feed (adds it to the saved layout if not already present). */
@@ -59,7 +67,7 @@ export function useFeedPreferences(): UseFeedPreferences {
   const queryClient = useQueryClient();
   const queryKey = useMemo(() => viewerQueryKeys.feedPreferences(user?.id), [user?.id]);
 
-  const query = useQuery<SavedFeed[]>({
+  const query = useQuery<FeedPreferences>({
     queryKey,
     enabled: canUsePrivateApi,
     staleTime: 5 * 60 * 1000,
@@ -67,26 +75,31 @@ export function useFeedPreferences(): UseFeedPreferences {
   });
 
   const savedFeeds = useMemo<SavedFeed[]>(
-    () => query.data ?? (canUsePrivateApi ? [] : anonSavedFeeds()),
+    () => query.data?.savedFeeds ?? (canUsePrivateApi ? [] : anonSavedFeeds()),
     [query.data, canUsePrivateApi],
   );
+  const customFeedTitles = query.data?.customFeedTitles ?? NO_TITLES;
 
   const mutation = useMutation<
     SavedFeed[],
     Error,
     SavedFeed[],
-    { previous: SavedFeed[] | undefined }
+    { previous: FeedPreferences | undefined }
   >({
     mutationFn: (next) => feedPreferencesService.update(next),
     onMutate: async (next) => {
       await queryClient.cancelQueries({ queryKey });
-      const previous = queryClient.getQueryData<SavedFeed[]>(queryKey);
-      queryClient.setQueryData<SavedFeed[]>(queryKey, next);
+      const previous = queryClient.getQueryData<FeedPreferences>(queryKey);
+      // A newly pinned custom feed has no title until the refetch below.
+      queryClient.setQueryData<FeedPreferences>(queryKey, {
+        ...previous,
+        savedFeeds: next,
+      });
       return { previous };
     },
     onError: (error, _next, context) => {
       if (context?.previous !== undefined) {
-        queryClient.setQueryData<SavedFeed[]>(queryKey, context.previous);
+        queryClient.setQueryData<FeedPreferences>(queryKey, context.previous);
       }
       logger.warn('Failed to persist feed preferences', { error });
     },
@@ -152,6 +165,7 @@ export function useFeedPreferences(): UseFeedPreferences {
   return {
     savedFeeds,
     pinnedFeeds,
+    customFeedTitles,
     isPinned,
     pin,
     unpin,

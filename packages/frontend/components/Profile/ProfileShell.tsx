@@ -1,12 +1,12 @@
-import { resolveProfileColorName } from '@/hooks/useProfileScreenColor';
+import { resolveProfileColor } from '@oxy.so/bloom/color-presets';
 import type React from 'react';
 import { Screen } from '@oxy.so/bloom/screen';
 import { useState } from 'react';
-import { Platform, StatusBar, View } from 'react-native';
+import { Platform, StatusBar, View, type ViewProps } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { HeaderDockProvider, StickySection, useHeaderDockInset } from '@oxy.so/bloom/layout';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { BloomColorScope, useTheme } from '@oxy.so/bloom/theme';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { ProfileUnavailable } from './ProfileUnavailable';
 import type { ProfileData } from '@/hooks/useProfileData';
@@ -88,12 +88,20 @@ export function ProfileShell(props: ProfileShellProps) {
   const { scrollPosition } = useLayoutScroll();
   return (
     <HeaderDockProvider scrollY={IS_WEB ? undefined : scrollPosition}>
-      <ProfileShellBody {...props} />
+      <BloomColorScope
+        {...resolveProfileColor(
+          props.active === false ? undefined : props.profileData?.design.color,
+        )}
+        asChild
+      >
+        <ProfileShellBody {...props} />
+      </BloomColorScope>
     </HeaderDockProvider>
   );
 }
 
 function ProfileShellBody({
+  style,
   chrome,
   loading,
   profileData,
@@ -108,7 +116,7 @@ function ProfileShellBody({
   active = true,
   skeletonVariant = 'person',
   isRootTab = false,
-}: ProfileShellProps) {
+}: ProfileShellProps & Pick<ViewProps, 'style'>) {
   const theme = useTheme();
   const surfaceFill = useSurfaceFill();
   const headerInset = useHeaderDockInset();
@@ -181,11 +189,6 @@ function ProfileShellBody({
   return (
     <Screen
       scroll={active ? 'auto' : 'content'}
-      colorPreset={
-        active
-          ? resolveProfileColorName(profileData?.username, profileData?.design?.color)
-          : undefined
-      }
       headerPlacement={banner ? 'overlay' : 'inset'}
       header={
         drawing ? (
@@ -197,7 +200,7 @@ function ProfileShellBody({
           />
         ) : undefined
       }
-      style={IS_WEB ? undefined : { backgroundColor: surfaceFill }}
+      style={IS_WEB ? style : [style, { backgroundColor: surfaceFill }]}
     >
       <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
       {IS_WEB ? (

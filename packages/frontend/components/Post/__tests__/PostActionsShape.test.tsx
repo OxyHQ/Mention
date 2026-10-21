@@ -2,29 +2,9 @@ import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
 import PostActions from '../PostActions';
+import { AnimatedLikeIcon } from '@/lib/animations/AnimatedLikeIcon';
 
-/**
- * What the action bar costs to put on screen, pinned as structure.
- *
- * The bar is mounted once per feed row and a fling mounts rows continuously, so
- * a node that draws nothing is not free: under NativeWind's global class-name
- * polyfill (`withNativewind` defaults `globalClassNamePolyfill: true`, and
- * metro.config.js does not override it) Metro rewrites every `react-native`
- * import to `react-native-css/components`, so EVERY primitive here is an interop
- * component — two `useContext`, two `useState`, an effect and a rule evaluation
- * — whether or not it carries a className. Two nodes were drawing nothing:
- *
- *  1. A wrapping `<View>` around the whole bar. `PostItem` — the only caller —
- *     already renders it inside a padded column, so the wrapper laid out
- *     nothing that its parent did not already lay out.
- *  2. The engagement summary was a `PressableScale`: a reanimated shared value,
- *     an animated style and a `Pressability` instance, permanently `disabled`,
- *     because no caller ever passed `onLikesPress`/`onBoostsPress`. Those props
- *     are gone; the counters that DO open a list live on `<PostDetailStats>`.
- *
- * The second assertion is the control: it is not enough that the summary stops
- * being pressable, it must still be THERE and still say what it said.
- */
+/** The action bar keeps all engagement counts on their respective buttons. */
 
 jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({
@@ -64,13 +44,12 @@ function renderBar(props: Partial<React.ComponentProps<typeof PostActions>> = {}
     renderer = TestRenderer.create(
       <PostActions
         engagement={{ replies: 2, likes: 3 }}
-        repliesSummary="2 replies"
-        {...props}
         onReply={noop}
         onBoost={noop}
         onLike={noop}
         onSave={noop}
         onShare={noop}
+        {...props}
       />,
     );
   });
@@ -79,36 +58,36 @@ function renderBar(props: Partial<React.ComponentProps<typeof PostActions>> = {}
 }
 
 describe('PostActions shape', () => {
-  it('renders the icon row and the summary as siblings, with no wrapper around them', () => {
-    const renderer = renderBar();
-    const roots = renderer.toJSON();
-
-    // A fragment root: react-test-renderer returns an ARRAY when the
-    // component renders siblings, and a single object when it wraps them.
-    expect(Array.isArray(roots)).toBe(true);
-    expect(roots).toHaveLength(2);
-
+  it('does not switch to the animated heart when a like is rejected', () => {
+    const onLike = jest.fn(() => false);
+    const renderer = renderBar({ onLike });
+    const like = renderer.root.find(
+      (node) => String(node.type) === 'PressableScale' && node.props.accessibilityLabel === 'Like',
+    );
+    act(() => like.props.onPress());
+    expect(onLike).toHaveBeenCalledTimes(1);
+    expect(renderer.root.findByType(AnimatedLikeIcon).props.hasBeenToggled).toBe(false);
     act(() => renderer.unmount());
   });
 
-  it('still shows the reply summary, and nothing in it is pressable', () => {
+  it('renders a single row with the reply count inside the reply button', () => {
     const renderer = renderBar();
-
-    const summaries = renderer.root.findAll(
-      (node) => node.children.some((c) => c === '2 replies'),
-      { deep: false },
+    expect(Array.isArray(renderer.toJSON())).toBe(false);
+    const reply = renderer.root.findAll(
+      (node) => String(node.type) === 'PressableScale' && node.props.accessibilityLabel === 'Reply',
     );
-    expect(summaries).toHaveLength(1);
+    expect(reply).toHaveLength(1);
+    expect(reply[0].findAll((node) => node.children.includes('2'))).not.toHaveLength(0);
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('2 replies');
+    act(() => renderer.unmount());
+  });
 
-    // The bar's own buttons are still PressableScale; the summary is not.
-    const summaryRoot = renderer.root.findAll(
-      (node) => typeof node.props?.className === 'string' && node.props.className.includes('mt-2'),
-      { deep: false },
-    );
-    expect(summaryRoot).toHaveLength(1);
-    expect(summaryRoot[0].type).not.toBe('PressableScale');
-    expect(summaryRoot[0].findAllByType('PressableScale' as never)).toHaveLength(0);
-
+  it('omits a zero reply count', () => {
+    const renderer = renderBar({ engagement: { replies: 0, likes: 0 } });
+    const reply = renderer.root.findAll(
+      (node) => String(node.type) === 'PressableScale' && node.props.accessibilityLabel === 'Reply',
+    )[0];
+    expect(reply.findAll((node) => node.children.includes('0'))).toHaveLength(0);
     act(() => renderer.unmount());
   });
 
@@ -117,7 +96,9 @@ describe('PostActions shape', () => {
   it('counts boosts beside the boost icon, and draws no count at zero', () => {
     const withBoosts = renderBar({ engagement: { replies: 0, likes: 0, boosts: 1 } });
     const boostButton = withBoosts.root.findAll(
-      (node) => String(node.type) === 'PressableScale' && node.props.accessibilityLabel === 'Boost',
+      (node) =>
+        String(node.type) === 'PressableScale' &&
+        node.props.accessibilityLabel === 'Repost options',
     );
     expect(boostButton).toHaveLength(1);
     expect(boostButton[0].findAll((node) => node.children.includes('1'))).not.toHaveLength(0);
@@ -125,7 +106,9 @@ describe('PostActions shape', () => {
 
     const none = renderBar({ engagement: { replies: 0, likes: 0, boosts: 0 } });
     const bare = none.root.findAll(
-      (node) => String(node.type) === 'PressableScale' && node.props.accessibilityLabel === 'Boost',
+      (node) =>
+        String(node.type) === 'PressableScale' &&
+        node.props.accessibilityLabel === 'Repost options',
     );
     expect(bare[0].findAll((node) => node.children.includes('0'))).toHaveLength(0);
     act(() => none.unmount());

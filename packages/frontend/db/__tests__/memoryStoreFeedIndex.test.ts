@@ -1,5 +1,6 @@
 import type { FeedItem } from '../schema';
 import {
+  memAppendFeedItems,
   memClearAll,
   memGetAllFeedItems,
   memGetFeedKeysForPost,
@@ -49,5 +50,15 @@ describe('memoryStore feed membership index view', () => {
     expect(memGetPostById(post.id)).toBeNull();
     expect(memGetAllFeedItems('saved')).toEqual([]);
     expect(memGetFeedKeysForPost(post.id)).toEqual([]);
+  });
+
+  it('reports only the posts an append added to the feed', () => {
+    const meta = { hasMore: true, totalCount: 1, lastUpdated: Date.now() };
+    memSetFeedItems('memory:home', [makePost('first')], meta);
+
+    const appended = memAppendFeedItems('memory:home', [makePost('first'), makePost('next')], {});
+
+    expect(appended.map((item) => item.id)).toEqual(['next']);
+    expect(memGetAllFeedItems('memory:home').map((item) => item.id)).toEqual(['first', 'next']);
   });
 });

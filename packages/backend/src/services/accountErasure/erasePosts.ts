@@ -26,12 +26,11 @@
  * walks from the start; a batch either committed whole or not at all.
  */
 
-import { and, eq, gt, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, eq, gt, inArray, sql } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { qualified } from '@oxy.so/db';
 import { getDb, type Transaction } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
-import { postAuthorships } from '../../db/schema/postContent';
 import { moderationEnforcements } from '../../db/schema/moderation';
 import { repairFetchFailures } from '../../db/schema/adminScripts';
 import { postgates } from '../../db/schema/gates';
@@ -52,6 +51,7 @@ import { reevaluateClusters } from '../PostEquivalenceService';
 import { recomputeRecentRepliers } from '../PostRecentReplierService';
 import { invalidate as invalidatePostDetail } from '../postDetailCache';
 import { logger } from '../../utils/logger';
+import { ownedBySql } from '../../utils/postAuthorship';
 import { ERASURE_BOOST_CHUNK, ERASURE_POST_BATCH } from './erasureLimits';
 
 const LOG_PREFIX = '[AccountErasure]';
@@ -80,12 +80,6 @@ export interface OwnPostRow extends CascadedPostRow {
   boostOf: string | null;
   parentPostId: string | null;
   federationActorUri: string | null;
-}
-
-/** A post is the account's by the owner cache OR by its authorship owner entry. */
-export function ownedBy(oxyUserId: string): SQL {
-  const byAuthorship = sql`exists (select 1 from ${postAuthorships} where ${qualified(postAuthorships.postId)} = ${qualified(posts.id)} and ${qualified(postAuthorships.oxyUserId)} = ${oxyUserId} and ${qualified(postAuthorships.role)} = 'owner')`;
-  return sql`(${eq(posts.oxyUserId, oxyUserId)} or ${byAuthorship})`;
 }
 
 function postUris(row: CascadedPostRow): string[] {
@@ -244,7 +238,9 @@ export async function eraseAccountPosts(
     const own: OwnPostRow[] = await db
       .select(OWN_ROW)
       .from(posts)
-      .where(after === null ? ownedBy(oxyUserId) : and(ownedBy(oxyUserId), gt(posts.id, after)))
+      .where(
+        after === null ? ownedBySql(oxyUserId) : and(ownedBySql(oxyUserId), gt(posts.id, after)),
+      )
       .orderBy(posts.id)
       .limit(ERASURE_POST_BATCH);
     if (own.length === 0) break;
@@ -359,6 +355,6 @@ export async function countAccountPosts(
       federated: sql<number>`count(*) filter (where ${posts.federationActorUri} is null and ${posts.visibility} = ${PostVisibility.PUBLIC} and ${posts.status} = 'published')::int`,
     })
     .from(posts)
-    .where(ownedBy(oxyUserId));
+    .where(ownedBySql(oxyUserId));
   return { posts: row?.posts ?? 0, federated: row?.federated ?? 0 };
 }

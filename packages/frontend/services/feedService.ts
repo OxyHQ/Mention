@@ -425,6 +425,7 @@ class FeedService {
           if (request.cursor) repliesParams.cursor = request.cursor;
           if (request.limit) repliesParams.limit = request.limit;
           if (request.filters?.sort) repliesParams.sort = request.filters.sort;
+          if (request.filters?.includeNestedReplies) repliesParams.includeNestedReplies = 1;
 
           return await readAuthenticatedFeedPage<FeedServiceResponse>(`/feed/replies/${parentId}`, {
             params: repliesParams,

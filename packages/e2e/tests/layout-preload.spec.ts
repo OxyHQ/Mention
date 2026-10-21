@@ -1,7 +1,7 @@
 /**
- * Every route layout chunk is preloaded, and the preload is the request the app uses.
+ * Every layout chunk the cold boot needs is preloaded, and nothing else is.
  *
- * expo-router requires every `_layout` chunk before it renders anything, and only
+ * The root, `(app)` and `(app)/(tabs)` layouts load on every URL, and only
  * the startup JavaScript names them, so without the `<link rel="preload">` tags
  * that `packages/frontend/scripts/web-layout-preload.mjs` writes into the
  * exported `index.html` they are a second round trip after the whole common

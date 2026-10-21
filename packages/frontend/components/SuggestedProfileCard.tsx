@@ -26,7 +26,11 @@ const IDENTITY_STYLE = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  bio: { minHeight: BIO_LINES * BIO_LINE_HEIGHT, lineHeight: BIO_LINE_HEIGHT },
+  bio: {
+    alignSelf: 'stretch',
+    minHeight: BIO_LINES * BIO_LINE_HEIGHT,
+    lineHeight: BIO_LINE_HEIGHT,
+  },
   followButton: { alignSelf: 'stretch' },
 });
 

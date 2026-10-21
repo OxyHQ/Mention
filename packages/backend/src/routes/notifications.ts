@@ -14,12 +14,12 @@ import { loadPostRecords } from '../db/posts/postRepository';
 import type { Server } from 'socket.io';
 import { sendPushToUser } from '../utils/push';
 import { logger } from '../utils/logger';
-import { postHydrationService } from '../services/PostHydrationService';
 import {
-  createScopedOxyClient,
-  createUserScopedOxyServices,
-  getServiceOxyClient,
-} from '../utils/oxyHelpers';
+  isFallbackUserSummary,
+  postHydrationService,
+  resolveUserSummaries,
+} from '../services/PostHydrationService';
+import { createScopedOxyClient, createUserScopedOxyServices } from '../utils/oxyHelpers';
 import { safetyRequesterFor } from '../utils/safetyRequester';
 import { resolveNotificationInboxIds } from '../services/notificationInbox';
 import { queryInt, queryString } from '../utils/queryParams';
@@ -59,6 +59,44 @@ export const NOTIFICATION_PAGE_ORDER: SQL[] = [
   sql`${notifications.createdAt} desc nulls last`,
   sql`${notifications.id} desc nulls last`,
 ];
+
+/**
+ * How far the unread count is counted. Every client draws a count above 99 as
+ * "99+", so counting a large unread backlog row by row bought nothing but index
+ * reads on every list page and badge poll; past this the count is reported as
+ * the cap.
+ */
+export const UNREAD_COUNT_CAP = 1000;
+
+/** The viewer's unread notifications, counted no further than {@link UNREAD_COUNT_CAP}. */
+function countUnread(recipientMatch: SQL) {
+  const db = getDb();
+  const unread = db
+    .select({ id: notifications.id })
+    .from(notifications)
+    .where(and(recipientMatch, eq(notifications.read, false)))
+    .limit(UNREAD_COUNT_CAP)
+    .as('unread');
+  return db.select({ value: count() }).from(unread);
+}
+
+/**
+ * Public profiles for notification actors and channel recipients, through the
+ * shared user-summary cache rather than a fresh Oxy batch on every page. An id
+ * Oxy could not resolve is left out, so the row renders its neutral identity.
+ */
+async function resolveActorProfiles(ids: string[]): Promise<Map<string, ActorProfile>> {
+  const profiles = new Map<string, ActorProfile>();
+  if (ids.length === 0) return profiles;
+  try {
+    for (const [id, summary] of await resolveUserSummaries(ids)) {
+      if (!isFallbackUserSummary(summary.user)) profiles.set(id, summary.user);
+    }
+  } catch (e) {
+    logger.warn('[Notifications] Failed to bulk-resolve actor profiles:', e);
+  }
+  return profiles;
+}
 
 /** Notification list page size (`GET /notifications`). */
 const DEFAULT_NOTIFICATIONS_PAGE_SIZE = 20;
@@ -225,10 +263,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
         .where(pageWhere)
         .orderBy(...NOTIFICATION_PAGE_ORDER)
         .limit(limit + 1),
-      db
-        .select({ value: count() })
-        .from(notifications)
-        .where(and(recipientMatch, eq(notifications.read, false))),
+      countUnread(recipientMatch),
       loadShowSensitiveContent(userId),
       loadMuteWords(userId),
     ]);
@@ -252,25 +287,13 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       ),
     );
 
-    const profilesMap = new Map<string, ActorProfile>();
-    if (uniqueActorIds.includes('system')) {
-      profilesMap.set('system', SYSTEM_ACTOR);
-    }
-    // Single bulk fetch for all real actors (chunked/deduped by the SDK) instead
-    // of one getUserById HTTP request per actor.
+    // One batch for every real actor and channel, through the user-summary
+    // cache, and BESIDE the post hydration below rather than before it: the two
+    // share nothing. It never rejects, so nothing waits on it to fail.
     const profileIdsToResolve = Array.from(
       new Set([...uniqueActorIds, ...channelRecipientIds].filter((id) => id !== 'system')),
     );
-    if (profileIdsToResolve.length > 0) {
-      try {
-        const profiles = await getServiceOxyClient().users.getMany(profileIdsToResolve);
-        for (const profile of profiles) {
-          if (profile?.id) profilesMap.set(profile.id, profile);
-        }
-      } catch (e) {
-        logger.warn('[Notifications] Failed to bulk-resolve actor profiles:', e);
-      }
-    }
+    const profilesRead = resolveActorProfiles(profileIdsToResolve);
 
     // Resolve every post referenced by a notification through the SAME
     // viewer-aware hydration/ACL path used by feeds and post detail. Never build
@@ -377,6 +400,11 @@ router.get('/', async (req: AuthRequest, res: Response) => {
         const text = post.content.text?.trim() ?? '';
         postPreviewMap.set(post.id, text.length > 200 ? `${text.slice(0, 200)}…` : text);
       }
+    }
+
+    const profilesMap = await profilesRead;
+    if (uniqueActorIds.includes('system')) {
+      profilesMap.set('system', SYSTEM_ACTOR);
     }
 
     // Check if there are more results
@@ -512,12 +540,7 @@ router.get('/unread-count', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
-    const [row] = await getDb()
-      .select({ value: count() })
-      .from(notifications)
-      .where(
-        and(recipientScope(await inboxRecipientIds(req, userId)), eq(notifications.read, false)),
-      );
+    const [row] = await countUnread(recipientScope(await inboxRecipientIds(req, userId)));
     res.json({ count: row?.value ?? 0 });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching unread count' });

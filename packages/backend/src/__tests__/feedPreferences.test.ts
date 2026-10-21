@@ -126,6 +126,27 @@ describe('GET /feed/preferences', () => {
     expect(saved.find((f) => f.descriptor === 'following')?.pinned).toBe(false); // appended unpinned
   });
 
+  it('labels the pinned custom feeds the viewer may still read, and only those', async () => {
+    const readable = await seedCustomFeed({ isPublic: true });
+    const privateToOwner = await seedCustomFeed({ isPublic: false });
+    const unpinned = await seedCustomFeed({ isPublic: true });
+    await replaceFeedLayout(VIEWER, [
+      { key: `custom:${readable}`, descriptor: `custom|${readable}`, pinned: true, order: 0 },
+      {
+        key: `custom:${privateToOwner}`,
+        descriptor: `custom|${privateToOwner}`,
+        pinned: true,
+        order: 1,
+      },
+      { key: `custom:${unpinned}`, descriptor: `custom|${unpinned}`, pinned: false, order: 2 },
+    ] as never);
+    const res = makeRes();
+    await feedPreferencesController.get(authed(), res as never);
+    expect((res.body as { data: { customFeedTitles: unknown } }).data.customFeedTitles).toEqual({
+      [readable]: 'fp feed',
+    });
+  });
+
   it('401s an anonymous request', async () => {
     const res = makeRes();
     await feedPreferencesController.get({ user: undefined } as never, res as never);

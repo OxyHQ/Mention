@@ -23,6 +23,7 @@ import { ProfileShell, type ProfileShellProps } from '../ProfileShell';
 const mockScrollPosition = { value: 0 };
 const mockHeader = jest.fn();
 const mockScreen = jest.fn();
+const mockColorScope = jest.fn();
 const mockTabs = jest.fn();
 const mockList = jest.fn();
 const mockDock = jest.fn();
@@ -65,7 +66,13 @@ jest.mock('@oxy.so/bloom/cover-header', () => ({
     return props.children;
   },
 }));
-jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ isDark: false }) }));
+jest.mock('@oxy.so/bloom/theme', () => ({
+  useTheme: () => ({ isDark: false }),
+  BloomColorScope: (props: { children: React.ReactNode }) => {
+    mockColorScope(props);
+    return props.children;
+  },
+}));
 jest.mock('@/context/LayoutScrollContext', () => ({
   useLayoutScroll: () => ({ scrollPosition: mockScrollPosition }),
 }));
@@ -240,5 +247,25 @@ test('without children (a channel on web), it renders the tabs itself', () => {
   });
   expect(mockTabs).toHaveBeenCalled();
   expect(mockCover).not.toHaveBeenCalled();
+  act(() => tree.unmount());
+});
+
+it('passes the stored profile identity to Bloom without choosing a replacement', () => {
+  const props = makeProps();
+  const profileData = props.profileData;
+  if (!profileData) throw new Error('Profile fixture required');
+  let tree: TestRenderer.ReactTestRenderer;
+  act(() => {
+    tree = TestRenderer.create(
+      <ProfileShell
+        {...props}
+        profileData={{
+          ...profileData,
+          design: { ...profileData.design, color: '#ABC' },
+        }}
+      />,
+    );
+  });
+  expect(mockColorScope.mock.calls.at(-1)?.[0]).toMatchObject({ seed: '#aabbcc' });
   act(() => tree.unmount());
 });

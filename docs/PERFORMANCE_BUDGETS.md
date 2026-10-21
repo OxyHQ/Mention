@@ -27,7 +27,8 @@ past any of:
 | Largest single file | 7.5 MiB |
 
 Wired into `.github/workflows/ci.yml`'s "Enforce bundle budgets" step, which
-also diffs the PR's export against `main`'s baseline. This is the one item
+also diffs the merge-queue entry's export against `main`'s baseline (pull
+requests skip it; the queue entry is the tree that ships). This is the one item
 on the original SLO list that already has the property the rest of this
 document argues for: a number, a place it is measured, and a build that
 fails when the number is exceeded.
@@ -278,22 +279,29 @@ match; it is counted under `@oxy.so/contracts`.)
 ### Layout chunk preloads (2026-10-15)
 
 `asyncRoutes` splits every route file into its own chunk, the eight `_layout`
-files included, and expo-router requires every layout while it builds the route
-tree — on every URL, before anything renders (8 of 8 requested on `/`, `/@user`
-and `/p/<id>` alike). Only the startup JavaScript names them, so they were a
-second round trip that began once `__common` and `entry` had downloaded and run
-(~2.3 s into a cold load). `scripts/web-layout-preload.mjs` now writes one
-`<link rel="preload" as="script">` per layout chunk into the exported
-`index.html` (after `web-font-preload.mjs`, on `build` and `build:analyze`), so
-the preload scanner fetches them beside the scripts. Page chunks (`index`,
-`[id]`, …) are per-URL and this shell serves every path, so they are left alone.
+files included. Only the startup JavaScript names them, so they were a second
+round trip that began once `__common` and `entry` had downloaded and run (~2.3 s
+into a cold load). `scripts/web-layout-preload.mjs` writes one
+`<link rel="preload" as="script">` per layout that loads on every URL into the
+exported `index.html` (after `web-font-preload.mjs`, on `build` and
+`build:analyze`), so the preload scanner fetches them beside the scripts.
+
+Only three: the root layout, `(app)/_layout` and `(app)/(tabs)/_layout`.
+Measured on mention.earth with the preloads stripped, those three load on `/`,
+`/explore`, `/@user`, `/p/<id>`, `/login`, `/settings`, `/messages` and the
+rest; `(auth)`, `[username]`, `[username]/lane`, `explore` and `live-rooms` load
+only on their own branches (the first version preloaded all eight on the wrong
+assumption that expo-router requires every layout up front). On `/` the five
+unused ones drew Chrome's "preloaded but not used within a few seconds" warning
+and wasted a download. Branch layouts, like page chunks (`index`, `[id]`, …),
+are per-URL and this shell serves every path, so they are left alone.
 
 Gates: `validate-frontend-static-output.mjs` fails an export whose `index.html`
-does not preload exactly the layout chunks the startup JavaScript names, one per
-directory under `app/` that holds a `_layout` (a Metro or expo-router naming
-change fails the build instead of silently preloading part of the set);
+does not preload exactly those three chunks, resolved from the startup
+JavaScript's route context (a Metro or expo-router change that hides one fails
+the build instead of silently preloading part of the set);
 `web-layout-preload:selftest` mutation-tests that; `e2e/tests/layout-preload.spec.ts`
-asserts in a browser that the page requests exactly the preloaded layouts, each
+asserts in a browser that `/` requests exactly the preloaded layouts, each
 once and through its preload (a mismatched URL or CORS mode would download it
 twice).
 
@@ -434,6 +442,32 @@ loads on `/`, 5 on a post and a profile; production API):
 The profile's LCP is its banner image, which neither change touches; its
 difference is inside the run-to-run spread.
 
+**It still waited for the viewer to resolve (2026-10-19).** Starting the read
+during render only helps once the feed renders, and nothing account-dependent
+renders before `AccountSwitchReset` has resolved the viewer — on a signed-out
+cold load that is the SDK's whole cold boot. `lib/bootFeedRead` now starts the
+home feed's first page from the root layout's module scope, as the viewer the
+device last had (anonymous, or the account the bearer names once it lands),
+and the feed takes it only when it resolves as that same viewer
+(`services/feedPageRead`). Measured with a local `expo export` of main
+`73fbe89b7` and of the branch, each served at the production origin against
+the production API (headless Chromium, 430×932, 4x CPU, 150 ms RTT, ~9 Mbit/s,
+cold context, signed out, median of 9 interleaved loads of `/`):
+
+| Signal | Main | Branch |
+| --- | --- | --- |
+| First feed request | 3.05 s | **1.12 s** |
+| Feed response | 3.31 s | 2.03 s |
+| First row (`content-ready`) | 3.99 s | 3.54 s |
+| LCP | 4.20 s | 3.71 s |
+| FCP | 2.51 s | 1.60 s |
+| Feed requests per load | 1 | 1 |
+
+The first row now waits for the boot, not for the network: the page is in hand
+~1.5 s before the feed can render it. The FCP difference was not attributed
+and may be run-to-run spread in this harness, which is not the one behind the
+table above. Bundle: initial JavaScript −285 bytes, total +1,465 bytes.
+
 ### Measured startup costs still open (2026-10-15)
 
 - **Alia's live avatar on the home header's Ask Alia button** (`AliaAvatarIcon`,
@@ -446,6 +480,11 @@ difference is inside the run-to-run spread.
   served `max-age=0, must-revalidate`. The fix belongs in Bloom's runtime (a
   size-aware level of detail, or a still for icon sizes) and in alia.onl's
   caching, not in Mention.
+  **Resolved upstream** by OxyHQ/Alia#791 (immutable caching for the hashed
+  assets) and OxyHQ/Alia#792 (SDK 17.1.0 draws a still PNG at icon sizes);
+  Mention is on `@alia.onl/sdk` ^21.5.0. Measured on production 2026-10-19: a
+  cold load of `/` makes **0 requests / 0 bytes** to the 3D runtime (was 20
+  requests / 7.8 MiB). No Mention change was needed.
 - **Theme tokens.** Bloom's `BloomThemeProvider` solved the same preset's tokens
   twice on its first render — fixed in Bloom 10.8.2 (OxyHQ/Bloom#361). The
   splash (`AppSplashScreen`) resolves the full DARK token set for one gradient
@@ -509,6 +548,10 @@ report per request, on the `HTTP request completed` log line that
 | --- | --- | --- |
 | `queryCount` / `queryDurationMs` | `db/queryMetrics.ts` | Postgres statements issued and time inside them |
 | `oxyCallCount` / `oxyDurationMs` | `utils/oxyMetrics.ts` | Oxy API calls issued and time waiting on them |
+
+The line is not written for the readiness probe (`/health/ready`), the uptime
+check (`HEAD /`) or the web telemetry beacon (`/telemetry/web`) unless they
+answer 5xx; they still feed every metric.
 
 `slowQueryCount` / `failedQueryCount` and `failedOxyCallCount` sit beside them.
 The matching histograms — `db_request_queries`, `db_request_duration_ms`,
@@ -756,10 +799,13 @@ views. What each step did:
 | other-row renders when post A is liked | 0 | 0 |
 | other-row renders on a view-count update | 0 | 0 |
 
-The one request per row is the author avatar prefetch. A 200-post fling makes
-198 requests, all avatar prefetches, and **zero** translation requests. Before
-#1106 the frontend could auto-translate a row on mount; now only an explicit
-Translate calls the endpoint.
+A row makes no request of its own. The last one, a prefetch of the author's
+avatar, was removed (2026-10-19): the row's `Avatar` asks for the same image in
+the same commit, so the prefetch was a second request and ~20 hook slots per
+row (text 293 -> 272). A 200-post fling now makes **zero** requests (198 before,
+all avatar prefetches) and zero translation requests. Before #1106 the frontend
+could auto-translate a row on mount; now only an explicit Translate calls the
+endpoint.
 
 Measured outside the row harness, in each PR's own test:
 

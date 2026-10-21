@@ -431,7 +431,9 @@ async function canViewAuthorFeed(ctx: FeedEngineContext, authorId: string): Prom
   const profileVisibility = settings?.profileVisibility ?? ProfileVisibility.PUBLIC;
   if (!requiresAccessCheck(profileVisibility)) return true;
   if (!ctx.currentUserId) return false;
-  return (ctx.followingIds ?? []).includes(authorId);
+  return ctx.followingIdSet
+    ? ctx.followingIdSet.has(authorId)
+    : (ctx.followingIds ?? []).includes(authorId);
 }
 
 /**
@@ -595,17 +597,22 @@ export const authoredSource: SourceModule = {
     const filterParam = typeof params.filter === 'string' ? params.filter : undefined;
     const filter: AuthorFeedFilter = isAuthorFeedFilter(filterParam) ? filterParam : 'posts';
 
-    if (!(await canViewAuthorFeed(ctx, authorId))) return [];
+    // The likes tab lists OTHER people's posts, so the profile owner's own lane
+    // curation has no bearing on it, and neither does it on mentions. For every
+    // other tab the lane read runs BESIDE the access check — it only reads which
+    // of the author's lanes are curated off, and nothing is served before the
+    // check passes.
+    const needsLaneCuration = filter !== 'likes' && filter !== 'mentions';
+    const [canView, excludedLaneIds] = await Promise.all([
+      canViewAuthorFeed(ctx, authorId),
+      needsLaneCuration
+        ? loadExcludedLaneIds(authorId, excludedDisplayModesForTab(filter))
+        : Promise.resolve<string[]>([]),
+    ]);
+    if (!canView) return [];
 
-    if (filter === 'likes') {
-      // The likes tab lists OTHER people's posts, so the profile owner's own
-      // lane curation has no bearing on it.
-      return gatherAuthorLikes(authorId, ctx);
-    }
-
+    if (filter === 'likes') return gatherAuthorLikes(authorId, ctx);
     if (filter === 'mentions') return gatherAuthorMentions(authorId, ctx, cap);
-
-    const excludedLaneIds = await loadExcludedLaneIds(authorId, excludedDisplayModesForTab(filter));
     // Sorted by `created_at` — never by id — to match the chronological keyset.
     // A federated post's import-time id bears no relation to its remote
     // `createdAt`, so an id sort behind a `createdAt` cursor permanently skips

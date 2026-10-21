@@ -688,7 +688,7 @@ describe('bounds and exclusions', () => {
             ...lane.classification,
           })),
         )
-        .returning({ id: posts.id });
+        .returning({ id: posts.id, createdAt: posts.createdAt });
       created.push(...rows.map((row) => row.id));
       await db.insert(postAuthorships).values(
         rows.map((row) => ({
@@ -696,6 +696,8 @@ describe('bounds and exclusions', () => {
           oxyUserId: lane.author,
           role: 'owner' as const,
           status: 'accepted' as const,
+          // The copy `insertChildRows` writes; the author lanes window on it.
+          postCreatedAt: row.createdAt,
         })),
       );
     }

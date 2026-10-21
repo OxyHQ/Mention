@@ -224,7 +224,7 @@ describe('webShell routes (integration)', () => {
   });
 
   it('never builds a sitemap shard on a request', async () => {
-    // Sitemaps are built by the leader's `SitemapBuildJob` (see
+    // Sitemaps are built by the scheduled `buildSitemaps` task (see
     // `seoSitemapBuild.integration.test.ts`); a request only reads the cache,
     // which the test setup's never-ready Redis leaves empty.
     const res = await request(makeApp()).get('/sitemaps/posts-2a-0.xml');

@@ -3,6 +3,7 @@ import { useRouter } from '@/lib/navigation/router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
@@ -11,9 +12,11 @@ import { createCommunityNoteSheets } from '@/components/CommunityNotes/useCommun
 import { showActionMenu } from '@/components/common/ActionMenu';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { buildPostMenuActions } from './postMenuActions';
+import { prefetchFeed } from '@/hooks/useFeedQuery';
+import { pinnedPostQueryOptions } from '@/components/Profile/pinnedPostQuery';
 import {
   currentPost,
-  toggleSave,
+  usePostInteractions,
   usePostInteractionsBinding,
   type BoundPostCommands,
 } from './postInteractions';
@@ -31,9 +34,10 @@ const PostInsightsSheet = lazy(() => import('@/components/Post/PostInsightsSheet
  */
 export function PostInteractionsBinder() {
   const bind = usePostInteractionsBinding();
+  const interactions = usePostInteractions();
   const theme = useTheme();
   const { t } = useTranslation();
-  const { user, canUsePrivateApi } = useAuth();
+  const { user, isAuthenticated, canUsePrivateApi } = useAuth();
   const router = useRouter();
   const safeBack = useSafeBack();
   const bottomSheet = useContext(BottomSheetContext);
@@ -53,6 +57,18 @@ export function PostInteractionsBinder() {
       queryClient,
     };
     const noteSheets = createCommunityNoteSheets({ bottomSheet, router, handlers: noteHandlers });
+    const requireSession = () => {
+      if (canUsePrivateApi) return true;
+      toast(
+        isAuthenticated
+          ? t('postActions.sessionLoading', {
+              defaultValue: 'Your session is loading. Try again in a moment.',
+            })
+          : t('postActions.signInRequired', { defaultValue: 'Sign in to interact with posts.' }),
+        { id: 'post-session-required', type: 'info' },
+      );
+      return false;
+    };
 
     const openSources: BoundPostCommands['openSources'] = (sources) => {
       if (sources.length === 0) return;
@@ -69,7 +85,19 @@ export function PostInteractionsBinder() {
     };
 
     return {
+      requireSession,
       openSources,
+      prefetchProfile: (profileId) => {
+        // Only for a resolved viewer: a read started while the session is
+        // still landing would be cached under the wrong viewer's key.
+        if (!profileId || (isAuthenticated && (!viewerId || !canUsePrivateApi))) return;
+        void queryClient.prefetchQuery(pinnedPostQueryOptions(viewerId, profileId));
+        prefetchFeed(queryClient, {
+          type: 'posts',
+          userId: profileId,
+          viewerId: isAuthenticated ? viewerId : undefined,
+        });
+      },
       openInsights: (postId) => {
         bottomSheet.setBottomSheetContent(
           <Suspense fallback={null}>
@@ -95,7 +123,8 @@ export function PostInteractionsBinder() {
             isSaved: viewerState?.isSaved ?? false,
             hasArticle: Boolean(post.attachments?.article),
             hasSources: sources.length > 0,
-            onSave: () => toggleSave(post, source),
+            // An open menu can outlive the session that created it.
+            onSave: () => interactions.toggleSave(post, source),
             onOpenArticle,
             onOpenSources: () => openSources(sources),
           },
@@ -135,12 +164,14 @@ export function PostInteractionsBinder() {
     theme,
     t,
     viewerId,
+    isAuthenticated,
     canUsePrivateApi,
     router,
     safeBack,
     bottomSheet,
     queryClient,
     noteHandlers,
+    interactions,
   ]);
 
   useEffect(() => {

@@ -14,7 +14,10 @@ The app shell declares its main and context panels through Bloom's
 same outer width; Bloom owns visibility, transitions, scrolling and bottom-bar
 clearance. Do not add another app-specific sidebar breakpoint or width animation.
 
-`/deck` uses the same API in `mode: 'deck'` with four resizable columns.
+Deck uses the same API in `mode: 'deck'`. Its default composition has the current
+application page as a fixed first column and three configurable columns. Saved
+custom columns can change that count. The compact sidebar mode control preserves
+the current route and mounted page; `/deck` activates that mode and resolves to Home.
 Its horizontal scroll belongs to the document; each column owns its vertical
 scroll. Bloom preserves the top and bottom gutters around bounded columns.
 The web host keeps `html`, `body` and `#root` at `height: 100%` with visible
@@ -25,8 +28,9 @@ Bloom also owns the final inline gutter and the sticky sidebar overlap surface.
 Its shared CSS responds to document scroll; Mention adds no scroll listener or
 route-specific sidebar paint.
 It is available only on web at Bloom's `lg` breakpoint and above; both the sidebar
-entry and direct route use `useDeckAvailable`. Each column has a Bloom memory
-history for all internal routes, with back/forward and restored scroll positions.
+mode control and direct route use `useDeckAvailable`. The first column keeps
+Expo's application history. Each additional column has a Bloom memory history
+for all internal routes, with back/forward and restored scroll positions.
 `lib/navigation/router` binds app links, parameters and navigation hooks to
 Bloom’s panel router when embedded on web, and to Expo otherwise. Native
 imports use Expo directly. Screens and nested layouts come from the same app route tree; profiles keep their chrome mounted
@@ -37,12 +41,18 @@ history offset. Column reselect, scroll and profile colors are scoped too.
 Each route declares its chrome through `Screen scroll="auto"`, `header` and
 `bottomBar`. The same screen uses document scroll normally and the column owner
 inside Deck. Header actions from the workspace compose into that header: one
-Back button only when history exists and a panel-settings modal, never a second toolbar. The modal persists feed, resizing, appearance and base recipe per panel;
+Back button only when history exists and a panel-settings modal for configurable
+columns, never a second toolbar. A screen rendered in a panel delegates Back to
+Bloom; an unconditional `onBack` would incorrectly show it at the history root.
+The modal persists feed, resizing, appearance and base recipe per panel;
 controlled `panelLayout.widths` persists changes made with the resize handle.
 Deck roots render the actual Explore, preset-feed viewer and Saved routes through
 `PanelRouteSlot`; do not introduce alternate feed or authentication screens in Deck.
 `panelLayout.trailingAction` supplies the end-of-document create-panel action;
 adding a column issues a transient `revealPanel` request to bring it into view.
+Bloom waits for the compositor's layout transitions before revealing the final
+column box and cancels superseded requests. The app must not schedule a second
+scroll or assume that a newly mounted panel has already reached its final width.
 `activePanel` is passive selection; hydration never requests horizontal scrolling.
 Panel definitions and preferences persist in `deckSettings`; reveal requests do
 not. App code does not measure panel geometry.
@@ -84,6 +94,13 @@ Do not simulate asynchronous loading with `Promise.resolve` over eager imports. 
 Deck regression holds a topic response, checks the skeleton and working Back
 button, then checks that revisiting renders cached posts without another read.
 
+Hydrated quotes render synchronously with their parent post. `PostItem` supplies a
+stable nested renderer to the attachment row; do not reimport it through
+`React.lazy` with an empty fallback. That boundary adds the quote's height after
+the virtualizer has measured the parent and shifts the reading position. Keep the
+depth limit and memo comparison. Feed action glyphs use fixed-size SVGs, so a
+late icon-font load cannot change the row height.
+
 Feed request deduplication includes viewer generation, page size and normalized
 filters. Scroll identities use the same normalized filters with structured
 serialization, so delimiters inside values and boolean/string values cannot
@@ -103,7 +120,12 @@ authorities whether a write postdates the held read, and only then is page 1
 read again (never every loaded page). **Never invalidate the `feeds` family**:
 that refetches every loaded page of every open feed. The viewer's own new post,
 reply and deletion are written into the feed queries by
-`stores/feedQueryCache.ts`, mounted or not. `stores/engagementInvalidation.ts`
+`stores/feedQueryCache.ts`, mounted or not. A feed's first page can be started
+before its `<Feed>` mounts — `prefetchFeed` (post replies from the route id, a
+profile opened from a feed row) and, on web, the home feed's boot read
+(`lib/bootFeedRead`), which the feed takes only when the viewer resolves as the
+one it was read as (`services/feedPageRead`). Visited home tabs stay mounted
+behind `<Activity>`. `stores/engagementInvalidation.ts`
 is the single authority for engagement writes; **do not invalidate from the
 callers** — the feed row's commands (`components/Feed/postInteractions.tsx`)
 and `app/(app)/videos.tsx` both write through the store directly. Client-wide

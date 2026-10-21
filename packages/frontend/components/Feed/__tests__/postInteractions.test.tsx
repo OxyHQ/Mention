@@ -9,6 +9,7 @@ import {
   type PostInteractions,
 } from '../postInteractions';
 import { PostInteractionsBinder } from '../PostInteractionsBinder';
+import { toast } from '@oxy.so/bloom/toast';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 
 /**
@@ -53,8 +54,9 @@ jest.mock('@/components/common/ActionMenu', () => ({
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn(), back: jest.fn(), canGoBack: () => false }),
 }));
+const mockPrefetchQuery = jest.fn(() => Promise.resolve());
 jest.mock('@tanstack/react-query', () => ({
-  useQueryClient: () => ({ invalidateQueries: jest.fn() }),
+  useQueryClient: () => ({ invalidateQueries: jest.fn(), prefetchQuery: mockPrefetchQuery }),
 }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -64,12 +66,20 @@ jest.mock('react-i18next', () => ({
 jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { textSecondary: '#888', error: '#f00' } }),
 }));
-jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => ({ user: { id: 'viewer-1' } }) }));
+let mockAuth: Record<string, unknown> = { user: { id: 'viewer-1' } };
+jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => mockAuth }));
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (u: { username?: string } | null) => u?.username ?? null,
 }));
 jest.mock('@/services/feedService', () => ({ feedService: {} }));
+const mockPrefetchFeed = jest.fn();
+jest.mock('@/hooks/useFeedQuery', () => ({
+  prefetchFeed: (...args: unknown[]) => mockPrefetchFeed(...args),
+}));
+jest.mock('@/components/Profile/pinnedPostQuery', () => ({
+  pinnedPostQueryOptions: (viewerId: unknown, profileId: string) => ({ profileId }),
+}));
 jest.mock('@/services/muteService', () => ({ muteService: {} }));
 jest.mock('@/services/lanesService', () => ({ lanesService: {} }));
 jest.mock('@/services/reportService', () => ({ reportService: {} }));
@@ -134,10 +144,19 @@ beforeAll(() => {
 beforeEach(() => {
   jest.clearAllMocks();
   mockStore.posts.clear();
+  mockAuth = { user: { id: 'viewer-1' } };
 });
 
 describe('engagement commands', () => {
-  const interactions = () => capture((probe) => probe);
+  const interactions = () => {
+    mockAuth = { user: { id: 'viewer-1' }, isAuthenticated: true, canUsePrivateApi: true };
+    return capture((probe) => (
+      <PostInteractionsProvider>
+        <PostInteractionsBinder />
+        {probe}
+      </PostInteractionsProvider>
+    ));
+  };
 
   it('likes with the feed as attribution, and unlikes without it', async () => {
     const commands = interactions();
@@ -200,7 +219,148 @@ describe('engagement commands', () => {
   });
 });
 
+describe('session gate', () => {
+  it.each([false, true])(
+    'blocks optimistic writes while private API is unavailable (signed in: %s)',
+    async (isAuthenticated) => {
+      mockAuth = {
+        user: isAuthenticated ? { id: 'viewer-1' } : null,
+        isAuthenticated,
+        canUsePrivateApi: false,
+      };
+      const commands = capture((probe) => (
+        <PostInteractionsProvider>
+          <PostInteractionsBinder />
+          {probe}
+        </PostInteractionsProvider>
+      ));
+      for (const action of ['toggleLike', 'toggleDownvote', 'toggleSave', 'toggleBoost'] as const)
+        await commands[action](post('anonymous'));
+      expect(commands.requireSession()).toBe(false);
+      for (const action of ['likePost', 'downvotePost', 'savePost', 'boostPost'] as const)
+        expect(mockStore[action]).not.toHaveBeenCalled();
+      expect(toast).toHaveBeenCalledTimes(5);
+      expect(toast).toHaveBeenLastCalledWith(
+        isAuthenticated
+          ? 'Your session is loading. Try again in a moment.'
+          : 'Sign in to interact with posts.',
+        { id: 'post-session-required', type: 'info' },
+      );
+      commands.share(post('anonymous'));
+      expect(mockShare).toHaveBeenCalled();
+    },
+  );
+
+  it('does not write before the session binder mounts', async () => {
+    const commands = capture((probe) => (
+      <PostInteractionsProvider>{probe}</PostInteractionsProvider>
+    ));
+    await commands.toggleLike(post('early'));
+    expect(mockStore.likePost).not.toHaveBeenCalled();
+  });
+});
+
 describe('menu', () => {
+  it.each([false, true])(
+    'honors the server insight permission over ownership (allowed: %s)',
+    (allowed) => {
+      mockAuth = { user: { id: 'viewer-1' }, isAuthenticated: true, canUsePrivateApi: true };
+      const commands = capture((probe) => (
+        <PostInteractionsProvider>
+          <PostInteractionsBinder />
+          {probe}
+        </PostInteractionsProvider>
+      ));
+      const item = post('insights-permission', { isOwner: !allowed });
+      item.permissions = { ...item.permissions, canViewInsights: allowed };
+      commands.openMenu({ post: item, isPostDetail: false, onOpenArticle: jest.fn() });
+      const labels = (
+        mockShowActionMenu.mock.calls[0][0] as { groups: { label: string }[][] }
+      ).groups
+        .flat()
+        .map((action) => action.label);
+      expect(labels.includes('postActions.insights')).toBe(allowed);
+    },
+  );
+
+  it.each([false, true])('offers saving only with a ready session (ready: %s)', async (ready) => {
+    mockAuth = {
+      user: ready ? { id: 'viewer-1' } : null,
+      isAuthenticated: ready,
+      canUsePrivateApi: ready,
+    };
+    const commands = capture((probe) => (
+      <PostInteractionsProvider>
+        <PostInteractionsBinder />
+        {probe}
+      </PostInteractionsProvider>
+    ));
+    commands.openMenu({
+      post: post('menu-save'),
+      source: 'following',
+      isPostDetail: false,
+      onOpenArticle: jest.fn(),
+    });
+    const actions = (
+      mockShowActionMenu.mock.calls[0][0] as {
+        groups: { label: string; onPress: () => Promise<void> }[][];
+      }
+    ).groups.flat();
+    const save = actions.find((action) => action.label === 'postActions.save');
+    if (ready) {
+      expect(save).toBeDefined();
+      await save?.onPress();
+      expect(mockStore.savePost).toHaveBeenCalledWith({ postId: 'menu-save' }, 'following');
+    } else {
+      expect(save).toBeUndefined();
+      expect(mockStore.savePost).not.toHaveBeenCalled();
+    }
+  });
+
+  it('checks the current session when saving from an already open menu', async () => {
+    mockAuth = { user: { id: 'viewer-1' }, isAuthenticated: true, canUsePrivateApi: true };
+    let commands!: PostInteractions;
+    const Probe = () => {
+      commands = usePostInteractions();
+      return null;
+    };
+    const tree = () => (
+      <PostInteractionsProvider>
+        <PostInteractionsBinder />
+        <Probe />
+      </PostInteractionsProvider>
+    );
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(tree());
+    });
+    commands.openMenu({
+      post: post('expired-menu'),
+      isPostDetail: false,
+      onOpenArticle: jest.fn(),
+    });
+    const save = (
+      mockShowActionMenu.mock.calls[0][0] as {
+        groups: { label: string; onPress: () => Promise<void> }[][];
+      }
+    ).groups
+      .flat()
+      .find((action) => action.label === 'postActions.save');
+    expect(save).toBeDefined();
+
+    mockAuth = { user: null, isAuthenticated: false, canUsePrivateApi: false };
+    act(() => {
+      renderer.update(tree());
+    });
+    await save?.onPress();
+    expect(mockStore.savePost).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith('Sign in to interact with posts.', {
+      id: 'post-session-required',
+      type: 'info',
+    });
+    act(() => renderer.unmount());
+  });
+
   it('without a binder, opening the menu is a logged no-op', () => {
     const commands = capture((probe) => (
       <PostInteractionsProvider>{probe}</PostInteractionsProvider>
@@ -307,5 +467,55 @@ describe('bound sheet commands', () => {
       .flat()
       .map((a) => a.label);
     expect(ownerLabels).not.toContain('Add community note');
+  });
+});
+
+describe('profile prefetch', () => {
+  it("starts the author's pinned post and posts feed once bound, and nothing before", () => {
+    capture((probe) => (
+      <PostInteractionsProvider>{probe}</PostInteractionsProvider>
+    )).prefetchProfile('author-1');
+    expect(mockPrefetchFeed).not.toHaveBeenCalled();
+
+    const commands = capture((probe) => (
+      <PostInteractionsProvider>
+        <PostInteractionsBinder />
+        {probe}
+      </PostInteractionsProvider>
+    ));
+    commands.prefetchProfile(undefined);
+    commands.prefetchProfile('author-1');
+
+    expect(mockPrefetchQuery).toHaveBeenCalledTimes(1);
+    expect(mockPrefetchQuery).toHaveBeenCalledWith({ profileId: 'author-1' });
+    expect(mockPrefetchFeed).toHaveBeenCalledTimes(1);
+    expect(mockPrefetchFeed.mock.calls[0][1]).toEqual({
+      type: 'posts',
+      userId: 'author-1',
+      viewerId: undefined,
+    });
+  });
+
+  it('reads as the signed-in viewer, and not at all while their session is still landing', () => {
+    const bound = () =>
+      capture((probe) => (
+        <PostInteractionsProvider>
+          <PostInteractionsBinder />
+          {probe}
+        </PostInteractionsProvider>
+      ));
+    mockAuth = { user: { id: 'viewer-1' }, isAuthenticated: true, canUsePrivateApi: false };
+    bound().prefetchProfile('author-1');
+    expect(mockPrefetchFeed).not.toHaveBeenCalled();
+
+    mockAuth = { user: null, isAuthenticated: true, canUsePrivateApi: true };
+    bound().prefetchProfile('author-1');
+    expect(mockPrefetchQuery).not.toHaveBeenCalled();
+    expect(mockPrefetchFeed).not.toHaveBeenCalled();
+
+    mockAuth = { user: { id: 'viewer-1' }, isAuthenticated: true, canUsePrivateApi: true };
+    bound().prefetchProfile('author-1');
+    expect(mockPrefetchFeed.mock.calls[0][1]).toMatchObject({ viewerId: 'viewer-1' });
+    mockAuth = { user: { id: 'viewer-1' } };
   });
 });

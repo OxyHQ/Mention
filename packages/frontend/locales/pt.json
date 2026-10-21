@@ -1,4 +1,11 @@
 {
+  "post.threadPosition": "Publicação {{index}} de {{total}} na sequência",
+  "post.viewConversation": "Ver conversa",
+  "post.threadContinuation": "Continuação da sequência ({{count}})",
+  "postActions.signInRequired": "Entre para interagir com as publicações.",
+  "postActions.sessionLoading": "Sua sessão está carregando. Tente novamente em instantes.",
+  "deck.mode.standard": "Padrão",
+  "deck.mode.label": "Modo Deck",
   "navigation.menu": "Menu de navegação",
   "Your post could not be published. {{detail}}": "Não foi possível publicar a tua publicação. {{detail}}",
   "You're posting too fast. Please wait a moment and try again.": "Estás a publicar demasiado depressa. Aguarda um momento e tenta novamente.",
@@ -2787,5 +2794,9 @@
     "updating": "Atualizando…",
     "total": "Total",
     "dayCount_many": "{{count}} dias"
-  }
+  },
+  "post.repostOptions": "Opções de repost",
+  "post.repost": "Repostar",
+  "post.undoRepost": "Desfazer repost",
+  "post.quote": "Citar"
 }

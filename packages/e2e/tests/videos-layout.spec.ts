@@ -14,11 +14,21 @@ for (const viewport of [
     const screen = page.getByTestId('videos-screen');
     const status = page.getByTestId('videos-status');
     const panel = page.getByTestId('mention-shell-panels-main');
+    const invitation = panel.getByTestId('sign-in-banner');
+    await expect(invitation).toBeVisible();
     await expect
       .poll(async () => {
         const area = await panel.boundingBox();
         const content = await status.boundingBox();
-        return area && content ? Math.abs(area.height - content.height) : Infinity;
+        const footer = await invitation.boundingBox();
+        if (!area || !content || !footer) return Infinity;
+        // The invitation now belongs to this panel. The empty state fills its
+        // reading area above that footer, without a gap, overlap or overflow.
+        return Math.max(
+          Math.abs(content.y - area.y),
+          Math.abs(content.y + content.height - footer.y),
+          Math.abs(footer.y + footer.height - area.y - area.height),
+        );
       })
       .toBeLessThan(2);
     await expect

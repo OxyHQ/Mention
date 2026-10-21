@@ -22,6 +22,8 @@ const script = join(packageRoot, 'scripts', 'web-layout-preload.mjs');
 const WEB = '/_expo/static/js/web';
 const ROOT_LAYOUT = `${WEB}/_layout-${'a'.repeat(32)}.js`;
 const GROUP_LAYOUT = `${WEB}/_layout-${'b'.repeat(32)}.js`;
+const TABS_LAYOUT = `${WEB}/_layout-${'d'.repeat(32)}.js`;
+const BRANCH_LAYOUT = `${WEB}/_layout-${'e'.repeat(32)}.js`;
 const PAGE = `${WEB}/index-${'c'.repeat(32)}.js`;
 
 const INDEX_HTML = `<!DOCTYPE html>
@@ -37,20 +39,33 @@ const INDEX_HTML = `<!DOCTYPE html>
 </html>
 `;
 
-const ENTRY_JS = `__d(function(){},0,{"paths":{"10":"${ROOT_LAYOUT}","11":"${GROUP_LAYOUT}","12":"${PAGE}"}});`;
+/** The route context and dependency map as Metro writes them (tabs eager, the rest lazy). */
+function entryJs({ withTabs = true } = {}) {
+  const tabs = withTabs
+    ? `"./(app)/(tabs)/_layout.tsx":{enumerable:!0,get(){var t;return t=r(d[1])(d[0],d.paths),r(d[1]),t}},`
+    : '';
+  return (
+    `__d(function(g,r,i,a,m,e,d){var t={${tabs}` +
+    `"./(app)/_layout.tsx":{enumerable:!0,get:()=>r(d[1])(d[2],d.paths)},` +
+    `"./(app)/explore/_layout.tsx":{enumerable:!0,get:()=>r(d[1])(d[3],d.paths)},` +
+    `"./(app)/index.tsx":{enumerable:!0,get:()=>r(d[1])(d[4],d.paths)},` +
+    `"./_layout.tsx":{enumerable:!0,get:()=>r(d[1])(d[5],d.paths)}};},8,` +
+    `{"0":10,"1":9,"2":11,"3":13,"4":12,"5":14,"paths":{"10":"${TABS_LAYOUT}",` +
+    `"11":"${GROUP_LAYOUT}","12":"${PAGE}","13":"${BRANCH_LAYOUT}","14":"${ROOT_LAYOUT}"}});`
+  );
+}
 
-/** The export is written to `<root>/dist`, the route files to `<root>/app`. */
+/** The export is written to `<root>/dist`. */
 function writeFixture(root, overrides = {}) {
   const files = {
     'dist/index.html': INDEX_HTML,
     [`dist${WEB}/__common-abc.js`]: '__d(function(){},1,[]);',
-    [`dist${WEB}/entry-def.js`]: ENTRY_JS,
-    [`dist${ROOT_LAYOUT}`]: '__d(function(){},10,[]);',
+    [`dist${WEB}/entry-def.js`]: entryJs(),
+    [`dist${ROOT_LAYOUT}`]: '__d(function(){},14,[]);',
     [`dist${GROUP_LAYOUT}`]: '__d(function(){},11,[]);',
+    [`dist${TABS_LAYOUT}`]: '__d(function(){},10,[]);',
+    [`dist${BRANCH_LAYOUT}`]: '__d(function(){},13,[]);',
     [`dist${PAGE}`]: '__d(function(){},12,[]);',
-    'app/_layout.tsx': 'export default function Root() {}',
-    'app/(app)/_layout.tsx': 'export default function Group() {}',
-    'app/(app)/index.tsx': 'export default function Home() {}',
     ...overrides,
   };
   for (const [path, content] of Object.entries(files)) {
@@ -63,11 +78,10 @@ function writeFixture(root, overrides = {}) {
 
 function run(root, ...args) {
   try {
-    const stdout = execFileSync(
-      process.execPath,
-      [script, join(root, 'dist'), '--app-dir', join(root, 'app'), ...args],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
-    );
+    const stdout = execFileSync(process.execPath, [script, join(root, 'dist'), ...args], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     return { ok: true, output: stdout };
   } catch (error) {
     return { ok: false, output: `${error.stdout ?? ''}${error.stderr ?? ''}` };
@@ -103,11 +117,13 @@ withFixture('positive control', {}, (root, name) => {
   expectCase(`${name}: check`, run(root, '--check'), true);
   const html = readFileSync(join(root, 'dist', 'index.html'), 'utf8');
   const tags = html.match(/<link rel="preload"[^>]*>/g) ?? [];
-  const expected = [ROOT_LAYOUT, GROUP_LAYOUT].map(
+  const expected = [ROOT_LAYOUT, GROUP_LAYOUT, TABS_LAYOUT].map(
     (href) => `<link rel="preload" href="${href}" as="script" data-route-layout>`,
   );
   if (JSON.stringify(tags) !== JSON.stringify(expected)) {
-    failures.push(`${name}: expected exactly the two layout preloads, got ${JSON.stringify(tags)}`);
+    failures.push(
+      `${name}: expected exactly the three always-loaded layout preloads, got ${JSON.stringify(tags)}`,
+    );
   } else if (html.indexOf(expected[0]) > html.indexOf('</head>')) {
     failures.push(`${name}: the preloads must be in the <head>`);
   } else {
@@ -115,6 +131,9 @@ withFixture('positive control', {}, (root, name) => {
   }
   if (html.includes(`href="${PAGE}"`)) {
     failures.push(`${name}: preloaded a page chunk, which is per-URL`);
+  }
+  if (html.includes(`href="${BRANCH_LAYOUT}"`)) {
+    failures.push(`${name}: preloaded a branch-only layout, which most URLs never request`);
   }
 });
 
@@ -131,10 +150,10 @@ withFixture(
 );
 
 withFixture(
-  'a layout the startup JavaScript does not name',
-  { 'app/(app)/settings/_layout.tsx': 'export default function Settings() {}' },
+  'an always-loaded layout the startup JavaScript does not name',
+  { [`dist${WEB}/entry-def.js`]: entryJs({ withTabs: false }) },
   (root, name) => {
-    expectCase(name, run(root), false, 'name 3 _layout chunk(s)');
+    expectCase(name, run(root), false, './(app)/(tabs)/_layout.tsx');
   },
 );
 
@@ -142,7 +161,7 @@ withFixture(
   'startup JavaScript names no layout chunks',
   { [`dist${WEB}/entry-def.js`]: `__d(function(){},0,{"paths":{"12":"${PAGE}"}});` },
   (root, name) => {
-    expectCase(name, run(root), false, 'found 0');
+    expectCase(name, run(root), false, './_layout.tsx');
   },
 );
 

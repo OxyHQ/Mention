@@ -19,12 +19,9 @@ import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
 import { useThreadHoverStore } from '@/stores/threadHoverStore';
 import { createLogger } from '@oxy.so/core/logger';
 import { getItemKey, deduplicateItems, buildReplyTree, type ReplyNode } from '@/utils/feedUtils';
-import {
-  THREAD_LINE_WIDTH,
-  THREAD_LINE_BORDER_RADIUS,
-  THREAD_LINE_Z_INDEX,
-} from '@/components/Compose/composeLayout';
-import { POST_ITEM_SPACING } from '@/styles/shared';
+import { THREAD_LINE_WIDTH, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
+import { POST_ITEM_SPACING, POST_AVATAR_SIZE, REPLY_BRANCH_INDENT } from '@/styles/shared';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Shared feed-row model + render helpers used by BOTH the native (FlashList)
@@ -60,6 +57,8 @@ export interface PostFeedRow {
   sliceReason?: FeedSliceReason;
   nestingDepth: number;
   truncatedChildCount: number;
+  /** Ancestor trunks that continue to another sibling after this subtree. */
+  replyBranch?: { continuingDepths: number[]; endsGroup: boolean };
   /**
    * For rows that belong to a real multi-post thread (slice with >1 item), the
    * id of the thread's ROOT post (the first slice item). Tapping any post of
@@ -93,11 +92,13 @@ export { boundFeedRows, canLoadMoreFeed } from './feedPaging';
 const logger = createLogger('Feed');
 
 export interface BuildFeedRowsParams {
+  /** A post already rendered in the leading section. */
+  leadingPostId?: string;
   slices?: FeedPostSlice[];
   items: HydratedPost[];
   type: FeedType;
   currentUserId?: string;
-  blockedSet: Set<string>;
+  blockedSet: ReadonlySet<string>;
   threaded?: boolean;
   threadPostId?: string;
   /** Server-decided recommendation-card placements for the accumulated feed. */
@@ -213,6 +214,7 @@ export function buildFeedRows({
   threaded,
   threadPostId,
   interstitials,
+  leadingPostId,
 }: BuildFeedRowsParams): FeedRow[] {
   // If we have slices, transform them into FeedRows with thread state
   if (slices && slices.length > 0) {
@@ -226,6 +228,7 @@ export function buildFeedRows({
       const uniqueSliceItems = slice.items.filter((sliceItem) => {
         const post = sliceItem.post as FeedItem;
         if (!post || !post.id) return false;
+        if (leadingPostId && displayedPostId(post) === leadingPostId) return false;
         if (blockedSet.size > 0) {
           const authorId = post.user?.id;
           if (authorId && blockedSet.has(authorId)) return false;
@@ -284,6 +287,7 @@ export function buildFeedRows({
   const filteredByPrivacy = threaded
     ? visible
     : visible.filter((item) => {
+        if (leadingPostId && displayedPostId(item) === leadingPostId) return false;
         if (isRedrawOfShownPost(item, shownPostIds)) return false;
         shownPostIds.add(displayedPostId(item));
         return true;
@@ -294,7 +298,7 @@ export function buildFeedRows({
     const tree = buildReplyTree(filteredByPrivacy, threadPostId);
     const rows: PostFeedRow[] = [];
 
-    const flattenNode = (node: ReplyNode, depth: number) => {
+    const flattenNode = (node: ReplyNode, depth: number, continuingDepths: number[]) => {
       const item = node.reply;
       const isTruncated = depth >= MAX_THREAD_NESTING_DEPTH && node.children.length > 0;
 
@@ -303,22 +307,31 @@ export function buildFeedRows({
         item,
         sliceKey: getItemKey(item),
         isThreadParent: node.children.length > 0 && !isTruncated,
-        isThreadChild: depth > 0,
+        isThreadChild: false,
         isThreadLastChild: false,
-        isIncompleteThread: isTruncated,
+        isIncompleteThread: isTruncated || (item.engagement?.replies ?? 0) > node.children.length,
         nestingDepth: depth,
-        truncatedChildCount: isTruncated ? node.children.length : 0,
+        truncatedChildCount: isTruncated
+          ? Math.max(node.children.length, item.engagement?.replies ?? 0)
+          : Math.max(0, (item.engagement?.replies ?? 0) - node.children.length),
+        replyBranch: { continuingDepths, endsGroup: false },
       });
 
       if (!isTruncated) {
-        for (const child of node.children) {
-          flattenNode(child, depth + 1);
-        }
+        node.children.forEach((child, index) => {
+          flattenNode(
+            child,
+            depth + 1,
+            index < node.children.length - 1 ? [...continuingDepths, depth] : continuingDepths,
+          );
+        });
       }
     };
 
     for (const node of tree) {
-      flattenNode(node, 0);
+      flattenNode(node, 0, []);
+      const last = rows[rows.length - 1];
+      if (last.replyBranch) last.replyBranch.endsGroup = true;
     }
 
     return ensureUniqueFeedRows(spliceInterstitials(rows, interstitials));
@@ -472,7 +485,8 @@ export function renderFeedRow(
   // row the server never sliced, and on the screens that call `PostItem` without
   // going through here at all. Deriving it from `row.sliceReason` is what tied
   // the header to the handful of feeds whose definition opts into reply slicing.
-  const nestPadding = row.nestingDepth > 0 ? { paddingLeft: 16 * row.nestingDepth } : undefined;
+  const nestPadding =
+    row.nestingDepth > 0 ? { paddingLeft: REPLY_BRANCH_INDENT * row.nestingDepth } : undefined;
 
   // PURE repost (boost): render the ORIGINAL post directly (its author, content,
   // media, actions) with a "Reposted by X" context row on top — NOT the original
@@ -494,7 +508,9 @@ export function renderFeedRow(
         isThreadParent={row.isThreadParent}
         isThreadChild={row.isThreadChild}
         isThreadLastChild={row.isThreadLastChild}
-        attachedBelow={showThreadLink}
+        attachedBelow={showThreadLink || Boolean(row.replyBranch && !row.replyBranch.endsGroup)}
+        replyBranch={Boolean(row.replyBranch && row.nestingDepth > 0)}
+        style={row.replyBranch ? styles.branchPost : undefined}
         nestingDepth={row.nestingDepth}
         repostedBy={boostedOriginal ? boostCtx?.actor : undefined}
         feedDescriptor={feedDescriptor}
@@ -509,28 +525,66 @@ export function renderFeedRow(
         />
       )}
       {showMoreReplies && (
-        <Pressable
-          style={[styles.showMoreReplies, nestPadding]}
+        <MoreRepliesLink
           onPress={() => router.push(`/p/${renderedPostId}`)}
-        >
-          <Text className="text-primary text-sm font-medium">
-            Show more replies ({row.truncatedChildCount})
-          </Text>
-        </Pressable>
+          lineColor={row.isThreadParent ? threadLineColor : undefined}
+        />
       )}
     </PostErrorBoundary>
   );
 
-  if (nestPadding) {
+  if (row.replyBranch) {
     return (
-      <View style={[styles.nestedRow, nestPadding]}>
-        <View style={[styles.nestedThreadLine, { backgroundColor: threadLineColor }]} />
+      <View
+        className="border-border"
+        style={[styles.nestedRow, nestPadding, row.replyBranch.endsGroup && styles.branchSeparator]}
+      >
+        {row.replyBranch.continuingDepths.map((depth) => (
+          <View
+            key={depth}
+            pointerEvents="none"
+            style={[
+              styles.nestedThreadLine,
+              {
+                left:
+                  POST_ITEM_SPACING.HPAD +
+                  POST_AVATAR_SIZE / 2 -
+                  THREAD_LINE_WIDTH / 2 +
+                  depth * REPLY_BRANCH_INDENT,
+                backgroundColor: threadLineColor,
+              },
+            ]}
+          />
+        ))}
         {content}
       </View>
     );
   }
 
   return content;
+}
+
+function MoreRepliesLink({ onPress, lineColor }: { onPress: () => void; lineColor?: string }) {
+  const { t } = useTranslation();
+  return (
+    <Pressable accessibilityRole="button" style={styles.showMoreReplies} onPress={onPress}>
+      {lineColor && (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.nestedThreadLine,
+            {
+              left: POST_ITEM_SPACING.HPAD + POST_AVATAR_SIZE / 2 - THREAD_LINE_WIDTH / 2,
+              backgroundColor: lineColor,
+            },
+          ]}
+        />
+      )}
+      <Text className="text-primary text-sm font-medium">
+        {t('post.viewConversation', { defaultValue: 'View conversation' })}
+      </Text>
+    </Pressable>
+  );
 }
 
 export const feedRowStyles = StyleSheet.create({
@@ -566,17 +620,20 @@ const styles = StyleSheet.create({
   },
   nestedThreadLine: {
     position: 'absolute',
-    // Center the thread line on the PostItem avatar: HPAD + AVATAR_SIZE/2 - 1 = 31
-    left: POST_ITEM_SPACING.HPAD + POST_ITEM_SPACING.AVATAR_SIZE / 2 - 1,
     top: 0,
     bottom: 0,
     width: THREAD_LINE_WIDTH,
-    borderRadius: THREAD_LINE_BORDER_RADIUS,
     zIndex: THREAD_LINE_Z_INDEX,
+  },
+  branchPost: {
+    borderBottomWidth: 0,
+  },
+  branchSeparator: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   showMoreReplies: {
     paddingVertical: 10,
-    paddingLeft: 16,
+    paddingLeft: POST_ITEM_SPACING.AVATAR_OFFSET,
     paddingRight: 12,
   },
 });

@@ -1,15 +1,25 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { BlockedUser, RestrictedUser } from '@oxy.so/core';
-import { usePrivacyStore } from '@/stores/privacyStore';
 import { logger } from '@oxy.so/core/logger';
 import { useAuth } from '@oxy.so/services/ui/client';
+import { queryClient } from '@/lib/queryClient';
+import { type ViewerId, viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
-interface UsePrivacyControlsOptions {
-  autoRefresh?: boolean;
-  minIntervalMs?: number;
+/** Blocks and restrictions change rarely and every write updates the entry. */
+const PRIVACY_LISTS_STALE_TIME_MS = 2 * 60 * 1000;
+
+interface PrivacyLists {
+  blockedIds: string[];
+  restrictedIds: string[];
 }
 
-const DEFAULT_INTERVAL = 2 * 60 * 1000; // 2 minutes
+export interface PrivacySets {
+  blockedSet: ReadonlySet<string>;
+  restrictedSet: ReadonlySet<string>;
+}
+
+const EMPTY_LISTS: PrivacyLists = { blockedIds: [], restrictedIds: [] };
+const EMPTY_SETS: PrivacySets = { blockedSet: new Set(), restrictedSet: new Set() };
 
 function extractListId(entry: BlockedUser | RestrictedUser): string | undefined {
   const target = 'blockedId' in entry ? entry.blockedId : entry.restrictedId;
@@ -19,149 +29,68 @@ function extractListId(entry: BlockedUser | RestrictedUser): string | undefined 
   return entry._id ?? entry.userId;
 }
 
-export function usePrivacyControls(options?: UsePrivacyControlsOptions) {
-  const { autoRefresh = true, minIntervalMs = DEFAULT_INTERVAL } = options || {};
-  const { oxyServices, isAuthenticated, isAuthResolved, canUsePrivateApi, user } = useAuth();
+function toIds(entries: (BlockedUser | RestrictedUser)[] | undefined): string[] {
+  return Array.isArray(entries)
+    ? entries.map(extractListId).filter((id): id is string => Boolean(id))
+    : [];
+}
+
+// Module-level so React Query memoizes the Sets per fetched list: a refetch
+// whose ids are unchanged keeps the same arrays (structural sharing) and so
+// the same Sets, and the feeds filtering on them do not recompute.
+function toSets(lists: PrivacyLists): PrivacySets {
+  return { blockedSet: new Set(lists.blockedIds), restrictedSet: new Set(lists.restrictedIds) };
+}
+
+/**
+ * The viewer's Oxy block and restrict lists, read once per viewer for the whole
+ * app and kept for two minutes. Keyed by the viewer, so an account switch never
+ * reads the previous account's lists, and gated on `canUsePrivateApi`, so cold
+ * boot never fires the read before a usable session exists.
+ */
+export function usePrivacyControls(): PrivacySets {
+  const { oxyServices, canUsePrivateApi, user } = useAuth();
   const viewerId = user?.id;
 
-  // Use individual selectors for optimal performance (Zustand automatically shallow compares)
-  const blockedSet = usePrivacyStore((state) => state.blockedSet);
-  const restrictedSet = usePrivacyStore((state) => state.restrictedSet);
-  const loading = usePrivacyStore((state) => state.loading);
-  const lastFetchedAt = usePrivacyStore((state) => state.lastFetchedAt);
-  const hasFetched = usePrivacyStore((state) => state.hasFetched);
-
-  const setLists = usePrivacyStore((state) => state.setLists);
-  const setLoading = usePrivacyStore((state) => state.setLoading);
-  const setError = usePrivacyStore((state) => state.setError);
-  const resetStore = usePrivacyStore((state) => state.reset);
-
-  // In-flight guard: prevents overlapping fetches independent of the store's
-  // `loading` flag (the store toggling `loading` must NOT be what re-triggers
-  // the auto-refresh effect, or a 401 → setLoading(false) re-renders into a
-  // refetch storm).
-  const inFlightRef = useRef(false);
-  // Identity of the viewer we last attempted a fetch for. We fetch at most
-  // once per identity; a failed attempt (e.g. 401) still marks the identity
-  // as attempted so it does NOT immediately re-fire.
-  const attemptedViewerRef = useRef<string | null>(null);
-
-  const refreshPrivacyLists = useCallback(async () => {
-    if (!canUsePrivateApi || !oxyServices) return;
-    if (inFlightRef.current) return;
-    const operationEpoch = usePrivacyStore.getState().viewerEpoch;
-    const isCurrentViewer = () => usePrivacyStore.getState().viewerEpoch === operationEpoch;
-    inFlightRef.current = true;
-    setLoading(true);
-    try {
-      const [blockedUsers, restrictedUsers] = await Promise.all([
-        oxyServices.privacy.blocked?.(),
-        oxyServices.privacy.restricted?.(),
-      ]);
-      if (!isCurrentViewer()) return;
-
-      const blocked = Array.isArray(blockedUsers)
-        ? blockedUsers.map(extractListId).filter((id): id is string => Boolean(id))
-        : [];
-
-      const restricted = Array.isArray(restrictedUsers)
-        ? restrictedUsers.map(extractListId).filter((id): id is string => Boolean(id))
-        : [];
-
-      setLists({
-        blockedIds: blocked,
-        restrictedIds: restricted,
-        lastFetchedAt: Date.now(),
-      });
-      setError(undefined);
-    } catch (error: unknown) {
-      if (!isCurrentViewer()) return;
-      // Fail quietly: record a timestamp so `shouldRefresh` becomes false
-      // and a transient/unauthorized failure does NOT trigger an immediate
-      // refetch storm. Lists stay empty until the interval elapses or the
-      // viewer identity changes.
-      const message = error instanceof Error ? error.message : 'Failed to load privacy data';
-      logger.error('[usePrivacyControls] Unable to load privacy lists', error);
-      setError(message);
-      setLists({ blockedIds: [], restrictedIds: [], lastFetchedAt: Date.now() });
-    } finally {
-      inFlightRef.current = false;
-      if (isCurrentViewer()) {
-        setLoading(false);
+  const { data } = useQuery({
+    queryKey: viewerQueryKeys.privacyLists(viewerId),
+    queryFn: async (): Promise<PrivacyLists> => {
+      try {
+        const [blocked, restricted] = await Promise.all([
+          oxyServices.privacy.blocked(),
+          oxyServices.privacy.restricted(),
+        ]);
+        return { blockedIds: toIds(blocked), restrictedIds: toIds(restricted) };
+      } catch (error) {
+        // Fail quietly and hold the empty answer for the stale window: the
+        // server filters blocked accounts itself, and a failing read retried on
+        // every feed mount is the request storm this replaced.
+        logger.error('[usePrivacyControls] Unable to load privacy lists', error);
+        return EMPTY_LISTS;
       }
-    }
-  }, [canUsePrivateApi, oxyServices, setError, setLists, setLoading]);
-
-  useEffect(() => {
-    // Reset the store AND the per-identity attempt guard whenever the
-    // session goes away, so signing in as a different user re-fetches.
-    if (isAuthResolved && !isAuthenticated) {
-      attemptedViewerRef.current = null;
-      resetStore();
-    }
-  }, [isAuthResolved, isAuthenticated, resetStore]);
-
-  useEffect(() => {
-    // Gate strictly on a resolved, authenticated session with a known viewer.
-    // During cold-boot (`!isAuthResolved`) `isAuthenticated` is UNDETERMINED,
-    // so we must NOT fire — that is the window that produced the 401 storm.
-    if (!autoRefresh || !canUsePrivateApi || !oxyServices || !viewerId) {
-      return;
-    }
-
-    // Fetch at most once per viewer identity (until the interval elapses).
-    const identityChanged = attemptedViewerRef.current !== viewerId;
-    const now = Date.now();
-    const intervalElapsed =
-      typeof minIntervalMs === 'number' && !!lastFetchedAt && now - lastFetchedAt > minIntervalMs;
-    const shouldRefresh = identityChanged || (!hasFetched && !lastFetchedAt) || intervalElapsed;
-
-    if (shouldRefresh && !inFlightRef.current) {
-      attemptedViewerRef.current = viewerId;
-      refreshPrivacyLists();
-    }
-  }, [
-    autoRefresh,
-    canUsePrivateApi,
-    oxyServices,
-    viewerId,
-    hasFetched,
-    lastFetchedAt,
-    minIntervalMs,
-    refreshPrivacyLists,
-  ]);
-
-  // Stable callbacks - Sets are already memoized in store
-  const isBlocked = useCallback(
-    (userId?: string | null): boolean => {
-      if (!userId) return false;
-      return blockedSet.has(String(userId));
     },
-    [blockedSet],
-  );
+    enabled: canUsePrivateApi && Boolean(viewerId) && Boolean(oxyServices),
+    staleTime: PRIVACY_LISTS_STALE_TIME_MS,
+    select: toSets,
+  });
 
-  const isRestricted = useCallback(
-    (userId?: string | null): boolean => {
-      if (!userId) return false;
-      return restrictedSet.has(String(userId));
-    },
-    [restrictedSet],
-  );
+  return data ?? EMPTY_SETS;
+}
 
-  const shouldGhostInteractions = useCallback(
-    (userId?: string | null): boolean => {
-      return isRestricted(userId);
-    },
-    [isRestricted],
-  );
-
-  return {
-    blockedSet,
-    restrictedSet,
-    loading,
-    refreshPrivacyLists,
-    isBlocked,
-    isRestricted,
-    shouldGhostInteractions,
-  };
+/**
+ * Records a block or restriction the viewer just wrote, so every feed acts on it
+ * now instead of when the held lists go stale.
+ */
+export function setPrivacyListMembership(
+  viewerId: ViewerId,
+  list: 'blocked' | 'restricted',
+  userId: string,
+  member: boolean,
+): void {
+  queryClient.setQueryData<PrivacyLists>(viewerQueryKeys.privacyLists(viewerId), (current) => {
+    if (!current) return current;
+    const key = list === 'blocked' ? 'blockedIds' : 'restrictedIds';
+    const ids = current[key].filter((id) => id !== userId);
+    return { ...current, [key]: member ? [...ids, userId] : ids };
+  });
 }

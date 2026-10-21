@@ -55,6 +55,22 @@ function writeViewerOwner(db: SQLiteDb, viewerId: string): void {
 }
 
 /**
+ * Who the persisted cache last belonged to — the last viewer this device
+ * resolved — read without claiming it: `'anon'` for a signed-out viewer, an
+ * account id, or `null` when no owner was ever recorded. A hint for work that
+ * starts before the viewer resolves; never proof of who the viewer is.
+ */
+export function readPersistedViewerOwner(): string | null {
+  try {
+    const db = getDb();
+    if (db) return readViewerOwner(db);
+    return getBrowserStorage()?.getItem(BROWSER_VIEWER_OWNER_KEY) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Delete every persisted response as one SQLite transaction and atomically
  * assign the now-empty cache to its next viewer.
  */

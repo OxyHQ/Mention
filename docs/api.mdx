@@ -84,7 +84,7 @@ on the public-read router but enforce the current viewer themselves.
 | POST | `/feed/mtn/interactions` | Record bounded ranking interactions |
 | POST | `/feed/mtn/interstitial-events` | Record interstitial events |
 | GET | `/feed/modules` | Fetch feed modules |
-| GET / PUT | `/feed/preferences` | Read or update viewer preferences |
+| GET / PUT | `/feed/preferences` | Read or update viewer preferences; GET also returns `customFeedTitles` (pinned custom feed id → title, readable feeds only) |
 | GET / PUT | `/feed/tuning` | Read or update viewer tuning |
 | GET | `/feed/replies/:parentId` | Fetch replies |
 | GET | `/feed/thread-continuations/:rootId` | Fetch thread continuations |
@@ -243,7 +243,7 @@ The public activity route is
 | GET | `/notifications` |
 | PUT / PATCH | `/notifications/:id/read` |
 | PUT / PATCH | `/notifications/read-all` |
-| GET | `/notifications/unread-count` |
+| GET | `/notifications/unread-count` (counted up to 1,000; clients show `99+`) |
 | PATCH | `/notifications/:id/archive` |
 | DELETE | `/notifications/:id` |
 | POST / DELETE | `/notifications/push-token` |

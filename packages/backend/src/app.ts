@@ -81,6 +81,18 @@ const MENTION_CSP_EXTENSIONS = {
   scriptSrc: ["'wasm-unsafe-eval'"],
 } satisfies OxyCspExtensions;
 
+const ACTIVITY_PUB_BODY_TYPES = ['application/activity+json', 'application/ld+json'];
+
+/**
+ * Whether a request's body may be verified as an ActivityPub delivery: it is
+ * addressed to the `/ap` inboxes, or it declares an ActivityPub media type.
+ */
+function carriesActivityPubBody(req: express.Request): boolean {
+  if (req.path === '/ap' || req.path.startsWith('/ap/')) return true;
+  const type = req.headers['content-type']?.toLowerCase() ?? '';
+  return ACTIVITY_PUB_BODY_TYPES.some((activityType) => type.includes(activityType));
+}
+
 /**
  * Build the HTTP application only.
  *
@@ -222,9 +234,12 @@ export function createApp(deps: CreateAppDependencies): express.Express {
   app.use(
     express.json({
       limit: '1mb',
-      type: ['application/json', 'application/activity+json', 'application/ld+json'],
+      type: ['application/json', ...ACTIVITY_PUB_BODY_TYPES],
+      // A UTF-8 copy of the bytes for ActivityPub HTTP signatures, which cover
+      // the body as it arrived. Only an inbox delivery needs it, so every other
+      // JSON body is not copied a second time.
       verify: (req: express.Request & { rawBody?: string }, _res, buffer) => {
-        req.rawBody = buffer?.length ? buffer.toString('utf8') : undefined;
+        if (buffer?.length && carriesActivityPubBody(req)) req.rawBody = buffer.toString('utf8');
       },
     }),
   );
