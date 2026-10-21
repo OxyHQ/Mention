@@ -349,9 +349,10 @@ module.exports = (_config) => {
                 },
               },
               android: {
-                compileSdkVersion: 36,
-                targetSdkVersion: 35,
-                buildToolsVersion: '36.0.0',
+                // compileSdk / targetSdk / build tools come from the Expo SDK
+                // template (SDK 58: 37 / 36 / 37.0.0). SDK 58's Expo modules
+                // require compileSdk 37; a pinned 36 fails the release build
+                // in :expo:checkReleaseAarMetadata.
                 enableProguardInReleaseBuilds: true,
                 enableShrinkResourcesInReleaseBuilds: true,
                 useLegacyPackaging: false,
