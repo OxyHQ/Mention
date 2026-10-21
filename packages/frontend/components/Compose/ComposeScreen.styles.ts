@@ -366,59 +366,6 @@ export const composeStyles = StyleSheet.create({
     position: 'relative',
     alignSelf: 'flex-start',
   },
-  pollAttachmentCard: {
-    width: MEDIA_CARD_WIDTH,
-    minHeight: 150,
-    borderRadius: 15,
-    borderWidth: 1,
-    padding: 16,
-    gap: 12,
-  },
-  pollAttachmentHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  pollAttachmentBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  pollAttachmentBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  pollAttachmentMeta: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  pollAttachmentQuestion: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  pollAttachmentOptions: {
-    gap: 8,
-  },
-  pollAttachmentOption: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  pollAttachmentOptionText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  pollAttachmentMore: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
   pollAttachmentRemoveButton: {
     position: 'absolute',
     top: 8,

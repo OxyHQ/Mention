@@ -333,7 +333,7 @@ export const buildThreadPost = (
   const threadOrder =
     item.attachmentOrder.length > 0
       ? item.attachmentOrder
-      : attachmentKeysOf({ ...item, showPollCreator: threadHasPoll });
+      : attachmentKeysOf(item);
 
   const threadAttachmentsPayload = buildAttachmentsPayload(threadOrder, item.mediaIds, {
     includePoll: threadHasPoll,

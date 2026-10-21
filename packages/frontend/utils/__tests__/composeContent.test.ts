@@ -88,7 +88,7 @@ describe('hasDraftContent', () => {
 });
 
 describe('attachment keys and order', () => {
-  const box = { ...empty, showPollCreator: false };
+  const box = empty;
 
   it('lists a card only for an attachment that counts', () => {
     expect(attachmentKeysOf({ ...box, event: { name: ' ', date: '2026-10-01' } })).toEqual([]);

@@ -133,14 +133,14 @@ export const hasDraftContent = (
   content.threadItems.some((item) => hasSourceWork(item.sources));
 
 /**
- * The carousel keys of the attachments a box shows, in their default order.
+ * The carousel keys of the attachments a box shows, in their default order. A
+ * poll is edited in its own form, not shown as a card, so it has no key here.
  * The live carousel, a restored draft and a thread box's payload all ask this,
  * so a card cannot appear in one and be missing from another.
  */
 export const attachmentKeysOf = (
-  box: Omit<ComposeBox, 'text' | 'pollOptions'> & { showPollCreator: boolean; linkUrls?: string[] },
+  box: Omit<ComposeBox, 'text' | 'pollOptions'> & { linkUrls?: string[] },
 ): string[] => [
-  ...(box.showPollCreator ? [POLL_ATTACHMENT_KEY] : []),
   ...(hasArticleContent(box.article) ? [ARTICLE_ATTACHMENT_KEY] : []),
   ...(isCompleteEvent(box.event) ? [EVENT_ATTACHMENT_KEY] : []),
   ...(hasRoomContent(box.room) ? [ROOM_ATTACHMENT_KEY] : []),
