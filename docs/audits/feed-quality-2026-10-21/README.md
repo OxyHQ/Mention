@@ -385,6 +385,10 @@ feed hot-path validators passed. Frontend lint returned zero errors and 229
 warnings; changed TypeScript/JSON files passed Biome checks.
 
 - 198 shared-types tests and 161 MCP tests passed.
+- The final combined backend gate passed 347 Vitest tests across 19 files and
+  138 Bun tests across nine files, using isolated migrated PostgreSQL databases.
+  Coverage includes ranking/session progression, privacy, Following/Saved intent,
+  gate evidence, import provenance, inbox/outbox validation and settings storage.
 - 185 frontend tests cover dwell/visibility/refresh, viewer isolation, saved
   settings invalidation, Following persistence/rollback, request deduplication and
   one-shot expired-cursor recovery in memory and SQLite.

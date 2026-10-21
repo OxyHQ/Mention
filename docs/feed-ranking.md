@@ -382,11 +382,13 @@ on touch, arrows beside the title on wide screens). People are vertical tiles
   15-second copy of what Redis returned; `invalidate()` clears it, and the
   invalidation subscriber runs on every task, so an Oxy identity change clears
   it everywhere.
-- Ranked pages thread-slice only the top `2 * limit + 1` candidates
+- Stateless ranked pages thread-slice only the top `2 * limit + 1` candidates
   (`sliceTopWindow` in `FeedEngine.ts`), doubling the window only when it folds
   into too few slices to fill the page and say whether another follows. Slicing
   reads every candidate's thread children and parents, and a slice depends only
   on the candidates above it, so the page is the same as slicing the whole pool.
+  Session pages slice their bounded pending pool before joint membership
+  selection so deferred candidates remain available for later pages.
 - For You candidate shells carry the `posts` row they were assembled from;
   `hydrateSlices` completes the page's shells from those rows
   (`completeShellRecords`), reading only the child tables instead of selecting
