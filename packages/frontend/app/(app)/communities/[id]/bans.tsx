@@ -20,8 +20,7 @@ import { communityService } from '@/services/communityService';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { FocusedScrollView } from '@/components/common/FocusedScrollView';
 import { SignInRequired } from '@/components/common/SignInRequired';
-import NotFoundScreen from '@/components/NotFoundScreen';
-import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
+import { CommunitiesPreviewGate } from '@/hooks/useCommunitiesPreview';
 
 /**
  * Who a community's moderators banned from posting in it, and the way to lift a
@@ -122,7 +121,10 @@ function CommunityBansScreen() {
   );
 }
 
-/** Communities are a private preview: everyone else sees the page that does not exist. */
 export default function CommunityBansRoute() {
-  return useCommunitiesPreview() ? <CommunityBansScreen /> : <NotFoundScreen />;
+  return (
+    <CommunitiesPreviewGate>
+      <CommunityBansScreen />
+    </CommunitiesPreviewGate>
+  );
 }

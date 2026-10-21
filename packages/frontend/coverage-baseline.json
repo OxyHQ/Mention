@@ -3,23 +3,23 @@
   "total": {
     "statements": {
       "pct": 47.47,
-      "covered": 13372,
-      "total": 28166
+      "covered": 13373,
+      "total": 28167
     },
     "branches": {
-      "pct": 42.79,
-      "covered": 8924,
-      "total": 20851
+      "pct": 42.81,
+      "covered": 8926,
+      "total": 20849
     },
     "functions": {
       "pct": 42.16,
-      "covered": 3095,
-      "total": 7341
+      "covered": 3096,
+      "total": 7342
     },
     "lines": {
       "pct": 48.27,
-      "covered": 12165,
-      "total": 25199
+      "covered": 12166,
+      "total": 25200
     }
   },
   "pins": {
@@ -227,7 +227,7 @@
       "functions": 100,
       "lines": 100
     },
-    "hooks/useCommunitiesPreview.ts": {
+    "hooks/useCommunitiesPreview.tsx": {
       "statements": 100,
       "branches": 100,
       "functions": 100,

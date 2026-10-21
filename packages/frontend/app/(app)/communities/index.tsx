@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import NotFoundScreen from '@/components/NotFoundScreen';
-import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
+import { CommunitiesPreviewGate } from '@/hooks/useCommunitiesPreview';
 import { OperatedAccountsScreen } from '@/components/OperatedAccounts/OperatedAccountsScreen';
 
 /**
@@ -42,7 +41,10 @@ function CommunitiesScreen() {
   );
 }
 
-/** Communities are a private preview: everyone else sees the page that does not exist. */
 export default function CommunitiesRoute() {
-  return useCommunitiesPreview() ? <CommunitiesScreen /> : <NotFoundScreen />;
+  return (
+    <CommunitiesPreviewGate>
+      <CommunitiesScreen />
+    </CommunitiesPreviewGate>
+  );
 }
