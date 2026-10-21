@@ -282,6 +282,8 @@ export interface FeedExecution {
    * source).
    */
   popularFallback?: string;
+  /** Anonymous readers rank the primary source first, then continue into popular. Default false. */
+  anonymousRankedFirst?: boolean;
   /**
    * Hard ceiling on the merged (deduped) candidate pool, applied during the
    * merge (For You uses `MtnConfig.feed.candidateSources.maxPool`). Unset =
