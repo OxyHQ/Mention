@@ -22,7 +22,7 @@ jest.mock('@oxy.so/core', () => ({
     username && !username.includes('@') && instance ? `${username}@${instance}` : username,
 }));
 jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: 'PageHeader' }));
-jest.mock('@oxy.so/bloom/avatar', () => ({ Avatar: 'Avatar' }));
+jest.mock('@/components/ZoomableAvatar', () => ({ ZoomableAvatar: 'ZoomableAvatar' }));
 jest.mock('@oxy.so/bloom/settings-list', () => ({
   SettingsListGroup: 'SettingsListGroup',
   SettingsListItem: 'SettingsListItem',
