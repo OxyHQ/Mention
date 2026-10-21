@@ -1,6 +1,6 @@
 import { z } from 'zod/v4';
 import { api, formatApiError } from '../lib/api-client.js';
-import { fetchMtnFeed } from '../lib/mtn-feed.js';
+import { feedLanguageSchema, fetchMtnFeed } from '../lib/mtn-feed.js';
 import { formatFeed } from '../lib/formatters.js';
 import type { MentionToolRegistrar } from '../lib/tool-registry.js';
 
@@ -80,11 +80,12 @@ export function registerHashtagsTools(server: MentionToolRegistrar): void {
       hashtag: z.string().describe('The hashtag to search for (without # prefix)'),
       limit: z.number().optional().describe('Number of posts (default: 20, max: 100)'),
       cursor: z.string().optional().describe('Pagination cursor'),
+      lang: feedLanguageSchema,
     },
-    async ({ hashtag, limit, cursor }) => {
+    async ({ hashtag, limit, cursor, lang }) => {
       try {
         const tag = hashtag.replace(/^#/, '');
-        const result = await fetchMtnFeed(`hashtag|${tag}`, { limit, cursor });
+        const result = await fetchMtnFeed(`hashtag|${tag}`, { limit, cursor, lang });
         return {
           content: [{ type: 'text' as const, text: formatFeed(result) }],
           structuredContent: result,

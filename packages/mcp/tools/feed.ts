@@ -2,7 +2,7 @@ import { z } from 'zod/v4';
 import { isValidFeedDescriptor, parseFeedDescriptor } from '@mention/shared-types';
 import { api, formatApiError } from '../lib/api-client.js';
 import { authRequiredResponse, getMcpToken, withAuthGuard } from '../lib/auth-guard.js';
-import { fetchMtnFeed, paginationParams } from '../lib/mtn-feed.js';
+import { feedLanguageSchema, fetchMtnFeed, paginationParams } from '../lib/mtn-feed.js';
 import { formatFeed } from '../lib/formatters.js';
 import type { MentionToolRegistrar } from '../lib/tool-registry.js';
 
@@ -24,8 +24,9 @@ export function registerFeedTools(server: MentionToolRegistrar): void {
         ),
       limit: z.number().optional().describe('Number of posts (default: 20, max: 100)'),
       cursor: z.string().optional().describe('Pagination cursor from a previous response'),
+      lang: feedLanguageSchema,
     },
-    async ({ descriptor = 'explore', limit, cursor }) => {
+    async ({ descriptor = 'explore', limit, cursor, lang }) => {
       try {
         if (!isValidFeedDescriptor(descriptor)) throw new Error('Invalid feed descriptor');
         const { source } = parseFeedDescriptor(descriptor);
@@ -45,7 +46,7 @@ export function registerFeedTools(server: MentionToolRegistrar): void {
         ) {
           return authRequiredResponse();
         }
-        const result = await fetchMtnFeed(descriptor, { limit, cursor });
+        const result = await fetchMtnFeed(descriptor, { limit, cursor, lang });
         return {
           content: [{ type: 'text' as const, text: formatFeed(result) }],
           structuredContent: result,
@@ -62,10 +63,11 @@ export function registerFeedTools(server: MentionToolRegistrar): void {
     {
       limit: z.number().optional().describe('Number of posts (default: 20, max: 100)'),
       cursor: z.string().optional().describe('Pagination cursor'),
+      lang: feedLanguageSchema,
     },
-    withAuthGuard(async ({ limit, cursor }) => {
+    withAuthGuard(async ({ limit, cursor, lang }) => {
       try {
-        const result = await fetchMtnFeed('for_you', { limit, cursor });
+        const result = await fetchMtnFeed('for_you', { limit, cursor, lang });
         return {
           content: [{ type: 'text' as const, text: formatFeed(result) }],
           structuredContent: result,
@@ -82,10 +84,11 @@ export function registerFeedTools(server: MentionToolRegistrar): void {
     {
       limit: z.number().optional().describe('Number of posts (default: 20, max: 100)'),
       cursor: z.string().optional().describe('Pagination cursor'),
+      lang: feedLanguageSchema,
     },
-    async ({ limit, cursor }) => {
+    async ({ limit, cursor, lang }) => {
       try {
-        const result = await fetchMtnFeed('explore', { limit, cursor });
+        const result = await fetchMtnFeed('explore', { limit, cursor, lang });
         return {
           content: [{ type: 'text' as const, text: formatFeed(result) }],
           structuredContent: result,
@@ -102,10 +105,11 @@ export function registerFeedTools(server: MentionToolRegistrar): void {
     {
       limit: z.number().optional().describe('Number of posts (default: 20, max: 100)'),
       cursor: z.string().optional().describe('Pagination cursor'),
+      lang: feedLanguageSchema,
     },
-    withAuthGuard(async ({ limit, cursor }) => {
+    withAuthGuard(async ({ limit, cursor, lang }) => {
       try {
-        const result = await fetchMtnFeed('following', { limit, cursor });
+        const result = await fetchMtnFeed('following', { limit, cursor, lang });
         return {
           content: [{ type: 'text' as const, text: formatFeed(result) }],
           structuredContent: result,
@@ -122,10 +126,11 @@ export function registerFeedTools(server: MentionToolRegistrar): void {
     {
       limit: z.number().optional().describe('Number of posts (default: 20, max: 100)'),
       cursor: z.string().optional().describe('Pagination cursor'),
+      lang: feedLanguageSchema,
     },
-    withAuthGuard(async ({ limit, cursor }) => {
+    withAuthGuard(async ({ limit, cursor, lang }) => {
       try {
-        const result = await fetchMtnFeed('videos', { limit, cursor });
+        const result = await fetchMtnFeed('videos', { limit, cursor, lang });
         return {
           content: [{ type: 'text' as const, text: formatFeed(result) }],
           structuredContent: result,
@@ -143,10 +148,11 @@ export function registerFeedTools(server: MentionToolRegistrar): void {
       userId: z.string().describe('The Oxy user ID whose posts to fetch'),
       limit: z.number().optional().describe('Number of posts (default: 20, max: 100)'),
       cursor: z.string().optional().describe('Pagination cursor'),
+      lang: feedLanguageSchema,
     },
-    async ({ userId, limit, cursor }) => {
+    async ({ userId, limit, cursor, lang }) => {
       try {
-        const result = await fetchMtnFeed(`author|${userId}`, { limit, cursor });
+        const result = await fetchMtnFeed(`author|${userId}`, { limit, cursor, lang });
         return {
           content: [{ type: 'text' as const, text: formatFeed(result) }],
           structuredContent: result,
