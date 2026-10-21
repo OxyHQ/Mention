@@ -1,3 +1,5 @@
+import type { FeedReadIdentity } from '@/stores/feedStaleness';
+import { subscribeToFeedRankingChanges } from '@/stores/feedRankingInvalidation';
 import { useEffect } from 'react';
 import { subscribeToSafetyFilterChanges } from '@/stores/safetyInvalidation';
 import { subscribeToBylineChanges } from '@/stores/bylineInvalidation';
@@ -19,19 +21,25 @@ import { subscribeToReaderLanguageChanges } from '@/stores/readerLanguageInvalid
  * One subscription per authority, so each module's signal stays testable on
  * its own. `reload` should be stable: a new identity re-subscribes.
  */
-export function useReloadOnFeedRuleChange(enabled: boolean, reload: () => unknown): void {
+export function useReloadOnFeedRuleChange(
+  enabled: boolean,
+  reload: () => unknown,
+  feed?: FeedReadIdentity,
+): void {
   useEffect(() => {
     if (!enabled) return;
     const onChange = () => {
       void reload();
     };
+    const unsubscribeRanking = feed ? subscribeToFeedRankingChanges(feed, onChange) : () => {};
     const unsubscribeSafety = subscribeToSafetyFilterChanges(onChange);
     const unsubscribeByline = subscribeToBylineChanges(onChange);
     const unsubscribeLanguages = subscribeToReaderLanguageChanges(onChange);
     return () => {
+      unsubscribeRanking();
       unsubscribeSafety();
       unsubscribeByline();
       unsubscribeLanguages();
     };
-  }, [enabled, reload]);
+  }, [enabled, reload, feed?.viewerId, feed?.type, feed?.userId]);
 }

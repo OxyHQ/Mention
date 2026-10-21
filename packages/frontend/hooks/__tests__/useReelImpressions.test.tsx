@@ -1,3 +1,4 @@
+jest.mock('../useFeedVisibility', () => ({ useFeedVisibility: jest.fn() }));
 import TestRenderer, { act } from 'react-test-renderer';
 
 import { useReelImpressions, type UseReelImpressionsOptions } from '../useReelImpressions';

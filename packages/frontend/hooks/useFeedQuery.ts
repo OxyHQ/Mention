@@ -282,7 +282,7 @@ export function useFeedQuery({
     if (active) void reload();
   }, [reloadKey, active, reload]);
 
-  useReloadOnFeedRuleChange(active, reload);
+  useReloadOnFeedRuleChange(active, reload, feed);
 
   // Federated profile still syncing: read page 1 again on the bounded backoff
   // until posts arrive or the budget runs out. Every pending answer is a new

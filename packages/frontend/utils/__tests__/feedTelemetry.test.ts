@@ -84,7 +84,13 @@ describe('resolveFeedDescriptor', () => {
   });
 
   it('maps a profile feed to author|<userId>', () => {
-    expect(resolveFeedDescriptor('posts', 'user-123')).toBe('author|user-123');
+    expect(resolveFeedDescriptor('posts', 'user-123')).toBe('author|user-123|posts');
+  });
+
+  it('retains each profile tab in the descriptor fetched by the API', () => {
+    for (const tab of ['replies', 'media', 'likes', 'boosts'] as const) {
+      expect(resolveFeedDescriptor(tab, 'u1')).toBe(`author|u1|${tab}`);
+    }
   });
 
   it('maps scoped hashtag / topic / custom filters', () => {
@@ -106,7 +112,9 @@ describe('resolveFeedDescriptor', () => {
   // so its page IS that account's author feed and `author|<id>` is the correct
   // attribution rather than a near miss.
   it('attributes a channel account page to its author feed', () => {
-    expect(resolveFeedDescriptor('posts', 'channel-account-1')).toBe('author|channel-account-1');
+    expect(resolveFeedDescriptor('posts', 'channel-account-1')).toBe(
+      'author|channel-account-1|posts',
+    );
   });
 });
 
@@ -208,14 +216,61 @@ describe('FeedImpressionTracker', () => {
     const t = new FeedImpressionTracker('for_you');
     t.setVisible('p1');
     // Advance past the safety flush interval while the post stays visible.
-    jest.setSystemTime(6000);
-    jest.advanceTimersByTime(6000);
+    jest.advanceTimersByTime(31_000);
     expect(sentInteractions()).toEqual([
       expect.objectContaining({ postUri: 'p1', event: 'impression' }),
     ]);
     t.dispose();
     // Dispose must not double-send the already-sent post.
     expect(sentInteractions()).toHaveLength(1);
+  });
+
+  it.each([7000, 25000])('preserves a %dms read past the old five-second flush', (durationMs) => {
+    const tracker = new FeedImpressionTracker('for_you');
+    tracker.setVisible('p1');
+    jest.advanceTimersByTime(durationMs);
+    expect(sentInteractions()).toHaveLength(0);
+    tracker.setHidden('p1');
+    tracker.dispose();
+    expect(sentInteractions()).toEqual([expect.objectContaining({ durationMs })]);
+  });
+
+  it('caps a parked read at 30s without reporting another impression', () => {
+    const tracker = new FeedImpressionTracker('for_you');
+    tracker.setVisible('p1');
+    jest.advanceTimersByTime(60_000);
+    tracker.setHidden('p1');
+    tracker.dispose();
+    expect(sentInteractions()).toEqual([expect.objectContaining({ durationMs: 30_000 })]);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it('excludes background time and preserves viewport membership on resume', () => {
+    const tracker = new FeedImpressionTracker('for_you');
+    tracker.setVisible('p1');
+    jest.advanceTimersByTime(400);
+    tracker.setActive(false);
+    jest.advanceTimersByTime(60_000);
+    tracker.setVisible('p2'); // layout events may arrive while backgrounded
+    tracker.setHidden('p2');
+    tracker.setActive(true);
+    jest.advanceTimersByTime(800);
+    tracker.dispose();
+    expect(sentInteractions()).toEqual([
+      expect.objectContaining({ postUri: 'p1', durationMs: 1200 }),
+    ]);
+  });
+
+  it('flushes qualified dwell at blur and never double-counts a resumed row', () => {
+    const tracker = new FeedImpressionTracker('for_you');
+    tracker.setVisible('p1');
+    jest.advanceTimersByTime(7000);
+    tracker.setActive(false);
+    jest.advanceTimersByTime(60_000);
+    tracker.setActive(true);
+    jest.advanceTimersByTime(8000);
+    tracker.dispose();
+    expect(sentInteractions()).toEqual([expect.objectContaining({ durationMs: 7000 })]);
   });
 
   it('syncVisible reconciles the viewable set (native path)', () => {
@@ -315,8 +370,16 @@ describe('useFeedImpressionTracker', () => {
   // session change replaces the instance behind the (stable) ref.
   let mounted: { current: FeedImpressionTracker } | null = null;
 
-  function Probe({ descriptor, resetKey }: { descriptor: string; resetKey?: string }) {
-    mounted = useFeedImpressionTracker(descriptor, resetKey);
+  function Probe({
+    descriptor,
+    resetKey,
+    viewerId,
+  }: {
+    descriptor: string;
+    resetKey?: string;
+    viewerId?: string;
+  }) {
+    mounted = useFeedImpressionTracker(descriptor, resetKey, true, viewerId);
     return null;
   }
 
@@ -402,6 +465,38 @@ describe('useFeedImpressionTracker', () => {
     expect(sentInteractions()).toEqual([
       expect.objectContaining({ postUri: 'p1', durationMs: 2000 }),
       expect.objectContaining({ postUri: 'p2', durationMs: 1200 }),
+    ]);
+  });
+
+  it('restarts visible rows on refresh even when no new intersection event occurs', () => {
+    const renderer = mount('for_you', 'first');
+    tracker().setVisible('p1');
+    jest.advanceTimersByTime(2500);
+    act(() =>
+      renderer.update(createElement(Probe, { descriptor: 'for_you', resetKey: 'refresh' })),
+    );
+    jest.advanceTimersByTime(7000);
+    tracker().setHidden('p1');
+    tracker().dispose();
+    expect(sentInteractions().map(({ durationMs }) => durationMs)).toEqual([2500, 7000]);
+    act(() => renderer.unmount());
+  });
+
+  it('discards outgoing observations rather than crediting a newly signed-in account', () => {
+    const renderer = mount('for_you');
+    tracker().setVisible('p1');
+    jest.advanceTimersByTime(2500);
+    tracker().setHidden('p1'); // queued but not sent
+    act(() =>
+      renderer.update(createElement(Probe, { descriptor: 'for_you', viewerId: 'new-viewer' })),
+    );
+    jest.advanceTimersByTime(1000);
+    expect(sentInteractions()).toHaveLength(0);
+    tracker().setVisible('p2');
+    jest.advanceTimersByTime(1500);
+    act(() => renderer.unmount());
+    expect(sentInteractions()).toEqual([
+      expect.objectContaining({ postUri: 'p2', durationMs: 1500 }),
     ]);
   });
 
