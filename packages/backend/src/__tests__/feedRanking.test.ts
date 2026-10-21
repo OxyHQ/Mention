@@ -887,3 +887,52 @@ describe('ranking session clock', () => {
     }
   });
 });
+
+describe('definition-selected base ranking signals', () => {
+  it('keeps Trending independent of relationships while personal feeds can opt in', async () => {
+    const post = makePost();
+    const base = { authoritativeSignals: true, enabledSignals: new Set(['engagement', 'recency']) };
+    const followed = await service.calculatePostScore({ ...post }, 'viewer', {
+      ...base,
+      followingIds: ['author-1'],
+    });
+    const stranger = await service.calculatePostScore({ ...post }, 'viewer', base);
+    expect(followed).toBe(stranger);
+    const personalized = await service.calculatePostScore({ ...post }, 'viewer', {
+      ...base,
+      followingIds: ['author-1'],
+      enabledSignals: new Set(['engagement', 'recency', 'relationship']),
+    });
+    expect(personalized).toBeGreaterThan(stranger);
+  });
+
+  it('never disables safety when the definition enables no scoring signals', async () => {
+    const sensitive = makePost({ metadata: { isSensitive: true } });
+    expect(
+      await scoreWith(sensitive, { authoritativeSignals: true, enabledSignals: new Set() }),
+    ).toBe(0);
+  });
+});
+
+describe('unengaged discovery ranking', () => {
+  it('ranks a fresh post without engagement above an otherwise identical older post', async () => {
+    const now = Date.UTC(2026, 9, 21, 12);
+    const fresh = makePost({ createdAt: new Date(now - 2 * 60 * 60 * 1000) });
+    const old = makePost({ createdAt: new Date(now - 72 * 60 * 60 * 1000) });
+    const context = { rankingAsOf: now };
+    const freshScore = await service.calculatePostScore(fresh, undefined, context);
+    const oldScore = await service.calculatePostScore(old, undefined, context);
+    expect(oldScore).toBeGreaterThan(0);
+    expect(freshScore).toBeGreaterThan(oldScore);
+    expect(
+      await service.calculatePostScore({ ...fresh, stats: { likesCount: 5 } }, undefined, context),
+    ).toBeGreaterThan(freshScore);
+    expect(
+      await service.calculatePostScore(
+        { ...fresh, metadata: { isSensitive: true } },
+        undefined,
+        context,
+      ),
+    ).toBe(0);
+  });
+});

@@ -266,6 +266,7 @@ export const forYouDefinition: FeedDefinition = {
   // lists are never gated. Rollout mode is resolved dynamically by the engine.
   discoveryFilters: resolveDiscoveryGate(),
   execution: {
+    sessionPagination: true,
     maxPool: MtnConfig.feed.candidateSources.maxPool,
     seenPosts: true,
     neverBlank: true,
@@ -302,13 +303,21 @@ export const followingDefinition: FeedDefinition = {
   mode: 'chronological',
   sources: [enabled('following', { timeline: true })],
   signals: [],
-  filters: [enabled('safety')],
+  filters: [enabled('safety', { allowViewerPreference: true })],
   execution: {
     overfetchMultiplier: MtnConfig.feed.sliceOverfetchMultiplier,
     replyContext: true,
     threadGrouping: true,
     hydrateMaxDepth: 0,
   },
+};
+
+/** Same subscription boundary as Following, with explicit relevance ordering. */
+export const rankedFollowingDefinition: FeedDefinition = {
+  ...followingDefinition,
+  mode: 'ranked',
+  signals: ALL_RANKING_SIGNALS,
+  execution: { ...followingDefinition.execution, sessionPagination: true },
 };
 
 /** Direct follows only — the contract promised by the Android Following widget. */
@@ -346,6 +355,7 @@ export const exploreDefinition: FeedDefinition = {
   filters: [enabled('safety')],
   discoveryFilters: resolveDiscoveryGate(),
   execution: {
+    sessionPagination: true,
     preScored: true,
     threadGrouping: true,
     replyContext: false,
@@ -376,6 +386,7 @@ export const videosDefinition: FeedDefinition = {
   // written for. Asserted in `presetsPhase2b.test.ts` so it stays a decision.
   discoveryFilters: resolveRecommendationGate(),
   execution: {
+    sessionPagination: true,
     seenPosts: true,
     popularFallback: 'popularVideos',
     // The reels screen auto-advances, so exhausting the unseen pool showed an EMPTY
@@ -400,6 +411,7 @@ export const mediaDefinition: FeedDefinition = {
   filters: [enabled('safety')],
   discoveryFilters: resolveRecommendationGate(),
   execution: {
+    sessionPagination: true,
     seenPosts: true,
     popularFallback: 'popularMedia',
     threadGrouping: true,
@@ -422,6 +434,7 @@ export const trendingDefinition: FeedDefinition = {
   filters: [enabled('safety')],
   discoveryFilters: resolveRecommendationGate(),
   execution: {
+    sessionPagination: true,
     threadGrouping: true,
     replyContext: false,
     hydrateMaxDepth: 0,
@@ -439,7 +452,7 @@ export const mutualsDefinition: FeedDefinition = {
   mode: 'chronological',
   sources: [enabled('mutuals')],
   signals: [],
-  filters: [enabled('safety')],
+  filters: [enabled('safety', { allowViewerPreference: true })],
   execution: {
     threadGrouping: true,
     replyContext: true,
@@ -458,9 +471,10 @@ export const friendsPopularDefinition: FeedDefinition = {
   title: 'Popular with Friends',
   mode: 'ranked',
   sources: [enabled('friendsEngaged')],
-  signals: [enabled('engagement'), enabled('recency')],
+  signals: [enabled('friendEngagement'), enabled('recency')],
   filters: [enabled('safety')],
   execution: {
+    sessionPagination: true,
     preScored: false,
     hydrateMaxDepth: 1,
     threadGrouping: true,
@@ -631,7 +645,7 @@ export function listDefinition(listId: string): FeedDefinition {
     mode: 'chronological',
     sources: [enabled('lists', { listId })],
     signals: [],
-    filters: [enabled('safety')],
+    filters: [enabled('safety', { allowViewerPreference: true })],
     execution: { threadGrouping: true, replyContext: true, hydrateMaxDepth: 0 },
   };
 }

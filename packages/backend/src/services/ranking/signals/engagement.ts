@@ -34,10 +34,10 @@ export function engagementScore(post: RankablePost): number {
     R.engagement,
   );
 
-  // Apply logarithmic scaling to prevent extremely popular posts from dominating
-  // log(1 + x) normalizes the score, +1 prevents log(0)
-  // Scale factor of 10 provides good normalization range
-  return Math.log1p(rawScore / 10);
+  // Engagement is a multiplier: no evidence must be neutral, not annihilate
+  // freshness, relevance and quality. Positive engagement remains a log-scaled
+  // lift; safety can still zero the product independently.
+  return 1 + Math.log1p(rawScore / 10);
 }
 
 /**

@@ -113,6 +113,7 @@ export interface OptInSignalContext {
  * than a hydrated document.
  */
 export interface RankablePost {
+  friendEngagementCount?: number;
   id?: string;
   /** Written as a reply — the STORED discriminator (see `PostRecord`). */
   isReply?: boolean;
@@ -177,6 +178,8 @@ export interface RankablePost {
 export interface CalculatePostScoreContext extends OptInSignalContext {
   /** Frozen clock shared by every page in a ranking session. */
   rankingAsOf?: number;
+  /** Engine definitions explicitly select base signals; older callers retain defaults. */
+  authoritativeSignals?: boolean;
   followingIds?: string[];
   userBehavior?: RankingUserBehavior;
   feedSettings?: FeedRankingSettings;
@@ -208,6 +211,7 @@ export interface CalculatePostScoreContext extends OptInSignalContext {
  */
 export interface SignalContext {
   rankingAsOf?: number;
+  authoritativeSignals?: boolean;
   /** The viewer's Oxy user id, or `undefined` for anonymous viewers. */
   userId?: string;
   /** The viewer's following set (Oxy user ids) — resolved once. */
@@ -276,6 +280,7 @@ export function buildSignalContext(
   return {
     userId,
     rankingAsOf: context.rankingAsOf,
+    authoritativeSignals: context.authoritativeSignals,
     followingIdsSet: context.followingIdsSet ?? new Set(context.followingIds || []),
     userBehavior: context.userBehavior,
     behaviorSets: context.behaviorSets,

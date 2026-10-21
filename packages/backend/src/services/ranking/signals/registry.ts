@@ -49,6 +49,12 @@ export const RANKING_SIGNALS: readonly RankingSignal[] = [
   threadBoostSignal,
   negativePenaltySignal,
   optInSignal,
+  {
+    id: 'friendEngagement',
+    group: 'engagement',
+    score: (post, ctx) =>
+      ctx.enabledSignals?.has('friendEngagement') ? 1 + (post.friendEngagementCount ?? 0) : 1,
+  },
 ];
 
 /**

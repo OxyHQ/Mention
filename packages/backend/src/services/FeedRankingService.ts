@@ -396,6 +396,20 @@ export class FeedRankingService {
     const contributions = new Map<string, number>();
     const groupProducts = newGroupProducts();
     for (const signal of RANKING_SIGNALS) {
+      const key =
+        signal.id === 'trendingVelocity'
+          ? 'trending'
+          : signal.id === 'threadBoost'
+            ? 'quality'
+            : signal.id;
+      // Access/safety remains mandatory. The opt-in dispatcher gates its own set.
+      if (
+        ctx.authoritativeSignals &&
+        signal.id !== 'negativePenalty' &&
+        signal.id !== 'optIn' &&
+        !ctx.enabledSignals?.has(key)
+      )
+        continue;
       const value = safe(signal.score(post, ctx), signal.fallback ?? 1);
       contributions.set(signal.id, value);
       groupProducts[signal.group] *= value;
@@ -484,6 +498,8 @@ export class FeedRankingService {
     userId: string | undefined, // Oxy user ID
     context: {
       rankingAsOf?: number;
+      authoritativeSignals?: boolean;
+      preserveCandidates?: boolean;
       followingIds?: string[]; // Array of Oxy user IDs
       userBehavior?: RankingUserBehavior;
       feedSettings?: FeedRankingSettings; // User feed settings
@@ -623,7 +639,7 @@ export class FeedRankingService {
 
     // For large candidate sets, use approximate ranking (top-k selection)
     let postsToRank = posts;
-    if (posts.length > this.LARGE_CANDIDATE_SET_THRESHOLD) {
+    if (!context.preserveCandidates && posts.length > this.LARGE_CANDIDATE_SET_THRESHOLD) {
       logger.debug(`Using approximate ranking for large candidate set (${posts.length} posts)`);
       // Quick pre-ranking based on engagement score only (fast approximation)
       const quickScores = posts.map((post, index) => {
@@ -655,6 +671,7 @@ export class FeedRankingService {
         const score = await this.calculatePostScore(post, userId, {
           userBehavior,
           rankingAsOf,
+          authoritativeSignals: context.authoritativeSignals,
           feedSettings: context.feedSettings,
           engagementScoreCache,
           followingIdsSet,
@@ -692,18 +709,20 @@ export class FeedRankingService {
       const isAlreadyPenalizedThread = threadKey && penalizedThreadIds.has(threadKey);
 
       const story = storyOf(item.post.postClassification?.trendTerms, storyIndex);
-      const diversityPenalty = isAlreadyPenalizedThread
-        ? 1.0 // Skip penalty — this post will be grouped with its thread root
-        : safe(
-            this.calculateDiversityPenalty(
-              item.post,
-              recentAuthorsSet,
-              recentTopicsSet,
-              recentStories,
-              story,
-              context.feedSettings?.diversity,
-            ),
-          );
+      const diversityPenalty =
+        isAlreadyPenalizedThread ||
+        (context.authoritativeSignals && !context.enabledSignals?.has('diversity'))
+          ? 1.0 // Skip penalty — this post will be grouped with its thread root
+          : safe(
+              this.calculateDiversityPenalty(
+                item.post,
+                recentAuthorsSet,
+                recentTopicsSet,
+                recentStories,
+                story,
+                context.feedSettings?.diversity,
+              ),
+            );
 
       // Track this post's author/topics for subsequent posts
       if (item.post.oxyUserId && !isAlreadyPenalizedThread) {

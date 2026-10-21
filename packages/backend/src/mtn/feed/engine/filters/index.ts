@@ -298,7 +298,9 @@ function authorAccountAgeMs(post: CandidatePost, ctx: FeedEngineContext): number
 export const safetyFilter: FilterModule = {
   id: 'safety',
   kind: 'filter',
-  keep: (post) => !isSensitivePost(post),
+  keep: (post, ctx, params) =>
+    (params.allowViewerPreference === true && ctx.showSensitiveContent === true) ||
+    !isSensitivePost(post),
 };
 
 /**
