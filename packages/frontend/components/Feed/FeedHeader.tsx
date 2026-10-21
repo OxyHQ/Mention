@@ -6,7 +6,8 @@ import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button } from '@oxy.so/bloom/button';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { RiCameraLine } from '@oxy.so/bloom/icons/RiCameraLine';
-import { RiImageLine } from '@oxy.so/bloom/icons/RiImageLine';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { MediaIcon } from '@/assets/icons/media-icon';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Text } from '@oxy.so/bloom/typography';
 
@@ -25,6 +26,7 @@ export const FeedHeader = memo<FeedHeaderProps>(
   ({ showComposeButton, onComposePress, hideHeader, promptText }) => {
     const router = useRouter();
     const { user } = useAuth();
+    const theme = useTheme();
     const compose = useCallback(() => {
       if (onComposePress) onComposePress();
       else router.push('/compose');
@@ -59,7 +61,7 @@ export const FeedHeader = memo<FeedHeaderProps>(
           tone="neutral"
           size="xs"
           iconOnly
-          icon={RiImageLine}
+          icon={<MediaIcon size={20} color={theme.colors.textSecondary} />}
           accessibilityLabel="Add image"
           onPress={() => router.push('/compose')}
         />
