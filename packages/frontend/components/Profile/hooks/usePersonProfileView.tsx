@@ -117,6 +117,12 @@ export interface PersonProfileView extends ProfileAccount {
   canonicalHref: Href | null;
   isOwnProfile: boolean;
   isPrivate: boolean;
+  /**
+   * The account's colour, kept while `active` masks the rest. The `[username]`
+   * segment's pages (followers, About, …) are all this account's, so the chrome
+   * that frames them themes by it even when it draws nothing itself.
+   */
+  accountColor: string | undefined;
   /** The banner band's image, if the account has set one. */
   bannerUri?: string;
   /** The strip's contents, lanes spliced in after `posts`. */
@@ -692,6 +698,7 @@ export function usePersonProfileView({
 
   return {
     ...account,
+    accountColor: account.profileData?.design.color,
     profileData,
     loading,
     notFound,
