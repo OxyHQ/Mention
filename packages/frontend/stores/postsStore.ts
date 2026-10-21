@@ -54,7 +54,7 @@ import type { FeedItem, FeedMetaData } from '@/db';
 import { toFeedItem } from '@/db/feedItem';
 import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
 import type { FeedFilters } from '@/utils/feedUtils';
-import { classifyFeedFailure, type FeedFailureKind } from '@/utils/feedRetry';
+import { classifyFeedFailure, isFeedCursorExpired, type FeedFailureKind } from '@/utils/feedRetry';
 
 const logger = createLogger('PostsStore');
 
@@ -143,6 +143,7 @@ const pendingRequests = new Map<string, { timestamp: number; abortController?: A
  * Only `getPostById` shares through here. `revalidatePostById` keeps its
  * abort-and-refetch semantics untouched.
  */
+const recoveredFeedCursors = new Map<string, string>();
 const inFlightPostReads = new Map<string, Promise<FeedItem | null>>();
 const inFlightEngagements = new Map<string, string>();
 const getEngagementKey = (postId: string, action: string) =>
@@ -881,6 +882,7 @@ export const usePostsStore = create<PostsStoreState>()(
 
       if (ui?.isLoading || !meta?.hasMore) return;
       if (!meta?.nextCursor) return;
+      if (recoveredFeedCursors.get(feedKey) === meta.nextCursor) return;
 
       const requestKey = `${type}:loadMore:${meta.nextCursor}`;
       const now = Date.now();
@@ -940,6 +942,16 @@ export const usePostsStore = create<PostsStoreState>()(
         }));
       } catch (error) {
         if (abortController.signal.aborted || !isCurrentViewerStateEpoch(operationEpoch)) return;
+        if (isFeedCursorExpired(error) && recoveredFeedCursors.get(feedKey) !== meta.nextCursor) {
+          recoveredFeedCursors.set(feedKey, meta.nextCursor);
+          // Release the in-flight flag before refreshFeed's concurrency guard.
+          // Refresh owns its own failure and never recursively retries a 410.
+          set((s) => ({
+            feedUI: { ...s.feedUI, [feedKey]: { ...s.feedUI[feedKey], isLoading: false } },
+          }));
+          await get().refreshFeed(type, filters);
+          return;
+        }
         set((s) => ({
           feedUI: {
             ...s.feedUI,
@@ -1759,6 +1771,7 @@ export const usePostsStore = create<PostsStoreState>()(
         pending.abortController?.abort();
       }
       pendingRequests.clear();
+      recoveredFeedCursors.clear();
       // A read that started for the previous viewer must not be handed to the
       // new one: its promise is already epoch-guarded to resolve `null`, so a
       // joiner would get "post not found" instead of reading it fresh.

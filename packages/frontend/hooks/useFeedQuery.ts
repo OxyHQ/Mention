@@ -18,7 +18,7 @@ import {
   type FeedQueryData,
 } from '@/stores/feedQueryCache';
 import { isFeedReadStale, type FeedReadIdentity } from '@/stores/feedStaleness';
-import { classifyFeedFailure, logFeedFailure } from '@/utils/feedRetry';
+import { classifyFeedFailure, isFeedCursorExpired, logFeedFailure } from '@/utils/feedRetry';
 import { feedThreadParentId, mergeFeedPageContent, type FeedFilters } from '@/utils/feedUtils';
 import { useDeepCompareMemo } from './useDeepCompare';
 import type { UseFeedStateReturn } from './useFeedState';
@@ -104,7 +104,7 @@ function feedQueryOptions(feed: FeedReadIdentity) {
         // A superseded read is not a failure; anything else is one the
         // feed service has already retried, so it is a warn with a
         // bounded context (`logFeedFailure`), never a red console entry.
-        if (!signal.aborted) {
+        if (!signal.aborted && !(pageParam !== undefined && isFeedCursorExpired(error))) {
           logFeedFailure(
             logger,
             pageParam === undefined ? 'Feed load failed' : 'Feed pagination failed',
@@ -322,13 +322,32 @@ export function useFeedQuery({
     [refresh],
   );
 
+  // A late page from a departed descriptor/account must not start a request
+  // under the current credentials. Also bound automatic recovery to once per
+  // expired cursor even if multiple intersection callbacks share that request.
+  const liveQueryRef = useRef<typeof queryKey | null>(queryKey);
+  const recoveredCursorRef = useRef<string | null>(null);
+  useEffect(() => {
+    liveQueryRef.current = queryKey;
+    return () => {
+      liveQueryRef.current = null;
+    };
+  }, [queryKey]);
+
   const loadMore = useCallback(async () => {
     if (!active || !hasNextPage) return;
     // `cancelRefetch: false`: while ANY read of this feed is in flight — a
     // first page included — this joins it rather than cancelling it.
     // `onEndReached` can fire from a render that predates that read.
-    await fetchNextPage({ cancelRefetch: false });
-  }, [active, hasNextPage, fetchNextPage]);
+    const cursor = data?.pages.at(-1)?.nextCursor;
+    const recoveryKey = JSON.stringify([queryKey, cursor]);
+    if (recoveredCursorRef.current === recoveryKey) return;
+    const result = await fetchNextPage({ cancelRefetch: false });
+    if (liveQueryRef.current !== queryKey || !cursor || !isFeedCursorExpired(result.error)) return;
+    if (recoveredCursorRef.current === recoveryKey) return;
+    recoveredCursorRef.current = recoveryKey;
+    await reload();
+  }, [active, hasNextPage, fetchNextPage, data, queryKey, reload]);
 
   // Like the read it replaced, a failure is reported only while nothing is in
   // flight: the next read of the feed is what clears it, so there is no error

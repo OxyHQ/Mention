@@ -474,6 +474,55 @@ describe('useFeedState memory mode: one feed query', () => {
       expect(ids()).toEqual(['new-ranking']);
     });
 
+    it('replaces expired ranked pages with a fresh first page exactly once', async () => {
+      await loadTwoPages();
+      getFeedMock.mockRejectedValueOnce({ status: 410, code: 'FEED_CURSOR_EXPIRED' });
+      getFeedMock.mockResolvedValueOnce(page(['fresh-session'], 'fresh-cursor'));
+      await loadMore();
+      expect(getFeedMock).toHaveBeenCalledTimes(4);
+      expect(getFeedMock.mock.calls[2][0].cursor).toBe('cursor-3');
+      expect(getFeedMock.mock.calls[3][0].cursor).toBeUndefined();
+      expect(ids()).toEqual(['fresh-session']);
+    });
+
+    it('does not loop when recovery itself fails', async () => {
+      await loadTwoPages();
+      getFeedMock.mockRejectedValue({ status: 410, code: 'FEED_CURSOR_EXPIRED' });
+      await loadMore();
+      expect(getFeedMock).toHaveBeenCalledTimes(4);
+      expect(ids()).toEqual(['p1', 'p2', 'p3']);
+      await loadMore();
+      expect(getFeedMock).toHaveBeenCalledTimes(4);
+    });
+
+    it('does not recover an unrelated 410 response', async () => {
+      await loadTwoPages();
+      getFeedMock.mockRejectedValueOnce({ status: 410, code: 'OTHER_GONE' });
+      await loadMore();
+      expect(getFeedMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('does not recover a departed descriptor after a late expiry response', async () => {
+      await loadTwoPages();
+      let reject!: (error: unknown) => void;
+      getFeedMock.mockReturnValueOnce(
+        new Promise((_resolve, fail) => {
+          reject = fail;
+        }),
+      );
+      let pending!: Promise<void>;
+      act(() => {
+        pending = latest!.loadMore();
+      });
+      const renderer = [...open][0];
+      unmount(renderer);
+      reject({ status: 410, code: 'FEED_CURSOR_EXPIRED' });
+      await act(async () => {
+        await pending;
+      });
+      expect(getFeedMock).toHaveBeenCalledTimes(3);
+    });
+
     it('keeps the loaded rows on screen while the refresh is in flight', async () => {
       await loadTwoPages();
       const refreshed = deferred<SlicedFeedResponse>();
