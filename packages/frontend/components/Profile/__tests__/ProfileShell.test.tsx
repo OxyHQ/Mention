@@ -306,3 +306,18 @@ it('passes the stored profile identity to Bloom without choosing a replacement',
   expect(mockColorScope.mock.calls.at(-1)?.[0]).toMatchObject({ seed: '#aabbcc' });
   act(() => tree.unmount());
 });
+
+it('hands a preset to Screen, which claims it for the whole shell', () => {
+  const props = makeProps();
+  if (!props.profileData) throw new Error('Profile fixture required');
+  const tree = renderShell({
+    ...props,
+    profileData: {
+      ...props.profileData,
+      design: { ...props.profileData.design, color: 'mint' },
+    },
+  });
+  expect(mockScreen.mock.calls.at(-1)?.[0]).toMatchObject({ colorPreset: 'mint' });
+  expect(mockColorScope.mock.calls.at(-1)?.[0].seed).toBeUndefined();
+  act(() => tree.unmount());
+});
