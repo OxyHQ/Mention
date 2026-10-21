@@ -539,6 +539,8 @@ function assembleContent(row: PostRow, children: PostChildRows): StoredPostConte
 
   return compact<StoredPostContent>({
     variants: variantRows.length > 0 ? assembleVariants(variantRows, children) : undefined,
+    title: optional(row.contentTitle),
+    linkUrl: optional(row.contentLinkUrl),
     media: mediaRows.length > 0 ? mediaRows.map(toMediaItem) : undefined,
     article,
     pollId: optional(row.contentPollId),
@@ -603,6 +605,7 @@ function assembleRecord(row: PostRow, children: PostChildRows): PostRecord {
     boostOf: row.boostOf,
     writtenByOxyUserId: row.writtenByOxyUserId,
     laneId: row.laneId,
+    communityOxyUserId: row.communityOxyUserId,
     quoteOf: row.quoteOf,
     parentPostId: row.parentPostId,
     threadId: row.threadId,
@@ -955,6 +958,7 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
     // disagree.
     writtenByOxyUserId: input.writtenByOxyUserId ?? null,
     laneId: input.laneId ?? null,
+    communityOxyUserId: input.communityOxyUserId ?? null,
     quoteOf: input.quoteOf ?? null,
     parentPostId: input.parentPostId ?? null,
     threadId: input.threadId ?? null,
@@ -979,6 +983,8 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
     federationSpoilerText: input.federation?.spoilerText ?? null,
 
     contentPollId: content.pollId ?? null,
+    contentTitle: content.title ?? null,
+    contentLinkUrl: content.linkUrl ?? null,
     contentArticleId: content.article?.articleId ?? null,
     contentArticleTitle: content.article?.title ?? null,
     contentArticleExcerpt: content.article?.excerpt ?? null,
@@ -1866,6 +1872,8 @@ export async function replacePostContent(
         // is the repair for any row they leave stale.
         hasLinks: postTextHasHttpLink(content.variants),
         contentPollId: content.pollId ?? null,
+        contentTitle: content.title ?? null,
+        contentLinkUrl: content.linkUrl ?? null,
         contentArticleId: content.article?.articleId ?? null,
         contentArticleTitle: content.article?.title ?? null,
         contentArticleExcerpt: content.article?.excerpt ?? null,

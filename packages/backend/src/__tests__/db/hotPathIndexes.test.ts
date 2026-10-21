@@ -258,6 +258,16 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
       "WHERE (status = 'scheduled'::text)",
   },
   {
+    name: 'post_community_chrono_v1',
+    table: 'posts',
+    serves:
+      "a community's profile — the community branch of `fetchAuthored`, which runs for every profile read",
+    definition:
+      'CREATE INDEX post_community_chrono_v1 ON public.posts ' +
+      'USING btree (community_oxy_user_id, created_at DESC NULLS LAST, id DESC NULLS LAST) ' +
+      'WHERE (community_oxy_user_id IS NOT NULL)',
+  },
+  {
     name: 'post_lane_chrono_v1',
     table: 'posts',
     serves: "the lane tab's keyset — `laneSource` pages ONE lane on `(created_at, id)`",

@@ -102,7 +102,7 @@ import {
   type ResolvedVariant,
 } from './postVariants';
 import { loadRecentReplierIds } from './PostRecentReplierService';
-import { previewableUrls, resolveClarityDocuments } from '../utils/clarityDocuments';
+import { postPreviewableUrls, resolveClarityDocuments } from '../utils/clarityDocuments';
 import {
   languageLadder,
   loadViewerLanguages,
@@ -182,6 +182,8 @@ interface RawPost {
   quoteOf?: unknown;
   /** The author's lane for this post — the `› Lane name` chip. Local curation only. */
   laneId?: string;
+  /** The community the post was published in (an ActivityPub `Group`'s Oxy account). */
+  communityOxyUserId?: string | null;
   originalPostId?: unknown;
   parentPostId?: unknown;
   threadId?: unknown;
@@ -1213,6 +1215,11 @@ export class PostHydrationService {
         for (const writerId of this.collectDisclosedWriterIds(postsForHydration, signingIds)) {
           extraUserIds.add(writerId);
         }
+        // The community a post was written in is an account like its author, so
+        // it rides the same batch rather than a lookup of its own.
+        for (const { post } of postsForHydration) {
+          if (post.communityOxyUserId) extraUserIds.add(post.communityOxyUserId);
+        }
         const uMap = await this.buildUserMap(postsForHydration, extraUserIds);
         const rMap = this.buildReplierAvatarsFromUserMap(replierAggResult.perPostRepliers, uMap);
         return {
@@ -1294,6 +1301,7 @@ export class PostHydrationService {
               ...summary.replyContext,
               parentAuthor: { ...summary.replyContext.parentAuthor, avatar: undefined },
             };
+          if (summary.community) summary.community = { ...summary.community, avatar: undefined };
           delete summary.lane;
           delete summary.documents;
           delete summary.documentsPending;
@@ -2339,8 +2347,9 @@ export class PostHydrationService {
 
   /**
    * Build the per-post link-preview map for a batch of posts. Each post maps to
-   * its preview cards IN TEXT ORDER, capped at `MAX_POST_DOCUMENTS` by
-   * {@link previewableUrls} — a post with several links renders a card per link. The
+   * its preview cards in {@link postPreviewableUrls} order — a federated `Page`'s
+   * subject link first, then the body's links IN TEXT ORDER, capped at
+   * `MAX_POST_DOCUMENTS` — so a post with several links renders a card per link. The
    * URLs are read from the RESOLVED body, so a reader served the Spanish variant
    * gets the cards for the links that variant actually contains.
    *
@@ -2381,9 +2390,7 @@ export class PostHydrationService {
       if (!postId) continue;
 
       const text = resolvedMap.get(postId)?.text;
-      if (!text || typeof text !== 'string') continue;
-
-      const urls = previewableUrls(text);
+      const urls = postPreviewableUrls(post.content, typeof text === 'string' ? text : undefined);
       if (urls.length === 0) continue;
 
       postToUrls.set(postId, urls);
@@ -3028,6 +3035,9 @@ export class PostHydrationService {
     const parentAuthorId = replyParentAuthorIdByPostId.get(postId);
     const parentAuthor = parentAuthorId ? userMap.get(parentAuthorId) : undefined;
     const replyContext: PostReplyContext = parentAuthor ? { parentAuthor } : {};
+    // A community that did not resolve has no handle to name it by, so the post
+    // simply renders without its "in !community" row.
+    const community = post.communityOxyUserId ? userMap.get(post.communityOxyUserId) : undefined;
 
     return {
       id: postId,
@@ -3054,6 +3064,7 @@ export class PostHydrationService {
       // otherwise, which is almost always, and absent for a cluster that somehow
       // holds a single member: one network is not provenance, it is the post.
       ...(buildCrosspostProvenance(crosspostMap.get(postId)) ?? {}),
+      ...(community && !isFallbackUserSummary(community) ? { community } : {}),
       // "Originally posted on Mastodon" — only for a post that was imported.
       ...(imported
         ? { importedFrom: { platform: imported.platform, sourceUrl: imported.sourceUrl } }
@@ -3207,6 +3218,8 @@ export class PostHydrationService {
       // The tag actually served — what the UI shows as "Showing in Spanish".
       textLang: resolved.tag,
       variants: inlineVariants,
+      title: baseContent.title,
+      linkUrl: baseContent.linkUrl,
       media,
       poll,
       pollId: pollId ? String(pollId) : undefined,

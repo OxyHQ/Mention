@@ -1741,7 +1741,8 @@
     },
     "job": {
       "label": "Job"
-    }
+    },
+    "inCommunity": "in !{{handle}}"
   },
   "translation.failed": "Translation failed. Try again later.",
   "translation.rateLimited": "Too many translation requests. Please wait.",

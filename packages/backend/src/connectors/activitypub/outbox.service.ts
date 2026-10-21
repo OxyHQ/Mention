@@ -36,6 +36,8 @@ import {
   buildFederatedNoteProvenance,
   buildFederatedNoteVariants,
 } from './apPostContent';
+import { resolvePostCommunity } from './apCommunity';
+import { resolveAnnouncedActivity } from './apRelay';
 import { normalizeMentionIds } from '../../utils/textProcessing';
 import { getPostCreator } from '../../services/serviceRegistry';
 import { derivePostType } from '../../services/PostCreationService';
@@ -59,7 +61,6 @@ import {
   fetchActivityPubObject,
   fetchVerifiedAnnouncedNote,
   runWithTimeout,
-  extractAnnouncedObjectUri,
   extractActorUri,
   extractDeclaredQuote,
   resolveDeclaredQuoteTarget,
@@ -72,10 +73,12 @@ import {
 import { isAbsoluteHttpUrl, getRemoteHost } from '../shared/url';
 import { buildAuthorship } from '../../utils/postAuthorship';
 import {
+  isApPostObjectType,
   parseOrderedCollection,
   parseOrderedCollectionPage,
   parseInboundActivity,
   parseNote,
+  primaryApType,
 } from './apSchemas';
 import {
   applyMentionPlaceholders,
@@ -128,6 +131,14 @@ const OUTBOX_MENTION_HEAL_CONCURRENCY = 5;
 const OUTBOX_MAX_ITEMS_INSPECTED_PER_PAGE = 100;
 
 /**
+ * What the backfill takes from a community's outbox, which lists each post as
+ * the `Announce` of its member's `Create` (`apRelay.ts`): posts only. Edits,
+ * deletions and votes are the inbox's to apply as they happen, not history to
+ * replay.
+ */
+const OUTBOX_RELAYED_TYPES: ReadonlySet<string> = new Set(['Create']);
+
+/**
  * Hard upper bound on how far UP a federated reply chain the ancestor backfill
  * walks (and how deep the thread-root resolution recurses). Federated threads
  * are normally shallow; this cap guarantees a malformed or cyclic `inReplyTo`
@@ -138,8 +149,8 @@ const MAX_ANCESTOR_DEPTH = 30;
 
 /**
  * A candidate extracted from a remote actor's outbox during backfill.
- * Either a top-level Note/Article authored by the actor, or an Announce (boost)
- * of another actor's object.
+ * Either a post — authored by the actor, or by a member of the community whose
+ * outbox this is — or an Announce (boost) of another actor's object.
  */
 type OutboxCandidate =
   | {
@@ -147,6 +158,10 @@ type OutboxCandidate =
       note: Record<string, unknown>;
       activity: Record<string, unknown>;
       activityId: string;
+      /** The post's author: the outbox owner, or the member a community relayed. */
+      authorUri: string;
+      /** The community whose outbox relayed the post (`apRelay.ts`), if any. */
+      relayedBy?: string;
     }
   | {
       kind: 'announce';
@@ -705,13 +720,11 @@ export class OutboxSyncService {
         });
       }
 
-      // Resolve actor URIs → Oxy User IDs (note authors only; announce authors
-      // are always the outbox owner, resolved via actor.oxyUserId below).
+      // Resolve actor URIs → Oxy User IDs (note authors only — the owner, or
+      // the members a community relayed; announce authors are always the outbox
+      // owner, resolved via actor.oxyUserId below).
       const actorUris = new Set<string>();
-      for (const { note } of noteCandidates) {
-        const uri = extractActorUri(note.attributedTo);
-        if (uri) actorUris.add(uri);
-      }
+      for (const { authorUri } of noteCandidates) actorUris.add(authorUri);
 
       // Batch lookup: actor URI → oxyUserId from stored FederatedActors
       const actorOxyMap = new Map<string, string>();
@@ -834,7 +847,7 @@ export class OutboxSyncService {
         visibility: PostVisibility;
         published?: Date;
       }> = [];
-      for (const { note, activity, activityId } of noteCandidates) {
+      for (const { note, activity, activityId, authorUri, relayedBy } of noteCandidates) {
         if (existingIds.has(activityId)) continue;
 
         const rawContent = typeof note.content === 'string' ? note.content : '';
@@ -880,7 +893,7 @@ export class OutboxSyncService {
         // run once the actor resolves. Throwing here would abort the whole batch
         // over a single unresolvable item, so the outbox path skips rather than
         // defers (unlike the inbox `Create` path, which retries the job).
-        const actorUri = actor.uri;
+        const actorUri = authorUri;
         const resolvedOxyUserId = actorOxyMap.get(actorUri);
         if (!resolvedOxyUserId) {
           logger.info('[FedSync] skipped outbox note whose author is unresolved');
@@ -916,7 +929,7 @@ export class OutboxSyncService {
           // host comes from its URI — the same value `federated_actors.domain`
           // holds, which is the host that DELIVERED the activity rather than any
           // re-labelled bridged identity.
-          dropFlattenedRetweets: dropsFlattenedReposts(getRemoteHost(actor.uri ?? '') ?? ''),
+          dropFlattenedRetweets: dropsFlattenedReposts(getRemoteHost(actorUri) ?? ''),
           ingestPath: 'outbox',
         });
         if (built.skip) {
@@ -974,14 +987,18 @@ export class OutboxSyncService {
           sensitive,
           instanceDomain: actorUri ? getRemoteHost(actorUri) : undefined,
           // The outbox owner authored every Note in its own outbox, so the
-          // owner's AP type is the note author's type (RSS/bot-mirror signal).
-          actorType: actor.type,
+          // owner's AP type is the note author's type (RSS/bot-mirror signal) —
+          // except a community's relays, whose authors are its members and whose
+          // type the backfill does not know.
+          actorType: relayedBy ? undefined : actor.type,
         });
         // Top-level AP `post.language` (single, protocol-facing) = the resolved
         // primary (`languages[0]`, normalized to ISO 639-1), falling back to the
         // raw declared primary when the classifier resolved none.
         const primaryLanguage = baseline.languages[0] ?? apLanguage;
         const visibility = mapApVisibility(note.to, note.cc);
+
+        const communityOxyUserId = await resolvePostCommunity(note, relayedBy);
 
         const postId = uuidv7();
         if (linkPreviews.length > 0) linkPreviewsByPostId.set(postId, linkPreviews);
@@ -1003,6 +1020,7 @@ export class OutboxSyncService {
           // typed `QUOTE` even when it carries media, and this path used to say
           // `IMAGE` for the very same Note the inbox typed `QUOTE`.
           type: derivePostType({ quoteOf, content: { media } }),
+          communityOxyUserId,
           content: {
             // The body, and its ONLY home (`contentMap` → author variants,
             // `variants[0]` primary). There is no `content.text` mirror on any
@@ -1013,6 +1031,8 @@ export class OutboxSyncService {
               quoteVariants.length > 0
                 ? applyDetectedPrimaryTag(quoteVariants, primaryLanguage)
                 : undefined,
+            title: built.title,
+            linkUrl: built.linkUrl,
             media: media.length > 0 ? media : undefined,
             attachments: attachments.length > 0 ? attachments : undefined,
           },
@@ -1350,16 +1370,45 @@ export class OutboxSyncService {
         continue;
       }
 
-      // Announce (boost) — capture the announced object URI for later import.
-      // Raw `===` on `type` preserves the prior behavior exactly (array-typed
-      // `type` values were already not matched here).
+      // Announce — a boost, whose object is imported later, or a community
+      // relaying a member's post (`apRelay.ts`). Raw `===` on `type` preserves
+      // the prior behavior exactly (array-typed `type` values were already not
+      // matched here).
       if (activity.type === 'Announce') {
         const activityId = typeof activity.id === 'string' ? activity.id : '';
-        const announcedUri = extractAnnouncedObjectUri(activity.object);
-        if (!activityId || !announcedUri) continue;
+        if (!activityId) continue;
         if (!actorUrisMatch(extractActorUri(activity.actor), expectedActorUri)) continue;
         if (!activityIdBelongsToActor(activityId, expectedActorUri)) continue;
-        candidates.push({ kind: 'announce', activity, activityId, announcedUri });
+        const announced = await resolveAnnouncedActivity(
+          activity,
+          expectedActorUri,
+          OUTBOX_RELAYED_TYPES,
+        );
+        if (announced.kind === 'object') {
+          candidates.push({
+            kind: 'announce',
+            activity,
+            activityId,
+            announcedUri: announced.objectUri,
+          });
+          continue;
+        }
+        if (announced.kind !== 'activity') continue;
+        // A relayed `Create`, verified: its post is the member's.
+        const relayedNote = asRecord(announced.activity.object);
+        if (!relayedNote || !parseNote(relayedNote).ok || !isApPostObjectType(relayedNote.type)) {
+          continue;
+        }
+        const noteId = typeof relayedNote.id === 'string' ? relayedNote.id : '';
+        if (!noteId) continue;
+        candidates.push({
+          kind: 'note',
+          note: relayedNote,
+          activity: announced.activity,
+          activityId: noteId,
+          authorUri: announced.actorUri,
+          relayedBy: expectedActorUri,
+        });
         continue;
       }
 
@@ -1374,7 +1423,7 @@ export class OutboxSyncService {
         });
         continue;
       }
-      if (note.type !== 'Note' && note.type !== 'Article') continue;
+      if (!isApPostObjectType(note.type)) continue;
       // Replies are NOT skipped: an actor's outbox is their OWN content, so their
       // self-thread continuations (and replies to others) are imported and linked
       // into threads by the post-insert linking pass. The `attributedTo` /
@@ -1394,7 +1443,7 @@ export class OutboxSyncService {
         continue;
       if (!activityIdBelongsToActor(activityId, expectedActorUri)) continue;
 
-      candidates.push({ kind: 'note', note, activity, activityId });
+      candidates.push({ kind: 'note', note, activity, activityId, authorUri: expectedActorUri });
     }
 
     return maxIndexExclusive;
@@ -1415,7 +1464,7 @@ export class OutboxSyncService {
     activity: Record<string, unknown>,
     sourcePageUrl: string,
   ): Promise<Record<string, unknown> | null> {
-    if (activity.type === 'Note' || activity.type === 'Article') return activity;
+    if (isApPostObjectType(activity.type)) return activity;
     if (activity.type !== 'Create') return null;
 
     const inlineObject = asRecord(activity.object);
@@ -1619,10 +1668,10 @@ export class OutboxSyncService {
   }
 
   /**
-   * Ensure a federated Note/Article exists locally as a Post and return its
-   * local Post `_id` (as a string). Fetches the object via `signedFetch` when it
-   * is not already stored. Returns null when the object cannot be fetched or is
-   * not a Note/Article.
+   * Ensure a federated post (`AP_POST_OBJECT_TYPES`) exists locally as a Post
+   * and return its local Post `_id` (as a string). Fetches the object via
+   * `signedFetch` when it is not already stored. Returns null when the object
+   * cannot be fetched or is not a post.
    *
    * Used by boost import so a boost's `boostOf` always references a real local
    * Post `_id`, exactly like native reposts (which the hydration layer resolves
@@ -1674,9 +1723,9 @@ export class OutboxSyncService {
     if (!fetched) return null;
     const { note } = fetched;
 
-    if (!note || (note.type !== 'Note' && note.type !== 'Article')) {
+    if (!note || !isApPostObjectType(note.type)) {
       logger.info('[FedSync] skipped unsupported boosted object', {
-        type: note?.type,
+        type: primaryApType(note?.type),
       });
       return null;
     }
@@ -1768,6 +1817,9 @@ export class OutboxSyncService {
         )
       : null;
     const quoteVariants = await stripQuoteMarkerFromVariants(variants, quoteOf, declaredQuote?.uri);
+    // Nothing relayed this import, so only a community on the post's own origin
+    // vouches for it (`resolvePostCommunity`).
+    const communityOxyUserId = await resolvePostCommunity(note);
 
     try {
       const created = await getPostCreator().create({
@@ -1783,9 +1835,12 @@ export class OutboxSyncService {
         parentPostId: threadLink?.parentPostId ?? null,
         threadId: threadLink?.threadId ?? null,
         quoteOf,
+        communityOxyUserId,
         content: {
           // The body, and its ONLY home (`variants[0]` is the primary).
           variants: quoteVariants.length > 0 ? quoteVariants : undefined,
+          title: built.title,
+          linkUrl: built.linkUrl,
           media: media.length > 0 ? media : undefined,
           attachments: attachments.length > 0 ? attachments : undefined,
         },

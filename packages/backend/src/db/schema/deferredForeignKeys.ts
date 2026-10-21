@@ -125,6 +125,10 @@ const OXY_ACCOUNT_COLUMN_NAMES: ReadonlySet<string> = new Set([
   // `written_by_oxy_user_id` above and here for the same reason: the name is not
   // one the predicate would otherwise recognise, and Oxy owns the row it names.
   'corrected_by_oxy_user_id',
+  // The community a federated post was published in (`posts`): the Oxy account
+  // of an ActivityPub `Group`. The name is not one the predicate would otherwise
+  // recognise.
+  'community_oxy_user_id',
   'local_user_id',
   'sender_oxy_user_id',
   'actor_id',

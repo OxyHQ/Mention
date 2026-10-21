@@ -440,6 +440,13 @@ export const ERASURE_STEPS: Readonly<Record<string, ErasureStep>> = {
     null,
     notOwnPost,
   ),
+  'posts.communityOxyUserId': replaceAccount(
+    posts,
+    posts.communityOxyUserId,
+    posts.id,
+    null,
+    notOwnPost,
+  ),
   'posts.contentRoomHost': replaceAccount(posts, posts.contentRoomHost, posts.id, null, notOwnPost),
   'post_corrections.correctedByOxyUserId': replaceAccount(
     postCorrections,

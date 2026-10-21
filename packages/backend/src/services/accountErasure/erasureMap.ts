@@ -182,6 +182,15 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
   },
   {
     table: 'posts',
+    column: 'communityOxyUserId',
+    disposition: 'unset-field',
+    phase: 'account',
+    why:
+      'The account as the COMMUNITY other people posted in (a federated `Group`). Their posts are theirs ' +
+      'and stay; the pointer to the community goes. NULL is the same state as a post written in none.',
+  },
+  {
+    table: 'posts',
     column: 'contentRoomHost',
     disposition: 'unset-field',
     phase: 'account',

@@ -84,6 +84,12 @@ export interface CreatePostParams {
    */
   laneId?: string | null;
   /**
+   * The community a FEDERATED post was published in (the Oxy account of an
+   * ActivityPub `Group`, resolved by `connectors/activitypub/apCommunity.ts`).
+   * Only the federated ingest sets it; the post stays authored by its writer.
+   */
+  communityOxyUserId?: string | null;
+  /**
    * Publish this post AS another Oxy account the caller operates: a `channel`,
    * or an organization / project / bot they may act as.
    *
@@ -555,7 +561,9 @@ class PostCreationService {
       const hasSummary =
         typeof params.federation.spoilerText === 'string' &&
         params.federation.spoilerText.trim().length > 0;
-      if (!hasText && !hasMedia && !hasAttachments && !hasPoll && !hasSummary) {
+      // A Lemmy link post is a title and a link, with no body at all.
+      const hasTitle = typeof content.title === 'string' && content.title.trim().length > 0;
+      if (!hasText && !hasMedia && !hasAttachments && !hasPoll && !hasSummary && !hasTitle) {
         throw new Error(
           `PostCreationService: refusing to create empty federated post (activityId=${params.federation.activityId ?? 'unknown'})`,
         );
@@ -637,6 +645,7 @@ class PostCreationService {
         ? ['nobody']
         : (params.replyPermission ?? ['anyone'])) as ReplyPermission[],
       laneId: params.laneId ?? null,
+      communityOxyUserId: params.communityOxyUserId ?? null,
       content: storedContent,
       // Reconciled from the FINALIZED stored bodies. Incoming metadata alone must
       // never create a notification recipient.

@@ -2478,7 +2478,8 @@
   "post": {
     "job": {
       "label": "Job"
-    }
+    },
+    "inCommunity": "dans !{{handle}}"
   },
   "common": {
     "add": "Add",

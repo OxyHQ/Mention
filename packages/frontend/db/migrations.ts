@@ -52,11 +52,15 @@ const logger = createLogger('Schema');
  * backend drops any other origin, but a row saved before that would keep
  * loading the image straight from the site.
  *
+ * v15 ADDS `community` (the community a federated post was written in), for the
+ * same `storePost ?? post` reason as v11. A post's `content.title` and
+ * `content.linkUrl` ride inside `content` and move with it.
+ *
  * `db/__tests__/cacheShapeVersion.test.ts` fails when the persisted key set
  * changes without this number moving, so the rule is enforced rather than
  * remembered.
  */
-export const SCHEMA_VERSION = 14;
+export const SCHEMA_VERSION = 15;
 
 /**
  * Create the full schema from scratch. Idempotent (IF NOT EXISTS).

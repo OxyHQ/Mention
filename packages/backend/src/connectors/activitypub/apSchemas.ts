@@ -197,7 +197,11 @@ const apContentObjectBase = {
     .union([z.string(), apLinkEntrySchema, z.array(z.union([z.string(), apLinkEntrySchema]))])
     .optional(),
   sensitive: z.boolean().optional(),
-  language: z.string().optional(),
+  // Mastodon: the BCP-47 tag. Lemmy/PieFed: `{ identifier, name }`. Read by
+  // `declaredApLanguage`.
+  language: z
+    .union([z.string(), z.object({ identifier: z.string().optional() }).loose()])
+    .optional(),
   to: apAddressing,
   cc: apAddressing,
   audience: apAddressing,
@@ -206,13 +210,28 @@ const apContentObjectBase = {
 };
 
 /**
- * A content object: `Note` (Mastodon/Pleroma status), `Article` (long-form,
- * WriteFreely/Lemmy posts), `Question` (Mastodon poll), or `Page` (PeerTube/
- * Lemmy). They share the same base shape for the fields Mention reads; the
- * ingest code only stores `Note`/`Article` today, but `Question`/`Page` parse
- * cleanly so future wiring is non-breaking.
+ * A content object: `Note` (Mastodon/Pleroma status, a Lemmy comment),
+ * `Article` (long-form, WriteFreely), `Page` (a Lemmy/PieFed/Mbin post), or
+ * `Question` (Mastodon poll). They share the same base shape for the fields
+ * Mention reads; which of them are STORED is {@link AP_POST_OBJECT_TYPES}.
  */
 export const apNoteSchema = z.object(apContentObjectBase).loose();
+
+/**
+ * The object types every ingest path stores as a post — the inbox `Create` and
+ * `Update`, the outbox backfill, and the boost / reply-ancestor / quote import.
+ * One list, so a type cannot be accepted on one road and dropped on another.
+ *
+ * `Page` is what a community post is on Lemmy, PieFed and Mbin; its comments are
+ * `Note`s. `Question` is not here: AP polls are not materialized.
+ */
+export const AP_POST_OBJECT_TYPES = ['Note', 'Article', 'Page'] as const;
+
+/** Whether an AP `type` is one {@link AP_POST_OBJECT_TYPES} names. */
+export function isApPostObjectType(type: unknown): boolean {
+  const primary = primaryApType(type);
+  return primary !== undefined && (AP_POST_OBJECT_TYPES as readonly string[]).includes(primary);
+}
 
 /**
  * A `Tombstone` — the `object` of a `Delete` activity for a removed post. Only

@@ -373,6 +373,18 @@ export const posts = pgTable(
     laneId: text().references(() => lanes.id, { onDelete: 'set null' }),
 
     /**
+     * The community this post was published in — the Oxy account of a
+     * federated ActivityPub `Group` (a Lemmy, PieFed or Mbin community), read
+     * from the object's `audience` at ingest (`apCommunity.ts`). The post is
+     * AUTHORED by its writer; this is where it was posted, not who posted it.
+     *
+     * No foreign key (an Oxy account id). NULL for every post that was not
+     * written in a community, which is nearly all of them, so the index on it is
+     * partial.
+     */
+    communityOxyUserId: text(),
+
+    /**
      * The post this one replies to.
      *
      * `ON DELETE SET NULL`, and that is now SAFE because it is no longer the
@@ -488,6 +500,19 @@ export const posts = pgTable(
     contentArticleId: text(),
     contentArticleTitle: text(),
     contentArticleExcerpt: text(),
+
+    /**
+     * The headline of a federated `Page` or `Article` (its AS2 `name`): a Lemmy
+     * post's title, a blog article's. Kept apart from the body, never folded
+     * into it.
+     */
+    contentTitle: text(),
+    /**
+     * The link a federated `Page` or `Article` is ABOUT (a Lemmy link post's
+     * `attachment` of type `Link`). Hydration previews it like a link in the
+     * body, and the title links to it.
+     */
+    contentLinkUrl: text(),
 
     contentEventId: text(),
     contentEventName: text(),
@@ -901,6 +926,16 @@ export const posts = pgTable(
     index('post_lane_chrono_v1')
       .on(t.laneId, t.visibility, t.status, t.createdAt.desc(), t.id.desc())
       .where(sql`${t.laneId} is not null`),
+
+    /**
+     * A community's posts, newest first — the third branch of the profile feed
+     * (`fetchAuthored`). Partial for the same reason as the lane index: the
+     * column is NULL on nearly every row, so a non-community author's branch is
+     * an empty index probe.
+     */
+    index('post_community_chrono_v1')
+      .on(t.communityOxyUserId, t.createdAt.desc(), t.id.desc())
+      .where(sql`${t.communityOxyUserId} is not null`),
 
     // Multikey → GIN. These are the array predicates the feed engine actually
     // runs (`hashtags: {$in}`, `postClassification.languages: {$in}`,

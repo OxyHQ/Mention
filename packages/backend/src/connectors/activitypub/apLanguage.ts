@@ -30,6 +30,27 @@ function toIso6391(tag: unknown): string | undefined {
 }
 
 /**
+ * The language tag an AP object DECLARES in its top-level `language`, as a
+ * string. Mastodon sends the BCP-47 tag itself (`"en"`); Lemmy and PieFed send
+ * an object (`{ "identifier": "fr", "name": "Français" }`). `und` (BCP-47
+ * "undetermined", Lemmy's value for an unset language) declares nothing.
+ */
+export function declaredApLanguage(
+  object: Record<string, unknown> | null | undefined,
+): string | undefined {
+  const raw = object?.language;
+  const tag =
+    typeof raw === 'string'
+      ? raw
+      : raw && typeof raw === 'object' && !Array.isArray(raw)
+        ? (raw as { identifier?: unknown }).identifier
+        : undefined;
+  if (typeof tag !== 'string') return undefined;
+  const trimmed = tag.trim();
+  return trimmed.length > 0 && trimmed.toLowerCase() !== 'und' ? trimmed : undefined;
+}
+
+/**
  * Narrows an AP object's `contentMap` to a plain (non-array) record, or returns
  * `undefined` when it is absent or the wrong shape. `contentMap` is a map of
  * BCP-47 language tag → localized HTML content; both the language extractors and
@@ -61,7 +82,7 @@ export function extractApLanguage(
 ): string | undefined {
   if (!object || typeof object !== 'object') return undefined;
 
-  const fromLanguage = toIso6391(object.language);
+  const fromLanguage = toIso6391(declaredApLanguage(object));
   if (fromLanguage) return fromLanguage;
 
   const contentMap = getApContentMap(object);
@@ -94,7 +115,7 @@ export function extractApLanguages(object: Record<string, unknown> | null | unde
 
   const codes: string[] = [];
 
-  const fromLanguage = toIso6391(object.language);
+  const fromLanguage = toIso6391(declaredApLanguage(object));
   if (fromLanguage) codes.push(fromLanguage);
 
   const contentMap = getApContentMap(object);

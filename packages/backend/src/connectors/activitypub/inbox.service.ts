@@ -62,7 +62,10 @@ import {
   buildFederatedNoteContent,
   buildFederatedNoteContentForEdit,
   buildFederatedNoteProvenance,
+  hasStorableContent,
 } from './apPostContent';
+import { resolvePostCommunity } from './apCommunity';
+import { INBOX_RELAYED_TYPES, resolveAnnouncedActivity } from './apRelay';
 import { identityDomainOfActor } from './identityDomain';
 import { dropsFlattenedReposts } from './repostTransportPolicy';
 import { declaredOriginalUrls } from './declaredOriginal';
@@ -79,7 +82,7 @@ import { getRemoteHost } from '../shared/url';
 import { applyDetectedPrimaryTag } from '../../services/postVariants';
 import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
 import { parentIsChannelPost } from '../../utils/channelReplyGate';
-import { parseInboundActivity, parseNote, primaryApType } from './apSchemas';
+import { isApPostObjectType, parseInboundActivity, parseNote, primaryApType } from './apSchemas';
 import type { z } from 'zod';
 import {
   materializeEngagementRelationship,
@@ -504,10 +507,18 @@ export class InboxProcessingService {
     return true;
   }
 
-  private async handleCreate(activity: Record<string, unknown>, actorUri: string): Promise<void> {
+  /**
+   * `relayedBy` is the community that relayed this `Create` to us (see
+   * {@link onRelayedActivity}); absent for a direct delivery.
+   */
+  private async handleCreate(
+    activity: Record<string, unknown>,
+    actorUri: string,
+    relayedBy?: string,
+  ): Promise<void> {
     const object = asRecord(activity.object);
     if (!object) return;
-    if (object.type !== 'Note' && object.type !== 'Article') return;
+    if (!isApPostObjectType(object.type)) return;
 
     // Validate the embedded content object before reading its fields by raw
     // access. A Note/Article that fails validation (e.g. missing id) is skipped
@@ -534,14 +545,14 @@ export class InboxProcessingService {
     if (await this.handlePollVote(object, actorUri)) return;
 
     // Only process a Note some local user asked for: it replies to or mentions
-    // one of our users, or its author is followed here. The in-memory check first.
+    // one of our users, or its author — or the community that relayed it — is
+    // followed here. The in-memory check first.
+    const isFollowed = (remoteActorUri: string) =>
+      existsFollow({ remoteActorUri, direction: 'outbound', statuses: ['accepted'] });
     if (
       !addressesLocalUsers(object) &&
-      !(await existsFollow({
-        remoteActorUri: actorUri,
-        direction: 'outbound',
-        statuses: ['accepted'],
-      }))
+      !(await isFollowed(actorUri)) &&
+      !(relayedBy && (await isFollowed(relayedBy)))
     )
       return;
 
@@ -611,6 +622,7 @@ export class InboxProcessingService {
       return;
     }
     const { media, attachments, hashtags, summary, sensitive, variants, linkPreviews } = built;
+    const communityOxyUserId = await resolvePostCommunity(object, relayedBy);
 
     // Preserve the ORIGINAL publish date so a federated post reflects when it
     // was authored remotely, not when our inbox happened to receive it. The Note
@@ -695,10 +707,13 @@ export class InboxProcessingService {
       parentPostId: threadLink?.parentPostId ?? null,
       threadId: threadLink?.threadId ?? null,
       quoteOf,
+      communityOxyUserId,
       content: {
         // The body lives ONLY in the variants — a `contentMap` is one body PER
         // LANGUAGE, not a fallback for one. `variants[0]` is the primary.
         variants: quoteVariants.length > 0 ? quoteVariants : undefined,
+        title: built.title,
+        linkUrl: built.linkUrl,
         media: media.length > 0 ? media : undefined,
         attachments: attachments.length > 0 ? attachments : undefined,
       },
@@ -862,8 +877,17 @@ export class InboxProcessingService {
    * count without flooding anyone's feed.
    */
   private async handleAnnounce(activity: Record<string, unknown>, actorUri: string): Promise<void> {
-    const announcedUri = extractAnnouncedObjectUri(activity.object);
-    if (!announcedUri) return;
+    // A community relaying a member's activity, or a boost (`apRelay.ts`).
+    const announced = await resolveAnnouncedActivity(activity, actorUri, INBOX_RELAYED_TYPES);
+    if (announced.kind === 'dropped') {
+      logger.debug('[Federation] dropped Announce', { result: announced.reason });
+      return;
+    }
+    if (announced.kind === 'activity') {
+      await this.onRelayedActivity(announced.activity, announced.actorUri, actorUri);
+      return;
+    }
+    const announcedUri = announced.objectUri;
 
     // A boost targets the announced post's owner — resolved separately from
     // `importAnnounce`'s own resolution below since the gate must run BEFORE
@@ -914,11 +938,46 @@ export class InboxProcessingService {
     }
   }
 
-  private async handleUpdate(activity: Record<string, unknown>, actorUri: string): Promise<void> {
+  /**
+   * A relayed activity, verified by {@link resolveAnnouncedActivity}: processed
+   * exactly as if `actorUri` — the member who wrote it — had delivered it, so
+   * every authorization below scopes to the member and never to the community.
+   * `relayerUri` (the community) only widens the follow gate of a `Create` and
+   * vouches for the post's community.
+   */
+  private async onRelayedActivity(
+    activity: Record<string, unknown>,
+    actorUri: string,
+    relayerUri: string,
+  ): Promise<void> {
+    switch (primaryApType(activity.type)) {
+      case 'Create':
+        await this.handleCreate(activity, actorUri, relayerUri);
+        break;
+      case 'Update':
+        await this.handleUpdate(activity, actorUri, relayerUri);
+        break;
+      case 'Delete':
+        await this.handleDelete(activity, actorUri);
+        break;
+      case 'Like':
+        await this.handleLike(activity, actorUri);
+        break;
+      case 'Undo':
+        await this.handleUndoContent(activity.object, actorUri);
+        break;
+    }
+  }
+
+  private async handleUpdate(
+    activity: Record<string, unknown>,
+    actorUri: string,
+    relayedBy?: string,
+  ): Promise<void> {
     const object = asRecord(activity.object);
     if (!object) return;
 
-    if (object.type === 'Note' || object.type === 'Article') {
+    if (isApPostObjectType(object.type)) {
       // Validate the edited content object before reading its fields by raw
       // access; skip a malformed edit with a warn.
       const parsedNote = parseNote(object);
@@ -966,7 +1025,7 @@ export class InboxProcessingService {
       // current state; all follower, actor, content and notification guards are
       // thereby identical to a first delivery.
       if (!existingPost) {
-        await this.handleCreate(activity, actorUri);
+        await this.handleCreate(activity, actorUri, relayedBy);
         return;
       }
       // Resolved unconditionally, and reused twice: the owner id, and the
@@ -1001,12 +1060,7 @@ export class InboxProcessingService {
             : PostType.IMAGE
           : PostType.TEXT;
 
-      const hasRepresentableContent =
-        built.variants.some((variant) => variant.text.trim().length > 0) ||
-        built.media.length > 0 ||
-        built.attachments.length > 0 ||
-        built.summary !== undefined;
-      if (built.customEmojiRemoved && !hasRepresentableContent) {
+      if (built.customEmojiRemoved && !hasStorableContent(built)) {
         const deleted = await deleteFederatedPostSubtree(existingPost.id, actorUri);
         if (deleted === 'deleted')
           logger.debug('[Federation] deleted custom-emoji-only edited post');
@@ -1101,6 +1155,8 @@ export class InboxProcessingService {
         {
           ...existingPost.content,
           variants: editVariants.length > 0 ? editVariants : undefined,
+          title: built.title,
+          linkUrl: built.linkUrl,
           media: built.media.length > 0 ? built.media : undefined,
           attachments: built.attachments.length > 0 ? built.attachments : undefined,
         },

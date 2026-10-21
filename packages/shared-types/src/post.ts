@@ -335,6 +335,10 @@ export interface PostContentVariant {
  */
 export interface StoredPostContent {
   variants?: PostContentVariant[];
+  /** See {@link PostContent.title}. */
+  title?: string;
+  /** See {@link PostContent.linkUrl}. */
+  linkUrl?: string;
   media?: MediaItem[];
   article?: PostArticleContent;
   poll?: PollData;
@@ -382,6 +386,17 @@ export interface PostContent {
    * as the menu of what's possible — when in fact any language is.
    */
   variants?: PostContentVariant[];
+  /**
+   * The headline a federated `Page` or `Article` carries apart from its body (a
+   * Lemmy post's title). Absent on every native post.
+   */
+  title?: string;
+  /**
+   * The link a federated `Page` or `Article` is about (a Lemmy link post). Its
+   * preview card arrives in `documents` like a link in the body; the title links
+   * to it.
+   */
+  linkUrl?: string;
   /** Media, with this reader's localized alt text already merged in. */
   media?: MediaItem[];
   poll?: PollData; // Populated poll data for display
@@ -1495,6 +1510,13 @@ export interface HydratedPostSummary {
    * makes unreachable.
    */
   lane?: LaneSummary;
+  /**
+   * The community this post was published in — a federated ActivityPub `Group`
+   * (a Lemmy, PieFed or Mbin community), resolved like any other account. `user`
+   * stays the post's writer; the card renders this as an "in !community"
+   * context row. ABSENT for every post written outside a community.
+   */
+  community?: PostUser;
   /**
    * There is deliberately NO `channel` field here.
    *

@@ -59,6 +59,7 @@ const RENDERED_FIELDS: Record<keyof PostRecord, boolean> = {
   scheduledFor: true,
   writtenByOxyUserId: true,
   laneId: true,
+  communityOxyUserId: true,
   content: true,
   mentions: true,
   metadata: true,

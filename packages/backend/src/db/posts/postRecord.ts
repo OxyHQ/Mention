@@ -213,6 +213,12 @@ export interface PostRecord {
 
   laneId: string | null;
 
+  /**
+   * The community the post was published in: the Oxy account of a federated
+   * ActivityPub `Group`. The post stays authored by its writer.
+   */
+  communityOxyUserId: string | null;
+
   /** The stored renditions plus the shared media/article/poll/location. */
   content: StoredPostContent;
   /** The resolved @mention allowlist (Oxy user ids). */
@@ -296,6 +302,7 @@ export interface PostRecordInput {
   scheduledFor?: Date | null;
   writtenByOxyUserId?: string | null;
   laneId?: string | null;
+  communityOxyUserId?: string | null;
   content: StoredPostContent;
   mentions?: string[];
   metadata?: PostMetadata;

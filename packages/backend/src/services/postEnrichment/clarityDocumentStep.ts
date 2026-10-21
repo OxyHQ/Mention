@@ -1,5 +1,5 @@
 import type { StoredPostContent } from '@mention/shared-types';
-import { previewableUrls, resolveClarityDocuments } from '../../utils/clarityDocuments';
+import { postPreviewableUrls, resolveClarityDocuments } from '../../utils/clarityDocuments';
 import { getPrimaryVariant } from '../postVariants';
 import type { IngestedPost } from './types';
 
@@ -30,9 +30,8 @@ export async function warmClarityDocumentsForPosts(
   const urls: string[] = [];
   const seen = new Set<string>();
   for (const post of posts) {
-    const text = getPrimaryVariant((post.content ?? {}) as StoredPostContent)?.text;
-    if (!text) continue;
-    for (const url of previewableUrls(text)) {
+    const content = (post.content ?? {}) as StoredPostContent;
+    for (const url of postPreviewableUrls(content, getPrimaryVariant(content)?.text)) {
       if (seen.has(url)) continue;
       seen.add(url);
       urls.push(url);
