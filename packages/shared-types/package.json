@@ -169,7 +169,7 @@
   "author": "Mention Team",
   "license": "UNLICENSED",
   "dependencies": {
-    "@clarity.surf/sdk": "^0.6.1",
+    "@clarity.surf/sdk": "^0.9.0",
     "@oxy.so/contracts": "catalog:",
     "@oxy.so/utils": "catalog:",
     "zod": "catalog:",
