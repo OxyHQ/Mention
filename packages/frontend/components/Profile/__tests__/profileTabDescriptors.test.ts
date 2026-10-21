@@ -6,6 +6,7 @@ import {
   buildProfileTabDescriptors,
   laneTabKey,
   profileTabIndex,
+  followVerbForAccountKind,
   profileTabsForAccountKind,
   type ProfileTab,
 } from '@/components/Profile/types';
@@ -228,3 +229,17 @@ it.each(['organization', 'project', 'channel', 'bot'] as const)(
     expect(profileTabsForAccountKind(kind)).not.toContain('experience');
   },
 );
+
+it('joins a community and follows every other account', () => {
+  expect(followVerbForAccountKind('community')).toBe('join');
+  for (const kind of [
+    'personal',
+    'organization',
+    'project',
+    'bot',
+    'channel',
+    undefined,
+  ] as const) {
+    expect(followVerbForAccountKind(kind)).toBe('follow');
+  }
+});
