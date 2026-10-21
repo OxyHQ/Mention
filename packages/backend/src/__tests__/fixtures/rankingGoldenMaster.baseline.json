@@ -1,7 +1,7 @@
 {
   "bare-anon": {
-    "finalScore": 0,
-    "engagement": 0,
+    "finalScore": 1.132649175218032,
+    "engagement": 1,
     "recency": 0.9438743126816935,
     "relationship": 1,
     "personalization": 1,
@@ -9,8 +9,8 @@
     "diversity": 1
   },
   "high-engagement-computed": {
-    "finalScore": 4.304191519459768,
-    "engagement": 2.9231615807191558,
+    "finalScore": 5.77663544724321,
+    "engagement": 3.9231615807191558,
     "recency": 0.9438743126816935,
     "relationship": 1,
     "personalization": 1,
@@ -18,8 +18,8 @@
     "diversity": 1
   },
   "fresh-under-1h": {
-    "finalScore": 1.8859781395056812,
-    "engagement": 1.208960345836975,
+    "finalScore": 3.4459781395056814,
+    "engagement": 2.2089603458369753,
     "recency": 1,
     "relationship": 1,
     "personalization": 1,
@@ -27,8 +27,8 @@
     "diversity": 1
   },
   "aged-12h": {
-    "finalScore": 0,
-    "engagement": 0,
+    "finalScore": 0.7778174593052024,
+    "engagement": 1,
     "recency": 0.7071067811865476,
     "relationship": 1,
     "personalization": 1,
@@ -36,8 +36,8 @@
     "diversity": 1
   },
   "aged-2d": {
-    "finalScore": 0,
-    "engagement": 0,
+    "finalScore": 0.25,
+    "engagement": 1,
     "recency": 0.25,
     "relationship": 1,
     "personalization": 1,
@@ -46,7 +46,7 @@
   },
   "older-than-maxage": {
     "finalScore": 0,
-    "engagement": 0,
+    "engagement": 1,
     "recency": 0,
     "relationship": 1,
     "personalization": 1,
@@ -55,7 +55,7 @@
   },
   "invalid-createdAt": {
     "finalScore": 0,
-    "engagement": 0,
+    "engagement": 1,
     "recency": 0,
     "relationship": 1,
     "personalization": 1,
@@ -64,7 +64,7 @@
   },
   "missing-createdAt": {
     "finalScore": 0,
-    "engagement": 0,
+    "engagement": 1,
     "recency": 0,
     "relationship": 1,
     "personalization": 1,
@@ -72,8 +72,8 @@
     "diversity": 1
   },
   "missing-stats": {
-    "finalScore": 0,
-    "engagement": 0,
+    "finalScore": 1.132649175218032,
+    "engagement": 1,
     "recency": 0.9438743126816935,
     "relationship": 1,
     "personalization": 1,
@@ -135,8 +135,8 @@
     "diversity": 1
   },
   "quality-high-rate": {
-    "finalScore": 4.118853947290309,
-    "engagement": 2.151762203259462,
+    "finalScore": 6.033031053408784,
+    "engagement": 3.151762203259462,
     "recency": 0.9438743126816935,
     "relationship": 1,
     "personalization": 1,
@@ -144,8 +144,8 @@
     "diversity": 1
   },
   "quality-low-rate-manyviews": {
-    "finalScore": 2.0935802196424707,
-    "engagement": 2.772588722239781,
+    "finalScore": 2.848679669787826,
+    "engagement": 3.772588722239781,
     "recency": 0.9438743126816935,
     "relationship": 1,
     "personalization": 1,
@@ -153,8 +153,8 @@
     "diversity": 1
   },
   "quality-tiny-views": {
-    "finalScore": 0.16810779638306833,
-    "engagement": 0.14842000511827327,
+    "finalScore": 1.3007569716011007,
+    "engagement": 1.1484200051182734,
     "recency": 0.9438743126816935,
     "relationship": 1,
     "personalization": 1,
@@ -162,8 +162,8 @@
     "diversity": 1
   },
   "ai-high-quality": {
-    "finalScore": 0,
-    "engagement": 0,
+    "finalScore": 1.472443927783442,
+    "engagement": 1,
     "recency": 0.9438743126816935,
     "relationship": 1,
     "personalization": 1,
@@ -171,8 +171,8 @@
     "diversity": 1
   },
   "ai-low-quality": {
-    "finalScore": 0,
-    "engagement": 0,
+    "finalScore": 0.7928544226526225,
+    "engagement": 1,
     "recency": 0.9438743126816935,
     "relationship": 1,
     "personalization": 1,
@@ -180,8 +180,8 @@
     "diversity": 1
   },
   "ai-high-spam": {
-    "finalScore": 0,
-    "engagement": 0,
+    "finalScore": 0.11326491752180322,
+    "engagement": 1,
     "recency": 0.9438743126816935,
     "relationship": 1,
     "personalization": 1,
@@ -189,8 +189,8 @@
     "diversity": 0.1
   },
   "ai-high-toxicity": {
-    "finalScore": 0,
-    "engagement": 0,
+    "finalScore": 0.11326491752180322,
+    "engagement": 1,
     "recency": 0.9438743126816935,
     "relationship": 1,
     "personalization": 1,
@@ -198,8 +198,8 @@
     "diversity": 0.1
   },
   "ai-malformed-scores": {
-    "finalScore": 0,
-    "engagement": 0,
+    "finalScore": 1.132649175218032,
+    "engagement": 1,
     "recency": 0.9438743126816935,
     "relationship": 1,
     "personalization": 1,
@@ -207,8 +207,8 @@
     "diversity": 1
   },
   "baseline-scored-current-version": {
-    "finalScore": 0,
-    "engagement": 0,
+    "finalScore": 0.11326491752180322,
+    "engagement": 1,
     "recency": 0.9438743126816935,
     "relationship": 1,
     "personalization": 1,
@@ -216,8 +216,8 @@
     "diversity": 0.1
   },
   "stale-baseline-version": {
-    "finalScore": 0,
-    "engagement": 0,
+    "finalScore": 1.132649175218032,
+    "engagement": 1,
     "recency": 0.9438743126816935,
     "relationship": 1,
     "personalization": 1,
@@ -225,8 +225,8 @@
     "diversity": 1
   },
   "pending-no-scores": {
-    "finalScore": 0,
-    "engagement": 0,
+    "finalScore": 1.132649175218032,
+    "engagement": 1,
     "recency": 0.9438743126816935,
     "relationship": 1,
     "personalization": 1,
@@ -342,8 +342,8 @@
     "diversity": 1
   },
   "thread-root-with-replies": {
-    "finalScore": 1.4096298352623688,
-    "engagement": 1.1314021114911006,
+    "finalScore": 2.655543928002204,
+    "engagement": 2.1314021114911004,
     "recency": 0.9438743126816935,
     "relationship": 1,
     "personalization": 1,
@@ -351,8 +351,8 @@
     "diversity": 1
   },
   "trending-density": {
-    "finalScore": 6.506883812101064,
-    "engagement": 2.8622008809294686,
+    "finalScore": 8.780268554400502,
+    "engagement": 3.8622008809294686,
     "recency": 0.9715319411536059,
     "relationship": 1,
     "personalization": 1,
@@ -360,8 +360,8 @@
     "diversity": 1
   },
   "federated-boosts-dampened": {
-    "finalScore": 0.25274335935126235,
-    "engagement": 0.22314355131420976,
+    "finalScore": 1.3853925345692943,
+    "engagement": 1.2231435513142097,
     "recency": 0.9438743126816935,
     "relationship": 1,
     "personalization": 1,
@@ -369,8 +369,8 @@
     "diversity": 1
   },
   "native-boosts": {
-    "finalScore": 0.9184994405568053,
-    "engagement": 0.8109302162163288,
+    "finalScore": 2.0511486157748373,
+    "engagement": 1.8109302162163288,
     "recency": 0.9438743126816935,
     "relationship": 1,
     "personalization": 1,
@@ -504,8 +504,8 @@
     "diversity": 1
   },
   "optin-many-combined": {
-    "finalScore": 13.867248604771202,
-    "engagement": 1.3480731482996928,
+    "finalScore": 24.153966816065434,
+    "engagement": 2.348073148299693,
     "recency": 1,
     "relationship": 1.634381960192104,
     "personalization": 2.241435157499999,
@@ -513,8 +513,8 @@
     "diversity": 1
   },
   "realistic-following-classified": {
-    "finalScore": 15.551228056596065,
-    "engagement": 2.0215475632609334,
+    "finalScore": 23.243962246589874,
+    "engagement": 3.0215475632609334,
     "recency": 0.8908987181403393,
     "relationship": 2.52,
     "personalization": 1.9968000000000001,

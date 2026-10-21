@@ -29,6 +29,7 @@ import type { CachedUserSummary } from '../../../services/userSummaryCache';
  * into the hydrated {@link HydratedPost} — hydration builds a fresh DTO.
  */
 export type CandidatePost = PostRecord & {
+  friendEngagementCount?: number;
   /** Pre-scored sources (e.g. Explore's aggregation) attach the ranked score. */
   finalScore?: number;
   /**
@@ -78,6 +79,8 @@ export type DiscoveryGateBucket = 'gate-on' | 'gate-off';
  * (viewer mutuals, resolved seen-post ids, the raw cursor, and the page limit).
  */
 export interface FeedEngineContext extends FeedContext {
+  /** Bounded server-side pagination supplies per-source progress. */
+  paginationSession?: boolean;
   /**
    * Authenticated request-scoped client for viewer-private Oxy endpoints.
    * Deliberately separate from `oxyClient`, which may be a service/runtime
@@ -157,6 +160,8 @@ export interface FeedEngineContext extends FeedContext {
 }
 
 export interface SourceModule {
+  /** Source keyset axis; otherwise chronological or exclusion-based. */
+  pagination?: 'score' | 'popular';
   id: string;
   kind: 'source';
   /**
@@ -240,6 +245,8 @@ export interface ModuleRef {
  * common value.
  */
 export interface FeedExecution {
+  /** Preserve ranked deferrals and source progress in Redis for this surface. */
+  sessionPagination?: boolean;
   /** Enable self-thread grouping during slicing. Default `true`. */
   threadGrouping?: boolean;
   /** Inject reply-context parent slices. Default `false`. */

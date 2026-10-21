@@ -29,6 +29,7 @@ import type { SignalModule } from '../types';
  */
 const SIGNAL_WEIGHT_KEYS: Record<string, string> = {
   engagement: 'engagement',
+  friendEngagement: 'friendEngagement',
   recency: 'recency',
   authorRelationship: 'relationship',
   authorAuthority: 'authority',
@@ -39,6 +40,7 @@ const SIGNAL_WEIGHT_KEYS: Record<string, string> = {
   diversity: 'diversity',
   // Opt-in (Phase 2b) — content signals.
   mediaBoost: 'mediaBoost',
+  portraitBoost: 'portraitBoost',
   positivity: 'positivity',
   conversational: 'conversational',
   coldStartBoost: 'coldStartBoost',

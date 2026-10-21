@@ -66,6 +66,7 @@ import {
   laneSource,
   savedSource,
 } from '../mtn/feed/engine/sources/userSources';
+import { standaloneNumberIds } from '../mtn/feed/recommendationEligibility';
 import { ChronoCursor } from '../mtn/feed/CursorBuilder';
 import type { CandidatePost, FeedEngineContext } from '../mtn/feed/engine/types';
 
@@ -255,9 +256,32 @@ describe('the following source', () => {
       community.id,
       own.id,
     ]);
+    expect(idsOf(await followingSource.gather(ctx, {}, 31))).toEqual([community.id]);
     expect(
       idsOf(await followingSource.gather(ctx, { timeline: true, directOnly: true }, 31)),
-    ).toEqual([own.id]);
+    ).toEqual([]);
+  });
+
+  it('bounds ranked source windows at the session clock and advances through excluded candidates', async () => {
+    const visible: PostRecord[] = [];
+    for (let n = 0; n < 4; n += 1)
+      visible.push(await create({ oxyUserId: FOLLOW, createdAt: at(-1000 * (n + 1)) }));
+    await create({ oxyUserId: FOLLOW, createdAt: at(10_000) });
+    const ctx: FeedEngineContext = {
+      currentUserId: VIEWER,
+      followingIds: [FOLLOW],
+      paginationSession: true,
+      rankingAsOf: HORIZON,
+      seenPostIds: [visible[3].id],
+    };
+    const first = await followingSource.gather(ctx, {}, 2);
+    expect(idsOf(first)).toEqual(visible.slice(0, 2).map((p) => p.id));
+    const second = await followingSource.gather(
+      { ...ctx, seenPostIds: [...(ctx.seenPostIds ?? []), ...first.map((p) => p.id)] },
+      {},
+      2,
+    );
+    expect(idsOf(second)).toEqual([visible[2].id]);
   });
 
   it('returns nothing for an anonymous viewer', async () => {
@@ -1046,5 +1070,30 @@ describe('a deleted bookmark anchor', () => {
       .from(bookmarks)
       .where(eq(bookmarks.postId, post.id));
     expect(remaining).toEqual([]);
+  });
+});
+
+describe('standalone numeric recommendations from database shells', () => {
+  it('assembles numeric candidates before deciding, preserving photos and conversation context', async () => {
+    const bare = await create({ content: { variants: [{ source: 'author', text: '3' }] } });
+    const photo = await create({
+      content: {
+        variants: [{ source: 'author', text: '3' }],
+        media: [{ id: 'numeric-photo', type: 'image', width: 10, height: 10 }],
+      },
+    });
+    const reply = await create({
+      parentPostId: bare.id,
+      content: { variants: [{ source: 'author', text: '3' }] },
+    });
+    const useful = await create({
+      content: { variants: [{ source: 'author', text: 'PHP security warning https://php.net/' }] },
+    });
+    const shells: CandidatePost[] = [bare, photo, reply, useful].map((p) => ({
+      ...p,
+      _unassembled: true,
+      content: { variants: [] },
+    }));
+    expect(await standaloneNumberIds(shells)).toEqual(new Set([bare.id]));
   });
 });

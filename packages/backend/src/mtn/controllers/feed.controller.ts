@@ -544,7 +544,25 @@ class MtnFeedController {
       // Resolve the descriptor to a composable feed DEFINITION and run it through
       // the engine. Custom feeds resolve via the viewer context (owner/visibility
       // checked); `feedgen|uri` (external stub) is the only remaining legacy path.
-      const definition = await resolveDefinition(descriptor, context);
+      const requestedSort = queryString(req.query.sort);
+      if (
+        feedSource === 'following' &&
+        requestedSort !== undefined &&
+        requestedSort !== 'chronological' &&
+        requestedSort !== 'relevance'
+      ) {
+        res.status(400).json({ success: false, error: 'Invalid Following sort' });
+        return;
+      }
+      const storedFollowing =
+        context.feedSettings && Reflect.get(context.feedSettings, 'following');
+      const storedSort =
+        storedFollowing && typeof storedFollowing === 'object'
+          ? Reflect.get(storedFollowing, 'sort')
+          : undefined;
+      const followingSort =
+        (requestedSort ?? storedSort) === 'relevance' ? 'relevance' : 'chronological';
+      const definition = await resolveDefinition(descriptor, { ...context, followingSort });
       const feedApi = definition ? null : resolveLegacyFeed(descriptor);
       const runFeed = definition
         ? () => feedEngine.run(definition, context, { cursor, limit })
