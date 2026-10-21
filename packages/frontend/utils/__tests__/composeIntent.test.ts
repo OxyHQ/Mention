@@ -437,11 +437,13 @@ describe('parseComposeIntent — alias and unknown keys', () => {
         replyToPostId: 'abc',
         quotePostId: 'def',
         editPostId: 'ghi',
+        community: 'forum-1',
       }),
     ).toEqual({
       replyToPostId: 'abc',
       quotePostId: 'def',
       editPostId: 'ghi',
+      community: 'forum-1',
     });
   });
 

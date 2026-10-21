@@ -12,6 +12,10 @@ import { createCommunityNoteSheets } from '@/components/CommunityNotes/useCommun
 import { showActionMenu } from '@/components/common/ActionMenu';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { buildPostMenuActions } from './postMenuActions';
+import { isMentionCommunity } from '@mention/shared-types/profileUrls';
+import type { AccountNode } from '@oxy.so/core';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { operatesAccount } from '@/lib/operatedAccounts';
 import { prefetchFeed } from '@/hooks/useFeedQuery';
 import { pinnedPostQueryOptions } from '@/components/Profile/pinnedPostQuery';
 import {
@@ -37,7 +41,7 @@ export function PostInteractionsBinder() {
   const interactions = usePostInteractions();
   const theme = useTheme();
   const { t } = useTranslation();
-  const { user, isAuthenticated, canUsePrivateApi } = useAuth();
+  const { user, isAuthenticated, canUsePrivateApi, oxyServices } = useAuth();
   const router = useRouter();
   const safeBack = useSafeBack();
   const bottomSheet = useContext(BottomSheetContext);
@@ -109,55 +113,75 @@ export function PostInteractionsBinder() {
       openCommunityNoteAbout: (note) => noteSheets.openAbout(note),
       openMenu: ({ post: rowPost, isPostDetail, source, onOpenArticle }) => {
         const post = currentPost(rowPost);
-        const viewerState = post.viewerState;
-        const permissions = post.permissions ?? {};
-        const isOwner = viewerState?.isOwner ?? false;
-        const sources = post.attachments?.sources ?? [];
-        const actions = buildPostMenuActions(
-          {
-            viewPost: post,
-            isOwner,
-            isPostDetail,
-            canViewInsights: permissions.canViewInsights ?? isOwner,
-            canStopSharing: permissions.canStopSharing ?? false,
-            isSaved: viewerState?.isSaved ?? false,
-            hasArticle: Boolean(post.attachments?.article),
-            hasSources: sources.length > 0,
-            // An open menu can outlive the session that created it.
-            onSave: () => interactions.toggleSave(post, source),
-            onOpenArticle,
-            onOpenSources: () => openSources(sources),
-          },
-          deps,
-        );
-        // CrowdSource ownership stays where it was: the handlers decide
-        // whether the flow is offered at all, and an author never notes
-        // their own post.
-        const communityNoteAction =
-          noteSheets.canWrite && !isOwner
-            ? [
-                {
-                  icon: <RiTeamLine width={20} height={20} fill={theme.colors.textSecondary} />,
-                  label: t('communityNotes.menu.add', { defaultValue: 'Add community note' }),
-                  onPress: () => noteSheets.openWriteFlow(post),
-                },
-              ]
-            : [];
-        showActionMenu({
-          label: t('postActions.title', { defaultValue: 'Post options' }),
-          groups: [
-            actions.insightsAction,
-            actions.saveActionGroup,
-            actions.stopSharingAction,
-            actions.deleteAction,
-            actions.articleAction,
-            actions.sourcesAction,
-            actions.addToListAction,
-            communityNoteAction,
-            actions.muteReportAction,
-            actions.copyLinkAction,
-          ],
-        });
+        const show = (moderatesCommunity: boolean) => {
+          const viewerState = post.viewerState;
+          const permissions = post.permissions ?? {};
+          const isOwner = viewerState?.isOwner ?? false;
+          const sources = post.attachments?.sources ?? [];
+          const actions = buildPostMenuActions(
+            {
+              viewPost: post,
+              isOwner,
+              isPostDetail,
+              canViewInsights: permissions.canViewInsights ?? isOwner,
+              canStopSharing: permissions.canStopSharing ?? false,
+              isSaved: viewerState?.isSaved ?? false,
+              hasArticle: Boolean(post.attachments?.article),
+              hasSources: sources.length > 0,
+              moderatesCommunity,
+              // An open menu can outlive the session that created it.
+              onSave: () => interactions.toggleSave(post, source),
+              onOpenArticle,
+              onOpenSources: () => openSources(sources),
+            },
+            deps,
+          );
+          // CrowdSource ownership stays where it was: the handlers decide
+          // whether the flow is offered at all, and an author never notes
+          // their own post.
+          const communityNoteAction =
+            noteSheets.canWrite && !isOwner
+              ? [
+                  {
+                    icon: <RiTeamLine width={20} height={20} fill={theme.colors.textSecondary} />,
+                    label: t('communityNotes.menu.add', { defaultValue: 'Add community note' }),
+                    onPress: () => noteSheets.openWriteFlow(post),
+                  },
+                ]
+              : [];
+          showActionMenu({
+            label: t('postActions.title', { defaultValue: 'Post options' }),
+            groups: [
+              actions.insightsAction,
+              actions.saveActionGroup,
+              actions.stopSharingAction,
+              actions.deleteAction,
+              actions.articleAction,
+              actions.sourcesAction,
+              actions.addToListAction,
+              communityNoteAction,
+              actions.communityModerationAction,
+              actions.muteReportAction,
+              actions.copyLinkAction,
+            ],
+          });
+        };
+        // A moderator of the community hosted here the post is written in gets
+        // its moderation actions. Who moderates is the account graph's answer
+        // (an active member, the rule the server enforces) — read from the cache
+        // the composer and the community page fill, and fetched once otherwise.
+        const community = post.community;
+        if (!canUsePrivateApi || !community?.id || !isMentionCommunity(community)) {
+          show(false);
+          return;
+        }
+        void queryClient
+          .ensureQueryData<AccountNode[]>({
+            queryKey: viewerQueryKeys.operatedAccounts(viewerId),
+            queryFn: () => oxyServices.accounts.list(),
+          })
+          .then((nodes) => show(operatesAccount(nodes, community.id)))
+          .catch(() => show(false));
       },
     };
   }, [
@@ -172,6 +196,7 @@ export function PostInteractionsBinder() {
     queryClient,
     noteHandlers,
     interactions,
+    oxyServices,
   ]);
 
   useEffect(() => {

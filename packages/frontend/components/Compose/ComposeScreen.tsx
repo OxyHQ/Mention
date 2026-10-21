@@ -4,7 +4,7 @@ import { HomiioCaseCard } from '@/components/Post/Attachments/HomiioCaseCard';
 import { useSupervisionState } from '@/hooks/useSupervisionState';
 import { usePrivateMediaUrls } from '@/hooks/usePrivateMediaUrls';
 import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
-import { View, Text, TouchableOpacity, Pressable, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Pressable, ScrollView } from 'react-native';
 // Imported under the name every call site in this file already uses, because
 // this is a MOVE: the stylesheet left, the several hundred `styles.x` references
 // did not change.
@@ -33,7 +33,8 @@ import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
-import type { CreatePostRequest, HydratedPost } from '@mention/shared-types';
+import type { CreatePostRequest, HydratedPost, PostUser } from '@mention/shared-types';
+import { COMMUNITY_POST_TITLE_MAX_LENGTH } from '@mention/shared-types/community';
 import {
   MAX_POST_COLLABORATORS,
   MEDIA_VARIANT_AVATAR,
@@ -186,6 +187,7 @@ const AltTextSheet = lazy(() => import('@/components/Compose/AltTextSheet'));
 const LanguagePickerSheet = lazy(() => import('@/components/Compose/LanguagePickerSheet'));
 const ComposeLanguageSheet = lazy(() => import('@/components/Compose/ComposeLanguageSheet'));
 const LanePickerSheet = lazy(() => import('@/components/Compose/LanePickerSheet'));
+const CommunityPickerSheet = lazy(() => import('@/components/Compose/CommunityPickerSheet'));
 const EmojiPickerSheet = lazy(() => import('@/components/Compose/EmojiPickerSheet'));
 const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
 const ScheduleSheet = lazy(() => import('@/components/Compose/ScheduleSheet'));
@@ -277,6 +279,10 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   // two lane endpoints it may call, and the picker already read the list it came
   // from.
   const [publishAs, setPublishAs] = useState<AccountNode | null>(null);
+  // The community hosted here this post is written IN, and its optional title.
+  // The post stays the author's; the community relays it to its members.
+  const [community, setCommunity] = useState<Pick<PostUser, 'id' | 'username'> | null>(null);
+  const [postTitle, setPostTitle] = useState('');
   /**
    * The account picker: WHICH box it is choosing for, and whether it is showing.
    *
@@ -616,6 +622,24 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const effectiveMainPublishAs = mainPublishAsEligible ? publishAs : null;
 
   /**
+   * Whether the post may be written IN a community, and the community it
+   * actually goes out in. One original post, written as the author themselves:
+   * a reply takes its thread's community on the server, a thread's continuations
+   * are replies, and a community post is never published as another account —
+   * the server refuses each, so the control is not offered. Derived like
+   * {@link effectiveMainPublishAs}, so a choice the payload would drop is not
+   * drawn either.
+   */
+  const communityEligible =
+    !replyToPostId &&
+    !isEditMode &&
+    threadItems.length === 0 &&
+    !effectiveMainPublishAs &&
+    supervision.ready &&
+    !supervision.supervised;
+  const effectiveCommunity = communityEligible ? community : null;
+
+  /**
    * Whether the ROOT post may attach a Mention job (OxyHQ/Mention#952). Only
    * an organization/project account has jobs to attach — the same eligible
    * employer kinds `MENTION_JOB_ELIGIBLE_EMPLOYER_KINDS` enforces server-side
@@ -940,6 +964,18 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       setQuotesDisabled(intent.quotesDisabled);
     }
 
+    // A community page's "Post" button: the community the post is written in.
+    // Its handle is read back for the chip; whether the author may post in it
+    // is the server's answer, on publish.
+    if (intent.community) {
+      const communityId = intent.community;
+      setCommunity({ id: communityId, username: '' });
+      oxyServices.users
+        .get(communityId)
+        .then((account) => setCommunity({ id: communityId, username: account.username ?? '' }))
+        .catch(() => undefined);
+    }
+
     if (intent.quotePostId) {
       setQuoteId(intent.quotePostId);
     }
@@ -1228,6 +1264,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     setCollaborators([]);
     setLaneId(null);
     setPublishAs(null);
+    setCommunity(null);
+    setPostTitle('');
     setAlsoPostToProfile(true);
     setReplyPermission(['anyone']);
     setQuotesDisabled(false);
@@ -1356,6 +1394,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         // server with a 201, publishing under the author's own name instead of
         // the chosen account's.
         publishAsOxyUserId: effectiveMainPublishAs?.accountId,
+        communityOxyUserId: effectiveCommunity?.id,
+        title: effectiveCommunity ? postTitle : undefined,
         variantContent: mainVariantContent,
       });
       if (supervision.supervised) mainPost.visibility = PostVisibility.PRIVATE;
@@ -2070,6 +2110,19 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const handleCollaboratorsPress = useCallback(() => {
     setCollaboratorSearchOpen((open) => !open);
   }, []);
+
+  const handleCommunityPress = useCallback(() => {
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <CommunityPickerSheet
+          selectedCommunityId={community?.id ?? null}
+          onSelect={(next) => setCommunity(next ? { id: next.id, username: next.username } : null)}
+          onClose={() => bottomSheet.openBottomSheet(false)}
+        />
+      </Suspense>,
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet, community?.id]);
 
   const handleLanePress = useCallback(() => {
     bottomSheet.setBottomSheetContent(
@@ -2934,6 +2987,21 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                           }
                           timeSlot={scheduleTimeSlot}
                         >
+                          {effectiveCommunity ? (
+                            <TextInput
+                              className="text-foreground text-[17px] font-semibold py-1"
+                              placeholder={t('compose.community.titlePlaceholder', {
+                                defaultValue: 'Title (optional)',
+                              })}
+                              placeholderTextColor={theme.colors.textSecondary}
+                              value={postTitle}
+                              onChangeText={setPostTitle}
+                              maxLength={COMMUNITY_POST_TITLE_MAX_LENGTH}
+                              accessibilityLabel={t('compose.community.titleLabel', {
+                                defaultValue: 'Post title',
+                              })}
+                            />
+                          ) : null}
                           <MentionTextInput
                             ref={mainTextInputRef}
                             className="text-foreground"
@@ -3670,6 +3738,26 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                     ? `${describeContentLanguage(activeTag).nativeName} +${variants.variantTags.length}`
                     : describeContentLanguage(activeTag).nativeName}
                 </Chip>
+                {/* WHERE the post is written: a community hosted here, or none.
+                    Only for the posts that can be written in one. */}
+                {communityEligible && (
+                  <Chip
+                    size="xl"
+                    variant="subtle"
+                    selected={Boolean(effectiveCommunity)}
+                    disabled={isPosting}
+                    onPress={handleCommunityPress}
+                    accessibilityLabel={t('compose.community.a11y', {
+                      defaultValue: 'Choose a community to post in',
+                    })}
+                    leadingIcon={RiGroupLine}
+                    trailingIcon={RiArrowDownSLine}
+                  >
+                    {effectiveCommunity?.username
+                      ? `!${effectiveCommunity.username}`
+                      : t('compose.community.chip', { defaultValue: 'Community' })}
+                  </Chip>
+                )}
                 {!(postingMode === 'beast' && threadItems.length > 0) && (
                   <>
                     <ReplySettingsMenu

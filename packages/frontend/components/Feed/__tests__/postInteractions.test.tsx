@@ -55,8 +55,13 @@ jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn(), back: jest.fn(), canGoBack: () => false }),
 }));
 const mockPrefetchQuery = jest.fn(() => Promise.resolve());
+const mockEnsureQueryData = jest.fn(async () => [] as unknown[]);
 jest.mock('@tanstack/react-query', () => ({
-  useQueryClient: () => ({ invalidateQueries: jest.fn(), prefetchQuery: mockPrefetchQuery }),
+  useQueryClient: () => ({
+    invalidateQueries: jest.fn(),
+    prefetchQuery: mockPrefetchQuery,
+    ensureQueryData: mockEnsureQueryData,
+  }),
 }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -83,6 +88,7 @@ jest.mock('@/components/Profile/pinnedPostQuery', () => ({
 jest.mock('@/services/muteService', () => ({ muteService: {} }));
 jest.mock('@/services/lanesService', () => ({ lanesService: {} }));
 jest.mock('@/services/reportService', () => ({ reportService: {} }));
+jest.mock('@/services/communityService', () => ({ communityService: {} }));
 jest.mock('@/stores/laneInvalidation', () => ({ noteLaneListsChanged: jest.fn() }));
 jest.mock('@/utils/alerts', () => ({ confirmDialog: jest.fn() }));
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn() }));
@@ -390,6 +396,38 @@ describe('menu', () => {
       .map((action) => action.label);
     expect(labels).toContain('postActions.delete');
     expect(labels).not.toContain('postActions.reportPost');
+  });
+
+  it("offers a community's moderation only to its moderators, asked of the account graph", async () => {
+    mockAuth = { user: { id: 'viewer-1' }, isAuthenticated: true, canUsePrivateApi: true };
+    const commands = capture((probe) => (
+      <PostInteractionsProvider>
+        <PostInteractionsBinder />
+        {probe}
+      </PostInteractionsProvider>
+    ));
+    const inCommunity = {
+      ...post('in-forum'),
+      community: { id: 'forum-1', username: 'forum', kind: 'community', isFederated: false },
+    } as HydratedPost;
+    const labelsOf = (call: number) =>
+      (mockShowActionMenu.mock.calls[call][0] as { groups: { label: string }[][] }).groups
+        .flat()
+        .map((action) => action.label);
+
+    mockEnsureQueryData.mockResolvedValueOnce([
+      { accountId: 'forum-1', kind: 'community', callerMembership: { status: 'active' } },
+    ]);
+    await act(async () => {
+      commands.openMenu({ post: inCommunity, isPostDetail: false, onOpenArticle: jest.fn() });
+    });
+    expect(labelsOf(0)).toContain('Remove from !{{community}}');
+
+    mockEnsureQueryData.mockRejectedValueOnce(new Error('offline'));
+    await act(async () => {
+      commands.openMenu({ post: inCommunity, isPostDetail: false, onOpenArticle: jest.fn() });
+    });
+    expect(labelsOf(1)).not.toContain('Remove from !{{community}}');
   });
 
   it('builds nothing until pressed', () => {
