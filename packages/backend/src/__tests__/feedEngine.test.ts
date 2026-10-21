@@ -98,6 +98,9 @@ vi.mock('../services/FeedSeenPostsService', () => ({
 }));
 
 import { MtnConfig } from '@mention/shared-types';
+import { postHydrationService } from '../services/PostHydrationService';
+import { savedDefinition } from '../mtn/feed/definitions/presets';
+import { safetyFilter } from '../mtn/feed/engine/filters';
 import { feedSeenPostsService } from '../services/FeedSeenPostsService';
 import { selectRankedPage } from '../mtn/feed/selectRankedPage';
 import { FeedEngine, sliceTopWindow } from '../mtn/feed/engine/FeedEngine';
@@ -149,6 +152,37 @@ beforeEach(() => {
   sessionMemory.posts.clear();
   registry = new FeedModuleRegistry();
   engine = new FeedEngine(registry);
+});
+
+describe('FeedEngine — explicit saved content', () => {
+  it.each([false, true])(
+    'honors sensitive opt-in (%s) while retaining viewer-aware hydration',
+    async (showSensitiveContent) => {
+      registry.register(
+        sourceReturning('saved', [makePost(1, { metadata: { isSensitive: true } }), makePost(2)]),
+      );
+      registry.register(safetyFilter);
+      const context = {
+        currentUserId: 'viewer',
+        showSensitiveContent,
+        followingIds: [],
+        followerIds: [],
+        viewerPrivacy: { blockedIds: ['blocked'], restrictedIds: [] },
+      };
+      const result = await engine.run(savedDefinition, context, { limit: 10 });
+      expect(result.items.map((post) => post.id)).toEqual(
+        showSensitiveContent ? [id(1), id(2)] : [id(2)],
+      );
+      expect(postHydrationService.hydratePosts).toHaveBeenCalledWith(
+        expect.any(Array),
+        expect.objectContaining({
+          viewerId: 'viewer',
+          viewerPrivacy: context.viewerPrivacy,
+          viewerGraph: { followingIds: [], followerIds: [] },
+        }),
+      );
+    },
+  );
 });
 
 describe('FeedEngine — ranked mode', () => {

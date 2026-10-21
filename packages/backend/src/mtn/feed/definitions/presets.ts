@@ -509,7 +509,7 @@ export const savedDefinition: FeedDefinition = {
   mode: 'chronological',
   sources: [enabled('saved')],
   signals: [],
-  filters: [enabled('safety')],
+  filters: [enabled('safety', { allowViewerPreference: true })],
   execution: {
     ordered: true,
     markSaved: true,
