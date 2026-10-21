@@ -1,5 +1,5 @@
 diff --git a/build/layouts/experimental-stack/ExperimentalStackView.js b/build/layouts/experimental-stack/ExperimentalStackView.js
-index 675bd55249a9872217c467e931ed5a5eedfefc1d..f33069bed57bfb9a34f13976c91302b6aac8adf7 100644
+index 675bd55..f33069b 100644
 --- a/build/layouts/experimental-stack/ExperimentalStackView.js
 +++ b/build/layouts/experimental-stack/ExperimentalStackView.js
 @@ -176,7 +176,7 @@ function ScreenView({ routeKey, routeName, descriptor, options, isPreloaded, pre
