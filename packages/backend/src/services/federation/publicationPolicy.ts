@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AP_CONTEXT } from '@oxy.so/federation';
+import { AP_CONTEXT, createUrlBuilders } from '@oxy.so/federation';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import type { DeliveryAuthorizationContext } from '@oxy.so/federation/node';
 import { loadPostRecord } from '../../db/posts/postRepository';
@@ -12,7 +12,6 @@ import { COMMUNITY_MODERATION_REASON_MAX_LENGTH } from '@mention/shared-types';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { postMatchesFederatedObjectSql } from '../../connectors/shared/instagramSourceKey';
-import { actorUrl } from '../../connectors/activitypub/constants';
 import { resolveMentionCommunity } from '../publishAsAccount';
 
 /** Public protocol pages use current account policy, including every persisted coauthor. */
@@ -114,6 +113,12 @@ const communityBlock = z
     summary: z.string().max(COMMUNITY_MODERATION_REASON_MAX_LENGTH).optional(),
   })
   .strict();
+
+/** The actor URL a local account is minted with — the engine's builder, bound to our domains. */
+const { actor: actorUrl } = createUrlBuilders(
+  config.federation.domain,
+  config.federation.actorDomain,
+);
 
 /** The post a Note id names: a local post by its id, a federated one by its object id. */
 async function postForObjectId(objectId: string): Promise<PostRecord | null> {

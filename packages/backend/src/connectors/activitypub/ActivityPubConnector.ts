@@ -15,7 +15,13 @@ import { resolveOxyExternalUser } from '../identity';
 import { isAbsoluteHttpUrl } from '../shared/url';
 import { actorService } from './actor.service';
 import { deliveryService } from './delivery.service';
-import { resolveLocalCommunityActors } from './communityRelay';
+import {
+  communityPostObjectId,
+  federateCommunityBan,
+  federateCommunityRemoval,
+  federateCommunityUnban,
+  resolveLocalCommunityActors,
+} from './communityRelay';
 import {
   followService,
   type NoteSourcePost,
@@ -503,6 +509,30 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
       quote,
       community,
     );
+  }
+
+  /** The AP object id a post is known by on the fediverse (see `communityRelay.ts`). */
+  communityPostObjectId(postId: string): Promise<string | null> {
+    return communityPostObjectId(postId);
+  }
+
+  /** A moderator's removal of a post from a community hosted here, relayed by it. */
+  federateCommunityRemoval(params: Parameters<typeof federateCommunityRemoval>[0]): Promise<void> {
+    return federateCommunityRemoval(params);
+  }
+
+  /** A community's `Block` of the person it banned. */
+  federateCommunityBan(
+    communityOxyUserId: string,
+    bannedOxyUserId: string,
+    reason: string | null,
+  ): Promise<void> {
+    return federateCommunityBan(communityOxyUserId, bannedOxyUserId, reason);
+  }
+
+  /** The `Undo(Block)` of a lifted community ban. */
+  federateCommunityUnban(communityOxyUserId: string, bannedOxyUserId: string): Promise<void> {
+    return federateCommunityUnban(communityOxyUserId, bannedOxyUserId);
   }
 
   /**

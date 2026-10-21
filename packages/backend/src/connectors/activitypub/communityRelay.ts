@@ -4,6 +4,9 @@ import { ownProfileUrlHandle } from '@mention/shared-types/profileUrls';
 import { logger } from '../../utils/logger';
 import { isFediverseSharingEnabled } from '../../services/fediverseSharing';
 import { resolveMentionCommunities } from '../../services/publishAsAccount';
+import { resolveUserSummaries } from '../../services/PostHydrationService';
+import { loadPostRecord } from '../../db/posts/postRepository';
+import { findActorsByOxyUserIds } from '../../db/federation/actorRepository';
 import { isAbsoluteHttpUrl } from '../shared/url';
 import { actorUrl, followersUrl, resolveOxyUser } from './constants';
 import { deliveryService } from './delivery.service';
@@ -241,4 +244,88 @@ export function buildCommunityUnblock(
     // The reference Mastodon matches the block it undoes by: id, actor, object.
     object: { id: block.id, type: 'Block', actor: community.actorUri, object: bannedActorUri },
   };
+}
+
+/**
+ * The AP object id a post is known by on the fediverse: a local post's minted
+ * Note id, a federated one's own. Null when there is nothing to name.
+ */
+export async function communityPostObjectId(postId: string): Promise<string | null> {
+  const post = await loadPostRecord(postId);
+  if (!post) return null;
+  if (post.federation) return post.federation.activityId ?? null;
+  const author = post.oxyUserId
+    ? (await resolveUserSummaries([post.oxyUserId])).get(post.oxyUserId)?.user.username
+    : undefined;
+  return author ? `${actorUrl(author)}/posts/${post.id}` : null;
+}
+
+/**
+ * Federate a moderator's removal of a post from a community hosted here: the
+ * moderator's `Delete` (Lemmy's removal), relayed by the community. Sent only
+ * when the moderator federates — the removal names their actor, which a
+ * receiver dereferences — and best-effort, like every relay.
+ */
+export async function federateCommunityRemoval(params: {
+  communityOxyUserId: string;
+  moderatorOxyUserId: string;
+  objectId: string;
+  reason: string | null;
+}): Promise<void> {
+  const [community, sharing, summaries] = await Promise.all([
+    resolveLocalCommunityActor(params.communityOxyUserId),
+    isFediverseSharingEnabled(params.moderatorOxyUserId),
+    resolveUserSummaries([params.moderatorOxyUserId]),
+  ]);
+  const moderator = summaries.get(params.moderatorOxyUserId)?.user.username?.trim();
+  if (!community || !sharing || !moderator) return;
+  await relayToCommunityFollowers(
+    community,
+    buildCommunityRemoval(community, actorUrl(moderator), params.objectId, params.reason),
+  );
+}
+
+/**
+ * Deliver a community's `Block` (or the `Undo` lifting it) to the person it
+ * concerns, when they are a remote account. A local person needs no message:
+ * the ban is enforced here.
+ */
+async function deliverToBannedPerson(
+  communityOxyUserId: string,
+  bannedOxyUserId: string,
+  build: (community: LocalCommunityActor, bannedActorUri: string) => Record<string, unknown>,
+): Promise<void> {
+  try {
+    const [community, [actor]] = await Promise.all([
+      resolveLocalCommunityActor(communityOxyUserId),
+      findActorsByOxyUserIds([bannedOxyUserId]),
+    ]);
+    const inbox = actor?.sharedInboxUrl || actor?.inboxUrl;
+    if (!community || !actor?.uri || !inbox) return;
+    if (!(await isFediverseSharingEnabled(community.oxyUserId))) return;
+    await deliveryService.queueDelivery(build(community, actor.uri), inbox, community.oxyUserId);
+  } catch (err) {
+    logger.error('[Federation] failed to federate a community ban', err);
+  }
+}
+
+/** Federate a ban: the community `Block`s the banned remote account. */
+export function federateCommunityBan(
+  communityOxyUserId: string,
+  bannedOxyUserId: string,
+  reason: string | null,
+): Promise<void> {
+  return deliverToBannedPerson(communityOxyUserId, bannedOxyUserId, (community, actorUri) =>
+    buildCommunityBlock(community, actorUri, reason),
+  );
+}
+
+/** Federate a lifted ban: the community's `Undo(Block)`. */
+export function federateCommunityUnban(
+  communityOxyUserId: string,
+  bannedOxyUserId: string,
+): Promise<void> {
+  return deliverToBannedPerson(communityOxyUserId, bannedOxyUserId, (community, actorUri) =>
+    buildCommunityUnblock(community, actorUri),
+  );
 }

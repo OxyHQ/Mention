@@ -2,24 +2,12 @@ import { and, eq } from 'drizzle-orm';
 import { COMMUNITY_MODERATION_REASON_MAX_LENGTH, type CommunityBan } from '@mention/shared-types';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
-import { loadPostRecord } from '../../db/posts/postRepository';
-import { findActorsByOxyUserIds } from '../../db/federation/actorRepository';
 import {
   deleteCommunityBan,
   insertCommunityBan,
   listCommunityBans,
 } from '../../db/communities/communityBanRepository';
-import {
-  buildCommunityBlock,
-  buildCommunityRemoval,
-  buildCommunityUnblock,
-  relayToCommunityFollowers,
-  resolveLocalCommunityActor,
-  type LocalCommunityActor,
-} from '../../connectors/activitypub/communityRelay';
-import { actorUrl } from '../../connectors/activitypub/constants';
-import { deliveryService } from '../../connectors/activitypub/delivery.service';
-import { isFediverseSharingEnabled } from '../fediverseSharing';
+import { activityPubConnector } from '../../connectors/activitypub/ActivityPubConnector';
 import { resolveUserSummaries } from '../PostHydrationService';
 import { invalidate as invalidatePostDetail } from '../postDetailCache';
 import { degradedActorSummary } from '../../utils/degradedActorSummary';
@@ -61,29 +49,6 @@ interface ModeratorContext {
   memberReader: AccountMemberReader | undefined;
 }
 
-/** The moderator's own actor, when they federate — the actor of a Lemmy-style removal. */
-async function moderatorActorUri(moderatorOxyUserId: string): Promise<string | null> {
-  if (!(await isFediverseSharingEnabled(moderatorOxyUserId))) return null;
-  const username = (await resolveUserSummaries([moderatorOxyUserId]))
-    .get(moderatorOxyUserId)
-    ?.user.username?.trim();
-  return username ? actorUrl(username) : null;
-}
-
-/**
- * The AP object id a post is known by: a local post's minted Note id, a
- * federated one's own.
- */
-async function postObjectId(postId: string): Promise<string | null> {
-  const post = await loadPostRecord(postId);
-  if (!post) return null;
-  if (post.federation) return post.federation.activityId ?? null;
-  const author = post.oxyUserId
-    ? (await resolveUserSummaries([post.oxyUserId])).get(post.oxyUserId)?.user.username
-    : undefined;
-  return author ? `${actorUrl(author)}/posts/${post.id}` : null;
-}
-
 /**
  * Remove a post from the community. The post is not deleted — it stays its
  * author's — it stops being written IN the community: its
@@ -102,7 +67,10 @@ export async function removePostFromCommunity(
     memberReader: params.memberReader,
   });
 
-  const objectId = await postObjectId(params.postId);
+  // The AP id is read BEFORE the community is cleared: what the fediverse knows
+  // the post by does not depend on it, but reading it after a concurrent
+  // delete would find nothing to federate.
+  const objectId = await activityPubConnector.communityPostObjectId(params.postId);
   const [removed] = await getDb()
     .update(posts)
     .set({ communityOxyUserId: null })
@@ -119,39 +87,13 @@ export async function removePostFromCommunity(
     moderatorOxyUserId: params.moderatorOxyUserId,
   });
 
-  const [community, moderator] = await Promise.all([
-    resolveLocalCommunityActor(params.communityOxyUserId),
-    moderatorActorUri(params.moderatorOxyUserId),
-  ]);
-  if (community && moderator && objectId) {
-    await relayToCommunityFollowers(
-      community,
-      buildCommunityRemoval(community, moderator, objectId, params.reason),
-    );
-  }
-}
-
-/** The remote actor (and its inbox) behind a federated account, when it has one. */
-async function remoteActorOf(
-  oxyUserId: string,
-): Promise<{ uri: string; inbox: string | undefined } | null> {
-  const [actor] = await findActorsByOxyUserIds([oxyUserId]);
-  if (!actor?.uri) return null;
-  return { uri: actor.uri, inbox: actor.sharedInboxUrl || actor.inboxUrl || undefined };
-}
-
-/** Deliver a community's `Block`/`Undo(Block)` to the person it concerns, when they are remote. */
-async function deliverToBannedPerson(
-  community: LocalCommunityActor,
-  bannedOxyUserId: string,
-  build: (actorUri: string) => Record<string, unknown>,
-): Promise<void> {
-  try {
-    const remote = await remoteActorOf(bannedOxyUserId);
-    if (!remote?.inbox || !(await isFediverseSharingEnabled(community.oxyUserId))) return;
-    await deliveryService.queueDelivery(build(remote.uri), remote.inbox, community.oxyUserId);
-  } catch (err) {
-    logger.error('[Communities] failed to federate a ban', err);
+  if (objectId) {
+    await activityPubConnector.federateCommunityRemoval({
+      communityOxyUserId: params.communityOxyUserId,
+      moderatorOxyUserId: params.moderatorOxyUserId,
+      objectId,
+      reason: params.reason,
+    });
   }
 }
 
@@ -193,12 +135,11 @@ export async function banFromCommunity(
   });
   if (!created) return;
 
-  const community = await resolveLocalCommunityActor(params.communityOxyUserId);
-  if (community) {
-    await deliverToBannedPerson(community, params.bannedOxyUserId, (actorUri) =>
-      buildCommunityBlock(community, actorUri, params.reason),
-    );
-  }
+  await activityPubConnector.federateCommunityBan(
+    params.communityOxyUserId,
+    params.bannedOxyUserId,
+    params.reason,
+  );
 }
 
 /** Lift a ban; the community sends the `Undo(Block)`. 404 when there was none. */
@@ -213,12 +154,10 @@ export async function unbanFromCommunity(
   if (!(await deleteCommunityBan(params.communityOxyUserId, params.bannedOxyUserId))) {
     throw new CommunityPostError(404, 'That person is not banned');
   }
-  const community = await resolveLocalCommunityActor(params.communityOxyUserId);
-  if (community) {
-    await deliverToBannedPerson(community, params.bannedOxyUserId, (actorUri) =>
-      buildCommunityUnblock(community, actorUri),
-    );
-  }
+  await activityPubConnector.federateCommunityUnban(
+    params.communityOxyUserId,
+    params.bannedOxyUserId,
+  );
 }
 
 /** The community's bans, for its moderators, newest first. */
