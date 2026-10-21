@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { logger } from '@oxy.so/core/logger';
-import { useAuth } from '@oxy.so/services/ui/client';
+import { useAccountColor, useAuth } from '@oxy.so/services/ui/client';
 import type { User } from '@oxy.so/core';
 import {
   useBloomTheme,
@@ -26,6 +26,11 @@ type PortableThemeMode = AccountTheme['mode'];
  */
 let presetSelectionEpoch = 0;
 
+/** Call on every explicit colour choice (see `useAppColorSave`). */
+export function markPresetSelection(): void {
+  presetSelectionEpoch += 1;
+}
+
 function isAppColorName(value: string): value is AppColorName {
   return Object.hasOwn(APP_COLOR_PRESETS, value);
 }
@@ -41,14 +46,16 @@ function toPortableMode(mode: ThemeMode): PortableThemeMode {
 /**
  * App-side theme bridge (all Oxy-specific logic lives HERE, never in Bloom).
  *
- * Applies the viewer's portable account theme (`user.themePreference`, which
- * rides the cold-boot session payload — zero extra fetch) into Bloom's imperative
- * setter whenever the local source is `account`. Bloom's own local persistence
- * still paints instantly on cold boot, so the account theme lands without a flash
- * once the session resolves (~5–25s on web).
+ * The COLOUR is the Oxy account colour and is always applied: it is the same
+ * value every Oxy app wears, so it does not depend on the sync toggle. The
+ * shared `useAccountColor` applies it, and `canUse` withholds a preset this
+ * viewer is not entitled to. The MODE (`user.themePreference.mode`, which rides
+ * the cold-boot session payload — zero extra fetch) is applied only while the
+ * local source is `account`. Bloom's own local persistence still paints
+ * instantly on cold boot, so the account theme lands without a flash once the
+ * session resolves (~5–25s on web).
  *
- * Mount ONCE, near the auth root. Reacts to session-land (the user object gains a
- * `themePreference`) and to source-toggle changes via its effect deps.
+ * Mount ONCE, near the auth root.
  */
 export function useAccountThemeSync(): void {
   const { isAuthenticated, user } = useAuth();
@@ -56,27 +63,24 @@ export function useAccountThemeSync(): void {
   const hydrated = useThemeSourceStore((state) => state.hydrated);
   const hydrate = useThemeSourceStore((state) => state.hydrate);
   const { colorPreset, setMode, setColorPreset } = useBloomTheme();
+  const viewer = useMentionColorViewer();
+  useAccountColor({ canUse: (name) => isColorEntitled(name, viewer) });
 
   // Resolve the persisted source once (async on native; already resolved on web).
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
 
-  const viewer = useMentionColorViewer();
   const themePreference = user?.themePreference;
 
   useEffect(() => {
-    // Resolution priority: participate by default → account theme when the source
-    // is `account` and the user actually has one. `app` source or an absent
-    // account theme leaves Bloom on its local (app-default) value.
+    // The account mode when the source is `account` and the user has one; the
+    // `app` source or an absent account theme leaves Bloom on its local mode.
     if (!hydrated || !isAuthenticated || source !== 'account' || !themePreference) {
       return;
     }
     setMode(themePreference.mode);
-    if (isAppColorName(themePreference.colorPreset)) {
-      setColorPreset(themePreference.colorPreset);
-    }
-  }, [hydrated, isAuthenticated, source, themePreference, setMode, setColorPreset]);
+  }, [hydrated, isAuthenticated, source, themePreference, setMode]);
 
   // REVOKE a preset the viewer is no longer entitled to.
   //
@@ -130,20 +134,17 @@ interface ThemeControls {
   changeThemeSource: (source: ThemeSource) => void;
   /** Change the color mode; writes back to the account when source is `account`. */
   changeThemeMode: (mode: ThemeMode) => Promise<void>;
-  /** Change the color preset; writes back to the account when source is `account`. */
-  changeColorPreset: (preset: AppColorName) => Promise<void>;
 }
 
 /**
- * Source-aware theme mutations for settings surfaces. Every change updates Bloom
- * immediately (local, no flash) and, when the source is `account`, persists the
- * full `{ mode, colorPreset }` to the Oxy account via `updateThemePreference` so
- * other Oxy apps pick it up on their next session load.
+ * Source-aware theme MODE mutations for settings surfaces. Every change updates
+ * Bloom immediately (local, no flash) and, when the source is `account`, persists
+ * `{ mode, colorPreset }` to the Oxy account so other Oxy apps pick it up on their
+ * next session load. The colour itself is chosen with `useAppColorSave`.
  */
 export function useThemeControls(): ThemeControls {
   const { oxyServices, user, canUsePrivateApi } = useAuth();
-  const { mode, colorPreset, setMode, setColorPreset } = useBloomTheme();
-  const viewer = useMentionColorViewer();
+  const { mode, colorPreset, setMode } = useBloomTheme();
   const storedSource = useThemeSourceStore((state) => state.source);
   const setSource = useThemeSourceStore((state) => state.setSource);
   // Without a usable session there is no account theme to follow or write to, so
@@ -172,19 +173,6 @@ export function useThemeControls(): ThemeControls {
     [setMode, source, persistAccountTheme, colorPreset],
   );
 
-  const changeColorPreset = useCallback(
-    async (nextPreset: AppColorName) => {
-      if (!isColorEntitled(nextPreset, viewer))
-        throw new Error('Color is not available for this account');
-      presetSelectionEpoch += 1;
-      setColorPreset(nextPreset);
-      if (source === 'account') {
-        await persistAccountTheme({ mode, colorPreset: nextPreset });
-      }
-    },
-    [setColorPreset, source, persistAccountTheme, mode, viewer],
-  );
-
   const changeThemeSource = useCallback(
     (nextSource: ThemeSource) => {
       setSource(nextSource);
@@ -202,5 +190,5 @@ export function useThemeControls(): ThemeControls {
     [setSource, canUsePrivateApi, user?.themePreference, persistAccountTheme, mode, colorPreset],
   );
 
-  return { source, changeThemeSource, changeThemeMode, changeColorPreset };
+  return { source, changeThemeSource, changeThemeMode };
 }
