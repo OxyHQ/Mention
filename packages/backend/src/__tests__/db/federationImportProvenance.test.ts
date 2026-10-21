@@ -157,14 +157,12 @@ describe('read-only import review', () => {
   it('reports follow, engagement, saved and viewed protections without naming their users', async () => {
     const post = await remote('discovery_backfill');
     const db = getDb();
-    await db
-      .insert(federatedFollows)
-      .values({
-        localUserId: scope.localUserId,
-        remoteActorUri: `${scope.origin}/actor`,
-        direction: 'outbound',
-        status: 'accepted',
-      });
+    await db.insert(federatedFollows).values({
+      localUserId: scope.localUserId,
+      remoteActorUri: `${scope.origin}/actor`,
+      direction: 'outbound',
+      status: 'accepted',
+    });
     await db.insert(likes).values({ userId: scope.localUserId, postId: post.id });
     await db.insert(bookmarks).values({ userId: scope.localUserId, postId: post.id });
     await db.update(posts).set({ statsViewsCount: 1 }).where(eq(posts.id, post.id));
@@ -183,6 +181,21 @@ describe('read-only import review', () => {
     expect(row?.disposition).toBe('protected');
     expect(row?.protectionReasons).toContain('authoritative_follow_graph_unverified');
   });
+
+  it.each(['statsLikesCount', 'statsBoostsCount', 'statsCommentsCount'] as const)(
+    'protects remote activity reported only by %s',
+    async (counter) => {
+      const post = await remote('discovery_backfill');
+      await getDb()
+        .update(posts)
+        .set({ [counter]: 1 })
+        .where(eq(posts.id, post.id));
+      const [row] = (await reportFederationImportReview({ postIds: [post.id] })).rows;
+      expect(row?.hasEngagement).toBe(true);
+      expect(row?.protectionReasons).toContain('engagement');
+      expect(row?.discoveryOnlyWithoutKnownNeed).toBe(false);
+    },
+  );
 
   it('bounds requests and never includes nonpublic content', async () => {
     const post = await remote('discovery_backfill');
