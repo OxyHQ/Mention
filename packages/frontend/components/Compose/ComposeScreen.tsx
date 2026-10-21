@@ -63,7 +63,8 @@ import { DraftsIcon } from '@/assets/icons/drafts';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 // Import types separately (not lazy loaded)
-import type { ReplyPermission } from '@/components/Compose/ReplySettingsSheet';
+import type { ReplyPermission } from '@/components/Compose/replyPermission';
+import { ReplySettingsMenu } from '@/components/Compose/ReplySettingsMenu';
 import { useDrafts, type Draft } from '@/hooks/useDrafts';
 
 // New imports for refactored components and hooks
@@ -190,7 +191,6 @@ const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
 const ScheduleSheet = lazy(() => import('@/components/Compose/ScheduleSheet'));
 const PodcastPickerSheet = lazy(() => import('@/components/Compose/PodcastPickerSheet'));
 const JobPickerSheet = lazy(() => import('@/components/Compose/JobPickerSheet'));
-const ReplySettingsSheet = lazy(() => import('@/components/Compose/ReplySettingsSheet'));
 
 // Pre-computed stable style objects using layout constants
 const bottomLeftPadStyle = { marginLeft: BOTTOM_LEFT_PAD };
@@ -1978,26 +1978,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     [removeThreadRoom],
   );
 
-  const handleThreadReplySettingsPress = useCallback(
-    (threadId: string) => {
-      const threadItem = threadItemsRef.current.find((t) => t.id === threadId);
-      if (!threadItem) return;
-      bottomSheet.setBottomSheetContent(
-        <Suspense fallback={null}>
-          <ReplySettingsSheet
-            onClose={() => bottomSheet.openBottomSheet(false)}
-            replyPermission={threadItem.replyPermission}
-            onReplyPermissionChange={(permission) => setThreadReplyPermission(threadId, permission)}
-            quotesDisabled={threadItem.quotesDisabled}
-            onQuotesDisabledChange={(disabled) => setThreadQuotesDisabled(threadId, disabled)}
-          />
-        </Suspense>,
-      );
-      bottomSheet.openBottomSheet(true);
-    },
-    [bottomSheet, threadItemsRef, setThreadReplyPermission, setThreadQuotesDisabled],
-  );
-
   const handleThreadSensitiveToggle = useCallback(
     (threadId: string) => {
       const threadItem = threadItemsRef.current.find((t) => t.id === threadId);
@@ -2043,8 +2023,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   );
   const InteractionIcon = anyoneCanInteract ? RiEarthLine : RiGroupLine;
   const SensitiveIcon = isSensitive ? RiAlertFill : RiAlertLine;
-
-  const [isReplySettingsOpen, setIsReplySettingsOpen] = useState(false);
 
   // Character count for the focused item IN THE LANGUAGE being edited — a limit
   // applies to the body a reader actually sees, and that is one body per language.
@@ -2709,45 +2687,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     setThreadEvent,
   ]);
 
-  // Update bottom sheet content when replyPermission or reviewReplies changes
-  useEffect(() => {
-    if (isReplySettingsOpen) {
-      bottomSheet.setBottomSheetContent(
-        <Suspense fallback={null}>
-          <ReplySettingsSheet
-            onClose={() => {
-              bottomSheet.openBottomSheet(false);
-              setIsReplySettingsOpen(false);
-            }}
-            replyPermission={replyPermission}
-            onReplyPermissionChange={setReplyPermission}
-            quotesDisabled={quotesDisabled}
-            onQuotesDisabledChange={setQuotesDisabled}
-          />
-        </Suspense>,
-      );
-    }
-  }, [bottomSheet, replyPermission, quotesDisabled, isReplySettingsOpen]);
-
-  const openReplySettings = useCallback(() => {
-    setIsReplySettingsOpen(true);
-    bottomSheet.setBottomSheetContent(
-      <Suspense fallback={null}>
-        <ReplySettingsSheet
-          onClose={() => {
-            bottomSheet.openBottomSheet(false);
-            setIsReplySettingsOpen(false);
-          }}
-          replyPermission={replyPermission}
-          onReplyPermissionChange={setReplyPermission}
-          quotesDisabled={quotesDisabled}
-          onQuotesDisabledChange={setQuotesDisabled}
-        />
-      </Suspense>,
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [replyPermission, quotesDisabled, bottomSheet]);
-
   return (
     <MentionSearchContext.Provider value={mentionSearchCache}>
       <SEO
@@ -3389,7 +3328,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                               replyPermission={replyPermission}
                               quotesDisabled={quotesDisabled}
                               isSensitive={isSensitive}
-                              onReplySettingsPress={openReplySettings}
+                              onReplyPermissionChange={setReplyPermission}
+                              onQuotesDisabledChange={setQuotesDisabled}
                               onSensitiveToggle={handleSensitiveToggle}
                             />
                           </View>
@@ -3434,7 +3374,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                         onArticleRemove={handleThreadArticleRemove}
                         onEventRemove={handleThreadEventRemove}
                         onRoomRemove={handleThreadRoomRemove}
-                        onReplySettingsPress={handleThreadReplySettingsPress}
+                        onReplyPermissionChange={setThreadReplyPermission}
+                        onQuotesDisabledChange={setThreadQuotesDisabled}
                         onSensitiveToggle={handleThreadSensitiveToggle}
                         onPodcastPress={openThreadPodcastPicker}
                         onPodcastRemove={removeThreadPodcast}
@@ -3731,15 +3672,21 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                 </Chip>
                 {!(postingMode === 'beast' && threadItems.length > 0) && (
                   <>
-                    <Chip
-                      size="xl"
-                      variant="subtle"
-                      onPress={openReplySettings}
-                      leadingIcon={InteractionIcon}
-                      trailingIcon={RiArrowDownSLine}
+                    <ReplySettingsMenu
+                      replyPermission={replyPermission}
+                      onReplyPermissionChange={setReplyPermission}
+                      quotesDisabled={quotesDisabled}
+                      onQuotesDisabledChange={setQuotesDisabled}
                     >
-                      {interactionLabel}
-                    </Chip>
+                      <Chip
+                        size="xl"
+                        variant="subtle"
+                        leadingIcon={InteractionIcon}
+                        trailingIcon={RiArrowDownSLine}
+                      >
+                        {interactionLabel}
+                      </Chip>
+                    </ReplySettingsMenu>
                     <Chip
                       size="xl"
                       variant="subtle"

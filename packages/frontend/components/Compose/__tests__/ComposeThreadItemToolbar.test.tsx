@@ -243,7 +243,8 @@ function renderItem(
         onArticleRemove={noop}
         onEventRemove={noop}
         onRoomRemove={noop}
-        onReplySettingsPress={noop}
+        onReplyPermissionChange={noop}
+        onQuotesDisabledChange={noop}
         onSensitiveToggle={noop}
         onPodcastPress={noop}
         onPodcastRemove={noop}

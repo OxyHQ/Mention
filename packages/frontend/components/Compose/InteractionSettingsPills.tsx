@@ -6,17 +6,27 @@ import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
+import { ReplySettingsMenu } from './ReplySettingsMenu';
+import type { ReplyPermission } from './replyPermission';
 
 interface InteractionSettingsPillsProps {
-  replyPermission: string[];
+  replyPermission: ReplyPermission[];
   quotesDisabled: boolean;
   isSensitive: boolean;
-  onReplySettingsPress: () => void;
+  onReplyPermissionChange: (permissions: ReplyPermission[]) => void;
+  onQuotesDisabledChange: (disabled: boolean) => void;
   onSensitiveToggle: () => void;
 }
 
 const InteractionSettingsPills = memo<InteractionSettingsPillsProps>(
-  ({ replyPermission, quotesDisabled, isSensitive, onReplySettingsPress, onSensitiveToggle }) => {
+  ({
+    replyPermission,
+    quotesDisabled,
+    isSensitive,
+    onReplyPermissionChange,
+    onQuotesDisabledChange,
+    onSensitiveToggle,
+  }) => {
     const theme = useTheme();
     const { t } = useTranslation();
 
@@ -44,12 +54,19 @@ const InteractionSettingsPills = memo<InteractionSettingsPillsProps>(
 
     return (
       <View style={styles.container}>
-        <TouchableOpacity onPress={onReplySettingsPress} activeOpacity={0.7} style={replyPillStyle}>
-          <AudienceIcon width={14} height={14} fill={theme.colors.textSecondary} />
-          <Text numberOfLines={1} style={replyTextStyle}>
-            {anyoneCanInteract ? t('Anyone can interact') : t('Interaction limited')}
-          </Text>
-        </TouchableOpacity>
+        <ReplySettingsMenu
+          replyPermission={replyPermission}
+          onReplyPermissionChange={onReplyPermissionChange}
+          quotesDisabled={quotesDisabled}
+          onQuotesDisabledChange={onQuotesDisabledChange}
+        >
+          <TouchableOpacity activeOpacity={0.7} style={replyPillStyle}>
+            <AudienceIcon width={14} height={14} fill={theme.colors.textSecondary} />
+            <Text numberOfLines={1} style={replyTextStyle}>
+              {anyoneCanInteract ? t('Anyone can interact') : t('Interaction limited')}
+            </Text>
+          </TouchableOpacity>
+        </ReplySettingsMenu>
         <TouchableOpacity onPress={onSensitiveToggle} activeOpacity={0.7} style={styles.pill}>
           <SensitiveIcon
             width={14}
