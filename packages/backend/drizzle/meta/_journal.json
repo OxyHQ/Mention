@@ -624,6 +624,13 @@
       "when": 1792604771692,
       "tag": "0088_community_bans",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1792614910742,
+      "tag": "0089_federation_import_provenance",
+      "breakpoints": true
     }
   ]
 }
