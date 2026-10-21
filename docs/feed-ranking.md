@@ -315,6 +315,13 @@ stateless pagination when Redis is unavailable. Existing popular fallback
 cursors remain valid; incompatible old personalized score cursors restart
 through the same typed 410 contract after the scoring change.
 
+Older clients do not perform the new automatic 410 restart. Their existing
+pull-to-refresh requests page one without a cursor (both SQLite and memory
+paths), so manual refresh recovers after an incompatible or expired cursor.
+Ship the client recovery alongside the backend when possible; an older installed
+mobile client may show a pagination error until the reader refreshes. This was
+verified in the prior client source, not on a physical device.
+
 ## Feed Interstitials (Recommendation Cards)
 
 Suggested users / custom feeds / starter packs spliced between post slices —
