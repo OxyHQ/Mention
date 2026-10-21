@@ -495,6 +495,25 @@ describe('useFeedState memory mode: one feed query', () => {
       expect(getFeedMock).toHaveBeenCalledTimes(4);
     });
 
+    it('starts one recovery when simultaneous pagination callbacks receive the same expiry', async () => {
+      await loadTwoPages();
+      const expiredPage = Promise.withResolvers<SlicedFeedResponse>();
+      getFeedMock.mockReturnValueOnce(expiredPage.promise);
+      getFeedMock.mockResolvedValueOnce(page(['fresh-session'], 'fresh-cursor'));
+      if (!latest) throw new Error('Feed did not mount');
+      const load = latest.loadMore;
+      await act(async () => {
+        const first = load();
+        const second = load();
+        expiredPage.reject({ status: 410, code: 'FEED_CURSOR_EXPIRED' });
+        await Promise.all([first, second]);
+      });
+      await flush();
+      expect(getFeedMock).toHaveBeenCalledTimes(4);
+      expect(getFeedMock.mock.calls[3][0].cursor).toBeUndefined();
+      expect(ids()).toEqual(['fresh-session']);
+    });
+
     it('does not recover an unrelated 410 response', async () => {
       await loadTwoPages();
       getFeedMock.mockRejectedValueOnce({ status: 410, code: 'OTHER_GONE' });
@@ -798,6 +817,30 @@ describe('useFeedState memory mode: one feed query', () => {
       expect(latest?.pending).toBe(false);
       await advance(60_000);
       expect(getUserFeedMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('starts a fresh polling budget when the mounted feed switches remote profiles', async () => {
+      jest.useFakeTimers();
+      getUserFeedMock.mockResolvedValue(pendingPage());
+      const mounted: { renderer?: TestRenderer.ReactTestRenderer } = {};
+      act(() => {
+        mounted.renderer = TestRenderer.create(tree(remote));
+      });
+      if (!mounted.renderer) throw new Error('Remote profile did not mount');
+      open.add(mounted.renderer);
+      await advance(SLACK_MS);
+      await advance(FED_PENDING_POLL_DELAYS_MS[0] + SLACK_MS);
+      expect(getUserFeedMock).toHaveBeenCalledTimes(2);
+
+      act(() => {
+        mounted.renderer?.update(tree({ ...remote, userId: 'another-remote' }));
+      });
+      await advance(SLACK_MS);
+      expect(getUserFeedMock).toHaveBeenCalledTimes(3);
+      await advance(FED_PENDING_POLL_DELAYS_MS[0] + SLACK_MS);
+      expect(getUserFeedMock).toHaveBeenCalledTimes(4);
+      expect(getUserFeedMock.mock.lastCall?.[0]).toBe('another-remote');
+      expect(getUserFeedMock.mock.lastCall?.[1].cursor).toBeUndefined();
     });
 
     it('keeps a page already on screen when a later read answers pending and empty', async () => {

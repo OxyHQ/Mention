@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 47.37,
-      "covered": 13343,
-      "total": 28163
+      "pct": 47.81,
+      "covered": 13516,
+      "total": 28270
     },
     "branches": {
-      "pct": 42.76,
-      "covered": 8908,
-      "total": 20829
+      "pct": 43.21,
+      "covered": 9053,
+      "total": 20948
     },
     "functions": {
-      "pct": 42.03,
-      "covered": 3086,
-      "total": 7342
+      "pct": 42.33,
+      "covered": 3116,
+      "total": 7361
     },
     "lines": {
-      "pct": 48.18,
-      "covered": 12139,
-      "total": 25192
+      "pct": 48.6,
+      "covered": 12290,
+      "total": 25287
     }
   },
   "pins": {
@@ -307,7 +307,7 @@
     },
     "hooks/useFeedQuery.ts": {
       "statements": 100,
-      "branches": 97,
+      "branches": 99,
       "functions": 100,
       "lines": 100
     },
@@ -315,13 +315,19 @@
       "statements": 91,
       "branches": 68,
       "functions": 100,
-      "lines": 96
+      "lines": 97
     },
     "hooks/useFeedState.ts": {
       "statements": 96,
       "branches": 91,
       "functions": 100,
       "lines": 97
+    },
+    "hooks/useFeedVisibility.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "hooks/useFocusedScrollable.ts": {
       "statements": 100,
@@ -1159,7 +1165,7 @@
     },
     "services/feedService.ts": {
       "statements": 51,
-      "branches": 41,
+      "branches": 44,
       "functions": 42,
       "lines": 52
     },
@@ -1343,6 +1349,12 @@
       "functions": 100,
       "lines": 100
     },
+    "stores/feedRankingInvalidation.ts": {
+      "statements": 95,
+      "branches": 95,
+      "functions": 100,
+      "lines": 100
+    },
     "stores/feedRuleSignal.ts": {
       "statements": 100,
       "branches": 100,
@@ -1404,10 +1416,10 @@
       "lines": 98
     },
     "stores/postsStore.ts": {
-      "statements": 66,
-      "branches": 48,
-      "functions": 64,
-      "lines": 72
+      "statements": 72,
+      "branches": 53,
+      "functions": 69,
+      "lines": 78
     },
     "stores/profileCountsInvalidation.ts": {
       "statements": 100,
@@ -1477,7 +1489,7 @@
     },
     "utils/apiError.ts": {
       "statements": 98,
-      "branches": 93,
+      "branches": 94,
       "functions": 100,
       "lines": 98
     },
@@ -1590,10 +1602,10 @@
       "lines": 100
     },
     "utils/feedTelemetry.ts": {
-      "statements": 92,
-      "branches": 88,
-      "functions": 92,
-      "lines": 96
+      "statements": 95,
+      "branches": 91,
+      "functions": 96,
+      "lines": 98
     },
     "utils/feedUtils.ts": {
       "statements": 92,

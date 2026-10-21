@@ -389,9 +389,12 @@ warnings; changed TypeScript/JSON files passed Biome checks.
   138 Bun tests across nine files, using isolated migrated PostgreSQL databases.
   Coverage includes ranking/session progression, privacy, Following/Saved intent,
   gate evidence, import provenance, inbox/outbox validation and settings storage.
-- The full frontend suite passed 3,233 tests across 397 suites after correcting
-  a stale refresh-wiring assertion and adding a behavioral test that feed/profile
-  refreshes run concurrently and wait for both completions. The initial 185
+- After merging main `ff58809af`, the full frontend coverage run passed 3,241
+  tests across 400 suites. Regressions verify concurrent feed/profile refresh,
+  one-shot recovery for simultaneous expired-cursor callbacks, poll-budget reset
+  when switching remote profiles, and rule subscription cleanup. The strict
+  coverage policy passed with 308 behavioral files and 303 measured pins,
+  including the two new modules; no baseline or threshold was lowered. The initial 185
   targeted frontend tests cover dwell/visibility/refresh, viewer isolation, saved
   settings invalidation, Following persistence/rollback, request deduplication and
   one-shot expired-cursor recovery in memory and SQLite.
