@@ -60,7 +60,6 @@ import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { DraftsIcon } from '@/assets/icons/drafts';
-import { PollIcon } from '@/assets/icons/poll-icon';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 // Import types separately (not lazy loaded)
@@ -124,7 +123,6 @@ import { buildEditPost, buildMainPost, buildThreadPost } from '@/utils/postBuild
 import {
   type ComposerMediaItem,
   toComposerMediaType,
-  POLL_ATTACHMENT_KEY,
   ARTICLE_ATTACHMENT_KEY,
   EVENT_ATTACHMENT_KEY,
   ROOM_ATTACHMENT_KEY,
@@ -764,7 +762,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
 
   // Attachment order manager (needs detectedLinks)
   const attachmentOrderManager = useAttachmentOrder({
-    showPollCreator,
     article,
     event,
     room: attachedRoom,
@@ -3041,106 +3038,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                             >
                               {attachmentOrder.map((key, index) => {
                                 const total = attachmentOrder.length;
-
-                                if (key === POLL_ATTACHMENT_KEY) {
-                                  if (!showPollCreator) return null;
-                                  return (
-                                    <AttachmentCarouselItem
-                                      key={key}
-                                      attachmentKey={key}
-                                      index={index}
-                                      total={total}
-                                      onMove={moveAttachment}
-                                      onRemove={removePoll}
-                                      wrapperStyle={styles.pollAttachmentWrapper}
-                                    >
-                                      <TouchableOpacity
-                                        className="border-border bg-muted"
-                                        style={styles.pollAttachmentCard}
-                                        activeOpacity={0.85}
-                                        onPress={focusPollCreator}
-                                      >
-                                        <View style={styles.pollAttachmentHeader}>
-                                          <View
-                                            className="bg-card"
-                                            style={styles.pollAttachmentBadge}
-                                          >
-                                            <PollIcon size={16} className="text-primary" />
-                                            <Text
-                                              className="text-primary"
-                                              style={styles.pollAttachmentBadgeText}
-                                            >
-                                              {t('compose.poll.title', { defaultValue: 'Poll' })}
-                                            </Text>
-                                          </View>
-                                          <Text
-                                            className="text-muted-foreground"
-                                            style={styles.pollAttachmentMeta}
-                                          >
-                                            {t('compose.poll.optionCount', {
-                                              count: pollOptions.length,
-                                              defaultValue:
-                                                pollOptions.length === 0
-                                                  ? 'No options yet'
-                                                  : pollOptions.length === 1
-                                                    ? '1 option'
-                                                    : `${pollOptions.length} options`,
-                                            })}
-                                          </Text>
-                                        </View>
-                                        <Text
-                                          className="text-foreground"
-                                          style={styles.pollAttachmentQuestion}
-                                          numberOfLines={2}
-                                        >
-                                          {pollTitle.trim() ||
-                                            t('compose.poll.placeholderQuestion', {
-                                              defaultValue: 'Ask a question...',
-                                            })}
-                                        </Text>
-                                        <View style={styles.pollAttachmentOptions}>
-                                          {(pollOptions.length > 0 ? pollOptions : ['', ''])
-                                            .slice(0, 2)
-                                            .map((option, optionIndex) => {
-                                              const trimmed = option?.trim?.() || '';
-                                              return (
-                                                <View
-                                                  key={`poll-opt-${optionIndex}`}
-                                                  className="border-border bg-card"
-                                                  style={styles.pollAttachmentOption}
-                                                >
-                                                  <Text
-                                                    className="text-muted-foreground"
-                                                    style={styles.pollAttachmentOptionText}
-                                                    numberOfLines={1}
-                                                  >
-                                                    {trimmed ||
-                                                      t('compose.poll.optionPlaceholder', {
-                                                        defaultValue: 'Option {{index}}',
-                                                        index: optionIndex + 1,
-                                                      })}
-                                                  </Text>
-                                                </View>
-                                              );
-                                            })}
-                                          {pollOptions.length > 2 ? (
-                                            <Text
-                                              style={[
-                                                styles.pollAttachmentMore,
-                                                { color: theme.colors.textTertiary },
-                                              ]}
-                                            >
-                                              {t('compose.poll.moreOptions', {
-                                                count: pollOptions.length - 2,
-                                                defaultValue: '+{{count}} more',
-                                              })}
-                                            </Text>
-                                          ) : null}
-                                        </View>
-                                      </TouchableOpacity>
-                                    </AttachmentCarouselItem>
-                                  );
-                                }
 
                                 if (key === ARTICLE_ATTACHMENT_KEY) {
                                   if (!(hasArticleContent && article)) return null;
