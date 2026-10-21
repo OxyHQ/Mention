@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "targets": {
+    "/@username/experience": {
+      "targetKind": "new-ui",
+      "projectId": "114d465b-84d2-4a3a-b7e7-7230904013c2",
+      "activeDraftId": "5cc4f8ab-5950-43b2-9f25-7cc5efba0bd1",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "aa1c8c41-5449-4357-94b3-e269c30d9f3f"
+      ],
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "packages/frontend/global.css",
+        "packages/frontend/components/Profile/ProfileTabBarRow.tsx",
+        "packages/frontend/components/Jobs/OrganizationJobRow.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "c3f0bae74ed52347f4b5d13ebe600a8db1b6d5c5c4654cbf6c4a7093bc38aad9",
+        "packages/frontend/global.css": "023af83474d0cfc6f0ec1d1d0d66c54795b2590c29a03d0df13eb13051884d63",
+        "packages/frontend/components/Profile/ProfileTabBarRow.tsx": "53196eb48fdea11be5228664de08aac0d74ec6a31731056c9163555b116e1fac",
+        "packages/frontend/components/Jobs/OrganizationJobRow.tsx": "c874f21c78faa30abbb2cae0051af0fcd6b0a631f6e95cb8884cbe16a131dbd7"
+      },
+      "drafts": [
+        {
+          "draftId": "5cc4f8ab-5950-43b2-9f25-7cc5efba0bd1",
+          "currentVersion": 1,
+          "description": "Experience tab mobile list matching user reference"
+        }
+      ],
+      "components": [
+        {
+          "componentId": "3a1b4c9f-c8b8-46e5-8dc2-0d6c8baee84f",
+          "name": "ProfileTabBar"
+        }
+      ],
+      "updatedAt": "2026-10-15T05:02:40.692451+00:00"
+    },
+    "/insights": {
+      "targetKind": "existing-ui",
+      "projectId": "e25a341d-0f63-4c29-a20d-99f53e5162db",
+      "activeDraftId": "cc7ab77e-9305-48ea-896a-ef78c77d9afc",
+      "designSystemPath": ".superdesign/design-system.md",
+      "contextFiles": [
+        "packages/frontend/components/insights/InsightsView.tsx",
+        "packages/frontend/components/insights/InsightsDashboard.tsx",
+        "packages/frontend/components/insights/insightsSeries.ts",
+        "packages/frontend/app/(app)/_layout.tsx",
+        ".superdesign/design-system.md"
+      ],
+      "fingerprints": {
+        "packages/frontend/components/insights/InsightsView.tsx": "d4c82ac1004e6cd92a5786e622bb3438b2c7d61c58ea6e2b5042b4536461e57c",
+        "packages/frontend/components/insights/InsightsDashboard.tsx": "1a194549c7b770bdc4459f91e7b813970d8eac809393d00ea8b7a0d2e277563a",
+        "packages/frontend/components/insights/insightsSeries.ts": "7f255c43d523981601e7589f6756a6e772834a2e7931bf32282890a4bd6051aa",
+        "packages/frontend/app/(app)/_layout.tsx": "f6745f99296c361c07c5d00dd4e660072f2fdfccd664cd31e16ba60e5ae340e7",
+        ".superdesign/design-system.md": "914a1320a408732eec75466044d2007f912d074a2a60d9951767ef5942d82c2b"
+      },
+      "components": [],
+      "referenceIds": [],
+      "drafts": [
+        {
+          "draftId": "cc7ab77e-9305-48ea-896a-ef78c77d9afc",
+          "currentVersion": 2,
+          "description": "Bloom chart cards; publication-date cohorts, no fabricated deltas"
+        }
+      ],
+      "updatedAt": "2026-10-18T06:30:39.602148+00:00",
+      "implementationNotes": "Implementation evolved after canvas draft: compact views, no table, radar/heatmap/publishing frequency, Bloom ResponsiveGrid and AppShell contentSpan. Shared changes are in local Bloom adaptive-sidebar worktree, not published."
+    }
+  }
+}

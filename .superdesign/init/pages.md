@@ -1,0 +1,1697 @@
+# Representative profile page dependencies
+## app/(app)/[username]/jobs.tsx
+- packages/frontend/app/(app)/[username]/jobs.tsx
+  - packages/frontend/components/ProfileScreen.tsx
+    - packages/frontend/components/Profile/index.ts
+      - packages/frontend/components/Profile/types.ts
+        - packages/frontend/hooks/useProfileData.ts
+          - packages/frontend/stores/appearanceStore.ts
+            - packages/frontend/utils/api.ts
+              - packages/frontend/lib/oxyServices.ts
+                - packages/frontend/config.ts
+              - packages/frontend/config.ts (shared)
+              - packages/frontend/lib/i18n.ts
+                - packages/frontend/locales/en.json
+                - packages/frontend/lib/constants.ts
+                - packages/frontend/utils/storage.ts
+              - packages/frontend/utils/apiError.ts
+            - packages/frontend/lib/queryClient.ts
+              - packages/frontend/components/providers/constants.ts
+            - packages/frontend/lib/viewerQueryKeys.ts
+              - packages/frontend/utils/feedUtils.ts
+          - packages/frontend/components/Profile/types.ts (shared)
+          - packages/frontend/utils/displayName.ts
+          - packages/frontend/utils/imageUrlCache.ts
+            - packages/frontend/config.ts (shared)
+          - packages/frontend/utils/publicProfileHandle.ts
+          - packages/frontend/lib/viewerQueryKeys.ts (shared)
+          - packages/frontend/utils/profileAccountFacts.ts
+          - packages/frontend/utils/apiError.ts (shared)
+          - packages/frontend/lib/documentBootstrap.ts
+      - packages/frontend/components/Profile/profileRoute.ts
+      - packages/frontend/components/Profile/profileTabRoute.ts
+        - packages/frontend/components/Profile/types.ts (shared)
+      - packages/frontend/components/Profile/profileViewer.ts
+        - packages/frontend/hooks/useProfileData.ts (shared)
+      - packages/frontend/components/Profile/hooks/useSubscription.ts
+        - packages/frontend/services/subscriptionService.ts
+          - packages/frontend/utils/api.ts (shared)
+        - packages/frontend/lib/viewerQueryKeys.ts (shared)
+        - packages/frontend/utils/apiError.ts (shared)
+        - packages/frontend/components/Profile/hooks/useDeferredToggle.ts
+        - packages/frontend/components/Profile/types.ts (shared)
+      - packages/frontend/components/Profile/hooks/usePersonProfileView.tsx
+        - packages/frontend/stores/postsStore.ts
+          - packages/frontend/services/feedService.ts
+            - packages/frontend/modules/mention-widgets/feedWidgetSync.ts
+              - packages/frontend/modules/mention-widgets/index.ts
+            - packages/frontend/utils/feedUtils.ts (shared)
+            - packages/frontend/utils/api.ts (shared)
+            - packages/frontend/lib/oxyServices.ts (shared)
+            - packages/frontend/utils/apiError.ts (shared)
+            - packages/frontend/utils/feedRetry.ts
+              - packages/frontend/utils/apiError.ts (shared)
+            - packages/frontend/services/savedPostsRequest.ts
+            - packages/frontend/lib/webTelemetry.ts
+              - packages/frontend/lib/webTelemetry.web.ts
+                - packages/frontend/config.ts (shared)
+            - packages/frontend/services/savedPostsRequest.ts (shared)
+          - packages/frontend/services/echoGuard.ts
+          - packages/frontend/stores/feedQueryCache.ts
+            - packages/frontend/lib/queryClient.ts (shared)
+            - packages/frontend/lib/viewerQueryKeys.ts (shared)
+            - packages/frontend/stores/feedScrollStore.ts
+            - packages/frontend/utils/feedUtils.ts (shared)
+          - packages/frontend/stores/engagementInvalidation.ts
+            - packages/frontend/lib/queryClient.ts (shared)
+            - packages/frontend/lib/viewerQueryKeys.ts (shared)
+          - packages/frontend/stores/profileCountsInvalidation.ts
+            - packages/frontend/lib/viewerQueryKeys.ts (shared)
+          - packages/frontend/lib/queryClient.ts (shared)
+          - packages/frontend/db/index.ts
+            - packages/frontend/db/index.ts (shared)
+            - packages/frontend/db/database.ts
+              - packages/frontend/db/database.web.ts
+            - packages/frontend/db/database.ts (shared)
+            - packages/frontend/db/cacheLifecycle.ts
+              - packages/frontend/db/database.ts (shared)
+              - packages/frontend/db/memoryStore.ts
+                - packages/frontend/db/schema.ts
+                  - packages/frontend/stores/linksStore.ts
+                    - packages/frontend/db/index.ts (shared)
+                - packages/frontend/db/feedQueries.ts
+                  - packages/frontend/db/database.ts (shared)
+                  - packages/frontend/db/schema.ts (shared)
+                  - packages/frontend/db/schema.ts (shared)
+                  - packages/frontend/db/postQueries.ts
+                    - packages/frontend/db/database.ts (shared)
+                    - packages/frontend/db/schema.ts (shared)
+                    - packages/frontend/db/postObservers.ts
+                      - packages/frontend/db/schema.ts (shared)
+                    - packages/frontend/db/memoryStore.ts (shared)
+                  - packages/frontend/db/postObservers.ts (shared)
+                  - packages/frontend/db/memoryStore.ts (shared)
+                  - packages/frontend/utils/feedUtils.ts (shared)
+            - packages/frontend/db/schema.ts (shared)
+            - packages/frontend/db/schema.ts (shared)
+            - packages/frontend/db/postQueries.ts (shared)
+            - packages/frontend/db/feedQueries.ts (shared)
+            - packages/frontend/db/feedQueries.ts (shared)
+            - packages/frontend/db/linkQueries.ts
+              - packages/frontend/db/database.ts (shared)
+              - packages/frontend/db/schema.ts (shared)
+              - packages/frontend/db/schema.ts (shared)
+              - packages/frontend/stores/linksStore.ts (shared)
+          - packages/frontend/db/index.ts (shared)
+          - packages/frontend/db/feedItem.ts
+            - packages/frontend/db/schema.ts (shared)
+          - packages/frontend/lib/precacheActorsFromPosts.ts
+            - packages/frontend/lib/actorCache.ts
+              - packages/frontend/lib/queryClient.ts (shared)
+              - packages/frontend/lib/viewerQueryKeys.ts (shared)
+              - packages/frontend/stores/identityUpdates.ts
+          - packages/frontend/utils/feedUtils.ts (shared)
+          - packages/frontend/utils/feedRetry.ts (shared)
+        - packages/frontend/services/lanesService.ts
+          - packages/frontend/utils/api.ts (shared)
+        - packages/frontend/lib/viewerQueryKeys.ts (shared)
+        - packages/frontend/utils/openExternalLink.ts
+        - packages/frontend/components/SEO.tsx
+          - packages/frontend/lib/seoHandoff.ts
+          - packages/frontend/config.ts (shared)
+        - packages/frontend/hooks/useProfileSEOPolicy.ts
+          - packages/frontend/lib/seoHandoff.ts (shared)
+        - packages/frontend/config.ts (shared)
+        - packages/frontend/components/AccountBadge.tsx
+          - packages/frontend/assets/icons/channel-icon.tsx
+            - packages/frontend/assets/icons/IconSvg.tsx
+              - packages/frontend/assets/icons/IconSvg.web.tsx
+          - packages/frontend/assets/icons/fediverse-icon.tsx
+            - packages/frontend/assets/icons/IconSvg.tsx (shared)
+          - packages/frontend/styles/hitSlop.ts
+        - packages/frontend/components/Fediverse/FediverseInfoDialog.tsx
+        - packages/frontend/components/suggestions/SuggestedUsers.tsx
+          - packages/frontend/lib/actorCache.ts (shared)
+          - packages/frontend/utils/userEnrichment.ts
+            - packages/frontend/lib/actorCache.ts (shared)
+            - packages/frontend/lib/queryClient.ts (shared)
+          - packages/frontend/components/suggestions/SuggestedUserCard.tsx
+            - packages/frontend/hooks/useCachedUser.ts
+            - packages/frontend/components/ProfileCard.tsx
+              - packages/frontend/stores/identityUpdates.ts (shared)
+              - packages/frontend/components/Profile/profileRoute.ts (shared)
+              - packages/frontend/components/UserName.tsx
+                - packages/frontend/assets/icons/verified-icon.tsx
+                  - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                  - packages/frontend/styles/colors.ts
+                - packages/frontend/components/AccountBadge.tsx (shared)
+                - packages/frontend/assets/icons/agent-icon.tsx
+                  - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                - packages/frontend/assets/icons/automated-icon.tsx
+                  - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                - packages/frontend/components/Profile/types.ts (shared)
+              - packages/frontend/utils/userPlaceholderColor.ts
+              - packages/frontend/lib/utils.ts
+            - packages/frontend/styles/hitSlop.ts (shared)
+          - packages/frontend/components/suggestions/SuggestedUserCard.tsx (shared)
+          - packages/frontend/lib/recommendations.ts
+            - packages/frontend/utils/api.ts (shared)
+            - packages/frontend/lib/recommendationFilters.ts
+              - packages/frontend/utils/storage.ts (shared)
+              - packages/frontend/lib/viewerQueryKeys.ts (shared)
+              - packages/frontend/lib/keyedAsyncQueue.ts
+          - packages/frontend/hooks/useRecommendations.ts
+            - packages/frontend/lib/actorCache.ts (shared)
+            - packages/frontend/utils/userEnrichment.ts (shared)
+            - packages/frontend/utils/authErrors.ts
+            - packages/frontend/lib/recommendations.ts (shared)
+            - packages/frontend/lib/recommendationFilters.ts (shared)
+            - packages/frontend/lib/viewerQueryKeys.ts (shared)
+          - packages/frontend/lib/viewerQueryKeys.ts (shared)
+        - packages/frontend/components/UserName.tsx (shared)
+        - packages/frontend/components/Profile/ProfilePageHeader.tsx
+          - packages/frontend/hooks/useSafeBack.ts
+          - packages/frontend/hooks/useProfileData.ts (shared)
+          - packages/frontend/components/UserName.tsx (shared)
+        - packages/frontend/components/Profile/AccountCategoryLine.tsx
+          - packages/frontend/hooks/useAccountCategoryLabel.ts
+            - packages/frontend/utils/accountCategories.ts
+          - packages/frontend/utils/accountCategories.ts (shared)
+        - packages/frontend/components/Profile/PrivateBadge.tsx
+          - packages/frontend/components/Profile/types.ts (shared)
+        - packages/frontend/components/Profile/ProfileMovedNotice.tsx
+          - packages/frontend/components/Profile/profileRoute.ts (shared)
+        - packages/frontend/components/Profile/ProfileContent.tsx
+          - packages/frontend/components/common/LinkifiedText.tsx
+            - packages/frontend/components/ProfileHoverCard/index.tsx
+              - packages/frontend/components/ProfileHoverCard/types.ts
+            - packages/frontend/utils/linkifyPattern.ts
+              - packages/frontend/utils/ownProfileLinks.ts
+                - packages/frontend/config.ts (shared)
+            - packages/frontend/utils/openExternalLink.ts (shared)
+          - packages/frontend/components/Profile/ProfileStats.tsx
+            - packages/frontend/utils/formatNumber.ts
+            - packages/frontend/components/Profile/types.ts (shared)
+          - packages/frontend/components/Profile/ProfileMeta.tsx
+            - packages/frontend/assets/icons/location-icon.tsx
+              - packages/frontend/assets/icons/IconSvg.tsx (shared)
+            - packages/frontend/assets/icons/calendar-icon.tsx
+              - packages/frontend/assets/icons/IconSvg.tsx (shared)
+              - packages/frontend/assets/icons/types.ts
+            - packages/frontend/assets/icons/chevron-right-icon.tsx
+              - packages/frontend/assets/icons/IconSvg.tsx (shared)
+            - packages/frontend/components/Profile/types.ts (shared)
+          - packages/frontend/components/Profile/LinkSummary.tsx
+            - packages/frontend/context/BottomSheetContext.tsx
+            - packages/frontend/utils/prettifyUrl.ts
+            - packages/frontend/utils/openExternalLink.ts (shared)
+          - packages/frontend/components/Profile/ProfileMedia.tsx
+            - packages/frontend/stores/appearanceStore.ts (shared)
+            - packages/frontend/context/BottomSheetContext.tsx (shared)
+            - packages/frontend/components/Profile/ProfileSong.tsx
+              - packages/frontend/stores/appearanceStore.ts (shared)
+              - packages/frontend/hooks/useProfileSongPreview.ts
+              - packages/frontend/components/Profile/SongPreviewButton.tsx
+                - packages/frontend/styles/hitSlop.ts (shared)
+              - packages/frontend/styles/hitSlop.ts (shared)
+            - packages/frontend/components/Podcast/PodcastCard.tsx
+              - packages/frontend/utils/isHostOf.ts
+              - packages/frontend/components/common/Ionicons.tsx
+              - packages/frontend/lib/utils.ts (shared)
+              - packages/frontend/utils/openExternalLink.ts (shared)
+              - packages/frontend/styles/hitSlop.ts (shared)
+              - packages/frontend/utils/composeUtils.ts
+              - packages/frontend/components/Podcast/useArtworkAccent.ts
+            - packages/frontend/components/Profile/MediaPickerSheet.tsx
+              - packages/frontend/stores/appearanceStore.ts (shared)
+              - packages/frontend/hooks/useProfileSongPreview.ts (shared)
+              - packages/frontend/hooks/useInfiniteCatalogSearch.tsx
+                - packages/frontend/utils/api.ts (shared)
+                - packages/frontend/lib/viewerQueryKeys.ts (shared)
+              - packages/frontend/utils/formatDuration.ts
+              - packages/frontend/components/Profile/SongPreviewButton.tsx (shared)
+              - packages/frontend/styles/hitSlop.ts (shared)
+          - packages/frontend/components/Profile/FollowedByRow.tsx
+            - packages/frontend/hooks/useMutualFollowers.ts
+              - packages/frontend/utils/authErrors.ts (shared)
+              - packages/frontend/lib/viewerQueryKeys.ts (shared)
+            - packages/frontend/utils/displayName.ts (shared)
+          - packages/frontend/components/Profile/ProfileCommunities.tsx
+            - packages/frontend/components/Profile/types.ts (shared)
+          - packages/frontend/components/Profile/types.ts (shared)
+          - packages/frontend/components/Profile/types.ts (shared)
+          - packages/frontend/utils/mergeBioAndProfileLinks.ts
+            - packages/frontend/utils/extractUrls.ts
+            - packages/frontend/utils/prettifyUrl.ts (shared)
+          - packages/frontend/stores/appearanceStore.ts (shared)
+          - packages/frontend/hooks/useExpandableText.ts
+            - packages/frontend/utils/expandableText.ts
+        - packages/frontend/components/Profile/ProfileHeader.tsx
+          - packages/frontend/components/ZoomableAvatar.tsx
+            - packages/frontend/assets/images/default-avatar.jpg
+            - packages/frontend/hooks/useImageUrl.ts
+              - packages/frontend/utils/imageUrlCache.ts (shared)
+              - packages/frontend/lib/oxyServices.ts (shared)
+          - packages/frontend/components/ui/LiveAvatar.tsx
+            - packages/frontend/stores/livePresenceStore.ts
+          - packages/frontend/stores/livePresenceStore.ts (shared)
+          - packages/frontend/context/LayoutScrollContext.tsx
+          - packages/frontend/components/PresenceIndicator.tsx
+            - packages/frontend/hooks/usePresence.ts
+              - packages/frontend/services/socketService.ts
+                - packages/frontend/config.ts (shared)
+                - packages/frontend/stores/postsStore.ts (shared)
+                - packages/frontend/db/index.ts (shared)
+                - packages/frontend/stores/liveRoomsStore.ts
+                  - packages/frontend/lib/syraApi.ts
+                    - packages/frontend/lib/oxyServices.ts (shared)
+                    - packages/frontend/config.ts (shared)
+                - packages/frontend/constants/realtimeEvents.ts
+                - packages/frontend/services/echoGuard.ts (shared)
+                - packages/frontend/services/engagementQueuePersistence.ts
+          - packages/frontend/components/common/ContentDialog.tsx
+          - packages/frontend/components/settings/settingsRoutes.ts
+          - packages/frontend/components/Profile/EditProfile/EditProfileForm.tsx
+            - packages/frontend/components/settings/ColorSwatchPicker.tsx
+              - packages/frontend/lib/utils.ts (shared)
+            - packages/frontend/hooks/useProfileData.ts (shared)
+            - packages/frontend/lib/colorEntitlement.ts
+            - packages/frontend/hooks/useMentionColorViewer.ts
+              - packages/frontend/lib/colorEntitlement.ts (shared)
+              - packages/frontend/lib/viewerQueryKeys.ts (shared)
+            - packages/frontend/hooks/useAppColorSave.ts
+              - packages/frontend/lib/colorEntitlement.ts (shared)
+              - packages/frontend/hooks/useMentionColorViewer.ts (shared)
+              - packages/frontend/lib/queryClient.ts (shared)
+              - packages/frontend/stores/appearanceStore.ts (shared)
+              - packages/frontend/stores/themeSourceStore.ts
+                - packages/frontend/lib/themePersistence.ts
+            - packages/frontend/components/Profile/EditProfile/BannerSection.tsx
+              - packages/frontend/utils/imageUrlCache.ts (shared)
+              - packages/frontend/stores/appearanceStore.ts (shared)
+            - packages/frontend/components/Profile/EditProfile/PinnedMediaSection.tsx
+              - packages/frontend/stores/appearanceStore.ts (shared)
+              - packages/frontend/context/BottomSheetContext.tsx (shared)
+              - packages/frontend/components/Profile/ProfileSong.tsx (shared)
+              - packages/frontend/components/Podcast/PodcastCard.tsx (shared)
+              - packages/frontend/components/Profile/MediaPickerSheet.tsx (shared)
+          - packages/frontend/components/Profile/hooks/usePoke.ts
+            - packages/frontend/services/pokeService.ts
+              - packages/frontend/utils/api.ts (shared)
+            - packages/frontend/utils/apiError.ts (shared)
+            - packages/frontend/components/Profile/hooks/useDeferredToggle.ts (shared)
+          - packages/frontend/components/Profile/hooks/useFederatedFollowSync.ts
+            - packages/frontend/services/feedService.ts (shared)
+          - packages/frontend/components/Profile/types.ts (shared)
+          - packages/frontend/components/Profile/ProfilePageHeader.tsx (shared)
+          - packages/frontend/components/Profile/types.ts (shared)
+        - packages/frontend/components/Profile/profileRoute.ts (shared)
+        - packages/frontend/components/Profile/types.ts (shared)
+        - packages/frontend/components/Profile/profileViewer.ts (shared)
+        - packages/frontend/components/Profile/profileTabRoute.ts (shared)
+        - packages/frontend/components/Profile/hooks/useProfileAccount.ts
+          - packages/frontend/hooks/useProfileData.ts (shared)
+          - packages/frontend/hooks/useProfileScreenColor.ts
+            - packages/frontend/context/ScreenColorContext.tsx
+          - packages/frontend/components/Profile/profileRoute.ts (shared)
+        - packages/frontend/components/Profile/hooks/useProfileChrome.ts
+          - packages/frontend/components/Profile/hooks/useProfileScroll.ts
+            - packages/frontend/context/LayoutScrollContext.tsx (shared)
+            - packages/frontend/hooks/useFocusedScrollable.ts
+              - packages/frontend/context/LayoutScrollContext.tsx (shared)
+            - packages/frontend/stores/postsStore.ts (shared)
+            - packages/frontend/db/feedQueries.ts (shared)
+            - packages/frontend/components/Profile/types.ts (shared)
+          - packages/frontend/components/Profile/types.ts (shared)
+        - packages/frontend/components/Profile/hooks/useProfileMoreMenu.tsx
+          - packages/frontend/context/BottomSheetContext.tsx (shared)
+          - packages/frontend/components/common/ActionMenu.tsx
+            - packages/frontend/components/common/actionMenuGroups.ts
+            - packages/frontend/lib/utils.ts (shared)
+          - packages/frontend/components/common/actionMenuGroups.ts (shared)
+          - packages/frontend/components/report/ReportModal.tsx
+            - packages/frontend/assets/icons/close-icon.tsx
+              - packages/frontend/assets/icons/IconSvg.tsx (shared)
+            - packages/frontend/services/reportService.ts
+              - packages/frontend/utils/api.ts (shared)
+              - packages/frontend/utils/apiError.ts (shared)
+          - packages/frontend/components/Lists/AddToListSheet.tsx
+            - packages/frontend/services/listsService.ts
+              - packages/frontend/utils/api.ts (shared)
+              - packages/frontend/services/listMutations.ts
+                - packages/frontend/lib/queryClient.ts (shared)
+                - packages/frontend/lib/viewerQueryKeys.ts (shared)
+            - packages/frontend/styles/hitSlop.ts (shared)
+          - packages/frontend/components/AddToStarterPackSheet.tsx
+            - packages/frontend/services/starterPacksService.ts
+              - packages/frontend/utils/api.ts (shared)
+            - packages/frontend/lib/viewerQueryKeys.ts (shared)
+            - packages/frontend/assets/icons/starter-pack-icon.tsx
+              - packages/frontend/assets/icons/IconSvg.tsx (shared)
+            - packages/frontend/styles/hitSlop.ts (shared)
+          - packages/frontend/services/muteService.ts
+            - packages/frontend/utils/api.ts (shared)
+          - packages/frontend/services/privacyService.ts
+            - packages/frontend/utils/api.ts (shared)
+            - packages/frontend/utils/apiError.ts (shared)
+          - packages/frontend/services/reportService.ts (shared)
+          - packages/frontend/utils/alerts.ts
+          - packages/frontend/assets/icons/list-icon.tsx
+            - packages/frontend/assets/icons/IconSvg.tsx (shared)
+          - packages/frontend/assets/icons/starter-pack-icon.tsx (shared)
+          - packages/frontend/assets/icons/mute-icon.tsx
+            - packages/frontend/assets/icons/IconSvg.tsx (shared)
+          - packages/frontend/assets/icons/block-icon.tsx
+            - packages/frontend/assets/icons/IconSvg.tsx (shared)
+          - packages/frontend/assets/icons/report-icon.tsx
+            - packages/frontend/assets/icons/IconSvg.tsx (shared)
+          - packages/frontend/hooks/useProfileData.ts (shared)
+        - packages/frontend/components/Profile/hooks/useMessageInAllo.tsx
+          - packages/frontend/components/common/ActionMenu.tsx (shared)
+          - packages/frontend/lib/alloDirectMessage.ts
+            - packages/frontend/config.ts (shared)
+          - packages/frontend/utils/openExternalLink.ts (shared)
+        - packages/frontend/components/Profile/hooks/useOperatesAccount.ts
+          - packages/frontend/lib/viewerQueryKeys.ts (shared)
+          - packages/frontend/lib/operatedAccounts.ts
+        - packages/frontend/components/Profile/hooks/useJustFollowed.ts
+        - packages/frontend/components/Profile/hooks/useSubscription.ts (shared)
+      - packages/frontend/components/Profile/hooks/useProfileScroll.ts (shared)
+      - packages/frontend/components/Profile/hooks/useProfileAccount.ts (shared)
+      - packages/frontend/components/Profile/hooks/useRoutedProfileUsername.ts
+      - packages/frontend/components/Profile/hooks/useProfileChrome.ts (shared)
+      - packages/frontend/components/Profile/hooks/useProfileMoreMenu.tsx (shared)
+      - packages/frontend/components/Profile/hooks/useOperatesAccount.ts (shared)
+      - packages/frontend/components/Profile/hooks/useJustFollowed.ts (shared)
+      - packages/frontend/components/Profile/hooks/useChannelWriters.ts
+        - packages/frontend/services/channelWritersService.ts
+          - packages/frontend/utils/api.ts (shared)
+        - packages/frontend/lib/viewerQueryKeys.ts (shared)
+      - packages/frontend/components/Profile/ProfileSkeleton.tsx
+        - packages/frontend/styles/shared.ts
+        - packages/frontend/components/Profile/ChannelHeader.tsx
+          - packages/frontend/components/ZoomableAvatar.tsx (shared)
+          - packages/frontend/components/Channels/ChannelInfoDialog.tsx
+            - packages/frontend/assets/icons/channel-icon.tsx (shared)
+          - packages/frontend/components/Profile/AccountCategoryLine.tsx (shared)
+          - packages/frontend/components/Profile/PrivateBadge.tsx (shared)
+          - packages/frontend/components/Profile/types.ts (shared)
+        - packages/frontend/components/Profile/ProfilePageHeader.tsx (shared)
+        - packages/frontend/components/Profile/types.ts (shared)
+      - packages/frontend/components/Profile/ProfileShell.tsx
+        - packages/frontend/context/LayoutScrollContext.tsx (shared)
+        - packages/frontend/components/Profile/ProfileUnavailable.tsx
+          - packages/frontend/components/common/EmptyState.tsx
+            - packages/frontend/lib/stickers.ts
+            - packages/frontend/components/common/EmptyStateSticker.tsx
+              - packages/frontend/lib/stickers.ts (shared)
+          - packages/frontend/hooks/useSafeBack.ts (shared)
+        - packages/frontend/hooks/useProfileData.ts (shared)
+        - packages/frontend/components/Profile/ProfilePageHeader.tsx (shared)
+        - packages/frontend/components/Profile/ProfileSkeleton.tsx (shared)
+        - packages/frontend/components/Profile/ProfileTabs.tsx
+          - packages/frontend/components/Feed/index.ts
+            - packages/frontend/components/Feed/Feed.tsx
+              - packages/frontend/components/Feed/Feed.web.tsx
+                - packages/frontend/hooks/useRevealOwnNewPost.ts
+                  - packages/frontend/stores/feedScrollStore.ts (shared)
+                - packages/frontend/utils/feedUtils.ts (shared)
+                - packages/frontend/components/Feed/feedRows.tsx
+                  - packages/frontend/components/Feed/PostItem.tsx
+                    - packages/frontend/utils/extractUrls.ts (shared)
+                    - packages/frontend/utils/ownProfileLinks.ts (shared)
+                    - packages/frontend/stores/postsStore.ts (shared)
+                    - packages/frontend/components/Post/PostHeader.tsx
+                      - packages/frontend/components/ui/LiveAvatar.tsx (shared)
+                      - packages/frontend/components/Post/postContextRowLayout.ts
+                      - packages/frontend/components/UserName.tsx (shared)
+                      - packages/frontend/components/ProfileHoverCard/index.tsx (shared)
+                      - packages/frontend/components/AccountBadge.tsx (shared)
+                      - packages/frontend/assets/icons/boost-icon.tsx
+                        - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                      - packages/frontend/assets/icons/draw-icon.tsx
+                        - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                      - packages/frontend/hooks/useTimeAgo.ts
+                        - packages/frontend/utils/dateUtils.ts
+                      - packages/frontend/utils/displayName.ts (shared)
+                      - packages/frontend/components/Profile/profileRoute.ts (shared)
+                      - packages/frontend/styles/hitSlop.ts (shared)
+                    - packages/frontend/components/Post/postContextRowLayout.ts (shared)
+                    - packages/frontend/components/ProfileHoverCard/index.tsx (shared)
+                    - packages/frontend/components/Post/PostContentText.tsx
+                      - packages/frontend/components/common/LinkifiedText.tsx (shared)
+                      - packages/frontend/stores/appearanceStore.ts (shared)
+                      - packages/frontend/hooks/useExpandableText.ts (shared)
+                    - packages/frontend/components/Post/PostLaneChip.tsx
+                      - packages/frontend/styles/hitSlop.ts (shared)
+                    - packages/frontend/components/Post/PostCrosspostRow.tsx
+                      - packages/frontend/components/common/Ionicons.tsx (shared)
+                      - packages/frontend/components/Post/postContextRowLayout.ts (shared)
+                    - packages/frontend/components/Post/PostImportedFromRow.tsx
+                      - packages/frontend/utils/openExternalLink.ts (shared)
+                      - packages/frontend/components/Post/postContextRowLayout.ts (shared)
+                    - packages/frontend/components/Post/ContentWarning.tsx
+                      - packages/frontend/styles/hitSlop.ts (shared)
+                    - packages/frontend/components/CommunityNotes/CommunityNoteCard.tsx
+                      - packages/frontend/utils/openExternalLink.ts (shared)
+                      - packages/frontend/styles/hitSlop.ts (shared)
+                    - packages/frontend/components/Post/PostCorrectionNotice.tsx
+                      - packages/frontend/styles/hitSlop.ts (shared)
+                    - packages/frontend/components/Post/PostActions.tsx
+                      - packages/frontend/components/common/Ionicons.tsx (shared)
+                      - packages/frontend/assets/icons/comment-icon.tsx
+                        - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                      - packages/frontend/assets/icons/boost-icon.tsx (shared)
+                      - packages/frontend/assets/icons/share-icon.tsx
+                        - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                      - packages/frontend/assets/icons/bookmark-icon.tsx
+                        - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                      - packages/frontend/assets/icons/analytics-icon.tsx
+                        - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                      - packages/frontend/utils/formatNumber.ts (shared)
+                      - packages/frontend/lib/animations/AnimatedLikeIcon.tsx
+                        - packages/frontend/assets/icons/heart-icon.tsx
+                          - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                      - packages/frontend/lib/animations/CountWheel.tsx
+                        - packages/frontend/lib/animations/entryExit.ts
+                        - packages/frontend/utils/formatNumber.ts (shared)
+                      - packages/frontend/hooks/useVoteStyle.ts
+                        - packages/frontend/hooks/useThreadPreferences.ts
+                          - packages/frontend/utils/storage.ts (shared)
+                          - packages/frontend/lib/constants.ts (shared)
+                        - packages/frontend/hooks/useThreadPreferences.ts (shared)
+                      - packages/frontend/styles/hitSlop.ts (shared)
+                      - packages/frontend/components/Post/VotePill.tsx
+                        - packages/frontend/assets/icons/chevron-up-icon.tsx
+                          - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                        - packages/frontend/assets/icons/chevron-down-icon.tsx
+                          - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                        - packages/frontend/utils/formatNumber.ts (shared)
+                    - packages/frontend/components/Post/PostDetailStats.tsx
+                      - packages/frontend/components/Post/KnownLikersRow.tsx
+                        - packages/frontend/hooks/useKnownLikers.ts
+                          - packages/frontend/services/feedService.ts (shared)
+                          - packages/frontend/utils/authErrors.ts (shared)
+                          - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                        - packages/frontend/utils/displayName.ts (shared)
+                      - packages/frontend/utils/formatNumber.ts (shared)
+                      - packages/frontend/styles/shared.ts (shared)
+                    - packages/frontend/components/Post/PostLocation.tsx
+                    - packages/frontend/components/Post/PostAttachmentsRow.tsx
+                      - packages/frontend/lib/oxyServices.ts (shared)
+                      - packages/frontend/components/Post/JobCard.tsx
+                        - packages/frontend/lib/utils.ts (shared)
+                        - packages/frontend/styles/hitSlop.ts (shared)
+                        - packages/frontend/utils/jobVocabulary.ts
+                      - packages/frontend/components/Podcast/PostPodcastAttachment.tsx
+                        - packages/frontend/components/common/VideoPlayer.tsx
+                          - packages/frontend/stores/videoMuteStore.ts
+                            - packages/frontend/utils/storage.ts (shared)
+                          - packages/frontend/context/VideoPlaybackContext.tsx
+                          - packages/frontend/lib/hlsPlayback.ts
+                            - packages/frontend/lib/hlsPlayback.web.ts
+                              - packages/frontend/utils/hlsSource.ts
+                          - packages/frontend/styles/hitSlop.ts (shared)
+                          - packages/frontend/utils/formatDuration.ts (shared)
+                          - packages/frontend/utils/videoSource.ts
+                            - packages/frontend/utils/hlsSource.ts (shared)
+                          - packages/frontend/components/common/videoElementSize.ts
+                        - packages/frontend/utils/openExternalLink.ts (shared)
+                        - packages/frontend/components/Podcast/PodcastCard.tsx (shared)
+                        - packages/frontend/components/Podcast/PodcastSaveButton.tsx
+                          - packages/frontend/styles/hitSlop.ts (shared)
+                          - packages/frontend/assets/icons/bookmark-icon.tsx (shared)
+                          - packages/frontend/hooks/usePodcastSave.ts
+                            - packages/frontend/lib/syraPodcasts.ts
+                              - packages/frontend/lib/oxyServices.ts (shared)
+                              - packages/frontend/config.ts (shared)
+                            - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                      - packages/frontend/utils/composeUtils.ts (shared)
+                      - packages/frontend/components/common/LazyZoomableGallery.tsx
+                      - packages/frontend/utils/imageUrlCache.ts (shared)
+                      - packages/frontend/utils/mediaTypes.ts
+                      - packages/frontend/stores/videoPlayerRegistry.ts
+                        - packages/frontend/utils/videoSource.ts (shared)
+                        - packages/frontend/lib/hlsPlayback.ts (shared)
+                      - packages/frontend/components/shell/panelSurface.ts
+                      - packages/frontend/components/Post/Attachments/PostAttachmentMedia.tsx
+                        - packages/frontend/components/common/VideoPlayer.tsx (shared)
+                        - packages/frontend/utils/composeUtils.ts (shared)
+                        - packages/frontend/utils/mediaTypes.ts (shared)
+                        - packages/frontend/stores/videoPlayerRegistry.ts (shared)
+                        - packages/frontend/styles/hitSlop.ts (shared)
+                      - packages/frontend/components/Post/Attachments/index.ts
+                        - packages/frontend/components/Post/Attachments/PostAttachmentArticle.tsx
+                          - packages/frontend/lib/utils.ts (shared)
+                        - packages/frontend/components/Post/Attachments/PostAttachmentLink.tsx
+                          - packages/frontend/utils/openExternalLink.ts (shared)
+                        - packages/frontend/components/Post/Attachments/PostAttachmentExternalEmbed.tsx
+                          - packages/frontend/utils/embedPlayer.ts
+                          - packages/frontend/utils/imageUrlCache.ts (shared)
+                          - packages/frontend/stores/externalEmbedsStore.ts
+                            - packages/frontend/utils/api.ts (shared)
+                            - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                            - packages/frontend/lib/keyedAsyncQueue.ts (shared)
+                            - packages/frontend/hooks/usePrivacySettings.ts
+                              - packages/frontend/utils/api.ts (shared)
+                              - packages/frontend/hooks/useFeedSettings.ts
+                                - packages/frontend/utils/api.ts (shared)
+                                - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                                - packages/frontend/hooks/usePrivacySettings.ts (shared)
+                              - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                              - packages/frontend/lib/keyedAsyncQueue.ts (shared)
+                          - packages/frontend/components/Post/Attachments/ExternalEmbedPlayer.tsx
+                            - packages/frontend/components/Post/Attachments/ExternalEmbedPlayer.web.tsx
+                              - packages/frontend/utils/embedPlayer.ts (shared)
+                              - packages/frontend/components/Post/Attachments/ExternalEmbedPoster.tsx
+                                - packages/frontend/utils/imageUrlCache.ts (shared)
+                          - packages/frontend/components/Post/Attachments/EmbedConsentDialog.tsx
+                            - packages/frontend/stores/externalEmbedsStore.ts (shared)
+                          - packages/frontend/components/Post/Attachments/PostAttachmentLink.tsx (shared)
+                        - packages/frontend/components/Post/Attachments/PostAttachmentMedia.tsx (shared)
+                        - packages/frontend/components/Post/Attachments/PostAttachmentPoll.tsx
+                          - packages/frontend/lib/utils.ts (shared)
+                          - packages/frontend/components/Post/PollCard.tsx
+                            - packages/frontend/services/pollService.ts
+                              - packages/frontend/utils/api.ts (shared)
+                            - packages/frontend/styles/hitSlop.ts (shared)
+                            - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                          - packages/frontend/config.ts (shared)
+                        - packages/frontend/components/Post/Attachments/PostAttachmentNested.tsx
+                        - packages/frontend/components/Post/Attachments/PostAttachmentEvent.tsx
+                          - packages/frontend/lib/utils.ts (shared)
+                        - packages/frontend/components/Post/Attachments/PostAttachmentRoom.tsx
+                          - packages/frontend/components/RoomCard.tsx
+                            - packages/frontend/styles/colors.ts (shared)
+                      - packages/frontend/utils/embedPlayer.ts (shared)
+                      - packages/frontend/utils/extractUrls.ts (shared)
+                      - packages/frontend/utils/ownProfileLinks.ts (shared)
+                      - packages/frontend/stores/externalEmbedsStore.ts (shared)
+                    - packages/frontend/utils/formatNumber.ts (shared)
+                    - packages/frontend/components/Feed/postInteractions.tsx
+                      - packages/frontend/hooks/usePostShare.ts
+                        - packages/frontend/lib/queryClient.ts (shared)
+                      - packages/frontend/stores/postsStore.ts (shared)
+                    - packages/frontend/assets/icons/pin-icon.tsx
+                      - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                    - packages/frontend/assets/icons/boost-icon.tsx (shared)
+                    - packages/frontend/hooks/usePostLanguage.ts
+                      - packages/frontend/utils/api.ts (shared)
+                      - packages/frontend/stores/trendsStore.ts
+                        - packages/frontend/utils/api.ts (shared)
+                        - packages/frontend/interfaces/Trend.ts
+                      - packages/frontend/utils/postLanguages.ts
+                        - packages/frontend/constants/contentLanguages.ts
+                    - packages/frontend/hooks/usePostLanguagePicker.tsx
+                      - packages/frontend/context/BottomSheetContext.tsx (shared)
+                      - packages/frontend/components/Post/PostLanguageSheet.tsx
+                        - packages/frontend/utils/postLanguages.ts (shared)
+                      - packages/frontend/utils/postLanguages.ts (shared)
+                    - packages/frontend/components/common/ContentDialog.tsx (shared)
+                    - packages/frontend/components/Compose/composeLayout.ts
+                    - packages/frontend/styles/shared.ts (shared)
+                    - packages/frontend/stores/threadHoverStore.ts
+                    - packages/frontend/stores/identityUpdates.ts (shared)
+                    - packages/frontend/components/Profile/profileRoute.ts (shared)
+                    - packages/frontend/utils/feedTelemetry.ts
+                      - packages/frontend/services/feedService.ts (shared)
+                      - packages/frontend/services/trendingService.ts
+                        - packages/frontend/utils/api.ts (shared)
+                      - packages/frontend/stores/postsStore.ts (shared)
+                      - packages/frontend/utils/feedUtils.ts (shared)
+                    - packages/frontend/utils/dateUtils.ts (shared)
+                    - packages/frontend/utils/displayName.ts (shared)
+                    - packages/frontend/utils/postReplies.ts
+                    - packages/frontend/utils/replyContextRow.ts
+                  - packages/frontend/components/Feed/PostErrorBoundary.tsx
+                  - packages/frontend/components/Feed/interstitials/FeedInterstitial.tsx
+                    - packages/frontend/components/Feed/interstitials/SimilarAccountsInterstitial.tsx
+                      - packages/frontend/lib/actorCache.ts (shared)
+                      - packages/frontend/components/Profile/profileRoute.ts (shared)
+                      - packages/frontend/components/ProfileCard.tsx (shared)
+                      - packages/frontend/components/SuggestedProfileCard.tsx
+                        - packages/frontend/utils/userPlaceholderColor.ts (shared)
+                        - packages/frontend/components/ProfileCard.tsx (shared)
+                        - packages/frontend/components/UserName.tsx (shared)
+                      - packages/frontend/hooks/useCachedUser.ts (shared)
+                      - packages/frontend/utils/userEnrichment.ts (shared)
+                      - packages/frontend/components/Feed/interstitials/PersonSuggestionItem.tsx
+                        - packages/frontend/components/ProfileCard.tsx (shared)
+                        - packages/frontend/components/Profile/profileRoute.ts (shared)
+                        - packages/frontend/components/SuggestedProfileCard.tsx (shared)
+                        - packages/frontend/components/Feed/interstitials/DismissButton.tsx
+                          - packages/frontend/assets/icons/close-icon.tsx (shared)
+                          - packages/frontend/lib/utils.ts (shared)
+                          - packages/frontend/styles/hitSlop.ts (shared)
+                        - packages/frontend/components/Feed/interstitials/interstitialTelemetry.ts
+                          - packages/frontend/utils/feedTelemetry.ts (shared)
+                      - packages/frontend/components/Feed/interstitials/InterstitialShell.tsx
+                        - packages/frontend/hooks/useOptimizedMediaQuery.ts
+                        - packages/frontend/components/Feed/interstitials/interstitialLayout.ts
+                        - packages/frontend/components/Feed/interstitials/interstitialTelemetry.ts (shared)
+                        - packages/frontend/styles/hitSlop.ts (shared)
+                      - packages/frontend/components/Feed/interstitials/interstitialLayout.ts (shared)
+                      - packages/frontend/components/Feed/interstitials/interstitialTelemetry.ts (shared)
+                      - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                    - packages/frontend/components/Feed/interstitials/SuggestedFeedsInterstitial.tsx
+                      - packages/frontend/components/FeedCard.tsx
+                        - packages/frontend/utils/formatNumber.ts (shared)
+                        - packages/frontend/components/ProfileHoverCard/index.tsx (shared)
+                      - packages/frontend/components/FeedSubscribeButton.tsx
+                      - packages/frontend/services/customFeedsService.ts
+                        - packages/frontend/utils/api.ts (shared)
+                        - packages/frontend/utils/apiError.ts (shared)
+                      - packages/frontend/components/Feed/interstitials/DismissButton.tsx (shared)
+                      - packages/frontend/components/Feed/interstitials/InterstitialShell.tsx (shared)
+                      - packages/frontend/components/Feed/interstitials/interstitialLayout.ts (shared)
+                      - packages/frontend/components/Feed/interstitials/interstitialTelemetry.ts (shared)
+                      - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                    - packages/frontend/components/Feed/interstitials/SuggestedStarterPacksInterstitial.tsx
+                      - packages/frontend/components/StarterPackCard.tsx
+                        - packages/frontend/utils/formatNumber.ts (shared)
+                        - packages/frontend/components/Profile/profileRoute.ts (shared)
+                        - packages/frontend/assets/icons/starter-pack-icon.tsx (shared)
+                        - packages/frontend/components/ProfileHoverCard/index.tsx (shared)
+                      - packages/frontend/services/starterPacksService.ts (shared)
+                      - packages/frontend/components/Feed/interstitials/DismissButton.tsx (shared)
+                      - packages/frontend/components/Feed/interstitials/InterstitialShell.tsx (shared)
+                      - packages/frontend/components/Feed/interstitials/interstitialLayout.ts (shared)
+                      - packages/frontend/components/Feed/interstitials/interstitialTelemetry.ts (shared)
+                      - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                    - packages/frontend/components/Feed/interstitials/SuggestedUsersInterstitial.tsx
+                      - packages/frontend/components/ProfileCard.tsx (shared)
+                      - packages/frontend/components/SuggestedProfileCard.tsx (shared)
+                      - packages/frontend/hooks/useRecommendations.ts (shared)
+                      - packages/frontend/lib/recommendations.ts (shared)
+                      - packages/frontend/components/Feed/interstitials/PersonSuggestionItem.tsx (shared)
+                      - packages/frontend/components/Feed/interstitials/InterstitialShell.tsx (shared)
+                      - packages/frontend/components/Feed/interstitials/interstitialLayout.ts (shared)
+                      - packages/frontend/components/Feed/interstitials/interstitialTelemetry.ts (shared)
+                    - packages/frontend/components/Feed/interstitials/TrendingTopicsInterstitial.tsx
+                      - packages/frontend/interfaces/Trend.ts (shared)
+                      - packages/frontend/stores/trendsStore.ts (shared)
+                      - packages/frontend/hooks/useTrendItemMenu.ts
+                        - packages/frontend/interfaces/Trend.ts (shared)
+                        - packages/frontend/stores/trendsStore.ts (shared)
+                        - packages/frontend/hooks/useTrendNavigation.ts
+                          - packages/frontend/config.ts (shared)
+                          - packages/frontend/interfaces/Trend.ts (shared)
+                          - packages/frontend/utils/feedTelemetry.ts (shared)
+                        - packages/frontend/hooks/useWidgetItemMenu.tsx
+                          - packages/frontend/assets/icons/hide-icon.tsx
+                            - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                          - packages/frontend/assets/icons/share-icon.tsx (shared)
+                          - packages/frontend/context/BottomSheetContext.tsx (shared)
+                          - packages/frontend/lib/utils.ts (shared)
+                        - packages/frontend/utils/shareLink.ts
+                      - packages/frontend/hooks/useTrendNavigation.ts (shared)
+                      - packages/frontend/components/trending/TrendItemRow.tsx
+                        - packages/frontend/utils/formatNumber.ts (shared)
+                        - packages/frontend/interfaces/Trend.ts (shared)
+                        - packages/frontend/components/settings/RowIcon.tsx
+                        - packages/frontend/styles/hitSlop.ts (shared)
+                      - packages/frontend/utils/feedTelemetry.ts (shared)
+                      - packages/frontend/components/Feed/interstitials/InterstitialShell.tsx (shared)
+                      - packages/frontend/components/Feed/interstitials/interstitialLayout.ts (shared)
+                      - packages/frontend/components/Feed/interstitials/interstitialTelemetry.ts (shared)
+                  - packages/frontend/stores/threadHoverStore.ts (shared)
+                  - packages/frontend/utils/feedUtils.ts (shared)
+                  - packages/frontend/components/Compose/composeLayout.ts (shared)
+                  - packages/frontend/styles/shared.ts (shared)
+                  - packages/frontend/components/Feed/feedPaging.ts
+                - packages/frontend/components/Feed/useScrollMarginOrigin.ts
+                - packages/frontend/lib/webTelemetry.ts (shared)
+                - packages/frontend/components/Feed/useFeedCore.tsx
+                  - packages/frontend/hooks/useFeedState.ts
+                    - packages/frontend/stores/postsStore.ts (shared)
+                    - packages/frontend/utils/feedUtils.ts (shared)
+                    - packages/frontend/utils/feedRetry.ts (shared)
+                    - packages/frontend/hooks/useDeepCompare.ts
+                      - packages/frontend/utils/feedUtils.ts (shared)
+                    - packages/frontend/db/index.ts (shared)
+                    - packages/frontend/utils/feedMemoryMode.ts
+                    - packages/frontend/stores/feedStaleness.ts
+                      - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                      - packages/frontend/stores/engagementInvalidation.ts (shared)
+                      - packages/frontend/stores/laneInvalidation.ts
+                        - packages/frontend/lib/queryClient.ts (shared)
+                        - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                      - packages/frontend/stores/safetyInvalidation.ts
+                        - packages/frontend/lib/queryClient.ts (shared)
+                        - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                      - packages/frontend/stores/bylineInvalidation.ts
+                        - packages/frontend/lib/queryClient.ts (shared)
+                        - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                    - packages/frontend/hooks/useFeedQuery.ts
+                      - packages/frontend/services/feedService.ts (shared)
+                      - packages/frontend/stores/postsStore.ts (shared)
+                      - packages/frontend/lib/precacheActorsFromPosts.ts (shared)
+                      - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                      - packages/frontend/stores/feedQueryCache.ts (shared)
+                      - packages/frontend/stores/feedStaleness.ts (shared)
+                      - packages/frontend/utils/feedRetry.ts (shared)
+                      - packages/frontend/utils/feedUtils.ts (shared)
+                      - packages/frontend/hooks/useDeepCompare.ts (shared)
+                      - packages/frontend/hooks/useFeedState.ts (shared)
+                      - packages/frontend/hooks/useReloadOnFeedRuleChange.ts
+                        - packages/frontend/stores/safetyInvalidation.ts (shared)
+                        - packages/frontend/stores/bylineInvalidation.ts (shared)
+                    - packages/frontend/hooks/useReloadOnFeedRuleChange.ts (shared)
+                    - packages/frontend/utils/feedMemoryMode.ts (shared)
+                  - packages/frontend/hooks/useDeepCompare.ts (shared)
+                  - packages/frontend/hooks/usePrivacyControls.ts
+                    - packages/frontend/stores/privacyStore.ts
+                  - packages/frontend/utils/feedUtils.ts (shared)
+                  - packages/frontend/utils/feedTelemetry.ts (shared)
+                  - packages/frontend/utils/feedRetry.ts (shared)
+                  - packages/frontend/components/Feed/FeedHeader.tsx
+                  - packages/frontend/components/Feed/FeedFooter.tsx
+                  - packages/frontend/components/Feed/FeedEmptyState.tsx
+                    - packages/frontend/utils/feedRetry.ts (shared)
+                    - packages/frontend/components/common/EmptyState.tsx (shared)
+                    - packages/frontend/lib/stickers.ts (shared)
+                  - packages/frontend/components/Feed/holdForLeading.ts
+                  - packages/frontend/components/Feed/feedRows.tsx (shared)
+                  - packages/frontend/components/Feed/feedPaging.ts (shared)
+            - packages/frontend/components/Feed/PostItem.tsx (shared)
+          - packages/frontend/components/Feed/PostItem.tsx (shared)
+          - packages/frontend/components/Profile/ProfileWriters.tsx
+            - packages/frontend/components/ProfileCard.tsx (shared)
+            - packages/frontend/utils/dateUtils.ts (shared)
+            - packages/frontend/components/Profile/hooks/useChannelWriters.ts (shared)
+            - packages/frontend/components/common/EmptyState.tsx (shared)
+          - packages/frontend/components/Profile/MediaGrid.tsx
+            - packages/frontend/components/common/Ionicons.tsx (shared)
+            - packages/frontend/components/common/EmptyState.tsx (shared)
+            - packages/frontend/db/index.ts (shared)
+            - packages/frontend/components/Profile/LiveVideoPosterCell.tsx
+              - packages/frontend/components/common/VideoPosterCell.tsx
+                - packages/frontend/components/common/Ionicons.tsx (shared)
+                - packages/frontend/utils/formatNumber.ts (shared)
+                - packages/frontend/utils/formatDuration.ts (shared)
+              - packages/frontend/stores/postsStore.ts (shared)
+            - packages/frontend/utils/mediaTypes.ts (shared)
+            - packages/frontend/components/Profile/useProfileMediaFeed.ts
+              - packages/frontend/stores/postsStore.ts (shared)
+              - packages/frontend/db/index.ts (shared)
+            - packages/frontend/components/Profile/ProfileGridList.tsx
+              - packages/frontend/components/Profile/ProfileGridList.types.ts
+                - packages/frontend/context/LayoutScrollContext.tsx (shared)
+              - packages/frontend/components/Profile/ProfileGridList.types.ts (shared)
+          - packages/frontend/components/Profile/VideosGrid.tsx
+            - packages/frontend/components/common/EmptyState.tsx (shared)
+            - packages/frontend/utils/imageUrlCache.ts (shared)
+            - packages/frontend/components/Profile/LiveVideoPosterCell.tsx (shared)
+            - packages/frontend/utils/mediaTypes.ts (shared)
+            - packages/frontend/components/Profile/useProfileMediaFeed.ts (shared)
+            - packages/frontend/components/Profile/ProfileGridList.tsx (shared)
+          - packages/frontend/components/FeedCard.tsx (shared)
+          - packages/frontend/components/StarterPackCard.tsx (shared)
+          - packages/frontend/services/feedService.ts (shared)
+          - packages/frontend/services/customFeedsService.ts (shared)
+          - packages/frontend/components/ListCard.tsx
+            - packages/frontend/lib/utils.ts (shared)
+            - packages/frontend/components/ProfileHoverCard/index.tsx (shared)
+          - packages/frontend/services/starterPacksService.ts (shared)
+          - packages/frontend/services/listsService.ts (shared)
+          - packages/frontend/services/jobsService.ts
+            - packages/frontend/utils/api.ts (shared)
+            - packages/frontend/utils/apiError.ts (shared)
+          - packages/frontend/components/Jobs/OrganizationJobRow.tsx
+            - packages/frontend/utils/dateUtils.ts (shared)
+            - packages/frontend/utils/jobVocabulary.ts (shared)
+          - packages/frontend/components/Profile/hooks/useOperatesAccount.ts (shared)
+          - packages/frontend/components/Profile/types.ts (shared)
+          - packages/frontend/lib/viewerQueryKeys.ts (shared)
+          - packages/frontend/components/common/EmptyState.tsx (shared)
+          - packages/frontend/context/ScreenReselectContext.tsx
+            - packages/frontend/context/LayoutScrollContext.tsx (shared)
+            - packages/frontend/hooks/useRefSync.ts
+        - packages/frontend/components/Profile/types.ts (shared)
+        - packages/frontend/components/Profile/types.ts (shared)
+        - packages/frontend/components/Profile/hooks/useProfileChrome.ts (shared)
+      - packages/frontend/components/Profile/ProfilePageHeader.tsx (shared)
+      - packages/frontend/components/Profile/ProfileTabBarRow.tsx
+      - packages/frontend/components/Profile/ProfileHeader.tsx (shared)
+      - packages/frontend/components/Profile/ChannelHeader.tsx (shared)
+      - packages/frontend/components/Profile/ProfileStats.tsx (shared)
+      - packages/frontend/components/Profile/ProfileMeta.tsx (shared)
+      - packages/frontend/components/Profile/ProfileCommunities.tsx (shared)
+      - packages/frontend/components/Profile/ProfileTabs.tsx (shared)
+      - packages/frontend/components/Profile/ProfileWriters.tsx (shared)
+      - packages/frontend/components/Profile/PrivateBadge.tsx (shared)
+      - packages/frontend/components/Profile/AccountCategoryLine.tsx (shared)
+      - packages/frontend/components/Profile/ProfileContent.tsx (shared)
+      - packages/frontend/components/Profile/MediaGrid.tsx (shared)
+      - packages/frontend/components/Profile/VideosGrid.tsx (shared)
+  - packages/frontend/components/Profile/hooks/useRoutedProfileUsername.ts (shared)
+
+## components/ProfileScreen.web.tsx
+- packages/frontend/components/ProfileScreen.web.tsx
+  - packages/frontend/components/Profile/index.ts
+    - packages/frontend/components/Profile/types.ts
+      - packages/frontend/hooks/useProfileData.ts
+        - packages/frontend/stores/appearanceStore.ts
+          - packages/frontend/utils/api.ts
+            - packages/frontend/lib/oxyServices.ts
+              - packages/frontend/config.ts
+            - packages/frontend/config.ts (shared)
+            - packages/frontend/lib/i18n.ts
+              - packages/frontend/locales/en.json
+              - packages/frontend/lib/constants.ts
+              - packages/frontend/utils/storage.ts
+            - packages/frontend/utils/apiError.ts
+          - packages/frontend/lib/queryClient.ts
+            - packages/frontend/components/providers/constants.ts
+          - packages/frontend/lib/viewerQueryKeys.ts
+            - packages/frontend/utils/feedUtils.ts
+        - packages/frontend/components/Profile/types.ts (shared)
+        - packages/frontend/utils/displayName.ts
+        - packages/frontend/utils/imageUrlCache.ts
+          - packages/frontend/config.ts (shared)
+        - packages/frontend/utils/publicProfileHandle.ts
+        - packages/frontend/lib/viewerQueryKeys.ts (shared)
+        - packages/frontend/utils/profileAccountFacts.ts
+        - packages/frontend/utils/apiError.ts (shared)
+        - packages/frontend/lib/documentBootstrap.ts
+    - packages/frontend/components/Profile/profileRoute.ts
+    - packages/frontend/components/Profile/profileTabRoute.ts
+      - packages/frontend/components/Profile/types.ts (shared)
+    - packages/frontend/components/Profile/profileViewer.ts
+      - packages/frontend/hooks/useProfileData.ts (shared)
+    - packages/frontend/components/Profile/hooks/useSubscription.ts
+      - packages/frontend/services/subscriptionService.ts
+        - packages/frontend/utils/api.ts (shared)
+      - packages/frontend/lib/viewerQueryKeys.ts (shared)
+      - packages/frontend/utils/apiError.ts (shared)
+      - packages/frontend/components/Profile/hooks/useDeferredToggle.ts
+      - packages/frontend/components/Profile/types.ts (shared)
+    - packages/frontend/components/Profile/hooks/usePersonProfileView.tsx
+      - packages/frontend/stores/postsStore.ts
+        - packages/frontend/services/feedService.ts
+          - packages/frontend/modules/mention-widgets/feedWidgetSync.ts
+            - packages/frontend/modules/mention-widgets/index.ts
+          - packages/frontend/utils/feedUtils.ts (shared)
+          - packages/frontend/utils/api.ts (shared)
+          - packages/frontend/lib/oxyServices.ts (shared)
+          - packages/frontend/utils/apiError.ts (shared)
+          - packages/frontend/utils/feedRetry.ts
+            - packages/frontend/utils/apiError.ts (shared)
+          - packages/frontend/services/savedPostsRequest.ts
+          - packages/frontend/lib/webTelemetry.ts
+            - packages/frontend/lib/webTelemetry.web.ts
+              - packages/frontend/config.ts (shared)
+          - packages/frontend/services/savedPostsRequest.ts (shared)
+        - packages/frontend/services/echoGuard.ts
+        - packages/frontend/stores/feedQueryCache.ts
+          - packages/frontend/lib/queryClient.ts (shared)
+          - packages/frontend/lib/viewerQueryKeys.ts (shared)
+          - packages/frontend/stores/feedScrollStore.ts
+          - packages/frontend/utils/feedUtils.ts (shared)
+        - packages/frontend/stores/engagementInvalidation.ts
+          - packages/frontend/lib/queryClient.ts (shared)
+          - packages/frontend/lib/viewerQueryKeys.ts (shared)
+        - packages/frontend/stores/profileCountsInvalidation.ts
+          - packages/frontend/lib/viewerQueryKeys.ts (shared)
+        - packages/frontend/lib/queryClient.ts (shared)
+        - packages/frontend/db/index.ts
+          - packages/frontend/db/index.ts (shared)
+          - packages/frontend/db/database.ts
+            - packages/frontend/db/database.web.ts
+          - packages/frontend/db/database.ts (shared)
+          - packages/frontend/db/cacheLifecycle.ts
+            - packages/frontend/db/database.ts (shared)
+            - packages/frontend/db/memoryStore.ts
+              - packages/frontend/db/schema.ts
+                - packages/frontend/stores/linksStore.ts
+                  - packages/frontend/db/index.ts (shared)
+              - packages/frontend/db/feedQueries.ts
+                - packages/frontend/db/database.ts (shared)
+                - packages/frontend/db/schema.ts (shared)
+                - packages/frontend/db/schema.ts (shared)
+                - packages/frontend/db/postQueries.ts
+                  - packages/frontend/db/database.ts (shared)
+                  - packages/frontend/db/schema.ts (shared)
+                  - packages/frontend/db/postObservers.ts
+                    - packages/frontend/db/schema.ts (shared)
+                  - packages/frontend/db/memoryStore.ts (shared)
+                - packages/frontend/db/postObservers.ts (shared)
+                - packages/frontend/db/memoryStore.ts (shared)
+                - packages/frontend/utils/feedUtils.ts (shared)
+          - packages/frontend/db/schema.ts (shared)
+          - packages/frontend/db/schema.ts (shared)
+          - packages/frontend/db/postQueries.ts (shared)
+          - packages/frontend/db/feedQueries.ts (shared)
+          - packages/frontend/db/feedQueries.ts (shared)
+          - packages/frontend/db/linkQueries.ts
+            - packages/frontend/db/database.ts (shared)
+            - packages/frontend/db/schema.ts (shared)
+            - packages/frontend/db/schema.ts (shared)
+            - packages/frontend/stores/linksStore.ts (shared)
+        - packages/frontend/db/index.ts (shared)
+        - packages/frontend/db/feedItem.ts
+          - packages/frontend/db/schema.ts (shared)
+        - packages/frontend/lib/precacheActorsFromPosts.ts
+          - packages/frontend/lib/actorCache.ts
+            - packages/frontend/lib/queryClient.ts (shared)
+            - packages/frontend/lib/viewerQueryKeys.ts (shared)
+            - packages/frontend/stores/identityUpdates.ts
+        - packages/frontend/utils/feedUtils.ts (shared)
+        - packages/frontend/utils/feedRetry.ts (shared)
+      - packages/frontend/services/lanesService.ts
+        - packages/frontend/utils/api.ts (shared)
+      - packages/frontend/lib/viewerQueryKeys.ts (shared)
+      - packages/frontend/utils/openExternalLink.ts
+      - packages/frontend/components/SEO.tsx
+        - packages/frontend/lib/seoHandoff.ts
+        - packages/frontend/config.ts (shared)
+      - packages/frontend/hooks/useProfileSEOPolicy.ts
+        - packages/frontend/lib/seoHandoff.ts (shared)
+      - packages/frontend/config.ts (shared)
+      - packages/frontend/components/AccountBadge.tsx
+        - packages/frontend/assets/icons/channel-icon.tsx
+          - packages/frontend/assets/icons/IconSvg.tsx
+            - packages/frontend/assets/icons/IconSvg.web.tsx
+        - packages/frontend/assets/icons/fediverse-icon.tsx
+          - packages/frontend/assets/icons/IconSvg.tsx (shared)
+        - packages/frontend/styles/hitSlop.ts
+      - packages/frontend/components/Fediverse/FediverseInfoDialog.tsx
+      - packages/frontend/components/suggestions/SuggestedUsers.tsx
+        - packages/frontend/lib/actorCache.ts (shared)
+        - packages/frontend/utils/userEnrichment.ts
+          - packages/frontend/lib/actorCache.ts (shared)
+          - packages/frontend/lib/queryClient.ts (shared)
+        - packages/frontend/components/suggestions/SuggestedUserCard.tsx
+          - packages/frontend/hooks/useCachedUser.ts
+          - packages/frontend/components/ProfileCard.tsx
+            - packages/frontend/stores/identityUpdates.ts (shared)
+            - packages/frontend/components/Profile/profileRoute.ts (shared)
+            - packages/frontend/components/UserName.tsx
+              - packages/frontend/assets/icons/verified-icon.tsx
+                - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                - packages/frontend/styles/colors.ts
+              - packages/frontend/components/AccountBadge.tsx (shared)
+              - packages/frontend/assets/icons/agent-icon.tsx
+                - packages/frontend/assets/icons/IconSvg.tsx (shared)
+              - packages/frontend/assets/icons/automated-icon.tsx
+                - packages/frontend/assets/icons/IconSvg.tsx (shared)
+              - packages/frontend/components/Profile/types.ts (shared)
+            - packages/frontend/utils/userPlaceholderColor.ts
+            - packages/frontend/lib/utils.ts
+          - packages/frontend/styles/hitSlop.ts (shared)
+        - packages/frontend/components/suggestions/SuggestedUserCard.tsx (shared)
+        - packages/frontend/lib/recommendations.ts
+          - packages/frontend/utils/api.ts (shared)
+          - packages/frontend/lib/recommendationFilters.ts
+            - packages/frontend/utils/storage.ts (shared)
+            - packages/frontend/lib/viewerQueryKeys.ts (shared)
+            - packages/frontend/lib/keyedAsyncQueue.ts
+        - packages/frontend/hooks/useRecommendations.ts
+          - packages/frontend/lib/actorCache.ts (shared)
+          - packages/frontend/utils/userEnrichment.ts (shared)
+          - packages/frontend/utils/authErrors.ts
+          - packages/frontend/lib/recommendations.ts (shared)
+          - packages/frontend/lib/recommendationFilters.ts (shared)
+          - packages/frontend/lib/viewerQueryKeys.ts (shared)
+        - packages/frontend/lib/viewerQueryKeys.ts (shared)
+      - packages/frontend/components/UserName.tsx (shared)
+      - packages/frontend/components/Profile/ProfilePageHeader.tsx
+        - packages/frontend/hooks/useSafeBack.ts
+        - packages/frontend/hooks/useProfileData.ts (shared)
+        - packages/frontend/components/UserName.tsx (shared)
+      - packages/frontend/components/Profile/AccountCategoryLine.tsx
+        - packages/frontend/hooks/useAccountCategoryLabel.ts
+          - packages/frontend/utils/accountCategories.ts
+        - packages/frontend/utils/accountCategories.ts (shared)
+      - packages/frontend/components/Profile/PrivateBadge.tsx
+        - packages/frontend/components/Profile/types.ts (shared)
+      - packages/frontend/components/Profile/ProfileMovedNotice.tsx
+        - packages/frontend/components/Profile/profileRoute.ts (shared)
+      - packages/frontend/components/Profile/ProfileContent.tsx
+        - packages/frontend/components/common/LinkifiedText.tsx
+          - packages/frontend/components/ProfileHoverCard/index.tsx
+            - packages/frontend/components/ProfileHoverCard/types.ts
+          - packages/frontend/utils/linkifyPattern.ts
+            - packages/frontend/utils/ownProfileLinks.ts
+              - packages/frontend/config.ts (shared)
+          - packages/frontend/utils/openExternalLink.ts (shared)
+        - packages/frontend/components/Profile/ProfileStats.tsx
+          - packages/frontend/utils/formatNumber.ts
+          - packages/frontend/components/Profile/types.ts (shared)
+        - packages/frontend/components/Profile/ProfileMeta.tsx
+          - packages/frontend/assets/icons/location-icon.tsx
+            - packages/frontend/assets/icons/IconSvg.tsx (shared)
+          - packages/frontend/assets/icons/calendar-icon.tsx
+            - packages/frontend/assets/icons/IconSvg.tsx (shared)
+            - packages/frontend/assets/icons/types.ts
+          - packages/frontend/assets/icons/chevron-right-icon.tsx
+            - packages/frontend/assets/icons/IconSvg.tsx (shared)
+          - packages/frontend/components/Profile/types.ts (shared)
+        - packages/frontend/components/Profile/LinkSummary.tsx
+          - packages/frontend/context/BottomSheetContext.tsx
+          - packages/frontend/utils/prettifyUrl.ts
+          - packages/frontend/utils/openExternalLink.ts (shared)
+        - packages/frontend/components/Profile/ProfileMedia.tsx
+          - packages/frontend/stores/appearanceStore.ts (shared)
+          - packages/frontend/context/BottomSheetContext.tsx (shared)
+          - packages/frontend/components/Profile/ProfileSong.tsx
+            - packages/frontend/stores/appearanceStore.ts (shared)
+            - packages/frontend/hooks/useProfileSongPreview.ts
+            - packages/frontend/components/Profile/SongPreviewButton.tsx
+              - packages/frontend/styles/hitSlop.ts (shared)
+            - packages/frontend/styles/hitSlop.ts (shared)
+          - packages/frontend/components/Podcast/PodcastCard.tsx
+            - packages/frontend/utils/isHostOf.ts
+            - packages/frontend/components/common/Ionicons.tsx
+            - packages/frontend/lib/utils.ts (shared)
+            - packages/frontend/utils/openExternalLink.ts (shared)
+            - packages/frontend/styles/hitSlop.ts (shared)
+            - packages/frontend/utils/composeUtils.ts
+            - packages/frontend/components/Podcast/useArtworkAccent.ts
+          - packages/frontend/components/Profile/MediaPickerSheet.tsx
+            - packages/frontend/stores/appearanceStore.ts (shared)
+            - packages/frontend/hooks/useProfileSongPreview.ts (shared)
+            - packages/frontend/hooks/useInfiniteCatalogSearch.tsx
+              - packages/frontend/utils/api.ts (shared)
+              - packages/frontend/lib/viewerQueryKeys.ts (shared)
+            - packages/frontend/utils/formatDuration.ts
+            - packages/frontend/components/Profile/SongPreviewButton.tsx (shared)
+            - packages/frontend/styles/hitSlop.ts (shared)
+        - packages/frontend/components/Profile/FollowedByRow.tsx
+          - packages/frontend/hooks/useMutualFollowers.ts
+            - packages/frontend/utils/authErrors.ts (shared)
+            - packages/frontend/lib/viewerQueryKeys.ts (shared)
+          - packages/frontend/utils/displayName.ts (shared)
+        - packages/frontend/components/Profile/ProfileCommunities.tsx
+          - packages/frontend/components/Profile/types.ts (shared)
+        - packages/frontend/components/Profile/types.ts (shared)
+        - packages/frontend/components/Profile/types.ts (shared)
+        - packages/frontend/utils/mergeBioAndProfileLinks.ts
+          - packages/frontend/utils/extractUrls.ts
+          - packages/frontend/utils/prettifyUrl.ts (shared)
+        - packages/frontend/stores/appearanceStore.ts (shared)
+        - packages/frontend/hooks/useExpandableText.ts
+          - packages/frontend/utils/expandableText.ts
+      - packages/frontend/components/Profile/ProfileHeader.tsx
+        - packages/frontend/components/ZoomableAvatar.tsx
+          - packages/frontend/assets/images/default-avatar.jpg
+          - packages/frontend/hooks/useImageUrl.ts
+            - packages/frontend/utils/imageUrlCache.ts (shared)
+            - packages/frontend/lib/oxyServices.ts (shared)
+        - packages/frontend/components/ui/LiveAvatar.tsx
+          - packages/frontend/stores/livePresenceStore.ts
+        - packages/frontend/stores/livePresenceStore.ts (shared)
+        - packages/frontend/context/LayoutScrollContext.tsx
+        - packages/frontend/components/PresenceIndicator.tsx
+          - packages/frontend/hooks/usePresence.ts
+            - packages/frontend/services/socketService.ts
+              - packages/frontend/config.ts (shared)
+              - packages/frontend/stores/postsStore.ts (shared)
+              - packages/frontend/db/index.ts (shared)
+              - packages/frontend/stores/liveRoomsStore.ts
+                - packages/frontend/lib/syraApi.ts
+                  - packages/frontend/lib/oxyServices.ts (shared)
+                  - packages/frontend/config.ts (shared)
+              - packages/frontend/constants/realtimeEvents.ts
+              - packages/frontend/services/echoGuard.ts (shared)
+              - packages/frontend/services/engagementQueuePersistence.ts
+        - packages/frontend/components/common/ContentDialog.tsx
+        - packages/frontend/components/settings/settingsRoutes.ts
+        - packages/frontend/components/Profile/EditProfile/EditProfileForm.tsx
+          - packages/frontend/components/settings/ColorSwatchPicker.tsx
+            - packages/frontend/lib/utils.ts (shared)
+          - packages/frontend/hooks/useProfileData.ts (shared)
+          - packages/frontend/lib/colorEntitlement.ts
+          - packages/frontend/hooks/useMentionColorViewer.ts
+            - packages/frontend/lib/colorEntitlement.ts (shared)
+            - packages/frontend/lib/viewerQueryKeys.ts (shared)
+          - packages/frontend/hooks/useAppColorSave.ts
+            - packages/frontend/lib/colorEntitlement.ts (shared)
+            - packages/frontend/hooks/useMentionColorViewer.ts (shared)
+            - packages/frontend/lib/queryClient.ts (shared)
+            - packages/frontend/stores/appearanceStore.ts (shared)
+            - packages/frontend/stores/themeSourceStore.ts
+              - packages/frontend/lib/themePersistence.ts
+          - packages/frontend/components/Profile/EditProfile/BannerSection.tsx
+            - packages/frontend/utils/imageUrlCache.ts (shared)
+            - packages/frontend/stores/appearanceStore.ts (shared)
+          - packages/frontend/components/Profile/EditProfile/PinnedMediaSection.tsx
+            - packages/frontend/stores/appearanceStore.ts (shared)
+            - packages/frontend/context/BottomSheetContext.tsx (shared)
+            - packages/frontend/components/Profile/ProfileSong.tsx (shared)
+            - packages/frontend/components/Podcast/PodcastCard.tsx (shared)
+            - packages/frontend/components/Profile/MediaPickerSheet.tsx (shared)
+        - packages/frontend/components/Profile/hooks/usePoke.ts
+          - packages/frontend/services/pokeService.ts
+            - packages/frontend/utils/api.ts (shared)
+          - packages/frontend/utils/apiError.ts (shared)
+          - packages/frontend/components/Profile/hooks/useDeferredToggle.ts (shared)
+        - packages/frontend/components/Profile/hooks/useFederatedFollowSync.ts
+          - packages/frontend/services/feedService.ts (shared)
+        - packages/frontend/components/Profile/types.ts (shared)
+        - packages/frontend/components/Profile/ProfilePageHeader.tsx (shared)
+        - packages/frontend/components/Profile/types.ts (shared)
+      - packages/frontend/components/Profile/profileRoute.ts (shared)
+      - packages/frontend/components/Profile/types.ts (shared)
+      - packages/frontend/components/Profile/profileViewer.ts (shared)
+      - packages/frontend/components/Profile/profileTabRoute.ts (shared)
+      - packages/frontend/components/Profile/hooks/useProfileAccount.ts
+        - packages/frontend/hooks/useProfileData.ts (shared)
+        - packages/frontend/hooks/useProfileScreenColor.ts
+          - packages/frontend/context/ScreenColorContext.tsx
+        - packages/frontend/components/Profile/profileRoute.ts (shared)
+      - packages/frontend/components/Profile/hooks/useProfileChrome.ts
+        - packages/frontend/components/Profile/hooks/useProfileScroll.ts
+          - packages/frontend/context/LayoutScrollContext.tsx (shared)
+          - packages/frontend/hooks/useFocusedScrollable.ts
+            - packages/frontend/context/LayoutScrollContext.tsx (shared)
+          - packages/frontend/stores/postsStore.ts (shared)
+          - packages/frontend/db/feedQueries.ts (shared)
+          - packages/frontend/components/Profile/types.ts (shared)
+        - packages/frontend/components/Profile/types.ts (shared)
+      - packages/frontend/components/Profile/hooks/useProfileMoreMenu.tsx
+        - packages/frontend/context/BottomSheetContext.tsx (shared)
+        - packages/frontend/components/common/ActionMenu.tsx
+          - packages/frontend/components/common/actionMenuGroups.ts
+          - packages/frontend/lib/utils.ts (shared)
+        - packages/frontend/components/common/actionMenuGroups.ts (shared)
+        - packages/frontend/components/report/ReportModal.tsx
+          - packages/frontend/assets/icons/close-icon.tsx
+            - packages/frontend/assets/icons/IconSvg.tsx (shared)
+          - packages/frontend/services/reportService.ts
+            - packages/frontend/utils/api.ts (shared)
+            - packages/frontend/utils/apiError.ts (shared)
+        - packages/frontend/components/Lists/AddToListSheet.tsx
+          - packages/frontend/services/listsService.ts
+            - packages/frontend/utils/api.ts (shared)
+            - packages/frontend/services/listMutations.ts
+              - packages/frontend/lib/queryClient.ts (shared)
+              - packages/frontend/lib/viewerQueryKeys.ts (shared)
+          - packages/frontend/styles/hitSlop.ts (shared)
+        - packages/frontend/components/AddToStarterPackSheet.tsx
+          - packages/frontend/services/starterPacksService.ts
+            - packages/frontend/utils/api.ts (shared)
+          - packages/frontend/lib/viewerQueryKeys.ts (shared)
+          - packages/frontend/assets/icons/starter-pack-icon.tsx
+            - packages/frontend/assets/icons/IconSvg.tsx (shared)
+          - packages/frontend/styles/hitSlop.ts (shared)
+        - packages/frontend/services/muteService.ts
+          - packages/frontend/utils/api.ts (shared)
+        - packages/frontend/services/privacyService.ts
+          - packages/frontend/utils/api.ts (shared)
+          - packages/frontend/utils/apiError.ts (shared)
+        - packages/frontend/services/reportService.ts (shared)
+        - packages/frontend/utils/alerts.ts
+        - packages/frontend/assets/icons/list-icon.tsx
+          - packages/frontend/assets/icons/IconSvg.tsx (shared)
+        - packages/frontend/assets/icons/starter-pack-icon.tsx (shared)
+        - packages/frontend/assets/icons/mute-icon.tsx
+          - packages/frontend/assets/icons/IconSvg.tsx (shared)
+        - packages/frontend/assets/icons/block-icon.tsx
+          - packages/frontend/assets/icons/IconSvg.tsx (shared)
+        - packages/frontend/assets/icons/report-icon.tsx
+          - packages/frontend/assets/icons/IconSvg.tsx (shared)
+        - packages/frontend/hooks/useProfileData.ts (shared)
+      - packages/frontend/components/Profile/hooks/useMessageInAllo.tsx
+        - packages/frontend/components/common/ActionMenu.tsx (shared)
+        - packages/frontend/lib/alloDirectMessage.ts
+          - packages/frontend/config.ts (shared)
+        - packages/frontend/utils/openExternalLink.ts (shared)
+      - packages/frontend/components/Profile/hooks/useOperatesAccount.ts
+        - packages/frontend/lib/viewerQueryKeys.ts (shared)
+        - packages/frontend/lib/operatedAccounts.ts
+      - packages/frontend/components/Profile/hooks/useJustFollowed.ts
+      - packages/frontend/components/Profile/hooks/useSubscription.ts (shared)
+    - packages/frontend/components/Profile/hooks/useProfileScroll.ts (shared)
+    - packages/frontend/components/Profile/hooks/useProfileAccount.ts (shared)
+    - packages/frontend/components/Profile/hooks/useRoutedProfileUsername.ts
+    - packages/frontend/components/Profile/hooks/useProfileChrome.ts (shared)
+    - packages/frontend/components/Profile/hooks/useProfileMoreMenu.tsx (shared)
+    - packages/frontend/components/Profile/hooks/useOperatesAccount.ts (shared)
+    - packages/frontend/components/Profile/hooks/useJustFollowed.ts (shared)
+    - packages/frontend/components/Profile/hooks/useChannelWriters.ts
+      - packages/frontend/services/channelWritersService.ts
+        - packages/frontend/utils/api.ts (shared)
+      - packages/frontend/lib/viewerQueryKeys.ts (shared)
+    - packages/frontend/components/Profile/ProfileSkeleton.tsx
+      - packages/frontend/styles/shared.ts
+      - packages/frontend/components/Profile/ChannelHeader.tsx
+        - packages/frontend/components/ZoomableAvatar.tsx (shared)
+        - packages/frontend/components/Channels/ChannelInfoDialog.tsx
+          - packages/frontend/assets/icons/channel-icon.tsx (shared)
+        - packages/frontend/components/Profile/AccountCategoryLine.tsx (shared)
+        - packages/frontend/components/Profile/PrivateBadge.tsx (shared)
+        - packages/frontend/components/Profile/types.ts (shared)
+      - packages/frontend/components/Profile/ProfilePageHeader.tsx (shared)
+      - packages/frontend/components/Profile/types.ts (shared)
+    - packages/frontend/components/Profile/ProfileShell.tsx
+      - packages/frontend/context/LayoutScrollContext.tsx (shared)
+      - packages/frontend/components/Profile/ProfileUnavailable.tsx
+        - packages/frontend/components/common/EmptyState.tsx
+          - packages/frontend/lib/stickers.ts
+          - packages/frontend/components/common/EmptyStateSticker.tsx
+            - packages/frontend/lib/stickers.ts (shared)
+        - packages/frontend/hooks/useSafeBack.ts (shared)
+      - packages/frontend/hooks/useProfileData.ts (shared)
+      - packages/frontend/components/Profile/ProfilePageHeader.tsx (shared)
+      - packages/frontend/components/Profile/ProfileSkeleton.tsx (shared)
+      - packages/frontend/components/Profile/ProfileTabs.tsx
+        - packages/frontend/components/Feed/index.ts
+          - packages/frontend/components/Feed/Feed.tsx
+            - packages/frontend/components/Feed/Feed.web.tsx
+              - packages/frontend/hooks/useRevealOwnNewPost.ts
+                - packages/frontend/stores/feedScrollStore.ts (shared)
+              - packages/frontend/utils/feedUtils.ts (shared)
+              - packages/frontend/components/Feed/feedRows.tsx
+                - packages/frontend/components/Feed/PostItem.tsx
+                  - packages/frontend/utils/extractUrls.ts (shared)
+                  - packages/frontend/utils/ownProfileLinks.ts (shared)
+                  - packages/frontend/stores/postsStore.ts (shared)
+                  - packages/frontend/components/Post/PostHeader.tsx
+                    - packages/frontend/components/ui/LiveAvatar.tsx (shared)
+                    - packages/frontend/components/Post/postContextRowLayout.ts
+                    - packages/frontend/components/UserName.tsx (shared)
+                    - packages/frontend/components/ProfileHoverCard/index.tsx (shared)
+                    - packages/frontend/components/AccountBadge.tsx (shared)
+                    - packages/frontend/assets/icons/boost-icon.tsx
+                      - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                    - packages/frontend/assets/icons/draw-icon.tsx
+                      - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                    - packages/frontend/hooks/useTimeAgo.ts
+                      - packages/frontend/utils/dateUtils.ts
+                    - packages/frontend/utils/displayName.ts (shared)
+                    - packages/frontend/components/Profile/profileRoute.ts (shared)
+                    - packages/frontend/styles/hitSlop.ts (shared)
+                  - packages/frontend/components/Post/postContextRowLayout.ts (shared)
+                  - packages/frontend/components/ProfileHoverCard/index.tsx (shared)
+                  - packages/frontend/components/Post/PostContentText.tsx
+                    - packages/frontend/components/common/LinkifiedText.tsx (shared)
+                    - packages/frontend/stores/appearanceStore.ts (shared)
+                    - packages/frontend/hooks/useExpandableText.ts (shared)
+                  - packages/frontend/components/Post/PostLaneChip.tsx
+                    - packages/frontend/styles/hitSlop.ts (shared)
+                  - packages/frontend/components/Post/PostCrosspostRow.tsx
+                    - packages/frontend/components/common/Ionicons.tsx (shared)
+                    - packages/frontend/components/Post/postContextRowLayout.ts (shared)
+                  - packages/frontend/components/Post/PostImportedFromRow.tsx
+                    - packages/frontend/utils/openExternalLink.ts (shared)
+                    - packages/frontend/components/Post/postContextRowLayout.ts (shared)
+                  - packages/frontend/components/Post/ContentWarning.tsx
+                    - packages/frontend/styles/hitSlop.ts (shared)
+                  - packages/frontend/components/CommunityNotes/CommunityNoteCard.tsx
+                    - packages/frontend/utils/openExternalLink.ts (shared)
+                    - packages/frontend/styles/hitSlop.ts (shared)
+                  - packages/frontend/components/Post/PostCorrectionNotice.tsx
+                    - packages/frontend/styles/hitSlop.ts (shared)
+                  - packages/frontend/components/Post/PostActions.tsx
+                    - packages/frontend/components/common/Ionicons.tsx (shared)
+                    - packages/frontend/assets/icons/comment-icon.tsx
+                      - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                    - packages/frontend/assets/icons/boost-icon.tsx (shared)
+                    - packages/frontend/assets/icons/share-icon.tsx
+                      - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                    - packages/frontend/assets/icons/bookmark-icon.tsx
+                      - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                    - packages/frontend/assets/icons/analytics-icon.tsx
+                      - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                    - packages/frontend/utils/formatNumber.ts (shared)
+                    - packages/frontend/lib/animations/AnimatedLikeIcon.tsx
+                      - packages/frontend/assets/icons/heart-icon.tsx
+                        - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                    - packages/frontend/lib/animations/CountWheel.tsx
+                      - packages/frontend/lib/animations/entryExit.ts
+                      - packages/frontend/utils/formatNumber.ts (shared)
+                    - packages/frontend/hooks/useVoteStyle.ts
+                      - packages/frontend/hooks/useThreadPreferences.ts
+                        - packages/frontend/utils/storage.ts (shared)
+                        - packages/frontend/lib/constants.ts (shared)
+                      - packages/frontend/hooks/useThreadPreferences.ts (shared)
+                    - packages/frontend/styles/hitSlop.ts (shared)
+                    - packages/frontend/components/Post/VotePill.tsx
+                      - packages/frontend/assets/icons/chevron-up-icon.tsx
+                        - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                      - packages/frontend/assets/icons/chevron-down-icon.tsx
+                        - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                      - packages/frontend/utils/formatNumber.ts (shared)
+                  - packages/frontend/components/Post/PostDetailStats.tsx
+                    - packages/frontend/components/Post/KnownLikersRow.tsx
+                      - packages/frontend/hooks/useKnownLikers.ts
+                        - packages/frontend/services/feedService.ts (shared)
+                        - packages/frontend/utils/authErrors.ts (shared)
+                        - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                      - packages/frontend/utils/displayName.ts (shared)
+                    - packages/frontend/utils/formatNumber.ts (shared)
+                    - packages/frontend/styles/shared.ts (shared)
+                  - packages/frontend/components/Post/PostLocation.tsx
+                  - packages/frontend/components/Post/PostAttachmentsRow.tsx
+                    - packages/frontend/lib/oxyServices.ts (shared)
+                    - packages/frontend/components/Post/JobCard.tsx
+                      - packages/frontend/lib/utils.ts (shared)
+                      - packages/frontend/styles/hitSlop.ts (shared)
+                      - packages/frontend/utils/jobVocabulary.ts
+                    - packages/frontend/components/Podcast/PostPodcastAttachment.tsx
+                      - packages/frontend/components/common/VideoPlayer.tsx
+                        - packages/frontend/stores/videoMuteStore.ts
+                          - packages/frontend/utils/storage.ts (shared)
+                        - packages/frontend/context/VideoPlaybackContext.tsx
+                        - packages/frontend/lib/hlsPlayback.ts
+                          - packages/frontend/lib/hlsPlayback.web.ts
+                            - packages/frontend/utils/hlsSource.ts
+                        - packages/frontend/styles/hitSlop.ts (shared)
+                        - packages/frontend/utils/formatDuration.ts (shared)
+                        - packages/frontend/utils/videoSource.ts
+                          - packages/frontend/utils/hlsSource.ts (shared)
+                        - packages/frontend/components/common/videoElementSize.ts
+                      - packages/frontend/utils/openExternalLink.ts (shared)
+                      - packages/frontend/components/Podcast/PodcastCard.tsx (shared)
+                      - packages/frontend/components/Podcast/PodcastSaveButton.tsx
+                        - packages/frontend/styles/hitSlop.ts (shared)
+                        - packages/frontend/assets/icons/bookmark-icon.tsx (shared)
+                        - packages/frontend/hooks/usePodcastSave.ts
+                          - packages/frontend/lib/syraPodcasts.ts
+                            - packages/frontend/lib/oxyServices.ts (shared)
+                            - packages/frontend/config.ts (shared)
+                          - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                    - packages/frontend/utils/composeUtils.ts (shared)
+                    - packages/frontend/components/common/LazyZoomableGallery.tsx
+                    - packages/frontend/utils/imageUrlCache.ts (shared)
+                    - packages/frontend/utils/mediaTypes.ts
+                    - packages/frontend/stores/videoPlayerRegistry.ts
+                      - packages/frontend/utils/videoSource.ts (shared)
+                      - packages/frontend/lib/hlsPlayback.ts (shared)
+                    - packages/frontend/components/shell/panelSurface.ts
+                    - packages/frontend/components/Post/Attachments/PostAttachmentMedia.tsx
+                      - packages/frontend/components/common/VideoPlayer.tsx (shared)
+                      - packages/frontend/utils/composeUtils.ts (shared)
+                      - packages/frontend/utils/mediaTypes.ts (shared)
+                      - packages/frontend/stores/videoPlayerRegistry.ts (shared)
+                      - packages/frontend/styles/hitSlop.ts (shared)
+                    - packages/frontend/components/Post/Attachments/index.ts
+                      - packages/frontend/components/Post/Attachments/PostAttachmentArticle.tsx
+                        - packages/frontend/lib/utils.ts (shared)
+                      - packages/frontend/components/Post/Attachments/PostAttachmentLink.tsx
+                        - packages/frontend/utils/openExternalLink.ts (shared)
+                      - packages/frontend/components/Post/Attachments/PostAttachmentExternalEmbed.tsx
+                        - packages/frontend/utils/embedPlayer.ts
+                        - packages/frontend/utils/imageUrlCache.ts (shared)
+                        - packages/frontend/stores/externalEmbedsStore.ts
+                          - packages/frontend/utils/api.ts (shared)
+                          - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                          - packages/frontend/lib/keyedAsyncQueue.ts (shared)
+                          - packages/frontend/hooks/usePrivacySettings.ts
+                            - packages/frontend/utils/api.ts (shared)
+                            - packages/frontend/hooks/useFeedSettings.ts
+                              - packages/frontend/utils/api.ts (shared)
+                              - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                              - packages/frontend/hooks/usePrivacySettings.ts (shared)
+                            - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                            - packages/frontend/lib/keyedAsyncQueue.ts (shared)
+                        - packages/frontend/components/Post/Attachments/ExternalEmbedPlayer.tsx
+                          - packages/frontend/components/Post/Attachments/ExternalEmbedPlayer.web.tsx
+                            - packages/frontend/utils/embedPlayer.ts (shared)
+                            - packages/frontend/components/Post/Attachments/ExternalEmbedPoster.tsx
+                              - packages/frontend/utils/imageUrlCache.ts (shared)
+                        - packages/frontend/components/Post/Attachments/EmbedConsentDialog.tsx
+                          - packages/frontend/stores/externalEmbedsStore.ts (shared)
+                        - packages/frontend/components/Post/Attachments/PostAttachmentLink.tsx (shared)
+                      - packages/frontend/components/Post/Attachments/PostAttachmentMedia.tsx (shared)
+                      - packages/frontend/components/Post/Attachments/PostAttachmentPoll.tsx
+                        - packages/frontend/lib/utils.ts (shared)
+                        - packages/frontend/components/Post/PollCard.tsx
+                          - packages/frontend/services/pollService.ts
+                            - packages/frontend/utils/api.ts (shared)
+                          - packages/frontend/styles/hitSlop.ts (shared)
+                          - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                        - packages/frontend/config.ts (shared)
+                      - packages/frontend/components/Post/Attachments/PostAttachmentNested.tsx
+                      - packages/frontend/components/Post/Attachments/PostAttachmentEvent.tsx
+                        - packages/frontend/lib/utils.ts (shared)
+                      - packages/frontend/components/Post/Attachments/PostAttachmentRoom.tsx
+                        - packages/frontend/components/RoomCard.tsx
+                          - packages/frontend/styles/colors.ts (shared)
+                    - packages/frontend/utils/embedPlayer.ts (shared)
+                    - packages/frontend/utils/extractUrls.ts (shared)
+                    - packages/frontend/utils/ownProfileLinks.ts (shared)
+                    - packages/frontend/stores/externalEmbedsStore.ts (shared)
+                  - packages/frontend/utils/formatNumber.ts (shared)
+                  - packages/frontend/components/Feed/postInteractions.tsx
+                    - packages/frontend/hooks/usePostShare.ts
+                      - packages/frontend/lib/queryClient.ts (shared)
+                    - packages/frontend/stores/postsStore.ts (shared)
+                  - packages/frontend/assets/icons/pin-icon.tsx
+                    - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                  - packages/frontend/assets/icons/boost-icon.tsx (shared)
+                  - packages/frontend/hooks/usePostLanguage.ts
+                    - packages/frontend/utils/api.ts (shared)
+                    - packages/frontend/stores/trendsStore.ts
+                      - packages/frontend/utils/api.ts (shared)
+                      - packages/frontend/interfaces/Trend.ts
+                    - packages/frontend/utils/postLanguages.ts
+                      - packages/frontend/constants/contentLanguages.ts
+                  - packages/frontend/hooks/usePostLanguagePicker.tsx
+                    - packages/frontend/context/BottomSheetContext.tsx (shared)
+                    - packages/frontend/components/Post/PostLanguageSheet.tsx
+                      - packages/frontend/utils/postLanguages.ts (shared)
+                    - packages/frontend/utils/postLanguages.ts (shared)
+                  - packages/frontend/components/common/ContentDialog.tsx (shared)
+                  - packages/frontend/components/Compose/composeLayout.ts
+                  - packages/frontend/styles/shared.ts (shared)
+                  - packages/frontend/stores/threadHoverStore.ts
+                  - packages/frontend/stores/identityUpdates.ts (shared)
+                  - packages/frontend/components/Profile/profileRoute.ts (shared)
+                  - packages/frontend/utils/feedTelemetry.ts
+                    - packages/frontend/services/feedService.ts (shared)
+                    - packages/frontend/services/trendingService.ts
+                      - packages/frontend/utils/api.ts (shared)
+                    - packages/frontend/stores/postsStore.ts (shared)
+                    - packages/frontend/utils/feedUtils.ts (shared)
+                  - packages/frontend/utils/dateUtils.ts (shared)
+                  - packages/frontend/utils/displayName.ts (shared)
+                  - packages/frontend/utils/postReplies.ts
+                  - packages/frontend/utils/replyContextRow.ts
+                - packages/frontend/components/Feed/PostErrorBoundary.tsx
+                - packages/frontend/components/Feed/interstitials/FeedInterstitial.tsx
+                  - packages/frontend/components/Feed/interstitials/SimilarAccountsInterstitial.tsx
+                    - packages/frontend/lib/actorCache.ts (shared)
+                    - packages/frontend/components/Profile/profileRoute.ts (shared)
+                    - packages/frontend/components/ProfileCard.tsx (shared)
+                    - packages/frontend/components/SuggestedProfileCard.tsx
+                      - packages/frontend/utils/userPlaceholderColor.ts (shared)
+                      - packages/frontend/components/ProfileCard.tsx (shared)
+                      - packages/frontend/components/UserName.tsx (shared)
+                    - packages/frontend/hooks/useCachedUser.ts (shared)
+                    - packages/frontend/utils/userEnrichment.ts (shared)
+                    - packages/frontend/components/Feed/interstitials/PersonSuggestionItem.tsx
+                      - packages/frontend/components/ProfileCard.tsx (shared)
+                      - packages/frontend/components/Profile/profileRoute.ts (shared)
+                      - packages/frontend/components/SuggestedProfileCard.tsx (shared)
+                      - packages/frontend/components/Feed/interstitials/DismissButton.tsx
+                        - packages/frontend/assets/icons/close-icon.tsx (shared)
+                        - packages/frontend/lib/utils.ts (shared)
+                        - packages/frontend/styles/hitSlop.ts (shared)
+                      - packages/frontend/components/Feed/interstitials/interstitialTelemetry.ts
+                        - packages/frontend/utils/feedTelemetry.ts (shared)
+                    - packages/frontend/components/Feed/interstitials/InterstitialShell.tsx
+                      - packages/frontend/hooks/useOptimizedMediaQuery.ts
+                      - packages/frontend/components/Feed/interstitials/interstitialLayout.ts
+                      - packages/frontend/components/Feed/interstitials/interstitialTelemetry.ts (shared)
+                      - packages/frontend/styles/hitSlop.ts (shared)
+                    - packages/frontend/components/Feed/interstitials/interstitialLayout.ts (shared)
+                    - packages/frontend/components/Feed/interstitials/interstitialTelemetry.ts (shared)
+                    - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                  - packages/frontend/components/Feed/interstitials/SuggestedFeedsInterstitial.tsx
+                    - packages/frontend/components/FeedCard.tsx
+                      - packages/frontend/utils/formatNumber.ts (shared)
+                      - packages/frontend/components/ProfileHoverCard/index.tsx (shared)
+                    - packages/frontend/components/FeedSubscribeButton.tsx
+                    - packages/frontend/services/customFeedsService.ts
+                      - packages/frontend/utils/api.ts (shared)
+                      - packages/frontend/utils/apiError.ts (shared)
+                    - packages/frontend/components/Feed/interstitials/DismissButton.tsx (shared)
+                    - packages/frontend/components/Feed/interstitials/InterstitialShell.tsx (shared)
+                    - packages/frontend/components/Feed/interstitials/interstitialLayout.ts (shared)
+                    - packages/frontend/components/Feed/interstitials/interstitialTelemetry.ts (shared)
+                    - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                  - packages/frontend/components/Feed/interstitials/SuggestedStarterPacksInterstitial.tsx
+                    - packages/frontend/components/StarterPackCard.tsx
+                      - packages/frontend/utils/formatNumber.ts (shared)
+                      - packages/frontend/components/Profile/profileRoute.ts (shared)
+                      - packages/frontend/assets/icons/starter-pack-icon.tsx (shared)
+                      - packages/frontend/components/ProfileHoverCard/index.tsx (shared)
+                    - packages/frontend/services/starterPacksService.ts (shared)
+                    - packages/frontend/components/Feed/interstitials/DismissButton.tsx (shared)
+                    - packages/frontend/components/Feed/interstitials/InterstitialShell.tsx (shared)
+                    - packages/frontend/components/Feed/interstitials/interstitialLayout.ts (shared)
+                    - packages/frontend/components/Feed/interstitials/interstitialTelemetry.ts (shared)
+                    - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                  - packages/frontend/components/Feed/interstitials/SuggestedUsersInterstitial.tsx
+                    - packages/frontend/components/ProfileCard.tsx (shared)
+                    - packages/frontend/components/SuggestedProfileCard.tsx (shared)
+                    - packages/frontend/hooks/useRecommendations.ts (shared)
+                    - packages/frontend/lib/recommendations.ts (shared)
+                    - packages/frontend/components/Feed/interstitials/PersonSuggestionItem.tsx (shared)
+                    - packages/frontend/components/Feed/interstitials/InterstitialShell.tsx (shared)
+                    - packages/frontend/components/Feed/interstitials/interstitialLayout.ts (shared)
+                    - packages/frontend/components/Feed/interstitials/interstitialTelemetry.ts (shared)
+                  - packages/frontend/components/Feed/interstitials/TrendingTopicsInterstitial.tsx
+                    - packages/frontend/interfaces/Trend.ts (shared)
+                    - packages/frontend/stores/trendsStore.ts (shared)
+                    - packages/frontend/hooks/useTrendItemMenu.ts
+                      - packages/frontend/interfaces/Trend.ts (shared)
+                      - packages/frontend/stores/trendsStore.ts (shared)
+                      - packages/frontend/hooks/useTrendNavigation.ts
+                        - packages/frontend/config.ts (shared)
+                        - packages/frontend/interfaces/Trend.ts (shared)
+                        - packages/frontend/utils/feedTelemetry.ts (shared)
+                      - packages/frontend/hooks/useWidgetItemMenu.tsx
+                        - packages/frontend/assets/icons/hide-icon.tsx
+                          - packages/frontend/assets/icons/IconSvg.tsx (shared)
+                        - packages/frontend/assets/icons/share-icon.tsx (shared)
+                        - packages/frontend/context/BottomSheetContext.tsx (shared)
+                        - packages/frontend/lib/utils.ts (shared)
+                      - packages/frontend/utils/shareLink.ts
+                    - packages/frontend/hooks/useTrendNavigation.ts (shared)
+                    - packages/frontend/components/trending/TrendItemRow.tsx
+                      - packages/frontend/utils/formatNumber.ts (shared)
+                      - packages/frontend/interfaces/Trend.ts (shared)
+                      - packages/frontend/components/settings/RowIcon.tsx
+                      - packages/frontend/styles/hitSlop.ts (shared)
+                    - packages/frontend/utils/feedTelemetry.ts (shared)
+                    - packages/frontend/components/Feed/interstitials/InterstitialShell.tsx (shared)
+                    - packages/frontend/components/Feed/interstitials/interstitialLayout.ts (shared)
+                    - packages/frontend/components/Feed/interstitials/interstitialTelemetry.ts (shared)
+                - packages/frontend/stores/threadHoverStore.ts (shared)
+                - packages/frontend/utils/feedUtils.ts (shared)
+                - packages/frontend/components/Compose/composeLayout.ts (shared)
+                - packages/frontend/styles/shared.ts (shared)
+                - packages/frontend/components/Feed/feedPaging.ts
+              - packages/frontend/components/Feed/useScrollMarginOrigin.ts
+              - packages/frontend/lib/webTelemetry.ts (shared)
+              - packages/frontend/components/Feed/useFeedCore.tsx
+                - packages/frontend/hooks/useFeedState.ts
+                  - packages/frontend/stores/postsStore.ts (shared)
+                  - packages/frontend/utils/feedUtils.ts (shared)
+                  - packages/frontend/utils/feedRetry.ts (shared)
+                  - packages/frontend/hooks/useDeepCompare.ts
+                    - packages/frontend/utils/feedUtils.ts (shared)
+                  - packages/frontend/db/index.ts (shared)
+                  - packages/frontend/utils/feedMemoryMode.ts
+                  - packages/frontend/stores/feedStaleness.ts
+                    - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                    - packages/frontend/stores/engagementInvalidation.ts (shared)
+                    - packages/frontend/stores/laneInvalidation.ts
+                      - packages/frontend/lib/queryClient.ts (shared)
+                      - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                    - packages/frontend/stores/safetyInvalidation.ts
+                      - packages/frontend/lib/queryClient.ts (shared)
+                      - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                    - packages/frontend/stores/bylineInvalidation.ts
+                      - packages/frontend/lib/queryClient.ts (shared)
+                      - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                  - packages/frontend/hooks/useFeedQuery.ts
+                    - packages/frontend/services/feedService.ts (shared)
+                    - packages/frontend/stores/postsStore.ts (shared)
+                    - packages/frontend/lib/precacheActorsFromPosts.ts (shared)
+                    - packages/frontend/lib/viewerQueryKeys.ts (shared)
+                    - packages/frontend/stores/feedQueryCache.ts (shared)
+                    - packages/frontend/stores/feedStaleness.ts (shared)
+                    - packages/frontend/utils/feedRetry.ts (shared)
+                    - packages/frontend/utils/feedUtils.ts (shared)
+                    - packages/frontend/hooks/useDeepCompare.ts (shared)
+                    - packages/frontend/hooks/useFeedState.ts (shared)
+                    - packages/frontend/hooks/useReloadOnFeedRuleChange.ts
+                      - packages/frontend/stores/safetyInvalidation.ts (shared)
+                      - packages/frontend/stores/bylineInvalidation.ts (shared)
+                  - packages/frontend/hooks/useReloadOnFeedRuleChange.ts (shared)
+                  - packages/frontend/utils/feedMemoryMode.ts (shared)
+                - packages/frontend/hooks/useDeepCompare.ts (shared)
+                - packages/frontend/hooks/usePrivacyControls.ts
+                  - packages/frontend/stores/privacyStore.ts
+                - packages/frontend/utils/feedUtils.ts (shared)
+                - packages/frontend/utils/feedTelemetry.ts (shared)
+                - packages/frontend/utils/feedRetry.ts (shared)
+                - packages/frontend/components/Feed/FeedHeader.tsx
+                - packages/frontend/components/Feed/FeedFooter.tsx
+                - packages/frontend/components/Feed/FeedEmptyState.tsx
+                  - packages/frontend/utils/feedRetry.ts (shared)
+                  - packages/frontend/components/common/EmptyState.tsx (shared)
+                  - packages/frontend/lib/stickers.ts (shared)
+                - packages/frontend/components/Feed/holdForLeading.ts
+                - packages/frontend/components/Feed/feedRows.tsx (shared)
+                - packages/frontend/components/Feed/feedPaging.ts (shared)
+          - packages/frontend/components/Feed/PostItem.tsx (shared)
+        - packages/frontend/components/Feed/PostItem.tsx (shared)
+        - packages/frontend/components/Profile/ProfileWriters.tsx
+          - packages/frontend/components/ProfileCard.tsx (shared)
+          - packages/frontend/utils/dateUtils.ts (shared)
+          - packages/frontend/components/Profile/hooks/useChannelWriters.ts (shared)
+          - packages/frontend/components/common/EmptyState.tsx (shared)
+        - packages/frontend/components/Profile/MediaGrid.tsx
+          - packages/frontend/components/common/Ionicons.tsx (shared)
+          - packages/frontend/components/common/EmptyState.tsx (shared)
+          - packages/frontend/db/index.ts (shared)
+          - packages/frontend/components/Profile/LiveVideoPosterCell.tsx
+            - packages/frontend/components/common/VideoPosterCell.tsx
+              - packages/frontend/components/common/Ionicons.tsx (shared)
+              - packages/frontend/utils/formatNumber.ts (shared)
+              - packages/frontend/utils/formatDuration.ts (shared)
+            - packages/frontend/stores/postsStore.ts (shared)
+          - packages/frontend/utils/mediaTypes.ts (shared)
+          - packages/frontend/components/Profile/useProfileMediaFeed.ts
+            - packages/frontend/stores/postsStore.ts (shared)
+            - packages/frontend/db/index.ts (shared)
+          - packages/frontend/components/Profile/ProfileGridList.tsx
+            - packages/frontend/components/Profile/ProfileGridList.types.ts
+              - packages/frontend/context/LayoutScrollContext.tsx (shared)
+            - packages/frontend/components/Profile/ProfileGridList.types.ts (shared)
+        - packages/frontend/components/Profile/VideosGrid.tsx
+          - packages/frontend/components/common/EmptyState.tsx (shared)
+          - packages/frontend/utils/imageUrlCache.ts (shared)
+          - packages/frontend/components/Profile/LiveVideoPosterCell.tsx (shared)
+          - packages/frontend/utils/mediaTypes.ts (shared)
+          - packages/frontend/components/Profile/useProfileMediaFeed.ts (shared)
+          - packages/frontend/components/Profile/ProfileGridList.tsx (shared)
+        - packages/frontend/components/FeedCard.tsx (shared)
+        - packages/frontend/components/StarterPackCard.tsx (shared)
+        - packages/frontend/services/feedService.ts (shared)
+        - packages/frontend/services/customFeedsService.ts (shared)
+        - packages/frontend/components/ListCard.tsx
+          - packages/frontend/lib/utils.ts (shared)
+          - packages/frontend/components/ProfileHoverCard/index.tsx (shared)
+        - packages/frontend/services/starterPacksService.ts (shared)
+        - packages/frontend/services/listsService.ts (shared)
+        - packages/frontend/services/jobsService.ts
+          - packages/frontend/utils/api.ts (shared)
+          - packages/frontend/utils/apiError.ts (shared)
+        - packages/frontend/components/Jobs/OrganizationJobRow.tsx
+          - packages/frontend/utils/dateUtils.ts (shared)
+          - packages/frontend/utils/jobVocabulary.ts (shared)
+        - packages/frontend/components/Profile/hooks/useOperatesAccount.ts (shared)
+        - packages/frontend/components/Profile/types.ts (shared)
+        - packages/frontend/lib/viewerQueryKeys.ts (shared)
+        - packages/frontend/components/common/EmptyState.tsx (shared)
+        - packages/frontend/context/ScreenReselectContext.tsx
+          - packages/frontend/context/LayoutScrollContext.tsx (shared)
+          - packages/frontend/hooks/useRefSync.ts
+      - packages/frontend/components/Profile/types.ts (shared)
+      - packages/frontend/components/Profile/types.ts (shared)
+      - packages/frontend/components/Profile/hooks/useProfileChrome.ts (shared)
+    - packages/frontend/components/Profile/ProfilePageHeader.tsx (shared)
+    - packages/frontend/components/Profile/ProfileTabBarRow.tsx
+    - packages/frontend/components/Profile/ProfileHeader.tsx (shared)
+    - packages/frontend/components/Profile/ChannelHeader.tsx (shared)
+    - packages/frontend/components/Profile/ProfileStats.tsx (shared)
+    - packages/frontend/components/Profile/ProfileMeta.tsx (shared)
+    - packages/frontend/components/Profile/ProfileCommunities.tsx (shared)
+    - packages/frontend/components/Profile/ProfileTabs.tsx (shared)
+    - packages/frontend/components/Profile/ProfileWriters.tsx (shared)
+    - packages/frontend/components/Profile/PrivateBadge.tsx (shared)
+    - packages/frontend/components/Profile/AccountCategoryLine.tsx (shared)
+    - packages/frontend/components/Profile/ProfileContent.tsx (shared)
+    - packages/frontend/components/Profile/MediaGrid.tsx (shared)
+    - packages/frontend/components/Profile/VideosGrid.tsx (shared)
+
+## components/Jobs/OrganizationJobRow.tsx
+- packages/frontend/components/Jobs/OrganizationJobRow.tsx
+  - packages/frontend/utils/dateUtils.ts
+  - packages/frontend/utils/jobVocabulary.ts
