@@ -84,7 +84,7 @@ describe('identityDomainOfActor', () => {
     // body is left alone — never qualified onto the bridge host it arrived
     // through, which is what the old `domain` fallback would have done.
     for (const networkAcct of ['pabloiglesias', 'pabloiglesias@', '@x.com', '   ']) {
-      expect(identityDomainOfActor({ networkAcct, domain: 'mastox.eu' })).toBeUndefined();
+      expect(identityDomainOfActor({ networkAcct, domain: 'mastodon.example' })).toBeUndefined();
     }
   });
 

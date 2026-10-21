@@ -939,7 +939,12 @@ export class OutboxSyncService {
           // identity network, exactly as the inbox does; a note by anyone else
           // (a boosted original) is the dependency path's to qualify.
           ...(authorUri === actor.uri
-            ? { identityDomain: identityDomainOfActor({ networkAcct: actor.networkAcct, domain: actor.domain ?? getRemoteHost(actor.uri) }) }
+            ? {
+                identityDomain: identityDomainOfActor({
+                  networkAcct: actor.networkAcct,
+                  domain: actor.domain ?? getRemoteHost(actor.uri),
+                }),
+              }
             : {}),
         });
         if (built.skip) {

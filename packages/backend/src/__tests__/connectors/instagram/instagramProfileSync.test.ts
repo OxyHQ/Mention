@@ -148,6 +148,7 @@ describe('an Instagram-identity profile view', () => {
       kilogramActor({
         uri: 'https://mastodon.example/users/alice',
         networkAcct: undefined,
+        domain: 'mastodon.example',
         lastOutboxSyncAt: new Date(Date.now() - 20 * MINUTE),
       }),
     );
