@@ -96,7 +96,7 @@ export interface FeedEngineContext extends FeedContext {
    * Viewer's friends-of-friends author ids (accounts the viewer's follows follow,
    * excluding the viewer's own follows + self). Populated by the controller ONLY
    * for the `friends_of_friends` descriptor, via the Oxy follows-of-follows
-   * endpoint (guarded optional call), so no other feed pays for it.
+   * endpoint, so no other feed pays for it.
    */
   fofIds?: string[];
   /**
