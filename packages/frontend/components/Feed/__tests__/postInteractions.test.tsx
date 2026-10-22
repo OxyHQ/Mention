@@ -266,19 +266,41 @@ describe('bound sheet commands', () => {
     mockNoteSheets.canWrite = false;
   });
 
-  it('opens sources in the one sheet, and ignores an empty list', () => {
+  // The sheet's content is `<Suspense><Sheet onClose /></Suspense>`; closing it
+  // is the sheet's own callback, so the test presses that.
+  const closeShownSheet = () => {
+    const shown = sheet.setBottomSheetContent.mock.calls.at(-1)?.[0] as React.ReactElement<{
+      children: React.ReactElement<{ onClose: () => void }>;
+    }>;
+    shown.props.children.props.onClose();
+  };
+
+  it('opens sources in the one sheet, ignores an empty list, and clears it on close', () => {
     const commands = bound();
     commands.openSources([]);
     expect(sheet.setBottomSheetContent).not.toHaveBeenCalled();
     commands.openSources([{ url: 'https://example.test' }]);
     expect(sheet.setBottomSheetContent).toHaveBeenCalledTimes(1);
     expect(sheet.openBottomSheet).toHaveBeenLastCalledWith(true);
+    closeShownSheet();
+    expect(sheet.setBottomSheetContent).toHaveBeenLastCalledWith(null);
+    expect(sheet.openBottomSheet).toHaveBeenLastCalledWith(false);
   });
 
-  it('opens insights in the one sheet', () => {
+  it('opens insights in the one sheet, and closes it', () => {
     bound().openInsights('p1');
     expect(sheet.setBottomSheetContent).toHaveBeenCalledTimes(1);
     expect(sheet.openBottomSheet).toHaveBeenLastCalledWith(true);
+    closeShownSheet();
+    expect(sheet.openBottomSheet).toHaveBeenLastCalledWith(false);
+  });
+
+  it('without a binder, a sheet command is a logged no-op', () => {
+    const commands = capture((probe) => (
+      <PostInteractionsProvider>{probe}</PostInteractionsProvider>
+    ));
+    expect(() => commands.openInsights('p1')).not.toThrow();
+    expect(sheet.setBottomSheetContent).not.toHaveBeenCalled();
   });
 
   it("routes a note's about sheet to the app's community-note flows", () => {
