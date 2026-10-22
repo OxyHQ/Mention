@@ -208,6 +208,24 @@ describe('MtnFeedController.getFeed → engine', () => {
     expect(body.data.items).toHaveLength(1);
   });
 
+  it.each([
+    ['explore', 'mtn:explore-v3'],
+    ['media', 'mtn:media-v2'],
+  ])(
+    'versions anonymous %s cache entries without changing other feeds',
+    async (descriptor, namespace) => {
+      const res = makeRes();
+      await mtnFeedController.getFeed(
+        { query: { descriptor }, user: undefined } as never,
+        res as never,
+      );
+      expect(res.statusCode).toBe(200);
+      expect(anonCache.buildKey).toHaveBeenCalledWith(
+        expect.objectContaining({ namespace, type: descriptor }),
+      );
+    },
+  );
+
   it('400s an invalid descriptor', async () => {
     const req = { query: { descriptor: 'not_a_feed' }, user: undefined } as never;
     const res = makeRes();
