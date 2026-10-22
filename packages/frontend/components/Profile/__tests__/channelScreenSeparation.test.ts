@@ -221,8 +221,8 @@ describe('a channel’s operator rows', () => {
     // gate that decides it is `operatesThisChannel`, shared with the settings row
     // beside it.
     const gated = channelScreen.slice(
-      channelScreen.indexOf('const leadingActions'),
-      channelScreen.indexOf('[operatesThisChannel, handle, t]'),
+      channelScreen.indexOf('const leadingItems'),
+      channelScreen.indexOf(': undefined;', channelScreen.indexOf('const leadingItems')),
     );
     expect(gated).toContain('operatesThisChannel');
     expect(gated).toMatch(/`\/c\/\$\{handle\}\/insights`/);

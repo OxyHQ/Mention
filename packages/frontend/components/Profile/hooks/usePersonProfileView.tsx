@@ -59,7 +59,7 @@ import {
   type ProfileAccount,
 } from './useProfileAccount';
 import { useProfileChrome, type ProfileChrome } from './useProfileChrome';
-import { useProfileMoreMenu } from './useProfileMoreMenu';
+import { ProfileMoreMenu } from '../ProfileMoreMenu';
 import { useMessageInAllo } from './useMessageInAllo';
 import { useOperatesAccount } from './useOperatesAccount';
 import { useJustFollowed } from './useJustFollowed';
@@ -385,11 +385,6 @@ export function usePersonProfileView({
     accountKind: profileData?.kind,
   });
 
-  const handleMoreOptions = useProfileMoreMenu({
-    profileData,
-    viewerOperatesAccount: isOwnProfile || operatesThisAccount,
-  });
-
   // Mention has no DMs; a message to this person is a conversation in Allo.
   const handleDM = useMessageInAllo(profileData?.id, handle);
 
@@ -618,16 +613,17 @@ export function usePersonProfileView({
             defaultValue: "Share @{{handle}}'s profile",
           })}
         />
-        {!isOwnProfile && handleMoreOptions && (
-          <ButtonGroupItem
-            iconOnly
-            leadingIcon={RiMoreFill}
-            onPress={handleMoreOptions}
-            accessibilityLabel={t('profile.actions.more', {
-              handle,
-              defaultValue: 'More options for @{{handle}}',
-            })}
-          />
+        {!isOwnProfile && canUsePrivateApi && (
+          <ProfileMoreMenu profileData={profileData} viewerOperatesAccount={operatesThisAccount}>
+            <ButtonGroupItem
+              iconOnly
+              leadingIcon={RiMoreFill}
+              accessibilityLabel={t('profile.actions.more', {
+                handle,
+                defaultValue: 'More options for @{{handle}}',
+              })}
+            />
+          </ProfileMoreMenu>
         )}
       </ButtonGroup>
     </>

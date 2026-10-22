@@ -2,7 +2,6 @@ import { memo, useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { RiArrowDownLine } from '@oxy.so/bloom/icons/RiArrowDownLine';
 import { RiArrowUpLine } from '@oxy.so/bloom/icons/RiArrowUpLine';
-import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { Sparkline } from '@oxy.so/bloom/chart-cards/sparkline';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { AvatarGroup } from '@oxy.so/bloom/avatar-group';
@@ -12,9 +11,9 @@ import type { TFunction } from 'i18next';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { formatCompactNumber } from '@/utils/formatNumber';
+import { WidgetItemMenu, type WidgetItemMenuActions } from '@/components/widgets/WidgetItemMenu';
 import type { Trend } from '@/interfaces/Trend';
 import type { BloomIcon } from '@/components/settings/RowIcon';
-import { HIT_SLOP_LG } from '@/styles/hitSlop';
 import { getTrendBadge } from './trendBadge';
 
 /** Faces shown beside a trend. Matches what the server stores per trend. */
@@ -99,7 +98,8 @@ function getTrendLabel(trend: Trend, t: TFunction): string {
 interface TrendItemRowProps {
   trend: Trend;
   onPress: (trend: Trend) => void;
-  onMenuPress?: (trend: Trend) => void;
+  /** What the ⋯ menu of this trend does; omit to hide the button. */
+  getMenuActions?: (trend: Trend) => WidgetItemMenuActions;
   showBorder?: boolean;
   size?: 'compact' | 'large';
   /**
@@ -116,7 +116,7 @@ interface TrendItemRowProps {
 export const TrendItemRow = memo(function TrendItemRow({
   trend,
   onPress,
-  onMenuPress,
+  getMenuActions,
   showBorder = false,
   size = 'compact',
   ordinal,
@@ -244,17 +244,7 @@ export const TrendItemRow = memo(function TrendItemRow({
           </View>
         ) : null}
       </View>
-      {onMenuPress ? (
-        <TouchableOpacity
-          className="p-1 web:cursor-pointer"
-          onPress={() => onMenuPress(trend)}
-          hitSlop={HIT_SLOP_LG}
-          accessibilityLabel="More options"
-          accessibilityRole="button"
-        >
-          <RiMoreFill size="sm" fill={theme.colors.textSecondary} />
-        </TouchableOpacity>
-      ) : null}
+      {getMenuActions ? <WidgetItemMenu label={trend.text} {...getMenuActions(trend)} /> : null}
     </TouchableOpacity>
   );
 });

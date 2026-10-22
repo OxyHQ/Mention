@@ -102,7 +102,7 @@ export default function ExploreTrendingScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const { navigateToTrend } = useTrendNavigation();
-  const handleMenuPress = useTrendItemMenu();
+  const getTrendMenuActions = useTrendItemMenu();
 
   // Live current trends (realtime store): same single source the right-rail
   // TrendsWidget reads. Start polling on mount (idempotent) so a direct deep-link
@@ -194,13 +194,13 @@ export default function ExploreTrendingScreen() {
           onPress={(trend) => handleTrendPress(trend, section, index)}
           // Parity with the widget: a trend could be hidden from the rail but
           // not from the screen that exists to browse trends.
-          onMenuPress={handleMenuPress}
+          getMenuActions={getTrendMenuActions}
           showBorder
           size="large"
         />
       </View>
     ),
-    [handleTrendPress, handleMenuPress],
+    [handleTrendPress, getTrendMenuActions],
   );
 
   const renderSectionHeader = useCallback(

@@ -301,8 +301,7 @@ const AvatarStrip: React.FC<{ actors: ResolvedActor[]; totalActors: number }> = 
 const ACTION_ICON_SIZE = 20;
 
 /**
- * One row of the long-press action sheet. Mirrors the grouped, rounded row
- * treatment the shared widget menu uses (`useWidgetItemMenu`), with a
+ * One row of the long-press action sheet. Grouped, rounded rows with a
  * `destructive` variant for the red delete affordance.
  */
 const NotificationActionRow: React.FC<{

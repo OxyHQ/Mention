@@ -24,6 +24,7 @@ import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 // Components
 import UserName from './UserName';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
+import { DropdownMenuItem } from '@oxy.so/bloom/dropdown-menu';
 import { SEO } from '@/components/SEO';
 import { useProfileSEOPolicy } from '@/hooks/useProfileSEOPolicy';
 import { WEB_BASE_URL } from '@/config';
@@ -39,7 +40,7 @@ import {
   useProfileCanonicalHref,
   useRoutedProfileUsername,
   useProfileChrome,
-  useProfileMoreMenu,
+  ProfileMoreMenu,
   useOperatesAccount,
   useJustFollowed,
   useChannelWriters,
@@ -272,36 +273,28 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
   // a channel has no such header, because it is never anybody's "own profile":
   // no session's subject can be a channel, so the menu is where its operators'
   // actions live.
-  const leadingActions = useMemo(
-    () =>
-      operatesThisChannel
-        ? [
-            {
-              icon: <AnalyticsIcon size={22} className="text-foreground" />,
-              label: t('insights.title', { defaultValue: 'Insights' }),
-              onPress: () => router.push(`/c/${handle}/insights`),
-            },
-            {
-              icon: <RiSettings3Line width={22} height={22} fill={colors.text} />,
-              label: t('channels.settings.title', { defaultValue: 'Channel settings' }),
-              onPress: () => router.push(`/c/${handle}/settings`),
-            },
-          ]
-        : undefined,
-    [operatesThisChannel, handle, t, colors.text, router],
-  );
+  const leadingItems = operatesThisChannel ? (
+    <>
+      <DropdownMenuItem
+        leading={<AnalyticsIcon size={22} className="text-foreground" />}
+        onPress={() => router.push(`/c/${handle}/insights`)}
+      >
+        {t('insights.title', { defaultValue: 'Insights' })}
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        leading={<RiSettings3Line width={22} height={22} fill={colors.text} />}
+        onPress={() => router.push(`/c/${handle}/settings`)}
+      >
+        {t('channels.settings.title', { defaultValue: 'Channel settings' })}
+      </DropdownMenuItem>
+    </>
+  ) : undefined;
 
   // `viewerOperatesAccount`, never `isOwnProfile: false` as this read before.
   // That literal was true of the LOGIN identity — a channel can never be signed
   // in as, so it is never "your own profile" — and it silently answered a
   // different question from the one the menu asks, which is how an operator came
   // to be offered Block and Report against their own channel.
-  const handleMoreOptions = useProfileMoreMenu({
-    profileData,
-    viewerOperatesAccount: operatesThisChannel,
-    leadingActions,
-  });
-
   // A channel is an Oxy account like any other, so its visibility setting is
   // readable even though the channel-settings screen does not offer one today.
   // Read rather than assumed: hardcoding "public" would silently expose a
@@ -459,19 +452,22 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
           defaultValue: "Share @{{handle}}'s profile",
         })}
       />
-      {handleMoreOptions && (
+      <ProfileMoreMenu
+        profileData={profileData}
+        viewerOperatesAccount={operatesThisChannel}
+        leadingItems={leadingItems}
+      >
         <Button
           appearance="subtle"
           tone="neutral"
           iconOnly
           leadingIcon={RiMoreFill}
-          onPress={handleMoreOptions}
           accessibilityLabel={t('profile.actions.more', {
             handle,
             defaultValue: 'More options for @{{handle}}',
           })}
         />
-      )}
+      </ProfileMoreMenu>
     </>
   );
 

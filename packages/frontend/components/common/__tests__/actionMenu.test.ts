@@ -72,10 +72,10 @@ describe('action menu wiring', () => {
     expect(files.length).toBeGreaterThan(200);
   });
 
-  // The post menu and the profile menu are the same surface. They diverged once
-  // (the profile one hand-rolled full-width buttons on a bare sheet) and that is
-  // what this pins.
-  it('routes every menu through showActionMenu', () => {
+  // The ⋯ buttons (post, profile, trend, room) render through
+  // `ActionMenuTrigger`, Bloom's DropdownMenu; what is left on `showActionMenu`
+  // are the menus opened from something that is not a button.
+  it('routes every imperative menu through showActionMenu', () => {
     const callers = files
       .filter((file) => /showActionMenu\(/.test(readFileSync(file, 'utf8')))
       .map((f) => f.slice(FRONTEND.length + 1))
@@ -87,19 +87,10 @@ describe('action menu wiring', () => {
       // delete) — the same surface as the two below, so it goes through the same
       // host rather than hand-rolling a third one.
       join('app', '(app)', 'lanes.tsx'),
-      // The post ⋯ menu. Built by the app's one post-interaction controller
-      // when a row's menu is PRESSED, not by each row (#1103).
-      join('components', 'Feed', 'PostInteractionsBinder.tsx'),
       join('components', 'Feed', 'showRepostMenu.tsx'),
       // "Message in Allo" when Allo is not installed: get Allo, or open it on
       // the web (#1140).
       join('components', 'Profile', 'hooks', 'useMessageInAllo.tsx'),
-      // The profile overflow menu. It lives in a hook rather than on a screen
-      // because BOTH profile screens open the same menu — a person's and a
-      // channel's — and what differs between them is data rather than structure:
-      // the operator's channel-settings entry arrives as a prop, and mute /
-      // block / report drop out for a viewer who operates the account.
-      join('components', 'Profile', 'hooks', 'useProfileMoreMenu.tsx'),
     ]);
   });
 

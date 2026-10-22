@@ -2,32 +2,38 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 47.97,
-      "covered": 13581,
-      "total": 28310
+      "pct": 48.25,
+      "covered": 13632,
+      "total": 28250
     },
     "branches": {
-      "pct": 43.32,
-      "covered": 9093,
-      "total": 20989
+      "pct": 43.53,
+      "covered": 9117,
+      "total": 20943
     },
     "functions": {
-      "pct": 42.46,
-      "covered": 3128,
-      "total": 7366
+      "pct": 42.65,
+      "covered": 3135,
+      "total": 7350
     },
     "lines": {
-      "pct": 48.76,
-      "covered": 12348,
-      "total": 25322
+      "pct": 49.07,
+      "covered": 12398,
+      "total": 25261
     }
   },
   "pins": {
     "components/Feed/PostInteractionsBinder.tsx": {
-      "statements": 89,
-      "branches": 91,
+      "statements": 92,
+      "branches": 100,
+      "functions": 76,
+      "lines": 100
+    },
+    "components/Feed/PostMenuContent.tsx": {
+      "statements": 92,
+      "branches": 88,
       "functions": 71,
-      "lines": 91
+      "lines": 92
     },
     "components/Feed/postInteractions.tsx": {
       "statements": 98,
@@ -770,12 +776,6 @@
     "hooks/useVoteStyle.ts": {
       "statements": 0,
       "branches": 100,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useWidgetItemMenu.tsx": {
-      "statements": 0,
-      "branches": 0,
       "functions": 0,
       "lines": 0
     },
