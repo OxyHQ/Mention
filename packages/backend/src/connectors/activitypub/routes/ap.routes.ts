@@ -5,11 +5,17 @@ import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { announceCommunityPosts, resolveLocalCommunityActor } from '../communityRelay';
 import { logger } from '../../../utils/logger';
 import { activityPubConnector } from '../ActivityPubConnector';
-import { AP_CONTEXT } from '@oxy.so/federation';
+import {
+  AP_CONTEXT,
+  GROUP_OUTBOX_SIZE,
+  groupOutboxCollection,
+  isGroupActorKind,
+} from '@oxy.so/federation';
 import { goneTombstone } from '@oxy.so/federation/node';
 import { getDb } from '../../../db/postgres';
 import { posts } from '../../../db/schema/posts';
 import { findPostRecords, loadPostRecord } from '../../../db/posts/postRepository';
+import type { PostRecord } from '../../../db/posts/postRecord';
 import {
   FEDERATION_DOMAIN,
   FEDERATION_ENABLED,
@@ -107,9 +113,40 @@ function communityOutboxScope(communityOxyUserId: string) {
 }
 
 /**
+ * The `Create` builder for a window of outbox posts. Reuses the SINGLE Note
+ * builder push delivery uses, so outbox backfill (Mastodon ≥4.4 imports up to 20
+ * items on discovery, Lemmy a community's 50) carries the same fidelity as pushed
+ * posts: canonical url, hashtag `tag`s, media `attachment`s, AND resolved
+ * @mention anchors/tags (never a raw `[mention:<id>]` placeholder). Each context
+ * is batch-resolved for the whole window: mentions in two reads, poll tallies in
+ * one (a poll post serializes as `Question`), quote references deduped (FEP-044f
+ * quote fields + FEP-e232 Link tag), and the community a post was written in.
+ */
+async function createActivityBuilder(
+  window: PostRecord[],
+): Promise<(post: PostRecord, authorUsername: string) => Record<string, unknown>> {
+  const mentionContexts = await activityPubConnector.resolveMentionContextByPost(window);
+  const pollContexts = await activityPubConnector.resolvePollContextByPost(window);
+  const quoteContexts = await activityPubConnector.resolveQuoteContextByPost(window);
+  const communityContexts = await activityPubConnector.resolveCommunityContextByPost(window);
+  return (post, authorUsername) =>
+    activityPubConnector.buildCreateNoteActivity(
+      post,
+      authorUsername,
+      undefined,
+      mentionContexts.get(post.id),
+      pollContexts.get(post.id),
+      quoteContexts.get(post.id),
+      communityContexts.get(post.id),
+    );
+}
+
+/**
  * GET /ap/users/:username/outbox — User's public posts as OrderedCollection.
  * A COMMUNITY's outbox is the posts written in it, as the `Announce`s it relayed
- * them as (FEP-1b12) — what Lemmy backfills a discovered community from.
+ * them as (FEP-1b12) — what Lemmy backfills a discovered community from. Lemmy
+ * reads a community outbox unpaged, its latest Announces inline, so a `Group`
+ * serves exactly that on every request (`groupOutboxCollection`).
  */
 router.get('/users/:username/outbox', async (req: Request, res: Response) => {
   if (!FEDERATION_ENABLED) return res.status(404).json({ error: 'Federation disabled' });
@@ -130,13 +167,32 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
     const userId = String(user._id || user.id);
     if (!(await authorsMayFederate([userId])))
       return res.status(404).json({ error: 'User not found' });
-    const community = await resolveLocalCommunityActor(userId);
-    const scope = community ? communityOutboxScope(userId) : outboxScope(userId);
+    const group = isGroupActorKind(user.kind);
+    const community = group ? await resolveLocalCommunityActor(userId) : null;
+    const scope = group ? communityOutboxScope(userId) : outboxScope(userId);
     const [totals] = await getDb()
       .select({ count: sql<number>`count(*)::int` })
       .from(posts)
       .where(scope);
     const totalPosts = totals?.count ?? 0;
+
+    if (group) {
+      let orderedItems: Record<string, unknown>[] = [];
+      if (community) {
+        const latest = await filterFederatablePosts(
+          await findPostRecords(scope, { orderBy: chronoOrderBy(), limit: GROUP_OUTBOX_SIZE }),
+        );
+        orderedItems = await announceCommunityPosts(
+          community,
+          latest,
+          await createActivityBuilder(latest),
+        );
+      }
+      res.set('Content-Type', AP_CONTENT_TYPE);
+      return res.json(
+        groupOutboxCollection({ id: outboxUrl(username), totalItems: totalPosts, orderedItems }),
+      );
+    }
 
     if (!page) {
       // Return collection summary
@@ -175,33 +231,8 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
       hasNext ? overfetched.slice(0, PAGE_SIZE) : overfetched,
     );
 
-    // Reuse the SINGLE Note builder that push delivery uses, so outbox backfill
-    // (Mastodon ≥4.4 imports up to 20 items on discovery) carries the same
-    // fidelity as pushed posts: canonical url, hashtag `tag`s, media `attachment`s,
-    // AND resolved @mention anchors/tags (never a raw `[mention:<id>]` placeholder).
-    // Mentions are batch-resolved for the whole page in two reads.
-    const mentionContexts = await activityPubConnector.resolveMentionContextByPost(pagePosts);
-    // Poll posts serialize as `Question`; batch-resolve their tallies for the whole
-    // page in one Poll read (non-poll posts are absent → plain Note).
-    const pollContexts = await activityPubConnector.resolvePollContextByPost(pagePosts);
-    // Quote posts carry the quoted object's canonical AP id (FEP-044f quote fields
-    // + FEP-e232 Link tag); batch-resolve the whole page's quote references, deduped
-    // (non-quote posts are absent → plain Note).
-    const quoteContexts = await activityPubConnector.resolveQuoteContextByPost(pagePosts);
-    const communityContexts = await activityPubConnector.resolveCommunityContextByPost(pagePosts);
-    const buildCreate = (post: (typeof pagePosts)[number], authorUsername: string) =>
-      activityPubConnector.buildCreateNoteActivity(
-        post,
-        authorUsername,
-        undefined,
-        mentionContexts.get(post.id),
-        pollContexts.get(post.id),
-        quoteContexts.get(post.id),
-        communityContexts.get(post.id),
-      );
-    const items = community
-      ? await announceCommunityPosts(community, pagePosts, buildCreate)
-      : pagePosts.map((post) => buildCreate(post, username));
+    const buildCreate = await createActivityBuilder(pagePosts);
+    const items = pagePosts.map((post) => buildCreate(post, username));
 
     const pageId = cursor
       ? `${outboxUrl(username)}?page=true&cursor=${encodeURIComponent(cursor)}`
