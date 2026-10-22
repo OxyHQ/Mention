@@ -4,7 +4,8 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 /**
- * What a channel's profile save tells the identity door.
+ * What a member-operated account's profile save tells the identity door, driven
+ * through a channel (the profile half is the same code for a community).
  *
  * This screen is the ONLY door a channel's profile has — `/edit-profile` edits
  * the signed-in user and a channel can never be signed in as — so whatever it
@@ -76,6 +77,7 @@ jest.mock('@oxy.so/services/ui/client', () => ({
 }));
 
 jest.mock('@oxy.so/core', () => ({
+  accountNameMaxLength: () => 300,
   getNormalizedUserHandle: (user: { username?: string } | null | undefined) =>
     user?.username ?? null,
 }));
@@ -85,7 +87,6 @@ jest.mock('@oxy.so/core/logger', () => ({
 
 jest.mock('expo-router', () => ({
   useRouter: () => jest.requireMock('expo-router').router,
-  useLocalSearchParams: () => ({ username: 'daily' }),
   router: { replace: jest.fn() },
 }));
 jest.mock('react-i18next', () => ({
@@ -153,24 +154,24 @@ jest.mock('@/services/channelAccountService', () => ({
  * here — the fixture's `callerMembership` is `null`, so the row is not even
  * rendered — but both are imported by the screen, and the real `@/utils/alerts`
  * reaches `@oxy.so/bloom/dialog`, which cannot be required under jest.
- * `__tests__/channelDeleteChannel.test.tsx` is where the flow itself is pinned.
+ * `operatedAccountDelete.test.tsx` is where the flow itself is pinned.
  */
 jest.mock('@/utils/alerts', () => ({ confirmDialog: jest.fn().mockResolvedValue(false) }));
 jest.mock('@/services/channelDeletionService', () => ({
   channelDeletionService: { preview: jest.fn(), deleteContent: jest.fn() },
 }));
 
-import ChannelAccountSettingsScreen from '../settings';
+import { OperatedAccountSettingsScreen } from '../OperatedAccountSettingsScreen';
 
 const CHANNEL_ID = 'channel-1';
 
 /**
- * How the description field is located. Its `accessibilityLabel` would read
- * better, but react-native does not surface that prop on the rendered
- * `TextInput` under this renderer, so a selector written against it finds
- * nothing whether the field is there or not.
+ * How the description field is located — by its placeholder's key, which the
+ * `t` stand-in above echoes. Its `accessibilityLabel` would read better, but
+ * react-native does not surface that prop on the rendered `TextInput` under this
+ * renderer, so a selector written against it finds nothing either way.
  */
-const BIO_PLACEHOLDER = 'What this channel is about';
+const BIO_PLACEHOLDER = 'channels.settings.bioPlaceholder';
 
 /** The channel as the account graph holds it before any edit. */
 function storedAccount() {
@@ -204,17 +205,16 @@ async function renderScreen() {
   await act(async () => {
     mounted = TestRenderer.create(
       <QueryClientProvider client={client}>
-        <ChannelAccountSettingsScreen />
+        <OperatedAccountSettingsScreen kind="channel" handle="daily" />
       </QueryClientProvider>,
     );
   });
   const renderer = mounted;
   if (!renderer) throw new Error('the screen did not render');
-  // Two queries resolve in series — the operated-accounts list decides whether
-  // the form mounts at all, and only then does the form ask for its byline
-  // settings — so the screen sits on a spinner for more than one flush. Polling
-  // for the field rather than flushing a fixed number of times keeps the wait
-  // tied to what the test needs instead of to React Query's scheduling.
+  // The operated-accounts list decides whether the form mounts at all, so the
+  // screen sits on a skeleton for more than one flush. Polling for the field
+  // rather than flushing a fixed number of times keeps the wait tied to what
+  // the test needs instead of to React Query's scheduling.
   for (let attempt = 0; attempt < 20; attempt += 1) {
     if (renderer.root.findAllByProps({ placeholder: BIO_PLACEHOLDER }).length > 0) {
       return renderer;

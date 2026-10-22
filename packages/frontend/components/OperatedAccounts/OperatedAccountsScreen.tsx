@@ -10,7 +10,7 @@ import { InputGroup, InputGroupAddon } from '@oxy.so/bloom/input-group';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Item } from '@oxy.so/bloom/item';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { getNormalizedUserHandle } from '@oxy.so/core';
+import { accountNameMaxLength, getNormalizedUserHandle } from '@oxy.so/core';
 import type { AccountNode } from '@oxy.so/core';
 import { logger } from '@oxy.so/core/logger';
 import { PageHeader } from '@oxy.so/bloom/page-header';
@@ -21,6 +21,7 @@ import { FocusedScrollView } from '@/components/common/FocusedScrollView';
 import { useScreenReselect } from '@/context/ScreenReselectContext';
 import { SignInRequired } from '@/components/common/SignInRequired';
 import { profileBasePath, profileRouteFamily } from '@/components/Profile/profileRoute';
+import type { OperatedAccountKind } from './operatedAccountSettingsCopy';
 
 /**
  * The accounts of one member-operated kind you operate, and the one place to
@@ -44,7 +45,6 @@ import { profileBasePath, profileRouteFamily } from '@/components/Profile/profil
 
 /** Mirrors the server's `username` rule so the error arrives before the request. */
 const HANDLE_REGEX = /^[a-zA-Z0-9_-]{3,30}$/;
-const MAX_TITLE_LENGTH = 100;
 
 /** The words one kind's screen speaks in. */
 export interface OperatedAccountsCopy {
@@ -63,7 +63,7 @@ export interface OperatedAccountsCopy {
 }
 
 interface OperatedAccountsScreenProps {
-  kind: 'channel' | 'community';
+  kind: OperatedAccountKind;
   copy: OperatedAccountsCopy;
 }
 
@@ -178,7 +178,7 @@ export function OperatedAccountsScreen({ kind, copy }: OperatedAccountsScreenPro
               placeholder={copy.titleLabel}
               value={title}
               onChangeText={setTitle}
-              maxLength={MAX_TITLE_LENGTH}
+              maxLength={accountNameMaxLength(kind)}
             />
 
             <Item
