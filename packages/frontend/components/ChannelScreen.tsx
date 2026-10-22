@@ -1,4 +1,5 @@
 import type React from 'react';
+import { ActionMenuTrigger } from '@/components/common/ActionMenuTrigger';
 import { useCallback, useMemo, useState } from 'react';
 import { View, Share } from 'react-native';
 import { useRouter, Redirect } from '@/lib/navigation/router';
@@ -296,7 +297,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
   // in as, so it is never "your own profile" — and it silently answered a
   // different question from the one the menu asks, which is how an operator came
   // to be offered Block and Report against their own channel.
-  const handleMoreOptions = useProfileMoreMenu({
+  const moreMenu = useProfileMoreMenu({
     profileData,
     viewerOperatesAccount: operatesThisChannel,
     leadingActions,
@@ -459,18 +460,19 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
           defaultValue: "Share @{{handle}}'s profile",
         })}
       />
-      {handleMoreOptions && (
-        <Button
-          appearance="subtle"
-          tone="neutral"
-          iconOnly
-          leadingIcon={RiMoreFill}
-          onPress={handleMoreOptions}
-          accessibilityLabel={t('profile.actions.more', {
-            handle,
-            defaultValue: 'More options for @{{handle}}',
-          })}
-        />
+      {moreMenu && (
+        <ActionMenuTrigger label={moreMenu.label} groups={moreMenu.getGroups}>
+          <Button
+            appearance="subtle"
+            tone="neutral"
+            iconOnly
+            leadingIcon={RiMoreFill}
+            accessibilityLabel={t('profile.actions.more', {
+              handle,
+              defaultValue: 'More options for @{{handle}}',
+            })}
+          />
+        </ActionMenuTrigger>
       )}
     </>
   );

@@ -10,6 +10,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
 
+import { ActionMenuTrigger, type ActionMenuGroups } from '@/components/common/ActionMenuTrigger';
 import { BaseWidget } from './BaseWidget';
 import { useTheme } from '@oxy.so/bloom/theme';
 import type { Room } from '@/lib/syraApi';
@@ -37,12 +38,12 @@ const RoomRow = React.memo(function RoomRow({
   room,
   isLast,
   onPress,
-  onMenuPress,
+  getMenuGroups,
 }: {
   room: Room;
   isLast: boolean;
   onPress: () => void;
-  onMenuPress: (room: Room) => void;
+  getMenuGroups: (room: Room) => ActionMenuGroups;
 }) {
   const theme = useTheme();
   const hostProfile = useUserById(room.host);
@@ -78,15 +79,16 @@ const RoomRow = React.memo(function RoomRow({
           </View>
         </View>
       </View>
-      <TouchableOpacity
-        className="p-1 web:cursor-pointer"
-        onPress={() => onMenuPress(room)}
-        hitSlop={HIT_SLOP_LG}
-        accessibilityLabel="More options"
-        accessibilityRole="button"
-      >
-        <RiMoreFill size="sm" fill={theme.colors.textSecondary} />
-      </TouchableOpacity>
+      <ActionMenuTrigger label={room.title} groups={() => getMenuGroups(room)}>
+        <TouchableOpacity
+          className="p-1 web:cursor-pointer"
+          hitSlop={HIT_SLOP_LG}
+          accessibilityLabel="More options"
+          accessibilityRole="button"
+        >
+          <RiMoreFill size="sm" fill={theme.colors.textSecondary} />
+        </TouchableOpacity>
+      </ActionMenuTrigger>
     </TouchableOpacity>
   );
 });
@@ -118,10 +120,9 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
     router.push(LIVE_ROOMS_ROUTE);
   }, [router]);
 
-  const handleMenuPress = useCallback(
+  const getMenuGroups = useCallback(
     (room: Room) => {
-      openWidgetMenu({
-        title: room.title,
+      return openWidgetMenu({
         onNotInterested: () => {
           hideRoom(room._id);
           toast(t('widgetMenu.roomHidden'), { type: 'success' });
@@ -177,7 +178,7 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
                     params: { id: room._id },
                   })
                 }
-                onMenuPress={handleMenuPress}
+                getMenuGroups={getMenuGroups}
               />
             ))}
           </View>

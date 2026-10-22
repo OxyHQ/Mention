@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { createLogger } from '@oxy.so/core/logger';
 import type { CommunityNoteSummary, HydratedPost, PostSourceLink } from '@mention/shared-types';
+import type { ActionMenuGroups } from '@/components/common/ActionMenuTrigger';
 import { sharePost } from '@/hooks/usePostShare';
 import { usePostsStore } from '@/stores/postsStore';
 
@@ -35,7 +36,8 @@ export interface PostInteractions {
   toggleSave: (post: HydratedPost, source?: string) => Promise<void>;
   toggleBoost: (post: HydratedPost, source?: string) => Promise<void>;
   share: (post: HydratedPost) => void;
-  openMenu: (request: PostMenuRequest) => void;
+  /** The ⋯ menu's groups, built when the menu opens (async: the moderation lookup). */
+  getMenuGroups: (request: PostMenuRequest) => ActionMenuGroups | Promise<ActionMenuGroups>;
   openSources: (sources: PostSourceLink[]) => void;
   openInsights: (postId: string) => void;
   openCommunityNoteAbout: (note: CommunityNoteSummary) => void;
@@ -66,7 +68,7 @@ export interface PostMenuRequest {
 export type BoundPostCommands = Pick<
   PostInteractions,
   | 'requireSession'
-  | 'openMenu'
+  | 'getMenuGroups'
   | 'openSources'
   | 'openInsights'
   | 'openCommunityNoteAbout'
@@ -166,7 +168,13 @@ function createController(): Controller {
     share: (post) => {
       void sharePost(currentPost(post));
     },
-    openMenu: whenBound('openMenu'),
+    getMenuGroups: (request) => {
+      if (!bound) {
+        logger.warn('getMenuGroups: no PostInteractionsBinder is mounted');
+        return [];
+      }
+      return bound.getMenuGroups(request);
+    },
     openSources: whenBound('openSources'),
     openInsights: whenBound('openInsights'),
     openCommunityNoteAbout: whenBound('openCommunityNoteAbout'),

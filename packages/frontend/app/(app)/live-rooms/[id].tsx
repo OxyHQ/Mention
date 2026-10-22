@@ -23,7 +23,7 @@ import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { RiShareForwardLine } from '@oxy.so/bloom/icons/RiShareForwardLine';
 import { RiStopFill } from '@oxy.so/bloom/icons/RiStopFill';
 import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
-import { Item } from '@oxy.so/bloom/item';
+import { ActionMenuTrigger, type ActionMenuGroups } from '@/components/common/ActionMenuTrigger';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Text as BloomText } from '@oxy.so/bloom/typography';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -193,16 +193,12 @@ const RoomDetailScreen = () => {
     }
   }, [room, id]);
 
-  const handleMoreOptions = useCallback(() => {
-    if (!room || !id) return;
+  const getMenuGroups = useCallback((): ActionMenuGroups => {
+    if (!room || !id) return [];
 
-    const handleShare = () => {
-      bottomSheet.openBottomSheet(false);
-      handleShareRoom();
-    };
+    const handleShare = handleShareRoom;
 
     const handleLeave = async () => {
-      bottomSheet.openBottomSheet(false);
       const confirmed = await confirmDialog({
         title: t('agora.leaveRoomConfirmTitle', { defaultValue: 'Leave room' }),
         message: t('agora.leaveRoomConfirmMessage', {
@@ -253,37 +249,35 @@ const RoomDetailScreen = () => {
       bottomSheet.openBottomSheet(true);
     };
 
-    const MenuContent = () => (
-      <View className="py-2">
-        <Item
-          role="menuitem"
-          onPress={handleShare}
-          leading={<RiShareForwardLine width={22} height={22} fill={theme.colors.text} />}
-          title={t('agora.shareRoom', { defaultValue: 'Share room' })}
-        />
-        {isJoined && !isHost && (
-          <Item
-            role="menuitem"
-            destructive
-            onPress={handleLeave}
-            leading={<RiLogoutBoxRLine width={22} height={22} fill={theme.colors.error} />}
-            title={t('agora.leaveRoom', { defaultValue: 'Leave room' })}
-          />
-        )}
-        {!isHost && (
-          <Item
-            role="menuitem"
-            destructive
-            onPress={handleReport}
-            leading={<RiFlagLine width={22} height={22} fill={theme.colors.error} />}
-            title={t('agora.reportRoom', { defaultValue: 'Report room' })}
-          />
-        )}
-      </View>
-    );
-
-    bottomSheet.setBottomSheetContent(<MenuContent />);
-    bottomSheet.openBottomSheet(true);
+    return [
+      [
+        {
+          icon: <RiShareForwardLine width={22} height={22} fill={theme.colors.text} />,
+          label: t('agora.shareRoom', { defaultValue: 'Share room' }),
+          onPress: handleShare,
+        },
+        ...(isJoined && !isHost
+          ? [
+              {
+                icon: <RiLogoutBoxRLine width={22} height={22} fill={theme.colors.error} />,
+                label: t('agora.leaveRoom', { defaultValue: 'Leave room' }),
+                onPress: handleLeave,
+                color: theme.colors.error,
+              },
+            ]
+          : []),
+        ...(!isHost
+          ? [
+              {
+                icon: <RiFlagLine width={22} height={22} fill={theme.colors.error} />,
+                label: t('agora.reportRoom', { defaultValue: 'Report room' }),
+                onPress: handleReport,
+                color: theme.colors.error,
+              },
+            ]
+          : []),
+      ],
+    ];
   }, [room, id, isJoined, isHost, theme, t, bottomSheet, handleShareRoom, loadRoom]);
 
   // Resolve user IDs to real profiles. Hooks must run on every render, so this
@@ -314,14 +308,18 @@ const RoomDetailScreen = () => {
           backLabel={t('common.back', { defaultValue: 'Back' })}
           actions={
             room ? (
-              <Button
-                appearance="subtle"
-                tone="neutral"
-                iconOnly
-                leadingIcon={RiMoreFill}
-                accessibilityLabel={t('common.options', { defaultValue: 'Options' })}
-                onPress={handleMoreOptions}
-              />
+              <ActionMenuTrigger
+                label={t('common.options', { defaultValue: 'Options' })}
+                groups={getMenuGroups}
+              >
+                <Button
+                  appearance="subtle"
+                  tone="neutral"
+                  iconOnly
+                  leadingIcon={RiMoreFill}
+                  accessibilityLabel={t('common.options', { defaultValue: 'Options' })}
+                />
+              </ActionMenuTrigger>
             ) : undefined
           }
         />

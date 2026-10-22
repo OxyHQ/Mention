@@ -376,7 +376,7 @@ function SignedInCommands() {
   useEffect(() => {
     bind({
       requireSession: () => mockAuth.canUsePrivateApi,
-      openMenu: jest.fn(),
+      getMenuGroups: jest.fn(() => []),
       openSources: jest.fn(),
       openInsights: jest.fn(),
       openCommunityNoteAbout: jest.fn(),

@@ -1,4 +1,5 @@
 import { POST_AVATAR_SIZE } from '@/styles/shared';
+import { ActionMenuTrigger, type ActionMenuGroups } from '@/components/common/ActionMenuTrigger';
 import React, { useMemo } from 'react';
 import { Text, View, TouchableOpacity } from 'react-native';
 import { LiveAvatar } from '@/components/ui/LiveAvatar';
@@ -162,7 +163,8 @@ interface PostHeaderProps {
    * avatar beside the author's.
    */
   onPressCollaborators?: () => void;
-  onPressMenu?: () => void;
+  /** Builds the ⋯ menu's groups when it opens; omit to hide the button. */
+  getMenuGroups?: () => ActionMenuGroups | Promise<ActionMenuGroups>;
   /**
    * Each name in a collaborative byline links to that author's profile. Off
    * where the header is not pointing at anyone else (the composer's preview).
@@ -234,7 +236,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   onPressAvatar,
   onPressName,
   onPressCollaborators,
-  onPressMenu,
+  getMenuGroups,
   linkAuthors,
   disableHoverCard,
   boostedBy,
@@ -409,16 +411,20 @@ const PostHeader: React.FC<PostHeaderProps> = ({
     </ProfileHoverCard>
   );
 
-  const menu = onPressMenu ? (
-    <TouchableOpacity
-      accessibilityLabel="Post options"
-      hitSlop={HIT_SLOP_MD}
-      className={compact ? 'ml-auto shrink-0 px-2' : 'px-2'}
-      style={{ marginTop: compact ? 0 : headerTopOffset }}
-      onPress={onPressMenu}
+  const menu = getMenuGroups ? (
+    <ActionMenuTrigger
+      label={t('postActions.title', { defaultValue: 'Post options' })}
+      groups={getMenuGroups}
     >
-      <RiMoreFill width={18} height={18} fill={theme.colors.textSecondary} />
-    </TouchableOpacity>
+      <TouchableOpacity
+        accessibilityLabel={t('postActions.title', { defaultValue: 'Post options' })}
+        hitSlop={HIT_SLOP_MD}
+        className={compact ? 'ml-auto shrink-0 px-2' : 'px-2'}
+        style={{ marginTop: compact ? 0 : headerTopOffset }}
+      >
+        <RiMoreFill width={18} height={18} fill={theme.colors.textSecondary} />
+      </TouchableOpacity>
+    </ActionMenuTrigger>
   ) : null;
 
   const identityName = (

@@ -60,7 +60,7 @@ export function TrendingTopicsInterstitial({
 }: InterstitialCardProps) {
   const { t } = useTranslation();
   const { navigateToTrend } = useTrendNavigation();
-  const handleMenuPress = useTrendItemMenu();
+  const getTrendMenuGroups = useTrendItemMenu();
 
   const allTrends = useTrendsStore((state) => state.trends);
   const hiddenTrendIds = useTrendsStore((state) => state.hiddenTrendIds);
@@ -132,12 +132,12 @@ export function TrendingTopicsInterstitial({
             reportCardEvent('click', position);
             navigateToTrend(trend, 'interstitial', position + 1);
           }}
-          onMenuPress={handleMenuPress}
+          getMenuGroups={getTrendMenuGroups}
           size="large"
         />
       </View>
     ),
-    [reportCardEvent, navigateToTrend, handleMenuPress],
+    [reportCardEvent, navigateToTrend, getTrendMenuGroups],
   );
 
   const renderSkeleton = useCallback(

@@ -1,7 +1,11 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import type { ActionMenuAction } from '@/components/common/actionMenuGroups';
 import type { ProfileData } from '@/hooks/useProfileData';
-import { useProfileMoreMenu, type ProfileMoreMenuOptions } from '../useProfileMoreMenu';
+import {
+  useProfileMoreMenu,
+  type ProfileMoreMenu,
+  type ProfileMoreMenuOptions,
+} from '../useProfileMoreMenu';
 
 /**
  * Which rows the profile "…" menu offers, and whether it exists at all.
@@ -14,11 +18,6 @@ import { useProfileMoreMenu, type ProfileMoreMenuOptions } from '../useProfileMo
 
 let mockAuth = { canUsePrivateApi: true, oxyServices: { blockUser: jest.fn() } };
 jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => mockAuth }));
-
-const mockShowActionMenu = jest.fn();
-jest.mock('@/components/common/ActionMenu', () => ({
-  showActionMenu: (...args: unknown[]) => mockShowActionMenu(...args),
-}));
 
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: { error: '#f00' } }) }));
@@ -51,7 +50,7 @@ const channelSettings: ActionMenuAction = {
   onPress: jest.fn(),
 };
 
-let latest: (() => void) | null = null;
+let latest: ProfileMoreMenu | null = null;
 function Probe(props: Omit<ProfileMoreMenuOptions, 'profileData'>) {
   latest = useProfileMoreMenu({ profileData, ...props });
   return null;
@@ -64,15 +63,12 @@ async function render(props: Omit<ProfileMoreMenuOptions, 'profileData'>) {
   return latest;
 }
 
-function openedLabels(open: (() => void) | null): string[][] {
-  expect(open).not.toBeNull();
-  act(() => open?.());
-  const { groups } = mockShowActionMenu.mock.calls.at(-1)?.[0] as { groups: ActionMenuAction[][] };
-  return groups.map((group) => group.map((action) => String(action.label)));
+function openedLabels(menu: ProfileMoreMenu | null): string[][] {
+  expect(menu).not.toBeNull();
+  return (menu?.getGroups() ?? []).map((group) => group.map((action) => String(action.label)));
 }
 
 beforeEach(() => {
-  mockShowActionMenu.mockClear();
   mockAuth = { canUsePrivateApi: true, oxyServices: { blockUser: jest.fn() } };
 });
 
@@ -96,7 +92,6 @@ describe('useProfileMoreMenu', () => {
   it('gives a signed-out reader no menu at all', async () => {
     mockAuth = { ...mockAuth, canUsePrivateApi: false };
     expect(await render({ viewerOperatesAccount: false })).toBeNull();
-    expect(mockShowActionMenu).not.toHaveBeenCalled();
   });
 
   it('signed out, keeps only rows the caller supplied, never the viewer-account ones', async () => {

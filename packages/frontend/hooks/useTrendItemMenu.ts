@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
+import type { ActionMenuGroups } from '@/components/common/ActionMenuTrigger';
 import type { Trend } from '@/interfaces/Trend';
 import { useTrendsStore } from '@/stores/trendsStore';
 import { buildTrendUrl } from '@/hooks/useTrendNavigation';
@@ -16,7 +17,7 @@ import { shareLink } from '@/utils/shareLink';
  * trends, and a hidden trend then kept showing up in the one place a reader went
  * looking for it.
  */
-export function useTrendItemMenu(): (trend: Trend) => void {
+export function useTrendItemMenu(): (trend: Trend) => ActionMenuGroups {
   const { t } = useTranslation();
   const openWidgetMenu = useWidgetItemMenu();
   const hideTrend = useTrendsStore((state) => state.hideTrend);
@@ -28,8 +29,7 @@ export function useTrendItemMenu(): (trend: Trend) => void {
           ? `#${(trend.hashtag || trend.text).replace(/^#/, '')}`
           : trend.text;
 
-      openWidgetMenu({
-        title: trendName,
+      return openWidgetMenu({
         onNotInterested: () => {
           hideTrend(trend.id);
           toast(t('widgetMenu.trendHidden'), { type: 'success' });

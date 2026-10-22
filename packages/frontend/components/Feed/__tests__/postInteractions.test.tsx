@@ -7,6 +7,7 @@ import {
   PostInteractionsProvider,
   usePostInteractions,
   type PostInteractions,
+  type PostMenuRequest,
 } from '../postInteractions';
 import { PostInteractionsBinder } from '../PostInteractionsBinder';
 import { toast } from '@oxy.so/bloom/toast';
@@ -47,9 +48,14 @@ const mockShare = jest.fn();
 jest.mock('@/hooks/usePostShare', () => ({ sharePost: (post: unknown) => mockShare(post) }));
 
 const mockShowActionMenu = jest.fn();
-jest.mock('@/components/common/ActionMenu', () => ({
-  showActionMenu: (request: unknown) => mockShowActionMenu(request),
-}));
+// The menu is rendered by `ActionMenuTrigger`; these tests read the groups the
+// command builds, so each opening records them here.
+function openMenu(commands: PostInteractions, request: PostMenuRequest) {
+  const record = (groups: unknown) => mockShowActionMenu({ groups });
+  const built = commands.getMenuGroups(request);
+  if (built instanceof Promise) void built.then(record);
+  else record(built);
+}
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn(), back: jest.fn(), canGoBack: () => false }),
@@ -279,7 +285,7 @@ describe('menu', () => {
       ));
       const item = post('insights-permission', { isOwner: !allowed });
       item.permissions = { ...item.permissions, canViewInsights: allowed };
-      commands.openMenu({ post: item, isPostDetail: false, onOpenArticle: jest.fn() });
+      openMenu(commands, { post: item, isPostDetail: false, onOpenArticle: jest.fn() });
       const labels = (
         mockShowActionMenu.mock.calls[0][0] as { groups: { label: string }[][] }
       ).groups
@@ -301,7 +307,7 @@ describe('menu', () => {
         {probe}
       </PostInteractionsProvider>
     ));
-    commands.openMenu({
+    openMenu(commands, {
       post: post('menu-save'),
       source: 'following',
       isPostDetail: false,
@@ -340,7 +346,7 @@ describe('menu', () => {
     act(() => {
       renderer = TestRenderer.create(tree());
     });
-    commands.openMenu({
+    openMenu(commands, {
       post: post('expired-menu'),
       isPostDetail: false,
       onOpenArticle: jest.fn(),
@@ -367,14 +373,14 @@ describe('menu', () => {
     act(() => renderer.unmount());
   });
 
-  it('without a binder, opening the menu is a logged no-op', () => {
+  it('without a binder, the menu has no groups and opening it is a logged no-op', () => {
     const commands = capture((probe) => (
       <PostInteractionsProvider>{probe}</PostInteractionsProvider>
     ));
     expect(() =>
-      commands.openMenu({ post: post('m'), isPostDetail: false, onOpenArticle: jest.fn() }),
+      openMenu(commands, { post: post('m'), isPostDetail: false, onOpenArticle: jest.fn() }),
     ).not.toThrow();
-    expect(mockShowActionMenu).not.toHaveBeenCalled();
+    expect(mockShowActionMenu).toHaveBeenCalledWith({ groups: [] });
   });
 
   it('is built at press time from the canonical post', () => {
@@ -388,7 +394,7 @@ describe('menu', () => {
     // The row rendered a stranger's post; the store says the viewer owns it
     // (an ownership the row never saw). The menu must offer Delete.
     mockStore.posts.set('owned', post('owned', { isOwner: true }));
-    commands.openMenu({ post: post('owned'), isPostDetail: false, onOpenArticle: jest.fn() });
+    openMenu(commands, { post: post('owned'), isPostDetail: false, onOpenArticle: jest.fn() });
 
     expect(mockShowActionMenu).toHaveBeenCalledTimes(1);
     const labels = (mockShowActionMenu.mock.calls[0][0] as { groups: { label: string }[][] }).groups
@@ -423,13 +429,13 @@ describe('menu', () => {
       { accountId: 'forum-1', kind: 'community', callerMembership: { status: 'active' } },
     ]);
     await act(async () => {
-      commands.openMenu({ post: inCommunity, isPostDetail: false, onOpenArticle: jest.fn() });
+      openMenu(commands, { post: inCommunity, isPostDetail: false, onOpenArticle: jest.fn() });
     });
     expect(labelsOf(0)).toContain('Remove from !{{community}}');
 
     mockEnsureQueryData.mockRejectedValueOnce(new Error('offline'));
     await act(async () => {
-      commands.openMenu({ post: inCommunity, isPostDetail: false, onOpenArticle: jest.fn() });
+      openMenu(commands, { post: inCommunity, isPostDetail: false, onOpenArticle: jest.fn() });
     });
     expect(labelsOf(1)).not.toContain('Remove from !{{community}}');
   });
@@ -452,7 +458,7 @@ describe('menu', () => {
     } as HydratedPost;
     mockEnsureQueryData.mockClear();
     await act(async () => {
-      commands.openMenu({ post: inCommunity, isPostDetail: false, onOpenArticle: jest.fn() });
+      openMenu(commands, { post: inCommunity, isPostDetail: false, onOpenArticle: jest.fn() });
     });
     const labels = (
       mockShowActionMenu.mock.calls.at(-1)?.[0] as { groups: { label: string }[][] }
@@ -520,7 +526,7 @@ describe('bound sheet commands', () => {
   it('offers "Add community note" to a non-owner only when a writer is configured', () => {
     mockNoteSheets.canWrite = true;
     const commands = bound();
-    commands.openMenu({ post: post('n'), isPostDetail: false, onOpenArticle: jest.fn() });
+    openMenu(commands, { post: post('n'), isPostDetail: false, onOpenArticle: jest.fn() });
     const groups = (
       mockShowActionMenu.mock.calls[0][0] as { groups: { label: string; onPress: () => void }[][] }
     ).groups.flat();
@@ -531,7 +537,7 @@ describe('bound sheet commands', () => {
 
     mockShowActionMenu.mockClear();
     mockStore.posts.set('own', post('own', { isOwner: true }));
-    commands.openMenu({ post: post('own'), isPostDetail: false, onOpenArticle: jest.fn() });
+    openMenu(commands, { post: post('own'), isPostDetail: false, onOpenArticle: jest.fn() });
     const ownerLabels = (
       mockShowActionMenu.mock.calls[0][0] as { groups: { label: string }[][] }
     ).groups

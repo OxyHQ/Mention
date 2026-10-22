@@ -642,9 +642,9 @@ const PostItem: React.FC<PostItemProps> = ({
   // it then — the row keeps only this command (issue #1103). Community notes
   // are the same: whether the flows are offered is the app's answer, resolved
   // once by the controller, not per row.
-  const openMenu = useCallback(() => {
-    if (!viewPost) return;
-    interactions.openMenu({
+  const getMenuGroups = useCallback(() => {
+    if (!viewPost) return [];
+    return interactions.getMenuGroups({
       post: viewPost,
       isPostDetail: isDetailMain,
       source: feedDescriptor,
@@ -1107,7 +1107,7 @@ const PostItem: React.FC<PostItemProps> = ({
             onPressName={prefetchAuthorProfile}
             onPressCollaborators={isCollab ? openCollaboratorsList : undefined}
             linkAuthors
-            onPressMenu={openMenu}
+            getMenuGroups={getMenuGroups}
             paddingHorizontal={HPAD}
           >
             {isDetailMain ? null : postBody}

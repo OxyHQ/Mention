@@ -12,6 +12,7 @@ import type { TFunction } from 'i18next';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { formatCompactNumber } from '@/utils/formatNumber';
+import { ActionMenuTrigger, type ActionMenuGroups } from '@/components/common/ActionMenuTrigger';
 import type { Trend } from '@/interfaces/Trend';
 import type { BloomIcon } from '@/components/settings/RowIcon';
 import { HIT_SLOP_LG } from '@/styles/hitSlop';
@@ -99,7 +100,8 @@ function getTrendLabel(trend: Trend, t: TFunction): string {
 interface TrendItemRowProps {
   trend: Trend;
   onPress: (trend: Trend) => void;
-  onMenuPress?: (trend: Trend) => void;
+  /** Groups of the ⋯ menu for this trend; omit to hide the button. */
+  getMenuGroups?: (trend: Trend) => ActionMenuGroups;
   showBorder?: boolean;
   size?: 'compact' | 'large';
   /**
@@ -116,7 +118,7 @@ interface TrendItemRowProps {
 export const TrendItemRow = memo(function TrendItemRow({
   trend,
   onPress,
-  onMenuPress,
+  getMenuGroups,
   showBorder = false,
   size = 'compact',
   ordinal,
@@ -244,16 +246,17 @@ export const TrendItemRow = memo(function TrendItemRow({
           </View>
         ) : null}
       </View>
-      {onMenuPress ? (
-        <TouchableOpacity
-          className="p-1 web:cursor-pointer"
-          onPress={() => onMenuPress(trend)}
-          hitSlop={HIT_SLOP_LG}
-          accessibilityLabel="More options"
-          accessibilityRole="button"
-        >
-          <RiMoreFill size="sm" fill={theme.colors.textSecondary} />
-        </TouchableOpacity>
+      {getMenuGroups ? (
+        <ActionMenuTrigger label={trend.text} groups={() => getMenuGroups(trend)}>
+          <TouchableOpacity
+            className="p-1 web:cursor-pointer"
+            hitSlop={HIT_SLOP_LG}
+            accessibilityLabel="More options"
+            accessibilityRole="button"
+          >
+            <RiMoreFill size="sm" fill={theme.colors.textSecondary} />
+          </TouchableOpacity>
+        </ActionMenuTrigger>
       ) : null}
     </TouchableOpacity>
   );

@@ -1,4 +1,5 @@
 import { IconButton } from '@oxy.so/bloom/button';
+import { ActionMenuTrigger } from '@/components/common/ActionMenuTrigger';
 import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
 import type React from 'react';
 import { useCallback, useEffect, useMemo } from 'react';
@@ -385,7 +386,7 @@ export function usePersonProfileView({
     accountKind: profileData?.kind,
   });
 
-  const handleMoreOptions = useProfileMoreMenu({
+  const moreMenu = useProfileMoreMenu({
     profileData,
     viewerOperatesAccount: isOwnProfile || operatesThisAccount,
   });
@@ -618,16 +619,17 @@ export function usePersonProfileView({
             defaultValue: "Share @{{handle}}'s profile",
           })}
         />
-        {!isOwnProfile && handleMoreOptions && (
-          <ButtonGroupItem
-            iconOnly
-            leadingIcon={RiMoreFill}
-            onPress={handleMoreOptions}
-            accessibilityLabel={t('profile.actions.more', {
-              handle,
-              defaultValue: 'More options for @{{handle}}',
-            })}
-          />
+        {!isOwnProfile && moreMenu && (
+          <ActionMenuTrigger label={moreMenu.label} groups={moreMenu.getGroups}>
+            <ButtonGroupItem
+              iconOnly
+              leadingIcon={RiMoreFill}
+              accessibilityLabel={t('profile.actions.more', {
+                handle,
+                defaultValue: 'More options for @{{handle}}',
+              })}
+            />
+          </ActionMenuTrigger>
         )}
       </ButtonGroup>
     </>

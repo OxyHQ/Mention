@@ -10,7 +10,7 @@ import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { useCommunityNoteHandlerContext } from '@/context/CommunityNoteHandlersContext';
 import { createCommunityNoteSheets } from '@/components/CommunityNotes/useCommunityNoteSheets';
-import { showActionMenu } from '@/components/common/ActionMenu';
+import type { ActionMenuGroups } from '@/components/common/ActionMenuTrigger';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { buildPostMenuActions } from './postMenuActions';
 import { isMentionCommunity } from '@mention/shared-types/profileUrls';
@@ -113,9 +113,9 @@ export function PostInteractionsBinder() {
         bottomSheet.openBottomSheet(true);
       },
       openCommunityNoteAbout: (note) => noteSheets.openAbout(note),
-      openMenu: ({ post: rowPost, isPostDetail, source, onOpenArticle }) => {
+      getMenuGroups: ({ post: rowPost, isPostDetail, source, onOpenArticle }) => {
         const post = currentPost(rowPost);
-        const show = (moderatesCommunity: boolean) => {
+        const groupsFor = (moderatesCommunity: boolean): ActionMenuGroups => {
           const viewerState = post.viewerState;
           const permissions = post.permissions ?? {};
           const isOwner = viewerState?.isOwner ?? false;
@@ -151,22 +151,19 @@ export function PostInteractionsBinder() {
                   },
                 ]
               : [];
-          showActionMenu({
-            label: t('postActions.title', { defaultValue: 'Post options' }),
-            groups: [
-              actions.insightsAction,
-              actions.saveActionGroup,
-              actions.stopSharingAction,
-              actions.deleteAction,
-              actions.articleAction,
-              actions.sourcesAction,
-              actions.addToListAction,
-              communityNoteAction,
-              actions.communityModerationAction,
-              actions.muteReportAction,
-              actions.copyLinkAction,
-            ],
-          });
+          return [
+            actions.insightsAction,
+            actions.saveActionGroup,
+            actions.stopSharingAction,
+            actions.deleteAction,
+            actions.articleAction,
+            actions.sourcesAction,
+            actions.addToListAction,
+            communityNoteAction,
+            actions.communityModerationAction,
+            actions.muteReportAction,
+            actions.copyLinkAction,
+          ];
         };
         // A moderator of the community hosted here the post is written in gets
         // its moderation actions. Who moderates is the account graph's answer
@@ -179,16 +176,15 @@ export function PostInteractionsBinder() {
           !community?.id ||
           !isMentionCommunity(community)
         ) {
-          show(false);
-          return;
+          return groupsFor(false);
         }
-        void queryClient
+        return queryClient
           .ensureQueryData<AccountNode[]>({
             queryKey: viewerQueryKeys.operatedAccounts(viewerId),
             queryFn: () => oxyServices.accounts.list(),
           })
-          .then((nodes) => show(operatesAccount(nodes, community.id)))
-          .catch(() => show(false));
+          .then((nodes) => groupsFor(operatesAccount(nodes, community.id)))
+          .catch(() => groupsFor(false));
       },
     };
   }, [

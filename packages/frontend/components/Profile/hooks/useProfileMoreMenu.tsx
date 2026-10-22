@@ -4,7 +4,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
-import { showActionMenu } from '@/components/common/ActionMenu';
+import type { ActionMenuGroups } from '@/components/common/ActionMenuTrigger';
 import type { ActionMenuAction } from '@/components/common/actionMenuGroups';
 import { ReportModal } from '@/components/report/ReportModal';
 import { AddToListSheet } from '@/components/Lists/AddToListSheet';
@@ -20,6 +20,12 @@ import { MuteIcon } from '@/assets/icons/mute-icon';
 import { BlockIcon } from '@/assets/icons/block-icon';
 import { ReportIcon } from '@/assets/icons/report-icon';
 import type { ProfileData } from '@/hooks/useProfileData';
+
+/** What the profile's "…" button needs: the menu's name and its groups, built on open. */
+export interface ProfileMoreMenu {
+  label: string;
+  getGroups: () => ActionMenuGroups;
+}
 
 export interface ProfileMoreMenuOptions {
   profileData: ProfileData | null;
@@ -86,14 +92,14 @@ export function useProfileMoreMenu({
   profileData,
   viewerOperatesAccount,
   leadingActions,
-}: ProfileMoreMenuOptions): (() => void) | null {
+}: ProfileMoreMenuOptions): ProfileMoreMenu | null {
   const theme = useTheme();
   const { t } = useTranslation();
   const { oxyServices, canUsePrivateApi, user } = useAuth();
   const bottomSheet = useContext(BottomSheetContext);
 
-  const openMoreMenu = useCallback(() => {
-    if (!profileData) return;
+  const getGroups = useCallback((): ActionMenuGroups => {
+    if (!profileData) return [];
 
     const displayUsername = profileData.username;
 
@@ -126,13 +132,7 @@ export function useProfileMoreMenu({
         cancelText: t('common.cancel', { defaultValue: 'Cancel' }),
         destructive: true,
       });
-      // Backing out of the confirm returns to where it was opened from — the
-      // menu — instead of dumping the user back on the profile with nothing to
-      // show for the trip.
-      if (!confirmed) {
-        openMenu();
-        return;
-      }
+      if (!confirmed) return;
       try {
         await oxyServices.privacy.block(profileData.id);
         // The block is written in Oxy; Mention caches the viewer's blocked list
@@ -253,19 +253,7 @@ export function useProfileMoreMenu({
             },
           ];
 
-    // Named so the block flow can reopen the exact same menu after a cancelled
-    // confirm.
-    function openMenu() {
-      showActionMenu({
-        label: t('profile.moreOptions', {
-          username: displayUsername,
-          defaultValue: 'Options for @{{username}}',
-        }),
-        groups: [actions, destructiveActions],
-      });
-    }
-
-    openMenu();
+    return [actions, destructiveActions];
   }, [
     profileData,
     viewerOperatesAccount,
@@ -277,5 +265,12 @@ export function useProfileMoreMenu({
     oxyServices,
   ]);
 
-  return canUsePrivateApi || (leadingActions?.length ?? 0) > 0 ? openMoreMenu : null;
+  if (!canUsePrivateApi && (leadingActions?.length ?? 0) === 0) return null;
+  return {
+    label: t('profile.moreOptions', {
+      username: profileData?.username,
+      defaultValue: 'Options for @{{username}}',
+    }),
+    getGroups,
+  };
 }
