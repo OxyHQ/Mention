@@ -28,7 +28,7 @@ import { logger } from '../utils/logger';
  * here. `name` reuses the published canonical {@link UserNameResponse} so the
  * display name stays the single-source-of-truth contract.
  */
-interface OxyRecommendationItem {
+export interface OxyRecommendationItem {
   id?: string;
   _id?: string;
   username?: string;
@@ -48,7 +48,10 @@ interface OxyRecommendationItem {
   _count?: { followers?: number; following?: number };
 }
 
-/** Oxy recommendation endpoint path (service-token call). */
+/**
+ * Oxy recommendation endpoint path (service-token call). It answers
+ * `{ data: [...] }`, which the transport delivers as the bare list.
+ */
 const RECOMMENDATIONS_PATH = '/profiles/recommendations';
 
 /**
@@ -142,25 +145,6 @@ interface RecommendationRequestBody {
   boosts?: RecommendationBoostInput[];
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-/**
- * Unwrap the Oxy `sendSuccess` envelope (`{ data: [...] }`) into the raw item
- * array. Tolerates a bare array too (defensive — some SDK paths pre-unwrap).
- */
-function extractItems(response: unknown): OxyRecommendationItem[] {
-  if (Array.isArray(response)) return response as OxyRecommendationItem[];
-  if (isRecord(response) && Array.isArray(response.recommendations)) {
-    return response.recommendations as OxyRecommendationItem[];
-  }
-  if (isRecord(response) && Array.isArray(response.data)) {
-    return response.data as OxyRecommendationItem[];
-  }
-  return [];
-}
-
 /**
  * Map one raw Oxy recommendation item to Mention's frontend DTO. Passes the
  * bare `avatar` file id and `name` through untouched (Oxy owns identity;
@@ -248,14 +232,14 @@ export class OxyRankingClient {
     if (options.viewerId && !foregroundClient) {
       throw new Error('Personalized ranking requires the verified foreground bearer');
     }
-    const response =
+    const items =
       options.viewerId && foregroundClient
         ? await foregroundClient.recommend({ ...body })
-        : await getServiceOxyClient().serviceRequest<
-            OxyRecommendationItem[] | { data: OxyRecommendationItem[] }
-          >('POST', RECOMMENDATIONS_PATH, body);
-
-    const items = extractItems(response);
+        : await getServiceOxyClient().serviceRequest<OxyRecommendationItem[]>(
+            'POST',
+            RECOMMENDATIONS_PATH,
+            body,
+          );
     const profiles: RankedProfile[] = [];
     for (const item of items) {
       const profile = toRankedProfile(item);
