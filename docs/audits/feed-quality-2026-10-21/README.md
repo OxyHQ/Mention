@@ -1,7 +1,7 @@
 # Feed quality audit — 21 October 2026
 
-Status: initial implementation merged and measured in production; follow-up fixes
-and their separate release verification remain in progress. The initial
+Status: implementation and follow-up fixes merged and deployed; bounded production
+verification is complete below. Remaining quality and import-evidence limits are explicit. The initial
 code investigation used `origin/main` at `2bfaf0cd6`; the implementation merged as
 `b1b7b0b64ac8494169ec783d60eca4d275cbe8df`. Pre-release tests are not measurements of
 production impact. Production reads and review labels are recorded separately;
@@ -723,7 +723,8 @@ three distinct advancing cursors, and `hasMore: true` throughout. Direct elapsed
 times were 992, 408 and 509 ms. These live samples confirm corrected page bounds
 and observed continuation behavior; exhaustive absence of skipped inventory is
 supported by the separate real-database fixture, not proven by these live samples.
-The Media/Explore/MCP followup still requires its own release and acceptance capture.
+These chronological results precede the separately attributed Media/Explore/MCP
+followup verification below.
 
 
 ### Identity diagnostics and final sampling boundary
@@ -736,28 +737,146 @@ The Following original/boost repetitions described above remain a distinct case.
 These checks establish only the inspected identity and rendering fields; they do
 not measure semantically duplicated text, copied media or identical source URLs.
 
-The planned final authenticated followup uses explicit `lang=es` as a controlled
+The final authenticated followup used explicit `lang=es` as a controlled
 request locale. This is not evidence that Spanish is the owner's stored preference,
 and it must remain separate from earlier MCP captures with no explicit locale.
 Any language-match calculation must use the actual nested post metadata and state
 its treatment of missing or multiple declarations. A fresh request, an advancing
 cursor and a replay test answer different questions; their counts must not be
-combined as independent recommendations. New release results will be attributed
-to the actual deployed SHA and request times before concluding that the followup
-improved the measured behavior.
+combined as independent recommendations. The final results below are attributed to the actual deployed SHA and request
+times; the capture is observational, not a matched-inventory causal benchmark.
 
-### Follow-up merge and pending deployment — 22 October 2026
 
-PR #1577 merged at 18:08:49 UTC as
-`d808a983ba8703b105b5bc386a8fee8696226a2d` after successful protected queue
-[CI 39827996686](https://github.com/OxyHQ/Mention/actions/runs/39827996686).
-At 18:14 UTC its normal push release had not appeared. The workflow-run events
-from merge-group CI skipped deployment under the existing admission rules;
-those green scope jobs are not proof of a live release. The serving backend
-remained revision 693, SHA `91a9f72c42e6dcebdf749535cd7ef1fbf741e3dc`.
+## Final followup release and production verification — 22 October 2026
 
-The historical evidence above is complete for its named revisions. Acceptance
-of the merged Media, Explore and MCP corrections remains pending an actual
-backend/MCP rollout and separately attributed production captures. This
-documentation merge retains the normal protected release path; no deployment
-guard or required check is bypassed.
+[PR #1577](https://github.com/OxyHQ/Mention/pull/1577) merged at 18:08:49 UTC
+after successful protected queue
+[CI 39827996686](https://github.com/OxyHQ/Mention/actions/runs/39827996686), then deployed as
+`d808a983ba8703b105b5bc386a8fee8696226a2d`. Backend
+[39830509985](https://github.com/OxyHQ/Mention/actions/runs/39830509985) succeeded
+with revision **695**, two healthy running tasks and image digest
+`sha256:1a47a22240dcbae48c309332d4f84e6117c344ddd32f3760fc945d45206f0c15`.
+MCP [39830509883](https://github.com/OxyHQ/Mention/actions/runs/39830509883)
+succeeded with revision **403** on the same SHA; readiness was confirmed by
+18:26:47 UTC. Frontend
+[39830509654](https://github.com/OxyHQ/Mention/actions/runs/39830509654) succeeded
+on that SHA, with Worker `543f02ed-68b0-4847-b447-836b268fa168` promoted at
+18:35:22 and apex smoke passing at 18:35:47. These release records supersede the
+prior deployment-pending status; they do not retroactively change the revision
+assigned to any historical sample.
+
+[Final aggregate evidence](./final-release-evidence-695.json) contains the
+request times, counts, cursor outcomes and browser checks without post bodies,
+author identities, private cached preference values or session keys. The six
+authenticated traversals comprised **44 successful pages and 857 logical posts**
+(883 flattened items including conversation context). This is a count of positions
+across sessions, not 857 globally unique posts. Every individual traversal had no
+repeated focal ID, slice key or original-post identity.
+
+| Authenticated traversal | Successful pages | Logical posts | Authors | Largest author count on one page | Outcome |
+| --- | ---: | ---: | ---: | ---: | --- |
+| For You 4 | 10 | 184 | 73 | 3 | Page 11 later returned typed 410 |
+| Explore 4 | 2 | 33 | 19 | 7 | Exhausted initial eligible supply |
+| Media 2 | 2 | 40 | 31 | 3 | Page 3 returned typed 410 |
+| Media 3, fresh | 10 | 200 | 143 | 3 | Continuation available |
+| For You 5, fresh | 10 | 200 | 69 | 3 | Continuation available |
+| Explore 5, fresh | 10 | 200 | 144 | 3 | Continuation available |
+
+The initial samples began at 18:26:52; the three fresh ten-page traversals ran
+from 18:31:06 through 18:36:39 UTC. All used explicit `lang=es`. That parameter is
+a request fallback when account languages cannot be resolved, **not a hard language
+filter or a change to saved preferences**. Initial For You, Explore and Media
+samples declared Spanish on all 184, 33 and 40 focal posts. Later fresh samples
+used the account-resolved context: Media declared English on 197 and Catalan on
+three posts, with one also declaring Japanese; For You declared English on all
+200; Explore declared English on 185, Spanish on 12 and Catalan on three.
+All had language metadata; multi-language declarations can make tag counts exceed
+post counts. These are metadata observations, not inferred language comprehension
+or a language-filter failure. The separate served-text language field was unknown
+on some posts and is preserved in the artifact rather than silently counted as a
+match.
+
+The sparse initial Explore traversal returned 13 posts on its terminal second
+page, seven from one author. This is the existing scarcity relaxation when the
+eligible pool cannot satisfy the usual diversity preference, and demonstrates
+that three per author is not an unconditional invariant. The final fresh Media,
+For You and Explore samples each stayed at or below three per page. Their median
+post ages were 25.35, 6.41 and 8.76 hours; all 600 were within 72 hours and all
+200 Explore posts were within 24 hours. No sampled focal post matched the
+standalone-number diagnostic; bounded absence alone is not a universal quality
+proof. MCP elapsed times include connector overhead and are not directly
+comparable with the public API timings below.
+
+### Cursor restart and effective-context observations
+
+Media 2 page 3 returned `FEED_CURSOR_EXPIRED` at 18:29:34, followed by For You 4
+page 11 at 18:30:51. These remain recorded outcomes, not silently discarded
+failed samples. Exact-key read-only Redis diagnostics at 18:34:24 found the
+inspected old keys present and unexpired. At 18:37:19, old and fresh Media
+sessions both remained unexpired but had different binding hashes. The account
+language cache had become nonempty during the capture, consistent with the
+observed inventory language change. **A changed effective bound context is
+supported; language-cache warmup is the leading inference, not proof of the
+exact changed field.** Expiry/pruning was not supported by the later observations;
+a transient earlier Redis read failure cannot be excluded from those snapshots.
+No Redis mutation or new feed-policy change was made for this diagnosis.
+
+Fresh sessions recovered and each completed ten pages. Separate controlled
+checks verified that an Explore cursor created before the cutover continued
+successfully on the old build, then returned typed 410 on the new build less
+than four minutes after creation. A legacy cursor also returned 410; an invalid
+language tag was rejected at tool-input validation. Two authenticated replays of
+a current Explore cursor returned the same IDs and slice keys as each other and
+the original page. Changing the limit to 19 returned typed 410. MCP now renders
+the code and recovery message readably: `FEED_CURSOR_EXPIRED` and “refresh the
+feed”, rather than `[object Object]`. These results validate explicit restart
+behavior and observed replay identity, not perpetual byte stability.
+
+### Public freshness and final browser checks
+
+Direct anonymous API reads at 18:28:37–18:28:48 UTC used `?lang=en` and
+`Accept-Language: en,es;q=0.9` on backend 695. Media and Explore each completed ten
+pages with 200 unique focal posts, no focal/slice repeats and at most three posts
+per author on a page. Media had 148 authors, 200 flat items and median request
+latency 520 ms (454–763); Explore had 135 authors, 206 flat items and median
+435.5 ms (412–668). Every page succeeded and retained a session continuation.
+
+Anonymous Media's median post age was **1.04 days**, all 200 posts were within
+seven days, and none exceeded 30 days. Its historical revision-682 sample had a
+56.75-day median and 169/200 posts older than 30 days. The corrected primary-first
+path and this fresher observed sample agree, but time and inventory changed
+between captures: this is not a matched causal experiment. Explore's final public
+sample was entirely within 24 hours. Every public post's declared metadata included
+English or Spanish, with one Media post also declaring Japanese. Source URLs
+were unavailable, so duplicate-origin content remains unmeasured. Separate public
+cursor probes encountered `EHOSTUNREACH` twice before receiving HTTP responses;
+those probes are **unverified**, distinct from the successful public traversal
+and authenticated replay checks.
+
+The actual production anonymous Chromium check at 18:36:41 passed five flows:
+Home; Home → Explore → post → back within the same document; `@nate` Posts →
+Media; a pushed federated profile's Posts; and anonymous Media. It reported no
+script/console errors or HTTP 4xx/5xx responses. Ten navigation/resource cancellations
+emitted `ERR_ABORTED`. Both visible Home images and the one visible Media image
+loaded; no large Explore image was in the inspected viewport, so no Explore-image
+load claim is made for this run. Screenshots were inspected and rendered normally.
+The frontend candidate browser gate passed 66 tests. Logged-in browser and native
+physical-device behavior remain outside this verification.
+
+### What this evidence establishes and leaves open
+
+The implementation now has separately verified chronological page bounds,
+replay/restart handling, readable MCP errors, optional explicit request locale,
+fresher anonymous Media supply in the final sample, and bounded author diversity
+with an explicit scarcity exception. Explore negative-intent parity is covered by
+real-database regression tests; production settings were not changed to manufacture
+an account-specific negative-preference experiment. Discovery import activity and
+provenance were verified on revision 682; no additional database import probe was
+run for revision 695 because this followup did not change import policy or schema.
+
+Reduced needless import volume, subjective recommendation satisfaction, universal
+semantic quality, copied-content/source-URL duplication and new-account discovery
+rate are still not established. The documented owner labels support contextual
+recommendation decisions, including useful unfamiliar art; they are not a blanket
+import classifier. The session-context transition and sparse Explore concentration
+are recorded limitations rather than concealed by successful fresh traversals.
