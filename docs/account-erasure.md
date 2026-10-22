@@ -152,9 +152,15 @@ profile and kept delivering to it. An inbox POST to the actor is refused with 41
 **Limits.** Remote servers are asked, not forced: a server may ignore a Delete,
 and one that stays down past the retry budget never hears it. Lemmy does not
 accept a `Delete` whose actor is a community (`Group`), so a Lemmy instance
-learns a community is gone from the 410 when it next refetches it. The 410
-lasts as long as the ledger keeps the handle (14 days after completion, below).
-After that the handle is answered 404 again. Posts that were never public were
+learns a community is gone from the 410 when it next refetches it. For a
+person, the 410 lasts as long as the ledger keeps the handle (14 days after
+completion, below), and the handle is answered 404 after that. An archived
+channel, community or other managed account answers 410 for good: once the
+ledger lets the handle go, the check asks Oxy
+(`GET /federation/actor-gone/:username`), which answers from the archived row
+itself. The archive is permanent and the row keeps the handle, so nobody can
+register it again; Mention keeps nothing for it but a Redis cache of Oxy's
+answer (a day when gone, an hour when not). Posts that were never public were
 never federated and get no Delete.
 
 ## Channels and other managed accounts

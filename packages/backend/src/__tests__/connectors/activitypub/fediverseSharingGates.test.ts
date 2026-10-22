@@ -70,6 +70,7 @@ const mocks = vi.hoisted(() => ({
   resolveQuoteContextByPost: vi.fn(),
   resolveCommunityContextByPost: vi.fn(async () => new Map()),
   getServiceOxyClient: vi.fn(),
+  serviceRequest: vi.fn(),
   getUserFollowers: vi.fn(),
   getUserFollowing: vi.fn(),
   resolveAvatarUrl: vi.fn(),
@@ -211,7 +212,10 @@ beforeEach(() => {
     safety: adultSafetyFixture(),
     getUserFollowers: mocks.getUserFollowers,
     getUserFollowing: mocks.getUserFollowing,
+    serviceRequest: mocks.serviceRequest,
   });
+  // Oxy's `GET /federation/actor-gone/:username`: no archived account holds the handle.
+  mocks.serviceRequest.mockResolvedValue({ gone: false });
   mocks.getUserFollowers.mockResolvedValue({ followers: [], total: 0, hasMore: false });
   mocks.getUserFollowing.mockResolvedValue({ following: [], total: 0, hasMore: false });
   mocks.buildCreateNoteActivity.mockReturnValue({
@@ -516,6 +520,24 @@ describe('a deleted account: 410 Gone on every surface instead of 404', () => {
       .expect(410);
 
     // A handle Oxy does not resolve and Mention was never told about stays a 404.
+    await request(apApp).get('/ap/users/neverexisted').set('Accept', AP_ACCEPT).expect(404);
+  });
+
+  it('answers an archived community 410 after the ledger lets its handle go, from Oxy', async () => {
+    // No ledger row: the 14 days are over. Oxy still holds the handle for the
+    // archived community, which is permanent.
+    mocks.serviceRequest.mockImplementation(async (_method: string, path: string) => ({
+      gone: path === '/federation/actor-gone/archivedcommunity',
+    }));
+
+    const actor = await request(apApp)
+      .get('/ap/users/archivedcommunity')
+      .set('Accept', AP_ACCEPT)
+      .expect(410);
+    expect(actor.body).toMatchObject({
+      type: 'Tombstone',
+      id: 'https://mention.earth/ap/users/archivedcommunity',
+    });
     await request(apApp).get('/ap/users/neverexisted').set('Accept', AP_ACCEPT).expect(404);
   });
 });
