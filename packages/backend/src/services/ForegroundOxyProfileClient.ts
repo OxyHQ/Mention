@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { capabilityCatalogBindingSchema, type CapabilityCatalogBinding } from '@oxy.so/contracts';
 import type { OxyServer } from '@oxy.so/core/server';
+import type { OxyRecommendationItem } from './OxyRankingClient';
 
 /** A present requester and independently authenticated Mention coordinator.
  * The requester bearer reaches only the configured Oxy authority. */
 export interface ForegroundProfileReader {
-  recommend(input: Readonly<Record<string, unknown>>): Promise<unknown>;
+  recommend(input: Readonly<Record<string, unknown>>): Promise<OxyRecommendationItem[]>;
 }
 
 /** The foreground round trip that failed. */
@@ -73,7 +74,7 @@ export class ForegroundOxyProfileClient implements ForegroundProfileReader {
       throw new Error('FOREGROUND_REQUESTER_REQUIRED');
   }
 
-  async recommend(input: Readonly<Record<string, unknown>>): Promise<unknown> {
+  async recommend(input: Readonly<Record<string, unknown>>): Promise<OxyRecommendationItem[]> {
     const runId = `mention_foreground_${randomUUID()}`;
     const stepId = 'recommendProfiles';
     // Cleanup is required even when issuance or invocation refuses authority.
@@ -137,7 +138,11 @@ export class ForegroundOxyProfileClient implements ForegroundProfileReader {
       }
       // Oxy derives private ranking clientId from the verified coordinator.
       // The configured application ID is retained as an explicit parity check.
-      return await this.server.http.request<unknown>({
+      // The capability route answers `{ recommendations }` (no `{ data }`
+      // envelope), unlike the service route's bare list.
+      const { recommendations } = await this.server.http.request<{
+        recommendations: OxyRecommendationItem[];
+      }>({
         method: 'POST',
         url: '/_oxy/capabilities/profiles/recommendations',
         data: input,
@@ -148,6 +153,7 @@ export class ForegroundOxyProfileClient implements ForegroundProfileReader {
         retry: false,
         timeout: 5000,
       });
+      return recommendations;
     } catch (error) {
       if (error instanceof ForegroundRankingError) throw error;
       // SDK errors can contain request bodies. Never log or return a bearer.

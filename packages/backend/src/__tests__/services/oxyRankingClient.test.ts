@@ -42,7 +42,7 @@ beforeEach(() => {
 
 describe('OxyRankingClient.rank', () => {
   it('sends application-scoped anonymous clientId, limit and filters without delegation', async () => {
-    mocks.serviceRequest.mockResolvedValue({ data: [makeItem()] });
+    mocks.serviceRequest.mockResolvedValue([makeItem()]);
     const client = new OxyRankingClient();
 
     await client.rank({
@@ -66,7 +66,7 @@ describe('OxyRankingClient.rank', () => {
   });
 
   it('never sends more excludeIds than Oxy accepts', async () => {
-    mocks.serviceRequest.mockResolvedValue({ data: [] });
+    mocks.serviceRequest.mockResolvedValue([]);
     const client = new OxyRankingClient();
     const excludeIds = Array.from({ length: 650 }, (_, index) => `x${index}`);
 
@@ -78,7 +78,7 @@ describe('OxyRankingClient.rank', () => {
   });
 
   it('forwards a positive pagination offset in the request body', async () => {
-    mocks.serviceRequest.mockResolvedValue({ data: [] });
+    mocks.serviceRequest.mockResolvedValue([]);
     const client = new OxyRankingClient();
 
     await client.rank({ limit: 20, offset: 40 });
@@ -88,7 +88,7 @@ describe('OxyRankingClient.rank', () => {
   });
 
   it('omits offset when it is zero or absent', async () => {
-    mocks.serviceRequest.mockResolvedValue({ data: [] });
+    mocks.serviceRequest.mockResolvedValue([]);
     const client = new OxyRankingClient();
 
     await client.rank({ limit: 20, offset: 0 });
@@ -102,13 +102,11 @@ describe('OxyRankingClient.rank', () => {
   it('returns the raw upstream count alongside the mapped profiles', async () => {
     // Three raw items, one of which has neither displayName nor handle → dropped from
     // `profiles` but still counted in `rawCount` so the caller can page correctly.
-    mocks.serviceRequest.mockResolvedValue({
-      data: [
-        makeItem({ id: 'a' }),
-        makeItem({ id: 'b' }),
-        makeItem({ id: 'c', username: undefined, name: { first: 'X' } }),
-      ],
-    });
+    mocks.serviceRequest.mockResolvedValue([
+      makeItem({ id: 'a' }),
+      makeItem({ id: 'b' }),
+      makeItem({ id: 'c', username: undefined, name: { first: 'X' } }),
+    ]);
     const client = new OxyRankingClient();
 
     const page = await client.rank({ limit: 3 });
@@ -117,7 +115,7 @@ describe('OxyRankingClient.rank', () => {
   });
 
   it('falls back to MENTION_OXY_CLIENT_ID when no clientId is passed', async () => {
-    mocks.serviceRequest.mockResolvedValue({ data: [] });
+    mocks.serviceRequest.mockResolvedValue([]);
     const client = new OxyRankingClient();
 
     await client.rank({ limit: 10 });
@@ -128,7 +126,7 @@ describe('OxyRankingClient.rank', () => {
 
   it('omits clientId entirely when none is configured', async () => {
     mocks.getMentionOxyClientId.mockReturnValue(undefined);
-    mocks.serviceRequest.mockResolvedValue({ data: [] });
+    mocks.serviceRequest.mockResolvedValue([]);
     const client = new OxyRankingClient();
 
     await client.rank({ limit: 10 });
@@ -138,7 +136,7 @@ describe('OxyRankingClient.rank', () => {
   });
 
   it('omits viewerId (anonymous) when the caller is logged out', async () => {
-    mocks.serviceRequest.mockResolvedValue({ data: [] });
+    mocks.serviceRequest.mockResolvedValue([]);
     const client = new OxyRankingClient();
 
     await client.rank({ limit: 10 });
@@ -148,7 +146,7 @@ describe('OxyRankingClient.rank', () => {
   });
 
   it('maps the response to the frontend DTO and resolves the avatar URL', async () => {
-    mocks.serviceRequest.mockResolvedValue({ data: [makeItem()] });
+    mocks.serviceRequest.mockResolvedValue([makeItem()]);
     const client = new OxyRankingClient();
 
     const result = await client.rank({ limit: 10 });
@@ -170,9 +168,7 @@ describe('OxyRankingClient.rank', () => {
   });
 
   it('passes the account colour through, and adds none when Oxy sends none', async () => {
-    mocks.serviceRequest.mockResolvedValue({
-      data: [makeItem({ color: 'teal' }), makeItem({ id: 'u2' })],
-    });
+    mocks.serviceRequest.mockResolvedValue([makeItem({ color: 'teal' }), makeItem({ id: 'u2' })]);
     const client = new OxyRankingClient();
 
     const result = await client.rank({ limit: 10 });
@@ -181,22 +177,12 @@ describe('OxyRankingClient.rank', () => {
     expect(result.profiles[1]).not.toHaveProperty('color');
   });
 
-  it('unwraps a bare array response too', async () => {
-    mocks.serviceRequest.mockResolvedValue([makeItem({ id: 'u2' })]);
-    const client = new OxyRankingClient();
-
-    const result = await client.rank({ limit: 10 });
-    expect(result.profiles.map((r) => r.id)).toEqual(['u2']);
-  });
-
   it('drops items missing an id or both display label and valid handle', async () => {
-    mocks.serviceRequest.mockResolvedValue({
-      data: [
-        makeItem({ id: 'good' }),
-        makeItem({ id: '', _id: '' }), // no id
-        makeItem({ id: 'noname', username: undefined, name: { first: 'X' } }), // no displayName
-      ],
-    });
+    mocks.serviceRequest.mockResolvedValue([
+      makeItem({ id: 'good' }),
+      makeItem({ id: '', _id: '' }), // no id
+      makeItem({ id: 'noname', username: undefined, name: { first: 'X' } }), // no displayName
+    ]);
     const client = new OxyRankingClient();
 
     const result = await client.rank({ limit: 10 });
@@ -204,24 +190,22 @@ describe('OxyRankingClient.rank', () => {
   });
 
   it('uses the one normalized handle fallback when displayName is absent', async () => {
-    mocks.serviceRequest.mockResolvedValue({
-      data: [
-        makeItem({ id: 'local', username: 'alice', name: { first: 'Never synthesize' } }),
-        makeItem({
-          id: 'federated',
-          username: 'remote',
-          instance: 'example.test',
-          isFederated: true,
-          name: {},
-        }),
-        makeItem({ id: 'nameless', username: 'handle_only', name: undefined }),
-        makeItem({
-          id: 'invalid_handle',
-          username: '/profile/path',
-          name: { first: 'Do not use' },
-        }),
-      ],
-    });
+    mocks.serviceRequest.mockResolvedValue([
+      makeItem({ id: 'local', username: 'alice', name: { first: 'Never synthesize' } }),
+      makeItem({
+        id: 'federated',
+        username: 'remote',
+        instance: 'example.test',
+        isFederated: true,
+        name: {},
+      }),
+      makeItem({ id: 'nameless', username: 'handle_only', name: undefined }),
+      makeItem({
+        id: 'invalid_handle',
+        username: '/profile/path',
+        name: { first: 'Do not use' },
+      }),
+    ]);
     const result = await new OxyRankingClient().rank({ limit: 10 });
     expect(result.profiles.map((profile) => profile.id)).toEqual([
       'local',

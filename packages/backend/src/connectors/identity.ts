@@ -14,22 +14,18 @@ import { persistRemoteMediaForFederatedOwnerDetailed } from '../services/mediaCa
 import { FEDERATED_BANNER_DOWNLOAD_POLICY } from '../services/mediaCache/policy';
 import { isAbsoluteHttpUrl, getRemoteHost } from './shared/url';
 import type { NormalizedExternalActor } from '@oxy.so/federation';
-import {
-  createIdentityBridge,
-  type ServiceRequest,
-  type ServiceRequestMethod,
-} from '@oxy.so/federation/node';
+import { createIdentityBridge, type ServiceRequest } from '@oxy.so/federation/node';
 import { resolveOxyIdentity } from './oxyIdentity';
 import { recordFederatedBannerInBackground } from '../db/federation/bannerMirrorRepository';
 
 /** Oxy owns discovery and profiles; this module exposes Mention's transport adapter. */
 
-/** Service-scoped oxy-api request, resolved at call time (the client is per-request). */
-const callOxyService: ServiceRequest = <T>(
-  method: ServiceRequestMethod,
-  path: string,
-  body?: unknown,
-): Promise<T> => getServiceOxyClient().serviceRequest<T>(method, path, body);
+/**
+ * Service-scoped oxy-api request, resolved at call time (the client is per-request).
+ * `ServiceRequest` is typed as core's `serviceRequest`, so it passes through as is.
+ */
+const callOxyService: ServiceRequest = (method, path, body) =>
+  getServiceOxyClient().serviceRequest(method, path, body);
 
 const identityBridge = createIdentityBridge({
   makeServiceRequest: callOxyService,
