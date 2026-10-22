@@ -1,7 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { createLogger } from '@oxy.so/core/logger';
 import type { CommunityNoteSummary, HydratedPost, PostSourceLink } from '@mention/shared-types';
-import type { ActionMenuGroups } from '@/components/common/ActionMenuTrigger';
 import { sharePost } from '@/hooks/usePostShare';
 import { usePostsStore } from '@/stores/postsStore';
 
@@ -36,8 +35,6 @@ export interface PostInteractions {
   toggleSave: (post: HydratedPost, source?: string) => Promise<void>;
   toggleBoost: (post: HydratedPost, source?: string) => Promise<void>;
   share: (post: HydratedPost) => void;
-  /** The ⋯ menu's groups, built when the menu opens (async: the moderation lookup). */
-  getMenuGroups: (request: PostMenuRequest) => ActionMenuGroups | Promise<ActionMenuGroups>;
   openSources: (sources: PostSourceLink[]) => void;
   openInsights: (postId: string) => void;
   openCommunityNoteAbout: (note: CommunityNoteSummary) => void;
@@ -49,30 +46,15 @@ export interface PostInteractions {
   prefetchProfile: (profileId: string | undefined) => void;
 }
 
-export interface PostMenuRequest {
-  post: HydratedPost;
-  /** The focused post on `/p/<id>`: deleting it also leaves the screen. */
-  isPostDetail: boolean;
-  /** Feed descriptor, attributed to a save made from the menu. */
-  source?: string;
-  /** The article reader is row-local state (a modal the row renders). */
-  onOpenArticle: () => void;
-}
-
 /**
  * The commands that need app services (the bottom sheet, the router, i18n, the
  * viewer…). `PostInteractionsBinder` implements and binds them; keeping them
- * out of this module keeps the session SDK and the menu's service graph out of
+ * out of this module keeps the session SDK out of
  * every module that renders a row.
  */
 export type BoundPostCommands = Pick<
   PostInteractions,
-  | 'requireSession'
-  | 'getMenuGroups'
-  | 'openSources'
-  | 'openInsights'
-  | 'openCommunityNoteAbout'
-  | 'prefetchProfile'
+  'requireSession' | 'openSources' | 'openInsights' | 'openCommunityNoteAbout' | 'prefetchProfile'
 >;
 
 /** The canonical copy of a post right now, or the row's copy when the store has none. */
@@ -167,13 +149,6 @@ function createController(): Controller {
     },
     share: (post) => {
       void sharePost(currentPost(post));
-    },
-    getMenuGroups: (request) => {
-      if (!bound) {
-        logger.warn('getMenuGroups: no PostInteractionsBinder is mounted');
-        return [];
-      }
-      return bound.getMenuGroups(request);
     },
     openSources: whenBound('openSources'),
     openInsights: whenBound('openInsights'),

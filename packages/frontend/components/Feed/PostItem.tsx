@@ -69,6 +69,11 @@ import { resolveReplyContextRow } from '@/utils/replyContextRow';
 import { openExternalLink } from '@/utils/openExternalLink';
 
 // Lazy load modals/sheets only when the user opens them.
+// The menu's rows pull in the whole action service graph (mute, report, lanes,
+// lists…), and a reader opens the menu of almost no row: load it on first open.
+const PostMenuContent = lazy(() =>
+  import('./PostMenuContent').then((m) => ({ default: m.PostMenuContent })),
+);
 const PostArticleModal = lazy(() => import('@/components/Post/PostArticleModal'));
 const EngagementList = lazy(() => import('@/components/Post/EngagementList'));
 const CollaboratorsList = lazy(() => import('@/components/Post/CollaboratorsList'));
@@ -638,20 +643,6 @@ const PostItem: React.FC<PostItemProps> = ({
     });
   }, [roomId, router]);
 
-  // The ⋯ menu is built when it is OPENED, against the post as the store holds
-  // it then — the row keeps only this command (issue #1103). Community notes
-  // are the same: whether the flows are offered is the app's answer, resolved
-  // once by the controller, not per row.
-  const getMenuGroups = useCallback(() => {
-    if (!viewPost) return [];
-    return interactions.getMenuGroups({
-      post: viewPost,
-      isPostDetail: isDetailMain,
-      source: feedDescriptor,
-      onOpenArticle: openArticleSheet,
-    });
-  }, [interactions, viewPost, isDetailMain, feedDescriptor, openArticleSheet]);
-
   const communityNote = viewPost?.communityNote;
   const openCommunityNoteAbout = useCallback(() => {
     if (communityNote) interactions.openCommunityNoteAbout(communityNote);
@@ -1107,7 +1098,18 @@ const PostItem: React.FC<PostItemProps> = ({
             onPressName={prefetchAuthorProfile}
             onPressCollaborators={isCollab ? openCollaboratorsList : undefined}
             linkAuthors
-            getMenuGroups={getMenuGroups}
+            menu={
+              viewPost ? (
+                <Suspense fallback={null}>
+                  <PostMenuContent
+                    post={viewPost}
+                    isPostDetail={isDetailMain}
+                    source={feedDescriptor}
+                    onOpenArticle={openArticleSheet}
+                  />
+                </Suspense>
+              ) : undefined
+            }
             paddingHorizontal={HPAD}
           >
             {isDetailMain ? null : postBody}

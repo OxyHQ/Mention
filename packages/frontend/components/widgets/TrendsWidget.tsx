@@ -29,7 +29,7 @@ export function TrendsWidget({ variant = 'card', divider }: TrendsWidgetProps) {
     useTrendsStore();
   const router = useRouter();
   const theme = useTheme();
-  const getTrendMenuGroups = useTrendItemMenu();
+  const getTrendMenuActions = useTrendItemMenu();
 
   useEffect(() => {
     const subscriptionId = startPolling();
@@ -102,7 +102,7 @@ export function TrendsWidget({ variant = 'card', divider }: TrendsWidgetProps) {
               // batch-wide `trend.rank` would show gaps here.
               ordinal={index + 1}
               onPress={handleTrendPress}
-              getMenuGroups={getTrendMenuGroups}
+              getMenuActions={getTrendMenuActions}
               showBorder={!isLast}
             />
           );

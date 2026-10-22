@@ -11,7 +11,7 @@ export { useProfileScroll } from './hooks/useProfileScroll';
 export { useProfileAccount, useProfileCanonicalHref } from './hooks/useProfileAccount';
 export { useRoutedProfileUsername } from './hooks/useRoutedProfileUsername';
 export { useProfileChrome } from './hooks/useProfileChrome';
-export { useProfileMoreMenu } from './hooks/useProfileMoreMenu';
+export { ProfileMoreMenu } from './ProfileMoreMenu';
 export { useOperatesAccount } from './hooks/useOperatesAccount';
 export { useJustFollowed } from './hooks/useJustFollowed';
 export { useChannelWriters } from './hooks/useChannelWriters';

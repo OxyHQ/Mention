@@ -23,7 +23,12 @@ import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { RiShareForwardLine } from '@oxy.so/bloom/icons/RiShareForwardLine';
 import { RiStopFill } from '@oxy.so/bloom/icons/RiStopFill';
 import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
-import { ActionMenuTrigger, type ActionMenuGroups } from '@/components/common/ActionMenuTrigger';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@oxy.so/bloom/dropdown-menu';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Text as BloomText } from '@oxy.so/bloom/typography';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -193,92 +198,58 @@ const RoomDetailScreen = () => {
     }
   }, [room, id]);
 
-  const getMenuGroups = useCallback((): ActionMenuGroups => {
-    if (!room || !id) return [];
-
-    const handleShare = handleShareRoom;
-
-    const handleLeave = async () => {
-      const confirmed = await confirmDialog({
-        title: t('agora.leaveRoomConfirmTitle', { defaultValue: 'Leave room' }),
-        message: t('agora.leaveRoomConfirmMessage', {
-          defaultValue: 'Are you sure you want to leave this room?',
-        }),
-        okText: t('agora.leaveRoom', { defaultValue: 'Leave room' }),
-        cancelText: t('common.cancel', { defaultValue: 'Cancel' }),
-        destructive: true,
+  const handleLeave = async () => {
+    if (!id) return;
+    const confirmed = await confirmDialog({
+      title: t('agora.leaveRoomConfirmTitle', { defaultValue: 'Leave room' }),
+      message: t('agora.leaveRoomConfirmMessage', {
+        defaultValue: 'Are you sure you want to leave this room?',
+      }),
+      okText: t('agora.leaveRoom', { defaultValue: 'Leave room' }),
+      cancelText: t('common.cancel', { defaultValue: 'Cancel' }),
+      destructive: true,
+    });
+    if (!confirmed) return;
+    setActionLoading(true);
+    const success = await roomsService.leaveRoom(id);
+    if (success) {
+      setIsJoined(false);
+      loadRoom();
+      toast(t('agora.leftRoom', { defaultValue: 'You have left the room' }), { type: 'success' });
+    } else {
+      toast(t('agora.leaveRoomFailed', { defaultValue: 'Failed to leave room' }), {
+        type: 'error',
       });
-      if (!confirmed) return;
-      setActionLoading(true);
-      const success = await roomsService.leaveRoom(id);
-      if (success) {
-        setIsJoined(false);
-        loadRoom();
-        toast(t('agora.leftRoom', { defaultValue: 'You have left the room' }), { type: 'success' });
-      } else {
-        toast(t('agora.leaveRoomFailed', { defaultValue: 'Failed to leave room' }), {
-          type: 'error',
-        });
-      }
-      setActionLoading(false);
-    };
+    }
+    setActionLoading(false);
+  };
 
-    const handleReport = () => {
-      bottomSheet.setBottomSheetContent(
-        <ReportModal
-          visible={true}
-          onClose={() => bottomSheet.openBottomSheet(false)}
-          onSubmit={async (categories, details) => {
-            bottomSheet.openBottomSheet(false);
-            const success = await reportService.reportRoom(id, categories, details);
-            if (success) {
-              toast(
-                t('agora.reportThankYou', {
-                  defaultValue: 'Thank you for helping keep our community safe.',
-                }),
-                { type: 'success' },
-              );
-            } else {
-              toast(t('agora.reportFailed', { defaultValue: 'Failed to submit report.' }), {
-                type: 'error',
-              });
-            }
-          }}
-        />,
-      );
-      bottomSheet.openBottomSheet(true);
-    };
-
-    return [
-      [
-        {
-          icon: <RiShareForwardLine width={22} height={22} fill={theme.colors.text} />,
-          label: t('agora.shareRoom', { defaultValue: 'Share room' }),
-          onPress: handleShare,
-        },
-        ...(isJoined && !isHost
-          ? [
-              {
-                icon: <RiLogoutBoxRLine width={22} height={22} fill={theme.colors.error} />,
-                label: t('agora.leaveRoom', { defaultValue: 'Leave room' }),
-                onPress: handleLeave,
-                color: theme.colors.error,
-              },
-            ]
-          : []),
-        ...(!isHost
-          ? [
-              {
-                icon: <RiFlagLine width={22} height={22} fill={theme.colors.error} />,
-                label: t('agora.reportRoom', { defaultValue: 'Report room' }),
-                onPress: handleReport,
-                color: theme.colors.error,
-              },
-            ]
-          : []),
-      ],
-    ];
-  }, [room, id, isJoined, isHost, theme, t, bottomSheet, handleShareRoom, loadRoom]);
+  const handleReport = () => {
+    if (!id) return;
+    bottomSheet.setBottomSheetContent(
+      <ReportModal
+        visible={true}
+        onClose={() => bottomSheet.openBottomSheet(false)}
+        onSubmit={async (categories, details) => {
+          bottomSheet.openBottomSheet(false);
+          const success = await reportService.reportRoom(id, categories, details);
+          if (success) {
+            toast(
+              t('agora.reportThankYou', {
+                defaultValue: 'Thank you for helping keep our community safe.',
+              }),
+              { type: 'success' },
+            );
+          } else {
+            toast(t('agora.reportFailed', { defaultValue: 'Failed to submit report.' }), {
+              type: 'error',
+            });
+          }
+        }}
+      />,
+    );
+    bottomSheet.openBottomSheet(true);
+  };
 
   // Resolve user IDs to real profiles. Hooks must run on every render, so this
   // stays above the loading / error branches.
@@ -308,18 +279,48 @@ const RoomDetailScreen = () => {
           backLabel={t('common.back', { defaultValue: 'Back' })}
           actions={
             room ? (
-              <ActionMenuTrigger
-                label={t('common.options', { defaultValue: 'Options' })}
-                groups={getMenuGroups}
-              >
-                <Button
-                  appearance="subtle"
-                  tone="neutral"
-                  iconOnly
-                  leadingIcon={RiMoreFill}
-                  accessibilityLabel={t('common.options', { defaultValue: 'Options' })}
-                />
-              </ActionMenuTrigger>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  asChild
+                  label={t('common.options', { defaultValue: 'Options' })}
+                >
+                  <Button
+                    appearance="subtle"
+                    tone="neutral"
+                    iconOnly
+                    leadingIcon={RiMoreFill}
+                    accessibilityLabel={t('common.options', { defaultValue: 'Options' })}
+                  />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent label={t('common.options', { defaultValue: 'Options' })}>
+                  <DropdownMenuItem
+                    leading={<RiShareForwardLine width={22} height={22} fill={theme.colors.text} />}
+                    onPress={handleShareRoom}
+                  >
+                    {t('agora.shareRoom', { defaultValue: 'Share room' })}
+                  </DropdownMenuItem>
+                  {isJoined && !isHost ? (
+                    <DropdownMenuItem
+                      variant="destructive"
+                      leading={
+                        <RiLogoutBoxRLine width={22} height={22} fill={theme.colors.error} />
+                      }
+                      onPress={handleLeave}
+                    >
+                      {t('agora.leaveRoom', { defaultValue: 'Leave room' })}
+                    </DropdownMenuItem>
+                  ) : null}
+                  {isHost ? null : (
+                    <DropdownMenuItem
+                      variant="destructive"
+                      leading={<RiFlagLine width={22} height={22} fill={theme.colors.error} />}
+                      onPress={handleReport}
+                    >
+                      {t('agora.reportRoom', { defaultValue: 'Report room' })}
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : undefined
           }
         />

@@ -1,5 +1,4 @@
 import { IconButton } from '@oxy.so/bloom/button';
-import { ActionMenuTrigger } from '@/components/common/ActionMenuTrigger';
 import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
 import type React from 'react';
 import { useCallback, useEffect, useMemo } from 'react';
@@ -60,7 +59,7 @@ import {
   type ProfileAccount,
 } from './useProfileAccount';
 import { useProfileChrome, type ProfileChrome } from './useProfileChrome';
-import { useProfileMoreMenu } from './useProfileMoreMenu';
+import { ProfileMoreMenu } from '../ProfileMoreMenu';
 import { useMessageInAllo } from './useMessageInAllo';
 import { useOperatesAccount } from './useOperatesAccount';
 import { useJustFollowed } from './useJustFollowed';
@@ -386,11 +385,6 @@ export function usePersonProfileView({
     accountKind: profileData?.kind,
   });
 
-  const moreMenu = useProfileMoreMenu({
-    profileData,
-    viewerOperatesAccount: isOwnProfile || operatesThisAccount,
-  });
-
   // Mention has no DMs; a message to this person is a conversation in Allo.
   const handleDM = useMessageInAllo(profileData?.id, handle);
 
@@ -619,8 +613,8 @@ export function usePersonProfileView({
             defaultValue: "Share @{{handle}}'s profile",
           })}
         />
-        {!isOwnProfile && moreMenu && (
-          <ActionMenuTrigger label={moreMenu.label} groups={moreMenu.getGroups}>
+        {!isOwnProfile && canUsePrivateApi && (
+          <ProfileMoreMenu profileData={profileData} viewerOperatesAccount={operatesThisAccount}>
             <ButtonGroupItem
               iconOnly
               leadingIcon={RiMoreFill}
@@ -629,7 +623,7 @@ export function usePersonProfileView({
                 defaultValue: 'More options for @{{handle}}',
               })}
             />
-          </ActionMenuTrigger>
+          </ProfileMoreMenu>
         )}
       </ButtonGroup>
     </>

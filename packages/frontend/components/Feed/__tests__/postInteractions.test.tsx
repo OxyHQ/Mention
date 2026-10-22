@@ -7,7 +7,6 @@ import {
   PostInteractionsProvider,
   usePostInteractions,
   type PostInteractions,
-  type PostMenuRequest,
 } from '../postInteractions';
 import { PostInteractionsBinder } from '../PostInteractionsBinder';
 import { toast } from '@oxy.so/bloom/toast';
@@ -47,26 +46,14 @@ jest.mock('@/stores/postsStore', () => ({
 const mockShare = jest.fn();
 jest.mock('@/hooks/usePostShare', () => ({ sharePost: (post: unknown) => mockShare(post) }));
 
-const mockShowActionMenu = jest.fn();
-// The menu is rendered by `ActionMenuTrigger`; these tests read the groups the
-// command builds, so each opening records them here.
-function openMenu(commands: PostInteractions, request: PostMenuRequest) {
-  const record = (groups: unknown) => mockShowActionMenu({ groups });
-  const built = commands.getMenuGroups(request);
-  if (built instanceof Promise) void built.then(record);
-  else record(built);
-}
-
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn(), back: jest.fn(), canGoBack: () => false }),
 }));
 const mockPrefetchQuery = jest.fn(() => Promise.resolve());
-const mockEnsureQueryData = jest.fn(async () => [] as unknown[]);
 jest.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({
     invalidateQueries: jest.fn(),
     prefetchQuery: mockPrefetchQuery,
-    ensureQueryData: mockEnsureQueryData,
   }),
 }));
 jest.mock('react-i18next', () => ({
@@ -83,7 +70,6 @@ jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (u: { username?: string } | null) => u?.username ?? null,
 }));
-jest.mock('@/services/feedService', () => ({ feedService: {} }));
 const mockPrefetchFeed = jest.fn();
 jest.mock('@/hooks/useFeedQuery', () => ({
   prefetchFeed: (...args: unknown[]) => mockPrefetchFeed(...args),
@@ -91,14 +77,6 @@ jest.mock('@/hooks/useFeedQuery', () => ({
 jest.mock('@/components/Profile/pinnedPostQuery', () => ({
   pinnedPostQueryOptions: (viewerId: unknown, profileId: string) => ({ profileId }),
 }));
-jest.mock('@/services/muteService', () => ({ muteService: {} }));
-jest.mock('@/services/lanesService', () => ({ lanesService: {} }));
-jest.mock('@/services/reportService', () => ({ reportService: {} }));
-jest.mock('@/services/communityService', () => ({ communityService: {} }));
-jest.mock('@/stores/laneInvalidation', () => ({ noteLaneListsChanged: jest.fn() }));
-jest.mock('@/utils/alerts', () => ({ confirmDialog: jest.fn() }));
-jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn() }));
-jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
 jest.mock('@oxy.so/bloom/bottom-sheet', () => ({ BottomSheet: 'BottomSheet' }));
 const mockNoteSheets = {
   canWrite: false,
@@ -272,214 +250,6 @@ describe('session gate', () => {
   });
 });
 
-describe('menu', () => {
-  it.each([false, true])(
-    'honors the server insight permission over ownership (allowed: %s)',
-    (allowed) => {
-      mockAuth = { user: { id: 'viewer-1' }, isAuthenticated: true, canUsePrivateApi: true };
-      const commands = capture((probe) => (
-        <PostInteractionsProvider>
-          <PostInteractionsBinder />
-          {probe}
-        </PostInteractionsProvider>
-      ));
-      const item = post('insights-permission', { isOwner: !allowed });
-      item.permissions = { ...item.permissions, canViewInsights: allowed };
-      openMenu(commands, { post: item, isPostDetail: false, onOpenArticle: jest.fn() });
-      const labels = (
-        mockShowActionMenu.mock.calls[0][0] as { groups: { label: string }[][] }
-      ).groups
-        .flat()
-        .map((action) => action.label);
-      expect(labels.includes('postActions.insights')).toBe(allowed);
-    },
-  );
-
-  it.each([false, true])('offers saving only with a ready session (ready: %s)', async (ready) => {
-    mockAuth = {
-      user: ready ? { id: 'viewer-1' } : null,
-      isAuthenticated: ready,
-      canUsePrivateApi: ready,
-    };
-    const commands = capture((probe) => (
-      <PostInteractionsProvider>
-        <PostInteractionsBinder />
-        {probe}
-      </PostInteractionsProvider>
-    ));
-    openMenu(commands, {
-      post: post('menu-save'),
-      source: 'following',
-      isPostDetail: false,
-      onOpenArticle: jest.fn(),
-    });
-    const actions = (
-      mockShowActionMenu.mock.calls[0][0] as {
-        groups: { label: string; onPress: () => Promise<void> }[][];
-      }
-    ).groups.flat();
-    const save = actions.find((action) => action.label === 'postActions.save');
-    if (ready) {
-      expect(save).toBeDefined();
-      await save?.onPress();
-      expect(mockStore.savePost).toHaveBeenCalledWith({ postId: 'menu-save' }, 'following');
-    } else {
-      expect(save).toBeUndefined();
-      expect(mockStore.savePost).not.toHaveBeenCalled();
-    }
-  });
-
-  it('checks the current session when saving from an already open menu', async () => {
-    mockAuth = { user: { id: 'viewer-1' }, isAuthenticated: true, canUsePrivateApi: true };
-    let commands!: PostInteractions;
-    const Probe = () => {
-      commands = usePostInteractions();
-      return null;
-    };
-    const tree = () => (
-      <PostInteractionsProvider>
-        <PostInteractionsBinder />
-        <Probe />
-      </PostInteractionsProvider>
-    );
-    let renderer!: TestRenderer.ReactTestRenderer;
-    act(() => {
-      renderer = TestRenderer.create(tree());
-    });
-    openMenu(commands, {
-      post: post('expired-menu'),
-      isPostDetail: false,
-      onOpenArticle: jest.fn(),
-    });
-    const save = (
-      mockShowActionMenu.mock.calls[0][0] as {
-        groups: { label: string; onPress: () => Promise<void> }[][];
-      }
-    ).groups
-      .flat()
-      .find((action) => action.label === 'postActions.save');
-    expect(save).toBeDefined();
-
-    mockAuth = { user: null, isAuthenticated: false, canUsePrivateApi: false };
-    act(() => {
-      renderer.update(tree());
-    });
-    await save?.onPress();
-    expect(mockStore.savePost).not.toHaveBeenCalled();
-    expect(toast).toHaveBeenCalledWith('Sign in to interact with posts.', {
-      id: 'post-session-required',
-      type: 'info',
-    });
-    act(() => renderer.unmount());
-  });
-
-  it('without a binder, the menu has no groups and opening it is a logged no-op', () => {
-    const commands = capture((probe) => (
-      <PostInteractionsProvider>{probe}</PostInteractionsProvider>
-    ));
-    expect(() =>
-      openMenu(commands, { post: post('m'), isPostDetail: false, onOpenArticle: jest.fn() }),
-    ).not.toThrow();
-    expect(mockShowActionMenu).toHaveBeenCalledWith({ groups: [] });
-  });
-
-  it('is built at press time from the canonical post', () => {
-    const commands = capture((probe) => (
-      <PostInteractionsProvider>
-        <PostInteractionsBinder />
-        {probe}
-      </PostInteractionsProvider>
-    ));
-
-    // The row rendered a stranger's post; the store says the viewer owns it
-    // (an ownership the row never saw). The menu must offer Delete.
-    mockStore.posts.set('owned', post('owned', { isOwner: true }));
-    openMenu(commands, { post: post('owned'), isPostDetail: false, onOpenArticle: jest.fn() });
-
-    expect(mockShowActionMenu).toHaveBeenCalledTimes(1);
-    const labels = (mockShowActionMenu.mock.calls[0][0] as { groups: { label: string }[][] }).groups
-      .flat()
-      .map((action) => action.label);
-    expect(labels).toContain('postActions.delete');
-    expect(labels).not.toContain('postActions.reportPost');
-  });
-
-  it("offers a community's moderation only to its moderators, asked of the account graph", async () => {
-    mockAuth = {
-      user: { id: 'viewer-1', username: 'nate' },
-      isAuthenticated: true,
-      canUsePrivateApi: true,
-    };
-    const commands = capture((probe) => (
-      <PostInteractionsProvider>
-        <PostInteractionsBinder />
-        {probe}
-      </PostInteractionsProvider>
-    ));
-    const inCommunity = {
-      ...post('in-forum'),
-      community: { id: 'forum-1', username: 'forum', kind: 'community', isFederated: false },
-    } as HydratedPost;
-    const labelsOf = (call: number) =>
-      (mockShowActionMenu.mock.calls[call][0] as { groups: { label: string }[][] }).groups
-        .flat()
-        .map((action) => action.label);
-
-    mockEnsureQueryData.mockResolvedValueOnce([
-      { accountId: 'forum-1', kind: 'community', callerMembership: { status: 'active' } },
-    ]);
-    await act(async () => {
-      openMenu(commands, { post: inCommunity, isPostDetail: false, onOpenArticle: jest.fn() });
-    });
-    expect(labelsOf(0)).toContain('Remove from !{{community}}');
-
-    mockEnsureQueryData.mockRejectedValueOnce(new Error('offline'));
-    await act(async () => {
-      openMenu(commands, { post: inCommunity, isPostDetail: false, onOpenArticle: jest.fn() });
-    });
-    expect(labelsOf(1)).not.toContain('Remove from !{{community}}');
-  });
-
-  it('never offers community moderation, nor asks the account graph, outside the preview', async () => {
-    mockAuth = {
-      user: { id: 'viewer-2', username: 'ada' },
-      isAuthenticated: true,
-      canUsePrivateApi: true,
-    };
-    const commands = capture((probe) => (
-      <PostInteractionsProvider>
-        <PostInteractionsBinder />
-        {probe}
-      </PostInteractionsProvider>
-    ));
-    const inCommunity = {
-      ...post('in-forum'),
-      community: { id: 'forum-1', username: 'forum', kind: 'community', isFederated: false },
-    } as HydratedPost;
-    mockEnsureQueryData.mockClear();
-    await act(async () => {
-      openMenu(commands, { post: inCommunity, isPostDetail: false, onOpenArticle: jest.fn() });
-    });
-    const labels = (
-      mockShowActionMenu.mock.calls.at(-1)?.[0] as { groups: { label: string }[][] }
-    ).groups
-      .flat()
-      .map((action) => action.label);
-    expect(labels).not.toContain('Remove from !{{community}}');
-    expect(mockEnsureQueryData).not.toHaveBeenCalled();
-  });
-
-  it('builds nothing until pressed', () => {
-    capture((probe) => (
-      <PostInteractionsProvider>
-        <PostInteractionsBinder />
-        {probe}
-      </PostInteractionsProvider>
-    ));
-    expect(mockShowActionMenu).not.toHaveBeenCalled();
-  });
-});
-
 describe('bound sheet commands', () => {
   const sheet = { setBottomSheetContent: jest.fn(), openBottomSheet: jest.fn() };
   const bound = () =>
@@ -521,29 +291,6 @@ describe('bound sheet commands', () => {
     } as never;
     bound().openCommunityNoteAbout(note);
     expect(mockNoteSheets.openAbout).toHaveBeenCalledWith(note);
-  });
-
-  it('offers "Add community note" to a non-owner only when a writer is configured', () => {
-    mockNoteSheets.canWrite = true;
-    const commands = bound();
-    openMenu(commands, { post: post('n'), isPostDetail: false, onOpenArticle: jest.fn() });
-    const groups = (
-      mockShowActionMenu.mock.calls[0][0] as { groups: { label: string; onPress: () => void }[][] }
-    ).groups.flat();
-    const add = groups.find((action) => action.label === 'Add community note');
-    expect(add).toBeDefined();
-    add?.onPress();
-    expect(mockNoteSheets.openWriteFlow).toHaveBeenCalled();
-
-    mockShowActionMenu.mockClear();
-    mockStore.posts.set('own', post('own', { isOwner: true }));
-    openMenu(commands, { post: post('own'), isPostDetail: false, onOpenArticle: jest.fn() });
-    const ownerLabels = (
-      mockShowActionMenu.mock.calls[0][0] as { groups: { label: string }[][] }
-    ).groups
-      .flat()
-      .map((a) => a.label);
-    expect(ownerLabels).not.toContain('Add community note');
   });
 });
 

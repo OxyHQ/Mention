@@ -1,6 +1,6 @@
 import { POST_AVATAR_SIZE } from '@/styles/shared';
-import { ActionMenuTrigger, type ActionMenuGroups } from '@/components/common/ActionMenuTrigger';
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, type ReactNode } from 'react';
+import { DropdownMenu, DropdownMenuTrigger } from '@oxy.so/bloom/dropdown-menu';
 import { Text, View, TouchableOpacity } from 'react-native';
 import { LiveAvatar } from '@/components/ui/LiveAvatar';
 import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
@@ -163,8 +163,11 @@ interface PostHeaderProps {
    * avatar beside the author's.
    */
   onPressCollaborators?: () => void;
-  /** Builds the ⋯ menu's groups when it opens; omit to hide the button. */
-  getMenuGroups?: () => ActionMenuGroups | Promise<ActionMenuGroups>;
+  /**
+   * The ⋯ menu's `DropdownMenuContent`; omit to hide the button. Only
+   * mounted while the menu is open, so a feed row holds an element, not a menu.
+   */
+  menu?: ReactNode;
   /**
    * Each name in a collaborative byline links to that author's profile. Off
    * where the header is not pointing at anyone else (the composer's preview).
@@ -236,13 +239,14 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   onPressAvatar,
   onPressName,
   onPressCollaborators,
-  getMenuGroups,
+  menu,
   linkAuthors,
   disableHoverCard,
   boostedBy,
 }) => {
   const theme = useTheme();
   const { t } = useTranslation();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const timeLabel = useTimeAgo(date);
   const timeText = timeLabel ? (
@@ -411,20 +415,19 @@ const PostHeader: React.FC<PostHeaderProps> = ({
     </ProfileHoverCard>
   );
 
-  const menu = getMenuGroups ? (
-    <ActionMenuTrigger
-      label={t('postActions.title', { defaultValue: 'Post options' })}
-      groups={getMenuGroups}
-    >
-      <TouchableOpacity
-        accessibilityLabel={t('postActions.title', { defaultValue: 'Post options' })}
-        hitSlop={HIT_SLOP_MD}
-        className={compact ? 'ml-auto shrink-0 px-2' : 'px-2'}
-        style={{ marginTop: compact ? 0 : headerTopOffset }}
-      >
-        <RiMoreFill width={18} height={18} fill={theme.colors.textSecondary} />
-      </TouchableOpacity>
-    </ActionMenuTrigger>
+  const menuButton = menu ? (
+    <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+      <DropdownMenuTrigger asChild label={t('postActions.title', { defaultValue: 'Post options' })}>
+        <TouchableOpacity
+          hitSlop={HIT_SLOP_MD}
+          className={compact ? 'ml-auto shrink-0 px-2' : 'px-2'}
+          style={{ marginTop: compact ? 0 : headerTopOffset }}
+        >
+          <RiMoreFill width={18} height={18} fill={theme.colors.textSecondary} />
+        </TouchableOpacity>
+      </DropdownMenuTrigger>
+      {menuOpen ? menu : null}
+    </DropdownMenu>
   ) : null;
 
   const identityName = (
@@ -592,7 +595,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               <BoostIcon size={INDICATOR_ICON_SIZE} className="text-muted-foreground" />
             </View>
           )}
-          {compact ? menu : null}
+          {compact ? menuButton : null}
           {showReply && (
             <View className="flex-row items-center" style={{ gap: ROW_GAP }}>
               <RiChat3Fill size="xs" fill={theme.colors.textSecondary} />
@@ -603,7 +606,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
         {bylineSlot}
         {children ? <View>{children}</View> : null}
       </View>
-      {compact ? null : menu}
+      {compact ? null : menuButton}
     </View>
   );
 };

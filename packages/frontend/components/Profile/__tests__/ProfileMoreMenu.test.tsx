@@ -1,19 +1,16 @@
 import TestRenderer, { act } from 'react-test-renderer';
-import type { ActionMenuAction } from '@/components/common/actionMenuGroups';
+import { Text } from 'react-native';
+import { DropdownMenuItem } from '@oxy.so/bloom/dropdown-menu';
 import type { ProfileData } from '@/hooks/useProfileData';
-import {
-  useProfileMoreMenu,
-  type ProfileMoreMenu,
-  type ProfileMoreMenuOptions,
-} from '../useProfileMoreMenu';
+import { ProfileMoreMenu, type ProfileMoreMenuProps } from '../ProfileMoreMenu';
 
 /**
  * Which rows the profile "…" menu offers, and whether it exists at all.
  *
  * Signed out, every shared row (lists, starter packs, mute, block, report) is a
  * write on the viewer's own account and could only answer 401 (#1126), so none
- * is offered — and with nothing left, the hook returns `null` so neither
- * profile screen renders a "…" that opens an empty sheet.
+ * is offered — and with nothing left, the menu renders nothing so neither
+ * profile screen renders a "…" that opens an empty menu.
  */
 
 let mockAuth = { canUsePrivateApi: true, oxyServices: { blockUser: jest.fn() } };
@@ -44,48 +41,44 @@ jest.mock('@/services/reportService', () => ({ reportService: { reportUser: jest
 jest.mock('@/utils/alerts', () => ({ confirmDialog: jest.fn() }));
 
 const profileData = { id: 'u1', username: 'ana' } as ProfileData;
-const channelSettings: ActionMenuAction = {
-  icon: null,
-  label: 'Channel settings',
-  onPress: jest.fn(),
-};
+const channelSettings = <DropdownMenuItem>Channel settings</DropdownMenuItem>;
 
-let latest: ProfileMoreMenu | null = null;
-function Probe(props: Omit<ProfileMoreMenuOptions, 'profileData'>) {
-  latest = useProfileMoreMenu({ profileData, ...props });
-  return null;
-}
-
-async function render(props: Omit<ProfileMoreMenuOptions, 'profileData'>) {
+/** The labels of the menu's rows, or `null` when the component renders nothing. */
+async function render(props: Omit<ProfileMoreMenuProps, 'profileData' | 'children'>) {
+  let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
-    TestRenderer.create(<Probe {...props} />);
+    renderer = TestRenderer.create(
+      <ProfileMoreMenu profileData={profileData} {...props}>
+        <Text>more</Text>
+      </ProfileMoreMenu>,
+    );
   });
-  return latest;
-}
-
-function openedLabels(menu: ProfileMoreMenu | null): string[][] {
-  expect(menu).not.toBeNull();
-  return (menu?.getGroups() ?? []).map((group) => group.map((action) => String(action.label)));
+  if (renderer.toJSON() === null) return null;
+  return renderer.root
+    .findAll((node) => node.type === Text && node.props.accessibilityRole === 'menuitem')
+    .map((node) => String(node.props.children));
 }
 
 beforeEach(() => {
   mockAuth = { canUsePrivateApi: true, oxyServices: { blockUser: jest.fn() } };
 });
 
-describe('useProfileMoreMenu', () => {
+describe('ProfileMoreMenu', () => {
   it("offers a signed-in reader lists, starter packs, mute, block and report on someone else's profile", async () => {
-    const open = await render({ viewerOperatesAccount: false });
-    expect(openedLabels(open)).toEqual([
-      ['lists.addTo.menuItem', 'starterPacks.addTo.menuItem', 'profile.muteUser'],
-      ['profile.blockUser', 'profile.reportUser'],
+    expect(await render({ viewerOperatesAccount: false })).toEqual([
+      'lists.addTo.menuItem',
+      'starterPacks.addTo.menuItem',
+      'profile.muteUser',
+      'profile.blockUser',
+      'profile.reportUser',
     ]);
   });
 
   it('keeps curation but withholds mute, block and report from an operator', async () => {
-    const open = await render({ viewerOperatesAccount: true, leadingActions: [channelSettings] });
-    expect(openedLabels(open)).toEqual([
-      ['Channel settings', 'lists.addTo.menuItem', 'starterPacks.addTo.menuItem'],
-      [],
+    expect(await render({ viewerOperatesAccount: true, leadingItems: channelSettings })).toEqual([
+      'Channel settings',
+      'lists.addTo.menuItem',
+      'starterPacks.addTo.menuItem',
     ]);
   });
 
@@ -96,7 +89,8 @@ describe('useProfileMoreMenu', () => {
 
   it('signed out, keeps only rows the caller supplied, never the viewer-account ones', async () => {
     mockAuth = { ...mockAuth, canUsePrivateApi: false };
-    const open = await render({ viewerOperatesAccount: false, leadingActions: [channelSettings] });
-    expect(openedLabels(open)).toEqual([['Channel settings'], []]);
+    expect(await render({ viewerOperatesAccount: false, leadingItems: channelSettings })).toEqual([
+      'Channel settings',
+    ]);
   });
 });

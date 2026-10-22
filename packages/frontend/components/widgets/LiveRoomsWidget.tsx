@@ -5,23 +5,20 @@ import { TouchableOpacity, View } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { RiCustomerServiceLine } from '@oxy.so/bloom/icons/RiCustomerServiceLine';
-import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
 
-import { ActionMenuTrigger, type ActionMenuGroups } from '@/components/common/ActionMenuTrigger';
 import { BaseWidget } from './BaseWidget';
+import { WidgetItemMenu, type WidgetItemMenuActions } from './WidgetItemMenu';
 import { useTheme } from '@oxy.so/bloom/theme';
 import type { Room } from '@/lib/syraApi';
 import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
 import { useUserById } from '@/hooks/useCachedUser';
-import { useWidgetItemMenu } from '@/hooks/useWidgetItemMenu';
 import { shareLink } from '@/utils/shareLink';
 import { WEB_BASE_URL } from '@/config';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { LIVE_INDICATOR_COLOR } from '@/styles/colors';
-import { HIT_SLOP_LG } from '@/styles/hitSlop';
 
 const MAX_ROOMS_DISPLAYED = 3;
 const LIVE_ROOMS_ROUTE = '/live-rooms';
@@ -38,12 +35,12 @@ const RoomRow = React.memo(function RoomRow({
   room,
   isLast,
   onPress,
-  getMenuGroups,
+  getMenuActions,
 }: {
   room: Room;
   isLast: boolean;
   onPress: () => void;
-  getMenuGroups: (room: Room) => ActionMenuGroups;
+  getMenuActions: (room: Room) => WidgetItemMenuActions;
 }) {
   const theme = useTheme();
   const hostProfile = useUserById(room.host);
@@ -79,16 +76,7 @@ const RoomRow = React.memo(function RoomRow({
           </View>
         </View>
       </View>
-      <ActionMenuTrigger label={room.title} groups={() => getMenuGroups(room)}>
-        <TouchableOpacity
-          className="p-1 web:cursor-pointer"
-          hitSlop={HIT_SLOP_LG}
-          accessibilityLabel="More options"
-          accessibilityRole="button"
-        >
-          <RiMoreFill size="sm" fill={theme.colors.textSecondary} />
-        </TouchableOpacity>
-      </ActionMenuTrigger>
+      <WidgetItemMenu label={room.title} {...getMenuActions(room)} />
     </TouchableOpacity>
   );
 });
@@ -98,7 +86,6 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
   const { t } = useTranslation();
   const router = useRouter();
   const theme = useTheme();
-  const openWidgetMenu = useWidgetItemMenu();
 
   const { rooms, hasFetched, error, hiddenRoomIds, startPolling, stopPolling, hideRoom } =
     useLiveRoomsStore();
@@ -120,9 +107,9 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
     router.push(LIVE_ROOMS_ROUTE);
   }, [router]);
 
-  const getMenuGroups = useCallback(
+  const getMenuActions = useCallback(
     (room: Room) => {
-      return openWidgetMenu({
+      return {
         onNotInterested: () => {
           hideRoom(room._id);
           toast(t('widgetMenu.roomHidden'), { type: 'success' });
@@ -135,9 +122,9 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
             errorToast: t('widgetMenu.shareFailed'),
           });
         },
-      });
+      };
     },
-    [openWidgetMenu, hideRoom, t],
+    [hideRoom, t],
   );
 
   // Same settling rule as `TrendsWidget`.
@@ -178,7 +165,7 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
                     params: { id: room._id },
                   })
                 }
-                getMenuGroups={getMenuGroups}
+                getMenuActions={getMenuActions}
               />
             ))}
           </View>
