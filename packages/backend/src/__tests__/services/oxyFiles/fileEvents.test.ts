@@ -164,6 +164,7 @@ describe('what an event does', () => {
   it('maps every reported state to a withholding', () => {
     const file = { id: 'f', ownerKind: 'account' as const, visibility: 'public' as const };
     expect(withholdingFor({ ...file, status: 'deleted' })).toBe('deleted');
+    expect(withholdingFor({ ...file, status: 'lost' })).toBe('deleted');
     expect(withholdingFor({ ...file, status: 'blocked' })).toBe('blocked');
     expect(withholdingFor({ ...file, status: 'trash' })).toBe('trashed');
     expect(withholdingFor({ ...file, status: 'active', visibility: 'private' })).toBe('private');
