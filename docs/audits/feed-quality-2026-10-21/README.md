@@ -1,6 +1,7 @@
 # Feed quality audit — 21 October 2026
 
-Status: implementation merged; post-deployment verification pending. The initial
+Status: initial implementation merged and measured in production; follow-up fixes
+and their separate release verification remain in progress. The initial
 code investigation used `origin/main` at `2bfaf0cd6`; the implementation merged as
 `b1b7b0b64ac8494169ec783d60eca4d275cbe8df`. Pre-release tests are not measurements of
 production impact. Production reads and review labels are recorded separately;
@@ -325,9 +326,12 @@ new authors and sources.
 A supported-language smoke check at 20:57 UTC sent `?lang=en` and
 `Accept-Language: en,es;q=0.9`. Explore returned 26 items/20 slices in 0.903 seconds,
 Media 20 items/zero slices in 0.820 seconds, and Trending 20 items/20 slices in
-0.990 seconds, all successful with `hasMore: true`. The DTO had no top-level
-language evidence, so no language-match rate is inferred. Authenticated MCP reads
-used account-derived preferences separately.
+0.990 seconds, all successful with `hasMore: true`. No language-match rate was calculated in this smoke check. Language metadata
+belongs under `metadata.language` / `metadata.languages`, not a top-level field.
+Later investigation found that delegated MCP cannot independently read owner
+languages through `users.me`: effective owner preferences depend on a cache warmed
+by the app. The MCP samples without an explicit request locale therefore do not
+establish the viewer's intended languages or a language-match rate.
 
 The audit also reproduced a false quality diagnostic: For You candidate shells
 omit normalized text/media, so existing `lowEffortGate` and `minLength` predicates
@@ -485,9 +489,16 @@ queue at **2026-10-21 23:04:04 UTC** as
 completed successfully on that exact SHA: build/lint/types, all three backend test
 shards, frontend tests, shared-types/MCP, browser gate and frontend bundle budget
 passed. The provenance and baseline jobs were skipped by their workflow conditions;
-they are not represented as executed checks. Backend, MCP and frontend deployment
-workflows subsequently started; their completion and actual live artifacts remain
-to be verified independently.
+they are not represented as executed checks. The backend, MCP and frontend workflows subsequently succeeded on that SHA.
+Backend [39690926452](https://github.com/OxyHQ/Mention/actions/runs/39690926452)
+reached steady state on `oxy-mention:682` at 23:09:15 UTC and passed smoke at
+23:09:16. MCP [39690926262](https://github.com/OxyHQ/Mention/actions/runs/39690926262)
+reached revision 393 at 23:08:03 and passed smoke at 23:08:04. Frontend
+[39690926183](https://github.com/OxyHQ/Mention/actions/runs/39690926183) promoted
+Worker `f21c2ac8-7f85-4a8f-8c46-f191b328ae62` at 23:13:03, followed by successful
+shell and apex smoke checks at 23:13:15 and 23:13:29. All times in this section
+are 21 October 2026 UTC; these are historical release observations, not a claim
+about whichever revision is currently live.
 
 ### Remaining import-quality acceptance work
 
@@ -500,9 +511,9 @@ follow graph remain unknown for those records. Applying those examples as a broa
 import classifier would therefore conflate the two decisions and risk suppressing
 discovery or required context.
 
-The post-deployment read-only probe will check the migration ledger, validated
+The post-deployment read-only probe checked the migration ledger, validated
 constraints, recorded initial and later import reasons, recent discovery import
-windows, and whether the audit account already has bell subscriptions. Counts of
+windows, and existing bell subscriptions; results appear below. Counts of
 new discovery imports can demonstrate continued import activity; they cannot alone
 establish content quality, newly discovered accounts, or optimal import volume.
 Public 72-hour bell supply is potential inventory before language, seen-state and
@@ -559,3 +570,120 @@ posts and multiple reasons per post; they are **not new-import counts**. The 593
 NULL initial causes remain honest unknown history despite newly recorded necessity
 reasons. There was no historical-origin backfill, deletion or import-policy change
 as part of this verification.
+
+
+### Canonical authenticated feed observations on revision 682
+
+[Aggregate capture](./postdeploy-feed-evidence-682.json) records the source times,
+release identity and measurements without post bodies or author identities. Requests
+used the verified `@nate` account through MCP revision 393 and requested 20 items per
+page. A focal post is the final item of a reply-context slice, the first item of
+other slices, or an item when the response has no slices. Flattened conversation
+context is counted separately. These canonical measures are not interchangeable
+with the earlier connector's flat-only counts.
+
+| Feed / session | Pages | Unique focal posts | Focal authors | Largest author count on a page | Focal posts within 72 hours |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| For You 1 | 10 | 200 | 94 | 3 | 200 |
+| For You 2 | 10 | 200 | 115 | 3 | 200 |
+| For You 3 | 10 | 200 | 101 | 3 | 200 |
+| Explore 1 / 2 / 3, each | 10 | 200 | 163 | 3 | 200 |
+| Following | 10 | 295 | 34 | 10 | 295 |
+| Following direct | 3 | 88 | 19 | 10 | 88 |
+| Videos 1 | 10 | 200 | 152 | 3 | 46 |
+| Videos 2 | 10 | 200 | 140 | 3 | 0 |
+| Videos 3 | 10 | 200 | 156 | 3 | 27 |
+| Media, authenticated | 10 | 200 | 152 | 3 | 200 |
+| Friends popular | 8, reached end | 159 | 135 | 3 | 136 |
+
+The captures ran from 23:10:36 through 23:27:18 UTC. None contained repeated focal
+IDs within its own continuation chain. Following and Following direct exceeded
+20 actual slices per page; this was a real page-boundary defect, not merely reply
+context inflating flattened items. The chronological correction is tracked in
+[PR #1574](https://github.com/OxyHQ/Mention/pull/1574); these observations precede
+that correction and must remain separate from its later retest.
+
+For You session 2 had no overlap with session 1; session 3 overlapped 28 earlier
+IDs. Videos session 2 had no overlap; session 3 overlapped 28 earlier IDs. The
+30-minute / 1,000-entry served history is shared across For You, Videos and Media,
+and more than 1,000 served positions preceded the third For You traversal. Such
+cross-refresh overlap is distinct from a continuation duplicate. Sequential reads
+also consume recent inventory, so later Videos freshness is not an independent
+baseline. Explore's second and third traversals overlapped 199 and 200 prior IDs,
+respectively, consistent with persistent global ranking rather than a served-state
+rotation contract. All 600 Explore positions were within 24 hours.
+
+Mutuals and friends-of-friends returned empty final pages. Saved returned eight
+items and no continuation; the account had no lists. These counts do not prove an
+inventory defect; saved bodies are deliberately excluded. Connector median elapsed
+times were about 2.2–2.7 seconds for the populated samples and include MCP overhead,
+not just backend execution. No language preference was established by these MCP
+calls: the delegated client lacked `users.me`, explicit request locale was absent,
+and owner-language lookup depended on an app-warmed cache.
+
+The standalone `3` review example remained publicly retrievable at 23:28 UTC and
+was absent from 600 sampled For You plus 600 Explore positions. This preserves the
+import/recommendation distinction, but absence from a bounded sample alone does
+not prove which filter excluded it. The old For You score cursor returned HTTP
+410 as intended; MCP displayed `[object Object]` instead of the typed error's
+message, motivating the focused tool error-format correction.
+
+### Anonymous API and browser observations on revision 682
+
+Direct public API reads at 23:10:49–23:11:05 UTC used `?lang=en` and
+`Accept-Language: en,es;q=0.9`. Each of Media, Trending and Explore supplied ten
+pages, 200 unique focal posts, no within-chain ID or slice repeats, and at most
+three focal posts by the same author on a page. They had 163, 177 and 144 focal
+authors, with median direct-request times of 468, 410 and 398 ms, respectively.
+Explore's 218 flattened items included context for its 200 focal posts. URL-level
+source duplication was not measurable from this capture and is not reported as zero.
+
+PHP hashtag pages contained 20, **39**, and 20 slices in 735, 542 and 421 ms. The
+middle page independently reproduced the chronological boundary defect. The
+technology topic returned a successful empty result in 210 ms. Earlier queries
+had timed out near 15 seconds with confirmed PostgreSQL statement-timeout errors;
+these bounded observations support the repaired query path, not a general latency
+SLA or an inference that every empty topic is healthy.
+
+Anonymous Media had a median post age of 56.75 days: 169/200 posts were older than
+30 days, only two were within seven days, and the oldest was 716.44 days old.
+Trending's median was 3.38 days with all 200 within seven days; Explore's median
+was 0.42 days with all 200 within one day. Source inspection explained the Media
+path: anonymous requests started directly in lifetime-engagement popular fallback,
+bypassing the primary ranking freshness signals. Authenticated Media used a
+different path and all 200 sampled posts were within 72 hours. The focused followup
+starts anonymous Media with primary ranking and retains popular supply after
+exhaustion; it does not impose an import ban or universal content age cutoff.
+Its production impact requires a separately attributed post-release sample.
+
+Two repeated Media cursor requests returned identical canonical IDs, slice keys
+and body hashes. Changing the requested limit from 20 to 19 returned typed HTTP
+410 `FEED_CURSOR_EXPIRED` in 198 ms. These are observed replay results, not a
+promise of permanent byte identity as hydration and access state evolve.
+
+The direct production Chromium smoke at 23:14:08 UTC passed four anonymous flows:
+Home rows; Home → Explore → post → back without document reload; `@nate` Posts →
+Media; and a pushed federated profile's Posts tab. It reported zero script/console
+errors and zero HTTP 4xx/5xx responses. Eight navigation-cancelled requests emitted
+`ERR_ABORTED` (six page-origin, two API); they were not classified as server errors.
+Both visible Home post images and the one visible Explore image loaded, and the
+screenshots showed rendered pages. The preview browser gate had also passed 66
+tests. This does not constitute an authenticated browser or physical-device test.
+
+### Follow-up acceptance boundaries
+
+The revision-682 evidence exposed separate issues: oversized chronological pages,
+Explore's pre-scored source bypassing explicit learned negative intent, anonymous
+Media starting with old popular supply, and MCP's missing explicit locale input
+and unreadable typed error. The followups must be evaluated at their own deployed
+SHA, including old Explore cursor restart behavior. The negative-intent correction
+uses source-level exclusions and the canonical hidden-topic penalty rather than
+applying a second complete ranking pass. Optional MCP `lang` is an explicit
+request fallback, not a claim to read or change the owner's stored preferences.
+
+Discovery continued after the initial release, but reduced unnecessary import
+volume, long-term recommendation satisfaction, new-account discovery rate and
+source-URL diversity remain unproven. The owner-reviewed examples are contextual
+recommendation labels; they do not establish a general import-rejection classifier.
+No content, follows, subscriptions or saved items were changed to manufacture
+production evidence.
