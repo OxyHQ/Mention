@@ -5,7 +5,6 @@ import {
 } from '@oxy.so/contracts';
 
 import {
-  ACCOUNT_CATEGORY_ENGLISH_LABELS,
   isKnownAccountCategoryId,
   nameableAccountCategoryIds,
   primaryAccountCategoryId,
@@ -27,16 +26,11 @@ const STORED: readonly AccountCategoryId[] = ['music', 'news', 'art'];
 const UNKNOWN_ID = 'quantum_basket_weaving';
 
 describe('the vocabulary this build was compiled against', () => {
-  it('is the 46-id set, every one of which has a non-empty English label', () => {
+  it('is the 46-id set', () => {
     // A vacuity floor for every other test in the file: they all draw ids from
     // this vocabulary, so a truncated or empty one would let them pass while
     // asserting nothing.
     expect(ACCOUNT_CATEGORY_IDS).toHaveLength(46);
-    expect(Object.keys(ACCOUNT_CATEGORY_ENGLISH_LABELS)).toHaveLength(46);
-
-    for (const id of ACCOUNT_CATEGORY_IDS) {
-      expect(ACCOUNT_CATEGORY_ENGLISH_LABELS[id]?.trim().length ?? 0).toBeGreaterThan(0);
-    }
   });
 
   it('names every id it can also OFFER, so a picker never lists a nameless row', () => {

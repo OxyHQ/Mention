@@ -10,8 +10,8 @@ import { ACCOUNT_CATEGORY_IDS, type AccountCategoryId } from '@oxy.so/contracts'
  * sort, and nothing may reorder a list on its way to a renderer.
  *
  * The values are IDS, never labels, which is what lets the READER's language win
- * over the writer's: `useAccountCategoryLabel` resolves each id through the
- * `accounts.accountCategory.<id>` key.
+ * over the writer's: `useAccountCategoryLabel` names each id with Oxy's own
+ * labels (`accountCategoryLabel` in `@oxy.so/core`).
  */
 
 /**
@@ -35,67 +35,6 @@ const KNOWN_ACCOUNT_CATEGORY_IDS: ReadonlySet<string> = new Set(ACCOUNT_CATEGORY
 export function isKnownAccountCategoryId(id: string): id is AccountCategoryId {
   return KNOWN_ACCOUNT_CATEGORY_IDS.has(id);
 }
-
-/**
- * The English label for every id in the vocabulary.
- *
- * Typed as a total `Record`, so adding an id at Oxy fails THIS build until
- * somebody writes its English — the alternative is an id that silently renders
- * as nothing on every surface, in every language, with no error anywhere.
- *
- * It is the `defaultValue` behind each `t()` call rather than a second catalog:
- * without one, a missing `en.json` entry makes i18next echo the KEY, so a
- * profile would read "accounts.accountCategory.news" — worse than the raw slug
- * this whole indirection exists to avoid.
- */
-export const ACCOUNT_CATEGORY_ENGLISH_LABELS: Record<AccountCategoryId, string> = {
-  news: 'News',
-  politics: 'Politics',
-  business: 'Business',
-  startup: 'Startup',
-  finance: 'Finance',
-  crypto: 'Crypto',
-  marketplace: 'Marketplace',
-  retail: 'Retail',
-  real_estate: 'Real estate',
-  agency: 'Agency',
-  landlord: 'Landlord',
-  cooperative: 'Cooperative',
-  architecture: 'Architecture',
-  technology: 'Technology',
-  software: 'Software',
-  ai: 'AI',
-  security: 'Security',
-  automation: 'Automation',
-  science: 'Science',
-  education: 'Education',
-  books: 'Books',
-  health: 'Health',
-  fitness: 'Fitness',
-  sports: 'Sports',
-  gaming: 'Gaming',
-  music: 'Music',
-  film: 'Film',
-  podcast: 'Podcast',
-  art: 'Art',
-  photography: 'Photography',
-  comedy: 'Comedy',
-  food: 'Food',
-  travel: 'Travel',
-  fashion: 'Fashion',
-  home_garden: 'Home & garden',
-  diy: 'DIY',
-  automotive: 'Automotive',
-  animals: 'Animals',
-  family: 'Family',
-  nonprofit: 'Nonprofit',
-  government: 'Government',
-  community: 'Community',
-  activism: 'Activism',
-  environment: 'Environment',
-  religion: 'Religion',
-  other: 'Other',
-};
 
 /**
  * The PRIMARY category to display, or `null` when there is none to name.
