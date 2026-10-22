@@ -22,7 +22,7 @@ import { FocusedScrollView } from '@/components/common/FocusedScrollView';
 import { useScreenReselect } from '@/context/ScreenReselectContext';
 import { SignInRequired } from '@/components/common/SignInRequired';
 import { profileBasePath, profileRouteFamily } from '@/components/Profile/profileRoute';
-import type { OperatedAccountKind } from './operatedAccountSettingsCopy';
+import type { OperatedAccountKind } from './OperatedAccountSettingsScreen';
 
 /**
  * The accounts of one member-operated kind you operate, and the one place to

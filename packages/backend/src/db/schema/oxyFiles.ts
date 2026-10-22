@@ -203,6 +203,7 @@ export const OXY_FILE_EVENT_TYPES = [
   'file.restored',
   'file.blocked',
   'file.unblocked',
+  'file.lost',
 ] as const;
 
 /** `FileEvent.file.ownerKind`. */

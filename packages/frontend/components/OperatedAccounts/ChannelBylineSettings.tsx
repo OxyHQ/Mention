@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { RiUserLine } from '@oxy.so/bloom/icons/RiUserLine';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { Switch } from '@oxy.so/bloom/switch';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -22,7 +22,8 @@ const bylineLogger = createLogger('ChannelBylineSettings');
  * A CHANNEL's byline — whether a post names the person who wrote it. The one
  * channel setting Oxy has no concept of, so it is Mention's, and it goes through
  * `PUT /profile/settings/:userId`. A community has no equivalent: its posts are
- * signed by the members who wrote them.
+ * signed by the members who wrote them. Rendered inside Oxy's `AccountSettings`
+ * as one of its sections, so it is built from the same Bloom group.
  */
 export function ChannelBylineSettings({ accountId }: { accountId: string }) {
   const { t } = useTranslation();
@@ -54,11 +55,11 @@ export function ChannelBylineSettings({ accountId }: { accountId: string }) {
   );
 
   return (
-    <SettingsListGroup
+    <GroupedSection
       title={t('channels.settings.byline')}
       footer={t('channels.settings.signPostsFooter')}
     >
-      <SettingsListItem
+      <GroupedSectionItem
         icon={<RiUserLine width={20} height={20} fill={colors.textSecondary} />}
         title={t('channels.settings.signPosts')}
         showChevron={false}
@@ -70,6 +71,6 @@ export function ChannelBylineSettings({ accountId }: { accountId: string }) {
           />
         }
       />
-    </SettingsListGroup>
+    </GroupedSection>
   );
 }
