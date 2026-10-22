@@ -27,6 +27,7 @@ import { invalidate as invalidatePostDetailCache } from '../postDetailCache';
  * everything: Mention WITHHOLDS a file Oxy does not serve to a public reader —
  *
  *   status `deleted` → `deleted` (terminal: nothing releases it)
+ *   status `lost`    → `deleted` (its bytes are gone for good, ADR 0043 D13)
  *   status `blocked` → `blocked` (a rights or privacy takedown)
  *   status `trash`   → `trashed`
  *   active + `private` → `private`
@@ -43,7 +44,7 @@ import { invalidate as invalidatePostDetailCache } from '../postDetailCache';
  *   reach only applications that still reference it). Readers drop withheld
  *   items: the DTOs, ActivityPub, MTN records, the Videos lane. New rows take
  *   the file's state by trigger, so an edit cannot un-withhold an item.
- * - `deleted` / `blocked` (permanent from Mention's side): the GIF library row
+ * - `deleted` (and `lost`) / `blocked` (permanent from Mention's side): the GIF library row
  *   using the file is removed (Oxy collects the application file it stops
  *   referencing), and a profile banner or a job-application resume naming it is
  *   cleared.
@@ -67,6 +68,7 @@ void _storedEventTypesAreSdk;
 export function withholdingFor(file: FileEvent['file']): WithheldReason | null | undefined {
   switch (file.status) {
     case 'deleted':
+    case 'lost':
       return 'deleted';
     case 'blocked':
       return 'blocked';

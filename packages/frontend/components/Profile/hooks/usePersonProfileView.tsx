@@ -59,7 +59,7 @@ import {
   type ProfileAccount,
 } from './useProfileAccount';
 import { useProfileChrome, type ProfileChrome } from './useProfileChrome';
-import { useProfileMoreMenu } from './useProfileMoreMenu';
+import { ProfileMoreMenu } from '../ProfileMoreMenu';
 import { useMessageInAllo } from './useMessageInAllo';
 import { useOperatesAccount } from './useOperatesAccount';
 import { useJustFollowed } from './useJustFollowed';
@@ -211,6 +211,9 @@ export function usePersonProfileView({
   // Every person — federated included — gets the full static strip, since the
   // data behind each tab is in Oxy/Mention's DB either way. Lane tabs are
   // spliced in after `posts`.
+  const showsLikes =
+    viewerOwnsProfile(profileData, currentUser?.id, isFederated) ||
+    profileData?.privacy?.showLikes === true;
   const tabDescriptors = useMemo(
     () =>
       buildProfileTabDescriptors(
@@ -238,8 +241,10 @@ export function usePersonProfileView({
         },
         laneTabs,
         profileData?.kind,
+        false,
+        showsLikes,
       ),
-    [t, laneTabs, profileData?.kind],
+    [t, laneTabs, profileData?.kind, showsLikes],
   );
 
   const activeIndex = profileTabIndex(tabDescriptors, activeKey);
@@ -380,11 +385,6 @@ export function usePersonProfileView({
     accountKind: profileData?.kind,
   });
 
-  const handleMoreOptions = useProfileMoreMenu({
-    profileData,
-    viewerOperatesAccount: isOwnProfile || operatesThisAccount,
-  });
-
   // Mention has no DMs; a message to this person is a conversation in Allo.
   const handleDM = useMessageInAllo(profileData?.id, handle);
 
@@ -510,7 +510,11 @@ export function usePersonProfileView({
           {/* A community takes posts from here, hosted here or remote; one hosted
               here also says who moderates it. */}
           {communitiesPreview && profileData.kind === 'community' && profileData.id && (
-            <CommunityPanel communityId={profileData.id} hosted={isMentionCommunity(profileData)} />
+            <CommunityPanel
+              communityId={profileData.id}
+              username={profileData.username}
+              hosted={isMentionCommunity(profileData)}
+            />
           )}
           {profileData.movedTo && <ProfileMovedNotice movedTo={profileData.movedTo} />}
           {isPrivate && (
@@ -613,16 +617,17 @@ export function usePersonProfileView({
             defaultValue: "Share @{{handle}}'s profile",
           })}
         />
-        {!isOwnProfile && handleMoreOptions && (
-          <ButtonGroupItem
-            iconOnly
-            leadingIcon={RiMoreFill}
-            onPress={handleMoreOptions}
-            accessibilityLabel={t('profile.actions.more', {
-              handle,
-              defaultValue: 'More options for @{{handle}}',
-            })}
-          />
+        {!isOwnProfile && canUsePrivateApi && (
+          <ProfileMoreMenu profileData={profileData} viewerOperatesAccount={operatesThisAccount}>
+            <ButtonGroupItem
+              iconOnly
+              leadingIcon={RiMoreFill}
+              accessibilityLabel={t('profile.actions.more', {
+                handle,
+                defaultValue: 'More options for @{{handle}}',
+              })}
+            />
+          </ProfileMoreMenu>
         )}
       </ButtonGroup>
     </>

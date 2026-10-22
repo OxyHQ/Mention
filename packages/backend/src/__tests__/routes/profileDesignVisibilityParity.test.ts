@@ -319,7 +319,11 @@ describe('profile design resolved privacy policy', () => {
   it('explicitly reports public for an anonymous read with no settings row', async () => {
     currentViewer = undefined;
     const design = await getDesign();
-    expect(design.privacy).toEqual({ profileVisibility: 'public', searchEngineIndexing: true });
+    expect(design.privacy).toEqual({
+      profileVisibility: 'public',
+      searchEngineIndexing: true,
+      showLikes: false,
+    });
     expect(design.postsCount).toBe(0);
   });
 
@@ -338,7 +342,11 @@ describe('profile design resolved privacy policy', () => {
       const owner = await getDesign();
       // Whoever may see the design also learns the indexing choice, which every
       // page of the profile already states in its robots tag.
-      expect(owner.privacy).toEqual({ profileVisibility: visibility, searchEngineIndexing: true });
+      expect(owner.privacy).toEqual({
+        profileVisibility: visibility,
+        searchEngineIndexing: true,
+        showLikes: false,
+      });
       expect(owner.profileHeaderImage).toContain('private-banner-file');
       expect(owner.profileMedia?.type).toBe('song');
     },

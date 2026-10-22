@@ -4,7 +4,7 @@ import { toast } from '@oxy.so/bloom/toast';
 import type { Trend } from '@/interfaces/Trend';
 import { useTrendsStore } from '@/stores/trendsStore';
 import { buildTrendUrl } from '@/hooks/useTrendNavigation';
-import { useWidgetItemMenu } from '@/hooks/useWidgetItemMenu';
+import type { WidgetItemMenuActions } from '@/components/widgets/WidgetItemMenu';
 import { shareLink } from '@/utils/shareLink';
 
 /**
@@ -16,9 +16,8 @@ import { shareLink } from '@/utils/shareLink';
  * trends, and a hidden trend then kept showing up in the one place a reader went
  * looking for it.
  */
-export function useTrendItemMenu(): (trend: Trend) => void {
+export function useTrendItemMenu(): (trend: Trend) => WidgetItemMenuActions {
   const { t } = useTranslation();
-  const openWidgetMenu = useWidgetItemMenu();
   const hideTrend = useTrendsStore((state) => state.hideTrend);
 
   return useCallback(
@@ -28,8 +27,7 @@ export function useTrendItemMenu(): (trend: Trend) => void {
           ? `#${(trend.hashtag || trend.text).replace(/^#/, '')}`
           : trend.text;
 
-      openWidgetMenu({
-        title: trendName,
+      return {
         onNotInterested: () => {
           hideTrend(trend.id);
           toast(t('widgetMenu.trendHidden'), { type: 'success' });
@@ -42,8 +40,8 @@ export function useTrendItemMenu(): (trend: Trend) => void {
             errorToast: t('widgetMenu.shareFailed'),
           });
         },
-      });
+      };
     },
-    [openWidgetMenu, hideTrend, t],
+    [hideTrend, t],
   );
 }

@@ -1,18 +1,14 @@
 import {
   ACCOUNT_CATEGORY_IDS,
-  MAX_ACCOUNT_CATEGORIES,
   SELECTABLE_ACCOUNT_CATEGORY_IDS,
   type AccountCategoryId,
 } from '@oxy.so/contracts';
 
 import {
   ACCOUNT_CATEGORY_ENGLISH_LABELS,
-  accountCategoriesEqual,
   isKnownAccountCategoryId,
   nameableAccountCategoryIds,
   primaryAccountCategoryId,
-  promoteAccountCategoryToPrimary,
-  toggleAccountCategory,
 } from '@/utils/accountCategories';
 
 /**
@@ -116,87 +112,5 @@ describe('nameableAccountCategoryIds', () => {
     const input: AccountCategoryId[] = ['music', 'news', 'art'];
     nameableAccountCategoryIds(input);
     expect(input).toEqual(['music', 'news', 'art']);
-  });
-});
-
-describe('toggleAccountCategory', () => {
-  it('adds a new id at the END, so choosing another never demotes the primary', () => {
-    expect(toggleAccountCategory(['music', 'news'], 'art', MAX_ACCOUNT_CATEGORIES)).toEqual([
-      'music',
-      'news',
-      'art',
-    ]);
-  });
-
-  it('removes an id that is already chosen, leaving the rest in order', () => {
-    expect(toggleAccountCategory(STORED, 'news', MAX_ACCOUNT_CATEGORIES)).toEqual(['music', 'art']);
-  });
-
-  it('promotes the second to primary when the primary itself is removed', () => {
-    expect(toggleAccountCategory(STORED, 'music', MAX_ACCOUNT_CATEGORIES)).toEqual(['news', 'art']);
-  });
-
-  it('refuses to exceed the cap', () => {
-    const atCap: AccountCategoryId[] = ['music', 'news', 'art', 'food'];
-    expect(atCap).toHaveLength(MAX_ACCOUNT_CATEGORIES);
-    expect(toggleAccountCategory(atCap, 'travel', MAX_ACCOUNT_CATEGORIES)).toEqual(atCap);
-  });
-
-  it('still REMOVES at the cap — the limit is on adding, not on editing', () => {
-    const atCap: AccountCategoryId[] = ['music', 'news', 'art', 'food'];
-    expect(toggleAccountCategory(atCap, 'news', MAX_ACCOUNT_CATEGORIES)).toEqual([
-      'music',
-      'art',
-      'food',
-    ]);
-  });
-
-  it('never mutates its input', () => {
-    const input: AccountCategoryId[] = ['music', 'news'];
-    toggleAccountCategory(input, 'art', MAX_ACCOUNT_CATEGORIES);
-    toggleAccountCategory(input, 'music', MAX_ACCOUNT_CATEGORIES);
-    expect(input).toEqual(['music', 'news']);
-  });
-});
-
-describe('promoteAccountCategoryToPrimary', () => {
-  it('moves the chosen id to the front', () => {
-    expect(promoteAccountCategoryToPrimary(STORED, 'art')).toEqual(['art', 'music', 'news']);
-  });
-
-  it('leaves the others in their relative order rather than reshuffling them', () => {
-    // 'music' and 'news' were 1st and 2nd and stay in that sequence behind 'art'
-    // — a swap-with-index-0 implementation would answer ['art','news','music'].
-    expect(promoteAccountCategoryToPrimary(STORED, 'art')).not.toEqual(['art', 'news', 'music']);
-  });
-
-  it('is a no-op for an id that is already primary', () => {
-    expect(promoteAccountCategoryToPrimary(STORED, 'music')).toEqual(['music', 'news', 'art']);
-  });
-
-  it('does not INSERT an id that was never chosen', () => {
-    expect(promoteAccountCategoryToPrimary(STORED, 'travel')).toEqual(['music', 'news', 'art']);
-  });
-
-  it('never mutates its input', () => {
-    const input: AccountCategoryId[] = ['music', 'news', 'art'];
-    promoteAccountCategoryToPrimary(input, 'art');
-    expect(input).toEqual(['music', 'news', 'art']);
-  });
-});
-
-describe('accountCategoriesEqual', () => {
-  it('reports a RE-ORDERING as a change — the primary control makes no other kind', () => {
-    expect(accountCategoriesEqual(['music', 'news'], ['news', 'music'])).toBe(false);
-  });
-
-  it('matches an identical list', () => {
-    expect(accountCategoriesEqual(STORED, ['music', 'news', 'art'])).toBe(true);
-    expect(accountCategoriesEqual([], [])).toBe(true);
-  });
-
-  it('reports added and removed entries', () => {
-    expect(accountCategoriesEqual(['music'], ['music', 'news'])).toBe(false);
-    expect(accountCategoriesEqual(['music', 'news'], ['music'])).toBe(false);
   });
 });

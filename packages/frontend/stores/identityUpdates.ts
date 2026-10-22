@@ -266,10 +266,9 @@ function fieldVerdict(
 /**
  * {@link fieldVerdict} for the ordered category list. Positional, because the
  * order carries the primary; a set comparison would read a promotion as no
- * change. Written here rather than through `utils/accountCategories`'
- * `accountCategoriesEqual` because that module imports `@oxy.so/contracts` at
- * RUNTIME, which is the one thing this file may not pull into `PostItem`'s
- * graph.
+ * change. Written here rather than imported because the category helpers
+ * import `@oxy.so/contracts` at RUNTIME, which is the one thing this file may
+ * not pull into `PostItem`'s graph.
  */
 function listVerdict(
   recorded: readonly string[] | undefined,

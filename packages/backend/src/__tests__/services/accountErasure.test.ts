@@ -25,9 +25,21 @@ import { PgTable, type PgColumn } from 'drizzle-orm/pg-core';
 const deliverToFollowers = vi.hoisted(() => vi.fn(async () => undefined));
 const getUserById = vi.hoisted(() => vi.fn());
 
-vi.mock('../../connectors/activitypub/delivery.service', () => ({
-  deliveryService: { deliverToFollowers },
-}));
+vi.mock('../../connectors/activitypub/delivery.service', async () => {
+  const { buildActorDeleteActivity } = await import('@oxy.so/federation/node');
+  return {
+    deliveryService: {
+      deliverToFollowers,
+      // What the engine's actor Delete does, through the same mocked fan-out.
+      federateActorDelete: (oxyUserId: string, username: string) =>
+        (deliverToFollowers as (...args: unknown[]) => Promise<void>)(
+          buildActorDeleteActivity(`https://mention.test/ap/users/${username}`),
+          oxyUserId,
+          username,
+        ),
+    },
+  };
+});
 vi.mock('../../connectors/activitypub/follow.service', () => ({
   followService: {
     buildDeleteActivity: (username: string, postId: string) => ({

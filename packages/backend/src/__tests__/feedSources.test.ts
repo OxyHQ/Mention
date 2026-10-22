@@ -915,6 +915,21 @@ describe('the authored source (the profile feed)', () => {
       );
       expect(idsOf(tab)).toEqual([liked.id]);
     });
+
+    it('shows what an account liked to others only once it opts in', async () => {
+      const liked = await create({ oxyUserId: STRANGER, createdAt: at(0) });
+      await db.insert(likes).values({ userId: AUTHOR, postId: liked.id, value: 1 });
+      likedPostIds.push(liked.id);
+      const gather = () =>
+        authoredSource.gather({ currentUserId: VIEWER }, { authorId: AUTHOR, filter: 'likes' }, 31);
+
+      // No settings row at all is the default: private.
+      expect(idsOf(await gather())).toEqual([]);
+
+      settingsOwners.push(AUTHOR);
+      await db.insert(userSettings).values({ oxyUserId: AUTHOR, privacyShowLikes: true });
+      expect(idsOf(await gather())).toEqual([liked.id]);
+    });
   });
 });
 

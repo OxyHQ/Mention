@@ -77,6 +77,8 @@ describe('user settings — read after write', () => {
     expect(record.appearance.themeMode).toBe('system');
     expect(record.privacy.profileVisibility).toBe('public');
     expect(record.privacy.showSensitiveContent).toBe(false);
+    // What an account liked is private until it opts in.
+    expect(record.privacy.showLikes).toBe(false);
     // Every account is indexable until it opts out.
     expect(record.privacy.searchEngineIndexing).toBe(true);
     expect(record.profileCustomization.coverPhotoEnabled).toBe(true);

@@ -23,7 +23,12 @@ import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { RiShareForwardLine } from '@oxy.so/bloom/icons/RiShareForwardLine';
 import { RiStopFill } from '@oxy.so/bloom/icons/RiStopFill';
 import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
-import { Item } from '@oxy.so/bloom/item';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@oxy.so/bloom/dropdown-menu';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Text as BloomText } from '@oxy.so/bloom/typography';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -193,98 +198,58 @@ const RoomDetailScreen = () => {
     }
   }, [room, id]);
 
-  const handleMoreOptions = useCallback(() => {
-    if (!room || !id) return;
-
-    const handleShare = () => {
-      bottomSheet.openBottomSheet(false);
-      handleShareRoom();
-    };
-
-    const handleLeave = async () => {
-      bottomSheet.openBottomSheet(false);
-      const confirmed = await confirmDialog({
-        title: t('agora.leaveRoomConfirmTitle', { defaultValue: 'Leave room' }),
-        message: t('agora.leaveRoomConfirmMessage', {
-          defaultValue: 'Are you sure you want to leave this room?',
-        }),
-        okText: t('agora.leaveRoom', { defaultValue: 'Leave room' }),
-        cancelText: t('common.cancel', { defaultValue: 'Cancel' }),
-        destructive: true,
+  const handleLeave = async () => {
+    if (!id) return;
+    const confirmed = await confirmDialog({
+      title: t('agora.leaveRoomConfirmTitle', { defaultValue: 'Leave room' }),
+      message: t('agora.leaveRoomConfirmMessage', {
+        defaultValue: 'Are you sure you want to leave this room?',
+      }),
+      okText: t('agora.leaveRoom', { defaultValue: 'Leave room' }),
+      cancelText: t('common.cancel', { defaultValue: 'Cancel' }),
+      destructive: true,
+    });
+    if (!confirmed) return;
+    setActionLoading(true);
+    const success = await roomsService.leaveRoom(id);
+    if (success) {
+      setIsJoined(false);
+      loadRoom();
+      toast(t('agora.leftRoom', { defaultValue: 'You have left the room' }), { type: 'success' });
+    } else {
+      toast(t('agora.leaveRoomFailed', { defaultValue: 'Failed to leave room' }), {
+        type: 'error',
       });
-      if (!confirmed) return;
-      setActionLoading(true);
-      const success = await roomsService.leaveRoom(id);
-      if (success) {
-        setIsJoined(false);
-        loadRoom();
-        toast(t('agora.leftRoom', { defaultValue: 'You have left the room' }), { type: 'success' });
-      } else {
-        toast(t('agora.leaveRoomFailed', { defaultValue: 'Failed to leave room' }), {
-          type: 'error',
-        });
-      }
-      setActionLoading(false);
-    };
+    }
+    setActionLoading(false);
+  };
 
-    const handleReport = () => {
-      bottomSheet.setBottomSheetContent(
-        <ReportModal
-          visible={true}
-          onClose={() => bottomSheet.openBottomSheet(false)}
-          onSubmit={async (categories, details) => {
-            bottomSheet.openBottomSheet(false);
-            const success = await reportService.reportRoom(id, categories, details);
-            if (success) {
-              toast(
-                t('agora.reportThankYou', {
-                  defaultValue: 'Thank you for helping keep our community safe.',
-                }),
-                { type: 'success' },
-              );
-            } else {
-              toast(t('agora.reportFailed', { defaultValue: 'Failed to submit report.' }), {
-                type: 'error',
-              });
-            }
-          }}
-        />,
-      );
-      bottomSheet.openBottomSheet(true);
-    };
-
-    const MenuContent = () => (
-      <View className="py-2">
-        <Item
-          role="menuitem"
-          onPress={handleShare}
-          leading={<RiShareForwardLine width={22} height={22} fill={theme.colors.text} />}
-          title={t('agora.shareRoom', { defaultValue: 'Share room' })}
-        />
-        {isJoined && !isHost && (
-          <Item
-            role="menuitem"
-            destructive
-            onPress={handleLeave}
-            leading={<RiLogoutBoxRLine width={22} height={22} fill={theme.colors.error} />}
-            title={t('agora.leaveRoom', { defaultValue: 'Leave room' })}
-          />
-        )}
-        {!isHost && (
-          <Item
-            role="menuitem"
-            destructive
-            onPress={handleReport}
-            leading={<RiFlagLine width={22} height={22} fill={theme.colors.error} />}
-            title={t('agora.reportRoom', { defaultValue: 'Report room' })}
-          />
-        )}
-      </View>
+  const handleReport = () => {
+    if (!id) return;
+    bottomSheet.setBottomSheetContent(
+      <ReportModal
+        visible={true}
+        onClose={() => bottomSheet.openBottomSheet(false)}
+        onSubmit={async (categories, details) => {
+          bottomSheet.openBottomSheet(false);
+          const success = await reportService.reportRoom(id, categories, details);
+          if (success) {
+            toast(
+              t('agora.reportThankYou', {
+                defaultValue: 'Thank you for helping keep our community safe.',
+              }),
+              { type: 'success' },
+            );
+          } else {
+            toast(t('agora.reportFailed', { defaultValue: 'Failed to submit report.' }), {
+              type: 'error',
+            });
+          }
+        }}
+      />,
     );
-
-    bottomSheet.setBottomSheetContent(<MenuContent />);
     bottomSheet.openBottomSheet(true);
-  }, [room, id, isJoined, isHost, theme, t, bottomSheet, handleShareRoom, loadRoom]);
+  };
 
   // Resolve user IDs to real profiles. Hooks must run on every render, so this
   // stays above the loading / error branches.
@@ -314,14 +279,48 @@ const RoomDetailScreen = () => {
           backLabel={t('common.back', { defaultValue: 'Back' })}
           actions={
             room ? (
-              <Button
-                appearance="subtle"
-                tone="neutral"
-                iconOnly
-                leadingIcon={RiMoreFill}
-                accessibilityLabel={t('common.options', { defaultValue: 'Options' })}
-                onPress={handleMoreOptions}
-              />
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  asChild
+                  label={t('common.options', { defaultValue: 'Options' })}
+                >
+                  <Button
+                    appearance="subtle"
+                    tone="neutral"
+                    iconOnly
+                    leadingIcon={RiMoreFill}
+                    accessibilityLabel={t('common.options', { defaultValue: 'Options' })}
+                  />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent label={t('common.options', { defaultValue: 'Options' })}>
+                  <DropdownMenuItem
+                    leading={<RiShareForwardLine width={22} height={22} fill={theme.colors.text} />}
+                    onPress={handleShareRoom}
+                  >
+                    {t('agora.shareRoom', { defaultValue: 'Share room' })}
+                  </DropdownMenuItem>
+                  {isJoined && !isHost ? (
+                    <DropdownMenuItem
+                      variant="destructive"
+                      leading={
+                        <RiLogoutBoxRLine width={22} height={22} fill={theme.colors.error} />
+                      }
+                      onPress={handleLeave}
+                    >
+                      {t('agora.leaveRoom', { defaultValue: 'Leave room' })}
+                    </DropdownMenuItem>
+                  ) : null}
+                  {isHost ? null : (
+                    <DropdownMenuItem
+                      variant="destructive"
+                      leading={<RiFlagLine width={22} height={22} fill={theme.colors.error} />}
+                      onPress={handleReport}
+                    >
+                      {t('agora.reportRoom', { defaultValue: 'Report room' })}
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : undefined
           }
         />

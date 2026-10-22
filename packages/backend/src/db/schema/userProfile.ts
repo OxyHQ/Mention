@@ -265,6 +265,8 @@ export const userSettings = pgTable(
     privacyAllowTags: boolean().notNull().default(true),
     privacyAllowMentions: boolean().notNull().default(true),
     privacyShowOnlineStatus: boolean().notNull().default(true),
+    /** Opt-IN to showing the likes tab to other people. Default false: likes are private. */
+    privacyShowLikes: boolean().notNull().default(false),
     privacyHideLikeCounts: boolean().notNull().default(false),
     privacyHideShareCounts: boolean().notNull().default(false),
     privacyHideReplyCounts: boolean().notNull().default(false),

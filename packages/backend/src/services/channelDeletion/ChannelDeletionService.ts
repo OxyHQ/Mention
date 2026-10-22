@@ -114,11 +114,8 @@ import { logger } from '../../utils/logger';
 import { LOG_PREFIX } from './channelCascadeLog';
 import { buildSchedule, CascadeRun, runPhase, type Schedule } from './channelCascadeRun';
 import { stepKey } from './channelCascadeBinding';
-import {
-  broadcastActorDelete,
-  broadcastBatchTombstones,
-  resolveChannelUsername,
-} from './channelDeletionFederation';
+import { broadcastBatchTombstones, resolveChannelUsername } from './channelDeletionFederation';
+import { broadcastActorDelete } from '../accountErasure/erasureFederation';
 import { readLikedPostIds, repairSurvivingCounters } from './channelCounterRepair';
 import {
   deletionTargetsOf,
@@ -363,7 +360,9 @@ export async function deleteChannelContent(
   //    been deleted yet — the `federated_follows` rows it resolves inboxes from go
   //    in the account phase below. A crash here leaves an actor remote servers may
   //    already have dropped while its local account rows survive; a re-run re-sends
-  //    (Delete is idempotent remotely) and completes the cascade.
+  //    the same activity id, which the delivery queue dedupes per inbox, and
+  //    completes the cascade. The archive's own erasure then finds no follower
+  //    rows and sends nothing, so each inbox hears the Delete once.
   if (username) {
     await broadcastActorDelete(channelOxyUserId, username);
   }

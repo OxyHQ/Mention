@@ -31,6 +31,7 @@ import {
   isFediverseSharingEnabledFromUser,
   getFediverseSharingStateByUsername,
 } from '../../../services/fediverseSharing';
+import { isErasedActorHandle } from '../../../services/accountErasure/erasedAccounts';
 
 /**
  * Mention's binding of the shared `@oxy.so/federation` webfinger + actor + inbox
@@ -122,6 +123,9 @@ export const webfingerRouter = createWebfingerRouter({
     isSharingEnabledFromUser: (user) => isFediverseSharingEnabledFromUser(user),
     getSharingStateByUsername: (username) => getFediverseSharingStateByUsername(username),
   },
+  // An account Oxy told us was deleted answers 410, which is what makes Mastodon
+  // drop its copy (`services/accountErasure`, docs/account-erasure.md).
+  isActorGone: (username) => isErasedActorHandle(username),
   cache: {
     get: async (username) => {
       if (!(await resolvePublicFederatingUser(username))) return null;
@@ -165,6 +169,8 @@ export const actorRouter = createActorRouter({
   },
   buildLocalActorObject,
   getBanner: (oxyUserId) => loadProfileBanner(oxyUserId),
+  // A deleted account's actor, inbox and collections answer 410 with a Tombstone.
+  isActorGone: (username) => isErasedActorHandle(username),
   inbound: {
     fetchPublicKey: (keyId) => actorService.fetchPublicKey(keyId),
     // The apex (mention.earth) is CF-proxied → ALB → backend, which rewrites the
