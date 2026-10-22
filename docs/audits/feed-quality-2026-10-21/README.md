@@ -847,8 +847,9 @@ seven days, and none exceeded 30 days. Its historical revision-682 sample had a
 path and this fresher observed sample agree, but time and inventory changed
 between captures: this is not a matched causal experiment. Explore's final public
 sample was entirely within 24 hours. Every public post's declared metadata included
-English or Spanish, with one Media post also declaring Japanese. Source URLs
-were unavailable, so duplicate-origin content remains unmeasured. Separate public
+English or Spanish, with one Media post also declaring Japanese. Original federated status URLs
+were unavailable in the inspected projection, so duplicate-origin content remains
+unmeasured. Separate public
 cursor probes encountered `EHOSTUNREACH` twice before receiving HTTP responses;
 those probes are **unverified**, distinct from the successful public traversal
 and authenticated replay checks.
