@@ -4,11 +4,10 @@ import { CommunityPanel } from '../CommunityPanel';
 
 /**
  * What a community's page offers: posting in it, hosted here or remote; its
- * moderators only for one hosted here; and the moderation tools only to them.
+ * moderators only for one hosted here; and the way into its settings only to them.
  */
 
 const mockPush = jest.fn();
-const mockShowBottomSheet = jest.fn();
 const mockModerators = jest.fn((_id: string | null | undefined) => ({
   data: [{ id: 'mod-1', username: 'mod', name: { displayName: 'Mod' }, avatar: null }],
 }));
@@ -23,7 +22,7 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 jest.mock('@oxy.so/services/ui/client', () => ({
-  useAuth: () => ({ canUsePrivateApi: true, showBottomSheet: mockShowBottomSheet }),
+  useAuth: () => ({ canUsePrivateApi: true }),
 }));
 jest.mock('@/hooks/useCommunities', () => ({
   useCommunityModerators: (id: string | null | undefined) => mockModerators(id),
@@ -45,22 +44,20 @@ function labels(tree: TestRenderer.ReactTestRenderer): string[] {
 }
 
 describe('CommunityPanel', () => {
-  it('lets anyone post, and only moderators of a community hosted here moderate', () => {
+  it('lets anyone post, and only moderators of a community hosted here reach its settings', () => {
     let hosted!: TestRenderer.ReactTestRenderer;
     act(() => {
-      hosted = TestRenderer.create(<CommunityPanel communityId="forum-1" hosted />);
+      hosted = TestRenderer.create(
+        <CommunityPanel communityId="forum-1" username="forum" hosted />,
+      );
     });
-    expect(labels(hosted)).toEqual(['Post in this community', 'Moderators', 'Banned']);
+    expect(labels(hosted)).toEqual(['Post in this community', 'communities.settings.edit']);
     const buttons = hosted.root.findAll((node) => (node.type as unknown) === 'Button');
     act(() => {
       for (const button of buttons) button.props.onPress();
     });
     expect(mockPush).toHaveBeenCalledWith('/compose?community=forum-1');
-    expect(mockPush).toHaveBeenCalledWith('/communities/forum-1/bans');
-    expect(mockShowBottomSheet).toHaveBeenCalledWith({
-      screen: 'AccountMembers',
-      props: { accountId: 'forum-1' },
-    });
+    expect(mockPush).toHaveBeenCalledWith('/@forum/settings');
     const group = hosted.root.findAll((node) => (node.type as unknown) === 'AvatarGroup')[0];
     act(() => group.props.onPressItem({ id: 'mod-1' }));
     expect(mockPush).toHaveBeenCalledWith('/@mod');
@@ -69,7 +66,9 @@ describe('CommunityPanel', () => {
     mockModerators.mockClear();
     let remote!: TestRenderer.ReactTestRenderer;
     act(() => {
-      remote = TestRenderer.create(<CommunityPanel communityId="lemmy-1" hosted={false} />);
+      remote = TestRenderer.create(
+        <CommunityPanel communityId="lemmy-1" username="lemmy@lemmy.world" hosted={false} />,
+      );
     });
     expect(labels(remote)).toEqual(['Post in this community']);
     expect(mockModerators).toHaveBeenCalledWith(null);

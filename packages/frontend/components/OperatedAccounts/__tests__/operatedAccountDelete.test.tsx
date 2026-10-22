@@ -4,8 +4,9 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 /**
- * Deleting a channel: who is offered it, what they are told, and what runs in
- * which order once they say yes.
+ * Deleting a member-operated account: who is offered it, what they are told, and
+ * what runs in which order once they say yes. Driven through a channel — the
+ * kind with a content cascade — plus the one case where a community differs.
  *
  * Four properties, and a screen test is the only place any of them is
  * observable, because all four live in the wiring between a permission array,
@@ -30,7 +31,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
  *     post permanently. The failing-half fixture pins that the archive never
  *     happens when the content delete rejects.
  *
- * The mocks stop at module boundaries, matching `channelSettingsIdentityWrite`:
+ * The mocks stop at module boundaries, matching `operatedAccountIdentityWrite`:
  * the SDK barrel and Bloom cannot be required under jest, and React Query is
  * real because the mutation's own sequencing is the thing under test.
  */
@@ -74,6 +75,7 @@ jest.mock('@oxy.so/services/ui/client', () => ({
 }));
 
 jest.mock('@oxy.so/core', () => ({
+  accountNameMaxLength: () => 300,
   getNormalizedUserHandle: (user: { username?: string } | null | undefined) =>
     user?.username ?? null,
 }));
@@ -83,7 +85,6 @@ jest.mock('@oxy.so/core/logger', () => ({
 
 jest.mock('expo-router', () => ({
   useRouter: () => jest.requireMock('expo-router').router,
-  useLocalSearchParams: () => ({ username: 'daily' }),
   router: { replace: (...args: unknown[]) => mockReplace(...args) },
 }));
 
@@ -95,20 +96,28 @@ jest.mock('expo-router', () => ({
  * most: the count has to reach the words, not merely the call.
  */
 jest.mock('react-i18next', () => {
-  const catalog = jest.requireActual<{ channels: { settings: Record<string, string> } }>(
-    '../../../../../locales/en.json',
-  );
+  const catalog = jest.requireActual<Record<string, unknown>>('@/locales/en.json');
+  // A flat key wins over a nested path, as in i18next's own resolution.
+  const lookup = (key: string): string | undefined => {
+    const flat = catalog[key];
+    if (typeof flat === 'string') return flat;
+    const nested = key
+      .split('.')
+      .reduce<unknown>(
+        (node, part) =>
+          node && typeof node === 'object' ? (node as Record<string, unknown>)[part] : undefined,
+        catalog,
+      );
+    return typeof nested === 'string' ? nested : undefined;
+  };
   return {
     useTranslation: () => ({
       t: (key: string, options?: Record<string, unknown>) => {
-        const bare = key.replace(/^channels\.settings\./, '');
         const count = typeof options?.count === 'number' ? options.count : undefined;
         const entry =
-          (count === undefined
-            ? undefined
-            : catalog.channels.settings[`${bare}_${count === 1 ? 'one' : 'other'}`]) ??
-          catalog.channels.settings[bare] ??
-          (typeof options?.defaultValue === 'string' ? options.defaultValue : key);
+          (count === undefined ? undefined : lookup(`${key}_${count === 1 ? 'one' : 'other'}`)) ??
+          lookup(key) ??
+          key;
         return entry.replace(/\{\{(\w+)\}\}/g, (_match, name: string) =>
           String(options?.[name] ?? ''),
         );
@@ -173,7 +182,8 @@ jest.mock('@/services/channelAccountService', () => ({
   },
 }));
 
-import ChannelAccountSettingsScreen from '../settings';
+import { OperatedAccountSettingsScreen } from '../OperatedAccountSettingsScreen';
+import type { OperatedAccountKind } from '../operatedAccountSettingsCopy';
 
 const CHANNEL_ID = 'channel-1';
 
@@ -202,10 +212,13 @@ function membership(permissions: string[]) {
   };
 }
 
-function accountNode(callerMembership: ReturnType<typeof membership> | null) {
+function accountNode(
+  callerMembership: ReturnType<typeof membership> | null,
+  kind: OperatedAccountKind = 'channel',
+) {
   return {
     accountId: CHANNEL_ID,
-    kind: 'channel',
+    kind,
     parentAccountId: null,
     account: {
       id: CHANNEL_ID,
@@ -221,33 +234,36 @@ function accountNode(callerMembership: ReturnType<typeof membership> | null) {
 
 let mounted: TestRenderer.ReactTestRenderer | null = null;
 
-async function renderScreen() {
+async function renderScreen(
+  kind: OperatedAccountKind = 'channel',
+  bioPlaceholder = BIO_PLACEHOLDER,
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   await act(async () => {
     mounted = TestRenderer.create(
       <QueryClientProvider client={client}>
-        <ChannelAccountSettingsScreen />
+        <OperatedAccountSettingsScreen kind={kind} handle="daily" />
       </QueryClientProvider>,
     );
   });
   const renderer = mounted;
   if (!renderer) throw new Error('the screen did not render');
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (renderer.root.findAllByProps({ placeholder: BIO_PLACEHOLDER }).length > 0) {
+    if (renderer.root.findAllByProps({ placeholder: bioPlaceholder }).length > 0) {
       return renderer;
     }
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
   }
-  throw new Error('the channel profile form never mounted');
+  throw new Error('the profile form never mounted');
 }
 
 /** Press the delete row and let the whole async flow settle. */
-async function pressDelete(renderer: TestRenderer.ReactTestRenderer) {
-  const row = renderer.root.findByProps({ testID: DELETE_ROW });
+async function pressDelete(renderer: TestRenderer.ReactTestRenderer, rowTestId = DELETE_ROW) {
+  const row = renderer.root.findByProps({ testID: rowTestId });
   await act(async () => {
     row.props.onPress();
   });
@@ -450,5 +466,23 @@ describe('what happens once the operator answers', () => {
     expect(mockConfirmDialog).not.toHaveBeenCalled();
     expect(mockDeleteContent).not.toHaveBeenCalled();
     expect(mockArchiveAccount).not.toHaveBeenCalled();
+  });
+});
+
+describe('a community', () => {
+  it('is archived at Oxy alone, with no channel cascade before it', async () => {
+    // Its posts are its members' own, so there is nothing of Mention's to
+    // delete first — running the channel cascade here would be the bug.
+    mockListAccounts.mockResolvedValue([accountNode(membership(['account:delete']), 'community')]);
+    mockConfirmDialog.mockResolvedValue(true);
+    const renderer = await renderScreen('community', 'What this community is about');
+
+    await pressDelete(renderer, 'settings-item:Delete this community');
+
+    expect(confirmOptions().destructive).toBe(true);
+    expect(mockPreview).not.toHaveBeenCalled();
+    expect(mockDeleteContent).not.toHaveBeenCalled();
+    expect(mockArchiveAccount).toHaveBeenCalledWith(CHANNEL_ID);
+    expect(mockReplace).toHaveBeenCalledWith('/');
   });
 });
