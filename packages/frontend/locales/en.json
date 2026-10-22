@@ -386,6 +386,8 @@
   "settings.privacy.showSensitiveContentDesc": "Sensitive and NSFW posts never appear in your feeds. They remain visible on the author's profile.",
   "settings.privacy.searchEngines": "Show in search engines",
   "settings.privacy.searchEnginesDesc": "Let search engines like Google show your profile and posts in their results. When this is off, they stay public on Mention.",
+  "settings.privacy.showLikes": "Show my likes on my profile",
+  "settings.privacy.showLikesDesc": "Let other people see the posts you have liked. When this is off, your likes are only visible to you.",
   "settings.privacy.allowTags": "Allow tags",
   "settings.privacy.allowTagsDesc": "Let others tag you in posts",
   "settings.privacy.allowMentions": "Allow mentions",

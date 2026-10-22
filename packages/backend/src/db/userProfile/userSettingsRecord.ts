@@ -61,6 +61,11 @@ export interface PrivacySettings {
   allowTags?: boolean;
   allowMentions?: boolean;
   showOnlineStatus?: boolean;
+  /**
+   * Whether other people can see what this account has liked (the profile's Likes
+   * tab and the post liker lists). Default `false`: likes are private to their owner.
+   */
+  showLikes?: boolean;
   hideLikeCounts?: boolean;
   hideShareCounts?: boolean;
   hideReplyCounts?: boolean;

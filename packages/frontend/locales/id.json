@@ -386,6 +386,8 @@
   "settings.privacy.showSensitiveContentDesc": "Postingan sensitif dan NSFW tidak pernah muncul di feed-mu. Postingan itu tetap terlihat di profil penulisnya.",
   "settings.privacy.searchEngines": "Tampilkan di mesin pencari",
   "settings.privacy.searchEnginesDesc": "Izinkan mesin pencari seperti Google menampilkan profil dan postinganmu di hasil pencariannya. Jika dimatikan, semuanya tetap publik di Mention.",
+  "settings.privacy.showLikes": "Tampilkan suka saya di profil",
+  "settings.privacy.showLikesDesc": "Izinkan orang lain melihat kiriman yang Anda sukai. Jika dimatikan, suka Anda hanya terlihat oleh Anda.",
   "settings.privacy.allowTags": "Izinkan tag",
   "settings.privacy.allowTagsDesc": "Izinkan orang lain menandaimu di postingan",
   "settings.privacy.allowMentions": "Izinkan sebutan",

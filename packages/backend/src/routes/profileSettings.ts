@@ -464,6 +464,7 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
         'allowTags',
         'allowMentions',
         'showOnlineStatus',
+        'showLikes',
         'hideLikeCounts',
         'hideShareCounts',
         'hideReplyCounts',

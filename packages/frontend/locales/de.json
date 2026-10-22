@@ -386,6 +386,8 @@
   "settings.privacy.showSensitiveContentDesc": "Sensible und NSFW-Beiträge erscheinen nie in deinen Feeds. Im Profil der Autorin oder des Autors bleiben sie sichtbar.",
   "settings.privacy.searchEngines": "In Suchmaschinen anzeigen",
   "settings.privacy.searchEnginesDesc": "Erlaube Suchmaschinen wie Google, dein Profil und deine Beiträge in ihren Ergebnissen zu zeigen. Ist das aus, bleiben sie auf Mention trotzdem öffentlich.",
+  "settings.privacy.showLikes": "Meine Likes im Profil anzeigen",
+  "settings.privacy.showLikesDesc": "Lass andere die Beiträge sehen, die dir gefallen haben. Wenn das ausgeschaltet ist, sind deine Likes nur für dich sichtbar.",
   "settings.privacy.allowTags": "Markierungen erlauben",
   "settings.privacy.allowTagsDesc": "Erlaube anderen, dich in Beiträgen zu markieren",
   "settings.privacy.allowMentions": "Erwähnungen erlauben",

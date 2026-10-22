@@ -211,6 +211,9 @@ export function usePersonProfileView({
   // Every person — federated included — gets the full static strip, since the
   // data behind each tab is in Oxy/Mention's DB either way. Lane tabs are
   // spliced in after `posts`.
+  const showsLikes =
+    viewerOwnsProfile(profileData, currentUser?.id, isFederated) ||
+    profileData?.privacy?.showLikes === true;
   const tabDescriptors = useMemo(
     () =>
       buildProfileTabDescriptors(
@@ -238,8 +241,10 @@ export function usePersonProfileView({
         },
         laneTabs,
         profileData?.kind,
+        false,
+        showsLikes,
       ),
-    [t, laneTabs, profileData?.kind],
+    [t, laneTabs, profileData?.kind, showsLikes],
   );
 
   const activeIndex = profileTabIndex(tabDescriptors, activeKey);

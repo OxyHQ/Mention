@@ -116,7 +116,7 @@ function PrivacySettingsScreen() {
   };
 
   const updatePrivacyToggle = async (
-    field: 'showSensitiveContent' | 'searchEngineIndexing',
+    field: 'showSensitiveContent' | 'searchEngineIndexing' | 'showLikes',
     value: boolean,
   ) => {
     const cacheLease = createPrivacySettingsCacheLease(viewerId);
@@ -204,6 +204,16 @@ function PrivacySettingsScreen() {
                 checked={privacySettings.searchEngineIndexing ?? true}
                 onCheckedChange={(value) => updatePrivacyToggle('searchEngineIndexing', value)}
                 accessibilityLabel={t('settings.privacy.searchEngines')}
+              />
+            </SettingsRow>
+            <SettingsRow
+              label={t('settings.privacy.showLikes')}
+              description={t('settings.privacy.showLikesDesc')}
+            >
+              <Switch
+                checked={privacySettings.showLikes ?? false}
+                onCheckedChange={(value) => updatePrivacyToggle('showLikes', value)}
+                accessibilityLabel={t('settings.privacy.showLikes')}
               />
             </SettingsRow>
             <SettingsRow

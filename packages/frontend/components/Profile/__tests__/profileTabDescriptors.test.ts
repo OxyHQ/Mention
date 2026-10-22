@@ -104,6 +104,13 @@ describe('profile tab descriptors', () => {
     },
   );
 
+  it('leaves the likes tab off the strip unless the likes are shown', () => {
+    const keys = (showsLikes: boolean) =>
+      buildProfileTabDescriptors(LABELS, [], 'personal', false, showsLikes).map((d) => d.key);
+    expect(keys(true)).toContain('likes');
+    expect(keys(false)).not.toContain('likes');
+  });
+
   it('keeps the boosts tab on a channel', () => {
     expect(profileTabsForAccountKind('channel')).toContain('boosts');
   });

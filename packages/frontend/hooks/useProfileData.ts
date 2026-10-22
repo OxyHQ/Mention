@@ -110,6 +110,8 @@ export interface ProfileData {
     profileVisibility?: 'public' | 'private' | 'followers_only';
     /** `false` when the account opted out of search engines. */
     searchEngineIndexing?: boolean;
+    /** `true` when the account lets other people see what it has liked. */
+    showLikes?: boolean;
   };
   // ProfileData spreads the full Oxy `User` plus arbitrary backend fields that
   // many consumers read positionally (links, joined date, communities, etc.).

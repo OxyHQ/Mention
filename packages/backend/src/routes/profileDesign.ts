@@ -32,6 +32,8 @@ interface PublicProfileDesignResponse {
      * nature: every page of the profile already says it in its `robots` tag.
      */
     searchEngineIndexing?: boolean;
+    /** Whether other people can see this account's likes (drives the Likes tab). */
+    showLikes?: boolean;
   };
   /**
    * Present only for a federated account: the origin's own totals and join
@@ -98,6 +100,7 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
     response.privacy = {
       profileVisibility,
       searchEngineIndexing: doc?.privacy?.searchEngineIndexing ?? true,
+      showLikes: doc?.privacy?.showLikes ?? false,
     };
     return sendSuccessResponse(res, 200, response);
   } catch (error) {
