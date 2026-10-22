@@ -33,8 +33,6 @@ const INTROVERT_WAVE = '01a0eadb-5dd8-70d1-b12b-5083a0c5b01a';
 const ESCAPE_SIPTEA = '01a0eadb-0917-74c4-be61-8fd534b4faea';
 /** 💅 introvert-life (thriving) */
 const INTROVERT_THRIVING = '01a0eadb-647d-7f9c-8033-ac5f38deb9f9';
-/** 🧐 holiday-cats (focused) */
-const CATS_FOCUSED = '01a0eadb-4fad-7ea1-8c49-62ceff396792';
 /** 🥳 fearless-bird (partytime) */
 const BIRD_PARTYTIME = '01a0eadb-3895-7264-97c4-f7aaf2d722ef';
 /** 💻 escape-from-reality (laptop) */
@@ -116,7 +114,7 @@ export const EMPTY_STATE_STICKERS = {
   profileFeeds: INTROVERT_THRIVING,
   profileJobs: ESCAPE_LAPTOP,
   profileStarterPacks: BIRD_PARTYTIME,
-  profileLists: CATS_FOCUSED,
+  profileLists: INTROVERT_WAVE,
   /** 💡 blob-the-fish (inspired) */
   channelWriters: '01a0eada-abf1-7759-bcf4-610c070fcff5',
 
