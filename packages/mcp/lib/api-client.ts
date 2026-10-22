@@ -14,6 +14,7 @@ import { loadApiClientConfig } from './config.js';
 export interface ApiError {
   status: number;
   message: string;
+  code?: string;
   body: unknown;
 }
 
@@ -172,19 +173,34 @@ async function responseToApiError(response: Response): Promise<ApiError> {
     }
   }
 
+  const envelope =
+    typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : undefined;
+  const nested =
+    typeof envelope?.error === 'object' && envelope.error !== null
+      ? (envelope.error as Record<string, unknown>)
+      : undefined;
   let message: string;
   if (response.status === 401) {
     message =
       'Authentication required. Reconnect your Mention account in the MCP client and try again.';
-  } else if (typeof body === 'object' && body !== null && 'message' in body) {
-    message = String((body as Record<string, unknown>).message);
-  } else if (typeof body === 'object' && body !== null && 'error' in body) {
-    message = String((body as Record<string, unknown>).error);
+  } else if (typeof envelope?.message === 'string') {
+    message = envelope.message;
+  } else if (typeof nested?.message === 'string') {
+    message = nested.message;
+  } else if (typeof envelope?.error === 'string') {
+    message = envelope.error;
   } else {
     message = `HTTP ${response.status} ${response.statusText}`;
   }
-
-  return { status: response.status, message, body };
+  const code =
+    response.status === 401
+      ? undefined
+      : typeof nested?.code === 'string'
+        ? nested.code
+        : typeof envelope?.code === 'string'
+          ? envelope.code
+          : undefined;
+  return { status: response.status, message, ...(code ? { code } : {}), body };
 }
 
 function normalizeNetworkError(error: unknown): ApiError {
@@ -243,7 +259,7 @@ export const api = {
 export function formatApiError(error: unknown): string {
   if (typeof error === 'object' && error !== null && 'status' in error && 'message' in error) {
     const apiErr = error as ApiError;
-    return `API error (${apiErr.status}): ${apiErr.message}`;
+    return `API error (${apiErr.status})${apiErr.code ? ` [${apiErr.code}]` : ''}: ${apiErr.message}`;
   }
   if (error instanceof Error) {
     return `Error: ${error.message}`;

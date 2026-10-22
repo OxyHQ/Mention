@@ -111,6 +111,15 @@ describe('Mention API client resilience', () => {
     expect(calls).toBe(0);
   });
 
+  test('does not stringify malformed nested API errors or expose their arbitrary fields', async () => {
+    globalThis.fetch = (async () =>
+      Response.json({ error: { details: 'private diagnostic' } }, { status: 400 })) as typeof fetch;
+    const error = await api.get('/feed/mtn').catch((caught) => caught);
+    expect(formatApiError(error)).toMatch(/^API error \(400\): HTTP 400/);
+    expect(formatApiError(error)).not.toContain('private diagnostic');
+    expect(formatApiError(error)).not.toContain('[object Object]');
+  });
+
   test('normalizes terminal network failures for tool responses', async () => {
     globalThis.fetch = (async () => {
       throw new TypeError('connection refused');

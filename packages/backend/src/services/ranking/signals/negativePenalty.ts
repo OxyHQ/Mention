@@ -20,6 +20,9 @@ import type { RankingSignal } from './types';
 
 const R = MtnConfig.ranking;
 
+/** Shared with pre-scored Explore SQL; hidden topics are downranked, not banned. */
+export const HIDDEN_TOPIC_MULTIPLIER = 0.5;
+
 /**
  * AI SAFETY penalty from the classified spam / toxicity scores.
  *
@@ -113,7 +116,7 @@ export function negativePenalty(
     );
 
     if (hasHiddenHashtag || hasHiddenClassifiedTopic) {
-      return 0.5 * safetyPenalty; // Reduce visibility (composes with AI safety)
+      return HIDDEN_TOPIC_MULTIPLIER * safetyPenalty; // Reduce visibility (composes with AI safety)
     }
   }
 

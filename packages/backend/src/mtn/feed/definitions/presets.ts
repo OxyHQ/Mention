@@ -410,6 +410,9 @@ export const mediaDefinition: FeedDefinition = {
     sessionPagination: true,
     seenPosts: true,
     popularFallback: 'popularMedia',
+    // Fresh media gets the same candidate/ranking path for signed-out readers.
+    // The existing popular inventory remains available after primary exhaustion.
+    anonymousRankedFirst: true,
     threadGrouping: true,
     replyContext: false,
     hydrateMaxDepth: 0,

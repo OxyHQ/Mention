@@ -1,3 +1,4 @@
+import { EXPLORE_RANKING_VERSION } from './CursorBuilder';
 import { createHash, randomUUID } from 'node:crypto';
 import { getRedisClient } from '../../utils/redis';
 import { withRedisFallback } from '../../utils/redisHelpers';
@@ -50,6 +51,7 @@ export function rankedSessionBinding(
     .update(
       JSON.stringify({
         definition,
+        ...(definition.id === 'explore' ? { scoreRevision: EXPLORE_RANKING_VERSION } : {}),
         limit,
         viewer: ctx.currentUserId ?? null,
         settings: ctx.feedSettings,
@@ -61,7 +63,9 @@ export function rankedSessionBinding(
           hiddenAuthors: [...new Set(ctx.userBehavior?.hiddenAuthors ?? [])].sort(),
           mutedAuthors: [...new Set(ctx.userBehavior?.mutedAuthors ?? [])].sort(),
           blockedAuthors: [...new Set(ctx.userBehavior?.blockedAuthors ?? [])].sort(),
-          hiddenTopics: [...new Set(ctx.userBehavior?.hiddenTopics ?? [])].sort(),
+          hiddenTopics: [
+            ...new Set((ctx.userBehavior?.hiddenTopics ?? []).map((topic) => topic.toLowerCase())),
+          ].sort(),
           excludedAuthors: [...new Set(ctx.excludedAuthorIds ?? [])].sort(),
           privacyBlocked: [...new Set(ctx.viewerPrivacy?.blockedIds ?? [])].sort(),
         },

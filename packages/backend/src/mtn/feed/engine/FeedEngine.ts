@@ -1,3 +1,4 @@
+import { EXPLORE_RANKING_VERSION } from '../CursorBuilder';
 import { eligibleActivitySubscriptionAuthors } from '../../../services/activitySubscriptionInterest';
 import { activitySubscriptionMatches } from '../activitySubscriptionMatches';
 /**
@@ -253,6 +254,16 @@ export class FeedEngine {
     )
       throw expiredFeedCursor();
 
+    // Explore's source SQL score changed too. Old stateless boundaries cannot
+    // be compared to the new ordering, even when current preferences are empty.
+    if (
+      cursor &&
+      definition.id === 'explore' &&
+      !isRankedSessionCursor(cursor) &&
+      parsedScoreCursor?.rankingVersion !== EXPLORE_RANKING_VERSION
+    )
+      throw expiredFeedCursor();
+
     // Per-request engine context the modules read.
     const ctx: FeedEngineContext = {
       ...context,
@@ -333,11 +344,16 @@ export class FeedEngine {
       return this.runRankedSession(definition, ctx, exec, cursor, limit, measureOnly);
     }
 
-    // Anonymous popular fallback (For You / Videos / Media): no viewer signals,
-    // so we serve the engagement-sorted popular source directly. Note this
+    // Anonymous popular-first presets serve the engagement-sorted source
+    // directly. Media opts into primary ranking before this fallback. Note this
     // returns the page in `items` with an EMPTY `slices` — see
     // `runPopularFallback`, because it makes a working feed look empty.
-    if (definition.mode === 'ranked' && exec.popularFallback && !ctx.currentUserId) {
+    if (
+      definition.mode === 'ranked' &&
+      exec.popularFallback &&
+      !ctx.currentUserId &&
+      !exec.anonymousRankedFirst
+    ) {
       return this.runPopularFallback(
         definition,
         exec.popularFallback,
@@ -727,6 +743,8 @@ export class FeedEngine {
     measureOnly: boolean,
   ): Promise<SlicedFeedResponse> {
     const binding = rankedSessionBinding(definition, context, limit);
+    const anonymousRankedFirst = !context.currentUserId && exec.anonymousRankedFirst === true;
+    const allowFallback = exec.neverBlank === true || anonymousRankedFirst;
     const state: RankedFeedSession = cursor
       ? await rankedFeedSessionStore.load(cursor, binding)
       : {
@@ -739,7 +757,10 @@ export class FeedEngine {
           deliveredIds: [],
           sourceCursors: {},
           exhaustedSources: [],
-          phase: !context.currentUserId && exec.popularFallback ? 'popular' : 'ranked',
+          phase:
+            !context.currentUserId && exec.popularFallback && !anonymousRankedFirst
+              ? 'popular'
+              : 'ranked',
         };
     const ctx: FeedEngineContext = {
       ...context,
@@ -798,7 +819,7 @@ export class FeedEngine {
           candidates.length ||
           state.phase === 'popular' ||
           !exec.popularFallback ||
-          !exec.neverBlank
+          !allowFallback
         )
           break;
         state.phase = 'popular';
@@ -879,7 +900,7 @@ export class FeedEngine {
     const hasMore =
       state.pending.length > 0 ||
       !exhausted() ||
-      (state.phase === 'ranked' && exec.neverBlank === true && Boolean(exec.popularFallback));
+      (state.phase === 'ranked' && allowFallback && Boolean(exec.popularFallback));
     const nextCursor = hasMore ? await rankedFeedSessionStore.save(state) : undefined;
     const hydrated = await postHydrationService.hydrateSlices(selected, {
       viewerId: ctx.currentUserId,
@@ -1123,9 +1144,14 @@ export class FeedEngine {
       deduped = Array.from(uniqueMap.values());
     }
 
-    // Never-blank: an authenticated ranked personalized feed that exhausts its
-    // unseen pool falls back to popular discovery instead of returning blank.
-    if (deduped.length === 0 && exec.neverBlank && exec.popularFallback && ctx.currentUserId) {
+    // Anonymous primary-first presets keep their existing popular inventory as
+    // continuation. Other feeds retain the authenticated never-blank contract.
+    const anonymousRankedFirst = !ctx.currentUserId && exec.anonymousRankedFirst === true;
+    if (
+      deduped.length === 0 &&
+      exec.popularFallback &&
+      (anonymousRankedFirst || (exec.neverBlank && ctx.currentUserId))
+    ) {
       return this.runPopularFallback(
         definition,
         exec.popularFallback,
@@ -1162,7 +1188,9 @@ export class FeedEngine {
     // Pagination units are SLICES, not raw candidates: thread grouping can
     // collapse several candidates into one slice, so a candidate count would
     // advertise a phantom next page.
-    const hasMore = rawSlices.length > limit;
+    const hasMore =
+      rawSlices.length > limit ||
+      (rawSlices.length > 0 && anonymousRankedFirst && Boolean(exec.popularFallback));
     const windowedSlices = rawSlices.slice(0, limit);
     // The reader's own knob from `/settings/feed`, which nothing read until now:
     // it is validated and clamped to 1..10 on write and stored in its own column,
@@ -1232,7 +1260,7 @@ export class FeedEngine {
             ? undefined
             : {
                 asOf: ctx.rankingAsOf,
-                rankingVersion: 2,
+                rankingVersion: definition.id === 'explore' ? EXPLORE_RANKING_VERSION : 2,
                 // Keep a bounded rolling guard rather than only the cursor row.
                 // Current-page ids come first so the most recent boundary is
                 // always protected when the 100-id cap is reached.

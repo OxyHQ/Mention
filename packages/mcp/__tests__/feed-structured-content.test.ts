@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { fetchMtnFeed } from '../lib/mtn-feed.js';
 import { createMcpServer } from '../lib/create-server.js';
 import { requestContext, type RequestContext } from '../lib/context.js';
 
@@ -160,11 +161,82 @@ describe('descriptor feed reads', () => {
     expect(calls[0]?.headers.get('X-Oxy-Capability-Tool')).toBe('get-feed');
   });
 
+  test('preserves the backend expired-cursor code and message in readable tool errors', async () => {
+    const calls = captureFetch(
+      {
+        success: false,
+        error: {
+          code: 'FEED_CURSOR_EXPIRED',
+          message: 'Feed pagination session expired; refresh the feed',
+        },
+      },
+      410,
+    );
+    const result = await callTool('get-for-you-feed', { cursor: 'old-score-cursor' });
+    expect(calls).toHaveLength(1);
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toBeUndefined();
+    expect(result.content).toEqual([
+      {
+        type: 'text',
+        text: 'API error (410) [FEED_CURSOR_EXPIRED]: Feed pagination session expired; refresh the feed',
+      },
+    ]);
+  });
+
   test('reports API refusal without presenting a successful structured response', async () => {
     captureFetch({ error: 'Feed unavailable' }, 403);
     const result = await callTool('get-feed', { descriptor: 'custom|f' });
     expect(result.isError).toBe(true);
     expect(result.structuredContent).toBeUndefined();
+  });
+});
+
+describe('explicit feed request language', () => {
+  for (const [name, args, descriptor] of [
+    ['get-feed', { descriptor: 'media' }, 'media'],
+    ['get-for-you-feed', {}, 'for_you'],
+    ['get-explore-feed', {}, 'explore'],
+    ['get-following-feed', {}, 'following'],
+    ['get-videos-feed', {}, 'videos'],
+    ['get-user-feed', { userId: 'u' }, 'author|u'],
+    ['get-posts-by-hashtag', { hashtag: 'bun' }, 'hashtag|bun'],
+  ] as const) {
+    test(`${name} forwards an explicit canonical language with pagination`, async () => {
+      const calls = captureFetch();
+      const result = await callTool(name, { ...args, lang: 'pt_BR', limit: 10, cursor: 'next' });
+      expect(result.isError).toBeFalsy();
+      expect(calls).toHaveLength(1);
+      expect(Object.fromEntries(calls[0]?.url.searchParams ?? [])).toEqual({
+        descriptor,
+        limit: '10',
+        cursor: 'next',
+        lang: 'pt-BR',
+      });
+      expect(result.structuredContent).toEqual(canonicalFeed);
+    });
+    test(`${name} refuses multiple language tags without making an API request`, async () => {
+      const calls = captureFetch();
+      const result = await callTool(name, { ...args, lang: 'en,es' });
+      expect(result.isError).toBe(true);
+      expect(calls).toHaveLength(0);
+    });
+  }
+  test.each(['', '*', 'en--US', 'en;q=0.9', 'a'.repeat(129)])(
+    'rejects invalid or unbounded lang %s',
+    async (lang) => {
+      const calls = captureFetch();
+      const result = await callTool('get-feed', { lang });
+      expect(result.isError).toBe(true);
+      expect(calls).toHaveLength(0);
+    },
+  );
+  test('the shared fetch helper validates direct callers and preserves valid tags', async () => {
+    const calls = captureFetch();
+    await expect(fetchMtnFeed('explore', { lang: 'en,es' })).rejects.toThrow();
+    expect(calls).toHaveLength(0);
+    await fetchMtnFeed('explore', { lang: 'es-ES' });
+    expect(calls[0]?.url.searchParams.get('lang')).toBe('es-ES');
   });
 });
 
@@ -178,8 +250,10 @@ describe('existing feeds preserve complete responses', () => {
     'get-posts-by-hashtag',
   ]) {
     test(`${name} preserves slices, dates, reasons and cursors`, async () => {
-      captureFetch();
+      const calls = captureFetch();
       const result = await callTool(name, { userId: 'u', hashtag: 'bun' });
+      expect(calls[0]?.url.searchParams.has('lang')).toBe(false);
+      expect(calls[0]?.headers.has('Accept-Language')).toBe(false);
       expect(result.isError).toBeFalsy();
       expect(result.structuredContent).toEqual(canonicalFeed);
     });

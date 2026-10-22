@@ -270,6 +270,28 @@ The language filter describes the post text, not speech or text embedded inside
 video frames. Mention does not transcribe audio or OCR video as part of feed
 selection.
 
+MCP feed tools accept an optional explicit `lang` tag. Their delegated Oxy client
+does not expose the owner-profile language read: without a warm viewer-language
+cache or an explicit request language, readability is unknown and language
+filtering abstains. This differs from the app, which sends its current locale.
+The tool does not infer or change account languages; a stored account language
+set, when available, still takes precedence for discovery membership.
+
+Anonymous Media starts with the same fresh primary source and ranking as the
+signed-in surface. After that source and its pending candidates are exhausted,
+it continues into the existing popular-media inventory without scoring that
+fallback twice. Both persisted sessions and the stateless outage path retain
+this ordering. Signed-in Media and anonymous For You/Videos keep their existing
+fallback policies; older media remains eligible in the fallback.
+
+Explore remains pre-scored in SQL rather than running the full ranking service.
+It now excludes explicitly hidden/muted/blocked authors before source caps and
+applies the existing hidden-topic multiplier to canonical topics and hashtags
+before its score keyset. Old Explore score/session cursors restart with typed
+410 after this score revision. This corrects negative-intent handling, but does
+not add semantic diary classification or activate the shadow discovery gate;
+general recommendation quality still requires evaluation against owner labels.
+
 For You and Explore also exclude a standalone decimal-digit text body from
 recommendations when it has no reply/thread/quote/boost context, links, media,
 poll, article or other structured content. This is a narrowly calibrated rule,

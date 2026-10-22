@@ -111,7 +111,12 @@ vi.mock('../services/FeedSeenPostsService', () => ({
 
 import { MtnConfig } from '@mention/shared-types';
 import { postHydrationService } from '../services/PostHydrationService';
-import { savedDefinition } from '../mtn/feed/definitions/presets';
+import {
+  forYouDefinition,
+  mediaDefinition,
+  savedDefinition,
+  videosDefinition,
+} from '../mtn/feed/definitions/presets';
 import { safetyFilter } from '../mtn/feed/engine/filters';
 import { feedSeenPostsService } from '../services/FeedSeenPostsService';
 import { selectRankedPage } from '../mtn/feed/selectRankedPage';
@@ -949,6 +954,104 @@ describe('FeedEngine — ranked fallbacks', () => {
       execution: { seenPosts: true, neverBlank: true, popularFallback: 'popular' },
     };
   }
+
+  it.each([false, true])(
+    'anonymous Media ranks fresh supply before popular continuation (session %s)',
+    async (session) => {
+      sessionMemory.enabled = session;
+      const fresh = [scored(1, 30), scored(2, 20), scored(3, 10)];
+      const older = [9, 8, 7].map((n) => scored(n, n * 100, { engagementScore: n * 100 }));
+      for (const post of [...fresh, ...older]) sessionMemory.posts.set(post.id, post);
+      const primary = vi.fn(async (ctx: { seenPostIds?: string[] }) =>
+        fresh.filter((post) => !ctx.seenPostIds?.includes(post.id)),
+      );
+      const popular = vi.fn(async (ctx: { seenPostIds?: string[] }) =>
+        [...older, ...fresh].filter((post) => !ctx.seenPostIds?.includes(post.id)),
+      );
+      registry.register({ id: 'media', kind: 'source', userComposable: false, gather: primary });
+      registry.register({
+        id: 'popularMedia',
+        kind: 'source',
+        userComposable: false,
+        gather: popular,
+      });
+      const definition = { ...mediaDefinition, filters: [], discoveryFilters: [] };
+      const first = await engine.run(definition, {}, { limit: 2 });
+      expect(first.items.map((post) => post.id)).toEqual(fresh.slice(0, 2).map((post) => post.id));
+      expect(first.hasMore).toBe(true);
+      expect(first.nextCursor).toBeDefined();
+      expect(popular).not.toHaveBeenCalled();
+      expect(rankPosts).toHaveBeenCalledOnce();
+
+      const next = await engine.run(definition, {}, { limit: 2, cursor: first.nextCursor });
+      expect(next.items.map((post) => post.id)).toEqual([fresh[2].id]);
+      expect(next.hasMore).toBe(true);
+      expect(popular).not.toHaveBeenCalled();
+      const fallback = await engine.run(definition, {}, { limit: 2, cursor: next.nextCursor });
+      expect(fallback.items.map((post) => post.id)).toEqual(
+        older.slice(0, 2).map((post) => post.id),
+      );
+      expect(fallback.hasMore).toBe(true);
+      expect(popular).toHaveBeenCalledOnce();
+      const primaryCalls = primary.mock.calls.length;
+      const final = await engine.run(definition, {}, { limit: 2, cursor: fallback.nextCursor });
+      expect(final.items.map((post) => post.id)).toEqual([older[2].id]);
+      expect(final.hasMore).toBe(false);
+      expect(primary).toHaveBeenCalledTimes(primaryCalls);
+      // Popular is already scored on its own axis: only the primary receives
+      // ranking, and previously served fresh posts cannot reappear in fallback.
+      expect(
+        rankPosts.mock.calls
+          .flatMap(([posts]) => posts)
+          .every((post) => fresh.some((candidate) => candidate.id === post.id)),
+      ).toBe(true);
+    },
+  );
+
+  it.each([false, true])(
+    'keeps anonymous For You and Videos on popular-first (session %s)',
+    async (session) => {
+      sessionMemory.enabled = session;
+      registry.register(sourceReturning('popular', [makePost(9)]));
+      registry.register(sourceReturning('popularVideos', [makePost(8)]));
+      for (const preset of [forYouDefinition, videosDefinition]) {
+        const result = await engine.run(
+          { ...preset, filters: [], discoveryFilters: [] },
+          {},
+          { limit: 20 },
+        );
+        expect(result.items).toHaveLength(1);
+      }
+      expect(rankPosts).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([false, true])(
+    'anonymous Media falls back when primary is empty without changing signed-in behavior (session %s)',
+    async (session) => {
+      sessionMemory.enabled = session;
+      const primary = vi.fn(async () => []);
+      const popular = vi.fn(async () => [makePost(9)]);
+      registry.register({ id: 'media', kind: 'source', userComposable: false, gather: primary });
+      registry.register({
+        id: 'popularMedia',
+        kind: 'source',
+        userComposable: false,
+        gather: popular,
+      });
+      const definition = { ...mediaDefinition, filters: [], discoveryFilters: [] };
+      const anonymous = await engine.run(definition, {}, { limit: 20 });
+      expect(anonymous.items.map((post) => post.id)).toEqual([id(9)]);
+      expect(anonymous.hasMore).toBe(false);
+      expect(primary).toHaveBeenCalledOnce();
+      expect(popular).toHaveBeenCalledOnce();
+
+      const signedIn = await engine.run(definition, { currentUserId: 'viewer' }, { limit: 20 });
+      expect(signedIn.items).toEqual([]);
+      expect(signedIn.hasMore).toBe(false);
+      expect(popular).toHaveBeenCalledOnce();
+    },
+  );
 
   it('serves the popular fallback for an anonymous viewer (never gathering the ranked lane)', async () => {
     const laneGather = vi.fn(async () => [scored(1, 5)]);
