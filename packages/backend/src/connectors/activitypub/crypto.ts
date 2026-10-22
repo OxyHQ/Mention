@@ -36,12 +36,6 @@ interface OxySignResponse {
   signature?: unknown;
 }
 
-// In-memory cache for public keys fetched from Oxy. Keyed by username; the value
-// is mention.earth-scoped (keyId host is FEDERATION_DOMAIN) and stable, so a 1h
-// TTL is plenty and avoids a network round-trip per actor render.
-const publicKeyCache = new Map<string, { data: FederationPublicKey; fetchedAt: number }>();
-const PUBLIC_KEY_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
-
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0;
 }
@@ -165,13 +159,14 @@ function describeServiceError(err: unknown): string {
  * private key is never returned. Requires a valid service token with the
  * appropriate federation permission; the OxyServices client
  * auto-acquires/refreshes it.
+ *
+ * Asked of Oxy every time, never kept here. Oxy replaces a handle's key pair
+ * when the handle changes accounts or a legacy pair is reconciled, signs with
+ * the new one from then on, and caches its own keys with a one-minute recheck
+ * of that binding. A copy kept here went on publishing the replaced key in the
+ * actor document, so remote servers refused what Oxy signed for that actor.
  */
 export async function getPublicKey(username: string): Promise<FederationPublicKey> {
-  const cached = publicKeyCache.get(username);
-  if (cached && Date.now() - cached.fetchedAt < PUBLIC_KEY_CACHE_TTL_MS) {
-    return cached.data;
-  }
-
   const path = `/federation/public-key/${encodeURIComponent(username)}?domain=${encodeURIComponent(FEDERATION_DOMAIN)}`;
   let response: OxyPublicKeyResponse;
   try {
@@ -190,10 +185,8 @@ export async function getPublicKey(username: string): Promise<FederationPublicKe
     throw new Error('Malformed federation public-key response');
   }
 
-  const data: FederationPublicKey = { keyId: response.keyId, publicKeyPem: response.publicKeyPem };
-  publicKeyCache.set(username, { data, fetchedAt: Date.now() });
   logger.debug('[Federation] public key fetched');
-  return data;
+  return { keyId: response.keyId, publicKeyPem: response.publicKeyPem };
 }
 
 /**

@@ -117,6 +117,22 @@ describe('signViaOxy error legibility', () => {
   });
 });
 
+describe('getPublicKey', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('publishes the key Oxy holds now, not one it has since replaced', async () => {
+    const keyId = 'https://mention.earth/ap/users/alice#main-key';
+    mocks.serviceRequest
+      .mockResolvedValueOnce({ keyId, publicKeyPem: 'REPLACED' })
+      .mockResolvedValueOnce({ keyId, publicKeyPem: 'CURRENT' });
+
+    await getPublicKey('alice');
+    await expect(getPublicKey('alice')).resolves.toEqual({ keyId, publicKeyPem: 'CURRENT' });
+  });
+});
+
 describe('getPublicKey error legibility', () => {
   beforeEach(() => {
     vi.clearAllMocks();
