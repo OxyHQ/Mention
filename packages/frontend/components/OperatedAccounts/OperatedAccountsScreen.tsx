@@ -15,6 +15,7 @@ import type { AccountNode } from '@oxy.so/core';
 import { logger } from '@oxy.so/core/logger';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useSafeBack } from '@/hooks/useSafeBack';
+import { useRefreshJoinedCommunitiesAfterCreate } from '@/hooks/useCommunities';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { FocusedScrollView } from '@/components/common/FocusedScrollView';
@@ -73,6 +74,7 @@ export function OperatedAccountsScreen({ kind, copy }: OperatedAccountsScreenPro
   const { user, oxyServices, canUsePrivateApi } = useAuth();
   const safeBack = useSafeBack();
   const queryClient = useQueryClient();
+  const refreshJoinedCommunities = useRefreshJoinedCommunitiesAfterCreate();
 
   const [handle, setHandle] = useState('');
   const [title, setTitle] = useState('');
@@ -116,6 +118,7 @@ export function OperatedAccountsScreen({ kind, copy }: OperatedAccountsScreenPro
       await queryClient.invalidateQueries({
         queryKey: viewerQueryKeys.operatedAccounts(user?.id),
       });
+      await refreshJoinedCommunities(kind);
       toast.success(copy.created);
       const created = getNormalizedUserHandle(account.account) ?? trimmedHandle;
       router.push(profileBasePath(profileRouteFamily(account.account), created));
