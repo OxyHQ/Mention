@@ -700,7 +700,12 @@ PR #1574; this sample cannot be attributed to one exact serving revision per pag
 
 Each feed returned 194 logical slices across ten pages, with page sizes
 20/20/20/20/18/20/18/20/19/19. Neither traversal repeated focal IDs or slice keys;
-both retained continuation. Each had 225 flattened items because conversation
+both retained continuation. A separate original-post identity check found eight
+repeat occurrences across seven groups in each traversal (six pairs and one
+triple). The triple included an original and two boosts by different actors on
+the same page. These are distinct chronological events, not duplicate post IDs;
+zero ID repeats must not be described as zero repeated content. This observation
+does not establish a defect or change Following's delivery contract. Each had 225 flattened items because conversation
 context may legitimately exceed the logical page limit. User identity was
 reverified, and no explicit locale or deliberate engagement/settings writes were
 added to these authenticated reads.
@@ -714,3 +719,24 @@ times were 992, 408 and 509 ms. These live samples confirm corrected page bounds
 and observed continuation behavior; exhaustive absence of skipped inventory is
 supported by the separate real-database fixture, not proven by these live samples.
 The Media/Explore/MCP followup still requires its own release and acceptance capture.
+
+
+### Identity diagnostics and final sampling boundary
+
+A supplementary check over the 143 authenticated pages collected through the
+22 October chronological retest found no missing author username/ID and no
+`boost.unavailable` presentation marker. Within each For You, Explore, Videos,
+Media and friends-popular traversal, it found no repeated `originalPost` identity.
+The Following original/boost repetitions described above remain a distinct case.
+These checks establish only the inspected identity and rendering fields; they do
+not measure semantically duplicated text, copied media or identical source URLs.
+
+The planned final authenticated followup uses explicit `lang=es` as a controlled
+request locale. This is not evidence that Spanish is the owner's stored preference,
+and it must remain separate from earlier MCP captures with no explicit locale.
+Any language-match calculation must use the actual nested post metadata and state
+its treatment of missing or multiple declarations. A fresh request, an advancing
+cursor and a replay test answer different questions; their counts must not be
+combined as independent recommendations. New release results will be attributed
+to the actual deployed SHA and request times before concluding that the followup
+improved the measured behavior.
