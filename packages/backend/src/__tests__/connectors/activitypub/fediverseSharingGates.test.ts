@@ -3,7 +3,9 @@ import crypto from 'node:crypto';
 import express from 'express';
 import request from 'supertest';
 
-import { closePostgres, connectPostgres } from '../../../db/postgres';
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
+import { accountErasures } from '../../../db/schema/accountErasures';
 import { clearFederationScope, federationScope, seedPost } from '../../helpers/federationFixtures';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { signRequest, type HttpSignatureSigner } from '@oxy.so/federation';
@@ -454,5 +456,66 @@ describe('fediverseSharing gates — user-scoped AP/discovery surfaces', () => {
       // from "no such account", not a distinguishable "exists but hidden".
       expect(res.body).toEqual(NOT_FOUND_BODY);
     });
+  });
+});
+
+describe('a deleted account: 410 Gone on every surface instead of 404', () => {
+  // Oxy told Mention the account is gone (a signed `account.deleted`, recorded in
+  // the erasure ledger with its handle); Oxy no longer resolves it.
+  const HANDLE = 'GoneGateHandle';
+  const EVENT_ID = 'fediverse-sharing-gates-gone';
+
+  beforeAll(async () => {
+    await getDb().delete(accountErasures).where(eq(accountErasures.eventId, EVENT_ID));
+    await getDb().insert(accountErasures).values({
+      oxyUserId: 'u-gone',
+      eventId: EVENT_ID,
+      source: 'webhook',
+      reason: 'account.deleted',
+      retained: true,
+      username: HANDLE,
+    });
+  });
+
+  afterAll(async () => {
+    await getDb().delete(accountErasures).where(eq(accountErasures.eventId, EVENT_ID));
+  });
+
+  beforeEach(() => {
+    mocks.resolveOxyUser.mockResolvedValue(null);
+    mocks.getFediverseSharingStateByUsername.mockResolvedValue('unknown-user');
+  });
+
+  it('answers the actor, its inbox, outbox and posts, and WebFinger with 410 and a Tombstone', async () => {
+    const handle = HANDLE.toLowerCase();
+    const actor = await request(apApp)
+      .get(`/ap/users/${handle}`)
+      .set('Accept', AP_ACCEPT)
+      .expect(410);
+    expect(actor.body).toMatchObject({
+      type: 'Tombstone',
+      id: `https://mention.earth/ap/users/${handle}`,
+    });
+
+    await request(apApp)
+      .post(`/ap/users/${handle}/inbox`)
+      .set('Content-Type', AP_ACCEPT)
+      .send(INBOX_ACTIVITY)
+      .expect(410);
+    await request(apApp).get(`/ap/users/${handle}/outbox`).set('Accept', AP_ACCEPT).expect(410);
+    const post = await request(apApp)
+      .get(`/ap/users/${handle}/posts/p1`)
+      .set('Accept', AP_ACCEPT)
+      .expect(410);
+    expect(post.body).toMatchObject({
+      type: 'Tombstone',
+      id: `https://mention.earth/ap/users/${handle}/posts/p1`,
+    });
+    await request(wellKnownApp)
+      .get(`/.well-known/webfinger?resource=acct:${handle}@mention.earth`)
+      .expect(410);
+
+    // A handle Oxy does not resolve and Mention was never told about stays a 404.
+    await request(apApp).get('/ap/users/neverexisted').set('Accept', AP_ACCEPT).expect(404);
   });
 });

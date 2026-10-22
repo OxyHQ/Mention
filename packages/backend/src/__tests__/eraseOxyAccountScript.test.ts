@@ -13,7 +13,10 @@ vi.mock('../utils/oxyHelpers', async (importOriginal) => ({
   getServiceOxyClient: () => ({ users: { get: getUserById } }),
 }));
 vi.mock('../connectors/activitypub/delivery.service', () => ({
-  deliveryService: { deliverToFollowers: vi.fn(async () => undefined) },
+  deliveryService: {
+    deliverToFollowers: vi.fn(async () => undefined),
+    federateActorDelete: vi.fn(async () => undefined),
+  },
 }));
 
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';

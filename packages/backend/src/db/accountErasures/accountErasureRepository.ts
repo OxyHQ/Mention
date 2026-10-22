@@ -259,6 +259,21 @@ export async function findErasedAccountUsernames(
   return byUser;
 }
 
+/**
+ * Was this handle an account Mention was told is deleted? Matched without case,
+ * the way the actor routes normalize a handle. Only while the ledger still holds
+ * the handle: it is cleared {@link scrubExpiredErasureUsernames} after the
+ * retention window, and nothing else remembers it.
+ */
+export async function isErasedUsername(username: string): Promise<boolean> {
+  const [row] = await getDb()
+    .select({ id: accountErasures.id })
+    .from(accountErasures)
+    .where(sql`lower(${accountErasures.username}) = lower(${username})`)
+    .limit(1);
+  return row !== undefined;
+}
+
 /** Clear handles past their retention. Returns how many were cleared. */
 export async function scrubExpiredErasureUsernames(retentionDays: number): Promise<number> {
   const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();

@@ -1,17 +1,15 @@
 /**
- * TELLING THE FEDIVERSE — the Tombstones for a batch, and the actor `Delete`.
+ * TELLING THE FEDIVERSE — the Tombstones for a batch.
  *
  * Ordering against the rest of the cascade is the whole content of this module:
- * a batch's Tombstones go out BEFORE its rows are deleted, and the actor
- * `Delete` goes out before the `federated_follows` rows delivery resolves its
- * inboxes from.
+ * a batch's Tombstones go out BEFORE its rows are deleted. The actor `Delete` is
+ * the account erasure's (`accountErasure/erasureFederation.ts`), the one
+ * implementation every kind of account shares, and the cascade sends it before
+ * the `federated_follows` rows delivery resolves its inboxes from.
  */
 
 import { PostVisibility } from '@mention/shared-types';
 import { followService } from '../../connectors/activitypub/follow.service';
-import { deliveryService } from '../../connectors/activitypub/delivery.service';
-import { actorUrl } from '../../connectors/activitypub/constants';
-import { AP_CONTEXT } from '@oxy.so/federation';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { LOG_PREFIX } from './channelCascadeLog';
 import type { PostBatch } from './channelDeletionTargets';
@@ -56,28 +54,4 @@ export async function broadcastBatchTombstones(
     if (post.visibility !== PostVisibility.PUBLIC || post.status !== 'published') continue;
     await followService.federateDelete({ id: post.id }, channelOxyUserId, username);
   }
-}
-
-/**
- * Tell the fediverse the actor is gone, BEFORE anything the delivery path reads
- * is deleted: `deliverToFollowers` resolves its inboxes from the
- * `federated_follows` rows, which the account phase removes.
- */
-export async function broadcastActorDelete(
-  channelOxyUserId: string,
-  username: string,
-): Promise<void> {
-  const actor = actorUrl(username);
-  await deliveryService.deliverToFollowers(
-    {
-      '@context': AP_CONTEXT,
-      id: `${actor}#delete-${Date.now()}`,
-      type: 'Delete',
-      actor,
-      to: ['https://www.w3.org/ns/activitystreams#Public'],
-      object: actor,
-    },
-    channelOxyUserId,
-    username,
-  );
 }

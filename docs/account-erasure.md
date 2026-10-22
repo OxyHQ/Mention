@@ -124,18 +124,38 @@ carries the handle, so the Deletes can still be addressed and signed:
 
 - one `Delete(Tombstone)` per public, published, local post, sent before the post
   rows are deleted;
-- one `Delete` of the actor (a deterministic id, so a re-run dedupes per inbox),
-  sent while the follow edges delivery reads are still there.
+- one `Delete` of the actor, the actor deleting itself (`<actor>#delete`, to
+  `as:Public`, the shape Mastodon sends), sent while the follow edges delivery
+  reads are still there. The id is deterministic, so a re-run dedupes per inbox.
+  It is `@oxy.so/federation`'s `federateActorDelete`, called from one place
+  (`erasureFederation.broadcastActorDelete`) for a person, an archived channel or
+  community, and the channel cascade alike.
 
-Both go through the normal delivery queue to every follower inbox and retry on
-its schedule (about 63 hours). The delivery worker resolves a sender's handle
+Both go through the normal delivery queue to every follower shared inbox and
+retry on its schedule (about 63 hours). The delivery worker resolves a sender's handle
 from Oxy, and falls back to `account_erasures.username` for an erased sender.
 Without a handle (an old token, an account with none), nothing is sent and the
 local erasure still runs.
 
+**410 Gone afterwards.** From the moment the event is recorded, the account's
+ActivityPub surfaces answer `410 Gone` instead of 404: the actor (with a
+`Tombstone` body), its inbox, outbox, featured and follower collections, each
+post (a `Tombstone` naming the post), and WebFinger. The check
+(`erasedAccounts.isErasedActorHandle`) runs only when no federating account
+answers for the handle, so a handle someone has claimed since is served as
+theirs. This is what a server that missed the Delete, or never acts on one, reads
+as permanent. Mastodon deletes its copy of an account whose WebFinger answers 410.
+Lemmy, PieFed and Mbin mark an actor deleted when a refetch answers 410 or a
+`Tombstone`. A 404 tells none of them anything, so before this they kept a ghost
+profile and kept delivering to it. An inbox POST to the actor is refused with 410.
+
 **Limits.** Remote servers are asked, not forced: a server may ignore a Delete,
-and one that stays down past the retry budget never hears it. Posts that were
-never public were never federated and get no Delete.
+and one that stays down past the retry budget never hears it. Lemmy does not
+accept a `Delete` whose actor is a community (`Group`), so a Lemmy instance
+learns a community is gone from the 410 when it next refetches it. The 410
+lasts as long as the ledger keeps the handle (14 days after completion, below).
+After that the handle is answered 404 again. Posts that were never public were
+never federated and get no Delete.
 
 ## Channels and other managed accounts
 
@@ -160,7 +180,10 @@ person's deletion (OxyHQ/Mention#1178). The reasons:
 
 When the deletion starts in Mention, the cascade has already removed almost
 everything by the time the event arrives, so the erasure finds residue at most
-and converges. When the archive starts anywhere else, the event is what erases
+and converges. The cascade sends the actor `Delete` itself, before it removes
+the follow rows, so the erasure finds no follower left to address and sends
+nothing. Either way each inbox hears the Delete once. A community's deletion in
+Mention only archives the account, so its event's erasure sends the Delete. When the archive starts anywhere else, the event is what erases
 the channel. The event carries the handle, so the erasure can still address
 the actor `Delete` after Oxy stops resolving the account.
 
@@ -247,7 +270,11 @@ For an account id `U`:
    check over every executable map entry; the same query per table, run against a
    read replica, is the production spot check:
    `select count(*) from posts where oxy_user_id = 'U';` and so on.
-4. The delivery queue carries the Deletes: rows in `federation_delivery_queue`
+4. `GET https://mention.earth/ap/users/<handle>` with
+   `Accept: application/activity+json` answers `410` with a `Tombstone`, and
+   `GET https://mention.earth/.well-known/webfinger?resource=acct:<handle>@mention.earth`
+   answers `410`.
+5. The delivery queue carries the Deletes: rows in `federation_delivery_queue`
    (or BullMQ `federation-delivery` jobs) with `sender_oxy_user_id = 'U'` and
    `activity_json->>'type' = 'Delete'`. A remote server that followed the account
    should show it as gone once its delivery lands.
