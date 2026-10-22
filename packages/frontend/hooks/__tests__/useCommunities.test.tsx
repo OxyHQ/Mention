@@ -1,7 +1,11 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-import { useCommunityModerators, useJoinedCommunities } from '../useCommunities';
+import {
+  useCommunityModerators,
+  useJoinedCommunities,
+  useRefreshJoinedCommunitiesAfterCreate,
+} from '../useCommunities';
 
 /**
  * The two community reads: the joined communities only with a session that can
@@ -20,14 +24,20 @@ jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => mockAuth }));
 jest.mock('@/services/communityService', () => ({
   communityService: { joined: () => mockJoined() },
 }));
+const mockRefreshPrivacyLists = jest.fn(async () => {});
+jest.mock('@/services/privacyService', () => ({
+  refreshPrivacyLists: () => mockRefreshPrivacyLists(),
+}));
 
 const flush = () =>
   act(async () => {
     for (let i = 0; i < 5; i++) await new Promise((resolve) => setTimeout(resolve, 0));
   });
 
-function render(probe: () => unknown) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function render(
+  probe: () => unknown,
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+) {
   const result: { current: unknown } = { current: null };
   function Probe() {
     result.current = probe();
@@ -59,5 +69,22 @@ describe('community reads', () => {
     render(() => useJoinedCommunities());
     await flush();
     expect(mockJoined).not.toHaveBeenCalled();
+  });
+
+  it('re-reads the joined communities after creating a community, and only then', async () => {
+    mockAuth.canUsePrivateApi = true;
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(() => useJoinedCommunities(), queryClient);
+    const refresh = render(() => useRefreshJoinedCommunitiesAfterCreate(), queryClient);
+    await flush();
+    mockJoined.mockClear();
+    const afterCreate = refresh.current as (kind: string) => Promise<void>;
+
+    await act(() => afterCreate('channel'));
+    expect(mockRefreshPrivacyLists).not.toHaveBeenCalled();
+    await act(() => afterCreate('community'));
+    await flush();
+    expect(mockRefreshPrivacyLists).toHaveBeenCalledTimes(1);
+    expect(mockJoined).toHaveBeenCalledTimes(1);
   });
 });
