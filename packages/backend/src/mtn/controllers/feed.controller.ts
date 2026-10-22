@@ -1,3 +1,4 @@
+import { EXPLORE_RANKING_VERSION } from '../feed/CursorBuilder';
 import { eligibleActivitySubscriptionAuthors } from '../../services/activitySubscriptionInterest';
 import { respondWithApiError } from '../../utils/error';
 import { canSeeUnratedMaterial } from '../../services/contentAccessBatcher';
@@ -391,7 +392,14 @@ class MtnFeedController {
       // a live build. Authenticated feeds are personalized and must never be cached.
       const anonCacheKey = !currentUserId
         ? anonFeedCache.buildKey({
-            namespace: ANON_FEED_CACHE_NAMESPACE,
+            // Keep cached pages from bypassing the Explore score-version
+            // cutover or Media's new primary-ranked anonymous first page.
+            namespace:
+              descriptor === 'explore'
+                ? `${ANON_FEED_CACHE_NAMESPACE}:explore-v${EXPLORE_RANKING_VERSION}`
+                : descriptor === 'media'
+                  ? `${ANON_FEED_CACHE_NAMESPACE}:media-v2`
+                  : ANON_FEED_CACHE_NAMESPACE,
             type: descriptor,
             limit,
             cursor,
