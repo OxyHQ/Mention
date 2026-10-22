@@ -745,3 +745,19 @@ cursor and a replay test answer different questions; their counts must not be
 combined as independent recommendations. New release results will be attributed
 to the actual deployed SHA and request times before concluding that the followup
 improved the measured behavior.
+
+### Follow-up merge and pending deployment — 22 October 2026
+
+PR #1577 merged at 18:08:49 UTC as
+`d808a983ba8703b105b5bc386a8fee8696226a2d` after successful protected queue
+[CI 39827996686](https://github.com/OxyHQ/Mention/actions/runs/39827996686).
+At 18:14 UTC its normal push release had not appeared. The workflow-run events
+from merge-group CI skipped deployment under the existing admission rules;
+those green scope jobs are not proof of a live release. The serving backend
+remained revision 693, SHA `91a9f72c42e6dcebdf749535cd7ef1fbf741e3dc`.
+
+The historical evidence above is complete for its named revisions. Acceptance
+of the merged Media, Explore and MCP corrections remains pending an actual
+backend/MCP rollout and separately attributed production captures. This
+documentation merge retains the normal protected release path; no deployment
+guard or required check is bypassed.
