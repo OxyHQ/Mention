@@ -172,7 +172,7 @@ export const actorRouter = createActorRouter({
   // A deleted account's actor, inbox and collections answer 410 with a Tombstone.
   isActorGone: (username) => isErasedActorHandle(username),
   inbound: {
-    fetchPublicKey: (keyId) => actorService.fetchPublicKey(keyId),
+    fetchPublicKey: (keyId, options) => actorService.fetchPublicKey(keyId, options),
     // The apex (mention.earth) is CF-proxied → ALB → backend, which rewrites the
     // origin Host to api.mention.earth while Mastodon signs over mention.earth
     // (forwarded in X-Forwarded-Host). Reconstruct the signed `host` line from it.

@@ -427,10 +427,6 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     actorService.refreshActorInBackground(actorUri, existing && withEngineId(existing));
   }
 
-  fetchPublicKey(keyId: string): Promise<{ publicKeyPem: string; actorUri: string } | null> {
-    return actorService.fetchPublicKey(keyId);
-  }
-
   // ============================================================
   // Absorbed FederationService facade — outbox backfill
   // (delegated to OutboxSyncService)
