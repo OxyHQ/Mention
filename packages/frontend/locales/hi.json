@@ -386,6 +386,8 @@
   "settings.privacy.showSensitiveContentDesc": "संवेदनशील और NSFW पोस्ट आपकी फ़ीड में कभी नहीं दिखतीं। वे लेखक की प्रोफ़ाइल पर दिखती रहती हैं।",
   "settings.privacy.searchEngines": "सर्च इंजन में दिखाएँ",
   "settings.privacy.searchEnginesDesc": "Google जैसे सर्च इंजन को अपनी प्रोफ़ाइल और पोस्ट उनके नतीजों में दिखाने दें। इसे बंद करने पर भी वे Mention पर सार्वजनिक रहती हैं।",
+  "settings.privacy.showLikes": "मेरी प्रोफ़ाइल पर मेरे लाइक दिखाएँ",
+  "settings.privacy.showLikesDesc": "दूसरों को वे पोस्ट देखने दें जिन्हें आपने लाइक किया है। बंद होने पर आपके लाइक सिर्फ़ आपको दिखते हैं।",
   "settings.privacy.allowTags": "टैग की अनुमति दें",
   "settings.privacy.allowTagsDesc": "दूसरों को पोस्ट में आपको टैग करने दें",
   "settings.privacy.allowMentions": "ज़िक्र की अनुमति दें",

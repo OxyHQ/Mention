@@ -219,16 +219,23 @@ export function laneTabKey(laneId: string): string {
  * no list. It defaults to `false` so the tab is absent unless something
  * affirmatively says otherwise, which is the same direction the disclosure
  * itself fails in: a missing answer must never name anybody.
+ *
+ * `showsLikes` is the other runtime input: what an account has liked is private
+ * to it unless it opted in, so the caller passes `true` for the viewer's own
+ * profile or when the profile's `privacy.showLikes` says so. The server enforces
+ * the same rule; this only keeps an empty tab off the strip.
  */
 export function buildProfileTabDescriptors(
   labels: Readonly<Record<ProfileTab, string>>,
   lanes: readonly LaneTabInput[] = [],
   accountKind?: AccountKind,
   disclosesWriters = false,
+  showsLikes = true,
 ): ProfileTabDescriptor[] {
   const descriptors: ProfileTabDescriptor[] = [];
   for (const tab of profileTabsForAccountKind(accountKind)) {
     if (tab === 'writers' && !disclosesWriters) continue;
+    if (tab === 'likes' && !showsLikes) continue;
     descriptors.push({ key: tab, label: labels[tab], tab });
     if (tab === 'posts') {
       for (const lane of lanes) {

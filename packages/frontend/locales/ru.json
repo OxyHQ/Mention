@@ -394,6 +394,8 @@
   "settings.privacy.showSensitiveContentDesc": "Деликатные посты и посты 18+ никогда не появляются в ваших лентах. Они остаются видны в профиле автора.",
   "settings.privacy.searchEngines": "Показывать в поисковых системах",
   "settings.privacy.searchEnginesDesc": "Разрешите поисковым системам, например Google, показывать ваш профиль и посты в результатах поиска. Если выключить, они останутся публичными в Mention.",
+  "settings.privacy.showLikes": "Показывать мои лайки в профиле",
+  "settings.privacy.showLikesDesc": "Разрешите другим видеть записи, которые вам понравились. Если выключено, ваши лайки видны только вам.",
   "settings.privacy.allowTags": "Разрешить отметки",
   "settings.privacy.allowTagsDesc": "Позволить другим отмечать вас в постах",
   "settings.privacy.allowMentions": "Разрешить упоминания",

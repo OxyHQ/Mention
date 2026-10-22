@@ -431,14 +431,25 @@ function buildAuthoredConditions(
  * (posts, replies, media, boosts, likes) rather than the posts themselves
  * leaking through their own `visibility: public` flag. Returning `false` yields
  * an empty feed, which is exactly what a viewer without access must see.
+ *
+ * The likes tab is stricter still: what an account has liked is private to it
+ * unless it opted in (`privacy.showLikes`), whatever its profile visibility.
  */
-async function canViewAuthorFeed(ctx: FeedEngineContext, authorId: string): Promise<boolean> {
+async function canViewAuthorFeed(
+  ctx: FeedEngineContext,
+  authorId: string,
+  filter?: AuthorFeedFilter,
+): Promise<boolean> {
   if (ctx.currentUserId === authorId) return true;
   const [settings] = await getDb()
-    .select({ profileVisibility: userSettings.privacyProfileVisibility })
+    .select({
+      profileVisibility: userSettings.privacyProfileVisibility,
+      showLikes: userSettings.privacyShowLikes,
+    })
     .from(userSettings)
     .where(eq(userSettings.oxyUserId, authorId))
     .limit(1);
+  if (filter === 'likes' && !settings?.showLikes) return false;
   const profileVisibility = settings?.profileVisibility ?? ProfileVisibility.PUBLIC;
   if (!requiresAccessCheck(profileVisibility)) return true;
   if (!ctx.currentUserId) return false;
@@ -615,7 +626,7 @@ export const authoredSource: SourceModule = {
     // check passes.
     const needsLaneCuration = filter !== 'likes' && filter !== 'mentions';
     const [canView, excludedLaneIds] = await Promise.all([
-      canViewAuthorFeed(ctx, authorId),
+      canViewAuthorFeed(ctx, authorId, filter),
       needsLaneCuration
         ? loadExcludedLaneIds(authorId, excludedDisplayModesForTab(filter))
         : Promise.resolve<string[]>([]),

@@ -15,6 +15,7 @@ const PRIVACY_SETTINGS_CACHE_KEY = '@mention_privacy_settings:v2';
 
 const DEFAULT_PRIVACY_SETTINGS: PrivacySettings = {
   profileVisibility: 'public',
+  showLikes: false,
   hideLikeCounts: false,
   hideShareCounts: false,
   hideReplyCounts: false,
@@ -29,6 +30,8 @@ export interface PrivacySettings {
   allowTags?: boolean;
   allowMentions?: boolean;
   showOnlineStatus?: boolean;
+  /** Other people can see this account's likes. Default false. */
+  showLikes?: boolean;
   hideLikeCounts?: boolean;
   hideShareCounts?: boolean;
   hideReplyCounts?: boolean;

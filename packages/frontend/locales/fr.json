@@ -390,6 +390,8 @@
   "settings.privacy.showSensitiveContentDesc": "Les posts sensibles et NSFW n'apparaissent jamais dans tes fils. Ils restent visibles sur le profil de leur auteur.",
   "settings.privacy.searchEngines": "Afficher dans les moteurs de recherche",
   "settings.privacy.searchEnginesDesc": "Autorise les moteurs de recherche comme Google à afficher ton profil et tes posts dans leurs résultats. Si tu désactives cette option, ils restent publics sur Mention.",
+  "settings.privacy.showLikes": "Afficher mes mentions J'aime sur mon profil",
+  "settings.privacy.showLikesDesc": "Permettez aux autres de voir les publications que vous avez aimées. Désactivé, vos mentions J'aime ne sont visibles que par vous.",
   "settings.privacy.allowTags": "Autoriser les tags",
   "settings.privacy.allowTagsDesc": "Permets aux autres de te taguer dans des posts",
   "settings.privacy.allowMentions": "Autoriser les mentions",
