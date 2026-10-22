@@ -15,7 +15,7 @@
  *
  * DATA-DRIVEN: adding a module is a registry entry + one {@link MODULE_METADATA}
  * row — never a hand-edited UI. Sources/filters are offered only when
- * `userComposable`; every registered signal is offered (signals are ranking
+ * `userComposable`; registered signals are offered unless preset-only (signals are ranking
  * weights, meaningful only in ranked mode).
  */
 
@@ -547,7 +547,7 @@ const SIGNAL_LABELS: Record<string, { label: string; description: string }> = {
 
 /** Whether a registry module should be offered to the custom-feed builder. */
 function isComposable(kind: ModuleKind, userComposable: boolean | undefined): boolean {
-  if (kind === 'signal') return true; // every ranking signal is selectable in ranked mode
+  if (kind === 'signal') return userComposable !== false; // preset-only context stays internal
   return userComposable === true;
 }
 

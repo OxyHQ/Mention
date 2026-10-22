@@ -76,6 +76,55 @@ afterEach(() => {
 });
 
 describe('useDeferredToggle', () => {
+  it('ignores an old deferred read after a successful on-demand toggle', async () => {
+    let finishDeferred: (value: boolean) => void = () => {};
+    const handlers = makeHandlers(false);
+    handlers.fetchStatus.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishDeferred = resolve;
+        }),
+    );
+    const renderer = await mountSettled(handlers);
+    await act(async () => {
+      await latest?.toggle();
+    });
+    expect(latest?.active).toBe(true);
+    await act(async () => {
+      finishDeferred(false);
+    });
+    expect(latest?.active).toBe(true);
+    expect(handlers.onEnable).toHaveBeenCalledTimes(1);
+    act(() => renderer.unmount());
+  });
+
+  it('allows only one toggle while the status request is pending', async () => {
+    let finish: (value: boolean) => void = () => {};
+    const handlers = makeHandlers(false);
+    handlers.fetchStatus.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      renderer = TestRenderer.create(<Probe skip={false} handlers={handlers} />);
+    });
+    let pending: Promise<void> | undefined;
+    await act(async () => {
+      pending = latest?.toggle();
+      await latest?.toggle();
+    });
+    expect(handlers.fetchStatus).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      finish(false);
+      await pending;
+    });
+    expect(handlers.onEnable).toHaveBeenCalledTimes(1);
+    act(() => renderer?.unmount());
+  });
+
   it('reverses direction on the second press', async () => {
     // The regression this exists for: press on, press off. Reading the previous
     // state from a stale mirror calls onEnable twice and the control sticks.

@@ -98,6 +98,19 @@ describe('validateDefinition', () => {
     expect(result.valid).toBe(false);
   });
 
+  it('rejects preset-only bell signals while preserving legacy composable signals', () => {
+    const definition = {
+      mode: 'ranked',
+      sources: [{ module: 'trending', enabled: true }],
+      signals: [{ module: 'activitySubscriptionBoost', enabled: true }],
+      filters: [],
+    };
+    expect(validate(definition)).toMatchObject({ valid: false });
+    expect(
+      validate({ ...definition, signals: [{ module: 'engagement', enabled: true }] }).valid,
+    ).toBe(true);
+  });
+
   it('rejects an oversized accounts list (> 200)', () => {
     const authorIds = Array.from({ length: 201 }, (_, i) => `a${i}`);
     const result = validate({

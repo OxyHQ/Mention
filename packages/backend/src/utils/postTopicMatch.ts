@@ -1,4 +1,5 @@
-import { and, arrayContains, eq, exists, or, sql, type SQL } from 'drizzle-orm';
+import { arrayContains, eq, inArray, type SQL } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { getDb } from '../db/postgres';
 import { postClassificationTopicRefs, posts } from '../db/schema';
 
@@ -31,25 +32,23 @@ export function normalizeTopicSlug(slug: string): string {
  * feed, and the two match rules can never drift onto different fields again
  * (which was the original "trends but no posts" bug).
  *
- * `= ANY(array)` is the array-membership test for the slug-only `text[]` column.
- * Written through `arrayContains` rather than a hand-rolled `= any(${slug})`,
- * because a raw JS value interpolated on the right of `ANY` binds as a ROW
- * constructor and Postgres rejects it.
+ * Each branch can use its own index before the caller orders or paginates posts.
+ * A correlated EXISTS OR array predicate can instead walk the whole chronological
+ * index when a topic is rare or absent. UNION removes duplicate identities when a
+ * post carries both forms; the caller still owns visibility and cursor filters.
  */
 export function topicSlugSql(slug: string): SQL {
   const normalized = normalizeTopicSlug(slug);
-  return or(
-    exists(
+  const topicPosts = alias(posts, 'topic_match_posts');
+  const matchingIds = getDb()
+    .select({ id: postClassificationTopicRefs.postId })
+    .from(postClassificationTopicRefs)
+    .where(eq(postClassificationTopicRefs.name, normalized))
+    .union(
       getDb()
-        .select({ one: sql`1` })
-        .from(postClassificationTopicRefs)
-        .where(
-          and(
-            eq(postClassificationTopicRefs.postId, posts.id),
-            eq(postClassificationTopicRefs.name, normalized),
-          ),
-        ),
-    ),
-    arrayContains(posts.classificationTopics, [normalized]),
-  ) as SQL;
+        .select({ id: topicPosts.id })
+        .from(topicPosts)
+        .where(arrayContains(topicPosts.classificationTopics, [normalized])),
+    );
+  return inArray(posts.id, matchingIds);
 }

@@ -1,3 +1,4 @@
+jest.mock('@/hooks/useFeedVisibility', () => ({ useFeedVisibility: jest.fn() }));
 jest.mock('@/services/socketService', () => ({
   socketService: { subscribeToFeedUpdates: jest.fn(() => jest.fn()) },
 }));

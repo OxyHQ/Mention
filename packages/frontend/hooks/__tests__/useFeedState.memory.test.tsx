@@ -1,3 +1,4 @@
+import { notifyFeedRankingChanged } from '@/stores/feedRankingInvalidation';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
@@ -459,6 +460,88 @@ describe('useFeedState memory mode: one feed query', () => {
       expect(latest?.hasMore).toBe(true);
     });
 
+    it('applies a persisted ranking change with one first-page read, retaining rows until it arrives', async () => {
+      await loadTwoPages();
+      const refreshed = deferred<SlicedFeedResponse>();
+      getFeedMock.mockImplementationOnce(() => refreshed.promise);
+      act(() => notifyFeedRankingChanged(explore.currentUserId));
+      await flush();
+      expect(getFeedMock).toHaveBeenCalledTimes(3);
+      expect(getFeedMock.mock.calls[2][0].cursor).toBeUndefined();
+      expect(ids()).toEqual(['p1', 'p2', 'p3']);
+      refreshed.resolve(page(['new-ranking']));
+      await flush();
+      expect(ids()).toEqual(['new-ranking']);
+    });
+
+    it('replaces expired ranked pages with a fresh first page exactly once', async () => {
+      await loadTwoPages();
+      getFeedMock.mockRejectedValueOnce({ status: 410, code: 'FEED_CURSOR_EXPIRED' });
+      getFeedMock.mockResolvedValueOnce(page(['fresh-session'], 'fresh-cursor'));
+      await loadMore();
+      expect(getFeedMock).toHaveBeenCalledTimes(4);
+      expect(getFeedMock.mock.calls[2][0].cursor).toBe('cursor-3');
+      expect(getFeedMock.mock.calls[3][0].cursor).toBeUndefined();
+      expect(ids()).toEqual(['fresh-session']);
+    });
+
+    it('does not loop when recovery itself fails', async () => {
+      await loadTwoPages();
+      getFeedMock.mockRejectedValue({ status: 410, code: 'FEED_CURSOR_EXPIRED' });
+      await loadMore();
+      expect(getFeedMock).toHaveBeenCalledTimes(4);
+      expect(ids()).toEqual(['p1', 'p2', 'p3']);
+      await loadMore();
+      expect(getFeedMock).toHaveBeenCalledTimes(4);
+    });
+
+    it('starts one recovery when simultaneous pagination callbacks receive the same expiry', async () => {
+      await loadTwoPages();
+      const expiredPage = Promise.withResolvers<SlicedFeedResponse>();
+      getFeedMock.mockReturnValueOnce(expiredPage.promise);
+      getFeedMock.mockResolvedValueOnce(page(['fresh-session'], 'fresh-cursor'));
+      if (!latest) throw new Error('Feed did not mount');
+      const load = latest.loadMore;
+      await act(async () => {
+        const first = load();
+        const second = load();
+        expiredPage.reject({ status: 410, code: 'FEED_CURSOR_EXPIRED' });
+        await Promise.all([first, second]);
+      });
+      await flush();
+      expect(getFeedMock).toHaveBeenCalledTimes(4);
+      expect(getFeedMock.mock.calls[3][0].cursor).toBeUndefined();
+      expect(ids()).toEqual(['fresh-session']);
+    });
+
+    it('does not recover an unrelated 410 response', async () => {
+      await loadTwoPages();
+      getFeedMock.mockRejectedValueOnce({ status: 410, code: 'OTHER_GONE' });
+      await loadMore();
+      expect(getFeedMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('does not recover a departed descriptor after a late expiry response', async () => {
+      await loadTwoPages();
+      let reject!: (error: unknown) => void;
+      getFeedMock.mockReturnValueOnce(
+        new Promise((_resolve, fail) => {
+          reject = fail;
+        }),
+      );
+      let pending!: Promise<void>;
+      act(() => {
+        pending = latest!.loadMore();
+      });
+      const renderer = [...open][0];
+      unmount(renderer);
+      reject({ status: 410, code: 'FEED_CURSOR_EXPIRED' });
+      await act(async () => {
+        await pending;
+      });
+      expect(getFeedMock).toHaveBeenCalledTimes(3);
+    });
+
     it('keeps the loaded rows on screen while the refresh is in flight', async () => {
       await loadTwoPages();
       const refreshed = deferred<SlicedFeedResponse>();
@@ -734,6 +817,30 @@ describe('useFeedState memory mode: one feed query', () => {
       expect(latest?.pending).toBe(false);
       await advance(60_000);
       expect(getUserFeedMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('starts a fresh polling budget when the mounted feed switches remote profiles', async () => {
+      jest.useFakeTimers();
+      getUserFeedMock.mockResolvedValue(pendingPage());
+      const mounted: { renderer?: TestRenderer.ReactTestRenderer } = {};
+      act(() => {
+        mounted.renderer = TestRenderer.create(tree(remote));
+      });
+      if (!mounted.renderer) throw new Error('Remote profile did not mount');
+      open.add(mounted.renderer);
+      await advance(SLACK_MS);
+      await advance(FED_PENDING_POLL_DELAYS_MS[0] + SLACK_MS);
+      expect(getUserFeedMock).toHaveBeenCalledTimes(2);
+
+      act(() => {
+        mounted.renderer?.update(tree({ ...remote, userId: 'another-remote' }));
+      });
+      await advance(SLACK_MS);
+      expect(getUserFeedMock).toHaveBeenCalledTimes(3);
+      await advance(FED_PENDING_POLL_DELAYS_MS[0] + SLACK_MS);
+      expect(getUserFeedMock).toHaveBeenCalledTimes(4);
+      expect(getUserFeedMock.mock.lastCall?.[0]).toBe('another-remote');
+      expect(getUserFeedMock.mock.lastCall?.[1].cursor).toBeUndefined();
     });
 
     it('keeps a page already on screen when a later read answers pending and empty', async () => {

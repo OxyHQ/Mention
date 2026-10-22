@@ -18,6 +18,7 @@ import { loadCustomFeedDefinition } from './customFeedDefinition';
 import {
   forYouDefinition,
   followingDefinition,
+  rankedFollowingDefinition,
   directFollowingDefinition,
   exploreDefinition,
   videosDefinition,
@@ -38,6 +39,7 @@ import {
 /** Viewer context needed to resolve viewer-scoped descriptors (custom feeds). */
 export interface ResolveDefinitionContext {
   currentUserId?: string;
+  followingSort?: 'chronological' | 'relevance';
 }
 
 export async function resolveDefinition(
@@ -50,7 +52,7 @@ export async function resolveDefinition(
     case 'for_you':
       return forYouDefinition;
     case 'following':
-      return followingDefinition;
+      return ctx?.followingSort === 'relevance' ? rankedFollowingDefinition : followingDefinition;
     case 'following_direct':
       return directFollowingDefinition;
     case 'explore':

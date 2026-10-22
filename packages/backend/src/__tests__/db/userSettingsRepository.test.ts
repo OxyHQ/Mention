@@ -82,6 +82,15 @@ describe('user settings — read after write', () => {
     expect(record.profileCustomization.coverPhotoEnabled).toBe(true);
     expect(record.notificationPreferences.pushEnabled).toBe(true);
     expect(record.feedSettings.diversity.enabled).toBe(true);
+    expect(record.feedSettings.following.sort).toBe('chronological');
+  });
+
+  it('round-trips Following order through the registered settings path', async () => {
+    const user = userId('following-order');
+    await updateUserSettings(user, { set: { 'feedSettings.following.sort': 'relevance' } });
+    expect((await loadUserSettings(user))?.feedSettings.following.sort).toBe('relevance');
+    await updateUserSettings(user, { set: { 'feedSettings.following.sort': 'chronological' } });
+    expect((await loadUserSettings(user))?.feedSettings.following.sort).toBe('chronological');
   });
 
   it('is idempotent — ensuring twice does not reset a stored change', async () => {

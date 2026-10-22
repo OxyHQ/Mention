@@ -7,7 +7,7 @@
 
 import { MtnConfig } from '@mention/shared-types';
 import { nativeWeightedEngagement } from '../nativeEngagement';
-import type { RankablePost } from '../signalContext';
+import type { RankablePost, SignalContext } from '../signalContext';
 import { getClassifiedScores } from './classification';
 import type { RankingSignal } from './types';
 
@@ -55,13 +55,13 @@ function aiQualityMultiplier(post: RankablePost): number | null {
  * trust the AI judgment over the noisy engagement ratio rather than stacking
  * them).
  */
-export function qualityScore(post: RankablePost): number {
+export function qualityScore(post: RankablePost, rankingAsOf = Date.now()): number {
   const stats = post.stats || {};
   const viewsCount = stats.viewsCount || 0;
 
   // Engagement velocity: posts with recent engagement are more relevant.
   const createdAtMs = new Date(post.createdAt ?? NaN).getTime();
-  const postAge = isNaN(createdAtMs) ? Infinity : (Date.now() - createdAtMs) / (1000 * 60 * 60); // hours
+  const postAge = isNaN(createdAtMs) ? Infinity : (rankingAsOf - createdAtMs) / (1000 * 60 * 60); // hours
   const velocityBoost = postAge < 6 ? 1.2 : postAge < 24 ? 1.1 : 1.0;
 
   // Prefer the AI content-quality signal when this post is classified. It is
@@ -121,5 +121,5 @@ export function qualityScore(post: RankablePost): number {
 export const qualitySignal: RankingSignal = {
   id: 'quality',
   group: 'quality',
-  score: (post: RankablePost) => qualityScore(post),
+  score: (post: RankablePost, ctx: SignalContext) => qualityScore(post, ctx.rankingAsOf),
 };

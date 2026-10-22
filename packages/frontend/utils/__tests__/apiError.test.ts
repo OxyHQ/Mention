@@ -42,6 +42,24 @@ function makeAxiosError(options: {
 }
 
 describe('normalizeApiError', () => {
+  it('reads the canonical nested API error envelope', () => {
+    const error = makeAxiosError({
+      status: 410,
+      data: {
+        success: false,
+        error: {
+          message: 'Feed pagination session expired; refresh the feed',
+          code: 'FEED_CURSOR_EXPIRED',
+        },
+      },
+    });
+    expect(normalizeApiError(error)).toEqual({
+      status: 410,
+      code: 'FEED_CURSOR_EXPIRED',
+      message: 'Feed pagination session expired; refresh the feed',
+    });
+  });
+
   it('extracts status and server message from an axios error', () => {
     const err = makeAxiosError({ status: 400, data: { message: 'Post is too long' } });
     expect(normalizeApiError(err)).toEqual({

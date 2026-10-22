@@ -202,18 +202,18 @@ export const keywordsSource: SourceModule = {
       // `arrayOverlaps`, never a raw `${array}::text[]`: a JS array interpolated
       // into a `sql` template binds as a ROW CONSTRUCTOR (`($1, $2)`), which
       // Postgres refuses to cast to `text[]` — so the whole query THROWS at
-      // runtime rather than matching nothing. `coalesce(…, false)` stays because
-      // `hashtags` is nullable and `NULL && ARRAY[…]` is NULL.
+      // runtime rather than matching nothing. Keep the indexed overlap operator
+      // bare: WHERE rejects NULL naturally, and coalesce hides the GIN condition.
       alternatives.push(
-        sql`coalesce(${arrayOverlaps(
+        arrayOverlaps(
           posts.hashtags,
           keywords.map((k) => k.toLowerCase()),
-        )}, false)`,
+        ),
       );
     }
 
     if (hashtags.length > 0) {
-      alternatives.push(sql`coalesce(${arrayOverlaps(posts.hashtags, hashtags)}, false)`);
+      alternatives.push(arrayOverlaps(posts.hashtags, hashtags));
     }
 
     conditions.push(or(...alternatives) as SQL);

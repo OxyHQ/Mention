@@ -113,6 +113,9 @@ export interface OptInSignalContext {
  * than a hydrated document.
  */
 export interface RankablePost {
+  friendEngagementCount?: number;
+  activitySubscriptionMatch?: boolean;
+  activitySubscriptionAuthorIds?: string[];
   id?: string;
   /** Written as a reply — the STORED discriminator (see `PostRecord`). */
   isReply?: boolean;
@@ -175,12 +178,17 @@ export interface RankablePost {
  * {@link buildSignalContext} normalizes it into a {@link SignalContext}.
  */
 export interface CalculatePostScoreContext extends OptInSignalContext {
+  /** Frozen clock shared by every page in a ranking session. */
+  rankingAsOf?: number;
+  /** Engine definitions explicitly select base signals; older callers retain defaults. */
+  authoritativeSignals?: boolean;
   followingIds?: string[];
   userBehavior?: RankingUserBehavior;
   feedSettings?: FeedRankingSettings;
   /** Optional pre-calculated engagement scores (postId → score). */
   engagementScoreCache?: Map<string, number>;
   followingIdsSet?: Set<string>;
+  activitySubscribedAuthorIdsSet?: ReadonlySet<string>;
   behaviorSets?: BehaviorSets;
   /** Oxy authorId → follower count, for the author-authority signal. */
   authorFollowerCounts?: Map<string, number>;
@@ -205,10 +213,13 @@ export interface CalculatePostScoreContext extends OptInSignalContext {
  * and maps are already materialized for O(1) per-post lookups.
  */
 export interface SignalContext {
+  rankingAsOf?: number;
+  authoritativeSignals?: boolean;
   /** The viewer's Oxy user id, or `undefined` for anonymous viewers. */
   userId?: string;
   /** The viewer's following set (Oxy user ids) — resolved once. */
   followingIdsSet: Set<string>;
+  activitySubscribedAuthorIdsSet?: ReadonlySet<string>;
   userBehavior?: RankingUserBehavior;
   behaviorSets?: BehaviorSets;
   /** Oxy authorId → follower count, for the author-authority + cold-start signals. */
@@ -272,6 +283,9 @@ export function buildSignalContext(
 ): SignalContext {
   return {
     userId,
+    rankingAsOf: context.rankingAsOf,
+    authoritativeSignals: context.authoritativeSignals,
+    activitySubscribedAuthorIdsSet: context.activitySubscribedAuthorIdsSet,
     followingIdsSet: context.followingIdsSet ?? new Set(context.followingIds || []),
     userBehavior: context.userBehavior,
     behaviorSets: context.behaviorSets,

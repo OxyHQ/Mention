@@ -251,6 +251,7 @@ export const forYouDefinition: FeedDefinition = {
   title: 'For You',
   mode: 'ranked',
   sources: [
+    enabled('activitySubscriptions'),
     enabled('following'),
     enabled('lists'),
     enabled('affinity'),
@@ -259,13 +260,14 @@ export const forYouDefinition: FeedDefinition = {
     enabled('trending'),
     enabled('globalDiscovery'),
   ],
-  signals: buildPresetRankingSignals(),
+  signals: [...buildPresetRankingSignals(), enabled('activitySubscriptionBoost')],
   filters: [enabled('safety')],
   // Phase 4: the discovery gate applies ONLY to non-trusted lanes. `filters` stays
   // `[safety]` (always-on, every lane); the gate goes here so following/affinity/
   // lists are never gated. Rollout mode is resolved dynamically by the engine.
   discoveryFilters: resolveDiscoveryGate(),
   execution: {
+    sessionPagination: true,
     maxPool: MtnConfig.feed.candidateSources.maxPool,
     seenPosts: true,
     neverBlank: true,
@@ -302,13 +304,21 @@ export const followingDefinition: FeedDefinition = {
   mode: 'chronological',
   sources: [enabled('following', { timeline: true })],
   signals: [],
-  filters: [enabled('safety')],
+  filters: [enabled('safety', { allowViewerPreference: true })],
   execution: {
     overfetchMultiplier: MtnConfig.feed.sliceOverfetchMultiplier,
     replyContext: true,
     threadGrouping: true,
     hydrateMaxDepth: 0,
   },
+};
+
+/** Same subscription boundary as Following, with explicit relevance ordering. */
+export const rankedFollowingDefinition: FeedDefinition = {
+  ...followingDefinition,
+  mode: 'ranked',
+  signals: ALL_RANKING_SIGNALS,
+  execution: { ...followingDefinition.execution, sessionPagination: true },
 };
 
 /** Direct follows only — the contract promised by the Android Following widget. */
@@ -346,6 +356,7 @@ export const exploreDefinition: FeedDefinition = {
   filters: [enabled('safety')],
   discoveryFilters: resolveDiscoveryGate(),
   execution: {
+    sessionPagination: true,
     preScored: true,
     threadGrouping: true,
     replyContext: false,
@@ -366,16 +377,12 @@ export const videosDefinition: FeedDefinition = {
   // score cursor depends on and could drop landscape videos from every page.
   signals: [...buildPresetRankingSignals(), enabled('portraitBoost')],
   filters: [enabled('safety')],
-  // KNOWN SECOND EFFECT, taken deliberately. `FeedEngine.gatherPool` stamps
-  // `_discovery` on non-trusted candidates only when a gate exists, and
-  // `languageMismatchPenalty` — in this preset's default Phase-2b signal set —
-  // fires only on `_discovery`. So giving Videos a gate also switches on an
-  // off-language downrank across its pool. That is the right outcome rather than
-  // an accident to route around: the reels screen is a recommendation surface and
-  // a video in a language the reader does not read is the case that penalty was
-  // written for. Asserted in `presetsPhase2b.test.ts` so it stays a decision.
+  // Videos are discovery-origin candidates even if the quality gate is disabled.
+  // Their language mismatch signal therefore remains independent of gate rollout;
+  // the recommendation gate separately controls content-warning eligibility.
   discoveryFilters: resolveRecommendationGate(),
   execution: {
+    sessionPagination: true,
     seenPosts: true,
     popularFallback: 'popularVideos',
     // The reels screen auto-advances, so exhausting the unseen pool showed an EMPTY
@@ -400,6 +407,7 @@ export const mediaDefinition: FeedDefinition = {
   filters: [enabled('safety')],
   discoveryFilters: resolveRecommendationGate(),
   execution: {
+    sessionPagination: true,
     seenPosts: true,
     popularFallback: 'popularMedia',
     threadGrouping: true,
@@ -422,6 +430,7 @@ export const trendingDefinition: FeedDefinition = {
   filters: [enabled('safety')],
   discoveryFilters: resolveRecommendationGate(),
   execution: {
+    sessionPagination: true,
     threadGrouping: true,
     replyContext: false,
     hydrateMaxDepth: 0,
@@ -439,7 +448,7 @@ export const mutualsDefinition: FeedDefinition = {
   mode: 'chronological',
   sources: [enabled('mutuals')],
   signals: [],
-  filters: [enabled('safety')],
+  filters: [enabled('safety', { allowViewerPreference: true })],
   execution: {
     threadGrouping: true,
     replyContext: true,
@@ -458,9 +467,10 @@ export const friendsPopularDefinition: FeedDefinition = {
   title: 'Popular with Friends',
   mode: 'ranked',
   sources: [enabled('friendsEngaged')],
-  signals: [enabled('engagement'), enabled('recency')],
+  signals: [enabled('friendEngagement'), enabled('recency')],
   filters: [enabled('safety')],
   execution: {
+    sessionPagination: true,
     preScored: false,
     hydrateMaxDepth: 1,
     threadGrouping: true,
@@ -495,7 +505,7 @@ export const savedDefinition: FeedDefinition = {
   mode: 'chronological',
   sources: [enabled('saved')],
   signals: [],
-  filters: [enabled('safety')],
+  filters: [enabled('safety', { allowViewerPreference: true })],
   execution: {
     ordered: true,
     markSaved: true,
@@ -631,7 +641,7 @@ export function listDefinition(listId: string): FeedDefinition {
     mode: 'chronological',
     sources: [enabled('lists', { listId })],
     signals: [],
-    filters: [enabled('safety')],
+    filters: [enabled('safety', { allowViewerPreference: true })],
     execution: { threadGrouping: true, replyContext: true, hydrateMaxDepth: 0 },
   };
 }

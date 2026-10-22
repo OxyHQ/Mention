@@ -7,7 +7,7 @@
 
 import { MtnConfig } from '@mention/shared-types';
 import { nativeWeightedEngagement } from '../nativeEngagement';
-import type { RankablePost } from '../signalContext';
+import type { RankablePost, SignalContext } from '../signalContext';
 import type { RankingSignal } from './types';
 
 const R = MtnConfig.ranking;
@@ -16,10 +16,10 @@ const R = MtnConfig.ranking;
  * Calculate trending boost for posts with accelerating engagement.
  * Detects posts that are gaining traction rapidly.
  */
-export function trendingBoost(post: RankablePost): number {
+export function trendingBoost(post: RankablePost, rankingAsOf = Date.now()): number {
   const stats = post.stats || {};
   const createdAtMs = new Date(post.createdAt ?? NaN).getTime();
-  const postAge = isNaN(createdAtMs) ? Infinity : (Date.now() - createdAtMs) / (1000 * 60 * 60); // hours
+  const postAge = isNaN(createdAtMs) ? Infinity : (rankingAsOf - createdAtMs) / (1000 * 60 * 60); // hours
 
   // Only consider posts less than 24 hours old for trending
   if (postAge > 24) {
@@ -58,5 +58,5 @@ export function trendingBoost(post: RankablePost): number {
 export const trendingVelocitySignal: RankingSignal = {
   id: 'trendingVelocity',
   group: 'quality',
-  score: (post: RankablePost) => trendingBoost(post),
+  score: (post: RankablePost, ctx: SignalContext) => trendingBoost(post, ctx.rankingAsOf),
 };

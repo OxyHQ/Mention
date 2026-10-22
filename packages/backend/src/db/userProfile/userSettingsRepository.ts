@@ -87,6 +87,7 @@ export const SETTINGS_COLUMN_BY_PATH: Readonly<Record<string, WritableColumn>> =
 
   'interests.tags': 'interestTags',
 
+  'feedSettings.following.sort': 'feedFollowingSort',
   'feedSettings.diversity.enabled': 'feedDiversityEnabled',
   'feedSettings.diversity.sameAuthorPenalty': 'feedSameAuthorPenalty',
   'feedSettings.diversity.sameTopicPenalty': 'feedSameTopicPenalty',
@@ -149,6 +150,7 @@ const UNSET_VALUE: Readonly<Partial<Record<WritableColumn, unknown>>> = Object.f
   feedRecencyHalfLifeHours: 24,
   feedRecencyMaxAgeHours: 168,
   feedBoostHighQuality: true,
+  feedFollowingSort: 'chronological',
   notifyPushEnabled: true,
   notifyEmailEnabled: false,
   notifyLikes: true,
@@ -402,6 +404,7 @@ function assembleRecord(row: SettingsRow, labelActions: LabelAction[]): UserSett
       : { channelAccount: { signPosts: row.channelAccountSignPosts } }),
     ...(row.interestTags ? { interests: { tags: row.interestTags } } : {}),
     feedSettings: {
+      following: { sort: row.feedFollowingSort },
       diversity: {
         enabled: row.feedDiversityEnabled,
         sameAuthorPenalty: row.feedSameAuthorPenalty,

@@ -714,6 +714,7 @@ export async function buildFederatedNoteContent(
  * id, which is what all three sites did inline.
  */
 export function buildFederatedNoteProvenance(input: {
+  importReason?: PostRecordFederation['importReason'];
   /** The Note's own AP id — the post's globally unique federated identity. */
   activityId: string;
   /** The verified AP actor URI that authored the Note. */
@@ -730,6 +731,7 @@ export function buildFederatedNoteProvenance(input: {
   return {
     activityId: input.activityId,
     actorUri: input.actorUri,
+    ...(input.importReason ? { importReason: input.importReason } : {}),
     inReplyTo: input.inReplyTo,
     url: typeof input.noteUrl === 'string' ? input.noteUrl : input.activityId,
     sensitive: input.sensitive,

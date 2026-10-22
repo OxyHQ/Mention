@@ -359,7 +359,7 @@ function useStoredFeed({
   // The listener reads the current `fetchInitial` off the ref, so it never
   // needs re-subscribing while this half serves the feed.
   const reloadStored = useCallback(() => fetchInitialRef.current?.(true), []);
-  useReloadOnFeedRuleChange(enabled, reloadStored);
+  useReloadOnFeedRuleChange(enabled, reloadStored, { type, userId, viewerId: currentUserId });
 
   const refresh = useCallback(async () => {
     // Gate onEndReached synchronously before the store commits isLoading.

@@ -131,6 +131,23 @@ callers** — the feed row's commands (`components/Feed/postInteractions.tsx`)
 and `app/(app)/videos.tsx` both write through the store directly. Client-wide
 `refetchOnMount` must stay at the library default.
 
+Ranking preference saves notify `stores/feedRankingInvalidation` only after the
+server accepts them. Mounted feeds replace page one; held query and SQLite
+pages use the same viewer-scoped staleness rule. For You tuning targets For You.
+Never invalidate the whole feed-query family to apply a preference. Following
+order is persisted as `feedSettings.following.sort` (`chronological` by default,
+or `relevance`) in the existing Feed Settings page. Algorithm presets preserve
+that choice. Explicit Following `filters.sort` values participate in query and
+transport deduplication; Following Direct never accepts that override.
+
+Feed impressions report once per post/session on hide, blur/background, teardown,
+or a deliberate 30-second client dwell cap. They do not report after five seconds:
+the server records only one dwell sample per counted view, so an early sample
+permanently truncates longer reads. Foreground visibility is shared across web,
+native and reels; an actual Picture-in-Picture window remains visible. Refresh
+re-registers visible rows even without a new viewport event. Profile telemetry
+uses the fetched `author|id|tab` descriptor.
+
 ## Post text
 
 `PostContentText` renders composer formatting through Bloom `InlineMarkdown`;

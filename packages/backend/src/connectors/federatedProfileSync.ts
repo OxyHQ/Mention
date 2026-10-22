@@ -342,10 +342,10 @@ class FederatedProfileSync {
           actor.oxyUserId = syncUserId;
         }
 
-        const syncResult = await activityPubConnector.syncOutboxPostsDetailed(
-          actor,
-          OUTBOX_SYNC_LIMIT,
-        );
+        const syncResult = await activityPubConnector.syncOutboxPostsDetailed(actor, {
+          limit: OUTBOX_SYNC_LIMIT,
+          importReason: 'requested_profile',
+        });
         const syncedCount = syncResult.syncedCount;
         logger.info('[FedSync] completed outbox sync', {
           count: syncedCount,

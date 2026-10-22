@@ -96,7 +96,7 @@ describe('friends_popular definition', () => {
     const def = await resolveDefinition('friends_popular');
     expect(def!.mode).toBe('ranked');
     expect(def!.sources.map((s) => s.module)).toEqual(['friendsEngaged']);
-    expect(def!.signals.map((s) => s.module)).toEqual(['engagement', 'recency']);
+    expect(def!.signals.map((s) => s.module)).toEqual(['friendEngagement', 'recency']);
     expect(def!.filters.map((f) => f.module)).toEqual(['safety']);
     expect(def!.execution?.preScored).toBe(false);
     expect(def!.execution?.hydrateMaxDepth).toBe(1);
@@ -137,5 +137,20 @@ describe('author definition', () => {
 describe('resolveDefinition still returns null for unknown descriptors', () => {
   it('unknown → null', async () => {
     expect(await resolveDefinition('nonsense' as FeedDescriptor)).toBeNull();
+  });
+});
+
+describe('Following order selection', () => {
+  it('defaults to chronology and keeps relevance inside the same subscription source', async () => {
+    const chronological = await resolveDefinition('following');
+    const relevance = await resolveDefinition('following', { followingSort: 'relevance' });
+    expect(chronological?.mode).toBe('chronological');
+    expect(relevance?.mode).toBe('ranked');
+    expect(relevance?.sources).toEqual(chronological?.sources);
+    expect(relevance?.execution?.sessionPagination).toBe(true);
+    expect(relevance?.execution?.popularFallback).toBeUndefined();
+    expect(
+      (await resolveDefinition('following_direct', { followingSort: 'relevance' }))?.mode,
+    ).toBe('chronological');
   });
 });

@@ -13,6 +13,54 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
  * the engine had stopped reading it.
  */
 
+const sessionMemory = vi.hoisted(() => ({
+  enabled: false,
+  states: new Map<string, unknown>(),
+  posts: new Map<string, unknown>(),
+  sequence: 0,
+}));
+const gateContentLoad = vi.hoisted(() =>
+  vi.fn(
+    async (ids: string[]) =>
+      new Map(
+        ids.map((id) => [
+          id,
+          { variants: [{ source: 'author' as const, text: 'Persisted useful text' }] },
+        ]),
+      ),
+  ),
+);
+vi.mock('../mtn/feed/RankedFeedSession', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../mtn/feed/RankedFeedSession')>();
+  return {
+    ...original,
+    rankedFeedSessionStore: {
+      available: () => sessionMemory.enabled,
+      save: async (state: unknown) => {
+        const key = `fs1:test-${++sessionMemory.sequence}`;
+        sessionMemory.states.set(key, JSON.parse(JSON.stringify(state)));
+        return key;
+      },
+      load: async (key: string, binding: string) => {
+        const state = sessionMemory.states.get(key) as
+          | { binding: string; expiresAt: number }
+          | undefined;
+        if (!state || state.binding !== binding || state.expiresAt <= Date.now())
+          throw original.expiredFeedCursor();
+        return JSON.parse(JSON.stringify(state));
+      },
+    },
+  };
+});
+vi.mock('../db/posts/postRepository', () => ({
+  loadPostGateContent: gateContentLoad,
+  loadPostRecords: async (ids: string[]) =>
+    ids.flatMap((id) => {
+      const post = sessionMemory.posts.get(id);
+      return post ? [{ ...(post as object) }] : [];
+    }),
+}));
+
 // --- Mock the heavy collaborators the engine calls. ---
 const rankPosts = vi.fn(
   async (posts: Array<Record<string, unknown>>, _userId?: unknown, _ctx?: unknown) => {
@@ -62,10 +110,15 @@ vi.mock('../services/FeedSeenPostsService', () => ({
 }));
 
 import { MtnConfig } from '@mention/shared-types';
+import { postHydrationService } from '../services/PostHydrationService';
+import { savedDefinition } from '../mtn/feed/definitions/presets';
+import { safetyFilter } from '../mtn/feed/engine/filters';
+import { feedSeenPostsService } from '../services/FeedSeenPostsService';
+import { selectRankedPage } from '../mtn/feed/selectRankedPage';
 import { FeedEngine, sliceTopWindow } from '../mtn/feed/engine/FeedEngine';
 import { threadSlicingService } from '../services/ThreadSlicingService';
 import { FeedModuleRegistry } from '../mtn/feed/engine/FeedModuleRegistry';
-import { ScoreCursor } from '../mtn/feed/CursorBuilder';
+import { ScoreCursor, ChronoCursor } from '../mtn/feed/CursorBuilder';
 import type {
   CandidatePost,
   FeedDefinition,
@@ -106,11 +159,283 @@ let engine: FeedEngine;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  sessionMemory.enabled = false;
+  sessionMemory.states.clear();
+  sessionMemory.posts.clear();
   registry = new FeedModuleRegistry();
   engine = new FeedEngine(registry);
 });
 
+describe('FeedEngine — explicit saved content', () => {
+  it.each([false, true])(
+    'honors sensitive opt-in (%s) while retaining viewer-aware hydration',
+    async (showSensitiveContent) => {
+      registry.register(
+        sourceReturning('saved', [makePost(1, { metadata: { isSensitive: true } }), makePost(2)]),
+      );
+      registry.register(safetyFilter);
+      const context = {
+        currentUserId: 'viewer',
+        showSensitiveContent,
+        followingIds: [],
+        followerIds: [],
+        viewerPrivacy: { blockedIds: ['blocked'], restrictedIds: [] },
+      };
+      const result = await engine.run(savedDefinition, context, { limit: 10 });
+      expect(result.items.map((post) => post.id)).toEqual(
+        showSensitiveContent ? [id(1), id(2)] : [id(2)],
+      );
+      expect(postHydrationService.hydratePosts).toHaveBeenCalledWith(
+        expect.any(Array),
+        expect.objectContaining({
+          viewerId: 'viewer',
+          viewerPrivacy: context.viewerPrivacy,
+          viewerGraph: { followingIds: [], followerIds: [] },
+        }),
+      );
+    },
+  );
+});
+
 describe('FeedEngine — ranked mode', () => {
+  it.each([false, true])(
+    'forwards bell interest through ranking with Redis session=%s and preserves trusted dedupe',
+    async (session) => {
+      sessionMemory.enabled = session;
+      const bell = scored(1, 10, { oxyUserId: 'bell-author', activitySubscriptionMatch: true });
+      sessionMemory.posts.set(bell.id, bell);
+      registry.register({ ...sourceReturning('bell', [bell]), trusted: true });
+      registry.register(
+        sourceReturning('discovery', [{ ...bell, activitySubscriptionMatch: undefined }]),
+      );
+      const reject = vi.fn(() => false);
+      registry.register({ id: 'reject', kind: 'filter', keep: reject });
+      const def: FeedDefinition = {
+        id: 'for_you',
+        title: 'For You',
+        mode: 'ranked',
+        sources: [
+          { module: 'bell', enabled: true },
+          { module: 'discovery', enabled: true },
+        ],
+        signals: [],
+        filters: [],
+        discoveryFilters: [{ module: 'reject', enabled: true }],
+        execution: { sessionPagination: true },
+      };
+      const response = await engine.run(
+        def,
+        { currentUserId: 'viewer', activitySubscribedAuthorIds: ['bell-author'] },
+        { limit: 10 },
+      );
+      expect(response.items.map((post) => post.id)).toEqual([bell.id]);
+      expect(reject).not.toHaveBeenCalled();
+      expect(rankPosts.mock.calls[0]?.[2]).toMatchObject({
+        activitySubscribedAuthorIds: ['bell-author'],
+      });
+      expect(rankPosts.mock.calls[0]?.[0][0]).toMatchObject({ activitySubscriptionMatch: true });
+      expect(rankPosts.mock.calls[0]?.[0][0]).not.toHaveProperty('_discovery', true);
+    },
+  );
+
+  it.each(['hiddenAuthors', 'mutedAuthors', 'blockedAuthors'] as const)(
+    'does not trust a %s bell coauthor from discovery while retaining a different eligible bell',
+    async (field) => {
+      const excluded = scored(1, 10, {
+        oxyUserId: 'clean-owner',
+        activitySubscriptionMatch: true,
+        authorship: [{ oxyUserId: 'unwanted', role: 'collaborator', status: 'accepted' }],
+      });
+      const mixed = scored(2, 9, {
+        oxyUserId: 'clean-owner',
+        authorship: [
+          { oxyUserId: 'unwanted', role: 'collaborator', status: 'accepted' },
+          { oxyUserId: 'eligible', role: 'collaborator', status: 'accepted' },
+        ],
+      });
+      registry.register(sourceReturning('discovery', [excluded, mixed]));
+      const gate = vi.fn((_post: CandidatePost) => true);
+      registry.register({ id: 'gate', kind: 'filter', keep: gate });
+      await engine.run(
+        {
+          id: 'for_you',
+          title: 'For You',
+          mode: 'ranked',
+          sources: [{ module: 'discovery', enabled: true }],
+          signals: [],
+          filters: [],
+          discoveryFilters: [{ module: 'gate', enabled: true }],
+        },
+        {
+          currentUserId: 'viewer',
+          activitySubscribedAuthorIds: ['unwanted', 'eligible'],
+          userBehavior: { [field]: ['unwanted'] },
+        },
+        { limit: 10 },
+      );
+      expect(gate).toHaveBeenCalledTimes(1);
+      expect(gate.mock.calls[0]?.[0]).toMatchObject({ id: excluded.id });
+      expect(rankPosts.mock.calls[0]?.[2]).toMatchObject({
+        activitySubscribedAuthorIds: ['eligible'],
+      });
+      expect(excluded).toMatchObject({
+        _discovery: true,
+        activitySubscriptionMatch: false,
+        activitySubscriptionAuthorIds: [],
+      });
+      expect(mixed).toMatchObject({
+        activitySubscriptionMatch: true,
+        activitySubscriptionAuthorIds: ['eligible'],
+      });
+      expect(mixed).not.toHaveProperty('_discovery', true);
+    },
+  );
+
+  it.each(['primary', 'accepted-coauthor'] as const)(
+    'recognizes %s bell interest from another lane while preserving safety and numeric exclusions',
+    async (kind) => {
+      const author = 'bell-author';
+      const overrides: Partial<CandidatePost> =
+        kind === 'primary'
+          ? { oxyUserId: author }
+          : { authorship: [{ oxyUserId: author, role: 'collaborator', status: 'accepted' }] };
+      registry.register(
+        sourceReturning('discovery', [
+          scored(1, 10, overrides),
+          scored(2, 10, { ...overrides, content: { variants: [{ source: 'author', text: '3' }] } }),
+          scored(3, 10, { ...overrides, metadata: { isSensitive: true } }),
+        ]),
+      );
+      registry.register(safetyFilter);
+      const reject = vi.fn(() => false);
+      registry.register({ id: 'reject', kind: 'filter', keep: reject });
+      const result = await engine.run(
+        {
+          id: 'for_you',
+          title: 'For You',
+          mode: 'ranked',
+          sources: [{ module: 'discovery', enabled: true }],
+          signals: [],
+          filters: [{ module: 'safety', enabled: true }],
+          discoveryFilters: [{ module: 'reject', enabled: true }],
+        },
+        { currentUserId: 'viewer', activitySubscribedAuthorIds: [author] },
+        { limit: 10 },
+      );
+      expect(result.items.map((post) => post.id)).toEqual([id(1)]);
+      expect(reject).not.toHaveBeenCalled();
+      expect(rankPosts.mock.calls[0]?.[0][0]).toMatchObject({ activitySubscriptionMatch: true });
+      expect(rankPosts.mock.calls[0]?.[0][0]).not.toHaveProperty('_discovery', true);
+    },
+  );
+
+  it.each([
+    { location: 'discovery', trusted: false, enabled: true, reads: 1 },
+    { location: 'discovery', trusted: true, enabled: true, reads: 0 },
+    { location: 'pool', trusted: true, enabled: true, reads: 1 },
+    { location: 'pool', trusted: false, enabled: false, reads: 0 },
+  ])(
+    'prepares only applicable shell content ($location/$trusted/$enabled)',
+    async ({ location, trusted, enabled, reads }) => {
+      const shell = scored(1, 5, { _unassembled: true, content: { variants: [] } });
+      const keep = vi.fn(
+        (post: CandidatePost) => post.content.variants?.[0]?.text === 'Persisted useful text',
+      );
+      registry.register({ ...sourceReturning('source', [shell, shell]), trusted });
+      registry.register({ id: 'contentGate', kind: 'filter', needsTextMedia: true, keep });
+      const refs = [{ module: 'contentGate', enabled }];
+      await engine.run(
+        {
+          id: 'content-gate-test',
+          title: 'Test',
+          mode: 'ranked',
+          sources: [{ module: 'source', enabled: true }],
+          signals: [],
+          filters: location === 'pool' ? refs : [],
+          discoveryFilters: location === 'discovery' ? refs : [],
+        },
+        { currentUserId: 'viewer' },
+        { limit: 20 },
+      );
+      expect(gateContentLoad).toHaveBeenCalledTimes(reads);
+      if (reads) {
+        expect(gateContentLoad).toHaveBeenCalledWith([shell.id], undefined, {
+          sources: false,
+          variantAlt: false,
+        });
+        expect(keep).toHaveReturnedWith(true);
+      }
+      expect(shell.content.variants).toEqual([]);
+      expect(rankPosts.mock.calls[0]?.[0][0]).toMatchObject({
+        _unassembled: true,
+        content: { variants: [] },
+      });
+    },
+  );
+
+  it('does not project content for score-only filters or viewer-disabled content gates', async () => {
+    registry.register(
+      sourceReturning('source', [scored(1, 5, { _unassembled: true, content: { variants: [] } })]),
+    );
+    registry.register({ id: 'minLength', kind: 'filter', needsTextMedia: true, keep: () => true });
+    registry.register({ id: 'scoreOnly', kind: 'filter', keep: () => true });
+    await engine.run(
+      {
+        id: 'disabled-content-gate',
+        title: 'Test',
+        mode: 'ranked',
+        sources: [{ module: 'source', enabled: true }],
+        signals: [],
+        filters: [{ module: 'scoreOnly', enabled: true }],
+        discoveryFilters: [
+          { module: 'minLength', enabled: true, params: { viewerGateTuning: true } },
+        ],
+      },
+      { currentUserId: 'viewer', feedTuning: { forYou: { minLength: { enabled: false } } } },
+      { limit: 20 },
+    );
+    expect(gateContentLoad).not.toHaveBeenCalled();
+  });
+
+  it('requests extra content tables only for enabled applicable filters', async () => {
+    const shell = scored(1, 5, { _unassembled: true, content: { variants: [] } });
+    registry.register({ ...sourceReturning('source', [shell]), trusted: true });
+    registry.register({
+      id: 'links',
+      kind: 'filter',
+      needsTextMedia: true,
+      needsSources: true,
+      keep: () => true,
+    });
+    registry.register({
+      id: 'alt',
+      kind: 'filter',
+      needsTextMedia: true,
+      needsVariantAlt: true,
+      keep: () => true,
+    });
+    const def: FeedDefinition = {
+      id: 'projection-options',
+      title: 'Test',
+      mode: 'ranked',
+      signals: [],
+      sources: [{ module: 'source', enabled: true }],
+      filters: [{ module: 'links', enabled: true }],
+      discoveryFilters: [{ module: 'alt', enabled: true }],
+    };
+    await engine.run(def, { currentUserId: 'viewer' }, { limit: 20 });
+    expect(gateContentLoad).toHaveBeenLastCalledWith([shell.id], undefined, {
+      sources: true,
+      variantAlt: false,
+    });
+    def.filters.push({ module: 'alt', enabled: true });
+    await engine.run(def, { currentUserId: 'viewer' }, { limit: 20 });
+    expect(gateContentLoad).toHaveBeenLastCalledWith([shell.id], undefined, {
+      sources: true,
+      variantAlt: true,
+    });
+  });
+
   it('dedupes across sources, applies a filter, and orders by composed score', async () => {
     // Two sources with an overlapping post; a filter drops post #3.
     registry.register(sourceReturning('a', [scored(1, 1), scored(2, 5)]));
@@ -428,6 +753,42 @@ describe('FeedEngine — ranked pagination coverage', () => {
   });
 });
 
+describe('FeedEngine — ranking session guards', () => {
+  it('requires a refresh for old custom ranking scores after the engagement scale changes', async () => {
+    const definition: FeedDefinition = {
+      id: 'custom',
+      title: 'Custom',
+      mode: 'ranked',
+      sources: [],
+      filters: [],
+      signals: [],
+    };
+    await expect(
+      engine.run(definition, {}, { limit: 20, cursor: ScoreCursor.build(1, id(1)) }),
+    ).rejects.toMatchObject({ statusCode: 410, code: 'FEED_CURSOR_EXPIRED' });
+  });
+
+  it('excludes served cursor ids after score drift even when the seen cache is empty', async () => {
+    registry.register(sourceReturning('source', [scored(1, 4), scored(2, 3), scored(3, 2)]));
+    const definition: FeedDefinition = {
+      id: 'ranked',
+      title: 'Ranked',
+      mode: 'ranked',
+      sources: [{ module: 'source', enabled: true }],
+      filters: [],
+      signals: [],
+    };
+    const asOf = Date.UTC(2026, 9, 21);
+    const cursor = ScoreCursor.build(10, id(9), { asOf, excludeIds: [id(1)], rankingVersion: 2 });
+    const result = await engine.run(definition, { currentUserId: 'viewer' }, { limit: 1, cursor });
+    expect(result.items.map((post) => post.id)).toEqual([id(2)]);
+    expect(rankPosts.mock.calls[0]?.[2]).toEqual(expect.objectContaining({ rankingAsOf: asOf }));
+    expect(ScoreCursor.parse(result.nextCursor)?.excludeIds).toEqual(
+      expect.arrayContaining([id(1), id(2)]),
+    );
+  });
+});
+
 describe('FeedEngine — chronological mode', () => {
   it('orders by createdAt desc and dedupes', async () => {
     registry.register(sourceReturning('a', [makePost(3), makePost(1)]));
@@ -451,8 +812,103 @@ describe('FeedEngine — chronological mode', () => {
   });
 });
 
-describe('FeedEngine — soft-fail', () => {
-  it('one throwing source does not sink the feed', async () => {
+describe('FeedEngine — filtered chronological pagination', () => {
+  function timeline(posts: CandidatePost[]): FeedDefinition {
+    registry.register({
+      id: 'timeline',
+      kind: 'source',
+      userComposable: false,
+      gather: async (ctx, _params, cap) => {
+        const boundary = ChronoCursor.parse(ctx.cursor);
+        return posts
+          .filter((post) => !boundary || new Date(post.createdAt!).getTime() < boundary.ts!)
+          .slice(0, cap);
+      },
+    });
+    registry.register({
+      id: 'visible',
+      kind: 'filter',
+      keep: (post) => !post.hashtags.includes('hidden'),
+    });
+    return {
+      id: 'timeline',
+      title: 'Timeline',
+      mode: 'chronological',
+      sources: [{ module: 'timeline', enabled: true }],
+      filters: [{ module: 'visible', enabled: true }],
+      signals: [],
+    };
+  }
+
+  it('fills past rejected windows and continues from the raw scan without skips', async () => {
+    const posts = Array.from({ length: 9 }, (_, n) =>
+      makePost(9 - n, {
+        hashtags: n < 3 || n === 5 ? ['hidden'] : [],
+      }),
+    );
+    const definition = timeline(posts);
+    const first = await engine.run(definition, {}, { limit: 2 });
+    expect(first.items.map((post) => post.id)).toEqual([id(6), id(5)]);
+    expect(first.hasMore).toBe(true);
+    // #4 was rejected after the visible #5 and must still advance the cursor.
+    expect(ChronoCursor.parse(first.nextCursor)?.id).toBe(id(4));
+    const second = await engine.run(definition, {}, { limit: 2, cursor: first.nextCursor });
+    expect(second.items.map((post) => post.id)).toEqual([id(3), id(2)]);
+    const third = await engine.run(definition, {}, { limit: 2, cursor: second.nextCursor });
+    expect(third.items.map((post) => post.id)).toEqual([id(1)]);
+    expect(third.hasMore).toBe(false);
+  });
+
+  it.each([1, 1.5])(
+    'caps filtered and overfetched chronological pages at the requested limit (overfetch %s)',
+    async (overfetchMultiplier) => {
+      const posts = Array.from({ length: 61 }, (_, index) =>
+        makePost(61 - index, {
+          hashtags: index === 0 ? ['hidden'] : [],
+        }),
+      );
+      const definition = { ...timeline(posts), execution: { overfetchMultiplier } };
+      const served: string[] = [];
+      let cursor: string | undefined;
+      let hasMore = true;
+      for (let page = 0; page < 4 && hasMore; page += 1) {
+        const result = await engine.run(definition, {}, { limit: 20, cursor });
+        expect(result.slices.length).toBeLessThanOrEqual(20);
+        expect(result.items.length).toBeLessThanOrEqual(20);
+        served.push(...result.items.map((post) => post.id));
+        cursor = result.nextCursor;
+        hasMore = result.hasMore;
+      }
+      expect(hasMore).toBe(false);
+      expect(served).toEqual(
+        posts.filter((post) => !post.hashtags.includes('hidden')).map((post) => post.id),
+      );
+      expect(new Set(served).size).toBe(60);
+    },
+  );
+
+  it('returns an advancing cursor through an entirely rejected bounded scan', async () => {
+    const posts = Array.from({ length: 14 }, (_, n) =>
+      makePost(14 - n, {
+        hashtags: n < 11 ? ['hidden'] : [],
+      }),
+    );
+    const definition = timeline(posts);
+    const first = await engine.run(definition, {}, { limit: 2 });
+    expect(first.items).toEqual([]);
+    expect(first.hasMore).toBe(true);
+    expect(first.nextCursor).toBeTruthy();
+    const next = await engine.run(definition, {}, { limit: 2, cursor: first.nextCursor });
+    expect(next.items.map((post) => post.id)).toEqual([id(3), id(2)]);
+    expect(next.hasMore).toBe(true);
+    const final = await engine.run(definition, {}, { limit: 2, cursor: next.nextCursor });
+    expect(final.items.map((post) => post.id)).toEqual([id(1)]);
+    expect(final.hasMore).toBe(false);
+  });
+});
+
+describe('FeedEngine — source failures', () => {
+  it('a failed chronological source cannot silently advance past its missing rows', async () => {
     const bad: SourceModule = {
       id: 'bad',
       kind: 'source',
@@ -475,8 +931,9 @@ describe('FeedEngine — soft-fail', () => {
       filters: [],
     };
 
-    const result = await engine.run(def, { currentUserId: 'viewer' }, { limit: 30 });
-    expect(result.items.map((i) => i.id)).toEqual([id(1)]);
+    await expect(engine.run(def, { currentUserId: 'viewer' }, { limit: 30 })).rejects.toMatchObject(
+      { statusCode: 503, code: 'FEED_SOURCE_UNAVAILABLE' },
+    );
   });
 });
 
@@ -530,7 +987,7 @@ describe('FeedEngine — ranked fallbacks', () => {
     expect(result.items.map((i) => i.id)).toEqual([id(9)]);
   });
 
-  it('does not pass showSensitiveContent into rankPosts', async () => {
+  it('keeps discovery ranking sensitive content disabled despite viewer opt-in', async () => {
     registry.register({
       id: 'lane',
       kind: 'source',
@@ -556,7 +1013,7 @@ describe('FeedEngine — ranked fallbacks', () => {
       rankCtx && typeof rankCtx === 'object' && 'showSensitiveContent' in rankCtx
         ? rankCtx.showSensitiveContent
         : undefined,
-    ).toBeUndefined();
+    ).toBe(false);
   });
 });
 
@@ -584,5 +1041,248 @@ describe('sliceTopWindow', () => {
     sliceFeed.mockImplementationOnce(foldInThrees).mockImplementationOnce(foldInThrees);
     expect(await sliceTopWindow(candidates, 5, options)).toHaveLength(8);
     expect(sliceFeed.mock.calls.map(([posts]) => posts.length)).toEqual([11, 22]);
+  });
+});
+
+describe('FeedEngine — persistent ranked windows', () => {
+  function registerPool(sourceId: string, posts: CandidatePost[], trusted = false): void {
+    for (const post of posts) sessionMemory.posts.set(post.id, post);
+    registry.register({
+      id: sourceId,
+      kind: 'source',
+      userComposable: false,
+      trusted,
+      gather: async (ctx, _params, cap) => {
+        const excluded = new Set(ctx.seenPostIds);
+        return posts.filter((post) => !excluded.has(post.id)).slice(0, cap);
+      },
+    });
+  }
+  function definition(sources: string[], cap?: number): FeedDefinition {
+    return {
+      id: 'session-test',
+      title: 'Session',
+      mode: 'ranked',
+      sources: sources.map((module) => ({ module, enabled: true })),
+      filters: [],
+      signals: [],
+      execution: { sessionPagination: true, maxDiscoveryShare: cap },
+    };
+  }
+
+  it('continues past sixty candidates without losing diversity deferrals or repeating served ids', async () => {
+    sessionMemory.enabled = true;
+    const posts = Array.from({ length: 125 }, (_, n) =>
+      scored(n + 1, 200 - n, { oxyUserId: `author-${Math.floor(n / 25)}` }),
+    );
+    registerPool('media', posts);
+    const def = definition(['media']);
+    let cursor: string | undefined;
+    const served: string[] = [];
+    for (let page = 0; page < 20; page += 1) {
+      const result = await engine.run(def, { currentUserId: 'viewer' }, { limit: 10, cursor });
+      served.push(...result.items.map((post) => post.id));
+      if (!result.hasMore) break;
+      cursor = result.nextCursor;
+    }
+    expect(served).toHaveLength(125);
+    expect(new Set(served).size).toBe(125);
+    expect(new Set(served)).toEqual(new Set(posts.map((post) => post.id)));
+  });
+
+  it('enforces the discovery share using trusted candidates below the score window', async () => {
+    sessionMemory.enabled = true;
+    registerPool(
+      'discovery',
+      Array.from({ length: 30 }, (_, n) => scored(n + 1, 100 - n)),
+    );
+    registerPool(
+      'trusted',
+      Array.from({ length: 15 }, (_, n) => scored(n + 101, 1)),
+      true,
+    );
+    const def = definition(['trusted', 'discovery'], 0.7);
+    const result = await engine.run(def, { currentUserId: 'viewer' }, { limit: 10 });
+    const trustedIds = new Set(Array.from({ length: 15 }, (_, n) => id(n + 101)));
+    expect(result.items).toHaveLength(10);
+    expect(result.items.filter((post) => trustedIds.has(post.id))).toHaveLength(3);
+    const continuation = sessionMemory.states.get(result.nextCursor!) as {
+      pending: Array<{ id: string }>;
+    };
+    expect(continuation.pending.some((post) => post.id === id(8))).toBe(true);
+    expect(JSON.stringify(continuation)).not.toContain('variants');
+  });
+
+  it('prioritizes author diversity when a trusted floor cannot be met without six posts by one author', async () => {
+    const trusted = Array.from({ length: 30 }, (_, n) =>
+      scored(n + 1, 100, { oxyUserId: 'one-author' }),
+    );
+    const discovery = Array.from({ length: 30 }, (_, n) =>
+      scored(n + 101, 1, { _discovery: true }),
+    );
+    const selected = selectRankedPage(
+      [...trusted, ...discovery],
+      (p) => p.oxyUserId,
+      (p) => p._discovery === true,
+      20,
+      0.7,
+    );
+    expect(selected).toHaveLength(20);
+    expect(selected.filter((p) => p.oxyUserId === 'one-author')).toHaveLength(3);
+    expect(selected.filter((p) => p._discovery)).toHaveLength(17);
+    expect(selected.every((p, i) => i === 0 || p.oxyUserId !== selected[i - 1].oxyUserId)).toBe(
+      true,
+    );
+  });
+
+  it('pins the seen penalty when a page is retried after another request marks posts as served', async () => {
+    sessionMemory.enabled = true;
+    registerPool(
+      'source',
+      Array.from({ length: 50 }, (_, n) => scored(n + 1, 100 - n)),
+    );
+    const def = definition(['source']);
+    def.execution = { ...def.execution, seenPosts: true };
+    const first = await engine.run(def, { currentUserId: 'viewer' }, { limit: 10 });
+    const second = await engine.run(
+      def,
+      { currentUserId: 'viewer' },
+      { limit: 10, cursor: first.nextCursor },
+    );
+    vi.mocked(feedSeenPostsService.getSeenPostIds).mockResolvedValueOnce(
+      second.items.map((p) => p.id),
+    );
+    const retry = await engine.run(
+      def,
+      { currentUserId: 'viewer' },
+      { limit: 10, cursor: first.nextCursor },
+    );
+    expect(retry.items.map((p) => p.id)).toEqual(second.items.map((p) => p.id));
+    expect(rankPosts.mock.calls.at(-1)?.[2]).toMatchObject({ seenPostIds: [] });
+  });
+
+  it.each(['for_you', 'explore'])(
+    'excludes bare numbers from %s recommendations even from a trusted followed source',
+    async (feedId) => {
+      sessionMemory.enabled = true;
+      const bare = scored(1, 100, { content: { variants: [{ source: 'author', text: '3' }] } });
+      const useful = scored(2, 0, {
+        content: {
+          variants: [{ source: 'author', text: 'PHP security warning https://www.php.net/' }],
+        },
+      });
+      registerPool('trusted', [bare, useful], true);
+      const def = { ...definition(['trusted']), id: feedId };
+      const result = await engine.run(
+        def,
+        { currentUserId: 'viewer', followingIds: [bare.oxyUserId] },
+        { limit: 10 },
+      );
+      expect(result.items.map((p) => p.id)).toEqual([useful.id]);
+      const following = await engine.run(
+        { ...def, id: 'following' },
+        { currentUserId: 'viewer' },
+        { limit: 10 },
+      );
+      expect(following.items.map((p) => p.id)).toContain(bare.id);
+    },
+  );
+
+  it('continues through a full intermediate source window already delivered by another source', async () => {
+    sessionMemory.enabled = true;
+    const posts = Array.from({ length: 30 }, (_, n) => scored(n + 1, 100 - n));
+    for (const post of posts) sessionMemory.posts.set(post.id, post);
+    let reads = 0;
+    registry.register({
+      id: 'overlapping',
+      kind: 'source',
+      userComposable: false,
+      gather: async () => {
+        reads += 1;
+        if (reads === 1) return posts.slice(0, 10);
+        if (reads === 2) return posts.slice(10, 20);
+        if (reads === 3) return posts.slice(0, 10); // Full overlap, but a different source boundary.
+        if (reads === 4) return posts.slice(20, 30);
+        return [];
+      },
+    });
+    const def = definition(['overlapping']);
+    const served: string[] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < 8; page += 1) {
+      const result = await engine.run(def, { currentUserId: 'viewer' }, { limit: 10, cursor });
+      served.push(...result.items.map((p) => p.id));
+      if (!result.hasMore) break;
+      cursor = result.nextCursor;
+    }
+    expect(new Set(served)).toEqual(new Set(posts.map((p) => p.id)));
+    expect(served).toHaveLength(30);
+  });
+
+  it('applies the numeric rule to anonymous popular fallback as well as ranked sources', async () => {
+    const bare = scored(1, 100, { content: { variants: [{ source: 'author', text: '3' }] } });
+    const useful = scored(2, 0);
+    registry.register(sourceReturning('popular', [bare, useful]));
+    const def = { ...definition([]), id: 'for_you', execution: { popularFallback: 'popular' } };
+    const result = await engine.run(def, {}, { limit: 10 });
+    expect(result.items.map((p) => p.id)).toEqual([useful.id]);
+  });
+
+  it('keeps a transiently failing source resumable while another source serves content', async () => {
+    sessionMemory.enabled = true;
+    registerPool(
+      'healthy',
+      Array.from({ length: 30 }, (_, n) => scored(n + 1, 100 - n)),
+    );
+    const recovering = scored(200, 300);
+    sessionMemory.posts.set(recovering.id, recovering);
+    let unavailable = true;
+    registry.register({
+      id: 'transient',
+      kind: 'source',
+      userComposable: false,
+      gather: async (ctx) => {
+        if (unavailable) throw new Error('temporary timeout');
+        return ctx.seenPostIds?.includes(recovering.id) ? [] : [recovering];
+      },
+    });
+    const def = definition(['healthy', 'transient']);
+    const first = await engine.run(def, { currentUserId: 'viewer' }, { limit: 10 });
+    expect(first.items).toHaveLength(10);
+    unavailable = false;
+    const second = await engine.run(
+      def,
+      { currentUserId: 'viewer' },
+      { limit: 10, cursor: first.nextCursor },
+    );
+    expect(second.items.map((post) => post.id)).toContain(recovering.id);
+  });
+
+  it('revalidates deleted and newly filtered pending records and rejects cross-viewer cursors', async () => {
+    sessionMemory.enabled = true;
+    const posts = Array.from({ length: 30 }, (_, n) => scored(n + 1, 100 - n));
+    registerPool('source', posts);
+    registry.register({
+      id: 'safe',
+      kind: 'filter',
+      keep: (post) => !post.hashtags.includes('hidden'),
+    });
+    const def = definition(['source']);
+    def.filters = [{ module: 'safe', enabled: true }];
+    const first = await engine.run(def, { currentUserId: 'viewer' }, { limit: 10 });
+    sessionMemory.posts.delete(id(11));
+    sessionMemory.posts.set(id(12), { ...posts[11], hashtags: ['hidden'] });
+    sessionMemory.posts.set(id(13), { ...posts[12], status: 'draft' });
+    const second = await engine.run(
+      def,
+      { currentUserId: 'viewer' },
+      { limit: 10, cursor: first.nextCursor },
+    );
+    expect(second.items.map((post) => post.id)).not.toContain(id(11));
+    expect(second.items.map((post) => post.id)).not.toContain(id(12));
+    expect(second.items.map((post) => post.id)).not.toContain(id(13));
+    await expect(
+      engine.run(def, { currentUserId: 'other-viewer' }, { limit: 10, cursor: first.nextCursor }),
+    ).rejects.toMatchObject({ statusCode: 410, code: 'FEED_CURSOR_EXPIRED' });
   });
 });

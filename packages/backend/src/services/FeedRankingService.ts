@@ -396,6 +396,20 @@ export class FeedRankingService {
     const contributions = new Map<string, number>();
     const groupProducts = newGroupProducts();
     for (const signal of RANKING_SIGNALS) {
+      const key =
+        signal.id === 'trendingVelocity'
+          ? 'trending'
+          : signal.id === 'threadBoost'
+            ? 'quality'
+            : signal.id;
+      // Access/safety remains mandatory. The opt-in dispatcher gates its own set.
+      if (
+        ctx.authoritativeSignals &&
+        signal.id !== 'negativePenalty' &&
+        signal.id !== 'optIn' &&
+        !ctx.enabledSignals?.has(key)
+      )
+        continue;
       const value = safe(signal.score(post, ctx), signal.fallback ?? 1);
       contributions.set(signal.id, value);
       groupProducts[signal.group] *= value;
@@ -483,7 +497,11 @@ export class FeedRankingService {
     posts: T[],
     userId: string | undefined, // Oxy user ID
     context: {
+      rankingAsOf?: number;
+      authoritativeSignals?: boolean;
+      preserveCandidates?: boolean;
       followingIds?: string[]; // Array of Oxy user IDs
+      activitySubscribedAuthorIds?: string[];
       userBehavior?: RankingUserBehavior;
       feedSettings?: FeedRankingSettings; // User feed settings
       /**
@@ -534,6 +552,7 @@ export class FeedRankingService {
     } = {},
   ): Promise<T[]> {
     const rankingStartTime = Date.now();
+    const rankingAsOf = context.rankingAsOf ?? rankingStartTime;
 
     // Early return for empty posts
     if (posts.length === 0) {
@@ -621,7 +640,7 @@ export class FeedRankingService {
 
     // For large candidate sets, use approximate ranking (top-k selection)
     let postsToRank = posts;
-    if (posts.length > this.LARGE_CANDIDATE_SET_THRESHOLD) {
+    if (!context.preserveCandidates && posts.length > this.LARGE_CANDIDATE_SET_THRESHOLD) {
       logger.debug(`Using approximate ranking for large candidate set (${posts.length} posts)`);
       // Quick pre-ranking based on engagement score only (fast approximation)
       const quickScores = posts.map((post, index) => {
@@ -629,7 +648,7 @@ export class FeedRankingService {
         const engagementScoreValue = engagementScoreCache.get(postId) || 0;
         // Simple recency boost
         const createdMs = new Date(post.createdAt ?? NaN).getTime();
-        const postAge = isNaN(createdMs) ? Infinity : (Date.now() - createdMs) / (1000 * 60 * 60);
+        const postAge = isNaN(createdMs) ? Infinity : (rankingAsOf - createdMs) / (1000 * 60 * 60);
         const recencyBoost = postAge < 24 ? Math.exp(-postAge / 24) : 0.1;
         return {
           post,
@@ -648,13 +667,17 @@ export class FeedRankingService {
 
     // Calculate base scores for all posts in parallel (without diversity)
     // Preserve original index to maintain the source's createdAt sort order for tie-breaking
+    const activitySubscribedAuthorIdsSet = new Set(context.activitySubscribedAuthorIds ?? []);
     const postsWithBaseScores = await Promise.all(
       postsToRank.map(async (post, originalIndex) => {
         const score = await this.calculatePostScore(post, userId, {
           userBehavior,
+          rankingAsOf,
+          authoritativeSignals: context.authoritativeSignals,
           feedSettings: context.feedSettings,
           engagementScoreCache,
           followingIdsSet,
+          activitySubscribedAuthorIdsSet,
           behaviorSets,
           authorFollowerCounts,
           showSensitiveContent: context.showSensitiveContent,
@@ -689,18 +712,20 @@ export class FeedRankingService {
       const isAlreadyPenalizedThread = threadKey && penalizedThreadIds.has(threadKey);
 
       const story = storyOf(item.post.postClassification?.trendTerms, storyIndex);
-      const diversityPenalty = isAlreadyPenalizedThread
-        ? 1.0 // Skip penalty — this post will be grouped with its thread root
-        : safe(
-            this.calculateDiversityPenalty(
-              item.post,
-              recentAuthorsSet,
-              recentTopicsSet,
-              recentStories,
-              story,
-              context.feedSettings?.diversity,
-            ),
-          );
+      const diversityPenalty =
+        isAlreadyPenalizedThread ||
+        (context.authoritativeSignals && !context.enabledSignals?.has('diversity'))
+          ? 1.0 // Skip penalty — this post will be grouped with its thread root
+          : safe(
+              this.calculateDiversityPenalty(
+                item.post,
+                recentAuthorsSet,
+                recentTopicsSet,
+                recentStories,
+                story,
+                context.feedSettings?.diversity,
+              ),
+            );
 
       // Track this post's author/topics for subsequent posts
       if (item.post.oxyUserId && !isAlreadyPenalizedThread) {

@@ -1,3 +1,5 @@
+import { observeFederationImportReason } from '../../db/federation/importProvenanceRepository';
+import type { FederationImportReason } from '../../db/schema/federationImports';
 import { eq, inArray } from 'drizzle-orm';
 import { postMatchesFederatedObjectSql } from '../shared/instagramSourceKey';
 import { logger } from '../../utils/logger';
@@ -237,6 +239,7 @@ export interface OutboxSyncResult {
 }
 
 export interface OutboxSyncOptions {
+  importReason?: FederationImportReason;
   limit?: number;
   maxPages?: number;
   startPageUrl?: string;
@@ -399,8 +402,9 @@ export class OutboxSyncService {
       domain?: string | null;
     },
     limit = 20,
+    importReason: FederationImportReason = 'unknown_outbox',
   ): Promise<number> {
-    const result = await this.syncOutboxPostsDetailed(actor, limit);
+    const result = await this.syncOutboxPostsDetailed(actor, { limit, importReason });
     return result.syncedCount;
   }
 
@@ -468,6 +472,10 @@ export class OutboxSyncService {
             startPageUrl: limitOrOptions.startPageUrl,
             startItemOffset: limitOrOptions.startItemOffset ?? 0,
           };
+    const importReason =
+      typeof limitOrOptions === 'number'
+        ? 'unknown_outbox'
+        : (limitOrOptions.importReason ?? 'unknown_outbox');
     const limit = Math.max(1, options.limit);
     const maxPages = Math.max(1, options.maxPages);
 
@@ -708,6 +716,10 @@ export class OutboxSyncService {
           : await findPostRecords(inArray(posts.federationActivityId, allActivityIds), {
               orderBy: CHRONO_DESC,
             });
+      await observeFederationImportReason(
+        existingPosts.map((post) => post.id),
+        importReason,
+      );
       const existingIds = new Set(existingPosts.map((p) => p.federation?.activityId));
       // activityId → the stored post's mention state, keyed for the self-heal pass.
       const existingMentionStateByActivityId = new Map<
@@ -1024,6 +1036,7 @@ export class OutboxSyncService {
           oxyUserId: resolvedOxyUserId,
           authorship: buildAuthorship(resolvedOxyUserId, []),
           federation: buildFederatedNoteProvenance({
+            importReason,
             activityId,
             actorUri,
             inReplyTo: inReplyToUri,
@@ -1109,6 +1122,25 @@ export class OutboxSyncService {
         // own ~10 lookups, which took the task's whole connection pool and queued
         // the request path behind it (#1158). See `insertPostRecords`.
         const results = await insertPostRecords(newDocs);
+        // A different ingest path can win after the initial dedupe read. Its
+        // original cause stays intact; this path still observed a later need.
+        const racedActivityIds = results.flatMap((result, index) => {
+          const activityId = newDocs[index]?.federation?.activityId;
+          return result.status === 'rejected' && isUniqueViolation(result.reason) && activityId
+            ? [activityId]
+            : [];
+        });
+        if (racedActivityIds.length > 0) {
+          const racedPosts = await findPostRecords(
+            inArray(posts.federationActivityId, racedActivityIds),
+            { orderBy: CHRONO_DESC },
+          );
+          await observeFederationImportReason(
+            racedPosts.map((post) => post.id),
+            importReason,
+          );
+        }
+
         const inserted = results.flatMap((result) =>
           result.status === 'fulfilled' ? [result.value] : [],
         );
@@ -1211,7 +1243,12 @@ export class OutboxSyncService {
         const batch = pendingAnnounces.slice(i, i + OUTBOX_BOOST_IMPORT_CONCURRENCY);
         const results = await Promise.all(
           batch.map((announce) =>
-            this.importAnnounce(announce.activity, announce.announcedUri, boosterOxyUserId),
+            this.importAnnounce(
+              announce.activity,
+              announce.announcedUri,
+              boosterOxyUserId,
+              importReason,
+            ),
           ),
         );
         importedBoosts += results.filter(Boolean).length;
@@ -1514,6 +1551,7 @@ export class OutboxSyncService {
     announceActivity: Record<string, unknown>,
     announcedUri: string,
     boosterOxyUserId: string | null,
+    importReason: FederationImportReason = 'inbox_announce',
   ): Promise<boolean> {
     const announceId = typeof announceActivity.id === 'string' ? announceActivity.id : undefined;
     if (!announceId) return false;
@@ -1531,14 +1569,17 @@ export class OutboxSyncService {
       .from(posts)
       .where(eq(posts.federationActivityId, announceId))
       .limit(1);
-    if (existingBoost) return false;
+    if (existingBoost) {
+      await observeFederationImportReason([existingBoost.id], importReason);
+      return false;
+    }
 
     // Resolve the boosted post's local _id. A local or already-imported post is
     // resolved directly; otherwise fetch and store the remote Note. This also
     // lets remote actors boost OUR posts (announcedUri = our AP note URI).
     const originalPostId =
       (await resolvePostIdFromObjectUri(announcedUri)) ??
-      (await this.ensureFederatedNote(announcedUri));
+      (await this.ensureFederatedNote(announcedUri, 'boost_dependency'));
     if (!originalPostId) {
       logger.info('[FedSync] skipped boost whose object could not be resolved');
       return false;
@@ -1569,6 +1610,7 @@ export class OutboxSyncService {
         visibility: PostVisibility.PUBLIC,
         federation: {
           activityId: announceId,
+          importReason,
           actorUri: typeof announceActivity.actor === 'string' ? announceActivity.actor : undefined,
           url: typeof announceActivity.url === 'string' ? announceActivity.url : announceId,
         },
@@ -1653,7 +1695,7 @@ export class OutboxSyncService {
         });
         return null;
       }
-      parentPostId = await this.ensureFederatedNote(inReplyToUri, depth + 1);
+      parentPostId = await this.ensureFederatedNote(inReplyToUri, 'reply_dependency', depth + 1);
       if (!parentPostId) return null;
     }
 
@@ -1713,17 +1755,24 @@ export class OutboxSyncService {
    * returns null and the quoting post is stored unlinked, exactly as today.
    */
   async ensureQuotedNote(objectUri: string): Promise<string | null> {
-    return this.ensureFederatedNote(objectUri);
+    return this.ensureFederatedNote(objectUri, 'quote_dependency');
   }
 
-  private async ensureFederatedNote(objectUri: string, depth = 0): Promise<string | null> {
+  private async ensureFederatedNote(
+    objectUri: string,
+    importReason: FederationImportReason,
+    depth = 0,
+  ): Promise<string | null> {
     // Already stored? (Its own activity id, or the same Instagram post from the Graph API.)
     const [existing] = await getDb()
       .select({ id: posts.id })
       .from(posts)
       .where(postMatchesFederatedObjectSql(objectUri))
       .limit(1);
-    if (existing) return existing.id;
+    if (existing) {
+      await observeFederationImportReason([existing.id], importReason);
+      return existing.id;
+    }
 
     const objectGuard = await assertSafePublicUrl(objectUri);
     if (!objectGuard.ok) {
@@ -1827,7 +1876,7 @@ export class OutboxSyncService {
     const quoteOf = declaredQuote
       ? await resolveDeclaredQuoteTarget(declaredQuote, (uri) =>
           depth < MAX_ANCESTOR_DEPTH
-            ? this.ensureFederatedNote(uri, depth + 1)
+            ? this.ensureFederatedNote(uri, 'quote_dependency', depth + 1)
             : Promise.resolve(null),
         )
       : null;
@@ -1842,6 +1891,7 @@ export class OutboxSyncService {
         federation: buildFederatedNoteProvenance({
           activityId: noteActivityId,
           actorUri: authorUri,
+          importReason,
           inReplyTo: inReplyToUri,
           noteUrl: note.url,
           sensitive,
@@ -1897,6 +1947,7 @@ export class OutboxSyncService {
           .from(posts)
           .where(postMatchesFederatedObjectSql(noteActivityId))
           .limit(1);
+        if (raced) await observeFederationImportReason([raced.id], importReason);
         return raced ? raced.id : null;
       }
       const message = err instanceof Error ? err.message : String(err);

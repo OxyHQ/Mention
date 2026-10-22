@@ -376,6 +376,20 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     why: 'Cited sources of a destroyed post. `ON DELETE CASCADE` on `posts.id`.',
   },
   {
+    table: 'federation_post_imports',
+    column: 'postId',
+    scope: 'channel-posts',
+    action: 'database',
+    why: 'Private import origin of a destroyed post. `ON DELETE CASCADE` on `posts.id`.',
+  },
+  {
+    table: 'federation_post_import_reasons',
+    column: 'postId',
+    scope: 'channel-posts',
+    action: 'database',
+    why: 'Additional import reasons use `ON DELETE CASCADE` on `federation_post_imports.post_id`, whose own FK cascades from `posts.id`.',
+  },
+  {
     table: 'post_content_variants',
     column: 'postId',
     scope: 'channel-posts',

@@ -1,3 +1,4 @@
+import { eligibleActivitySubscriptionAuthors } from '../../services/activitySubscriptionInterest';
 /**
  * Viewer feed-context assembly.
  *
@@ -12,8 +13,11 @@
  * never break a feed or relax the sensitivity gate.
  */
 
+import { eq } from 'drizzle-orm';
+import { getDb } from '../../db/postgres';
+import { postSubscriptions } from '../../db/schema';
 import { MtnConfig, toBaseLanguages, type FeedTuning } from '@mention/shared-types';
-import type { FeedRankingSettings } from '../../services/ranking/signalContext';
+import type { FeedContext } from './FeedAPI';
 import type { OxyClient } from '../../utils/privacyHelpers';
 import { getFollowingIds, getFollowerIds } from '../../utils/privacyHelpers';
 import { loadUserSettings } from '../../db/userProfile/userSettingsRepository';
@@ -86,7 +90,7 @@ export function resolveViewerBaseLanguages(
  */
 export async function loadFeedPreferences(userId: string | undefined): Promise<{
   feedTuning?: FeedTuning;
-  feedSettings?: FeedRankingSettings;
+  feedSettings?: FeedContext['feedSettings'];
   showSensitiveContent: boolean;
 }> {
   if (!userId) return { showSensitiveContent: false };
@@ -127,7 +131,9 @@ export async function loadViewerFeedContext(
   oxyClient: OxyClient | undefined,
   acceptedOutboundFollowUris?: Promise<string[]>,
   requestLanguages: readonly string[] = [],
+  options: { activitySubscriptions?: boolean } = {},
 ): Promise<FeedEngineContext> {
+  let activitySubscribedAuthorIds: string[] = [];
   let followingIds: string[] = [];
   let followerIds: string[] = [];
   let subscribedListMemberIds: string[] = [];
@@ -210,7 +216,23 @@ export async function loadViewerFeedContext(
     // almost every reader — the engine's predicate is then `undefined`, i.e. free.
     const mutedLanesPromise = loadMutedLaneIds(currentUserId);
 
+    const activitySubscriptionsPromise = options.activitySubscriptions
+      ? (async (): Promise<string[]> => {
+          try {
+            const rows = await getDb()
+              .select({ authorId: postSubscriptions.authorId })
+              .from(postSubscriptions)
+              .where(eq(postSubscriptions.subscriberId, currentUserId));
+            return rows.map((row) => row.authorId);
+          } catch (error) {
+            logger.warn('[feedContext] Failed to load activity subscriptions', error);
+            return [];
+          }
+        })()
+      : Promise.resolve<string[]>([]);
+
     [
+      activitySubscribedAuthorIds,
       followingIds,
       followerIds,
       subscribedListMemberIds,
@@ -219,6 +241,7 @@ export async function loadViewerFeedContext(
       viewerLanguages,
       mutedLaneIds,
     ] = await Promise.all([
+      activitySubscriptionsPromise,
       followingPromise,
       followerPromise,
       subscribedPromise,
@@ -231,6 +254,10 @@ export async function loadViewerFeedContext(
 
   return {
     currentUserId,
+    activitySubscribedAuthorIds: eligibleActivitySubscriptionAuthors(
+      activitySubscribedAuthorIds,
+      userBehavior,
+    ),
     followingIds,
     followerIds,
     subscribedListMemberIds,

@@ -127,7 +127,13 @@ async function selectCandidates(
  * `undefined` for an unknown reader and `and` drops it.
  */
 function discoveryGuardsSql(ctx: FeedEngineContext): SQL {
-  return and(discoverySafeSql(), viewerLanguageSql(ctx.viewerBaseLanguages)) as SQL;
+  return and(
+    discoverySafeSql(),
+    viewerLanguageSql(ctx.viewerBaseLanguages),
+    ctx.paginationSession && ctx.rankingAsOf
+      ? lte(posts.createdAt, new Date(ctx.rankingAsOf))
+      : undefined,
+  ) as SQL;
 }
 
 /**
@@ -337,6 +343,7 @@ function exploreFinalScoreSql(now: Date, relevance: SQL): SQL<number> {
  * as before; only the 9-table join is deferred to the page that survives it.
  */
 export const exploreSource: SourceModule = {
+  pagination: 'score',
   id: 'explore',
   kind: 'source',
   userComposable: false,
@@ -426,6 +433,7 @@ export const exploreSource: SourceModule = {
  * `trending` preset, so both surfaces are covered by the one predicate.
  */
 export const popularSource: SourceModule = {
+  pagination: 'popular',
   id: 'popular',
   kind: 'source',
   userComposable: false,
@@ -443,6 +451,8 @@ export const popularSource: SourceModule = {
     // You feed for a signed-out reader, and it bypasses `FeedEngine.gatherPool`,
     // so it inherited no guard at all. `discoverySafeSql()` is already in
     // `baseConditions` above; see `feedLanguage.ts` for the measurement.
+    if (ctx.paginationSession && ctx.rankingAsOf)
+      baseConditions.push(lte(posts.createdAt, new Date(ctx.rankingAsOf)));
     const language = viewerLanguageSql(ctx.viewerBaseLanguages);
     if (language) baseConditions.push(language);
 
@@ -470,12 +480,16 @@ export const popularSource: SourceModule = {
     // A recency window bounds the engagement scan; the never-blank fallback
     // widens (7d → 30d → unbounded) so this source is never starved on a
     // low-traffic instance.
-    const candidates = await fetchWithRecencyFallback(cap, async (cutoff) => {
-      const conditions = cutoff
-        ? [...baseConditions, gte(posts.createdAt, cutoff)]
-        : baseConditions;
-      return runPopular(and(...conditions) as SQL, engagementScore, cap);
-    });
+    const candidates = await fetchWithRecencyFallback(
+      cap,
+      async (cutoff) => {
+        const conditions = cutoff
+          ? [...baseConditions, gte(posts.createdAt, cutoff)]
+          : baseConditions;
+        return runPopular(and(...conditions) as SQL, engagementScore, cap);
+      },
+      ctx.rankingAsOf ?? parsedCursor?.asOf ?? Date.now(),
+    );
 
     return filterDiscoverable(candidates);
   },
@@ -589,6 +603,7 @@ async function gatherPopularByQuery(
  * path could repeat forever.
  */
 export const popularVideosSource: SourceModule = {
+  pagination: 'popular',
   id: 'popularVideos',
   kind: 'source',
   userComposable: false,
@@ -608,6 +623,7 @@ export const popularVideosSource: SourceModule = {
 
 /** `popularMedia`: the Media fallback. Same shape as above. */
 export const popularMediaSource: SourceModule = {
+  pagination: 'popular',
   id: 'popularMedia',
   kind: 'source',
   userComposable: false,

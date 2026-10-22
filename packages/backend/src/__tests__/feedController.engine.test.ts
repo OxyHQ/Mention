@@ -46,9 +46,15 @@ const privacy = vi.hoisted(() => ({
     excludedUserIds: new Set<string>(),
   })),
 }));
-vi.mock('../mtn/UserPrivacyManager', () => ({
-  UserPrivacyManager: { loadPrivacyState: privacy.loadPrivacyState },
-}));
+vi.mock('../mtn/UserPrivacyManager', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../mtn/UserPrivacyManager')>();
+  return {
+    UserPrivacyManager: {
+      loadPrivacyState: privacy.loadPrivacyState,
+      excludesPost: original.UserPrivacyManager.excludesPost,
+    },
+  };
+});
 const oxyHelpers = vi.hoisted(() => ({
   createScopedOxyClient: vi.fn((_req?: unknown): unknown => undefined),
 }));
@@ -97,6 +103,7 @@ vi.mock('../connectors/federatedProfileSync', () => ({
   federatedProfileSync: { syncOnProfileView },
 }));
 
+import * as feedContext from '../mtn/feed/feedContext';
 import { mtnFeedController } from '../mtn/controllers/feed.controller';
 
 interface MockRes {
@@ -126,6 +133,71 @@ beforeEach(() => {
 });
 
 describe('MtnFeedController.getFeed → engine', () => {
+  it('removes real privacy mutes and Oxy blocks from bell intent before the engine', async () => {
+    const contextSpy = vi.spyOn(feedContext, 'loadViewerFeedContext').mockResolvedValueOnce({
+      currentUserId: 'bell-viewer',
+      activitySubscribedAuthorIds: ['muted', 'blocked', 'hidden', 'eligible'],
+      userBehavior: { hiddenAuthors: ['hidden'] },
+    });
+    privacy.loadPrivacyState.mockResolvedValueOnce({
+      mutedUserIds: new Set(['muted']),
+      blockedUserIds: new Set(['blocked']),
+      restrictedUserIds: new Set(),
+      excludedUserIds: new Set(['muted', 'blocked']),
+    });
+    try {
+      const res = makeRes();
+      await mtnFeedController.getFeed(
+        {
+          accessToken: 'session',
+          query: { descriptor: 'for_you' },
+          user: { id: 'bell-viewer' },
+        } as never,
+        res as never,
+      );
+      expect(res.statusCode).toBe(200);
+      expect(engineRun.mock.calls[0]?.[1]).toMatchObject({
+        activitySubscribedAuthorIds: ['eligible'],
+      });
+    } finally {
+      contextSpy.mockRestore();
+    }
+  });
+
+  it.each([
+    ['following', undefined, 'chronological'],
+    ['following', 'relevance', 'ranked'],
+    ['following', 'chronological', 'chronological'],
+    ['following_direct', 'relevance', 'chronological'],
+  ])('resolves %s with sort %s to %s', async (descriptor, sort, mode) => {
+    const res = makeRes();
+    await mtnFeedController.getFeed(
+      {
+        accessToken: 'test-viewer-session',
+        query: { descriptor, sort },
+        user: { id: 'following-sort-viewer' },
+      } as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(200);
+    expect(engineRun).toHaveBeenCalledOnce();
+    expect(engineRun.mock.calls[0]?.[0]).toMatchObject({ mode });
+  });
+
+  it('rejects an invalid Following override before running the feed', async () => {
+    const res = makeRes();
+    await mtnFeedController.getFeed(
+      {
+        accessToken: 'test-viewer-session',
+        query: { descriptor: 'following', sort: 'popular' },
+        user: { id: 'following-sort-viewer' },
+      } as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(400);
+    expect(engineRun).not.toHaveBeenCalled();
+  });
+
   it('runs the engine for a for_you descriptor and returns the response', async () => {
     const req = { query: { descriptor: 'for_you' }, user: undefined } as never;
     const res = makeRes();

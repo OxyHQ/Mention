@@ -1,3 +1,4 @@
+import type { FederationImportReason } from '../../db/schema/federationImports';
 import type { PostContent } from '@mention/shared-types';
 import type {
   NetworkConnector,
@@ -180,6 +181,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     const result = await outboxSyncService.syncOutboxPostsDetailed(actor, {
       limit: opts.limit ?? 20,
       startPageUrl: opts.cursor,
+      importReason: 'requested_profile',
     });
     return { posts: [], cursor: result.nextCursor?.url };
   }
@@ -440,8 +442,9 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
       type?: string;
     },
     limit = 20,
+    importReason: FederationImportReason = 'unknown_outbox',
   ): Promise<number> {
-    return outboxSyncService.syncOutboxPosts(actor, limit);
+    return outboxSyncService.syncOutboxPosts(actor, limit, importReason);
   }
 
   syncOutboxPostsDetailed(

@@ -159,7 +159,7 @@ Lanes are managed for the active account only (the backend always owns a new lan
 
 | Tool | Auth | Backend |
 |------|------|---------|
-| `get-feed` | no | `GET /feed/mtn` |
+| `get-feed` | depends on descriptor | `GET /feed/mtn?descriptor=<descriptor>` |
 | `get-explore-feed` | no | `GET /feed/mtn?descriptor=explore` |
 | `get-for-you-feed` | yes | `GET /feed/mtn?descriptor=for_you` |
 | `get-following-feed` | yes | `GET /feed/mtn?descriptor=following` |
@@ -168,6 +168,28 @@ Lanes are managed for the active account only (the backend always owns a new lan
 | `get-replies` | no | `GET /feed/replies/:id` |
 | `get-feed-item` | no | `GET /feed/item/:id` |
 | `get-post` | no | `GET /feed/item/:id` |
+
+Feed tools return human-readable `content` and the complete authorized API response in
+`structuredContent`. Descriptor feeds expose the unwrapped `data` object from
+`GET /feed/mtn`, without reconstructing or dropping `items`, `slices`, reasons,
+metadata, interstitials or pagination. This is JSON value preservation, not a
+byte-for-byte copy of the HTTP body. Replies, single-item, saved and list tools
+preserve their respective API response objects. The backend remains responsible
+for visibility and hydration; no extra database fields are fetched.
+
+`get-feed` defaults to `explore` and validates descriptors using the shared feed
+contract. Personalized descriptors require an account token. Saved and list
+descriptors are deliberately excluded: use `get-saved-posts`
+(`social.posts.read`) and `get-list-timeline` (`social.lists.read`), preserving
+their existing scopes instead of granting those views through `social.read`.
+Other backend access checks, including private custom feeds, remain authoritative.
+No `sort` option is exposed while the MTN controller does not accept one.
+
+For audits, count ranked blocks using `slices` when populated; `items` is their
+flattened mirror and may include conversation context. A page requested with
+`limit: 20` can legitimately contain more than 20 flattened posts. Read requests
+may update served-post history or trigger a remote profile backfill; they are not
+an isolated ranking experiment. Do not log credentials or private feed bodies.
 
 ### Interactions (auth required)
 

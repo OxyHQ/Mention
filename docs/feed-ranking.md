@@ -210,8 +210,8 @@ against its original too).
 
 ## For You Ranking (`FeedRankingService.rankPosts`)
 
-`rankPosts` is the ONE ranking path for ForYou, Explore, Videos, and Media
-feeds.
+`rankPosts` is the shared ranking path for presets that compute personalized
+scores. Pre-scored sources retain their own score order.
 
 - Candidates (`mtn/feed/feeds/forYouCandidateSources.ts`): multi-source,
   bounded, parallel — following, affinity, topic/language/region match,
@@ -220,12 +220,18 @@ feeds.
   authority (bounded log-scale follower count), AI + deterministic
   quality/spam/toxicity (provenance-gated), engagement weights, diversity
   penalties (`sameAuthorPenalty`, `sameTopicPenalty`).
-- Author-diversity rerank (`diversifyByAuthor`) runs BEFORE page
-  truncation; only the page window is hydrated. `capDiscoveryShare` then bounds
-  the share of the page that may come from discovery lanes, guaranteeing a floor
-  for trusted content. Both DEFER rather than drop, and both run INSIDE the
-  already-selected window: a served page has to stay a prefix of the score order,
-  or the next page's `score < cursor` filter skips what they moved.
+- The engine's enabled signal modules are authoritative: a preset that excludes
+  engagement or affinity does not receive those multipliers implicitly. Safety
+  penalties remain mandatory. Zero engagement is a neutral multiplier of one;
+  positive engagement adds a logarithmic lift, so new posts can still rank on
+  freshness, quality and relevance.
+- Session pages select membership jointly (`selectRankedPage`), preserving the
+  author cap before applying the discovery-share target and spacing the chosen
+  authors. If concentrated trusted inventory makes both constraints impossible,
+  distinct discovery authors take priority over the trusted-share target.
+  Same-author overflow fills only an otherwise short page. Deferred candidates
+  stay in session state for later pages; only the selected page is hydrated.
+  The stateless score-cursor fallback keeps its existing page-window rerank.
 - `trustTierBoost` (opt-in) lifts by the author's Oxy standing
   (`new` → `verified`, read from the cached account summary). Lift-only, and
   neutral for an unresolved author — `restricted` accounts never reach Mention at
@@ -263,6 +269,94 @@ presentation behave correctly.
 The language filter describes the post text, not speech or text embedded inside
 video frames. Mention does not transcribe audio or OCR video as part of feed
 selection.
+
+For You and Explore also exclude a standalone decimal-digit text body from
+recommendations when it has no reply/thread/quote/boost context, links, media,
+poll, article or other structured content. This is a narrowly calibrated rule,
+not a minimum text length. It changes neither import admission nor Following,
+profiles or search; discovery sources remain enabled.
+
+### Following ordering
+
+`feedSettings.following.sort` persists `chronological` (the default) or
+`relevance`. Both use the same followed accounts, subscribed lists and community
+memberships; relevance adds ordering, not discovery or a popular fallback.
+`sort` is a per-request override only for the Following descriptor. Following
+Direct always remains chronological. The existing feed settings screen owns
+the preference, and successful saves invalidate only that viewer's relevant
+cached feeds.
+
+Following (including Direct and relevance), Mutuals, List and Saved honor an
+explicit sensitive-content preference while retaining privacy/ACL checks.
+Hashtag, Topic, Trend and Lane keep their SFW/content-warning discovery policy;
+the existing Author/profile path is unchanged by this adjustment.
+
+### Ranked pagination sessions
+
+Ranked presets opt into opaque `fs1:` continuations when Redis is available.
+Session state stores candidate IDs, scores, source cursors and delivery history,
+never post bodies. It is bound to the viewer, definition, selection settings and
+page size. Each page reloads pending posts and reapplies current filters and
+hydration privacy checks. Recency and the initial seen set are pinned; live
+content, safety and newly gathered engagement can still change a retried page.
+
+Sessions expire 30 minutes after creation and scan at most 5,000 distinct IDs.
+Redis atomically retains the latest three immutable continuation snapshots per
+session, so deep scrolling cannot accumulate quadratic historical state. Older
+snapshots, missing Redis state, incompatible bindings and exhausted budgets
+return HTTP 410 with `error.code = FEED_CURSOR_EXPIRED`. The client replaces the
+feed with page one once, scoped to the current viewer and descriptor; a failed
+restart does not create an automatic retry loop.
+
+Source progress is independent of what was selected or filtered. Bounded scans
+can return an empty page with a continuation. A failed source remains resumable,
+and overlapping source windows do not imply exhaustion. Page one falls back to
+stateless pagination when Redis is unavailable. Existing popular fallback
+cursors remain valid; incompatible old personalized score cursors restart
+through the same typed 410 contract after the scoring change.
+
+Older clients do not perform the new automatic 410 restart. Their existing
+pull-to-refresh requests page one without a cursor (both SQLite and memory
+paths), so manual refresh recovers after an incompatible or expired cursor.
+Ship the client recovery alongside the backend when possible; an older installed
+mobile client may show a pagination error until the reader refreshes. This was
+verified in the prior client source, not on a physical device.
+
+## Profile bell as explicit interest
+
+The profile bell's existing `post_subscriptions` edge is an explicit author-interest
+signal in For You. It remains separate from following and notification delivery.
+Only the authenticated viewer's subscriptions are loaded, only for For You;
+accepted coauthors count, pending invitations do not. A bounded candidate source
+supplies recent public, published posts from those authors even without a follow.
+It retains the usual language, visibility, seen-state and pinned-clock constraints.
+The source scans a 72-hour horizon, using the session source cap (at least ten,
+otherwise page size), or the existing 60-candidate cap on the stateless path.
+
+`activitySubscriptionBoost` multiplies eligible scores by at most 2, with a
+24-hour half-life for the extra boost and no boost after 72 hours. These are initial
+product bounds, not experimentally optimized values. Explicit negative feedback
+and sensitive/spam penalties neutralize this boost. Existing eligibility and author
+diversity selection still apply; the bell cannot promise top placement or a feed
+monopoly. Bell matches are trusted relationships for discovery-only quality gates,
+including accepted coauthors first found through another source. Shell coauthor
+membership uses one candidate-bounded database read, not one read per post.
+
+Following chronology, other feed presets, import admission and autonomous discovery
+are unchanged. A bell does not grant followers-only/private access. The For You
+continuation binding includes the viewer's subscription set, so changing it
+invalidates stale continuation state. Negative author/topic feedback and the
+existing request privacy exclusions are canonicalized into ranked-session
+binding too, so a newly hidden or muted interest cannot retain frozen priority.
+Bell matches carry eligible author IDs: an excluded accepted coauthor cannot
+provide a boost or discovery-quality exemption merely because the primary author
+is otherwise eligible. Successful profile toggles and settings
+removals refresh that viewer's For You cache; failed writes do not. Profile state
+and asynchronous results are scoped to the current account. Settings removals
+capture their originating viewer, recheck the authoritative SDK runtime before
+service dispatch, and cancel pending transport work on an account change using the
+supported abort signal. Cancellation cannot undo a write already accepted by the
+server.
 
 ## Feed Interstitials (Recommendation Cards)
 
@@ -331,11 +425,13 @@ on touch, arrows beside the title on wide screens). People are vertical tiles
   15-second copy of what Redis returned; `invalidate()` clears it, and the
   invalidation subscriber runs on every task, so an Oxy identity change clears
   it everywhere.
-- Ranked pages thread-slice only the top `2 * limit + 1` candidates
+- Stateless ranked pages thread-slice only the top `2 * limit + 1` candidates
   (`sliceTopWindow` in `FeedEngine.ts`), doubling the window only when it folds
   into too few slices to fill the page and say whether another follows. Slicing
   reads every candidate's thread children and parents, and a slice depends only
   on the candidates above it, so the page is the same as slicing the whole pool.
+  Session pages slice their bounded pending pool before joint membership
+  selection so deferred candidates remain available for later pages.
 - For You candidate shells carry the `posts` row they were assembled from;
   `hydrateSlices` completes the page's shells from those rows
   (`completeShellRecords`), reading only the child tables instead of selecting

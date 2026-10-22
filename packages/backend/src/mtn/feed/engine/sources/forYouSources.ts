@@ -1,3 +1,4 @@
+import { eligibleActivitySubscriptionAuthors } from '../../../../services/activitySubscriptionInterest';
 /**
  * For You + timeline source modules.
  *
@@ -26,6 +27,7 @@ import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 import {
   type CandidateUserBehavior,
   type GatherForYouCandidatesParams,
+  gatherActivitySubscriptionsLane,
   gatherFollowingLane,
   gatherSubscribedListsLane,
   gatherAffinityLane,
@@ -82,11 +84,18 @@ export function buildFollowingVisibilitySql(
 }
 
 /** Translate the engine context into For You lane params (null when anonymous). */
-function forYouParams(ctx: FeedEngineContext): GatherForYouCandidatesParams | null {
+function forYouParams(ctx: FeedEngineContext, cap?: number): GatherForYouCandidatesParams | null {
   if (!ctx.currentUserId) return null;
   return {
     viewerId: ctx.currentUserId,
+    rankingAsOf: ctx.rankingAsOf,
+    candidateLimit: ctx.paginationSession ? cap : undefined,
     followingIds: ctx.followingIds ?? [],
+    activitySubscribedAuthorIds: eligibleActivitySubscriptionAuthors(
+      ctx.activitySubscribedAuthorIds,
+      ctx.userBehavior,
+      [...(ctx.excludedAuthorIds ?? []), ...(ctx.viewerPrivacy?.blockedIds ?? [])],
+    ),
     subscribedListMemberIds: ctx.subscribedListMemberIds,
     followedCommunityIds: ctx.followedCommunityIds,
     userBehavior: ctx.userBehavior as CandidateUserBehavior | undefined,
@@ -133,7 +142,9 @@ async function gatherFollowingTimeline(
 ): Promise<CandidatePost[]> {
   const { currentUserId, followingIds, subscribedListMemberIds, followedCommunityIds } = ctx;
   const listMemberIds = directOnly ? [] : subscribedListMemberIds;
-  if (!currentUserId || (!followingIds?.length && !listMemberIds?.length)) return [];
+  const communityIds = directOnly ? [] : followedCommunityIds;
+  if (!currentUserId || (!followingIds?.length && !listMemberIds?.length && !communityIds?.length))
+    return [];
 
   const run = (since: Date | undefined) =>
     fetchChrono(
@@ -143,7 +154,7 @@ async function gatherFollowingTimeline(
           followingIds,
           listMemberIds,
           since,
-          followedCommunityIds,
+          communityIds,
         ),
         eq(posts.status, 'published'),
         notCollapsedCrosspostSql(),
@@ -229,8 +240,9 @@ async function gatherTopicTimeline(
 async function runForYouLane(
   ctx: FeedEngineContext,
   lane: (p: GatherForYouCandidatesParams) => Promise<CandidatePost[]>,
+  cap?: number,
 ): Promise<CandidatePost[]> {
-  const p = forYouParams(ctx);
+  const p = forYouParams(ctx, cap);
   if (!p) return [];
   return lane(p);
 }
@@ -249,7 +261,7 @@ export const followingSource: SourceModule = {
     if (params.timeline === true) {
       return gatherFollowingTimeline(ctx, cap, params.directOnly === true);
     }
-    return runForYouLane(ctx, gatherFollowingLane);
+    return runForYouLane(ctx, gatherFollowingLane, cap);
   },
 };
 
@@ -267,7 +279,7 @@ export const listsSource: SourceModule = {
     if (typeof params.listId === 'string' && params.listId) {
       return gatherListTimeline(params.listId, ctx, cap);
     }
-    return runForYouLane(ctx, gatherSubscribedListsLane);
+    return runForYouLane(ctx, gatherSubscribedListsLane, cap);
   },
 };
 
@@ -283,7 +295,7 @@ export const topicSource: SourceModule = {
     if (typeof params.slug === 'string' && params.slug) {
       return gatherTopicTimeline(params.slug, ctx, cap);
     }
-    return runForYouLane(ctx, gatherTopicsLane);
+    return runForYouLane(ctx, gatherTopicsLane, cap);
   },
 };
 
@@ -297,7 +309,7 @@ export const affinitySource: SourceModule = {
   // viewer follows, so it is people they never chose, and `gatherAffinityLane`
   // filters it. See `feedLanguage.ts`.
   trusted: true,
-  gather: async (ctx) => runForYouLane(ctx, gatherAffinityLane),
+  gather: async (ctx, _params, cap) => runForYouLane(ctx, gatherAffinityLane, cap),
 };
 
 /** `region`: For You ranked lane — posts in the viewer's learned region. */
@@ -305,7 +317,7 @@ export const regionSource: SourceModule = {
   id: 'region',
   kind: 'source',
   userComposable: true,
-  gather: async (ctx) => runForYouLane(ctx, gatherRegionLane),
+  gather: async (ctx, _params, cap) => runForYouLane(ctx, gatherRegionLane, cap),
 };
 
 /** `trending`: For You ranked lane — recent high-engagement posts. */
@@ -313,7 +325,7 @@ export const trendingSource: SourceModule = {
   id: 'trending',
   kind: 'source',
   userComposable: true,
-  gather: async (ctx) => runForYouLane(ctx, gatherTrendingLane),
+  gather: async (ctx, _params, cap) => runForYouLane(ctx, gatherTrendingLane, cap),
 };
 
 /** `globalDiscovery`: For You ranked lane — recent public SFW posts (serendipity). */
@@ -321,10 +333,20 @@ export const globalDiscoverySource: SourceModule = {
   id: 'globalDiscovery',
   kind: 'source',
   userComposable: true,
-  gather: async (ctx) => runForYouLane(ctx, gatherGlobalLane),
+  gather: async (ctx, _params, cap) => runForYouLane(ctx, gatherGlobalLane, cap),
+};
+
+/** Bell subscribers explicitly chose these authors; access remains public-only. */
+export const activitySubscriptionsSource: SourceModule = {
+  id: 'activitySubscriptions',
+  kind: 'source',
+  userComposable: false,
+  trusted: true,
+  gather: async (ctx, _params, cap) => runForYouLane(ctx, gatherActivitySubscriptionsLane, cap),
 };
 
 export const forYouSourceModules: SourceModule[] = [
+  activitySubscriptionsSource,
   followingSource,
   listsSource,
   topicSource,

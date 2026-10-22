@@ -14,6 +14,7 @@ import type {
   FeedRankingSettings,
 } from '../../services/ranking/signalContext';
 import type { OxyClient } from '../../utils/privacyHelpers';
+import type { FeedSettings } from '../../db/userProfile/userSettingsRecord';
 
 export interface FeedAPIResponse {
   slices: FeedPostSlice[];
@@ -32,6 +33,8 @@ export interface FeedContext {
   safetyRequester?: SafetyRequester;
   currentUserId?: string;
   followingIds?: string[];
+  /** Mention-local profile bells; explicit interest, never follow authorization. */
+  activitySubscribedAuthorIds?: string[];
   /**
    * The viewer's follower ids (accounts that follow the viewer), resolved ONCE
    * per feed request by `loadViewerFeedContext` alongside `followingIds`. Threaded
@@ -40,6 +43,8 @@ export interface FeedContext {
    * Absent for anonymous viewers.
    */
   followerIds?: string[];
+  /** Existing request privacy union (blocks/mutes), used to expire stale ranked priority. */
+  excludedAuthorIds?: readonly string[];
   /**
    * The viewer's Oxy privacy lists, resolved ONCE per feed request by the
    * controller's `UserPrivacyManager.loadPrivacyState` and threaded into
@@ -64,7 +69,7 @@ export interface FeedContext {
    */
   followedCommunityIds?: string[];
   userBehavior?: RankingUserBehavior;
-  feedSettings?: FeedRankingSettings;
+  feedSettings?: FeedRankingSettings & Partial<Pick<FeedSettings, 'following'>>;
   oxyClient?: OxyClient;
   /**
    * The viewer's DOMINANT learned coarse region (the highest-count

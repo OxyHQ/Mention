@@ -29,6 +29,10 @@ import type { CachedUserSummary } from '../../../services/userSummaryCache';
  * into the hydrated {@link HydratedPost} — hydration builds a fresh DTO.
  */
 export type CandidatePost = PostRecord & {
+  friendEngagementCount?: number;
+  /** Matched an accepted author through the viewer's bell subscriptions. */
+  activitySubscriptionMatch?: boolean;
+  activitySubscriptionAuthorIds?: string[];
   /** Pre-scored sources (e.g. Explore's aggregation) attach the ranked score. */
   finalScore?: number;
   /**
@@ -41,9 +45,9 @@ export type CandidatePost = PostRecord & {
   _feedCursor?: string;
   /**
    * DISCOVERY marker. Stamped `true` by the engine on candidates that came from
-   * a NON-trusted (discovery) source and passed the definition's
-   * `discoveryFilters`. Read by the discovery-gate lane-scoping and the
-   * `languageMismatchPenalty` ranking signal.
+   * a NON-trusted source, regardless of whether discovery filters are enabled.
+   * This records origin, not a quality verdict; share selection and discovery-
+   * scoped ranking signals read it even when quality gates are disabled.
    */
   _discovery?: boolean;
   /**
@@ -78,6 +82,8 @@ export type DiscoveryGateBucket = 'gate-on' | 'gate-off';
  * (viewer mutuals, resolved seen-post ids, the raw cursor, and the page limit).
  */
 export interface FeedEngineContext extends FeedContext {
+  /** Bounded server-side pagination supplies per-source progress. */
+  paginationSession?: boolean;
   /**
    * Authenticated request-scoped client for viewer-private Oxy endpoints.
    * Deliberately separate from `oxyClient`, which may be a service/runtime
@@ -157,6 +163,8 @@ export interface FeedEngineContext extends FeedContext {
 }
 
 export interface SourceModule {
+  /** Source keyset axis; otherwise chronological or exclusion-based. */
+  pagination?: 'score' | 'popular';
   id: string;
   kind: 'source';
   /**
@@ -169,8 +177,8 @@ export interface SourceModule {
    * chosen graph (following / subscribed lists / affinity), so its candidates are
    * NEVER subjected to the discovery gate (`FeedDefinition.discoveryFilters`) nor
    * marked `_discovery`. Absent/`false` = a DISCOVERY source (topics / language /
-   * region / trending / global), whose candidates ARE gated. Only meaningful for
-   * ranked multi-source definitions that declare `discoveryFilters` (For You).
+   * region / trending / global), whose candidates are marked by origin and are
+   * additionally gated when the definition enables discovery filters.
    */
   trusted?: boolean;
   gather(
@@ -181,6 +189,8 @@ export interface SourceModule {
 }
 
 export interface SignalModule {
+  /** False for preset-only signals whose context is not loaded by custom feeds. */
+  userComposable?: boolean;
   id: string;
   kind: 'signal';
   /**
@@ -218,6 +228,11 @@ export interface FilterModule {
    * builder catalog and the offline eval harness all keep the shape they have.
    */
   needsAuthor?: boolean;
+  /** Requires persisted rendition/media evidence before evaluating a shell. */
+  needsTextMedia?: boolean;
+  /** Additional content evidence needed only by cited-link or alt-text filters. */
+  needsSources?: boolean;
+  needsVariantAlt?: boolean;
   /** Optional in-memory predicate applied to the merged candidate pool. */
   keep?(post: CandidatePost, ctx: FeedEngineContext, params: Record<string, unknown>): boolean;
 }
@@ -240,6 +255,8 @@ export interface ModuleRef {
  * common value.
  */
 export interface FeedExecution {
+  /** Preserve ranked deferrals and source progress in Redis for this surface. */
+  sessionPagination?: boolean;
   /** Enable self-thread grouping during slicing. Default `true`. */
   threadGrouping?: boolean;
   /** Inject reply-context parent slices. Default `false`. */
@@ -287,16 +304,12 @@ export interface FeedExecution {
    */
   preScored?: boolean;
   /**
-   * DISCOVERY-SHARE CAP (Phase 5) — the maximum SHARE (0..1) of a rendered ranked
-   * page that may come from DISCOVERY lanes (slices whose anchor post carries the
-   * opaque `_discovery` marker). After author diversification, and INSIDE the
-   * already-selected page window, `capDiscoveryShare` DEFERS — never drops (same
-   * contract as `diversifyByAuthor`) — discovery slices beyond
-   * `floor(maxDiscoveryShare · limit)` to the page tail, guaranteeing a floor for
-   * trusted (following / affinity / lists) content. Running it on a deeper pool
-   * and truncating afterwards would make that deferral a silent drop; see
-   * `FeedEngine.finalizeRanked`. Unset (every feed except For You) = no cap. On a
-   * thin follow graph the cap is simply unmet and discovery backfills the page.
+   * Maximum preferred discovery share (0..1) of a ranked session page, measured
+   * from its anchors' `_discovery` origin markers. Joint page selection preserves
+   * deferred candidates independently of source progress. Author diversity takes
+   * priority when a concentrated trusted pool cannot satisfy the trusted floor;
+   * discovery then fills the page. Unset means no share preference. The stateless
+   * degradation path only reorders its fixed score window to avoid cursor loss.
    */
   maxDiscoveryShare?: number;
 }

@@ -1,3 +1,5 @@
+import { observeFederationImportReason } from '../../db/federation/importProvenanceRepository';
+import type { FederationImportReason } from '../../db/schema/federationImports';
 import { and, eq } from 'drizzle-orm';
 import { postMatchesFederatedObjectSql } from '../shared/instagramSourceKey';
 import { isApActorType } from '@oxy.so/federation';
@@ -564,13 +566,12 @@ export class InboxProcessingService {
     // followed here. The in-memory check first.
     const isFollowed = (remoteActorUri: string) =>
       existsFollow({ remoteActorUri, direction: 'outbound', statuses: ['accepted'] });
-    if (
-      !addressedCommunity &&
-      !addressesLocalUsers(object) &&
-      !(await isFollowed(actorUri)) &&
-      !(relayedBy && (await isFollowed(relayedBy)))
-    )
-      return;
+    let importReason: FederationImportReason;
+    if (addressedCommunity) importReason = 'inbox_community';
+    else if (addressesLocalUsers(object)) importReason = 'inbox_mention';
+    else if (await isFollowed(actorUri)) importReason = 'inbox_follow';
+    else if (relayedBy && (await isFollowed(relayedBy))) importReason = 'inbox_community';
+    else return;
 
     // Sanitize and check content length
     const rawContent = note.content || '';
@@ -586,7 +587,10 @@ export class InboxProcessingService {
       .from(posts)
       .where(postMatchesFederatedObjectSql(note.id))
       .limit(1);
-    if (existingPost) return;
+    if (existingPost) {
+      await observeFederationImportReason([existingPost.id], importReason);
+      return;
+    }
 
     // The Oxy link is MANDATORY: a federated post must carry a real Oxy author,
     // never a null one. Resolve the actor and REQUIRE its `oxyUserId`. When the
@@ -735,6 +739,7 @@ export class InboxProcessingService {
     const createdPost = await getPostCreator().create({
       oxyUserId: authorOxyUserId,
       federation: buildFederatedNoteProvenance({
+        importReason,
         activityId: note.id,
         actorUri,
         inReplyTo: inReplyToUri,
@@ -1382,7 +1387,7 @@ const inboundDispatcherConfig: InboundDispatcherConfig = {
   onOutboundFollowAccepted: async (actorUri) => {
     const actor = await findActorByUri(actorUri);
     if (actor) {
-      outboxSyncService.syncOutboxPosts(actor, 20).catch((err) => {
+      outboxSyncService.syncOutboxPosts(actor, 20, 'followed_outbox').catch((err) => {
         const message = err instanceof Error ? err.message : String(err);
         logger.warn('[Federation] failed to sync outbox after accept', {
           error: message,
