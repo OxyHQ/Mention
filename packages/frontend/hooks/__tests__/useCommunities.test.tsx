@@ -83,6 +83,7 @@ describe('community reads', () => {
     await act(() => afterCreate('channel'));
     expect(mockRefreshPrivacyLists).not.toHaveBeenCalled();
     await act(() => afterCreate('community'));
+    await flush();
     expect(mockRefreshPrivacyLists).toHaveBeenCalledTimes(1);
     expect(mockJoined).toHaveBeenCalledTimes(1);
   });
