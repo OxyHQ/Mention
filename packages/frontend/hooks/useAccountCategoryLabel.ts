@@ -1,41 +1,39 @@
-import { useCallback } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { AccountCategoryId } from '@oxy.so/contracts';
-
-import { ACCOUNT_CATEGORY_ENGLISH_LABELS } from '@/utils/accountCategories';
+import {
+  accountCategoryLabel,
+  getLocalesVersion,
+  subscribeLocales,
+  type AccountCategoryId,
+} from '@oxy.so/core';
 
 /**
- * Names an account-category id in the READER's language.
+ * Names an account-category id in the READER's language, with Oxy's own
+ * vocabulary (`accountCategoryLabel` in `@oxy.so/core`) — the same words the
+ * account settings and every other Oxy app use, in every language Mention
+ * ships. Mention keeps no copy of the labels.
  *
  * TOTAL over the vocabulary this build knows, and that is the whole reason the
  * "can this be named at all" question lives elsewhere — in
  * `isKnownAccountCategoryId`, `primaryAccountCategoryId` and
  * `nameableAccountCategoryIds`. An id the server sends and this build has never
- * heard of is not a labelling failure to paper over with a fallback string; it
- * is a decision each surface has to make for itself, and the profile, the about
- * screen and the picker all make it differently. Handing back a plausible
- * string for an unknown id would take that decision away from all three.
+ * heard of is a decision each surface makes for itself.
  *
- * The key is written as a literal template so the i18n validator records
- * `accounts.accountCategory.` as a reachable prefix — built from a variable, the
- * whole catalog would read as unreachable and the orphan check would demand its
- * deletion. The shape is the one the Oxy SDK's own `User.accountCategories`
- * docstring names, so a label shown here and one shown in the account manager
- * cannot drift apart.
- *
- * The English `defaultValue` is what keeps a missing catalog entry from
- * rendering the KEY at a reader — i18next echoes the key when it resolves
- * nothing, and `accounts.accountCategory.news` on a profile is worse than the
- * raw slug this indirection exists to avoid.
+ * Core loads a non-English dictionary on demand and serves English until it
+ * lands; the version subscription re-renders the label when it does.
  */
 export function useAccountCategoryLabel(): (id: AccountCategoryId) => string {
-  const { t } = useTranslation();
+  const { i18n } = useTranslation();
+  const language = i18n.language;
+  const localesVersion = useSyncExternalStore(
+    subscribeLocales,
+    getLocalesVersion,
+    getLocalesVersion,
+  );
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `localesVersion` is the re-translate signal — a new function once a dictionary lands.
   return useCallback(
-    (id: AccountCategoryId): string =>
-      t(`accounts.accountCategory.${id}`, {
-        defaultValue: ACCOUNT_CATEGORY_ENGLISH_LABELS[id],
-      }),
-    [t],
+    (id: AccountCategoryId): string => accountCategoryLabel(language, id),
+    [language, localesVersion],
   );
 }

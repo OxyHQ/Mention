@@ -17,21 +17,24 @@ import { AccountCategoryLine } from '../AccountCategoryLine';
  *    fixture, so the primary is deliberately NOT the alphabetically first id:
  *    sorted, `['music','news','art']` leads with `art`.
  *
- * The translator is mocked to answer from a small Spanish catalog and to fall
- * back to the `defaultValue` otherwise, which is what lets one test prove the
- * reader's language wins AND another prove the key shape is the one the label
- * is actually stored under — a wrong key would silently render English.
+ * Oxy's labeller is mocked to answer from a small Spanish catalog for the
+ * reader's language and English otherwise (core's per-key fallback), which is
+ * what lets one test prove the READER's language reaches it — a component that
+ * ignored `i18n.language` would render English.
  */
 
-const READER_CATALOG: Record<string, string> = {
-  'accounts.accountCategory.music': 'Música',
-};
+const READER_LANGUAGE = 'es';
+const SPANISH: Record<string, string> = { music: 'Música' };
+const ENGLISH: Record<string, string> = { music: 'Music', news: 'News', art: 'Art' };
 
 jest.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, options?: { defaultValue?: string }) =>
-      READER_CATALOG[key] ?? options?.defaultValue ?? key,
-  }),
+  useTranslation: () => ({ i18n: { language: READER_LANGUAGE } }),
+}));
+jest.mock('@oxy.so/core', () => ({
+  accountCategoryLabel: (locale: string, id: string) =>
+    (locale === READER_LANGUAGE ? SPANISH[id] : undefined) ?? ENGLISH[id] ?? id,
+  subscribeLocales: () => () => {},
+  getLocalesVersion: () => 0,
 }));
 
 /** Stored order: `music` is the primary. Sorted, `art` would lead. */
@@ -98,9 +101,9 @@ describe('AccountCategoryLine', () => {
     expect(renderedTexts(['news', 'music', 'art'])).toEqual(['News']);
   });
 
-  it('renders it in the READER’s language, under the shared key shape', () => {
-    // 'Música' can only come from `accounts.accountCategory.music`; any other
-    // key falls through to the English defaultValue and reads 'Music'.
+  it('renders it in the READER’s language', () => {
+    // 'Música' can only come from asking Oxy's labeller in the reader's
+    // language; any other language reads 'Music'.
     expect(renderedTexts(['music'])).toEqual(['Música']);
     // And an id the reader's catalog has no entry for still renders English
     // rather than the key or the slug.
