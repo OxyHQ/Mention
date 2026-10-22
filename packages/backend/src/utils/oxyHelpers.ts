@@ -145,6 +145,7 @@ function unwrapDataEnvelope(value: unknown): unknown {
 
 interface DelegatedViewerGraph {
   followingIds?: unknown;
+  mutualIds?: unknown;
   blockedIds?: unknown;
   restrictedIds?: unknown;
 }
@@ -156,7 +157,7 @@ interface DelegatedViewerGraph {
  */
 function connectionGraphIds(
   graph: DelegatedViewerGraph,
-  key: 'blockedIds' | 'restrictedIds',
+  key: 'blockedIds' | 'restrictedIds' | 'mutualIds',
 ): string[] {
   const ids = graph[key];
   if (!Array.isArray(ids)) {
@@ -218,14 +219,17 @@ function createServiceDelegatedOxyClient(viewerId: string, connectionToken?: str
     return connectionGraph;
   };
 
-  const viewerGraph = (): Promise<unknown> => {
-    if (connectionToken) return readConnectionGraph(connectionToken);
-    return Promise.reject(
+  const delegationRefused = (): Promise<never> =>
+    Promise.reject(
       Object.assign(
         new Error('Viewer graph requires the existing central OAuth connection proof'),
         { code: 'SERVICE_DELEGATION_NOT_AUTHORIZED' },
       ),
     );
+
+  const viewerGraph = (): Promise<unknown> => {
+    if (connectionToken) return readConnectionGraph(connectionToken);
+    return delegationRefused();
   };
 
   const privacyList = async (listType: 'blocked' | 'restricted'): Promise<unknown[]> => {
@@ -260,6 +264,17 @@ function createServiceDelegatedOxyClient(viewerId: string, connectionToken?: str
       },
       followers(userId: string): Promise<unknown> {
         return client.follows.followers(userId);
+      },
+      // The connection graph carries the served account's mutuals; without the
+      // connection proof there is no viewer to read them for.
+      async mutualIds(params?: { limit?: number }): Promise<string[]> {
+        if (!connectionToken) return delegationRefused();
+        const ids = connectionGraphIds(await readConnectionGraph(connectionToken), 'mutualIds');
+        return params?.limit === undefined ? ids : ids.slice(0, params.limit);
+      },
+      // Oxy has no connection-proof read of the two-hop walk.
+      followsOfFollowsIds(): Promise<string[]> {
+        return delegationRefused();
       },
     },
   };

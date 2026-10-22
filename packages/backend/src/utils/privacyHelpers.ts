@@ -42,6 +42,15 @@ export interface OxyClient {
      * meaningful on a viewer-scoped client (`createScopedOxyClient`).
      */
     viewerGraph(): Promise<unknown>;
+    /**
+     * The viewer's OWN mutual-follow ids (`GET /users/mutual-ids`) and
+     * follows-of-follows ids (`GET /users/follows-of-follows-ids`). Oxy derives
+     * the viewer from the credential, so like {@link viewerGraph} these are only
+     * meaningful on a viewer-scoped client: a process-wide service client has no
+     * viewer and is answered `[]`.
+     */
+    mutualIds(params?: { limit?: number }): Promise<string[]>;
+    followsOfFollowsIds(params?: { limit?: number }): Promise<string[]>;
   };
 }
 

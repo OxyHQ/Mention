@@ -181,9 +181,13 @@ async function getFederatedMutualIds(
 
 /**
  * The viewer's mutual-follow author ids for the Mutuals feed: Oxy graph mutuals
- * (via `@oxy.so/core` `getMutualUserIds`) ∪ federated mutuals. Both branches
- * soft-fail to `[]`, so a failure in either source degrades the Mutuals feed to
- * the other rather than erroring. Deduped and capped.
+ * ∪ federated mutuals. Both branches soft-fail to `[]`, so a failure in either
+ * source degrades the Mutuals feed to the other rather than erroring. Deduped
+ * and capped.
+ *
+ * `oxyClient` must be the REQUEST's viewer-scoped client: Oxy derives the
+ * viewer from the credential, and the process-wide service client has none, so
+ * it is always answered `[]`.
  *
  * `acceptedOutboundFollowUris` is the caller's already-in-flight read of the
  * viewer's accepted outbound federated follows, forwarded to
@@ -192,13 +196,15 @@ async function getFederatedMutualIds(
  */
 async function computeMutualIds(
   currentUserId: string,
+  oxyClient: OxyClient | undefined,
   acceptedOutboundFollowUris?: Promise<string[]>,
 ): Promise<string[]> {
   // The two sources are independent, so neither waits for the other.
   const [oxyMutualIds, federatedMutualIds] = await Promise.all([
     (async () => {
+      if (!oxyClient) return [];
       try {
-        const ids = await getRuntimeOxyClient().follows.mutualIds({ limit: MAX_MUTUAL_IDS });
+        const ids = await oxyClient.follows.mutualIds({ limit: MAX_MUTUAL_IDS });
         return ids.filter((id) => id.length > 0);
       } catch (error) {
         logger.warn('[MtnFeedController] Failed to load Oxy mutual ids', error);
@@ -222,32 +228,14 @@ async function computeMutualIds(
 const MAX_FOF_IDS = 5000;
 
 /**
- * Structural capability for the Oxy follows-of-follows endpoint. The SDK method
- * is not shipped yet (upstream, handled separately), so it is invoked via a
- * runtime capability check rather than a hard dependency — exactly the mutuals
- * upstream pattern. When the method lands on `@oxy.so/core`, this guard passes and
- * the feed goes live with no further Mention change.
+ * The viewer's friends-of-friends author ids for the Friends-of-Friends feed,
+ * from Oxy's follows-of-follows read on the REQUEST's viewer-scoped client (see
+ * {@link computeMutualIds} for why it must be that one). Bounded and deduped by
+ * the endpoint contract (excludes the viewer's own follows and self); a failure
+ * soft-fails to `[]`.
  */
-interface FollowsOfFollowsCapable {
-  getFollowsOfFollowsIds(params?: { limit?: number }): Promise<string[]>;
-}
-
-function supportsFollowsOfFollows(client: unknown): client is FollowsOfFollowsCapable {
-  return (
-    typeof (client as { getFollowsOfFollowsIds?: unknown }).getFollowsOfFollowsIds === 'function'
-  );
-}
-
-/**
- * The viewer's friends-of-friends author ids for the Friends-of-Friends feed.
- * Resolved via the Oxy follows-of-follows endpoint (guarded optional call: the
- * SDK method does not exist yet, so this soft-fails to `[]` until it ships).
- * Bounded + deduped by the endpoint contract (excludes the viewer's own follows
- * and self).
- */
-async function computeFriendsOfFriendsIds(): Promise<string[]> {
-  const oxyClient = getRuntimeOxyClient();
-  if (!supportsFollowsOfFollows(oxyClient)) return [];
+async function computeFriendsOfFriendsIds(oxyClient: OxyClient | undefined): Promise<string[]> {
+  if (!oxyClient) return [];
   try {
     const ids = await oxyClient.follows.followsOfFollowsIds({ limit: MAX_FOF_IDS });
     return ids.filter((id) => typeof id === 'string' && id.length > 0).slice(0, MAX_FOF_IDS);
@@ -456,8 +444,8 @@ class MtnFeedController {
       const needsMutuals =
         !!currentUserId &&
         (feedSource === 'mutuals' || (feedSource === 'for_you' && forYouUsesSocialProof()));
-      // The Friends-of-Friends feed needs the viewer's follows-of-follows id set
-      // (guarded Oxy optional call). Resolved ONLY for that descriptor.
+      // The Friends-of-Friends feed needs the viewer's follows-of-follows id set.
+      // Resolved ONLY for that descriptor.
       const needsFof = !!currentUserId && feedSource === 'friends_of_friends';
 
       // Prefetched here so it runs in parallel with the context load; only consumed
@@ -510,9 +498,11 @@ class MtnFeedController {
         // `computeMutualIds` soft-fails each branch to `[]`, so a lookup failure
         // never breaks the feed.
         needsMutuals && currentUserId
-          ? computeMutualIds(currentUserId, acceptedOutboundFollowUris)
+          ? computeMutualIds(currentUserId, requestOxyClient, acceptedOutboundFollowUris)
           : Promise.resolve<string[] | null>(null),
-        needsFof ? computeFriendsOfFriendsIds() : Promise.resolve<string[] | null>(null),
+        needsFof
+          ? computeFriendsOfFriendsIds(requestOxyClient)
+          : Promise.resolve<string[] | null>(null),
       ]);
 
       context.privacyOxyClient = requestOxyClient;

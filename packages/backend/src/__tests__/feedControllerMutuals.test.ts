@@ -1,7 +1,21 @@
 import { adultSafetyFixture } from './helpers/adultSafety';
+// The graph id reads go through the REQUEST's viewer-scoped client: Oxy derives
+// the viewer from the credential, so the process-wide client would answer `[]`.
+const getMutualUserIds = vi.fn(async () => ['oxymutual']);
+const getFollowsOfFollowsIds = vi.fn(async () => ['oxyfof']);
 vi.mock('../utils/oxyHelpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../utils/oxyHelpers')>()),
   getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
+  createScopedOxyClient: () => ({
+    privacy: { blocked: vi.fn(async () => []), restricted: vi.fn(async () => []) },
+    follows: {
+      following: vi.fn(async () => ({ data: [] })),
+      followers: vi.fn(async () => ({ data: [] })),
+      viewerGraph: vi.fn(async () => ({ followingIds: [], mutualIds: [] })),
+      mutualIds: (...a: unknown[]) => getMutualUserIds(...(a as [])),
+      followsOfFollowsIds: (...a: unknown[]) => getFollowsOfFollowsIds(...(a as [])),
+    },
+  }),
 }));
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -32,25 +46,11 @@ vi.mock('../mtn/feed/engine/FeedEngine', () => ({
   },
 }));
 
-const getMutualUserIds = vi.fn(async () => ['oxymutual']);
 vi.mock('../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({
     follows: {
-      following: vi.fn(async () => ({ data: [] })),
-      mutualIds: (...a: unknown[]) => getMutualUserIds(...(a as [])),
-    },
-  }),
-}));
-vi.mock('../runtime/oxyClient', () => ({
-  getRuntimeOxyClient: () => ({
-    privacy: {
-      blocked: vi.fn(async () => []),
-      restricted: vi.fn(async () => []),
-    },
-    follows: {
-      following: vi.fn(async () => ({ data: [] })),
-      followers: vi.fn(async () => ({ data: [] })),
-      mutualIds: (...a: unknown[]) => getMutualUserIds(...(a as [])),
+      mutualIds: vi.fn(async () => ['runtime-client-has-no-viewer']),
+      followsOfFollowsIds: vi.fn(async () => ['runtime-client-has-no-viewer']),
     },
   }),
 }));
@@ -179,6 +179,16 @@ describe('MtnFeedController.getFeed → ctx.mutualIds', () => {
     await mtnFeedController.getFeed(req, makeRes() as never);
     expect(capturedContext?.mutualIds).toBeUndefined();
     expect(getMutualUserIds).not.toHaveBeenCalled();
+  });
+
+  it('builds fofIds for a friends_of_friends descriptor', async () => {
+    const req = {
+      accessToken: 'test-viewer-session',
+      query: { descriptor: 'friends_of_friends' },
+      user: { id: VIEWER },
+    } as never;
+    await mtnFeedController.getFeed(req, makeRes() as never);
+    expect(capturedContext?.fofIds).toEqual(['oxyfof']);
   });
 
   it('does NOT compute mutualIds for an anonymous mutuals request', async () => {
