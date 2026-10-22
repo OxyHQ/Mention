@@ -4,6 +4,7 @@ import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { isBannedFromCommunity } from '../../db/communities/communityBanRepository';
 import { resolveCommunities } from '../publishAsAccount';
+import { isInCommunitiesPreview } from './communityPreview';
 
 /**
  * Which community a post written HERE is written in — the one rule for a native
@@ -91,6 +92,11 @@ export async function resolveNativePostCommunity(params: {
     }
     if (params.hasTitle) throw new CommunityPostError(400, 'A reply carries no title');
   } else if (requested) {
+    // Communities are a private preview: outside it, naming one is answered as
+    // an unknown thing, before any rule that would tell it apart from a real one.
+    if (!(await isInCommunitiesPreview(params.authorId))) {
+      throw new CommunityPostError(404, 'Not Found');
+    }
     if (params.boostOf) throw new CommunityPostError(400, 'A boost is not written in a community');
     if (params.publishedAsAccount) {
       throw new CommunityPostError(400, 'A community post is written as yourself');
@@ -104,6 +110,14 @@ export async function resolveNativePostCommunity(params: {
     communityId = requested;
   } else {
     if (params.hasTitle) throw new CommunityPostError(400, 'A title is for a community post');
+    return null;
+  }
+
+  // A reply in a community's thread outside the preview is an ordinary reply, as
+  // it was before communities existed — unless it names the community, which is
+  // answered as an unknown thing like any other mention of one.
+  if (communityId && !(await isInCommunitiesPreview(params.authorId))) {
+    if (requested) throw new CommunityPostError(404, 'Not Found');
     return null;
   }
 

@@ -10,6 +10,19 @@
 
 import type { PostUser } from './post';
 
+/**
+ * Communities are in a private preview: only these accounts see or use them.
+ * One list for the app (what to show) and the server (what to answer), so the
+ * two cannot disagree about who is in. Compared lower-cased, without spacing.
+ */
+export const COMMUNITY_PREVIEW_HANDLES: readonly string[] = ['oxy', 'nate'];
+
+/** Whether the account with this handle is in the communities preview. */
+export function canUseCommunities(username: string | null | undefined): boolean {
+  const handle = username?.trim().toLowerCase();
+  return !!handle && COMMUNITY_PREVIEW_HANDLES.includes(handle);
+}
+
 /** Longest reason a moderator may give for a removal or a ban. */
 export const COMMUNITY_MODERATION_REASON_MAX_LENGTH = 300;
 

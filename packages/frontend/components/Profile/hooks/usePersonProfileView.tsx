@@ -1,4 +1,5 @@
 import { IconButton } from '@oxy.so/bloom/button';
+import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
 import type React from 'react';
 import { useCallback, useEffect, useMemo } from 'react';
 import { Share, Text, View } from 'react-native';
@@ -167,6 +168,7 @@ export function usePersonProfileView({
   const { handle, isFederated } = account;
   const routedCanonicalHref = useProfileCanonicalHref({ routedFamily: 'person', account });
   const { user: currentUser, canUsePrivateApi } = useAuth();
+  const communitiesPreview = useCommunitiesPreview();
   const { t } = useTranslation();
   const { ask: askAlia } = useAskAgent();
 
@@ -507,7 +509,7 @@ export function usePersonProfileView({
           )}
           {/* A community takes posts from here, hosted here or remote; one hosted
               here also says who moderates it. */}
-          {profileData.kind === 'community' && profileData.id && (
+          {communitiesPreview && profileData.kind === 'community' && profileData.id && (
             <CommunityPanel communityId={profileData.id} hosted={isMentionCommunity(profileData)} />
           )}
           {profileData.movedTo && <ProfileMovedNotice movedTo={profileData.movedTo} />}

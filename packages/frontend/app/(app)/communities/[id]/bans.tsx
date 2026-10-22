@@ -20,6 +20,7 @@ import { communityService } from '@/services/communityService';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { FocusedScrollView } from '@/components/common/FocusedScrollView';
 import { SignInRequired } from '@/components/common/SignInRequired';
+import { CommunitiesPreviewGate } from '@/hooks/useCommunitiesPreview';
 
 /**
  * Who a community's moderators banned from posting in it, and the way to lift a
@@ -27,7 +28,7 @@ import { SignInRequired } from '@/components/common/SignInRequired';
  * change this list (`assertCanModerateCommunity`), so a non-moderator sees its
  * refusal rather than a list.
  */
-export default function CommunityBansScreen() {
+function CommunityBansScreen() {
   const { t } = useTranslation();
   const safeBack = useSafeBack();
   const queryClient = useQueryClient();
@@ -117,5 +118,13 @@ export default function CommunityBansScreen() {
         </FocusedScrollView>
       </SignInRequired>
     </View>
+  );
+}
+
+export default function CommunityBansRoute() {
+  return (
+    <CommunitiesPreviewGate>
+      <CommunityBansScreen />
+    </CommunitiesPreviewGate>
   );
 }

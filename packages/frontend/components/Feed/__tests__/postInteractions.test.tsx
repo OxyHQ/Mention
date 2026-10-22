@@ -399,7 +399,11 @@ describe('menu', () => {
   });
 
   it("offers a community's moderation only to its moderators, asked of the account graph", async () => {
-    mockAuth = { user: { id: 'viewer-1' }, isAuthenticated: true, canUsePrivateApi: true };
+    mockAuth = {
+      user: { id: 'viewer-1', username: 'nate' },
+      isAuthenticated: true,
+      canUsePrivateApi: true,
+    };
     const commands = capture((probe) => (
       <PostInteractionsProvider>
         <PostInteractionsBinder />
@@ -428,6 +432,35 @@ describe('menu', () => {
       commands.openMenu({ post: inCommunity, isPostDetail: false, onOpenArticle: jest.fn() });
     });
     expect(labelsOf(1)).not.toContain('Remove from !{{community}}');
+  });
+
+  it('never offers community moderation, nor asks the account graph, outside the preview', async () => {
+    mockAuth = {
+      user: { id: 'viewer-2', username: 'ada' },
+      isAuthenticated: true,
+      canUsePrivateApi: true,
+    };
+    const commands = capture((probe) => (
+      <PostInteractionsProvider>
+        <PostInteractionsBinder />
+        {probe}
+      </PostInteractionsProvider>
+    ));
+    const inCommunity = {
+      ...post('in-forum'),
+      community: { id: 'forum-1', username: 'forum', kind: 'community', isFederated: false },
+    } as HydratedPost;
+    mockEnsureQueryData.mockClear();
+    await act(async () => {
+      commands.openMenu({ post: inCommunity, isPostDetail: false, onOpenArticle: jest.fn() });
+    });
+    const labels = (
+      mockShowActionMenu.mock.calls.at(-1)?.[0] as { groups: { label: string }[][] }
+    ).groups
+      .flat()
+      .map((action) => action.label);
+    expect(labels).not.toContain('Remove from !{{community}}');
+    expect(mockEnsureQueryData).not.toHaveBeenCalled();
   });
 
   it('builds nothing until pressed', () => {
