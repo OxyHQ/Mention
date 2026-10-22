@@ -1,4 +1,5 @@
 import { FeedSkeleton, FormSkeleton } from '@/components/loading/ContentSkeleton';
+import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
 import { homiioCaseFromText } from '@mention/shared-types/homiio';
 import { HomiioCaseCard } from '@/components/Post/Attachments/HomiioCaseCard';
 import { useSupervisionState } from '@/hooks/useSupervisionState';
@@ -217,6 +218,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const intentConflictControl = useDialogControl();
   const translateOverwriteControl = useDialogControl();
   const { user, showBottomSheet, oxyServices } = useAuth();
+  const communitiesPreview = useCommunitiesPreview();
   const supervision = useSupervisionState();
   const mentionSearchCache = useCreateMentionSearchCache();
   const { createPost, createThread, createReply, cachePosts, boostPost } = usePostsStore();
@@ -632,6 +634,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
    * drawn either.
    */
   const communityEligible =
+    communitiesPreview &&
     !replyToPostId &&
     !isEditMode &&
     (threadItems.length === 0 || postingMode === 'thread') &&
@@ -968,7 +971,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     // A community page's "Post" button: the community the post is written in.
     // Its handle is read back for the chip; whether the author may post in it
     // is the server's answer, on publish.
-    if (intent.community) {
+    if (intent.community && communitiesPreview) {
       const communityId = intent.community;
       setCommunity({ id: communityId, username: '' });
       oxyServices.users

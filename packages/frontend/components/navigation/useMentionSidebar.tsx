@@ -30,6 +30,7 @@ import { Video, VideoActive } from '@/assets/icons/video-icon';
 import { Hashtag, HashtagActive } from '@/assets/icons/hashtag-icon';
 import { ChannelIcon, ChannelIconActive } from '@/assets/icons/channel-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
+import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
 
 function LiveRoomsIcon({ size = 24, color }: { size?: number; color?: string }) {
   return <RiBroadcastLine width={size} height={size} fill={color} />;
@@ -56,6 +57,7 @@ export function useMentionSidebar(): SidebarProps {
   const deckEnabled = useDeckSettings((state) => state.deckEnabled);
   const router = useRouter();
   const { user, signIn } = useAuth();
+  const communitiesPreview = useCommunitiesPreview();
   const avatarUri = user?.avatar;
   // Photo-less accounts get their initial, as in the Oxy account menu.
   const avatarName = user?.name?.displayName || user?.username || undefined;
@@ -172,12 +174,16 @@ export function useMentionSidebar(): SidebarProps {
         iconActive: <ChannelIconActive />,
         route: '/channels',
       },
-      {
-        title: t('sidebar.communities', { defaultValue: 'Communities' }),
-        icon: <CommunitiesIcon />,
-        iconActive: <CommunitiesIconActive />,
-        route: '/communities',
-      },
+      ...(communitiesPreview
+        ? [
+            {
+              title: t('sidebar.communities', { defaultValue: 'Communities' }),
+              icon: <CommunitiesIcon />,
+              iconActive: <CommunitiesIconActive />,
+              route: '/communities' as Href,
+            },
+          ]
+        : []),
       {
         title: t('sidebar.saved'),
         icon: <Bookmark />,
@@ -210,7 +216,7 @@ export function useMentionSidebar(): SidebarProps {
         onPress: handleOpenSettings,
       },
     ],
-    [t, user, avatarUri, avatarName, handleNavigateProfile, handleOpenSettings],
+    [t, user, avatarUri, avatarName, handleNavigateProfile, handleOpenSettings, communitiesPreview],
   );
 
   const pathname = usePathname();

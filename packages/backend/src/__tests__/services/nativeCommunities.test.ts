@@ -12,6 +12,10 @@ const h = vi.hoisted(() => ({
   publicationPolicies: vi.fn(),
   deliverToFollowers: vi.fn(async () => undefined),
 }));
+// Communities are a private preview; everyone but OUTSIDER is in it here.
+vi.mock('../../services/communities/communityPreview', () => ({
+  isInCommunitiesPreview: async (id: string | null) => !!id && !id.includes('outsider'),
+}));
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async () => []) },
   resolveUserSummaries: h.resolveUserSummaries,
@@ -68,6 +72,7 @@ const MEMBER = scope.user('member');
 const REPLIER = scope.user('replier');
 const BANNED = scope.user('banned');
 const COMMUNITY = scope.user('forum');
+const OUTSIDER = scope.user('outsider');
 const MODERATOR = scope.user('moderator');
 const LEMMY = scope.user('lemmy-technology');
 const LEMMY_ACTOR = 'https://lemmy.example/c/technology';
@@ -217,6 +222,24 @@ describe('a community hosted here', () => {
       visibility: PostVisibility.FOLLOWERS_ONLY,
     });
     expect((privatePost as CommunityPostError).status).toBe(400);
+
+    // Outside the preview a community does not exist: naming one is a 404, and
+    // a reply in its thread is an ordinary reply that is not filed under it.
+    const outsiderPost = await refusal({
+      oxyUserId: OUTSIDER,
+      content: { text: 'is it there?' },
+      communityOxyUserId: COMMUNITY,
+    });
+    expect((outsiderPost as CommunityPostError).status).toBe(404);
+    const outsiderReply = await postCreationService.create({
+      oxyUserId: OUTSIDER,
+      content: { text: 'just a reply' },
+      parentPostId: post.id,
+      threadId: post.id,
+      ...quiet,
+    });
+    trackPost(scope, outsiderReply.id);
+    expect((await readPost(outsiderReply.id))?.communityOxyUserId).toBeNull();
   });
 
   it("relays its members' posts as Announces, and stops vouching once a moderator removes one", async () => {
