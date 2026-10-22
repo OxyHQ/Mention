@@ -1,0 +1,155 @@
+{
+  "authenticated": {
+    "account": "@nate",
+    "requestLimit": 20,
+    "requestLanguage": null,
+    "summaries": [
+      {
+        "feed": "following",
+        "at": "2026-10-22T17:37:37.686Z",
+        "lastAt": "2026-10-22T17:38:08.794Z",
+        "backendRange": "rollout 8c72f104b1aa54bf90a4979dd91597707565d4c8 (691) -> 4cb7f5c4ec0499cd646526bbf495ce9ccc580b12 (692); both include PR1574",
+        "pages": 10,
+        "flat": 225,
+        "slices": 194,
+        "uniqueFocal": 194,
+        "slicesPerPage": [
+          20,
+          20,
+          20,
+          20,
+          18,
+          20,
+          18,
+          20,
+          19,
+          19
+        ],
+        "flatPerPage": [
+          20,
+          22,
+          21,
+          23,
+          21,
+          23,
+          24,
+          25,
+          22,
+          24
+        ],
+        "repeatFocal": 0,
+        "repeatSlices": 0,
+        "allHasMore": true,
+        "cursorType": "stateless"
+      },
+      {
+        "feed": "following_direct",
+        "at": "2026-10-22T17:38:28.713Z",
+        "lastAt": "2026-10-22T17:38:55.803Z",
+        "backendRange": "rollout 8c72f104b1aa54bf90a4979dd91597707565d4c8 (691) -> 4cb7f5c4ec0499cd646526bbf495ce9ccc580b12 (692); both include PR1574",
+        "pages": 10,
+        "flat": 225,
+        "slices": 194,
+        "uniqueFocal": 194,
+        "slicesPerPage": [
+          20,
+          20,
+          20,
+          20,
+          18,
+          20,
+          18,
+          20,
+          19,
+          19
+        ],
+        "flatPerPage": [
+          20,
+          22,
+          21,
+          23,
+          21,
+          23,
+          24,
+          25,
+          22,
+          24
+        ],
+        "repeatFocal": 0,
+        "repeatSlices": 0,
+        "allHasMore": true,
+        "cursorType": "stateless"
+      }
+    ],
+    "limits": [
+      "Read during691\u2192692 rollout; both confirmed code histories contain PR1574.",
+      "Flat conversation context may exceed20. Live sample establishes page counts and observed no repeats, not exhaustive losslessness.",
+      "User identity reverified before reads. No deliberate engagement/settings/subscription writes."
+    ]
+  },
+  "anonymousPhp": {
+    "revision": "4cb7f5c4ec0499cd646526bbf495ce9ccc580b12",
+    "startedAt": "2026-10-22T17:39:37.995Z",
+    "finishedAt": "2026-10-22T17:39:40.467Z",
+    "headers": {
+      "Accept-Language": "en,es;q=0.9",
+      "Accept": "application/json"
+    },
+    "lang": "en",
+    "results": [
+      {
+        "descriptor": "hashtag|php",
+        "page": 1,
+        "requestedAt": "2026-10-22T17:39:38.550Z",
+        "focalPosts": 20,
+        "focalUniqueIds": 20,
+        "repeatedFocalIds": 0,
+        "status": 200,
+        "latencyMs": 992,
+        "flatItems": 20,
+        "slices": 20,
+        "repeatedSliceKeys": 0,
+        "hasMore": true,
+        "nextCursorType": "stateless"
+      },
+      {
+        "descriptor": "hashtag|php",
+        "page": 2,
+        "requestedAt": "2026-10-22T17:39:39.545Z",
+        "focalPosts": 20,
+        "focalUniqueIds": 20,
+        "repeatedFocalIds": 0,
+        "status": 200,
+        "latencyMs": 408,
+        "flatItems": 20,
+        "slices": 20,
+        "repeatedSliceKeys": 0,
+        "hasMore": true,
+        "nextCursorType": "stateless"
+      },
+      {
+        "descriptor": "hashtag|php",
+        "page": 3,
+        "requestedAt": "2026-10-22T17:39:39.954Z",
+        "focalPosts": 20,
+        "focalUniqueIds": 20,
+        "repeatedFocalIds": 0,
+        "status": 200,
+        "latencyMs": 509,
+        "flatItems": 20,
+        "slices": 20,
+        "repeatedSliceKeys": 0,
+        "hasMore": true,
+        "nextCursorType": "stateless"
+      }
+    ]
+  },
+  "anonymousContinuation": {
+    "canonicalPosts": 60,
+    "uniqueIds": 60,
+    "descendingCreatedAt": true,
+    "inversions": [],
+    "distinctCursorCount": 3,
+    "note": "Three-page live traversal verifies bounded pages, distinct advancing cursors and no observed repeats. Exhaustive losslessness was verified by actual-DB fixtures; this live sample cannot prove absence of skipped inventory."
+  }
+}

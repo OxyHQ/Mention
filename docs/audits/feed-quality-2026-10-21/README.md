@@ -687,3 +687,30 @@ source-URL diversity remain unproven. The owner-reviewed examples are contextual
 recommendation labels; they do not establish a general import-rejection classifier.
 No content, follows, subscriptions or saved items were changed to manufacture
 production evidence.
+
+
+### Chronological correction retest — 22 October 2026
+
+[Separate retest aggregates](./chronological-retest-2026-10-22.json) preserve the
+later release range and request times. The authenticated Following and Following
+direct captures ran at 17:37:37–17:38:55 UTC during rollout from backend revision
+691 (`8c72f104b1aa54bf90a4979dd91597707565d4c8`) to revision 692
+(`4cb7f5c4ec0499cd646526bbf495ce9ccc580b12`). Both code histories included
+PR #1574; this sample cannot be attributed to one exact serving revision per page.
+
+Each feed returned 194 logical slices across ten pages, with page sizes
+20/20/20/20/18/20/18/20/19/19. Neither traversal repeated focal IDs or slice keys;
+both retained continuation. Each had 225 flattened items because conversation
+context may legitimately exceed the logical page limit. User identity was
+reverified, and no explicit locale or deliberate engagement/settings writes were
+added to these authenticated reads.
+
+The anonymous PHP hashtag retest at 17:39:38–17:39:40 UTC ran on stable backend
+692, SHA `4cb7f5c4ec0499cd646526bbf495ce9ccc580b12`, with `?lang=en` and
+`Accept-Language: en,es;q=0.9`. Its three pages each returned 20 focal posts and
+20 slices: 60 unique IDs, zero observed repeats, descending creation timestamps,
+three distinct advancing cursors, and `hasMore: true` throughout. Direct elapsed
+times were 992, 408 and 509 ms. These live samples confirm corrected page bounds
+and observed continuation behavior; exhaustive absence of skipped inventory is
+supported by the separate real-database fixture, not proven by these live samples.
+The Media/Explore/MCP followup still requires its own release and acceptance capture.
