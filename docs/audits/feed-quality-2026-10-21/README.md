@@ -1,9 +1,10 @@
 # Feed quality audit — 21 October 2026
 
-Status: implementation and investigation in progress. The code observations below
-were verified against `origin/main` at `2bfaf0cd6`. They are not measurements of
-production impact. Production reads and review labels must be recorded separately;
-no subjective import filter or historical-content deletion is enabled by this work.
+Status: implementation merged; post-deployment verification pending. The initial
+code investigation used `origin/main` at `2bfaf0cd6`; the implementation merged as
+`b1b7b0b64ac8494169ec783d60eca4d275cbe8df`. Pre-release tests are not measurements of
+production impact. Production reads and review labels are recorded separately;
+no new subjective import filter or historical-content deletion is enabled by this work.
 
 ## Product contract agreed with the owner
 
@@ -155,10 +156,10 @@ asked for shorter questions and updates during this audit.
 
 | Public example | Owner assessment | Import decision |
 | --- | --- | --- |
-| [Standalone “3”](https://mention.earth/p/01a15cbe-daae-72e7-a9e4-f213850a9066) | Do not recommend, even when following its author. Chronological Following delivery remains a separate behavior. | No import rejection authorized. |
-| [“Good morning or whenever”](https://mention.earth/p/01a15f2a-a903-7d83-8402-d5dbc2986d8b) | May recommend in For You when following the author; not from a stranger. | No import rejection authorized. |
-| [PHP warning control](https://mention.earth/p/01a15fc2-1598-75cb-8828-b7cb97f7478b) | Uncertain; owner suggested following may matter. No approval or rejection established. | No import rejection authorized. |
-| [Personal bicycle diary](https://mention.earth/p/01a15ed9-d134-7ed7-ba4a-d5f0e9843a75): wondering whether to ride in the drizzle | Do not recommend when the viewer does not follow the author. This is the owner's contextual assessment of this example. | Following delivery and import unchanged. No author-wide or short-post exclusion authorized. |
+| [Standalone “3”](https://mention.earth/p/01a15cbe-daae-72e7-a9e4-f213850a9066) | Do not recommend, even when following its author. Chronological Following delivery remains a separate behavior. | Recommendation-only label; insufficient import evidence. |
+| [“Good morning or whenever”](https://mention.earth/p/01a15f2a-a903-7d83-8402-d5dbc2986d8b) | May recommend in For You when following the author; not from a stranger. | Recommendation-only label; insufficient import evidence. |
+| [PHP warning control](https://mention.earth/p/01a15fc2-1598-75cb-8828-b7cb97f7478b) | Uncertain; owner suggested following may matter. No approval or rejection established. | Recommendation-only label; insufficient import evidence. |
+| [Personal bicycle diary](https://mention.earth/p/01a15ed9-d134-7ed7-ba4a-d5f0e9843a75): wondering whether to ride in the drizzle | Do not recommend when the viewer does not follow the author. This is the owner's contextual assessment of this example. | Following delivery and import unchanged. This example does not establish an author-wide or short-post import rule. |
 
 The first three public items were inspected with no attached media, original, quote or parent.
 These concrete judgements do not establish a universal threshold. A possible rule
@@ -178,7 +179,7 @@ reference protecting context. No accepted outbound protocol-follow row was found
 for these samples, which does not prove absence of follows in Oxy's authoritative
 graph. Sampled Defector/Dawn items from For You page nine had quality 0.64/spam
 0.45, no measured engagement, no protocol follows and no references; their original
-import cause remained unknown. None of these observations authorizes cleanup.
+import cause remained unknown. None of these observations establishes sufficient evidence for cleanup.
 
 Videos was also paginated for eight pages: 152 posts without repeated IDs, ending
 with 12 posts on page eight. That traversal followed the For You reads and shared
@@ -369,9 +370,11 @@ descriptor routing, invalid and protected descriptors, anonymous personalized
 reads, scope rejection, exact capability headers and upstream refusals. Existing
 MCP integration and catalog tests remain required.
 
-Outstanding production evidence: exact capture-to-revision mapping and MCP commit attribution, canonical multi-page captures for every available
-surface, quality examples reviewed by the owner, import-trigger attribution where
-available, comparative ranking samples and cross-platform client behavior. Empty
+Outstanding production evidence: released backend/MCP/client attribution,
+canonical multi-page captures for every available surface, further quality examples
+reviewed by the owner, import-trigger attribution where available, comparative
+ranking samples and cross-platform client behavior. The earlier backend revision
+676 was attributed to `2bfaf0cd6`; that does not establish the new release's impact. Empty
 account-specific surfaces need fixture coverage and must not be reported as
 production defects without eligible inventory. No claim of exhaustive completion
 or improved production feed quality follows from code tests alone.
@@ -471,3 +474,88 @@ Vitest coverage (5,663 passed/four skipped tests, all configured floors met), th
 full Bun suite (2,505 tests across 225 files), and independent reproduction of the
 original coauthor case: hidden, muted and blocked matches now yield no bell match
 and multiplier one; an eligible coauthor still retains its intended boost.
+
+
+## Merge and release verification
+
+[PR #1567](https://github.com/OxyHQ/Mention/pull/1567) merged through the protected
+queue at **2026-10-21 23:04:04 UTC** as
+`b1b7b0b64ac8494169ec783d60eca4d275cbe8df`.
+[Queue CI 39689887126](https://github.com/OxyHQ/Mention/actions/runs/39689887126)
+completed successfully on that exact SHA: build/lint/types, all three backend test
+shards, frontend tests, shared-types/MCP, browser gate and frontend bundle budget
+passed. The provenance and baseline jobs were skipped by their workflow conditions;
+they are not represented as executed checks. Backend, MCP and frontend deployment
+workflows subsequently started; their completion and actual live artifacts remain
+to be verified independently.
+
+### Remaining import-quality acceptance work
+
+This release improves recommendation behavior and records evidence needed for
+future import decisions. It does **not** establish that needless import volume
+has decreased. The owner's instruction covers improving both decisions; the
+limitation is evidence, not a missing permission. The reviewed examples label
+recommendation relevance, while historic import triggers and the complete current
+follow graph remain unknown for those records. Applying those examples as a broad
+import classifier would therefore conflate the two decisions and risk suppressing
+discovery or required context.
+
+The post-deployment read-only probe will check the migration ledger, validated
+constraints, recorded initial and later import reasons, recent discovery import
+windows, and whether the audit account already has bell subscriptions. Counts of
+new discovery imports can demonstrate continued import activity; they cannot alone
+establish content quality, newly discovered accounts, or optimal import volume.
+Public 72-hour bell supply is potential inventory before language, seen-state and
+negative-preference filtering, not a claim about what the feed will recommend.
+No subscriptions or content will be changed to manufacture a live test case.
+
+Legacy origins remain unknown; a missing protocol follow is not proof of no Oxy
+followers. Any future import rule needs contextual examples and measured preservation
+of followed/requested content, accepted bell interest, boosts, quotes and conversation
+dependencies, while continuing to discover worthwhile unfamiliar authors. The current
+review report keeps every row protected and performs no deletion.
+
+
+### Production database verification — 23:11 UTC
+
+The bounded read-only task `85e1c21149174497bcc4badfbd060edd` exited successfully
+on `oxy-mention:682`, captured at **2026-10-21 23:11:51.414 UTC**. The live service
+was independently verified as completed with two running tasks using release
+`b1b7b0b64ac8494169ec783d60eca4d275cbe8df`, image digest
+`sha256:b6eccc7e64a1a0a7ff1ff68b572283f181effd6179931000fd01f9c12a7d8d9d`.
+The connection and transaction were READ ONLY with a 15-second statement timeout.
+[Aggregate evidence](./postdeploy-import-evidence-2026-10-21.json) contains no post
+bodies, subscriber identities or credentials.
+
+Both migration SQL hashes (`0090` provenance and `0091` Following sort) matched
+the production ledger. The two cascade foreign keys and reason/order constraints
+were validated; `feed_following_sort` is NOT NULL with default `chronological`.
+Ledger `created_at` values are migration version timestamps, not observations of
+when a migration ran.
+
+The audit account already had **eight bell subscriptions**, with **87 public root,
+nonboost posts from six subscribed authors in the preceding 72 hours**. This is
+potential supply; language, negative-intent, seen-state and ranking rules may
+exclude it. No bell subscription was changed for the test.
+
+| Initial import cause | Recorded posts | Distinct remote actors within cause |
+| --- | ---: | ---: |
+| Discovery backfill | 147 | 10 |
+| Reply dependency | 52 | 38 |
+| Boost dependency | 10 | 10 |
+| Unknown historical origin (NULL) | 593 | 45 |
+
+All 209 posts with an instrumented initial cause in this sample were public and
+published. Discovery causes were recorded from **23:08:50.192 to 23:11:35.848 UTC**;
+minute buckets recorded 14, 43, 53 and 37 new discovery imports at 23:08–23:11.
+This directly verifies continued discovery import activity across several minutes
+after the new backend started. It does not measure quality, newly discovered
+accounts or reduced unnecessary import volume. Actor counts overlap across causes
+and must not be added as a global unique total.
+
+Later reason observations included 547 followed-outbox, 184 discovery, 61 reply,
+19 boost and one quote reason. These counts include observations of existing
+posts and multiple reasons per post; they are **not new-import counts**. The 593
+NULL initial causes remain honest unknown history despite newly recorded necessity
+reasons. There was no historical-origin backfill, deletion or import-policy change
+as part of this verification.

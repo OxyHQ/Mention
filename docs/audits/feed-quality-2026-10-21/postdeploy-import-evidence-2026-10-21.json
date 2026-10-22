@@ -1,0 +1,227 @@
+{
+  "capturedAtUtc": "2026-10-21 23:11:51.41419+00",
+  "releaseSha": "b1b7b0b64ac8494169ec783d60eca4d275cbe8df",
+  "ecsTaskDefinition": "oxy-mention:682",
+  "imageDigest": "sha256:b6eccc7e64a1a0a7ff1ff68b572283f181effd6179931000fd01f9c12a7d8d9d",
+  "readOnlyTaskId": "85e1c21149174497bcc4badfbd060edd",
+  "exitCode": 0,
+  "readOnly": "on",
+  "statementTimeout": "15s",
+  "migrationLedger": [
+    {
+      "id": 90,
+      "hash": "b04cd1e77e71a8e3b38c8345d39a4ef8ae82cad42450d1a981e8c027db655641",
+      "created_at": "1792618027663"
+    },
+    {
+      "id": 91,
+      "hash": "4e60fe93cf85bf23e7a5d462ce4ec2085bd7006218b96cafe41e6f0c6a6871b9",
+      "created_at": "1792620563622"
+    },
+    {
+      "id": 92,
+      "hash": "a0d13ee9a60dae77deaf940e64e5c1045808df113bd5f7dde98208b01694b487",
+      "created_at": "1792620581169"
+    }
+  ],
+  "schema": [
+    {
+      "table_name": "federation_post_import_reasons",
+      "column_name": "post_id",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "federation_post_import_reasons",
+      "column_name": "reason",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "federation_post_import_reasons",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO",
+      "column_default": "date_trunc('milliseconds'::text, now())"
+    },
+    {
+      "table_name": "federation_post_imports",
+      "column_name": "post_id",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "federation_post_imports",
+      "column_name": "initial_reason",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "federation_post_imports",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO",
+      "column_default": "date_trunc('milliseconds'::text, now())"
+    },
+    {
+      "table_name": "user_settings",
+      "column_name": "feed_following_sort",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "column_default": "'chronological'::text"
+    }
+  ],
+  "constraints": [
+    {
+      "conname": "federation_post_import_reasons_post_id_federation_post_imports_",
+      "contype": "f",
+      "convalidated": true,
+      "confdeltype": "c"
+    },
+    {
+      "conname": "federation_post_import_reasons_post_id_reason_pk",
+      "contype": "p",
+      "convalidated": true,
+      "confdeltype": " "
+    },
+    {
+      "conname": "federation_post_import_reasons_reason_check",
+      "contype": "c",
+      "convalidated": true,
+      "confdeltype": " "
+    },
+    {
+      "conname": "federation_post_imports_pkey",
+      "contype": "p",
+      "convalidated": true,
+      "confdeltype": " "
+    },
+    {
+      "conname": "federation_post_imports_post_id_posts_id_fk",
+      "contype": "f",
+      "convalidated": true,
+      "confdeltype": "c"
+    },
+    {
+      "conname": "federation_post_imports_reason_check",
+      "contype": "c",
+      "convalidated": true,
+      "confdeltype": " "
+    },
+    {
+      "conname": "user_settings_following_sort_check",
+      "contype": "c",
+      "convalidated": true,
+      "confdeltype": " "
+    }
+  ],
+  "auditAccountBellCount": 8,
+  "auditAccountPotentialBellPublicSupply72h": {
+    "public_posts_72h": "87",
+    "authors_with_public_posts_72h": "6"
+  },
+  "initialImportCauses": [
+    {
+      "initial_reason": "boost_dependency",
+      "records": "10",
+      "public_published": "10",
+      "remote_actors": "10",
+      "first_recorded_at": "2026-10-21 23:08:51.983+00",
+      "last_recorded_at": "2026-10-21 23:11:35.822+00",
+      "recorded_last_10m": "10"
+    },
+    {
+      "initial_reason": "discovery_backfill",
+      "records": "147",
+      "public_published": "147",
+      "remote_actors": "10",
+      "first_recorded_at": "2026-10-21 23:08:50.192+00",
+      "last_recorded_at": "2026-10-21 23:11:35.848+00",
+      "recorded_last_10m": "147"
+    },
+    {
+      "initial_reason": "reply_dependency",
+      "records": "52",
+      "public_published": "52",
+      "remote_actors": "38",
+      "first_recorded_at": "2026-10-21 23:08:57.318+00",
+      "last_recorded_at": "2026-10-21 23:11:35.216+00",
+      "recorded_last_10m": "52"
+    },
+    {
+      "initial_reason": null,
+      "records": "593",
+      "public_published": "587",
+      "remote_actors": "45",
+      "first_recorded_at": "2026-10-21 23:08:49.984+00",
+      "last_recorded_at": "2026-10-21 23:11:37.594+00",
+      "recorded_last_10m": "593"
+    }
+  ],
+  "observedReasons": [
+    {
+      "reason": "boost_dependency",
+      "observations": "19",
+      "first_observed_at": "2026-10-21 23:08:51.983+00",
+      "last_observed_at": "2026-10-21 23:11:35.822+00"
+    },
+    {
+      "reason": "discovery_backfill",
+      "observations": "184",
+      "first_observed_at": "2026-10-21 23:08:49.984+00",
+      "last_observed_at": "2026-10-21 23:11:37.594+00"
+    },
+    {
+      "reason": "followed_outbox",
+      "observations": "547",
+      "first_observed_at": "2026-10-21 23:08:50.896+00",
+      "last_observed_at": "2026-10-21 23:09:27.044+00"
+    },
+    {
+      "reason": "quote_dependency",
+      "observations": "1",
+      "first_observed_at": "2026-10-21 23:08:55.414+00",
+      "last_observed_at": "2026-10-21 23:08:55.414+00"
+    },
+    {
+      "reason": "reply_dependency",
+      "observations": "61",
+      "first_observed_at": "2026-10-21 23:08:57.318+00",
+      "last_observed_at": "2026-10-21 23:11:35.216+00"
+    }
+  ],
+  "newDiscoveryImportMinuteBuckets": [
+    {
+      "recorded_minute": "2026-10-21 23:11:00+00",
+      "new_discovery_imports": "37",
+      "remote_actors": "2"
+    },
+    {
+      "recorded_minute": "2026-10-21 23:10:00+00",
+      "new_discovery_imports": "53",
+      "remote_actors": "5"
+    },
+    {
+      "recorded_minute": "2026-10-21 23:09:00+00",
+      "new_discovery_imports": "43",
+      "remote_actors": "3"
+    },
+    {
+      "recorded_minute": "2026-10-21 23:08:00+00",
+      "new_discovery_imports": "14",
+      "remote_actors": "2"
+    }
+  ],
+  "caveats": [
+    "Migration ledger created_at is the version timestamp, not observed execution time.",
+    "Bell inventory is public root/nonboost supply before language, negative-intent and seen-state filters.",
+    "Null initial causes do not infer historical import reasons.",
+    "Observed reasons are not counts of new imports.",
+    "Discovery imports do not establish content quality or newly discovered accounts.",
+    "Each read occurred within one READ ONLY transaction; no data or settings were mutated."
+  ]
+}
