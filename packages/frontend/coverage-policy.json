@@ -234,7 +234,32 @@
     "An entry that is not currently excusing a real decrease fails, so this list",
     "cannot become a standing permission slip."
   ],
-  "allowedBaselineDecreases": [],
+  "allowedBaselineDecreases": [
+    {
+      "path": "total",
+      "metric": "statements",
+      "date": "2026-10-22",
+      "reason": "The channel/community settings form, category picker and community delete flow moved to Oxy's AccountSettings (@oxy.so/services 12.11.0, tested there); their well-covered Mention copies and tests were deleted, which lowers the overall ratio by about 0.1 point."
+    },
+    {
+      "path": "total",
+      "metric": "branches",
+      "date": "2026-10-22",
+      "reason": "The channel/community settings form, category picker and community delete flow moved to Oxy's AccountSettings (@oxy.so/services 12.11.0, tested there); their well-covered Mention copies and tests were deleted, which lowers the overall ratio by about 0.1 point."
+    },
+    {
+      "path": "total",
+      "metric": "functions",
+      "date": "2026-10-22",
+      "reason": "The channel/community settings form, category picker and community delete flow moved to Oxy's AccountSettings (@oxy.so/services 12.11.0, tested there); their well-covered Mention copies and tests were deleted, which lowers the overall ratio by about 0.1 point."
+    },
+    {
+      "path": "total",
+      "metric": "lines",
+      "date": "2026-10-22",
+      "reason": "The channel/community settings form, category picker and community delete flow moved to Oxy's AccountSettings (@oxy.so/services 12.11.0, tested there); their well-covered Mention copies and tests were deleted, which lowers the overall ratio by about 0.1 point."
+    }
+  ],
   "globalDriftAllowancePoints": 0.75,
   "minimumFilesInReport": 500,
   "minimumTestFiles": 140,
@@ -248,7 +273,7 @@
     "unenforceable": 5,
     "belowBarExemptions": 8,
     "criticalPaths": 36,
-    "allowedBaselineDecreases": 0,
+    "allowedBaselineDecreases": 4,
     "snapshotAssertions": 0
   }
 }
