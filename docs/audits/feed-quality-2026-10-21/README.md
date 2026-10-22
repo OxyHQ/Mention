@@ -161,11 +161,16 @@ asked for shorter questions and updates during this audit.
 | [“Good morning or whenever”](https://mention.earth/p/01a15f2a-a903-7d83-8402-d5dbc2986d8b) | May recommend in For You when following the author; not from a stranger. | Recommendation-only label; insufficient import evidence. |
 | [PHP warning control](https://mention.earth/p/01a15fc2-1598-75cb-8828-b7cb97f7478b) | Uncertain; owner suggested following may matter. No approval or rejection established. | Recommendation-only label; insufficient import evidence. |
 | [Personal bicycle diary](https://mention.earth/p/01a15ed9-d134-7ed7-ba4a-d5f0e9843a75): wondering whether to ride in the drizzle | Do not recommend when the viewer does not follow the author. This is the owner's contextual assessment of this example. | Following delivery and import unchanged. This example does not establish an author-wide or short-post import rule. |
+| [Three original cat drawings by an unfamiliar author](https://mention.earth/p/01a16088-8e69-75bc-809b-810a5a5ae51f) | “Sí, si me interesa el arte”: recommend when art matches the viewer's interests, including an author they do not follow. | Positive recommendation label; no general import-admission threshold established. |
 
 The first three public items were inspected with no attached media, original, quote or parent.
 These concrete judgements do not establish a universal threshold. A possible rule
 that relevant programming/security information may be recommended from unknown
-authors is the audit team's proposal, **not an owner-approved label**.
+authors is the audit team's proposal, **not an owner-approved label**. The later
+cat-drawing assessment is a confirmed positive example of interest-conditioned
+discovery: following or popularity is not required for that recommendation. It
+does not endorse every media post or establish a blanket art preference for every
+viewer.
 
 A production read-only PostgreSQL audit on ECS revision 676 (task
 `df20d0dc34944001a500baa0571bb12a`, exit 0) checked the live schema and a last-three-day
