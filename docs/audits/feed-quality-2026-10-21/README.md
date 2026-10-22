@@ -1,6 +1,7 @@
 # Feed quality audit — 21 October 2026
 
-Status: implementation merged; post-deployment verification pending. The initial
+Status: implementation and follow-up fixes merged and deployed; bounded production
+verification is complete below. Remaining quality and import-evidence limits are explicit. The initial
 code investigation used `origin/main` at `2bfaf0cd6`; the implementation merged as
 `b1b7b0b64ac8494169ec783d60eca4d275cbe8df`. Pre-release tests are not measurements of
 production impact. Production reads and review labels are recorded separately;
@@ -160,11 +161,16 @@ asked for shorter questions and updates during this audit.
 | [“Good morning or whenever”](https://mention.earth/p/01a15f2a-a903-7d83-8402-d5dbc2986d8b) | May recommend in For You when following the author; not from a stranger. | Recommendation-only label; insufficient import evidence. |
 | [PHP warning control](https://mention.earth/p/01a15fc2-1598-75cb-8828-b7cb97f7478b) | Uncertain; owner suggested following may matter. No approval or rejection established. | Recommendation-only label; insufficient import evidence. |
 | [Personal bicycle diary](https://mention.earth/p/01a15ed9-d134-7ed7-ba4a-d5f0e9843a75): wondering whether to ride in the drizzle | Do not recommend when the viewer does not follow the author. This is the owner's contextual assessment of this example. | Following delivery and import unchanged. This example does not establish an author-wide or short-post import rule. |
+| [Three original cat drawings by an unfamiliar author](https://mention.earth/p/01a16088-8e69-75bc-809b-810a5a5ae51f) | “Sí, si me interesa el arte”: recommend when art matches the viewer's interests, including an author they do not follow. | Positive recommendation label; no general import-admission threshold established. |
 
 The first three public items were inspected with no attached media, original, quote or parent.
 These concrete judgements do not establish a universal threshold. A possible rule
 that relevant programming/security information may be recommended from unknown
-authors is the audit team's proposal, **not an owner-approved label**.
+authors is the audit team's proposal, **not an owner-approved label**. The later
+cat-drawing assessment is a confirmed positive example of interest-conditioned
+discovery: following or popularity is not required for that recommendation. It
+does not endorse every media post or establish a blanket art preference for every
+viewer.
 
 A production read-only PostgreSQL audit on ECS revision 676 (task
 `df20d0dc34944001a500baa0571bb12a`, exit 0) checked the live schema and a last-three-day
@@ -325,9 +331,12 @@ new authors and sources.
 A supported-language smoke check at 20:57 UTC sent `?lang=en` and
 `Accept-Language: en,es;q=0.9`. Explore returned 26 items/20 slices in 0.903 seconds,
 Media 20 items/zero slices in 0.820 seconds, and Trending 20 items/20 slices in
-0.990 seconds, all successful with `hasMore: true`. The DTO had no top-level
-language evidence, so no language-match rate is inferred. Authenticated MCP reads
-used account-derived preferences separately.
+0.990 seconds, all successful with `hasMore: true`. No language-match rate was calculated in this smoke check. Language metadata
+belongs under `metadata.language` / `metadata.languages`, not a top-level field.
+Later investigation found that delegated MCP cannot independently read owner
+languages through `users.me`: effective owner preferences depend on a cache warmed
+by the app. The MCP samples without an explicit request locale therefore do not
+establish the viewer's intended languages or a language-match rate.
 
 The audit also reproduced a false quality diagnostic: For You candidate shells
 omit normalized text/media, so existing `lowEffortGate` and `minLength` predicates
@@ -485,9 +494,16 @@ queue at **2026-10-21 23:04:04 UTC** as
 completed successfully on that exact SHA: build/lint/types, all three backend test
 shards, frontend tests, shared-types/MCP, browser gate and frontend bundle budget
 passed. The provenance and baseline jobs were skipped by their workflow conditions;
-they are not represented as executed checks. Backend, MCP and frontend deployment
-workflows subsequently started; their completion and actual live artifacts remain
-to be verified independently.
+they are not represented as executed checks. The backend, MCP and frontend workflows subsequently succeeded on that SHA.
+Backend [39690926452](https://github.com/OxyHQ/Mention/actions/runs/39690926452)
+reached steady state on `oxy-mention:682` at 23:09:15 UTC and passed smoke at
+23:09:16. MCP [39690926262](https://github.com/OxyHQ/Mention/actions/runs/39690926262)
+reached revision 393 at 23:08:03 and passed smoke at 23:08:04. Frontend
+[39690926183](https://github.com/OxyHQ/Mention/actions/runs/39690926183) promoted
+Worker `f21c2ac8-7f85-4a8f-8c46-f191b328ae62` at 23:13:03, followed by successful
+shell and apex smoke checks at 23:13:15 and 23:13:29. All times in this section
+are 21 October 2026 UTC; these are historical release observations, not a claim
+about whichever revision is currently live.
 
 ### Remaining import-quality acceptance work
 
@@ -500,9 +516,9 @@ follow graph remain unknown for those records. Applying those examples as a broa
 import classifier would therefore conflate the two decisions and risk suppressing
 discovery or required context.
 
-The post-deployment read-only probe will check the migration ledger, validated
+The post-deployment read-only probe checked the migration ledger, validated
 constraints, recorded initial and later import reasons, recent discovery import
-windows, and whether the audit account already has bell subscriptions. Counts of
+windows, and existing bell subscriptions; results appear below. Counts of
 new discovery imports can demonstrate continued import activity; they cannot alone
 establish content quality, newly discovered accounts, or optimal import volume.
 Public 72-hour bell supply is potential inventory before language, seen-state and
@@ -559,3 +575,309 @@ posts and multiple reasons per post; they are **not new-import counts**. The 593
 NULL initial causes remain honest unknown history despite newly recorded necessity
 reasons. There was no historical-origin backfill, deletion or import-policy change
 as part of this verification.
+
+
+### Canonical authenticated feed observations on revision 682
+
+[Aggregate capture](./postdeploy-feed-evidence-682.json) records the source times,
+release identity and measurements without post bodies or author identities. Requests
+used the verified `@nate` account through MCP revision 393 and requested 20 items per
+page. A focal post is the final item of a reply-context slice, the first item of
+other slices, or an item when the response has no slices. Flattened conversation
+context is counted separately. These canonical measures are not interchangeable
+with the earlier connector's flat-only counts.
+
+| Feed / session | Pages | Unique focal posts | Focal authors | Largest author count on a page | Focal posts within 72 hours |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| For You 1 | 10 | 200 | 94 | 3 | 200 |
+| For You 2 | 10 | 200 | 115 | 3 | 200 |
+| For You 3 | 10 | 200 | 101 | 3 | 200 |
+| Explore 1 / 2 / 3, each | 10 | 200 | 163 | 3 | 200 |
+| Following | 10 | 295 | 34 | 10 | 295 |
+| Following direct | 3 | 88 | 19 | 10 | 88 |
+| Videos 1 | 10 | 200 | 152 | 3 | 46 |
+| Videos 2 | 10 | 200 | 140 | 3 | 0 |
+| Videos 3 | 10 | 200 | 156 | 3 | 27 |
+| Media, authenticated | 10 | 200 | 152 | 3 | 200 |
+| Friends popular | 8, reached end | 159 | 135 | 3 | 136 |
+
+The captures ran from 23:10:36 through 23:27:18 UTC. None contained repeated focal
+IDs within its own continuation chain. Following and Following direct exceeded
+20 actual slices per page; this was a real page-boundary defect, not merely reply
+context inflating flattened items. The chronological correction is tracked in
+[PR #1574](https://github.com/OxyHQ/Mention/pull/1574); these observations precede
+that correction and must remain separate from its later retest.
+
+For You session 2 had no overlap with session 1; session 3 overlapped 28 earlier
+IDs. Videos session 2 had no overlap; session 3 overlapped 28 earlier IDs. The
+30-minute / 1,000-entry served history is shared across For You, Videos and Media,
+and more than 1,000 served positions preceded the third For You traversal. Such
+cross-refresh overlap is distinct from a continuation duplicate. Sequential reads
+also consume recent inventory, so later Videos freshness is not an independent
+baseline. Explore's second and third traversals overlapped 199 and 200 prior IDs,
+respectively, consistent with persistent global ranking rather than a served-state
+rotation contract. All 600 Explore positions were within 24 hours.
+
+Mutuals and friends-of-friends returned empty final pages. Saved returned eight
+items and no continuation; the account had no lists. These counts do not prove an
+inventory defect; saved bodies are deliberately excluded. Connector median elapsed
+times were about 2.2–2.7 seconds for the populated samples and include MCP overhead,
+not just backend execution. No language preference was established by these MCP
+calls: the delegated client lacked `users.me`, explicit request locale was absent,
+and owner-language lookup depended on an app-warmed cache.
+
+The standalone `3` review example remained publicly retrievable at 23:28 UTC and
+was absent from 600 sampled For You plus 600 Explore positions. This preserves the
+import/recommendation distinction, but absence from a bounded sample alone does
+not prove which filter excluded it. The old For You score cursor returned HTTP
+410 as intended; MCP displayed `[object Object]` instead of the typed error's
+message, motivating the focused tool error-format correction.
+
+### Anonymous API and browser observations on revision 682
+
+Direct public API reads at 23:10:49–23:11:05 UTC used `?lang=en` and
+`Accept-Language: en,es;q=0.9`. Each of Media, Trending and Explore supplied ten
+pages, 200 unique focal posts, no within-chain ID or slice repeats, and at most
+three focal posts by the same author on a page. They had 163, 177 and 144 focal
+authors, with median direct-request times of 468, 410 and 398 ms, respectively.
+Explore's 218 flattened items included context for its 200 focal posts. URL-level
+source duplication was not measurable from this capture and is not reported as zero.
+
+PHP hashtag pages contained 20, **39**, and 20 slices in 735, 542 and 421 ms. The
+middle page independently reproduced the chronological boundary defect. The
+technology topic returned a successful empty result in 210 ms. Earlier queries
+had timed out near 15 seconds with confirmed PostgreSQL statement-timeout errors;
+these bounded observations support the repaired query path, not a general latency
+SLA or an inference that every empty topic is healthy.
+
+Anonymous Media had a median post age of 56.75 days: 169/200 posts were older than
+30 days, only two were within seven days, and the oldest was 716.44 days old.
+Trending's median was 3.38 days with all 200 within seven days; Explore's median
+was 0.42 days with all 200 within one day. Source inspection explained the Media
+path: anonymous requests started directly in lifetime-engagement popular fallback,
+bypassing the primary ranking freshness signals. Authenticated Media used a
+different path and all 200 sampled posts were within 72 hours. The focused followup
+starts anonymous Media with primary ranking and retains popular supply after
+exhaustion; it does not impose an import ban or universal content age cutoff.
+Its production impact requires a separately attributed post-release sample.
+
+Two repeated Media cursor requests returned identical canonical IDs, slice keys
+and body hashes. Changing the requested limit from 20 to 19 returned typed HTTP
+410 `FEED_CURSOR_EXPIRED` in 198 ms. These are observed replay results, not a
+promise of permanent byte identity as hydration and access state evolve.
+
+The direct production Chromium smoke at 23:14:08 UTC passed four anonymous flows:
+Home rows; Home → Explore → post → back without document reload; `@nate` Posts →
+Media; and a pushed federated profile's Posts tab. It reported zero script/console
+errors and zero HTTP 4xx/5xx responses. Eight navigation-cancelled requests emitted
+`ERR_ABORTED` (six page-origin, two API); they were not classified as server errors.
+Both visible Home post images and the one visible Explore image loaded, and the
+screenshots showed rendered pages. The preview browser gate had also passed 66
+tests. This does not constitute an authenticated browser or physical-device test.
+
+### Follow-up acceptance boundaries
+
+The revision-682 evidence exposed separate issues: oversized chronological pages,
+Explore's pre-scored source bypassing explicit learned negative intent, anonymous
+Media starting with old popular supply, and MCP's missing explicit locale input
+and unreadable typed error. The followups must be evaluated at their own deployed
+SHA, including old Explore cursor restart behavior. The negative-intent correction
+uses source-level exclusions and the canonical hidden-topic penalty rather than
+applying a second complete ranking pass. Optional MCP `lang` is an explicit
+request fallback, not a claim to read or change the owner's stored preferences.
+
+Discovery continued after the initial release, but reduced unnecessary import
+volume, long-term recommendation satisfaction, new-account discovery rate and
+source-URL diversity remain unproven. The owner-reviewed examples are contextual
+recommendation labels; they do not establish a general import-rejection classifier.
+No content, follows, subscriptions or saved items were changed to manufacture
+production evidence.
+
+
+### Chronological correction retest — 22 October 2026
+
+[Separate retest aggregates](./chronological-retest-2026-10-22.json) preserve the
+later release range and request times. The authenticated Following and Following
+direct captures ran at 17:37:37–17:38:55 UTC during rollout from backend revision
+691 (`8c72f104b1aa54bf90a4979dd91597707565d4c8`) to revision 692
+(`4cb7f5c4ec0499cd646526bbf495ce9ccc580b12`). Both code histories included
+PR #1574; this sample cannot be attributed to one exact serving revision per page.
+
+Each feed returned 194 logical slices across ten pages, with page sizes
+20/20/20/20/18/20/18/20/19/19. Neither traversal repeated focal IDs or slice keys;
+both retained continuation. A separate original-post identity check found eight
+repeat occurrences across seven groups in each traversal (six pairs and one
+triple). The triple included an original and two boosts by different actors on
+the same page. These are distinct chronological events, not duplicate post IDs;
+zero ID repeats must not be described as zero repeated content. This observation
+does not establish a defect or change Following's delivery contract. Each had 225 flattened items because conversation
+context may legitimately exceed the logical page limit. User identity was
+reverified, and no explicit locale or deliberate engagement/settings writes were
+added to these authenticated reads.
+
+The anonymous PHP hashtag retest at 17:39:38–17:39:40 UTC ran on stable backend
+692, SHA `4cb7f5c4ec0499cd646526bbf495ce9ccc580b12`, with `?lang=en` and
+`Accept-Language: en,es;q=0.9`. Its three pages each returned 20 focal posts and
+20 slices: 60 unique IDs, zero observed repeats, descending creation timestamps,
+three distinct advancing cursors, and `hasMore: true` throughout. Direct elapsed
+times were 992, 408 and 509 ms. These live samples confirm corrected page bounds
+and observed continuation behavior; exhaustive absence of skipped inventory is
+supported by the separate real-database fixture, not proven by these live samples.
+These chronological results precede the separately attributed Media/Explore/MCP
+followup verification below.
+
+
+### Identity diagnostics and final sampling boundary
+
+A supplementary check over the 143 authenticated pages collected through the
+22 October chronological retest found no missing author username/ID and no
+`boost.unavailable` presentation marker. Within each For You, Explore, Videos,
+Media and friends-popular traversal, it found no repeated `originalPost` identity.
+The Following original/boost repetitions described above remain a distinct case.
+These checks establish only the inspected identity and rendering fields; they do
+not measure semantically duplicated text, copied media or identical source URLs.
+
+The final authenticated followup used explicit `lang=es` as a controlled
+request locale. This is not evidence that Spanish is the owner's stored preference,
+and it must remain separate from earlier MCP captures with no explicit locale.
+Any language-match calculation must use the actual nested post metadata and state
+its treatment of missing or multiple declarations. A fresh request, an advancing
+cursor and a replay test answer different questions; their counts must not be
+combined as independent recommendations. The final results below are attributed to the actual deployed SHA and request
+times; the capture is observational, not a matched-inventory causal benchmark.
+
+
+## Final followup release and production verification — 22 October 2026
+
+[PR #1577](https://github.com/OxyHQ/Mention/pull/1577) merged at 18:08:49 UTC
+after successful protected queue
+[CI 39827996686](https://github.com/OxyHQ/Mention/actions/runs/39827996686), then deployed as
+`d808a983ba8703b105b5bc386a8fee8696226a2d`. Backend
+[39830509985](https://github.com/OxyHQ/Mention/actions/runs/39830509985) succeeded
+with revision **695**, two healthy running tasks and image digest
+`sha256:1a47a22240dcbae48c309332d4f84e6117c344ddd32f3760fc945d45206f0c15`.
+MCP [39830509883](https://github.com/OxyHQ/Mention/actions/runs/39830509883)
+succeeded with revision **403** on the same SHA; readiness was confirmed by
+18:26:47 UTC. Frontend
+[39830509654](https://github.com/OxyHQ/Mention/actions/runs/39830509654) succeeded
+on that SHA, with Worker `543f02ed-68b0-4847-b447-836b268fa168` promoted at
+18:35:22 and apex smoke passing at 18:35:47. These release records supersede the
+prior deployment-pending status; they do not retroactively change the revision
+assigned to any historical sample.
+
+[Final aggregate evidence](./final-release-evidence-695.json) contains the
+request times, counts, cursor outcomes and browser checks without post bodies,
+author identities, private cached preference values or session keys. The six
+authenticated traversals comprised **44 successful pages and 857 logical posts**
+(883 flattened items including conversation context). This is a count of positions
+across sessions, not 857 globally unique posts. Every individual traversal had no
+repeated focal ID, slice key or original-post identity.
+
+| Authenticated traversal | Successful pages | Logical posts | Authors | Largest author count on one page | Outcome |
+| --- | ---: | ---: | ---: | ---: | --- |
+| For You 4 | 10 | 184 | 73 | 3 | Page 11 later returned typed 410 |
+| Explore 4 | 2 | 33 | 19 | 7 | Exhausted initial eligible supply |
+| Media 2 | 2 | 40 | 31 | 3 | Page 3 returned typed 410 |
+| Media 3, fresh | 10 | 200 | 143 | 3 | Continuation available |
+| For You 5, fresh | 10 | 200 | 69 | 3 | Continuation available |
+| Explore 5, fresh | 10 | 200 | 144 | 3 | Continuation available |
+
+The initial samples began at 18:26:52; the three fresh ten-page traversals ran
+from 18:31:06 through 18:36:39 UTC. All used explicit `lang=es`. That parameter is
+a request fallback when account languages cannot be resolved, **not a hard language
+filter or a change to saved preferences**. Initial For You, Explore and Media
+samples declared Spanish on all 184, 33 and 40 focal posts. Later fresh samples
+used the account-resolved context: Media declared English on 197 and Catalan on
+three posts, with one also declaring Japanese; For You declared English on all
+200; Explore declared English on 185, Spanish on 12 and Catalan on three.
+All had language metadata; multi-language declarations can make tag counts exceed
+post counts. These are metadata observations, not inferred language comprehension
+or a language-filter failure. The separate served-text language field was unknown
+on some posts and is preserved in the artifact rather than silently counted as a
+match.
+
+The sparse initial Explore traversal returned 13 posts on its terminal second
+page, seven from one author. This is the existing scarcity relaxation when the
+eligible pool cannot satisfy the usual diversity preference, and demonstrates
+that three per author is not an unconditional invariant. The final fresh Media,
+For You and Explore samples each stayed at or below three per page. Their median
+post ages were 25.35, 6.41 and 8.76 hours; all 600 were within 72 hours and all
+200 Explore posts were within 24 hours. No sampled focal post matched the
+standalone-number diagnostic; bounded absence alone is not a universal quality
+proof. MCP elapsed times include connector overhead and are not directly
+comparable with the public API timings below.
+
+### Cursor restart and effective-context observations
+
+Media 2 page 3 returned `FEED_CURSOR_EXPIRED` at 18:29:34, followed by For You 4
+page 11 at 18:30:51. These remain recorded outcomes, not silently discarded
+failed samples. Exact-key read-only Redis diagnostics at 18:34:24 found the
+inspected old keys present and unexpired. At 18:37:19, old and fresh Media
+sessions both remained unexpired but had different binding hashes. The account
+language cache had become nonempty during the capture, consistent with the
+observed inventory language change. **A changed effective bound context is
+supported; language-cache warmup is the leading inference, not proof of the
+exact changed field.** Expiry/pruning was not supported by the later observations;
+a transient earlier Redis read failure cannot be excluded from those snapshots.
+No Redis mutation or new feed-policy change was made for this diagnosis.
+
+Fresh sessions recovered and each completed ten pages. Separate controlled
+checks verified that an Explore cursor created before the cutover continued
+successfully on the old build, then returned typed 410 on the new build less
+than four minutes after creation. A legacy cursor also returned 410; an invalid
+language tag was rejected at tool-input validation. Two authenticated replays of
+a current Explore cursor returned the same IDs and slice keys as each other and
+the original page. Changing the limit to 19 returned typed 410. MCP now renders
+the code and recovery message readably: `FEED_CURSOR_EXPIRED` and “refresh the
+feed”, rather than `[object Object]`. These results validate explicit restart
+behavior and observed replay identity, not perpetual byte stability.
+
+### Public freshness and final browser checks
+
+Direct anonymous API reads at 18:28:37–18:28:48 UTC used `?lang=en` and
+`Accept-Language: en,es;q=0.9` on backend 695. Media and Explore each completed ten
+pages with 200 unique focal posts, no focal/slice repeats and at most three posts
+per author on a page. Media had 148 authors, 200 flat items and median request
+latency 520 ms (454–763); Explore had 135 authors, 206 flat items and median
+435.5 ms (412–668). Every page succeeded and retained a session continuation.
+
+Anonymous Media's median post age was **1.04 days**, all 200 posts were within
+seven days, and none exceeded 30 days. Its historical revision-682 sample had a
+56.75-day median and 169/200 posts older than 30 days. The corrected primary-first
+path and this fresher observed sample agree, but time and inventory changed
+between captures: this is not a matched causal experiment. Explore's final public
+sample was entirely within 24 hours. Every public post's declared metadata included
+English or Spanish, with one Media post also declaring Japanese. Original federated status URLs
+were unavailable in the inspected projection, so duplicate-origin content remains
+unmeasured. Separate public
+cursor probes encountered `EHOSTUNREACH` twice before receiving HTTP responses;
+those probes are **unverified**, distinct from the successful public traversal
+and authenticated replay checks.
+
+The actual production anonymous Chromium check at 18:36:41 passed five flows:
+Home; Home → Explore → post → back within the same document; `@nate` Posts →
+Media; a pushed federated profile's Posts; and anonymous Media. It reported no
+script/console errors or HTTP 4xx/5xx responses. Ten navigation/resource cancellations
+emitted `ERR_ABORTED`. Both visible Home images and the one visible Media image
+loaded; no large Explore image was in the inspected viewport, so no Explore-image
+load claim is made for this run. Screenshots were inspected and rendered normally.
+The frontend candidate browser gate passed 66 tests. Logged-in browser and native
+physical-device behavior remain outside this verification.
+
+### What this evidence establishes and leaves open
+
+The implementation now has separately verified chronological page bounds,
+replay/restart handling, readable MCP errors, optional explicit request locale,
+fresher anonymous Media supply in the final sample, and bounded author diversity
+with an explicit scarcity exception. Explore negative-intent parity is covered by
+real-database regression tests; production settings were not changed to manufacture
+an account-specific negative-preference experiment. Discovery import activity and
+provenance were verified on revision 682; no additional database import probe was
+run for revision 695 because this followup did not change import policy or schema.
+
+Reduced needless import volume, subjective recommendation satisfaction, universal
+semantic quality, copied-content/source-URL duplication and new-account discovery
+rate are still not established. The documented owner labels support contextual
+recommendation decisions, including useful unfamiliar art; they are not a blanket
+import classifier. The session-context transition and sparse Explore concentration
+are recorded limitations rather than concealed by successful fresh traversals.
