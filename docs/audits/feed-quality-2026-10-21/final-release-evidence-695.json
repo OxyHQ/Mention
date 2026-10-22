@@ -1,0 +1,1002 @@
+{
+  "authenticated": {
+    "generatedAt": "2026-10-22T18:39:03.192Z",
+    "release": {
+      "sha": "d808a983ba8703b105b5bc386a8fee8696226a2d",
+      "backendRevision": 695,
+      "mcpRevision": 403,
+      "backendRun": 39830509985,
+      "mcpRun": 39830509883,
+      "frontendRun": 39830509654,
+      "readyAt": "2026-10-22T18:26:47.096Z"
+    },
+    "account": "@nate",
+    "aggregates": [
+      {
+        "feed": "for_you",
+        "session": 4,
+        "pages": 10,
+        "start": "2026-10-22T18:26:52.485Z",
+        "end": "2026-10-22T18:27:38.931Z",
+        "backendShas": [
+          "d808a983ba8703b105b5bc386a8fee8696226a2d"
+        ],
+        "requestLanguages": [
+          "es"
+        ],
+        "flat": 184,
+        "logical": 184,
+        "uniqueFocalIds": 184,
+        "uniqueOriginalIdentities": 184,
+        "authors": 73,
+        "repeatedFocal": 0,
+        "repeatedSlices": 0,
+        "maxAuthorPerPage": 3,
+        "perPage": [
+          {
+            "page": 1,
+            "flat": 20,
+            "slices": 20,
+            "authors": 15,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 3167
+          },
+          {
+            "page": 2,
+            "flat": 20,
+            "slices": 20,
+            "authors": 12,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 4063
+          },
+          {
+            "page": 3,
+            "flat": 20,
+            "slices": 20,
+            "authors": 13,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 3023
+          },
+          {
+            "page": 4,
+            "flat": 20,
+            "slices": 20,
+            "authors": 14,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2943
+          },
+          {
+            "page": 5,
+            "flat": 20,
+            "slices": 20,
+            "authors": 14,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 3814
+          },
+          {
+            "page": 6,
+            "flat": 20,
+            "slices": 20,
+            "authors": 14,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2554
+          },
+          {
+            "page": 7,
+            "flat": 20,
+            "slices": 20,
+            "authors": 14,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 4393
+          },
+          {
+            "page": 8,
+            "flat": 20,
+            "slices": 20,
+            "authors": 15,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2430
+          },
+          {
+            "page": 9,
+            "flat": 20,
+            "slices": 20,
+            "authors": 12,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2533
+          },
+          {
+            "page": 10,
+            "flat": 4,
+            "slices": 4,
+            "authors": 4,
+            "maxAuthorPosts": 1,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 5604
+          }
+        ],
+        "languages": {
+          "es": 184
+        },
+        "languageKnown": 184,
+        "languageUnknown": 0,
+        "declaredEs": 184,
+        "servedTextLanguages": {
+          "es": 180,
+          "es-ES": 3,
+          "unknown": 1
+        },
+        "age": {
+          "known": 184,
+          "medianHours": 33.10688277777778,
+          "under24": 41,
+          "under72": 184,
+          "over30days": 0,
+          "oldestHours": 71.14182305555556
+        },
+        "numericOnlyStandaloneObserved": 0
+      },
+      {
+        "feed": "explore",
+        "session": 4,
+        "pages": 2,
+        "start": "2026-10-22T18:28:04.110Z",
+        "end": "2026-10-22T18:28:14.856Z",
+        "backendShas": [
+          "d808a983ba8703b105b5bc386a8fee8696226a2d"
+        ],
+        "requestLanguages": [
+          "es"
+        ],
+        "flat": 33,
+        "logical": 33,
+        "uniqueFocalIds": 33,
+        "uniqueOriginalIdentities": 33,
+        "authors": 19,
+        "repeatedFocal": 0,
+        "repeatedSlices": 0,
+        "maxAuthorPerPage": 7,
+        "perPage": [
+          {
+            "page": 1,
+            "flat": 20,
+            "slices": 20,
+            "authors": 17,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 4953
+          },
+          {
+            "page": 2,
+            "flat": 13,
+            "slices": 13,
+            "authors": 5,
+            "maxAuthorPosts": 7,
+            "hasMore": false,
+            "cursorType": null,
+            "elapsedMs": 2260
+          }
+        ],
+        "languages": {
+          "es": 33
+        },
+        "languageKnown": 33,
+        "languageUnknown": 0,
+        "declaredEs": 33,
+        "servedTextLanguages": {
+          "es": 33
+        },
+        "age": {
+          "known": 33,
+          "medianHours": 19.137530555555557,
+          "under24": 33,
+          "under72": 33,
+          "over30days": 0,
+          "oldestHours": 23.94857111111111
+        },
+        "numericOnlyStandaloneObserved": 0
+      },
+      {
+        "feed": "media",
+        "session": 2,
+        "pages": 2,
+        "start": "2026-10-22T18:28:46.543Z",
+        "end": "2026-10-22T18:29:04.429Z",
+        "backendShas": [
+          "d808a983ba8703b105b5bc386a8fee8696226a2d"
+        ],
+        "requestLanguages": [
+          "es"
+        ],
+        "flat": 40,
+        "logical": 40,
+        "uniqueFocalIds": 40,
+        "uniqueOriginalIdentities": 40,
+        "authors": 31,
+        "repeatedFocal": 0,
+        "repeatedSlices": 0,
+        "maxAuthorPerPage": 3,
+        "perPage": [
+          {
+            "page": 1,
+            "flat": 20,
+            "slices": 20,
+            "authors": 19,
+            "maxAuthorPosts": 2,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 6689
+          },
+          {
+            "page": 2,
+            "flat": 20,
+            "slices": 20,
+            "authors": 16,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 9157
+          }
+        ],
+        "languages": {
+          "es": 40
+        },
+        "languageKnown": 40,
+        "languageUnknown": 0,
+        "declaredEs": 40,
+        "servedTextLanguages": {
+          "es": 36,
+          "unknown": 4
+        },
+        "age": {
+          "known": 40,
+          "medianHours": 88.69098416666667,
+          "under24": 0,
+          "under72": 3,
+          "over30days": 0,
+          "oldestHours": 148.17067472222223
+        },
+        "numericOnlyStandaloneObserved": 0
+      },
+      {
+        "feed": "media",
+        "session": 3,
+        "pages": 10,
+        "start": "2026-10-22T18:31:06.448Z",
+        "end": "2026-10-22T18:32:28.204Z",
+        "backendShas": [
+          "d808a983ba8703b105b5bc386a8fee8696226a2d"
+        ],
+        "requestLanguages": [
+          "es"
+        ],
+        "flat": 200,
+        "logical": 200,
+        "uniqueFocalIds": 200,
+        "uniqueOriginalIdentities": 200,
+        "authors": 143,
+        "repeatedFocal": 0,
+        "repeatedSlices": 0,
+        "maxAuthorPerPage": 3,
+        "perPage": [
+          {
+            "page": 1,
+            "flat": 20,
+            "slices": 20,
+            "authors": 18,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 3355
+          },
+          {
+            "page": 2,
+            "flat": 20,
+            "slices": 20,
+            "authors": 16,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2699
+          },
+          {
+            "page": 3,
+            "flat": 20,
+            "slices": 20,
+            "authors": 16,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2704
+          },
+          {
+            "page": 4,
+            "flat": 20,
+            "slices": 20,
+            "authors": 18,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 3617
+          },
+          {
+            "page": 5,
+            "flat": 20,
+            "slices": 20,
+            "authors": 16,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 4687
+          },
+          {
+            "page": 6,
+            "flat": 20,
+            "slices": 20,
+            "authors": 16,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2460
+          },
+          {
+            "page": 7,
+            "flat": 20,
+            "slices": 20,
+            "authors": 19,
+            "maxAuthorPosts": 2,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2675
+          },
+          {
+            "page": 8,
+            "flat": 20,
+            "slices": 20,
+            "authors": 19,
+            "maxAuthorPosts": 2,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2678
+          },
+          {
+            "page": 9,
+            "flat": 20,
+            "slices": 20,
+            "authors": 19,
+            "maxAuthorPosts": 2,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2596
+          },
+          {
+            "page": 10,
+            "flat": 20,
+            "slices": 20,
+            "authors": 19,
+            "maxAuthorPosts": 2,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2245
+          }
+        ],
+        "languages": {
+          "en": 197,
+          "ca": 3,
+          "ja": 1
+        },
+        "languageKnown": 200,
+        "languageUnknown": 0,
+        "declaredEs": 0,
+        "servedTextLanguages": {
+          "en": 185,
+          "ca": 2,
+          "unknown": 12,
+          "ja": 1
+        },
+        "age": {
+          "known": 200,
+          "medianHours": 25.35245527777778,
+          "under24": 87,
+          "under72": 200,
+          "over30days": 0,
+          "oldestHours": 40.46755666666667
+        },
+        "numericOnlyStandaloneObserved": 0
+      },
+      {
+        "feed": "for_you",
+        "session": 5,
+        "pages": 10,
+        "start": "2026-10-22T18:33:59.686Z",
+        "end": "2026-10-22T18:34:57.033Z",
+        "backendShas": [
+          "d808a983ba8703b105b5bc386a8fee8696226a2d"
+        ],
+        "requestLanguages": [
+          "es"
+        ],
+        "flat": 220,
+        "logical": 200,
+        "uniqueFocalIds": 200,
+        "uniqueOriginalIdentities": 200,
+        "authors": 69,
+        "repeatedFocal": 0,
+        "repeatedSlices": 0,
+        "maxAuthorPerPage": 3,
+        "perPage": [
+          {
+            "page": 1,
+            "flat": 21,
+            "slices": 20,
+            "authors": 10,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 4452
+          },
+          {
+            "page": 2,
+            "flat": 23,
+            "slices": 20,
+            "authors": 13,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 3666
+          },
+          {
+            "page": 3,
+            "flat": 21,
+            "slices": 20,
+            "authors": 13,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 4407
+          },
+          {
+            "page": 4,
+            "flat": 23,
+            "slices": 20,
+            "authors": 10,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 3030
+          },
+          {
+            "page": 5,
+            "flat": 21,
+            "slices": 20,
+            "authors": 15,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2369
+          },
+          {
+            "page": 6,
+            "flat": 23,
+            "slices": 20,
+            "authors": 12,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2572
+          },
+          {
+            "page": 7,
+            "flat": 23,
+            "slices": 20,
+            "authors": 14,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2567
+          },
+          {
+            "page": 8,
+            "flat": 20,
+            "slices": 20,
+            "authors": 14,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2707
+          },
+          {
+            "page": 9,
+            "flat": 20,
+            "slices": 20,
+            "authors": 14,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2361
+          },
+          {
+            "page": 10,
+            "flat": 25,
+            "slices": 20,
+            "authors": 14,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2189
+          }
+        ],
+        "languages": {
+          "en": 200
+        },
+        "languageKnown": 200,
+        "languageUnknown": 0,
+        "declaredEs": 0,
+        "servedTextLanguages": {
+          "en": 200
+        },
+        "age": {
+          "known": 200,
+          "medianHours": 6.411425277777778,
+          "under24": 169,
+          "under72": 200,
+          "over30days": 0,
+          "oldestHours": 48.4158425
+        },
+        "numericOnlyStandaloneObserved": 0
+      },
+      {
+        "feed": "explore",
+        "session": 5,
+        "pages": 10,
+        "start": "2026-10-22T18:35:56.479Z",
+        "end": "2026-10-22T18:36:39.645Z",
+        "backendShas": [
+          "d808a983ba8703b105b5bc386a8fee8696226a2d"
+        ],
+        "requestLanguages": [
+          "es"
+        ],
+        "flat": 206,
+        "logical": 200,
+        "uniqueFocalIds": 200,
+        "uniqueOriginalIdentities": 200,
+        "authors": 144,
+        "repeatedFocal": 0,
+        "repeatedSlices": 0,
+        "maxAuthorPerPage": 3,
+        "perPage": [
+          {
+            "page": 1,
+            "flat": 22,
+            "slices": 20,
+            "authors": 18,
+            "maxAuthorPosts": 2,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2738
+          },
+          {
+            "page": 2,
+            "flat": 23,
+            "slices": 20,
+            "authors": 16,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2459
+          },
+          {
+            "page": 3,
+            "flat": 20,
+            "slices": 20,
+            "authors": 17,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2500
+          },
+          {
+            "page": 4,
+            "flat": 20,
+            "slices": 20,
+            "authors": 18,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2814
+          },
+          {
+            "page": 5,
+            "flat": 20,
+            "slices": 20,
+            "authors": 18,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2175
+          },
+          {
+            "page": 6,
+            "flat": 21,
+            "slices": 20,
+            "authors": 18,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2200
+          },
+          {
+            "page": 7,
+            "flat": 20,
+            "slices": 20,
+            "authors": 18,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2123
+          },
+          {
+            "page": 8,
+            "flat": 20,
+            "slices": 20,
+            "authors": 18,
+            "maxAuthorPosts": 3,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2304
+          },
+          {
+            "page": 9,
+            "flat": 20,
+            "slices": 20,
+            "authors": 17,
+            "maxAuthorPosts": 2,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2988
+          },
+          {
+            "page": 10,
+            "flat": 20,
+            "slices": 20,
+            "authors": 19,
+            "maxAuthorPosts": 2,
+            "hasMore": true,
+            "cursorType": "session",
+            "elapsedMs": 2351
+          }
+        ],
+        "languages": {
+          "en": 185,
+          "es": 12,
+          "ca": 3
+        },
+        "languageKnown": 200,
+        "languageUnknown": 0,
+        "declaredEs": 12,
+        "servedTextLanguages": {
+          "en": 181,
+          "es": 12,
+          "ca": 3,
+          "unknown": 4
+        },
+        "age": {
+          "known": 200,
+          "medianHours": 8.763568611111111,
+          "under24": 200,
+          "under72": 200,
+          "over30days": 0,
+          "oldestHours": 23.932586666666666
+        },
+        "numericOnlyStandaloneObserved": 0
+      }
+    ],
+    "errors": [
+      {
+        "feed": "media",
+        "session": 2,
+        "page": 3,
+        "at": "2026-10-22T18:29:34.767Z",
+        "content": [
+          {
+            "type": "text",
+            "text": "API error (410) [FEED_CURSOR_EXPIRED]: Feed pagination session expired; refresh the feed"
+          }
+        ]
+      },
+      {
+        "feed": "for_you",
+        "session": 4,
+        "page": 11,
+        "at": "2026-10-22T18:30:51.231Z",
+        "content": [
+          {
+            "type": "text",
+            "text": "API error (410) [FEED_CURSOR_EXPIRED]: Feed pagination session expired; refresh the feed"
+          }
+        ]
+      }
+    ],
+    "probes": {
+      "preCutover": {
+        "createdAt": "2026-10-22T18:22:51.434Z",
+        "backendSha": "91a9f72c42e6dcebdf749535cd7ef1fbf741e3dc",
+        "continuationAt": "2026-10-22T18:22:58.575Z",
+        "continuationSucceeded": true,
+        "afterCutover": "2026-10-22T18:26:48.958Z",
+        "error": [
+          {
+            "type": "text",
+            "text": "API error (410) [FEED_CURSOR_EXPIRED]: Feed pagination session expired; refresh the feed"
+          }
+        ]
+      },
+      "legacy": [
+        {
+          "type": "text",
+          "text": "API error (410) [FEED_CURSOR_EXPIRED]: Feed pagination session expired; refresh the feed"
+        }
+      ],
+      "invalidLang": [
+        {
+          "type": "text",
+          "text": "MCP error -32602: Input validation error: Invalid arguments for tool get-feed: Expected one valid language tag at lang"
+        }
+      ],
+      "replay": {
+        "at": "2026-10-22T18:37:31.230Z",
+        "okA": true,
+        "okB": true,
+        "sameFlatIds": true,
+        "sameSliceKeys": true,
+        "sameAsOriginal": true,
+        "mismatch": {
+          "isError": true,
+          "content": [
+            {
+              "type": "text",
+              "text": "API error (410) [FEED_CURSOR_EXPIRED]: Feed pagination session expired; refresh the feed"
+            }
+          ]
+        }
+      }
+    },
+    "limitations": [
+      "Explicit lang=es is a request fallback when account languages cannot be resolved, not a guaranteed filter or saved-preference change.",
+      "Observed account-language cache became nonempty during capture. Old and new Media sessions had different bindings while old keys remained unexpired; language-cache warmup is a supported inference, exact changed field not retained.",
+      "ForYou session4 stopped after10successful pages with184logical posts; its page11 laterreturned410. Media2 stopped with40logical afterpage3returned410. Fresh sessions eachcompleted10pages.",
+      "Explore4 exhausted33eligible posts under initialrequest fallback; scarcity relaxation permitsmorethan3perauthor when neededtofillsupply. This was not the later accountcontext sample.",
+      "All freshness comparisons across dates are observational, not matchedinventory causalbenchmarks.",
+      "MCP elapsed times include connector overhead.",
+      "No account settings, engagement, or subscription mutation was performed by these probes. Feed reads can affect servedhistory.",
+      "No claim of reduced needless import volume, universal semantic quality, or native/logged-in browser verification."
+    ]
+  },
+  "anonymous": {
+    "revision": "d808a983ba8703b105b5bc386a8fee8696226a2d",
+    "startedAt": "2026-10-22T18:28:37.052Z",
+    "finishedAt": "2026-10-22T18:28:48.589Z",
+    "headers": {
+      "Accept-Language": "en,es;q=0.9",
+      "Accept": "application/json"
+    },
+    "lang": "en",
+    "shape": {
+      "envelopeKeys": [
+        "success",
+        "data"
+      ],
+      "dataKeys": [
+        "slices",
+        "items",
+        "totalCount",
+        "hasMore",
+        "nextCursor"
+      ],
+      "sliceKeys": [
+        "_sliceKey",
+        "items",
+        "isIncompleteThread"
+      ],
+      "postKeys": [
+        "id",
+        "content",
+        "attachments",
+        "documents",
+        "documentsPending",
+        "user",
+        "authors",
+        "engagement",
+        "viewerState",
+        "permissions",
+        "metadata",
+        "originalPost",
+        "quotedPost",
+        "boost"
+      ]
+    },
+    "feeds": [
+      {
+        "descriptor": "media",
+        "pages": 10,
+        "canonicalPosts": 200,
+        "uniquePostIds": 200,
+        "flatItems": 200,
+        "distinctAuthors": 148,
+        "perPageAuthors": [
+          20,
+          19,
+          19,
+          17,
+          18,
+          16,
+          16,
+          18,
+          20,
+          18
+        ],
+        "maxAuthorPerPage": 3,
+        "focalRepeats": 0,
+        "sliceRepeats": 0,
+        "languageMetadata": {
+          "es": 18,
+          "en": 181,
+          "en,ja": 1
+        },
+        "ageDays": {
+          "minimum": 0.10188717592592593,
+          "median": 1.0367656481481482,
+          "maximum": 1.612150949074074,
+          "atMost1day": 90,
+          "atMost7days": 200,
+          "over30days": 0
+        },
+        "latencyMs": {
+          "minimum": 454,
+          "median": 520,
+          "maximum": 763
+        },
+        "allHttp200": true,
+        "allSessionCursors": true,
+        "allHasMore": true,
+        "originalSourceUrlAvailability": "not exposed; duplicate-origin assessment unknown"
+      },
+      {
+        "descriptor": "explore",
+        "pages": 10,
+        "canonicalPosts": 200,
+        "uniquePostIds": 200,
+        "flatItems": 206,
+        "distinctAuthors": 135,
+        "perPageAuthors": [
+          18,
+          16,
+          16,
+          18,
+          18,
+          18,
+          17,
+          18,
+          17,
+          13
+        ],
+        "maxAuthorPerPage": 3,
+        "focalRepeats": 0,
+        "sliceRepeats": 0,
+        "languageMetadata": {
+          "en": 186,
+          "es": 14
+        },
+        "ageDays": {
+          "minimum": 0.004618657407407407,
+          "median": 0.2546360185185185,
+          "maximum": 0.9992019907407408,
+          "atMost1day": 200,
+          "atMost7days": 200,
+          "over30days": 0
+        },
+        "latencyMs": {
+          "minimum": 412,
+          "median": 435.5,
+          "maximum": 668
+        },
+        "allHttp200": true,
+        "allSessionCursors": true,
+        "allHasMore": true,
+        "originalSourceUrlAvailability": "not exposed; duplicate-origin assessment unknown"
+      }
+    ],
+    "comparisonCaveat": "Historical682 and current695 captures differ in time and inventory; same explicit public locale parameters. This is an observational post-deploy sample, not a matched causal experiment."
+  },
+  "browser": {
+    "capturedAt": "2026-10-22T18:36:41.932Z",
+    "backendReleaseSha": "d808a983ba8703b105b5bc386a8fee8696226a2d",
+    "frontendReleaseSha": "d808a983ba8703b105b5bc386a8fee8696226a2d",
+    "visitor": "returning anonymous, direct production origin, no auth or request interception",
+    "flows": [
+      "cold home paints feed rows",
+      "Home \u2192 Explore \u2192 post \u2192 back without document reload",
+      "@nate opens Posts and switches to Media",
+      "pushed federated profile opens its own Posts tab",
+      "anonymous Media paints feed rows and visible post images"
+    ],
+    "surfaces": [
+      {
+        "name": "home",
+        "rows": 5,
+        "visibleLargePostImages": [
+          {
+            "complete": true,
+            "loaded": true,
+            "width": 320,
+            "height": 240
+          },
+          {
+            "complete": true,
+            "loaded": true,
+            "width": 320,
+            "height": 180
+          }
+        ],
+        "mediaWaitTimedOut": false
+      },
+      {
+        "name": "explore",
+        "rows": 9,
+        "visibleLargePostImages": [],
+        "mediaWaitTimedOut": false
+      },
+      {
+        "name": "media",
+        "rows": 6,
+        "visibleLargePostImages": [
+          {
+            "complete": true,
+            "loaded": true,
+            "width": 320,
+            "height": 244
+          }
+        ],
+        "mediaWaitTimedOut": false
+      }
+    ],
+    "scriptErrors": [],
+    "navigationOrResourceAbortedRequests": 10
+  },
+  "readOnlyContextDiagnostics": {
+    "readOnly": true,
+    "firstObservedAt": "2026-10-22T18:34:24Z",
+    "comparisonObservedAt": "2026-10-22T18:37:19Z",
+    "failedMediaSessionKeysExisted": true,
+    "failedForYouSessionKeyExisted": true,
+    "allInspectedKeysHadPositiveTtl": true,
+    "oldAndNewMediaBindingsDiffered": true,
+    "accountLanguageCacheBecameNonempty": true,
+    "interpretation": "Effective bound context changed; language-cache warmup is consistent with observed inventory changes but the exact changed field cannot be recovered from binding hashes. No stored private preference values or session identifiers are published."
+  },
+  "anonymousCursorProbe": {
+    "status": "not verified",
+    "reason": "EHOSTUNREACH on two attempts before an HTTP response; separate from successful public feed traversal and authenticated cursor checks"
+  }
+}
