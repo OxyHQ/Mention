@@ -95,7 +95,8 @@ from `account_erasures`. From the moment the deletion event is recorded, the
 actor, its inbox, collections and posts, and WebFinger answer `410 Gone` (the
 actor and posts with a `Tombstone`) instead of 404, which is what makes Mastodon,
 Lemmy, PieFed and Mbin drop their copy. The same applies to an archived channel
-or community. See [Account erasure](./account-erasure.md).
+or community, and for good: after the ledger's 14 days Oxy still answers that
+its archived account holds the handle. See [Account erasure](./account-erasure.md).
 
 ## Inbound flow
 
