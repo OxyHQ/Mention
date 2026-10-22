@@ -97,6 +97,18 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       'Walks every post by id and copies the hashtags of every listed one, locking each ' +
       "range FOR SHARE while it does, so another file's posts are in its ranges and its locks.",
   },
+  ...[
+    'src/__tests__/exploreNegativeIntent.db.test.ts',
+    'src/__tests__/exploreFeed.test.ts',
+    'src/__tests__/mtn/exploreCandidateGatheringStatementBudget.test.ts',
+  ].map((path) => ({
+    path,
+    jobEntryPoint: 'exploreSource.gather',
+    reason:
+      'Explore reads all eligible posts in its time window. Concurrent fixture inserts ' +
+      'change the ranked cohort between direct SQL and engine calls, invalidating exact ' +
+      'score-order and lossless-pagination assertions; each file must own its candidate pool.',
+  })),
   {
     path: 'src/__tests__/services/trendingBatchWrite.test.ts',
     jobEntryPoint: 'calculateTrending',
