@@ -6,6 +6,7 @@ import { announceCommunityPosts, resolveLocalCommunityActor } from '../community
 import { logger } from '../../../utils/logger';
 import { activityPubConnector } from '../ActivityPubConnector';
 import { AP_CONTEXT } from '@oxy.so/federation';
+import { goneTombstone } from '@oxy.so/federation/node';
 import { getDb } from '../../../db/postgres';
 import { posts } from '../../../db/schema/posts';
 import { findPostRecords, loadPostRecord } from '../../../db/posts/postRepository';
@@ -14,12 +15,14 @@ import {
   FEDERATION_ENABLED,
   AP_CONTENT_TYPE,
   isActivityPubAccept,
+  actorUrl,
   outboxUrl,
   featuredUrl,
   resolveOxyUser,
 } from '../constants';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../../mtn/feed/CursorBuilder';
 import { isFediverseSharingEnabledFromUser } from '../../../services/fediverseSharing';
+import { isErasedActorHandle } from '../../../services/accountErasure/erasedAccounts';
 
 /**
  * The CONTENT half of the `/ap/users/:username/*` namespace: the outbox, the
@@ -40,6 +43,19 @@ function wantsActivityPub(req: Request): boolean {
 function getUsername(req: Request): string {
   const val = req.params.username;
   return typeof val === 'string' ? val : Array.isArray(val) ? val[0] : String(val);
+}
+
+/**
+ * No account answers for the handle. A DELETED actor's objects answer `410 Gone`
+ * with a `Tombstone`, as the engine's actor routes do, so a server refetching a
+ * post or the outbox drops its copy; anything else is the usual 404.
+ */
+async function userMissing(res: Response, username: string, objectId: string): Promise<Response> {
+  if (await isErasedActorHandle(username)) {
+    res.set('Content-Type', AP_CONTENT_TYPE);
+    return res.status(410).json(goneTombstone(objectId));
+  }
+  return res.status(404).json({ error: 'User not found' });
 }
 
 /**
@@ -103,7 +119,7 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
 
   try {
     const user = await resolveOxyUser(username);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user) return userMissing(res, username, outboxUrl(username));
 
     // Sharing OFF must be indistinguishable from a nonexistent user — same
     // 404 body, no separate error code.
@@ -237,7 +253,7 @@ router.get('/users/:username/collections/featured', async (req: Request, res: Re
 
   try {
     const user = await resolveOxyUser(username);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user) return userMissing(res, username, featuredUrl(username));
 
     // Sharing OFF must be indistinguishable from a nonexistent user — same
     // 404 body, no separate error code.
@@ -324,7 +340,7 @@ router.get('/users/:username/posts/:id', async (req: Request, res: Response) => 
 
   try {
     const user = await resolveOxyUser(username);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user) return userMissing(res, username, `${actorUrl(username)}/posts/${postId}`);
 
     // Sharing OFF must be indistinguishable from a nonexistent user — same
     // 404 body, no separate error code. This route was not in the original

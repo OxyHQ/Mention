@@ -17,37 +17,20 @@
  * Without a handle nothing can be addressed, so nothing is sent and the local
  * erasure still runs. The ledger records that the broadcast was skipped.
  *
- * Remote servers are ASKED, not forced. A server may ignore a Delete, and one that
- * stays down past the delivery retry budget (about 63 hours) never hears it.
+ * Remote servers are ASKED, not forced. A server may ignore a Delete (Lemmy does
+ * not accept one whose actor is a community), and one that stays down past the
+ * delivery retry budget (about 63 hours) never hears it. For those, the actor's
+ * URLs answer `410 Gone` from the moment the event is recorded
+ * (`erasedAccounts.isErasedActorHandle`), which a refetch reads as permanent.
  */
 
-import { AP_CONTEXT } from '@oxy.so/federation';
 import { followService } from '../../connectors/activitypub/follow.service';
 import { deliveryService } from '../../connectors/activitypub/delivery.service';
-import { FEDERATION_ENABLED, actorUrl } from '../../connectors/activitypub/constants';
+import { FEDERATION_ENABLED } from '../../connectors/activitypub/constants';
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { federatedFollows } from '../../db/schema/federation';
 import type { OwnPostRow } from './erasePosts';
-
-const AP_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
-
-/**
- * The actor `Delete`. Its id is DETERMINISTIC (no timestamp), so a re-run
- * re-sends the same activity and the delivery queue dedupes it per inbox instead
- * of fanning out a second copy.
- */
-export function buildActorDeleteActivity(username: string): Record<string, unknown> {
-  const actor = actorUrl(username);
-  return {
-    '@context': AP_CONTEXT,
-    id: `${actor}#delete`,
-    type: 'Delete',
-    actor,
-    to: [AP_PUBLIC],
-    object: actor,
-  };
-}
 
 /** Does any remote actor still follow the account? The Delete's only recipients. */
 async function hasRemoteFollowers(oxyUserId: string): Promise<boolean> {
@@ -85,14 +68,19 @@ export async function broadcastPostDeletes(
 }
 
 /**
- * The actor Delete, sent while the `federated_follows` rows delivery resolves its
- * inboxes from still exist. Returns whether it was handed to delivery: false when
- * nobody remote follows the account (nothing to address), which is also what a
- * re-run after a completed erasure sees.
+ * The actor Delete (the engine's `federateActorDelete`: `<actor>#delete`, a
+ * deterministic id, so a re-run dedupes per inbox), sent while the
+ * `federated_follows` rows delivery resolves its inboxes from still exist.
+ * Returns whether it was handed to delivery: false when nobody remote follows
+ * the account (nothing to address), which is also what a re-run after a
+ * completed erasure, or after the channel cascade already sent it, sees.
+ *
+ * The one call site for every kind of account: a person's deletion, an archived
+ * channel or community, and the channel cascade Mention runs before archiving.
  */
 export async function broadcastActorDelete(oxyUserId: string, username: string): Promise<boolean> {
   if (!FEDERATION_ENABLED) return false;
   if (!(await hasRemoteFollowers(oxyUserId))) return false;
-  await deliveryService.deliverToFollowers(buildActorDeleteActivity(username), oxyUserId, username);
+  await deliveryService.federateActorDelete(oxyUserId, username);
   return true;
 }

@@ -91,7 +91,11 @@ erasure sends a `Delete(Tombstone)` for each public post and a `Delete` of the
 actor to every follower inbox, then removes the federation rows. Oxy keeps the
 signing key and the event carries the handle, so the Deletes can still be signed
 after the account is gone; the delivery worker reads an erased sender's handle
-from `account_erasures`. See [Account erasure](./account-erasure.md).
+from `account_erasures`. From the moment the deletion event is recorded, the
+actor, its inbox, collections and posts, and WebFinger answer `410 Gone` (the
+actor and posts with a `Tombstone`) instead of 404, which is what makes Mastodon,
+Lemmy, PieFed and Mbin drop their copy. The same applies to an archived channel
+or community. See [Account erasure](./account-erasure.md).
 
 ## Inbound flow
 

@@ -41,9 +41,21 @@ vi.mock('../../services/publishAsAccount', async (importOriginal) => ({
 vi.mock('../../connectors/activitypub/follow.service', () => ({
   followService: { federateDelete },
 }));
-vi.mock('../../connectors/activitypub/delivery.service', () => ({
-  deliveryService: { deliverToFollowers },
-}));
+vi.mock('../../connectors/activitypub/delivery.service', async () => {
+  const { buildActorDeleteActivity } = await import('@oxy.so/federation/node');
+  return {
+    deliveryService: {
+      deliverToFollowers,
+      // What the engine's actor Delete does, through the same mocked fan-out.
+      federateActorDelete: (oxyUserId: string, username: string) =>
+        (deliverToFollowers as (...args: unknown[]) => Promise<void>)(
+          buildActorDeleteActivity(`https://mention.test/ap/users/${username}`),
+          oxyUserId,
+          username,
+        ),
+    },
+  };
+});
 vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../utils/oxyHelpers')>()),
   getServiceOxyClient: () => ({ users: { get: getUserById } }),
