@@ -115,9 +115,12 @@ the way back to 28% unnoticed.
 check reads the committed baseline, so without this one a pull request could
 lower the baseline in the same commit that removes the tests and pass all of
 them. A genuine decrease — code that legitimately shrank — needs a dated,
-path-and-metric-named entry in `allowedBaselineDecreases`, and an entry that is
-not currently excusing a real decrease fails, so the list cannot become a
-standing permission slip.
+path-and-metric-named entry in `allowedBaselineDecreases`. Only entries the
+change itself **adds** (absent from the base revision's policy) excuse a drop,
+and an added entry with no matching drop fails, so the list cannot become a
+standing permission slip. An entry that merged earlier is inherited: it excuses
+nothing and is checked for nothing, so the next pull request in the queue does
+not fail on it and nobody has to come back and delete it.
 
 **7. The pre-existing jest thresholds stay.** `lib/viewerQueryKeys.ts` at 100%
 and `components/providers/AccountSwitchReset.tsx` remain enforced by
