@@ -151,7 +151,7 @@ Use **Run media-metadata backfill** (`run-media-metadata-backfill.yml`) from
 `main`, with `file_id` set to the repaired Oxy video id and `dry_run=true`.
 Review the post counts, then use `dry_run=false` and the existing exact phrase
 `BACKFILL MEDIA METADATA`. Dispatcher authorization is unchanged. Leaving
-`file_id` empty retains the ordinary missing-metadata sweep.
+`file_id` empty and `refresh_videos=false` retain the ordinary missing-metadata sweep.
 
 The equivalent script preview is:
 
@@ -166,6 +166,44 @@ file during the lookup is not overwritten. Counters count posts, so multiple
 references in one post count once. Repeating the run reports unchanged posts
 as skipped. Missing or failed Oxy lookups count as unresolved and produce exit
 code 75; they are not reported as successfully repaired.
+
+### Reconcile a video repair backlog
+
+Set `refresh_videos=true` in the same workflow to refresh complete references
+across both media tables. `limit_files` bounds distinct video files per pass
+(default 1000); use 30000 for a complete pass over a roughly 26000-file backlog.
+The command is included in the normal production runtime image:
+
+```bash
+bun packages/backend/dist/src/scripts/backfillMediaMetadata.js --refresh-videos --dry-run --limit-files 30000
+```
+
+A confirmed write uses the existing `CONFIRM_ADMIN_MUTATION=backfillMediaMetadata`
+guard and omits `--dry-run`. The scanner deduplicates file IDs, requests at most
+100 files from Oxy at once, and updates only changed intrinsic metadata and
+`hlsReadyAt`. Row/file identity guards protect concurrent edits; a newer stored
+readiness stamp is never replaced by an older source response. Changed post
+detail caches are invalidated after the transaction commits.
+
+Every committed batch logs a durable checkpoint. Resume a bounded or interrupted
+run with `--after-file-id` / workflow `after_file_id` set to `resumeAfterFileId`.
+A null cursor means start at the beginning. Do not use `scannedThroughFileId`
+when a lookup is unresolved: the resume cursor deliberately stays before the
+first unresolved file. Exit 75 means the file limit or unresolved sources left
+work outstanding. Dry-run checkpoints describe the preview, not applied work.
+
+Oxy repairs asynchronously. `--passes` (1–10) repeats completed scans from the
+beginning, with `--pass-delay-seconds` (0–600, default 60) between them, even if
+the preceding scan was unchanged. A pass stopped by its file limit returns its
+cursor instead of repeatedly scanning the same prefix. For a repair lasting
+hours or days, run bounded full passes periodically from the live service's
+runtime revision; the workflow also supports manual recovery without one build
+per file. A 30000-file pass makes at most 300 Oxy batch requests, plus bounded
+keyset queries and writes. Its duration depends on source and database latency.
+
+A successful scan only means the references match the metadata currently
+published by Oxy. It does not mean Oxy has finished repairing every ladder.
+Run and verify a final complete pass after the upstream repair inventory settles.
 
 ## Configuration
 
