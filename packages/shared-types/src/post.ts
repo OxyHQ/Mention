@@ -1586,6 +1586,8 @@ export interface HydratedBoostContext {
 export interface HydratedPost extends HydratedPostSummary {
   originalPost?: HydratedPostSummary | null;
   quotedPost?: HydratedPostSummary | null;
+  /** A quote's subject cannot be shown. Reveals no target identity or reason. */
+  quotedPostUnavailable?: boolean;
   boost?: HydratedBoostContext | null;
   context?: PostFeedContext;
 }
