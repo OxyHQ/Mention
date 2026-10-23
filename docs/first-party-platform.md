@@ -64,7 +64,7 @@ reuse the own path or infer an account from a header.
 | Move → Mention → Oxy | Own receiver and derived requester context; shared import contract and SDK `/server` factory | Move source 75dfab7 creates durable original tasks; publish/pin SDK; canary lookup/import/undo |
 | Mention backend → Clarity | `clarityForOxyService`, shared canonical service transport | Clarity receiver first, SDK release/pin, caller canary |
 | Mention frontend → Clarity | `clarityForOxySession`, shared linked client | Clarity SDK release/pin and frontend build/deploy |
-| Mention media cache → Oxy | Existing native streaming upload/delete transport still pending | Replace manual bearer/retry with shared streaming transport; preserve bounded memory, reopen/replay, cooldown and namespace deletion behavior |
+| Mention media cache → Oxy | Shared workload transport and explicit disk body factory; no manual bearer or local auth retry | Publish/pin core streaming addition (planned 7.1), then verify streaming/cancellation and outbox retry canaries |
 | Mention backend → Kaana | Product SDK own factory; immutable per-call attribution; no manual bearer | Publish/pin Kaana SDK and core; preserve one-dispatch shadow ledger and app-paid accounting |
 | Mention frontend → Syra | Product SDK linked-session factory, retained lazy client-only entry | Publish/pin Syra SDK and core; runtime account-switch canary |
 | Mention frontend → Alia | Existing product SDK client; no backend Alia proxy found | Coordinate final shared SDK adoption with Alia SDK owner |
@@ -123,11 +123,28 @@ Attribution remains app-paid accounting, never private-data or payer authority.
 Syra podcasts use `syraForOxySession` from the same lazy `/client` boundary, so
 refresh/account switching stay with Oxy and LiveKit is not pulled into that chunk.
 
-Native Files streaming is deliberately a separate pending change. The core 7
-raw fetch lane does not replay file/stream bodies. A subsequent shared explicit
-body-factory API must reopen the file for the single authenticated 401 retry,
-preserve bounded memory and cancellation, and retain namespace deletion and
-429 cooldown semantics before this caller can cut over.
+Files streaming now uses the shared `fetchReplayable` addition. Each authorized
+attempt opens a fresh disk stream; only the shared transport decides whether a
+401 warrants one retry. File handles close on cancellation, completion and before
+replay. The store retains its 60-second inactivity deadline (not a total upload
+duration), separate upload/delete cooldowns, deduplication and namespace deletion
+behavior. Unknown batch results remain unanswered for the existing outbox to retry.
+Federated owner metadata stays a domain field of the public federation endpoint,
+not requester authority over personal Files. The purge script's preflight also
+uses the shared v2 workload transport. No production backend manual service-token
+calls remain in this branch.
+
+This source requires the subsequent core streaming release (planned 7.1); core
+7.0's ordinary raw fetch does not replay streams. Candidate validation is not a
+registry pin or a deployment. The final composition must include the patched
+Zod 4 foundation as well as the streaming addition before cutover.
+
+Streaming candidate gate: 75 media-store, batch-delete and purge tests pass,
+including actual HTTP mint/replay of a disk file, an interrupted upload with no
+retry, pre-cancellation before opening a file, 429 cooldowns and namespace
+outcomes. Backend TypeScript, production build and changed-file Biome pass.
+The tests use valid five-minute workload tokens; no manual-token mock bypasses
+the shared transport. Final registry-pinned composition remains pending.
 
 Candidate validation for this caller checkpoint: 50 backend inference/classification
 tests, the Syra client integration test, backend/frontend TypeScript, backend build

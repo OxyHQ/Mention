@@ -836,12 +836,18 @@ export function totalsOf(report: PlatformPurgeReport): Record<string, number> {
 // --- entry point -------------------------------------------------------------
 
 /**
- * Refuse before the first request if there is no service credential to make it
- * with. Without one every call is an unauthenticated 401, and the run would
+ * Refuse before the first request if the process cannot attest its workload.
+ * Without it every call is an unauthenticated 401, and the run would
  * spend five domains discovering a configuration problem it could state up front.
  */
 async function assertServiceCredentialConfigured(): Promise<void> {
-  await getServiceOxyClient().serviceToken();
+  const oxy = getServiceOxyClient();
+  const transport = oxy.createServiceClient({ baseURL: oxy.baseURL, audience: 'oxy-api' });
+  try {
+    await transport.getAccessToken(new URL('/assets/service/federation', oxy.baseURL));
+  } finally {
+    transport.dispose();
+  }
 }
 
 async function main(): Promise<void> {

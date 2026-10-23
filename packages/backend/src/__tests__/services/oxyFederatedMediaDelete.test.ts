@@ -1,5 +1,6 @@
 import http, { type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { OxyServer } from '@oxy.so/core/server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -17,9 +18,26 @@ vi.mock('../../services/mediaCache/constants', async (importOriginal) => ({
 
 const h = vi.hoisted(() => ({
   baseURL: '',
-  tokens: ['token-1', 'token-2'],
-  serviceToken: vi.fn(),
-  invalidateServiceToken: vi.fn(),
+  tokens: [1, 2].map(
+    (nonce) =>
+      `e30.${Buffer.from(
+        JSON.stringify({
+          type: 'service',
+          authority: 'first_party',
+          appId: 'mention',
+          credentialId: 'wl_mention',
+          ownerAccountId: 'owner',
+          environment: 'production',
+          aud: 'oxy-api',
+          iss: 'oxy-auth',
+          nonce,
+          iat: Math.floor(Date.now() / 1000),
+          exp: Math.floor(Date.now() / 1000) + 300,
+        }),
+      ).toString('base64url')}.fixture`,
+  ),
+  mint: vi.fn(),
+  oxy: null as OxyServer | null,
   handler: (_req: IncomingMessage, _body: string, res: ServerResponse): void => {
     res.end();
   },
@@ -33,11 +51,10 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({
-    baseURL: h.baseURL,
-    serviceToken: h.serviceToken,
-    invalidateServiceToken: h.invalidateServiceToken,
-  }),
+  getServiceOxyClient: () => {
+    if (!h.oxy) throw new Error('Workload fixture is not initialized');
+    return h.oxy;
+  },
 }));
 
 import {
@@ -57,6 +74,18 @@ beforeAll(async () => {
       body += chunk;
     });
     req.on('end', () => {
+      if (req.url === '/auth/service-token/workload/challenge') {
+        json(res, 200, { nonce: 'fixture-nonce' });
+        return;
+      }
+      if (req.url === '/auth/service-token/workload') {
+        const claims = JSON.parse(body);
+        expect(claims.protocolVersion).toBe(2);
+        expect(claims.audience ?? 'oxy-api').toBe('oxy-api');
+        expect(claims.scopes).toBeUndefined();
+        json(res, 200, { token: h.mint(), expiresIn: 300 });
+        return;
+      }
       h.requests.push({
         method: req.method,
         url: req.url,
@@ -72,6 +101,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  h.oxy?.dispose();
+  server.closeAllConnections();
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
@@ -79,10 +110,16 @@ beforeEach(() => {
   h.requests.length = 0;
   resetWriteBudgetCooldowns();
   let n = 0;
-  h.serviceToken
-    .mockReset()
-    .mockImplementation(async () => h.tokens[Math.min(n++, h.tokens.length - 1)]);
-  h.invalidateServiceToken.mockReset();
+  h.mint.mockReset().mockImplementation(() => h.tokens[Math.min(n++, h.tokens.length - 1)]);
+  h.oxy?.dispose();
+  h.oxy = new OxyServer({
+    baseURL: h.baseURL,
+    workloadCredentials: async () => ({
+      AccessKeyId: 'ASIA_TEST',
+      SecretAccessKey: 'test-only',
+      Token: 'temporary-test',
+    }),
+  });
 });
 
 function json(
@@ -115,7 +152,7 @@ describe('deleteFederatedMedia', () => {
       expect.objectContaining({
         method: 'POST',
         url: '/assets/service/federation/delete',
-        auth: 'Bearer token-1',
+        auth: `Bearer ${h.tokens[0]}`,
         contentType: 'application/json',
       }),
     ]);
@@ -125,15 +162,18 @@ describe('deleteFederatedMedia', () => {
 
   it('re-mints the service token once on a 401', async () => {
     h.handler = (req, _body, res) => {
-      if (req.headers.authorization === 'Bearer token-1')
+      if (req.headers.authorization === `Bearer ${h.tokens[0]}`)
         return json(res, 401, { error: 'expired' });
       json(res, 200, { data: { results: [{ id: 'file-a', result: 'deleted' }] } });
     };
     await expect(deleteFederatedMedia(['file-a'])).resolves.toEqual([
       { id: 'file-a', result: 'deleted' },
     ]);
-    expect(h.invalidateServiceToken).toHaveBeenCalledTimes(1);
-    expect(h.requests.map((r) => r.auth)).toEqual(['Bearer token-1', 'Bearer token-2']);
+    expect(h.mint).toHaveBeenCalledTimes(2);
+    expect(h.requests.map((r) => r.auth)).toEqual([
+      `Bearer ${h.tokens[0]}`,
+      `Bearer ${h.tokens[1]}`,
+    ]);
   });
 
   it('reports 429 as throttled, honouring Retry-After', async () => {
