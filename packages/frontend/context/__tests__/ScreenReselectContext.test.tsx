@@ -155,6 +155,15 @@ describe('reselecting the screen in front', () => {
   });
 });
 
+it('lets a list outside every screen render without registering', () => {
+  // A feed in a sheet or a dialog sits outside the provider.
+  expect(() =>
+    act(() => {
+      TestRenderer.create(<List />);
+    }),
+  ).not.toThrow();
+});
+
 describe('useTabSelect', () => {
   it('reselects the active tab and selects any other one', () => {
     const select = jest.fn();

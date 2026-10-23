@@ -112,15 +112,16 @@ export function useReselect(): () => void {
 /**
  * Declare what reselecting this screen means. Registered only while the screen
  * is focused: the native tab pager keeps every tab mounted, and a background
- * tab must never answer for the one in front of the reader.
+ * tab must never answer for the one in front of the reader. Outside every
+ * screen (a list in a sheet or a dialog) there is nothing to answer.
  */
 export function useScreenReselect(handler: ReselectHandler) {
-  const { register } = useScreenReselectContext();
+  const register = useContext(ScreenReselectContext)?.register;
   const isFocused = useIsFocused();
   const handlerRef = useRefSync(handler);
 
   useEffect(() => {
-    if (!isFocused) return;
+    if (!isFocused || !register) return;
     return register(() => handlerRef.current);
   }, [isFocused, register, handlerRef]);
 }
@@ -129,14 +130,15 @@ export function useScreenReselect(handler: ReselectHandler) {
  * The list in front answers where it is and moves when asked: a reselect takes
  * it to the top, a profile to its tabs. Registered only while its screen is
  * focused, for the same reason as {@link useScreenReselect}, and only by a list
- * that scrolls itself (`enabled`).
+ * that scrolls itself (`enabled`). A list in a sheet or a dialog, outside every
+ * screen, registers nothing.
  */
 export function useReselectScroller(scroller: ReselectScroller, enabled = true) {
-  const { registerScroller } = useScreenReselectContext();
+  const registerScroller = useContext(ScreenReselectContext)?.registerScroller;
   const isFocused = useIsFocused();
   const scrollerRef = useRefSync(scroller);
   useEffect(() => {
-    if (!isFocused || !enabled) return;
+    if (!isFocused || !enabled || !registerScroller) return;
     return registerScroller(() => scrollerRef.current);
   }, [isFocused, enabled, registerScroller, scrollerRef]);
 }
