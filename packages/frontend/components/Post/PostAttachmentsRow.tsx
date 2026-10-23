@@ -20,7 +20,6 @@ import type {
   ClarityDocument,
   PostPodcastContent,
   PostJobContent,
-  PostSourceLink,
 } from '@mention/shared-types/post';
 import type { GeoJSONPoint } from '@mention/shared-types/common';
 import {
@@ -120,8 +119,6 @@ interface Props {
   /** Denormalized Mention job attachment — see `PostJobContent`. */
   job?: PostJobContent | null;
   location?: GeoJSONPoint | null;
-  sources?: PostSourceLink[];
-  onSourcesPress?: (() => void) | null;
   text?: string;
   /**
    * Resolved previews for the links in the post body, in text order (the backend
@@ -1192,8 +1189,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
       prevProps.job === nextProps.job &&
       prevProps.text === nextProps.text &&
       prevProps.location === nextProps.location &&
-      prevProps.sources === nextProps.sources &&
-      prevProps.onSourcesPress === nextProps.onSourcesPress &&
       prevProps.sensitive === nextProps.sensitive
     );
   },
