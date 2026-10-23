@@ -230,7 +230,9 @@ const FollowRow = React.memo(({ item, userId }: { item: ProfileData; userId: str
     federation: item.federation,
   };
 
-  return <ProfileCard profile={profile} showFollowButton />;
+  // Recommendations never include anyone the viewer follows (Oxy's contract),
+  // so the button starts at Follow instead of asking for each row's status.
+  return <ProfileCard profile={profile} showFollowButton initiallyFollowing={false} />;
 });
 FollowRow.displayName = 'FollowRow';
 

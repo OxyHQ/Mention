@@ -154,16 +154,17 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
   }, [activeIndex, progress]);
 
   /**
-   * The same job for the bar's PRESENCE, on the paths where nothing drives it.
+   * The bar's PRESENCE settles on the route in front, whoever moved it there.
    *
-   * Written even when `activePage` is -1, unlike `progress`: a pushed detail
-   * route is not a page the bar hides for, and leaving a stale 1 behind would
-   * take the bar away on a screen that wants it. The only page that hides it
-   * today is the camera, which is native-only, so on web this settles at 0 and
-   * stays there.
+   * Unlike `progress`, this is written even while the pager drives it: the
+   * pager follows the finger between pages, but a route pushed over the tabs
+   * is not a page, and the pager's value for the page underneath (1 over the
+   * camera or the composer) would hide the bar on a screen that wants it.
+   * Written when the route lands, after the swipe that committed it, so it
+   * settles where the pager was already heading. Written even when `activePage`
+   * is -1, unlike `progress`.
    */
   useEffect(() => {
-    if (committerRef.current?.drivesProgress) return;
     chromeProgress.value = withSpring(
       activePage >= 0 ? (CHROME_HIDDEN_BY_PAGE[activePage] ?? 0) : 0,
       BAR_SETTLE_SPRING,

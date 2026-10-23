@@ -312,6 +312,22 @@ describe('selectTab', () => {
     expect(bar.value.progress.value).toBe(0);
   });
 
+  it('shows the bar on a route pushed over a page that hides it', () => {
+    // The pager left the bar hidden over the composer; a route pushed over it
+    // is not that page, so the bar comes back even though the pager drives it.
+    mockPathname = '/write';
+    const bar = mountProvider();
+    act(() => {
+      bar.value.registerCommitter({ commit: jest.fn(), leave: jest.fn(), drivesProgress: true });
+    });
+    bar.value.chromeProgress.value = 1;
+
+    mockPathname = '/explore';
+    bar.repaint();
+
+    expect(bar.value.chromeProgress.value).toBe(0);
+  });
+
   it('still moves progress for a navigator that does NOT drive it', () => {
     const bar = mountProvider();
     act(() => {
