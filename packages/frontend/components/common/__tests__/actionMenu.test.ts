@@ -88,9 +88,9 @@ describe('action menu wiring', () => {
       // host rather than hand-rolling a third one.
       join('app', '(app)', 'lanes.tsx'),
       join('components', 'Feed', 'showRepostMenu.tsx'),
-      // "Message in Allo" when Allo is not installed: get Allo, or open it on
-      // the web (#1140).
-      join('components', 'Profile', 'hooks', 'useMessageInAllo.tsx'),
+      // Opening Allo (a profile's Message, a post's Send) when it is not
+      // installed: get Allo, or open it on the web (#1140).
+      join('hooks', 'useOpenInAllo.tsx'),
     ]);
   });
 

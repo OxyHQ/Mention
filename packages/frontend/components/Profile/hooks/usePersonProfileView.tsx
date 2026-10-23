@@ -1,5 +1,7 @@
 import { IconButton } from '@oxy.so/bloom/button';
 import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
+import { useOpenInAllo } from '@/hooks/useOpenInAllo';
+import { alloDirectMessageLinks } from '@oxy.so/allo-sdk/links';
 import type React from 'react';
 import { useCallback, useEffect, useMemo } from 'react';
 import { Share, Text, View } from 'react-native';
@@ -60,7 +62,6 @@ import {
 } from './useProfileAccount';
 import { useProfileChrome, type ProfileChrome } from './useProfileChrome';
 import { ProfileMoreMenu } from '../ProfileMoreMenu';
-import { useMessageInAllo } from './useMessageInAllo';
 import { useOperatesAccount } from './useOperatesAccount';
 import { useJustFollowed } from './useJustFollowed';
 import { useSubscription } from './useSubscription';
@@ -386,7 +387,19 @@ export function usePersonProfileView({
   });
 
   // Mention has no DMs; a message to this person is a conversation in Allo.
-  const handleDM = useMessageInAllo(profileData?.id, handle);
+  const openInAllo = useOpenInAllo();
+  const handleDM = useCallback(
+    () =>
+      openInAllo(
+        alloDirectMessageLinks(profileData?.id),
+        t('profile.allo.notInstalled', {
+          handle,
+          defaultValue:
+            'Allo is not installed. Get Allo to message @{{handle}}, or continue on the web.',
+        }),
+      ),
+    [openInAllo, profileData?.id, handle, t],
+  );
 
   // Open on remote instance (federated only)
   const handleOpenOnInstance = useCallback(() => {

@@ -546,10 +546,3 @@ export const hasIntentContent = (intent: ComposeIntent): boolean => {
       intent.lang,
   );
 };
-
-/**
- * Build the fallback URL for a quote post when the live fetch fails.
- * Mirrors `hooks/usePostShare.ts` format.
- */
-export const buildQuoteFallbackUrl = (postId: string): string =>
-  `https://mention.earth/p/${postId}`;

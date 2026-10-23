@@ -4,7 +4,7 @@ import { logger } from '@oxy.so/core/logger';
 import { feedService } from '@/services/feedService';
 import type { HydratedPost } from '@mention/shared-types';
 
-import { buildQuoteFallbackUrl } from '@/utils/composeIntent';
+import { postPermalink } from '@/utils/postPermalink';
 
 export interface QuoteManagerState {
   /** The hydrated quoted post (when fetch succeeded). */
@@ -104,7 +104,7 @@ export const useQuoteManager = (): UseQuoteManagerResult => {
             post: null,
             loading: false,
             error: 'not_found',
-            fallbackUrl: buildQuoteFallbackUrl(id),
+            fallbackUrl: postPermalink(id),
             quotePostId: id,
           });
         }
@@ -118,7 +118,7 @@ export const useQuoteManager = (): UseQuoteManagerResult => {
           post: null,
           loading: false,
           error: err instanceof Error ? err.message : 'fetch_failed',
-          fallbackUrl: buildQuoteFallbackUrl(id),
+          fallbackUrl: postPermalink(id),
           quotePostId: id,
         });
       }

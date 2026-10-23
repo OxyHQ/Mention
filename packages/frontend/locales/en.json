@@ -278,8 +278,8 @@
   "profile.actions.unsubscribe": "Stop notifying me about new posts from @{{handle}}",
   "profile.actions.messageInAllo": "Message @{{handle}} in Allo",
   "profile.allo.notInstalled": "Allo is not installed. Get Allo to message @{{handle}}, or continue on the web.",
-  "profile.allo.getApp": "Get Allo",
-  "profile.allo.openWeb": "Open Allo on the web",
+  "allo.getApp": "Get Allo",
+  "allo.openWeb": "Open Allo on the web",
   "profile.actions.openOnInstance": "Open @{{handle}} on their home instance",
   "profile.actions.share": "Share @{{handle}}'s profile",
   "profile.actions.more": "More options for @{{handle}}",
@@ -787,7 +787,8 @@
     "unboost": "Undo boost",
     "save": "Save",
     "unsave": "Remove from saved",
-    "share": "Share"
+    "share": "Share",
+    "sendInAllo": "Send in Allo"
   },
   "common": {
     "unknown": "unknown",
@@ -2323,6 +2324,7 @@
   "post.viewArticle": "View article",
   "post.viewSources": "View sources",
   "postActions.title": "Post options",
+  "postActions.allo.notInstalled": "Allo is not installed. Get Allo to send this post, or continue on the web.",
   "profile.bio.readMore": "Read more",
   "profile.block": "Block",
   "profile.blockConfirm": "They won't be able to find your profile, posts, or mentions. They won't be notified that you blocked them.",

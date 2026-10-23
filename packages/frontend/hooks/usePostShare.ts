@@ -6,6 +6,7 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 import { logger } from '@oxy.so/core/logger';
 import { toast } from '@oxy.so/bloom/toast';
 import { queryClient } from '@/lib/queryClient';
+import { postPermalink } from '@/utils/postPermalink';
 
 interface SharePostUser {
   id?: string;
@@ -32,7 +33,7 @@ export async function sharePost(post: SharePost | null | undefined): Promise<voi
   if (!post) return;
 
   try {
-    const postUrl = `https://mention.earth/p/${post.id ?? ''}`;
+    const postUrl = postPermalink(post.id ?? '');
     const content =
       typeof post.content === 'string' ? { text: post.content } : (post.content ?? {});
     const contentText = content.text ?? post.text ?? '';

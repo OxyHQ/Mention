@@ -511,6 +511,9 @@ const PostItem: React.FC<PostItemProps> = ({
   const handleShare = useCallback(() => {
     if (viewPost) interactions.share(viewPost);
   }, [interactions, viewPost]);
+  const handleSendInAllo = useCallback(() => {
+    if (viewPostId) interactions.sendInAllo(viewPostId);
+  }, [interactions, viewPostId]);
 
   const handleReply = useCallback(() => {
     if (!interactions.requireSession()) return;
@@ -1211,6 +1214,7 @@ const PostItem: React.FC<PostItemProps> = ({
                     onDownvote={handleDownvote}
                     onSave={handleSave}
                     onShare={handleShare}
+                    onSendInAllo={handleSendInAllo}
                     postId={viewPostId}
                     onTranslate={canTranslate ? toggleReaderTranslation : undefined}
                     onTranslateLongPress={openLanguagePicker}

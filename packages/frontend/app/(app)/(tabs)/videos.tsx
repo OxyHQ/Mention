@@ -34,6 +34,7 @@ import { useHaptics } from '@oxy.so/bloom/hooks';
 import { RiHeartFill } from '@oxy.so/bloom/icons/RiHeartFill';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { RiVideoLine } from '@oxy.so/bloom/icons/RiVideoLine';
+import { RiSendPlaneLine } from '@oxy.so/bloom/icons/RiSendPlaneLine';
 import { useTranslation } from 'react-i18next';
 import { useAuth, FollowButton } from '@oxy.so/services/ui/client';
 import { useVideoPlayer, type VideoPlayer } from 'expo-video';
@@ -97,6 +98,8 @@ import {
 } from '@/stores/videoPlayerRegistry';
 import { loadVideoPagesUntilProgress } from '@/utils/video-feed-pagination';
 import { resolveFeedDescriptor } from '@/utils/feedTelemetry';
+import { postPermalink } from '@/utils/postPermalink';
+import { usePostInteractions } from '@/components/Feed/postInteractions';
 
 // ── Tuning constants ─────────────────────────────────────────────
 // One-screen vertical pager: keep the live-player window tight so only the
@@ -307,6 +310,7 @@ interface VideoItemProps {
   onBoost: (postId: string, isBoosted: boolean) => void;
   onSave: (postId: string, isSaved: boolean) => void;
   onShare: (post: VideoPost) => void;
+  onSendInAllo: (postId: string) => void;
   formatCompactNumber: (count: number) => string;
   muted: boolean;
   onMutedChange: (muted: boolean) => void;
@@ -757,6 +761,7 @@ const VideoItem = memo<VideoItemProps>(
     onBoost,
     onSave,
     onShare,
+    onSendInAllo,
     formatCompactNumber,
     muted,
     onMutedChange,
@@ -1045,6 +1050,14 @@ const VideoItem = memo<VideoItemProps>(
               onPress={() => onSave(item.id, item.viewerState.isSaved)}
               formatCompactNumber={formatCompactNumber}
               accessibilityLabel={t(item.viewerState.isSaved ? 'videos.unsave' : 'videos.save')}
+            />
+            <ActionButton
+              icon={<RiSendPlaneLine width={30} height={30} fill="white" />}
+              count={0}
+              onPress={() => onSendInAllo(item.id)}
+              formatCompactNumber={formatCompactNumber}
+              hideCount={true}
+              accessibilityLabel={t('videos.sendInAllo')}
             />
             <ActionButton
               icon={<ShareIcon size={30} color="white" />}
@@ -1835,10 +1848,13 @@ export default function VideosScreen() {
     [haptic, savePost, unsavePost, t],
   );
 
+  // Mention has no chat; sending a reel to someone happens in Allo.
+  const interactions = usePostInteractions();
+
   const handleShare = useCallback(
     async (post: VideoPost) => {
       try {
-        const postUrl = `https://mention.earth/p/${post.id}`;
+        const postUrl = postPermalink(post.id);
         const contentText = post?.content?.text || '';
         const user = post?.user;
         const name = user?.name?.displayName ?? t('common.someone');
@@ -2028,6 +2044,7 @@ export default function VideosScreen() {
         onBoost={handleBoost}
         onSave={handleSave}
         onShare={handleShare}
+        onSendInAllo={interactions.sendInAllo}
         formatCompactNumber={formatCompactNumber}
         muted={globalMuted}
         onMutedChange={handleMuteChange}
@@ -2055,6 +2072,7 @@ export default function VideosScreen() {
       handleBoost,
       handleSave,
       handleShare,
+      interactions.sendInAllo,
       globalMuted,
       handleMuteChange,
       bottomBarHeight,
@@ -2159,6 +2177,7 @@ export default function VideosScreen() {
                       onBoost={handleBoost}
                       onSave={handleSave}
                       onShare={handleShare}
+                      onSendInAllo={interactions.sendInAllo}
                       formatCompactNumber={formatCompactNumber}
                       muted={globalMuted}
                       onMutedChange={handleMuteChange}

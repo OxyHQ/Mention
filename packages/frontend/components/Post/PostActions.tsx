@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, type PressableProps } from 'react-native';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { RiTranslate2 } from '@oxy.so/bloom/icons/RiTranslate2';
+import { RiSendPlaneLine } from '@oxy.so/bloom/icons/RiSendPlaneLine';
 import { CommentIcon } from '@/assets/icons/comment-icon';
 import { BoostIcon, BoostIconActive } from '@/assets/icons/boost-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
@@ -54,6 +55,11 @@ interface Props {
   onDownvote?: () => void;
   onSave: () => void;
   onShare: () => void;
+  /**
+   * Send the post to someone in Allo — Instagram's paper plane. Mention has no
+   * chat of its own, so this hands the post's link to Allo's share picker.
+   */
+  onSendInAllo?: () => void;
   onInsightsPress?: () => void;
   /**
    * Translate into the reader's own language, or undo it. Absent for a post
@@ -84,6 +90,7 @@ const PostActions: React.FC<Props> = ({
   onDownvote,
   onSave,
   onShare,
+  onSendInAllo,
   onInsightsPress,
   onTranslate,
   onTranslateLongPress,
@@ -201,6 +208,21 @@ const PostActions: React.FC<Props> = ({
           </Text>
         )}
       </PressableScale>
+
+      {onSendInAllo ? (
+        <PressableScale
+          style={styles.iconButton}
+          onPress={() => {
+            haptic('light');
+            onSendInAllo();
+          }}
+          hitSlop={HIT_SLOP_MD}
+          accessibilityRole="button"
+          accessibilityLabel="Send in Allo"
+        >
+          <RiSendPlaneLine size="md" fill={theme.colors.textSecondary} />
+        </PressableScale>
+      ) : null}
 
       <PressableScale
         style={styles.iconButton}
