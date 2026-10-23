@@ -396,7 +396,11 @@ jobs:
           # MENTION_FRONTEND_ORIGIN was set to the value the schema already
           # defaults to; and OXY_INFERENCE_ROUTING_PROFILE_ID named Oxy's fixed
           # `kaana-v1` profile, which kaana.ai cannot serve (text features ask
-          # for the `instant` power level in code).
+          # for the `instant` power level in code). DO_SPACES_ENDPOINT,
+          # DO_SPACES_REGION and DO_SPACES_BUCKET point at the S3 bucket
+          # oxy-mention-media-usw2-…, which no code has read since the uploader
+          # that used them went in 2026-07 (media is Oxy Files); the bucket is
+          # being archived and deleted.
           #
           # A standing list, not a one-off: it is re-applied on every deploy, so a
           # variable somebody re-adds by hand to the live definition does not
@@ -411,6 +415,9 @@ jobs:
             OXY_INFERENCE_ROUTING_PROFILE_ID
             OXY_FILE_REFERENCES_ENABLED
             OXY_FILE_REFERENCE_RECONCILE_MODE
+            DO_SPACES_ENDPOINT
+            DO_SPACES_REGION
+            DO_SPACES_BUCKET
           # DELIBERATELY UNSET, and it must stay that way — this is the variable
           # that used to run `reconcile-engagement-projections.js` after every
           # rollout. `deploy-ecs-image.sh` still supports it; nothing here needs

@@ -5,9 +5,13 @@
  * videos. That export is converted, off-line, into a MANIFEST — one item per
  * post, an album folded into one post, every date taken from `date_unixtime`
  * (UTC; the export's `date` is the exporting machine's local time) — and staged
- * with its media under a PRIVATE prefix of Mention's media bucket. This script
- * reads it through presigned URLs, because Mention's task role calls no AWS API
- * and must not start to for one import. The content never goes to GitHub.
+ * with its media under `telegram-import/<run>/` of the private Cloudflare R2
+ * bucket `mention-import-staging`, which deletes every object 30 days after it
+ * is written. The operator uploads and presigns with a short-lived token scoped
+ * to that bucket (`docs/import.mdx`); this script reads only through the
+ * presigned URLs, because Mention's task role calls no storage API and holds no
+ * storage credential, and must not start to for one import. The content never
+ * goes to GitHub.
  *
  * Every post goes through `postImportService.ingestBatch`, the path Oxy Move's
  * ingest API uses (`docs/import.mdx`): it is an ordinary native post of the
@@ -51,9 +55,16 @@ const SCRIPT_NAME = 'importTelegramChannelExport';
 /** Exit code for "some items failed; re-run" — the split `backfillMediaMetadata` uses. */
 export const EXIT_INCOMPLETE = 75;
 
-/** The only place a manifest or its media may be read from: Mention's own private staging prefix. */
-export const STAGING_HOST = 'oxy-mention-media-usw2-237343248947.s3.us-west-2.amazonaws.com';
-export const STAGING_PATH_PREFIX = '/staging/telegram-import/';
+/**
+ * The only place a manifest or its media may be read from: the `telegram-import/`
+ * prefix of the private R2 bucket `mention-import-staging` (Oxy's Cloudflare
+ * account), addressed VIRTUAL-HOSTED — the bucket in the host, so the host alone
+ * pins the bucket. A path-style URL (`<account>.r2.cloudflarestorage.com/<bucket>/…`)
+ * is refused: its host names every bucket in the account.
+ */
+export const STAGING_HOST =
+  'mention-import-staging.fa4392797e57d4e63ceaaf7b1dc687ed.r2.cloudflarestorage.com';
+export const STAGING_PATH_PREFIX = '/telegram-import/';
 
 const MAX_MEDIA_BYTES = 100 * 1024 * 1024;
 
