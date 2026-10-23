@@ -35,7 +35,6 @@ export type ScreenId =
   | 'home'
   | 'explore'
   | 'notifications'
-  | 'messages'
   | 'saved'
   | 'profile'
   | 'post-detail'
@@ -71,13 +70,6 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
         return [
           <View key="notifications">
             <Text>{t('widgets.notifications')}</Text>
-          </View>,
-        ];
-
-      case 'messages':
-        return [
-          <View key="messages-preview">
-            <Text>{t('widgets.messagesPreview')}</Text>
           </View>,
         ];
 
