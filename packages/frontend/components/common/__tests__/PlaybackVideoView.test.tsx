@@ -5,7 +5,7 @@ import type { VideoPlayer } from 'expo-video';
 import type { VideoViewHandle } from '@oxy.so/bloom/video-view';
 import { acquireVideoPlayer, videoPlayerKey } from '@/stores/videoPlayerRegistry';
 import { PlaybackVideoView } from '../PlaybackVideoView';
-import { useVideoHasRenderedFrame, useVideoPlaybackControl } from '@/stores/video-playback-control';
+import { useVideoPlaybackControl } from '@/stores/video-playback-control';
 
 const mockAttached = jest.fn();
 const mockDetached = jest.fn();
@@ -14,7 +14,7 @@ const mockViewHandle = { nativeRef: { current: null as HTMLVideoElement | null }
 jest.mock('@oxy.so/bloom/video-view', () => {
   const React = jest.requireActual<typeof import('react')>('react');
   return {
-    VideoView: React.forwardRef<VideoViewHandle>((_props, ref) => {
+    VideoView: React.forwardRef<VideoViewHandle>(function MockVideoView(_props, ref) {
       React.useImperativeHandle(ref, () => ({ ...mockViewHandle }) as unknown as VideoViewHandle);
       return null;
     }),
@@ -77,8 +77,7 @@ function Presentation({
   viewRef: React.RefObject<VideoViewHandle | null>;
   onSourceError?: () => void;
 }) {
-  useVideoPlaybackControl(player, true);
-  const hasRendered = useVideoHasRenderedFrame(player);
+  const hasRendered = useVideoPlaybackControl(player, true);
   return (
     <>
       <PlaybackVideoView

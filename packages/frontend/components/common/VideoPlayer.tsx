@@ -25,7 +25,7 @@ import { RiVolumeUpLine } from '@oxy.so/bloom/icons/RiVolumeUpLine';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { useVideoPlayback } from '@/context/VideoPlaybackContext';
 import { needsJsHlsDecoder } from '@/lib/hlsPlayback';
-import { useVideoHasRenderedFrame, useVideoPlaybackControl } from '@/stores/video-playback-control';
+import { useVideoPlaybackControl } from '@/stores/video-playback-control';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 import { formatDuration } from '@/utils/formatDuration';
 import { videoSourceFor } from '@/utils/videoSource';
@@ -301,7 +301,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     p.timeUpdateEventInterval = tracksTime ? TIME_UPDATE_INTERVAL : 0;
   });
   const player = externalPlayer ?? ownPlayer;
-  const hasRenderedFrame = useVideoHasRenderedFrame(player);
   const desiredSource = usedFallback && fallbackSrc ? fallbackSrc : src;
 
   // The setup callback above only ever runs for the player built here, so a
@@ -429,7 +428,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     setPreviousMayPlay(mayPlay);
     if (!mayPlay) setManualPlayback(null);
   }
-  useVideoPlaybackControl(player, mayPlay && !hasError && (manualPlayback ?? autoPlay));
+  const hasRenderedFrame = useVideoPlaybackControl(
+    player,
+    mayPlay && !hasError && (manualPlayback ?? autoPlay),
+  );
 
   useEffect(() => {
     return () => {

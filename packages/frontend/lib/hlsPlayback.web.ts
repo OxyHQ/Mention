@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { VideoViewHandle } from '@oxy.so/bloom/video-view';
 import type HlsJs from 'hls.js';
+import type { VideoPlayer } from 'expo-video';
+import { subscribeVideoLoadingDemand } from '@/stores/video-playback-control';
 import { createLogger } from '@oxy.so/core/logger';
 import { isHlsSource } from '@/utils/hlsSource';
 
@@ -168,12 +170,7 @@ export interface HlsPlayback {
 export function useHlsPlayback(
   src: string,
   viewRef: React.RefObject<VideoViewHandle | null>,
-  /**
-   * Whether segments should keep downloading. A player the authority has
-   * paused (scrolled away, screen blurred) stops fetching instead of filling
-   * its buffer for nobody; it resumes from where it stopped.
-   */
-  loading = true,
+  player: VideoPlayer,
   /**
    * The same video as a progressive file, played when the stream fails. While
    * hls.js is attached it, not expo-video, supplies this element's bytes, so a
@@ -187,7 +184,6 @@ export function useHlsPlayback(
   // render to decide what source to hand `expo-video`, and a later flip would
   // mean the element had already begun a doomed native load.
   const active = needsJsHlsDecoder(src);
-  const [instance, setInstance] = useState<{ decoder: HlsJs; source: string } | null>(null);
   const fallbackRef = useRef(fallbackSrc);
   useEffect(() => {
     fallbackRef.current = fallbackSrc;
@@ -211,6 +207,7 @@ export function useHlsPlayback(
     if (!active || !element) return;
     let hls: HlsJs | null = null;
     let cancelled = false;
+    let unsubscribeLoading: (() => void) | undefined;
     void loadHls()
       .then((Hls) => {
         if (cancelled) return;
@@ -223,14 +220,22 @@ export function useHlsPlayback(
             details: data.details,
           });
           const resume = !element.paused;
+          unsubscribeLoading?.();
           created.destroy();
           if (hls === created) hls = null;
-          setInstance((current) => (current?.decoder === created ? null : current));
           const fallback = fallbackRef.current;
           if (fallback) playProgressiveInstead(element, fallback, resume);
         });
         created.attachMedia(element);
-        setInstance({ decoder: created, source: src });
+        unsubscribeLoading = subscribeVideoLoadingDemand(player, (loading) => {
+          if (loading) {
+            // Hidden media does not fetch its manifest. Resuming preserves buffer.
+            if (created.url !== src) created.loadSource(src);
+            created.startLoad(-1);
+          } else {
+            created.stopLoad();
+          }
+        });
       })
       .catch((error: unknown) => {
         logger.warn('Failed to load the HLS decoder', {
@@ -239,22 +244,10 @@ export function useHlsPlayback(
       });
     return () => {
       cancelled = true;
+      unsubscribeLoading?.();
       hls?.destroy();
-      setInstance(null);
     };
-  }, [active, src, element]);
-
-  useEffect(() => {
-    if (!instance || instance.source !== src) return;
-    if (loading) {
-      // A hidden player does not fetch even its manifest until it is wanted.
-      if (instance.decoder.url !== src) instance.decoder.loadSource(src);
-      // -1 resumes from the element's current position without discarding its buffer.
-      instance.decoder.startLoad(-1);
-    } else {
-      instance.decoder.stopLoad();
-    }
-  }, [instance, loading, src]);
+  }, [active, src, element, player]);
 
   return { active, ref };
 }

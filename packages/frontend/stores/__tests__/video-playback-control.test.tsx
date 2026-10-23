@@ -1,11 +1,7 @@
-import type React from 'react';
+import { memo, type ReactElement } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { VideoPlayer } from 'expo-video';
-import {
-  useVideoHasRenderedFrame,
-  useVideoLoadingDemand,
-  useVideoPlaybackControl,
-} from '../video-playback-control';
+import { subscribeVideoLoadingDemand, useVideoPlaybackControl } from '../video-playback-control';
 
 function makePlayer() {
   const listeners = new Map<string, Set<(event: unknown) => void>>();
@@ -45,12 +41,7 @@ function Presenter({
   return null;
 }
 
-function Loading({ player }: { player: VideoPlayer }) {
-  const loading = useVideoLoadingDemand(player);
-  return <span>{String(loading)}</span>;
-}
-
-function mount(element: React.ReactElement) {
+function mount(element: ReactElement) {
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     renderer = TestRenderer.create(element);
@@ -87,26 +78,28 @@ it('a hidden feed cannot pause the shared player claimed by the reel, in either 
 
 it('only loads while a presenter requests playback or bounded preload', () => {
   const { player } = makePlayer();
+  const loading: boolean[] = [];
+  const unsubscribe = subscribeVideoLoadingDemand(player, (value) => loading.push(value));
   const render = (preloading: boolean) => (
     <>
       <Presenter player={player} playing={false} loading={preloading} />
       <Presenter player={player} playing={false} />
-      <Loading player={player} />
     </>
   );
   const renderer = mount(render(false));
-  expect(renderer.root.findByType('span').children).toEqual(['false']);
+  expect(loading.at(-1)).toBe(false);
   act(() => {
     renderer.update(render(true));
   });
-  expect(renderer.root.findByType('span').children).toEqual(['true']);
+  expect(loading.at(-1)).toBe(true);
   act(() => {
     renderer.update(render(false));
   });
-  expect(renderer.root.findByType('span').children).toEqual(['false']);
+  expect(loading.at(-1)).toBe(false);
   act(() => {
     renderer.unmount();
   });
+  unsubscribe();
 });
 
 it('pauses when no remaining presenter requests playback and resumes after readiness', () => {
@@ -155,7 +148,7 @@ it('moves control to a replacement player without leaving stale demand on the ol
 it('a new presenter inherits the first-frame latch even during a rebuffer', () => {
   const { player, emit } = makePlayer();
   function Frame() {
-    return <span>{String(useVideoHasRenderedFrame(player))}</span>;
+    return <span>{String(useVideoPlaybackControl(player, false))}</span>;
   }
   const renderer = mount(
     <>
@@ -182,4 +175,42 @@ it('a new presenter inherits the first-frame latch even during a rebuffer', () =
   act(() => {
     renderer.unmount();
   });
+});
+
+it('notifies the decoder only when loading demand changes', () => {
+  const { player, emit } = makePlayer();
+  const changed = jest.fn();
+  const renderer = mount(<Presenter player={player} playing loading />);
+  const unsubscribe = subscribeVideoLoadingDemand(player, changed);
+  expect(changed.mock.calls).toEqual([[true]]);
+  act(() => emit('statusChange', { status: 'readyToPlay' }));
+  act(() => renderer.update(<Presenter player={player} playing={false} loading />));
+  expect(changed.mock.calls).toEqual([[true]]);
+  act(() => renderer.unmount());
+  expect(changed.mock.calls).toEqual([[true], [false]]);
+  unsubscribe();
+});
+
+it('does not rerender a frame consumer for loading-only changes', () => {
+  const { player, emit } = makePlayer();
+  const renderFrame = jest.fn();
+  const Frame = memo(function FrameReader() {
+    renderFrame();
+    const rendered = useVideoPlaybackControl(player, false);
+    return <span>{String(rendered)}</span>;
+  });
+  const render = (loading: boolean) => (
+    <>
+      <Presenter player={player} playing={false} loading={loading} />
+      <Frame />
+    </>
+  );
+  const renderer = mount(render(false));
+  const before = renderFrame.mock.calls.length;
+  act(() => renderer.update(render(true)));
+  expect(renderFrame).toHaveBeenCalledTimes(before);
+  act(() => emit('statusChange', { status: 'readyToPlay' }));
+  expect(renderer.root.findByType('span').children).toEqual(['true']);
+  expect(renderFrame).toHaveBeenCalledTimes(before + 1);
+  act(() => renderer.unmount());
 });
