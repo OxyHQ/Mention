@@ -5,13 +5,14 @@
  */
 
 import type React from 'react';
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import type { QueryClient } from '@tanstack/react-query';
 import { I18nextProvider } from 'react-i18next';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { OxyProvider } from '@oxy.so/services/ui/client';
 import { OxyOneVideo } from '@oxy.so/services/ui/one-video';
 import { AliaAvatarIcon } from '@alia.onl/sdk/avatar';
@@ -38,10 +39,7 @@ import { PostInteractionsBinder } from '@/components/Feed/PostInteractionsBinder
 import i18n, { setLanguage } from '@/lib/i18n';
 import { DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES } from '@/lib/constants';
 import { handleLanguageError } from '@/components/providers/handleLanguageError';
-import { createLogger } from '@oxy.so/core/logger';
 import { configureLottieWeb } from '@/lib/lottieWeb';
-
-const logger = createLogger('AppProviders');
 
 // Before any sticker renders: the web Lottie renderer loads from this origin.
 configureLottieWeb();
@@ -62,10 +60,9 @@ export const AppProviders = memo(function AppProviders({
   // One sticker client per OxyServices: it memoizes resolved stickers for the
   // life of the app and acts with this client's session.
   const stickersClient = useMemo(() => createStickersClient(oxyServices), [oxyServices]);
-  const handleBoundaryError = useCallback((error: Error, errorInfo: React.ErrorInfo) => {
-    logger.error('Error caught by boundary', error, { errorInfo });
-  }, []);
-
+  // The one status bar: it follows the app's theme, not the system's. A screen
+  // on a fixed dark surface (videos, the camera) overrides it while focused.
+  const theme = useTheme();
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       {/* Bloom renders its children only once its fonts have loaded. */}
@@ -170,11 +167,11 @@ export const AppProviders = memo(function AppProviders({
                         by <PostInteractionsBinder />. */}
                       <PostInteractionsProvider>
                         <BottomSheetProvider>
-                          <AppErrorBoundary onError={handleBoundaryError}>
+                          <AppErrorBoundary>
                             <LiveRoomControllerProvider>
                               <ScreenReselectProvider>
                                 {children}
-                                <StatusBar style="auto" />
+                                <StatusBar style={theme.isDark ? 'light' : 'dark'} />
                                 {/*
                                  * No <ToastOutlet /> here on purpose. Bloom's toast
                                  * stack must be mounted exactly once — every mount

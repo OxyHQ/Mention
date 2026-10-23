@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect } from 'react';
+import { onlineManager } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { authenticatedClient } from '@/utils/api';
 import { useDeckSettings } from './deckSettings';
@@ -20,11 +21,14 @@ export function useDeckSync() {
         (await authenticatedClient.put<DeckResponse>('/deck', { baseRevision, state }, { signal }))
           .data,
     });
-    const retry = () => sync.retry();
-    if (typeof window !== 'undefined') window.addEventListener('online', retry);
+    // React Query's online state is the app's one network signal: the browser's
+    // `online` event on web, NetInfo on native (`app/_layout.tsx`).
+    const unsubscribe = onlineManager.subscribe((online) => {
+      if (online) sync.retry();
+    });
     return () => {
       sync.stop();
-      if (typeof window !== 'undefined') window.removeEventListener('online', retry);
+      unsubscribe();
     };
   }, [viewer, user?.id, isAuthResolved, canUsePrivateApi]);
 }

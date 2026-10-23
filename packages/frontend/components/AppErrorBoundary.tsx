@@ -1,11 +1,18 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { createLogger } from '@oxy.so/core/logger';
 import { Error as ErrorScreen } from '@/components/Error';
+
+const logger = createLogger('ErrorBoundary');
+
+/** The one report for every boundary: this last-resort one and the shell's panels. */
+export function reportBoundaryError(error: Error, errorInfo: ErrorInfo): void {
+  logger.error('Error caught by boundary', error, { errorInfo });
+}
 
 interface AppErrorBoundaryProps {
   children: ReactNode;
-  onError?: (error: Error, errorInfo: ErrorInfo) => void;
 }
 
 interface AppErrorBoundaryState {
@@ -43,7 +50,7 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    this.props.onError?.(error, errorInfo);
+    reportBoundaryError(error, errorInfo);
   }
 
   private handleRetry = (): void => {

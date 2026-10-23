@@ -28,6 +28,7 @@ import { useDrawer } from '@/context/DrawerContext';
 import { SignInBanner } from '@/components/SignInBanner';
 import WelcomeModalGate from '@/components/WelcomeModalGate';
 import { BootMilestone } from '@/components/BootMilestone';
+import { reportBoundaryError } from '@/components/AppErrorBoundary';
 
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useKeyboardVisibility } from '@/hooks/useKeyboardVisibility';
@@ -172,6 +173,9 @@ export default function AppLayout() {
               {
                 id: 'main',
                 visible: true,
+                // A screen that throws fails inside its panel, never the whole app;
+                // navigating to another route recovers it.
+                errorBoundary: { resetKey: pathname, onError: reportBoundaryError },
                 // The Expo child navigator keeps the same host across every layout mode,
                 // including the Deck entry link that opens the home route.
                 keepMounted: true,
@@ -194,6 +198,7 @@ export default function AppLayout() {
               {
                 id: 'context',
                 visible: !deckOpen,
+                errorBoundary: { onError: reportBoundaryError },
                 sticky: true,
                 width: 350,
                 hideBelow: 990,
@@ -209,6 +214,7 @@ export default function AppLayout() {
                   return {
                     id,
                     visible: deckOpen && !(hasDefaultLeadingPanel && id === firstDeckId),
+                    errorBoundary: { onError: reportBoundaryError },
                     width: panel.width,
                     appearance: panel.appearance,
                     colorPreset: panel.colorPreset,
