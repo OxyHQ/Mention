@@ -75,6 +75,8 @@ vi.mock('../../runtime/oxyClient', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
+  createScopedOxyClient: () => undefined,
+  createUserScopedOxyServices: () => undefined,
   getServiceOxyClient: () => ({
     safety: { contentAccessBatch },
     users: { getMany: getUsersByIds },
@@ -460,6 +462,74 @@ describe('PostHydrationService — boost original embedding is deterministic', (
         original.id,
       );
     }
+  });
+
+  it('retains a quote subject in depth-zero feeds and in a boosted quote', async () => {
+    const original = await seedOriginal();
+    const quote = await seedOriginal({ type: PostType.QUOTE, quoteOf: original.id });
+    const boost = await seedBoost(quote.id);
+    const [quoted] = await hydrate(quote, undefined, 0);
+    expect(quoted.quotedPost?.id).toBe(original.id);
+    const [boosted] = await hydrate(boost, undefined, 0);
+    expect(boosted.boost?.originalPost?.id).toBe(quote.id);
+    expect((boosted.boost?.originalPost as typeof quoted).quotedPost?.id).toBe(original.id);
+  });
+
+  it('does not expose a private quote subject through forced feed context', async () => {
+    const original = await seedOriginal({ visibility: PostVisibility.PRIVATE });
+    const quote = await seedOriginal({ type: PostType.QUOTE, quoteOf: original.id });
+    const [quoted] = await hydrate(quote, undefined, 0);
+    expect(quoted.id).toBe(quote.id);
+    expect(quoted.quotedPost).toBeNull();
+    expect(quoted.originalPost).toBeNull();
+    expect(quoted.quotedPostUnavailable).toBe(true);
+  });
+
+  it('embeds the subject through the real GET /feed/item/:id detail handler', async () => {
+    const { feedController } = await import('../../controllers/feed.controller');
+    const { logger } = await import('../../utils/logger');
+    const errors = vi.spyOn(logger, 'error');
+    const original = await seedOriginal({ type: PostType.VIDEO });
+    const quote = await seedOriginal({ type: PostType.QUOTE, quoteOf: original.id });
+    let status = 200;
+    let body: unknown;
+    const res = {
+      status(code: number) {
+        status = code;
+        return this;
+      },
+      json(value: unknown) {
+        body = value;
+        return this;
+      },
+    };
+    await feedController.getFeedItemById(
+      { params: { id: quote.id }, query: {}, headers: {}, acceptsLanguages: () => [] } as never,
+      res as never,
+    );
+    expect(status, JSON.stringify(errors.mock.calls)).toBe(200);
+    expect(body).toMatchObject({ id: quote.id, quotedPost: { id: original.id } });
+  });
+
+  it('preserves unavailable quote intent after its subject is deleted', async () => {
+    const quote = await seedOriginal({ type: PostType.QUOTE, quoteOf: null });
+    const [hydrated] = await hydrate(quote, undefined, 0);
+    expect(hydrated.quotedPost).toBeNull();
+    expect(hydrated.quotedPostUnavailable).toBe(true);
+    const { excludeQuotesFilter } = await import('../../mtn/feed/engine/filters');
+    expect(excludeQuotesFilter.keep(quote, {}, {})).toBe(false);
+  });
+
+  it('normalizes populated quote references and bounds cyclic references', async () => {
+    const original = await seedOriginal();
+    const quote = await seedOriginal({ type: PostType.QUOTE, quoteOf: original.id });
+    const [populated] = await service.hydratePosts([{ ...quote, quoteOf: { id: original.id } }], {
+      maxDepth: 0,
+    });
+    expect(populated.quotedPost?.id).toBe(original.id);
+    const [cyclic] = await service.hydratePosts([{ ...quote, quoteOf: quote.id }], { maxDepth: 0 });
+    expect(cyclic.quotedPost).toBeNull();
+    expect(() => JSON.stringify(cyclic)).not.toThrow();
   });
 
   it('renders a federated boost original that has no oxyUserId in a degraded form (legacy orphan)', async () => {

@@ -1311,6 +1311,34 @@ export class PostHydrationService {
     }
 
     const hydratedResults: HydratedPost[] = [];
+    const recordsById = new Map(postsForHydration.map(({ post }) => [this.resolveId(post), post]));
+    // Build a bounded tree from the already-authorized graph. Nested quotes
+    // must retain their context when the selected post is a boost of a quote.
+    // Never mutate shared summaries: two selected roots can reference each other.
+    const withContext = (
+      id: string,
+      remaining: number,
+      ancestors: Set<string>,
+    ): HydratedPost | null => {
+      const summary = summaryMap.get(id);
+      const post = recordsById.get(id);
+      if (!summary || !post) return null;
+      if (remaining <= 0 || ancestors.has(id)) return summary;
+      const path = new Set([...ancestors, id]);
+      const nested = new Map<string, HydratedPostSummary>();
+      for (const reference of this.extractReferenceIds(post)) {
+        if (path.has(reference)) continue;
+        const child = withContext(reference, remaining - 1, path);
+        if (child) nested.set(reference, child);
+      }
+      return this.attachNestedContext(
+        post,
+        summary,
+        nested,
+        collectedPostIds,
+        options.publicReferencesOnly === true,
+      );
+    };
 
     for (const { post, depth } of postsForHydration) {
       if (depth !== 0) continue;
@@ -1318,12 +1346,10 @@ export class PostHydrationService {
       const summary = summaryMap.get(postId);
       if (!summary) continue;
 
-      const hydrated = this.attachNestedContext(
-        post,
-        summary,
-        summaryMap,
-        collectedPostIds,
-        options.publicReferencesOnly === true,
+      const hydrated = withContext(
+        postId,
+        Math.max(maxDepth, PostHydrationService.MAX_REQUIRED_REFERENCE_DEPTH),
+        new Set(),
       );
       if (hydrated) {
         hydratedResults.push(hydrated);
@@ -1802,12 +1828,10 @@ export class PostHydrationService {
     context._channelAuthorityResolved = true;
   }
 
-  // A boost-of-boost chain (Announce of an Announce) is collected one extra hop
-  // beyond `maxDepth` per the forced-boost-original rule below, but is then
-  // capped so a pathological chain cannot fan out unbounded. Two levels is
-  // enough to render a boost of a boost (its own original embeds); deeper
-  // chains keep their nested original empty rather than over-fetching.
-  private static readonly MAX_FORCED_BOOST_DEPTH = 2;
+  // Quotes and boosts need their referenced content even in shallow feeds.
+  // Two mandatory hops cover a boosted quote or a quote of a quote; deeper
+  // chains remain bounded rather than traversing arbitrary reference graphs.
+  private static readonly MAX_REQUIRED_REFERENCE_DEPTH = 2;
 
   private async collectPostsWithDepth(
     initialPosts: RawPost[],
@@ -1825,7 +1849,10 @@ export class PostHydrationService {
     // fetched. The per-entry guards still respect `maxDepth` for OPTIONAL
     // references, so this added iteration only ever fetches forced boost
     // originals — never expands the normal depth budget.
-    const collectionDepthCap = Math.max(maxDepth, PostHydrationService.MAX_FORCED_BOOST_DEPTH);
+    const collectionDepthCap = Math.max(
+      maxDepth,
+      PostHydrationService.MAX_REQUIRED_REFERENCE_DEPTH,
+    );
 
     for (let depth = 0; depth <= collectionDepthCap && currentLevel.length > 0; depth++) {
       const nextIdMap = new Map<string, number>();
@@ -1864,9 +1891,15 @@ export class PostHydrationService {
           }
         }
 
-        // OPTIONAL references (quote, legacy originalPostId) still respect the
-        // caller's `maxDepth` budget — they are nested context, not mandatory
-        // content, so a `maxDepth: 0` caller intentionally omits them.
+        // A quote's subject is part of its content too. Feed callers use depth
+        // zero; that must not silently remove the quoted card. Two forced hops
+        // also preserve a boost of a quote without traversing arbitrary chains.
+        if (entry.depth < PostHydrationService.MAX_REQUIRED_REFERENCE_DEPTH && entry.post.quoteOf) {
+          for (const quoteId of this.extractReferenceIds({ quoteOf: entry.post.quoteOf }))
+            enqueueRef(quoteId);
+        }
+
+        // Other references still respect the caller's optional context budget.
         if (entry.depth < maxDepth) {
           for (const refId of this.extractReferenceIds(entry.post)) {
             enqueueRef(refId);
@@ -3518,8 +3551,8 @@ export class PostHydrationService {
     collectedPostIds: Set<string>,
     publicReferencesOnly: boolean,
   ): HydratedPost | null {
-    const boostOf = post?.boostOf ? String(post.boostOf) : undefined;
-    const quoteOf = post?.quoteOf ? String(post.quoteOf) : undefined;
+    const boostOf = this.extractBoostOriginalId(post);
+    const quoteOf = this.extractReferenceIds({ quoteOf: post.quoteOf })[0];
 
     const quotedPost = quoteOf ? (summaryMap.get(quoteOf) ?? null) : null;
     const boostOriginal = boostOf ? (summaryMap.get(boostOf) ?? null) : null;
@@ -3557,6 +3590,7 @@ export class PostHydrationService {
       ...summary,
       originalPost,
       quotedPost,
+      ...((quoteOf || post.type === 'quote') && !quotedPost ? { quotedPostUnavailable: true } : {}),
       boost: boostContext,
       context,
     };
