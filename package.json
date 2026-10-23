@@ -158,6 +158,7 @@
     "expo-video@58.0.12": "patches/expo-video@58.0.12.patch",
     "react-native-screens@4.30.0": "patches/react-native-screens@4.30.0.patch",
     "@shopify/flash-list@2.3.2": "patches/@shopify%2Fflash-list@2.3.2.patch",
-    "react-native-gesture-handler@3.3.0": "patches/react-native-gesture-handler@3.3.0.patch"
+    "react-native-gesture-handler@3.3.0": "patches/react-native-gesture-handler@3.3.0.patch",
+    "react-native-css@3.1.0-rc.0": "patches/react-native-css@3.1.0-rc.0.patch"
   }
 }

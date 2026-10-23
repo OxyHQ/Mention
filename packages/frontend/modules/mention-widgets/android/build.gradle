@@ -49,7 +49,7 @@ dependencies {
 
   // The periodic refresh. Glance pulls work-runtime transitively for its own
   // session worker, but again only at runtime scope.
-  implementation "androidx.work:work-runtime-ktx:2.10.5"
+  implementation "androidx.work:work-runtime-ktx:2.12.0"
 
   // Backing store for the last-known trends. Same story as the two above: it is
   // already in the app as a runtime-scope transitive of Glance, so declaring it

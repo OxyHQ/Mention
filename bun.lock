@@ -97,7 +97,7 @@
         "@expo/vector-icons": "^15.1.1",
         "@livekit/react-native": "^3.1.0",
         "@livekit/react-native-expo-plugin": "^1.1.0",
-        "@livekit/react-native-webrtc": "^144.2.0",
+        "@livekit/react-native-webrtc": "^150.1.0",
         "@lottiefiles/dotlottie-react": "^0.20.0",
         "@lottiefiles/dotlottie-web": "0.81.0",
         "@mention/shared-types": "workspace:*",
@@ -263,6 +263,7 @@
     "expo-video@58.0.12": "patches/expo-video@58.0.12.patch",
     "react-native-screens@4.30.0": "patches/react-native-screens@4.30.0.patch",
     "@shopify/flash-list@2.3.2": "patches/@shopify%2Fflash-list@2.3.2.patch",
+    "react-native-css@3.1.0-rc.0": "patches/react-native-css@3.1.0-rc.0.patch",
   },
   "overrides": {
     "@expo/config-plugins": "58.0.9",
@@ -938,7 +939,7 @@
 
     "@livekit/react-native-expo-plugin": ["@livekit/react-native-expo-plugin@1.1.0", "", { "peerDependencies": { "@livekit/react-native": "^2.1.0 || ^3.0.0", "expo": "*", "react": "*", "react-native": "*" } }, "sha512-/GFXKebMn2VYsMMYcE/JuSPpjD0ghY+aFyvIjqZ/DE7F2AA53G9FDGRDlCzO59ApZk4XI4rEnmlC+w82LWmVXw=="],
 
-    "@livekit/react-native-webrtc": ["@livekit/react-native-webrtc@144.2.0", "", { "dependencies": { "base64-js": "1.5.1", "debug": "4.3.4" }, "peerDependencies": { "react-native": ">=0.60.0" } }, "sha512-7HrXfvFiPlAzmxRFJ/lSPDMZ1d4NvqwUUn7k3N95V6Xgw7/ckVrc+GapOHnrIUwLASQNqnTEpOnYpbVoVPj3bw=="],
+    "@livekit/react-native-webrtc": ["@livekit/react-native-webrtc@150.1.0", "", { "dependencies": { "base64-js": "1.5.1", "debug": "4.3.4" }, "peerDependencies": { "react-native": ">=0.60.0" } }, "sha512-JpJWR+psGgUe5qLuS+G8hhA7BTEoN8zP/krOkXGm+U6i1j3WrC2mkCpgkNRlvo+rDLbJQY85soUCcdVHw4AZAA=="],
 
     "@lottiefiles/dotlottie-react": ["@lottiefiles/dotlottie-react@0.20.0", "", { "dependencies": { "@lottiefiles/dotlottie-web": "0.81.0" }, "peerDependencies": { "react": "^17 || ^18 || ^19" } }, "sha512-M4HLo6RxNTbYwByZw7ns2zaGgPx0PpGZU1xfyMdj8VEoTasSJ1uhsJZjl+l55TPQ7g0soF7JVHEJLTOv1TIeMA=="],
 

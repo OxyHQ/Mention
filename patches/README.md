@@ -114,3 +114,16 @@ shaken. Measured on one `expo export --platform web` of the same commit:
 which every animated component imports, and the Fade and Slide presets Bloom
 and the app use). Still `require()` in 3.3.0; remove the patch when upstream
 imports Reanimated statically.
+
+# react-native-css 3.1.0-rc.0
+
+On native, NativeWind's Metro resolver sends every `import … from 'react-native'`
+outside React Native itself to `react-native-css/components`, a shim that
+re-exports a fixed list of React Native APIs. React Native 0.88 added
+`AssetRegistry` to its public index, and Expo SDK 58's `expo-asset` imports it
+from there. The shim does not list it, so `expo-asset` received `undefined`.
+Every `useFonts` call then failed with `Cannot read property 'getAssetByID' of
+undefined`. Bloom never finished loading its fonts, and Android release builds
+stayed on a blank screen. The patch adds the missing getter to `src`,
+`dist/module` and `dist/commonjs`. It is still missing in 3.0.7, 3.1.0-rc.0 and
+the current nightly. Remove the patch when upstream re-exports `AssetRegistry`.
