@@ -1,5 +1,5 @@
 /**
- * Babel plugin for the row-cost harness only: `import(x)` → a promise of
+ * Babel plugin for Jest (the row-cost harness and web decoder tests): `import(x)` → a promise of
  * `require(x)`. Metro splits lazy imports itself, so babel-preset-expo leaves
  * `import()` untouched under the `metro` caller, and Node refuses it inside a
  * Jest vm context. Rows lazy-load real children (the quoted post's nested
