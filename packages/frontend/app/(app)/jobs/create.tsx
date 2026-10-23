@@ -1,7 +1,7 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import type { Href } from '@/lib/navigation/router';
 import { useMemo, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -12,6 +12,7 @@ import { Dialog } from '@oxy.so/bloom/dialog';
 import { Field } from '@oxy.so/bloom/field';
 import { Item } from '@oxy.so/bloom/item';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { AccountNode } from '@oxy.so/core';
@@ -181,20 +182,25 @@ export default function CreateJobScreen() {
   const publishingIntent = createMutation.variables?.publish === true;
 
   return (
-    <View className="flex-1">
-      <PageHeader
-        title={t('jobs.create.title', { defaultValue: 'Create job' })}
-        onBack={() => safeBack()}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-      />
-
+    <Screen
+      header={
+        <PageHeader
+          title={t('jobs.create.title', { defaultValue: 'Create job' })}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+        />
+      }
+    >
       <SignInRequired
         label={t('jobs.signInRequired', { defaultValue: 'Sign in to publish jobs' })}
         description={t('jobs.signInRequiredDesc', {
           defaultValue: 'Jobs are published by an organization or project account you operate.',
         })}
       >
-        <ScrollView contentContainerClassName="px-4 pb-16 pt-2" keyboardShouldPersistTaps="handled">
+        <ScreenScrollView
+          contentContainerClassName="px-4 pb-16 pt-2"
+          keyboardShouldPersistTaps="handled"
+        >
           {/* Employer picker */}
           <Field label={t('jobs.create.employer', { defaultValue: 'Publish as' })}>
             <Card border="thin" elevation="none" radius="radius-16">
@@ -264,8 +270,8 @@ export default function CreateJobScreen() {
             </Button>
           </View>
           {accountsLoading ? <ListSkeleton count={2} /> : null}
-        </ScrollView>
+        </ScreenScrollView>
       </SignInRequired>
-    </View>
+    </Screen>
   );
 }

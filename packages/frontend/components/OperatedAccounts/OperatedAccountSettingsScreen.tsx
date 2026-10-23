@@ -1,9 +1,9 @@
 import { FormSkeleton } from '@/components/loading/ContentSkeleton';
 import { type ReactNode, useCallback, useMemo } from 'react';
-import { ScrollView, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { AccountSettings, type AccountSettingsProps } from '@oxy.so/services/screens';
 import { getNormalizedUserHandle, type AccountNode } from '@oxy.so/core';
@@ -107,10 +107,13 @@ export function OperatedAccountSettingsScreen({
   }
 
   return (
-    <View className="flex-1">
-      <PageHeader title={copy.title} onBack={() => safeBack()} backLabel={t('common.back')} />
-      {body}
-    </View>
+    <Screen
+      header={
+        <PageHeader title={copy.title} onBack={() => safeBack()} backLabel={t('common.back')} />
+      }
+    >
+      <ScreenScrollView showsVerticalScrollIndicator={false}>{body}</ScreenScrollView>
+    </Screen>
   );
 }
 
@@ -134,19 +137,17 @@ function OperatedAccountSettings({
   );
 
   return (
-    <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-      <AccountSettings
-        accountId={accountId}
-        onUpdated={handleUpdated}
-        archive={archive}
-        extraSections={
-          kind === 'channel' ? (
-            <ChannelBylineSettings accountId={accountId} />
-          ) : (
-            <CommunityModerationSettings accountId={accountId} />
-          )
-        }
-      />
-    </ScrollView>
+    <AccountSettings
+      accountId={accountId}
+      onUpdated={handleUpdated}
+      archive={archive}
+      extraSections={
+        kind === 'channel' ? (
+          <ChannelBylineSettings accountId={accountId} />
+        ) : (
+          <CommunityModerationSettings accountId={accountId} />
+        )
+      }
+    />
   );
 }

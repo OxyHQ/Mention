@@ -6,7 +6,7 @@ import { Redirect } from '@/lib/navigation/router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View, ScrollView } from 'react-native';
+import { View } from 'react-native';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import UserName from '@/components/UserName';
 import { RowIcon } from '@/components/settings/RowIcon';
@@ -34,7 +34,7 @@ import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedPr
 import type { ProfileRouteFamily } from '@/components/Profile/profileRoute';
 import { ProfileUnavailable } from '@/components/Profile/ProfileUnavailable';
 import { resolveProfileColor } from '@oxy.so/bloom/color-presets';
-import { Screen } from '@oxy.so/bloom/screen';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { BloomColorScope } from '@oxy.so/bloom/theme';
 
 const ABOUT_AVATAR_SIZE = 80;
@@ -68,6 +68,8 @@ function AccountInfoScreenContent({ routedFamily }: { routedFamily: ProfileRoute
   const account = useProfileAccount(useRoutedProfileUsername());
   const { profileData, loading: profileLoading, notFound, refresh } = account;
   const canonicalHref = useProfileCanonicalHref({ routedFamily, account, subpath: 'about' });
+  const safeBack = useSafeBack();
+  const { t } = useTranslation();
 
   if (canonicalHref) {
     return <Redirect href={canonicalHref} />;
@@ -78,15 +80,29 @@ function AccountInfoScreenContent({ routedFamily }: { routedFamily: ProfileRoute
   // Same split as ProfileShell: a preset is the Screen's claim, which themes the
   // whole shell on a split layout and only this column in the Deck; an exact
   // seed has no claim, so it scopes the content.
+  //
+  // Same back-nav header the sibling profile sub-screens (followers / following /
+  // connections) render, shared by the loading / not-found / loaded states.
   return (
     <BloomColorScope seed={color?.seed} asChild>
-      <Screen colorPreset={color?.colorPreset}>
-        <AccountInfoContent
-          profileData={profileData}
-          profileLoading={profileLoading}
-          notFound={notFound}
-          onRetry={refresh}
-        />
+      <Screen
+        colorPreset={color?.colorPreset}
+        header={
+          <PageHeader
+            title={t('About', { defaultValue: 'About' })}
+            onBack={() => safeBack()}
+            backLabel={t('common.back', { defaultValue: 'Back' })}
+          />
+        }
+      >
+        <ScreenScrollView>
+          <AccountInfoContent
+            profileData={profileData}
+            profileLoading={profileLoading}
+            notFound={notFound}
+            onRetry={refresh}
+          />
+        </ScreenScrollView>
       </Screen>
     </BloomColorScope>
   );
@@ -105,7 +121,6 @@ function AccountInfoContent({
   notFound,
   onRetry,
 }: AccountInfoContentProps) {
-  const safeBack = useSafeBack();
   const { t } = useTranslation();
   const categoryLabel = useAccountCategoryLabel();
 
@@ -152,33 +167,12 @@ function AccountInfoContent({
   // on bsky.app's `/profile/<id>` route.
   const federationInfo = useMemo(() => federationInfoOf(profileData), [profileData]);
 
-  // Same back-nav header the sibling profile sub-screens (followers / following /
-  // connections) render. Rendered once and reused across the loading / not-found /
-  // loaded states so all three share identical chrome.
-  const header = (
-    <PageHeader
-      title={t('About', { defaultValue: 'About' })}
-      onBack={() => safeBack()}
-      backLabel={t('common.back', { defaultValue: 'Back' })}
-    />
-  );
-
   if (profileLoading) {
-    return (
-      <View className="flex-1">
-        {header}
-        <DetailSkeleton />
-      </View>
-    );
+    return <DetailSkeleton />;
   }
 
   if (!profileData) {
-    return (
-      <View className="flex-1">
-        {header}
-        <ProfileUnavailable notFound={notFound} onRetry={onRetry} />
-      </View>
-    );
+    return <ProfileUnavailable notFound={notFound} onRetry={onRetry} />;
   }
 
   const avatarUri = profileData.design.avatar ?? profileData.avatar;
@@ -202,224 +196,220 @@ function AccountInfoContent({
     hasUsernameChanges ||
     Boolean(profileData.connectedVia);
 
+  // Horizontal padding lives on the identity block and the Bloom settings
+  // groups (which carry their own 16px card margin), NOT on the scroller — so
+  // both align to the same 16px gutter as the profile header, and the settings
+  // cards are never double-inset. Vertical rhythm mirrors the settings screens
+  // (the app's other SettingsListGroup surface).
   return (
-    <View className="flex-1">
-      {header}
-
-      {/* Horizontal padding lives on the identity block and the Bloom settings
-          groups (which carry their own 16px card margin), NOT on the scroller —
-          so both align to the same 16px gutter as the profile header, and the
-          settings cards are never double-inset. Vertical rhythm mirrors the
-          settings screens (the app's other SettingsListGroup surface). */}
-      <ScrollView className="flex-1" contentContainerClassName="px-screen-margin pb-6">
-        {/* Identity header — a classic CENTERED profile header: the avatar
+    <View className="px-screen-margin pb-6">
+      {/* Identity header — a classic CENTERED profile header: the avatar
             centered on top, then the display name, then the muted @handle, all
             horizontally centered (via `items-center` + UserName's `align="center"`).
             Keeps the profile's typographic scale (24px display name, 15px muted
             @handle) and inline verified / federated / agent badges via the shared
             UserName, so it reads as the same identity surface as the profile. */}
-        <View className="px-4 pt-4 pb-5 items-center">
-          <ZoomableAvatar
-            source={avatarUri}
-            size={ABOUT_AVATAR_SIZE}
-            className="bg-muted"
-            style={{
-              width: ABOUT_AVATAR_SIZE,
-              height: ABOUT_AVATAR_SIZE,
-              borderRadius: ABOUT_AVATAR_SIZE / 2,
-            }}
-            imageStyle={{}}
-          />
-          <UserName
-            name={profileData.design.displayName ?? profileData.name?.displayName}
-            handle={profileData.username}
-            verified={profileData.verified}
-            isFederated={profileData.isFederated}
-            kind={profileData.kind}
-            // Deliberately NOT opted in: this screen already carries an explicit
-            // "Learn more about the fediverse" row below, which is a better
-            // affordance than a 15px glyph. Two doors to one dialog on one
-            // screen is one more than the screen needs.
-            isAgent={profileData.isAgent}
-            isAutomated={profileData.isAutomated}
-            copyableHandle
-            align="center"
-            variant="default"
-            // UserName exposes name/handle sizing only through this typed style
-            // object (no 24px `variant`), so the profile header itself sets the
-            // display-name scale the same way — matched here for parity.
-            style={{
-              name: { fontSize: 24, fontWeight: 'bold', marginTop: 12, marginBottom: 4 },
-              handle: { fontSize: 15 },
-            }}
-          />
-        </View>
+      <View className="px-4 pt-4 pb-5 items-center">
+        <ZoomableAvatar
+          source={avatarUri}
+          size={ABOUT_AVATAR_SIZE}
+          className="bg-muted"
+          style={{
+            width: ABOUT_AVATAR_SIZE,
+            height: ABOUT_AVATAR_SIZE,
+            borderRadius: ABOUT_AVATAR_SIZE / 2,
+          }}
+          imageStyle={{}}
+        />
+        <UserName
+          name={profileData.design.displayName ?? profileData.name?.displayName}
+          handle={profileData.username}
+          verified={profileData.verified}
+          isFederated={profileData.isFederated}
+          kind={profileData.kind}
+          // Deliberately NOT opted in: this screen already carries an explicit
+          // "Learn more about the fediverse" row below, which is a better
+          // affordance than a 15px glyph. Two doors to one dialog on one
+          // screen is one more than the screen needs.
+          isAgent={profileData.isAgent}
+          isAutomated={profileData.isAutomated}
+          copyableHandle
+          align="center"
+          variant="default"
+          // UserName exposes name/handle sizing only through this typed style
+          // object (no 24px `variant`), so the profile header itself sets the
+          // display-name scale the same way — matched here for parity.
+          style={{
+            name: { fontSize: 24, fontWeight: 'bold', marginTop: 12, marginBottom: 4 },
+            handle: { fontSize: 15 },
+          }}
+        />
+      </View>
 
-        {/* Categories — the WHOLE ordered list, which is what makes this the
+      {/* Categories — the WHOLE ordered list, which is what makes this the
             counterpart to the profile: the header names only the primary, so
             without this surface the other three would be unreadable anywhere.
             The order is the account's own and is never sorted here; the first
             row is marked as the primary, which is the only thing that explains
             why that one and not another appears under the name. */}
-        {categories.length > 0 && (
-          <SettingsListGroup title={t('accountCategories.title', { defaultValue: 'Categories' })}>
-            {categories.map((category, index) => (
-              <SettingsListItem
-                key={category.id}
-                icon={<RowIcon icon={RiHashtag} />}
-                title={category.label}
-                value={
-                  index === 0
-                    ? t('accountCategories.primary', { defaultValue: 'Primary' })
-                    : undefined
-                }
-              />
-            ))}
-          </SettingsListGroup>
-        )}
-
-        {/* Account details — dates, location, activity */}
-        {hasAccountDetails && (
-          <SettingsListGroup title={t('Account details', { defaultValue: 'Account details' })}>
-            {joinDate && (
-              <SettingsListItem
-                icon={<CalendarMonthIcon size={20} className="text-muted-foreground" />}
-                title={t('Date joined', { defaultValue: 'Date joined' })}
-                value={joinDate}
-              />
-            )}
-
-            {profileData.primaryLocation && (
-              <SettingsListItem
-                icon={<RowIcon icon={RiMapPinLine} />}
-                title={t('Account based in', { defaultValue: 'Account based in' })}
-                value={profileData.primaryLocation}
-              />
-            )}
-
-            {websiteUrl && (
-              <SettingsListItem
-                icon={<RowIcon icon={RiLinkM} />}
-                title={t('Website', { defaultValue: 'Website' })}
-                value={website?.replace(/^https?:\/\//i, '')}
-                onPress={() => openExternalLink(websiteUrl)}
-              />
-            )}
-
-            {hasUsernameChanges && (
-              <SettingsListItem
-                icon={<RowIcon icon={RiAtLine} />}
-                title={t('Username changes', { defaultValue: 'Username changes' })}
-                value={String(profileData.usernameChangeCount)}
-              />
-            )}
-
-            {profileData.connectedVia && (
-              <SettingsListItem
-                icon={<RowIcon icon={RiEarthLine} />}
-                title={t('Connected via', { defaultValue: 'Connected via' })}
-                value={profileData.connectedVia}
-              />
-            )}
-          </SettingsListGroup>
-        )}
-
-        {/* Verification — its own section, matching the profile's emphasis on the
-            verified badge */}
-        {profileData.verified && (
-          <SettingsListGroup title={t('Verification', { defaultValue: 'Verification' })}>
+      {categories.length > 0 && (
+        <SettingsListGroup title={t('accountCategories.title', { defaultValue: 'Categories' })}>
+          {categories.map((category, index) => (
             <SettingsListItem
-              icon={<VerifiedIcon size={20} />}
-              title={t('Verified', { defaultValue: 'Verified' })}
+              key={category.id}
+              icon={<RowIcon icon={RiHashtag} />}
+              title={category.label}
               value={
-                verifiedDate
-                  ? t('Since {date}', { date: verifiedDate, defaultValue: `Since ${verifiedDate}` })
-                  : t('Verified account', { defaultValue: 'Verified account' })
+                index === 0
+                  ? t('accountCategories.primary', { defaultValue: 'Primary' })
+                  : undefined
               }
             />
-          </SettingsListGroup>
-        )}
+          ))}
+        </SettingsListGroup>
+      )}
 
-        {/* Fediverse — every non-Oxy account, whichever network it lives on,
+      {/* Account details — dates, location, activity */}
+      {hasAccountDetails && (
+        <SettingsListGroup title={t('Account details', { defaultValue: 'Account details' })}>
+          {joinDate && (
+            <SettingsListItem
+              icon={<CalendarMonthIcon size={20} className="text-muted-foreground" />}
+              title={t('Date joined', { defaultValue: 'Date joined' })}
+              value={joinDate}
+            />
+          )}
+
+          {profileData.primaryLocation && (
+            <SettingsListItem
+              icon={<RowIcon icon={RiMapPinLine} />}
+              title={t('Account based in', { defaultValue: 'Account based in' })}
+              value={profileData.primaryLocation}
+            />
+          )}
+
+          {websiteUrl && (
+            <SettingsListItem
+              icon={<RowIcon icon={RiLinkM} />}
+              title={t('Website', { defaultValue: 'Website' })}
+              value={website?.replace(/^https?:\/\//i, '')}
+              onPress={() => openExternalLink(websiteUrl)}
+            />
+          )}
+
+          {hasUsernameChanges && (
+            <SettingsListItem
+              icon={<RowIcon icon={RiAtLine} />}
+              title={t('Username changes', { defaultValue: 'Username changes' })}
+              value={String(profileData.usernameChangeCount)}
+            />
+          )}
+
+          {profileData.connectedVia && (
+            <SettingsListItem
+              icon={<RowIcon icon={RiEarthLine} />}
+              title={t('Connected via', { defaultValue: 'Connected via' })}
+              value={profileData.connectedVia}
+            />
+          )}
+        </SettingsListGroup>
+      )}
+
+      {/* Verification — its own section, matching the profile's emphasis on the
+            verified badge */}
+      {profileData.verified && (
+        <SettingsListGroup title={t('Verification', { defaultValue: 'Verification' })}>
+          <SettingsListItem
+            icon={<VerifiedIcon size={20} />}
+            title={t('Verified', { defaultValue: 'Verified' })}
+            value={
+              verifiedDate
+                ? t('Since {date}', { date: verifiedDate, defaultValue: `Since ${verifiedDate}` })
+                : t('Verified account', { defaultValue: 'Verified account' })
+            }
+          />
+        </SettingsListGroup>
+      )}
+
+      {/* Fediverse — every non-Oxy account, whichever network it lives on,
             under the same title and icon as the marker beside its name (no
             per-network chip anywhere). The ROWS still say where the account
             actually lives: the network by name, its home server, the full
             cross-network handle, and a link out to the original profile. The
             "Learn more" row opens the FediverseInfoSheet for ActivityPub
             accounts only, the network that sheet describes. */}
-        {federationInfo && (
-          <SettingsListGroup
-            title={t('fediverse.about.title', { defaultValue: 'Fediverse' })}
-            footer={
-              federationInfo.network === 'atproto'
-                ? t('fediverse.about.descriptionBluesky', {
-                    instance: federationInfo.instance ?? BLUESKY_NETWORK_DOMAIN,
+      {federationInfo && (
+        <SettingsListGroup
+          title={t('fediverse.about.title', { defaultValue: 'Fediverse' })}
+          footer={
+            federationInfo.network === 'atproto'
+              ? t('fediverse.about.descriptionBluesky', {
+                  instance: federationInfo.instance ?? BLUESKY_NETWORK_DOMAIN,
+                  defaultValue:
+                    'This account lives on Bluesky ({{instance}}). You can follow it and reply from Mention just like a native account.',
+                })
+              : federationInfo.network === 'instagram-graph'
+                ? t('fediverse.about.descriptionInstagram', {
                     defaultValue:
-                      'This account lives on Bluesky ({{instance}}). You can follow it and reply from Mention just like a native account.',
+                      "This account's posts are copied from Instagram. You can follow it on Mention, but its author can't see replies or likes from here.",
                   })
+                : t('fediverse.about.descriptionActivityPub', {
+                    instance: federationInfo.instance ?? '',
+                    defaultValue:
+                      'This account lives on another server in the fediverse ({{instance}}). You can follow it and reply from Mention just like a native account.',
+                  })
+          }
+        >
+          <SettingsListItem
+            icon={<FediverseIcon size={20} className="text-muted-foreground" />}
+            title={t('fediverse.about.network', { defaultValue: 'Network' })}
+            value={
+              federationInfo.network === 'atproto'
+                ? t('fediverse.about.networkBluesky', { defaultValue: 'Bluesky' })
                 : federationInfo.network === 'instagram-graph'
-                  ? t('fediverse.about.descriptionInstagram', {
-                      defaultValue:
-                        "This account's posts are copied from Instagram. You can follow it on Mention, but its author can't see replies or likes from here.",
-                    })
-                  : t('fediverse.about.descriptionActivityPub', {
-                      instance: federationInfo.instance ?? '',
-                      defaultValue:
-                        'This account lives on another server in the fediverse ({{instance}}). You can follow it and reply from Mention just like a native account.',
-                    })
+                  ? t('fediverse.about.networkInstagram', { defaultValue: 'Instagram' })
+                  : t('fediverse.about.networkActivityPub', { defaultValue: 'ActivityPub' })
             }
-          >
+          />
+
+          {federationInfo.instance && (
+            <SettingsListItem
+              icon={<RowIcon icon={RiDatabase2Line} />}
+              title={t('fediverse.about.homeServer', { defaultValue: 'Home server' })}
+              value={federationInfo.instance}
+            />
+          )}
+
+          {federationInfo.handle && (
+            <SettingsListItem
+              icon={<RowIcon icon={RiAtLine} />}
+              title={t('fediverse.about.handle', { defaultValue: 'Handle' })}
+              value={`@${federationInfo.handle}`}
+            />
+          )}
+
+          {federationInfo.originalProfileUrl && (
+            <SettingsListItem
+              icon={<ExternalLinkIcon size={20} className="text-muted-foreground" />}
+              title={t('fediverse.about.viewOriginal', { defaultValue: 'View original profile' })}
+              onPress={() => {
+                if (federationInfo.originalProfileUrl)
+                  openExternalLink(federationInfo.originalProfileUrl);
+              }}
+            />
+          )}
+
+          {federationInfo.network === 'activitypub' && (
             <SettingsListItem
               icon={<FediverseIcon size={20} className="text-muted-foreground" />}
-              title={t('fediverse.about.network', { defaultValue: 'Network' })}
-              value={
-                federationInfo.network === 'atproto'
-                  ? t('fediverse.about.networkBluesky', { defaultValue: 'Bluesky' })
-                  : federationInfo.network === 'instagram-graph'
-                    ? t('fediverse.about.networkInstagram', { defaultValue: 'Instagram' })
-                    : t('fediverse.about.networkActivityPub', { defaultValue: 'ActivityPub' })
-              }
+              title={t('fediverse.about.learnMore', {
+                defaultValue: 'Learn more about the fediverse',
+              })}
+              onPress={() => showFediverseInfo()}
             />
-
-            {federationInfo.instance && (
-              <SettingsListItem
-                icon={<RowIcon icon={RiDatabase2Line} />}
-                title={t('fediverse.about.homeServer', { defaultValue: 'Home server' })}
-                value={federationInfo.instance}
-              />
-            )}
-
-            {federationInfo.handle && (
-              <SettingsListItem
-                icon={<RowIcon icon={RiAtLine} />}
-                title={t('fediverse.about.handle', { defaultValue: 'Handle' })}
-                value={`@${federationInfo.handle}`}
-              />
-            )}
-
-            {federationInfo.originalProfileUrl && (
-              <SettingsListItem
-                icon={<ExternalLinkIcon size={20} className="text-muted-foreground" />}
-                title={t('fediverse.about.viewOriginal', { defaultValue: 'View original profile' })}
-                onPress={() => {
-                  if (federationInfo.originalProfileUrl)
-                    openExternalLink(federationInfo.originalProfileUrl);
-                }}
-              />
-            )}
-
-            {federationInfo.network === 'activitypub' && (
-              <SettingsListItem
-                icon={<FediverseIcon size={20} className="text-muted-foreground" />}
-                title={t('fediverse.about.learnMore', {
-                  defaultValue: 'Learn more about the fediverse',
-                })}
-                onPress={() => showFediverseInfo()}
-              />
-            )}
-          </SettingsListGroup>
-        )}
-      </ScrollView>
+          )}
+        </SettingsListGroup>
+      )}
     </View>
   );
 }

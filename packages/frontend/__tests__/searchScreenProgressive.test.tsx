@@ -95,7 +95,23 @@ function mockStub(name: string) {
   return Stub;
 }
 
-jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: mockStub('page-header') }));
+jest.mock('@oxy.so/bloom/page-header', () => ({
+  PageHeader: ({ accessory }: { accessory?: import('react').ReactNode }) => accessory ?? null,
+}));
+jest.mock('@oxy.so/bloom/screen', () => ({
+  Screen: ({
+    header,
+    children,
+  }: {
+    header?: import('react').ReactNode;
+    children?: import('react').ReactNode;
+  }) => (
+    <>
+      {header}
+      {children}
+    </>
+  ),
+}));
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: mockStub('loading') }));
 jest.mock('@oxy.so/bloom/tabs', () => ({ Tabs: mockStub('tabs'), TabsTrigger: mockStub('tab') }));
 jest.mock('@oxy.so/bloom/search', () => {
@@ -150,10 +166,10 @@ interface MockListProps {
   ListHeaderComponent?: import('react').ReactNode;
 }
 
-jest.mock('@shopify/flash-list', () => {
+jest.mock('@/components/common/ScreenFlashList', () => {
   const React_ = jest.requireActual<typeof import('react')>('react');
   return {
-    FlashList: (props: MockListProps) => (
+    ScreenFlashList: (props: MockListProps) => (
       <>
         {props.ListHeaderComponent}
         {props.data.map((item) => (

@@ -8,6 +8,7 @@ import { Chip } from '@oxy.so/bloom/chip';
 import { Field } from '@oxy.so/bloom/field';
 import { VirtualList } from '@oxy.so/bloom/list';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen } from '@oxy.so/bloom/screen';
 import { Search } from '@oxy.so/bloom/search';
 import {
   SegmentedControl,
@@ -33,7 +34,6 @@ import JobDiscoveryResultCard, {
   ExternalJobReportSheet,
 } from '@/components/Jobs/JobDiscoveryResultCard';
 import { EmptyState } from '@/components/common/EmptyState';
-import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
 
 const WORKPLACE_LABELS: Record<MentionJobWorkplaceType, string> = {
   onsite: 'On-site',
@@ -115,8 +115,8 @@ type DiscoveryRow =
  * It is a `VirtualList`, not a `FlashList`: on web the document is the scroller,
  * so a FlashList here had no bounded height, mounted every row and kept firing
  * `onEndReached` — the screen paged through the whole index on its own, about a
- * page a second, until the tab ran out of memory. Web pages through the
- * footer's `LoadMoreSentinel`; native through `onEndReached`.
+ * page a second, until the tab ran out of memory. It pages from `onEndReached`
+ * on both platforms.
  *
  * "Save" has no backend counterpart in issue #952's contract (only
  * applications do) — it is a lightweight, PER-DEVICE bookmark list in
@@ -474,28 +474,29 @@ export default function JobsDiscoveryScreen() {
   const keyExtractor = useCallback((item: DiscoveryRow) => item.key, []);
 
   return (
-    <View className="flex-1">
-      <PageHeader
-        title={t('jobs.discovery.title', { defaultValue: 'Jobs' })}
-        onBack={() => safeBack()}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-      />
-      <View className="flex-1 min-h-0">
-        <VirtualList
-          data={rows}
-          keyExtractor={keyExtractor}
-          renderItem={renderRow}
-          ListHeaderComponent={filtersHeader}
-          onEndReached={handleEndReached}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={
-            <View className="items-center justify-center py-4">
-              <LoadMoreSentinel onLoadMore={handleEndReached} enabled={!!hasNextPage && !loading} />
-              {isFetchingNextPage ? <ListSkeleton count={2} /> : null}
-            </View>
-          }
+    <Screen
+      header={
+        <PageHeader
+          title={t('jobs.discovery.title', { defaultValue: 'Jobs' })}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
         />
-      </View>
-    </View>
+      }
+    >
+      <VirtualList
+        screen={{}}
+        data={rows}
+        keyExtractor={keyExtractor}
+        renderItem={renderRow}
+        ListHeaderComponent={filtersHeader}
+        onEndReached={handleEndReached}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          <View className="items-center justify-center py-4">
+            {isFetchingNextPage ? <ListSkeleton count={2} /> : null}
+          </View>
+        }
+      />
+    </Screen>
   );
 }

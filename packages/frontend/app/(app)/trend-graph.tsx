@@ -5,6 +5,7 @@ import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Text } from '@oxy.so/bloom/typography';
 
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -61,90 +62,94 @@ export default function TrendGraphScreen() {
   const isEmpty = tree.stories.length === 0 && tree.ungrouped.length === 0;
 
   return (
-    <View className="flex-1">
+    <>
       <SEO title={t('seo.trendGraph.title')} description={t('seo.trendGraph.description')} />
-      <PageHeader
-        title={t('trendGraph.title')}
-        onBack={() => safeBack()}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-      />
-
-      <ScrollView className="flex-1" contentContainerClassName="pb-16">
-        {/*
+      <Screen
+        header={
+          <PageHeader
+            title={t('trendGraph.title')}
+            onBack={() => safeBack()}
+            backLabel={t('common.back', { defaultValue: 'Back' })}
+          />
+        }
+      >
+        <ScreenScrollView contentContainerClassName="pb-16">
+          {/*
           No title block here. The header above already names the screen, and
           repeating it in 28px — under an uppercase eyebrow — spent the first
           fifth of the viewport saying the same thing three times.
         */}
-        <Text className="px-4 pb-3 pt-1 font-primary text-[13px] text-muted-foreground leading-6">
-          {t('trendGraph.subtitle')}
-        </Text>
+          <Text className="px-4 pb-3 pt-1 font-primary text-[13px] text-muted-foreground leading-6">
+            {t('trendGraph.subtitle')}
+          </Text>
 
-        <FilterRow
-          values={data?.availableLanguages ?? []}
-          selected={language}
-          onSelect={setLanguage}
-          allLabel={t('trendGraph.filters.all')}
-        />
-        {/*
+          <FilterRow
+            values={data?.availableLanguages ?? []}
+            selected={language}
+            onSelect={setLanguage}
+            allLabel={t('trendGraph.filters.all')}
+          />
+          {/*
           Region renders only when the data has any. `postClassification.region`
           is sparse, and an always-present filter with nothing in it reads as a
           broken control rather than as an absent signal.
         */}
-        {(data?.availableRegions.length ?? 0) > 0 && (
-          <FilterRow
-            values={data?.availableRegions ?? []}
-            selected={region}
-            onSelect={setRegion}
-            allLabel={t('trendGraph.filters.all')}
-          />
-        )}
+          {(data?.availableRegions.length ?? 0) > 0 && (
+            <FilterRow
+              values={data?.availableRegions ?? []}
+              selected={region}
+              onSelect={setRegion}
+              allLabel={t('trendGraph.filters.all')}
+            />
+          )}
 
-        {isLoading ? (
-          <InsightsSkeleton />
-        ) : isError ? (
-          // An unreachable graph must not render as an empty one: "no relations
-          // found" over an outage would say the network has no stories.
-          <View className="items-center gap-3 px-4 py-10">
-            <Text className="text-center font-primary text-sm text-muted-foreground leading-6">
-              {t('trendGraph.error')}
-            </Text>
-            <TouchableOpacity
-              accessibilityRole="button"
-              onPress={() => void refetch()}
-              className="rounded-full bg-primary px-4 py-2 web:cursor-pointer"
-            >
-              <Text className="font-primary text-sm font-semibold text-primary-foreground leading-6">
-                {t('trendGraph.retry')}
+          {isLoading ? (
+            <InsightsSkeleton />
+          ) : isError ? (
+            // An unreachable graph must not render as an empty one: "no relations
+            // found" over an outage would say the network has no stories.
+            <View className="items-center gap-3 px-4 py-10">
+              <Text className="text-center font-primary text-sm text-muted-foreground leading-6">
+                {t('trendGraph.error')}
               </Text>
-            </TouchableOpacity>
-          </View>
-        ) : isEmpty ? (
-          <EmptyState
-            title={t('trendGraph.empty')}
-            sticker="trendGraph"
-            containerStyle={{ paddingTop: 40 }}
-          />
-        ) : (
-          <>
-            {tree.stories.length > 0 ? (
-              <Section title={t('trendGraph.sections.stories')}>
-                {tree.stories.map((story) => (
-                  <Branch key={story.node.term} entry={story} />
-                ))}
-              </Section>
-            ) : null}
+              <TouchableOpacity
+                accessibilityRole="button"
+                onPress={() => void refetch()}
+                className="rounded-full bg-primary px-4 py-2 web:cursor-pointer"
+              >
+                <Text className="font-primary text-sm font-semibold text-primary-foreground leading-6">
+                  {t('trendGraph.retry')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : isEmpty ? (
+            <EmptyState
+              title={t('trendGraph.empty')}
+              sticker="trendGraph"
+              containerStyle={{ paddingTop: 40 }}
+            />
+          ) : (
+            <>
+              {tree.stories.length > 0 ? (
+                <Section title={t('trendGraph.sections.stories')}>
+                  {tree.stories.map((story) => (
+                    <Branch key={story.node.term} entry={story} />
+                  ))}
+                </Section>
+              ) : null}
 
-            {tree.ungrouped.length > 0 ? (
-              <Section title={t('trendGraph.sections.ungrouped')}>
-                {tree.ungrouped.map((entry) => (
-                  <Branch key={entry.node.term} entry={entry} />
-                ))}
-              </Section>
-            ) : null}
-          </>
-        )}
-      </ScrollView>
-    </View>
+              {tree.ungrouped.length > 0 ? (
+                <Section title={t('trendGraph.sections.ungrouped')}>
+                  {tree.ungrouped.map((entry) => (
+                    <Branch key={entry.node.term} entry={entry} />
+                  ))}
+                </Section>
+              ) : null}
+            </>
+          )}
+        </ScreenScrollView>
+      </Screen>
+    </>
   );
 }
 

@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react';
-import { View, ScrollView, Platform } from 'react-native';
+import { View } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { starterPacksService, type StarterPackSummary } from '@/services/starterPacksService';
 import { useRouter, useFocusEffect } from '@/lib/navigation/router';
@@ -16,8 +17,6 @@ import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
 import { EmptyState } from '@/components/common/EmptyState';
 import { SignInRequired } from '@/components/common/SignInRequired';
-
-const IS_WEB = Platform.OS === 'web';
 
 export default function StarterPacksScreen() {
   const router = useRouter();
@@ -101,40 +100,36 @@ export default function StarterPacksScreen() {
   return (
     <>
       <SEO title="Starter Packs" description="Curated collections of accounts to follow" />
-      <View className="flex-1">
-        <PageHeader
-          title={t('starterPacks.title')}
-          onBack={() => safeBack()}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-          actions={
-            canUsePrivateApi ? (
-              <Button size="sm" onPress={() => router.push('/starter-packs/create')}>
-                New
-              </Button>
-            ) : undefined
-          }
-        />
-
+      <Screen
+        header={
+          <PageHeader
+            title={t('starterPacks.title')}
+            onBack={() => safeBack()}
+            backLabel={t('common.back', { defaultValue: 'Back' })}
+            actions={
+              canUsePrivateApi ? (
+                <Button size="sm" onPress={() => router.push('/starter-packs/create')}>
+                  New
+                </Button>
+              ) : undefined
+            }
+          />
+        }
+      >
         <SignInRequired
           label={t('starterPacks.signInRequired', { defaultValue: 'Sign in to use starter packs' })}
           description={t('starterPacks.signInRequiredDesc', {
             defaultValue: 'A starter pack is a set of accounts you recommend following together.',
           })}
         >
-          {/* WEB: the document (body) is the scroller — the shell owns scroll, so
-              the directory renders in normal flow. A ScrollView here would nest a
-              second scroll container inside the ContentPanel and break the sticky
-              side rails, window scroll-restoration and bottom-bar auto-hide.
-              NATIVE: a ScrollView is the correct screen scroller. */}
-          {IS_WEB ? (
-            <View className="px-3 pt-2.5">{content}</View>
-          ) : (
-            <ScrollView showsVerticalScrollIndicator={false} className="px-3 pt-2.5">
-              {content}
-            </ScrollView>
-          )}
+          <ScreenScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerClassName="px-3 pt-2.5"
+          >
+            {content}
+          </ScreenScrollView>
         </SignInRequired>
-      </View>
+      </Screen>
     </>
   );
 }

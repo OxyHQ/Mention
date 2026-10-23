@@ -9,9 +9,10 @@ import {
   useRef,
   useState,
 } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
 import { Avatar } from '@oxy.so/bloom/avatar';
@@ -943,20 +944,22 @@ export function FeedBuilder({
   const canSave = title.trim().length > 0 && Boolean(catalog);
 
   return (
-    <View className="flex-1">
-      <PageHeader
-        title={feedId ? t('feeds.builder.editTitle') : t('feeds.builder.createTitle')}
-        onBack={() => safeBack()}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-        actions={
-          canUsePrivateApi ? (
-            <Button size="sm" onPress={handleSave} disabled={!canSave} loading={saving}>
-              {savedFeedId ? t('feeds.builder.saveChanges') : t('feeds.builder.create')}
-            </Button>
-          ) : undefined
-        }
-      />
-
+    <Screen
+      header={
+        <PageHeader
+          title={feedId ? t('feeds.builder.editTitle') : t('feeds.builder.createTitle')}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+          actions={
+            canUsePrivateApi ? (
+              <Button size="sm" onPress={handleSave} disabled={!canSave} loading={saving}>
+                {savedFeedId ? t('feeds.builder.saveChanges') : t('feeds.builder.create')}
+              </Button>
+            ) : undefined
+          }
+        />
+      }
+    >
       <SignInRequired
         label={t('feeds.builder.signInRequired', { defaultValue: 'Sign in to build a feed' })}
         description={t('feeds.builder.signInRequiredDesc', {
@@ -967,7 +970,7 @@ export function FeedBuilder({
           <FormSkeleton />
         ) : (
           <ChipDraftContext.Provider value={chipDraftStore}>
-            <ScrollView
+            <ScreenScrollView
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
@@ -1094,7 +1097,7 @@ export function FeedBuilder({
               </Text>
               {savedFeedId ? (
                 <View className="rounded-2xl overflow-hidden border border-border">
-                  {/* Non-scrolling inside the builder's ScrollView, so it is not
+                  {/* Non-scrolling inside the builder's scroller, so it is not
                       virtualized: bounded to a preview's worth of rows and never
                       pages (#1103). The full feed is one tap away once saved. */}
                   <Feed
@@ -1113,11 +1116,11 @@ export function FeedBuilder({
               )}
 
               <View className="h-10" />
-            </ScrollView>
+            </ScreenScrollView>
           </ChipDraftContext.Provider>
         )}
       </SignInRequired>
-    </View>
+    </Screen>
   );
 }
 
@@ -1134,6 +1137,5 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     gap: 8,
-    paddingBottom: 80,
   },
 });

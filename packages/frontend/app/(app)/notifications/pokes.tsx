@@ -1,14 +1,7 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useState, useCallback } from 'react';
-import {
-  View,
-  StyleSheet,
-  Platform,
-  RefreshControl,
-  ScrollView,
-  TouchableOpacity,
-} from 'react-native';
+import { View, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
@@ -16,6 +9,7 @@ import { RiHand } from '@oxy.so/bloom/icons/RiHand';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Text } from '@oxy.so/bloom/typography';
 import { useSafeBack } from '@/hooks/useSafeBack';
 
@@ -226,7 +220,7 @@ export default function PokesScreen() {
       receivedPokes.length === 0 && sentPokes.length === 0 && suggestions.length === 0;
 
     if (isEmpty && !isLoading) {
-      const emptyBody = (
+      return (
         <>
           <EmptyState
             title={t('pokes.empty.title', { defaultValue: 'No pokes yet' })}
@@ -243,29 +237,9 @@ export default function PokesScreen() {
           />
         </>
       );
-      // WEB lets the shared panel/document own the scroll; NATIVE keeps the
-      // ScrollView (+ pull-to-refresh) as the screen's scroller.
-      return Platform.OS === 'web' ? (
-        <View style={{ paddingBottom: 40 }}>{emptyBody}</View>
-      ) : (
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ paddingBottom: 40 }}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              colors={[theme.colors.primary]}
-              tintColor={theme.colors.primary}
-            />
-          }
-        >
-          {emptyBody}
-        </ScrollView>
-      );
     }
 
-    const body = (
+    return (
       <>
         {receivedPokes.length > 0 && (
           <View>
@@ -327,27 +301,6 @@ export default function PokesScreen() {
         />
       </>
     );
-    // WEB lets the shared panel/document own the scroll; NATIVE keeps the
-    // ScrollView (+ pull-to-refresh) as the screen's scroller.
-    return Platform.OS === 'web' ? (
-      <View style={{ paddingBottom: 40 }}>{body}</View>
-    ) : (
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 40 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            colors={[theme.colors.primary]}
-            tintColor={theme.colors.primary}
-          />
-        }
-        showsVerticalScrollIndicator={false}
-      >
-        {body}
-      </ScrollView>
-    );
   };
 
   return (
@@ -358,14 +311,32 @@ export default function PokesScreen() {
           defaultValue: 'See who poked you and poke them back',
         })}
       />
-      <View className="flex-1">
-        <PageHeader
-          title={t('pokes.title', { defaultValue: 'Pokes' })}
-          onBack={() => safeBack()}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
-        {renderContent()}
-      </View>
+      <Screen
+        header={
+          <PageHeader
+            title={t('pokes.title', { defaultValue: 'Pokes' })}
+            onBack={() => safeBack()}
+            backLabel={t('common.back', { defaultValue: 'Back' })}
+          />
+        }
+      >
+        <ScreenScrollView
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }}
+          refreshControl={
+            isAuthenticated ? (
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                colors={[theme.colors.primary]}
+                tintColor={theme.colors.primary}
+              />
+            ) : undefined
+          }
+          showsVerticalScrollIndicator={false}
+        >
+          {renderContent()}
+        </ScreenScrollView>
+      </Screen>
     </>
   );
 }

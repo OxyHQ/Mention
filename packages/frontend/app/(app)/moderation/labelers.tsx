@@ -3,17 +3,10 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  FlatList,
-  Platform,
-  RefreshControl,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
 import { Search } from '@oxy.so/bloom/search';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -25,8 +18,6 @@ import { labelerService, type LabelDefinition } from '@/services/labelerService'
 import { cn } from '@/lib/utils';
 import { logger } from '@oxy.so/core/logger';
 import { EmptyState } from '@/components/common/EmptyState';
-
-const IS_WEB = Platform.OS === 'web';
 
 /** How long typing settles before it becomes a new query key. */
 const SEARCH_DEBOUNCE_MS = 300;
@@ -244,101 +235,71 @@ const LabelersScreen: React.FC = () => {
     [toggleSubscription],
   );
 
-  const renderItem = useCallback(
-    ({ item }: { item: Labeler }) => (
-      <LabelerCard
-        labeler={item}
-        onSubscribeToggle={handleSubscribeToggle}
-        subscribing={subscribingIds.has(String(item._id || item.id))}
-      />
-    ),
-    [handleSubscribeToggle, subscribingIds],
-  );
-
-  const keyExtractor = useCallback((item: Labeler) => String(item._id || item.id), []);
-
-  const ListEmpty = useCallback(
-    () => (
-      <EmptyState
-        sticker="labelers"
-        title={t('labelers.emptyTitle', { defaultValue: 'No labelers found' })}
-        subtitle={t('labelers.emptySubtitle', {
-          defaultValue: 'Try adjusting your search or check back later.',
-        })}
-        containerStyle={{ paddingTop: 60 }}
-      />
-    ),
-    [t],
-  );
-
   return (
-    <View className="flex-1">
-      <PageHeader
-        title={t('labelers.title', { defaultValue: 'Content Labels' })}
-        onBack={() => safeBack()}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-      />
-
-      <View className="mx-4 mt-2 mb-1">
-        <Search
-          label={t('labelers.searchPlaceholder', { defaultValue: 'Search labelers\u2026' })}
-          value={search}
-          onChangeText={setSearch}
-          onClearText={() => setSearch('')}
+    <Screen
+      header={
+        <PageHeader
+          title={t('labelers.title', { defaultValue: 'Content Labels' })}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
         />
-      </View>
+      }
+    >
+      <ScreenScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isFetching}
+            onRefresh={() => {
+              void refetch();
+            }}
+            tintColor={theme.colors.primary}
+          />
+        }
+      >
+        <View className="mx-4 mt-2 mb-1">
+          <Search
+            label={t('labelers.searchPlaceholder', { defaultValue: 'Search labelers\u2026' })}
+            value={search}
+            onChangeText={setSearch}
+            onClearText={() => setSearch('')}
+          />
+        </View>
 
-      {isLoading ? (
-        <ListSkeleton />
-      ) : IS_WEB ? (
-        // WEB: the document (body) is the scroller — the shell owns scroll, so
-        // the list renders in normal flow. A FlatList here would nest a second
-        // scroll container inside the ContentPanel and break the sticky side
-        // rails, window scroll-restoration and bottom-bar auto-hide. The `gap-2`
-        // reproduces the native ItemSeparatorComponent spacing.
-        <View className="p-4 pt-2 gap-2">
-          {labelers.length === 0
-            ? ListEmpty()
-            : labelers.map((item) => (
+        {isLoading ? (
+          <ListSkeleton />
+        ) : labelers.length === 0 ? (
+          <EmptyState
+            sticker="labelers"
+            title={t('labelers.emptyTitle', { defaultValue: 'No labelers found' })}
+            subtitle={t('labelers.emptySubtitle', {
+              defaultValue: 'Try adjusting your search or check back later.',
+            })}
+            containerStyle={{ paddingTop: 60 }}
+          />
+        ) : (
+          <View className="p-4 pt-2 gap-2">
+            {labelers.map((item) => {
+              const id = String(item._id || item.id);
+              return (
                 <LabelerCard
-                  key={keyExtractor(item)}
+                  key={id}
                   labeler={item}
                   onSubscribeToggle={handleSubscribeToggle}
-                  subscribing={subscribingIds.has(String(item._id || item.id))}
+                  subscribing={subscribingIds.has(id)}
                 />
-              ))}
-        </View>
-      ) : (
-        <FlatList
-          data={labelers}
-          renderItem={renderItem}
-          keyExtractor={keyExtractor}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={ListEmpty}
-          refreshControl={
-            <RefreshControl
-              refreshing={isFetching}
-              onRefresh={() => {
-                void refetch();
-              }}
-              tintColor={theme.colors.primary}
-            />
-          }
-          ItemSeparatorComponent={() => <View className="h-2" />}
-        />
-      )}
-    </View>
+              );
+            })}
+          </View>
+        )}
+      </ScreenScrollView>
+    </Screen>
   );
 };
 
 export default LabelersScreen;
 
 const styles = StyleSheet.create({
-  listContent: {
-    padding: 16,
-    paddingTop: 8,
-  },
   subscribeBtn: {
     borderWidth: 1,
     borderRadius: 20,

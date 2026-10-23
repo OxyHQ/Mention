@@ -2,8 +2,8 @@ import { useMemo } from 'react';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import Feed from '@/components/Feed/Feed';
-import { View } from 'react-native';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen } from '@oxy.so/bloom/screen';
 import { SEO } from '@/components/SEO';
 import { useSafeBack } from '@/hooks/useSafeBack';
 
@@ -21,19 +21,22 @@ export default function PostQuotesScreen() {
   const title = t('post.quotes.title', { defaultValue: 'Quotes' });
 
   return (
-    <View className="flex-1">
+    <Screen
+      header={
+        <PageHeader
+          title={title}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+        />
+      }
+    >
       <SEO
         title={title}
         description={t('post.quotes.description', {
           defaultValue: 'Posts quoting this post on Mention',
         })}
       />
-      <PageHeader
-        title={title}
-        onBack={() => safeBack()}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-      />
       <Feed type="quotes" filters={filters} />
-    </View>
+    </Screen>
   );
 }

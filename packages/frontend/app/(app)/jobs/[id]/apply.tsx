@@ -1,6 +1,6 @@
 import { FormSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +10,7 @@ import { Chip } from '@oxy.so/bloom/chip';
 import { Field } from '@oxy.so/bloom/field';
 import { InputGroup, InputGroupAddon } from '@oxy.so/bloom/input-group';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
@@ -147,17 +148,17 @@ export default function JobApplyScreen() {
 
   if (jobQuery.isLoading) {
     return (
-      <View className="flex-1">
-        {header}
-        <FormSkeleton />
-      </View>
+      <Screen header={header}>
+        <ScreenScrollView>
+          <FormSkeleton />
+        </ScreenScrollView>
+      </Screen>
     );
   }
 
   if (!job || job.applicationMode !== 'mention') {
     return (
-      <View className="flex-1">
-        {header}
+      <Screen header={header}>
         <View className="flex-1 items-center justify-center px-8">
           <Text className="text-muted-foreground text-base text-center">
             {t('jobs.apply.unavailable', {
@@ -165,7 +166,7 @@ export default function JobApplyScreen() {
             })}
           </Text>
         </View>
-      </View>
+      </Screen>
     );
   }
 
@@ -174,8 +175,7 @@ export default function JobApplyScreen() {
   // request that will 400.
   if (job.status !== 'published') {
     return (
-      <View className="flex-1">
-        {header}
+      <Screen header={header}>
         <View className="flex-1 items-center justify-center px-8">
           <Text className="text-muted-foreground text-base text-center">
             {t('jobs.apply.notAccepting', {
@@ -183,15 +183,14 @@ export default function JobApplyScreen() {
             })}
           </Text>
         </View>
-      </View>
+      </Screen>
     );
   }
 
   if (step === 'review') {
     return (
-      <View className="flex-1">
-        {header}
-        <ScrollView contentContainerClassName="px-4 pb-16 pt-2">
+      <Screen header={header}>
+        <ScreenScrollView contentContainerClassName="px-4 pb-16 pt-2">
           <Text className="text-foreground text-lg font-bold mb-1">
             {t('jobs.apply.reviewTitle', { defaultValue: 'Review what you are sharing' })}
           </Text>
@@ -278,17 +277,19 @@ export default function JobApplyScreen() {
               {t('jobs.apply.submit', { defaultValue: 'Submit application' })}
             </Button>
           </View>
-        </ScrollView>
-      </View>
+        </ScreenScrollView>
+      </Screen>
     );
   }
 
   const canContinue = displayName.trim().length > 0 || contactMethod.trim().length > 0;
 
   return (
-    <View className="flex-1">
-      {header}
-      <ScrollView contentContainerClassName="px-4 pb-16 pt-2" keyboardShouldPersistTaps="handled">
+    <Screen header={header}>
+      <ScreenScrollView
+        contentContainerClassName="px-4 pb-16 pt-2"
+        keyboardShouldPersistTaps="handled"
+      >
         <Text className="text-foreground text-lg font-bold mb-1">{job.title}</Text>
         <Text className="text-muted-foreground text-sm mb-4">
           {t('jobs.apply.privacyNote', {
@@ -419,7 +420,7 @@ export default function JobApplyScreen() {
             {t('jobs.apply.review', { defaultValue: 'Review and submit' })}
           </Button>
         </View>
-      </ScrollView>
-    </View>
+      </ScreenScrollView>
+    </Screen>
   );
 }

@@ -1,11 +1,12 @@
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { Switch } from '@oxy.so/bloom/switch';
 import { Card } from '@oxy.so/bloom/card';
 import { Divider } from '@oxy.so/bloom/divider';
 import { Field } from '@oxy.so/bloom/field';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Search } from '@oxy.so/bloom/search';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
@@ -89,12 +90,15 @@ function CreateListScreen() {
   }, [title, description, isPublic, members, t, router]);
 
   return (
-    <View className="flex-1">
-      <PageHeader
-        title={t('lists.create.title')}
-        onBack={() => safeBack()}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-      />
+    <Screen
+      header={
+        <PageHeader
+          title={t('lists.create.title')}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+        />
+      }
+    >
       <SignInRequired
         label={t('lists.signInRequired', { defaultValue: 'Sign in to use lists' })}
         description={t('lists.signInRequiredDesc', {
@@ -102,7 +106,7 @@ function CreateListScreen() {
             'Lists group the accounts you want to read together. The ones you create or follow appear here.',
         })}
       >
-        <ScrollView contentContainerStyle={{ padding: 16 }}>
+        <ScreenScrollView contentContainerStyle={{ padding: 16 }}>
           <View className="gap-3 mb-2.5">
             <Field label={t('lists.create.titleLabel')}>
               <TextFieldInput
@@ -192,9 +196,9 @@ function CreateListScreen() {
               {saving ? t('lists.create.saving') : t('lists.create.createButton')}
             </Text>
           </TouchableOpacity>
-        </ScrollView>
+        </ScreenScrollView>
       </SignInRequired>
-    </View>
+    </Screen>
   );
 }
 

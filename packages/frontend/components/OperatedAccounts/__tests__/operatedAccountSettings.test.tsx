@@ -61,6 +61,10 @@ jest.mock('expo-router', () => ({
   router: { replace: (...args: unknown[]) => mockReplace(...args) },
 }));
 jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
+jest.mock('@oxy.so/bloom/screen', () => ({
+  Screen: ({ children }: { children: unknown }) => children,
+  ScreenScrollView: ({ children }: { children: unknown }) => children,
+}));
 jest.mock('@/components/common/EmptyState', () => ({ EmptyState: () => null }));
 jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
 jest.mock('../ChannelBylineSettings', () => ({ ChannelBylineSettings: () => null }));

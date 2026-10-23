@@ -1,6 +1,6 @@
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { Suspense, lazy, useCallback, useContext, useEffect, useRef } from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -9,6 +9,7 @@ import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
 import { Chip } from '@oxy.so/bloom/chip';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle, type User } from '@oxy.so/core';
@@ -176,23 +177,23 @@ export default function JobDetailScreen() {
 
   if (jobQuery.isLoading) {
     return (
-      <View className="flex-1">
-        {header}
-        <DetailSkeleton />
-      </View>
+      <Screen header={header}>
+        <ScreenScrollView>
+          <DetailSkeleton />
+        </ScreenScrollView>
+      </Screen>
     );
   }
 
   if (jobQuery.isError || !job) {
     return (
-      <View className="flex-1">
-        {header}
+      <Screen header={header}>
         <View className="flex-1 items-center justify-center gap-3 px-8">
           <Text className="text-muted-foreground text-base text-center">
             {t('jobs.detail.notFound', { defaultValue: 'This job could not be found' })}
           </Text>
         </View>
-      </View>
+      </Screen>
     );
   }
 
@@ -209,9 +210,8 @@ export default function JobDetailScreen() {
   ].filter((value): value is string => Boolean(value));
 
   return (
-    <View className="flex-1">
-      {header}
-      <ScrollView contentContainerClassName="px-4 pb-16 pt-2">
+    <Screen header={header}>
+      <ScreenScrollView contentContainerClassName="px-4 pb-16 pt-2">
         {!isPublished ? (
           <View className="flex-row items-center">
             <Badge
@@ -293,7 +293,7 @@ export default function JobDetailScreen() {
             {t('jobs.detail.report', { defaultValue: 'Report this listing' })}
           </Text>
         </TouchableOpacity>
-      </ScrollView>
-    </View>
+      </ScreenScrollView>
+    </Screen>
   );
 }

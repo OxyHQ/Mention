@@ -17,7 +17,6 @@ import {
 } from '@/components/ProfileCard';
 import { Error as ErrorDisplay } from '@/components/Error';
 import { EmptyState } from '@/components/common/EmptyState';
-import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
 import { logger } from '@oxy.so/core/logger';
 import { useInfiniteRecommendations } from '@/hooks/useRecommendations';
 import type { ProfileData } from '@/lib/recommendations';
@@ -61,17 +60,12 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  // Footer carries BOTH the web load-more trigger (Bloom's web VirtualList is a
-  // window virtualizer with no `onEndReached`) and the next-page spinner. On
-  // native the list paginates via `onEndReached`; the sentinel is inert there.
+  // The next page's skeleton; the list itself asks for that page (`onEndReached`).
   const renderFooter = useCallback(
     () => (
-      <View style={styles.footer}>
-        <LoadMoreSentinel onLoadMore={handleLoadMore} enabled={hasNextPage} />
-        {isFetchingNextPage ? <ListSkeleton count={2} /> : null}
-      </View>
+      <View style={styles.footer}>{isFetchingNextPage ? <ListSkeleton count={2} /> : null}</View>
     ),
-    [handleLoadMore, hasNextPage, isFetchingNextPage],
+    [isFetchingNextPage],
   );
 
   const getInviteMessage = useCallback(() => {
@@ -183,6 +177,7 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
   return (
     <View className="flex-1" style={styles.container}>
       <VirtualList
+        screen={{}}
         data={recommendations}
         renderItem={renderUser}
         keyExtractor={(item: ProfileData) => item.id || item.username || ''}

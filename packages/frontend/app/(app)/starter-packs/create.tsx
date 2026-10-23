@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
 import { Divider } from '@oxy.so/bloom/divider';
 import { Field } from '@oxy.so/bloom/field';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Search } from '@oxy.so/bloom/search';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
@@ -96,19 +97,22 @@ export default function CreateStarterPackScreen() {
   }, [name, description, members, queryClient, user?.id, t, router]);
 
   return (
-    <View className="flex-1">
-      <PageHeader
-        title={t('starterPacks.create')}
-        onBack={() => safeBack()}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-      />
+    <Screen
+      header={
+        <PageHeader
+          title={t('starterPacks.create')}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+        />
+      }
+    >
       <SignInRequired
         label={t('starterPacks.signInRequired', { defaultValue: 'Sign in to use starter packs' })}
         description={t('starterPacks.signInRequiredDesc', {
           defaultValue: 'A starter pack is a set of accounts you recommend following together.',
         })}
       >
-        <ScrollView contentContainerStyle={{ padding: 16 }}>
+        <ScreenScrollView contentContainerStyle={{ padding: 16 }}>
           <View className="gap-3 mb-2.5">
             <Field label="Name">
               <TextFieldInput
@@ -183,8 +187,8 @@ export default function CreateStarterPackScreen() {
               {saving ? 'Creating...' : 'Create Starter Pack'}
             </Text>
           </TouchableOpacity>
-        </ScrollView>
+        </ScreenScrollView>
       </SignInRequired>
-    </View>
+    </Screen>
   );
 }

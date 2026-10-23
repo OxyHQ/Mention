@@ -25,7 +25,16 @@ jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { text: '#000', textSecondary: '#666' } }),
 }));
 jest.mock('@oxy.so/bloom/icons', () => new Proxy({}, { get: () => () => null }));
-jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
+jest.mock('@oxy.so/bloom/page-header', () => ({
+  PageHeader: ({ accessory }: { accessory?: React.ReactNode }) => accessory ?? null,
+}));
+jest.mock('@oxy.so/bloom/screen', () => ({
+  Screen: ({ header, children }: { header?: React.ReactNode; children: React.ReactNode }) => [
+    header,
+    children,
+  ],
+  ScreenScrollView: ({ children }: { children: React.ReactNode }) => children,
+}));
 jest.mock('@oxy.so/bloom/bottom-sheet', () => ({ BottomSheet: () => null }));
 jest.mock('@oxy.so/bloom/button', () => {
   const RN = jest.requireActual<typeof import('react-native')>('react-native');

@@ -1,6 +1,6 @@
 import { FormSkeleton } from '@/components/loading/ContentSkeleton';
 import type { ReactNode } from 'react';
-import { View } from 'react-native';
+import { ScreenScrollView } from '@oxy.so/bloom/screen';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 
 export interface SignInRequiredProps {
@@ -31,7 +31,9 @@ export interface SignInRequiredProps {
  *     private call;
  *   * the children otherwise.
  *
- * The screen keeps its own header, so Back still works from the prompt. Entry
+ * The screen keeps its own header, so Back still works from the prompt. The
+ * skeleton and the prompt are the page's scroller, so the Screen pads them
+ * clear of its header and the bottom bar. Entry
  * points that START a create flow (a header "New" button, an empty state's
  * action) are hidden on `canUsePrivateApi` by their screen rather than routed
  * here, so a signed-out reader is not offered a button whose only outcome is
@@ -42,14 +44,18 @@ export function SignInRequired({ label, description, children }: SignInRequiredP
 
   if (!isAuthResolved || isPrivateApiPending) {
     return (
-      <View className="w-full" testID="sign-in-required-pending">
+      <ScreenScrollView testID="sign-in-required-pending">
         <FormSkeleton />
-      </View>
+      </ScreenScrollView>
     );
   }
 
   if (!canUsePrivateApi) {
-    return <OxyAuthPrompt label={label} description={description} />;
+    return (
+      <ScreenScrollView contentContainerClassName="flex-grow">
+        <OxyAuthPrompt label={label} description={description} />
+      </ScreenScrollView>
+    );
   }
 
   return <>{children}</>;

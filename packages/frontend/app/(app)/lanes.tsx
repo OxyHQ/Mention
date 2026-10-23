@@ -1,9 +1,10 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useState } from 'react';
-import { ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
@@ -267,8 +268,7 @@ export default function LanesScreen() {
 
   if (!isAuthenticated) {
     return (
-      <View className="flex-1">
-        {header}
+      <Screen header={header}>
         <OxyAuthPrompt
           label={t('lanes.signInRequired', { defaultValue: 'Sign in to manage your lanes' })}
           description={t('lanes.signInRequiredDesc', {
@@ -276,7 +276,7 @@ export default function LanesScreen() {
               'Lanes let you keep separate tracks of your posts and decide which ones reach your profile.',
           })}
         />
-      </View>
+      </Screen>
     );
   }
 
@@ -291,11 +291,8 @@ export default function LanesScreen() {
             'Keep separate tracks of your posts and decide which ones reach your profile.',
         })}
       />
-      <View className="flex-1">
-        {header}
-
-        <ScrollView
-          className="flex-1"
+      <Screen header={header}>
+        <ScreenScrollView
           contentContainerClassName="py-2"
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -441,8 +438,8 @@ export default function LanesScreen() {
               </Text>
             ))}
           </View>
-        </ScrollView>
-      </View>
+        </ScreenScrollView>
+      </Screen>
     </>
   );
 }

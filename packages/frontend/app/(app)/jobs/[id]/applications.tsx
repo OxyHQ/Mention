@@ -9,6 +9,7 @@ import { Card } from '@oxy.so/bloom/card';
 import { Chip } from '@oxy.so/bloom/chip';
 import { VirtualList } from '@oxy.so/bloom/list';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen } from '@oxy.so/bloom/screen';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { MentionJobApplication, MentionJobApplicationStatus } from '@mention/shared-types';
 import { MENTION_JOB_APPLICATION_STATUSES } from '@mention/shared-types/job';
@@ -19,7 +20,6 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { jobApplicationsService, isJobForbiddenError } from '@/services/jobApplicationsService';
 import JobApplicationDetailSheet from '@/components/Jobs/JobApplicationDetailSheet';
 import { EmptyState } from '@/components/common/EmptyState';
-import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
 
 const STATUS_TONE: Record<
   MentionJobApplicationStatus,
@@ -103,9 +103,9 @@ export default function JobApplicationsScreen() {
     [bottomSheet, jobId, handleStatusChanged],
   );
 
-  // Web pages through the footer's `LoadMoreSentinel`, native through
-  // `onEndReached`. A FlashList here had no bounded height on web (the document
-  // scrolls), so it kept firing `onEndReached` and paged on its own.
+  // Bloom's VirtualList pages from `onEndReached` on both platforms. A FlashList
+  // here had no bounded height on web (the document scrolls), so it kept firing
+  // `onEndReached` and paged on its own.
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = applicationsQuery;
   const handleEndReached = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) {
@@ -113,16 +113,8 @@ export default function JobApplicationsScreen() {
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  const header = (
-    <PageHeader
-      title={t('jobs.applications.title', { defaultValue: 'Applications' })}
-      onBack={() => safeBack()}
-      backLabel={t('common.back', { defaultValue: 'Back' })}
-    />
-  );
-
   const filterRow = (
-    <View className="flex-row flex-wrap gap-2 px-4 pt-2 pb-3">
+    <View className="flex-row flex-wrap gap-2 pt-2 pb-1">
       <Chip selected={statusFilter === 'all'} onPress={() => setStatusFilter('all')}>
         {t('jobs.applications.all', { defaultValue: 'All' })}
       </Chip>
@@ -138,98 +130,105 @@ export default function JobApplicationsScreen() {
     </View>
   );
 
-  if (forbidden) {
-    return (
-      <View className="flex-1">
-        {header}
-        <View className="flex-1 items-center justify-center px-8">
+  // One list in every state, so Bloom pads each of them clear of the header and
+  // the bottom bar.
+  const renderEmpty = () => {
+    if (forbidden) {
+      return (
+        <View className="items-center justify-center px-8 py-16">
           <Text className="text-muted-foreground text-base text-center">
             {t('jobs.applications.forbidden', {
               defaultValue: "Only this job's operators can view applications",
             })}
           </Text>
         </View>
-      </View>
+      );
+    }
+    if (applicationsQuery.isPending) return <ListSkeleton />;
+    if (applicationsQuery.isError) {
+      return (
+        <ErrorState
+          title={t('jobs.applications.errorTitle', {
+            defaultValue: 'Could not load applications',
+          })}
+          onRetry={() => void applicationsQuery.refetch()}
+          hideBackButton
+        />
+      );
+    }
+    return (
+      <EmptyState
+        title={t('jobs.applications.emptyTitle', { defaultValue: 'No applications yet' })}
+        sticker="jobApplications"
+        containerStyle={{ paddingTop: 40 }}
+      />
     );
-  }
+  };
 
   return (
-    <View className="flex-1">
-      {header}
-      {filterRow}
-      <View className="flex-1 min-h-0">
-        {applicationsQuery.isPending ? (
-          <ListSkeleton />
-        ) : applicationsQuery.isError ? (
-          <ErrorState
-            title={t('jobs.applications.errorTitle', {
-              defaultValue: 'Could not load applications',
-            })}
-            onRetry={() => void applicationsQuery.refetch()}
-            hideBackButton
-          />
-        ) : applications.length === 0 ? (
-          <EmptyState
-            title={t('jobs.applications.emptyTitle', { defaultValue: 'No applications yet' })}
-            sticker="jobApplications"
-            containerStyle={{ flex: 1, justifyContent: 'center' }}
-          />
-        ) : (
-          <VirtualList
-            data={applications}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <Card
-                border="thin"
-                elevation="none"
-                radius="radius-16"
-                style={{ marginHorizontal: 16, marginBottom: 12, padding: 16 }}
+    <Screen
+      header={
+        <PageHeader
+          title={t('jobs.applications.title', { defaultValue: 'Applications' })}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+          accessory={forbidden ? undefined : filterRow}
+        />
+      }
+    >
+      <VirtualList
+        screen={{}}
+        data={forbidden ? [] : applications}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <Card
+            border="thin"
+            elevation="none"
+            radius="radius-16"
+            style={{ marginHorizontal: 16, marginBottom: 12, padding: 16 }}
+          >
+            <View className="flex-row items-start justify-between gap-2">
+              <Text
+                className="flex-1 text-foreground text-[15px] font-semibold"
+                numberOfLines={1}
+                onPress={() => openApplication(item)}
               >
-                <View className="flex-row items-start justify-between gap-2">
-                  <Text
-                    className="flex-1 text-foreground text-[15px] font-semibold"
-                    numberOfLines={1}
-                    onPress={() => openApplication(item)}
-                  >
-                    {item.displayName ||
-                      t('jobs.applications.unnamed', { defaultValue: 'Applicant' })}
-                  </Text>
-                  <Badge
-                    content={item.status}
-                    color={STATUS_TONE[item.status]}
-                    variant="subtle"
-                    size="sm"
-                  />
-                </View>
-                {item.contactMethod ? (
-                  <Text className="text-muted-foreground text-[13px] mt-0.5" numberOfLines={1}>
-                    {item.contactMethod}
-                  </Text>
-                ) : null}
-                {item.coverNote ? (
-                  <Text className="text-foreground text-[13px] mt-2" numberOfLines={2}>
-                    {item.coverNote}
-                  </Text>
-                ) : null}
-                <Text
-                  className="text-primary text-[13px] font-semibold mt-2"
-                  onPress={() => openApplication(item)}
-                >
-                  {t('jobs.applications.viewDetails', { defaultValue: 'View details' })}
-                </Text>
-              </Card>
-            )}
-            onEndReached={handleEndReached}
-            onEndReachedThreshold={0.5}
-            ListFooterComponent={
-              <View className="items-center justify-center py-4">
-                <LoadMoreSentinel onLoadMore={handleEndReached} enabled={!!hasNextPage} />
-                {isFetchingNextPage ? <ListSkeleton count={2} /> : null}
-              </View>
-            }
-          />
+                {item.displayName || t('jobs.applications.unnamed', { defaultValue: 'Applicant' })}
+              </Text>
+              <Badge
+                content={item.status}
+                color={STATUS_TONE[item.status]}
+                variant="subtle"
+                size="sm"
+              />
+            </View>
+            {item.contactMethod ? (
+              <Text className="text-muted-foreground text-[13px] mt-0.5" numberOfLines={1}>
+                {item.contactMethod}
+              </Text>
+            ) : null}
+            {item.coverNote ? (
+              <Text className="text-foreground text-[13px] mt-2" numberOfLines={2}>
+                {item.coverNote}
+              </Text>
+            ) : null}
+            <Text
+              className="text-primary text-[13px] font-semibold mt-2"
+              onPress={() => openApplication(item)}
+            >
+              {t('jobs.applications.viewDetails', { defaultValue: 'View details' })}
+            </Text>
+          </Card>
         )}
-      </View>
-    </View>
+        onEndReached={handleEndReached}
+        onEndReachedThreshold={0.5}
+        ListEmptyComponent={renderEmpty()}
+        ListFooterComponent={
+          <View className="items-center justify-center py-4">
+            {isFetchingNextPage ? <ListSkeleton count={2} /> : null}
+          </View>
+        }
+      />
+    </Screen>
   );
 }

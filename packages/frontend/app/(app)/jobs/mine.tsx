@@ -1,7 +1,7 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import type { Href } from '@/lib/navigation/router';
 import { useCallback, useMemo, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +10,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { Card } from '@oxy.so/bloom/card';
 import { Item } from '@oxy.so/bloom/item';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { AccountNode } from '@oxy.so/core';
@@ -166,31 +167,30 @@ export default function MyJobsScreen() {
   // sign-in prompt instead.
   if (!canUsePrivateApi) {
     return (
-      <View className="flex-1">
-        {header}
+      <Screen header={header}>
         <SignInRequired
           label={t('jobs.signInRequired', { defaultValue: 'Sign in to publish jobs' })}
           description={t('jobs.signInRequiredDesc', {
             defaultValue: 'Jobs are published by an organization or project account you operate.',
           })}
         />
-      </View>
+      </Screen>
     );
   }
 
   if (jobsQuery.isLoading) {
     return (
-      <View className="flex-1">
-        {header}
-        <ListSkeleton />
-      </View>
+      <Screen header={header}>
+        <ScreenScrollView>
+          <ListSkeleton />
+        </ScreenScrollView>
+      </Screen>
     );
   }
 
   if (jobsQuery.isError) {
     return (
-      <View className="flex-1">
-        {header}
+      <Screen header={header}>
         <View className="flex-1 items-center justify-center gap-3 px-8">
           <Text className="text-muted-foreground text-base text-center">
             {t('jobs.mine.loadFailed', { defaultValue: 'Could not load your jobs' })}
@@ -199,16 +199,15 @@ export default function MyJobsScreen() {
             {t('common.tryAgain', { defaultValue: 'Try again' })}
           </Button>
         </View>
-      </View>
+      </Screen>
     );
   }
 
   const jobs = jobsQuery.data?.jobs ?? [];
 
   return (
-    <View className="flex-1">
-      {header}
-      <ScrollView className="flex-1" contentContainerClassName="pb-10">
+    <Screen header={header}>
+      <ScreenScrollView contentContainerClassName="pb-10">
         {jobs.length === 0 ? (
           <EmptyState
             title={t('jobs.mine.emptyTitle', { defaultValue: 'No jobs yet' })}
@@ -390,7 +389,7 @@ export default function MyJobsScreen() {
             })}
           </View>
         )}
-      </ScrollView>
-    </View>
+      </ScreenScrollView>
+    </Screen>
   );
 }

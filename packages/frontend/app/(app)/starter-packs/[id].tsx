@@ -1,8 +1,9 @@
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, Platform } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Text } from '@oxy.so/bloom/typography';
 import { useRouter, useLocalSearchParams, useFocusEffect } from '@/lib/navigation/router';
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -213,42 +214,39 @@ export default function StarterPackDetailScreen() {
         title={pack?.name || 'Starter Pack'}
         description={pack?.description || 'A curated collection of accounts to follow'}
       />
-      <View className="flex-1">
-        <PageHeader
-          title={pack?.name || 'Starter Pack'}
-          onBack={() => safeBack()}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-          actions={
-            isOwner ? (
-              <Button
-                onPress={handleEdit}
-                accessibilityLabel="Edit starter pack"
-                tone="accent"
-                appearance="plain"
-              >
-                Edit
-              </Button>
-            ) : undefined
-          }
-        />
-
-        {error ? (
-          <View className="flex-1 items-center justify-center">
-            <Text className="text-destructive">{error}</Text>
-          </View>
-        ) : loading ? (
-          <DetailSkeleton />
-        ) : pack ? (
-          // WEB hands scroll to the shared panel/document (no nested scroller that
-          // would break sticky rails + window scroll restoration); NATIVE keeps a
-          // ScrollView as the screen's scroller — the standard RN idiom.
-          Platform.OS === 'web' ? (
-            <View>{packBody}</View>
+      <Screen
+        header={
+          <PageHeader
+            title={pack?.name || 'Starter Pack'}
+            onBack={() => safeBack()}
+            backLabel={t('common.back', { defaultValue: 'Back' })}
+            actions={
+              isOwner ? (
+                <Button
+                  onPress={handleEdit}
+                  accessibilityLabel="Edit starter pack"
+                  tone="accent"
+                  appearance="plain"
+                >
+                  Edit
+                </Button>
+              ) : undefined
+            }
+          />
+        }
+      >
+        <ScreenScrollView showsVerticalScrollIndicator={false}>
+          {error ? (
+            <View className="items-center justify-center py-16">
+              <Text className="text-destructive">{error}</Text>
+            </View>
+          ) : loading ? (
+            <DetailSkeleton />
           ) : (
-            <ScrollView showsVerticalScrollIndicator={false}>{packBody}</ScrollView>
-          )
-        ) : null}
-      </View>
+            packBody
+          )}
+        </ScreenScrollView>
+      </Screen>
     </>
   );
 }

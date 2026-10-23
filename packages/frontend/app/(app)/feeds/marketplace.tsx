@@ -1,15 +1,7 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  FlatList,
-  ScrollView,
-  Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import {
   useInfiniteQuery,
   useQuery,
@@ -20,6 +12,7 @@ import {
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
@@ -35,7 +28,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { cn } from '@/lib/utils';
 import { FeedCard, FeedCardSkeleton, type FeedCardData } from '@/components/FeedCard';
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
-import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
+import { ScreenFlashList } from '@/components/common/ScreenFlashList';
 import type { CustomFeedListResponse } from '@mention/shared-types';
 import { publicQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
@@ -414,59 +407,53 @@ function FeedMarketplaceScreen() {
   }, [loading, debouncedSearch, theme, t]);
 
   const ListFooter = useMemo(
-    () => (
-      <View>
-        {/* WEB infinite-scroll trigger — Bloom's web lists are window
-            virtualizers with no `onEndReached`, so a 1px sentinel fires
-            `handleLoadMore` ~600px before it enters the viewport. Inert on
-            native, which paginates via the FlatList's `onEndReached`. */}
-        <LoadMoreSentinel onLoadMore={handleLoadMore} enabled={hasMore} />
-        {loadingMore ? <ListSkeleton count={2} /> : <View className="h-8" />}
-      </View>
-    ),
-    [loadingMore, handleLoadMore, hasMore],
+    () => (loadingMore ? <ListSkeleton count={2} /> : <View className="h-8" />),
+    [loadingMore],
   );
 
   return (
-    <View className="flex-1">
-      <PageHeader
-        title={t('marketplace.title', { defaultValue: 'Feed Marketplace' })}
-        onBack={() => safeBack()}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-        actions={
-          <Button
-            appearance="subtle"
-            tone="neutral"
-            iconOnly
-            leadingIcon={searchVisible ? RiCloseLine : RiSearchLine}
-            onPress={() => {
-              setSearchVisible((v) => !v);
-              if (searchVisible) handleSearchChange('');
-            }}
-            accessibilityLabel={
-              searchVisible
-                ? t('common.close', { defaultValue: 'Close' })
-                : t('search.title', { defaultValue: 'Search' })
-            }
-          />
-        }
-      />
-
+    <Screen
+      header={
+        <PageHeader
+          title={t('marketplace.title', { defaultValue: 'Feed Marketplace' })}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+          actions={
+            <Button
+              appearance="subtle"
+              tone="neutral"
+              iconOnly
+              leadingIcon={searchVisible ? RiCloseLine : RiSearchLine}
+              onPress={() => {
+                setSearchVisible((v) => !v);
+                if (searchVisible) handleSearchChange('');
+              }}
+              accessibilityLabel={
+                searchVisible
+                  ? t('common.close', { defaultValue: 'Close' })
+                  : t('search.title', { defaultValue: 'Search' })
+              }
+            />
+          }
+        />
+      }
+    >
       {loading && feeds.length === 0 ? (
-        <View className="px-4 pt-4 gap-3">
+        <ScreenScrollView contentContainerClassName="px-4 pt-4 gap-3">
           {Array.from({ length: 4 }).map((_, i) => (
             <FeedCardSkeleton key={i} />
           ))}
-        </View>
+        </ScreenScrollView>
       ) : IS_WEB ? (
-        // WEB: the document (body) is the scroller — the shell owns scroll, so
-        // the marketplace renders in normal flow. A FlatList here would nest a
-        // second scroll container inside the ContentPanel and break the sticky
-        // side rails, window scroll-restoration and bottom-bar auto-hide.
-        // Pagination is driven by the LoadMoreSentinel inside ListFooter. The
-        // horizontal category-pills ScrollView inside ListHeader stays — a
-        // horizontal scroller does not conflict with the document scroll.
-        <View className="pb-8">
+        // WEB: the screen scroller is the document, so the marketplace renders
+        // in normal flow and paginates from the window's end. The horizontal
+        // category-pills ScrollView inside ListHeader stays — a horizontal
+        // scroller does not conflict with the document scroll.
+        <ScreenScrollView
+          contentContainerClassName="pb-8"
+          onEndReached={handleLoadMore}
+          keyboardShouldPersistTaps="handled"
+        >
           {ListHeader}
           {feeds.length === 0
             ? ListEmpty
@@ -479,9 +466,9 @@ function FeedMarketplaceScreen() {
                 />
               ))}
           {ListFooter}
-        </View>
+        </ScreenScrollView>
       ) : (
-        <FlatList
+        <ScreenFlashList
           data={feeds}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
@@ -498,7 +485,7 @@ function FeedMarketplaceScreen() {
           keyboardDismissMode="on-drag"
         />
       )}
-    </View>
+    </Screen>
   );
 }
 

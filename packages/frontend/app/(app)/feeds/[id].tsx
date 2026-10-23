@@ -1,20 +1,11 @@
 import { DetailSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useState, useCallback, useMemo, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Share,
-  ScrollView,
-  Pressable,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Share, Pressable } from 'react-native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { Button } from '@oxy.so/bloom/button';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
-import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
@@ -25,6 +16,8 @@ import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
 import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { customFeedsService, type CustomFeedDetail } from '@/services/customFeedsService';
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';
@@ -105,86 +98,81 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
   const ownerHandle = getNormalizedUserHandle(feed.owner) ?? undefined;
 
   return (
-    <View
-      className="flex-row items-center px-2"
-      style={[headerStyles.bar, { borderBottomColor: theme.colors.border }]}
-    >
-      <Button
-        appearance="subtle"
-        tone="neutral"
-        iconOnly
-        leadingIcon={RiArrowLeftLine}
-        onPress={safeBack}
-        accessibilityLabel={t('common.back', { defaultValue: 'Back' })}
-      />
-
-      <Pressable
-        className="flex-1 flex-row items-center gap-2.5 py-1 px-1"
-        onPress={onOpenInfo}
-        accessibilityRole="button"
-        accessibilityLabel="Open feed info"
-      >
-        {({ pressed }) => (
-          <>
-            <View
-              style={[headerStyles.pressHighlight, pressed && { opacity: 1 }]}
-              className="bg-muted"
-            />
-            <Avatar source={feed.coverImage} size={36} variant={MEDIA_VARIANT_AVATAR} />
-            <View className="flex-1">
-              <Text
-                className="text-[15px] font-bold leading-snug text-foreground"
-                numberOfLines={2}
-              >
-                {feed.title}
-              </Text>
-              <View className="flex-row items-center" style={{ gap: 6 }}>
-                {creatorHandle ? (
-                  <ProfileHoverCard username={ownerHandle}>
-                    <Text
-                      className="text-sm leading-snug text-muted-foreground shrink"
-                      numberOfLines={1}
-                    >
-                      {creatorHandle}
+    <PageHeader
+      onBack={safeBack}
+      backLabel={t('common.back', { defaultValue: 'Back' })}
+      title={
+        <Pressable
+          className="flex-1 flex-row items-center gap-2.5 py-1 px-1"
+          onPress={onOpenInfo}
+          accessibilityRole="button"
+          accessibilityLabel="Open feed info"
+        >
+          {({ pressed }) => (
+            <>
+              <View
+                style={[headerStyles.pressHighlight, pressed && { opacity: 1 }]}
+                className="bg-muted"
+              />
+              <Avatar source={feed.coverImage} size={36} variant={MEDIA_VARIANT_AVATAR} />
+              <View className="flex-1">
+                <Text
+                  className="text-[15px] font-bold leading-snug text-foreground"
+                  numberOfLines={2}
+                >
+                  {feed.title}
+                </Text>
+                <View className="flex-row items-center" style={{ gap: 6 }}>
+                  {creatorHandle ? (
+                    <ProfileHoverCard username={ownerHandle}>
+                      <Text
+                        className="text-sm leading-snug text-muted-foreground shrink"
+                        numberOfLines={1}
+                      >
+                        {creatorHandle}
+                      </Text>
+                    </ProfileHoverCard>
+                  ) : null}
+                  <View className="flex-row items-center" style={{ gap: 2 }}>
+                    <RiGroupLine size="xs" fill={theme.colors.textSecondary} />
+                    <Text className="text-sm leading-snug text-muted-foreground" numberOfLines={1}>
+                      {formatCompactNumber(subscriberCount)}
                     </Text>
-                  </ProfileHoverCard>
-                ) : null}
-                <View className="flex-row items-center" style={{ gap: 2 }}>
-                  <RiGroupLine size="xs" fill={theme.colors.textSecondary} />
-                  <Text className="text-sm leading-snug text-muted-foreground" numberOfLines={1}>
-                    {formatCompactNumber(subscriberCount)}
-                  </Text>
+                  </View>
                 </View>
               </View>
-            </View>
-            <RiMoreFill width={18} height={18} fill={theme.colors.textSecondary} />
-          </>
-        )}
-      </Pressable>
-
-      {/* Subscribing to a feed IS liking it: one `FeedLike` row, the same
+              <RiMoreFill width={18} height={18} fill={theme.colors.textSecondary} />
+            </>
+          )}
+        </Pressable>
+      }
+      actions={
+        <>
+          {/* Subscribing to a feed IS liking it: one `FeedLike` row, the same
           subscription the marketplace and the saved-feeds list read. */}
-      <FeedSubscribeButton
-        isSubscribed={isSubscribed}
-        isSubscribing={isSubscribing}
-        onPress={onToggleSubscribe}
-      />
+          <FeedSubscribeButton
+            isSubscribed={isSubscribed}
+            isSubscribing={isSubscribing}
+            onPress={onToggleSubscribe}
+          />
 
-      <Button
-        appearance="subtle"
-        tone="neutral"
-        iconOnly
-        icon={
-          isPinned ? (
-            <RiPushpinFill size="md" fill={theme.colors.primary} />
-          ) : (
-            <RiPushpinLine size="md" fill={theme.colors.text} />
-          )
-        }
-        onPress={onTogglePin}
-        accessibilityLabel={isPinned ? 'Unpin feed' : 'Pin feed'}
-      />
-    </View>
+          <Button
+            appearance="subtle"
+            tone="neutral"
+            iconOnly
+            icon={
+              isPinned ? (
+                <RiPushpinFill size="md" fill={theme.colors.primary} />
+              ) : (
+                <RiPushpinLine size="md" fill={theme.colors.text} />
+              )
+            }
+            onPress={onTogglePin}
+            accessibilityLabel={isPinned ? 'Unpin feed' : 'Pin feed'}
+          />
+        </>
+      }
+    />
   );
 });
 
@@ -356,7 +344,7 @@ const ProfilesTab = React.memo(function ProfilesTab({ members }: { members: Feed
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.profilesList}>
+    <View style={styles.profilesList}>
       {members.map((member) => {
         // Oxy owns identity: the display name lives at `name.displayName` and
         // falls back to the handle. An unresolved member has no handle at all
@@ -389,7 +377,7 @@ const ProfilesTab = React.memo(function ProfilesTab({ members }: { members: Feed
           </TouchableOpacity>
         );
       })}
-    </ScrollView>
+    </View>
   );
 });
 
@@ -402,7 +390,7 @@ const TopicsTab = React.memo(function TopicsTab({ keywords }: { keywords: string
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.topicsList}>
+    <View style={styles.topicsList}>
       {keywords.map((keyword) => (
         <View key={keyword} style={[styles.topicRow, { borderBottomColor: theme.colors.border }]}>
           <View className="w-10 h-10 rounded-full items-center justify-center bg-muted">
@@ -411,7 +399,7 @@ const TopicsTab = React.memo(function TopicsTab({ keywords }: { keywords: string
           <Text className="text-base font-medium text-foreground">{keyword}</Text>
         </View>
       ))}
-    </ScrollView>
+    </View>
   );
 });
 
@@ -795,38 +783,30 @@ function CustomFeedTimelineScreen() {
   const isLoading = feedQuery.isPending && !hasError;
 
   return (
-    <View className="flex-1 relative flex-col">
-      {/* Compact Bluesky-style header */}
-      {feed ? (
-        <FeedHeaderBar
-          feed={feed}
-          subscriberCount={subscriberCount}
-          isSubscribed={isSubscribed}
-          isSubscribing={isSubscribing}
-          onToggleSubscribe={onToggleSubscribe}
-          isPinned={isPinned}
-          onTogglePin={onTogglePin}
-          onOpenInfo={openInfoSheet}
-        />
-      ) : (
-        <View
-          className="flex-row items-center px-2"
-          style={[headerStyles.bar, { borderBottomColor: theme.colors.border }]}
-        >
-          <Button
-            appearance="subtle"
-            tone="neutral"
-            iconOnly
-            leadingIcon={RiArrowLeftLine}
-            onPress={safeBack}
-            accessibilityLabel={t('common.back', { defaultValue: 'Back' })}
+    <Screen
+      scroll="auto"
+      header={
+        // Compact Bluesky-style header
+        feed ? (
+          <FeedHeaderBar
+            feed={feed}
+            subscriberCount={subscriberCount}
+            isSubscribed={isSubscribed}
+            isSubscribing={isSubscribing}
+            onToggleSubscribe={onToggleSubscribe}
+            isPinned={isPinned}
+            onTogglePin={onTogglePin}
+            onOpenInfo={openInfoSheet}
           />
-          <View className="flex-1 py-3 px-2">
-            <Text className="text-[15px] font-bold text-foreground">Feed</Text>
-          </View>
-        </View>
-      )}
-
+        ) : (
+          <PageHeader
+            title="Feed"
+            onBack={safeBack}
+            backLabel={t('common.back', { defaultValue: 'Back' })}
+          />
+        )
+      }
+    >
       {hasError ? (
         <View className="flex-1 items-center justify-center">
           <Text style={{ color: theme.colors.error || theme.colors.textSecondary }}>
@@ -842,15 +822,15 @@ function CustomFeedTimelineScreen() {
         // It renders the stored definition through the engine timeline (the same
         // `/feeds/:id/timeline` the home custom tabs use), so definition-based
         // feeds render here too. The other tabs (profiles/topics/reviews) render
-        // NON-feed content inside their own <ScrollView>.
+        // NON-feed content in the screen's own scroller.
         <Feed type="custom" filters={{ customFeedId: feedId }} listHeaderComponent={listHeader} />
       ) : (
-        <ScrollView stickyHeaderIndices={[0]}>
+        <ScreenScrollView stickyHeaderIndices={[0]}>
           {tabBar}
           {activeTab === 'profiles' && <ProfilesTab members={members} />}
           {activeTab === 'topics' && <TopicsTab keywords={keywords} />}
           {activeTab === 'reviews' && <ReviewsTab feedId={feedId} />}
-        </ScrollView>
+        </ScreenScrollView>
       )}
 
       {/* PageAction follows the shell's bottom navigation clearance. */}
@@ -883,15 +863,11 @@ function CustomFeedTimelineScreen() {
           />
         </BottomSheet>
       )}
-    </View>
+    </Screen>
   );
 }
 
 const headerStyles = StyleSheet.create({
-  bar: {
-    minHeight: 52,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
   pressHighlight: {
     ...StyleSheet.absoluteFill,
     borderRadius: 8,

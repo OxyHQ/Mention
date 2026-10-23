@@ -198,6 +198,29 @@ jest.mock('@oxy.so/bloom/tabs', () => {
   };
 });
 
+jest.mock('@oxy.so/bloom/page-header', () => {
+  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    PageHeader: ({ title, actions }: { title?: React.ReactNode; actions?: React.ReactNode }) => (
+      <RNView>
+        {title}
+        {actions}
+      </RNView>
+    ),
+  };
+});
+
+jest.mock('@oxy.so/bloom/screen', () => {
+  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
+  const Pass = ({ header, children }: { header?: React.ReactNode; children: React.ReactNode }) => (
+    <RNView>
+      {header}
+      {children}
+    </RNView>
+  );
+  return { Screen: Pass, ScreenScrollView: Pass };
+});
+
 jest.mock('@oxy.so/bloom/fab', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
   return { Fab: () => <RNView testID="fab" /> };

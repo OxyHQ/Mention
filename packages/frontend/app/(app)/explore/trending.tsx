@@ -1,7 +1,8 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
-import { useCallback, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, SectionList, type SectionListData } from 'react-native';
+import { Fragment, useCallback, useEffect, useMemo } from 'react';
+import { View, Text, Pressable, Platform } from 'react-native';
 import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
+import { ScreenScrollView } from '@oxy.so/bloom/screen';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -9,6 +10,7 @@ import { useRouter } from '@/lib/navigation/router';
 
 import { trendingService, type TrendingTopic, type TrendingDay } from '@/services/trendingService';
 import { EmptyState } from '@/components/common/EmptyState';
+import { ScreenFlashList } from '@/components/common/ScreenFlashList';
 import { TrendItemRow } from '@/components/trending/TrendItemRow';
 import { useTrendNavigation } from '@/hooks/useTrendNavigation';
 import { useTrendItemMenu } from '@/hooks/useTrendItemMenu';
@@ -34,6 +36,19 @@ interface TrendSection {
   key: string;
   title: string;
   data: Trend[];
+}
+
+/** One row of the flattened list: a section's heading, or a trend within it. */
+type TrendRow =
+  | { kind: 'header'; section: TrendSection }
+  | { kind: 'trend'; section: TrendSection; trend: Trend; index: number };
+
+const IS_WEB = Platform.OS === 'web';
+
+function rowKey(row: TrendRow): string {
+  return row.kind === 'header'
+    ? `header-${row.section.key}`
+    : `${row.section.key}-${row.trend.id || row.trend.text}-${row.index}`;
 }
 
 /** Section key of the live "Trending now" block; every other section is a past day. */
@@ -159,6 +174,26 @@ export default function ExploreTrendingScreen() {
     return result;
   }, [visibleTrends, historyDays, t]);
 
+  const rows = useMemo<TrendRow[]>(
+    () =>
+      sections.flatMap((section): TrendRow[] => [
+        { kind: 'header', section },
+        ...section.data.map((trend, index) => ({
+          kind: 'trend' as const,
+          section,
+          trend,
+          index,
+        })),
+      ]),
+    [sections],
+  );
+
+  // Section headings stick while their trends scroll under them.
+  const headerIndices = useMemo(
+    () => rows.flatMap((row, index) => (row.kind === 'header' ? [index] : [])),
+    [rows],
+  );
+
   const handleRefresh = useCallback(() => {
     void fetchTrends();
     void historyQuery.refetch();
@@ -181,37 +216,33 @@ export default function ExploreTrendingScreen() {
     [navigateToTrend],
   );
 
-  const renderItem = useCallback(
-    ({ item, index, section }: { item: Trend; index: number; section: TrendSection }) => (
-      <View className="px-4">
-        <TrendItemRow
-          trend={item}
-          // Position within THIS section's rendered rows. `trend.rank` is the
-          // rank across the whole unfiltered batch, so it shows gaps here as
-          // soon as a reader hides one — and it means nothing at all in a
-          // history section, whose rows come from a different day's batch.
-          ordinal={index + 1}
-          onPress={(trend) => handleTrendPress(trend, section, index)}
-          // Parity with the widget: a trend could be hidden from the rail but
-          // not from the screen that exists to browse trends.
-          getMenuActions={getTrendMenuActions}
-          showBorder
-          size="large"
-        />
-      </View>
-    ),
-    [handleTrendPress, getTrendMenuActions],
-  );
-
-  const renderSectionHeader = useCallback(
-    ({ section }: { section: SectionListData<Trend, TrendSection> }) => (
-      <View className="px-4 py-2" style={{ backgroundColor: theme.colors.backgroundSecondary }}>
-        <Text className="text-muted-foreground font-medium" style={{ fontSize: FONT_SIZES.sm }}>
-          {section.title}
-        </Text>
-      </View>
-    ),
-    [theme],
+  const renderRow = useCallback(
+    (row: TrendRow) =>
+      row.kind === 'header' ? (
+        <View className="px-4 py-2" style={{ backgroundColor: theme.colors.backgroundSecondary }}>
+          <Text className="text-muted-foreground font-medium" style={{ fontSize: FONT_SIZES.sm }}>
+            {row.section.title}
+          </Text>
+        </View>
+      ) : (
+        <View className="px-4">
+          <TrendItemRow
+            trend={row.trend}
+            // Position within THIS section's rendered rows. `trend.rank` is the
+            // rank across the whole unfiltered batch, so it shows gaps here as
+            // soon as a reader hides one — and it means nothing at all in a
+            // history section, whose rows come from a different day's batch.
+            ordinal={row.index + 1}
+            onPress={(trend) => handleTrendPress(trend, row.section, row.index)}
+            // Parity with the widget: a trend could be hidden from the rail but
+            // not from the screen that exists to browse trends.
+            getMenuActions={getTrendMenuActions}
+            showBorder
+            size="large"
+          />
+        </View>
+      ),
+    [theme, handleTrendPress, getTrendMenuActions],
   );
 
   // The relation graph explains this list, so its way in belongs ON the list.
@@ -254,20 +285,37 @@ export default function ExploreTrendingScreen() {
     return <ListSkeleton />;
   }
 
+  const empty = <EmptyState sticker="trending" title="No trending topics available" />;
+
+  // WEB: the screen scroller is the document, so the rows render in normal flow
+  // and paginate from the window's end. NATIVE: a virtualized list bound to the
+  // Explore screen.
+  if (IS_WEB) {
+    return (
+      <ScreenScrollView onEndReached={handleLoadMore} onEndReachedThreshold={0.5}>
+        {renderHeader()}
+        {rows.length === 0
+          ? empty
+          : rows.map((row) => <Fragment key={rowKey(row)}>{renderRow(row)}</Fragment>)}
+        {renderFooter()}
+      </ScreenScrollView>
+    );
+  }
+
   return (
-    <SectionList
-      sections={sections}
-      renderItem={renderItem}
-      renderSectionHeader={renderSectionHeader}
+    <ScreenFlashList
+      data={rows}
+      renderItem={({ item }) => renderRow(item)}
+      getItemType={(row) => row.kind}
+      keyExtractor={rowKey}
+      stickyHeaderIndices={headerIndices}
       ListHeaderComponent={renderHeader}
       ListFooterComponent={renderFooter}
-      keyExtractor={(item, index) => `${item.id || item.text}-${index}`}
       onEndReached={handleLoadMore}
       onEndReachedThreshold={0.5}
       onRefresh={handleRefresh}
       refreshing={trendsLoading || historyQuery.isRefetching}
-      stickySectionHeadersEnabled
-      ListEmptyComponent={<EmptyState sticker="trending" title="No trending topics available" />}
+      ListEmptyComponent={empty}
     />
   );
 }

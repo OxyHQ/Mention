@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import type { TFunction } from 'i18next';
 import type {
   CommunityNoteRating,
@@ -109,25 +110,36 @@ export function CommunityNotesScreen({
   }[tab];
 
   return (
-    <View className="flex-1">
-      <PageHeader
-        title={t('communityNotes.hub.title', { defaultValue: 'Community notes' })}
-        onBack={() => safeBack()}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-      />
-      <Tabs value={tab} onValueChange={(id) => setTab(id as TabId)} variant="underline">
-        {[
-          { id: 'rate', label: t('communityNotes.hub.tabRate', { defaultValue: 'Rate notes' }) },
-          {
-            id: 'ratings',
-            label: t('communityNotes.hub.tabRatings', { defaultValue: 'Your ratings' }),
-          },
-          { id: 'notes', label: t('communityNotes.hub.tabNotes', { defaultValue: 'Your notes' }) },
-        ].map((tab: { id: string; label: string; count?: number }) => (
-          <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
-        ))}
-      </Tabs>
-      <ScrollView className="flex-1" contentContainerClassName="gap-6 pb-10 pt-4">
+    <Screen
+      header={
+        <PageHeader
+          title={t('communityNotes.hub.title', { defaultValue: 'Community notes' })}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+          accessory={
+            <Tabs value={tab} onValueChange={(id) => setTab(id as TabId)} variant="underline">
+              {[
+                {
+                  id: 'rate',
+                  label: t('communityNotes.hub.tabRate', { defaultValue: 'Rate notes' }),
+                },
+                {
+                  id: 'ratings',
+                  label: t('communityNotes.hub.tabRatings', { defaultValue: 'Your ratings' }),
+                },
+                {
+                  id: 'notes',
+                  label: t('communityNotes.hub.tabNotes', { defaultValue: 'Your notes' }),
+                },
+              ].map((tab: { id: string; label: string; count?: number }) => (
+                <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
+              ))}
+            </Tabs>
+          }
+        />
+      }
+    >
+      <ScreenScrollView contentContainerClassName="gap-6 pb-10 pt-4">
         <Text className="text-foreground px-4 text-[15px] leading-5">{intro}</Text>
         {entries.length === 0 ? (
           <EmptyState title={empty} sticker="communityNotes" />
@@ -159,7 +171,7 @@ export function CommunityNotesScreen({
             </View>
           ))
         )}
-      </ScrollView>
-    </View>
+      </ScreenScrollView>
+    </Screen>
   );
 }

@@ -1,7 +1,7 @@
 import { InsightsSkeleton } from '@/components/loading/ContentSkeleton';
-import { View, ScrollView, Platform } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import type { HydratedPost } from '@mention/shared-types';
@@ -41,14 +41,19 @@ export default function WeeklyRecapScreen() {
   });
   const content = data ? <WeeklyRecapContent {...data} summary={summary?.summary ?? null} /> : null;
   return (
-    <View className="flex-1">
-      <PageHeader
-        title={t('insights.weeklyRecap.title')}
-        onBack={() => safeBack()}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-      />
+    <Screen
+      header={
+        <PageHeader
+          title={t('insights.weeklyRecap.title')}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+        />
+      }
+    >
       {isPrivateApiPending || isLoading ? (
-        <InsightsSkeleton />
+        <ScreenScrollView>
+          <InsightsSkeleton />
+        </ScreenScrollView>
       ) : !canUsePrivateApi ? (
         <OxyAuthPrompt
           label={t('insights.signInRequired')}
@@ -66,13 +71,9 @@ export default function WeeklyRecapScreen() {
             },
           }}
         />
-      ) : Platform.OS === 'web' ? (
-        content
       ) : (
-        <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-          {content}
-        </ScrollView>
+        <ScreenScrollView showsVerticalScrollIndicator={false}>{content}</ScreenScrollView>
       )}
-    </View>
+    </Screen>
   );
 }
