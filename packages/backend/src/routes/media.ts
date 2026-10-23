@@ -428,7 +428,7 @@ function setPublicMediaCors(res: Response): void {
   // Signal to shared caches that the ACAO value depends on the request Origin,
   // preventing a credentialed per-origin response from being served from the
   // same cache entry as this wildcard one.
-  res.setHeader('Vary', 'Origin');
+  res.vary('Origin');
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   // The global middleware sets no-store Pragma/Expires for non-federation paths;
   // strip them so the cacheable Cache-Control above is honored by intermediaries.
@@ -672,7 +672,7 @@ function cdnVariantFor(
 }
 
 /**
- * Consult the federated-media cache for a (non-range) proxy request.
+ * Consult the federated-media cache for a proxy request.
  *
  * Returns `true` when the request was fully handled by redirecting to the cached
  * Oxy object (our CDN then serves the bytes, at `variant` size when one was
@@ -834,11 +834,8 @@ router.get(
     //
     // When enabled: if this URL is already cached in Oxy, redirect so our CDN serves
     // the bytes; otherwise stream from remote (below) AND record activity to
-    // (re)cache it. A range request is NOT redirected: the cached Oxy object is
-    // served whole and Oxy/CDN handles range itself, but to preserve the existing
-    // seek semantics we only short-circuit for full (non-range) GETs; ranged
-    // requests fall through to the existing range-aware remote stream while still
-    // recording access.
+    // (re)cache it. The CDN honours Range against the byte-identical mirrored
+    // original, so a seek can use the same cached copy as a full request.
     const rangeHeader = req.headers.range;
     const hasRange = typeof rangeHeader === 'string' && rangeHeader.length > 0;
     const hasConditionalHeader =
@@ -850,23 +847,22 @@ router.get(
     // {@link ALLOWED_MEDIA_VARIANTS}). Honoured only on the cached path below,
     // where Oxy's variant pipeline can produce it; a miss streams the original.
     const requestedVariant = readRequestedVariant(req.query.variant);
+    // A ranged variant URL resolves to original bytes. Keep that redirect out
+    // of the cache entry used by a full request for the resized image.
+    if (requestedVariant) res.vary('Range');
 
     if (isMediaCacheEnabled()) {
-      if (!hasRange) {
-        const cacheServed = await tryServeFromCache(rawUrl, requestedVariant, res);
-        if (cacheServed) return;
-      } else {
-        // Ranged request: still record activity so the entry stays warm / gets cached.
-        void recordAccessAndMaybeEnqueue(rawUrl).catch((error: unknown) => {
-          logger.debug('[MediaProxy] Cache record (ranged) failed', {
-            reason: error instanceof Error ? error.message : 'unknown',
-          });
-        });
-      }
+      // Byte offsets refer to the original, never an image rendition.
+      const cacheServed = await tryServeFromCache(
+        rawUrl,
+        hasRange ? undefined : requestedVariant,
+        res,
+      );
+      if (cacheServed) return;
     }
 
     // --- Negative cache short-circuit ---
-    // Check this only after the normal cache front has had a chance to serve full
+    // Check this only after the normal cache front has had a chance to serve
     // requests, so a stale negative marker can never suppress already cached media.
     // URL-only negative entries are also skipped for ranged/conditional requests:
     // those forwarded headers can make an otherwise valid upstream reply with a

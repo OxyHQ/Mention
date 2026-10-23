@@ -29,7 +29,11 @@ import {
 } from '@oxy.so/bloom/image-aspect-ratio-cache';
 import { readMediaAspectRatio } from '@/utils/mediaTypes';
 import type { MeasuredRect } from '@oxy.so/bloom/media-flight';
-import { useVideoPlayerLease, videoPlayerKey } from '@/stores/videoPlayerRegistry';
+import {
+  useVideoPlayerLease,
+  videoPlayerKey,
+  type VideoPlayerKey,
+} from '@/stores/videoPlayerRegistry';
 import type { VideoPlayer as ExpoVideoPlayer } from 'expo-video';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
@@ -234,7 +238,7 @@ interface PostAttachmentVideoProps {
 const PostAttachmentVideoShell: React.FC<
   PostAttachmentVideoProps & {
     player?: ExpoVideoPlayer;
-    flightHostId?: string;
+    flightHostId?: VideoPlayerKey;
   }
 > = ({
   src,

@@ -18,10 +18,8 @@ describe('the reel enters Picture-in-Picture automatically', () => {
   });
 
   it('attaches the watched video and delegates automatic entry to expo-video', () => {
-    // The view takes the HLS hook's ref, which fills `videoViewRef` — the handle
-    // PiP is driven through — when the element mounts.
-    expect(source).toMatch(/ref=\{hlsRef\}/);
-    expect(source).toMatch(/useHlsPlayback\([^)]*videoViewRef/);
+    // The persistent media view forwards the active presenter's PiP handle.
+    expect(source).toMatch(/<PlaybackVideoView[\s\S]*?ref=\{videoViewRef\}/);
     expect(source).toContain('allowsPictureInPicture={isWatched}');
     expect(source).toContain('startsPictureInPictureAutomatically={isWatched}');
     expect(source).not.toContain('showPipButton');

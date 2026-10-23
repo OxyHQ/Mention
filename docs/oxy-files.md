@@ -140,6 +140,33 @@ URL into the requesting person's own files (`importUserMedia`, public, Oxy's
 SSRF-safe fetcher — https only), and the same URL imported again answers the
 same file. Inline `base64` bytes are still uploaded as before.
 
+## Refresh metadata after repairing video renditions
+
+Finish Oxy's rendition repair first: the original's display dimensions and
+`hlsReadyAt` must describe the validated replacement ladder, and the resolver
+cache must have been purged. Mention then copies that authoritative metadata
+onto its existing references; it does not probe media during feed hydration.
+
+Use **Run media-metadata backfill** (`run-media-metadata-backfill.yml`) from
+`main`, with `file_id` set to the repaired Oxy video id and `dry_run=true`.
+Review the post counts, then use `dry_run=false` and the existing exact phrase
+`BACKFILL MEDIA METADATA`. Dispatcher authorization is unchanged. Leaving
+`file_id` empty retains the ordinary missing-metadata sweep.
+
+The equivalent script preview is:
+
+```bash
+bun packages/backend/dist/src/scripts/backfillMediaMetadata.js --dry-run --file-id 01a16684-e7ee-7213-8bca-051c9cabce02
+```
+
+A targeted refresh includes both `post_media` and language overrides in
+`post_variant_media`, even when their old dimensions are valid. It preserves
+row identity, text, alt text and authorship; an edit replacing a row or its
+file during the lookup is not overwritten. Counters count posts, so multiple
+references in one post count once. Repeating the run reports unchanged posts
+as skipped. Missing or failed Oxy lookups count as unresolved and produce exit
+code 75; they are not reported as successfully repaired.
+
 ## Configuration
 
 | Variable | Default | Meaning |

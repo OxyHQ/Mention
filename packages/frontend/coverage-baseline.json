@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 48.15,
-      "covered": 13583,
-      "total": 28207
+      "pct": 48.45,
+      "covered": 13738,
+      "total": 28351
     },
     "branches": {
-      "pct": 43.47,
-      "covered": 9074,
-      "total": 20871
+      "pct": 43.66,
+      "covered": 9143,
+      "total": 20938
     },
     "functions": {
-      "pct": 42.6,
-      "covered": 3126,
-      "total": 7337
+      "pct": 42.88,
+      "covered": 3160,
+      "total": 7369
     },
     "lines": {
-      "pct": 48.97,
-      "covered": 12355,
-      "total": 25228
+      "pct": 49.26,
+      "covered": 12483,
+      "total": 25341
     }
   },
   "pins": {
@@ -606,10 +606,10 @@
       "lines": 0
     },
     "hooks/useReelChrome.ts": {
-      "statements": 65,
+      "statements": 66,
       "branches": 62,
       "functions": 55,
-      "lines": 65
+      "lines": 67
     },
     "hooks/useReelImpressions.ts": {
       "statements": 100,
@@ -882,10 +882,10 @@
       "lines": 100
     },
     "lib/hlsPlayback.web.ts": {
-      "statements": 65,
-      "branches": 60,
-      "functions": 75,
-      "lines": 69
+      "statements": 97,
+      "branches": 88,
+      "functions": 93,
+      "lines": 98
     },
     "lib/i18n.ts": {
       "statements": 41,
@@ -930,8 +930,8 @@
       "lines": 66
     },
     "lib/logging/sanitize.ts": {
-      "statements": 89,
-      "branches": 69,
+      "statements": 90,
+      "branches": 71,
       "functions": 86,
       "lines": 91
     },
@@ -1462,6 +1462,12 @@
       "branches": 80,
       "functions": 93,
       "lines": 95
+    },
+    "stores/video-playback-control.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "stores/videoMuteStore.ts": {
       "statements": 0,
