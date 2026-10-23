@@ -31,6 +31,16 @@ state as any broken or missing media. The patch routes every call through
 Still present in 58.0.12 (all five calls); re-made against it. Remove when
 upstream handles the `play()` promise.
 
+On Android, `VideoView` lays out its `PlayerView` only after a `requestLayout`.
+React Native resizes a view by setting its frame, which never measures it, so a
+view moved to a new frame kept the player at its old measured size. Bloom's
+media flight carries one video node from a feed card into the reel, and the
+reel drew the video at the card's size, centered and small. The patch measures
+and lays out the player in `onSizeChanged`. Expo links its modules as
+precompiled AARs, so `packages/frontend/package.json` builds expo-video from
+source (`expo.autolinking.android.buildFromSource`), or the patch would never
+reach the APK. Remove both when upstream re-lays out the player on a frame change.
+
 # react-native-screens 4.30.0
 
 The experimental ("gamma") stack host lays its native `StackContainer` out with

@@ -1,3 +1,26 @@
+diff --git a/node_modules/expo-video/.bun-tag-3cfab97afc1c038c b/.bun-tag-3cfab97afc1c038c
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/android/src/main/java/expo/modules/video/VideoView.kt b/android/src/main/java/expo/modules/video/VideoView.kt
+index bc008063c5d8a0f703907c2bb6e69a9299070f80..52974564a047a10373061d1e8eb65e940b648ae8 100644
+--- a/android/src/main/java/expo/modules/video/VideoView.kt
++++ b/android/src/main/java/expo/modules/video/VideoView.kt
+@@ -347,6 +347,15 @@ open class VideoView(context: Context, appContext: AppContext, useTextureView: B
+     post(mLayoutRunnable)
+   }
+ 
++  override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
++    super.onSizeChanged(w, h, oldw, oldh)
++    // React Native resizes this view by setting its frame, which never measures
++    // it, so the PlayerView inside kept its last measured size: a view moved to
++    // a bigger frame (a feed video carried into the reel) drew the video at the
++    // old size. Measure and lay out the player for the new frame.
++    post(mLayoutRunnable)
++  }
++
+   override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+     super.onLayout(changed, l, t, r, b)
+     // On every re-layout ExoPlayer resets the timeBar to be enabled.
 diff --git a/build/VideoPlayer.web.js b/build/VideoPlayer.web.js
 index de8d39050cecbc7519ac46c99029ecc3d355a412..a344bcfb312e8399bf3f8223d101cdb2c3b004e7 100644
 --- a/build/VideoPlayer.web.js
