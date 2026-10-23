@@ -89,7 +89,7 @@ import { closePostgres, connectPostgres, type Database } from '../../db/postgres
 import { posts } from '../../db/schema/posts';
 import { entityFollows, likes } from '../../db/schema/engagement';
 import { userSettings } from '../../db/schema/userProfile';
-import { insertPostRecord } from '../../db/posts/postRepository';
+import { insertPosts } from '../helpers/postFixtures';
 import {
   deleteUserBehavior,
   updateUserBehavior,
@@ -195,17 +195,27 @@ function behavior(overrides: Partial<BehaviorFixture> = {}): BehaviorFixture {
 }
 
 async function createPost(oxyUserId: string, overrides: Partial<PostRecordInput> = {}) {
-  const record = await insertPostRecord({
-    oxyUserId,
-    authorship: [{ oxyUserId, role: 'owner', status: 'accepted' }],
-    type: PostType.TEXT,
-    visibility: PostVisibility.PUBLIC,
-    status: 'published',
-    content: { variants: [{ source: 'author', text: 'affinity fixture', tag: 'en' }] },
-    ...overrides,
-  });
-  createdPostIds.push(record.id);
+  const [record] = await createPosts([oxyUserId], overrides);
   return record;
+}
+
+/** One post per author, written as one batch rather than one transaction each at once. */
+async function createPosts(authors: readonly string[], overrides: Partial<PostRecordInput> = {}) {
+  const records = await insertPosts(
+    authors.map(
+      (oxyUserId): PostRecordInput => ({
+        oxyUserId,
+        authorship: [{ oxyUserId, role: 'owner', status: 'accepted' }],
+        type: PostType.TEXT,
+        visibility: PostVisibility.PUBLIC,
+        status: 'published',
+        content: { variants: [{ source: 'author', text: 'affinity fixture', tag: 'en' }] },
+        ...overrides,
+      }),
+    ),
+  );
+  createdPostIds.push(...records.map((record) => record.id));
+  return records;
 }
 
 /** An up-vote by the viewer, optionally stamped with the surface it came from. */
@@ -517,9 +527,7 @@ describe('exclusions and profile access', () => {
     const protectedAuthors = Array.from({ length: 75 }, (_, index) =>
       id(`private-author-${index}`),
     );
-    await Promise.all(
-      protectedAuthors.map((author) => createPost(author, { hashtags: [id('rust')] })),
-    );
+    await createPosts(protectedAuthors, { hashtags: [id('rust')] });
     await setProfileVisibility(protectedAuthors, 'private');
     mocks.getFollowingIdSet.mockResolvedValue(new Set([id('private-author-7')]));
 
