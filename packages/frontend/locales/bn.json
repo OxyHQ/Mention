@@ -1415,6 +1415,7 @@
   "post.contentWarningShow": "দেখান",
   "post.contentWarningHide": "লুকান",
   "post.boostUnavailable": "এই পোস্টটি আর উপলব্ধ নেই",
+  "post.quoteUnavailable": "এই উদ্ধৃত পোস্টটি উপলব্ধ নয়",
   "compose.languages.pickerTitle": "পোস্টের ভাষা",
   "compose.languages.alreadyAdded": "আগেই যোগ করা হয়েছে",
   "compose.languages.current": "বর্তমান",

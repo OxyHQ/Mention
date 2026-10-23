@@ -1415,6 +1415,7 @@
   "post.contentWarningShow": "表示",
   "post.contentWarningHide": "非表示",
   "post.boostUnavailable": "この投稿は利用できなくなりました",
+  "post.quoteUnavailable": "この引用された投稿は表示できません",
   "compose.languages.pickerTitle": "投稿の言語",
   "compose.languages.alreadyAdded": "追加済み",
   "compose.languages.current": "現在",

@@ -23,6 +23,7 @@ import { feedThreadParentId, mergeFeedPageContent, type FeedFilters } from '@/ut
 import { useDeepCompareMemo } from './useDeepCompare';
 import type { UseFeedStateReturn } from './useFeedState';
 import { useReloadOnFeedRuleChange } from './useReloadOnFeedRuleChange';
+import { useFeedRankingStaleness } from './useFeedRankingStaleness';
 import { isDbAvailable } from '@/db';
 import { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
 
@@ -235,6 +236,14 @@ export function useFeedQuery({
 
   const pages = viewerReady ? data?.pages : undefined;
   const content = useMemo(() => foldFeedPages(pages ?? []), [pages]);
+  const staleSocialEvidence = useFeedRankingStaleness(feed, dataUpdatedAt, active);
+  const slices = useMemo(
+    () =>
+      staleSocialEvidence
+        ? content.slices?.map((slice) => ({ ...slice, socialContext: undefined }))
+        : content.slices,
+    [content.slices, staleSocialEvidence],
+  );
 
   /**
    * Read the feed from its first page again: a pull-to-refresh, a reload, a
@@ -358,7 +367,7 @@ export function useFeedQuery({
 
   return {
     items: content.items,
-    slices: content.slices,
+    slices,
     interstitials: content.interstitials,
     hasMore: hasNextPage,
     isLoading: !viewerReady || isFetching,

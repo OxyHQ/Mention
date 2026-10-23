@@ -1479,6 +1479,7 @@
   "post.contentWarningShow": "عرض",
   "post.contentWarningHide": "إخفاء",
   "post.boostUnavailable": "لم يعد هذا المنشور متاحًا",
+  "post.quoteUnavailable": "هذا المنشور المقتبس غير متاح",
   "compose.languages.pickerTitle": "لغة المنشور",
   "compose.languages.alreadyAdded": "مضافة بالفعل",
   "compose.languages.current": "الحالية",

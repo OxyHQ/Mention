@@ -60,6 +60,26 @@ function makePost(id: string, overrides: Partial<HydratedPost> = {}): HydratedPo
 }
 
 describe('canonical post cache contract', () => {
+  it('retains a boosted quote and its commentary through the disk round trip', () => {
+    const original = makePost('original');
+    const quote = makePost('quote', { quotedPost: original });
+    const boost = makePost('boost', { boost: { actor: original.user, originalPost: quote } });
+    const restored = rowToFeedItem(postToRow(toFeedItem(boost)));
+    const restoredQuote: HydratedPost | null | undefined = restored?.boost?.originalPost;
+    expect(restoredQuote?.content.text).toBe('post quote');
+    expect(restoredQuote?.quotedPost?.content.text).toBe('post original');
+  });
+
+  it('bounds related-post recursion even when a malformed relation cycles', () => {
+    const quote = makePost('cycle');
+    quote.quotedPost = quote;
+    const cached = toFeedItem(quote);
+    const child: HydratedPost | null | undefined = cached.quotedPost;
+    const grandchild: HydratedPost | null | undefined = child?.quotedPost;
+    expect(child?.id).toBe('cycle');
+    expect(grandchild?.id).toBe('cycle');
+    expect(grandchild?.quotedPost).toBeNull();
+  });
   // `PostItem` reads `storePost ?? post`, so the cached copy WINS over the one
   // the API just returned. Anything this converter drops is therefore invisible
   // on every feed surface while the raw API response still has it — and both of

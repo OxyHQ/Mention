@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 48.15,
-      "covered": 13583,
-      "total": 28207
+      "pct": 48.57,
+      "covered": 13717,
+      "total": 28237
     },
     "branches": {
-      "pct": 43.47,
-      "covered": 9074,
-      "total": 20871
+      "pct": 44,
+      "covered": 9211,
+      "total": 20932
     },
     "functions": {
-      "pct": 42.6,
-      "covered": 3126,
-      "total": 7337
+      "pct": 42.96,
+      "covered": 3158,
+      "total": 7351
     },
     "lines": {
-      "pct": 48.97,
-      "covered": 12355,
-      "total": 25228
+      "pct": 49.39,
+      "covered": 12475,
+      "total": 25255
     }
   },
   "pins": {
@@ -133,7 +133,7 @@
     },
     "db/feedItem.ts": {
       "statements": 100,
-      "branches": 93,
+      "branches": 94,
       "functions": 100,
       "lines": 100
     },
@@ -323,6 +323,12 @@
       "functions": 100,
       "lines": 100
     },
+    "hooks/useFeedRankingStaleness.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "hooks/useFeedSettings.ts": {
       "statements": 91,
       "branches": 68,
@@ -331,7 +337,7 @@
     },
     "hooks/useFeedState.ts": {
       "statements": 96,
-      "branches": 91,
+      "branches": 92,
       "functions": 100,
       "lines": 97
     },
@@ -1230,10 +1236,10 @@
       "lines": 0
     },
     "services/muteService.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "services/muteWordsService.ts": {
       "statements": 0,
@@ -1422,10 +1428,10 @@
       "lines": 98
     },
     "stores/postsStore.ts": {
-      "statements": 72,
-      "branches": 53,
-      "functions": 69,
-      "lines": 78
+      "statements": 77,
+      "branches": 58,
+      "functions": 72,
+      "lines": 83
     },
     "stores/profileCountsInvalidation.ts": {
       "statements": 100,

@@ -1,6 +1,10 @@
 import { setFeedItems, appendFeedItems } from '@/db';
 import type { FeedItem } from '@/db';
 import { usePostsStore } from '../postsStore';
+import {
+  notifyFeedRankingChanged,
+  subscribeToFeedRankingChanges,
+} from '../feedRankingInvalidation';
 
 const mockGetFeed = jest.fn();
 const mockGetFeedMeta = jest.fn();
@@ -107,3 +111,107 @@ describe('SQLite ranked cursor recovery', () => {
     expect(mockGetFeed).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('native feed social evidence lifetime', () => {
+  beforeEach(() => {
+    mockGetFeed.mockReset();
+    usePostsStore.getState().resetViewerState({ clearCachedData: true });
+    mockGetFeedMeta.mockReturnValue({ hasMore: true, nextCursor: 'fs1:next' });
+  });
+  const context = (postId: string) => ({
+    type: 'likedBy',
+    postId,
+    actors: [{ id: 'known', name: { displayName: 'Known' } }],
+    total: 1,
+  });
+  const page = (postId: string) => ({
+    items: [],
+    hasMore: true,
+    slices: [{ _sliceKey: postId, items: [], socialContext: context(postId) }],
+  });
+
+  it('appends evidence only to its feed, replaces it on refresh and clears it on account change', async () => {
+    mockGetFeed
+      .mockResolvedValueOnce(page('first'))
+      .mockResolvedValueOnce(page('second'))
+      .mockResolvedValueOnce({ items: [], hasMore: false });
+    await usePostsStore.getState().fetchFeed({ type: 'for_you' });
+    await usePostsStore.getState().loadMoreFeed('for_you');
+    expect(usePostsStore.getState().feedUI.for_you.socialContexts).toEqual([
+      context('first'),
+      context('second'),
+    ]);
+    expect(usePostsStore.getState().feedUI.following).toBeUndefined();
+    await usePostsStore.getState().refreshFeed('for_you');
+    expect(usePostsStore.getState().feedUI.for_you.socialContexts).toBeUndefined();
+    usePostsStore.getState().resetViewerState({ clearCachedData: true });
+    expect(usePostsStore.getState().feedUI).toEqual({});
+  });
+
+  it('does not install an outgoing viewer’s evidence after account reset', async () => {
+    let resolvePage: ((value: ReturnType<typeof page>) => void) | undefined;
+    mockGetFeed.mockReturnValueOnce(
+      new Promise<ReturnType<typeof page>>((resolve) => {
+        resolvePage = resolve;
+      }),
+    );
+    const pending = usePostsStore.getState().fetchFeed({ type: 'for_you' });
+    usePostsStore.getState().resetViewerState({ clearCachedData: true });
+    if (!resolvePage) throw new Error('Feed request was not started');
+    resolvePage(page('outgoing'));
+    await pending;
+    expect(usePostsStore.getState().feedUI).toEqual({});
+  });
+});
+
+it.each(['initial', 'continuation'] as const)(
+  'a mute rule refresh supersedes a pending native %s read',
+  async (kind) => {
+    jest.clearAllMocks();
+    mockGetFeed.mockReset();
+    usePostsStore.getState().resetViewerState({ clearCachedData: true });
+    mockGetFeedMeta.mockReturnValue({ hasMore: true, nextCursor: 'fs1:old' });
+    let finishOld:
+      | ((value: { items: never[]; slices: unknown[]; hasMore: boolean }) => void)
+      | undefined;
+    let finishFresh: ((value: { items: never[]; hasMore: boolean }) => void) | undefined;
+    mockGetFeed.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishOld = resolve;
+      }),
+    );
+    const oldRead =
+      kind === 'initial'
+        ? usePostsStore.getState().fetchFeed({ type: 'for_you' })
+        : usePostsStore.getState().loadMoreFeed('for_you');
+    const signal: AbortSignal = mockGetFeed.mock.calls[0][1].signal;
+    mockGetFeed.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishFresh = resolve;
+      }),
+    );
+    let refresh: Promise<void> | undefined;
+    const stop = subscribeToFeedRankingChanges({ type: 'for_you', viewerId: 'mute-reader' }, () => {
+      refresh = usePostsStore.getState().refreshFeed('for_you', undefined, true);
+    });
+    notifyFeedRankingChanged('mute-reader');
+    expect(signal.aborted).toBe(true);
+    expect(mockGetFeed).toHaveBeenCalledTimes(2);
+    if (!finishOld || !finishFresh) throw new Error('Both reads must start');
+    finishOld({
+      items: [],
+      hasMore: true,
+      slices: [{ socialContext: { type: 'likedBy', postId: 'stale', actors: [], total: 1 } }],
+    });
+    await oldRead;
+    expect(appendFeedItems).not.toHaveBeenCalled();
+    expect(setFeedItems).not.toHaveBeenCalled();
+    expect(usePostsStore.getState().feedUI.for_you.isLoading).toBe(true);
+    finishFresh({ items: [], hasMore: false });
+    await refresh;
+    expect(setFeedItems).toHaveBeenCalledTimes(1);
+    expect(usePostsStore.getState().feedUI.for_you.socialContexts).toBeUndefined();
+    expect(usePostsStore.getState().feedUI.for_you.isLoading).toBe(false);
+    stop();
+  },
+);

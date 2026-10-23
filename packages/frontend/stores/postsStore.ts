@@ -235,6 +235,8 @@ interface FeedSliceUI {
    * page set currently loaded, and must never outlive the session.
    */
   interstitials?: FeedInterstitialSlot[];
+  /** Per-viewer response evidence; cleared with feedUI on account changes. */
+  socialContexts?: NonNullable<FeedPostSlice['socialContext']>[];
 }
 
 interface PostsStoreState {
@@ -250,7 +252,7 @@ interface PostsStoreState {
   fetchFeed: (request: ExtendedFeedRequest) => Promise<void>;
   fetchUserFeed: (userId: string, request: FeedRequest) => Promise<{ pending: boolean }>;
   fetchSavedPosts: (request: { page?: number; limit?: number }) => Promise<void>;
-  refreshFeed: (type: FeedType, filters?: FeedFilters) => Promise<void>;
+  refreshFeed: (type: FeedType, filters?: FeedFilters, supersedePending?: boolean) => Promise<void>;
   loadMoreFeed: (type: FeedType, filters?: FeedFilters) => Promise<void>;
 
   // Content creation
@@ -597,6 +599,9 @@ export const usePostsStore = create<PostsStoreState>()(
               filters: request.filters,
               // Fresh page 1 → the previous page's placements no longer apply.
               interstitials: response.interstitials,
+              socialContexts: response.slices?.flatMap((slice) =>
+                slice.socialContext ? [slice.socialContext] : [],
+              ),
             },
           },
           lastRefresh: Date.now(),
@@ -798,12 +803,19 @@ export const usePostsStore = create<PostsStoreState>()(
     },
 
     // ── refreshFeed ──────────────────────────────────────────
-    refreshFeed: async (type: FeedType, filters?: FeedFilters) => {
+    refreshFeed: async (type: FeedType, filters?: FeedFilters, supersedePending = false) => {
       const operationEpoch = captureViewerStateEpoch();
       const feedKey = buildFeedKey(type);
       const ui = get().feedUI[feedKey];
-      if (ui?.isLoading) return;
+      if (ui?.isLoading && !supersedePending) return;
       const requestKey = `refresh:${feedKey}`;
+      if (supersedePending) {
+        // A changed rule outranks an initial read or continuation already in
+        // flight. Their own abort checks prevent old rows/evidence landing later.
+        for (const [key, pending] of pendingRequests) {
+          if (key === requestKey || key.startsWith(`${type}:`)) pending.abortController?.abort();
+        }
+      }
       const previousRequest = pendingRequests.get(requestKey);
       previousRequest?.abortController?.abort();
       const abortController = new AbortController();
@@ -849,6 +861,9 @@ export const usePostsStore = create<PostsStoreState>()(
               lastUpdated: Date.now(),
               // A refresh rebuilds the feed from page 1 → replace the placements.
               interstitials: response.interstitials,
+              socialContexts: response.slices?.flatMap((slice) =>
+                slice.socialContext ? [slice.socialContext] : [],
+              ),
             },
           },
           lastRefresh: Date.now(),
@@ -933,6 +948,12 @@ export const usePostsStore = create<PostsStoreState>()(
               lastUpdated: Date.now(),
               // Each page's slots anchor to slices of THAT page, so appending keeps
               // every card at its position in the accumulated feed.
+              socialContexts: [
+                ...(s.feedUI[feedKey]?.socialContexts ?? []),
+                ...(response.slices?.flatMap((slice) =>
+                  slice.socialContext ? [slice.socialContext] : [],
+                ) ?? []),
+              ],
               interstitials: [
                 ...(s.feedUI[feedKey]?.interstitials ?? []),
                 ...(response.interstitials ?? []),
@@ -2019,6 +2040,7 @@ export const useFeedSelector = (type: FeedType, enabled = true) => {
     items,
     slices: undefined as FeedPostSlice[] | undefined,
     interstitials: ui?.interstitials,
+    socialContexts: ui?.socialContexts,
     hasMore: meta?.hasMore ?? true,
     nextCursor: meta?.nextCursor,
     totalCount: meta?.totalCount ?? 0,
@@ -2040,6 +2062,7 @@ export const useUserFeedSelector = (userId: string, type: FeedType, enabled = tr
     items,
     slices: undefined as FeedPostSlice[] | undefined,
     interstitials: ui?.interstitials,
+    socialContexts: ui?.socialContexts,
     hasMore: meta?.hasMore ?? true,
     nextCursor: meta?.nextCursor,
     totalCount: meta?.totalCount ?? 0,
