@@ -213,34 +213,39 @@ describe('public social recommendation evidence', () => {
 });
 
 describe('social evidence query plan', () => {
+  const planAuthor = scope.user('plan-inventory');
+  beforeAll(async () => {
+    const { sql } = await import('drizzle-orm');
+    // Prepare realistic inventory outside the query test's default deadline.
+    // The database is private to this file, including its planner statistics.
+    await getDb().execute(
+      sql`insert into posts (id,oxy_user_id,type,visibility,status,created_at) select ${planAuthor} || '-' || i::text, ${planAuthor}, 'text','public','published',date_trunc('milliseconds',now())-interval '1 hour' from generate_series(1,10000) i`,
+    );
+    await getDb().execute(sql`analyze posts`);
+  });
+  afterAll(async () => {
+    const { posts } = await import('../db/schema');
+    await getDb().delete(posts).where(eq(posts.oxyUserId, planAuthor));
+  });
+
   it('does not walk unrelated post inventory when the indexed activity cohort is empty', async () => {
     const { sql } = await import('drizzle-orm');
-    const { posts } = await import('../db/schema');
     const { networkEngagementExistsSql } = await import('../services/socialFeedEvidence');
-    const planAuthor = scope.user('plan-inventory');
-    try {
-      await getDb().execute(
-        sql`insert into posts (id,oxy_user_id,type,visibility,status,created_at) select ${planAuthor} || '-' || i::text, ${planAuthor}, 'text','public','published',date_trunc('milliseconds',now())-interval '1 hour' from generate_series(1,10000) i`,
-      );
-      await getDb().execute(sql`analyze posts`);
-      const result = await getDb().execute(
-        sql`explain (analyze,buffers,format json) select id from posts where ${networkEngagementExistsSql([scope.user('no-activity')], new Date(now - 86400000), new Date(now))} order by created_at desc,id desc limit 20`,
-      );
-      const plan = (result[0]['QUERY PLAN'] as Array<{ Plan: Record<string, unknown> }>)[0].Plan;
-      const nodes: Record<string, unknown>[] = [];
-      const walk = (node: Record<string, unknown>) => {
-        nodes.push(node);
-        for (const child of (node.Plans ?? []) as Record<string, unknown>[]) walk(child);
-      };
-      walk(plan);
-      const targetReads = nodes.filter(
-        (node) => node['Relation Name'] === 'posts' && node.Alias === 'posts',
-      );
-      expect(targetReads.length).toBeGreaterThan(0);
-      expect(targetReads.every((node) => node['Actual Loops'] === 0)).toBe(true);
-      expect(plan['Actual Rows']).toBe(0);
-    } finally {
-      await getDb().delete(posts).where(eq(posts.oxyUserId, planAuthor));
-    }
+    const result = await getDb().execute(
+      sql`explain (analyze,buffers,format json) select id from posts where ${networkEngagementExistsSql([scope.user('no-activity')], new Date(now - 86400000), new Date(now))} order by created_at desc,id desc limit 20`,
+    );
+    const plan = (result[0]['QUERY PLAN'] as Array<{ Plan: Record<string, unknown> }>)[0].Plan;
+    const nodes: Record<string, unknown>[] = [];
+    const walk = (node: Record<string, unknown>) => {
+      nodes.push(node);
+      for (const child of (node.Plans ?? []) as Record<string, unknown>[]) walk(child);
+    };
+    walk(plan);
+    const targetReads = nodes.filter(
+      (node) => node['Relation Name'] === 'posts' && node.Alias === 'posts',
+    );
+    expect(targetReads.length).toBeGreaterThan(0);
+    expect(targetReads.every((node) => node['Actual Loops'] === 0)).toBe(true);
+    expect(plan['Actual Rows']).toBe(0);
   });
 });
