@@ -20,12 +20,16 @@ after installation.
 
 # expo-video 58.0.12
 
-The web player calls `video.play()` and drops the returned promise. Removing,
-pausing or replacing media cancels a pending play, and the browser rejects it
-with an `AbortError` that surfaces as an unhandled rejection. The patch routes
-every call through `playVideo()`, which consumes only that expected
-cancellation and rethrows anything else. Still present in 58.0.12 (all five
-calls); re-made against it. Remove when upstream handles the `play()` promise.
+The web player calls `video.play()` and drops the returned promise, so two
+rejections that are not failures of the call surface as unhandled rejections:
+removing, pausing or replacing media cancels a pending play (`AbortError`), and
+a source the browser cannot load rejects it with `NotSupportedError`. That
+second one is already reported: the element's `error` event sets the player's
+status to `error`, which `VideoPlayer` renders as "video unavailable", the same
+state as any broken or missing media. The patch routes every call through
+`playVideo()`, which consumes exactly those two and rethrows anything else.
+Still present in 58.0.12 (all five calls); re-made against it. Remove when
+upstream handles the `play()` promise.
 
 # react-native-screens 4.30.0
 
