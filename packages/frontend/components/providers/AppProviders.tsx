@@ -10,8 +10,6 @@ import type { QueryClient } from '@tanstack/react-query';
 import { I18nextProvider } from 'react-i18next';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { OxyProvider } from '@oxy.so/services/ui/client';
 import { OxyOneVideo } from '@oxy.so/services/ui/one-video';
 import { AliaAvatarIcon } from '@alia.onl/sdk/avatar';
@@ -59,9 +57,6 @@ export const AppProviders = memo(function AppProviders({
   // One sticker client per OxyServices: it memoizes resolved stickers for the
   // life of the app and acts with this client's session.
   const stickersClient = useMemo(() => createStickersClient(oxyServices), [oxyServices]);
-  // The one status bar: it follows the app's theme, not the system's. A screen
-  // on a fixed dark surface (videos, the camera) overrides it while focused.
-  const theme = useTheme();
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       {/* Bloom renders its children only once its fonts have loaded. */}
@@ -167,7 +162,6 @@ export const AppProviders = memo(function AppProviders({
                           <LiveRoomControllerProvider>
                             <ScreenReselectProvider>
                               {children}
-                              <StatusBar style={theme.isDark ? 'light' : 'dark'} />
                               {/*
                                * No <ToastOutlet /> here on purpose. Bloom's toast
                                * stack must be mounted exactly once — every mount

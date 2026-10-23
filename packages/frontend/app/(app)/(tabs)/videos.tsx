@@ -1,7 +1,6 @@
 import { VideoSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useCallback, useContext, useEffect, useRef, useState, useMemo, memo } from 'react';
-import { StatusBar } from 'expo-status-bar';
 import { useBottomEdgeInset } from '@oxy.so/bloom/layout';
 import {
   StyleSheet,
@@ -2112,7 +2111,6 @@ export default function VideosScreen() {
   return (
     <>
       <SEO title={t('seo.videos.title')} description={t('seo.videos.description')} />
-      {isFocused && posts.length > 0 ? <StatusBar style="light" /> : null}
       {/* The reel is a dark surface: its header and controls render dark over it. */}
       <BloomColorScope mode={posts.length > 0 ? 'dark' : undefined} asChild>
         <Screen

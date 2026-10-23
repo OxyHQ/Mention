@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 48.39,
-      "covered": 13714,
-      "total": 28336
+      "pct": 47.87,
+      "covered": 13264,
+      "total": 27703
     },
     "branches": {
-      "pct": 43.61,
-      "covered": 9125,
-      "total": 20923
+      "pct": 43.7,
+      "covered": 8914,
+      "total": 20396
     },
     "functions": {
-      "pct": 42.83,
-      "covered": 3157,
-      "total": 7371
+      "pct": 42.67,
+      "covered": 3072,
+      "total": 7198
     },
     "lines": {
-      "pct": 49.2,
-      "covered": 12461,
-      "total": 25327
+      "pct": 48.67,
+      "covered": 12043,
+      "total": 24740
     }
   },
   "pins": {
@@ -54,10 +54,10 @@
       "lines": 100
     },
     "components/providers/AppProviders.tsx": {
-      "statements": 87,
+      "statements": 100,
       "branches": 100,
-      "functions": 66,
-      "lines": 85
+      "functions": 100,
+      "lines": 100
     },
     "components/providers/AppShellProviders.tsx": {
       "statements": 100,
@@ -338,12 +338,6 @@
     "hooks/useFeedVisibility.ts": {
       "statements": 100,
       "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "hooks/useFocusedScrollable.ts": {
-      "statements": 100,
-      "branches": 91,
       "functions": 100,
       "lines": 100
     },

@@ -259,6 +259,24 @@
       "metric": "lines",
       "date": "2026-10-23",
       "reason": "Opening Allo (the links, app vs install offer vs web) moved to Allo's own @oxy.so/allo-sdk/links (0.3.0, tested there); Mention's fully covered copy, lib/alloDirectMessage.ts, and its tests were deleted, which lowers the overall ratio by under 0.1 point."
+    },
+    {
+      "path": "total",
+      "metric": "statements",
+      "date": "2026-10-24",
+      "reason": "The pager, its scroll plumbing, the icon set and the vote animations moved into Bloom (tab-pager, Screen/VirtualList, icons, EngagementBar; tested there); Mention's own TabsPager, TabPagerContext, useFocusedScrollable, assets/icons and lib/animations were deleted, which lowers the overall ratio by about half a point."
+    },
+    {
+      "path": "total",
+      "metric": "functions",
+      "date": "2026-10-24",
+      "reason": "The pager, its scroll plumbing, the icon set and the vote animations moved into Bloom (tab-pager, Screen/VirtualList, icons, EngagementBar; tested there); Mention's own TabsPager, TabPagerContext, useFocusedScrollable, assets/icons and lib/animations were deleted, which lowers the overall ratio by about half a point."
+    },
+    {
+      "path": "total",
+      "metric": "lines",
+      "date": "2026-10-24",
+      "reason": "The pager, its scroll plumbing, the icon set and the vote animations moved into Bloom (tab-pager, Screen/VirtualList, icons, EngagementBar; tested there); Mention's own TabsPager, TabPagerContext, useFocusedScrollable, assets/icons and lib/animations were deleted, which lowers the overall ratio by about half a point."
     }
   ],
   "globalDriftAllowancePoints": 0.75,
@@ -269,8 +287,8 @@
     "one defensible line at a time, and a bound cannot tell growth from shrinkage."
   ],
   "expectedCounts": {
-    "domainFiles": 311,
-    "pins": 306,
+    "domainFiles": 310,
+    "pins": 305,
     "unenforceable": 5,
     "belowBarExemptions": 8,
     "criticalPaths": 36,

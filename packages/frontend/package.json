@@ -159,7 +159,6 @@
     "expo-share-intent": "^8.0.1",
     "expo-splash-screen": "~58.0.10",
     "expo-sqlite": "~58.0.13",
-    "expo-status-bar": "~58.0.3",
     "expo-system-ui": "~58.0.6",
     "expo-video": "~58.0.12",
     "expo-web-browser": "~58.0.6",

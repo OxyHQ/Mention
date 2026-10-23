@@ -53,7 +53,6 @@ jest.mock('react-native-keyboard-controller', () => ({
   KeyboardProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 // The root status bar reads Bloom's theme; production mounts AppProviders inside BloomProvider.
 jest.mock('@oxy.so/bloom/theme', () => ({
   ...jest.requireActual('@oxy.so/bloom/theme'),

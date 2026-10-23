@@ -51,6 +51,14 @@ jest.mock('@/stores/postsStore', () => ({
     selector({ createPost: mockCreatePost }),
 }));
 
+// The page's dark surface; no theme provider here, and nothing to measure.
+jest.mock('@oxy.so/bloom/screen', () => ({
+  Screen: ({ children }: { children: React.ReactNode }) => children,
+}));
+jest.mock('@oxy.so/bloom/theme', () => ({
+  BloomColorScope: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 jest.mock('@oxy.so/bloom/tab-pager', () => ({
   useTabPager: () => ({ selectTab: jest.fn() }),
 }));

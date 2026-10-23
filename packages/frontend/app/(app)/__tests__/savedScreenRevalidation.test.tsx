@@ -95,7 +95,6 @@ jest.mock('@oxy.so/bloom/layout', () => ({
   StickySection: ({ children }: { children: React.ReactNode }) => children,
 }));
 jest.mock('expo-router/head', () => ({ __esModule: true, default: () => null }));
-jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 
 jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
 

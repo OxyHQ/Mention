@@ -15,7 +15,6 @@ import { logger } from '@oxy.so/core/logger';
 import { classifyApiError, normalizeApiError, type ApiErrorReason } from '@/utils/apiError';
 import { OxyAuthPrompt, useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle, type AccountNode, type FileMetadata } from '@oxy.so/core';
-import { StatusBar } from 'expo-status-bar';
 import * as ExpoLocation from 'expo-location';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useQueryClient } from '@tanstack/react-query';
@@ -2766,7 +2765,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           composer (`app/(app)/_layout.tsx`), so the footer row sits on the
           screen edge and has to clear the gesture area itself. */}
       <SafeAreaView className="flex-1 bg-card" edges={['top', 'bottom']}>
-        <StatusBar style="light" />
         {supervision.supervised && (
           <Text className="px-4 py-3 text-sm text-muted-foreground">{t('safety.privatePost')}</Text>
         )}

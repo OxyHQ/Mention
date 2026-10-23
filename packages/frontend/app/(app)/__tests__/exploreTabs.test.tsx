@@ -30,7 +30,6 @@ jest.mock('expo-router', () => ({
   Slot: () => null,
 }));
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
-jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 jest.mock('@oxy.so/bloom/tabs', () => ({
   Tabs: (props: TabsProps) => {
     mockTabsProps = props;

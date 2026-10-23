@@ -1,11 +1,12 @@
 import { useCallback, useRef, useState } from 'react';
-import { View } from 'react-native';
 import { useRouter, useIsFocused } from '@/lib/navigation/router';
 import { logger } from '@oxy.so/core/logger';
 
 import { CameraCapture } from '@/components/Camera/CameraCapture';
 import { CaptureReview } from '@/components/Camera/CaptureReview';
 import { useCaptureUpload, type LocalCapture } from '@/components/Camera/useCaptureUpload';
+import { BloomColorScope } from '@oxy.so/bloom/theme';
+import { Screen } from '@oxy.so/bloom/screen';
 import { useTabPager } from '@oxy.so/bloom/tab-pager';
 import { usePostsStore } from '@/stores/postsStore';
 import { setPendingShareMedia } from '@/utils/pendingShareMedia';
@@ -128,25 +129,26 @@ export default function CameraPage() {
     }
   }, [capture, upload, clearCapture, router]);
 
-  if (capture) {
-    return (
-      <CaptureReview
-        capture={capture}
-        onPublish={publishNow}
-        onAddText={addText}
-        onRetake={retake}
-        busy={uploading || publishing}
-        uploadFailed={uploadFailed}
-        publishFailed={publishFailed}
-      />
-    );
-  }
-
-  // A plain black view rather than nothing: this is a PAGE of the pager, and the
-  // pager addresses its children by position — a page that rendered nothing
-  // would still occupy its slot, but it would flash the app background through
-  // as the finger brings it in.
-  if (!isFocused) return <View style={{ flex: 1, backgroundColor: '#000' }} />;
-
-  return <CameraCapture onCaptured={setCapture} onClose={leaveToFeed} />;
+  // A dark surface, so Bloom gives it light status-bar content while it is the
+  // page in front. Black even before the camera mounts: the pager brings this
+  // page in by position, and an empty page would flash the app background.
+  return (
+    <BloomColorScope mode="dark" asChild>
+      <Screen active={isFocused} scroll="none" style={{ backgroundColor: '#000' }}>
+        {capture ? (
+          <CaptureReview
+            capture={capture}
+            onPublish={publishNow}
+            onAddText={addText}
+            onRetake={retake}
+            busy={uploading || publishing}
+            uploadFailed={uploadFailed}
+            publishFailed={publishFailed}
+          />
+        ) : isFocused ? (
+          <CameraCapture onCaptured={setCapture} onClose={leaveToFeed} />
+        ) : null}
+      </Screen>
+    </BloomColorScope>
+  );
 }
