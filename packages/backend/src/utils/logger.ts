@@ -20,7 +20,13 @@ const MAX_LOG_STRING_LENGTH = 2_000;
  */
 const MAX_COUNT_MAP_KEYS = 250;
 
+// File-keyset checkpoints must survive serialization so operators can resume
+// an interrupted metadata repair. These name Oxy assets, not user identities;
+// ordinary fileId/userId/postId fields retain the existing redaction policy.
+const FILE_CHECKPOINT_KEYS = new Set(['resumeafterfileid', 'scannedthroughfileid']);
+
 const PRESERVED_KEYS = new Set([
+  ...FILE_CHECKPOINT_KEYS,
   'requestid',
   'route',
   'routetemplate',
@@ -268,7 +274,10 @@ function sanitizeObject(
       output[key] = REDACTED;
     } else if (!('value' in nested)) {
       output[key] = ACCESSOR;
-    } else if (normalized === 'requestid' && typeof nested.value === 'string') {
+    } else if (
+      (normalized === 'requestid' || FILE_CHECKPOINT_KEYS.has(normalized)) &&
+      typeof nested.value === 'string'
+    ) {
       output[key] = sanitizeLogString(nested.value, true);
     } else if (isCountMapCandidate(normalized, nested.value, depth, seen)) {
       seen.add(nested.value);
