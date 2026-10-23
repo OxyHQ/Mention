@@ -194,6 +194,17 @@ an absent or unrecognized MIME never excludes a reference by itself. Row/file
 identity guards protect concurrent edits; a newer stored readiness stamp is never replaced by an older source response. Changed post
 detail caches are invalidated after the transaction commits.
 
+Oxy can explicitly reject a known malformed legacy HLS generation through
+`hlsRejectedReadyAt`. Reconciliation clears only that file's observed stored
+`hlsReadyAt` at or before the rejected generation, leaving every other column intact; playback then uses the original
+URL. Newer generations are retained. Missing readiness or an unknown source is never
+interpreted as rejection.
+Ingestion applies the same explicit generation rule, and all existing-row
+metadata writers compare the captured row, file and readiness stamp before
+writing, so an older concurrent lookup cannot restore a cleared generation or
+overwrite a repaired one. A later successful generation restores normal HLS
+selection through the next scheduled pass.
+
 Every committed batch logs a durable checkpoint. Resume a bounded or interrupted
 run with `--after-file-id` / workflow `after_file_id` set to `resumeAfterFileId`.
 A null cursor means start at the beginning. Do not use `scannedThroughFileId`

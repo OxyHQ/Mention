@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { ServiceAssetMetadata } from '@oxy.so/core';
 import type { MediaItem } from '@mention/shared-types';
 import {
   mergeMediaItem,
@@ -170,6 +171,59 @@ describe('MediaMetadataService.enrichFromOxy', () => {
 
     expect(enriched.hlsReadyAt).toBe('2026-10-10T18:00:00.000Z');
   });
+
+  it.each(['2026-09-01T00:00:00.000Z', '2026-10-01T00:00:00.000Z'])(
+    'consumes typed rejection for observed generation %s during ingestion',
+    async (storedAt) => {
+      const fileId = 'rejected-video';
+      const rejectedAt = '2026-10-01T00:00:00.000Z';
+      const newerAt = '2026-10-23T00:00:00.000Z';
+      const asset: ServiceAssetMetadata = {
+        id: fileId,
+        sha256: 'fixture',
+        mime: 'video/mp4',
+        size: 123,
+        status: 'active',
+        width: 1080,
+        height: 1920,
+        hlsRejectedReadyAt: rejectedAt,
+      };
+      const { getServiceOxyClient } = await import('../../utils/oxyHelpers');
+      const metadataByIds = vi.fn().mockResolvedValue([asset]);
+      vi.mocked(getServiceOxyClient).mockReturnValue({ assets: { metadataByIds } } as never);
+      const { mediaMetadataService } = await import('../../services/MediaMetadataService');
+      const items: MediaItem[] = [
+        { id: fileId, type: 'video', hlsReadyAt: storedAt, alt: 'Keep caption' },
+        {
+          id: fileId,
+          type: 'video',
+          hlsReadyAt: newerAt,
+          width: 720,
+          height: 1280,
+          orientation: 'portrait',
+          aspectRatio: 0.5625,
+        },
+        { id: fileId, type: 'video' },
+      ];
+      const result = await mediaMetadataService.enrichFromOxyWithRejections(items);
+      expect(result.rejectedHls.get(fileId)).toBe(rejectedAt);
+      expect(result.items[0]).toMatchObject({ width: 1080, height: 1920, alt: 'Keep caption' });
+      expect(result.items[0]).not.toHaveProperty('hlsReadyAt');
+      expect(result.items[1]).toEqual(items[1]);
+      expect(result.items[2]).not.toHaveProperty('hlsReadyAt');
+      expect(items[0].hlsReadyAt).toBe(storedAt);
+
+      const { hlsRejectedReadyAt: _rejection, ...unknown } = asset;
+      metadataByIds.mockResolvedValue([unknown]);
+      expect((await mediaMetadataService.enrichFromOxy(items))[0].hlsReadyAt).toBe(storedAt);
+      metadataByIds.mockResolvedValue([{ ...unknown, hlsReadyAt: newerAt }]);
+      expect((await mediaMetadataService.enrichFromOxy(result.items))[0].hlsReadyAt).toBe(newerAt);
+      metadataByIds.mockResolvedValue([
+        { ...unknown, hlsReadyAt: rejectedAt, width: 1920, height: 1080, orientation: 'landscape' },
+      ]);
+      expect((await mediaMetadataService.enrichFromOxy(items))[1]).toEqual(items[1]);
+    },
+  );
 
   /**
    * The regression that made this file worth reopening, exercised end to end
