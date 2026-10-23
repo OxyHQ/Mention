@@ -117,36 +117,28 @@ describe('useHlsPlayback ref', () => {
     const handle = handleFor(document.createElement('video'));
 
     expect(playback.active).toBe(false);
-    expect((playback.ref as RefCallback)(handle)).toBeUndefined();
+    act(() => {
+      expect((playback.ref as RefCallback)(handle)).toBeUndefined();
+    });
     expect(viewRef.current).toBe(handle);
     (playback.ref as RefCallback)(null);
     expect(viewRef.current).toBeNull();
   });
 
-  it('attaches to the element when the view mounts it, and releases it on cleanup', () => {
+  it('updates the view handle without treating its transient ref cleanup as decoder teardown', () => {
     withMediaSource(true);
     const { playback, viewRef } = hookFor(LADDER);
-    const handle = handleFor(document.createElement('video'));
-
-    expect(playback.active).toBe(true);
-    const cleanup = (playback.ref as RefCallback)(handle);
-    expect(viewRef.current).toBe(handle);
-    expect(typeof cleanup).toBe('function');
-
-    act(() => cleanup?.());
-    expect(viewRef.current).toBeNull();
-  });
-
-  it('leaves the ref to a newer view when an older one is cleaned up', () => {
-    withMediaSource(true);
-    const { playback, viewRef } = hookFor(LADDER);
-    const older = handleFor(document.createElement('video'));
-    const newer = handleFor(document.createElement('video'));
-
-    const cleanupOlder = (playback.ref as RefCallback)(older);
-    (playback.ref as RefCallback)(newer);
-    act(() => cleanupOlder?.());
-
+    const element = document.createElement('video');
+    const older = handleFor(element);
+    const newer = handleFor(element);
+    act(() => {
+      playback.ref(older);
+    });
+    expect(viewRef.current).toBe(older);
+    act(() => {
+      playback.ref(null);
+      playback.ref(newer);
+    });
     expect(viewRef.current).toBe(newer);
   });
 
@@ -155,7 +147,9 @@ describe('useHlsPlayback ref', () => {
     const { playback, viewRef } = hookFor(LADDER);
     const handle = handleFor(null);
 
-    expect((playback.ref as RefCallback)(handle)).toBeUndefined();
+    act(() => {
+      expect((playback.ref as RefCallback)(handle)).toBeUndefined();
+    });
     expect(viewRef.current).toBe(handle);
   });
 });

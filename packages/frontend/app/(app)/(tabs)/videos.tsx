@@ -37,7 +37,6 @@ import { RiVideoLine } from '@oxy.so/bloom/icons/RiVideoLine';
 import { useTranslation } from 'react-i18next';
 import { useAuth, FollowButton } from '@oxy.so/services/ui/client';
 import { useVideoPlayer, type VideoPlayer } from 'expo-video';
-import { VideoView } from '@oxy.so/bloom/video-view';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@/components/common/Ionicons';
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
@@ -83,12 +82,16 @@ import {
 import {
   MediaFlightHost,
   hasFlight,
+  releaseFlight,
   useMediaFlight,
   type MediaFlightHostProps,
 } from '@oxy.so/bloom/media-flight';
-import { needsJsHlsDecoder, useHlsPlayback } from '@/lib/hlsPlayback';
+import { needsJsHlsDecoder } from '@/lib/hlsPlayback';
+import { PlaybackVideoView } from '@/components/common/PlaybackVideoView';
 import {
   useVideoPlayerLease,
+  releaseTransitionHold,
+  pendingVideoTransition,
   videoPlayerKey,
   type VideoPlayerKey,
 } from '@/stores/videoPlayerRegistry';
@@ -427,19 +430,12 @@ const ReelSurface: React.FC<
      */
     restartOnActivate: boolean;
     onFirstFrameRender?: () => void;
-    /**
-     * The playlist hls.js must feed this slide's element, when its player was
-     * built without a source for that reason (a federated video on a browser
-     * with no HLS decoder of its own). Undefined everywhere else.
-     */
-    jsHlsSource?: string;
   }
 > = ({
   player,
   flightId,
   restartOnActivate,
   onFirstFrameRender,
-  jsHlsSource,
   postId,
   videoUrl,
   fallbackVideoUrl,
@@ -473,6 +469,9 @@ const ReelSurface: React.FC<
   // handed one from a shared registry instead of building its own.
   const {
     videoViewRef,
+    desiredSource,
+    targetFallbackUrl,
+    handleSourceError,
     isWatched,
     handlePictureInPictureStart,
     handlePictureInPictureStop,
@@ -514,17 +513,18 @@ const ReelSurface: React.FC<
     onRegisterTransportSeek,
   });
 
-  // Inert unless `jsHlsSource` is set, and always on native. Its `ref` goes on
-  // the slide's VideoView: hls.js attaches when that element exists.
-  const { ref: hlsRef } = useHlsPlayback(jsHlsSource ?? '', videoViewRef, true, fallbackVideoUrl);
-
   // `style` is SPREAD: a `<video>` is a replaced element and paints at 300x150
   // without a size. `player` passes through untouched including `null`, which
   // is how expo-video empties a source silently.
   const renderReelVideo = useCallback(
     ({ player: slotPlayer, style: slotStyle, contentFit: slotFit }: FlightVideoSlotProps) => (
-      <VideoView
-        ref={hlsRef}
+      <PlaybackVideoView
+        ref={videoViewRef}
+        registryKey={flightId}
+        source={desiredSource}
+        fallbackSource={targetFallbackUrl}
+        onSourceError={handleSourceError}
+        detached={slotPlayer === null}
         // `null` is forwarded verbatim — it is the instruction to unbind
         // this element, and expo-video answers it by emptying the source
         // without an event, which is what stops an outgoing surface
@@ -533,7 +533,7 @@ const ReelSurface: React.FC<
         // that is the object this component already holds, fully typed.
         // Narrowed rather than cast, because `VideoPlayerLike` is
         // deliberately smaller than expo-video's `VideoPlayer`.
-        player={slotPlayer === null ? null : player}
+        player={player}
         style={slotStyle}
         contentFit={slotFit}
         nativeControls={false}
@@ -563,7 +563,11 @@ const ReelSurface: React.FC<
     ),
     [
       player,
-      hlsRef,
+      flightId,
+      videoViewRef,
+      desiredSource,
+      targetFallbackUrl,
+      handleSourceError,
       isWatched,
       handlePictureInPictureStart,
       handlePictureInPictureStop,
@@ -667,12 +671,8 @@ const OwnPlayerSurface: React.FC<ActiveVideoSurfaceProps> = (props) => {
   // change every render — which would rebuild the decoder on each commit.
   // A playlist this browser cannot decode goes to hls.js instead, which needs
   // the element to itself: the player is built with no source at all.
-  const [jsHlsSource] = useState(() =>
-    needsJsHlsDecoder(props.videoUrl) ? props.videoUrl : undefined,
-  );
-  const source = useMemo(
-    () => (jsHlsSource ? null : videoSourceFor(props.videoUrl)),
-    [jsHlsSource, props.videoUrl],
+  const [source] = useState(() =>
+    needsJsHlsDecoder(props.videoUrl) ? null : videoSourceFor(props.videoUrl),
   );
   const player = useVideoPlayer(source, (p: VideoPlayer) => {
     p.loop = true;
@@ -682,7 +682,7 @@ const OwnPlayerSurface: React.FC<ActiveVideoSurfaceProps> = (props) => {
     // captured at mount. Subsequent changes flow through the sync effect.
     p.muted = props.muted;
   });
-  return <ReelSurface {...props} player={player} restartOnActivate jsHlsSource={jsHlsSource} />;
+  return <ReelSurface {...props} player={player} restartOnActivate />;
 };
 
 /**
@@ -727,6 +727,9 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps & { flightId?: VideoPlay
     // — the answer stops being true the moment the flight is released, and a
     // slide that swapped player identity mid-life would restart the video.
     const [adopted] = useState(() => flightId !== undefined && hasFlight(flightId));
+    useEffect(() => {
+      if (!adopted && flightId && !hasFlight(flightId)) releaseTransitionHold(flightId);
+    }, [adopted, flightId]);
     return adopted && flightId ? (
       <AdoptedPlayerSurface {...rest} flightId={flightId} />
     ) : (
@@ -859,6 +862,7 @@ const VideoItem = memo<VideoItemProps>(
       >
         {canRenderPlayer ? (
           <ActiveVideoSurface
+            key={item.mediaId ?? item.videoUrl}
             flightId={item.mediaId ? videoPlayerKey(item.id, item.mediaId) : undefined}
             postId={item.id}
             videoUrl={item.videoUrl}
@@ -1231,11 +1235,26 @@ export default function VideosScreen() {
   const [target, setTarget] = useState<{ postId: string; mediaIndex?: number } | null>(
     () => paramTarget,
   );
-  if (paramTarget && paramTarget.postId !== target?.postId) {
+  if (
+    paramTarget &&
+    (paramTarget.postId !== target?.postId || paramTarget.mediaIndex !== target?.mediaIndex)
+  ) {
     setTarget(paramTarget);
   }
   const targetPostId = target?.postId;
   const targetMediaIndex = target?.mediaIndex;
+
+  useEffect(() => {
+    if (!isFocused || !targetPostId) return;
+    const pending = pendingVideoTransition(targetPostId);
+    if (!pending) return;
+    const cancel = () => {
+      if (Platform.OS !== 'web' && hasFlight(pending.key)) return;
+      if (pending.release()) releaseFlight(pending.key);
+    };
+    if (hasLoadError) cancel();
+    return cancel;
+  }, [isFocused, targetPostId, targetMediaIndex, hasLoadError]);
 
   const flatListRef = useRef<FlatList<VideoPost>>(null);
 

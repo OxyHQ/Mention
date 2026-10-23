@@ -192,13 +192,41 @@ export function peekVideoPlayer(key: VideoPlayerKey): VideoPlayer | null {
  * bounding it to one means a hand-off that never completes strands one decoder
  * rather than accumulating them. Taking a new hold releases the previous.
  */
-let transitionHold: VideoPlayerLease | null = null;
+let transitionHold: (VideoPlayerLease & { retireFlight?: () => void }) | null = null;
 
-export function holdAcrossTransition(key: VideoPlayerKey, source: string): void {
-  if (transitionHold?.key === key) return;
+export function holdAcrossTransition(
+  key: VideoPlayerKey,
+  source: string,
+  retireFlight?: () => void,
+): () => boolean {
   const previous = transitionHold;
-  transitionHold = acquireVideoPlayer(key, source);
+  const lease = { ...acquireVideoPlayer(key, source), retireFlight };
+  transitionHold = lease;
+  // A new media target supersedes the prior flight as well as its bridge.
+  // Retapping the same target transfers ownership of the existing flight.
+  if (previous && previous.key !== key) previous.retireFlight?.();
   previous?.release();
+  return () => {
+    if (transitionHold !== lease) return false;
+    transitionHold = null;
+    lease.release();
+    return true;
+  };
+}
+
+/** Capture only this navigation's bridge; stale cleanup cannot cancel a newer tap. */
+export function pendingVideoTransition(postId: string) {
+  const lease = transitionHold;
+  if (!lease?.key.startsWith(`${postId}:`)) return null;
+  return {
+    key: lease.key,
+    release: () => {
+      if (transitionHold !== lease) return false;
+      transitionHold = null;
+      lease.release();
+      return true;
+    },
+  };
 }
 
 /**
