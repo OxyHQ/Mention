@@ -20,4 +20,15 @@ describe('costly authenticated route rate-limit registration', () => {
     expect(searchSource.indexOf('router.use(searchRateLimiter)')).toBeGreaterThan(-1);
     expect(searchSource.indexOf('router.use(searchRateLimiter)')).toBeLessThan(firstSearchHandler);
   });
+
+  it('bounds public profile resolutions before attacker-controlled cache keys are read', () => {
+    const webShellSource = source('routes/webShell.routes.ts');
+
+    expect(webShellSource).toContain(
+      "namedRoutePattern(/^\\/@([^/]+)(?:\\/.*)?$/, '/@:handle'),\n  webShellRateLimiter,",
+    );
+    expect(webShellSource).toContain(
+      "namedRoutePattern(/^\\/c\\/([^/]+)\\/?$/, '/c/:handle'),\n  webShellRateLimiter,",
+    );
+  });
 });
