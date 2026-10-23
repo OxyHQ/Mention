@@ -7,8 +7,8 @@
   },
   "kinds": {
     "text": {
-      "mountMsPerRow": 10.25,
-      "recycleMsPerRow": 3.375,
+      "mountMsPerRow": 13.625,
+      "recycleMsPerRow": 4.625,
       "hostNodesPerRow": 52.125,
       "componentsPerRow": 197,
       "hooksPerRow": 273,
@@ -18,8 +18,8 @@
       "queryObserversPerRow": 0
     },
     "textAvatar": {
-      "mountMsPerRow": 6.5,
-      "recycleMsPerRow": 1.875,
+      "mountMsPerRow": 11.375,
+      "recycleMsPerRow": 3.375,
       "hostNodesPerRow": 48.125,
       "componentsPerRow": 187,
       "hooksPerRow": 273,
@@ -29,8 +29,8 @@
       "queryObserversPerRow": 0
     },
     "image": {
-      "mountMsPerRow": 6.875,
-      "recycleMsPerRow": 2.125,
+      "mountMsPerRow": 8.5,
+      "recycleMsPerRow": 3.5,
       "hostNodesPerRow": 55.125,
       "componentsPerRow": 210,
       "hooksPerRow": 325,
@@ -40,8 +40,8 @@
       "queryObserversPerRow": 0
     },
     "multiImage": {
-      "mountMsPerRow": 7.25,
-      "recycleMsPerRow": 3.75,
+      "mountMsPerRow": 10.125,
+      "recycleMsPerRow": 5.625,
       "hostNodesPerRow": 71.125,
       "componentsPerRow": 261,
       "hooksPerRow": 367,
@@ -51,8 +51,8 @@
       "queryObserversPerRow": 0
     },
     "video": {
-      "mountMsPerRow": 7.375,
-      "recycleMsPerRow": 3.625,
+      "mountMsPerRow": 9,
+      "recycleMsPerRow": 3.5,
       "hostNodesPerRow": 60.125,
       "componentsPerRow": 230,
       "hooksPerRow": 384,
@@ -62,19 +62,19 @@
       "queryObserversPerRow": 0
     },
     "linkPreview": {
-      "mountMsPerRow": 7.125,
-      "recycleMsPerRow": 2.125,
+      "mountMsPerRow": 10,
+      "recycleMsPerRow": 4.375,
       "hostNodesPerRow": 57.125,
-      "componentsPerRow": 216,
-      "hooksPerRow": 331,
-      "contextReadsPerRow": 56,
+      "componentsPerRow": 223,
+      "hooksPerRow": 351,
+      "contextReadsPerRow": 77,
       "rendersPerMount": 2,
       "requestsPerRow": 0,
       "queryObserversPerRow": 0
     },
     "quote": {
-      "mountMsPerRow": 8.125,
-      "recycleMsPerRow": 3.75,
+      "mountMsPerRow": 9.25,
+      "recycleMsPerRow": 4.625,
       "hostNodesPerRow": 72.125,
       "componentsPerRow": 270,
       "hooksPerRow": 447,
@@ -84,8 +84,8 @@
       "queryObserversPerRow": 0
     },
     "repost": {
-      "mountMsPerRow": 7.75,
-      "recycleMsPerRow": 2.625,
+      "mountMsPerRow": 10.5,
+      "recycleMsPerRow": 3,
       "hostNodesPerRow": 54.125,
       "componentsPerRow": 206,
       "hooksPerRow": 276,
@@ -95,8 +95,8 @@
       "queryObserversPerRow": 0
     },
     "poll": {
-      "mountMsPerRow": 6.875,
-      "recycleMsPerRow": 1.875,
+      "mountMsPerRow": 8.25,
+      "recycleMsPerRow": 2.625,
       "hostNodesPerRow": 59.125,
       "componentsPerRow": 212,
       "hooksPerRow": 306,
@@ -106,8 +106,8 @@
       "queryObserversPerRow": 0
     },
     "communityNote": {
-      "mountMsPerRow": 6,
-      "recycleMsPerRow": 1.875,
+      "mountMsPerRow": 7.25,
+      "recycleMsPerRow": 2.25,
       "hostNodesPerRow": 60.125,
       "componentsPerRow": 220,
       "hooksPerRow": 317,
@@ -127,7 +127,7 @@
   "fling": {
     "postsVisited": 200,
     "window": 12,
-    "msTotal": 793,
+    "msTotal": 1256,
     "requests": 0,
     "translationRequests": 0,
     "maxQueryObservers": 0
