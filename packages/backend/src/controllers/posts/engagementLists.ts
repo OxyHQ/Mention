@@ -1,3 +1,8 @@
+import { publicPositiveLikeSql } from '../../services/socialFeedEvidence';
+import { loadPostRecord } from '../../db/posts/postRepository';
+import { postHydrationService } from '../../services/PostHydrationService';
+import { UserPrivacyManager } from '../../mtn/UserPrivacyManager';
+import { safetyRequesterFor } from '../../utils/safetyRequester';
 /**
  * The engagement READ lists — who liked a post, which of the people you follow
  * liked it, and who boosted it.
@@ -7,7 +12,7 @@
  */
 
 import type { Response } from 'express';
-import { and, desc, eq, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, inArray, lt, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { likes as likesTable } from '../../db/schema/engagement';
 import { posts as postsTable } from '../../db/schema/posts';
@@ -45,6 +50,28 @@ const clampLikesLimit = (limit: number | undefined): number =>
 const mapActorSummary = (userId: string, user: PostUser | undefined): PostUser =>
   user ?? degradedActorSummary(userId);
 
+/** Authorize the subject before disclosing activity; reuse privacy for actor exclusions. */
+async function engagementAudience(req: AuthRequest, postId: string): Promise<Set<string> | null> {
+  const oxyClient = createScopedOxyClient(req);
+  const [post, privacy] = await Promise.all([
+    loadPostRecord(postId),
+    req.user?.id
+      ? UserPrivacyManager.loadPrivacyState(req.user.id, { oxyClient, includeRestricted: true })
+      : undefined,
+  ]);
+  if (!post || (post.oxyUserId && privacy?.excludedUserIds.has(post.oxyUserId))) return null;
+  const [visible] = await postHydrationService.hydratePosts([post], {
+    viewerId: req.user?.id,
+    oxyClient,
+    safetyRequester: safetyRequesterFor(req),
+    maxDepth: 0,
+    viewerPrivacy: privacy
+      ? { blockedIds: [...privacy.blockedUserIds], restrictedIds: [...privacy.restrictedUserIds] }
+      : undefined,
+  });
+  return visible ? (privacy?.excludedUserIds ?? new Set()) : null;
+}
+
 // Get users who liked a post
 export const getPostLikes = async (req: AuthRequest, res: Response) => {
   try {
@@ -61,7 +88,18 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
     // id-only bound behind an id-only sort is neither chronological nor stable
     // across the boundary, and would skip and repeat rows at every page edge.
     // Same keyset `getPostBoosts` below already uses.
-    const conditions: SQL[] = [eq(likesTable.postId, String(id))];
+    const excluded = await engagementAudience(req, String(id));
+    if (!excluded) return res.status(404).json({ message: 'Post not found' });
+    const conditions: SQL[] = [
+      eq(likesTable.postId, String(id)),
+      and(
+        eq(likesTable.value, 1),
+        req.user?.id
+          ? or(publicPositiveLikeSql(), eq(likesTable.userId, req.user.id))
+          : publicPositiveLikeSql(),
+      ) as SQL,
+    ];
+    if (excluded.size) conditions.push(notInArray(likesTable.userId, [...excluded]));
     const parsedCursor = ChronoCursor.parse(cursor);
     if (parsedCursor?.ts !== undefined) {
       const boundaryAt = new Date(parsedCursor.ts);
@@ -169,10 +207,11 @@ export const getKnownPostLikers = async (req: AuthRequest, res: Response) => {
       return res.json({ likers: [], total: 0 });
     }
 
-    const followingIds = extractFollowingIds(await oxyClient.follows.viewerGraph()).slice(
-      0,
-      MAX_KNOWN_LIKER_CANDIDATES,
-    );
+    const excluded = await engagementAudience(req, id);
+    if (!excluded) return res.status(404).json({ message: 'Post not found' });
+    const followingIds = extractFollowingIds(await oxyClient.follows.viewerGraph())
+      .filter((actorId) => !excluded.has(actorId))
+      .slice(0, MAX_KNOWN_LIKER_CANDIDATES);
     if (followingIds.length === 0) {
       return res.json({ likers: [], total: 0 });
     }
@@ -180,7 +219,7 @@ export const getKnownPostLikers = async (req: AuthRequest, res: Response) => {
     const filter = and(
       inArray(likesTable.userId, followingIds),
       eq(likesTable.postId, id),
-      eq(likesTable.value, 1),
+      publicPositiveLikeSql(),
     );
 
     // Unsorted on purpose: the unique `(user_id, post_id)` index answers this
@@ -226,11 +265,15 @@ export const getPostBoosts = async (req: AuthRequest, res: Response) => {
     // ObjectId encoded its creation time; with `posts.id` holding an ObjectId hex
     // for pre-cutover rows and a uuid v7 after, `id` order is neither
     // chronological nor stable across the boundary.
+    const excluded = await engagementAudience(req, String(id));
+    if (!excluded) return res.status(404).json({ message: 'Post not found' });
     const keyset = await chronoCursorSql(cursor);
     const conditions: SQL[] = [
       eq(postsTable.boostOf, String(id)),
       eq(postsTable.visibility, 'public'),
+      eq(postsTable.status, 'published'),
     ];
+    if (excluded.size) conditions.push(notInArray(postsTable.oxyUserId, [...excluded]));
     if (keyset) conditions.push(keyset);
 
     const boosts = await getDb()

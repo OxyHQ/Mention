@@ -62,6 +62,21 @@ beforeEach(() => {
 });
 
 describe('ranked feed session storage', () => {
+  it.each([
+    ['for_you', 'cc4c36a6d363ae506d9e522282935c5f47a7bc3a2442ad414a2ec26ee26b63ac'],
+    ['friends_popular', '5c10b2231deca06dd2fc5521dfc8d4921fb67bcfd5cd0d9285eacfcf57da5a80'],
+  ])('rejects pre-consent-revalidation %s sessions', async (id, binding) => {
+    // Produced by the actual binding function at deployed 5b9b48f43, with the
+    // definition fixture below and viewer, before social-only origin existed.
+    const cursor = await store.save({ ...state(), binding });
+    await expect(
+      store.load(
+        cursor,
+        rankedSessionBinding({ ...definition, id }, { currentUserId: 'viewer' }, 20),
+      ),
+    ).rejects.toMatchObject({ statusCode: 410, code: 'FEED_CURSOR_EXPIRED' });
+  });
+
   it('treats graph arrays as sets when binding a continuation', () => {
     expect(
       rankedSessionBinding(

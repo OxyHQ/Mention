@@ -1,4 +1,5 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { publicPositiveLikeSql, MAX_SOCIAL_ACTORS, MAX_SOCIAL_POSTS } from './socialFeedEvidence';
+import { and, eq, inArray, gte, lte } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { likes } from '../db/schema/engagement';
 import { posts } from '../db/schema/posts';
@@ -16,14 +17,15 @@ import { logger } from '../utils/logger';
  */
 
 /** Cap on how many candidate posts we aggregate engagement for in one request. */
-const MAX_POSTS = 200;
+const MAX_POSTS = MAX_SOCIAL_POSTS;
 
 /** Cap on the `$in` width of the engager-id set (following ∪ mutuals). */
-const MAX_ENGAGERS = 500;
+const MAX_ENGAGERS = MAX_SOCIAL_ACTORS;
 
 export async function getNetworkEngagerCounts(
   postIds: string[],
   engagerIds: string[],
+  window?: { since: Date; asOf: Date },
 ): Promise<Map<string, number>> {
   const counts = new Map<string, number>();
   if (postIds.length === 0 || engagerIds.length === 0) {
@@ -55,7 +57,15 @@ export async function getNetworkEngagerCounts(
     const likeRows = await getDb()
       .select({ postId: likes.postId, userId: likes.userId })
       .from(likes)
-      .where(and(inArray(likes.postId, boundedPostIds), inArray(likes.userId, boundedEngagers)));
+      .where(
+        and(
+          inArray(likes.postId, boundedPostIds),
+          inArray(likes.userId, boundedEngagers),
+          publicPositiveLikeSql(),
+          window ? gte(likes.createdAt, window.since) : undefined,
+          window ? lte(likes.createdAt, window.asOf) : undefined,
+        ),
+      );
     for (const like of likeRows) {
       add(like.postId, like.userId);
     }
@@ -67,6 +77,10 @@ export async function getNetworkEngagerCounts(
       .where(
         and(
           eq(posts.type, 'boost'),
+          eq(posts.status, 'published'),
+          eq(posts.visibility, 'public'),
+          window ? gte(posts.createdAt, window.since) : undefined,
+          window ? lte(posts.createdAt, window.asOf) : undefined,
           inArray(posts.boostOf, boundedPostIds),
           inArray(posts.oxyUserId, boundedEngagers),
         ),

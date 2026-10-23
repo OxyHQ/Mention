@@ -30,6 +30,14 @@ const gateContentLoad = vi.hoisted(() =>
       ),
   ),
 );
+const revokedSocial = vi.hoisted(() => new Set<string>());
+vi.mock('../services/socialFeedEvidence', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/socialFeedEvidence')>()),
+  attachSocialFeedContext: vi.fn(async () => undefined),
+  eligibleSocialPostIds: vi.fn(
+    async (ids: string[]) => new Set(ids.filter((id) => !revokedSocial.has(id))),
+  ),
+}));
 vi.mock('../mtn/feed/RankedFeedSession', async (importOriginal) => {
   const original = await importOriginal<typeof import('../mtn/feed/RankedFeedSession')>();
   return {
@@ -164,6 +172,7 @@ let engine: FeedEngine;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  revokedSocial.clear();
   sessionMemory.enabled = false;
   sessionMemory.states.clear();
   sessionMemory.posts.clear();
@@ -1172,6 +1181,32 @@ describe('FeedEngine — persistent ranked windows', () => {
       execution: { sessionPagination: true, maxDiscoveryShare: cap },
     };
   }
+
+  it('removes revoked social-only pending posts on continuation and replay, retaining independent supply', async () => {
+    sessionMemory.enabled = true;
+    const posts = [scored(1, 30), scored(2, 20), scored(3, 10)];
+    registerPool('friendsEngaged', posts);
+    registerPool('independent', [posts[2]]);
+    const def = definition(['friendsEngaged', 'independent']);
+    const first = await engine.run(def, { currentUserId: 'viewer' }, { limit: 1 });
+    expect(first.items.map((post) => post.id)).toEqual([posts[0].id]);
+    const snapshot = sessionMemory.states.get(first.nextCursor!) as {
+      pending: Array<{ id: string; socialOnly?: boolean }>;
+    };
+    expect(snapshot.pending.find((post) => post.id === posts[1].id)?.socialOnly).toBe(true);
+    expect(snapshot.pending.find((post) => post.id === posts[2].id)?.socialOnly).toBe(false);
+    revokedSocial.add(posts[1].id);
+    revokedSocial.add(posts[2].id);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const next = await engine.run(
+        def,
+        { currentUserId: 'viewer' },
+        { limit: 1, cursor: first.nextCursor },
+      );
+      expect(next.items.map((post) => post.id)).toEqual([posts[2].id]);
+      expect(next.hasMore).toBe(false);
+    }
+  });
 
   it('continues past sixty candidates without losing diversity deferrals or repeating served ids', async () => {
     sessionMemory.enabled = true;

@@ -1,3 +1,8 @@
+import {
+  attachSocialFeedContext,
+  eligibleSocialActors,
+  eligibleSocialPostIds,
+} from '../../../services/socialFeedEvidence';
 import { EXPLORE_RANKING_VERSION } from '../CursorBuilder';
 import { eligibleActivitySubscriptionAuthors } from '../../../services/activitySubscriptionInterest';
 import { activitySubscriptionMatches } from '../activitySubscriptionMatches';
@@ -671,6 +676,7 @@ export class FeedEngine {
           if (needsAuthorPass) gated.push({ post, source: sourceModule });
         }
 
+        post._socialOnly = sourceModule === 'friendsEngaged';
         merged.set(id, post);
       }
       if (maxPool !== undefined && merged.size >= maxPool) break;
@@ -711,6 +717,16 @@ export class FeedEngine {
           recordDiscoveryGated(rejectedBy, source, measureOnly);
           if (!measureOnly) merged.delete(post.id);
         }
+      }
+    }
+
+    // Independent eligible sources make the recommendation independent from
+    // social consent. Merge this fact even when the social lane supplied first.
+    for (let index = 0; index < sourceResults.length; index++) {
+      if (enabledSources[index].module === 'friendsEngaged') continue;
+      for (const candidate of sourceResults[index]) {
+        const retained = merged.get(candidate.id);
+        if (retained) retained._socialOnly = false;
       }
     }
 
@@ -778,7 +794,18 @@ export class FeedEngine {
         ...post,
         finalScore: metadata.get(post.id)?.score ?? 0,
         _discovery: metadata.get(post.id)?.discovery === true,
+        _socialOnly: metadata.get(post.id)?.socialOnly === true,
       }));
+    const socialOnlyIds = candidates.filter((post) => post._socialOnly).map((post) => post.id);
+    if (socialOnlyIds.length) {
+      const eligible = await eligibleSocialPostIds(socialOnlyIds, ctx);
+      const revoked = new Set(socialOnlyIds.filter((id) => !eligible.has(id)));
+      candidates = candidates.filter((post) => !revoked.has(post.id));
+      // A different lane may independently supply a revoked social candidate
+      // later. Release its dedup ID while retaining a conservative scan budget.
+      state.scannedIds = state.scannedIds.filter((id) => !revoked.has(id));
+      state.retiredSocialCount = (state.retiredSocialCount ?? 0) + revoked.size;
+    }
     // Reload records and reapply current quality/safety rules on every page.
     // Hydration below additionally rechecks ACLs, including blocked accounts.
     const poolKeeps = this.resolveKeepPredicates(definition.filters, ctx);
@@ -826,7 +853,8 @@ export class FeedEngine {
         state.sourceCursors = {};
         state.exhaustedSources = [];
       }
-      if (state.scannedIds.length >= RANKED_SESSION_MAX_SCANNED) throw expiredFeedCursor();
+      if (state.scannedIds.length + (state.retiredSocialCount ?? 0) >= RANKED_SESSION_MAX_SCANNED)
+        throw expiredFeedCursor();
       ctx.seenPostIds = [
         ...new Set([...state.initialSeenIds, ...state.scannedIds, ...state.deliveredIds]),
       ];
@@ -844,6 +872,7 @@ export class FeedEngine {
           : await feedRankingService.rankPosts(batch.pool, ctx.currentUserId, {
               activitySubscribedAuthorIds: ctx.activitySubscribedAuthorIds,
               followingIds: ctx.followingIds,
+              socialEngagerIds: eligibleSocialActors(ctx),
               userBehavior: ctx.userBehavior,
               feedSettings: ctx.feedSettings,
               enabledSignals: this.resolveEnabledSignalKeys(definition),
@@ -896,6 +925,7 @@ export class FeedEngine {
         id: post.id,
         score: post.finalScore ?? 0,
         discovery: post._discovery === true,
+        socialOnly: post._socialOnly === true,
       }));
     const hasMore =
       state.pending.length > 0 ||
@@ -912,6 +942,8 @@ export class FeedEngine {
       viewerPrivacy: this.viewerPrivacyOption(ctx),
       viewerLanguages: ctx.viewerLanguages,
     });
+    if (definition.id === 'for_you' || definition.id === 'friends_popular')
+      await attachSocialFeedContext(hydrated, ctx);
     if (exec.seenPosts && ctx.currentUserId) this.markSlicesSeen(ctx.currentUserId, hydrated);
     return {
       slices: hydrated,
@@ -1077,6 +1109,7 @@ export class FeedEngine {
       const rankedPosts = await feedRankingService.rankPosts(pool, ctx.currentUserId, {
         activitySubscribedAuthorIds: ctx.activitySubscribedAuthorIds,
         followingIds: ctx.followingIds,
+        socialEngagerIds: eligibleSocialActors(ctx),
         userBehavior: ctx.userBehavior,
         feedSettings: ctx.feedSettings,
         enabledSignals: this.resolveEnabledSignalKeys(definition),
@@ -1231,6 +1264,8 @@ export class FeedEngine {
       viewerLanguages: ctx.viewerLanguages,
     });
 
+    if (definition.id === 'for_you' || definition.id === 'friends_popular')
+      await attachSocialFeedContext(hydratedSlices, ctx);
     if (exec.seenPosts && ctx.currentUserId) {
       this.markSlicesSeen(ctx.currentUserId, hydratedSlices);
     }

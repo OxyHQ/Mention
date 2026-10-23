@@ -636,7 +636,13 @@ describe('reply policy — every registered source has a declared intent', () =>
   it('marks every source the roots-only presets depend on as roots-only', () => {
     for (const definition of [forYouDefinition, exploreDefinition, trendingDefinition]) {
       for (const ref of definition.sources.filter((source) => source.enabled)) {
-        expect(DECLARED_POLICY[ref.module], `${definition.id} → ${ref.module}`).toBe('roots-only');
+        // The social source keeps conversation on its dedicated surface, but
+        // its ForYou branch is explicitly roots-only (real DB regression in socialFeedEvidence).
+        const policy =
+          ref.module === 'friendsEngaged' && ref.params?.discovery === true
+            ? 'roots-only'
+            : DECLARED_POLICY[ref.module];
+        expect(policy, `${definition.id} → ${ref.module}`).toBe('roots-only');
       }
     }
   });
