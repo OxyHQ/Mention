@@ -8,9 +8,12 @@ name: Run a Telegram channel import
 # authority on what it does. Manual only.
 #
 # THE CONTENT NEVER GOES THROUGH GITHUB. The manifest and its media are staged
-# under the private prefix `staging/telegram-import/` of Mention's media bucket
-# and read through presigned URLs; the only thing this workflow carries is the
-# manifest's presigned URL, which is masked in the log.
+# under `telegram-import/<run>/` of the private Cloudflare R2 bucket
+# `mention-import-staging` and read through presigned, virtual-hosted URLs
+# (https://mention-import-staging.<account>.r2.cloudflarestorage.com/telegram-import/…);
+# the only thing this workflow carries is the manifest's presigned URL, which is
+# masked in the log. Every media URL is presigned INSIDE the manifest, so each
+# must outlive the whole run (R2 allows at most 7 days).
 #
 # WHY IT IS SHAPED LIKE THIS (the same two constraints as every other one-shot
 # in this directory, and the reason they are all copies of each other):
@@ -43,7 +46,7 @@ on:
         required: false
         type: string
       manifest_url:
-        description: 'Presigned URL of the staged manifest (staging/telegram-import/<run>/manifest.json)'
+        description: 'Presigned R2 URL of the staged manifest (mention-import-staging bucket, telegram-import/<run>/manifest.json)'
         required: true
         type: string
       target_oxy_user_id:

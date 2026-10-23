@@ -274,14 +274,48 @@ operator-run one-shot `packages/backend/src/scripts/importTelegramChannelExport.
 1. Convert the export into a manifest: one item per post, an album folded into
    one post, dates from `date_unixtime` (the export's `date` is the exporting
    machine's local time).
-2. Stage the manifest and its media under the private prefix
-   `s3://oxy-mention-media-usw2-237343248947/staging/telegram-import/<run>/` and
-   presign them. Mention's task role calls no AWS API, so the task reads them
-   through the presigned URLs, and refuses any URL outside that prefix. The
-   content never goes to GitHub.
+2. Stage the manifest and its media under `telegram-import/<run>/` of the
+   private Cloudflare R2 bucket `mention-import-staging` (Oxy's account
+   `fa4392797e57d4e63ceaaf7b1dc687ed`, location WNAM). The bucket deletes every
+   object 30 days after upload and aborts incomplete multipart uploads after 10
+   days. Mention's task role calls no storage API and holds no storage
+   credential, so the task reads only through presigned URLs, and refuses every
+   URL that is not exactly
+   `https://mention-import-staging.fa4392797e57d4e63ceaaf7b1dc687ed.r2.cloudflarestorage.com/telegram-import/…`:
+   virtual-hosted, because a path-style URL's host names every bucket in the
+   account. The content never goes to GitHub.
+
+   The operator uploads and presigns with the AWS CLI against R2, using a
+   short-lived R2 token scoped to that one bucket (Object Read & Write). The
+   token's id is the S3 access key id and the SHA-256 of its value is the secret
+   (oxy-infra runbook 61, "Object storage on Cloudflare R2"). Delete the token when
+   the import is done.
+
+   ```ini
+   # ~/.aws/config
+   [profile mention-import-staging]
+   region = auto
+   endpoint_url = https://fa4392797e57d4e63ceaaf7b1dc687ed.r2.cloudflarestorage.com
+   s3 =
+     addressing_style = virtual
+   ```
+
+   ```bash
+   export AWS_PROFILE=mention-import-staging
+   aws s3 cp ./media s3://mention-import-staging/telegram-import/<run>/media/ --recursive
+   # Presign every media file and write each URL into the manifest, then:
+   aws s3 cp manifest.json s3://mention-import-staging/telegram-import/<run>/manifest.json
+   aws s3 presign s3://mention-import-staging/telegram-import/<run>/manifest.json --expires-in <seconds>
+   ```
+
+   R2 allows at most 7 days (`604800`). A media URL is presigned INSIDE the
+   manifest, so its expiry must outlive the whole import, dry run and live run
+   included; check the printed URL's host is the virtual-hosted one above.
 3. Run the workflow dry, then live. Each media file becomes an asset owned by
    the target account, and every post goes through the same `ingestBatch` as the
    ingest API, so dedupe, undo (`DELETE /imports/v1/batches/<batch>`) and the
    recorded provenance work unchanged.
-4. Delete the staging prefix.
+4. Delete the staging prefix
+   (`aws s3 rm s3://mention-import-staging/telegram-import/<run>/ --recursive`)
+   and the token. The lifecycle rule deletes anything left behind after 30 days.
 

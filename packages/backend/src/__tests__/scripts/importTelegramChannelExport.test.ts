@@ -30,7 +30,7 @@ import {
 const scope = serviceScope('import-telegram-channel-export');
 
 const staged = (path: string) =>
-  `https://${STAGING_HOST}/staging/telegram-import/run/${path}?X-Amz-Signature=x`;
+  `https://${STAGING_HOST}/telegram-import/run/${path}?X-Amz-Signature=x`;
 
 function manifest(items: unknown[]) {
   return parseManifest({ channel: { name: 'Notas de Nate', telegramId: 1 }, items });
@@ -78,9 +78,39 @@ afterAll(async () => {
 describe('the manifest', () => {
   it('accepts only presigned URLs under the staging prefix', () => {
     expect(isStagedUrl(staged('photos/a.jpg'))).toBe(true);
-    expect(isStagedUrl('https://example.com/staging/telegram-import/a.jpg')).toBe(false);
+    expect(
+      isStagedUrl(
+        'https://mention-import-staging.fa4392797e57d4e63ceaaf7b1dc687ed.r2.cloudflarestorage.com/telegram-import/run/manifest.json?X-Amz-Signature=x',
+      ),
+    ).toBe(true);
+    expect(isStagedUrl('https://example.com/telegram-import/a.jpg')).toBe(false);
     expect(isStagedUrl(`https://${STAGING_HOST}/link-previews/a.jpg`)).toBe(false);
-    expect(isStagedUrl(`http://${STAGING_HOST}/staging/telegram-import/a.jpg`)).toBe(false);
+    expect(isStagedUrl(`https://${STAGING_HOST}/staging/telegram-import/a.jpg`)).toBe(false);
+    expect(isStagedUrl(`http://${STAGING_HOST}/telegram-import/a.jpg`)).toBe(false);
+    // The retired S3 staging location, a dead bucket.
+    expect(
+      isStagedUrl(
+        'https://oxy-mention-media-usw2-237343248947.s3.us-west-2.amazonaws.com/staging/telegram-import/run/a.jpg',
+      ),
+    ).toBe(false);
+    // Path-style: the account endpoint names every bucket, so only the
+    // virtual-hosted form, whose host pins this one, is accepted.
+    expect(
+      isStagedUrl(
+        'https://fa4392797e57d4e63ceaaf7b1dc687ed.r2.cloudflarestorage.com/mention-import-staging/telegram-import/run/a.jpg',
+      ),
+    ).toBe(false);
+    // Another bucket in the same account, and a jurisdiction endpoint.
+    expect(
+      isStagedUrl(
+        'https://oxy-files.fa4392797e57d4e63ceaaf7b1dc687ed.r2.cloudflarestorage.com/telegram-import/a.jpg',
+      ),
+    ).toBe(false);
+    expect(
+      isStagedUrl(
+        'https://mention-import-staging.fa4392797e57d4e63ceaaf7b1dc687ed.eu.r2.cloudflarestorage.com/telegram-import/a.jpg',
+      ),
+    ).toBe(false);
     expect(() =>
       manifest([
         item('1', {
