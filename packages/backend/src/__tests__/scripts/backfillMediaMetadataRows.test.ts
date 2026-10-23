@@ -22,6 +22,7 @@
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq, inArray } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
 const metadataByIds = vi.fn();
@@ -31,7 +32,12 @@ vi.mock('../../utils/oxyHelpers', () => ({
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
-import { postContentVariants, postMedia } from '../../db/schema/postContent';
+import {
+  postAuthorships,
+  postContentVariants,
+  postMedia,
+  postVariantMedia,
+} from '../../db/schema/postContent';
 import { insertPostRecord } from '../../db/posts/postRepository';
 import { backfillMediaMetadata } from '../../scripts/backfillMediaMetadata';
 import { logger } from '../../utils/logger';
@@ -372,5 +378,228 @@ describe('backfillMediaMetadata', () => {
         orientation: null,
       },
     ]);
+  });
+});
+
+describe('backfillMediaMetadata — targeted video refresh', () => {
+  const staleVideo = {
+    id: UUID_FILE_ID,
+    type: 'video' as const,
+    width: 1920,
+    height: 1080,
+    orientation: 'landscape' as const,
+    aspectRatio: 1920 / 1080,
+    durationSec: 12,
+    sizeBytes: 4242,
+    hlsReadyAt: '2026-10-01T00:00:00.000Z',
+    alt: 'Keep this caption',
+  };
+  const readyAt = '2026-10-23T08:00:00.000Z';
+  const metadata = {
+    id: UUID_FILE_ID,
+    width: 720,
+    height: 1280,
+    durationSec: 12,
+    orientation: 'portrait',
+    aspectRatio: 0.5625,
+    size: 4242,
+    hlsReadyAt: readyAt,
+  };
+
+  beforeEach(() => {
+    metadataByIds.mockResolvedValue([metadata]);
+  });
+
+  it('refreshes complete metadata only for the target file and remains idempotent', async () => {
+    const postId = await seedWithMedia([staleVideo, { ...staleVideo, id: HEX_FILE_ID }]);
+    const unrelatedId = await seedWithMedia([{ ...staleVideo, id: `${HEX_FILE_ID}-other` }]);
+    const before = await db
+      .select()
+      .from(postMedia)
+      .where(eq(postMedia.postId, postId))
+      .orderBy(postMedia.position);
+    const unrelated = await mediaOf(unrelatedId);
+    const variantsBefore = await db
+      .select()
+      .from(postContentVariants)
+      .where(eq(postContentVariants.postId, postId));
+    const authorsBefore = await db
+      .select()
+      .from(postAuthorships)
+      .where(eq(postAuthorships.postId, postId));
+
+    const result = await backfillMediaMetadata({ fileId: UUID_FILE_ID });
+
+    expect(result).toEqual({ scanned: 1, updated: 1, skipped: 0, unresolved: 0 });
+    expect(metadataByIds).toHaveBeenCalledWith([UUID_FILE_ID]);
+    const after = await db
+      .select()
+      .from(postMedia)
+      .where(eq(postMedia.postId, postId))
+      .orderBy(postMedia.position);
+    expect(after[0]).toEqual({
+      ...before[0],
+      width: 720,
+      height: 1280,
+      orientation: 'portrait',
+      aspectRatio: 0.5625,
+      hlsReadyAt: new Date(readyAt),
+    });
+    expect(after[1]).toEqual(before[1]);
+    expect(await mediaOf(unrelatedId)).toEqual(unrelated);
+    expect(
+      await db.select().from(postContentVariants).where(eq(postContentVariants.postId, postId)),
+    ).toEqual(variantsBefore);
+    expect(
+      await db.select().from(postAuthorships).where(eq(postAuthorships.postId, postId)),
+    ).toEqual(authorsBefore);
+    expect(await backfillMediaMetadata({ fileId: UUID_FILE_ID })).toEqual({
+      scanned: 1,
+      updated: 0,
+      skipped: 1,
+      unresolved: 0,
+    });
+  });
+
+  it('refreshes language overrides, including posts with no shared target, in bounded pages', async () => {
+    const sharedPostId = await seedWithMedia([staleVideo]);
+    const sharedVariants = await db
+      .select()
+      .from(postContentVariants)
+      .where(eq(postContentVariants.postId, sharedPostId));
+    await db.insert(postVariantMedia).values({
+      variantId: sharedVariants[0].id,
+      position: 0,
+      mediaId: UUID_FILE_ID,
+      type: 'video',
+      width: 1920,
+      height: 1080,
+      alt: 'English override',
+    });
+    const variantOnly = await insertPostRecord({
+      oxyUserId: AUTHOR,
+      authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
+      type: PostType.TEXT,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      content: {
+        variants: [
+          { source: 'author', tag: 'es', text: 'Texto original', media: [staleVideo] },
+          {
+            source: 'author',
+            tag: 'fr',
+            text: 'Texte original',
+            media: [{ ...staleVideo, id: HEX_FILE_ID }],
+          },
+        ],
+      },
+    });
+    created.push(variantOnly.id);
+    const before = await db.select().from(postVariantMedia).orderBy(postVariantMedia.id);
+
+    const result = await backfillMediaMetadata({ fileId: UUID_FILE_ID, batchSize: 1 });
+
+    expect(result).toEqual({ scanned: 2, updated: 2, skipped: 0, unresolved: 0 });
+    const after = await db.select().from(postVariantMedia).orderBy(postVariantMedia.id);
+    for (let index = 0; index < before.length; index++) {
+      const previous = before[index];
+      if (previous.mediaId !== UUID_FILE_ID) {
+        expect(after[index]).toEqual(previous);
+      } else {
+        expect(after[index]).toEqual({
+          ...previous,
+          width: 720,
+          height: 1280,
+          durationSec: 12,
+          sizeBytes: 4242,
+          orientation: 'portrait',
+          aspectRatio: 0.5625,
+          hlsReadyAt: new Date(readyAt),
+        });
+      }
+    }
+    expect(await backfillMediaMetadata({ fileId: UUID_FILE_ID, batchSize: 1 })).toEqual({
+      scanned: 2,
+      updated: 0,
+      skipped: 2,
+      unresolved: 0,
+    });
+  });
+
+  it('reports a dry-run change without replacing existing values', async () => {
+    const postId = await seedWithMedia([staleVideo]);
+    const before = await db.select().from(postMedia).where(eq(postMedia.postId, postId));
+    expect(await backfillMediaMetadata({ fileId: UUID_FILE_ID, dryRun: true })).toEqual({
+      scanned: 1,
+      updated: 1,
+      skipped: 0,
+      unresolved: 0,
+    });
+    expect(await db.select().from(postMedia).where(eq(postMedia.postId, postId))).toEqual(before);
+  });
+
+  it('reports an omitted Oxy file as unresolved rather than already repaired', async () => {
+    const postId = await seedWithMedia([staleVideo]);
+    metadataByIds.mockResolvedValue([]);
+    expect(await backfillMediaMetadata({ fileId: UUID_FILE_ID })).toEqual({
+      scanned: 1,
+      updated: 0,
+      skipped: 0,
+      unresolved: 1,
+    });
+    expect((await mediaOf(postId))[0].width).toBe(1920);
+  });
+
+  it('does not combine incomplete Oxy metadata with the old ready stamp and report success', async () => {
+    const postId = await seedWithMedia([staleVideo]);
+    metadataByIds.mockResolvedValue([{ id: UUID_FILE_ID, width: 720, height: 1280 }]);
+    expect(await backfillMediaMetadata({ fileId: UUID_FILE_ID })).toEqual({
+      scanned: 1,
+      updated: 0,
+      skipped: 0,
+      unresolved: 1,
+    });
+    expect((await mediaOf(postId))[0].width).toBe(1920);
+  });
+
+  it('reports a failed Oxy lookup as unresolved and preserves the stored dimensions', async () => {
+    const postId = await seedWithMedia([staleVideo]);
+    metadataByIds.mockRejectedValue(new Error('Oxy metadata temporarily unavailable'));
+    expect(await backfillMediaMetadata({ fileId: UUID_FILE_ID })).toEqual({
+      scanned: 1,
+      updated: 0,
+      skipped: 0,
+      unresolved: 1,
+    });
+    expect((await mediaOf(postId))[0].width).toBe(1920);
+  }, 30_000);
+
+  it.each(['row', 'file'])(
+    'does not overwrite a %s replaced while the lookup was running',
+    async (change) => {
+      const postId = await seedWithMedia([staleVideo]);
+      metadataByIds.mockImplementationOnce(async () => {
+        await db
+          .update(postMedia)
+          .set(change === 'row' ? { id: randomUUID() } : { mediaId: HEX_FILE_ID })
+          .where(eq(postMedia.postId, postId));
+        return [metadata];
+      });
+      expect(await backfillMediaMetadata({ fileId: UUID_FILE_ID })).toEqual({
+        scanned: 1,
+        updated: 0,
+        skipped: 1,
+        unresolved: 0,
+      });
+      expect((await mediaOf(postId))[0].width).toBe(1920);
+    },
+  );
+
+  it('does not treat a missing or remote file selector as a full backfill', async () => {
+    await seedWithMedia([staleVideo]);
+    for (const fileId of ['', REMOTE_URL, ` ${UUID_FILE_ID}`]) {
+      await expect(backfillMediaMetadata({ fileId })).rejects.toThrow('--file-id');
+    }
+    expect(metadataByIds).not.toHaveBeenCalled();
   });
 });
