@@ -1,9 +1,7 @@
 import { Screen } from '@oxy.so/bloom/screen';
 import { useTranslation } from 'react-i18next';
-import { StatusBar } from 'expo-status-bar';
 import { useRouter, Slot, usePathname, type Href } from '@/lib/navigation/router';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Search } from '@/assets/icons/search-icon';
@@ -39,7 +37,6 @@ export default function ExploreLayout() {
     if (tab) router.push(tab.href);
   };
   const { t } = useTranslation();
-  const theme = useTheme();
   const pathname = usePathname();
   const activeTab = TABS.find((tab) => isCurrentRoute(tab.href, pathname))?.id ?? 'all';
   const handleTabPress = useTabSelect<string>(activeTab, pushTab);
@@ -65,7 +62,6 @@ export default function ExploreLayout() {
       }
     >
       <SEO title={t('seo.explore.title')} description={t('seo.explore.description')} />
-      <StatusBar style={theme.isDark ? 'light' : 'dark'} />
       <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
         {TABS.map((tab) => (
           <TabsTrigger key={tab.id} value={tab.id} label={t(tab.label)} />

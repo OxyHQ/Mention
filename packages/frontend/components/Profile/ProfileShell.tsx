@@ -2,11 +2,11 @@ import { resolveProfileColor } from '@oxy.so/bloom/color-presets';
 import type React from 'react';
 import { Screen, type ScreenProps } from '@oxy.so/bloom/screen';
 import { useState } from 'react';
-import { Platform, StatusBar, View, type ViewProps } from 'react-native';
+import { Platform, View, type ViewProps } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { HeaderDockProvider, StickySection, useHeaderDockInset } from '@oxy.so/bloom/layout';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
-import { BloomColorScope, useTheme } from '@oxy.so/bloom/theme';
+import { BloomColorScope } from '@oxy.so/bloom/theme';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { ProfileUnavailable } from './ProfileUnavailable';
 import type { ProfileData } from '@/hooks/useProfileData';
@@ -123,7 +123,6 @@ function ProfileShellBody({
   isRootTab = false,
   colorPreset,
 }: ProfileShellProps & Pick<ViewProps, 'style'> & Pick<ScreenProps, 'colorPreset'>) {
-  const theme = useTheme();
   const surfaceFill = useSurfaceFill();
   const headerInset = useHeaderDockInset();
   const [summaryHeight, setSummaryHeight] = useState<number>();
@@ -209,7 +208,6 @@ function ProfileShellBody({
       }
       style={IS_WEB ? style : [style, { backgroundColor: surfaceFill }]}
     >
-      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
       {IS_WEB ? (
         <>
           {/* Flat, fixed slots: `children` stays the last child in every state. */}

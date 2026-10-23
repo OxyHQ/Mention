@@ -11,10 +11,8 @@ import { HeaderDockProvider, StickySection } from '@oxy.so/bloom/layout';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Search } from '@oxy.so/bloom/search';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
 import { SEO } from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -58,7 +56,6 @@ function flattenSavedPages(pages: SavedPostsPage[] | undefined): SavedPost[] {
 }
 
 const SavedPostsScreen: React.FC = () => {
-  const theme = useTheme();
   const { t } = useTranslation();
   const { canUsePrivateApi, isPrivateApiPending, user } = useAuth();
   const queryClient = useQueryClient();
@@ -328,7 +325,6 @@ const SavedPostsScreen: React.FC = () => {
           scroll="auto"
           header={<PageHeader title={t('screens.saved.title')} presentation="floating" />}
         >
-          <StatusBar style={theme.isDark ? 'light' : 'dark'} />
 
           {/* Search and folder tabs dock under the header. Creating a folder
                         is an action, not a section, so it lives in the FAB. */}

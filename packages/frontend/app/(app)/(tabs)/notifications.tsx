@@ -36,7 +36,6 @@ import { NotificationsList } from '@/components/NotificationsList';
 import { NotificationSkeleton } from '@/components/notifications/NotificationSkeleton';
 import { useScreenReselect, useTabSelect } from '@/context/ScreenReselectContext';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
-import { StatusBar } from 'expo-status-bar';
 import { toast } from '@oxy.so/bloom/toast';
 import { confirmDialog } from '@/utils/alerts';
 import { SEO } from '@/components/SEO';
@@ -649,7 +648,6 @@ const NotificationsScreen: React.FC = () => {
           />
         }
       >
-        <StatusBar style={theme.isDark ? 'light' : 'dark'} />
 
         {canUsePrivateApi && (
           <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
