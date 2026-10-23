@@ -86,9 +86,11 @@ except for the actual PiP owner. Media selection includes both post and media in
 
 The persistent video view holds its own registry lease, so cancelling a web handoff
 releases the navigation bridge without freeing a mounted decoder. No-anchor and
-no-flight paths do not retain a bridge. Native Bloom owns a separate flying view;
-its bridge remains until adoption while that native flight exists, because Bloom
-does not expose completion of its asynchronous unbinding through its public API.
+no-flight paths do not retain a bridge. Explicit flight cancellation is limited to
+web. Native Bloom owns a separate flying view and keeps the existing bridge
+lifetime, including its singleton replacement behavior; its public API does not
+expose completion of asynchronous unbinding. Native cancellation needs separate
+framework ownership work and device validation.
 
 ## Loading screens
 
