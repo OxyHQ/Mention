@@ -687,7 +687,6 @@ const NotificationsScreen: React.FC = () => {
         )}
 
         {renderContent()}
-        {renderContent()}
       </Screen>
     </>
   );
