@@ -87,7 +87,6 @@ function basePolicy() {
       unenforceable: 1,
       belowBarExemptions: 1,
       criticalPaths: 2,
-      allowedBaselineDecreases: 0,
       snapshotAssertions: 0,
     },
   };
@@ -141,6 +140,7 @@ function runFixture(mutate) {
       baseline: baseBaselineFile(),
       report: baseReport(root),
       baseCommitBaseline: baseBaselineFile(),
+      baseCommitPolicy: basePolicy(),
       // Two test files, one of which the snapshot scan must be able to read.
       testFiles: {
         'utils/__tests__/plainUtil.test.ts': "it('works', () => expect(1).toBe(1));\n",
@@ -161,19 +161,21 @@ function runFixture(mutate) {
     for (const path of Object.keys(FIXTURE_SOURCES)) write(root, path, 'export const x = 1;\n');
     for (const [path, body] of Object.entries(state.testFiles)) write(root, path, body);
     write(root, 'package.json', state.packageJson);
-    write(root, 'coverage-policy.json', state.policy);
     write(root, 'coverage/coverage-summary.json', state.report);
 
-    // One commit holding the BASE baseline, then overwrite with the working one.
+    // One commit holding the BASE policy and baseline, then overwrite both with
+    // the working ones.
     const git = (...args) => execFileSync('git', args, { cwd: root, stdio: 'ignore' });
     git('init', '-q');
     git('config', 'user.email', 'fixture@example.invalid');
     git('config', 'user.name', 'fixture');
+    write(root, 'coverage-policy.json', state.baseCommitPolicy);
     if (state.baseCommitBaseline !== null) {
       write(root, 'coverage-baseline.json', state.baseCommitBaseline);
     }
     git('add', '-A');
     git('commit', '-qm', 'fixture base');
+    write(root, 'coverage-policy.json', state.policy);
     write(root, 'coverage-baseline.json', state.baseline);
 
     const result = execFileSync(
@@ -279,20 +281,40 @@ const cases = [
       state.policy.allowedBaselineDecreases = [
         { path: 'utils/plainUtil.ts', metric: 'statements', date: '2026-08-15', reason: 'fixture' },
       ];
-      state.policy.expectedCounts.allowedBaselineDecreases = 1;
     },
     expectFailure: false,
   },
   {
-    name: 'a declared decrease that is not happening fails (the list cannot rot)',
+    name: 'an added allowance that is not happening fails (the list cannot rot)',
     mutate: (state) => {
       state.policy.allowedBaselineDecreases = [
         { path: 'utils/plainUtil.ts', metric: 'statements', date: '2026-08-15', reason: 'fixture' },
       ];
-      state.policy.expectedCounts.allowedBaselineDecreases = 1;
     },
     expectFailure: true,
     expectOutput: 'excuse a decrease that is not happening',
+  },
+  {
+    name: 'an allowance inherited from the base excuses nothing',
+    mutate: (state) => {
+      state.baseline.pins['utils/plainUtil.ts'].statements = 10;
+      state.policy.allowedBaselineDecreases = [
+        { path: 'utils/plainUtil.ts', metric: 'statements', date: '2026-08-15', reason: 'fixture' },
+      ];
+      state.baseCommitPolicy.allowedBaselineDecreases = state.policy.allowedBaselineDecreases;
+    },
+    expectFailure: true,
+    expectOutput: "lower than `HEAD`'s",
+  },
+  {
+    name: 'an allowance inherited from the base is not reported as unused',
+    mutate: (state) => {
+      state.policy.allowedBaselineDecreases = [
+        { path: 'utils/plainUtil.ts', metric: 'statements', date: '2026-08-15', reason: 'fixture' },
+      ];
+      state.baseCommitPolicy.allowedBaselineDecreases = state.policy.allowedBaselineDecreases;
+    },
+    expectFailure: false,
   },
   {
     name: 'growing the exemption list without bumping the count fails',

@@ -231,8 +231,10 @@
   "$comment:allowedBaselineDecreases": [
     "Dated, path-and-metric-named permission to record a LOWER baseline than the",
     "base revision \u2014 the one legitimate case being code that legitimately shrank.",
-    "An entry that is not currently excusing a real decrease fails, so this list",
-    "cannot become a standing permission slip."
+    "An entry excuses only the drop recorded in the change that adds it, and an added",
+    "entry with no such drop fails. Entries already on the base revision excuse",
+    "nothing and are checked for nothing, so this list cannot become a standing",
+    "permission slip and an inherited entry never needs a follow-up deletion."
   ],
   "allowedBaselineDecreases": [],
   "globalDriftAllowancePoints": 0.75,
@@ -248,7 +250,6 @@
     "unenforceable": 5,
     "belowBarExemptions": 8,
     "criticalPaths": 36,
-    "allowedBaselineDecreases": 0,
     "snapshotAssertions": 0
   }
 }

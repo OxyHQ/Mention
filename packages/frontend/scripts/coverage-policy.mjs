@@ -363,7 +363,6 @@ const actualCounts = {
   unenforceable: Object.keys(policy.unenforceable).length,
   belowBarExemptions: Object.keys(policy.belowBarExemptions).length,
   criticalPaths: new Set(Object.values(policy.criticalPaths).flat()).size,
-  allowedBaselineDecreases: policy.allowedBaselineDecreases.length,
   snapshotAssertions: snapshotUsers.length,
 };
 for (const [name, expected] of Object.entries(policy.expectedCounts)) {
@@ -555,10 +554,14 @@ for (const metric of METRICS) {
  * request that lowers the baseline in the same commit that removes the tests
  * passes all of them. This is the only check that makes the ratchet a ratchet
  * rather than a self-service dial.
+ *
+ * An `allowedBaselineDecreases` entry belongs to the change that ADDS it: only
+ * an entry absent from the base revision's policy excuses a decrease. One that
+ * merged earlier is inherited history. It excuses nothing and is checked for
+ * nothing, so the next change in the merge queue neither trips over it nor
+ * gets to lean on it, and nobody has to come back to delete it.
  */
-const declaredDecreases = new Map(
-  policy.allowedBaselineDecreases.map((entry) => [`${entry.path}:${entry.metric}`, entry]),
-);
+const declaredDecreases = new Set();
 const observedDecreases = new Set();
 // `||`, not `??`: on a workflow_dispatch run GitHub supplies an EMPTY string for
 // both `base_ref` and `event.before`, and an empty base resolves to nothing, so
@@ -583,7 +586,24 @@ if (repositoryRoot === null) {
       '  Run this from a checkout, and pass `--base <rev>` in CI.',
   );
 } else {
-  const baselineInRepo = relative(repositoryRoot, BASELINE_PATH);
+  /**
+   * `path` as committed at the base revision, or `null` when the base predates
+   * the file — distinguishable from a broken base because the revision itself
+   * has resolved by the time this is called.
+   */
+  const readAtBase = (path) => {
+    try {
+      return JSON.parse(
+        execFileSync('git', ['show', `${baseRevision}:${relative(repositoryRoot, path)}`], {
+          cwd: repositoryRoot,
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'ignore'],
+        }),
+      );
+    } catch {
+      return null;
+    }
+  };
   let baseBaseline = null;
   let baseResolves = true;
   try {
@@ -602,18 +622,16 @@ if (repositoryRoot === null) {
         '  measuring. Fetch the base branch, or pass `--base <rev>`.',
     );
   } else {
-    try {
-      baseBaseline = JSON.parse(
-        execFileSync('git', ['show', `${baseRevision}:${baselineInRepo}`], {
-          cwd: repositoryRoot,
-          encoding: 'utf8',
-          stdio: ['ignore', 'pipe', 'ignore'],
-        }),
-      );
-    } catch {
-      // The base revision predates the baseline file. Distinguishable from a
-      // broken base because the revision itself resolved a moment ago.
-      baseBaseline = null;
+    baseBaseline = readAtBase(BASELINE_PATH);
+    const inherited = new Set(
+      (readAtBase(POLICY_PATH)?.allowedBaselineDecreases ?? []).map((entry) =>
+        JSON.stringify(entry),
+      ),
+    );
+    for (const entry of policy.allowedBaselineDecreases) {
+      if (!inherited.has(JSON.stringify(entry))) {
+        declaredDecreases.add(`${entry.path}:${entry.metric}`);
+      }
     }
   }
 
@@ -666,18 +684,18 @@ if (repositoryRoot === null) {
 }
 
 /*
- * 11. A declared decrease that is not happening must go.
+ * 11. An entry this change adds must excuse a decrease this change records.
  *
- * Absent-check: otherwise `allowedBaselineDecreases` is a standing permission
- * slip. An entry that has stopped firing would silently excuse the NEXT drop on
- * the same file.
+ * Absent-check: otherwise an entry could land ahead of the drop it names and
+ * excuse a later one. Inherited entries never reach `declaredDecreases`, so
+ * this cannot fire on an allowance that merged before the change was written.
  */
-const spentDecreases = [...declaredDecreases.keys()].filter((key) => !observedDecreases.has(key));
-if (spentDecreases.length > 0) {
+const unusedDecreases = [...declaredDecreases].filter((key) => !observedDecreases.has(key));
+if (unusedDecreases.length > 0) {
   fail(
-    `${spentDecreases.length} entr(ies) in \`allowedBaselineDecreases\` excuse a decrease that is not happening:`,
-    `${spentDecreases.map((key) => `    ${key}`).join('\n')}\n` +
-      '  Remove them; a spent entry is a standing permission for the next drop.',
+    `${unusedDecreases.length} entr(ies) this change adds to \`allowedBaselineDecreases\` excuse a decrease that is not happening:`,
+    `${unusedDecreases.map((key) => `    ${key}`).join('\n')}\n` +
+      '  Remove them; an allowance excuses only the drop recorded in the same change.',
   );
 }
 
