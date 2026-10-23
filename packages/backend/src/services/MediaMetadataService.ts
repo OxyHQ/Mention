@@ -142,7 +142,27 @@ export function mergeMediaItem(existing: MediaItem, patch: Partial<MediaItem>): 
   return merged;
 }
 
+/** Revision URLs resolve the current master, so older stamps also name the rejected ladder. */
+export function isRejectedHlsGeneration(
+  readyAt: string | undefined,
+  rejectedAt: string | undefined,
+): boolean {
+  return (
+    readyAt !== undefined &&
+    rejectedAt !== undefined &&
+    Date.parse(readyAt) <= Date.parse(rejectedAt)
+  );
+}
+
 function copyFromOxyAsset(item: MediaItem, asset: ServiceAssetMetadata): MediaItem {
+  // A readiness generation owns its intrinsic metadata as well as its URL.
+  const sourceGeneration = asset.hlsReadyAt ?? asset.hlsRejectedReadyAt;
+  if (
+    item.hlsReadyAt &&
+    sourceGeneration &&
+    Date.parse(sourceGeneration) < Date.parse(item.hlsReadyAt)
+  )
+    return item;
   const patch: Partial<MediaItem> = {};
   if (asset.width !== undefined) patch.width = asset.width;
   if (asset.height !== undefined) patch.height = asset.height;
@@ -154,7 +174,12 @@ function copyFromOxyAsset(item: MediaItem, asset: ServiceAssetMetadata): MediaIt
   // no `hlsUrl` and every player falls back to the uploaded original, whatever
   // its codec — a VP9 or AV1 original plays nowhere on an iPhone.
   if (asset.hlsReadyAt !== undefined) patch.hlsReadyAt = asset.hlsReadyAt;
-  return mergeMediaItem(item, patch);
+  const merged = mergeMediaItem(item, patch);
+  // An absent ready stamp is not a rejection. Preserve newer generations.
+  if (isRejectedHlsGeneration(merged.hlsReadyAt, asset.hlsRejectedReadyAt)) {
+    delete merged.hlsReadyAt;
+  }
+  return merged;
 }
 
 /**
@@ -211,13 +236,24 @@ export function patchFromApAttachment(attachment: ApAttachment): Partial<MediaIt
   return patch;
 }
 
+export interface MediaMetadataEnrichment {
+  items: MediaItem[];
+  /** Explicit authoritative clears, keyed by file, never inferred from absence. */
+  rejectedHls: ReadonlyMap<string, string>;
+}
+
 export class MediaMetadataService {
   /** Batch-resolve Oxy file ids and copy intrinsic metadata onto media items. */
   async enrichFromOxy(items: MediaItem[]): Promise<MediaItem[]> {
-    if (!Array.isArray(items) || items.length === 0) return items;
+    return (await this.enrichFromOxyWithRejections(items)).items;
+  }
+
+  async enrichFromOxyWithRejections(items: MediaItem[]): Promise<MediaMetadataEnrichment> {
+    const rejectedHls = new Map<string, string>();
+    if (!Array.isArray(items) || items.length === 0) return { items, rejectedHls };
 
     const oxyIds = [...new Set(items.map((item) => item.id).filter(isOxyFileId))];
-    if (oxyIds.length === 0) return items;
+    if (oxyIds.length === 0) return { items, rejectedHls };
 
     let resolved: ServiceAssetMetadata[] = [];
     try {
@@ -227,16 +263,20 @@ export class MediaMetadataService {
         error: error instanceof Error ? error.message : String(error),
         count: oxyIds.length,
       });
-      return items;
+      return { items, rejectedHls };
     }
 
+    for (const asset of resolved) {
+      if (asset.hlsRejectedReadyAt) rejectedHls.set(asset.id, asset.hlsRejectedReadyAt);
+    }
     const byId = new Map(resolved.map((entry) => [entry.id, entry]));
-    return items.map((item) => {
+    const enriched = items.map((item) => {
       if (!isOxyFileId(item.id)) return item;
       const asset = byId.get(item.id);
       if (!asset) return item;
       return copyFromOxyAsset(item, asset);
     });
+    return { items: enriched, rejectedHls };
   }
 
   /**

@@ -1,5 +1,13 @@
-import { loadPostRecord, replacePostContent } from '../db/posts/postRepository';
-import { mediaMetadataChanged, mediaMetadataService } from './MediaMetadataService';
+import { eq } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { postMedia } from '../db/schema/postContent';
+import { applyFileMediaMetadata } from './mediaMetadataPersistence';
+import { invalidate as invalidatePostDetailCache } from './postDetailCache';
+import {
+  mediaMetadataChanged,
+  mediaMetadataService,
+  readPersistedMediaFields,
+} from './MediaMetadataService';
 import { logger } from '../utils/logger';
 import { enqueueMediaMetadataEnrich as enqueueJob } from '../queue/producers';
 
@@ -11,21 +19,37 @@ import { enqueueMediaMetadataEnrich as enqueueJob } from '../queue/producers';
 export async function patchPostMediaMetadata(postId: string): Promise<boolean> {
   if (!postId) return false;
 
-  const post = await loadPostRecord(postId);
-  if (!post?.content.media || post.content.media.length === 0) {
-    return false;
-  }
-
-  const current = post.content.media;
-  const enriched = await mediaMetadataService.enrichFromOxy(current);
+  const rows = await getDb()
+    .select()
+    .from(postMedia)
+    .where(eq(postMedia.postId, postId))
+    .orderBy(postMedia.position);
+  if (rows.length === 0) return false;
+  const current = rows.map((row) => ({
+    id: row.mediaId,
+    type: row.type,
+    ...readPersistedMediaFields({ ...row, hlsReadyAt: row.hlsReadyAt?.toISOString() }),
+  }));
+  const { items: enriched, rejectedHls } =
+    await mediaMetadataService.enrichFromOxyWithRejections(current);
 
   if (mediaMetadataChanged(current, enriched)) {
-    // The whole content graph, because `post_media` is a child table with a
-    // dense `position`: enrichment rewrites every row's dimensions, so a
-    // per-row update would have to renumber nothing but would still have to
-    // touch each row, and `replacePostContent` already does that atomically.
-    // `mentions` are re-supplied unchanged — this pass never touches them.
-    await replacePostContent(postId, { ...post.content, media: enriched }, post.mentions);
+    const writes = rows.flatMap((row, index) => {
+      const previous = current[index];
+      const item = enriched[index];
+      if (!item || previous?.id !== row.mediaId || item.id !== row.mediaId) return [];
+      return [
+        {
+          rowId: row.id,
+          postId,
+          item,
+          previousHlsReadyAt: row.hlsReadyAt?.toISOString() ?? null,
+          rejectedHlsReadyAt: rejectedHls.get(item.id),
+        },
+      ];
+    });
+    const changed = await applyFileMediaMetadata(postMedia, writes);
+    if (changed.size) await invalidatePostDetailCache(postId);
   }
 
   return mediaMetadataService.needsOxyRetry(enriched);

@@ -21,7 +21,7 @@
  */
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
@@ -641,6 +641,165 @@ describe('bounded video metadata reconciliation', () => {
 
   beforeEach(() => {
     metadataByIds.mockImplementation(async (ids: string[]) => ids.map(current));
+  });
+
+  it.each(['2026-09-01T00:00:00.000Z', oldReadyAt])(
+    'clears observed generation %s through rejection in both tables, preserving other columns',
+    async (storedAt) => {
+      const postId = await seedWithMedia([{ ...stale(UUID_FILE_ID), hlsReadyAt: storedAt }]);
+      const [variant] = await db
+        .select()
+        .from(postContentVariants)
+        .where(eq(postContentVariants.postId, postId));
+      await db.insert(postVariantMedia).values({
+        variantId: variant.id,
+        position: 0,
+        mediaId: UUID_FILE_ID,
+        type: 'video',
+        width: 1920,
+        height: 1080,
+        hlsReadyAt: new Date(storedAt),
+        alt: 'Variant caption',
+      });
+      metadataByIds.mockResolvedValue([{ id: UUID_FILE_ID, hlsRejectedReadyAt: oldReadyAt }]);
+      const before = await read();
+      const variantsBefore = await db.select().from(postVariantMedia);
+      invalidatePostDetailCache.mockClear();
+      expect((await reconcileVideoMetadata({ dryRun: true })).passes[0]).toMatchObject({
+        updated: 1,
+        rowsUpdated: 2,
+        unresolved: 0,
+      });
+      expect(await read()).toEqual(before);
+      expect(invalidatePostDetailCache).not.toHaveBeenCalled();
+      expect((await reconcileVideoMetadata()).passes[0]).toMatchObject({
+        updated: 1,
+        rowsUpdated: 2,
+        unresolved: 0,
+      });
+      expect(await read()).toEqual(before.map((row) => ({ ...row, hlsReadyAt: null })));
+      expect(await db.select().from(postVariantMedia)).toEqual(
+        variantsBefore.map((row) => ({ ...row, hlsReadyAt: null })),
+      );
+      expect(invalidatePostDetailCache).toHaveBeenCalledExactlyOnceWith(postId);
+      expect((await reconcileVideoMetadata()).passes[0]).toMatchObject({
+        updated: 0,
+        unchanged: 1,
+        unresolved: 0,
+      });
+      metadataByIds.mockResolvedValue([current(UUID_FILE_ID)]);
+      expect((await reconcileVideoMetadata()).passes[0].rowsUpdated).toBe(2);
+      expect((await read())[0].hlsReadyAt?.toISOString()).toBe(readyAt);
+    },
+  );
+
+  it.each(['new-generation', 'replaced-file', 'replaced-row'])(
+    'does not clear a %s installed during rejection lookup',
+    async (change) => {
+      const postId = await seedWithMedia([stale(UUID_FILE_ID)]);
+      const [before] = await read();
+      let expected = before;
+      metadataByIds.mockImplementation(async () => {
+        if (change === 'replaced-row') {
+          await db.delete(postMedia).where(eq(postMedia.id, before.id));
+          [expected] = await db
+            .insert(postMedia)
+            .values({ ...before, id: randomUUID() })
+            .returning();
+        } else {
+          [expected] = await db
+            .update(postMedia)
+            .set(
+              change === 'new-generation'
+                ? { hlsReadyAt: new Date(readyAt) }
+                : { mediaId: HEX_FILE_ID },
+            )
+            .where(eq(postMedia.id, before.id))
+            .returning();
+        }
+        return [{ id: UUID_FILE_ID, hlsRejectedReadyAt: oldReadyAt }];
+      });
+      invalidatePostDetailCache.mockClear();
+      expect((await reconcileVideoMetadata()).passes[0].rowsUpdated).toBe(0);
+      expect(await read()).toEqual([expected]);
+      expect(invalidatePostDetailCache).not.toHaveBeenCalledWith(postId);
+    },
+  );
+
+  it('preserves a different stored generation and treats absent authority as unresolved', async () => {
+    await seedWithMedia([{ ...stale(UUID_FILE_ID), hlsReadyAt: readyAt }]);
+    const before = await read();
+    metadataByIds.mockResolvedValue([{ id: UUID_FILE_ID, hlsRejectedReadyAt: oldReadyAt }]);
+    expect((await reconcileVideoMetadata()).passes[0]).toMatchObject({
+      updated: 0,
+      unchanged: 1,
+      unresolved: 0,
+    });
+    metadataByIds.mockResolvedValue([{ id: UUID_FILE_ID }]);
+    expect((await reconcileVideoMetadata()).passes[0]).toMatchObject({ updated: 0, unresolved: 1 });
+    expect(await read()).toEqual(before);
+  });
+
+  it('does not resurrect a generation cleared concurrently during an ordinary metadata sweep', async () => {
+    const postId = await seedWithMedia([{ ...stale(UUID_FILE_ID), durationSec: undefined }]);
+    const [before] = await read();
+    metadataByIds.mockImplementation(async () => {
+      await db.update(postMedia).set({ hlsReadyAt: null }).where(eq(postMedia.id, before.id));
+      return [{ ...current(UUID_FILE_ID), hlsReadyAt: oldReadyAt }];
+    });
+    invalidatePostDetailCache.mockClear();
+    await backfillMediaMetadata();
+    expect((await read())[0]).toEqual({ ...before, hlsReadyAt: null });
+    expect(invalidatePostDetailCache).not.toHaveBeenCalledWith(postId);
+  });
+
+  it('rolls back a targeted shared clear when its variant write fails, without publishing cache invalidation', async () => {
+    const postId = await seedWithMedia([stale(UUID_FILE_ID)]);
+    const [variant] = await db
+      .select()
+      .from(postContentVariants)
+      .where(eq(postContentVariants.postId, postId));
+    await db.insert(postVariantMedia).values({
+      variantId: variant.id,
+      position: 0,
+      mediaId: UUID_FILE_ID,
+      type: 'video',
+      hlsReadyAt: new Date(oldReadyAt),
+    });
+    const before = await read();
+    metadataByIds.mockResolvedValue([{ id: UUID_FILE_ID, hlsRejectedReadyAt: oldReadyAt }]);
+    invalidatePostDetailCache.mockClear();
+    await db.execute(
+      sql`alter table post_variant_media add constraint test_rejected_hls_write_failure check (hls_ready_at is not null) not valid`,
+    );
+    try {
+      await expect(backfillMediaMetadata({ fileId: UUID_FILE_ID })).rejects.toThrow();
+      expect(await read()).toEqual(before);
+      expect(invalidatePostDetailCache).not.toHaveBeenCalled();
+    } finally {
+      await db.execute(
+        sql`alter table post_variant_media drop constraint test_rejected_hls_write_failure`,
+      );
+    }
+  });
+
+  it('applies explicit rejection through ordinary and targeted metadata enrichment', async () => {
+    await seedWithMedia([{ ...stale(UUID_FILE_ID), durationSec: undefined }]);
+    metadataByIds.mockResolvedValue([
+      { ...current(UUID_FILE_ID), hlsReadyAt: undefined, hlsRejectedReadyAt: oldReadyAt },
+    ]);
+    const [before] = await read();
+    await backfillMediaMetadata();
+    expect((await read())[0]).toEqual({ ...before, hlsReadyAt: null });
+    await db
+      .update(postMedia)
+      .set({ hlsReadyAt: new Date(oldReadyAt) })
+      .where(eq(postMedia.id, before.id));
+    expect(await backfillMediaMetadata({ fileId: UUID_FILE_ID })).toMatchObject({
+      updated: 1,
+      unresolved: 0,
+    });
+    expect((await read())[0]).toEqual({ ...before, hlsReadyAt: null });
   });
 
   it('excludes authoritative audio fallbacks without changing rows and retains incomplete video as unresolved', async () => {

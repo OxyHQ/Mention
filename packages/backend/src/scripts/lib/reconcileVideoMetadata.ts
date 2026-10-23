@@ -4,6 +4,7 @@ import { getDb, getPostgresClient } from '../../db/postgres';
 import { postContentVariants, postMedia, postVariantMedia } from '../../db/schema/postContent';
 import {
   isOxyFileId,
+  isRejectedHlsGeneration,
   mediaMetadataChanged,
   mediaMetadataService,
   mergeMediaItem,
@@ -11,7 +12,10 @@ import {
 } from '../../services/MediaMetadataService';
 import { invalidate as invalidatePostDetailCache } from '../../services/postDetailCache';
 import { logger } from '../../utils/logger';
-import { applyFileMediaMetadata, type FileMediaMetadataWrite } from './mediaMetadataRows';
+import {
+  applyFileMediaMetadata,
+  type FileMediaMetadataWrite,
+} from '../../services/mediaMetadataPersistence';
 
 const FILE_BATCH_SIZE = 100;
 const WRITE_BATCH_SIZE = 500;
@@ -115,6 +119,7 @@ async function refreshBatch(fileIds: string[], dryRun: boolean) {
     };
   }
   const metadata = new Map<string, Partial<MediaItem> & { hlsReadyAt: string }>();
+  const rejectedHls = new Map<string, string>();
   const unresolved = new Set<string>();
   const excludedAudio = new Set<string>();
   for (const fileId of fileIds) {
@@ -124,6 +129,10 @@ async function refreshBatch(fileIds: string[], dryRun: boolean) {
     const mime = asset?.mime?.split(';', 1)[0]?.trim();
     if (mime && /^audio\/[^\s/;]+$/i.test(mime)) {
       excludedAudio.add(fileId);
+      continue;
+    }
+    if (asset?.hlsRejectedReadyAt) {
+      rejectedHls.set(fileId, asset.hlsRejectedReadyAt);
       continue;
     }
     const fields = asset ? readPersistedMediaFields({ ...asset, sizeBytes: asset.size }) : {};
@@ -145,19 +154,29 @@ async function refreshBatch(fileIds: string[], dryRun: boolean) {
   ): FileMediaMetadataWrite[] =>
     rows.flatMap(({ media, postId }) => {
       const fields = metadata.get(media.mediaId);
-      if (!fields) return [];
+      const rejectedHlsReadyAt = rejectedHls.get(media.mediaId);
+      if (!fields && !rejectedHlsReadyAt) return [];
       const previous: MediaItem = {
         id: media.mediaId,
         type: 'video',
         ...readPersistedMediaFields({ ...media, hlsReadyAt: media.hlsReadyAt?.toISOString() }),
       };
+      const previousHlsReadyAt = previous.hlsReadyAt ?? null;
+      if (rejectedHlsReadyAt) {
+        return isRejectedHlsGeneration(previous.hlsReadyAt, rejectedHlsReadyAt)
+          ? [{ rowId: media.id, postId, item: previous, previousHlsReadyAt, rejectedHlsReadyAt }]
+          : [];
+      }
+      if (!fields) return [];
       // A stale source response must not roll a later readiness stamp backwards.
       if (previous.hlsReadyAt && Date.parse(fields.hlsReadyAt) < Date.parse(previous.hlsReadyAt)) {
         unresolved.add(media.mediaId);
         return [];
       }
       const item = mergeMediaItem(previous, fields);
-      return mediaMetadataChanged([previous], [item]) ? [{ rowId: media.id, postId, item }] : [];
+      return mediaMetadataChanged([previous], [item])
+        ? [{ rowId: media.id, postId, item, previousHlsReadyAt }]
+        : [];
     });
   const sharedCandidates = writesFor(shared);
   const variantCandidates = writesFor(variants);
