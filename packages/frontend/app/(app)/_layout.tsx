@@ -140,7 +140,10 @@ export default function AppLayout() {
           gutter={8}
           bottomBar={bottomBar}
           bottomBarVisibility="compact"
-          reserveBottomBarSpace={pathname !== '/camera'}
+          // Native content scrolls under the floating bar (Bloom's scrollers pad
+          // their end clear of it); the web document reserves it, except under
+          // the full-bleed camera.
+          reserveBottomBarSpace={IS_WEB && pathname !== '/camera'}
           panelLayout={{
             mode: deckOpen ? 'deck' : 'split',
             transition: 'exit-before-enter',
