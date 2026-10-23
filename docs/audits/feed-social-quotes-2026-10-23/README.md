@@ -56,7 +56,7 @@ planned corrections are not counted as deployed behavior.
 | P2: source progress and recency | Existing `friendsEngaged` applies a lower activity-date bound, but its boost fetch has no deterministic order or upper `asOf` bound. Arbitrary limited results are not a stable ranked-session source. | Exercise actual source queries with advancing windows, seen exclusions, tied timestamps and activity arriving after session start. Bound work before hydration. |
 | P2: quote intent after target deletion | `quote_of` uses `ON DELETE SET NULL`; `type: quote` survives. `excludeQuotes` checks only the relation, whereas `originalOnly` also checks the type. | Exclude a known quote after target deletion too. A missing subject must not silently turn it into an original post. |
 | P2: recommendation explanation | Feed DTOs have reply and boost context, but no canonical carrier of the followed interaction that caused a social recommendation. `KnownLikersRow` is a separate detail-only request. | Supply a viewer-scoped, bounded explanation from verified evidence; avoid per-row follow/like requests, invented actors or misleading "liked" labels for boosts/replies. |
-| Separate protocol fidelity | `buildPostRecord` omits quote references, and the supplied post's signed creation record confirms that shape. MTN replay cannot reconstruct a quote from that record alone. | Assess the shared protocol's owned schema before extending it. Do not invent an app-local field or guess a historical target from prose. This is not evidence of a local database relation loss. |
+| Separate protocol fidelity | `buildPostRecord` omits quote references, and the supplied post's signed creation record confirms that shape. MTN replay cannot reconstruct a quote from that record alone. | The app-owned MTN payload lexicon has no quote field; compatibility requires coordinated lexicon, emitter, materializer and subject-resolution work. Do not invent a remote content address or guess a historical target from prose. This is not evidence of a local database relation loss. |
 
 ## Coverage and semantic boundaries
 
@@ -93,3 +93,33 @@ mutating production cache contents for a prettier test. The exact production iss
 not permission to rewrite its stored relation. Missing inventory for an edge case
 must remain a stated coverage limitation. New release measurements will name the
 actual serving revision and preserve feed, detail and browser evidence separately.
+
+
+## Protocol assessment and independent review notes
+
+`packages/shared-types/src/mtn/lexicons.ts` explicitly owns Mention's app payload;
+Oxy owns the surrounding signed envelope with an opaque record. The current
+`MentionPostRecord` schema has no quote reference. The emitter follows that
+contract. `PostMaterializer.projectPost` creates a new replica as a text post,
+while `refreshProjectedPost` preserves an existing row's quote relation and type.
+The confirmed omission is therefore **new-replica/reconstruction fidelity, identified
+but not fixed in the active rendering repair**. Existing signatures must not be
+rewritten, and no remote content address may be fabricated to fill the gap.
+
+The independent review of the initial frontend patch found the explanation kept
+in viewer-scoped feed state rather than canonical post storage, with account-reset
+and in-flight epoch fencing. Only the named target row receives it; a sampled
+blocked actor suppresses the stale label. The quote cache keeps two relationship
+hops and invalidates the prior local shape. This is code review, not a native
+physical-device result. The local privacy hook covers blocked accounts; immediate
+client-side mute/restriction suppression must not be claimed merely from that
+blocked-actor test.
+
+Two backend review checks remain particularly important. First, a social discovery
+lane must use the canonical `isReply = false` predicate, not only a null local
+parent: unresolved federated replies also have null parent IDs. Second, a SQL
+`LIMIT` bounds returned candidates, not database work; a chronological post scan
+with correlated activity predicates needs an execution-plan check for sparse
+eligible activity. Freshly querying visible social labels proves disclosure
+revocation, but does not by itself prove removal of an already-pending candidate's
+serialized ranking uplift; those are separate acceptance questions.
