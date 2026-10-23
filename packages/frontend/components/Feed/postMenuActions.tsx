@@ -161,7 +161,7 @@ export function buildPostMenuActions(
   const { removePostEverywhere, reinsertPost, updatePostEverywhere } = usePostsStore.getState();
   {
     const postId = viewPost?.id;
-    const postUrl = postPermalink(postId ?? '');
+    const postUrl = postPermalink(postId);
     const isPinned = Boolean(viewPost?.metadata?.isPinned);
 
     const handleDelete = async () => {

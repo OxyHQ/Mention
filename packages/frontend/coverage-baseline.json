@@ -2,31 +2,31 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 48.45,
-      "covered": 13738,
-      "total": 28351
+      "pct": 48.39,
+      "covered": 13714,
+      "total": 28336
     },
     "branches": {
-      "pct": 43.66,
-      "covered": 9143,
-      "total": 20938
+      "pct": 43.61,
+      "covered": 9125,
+      "total": 20923
     },
     "functions": {
-      "pct": 42.88,
-      "covered": 3160,
-      "total": 7369
+      "pct": 42.83,
+      "covered": 3157,
+      "total": 7371
     },
     "lines": {
-      "pct": 49.26,
-      "covered": 12483,
-      "total": 25341
+      "pct": 49.2,
+      "covered": 12461,
+      "total": 25327
     }
   },
   "pins": {
     "components/Feed/PostInteractionsBinder.tsx": {
-      "statements": 92,
+      "statements": 93,
       "branches": 100,
-      "functions": 76,
+      "functions": 78,
       "lines": 100
     },
     "components/Feed/PostMenuContent.tsx": {
@@ -461,6 +461,12 @@
       "functions": 100,
       "lines": 100
     },
+    "hooks/useOpenInAllo.tsx": {
+      "statements": 72,
+      "branches": 100,
+      "functions": 66,
+      "lines": 72
+    },
     "hooks/useOptimizedMediaQuery.ts": {
       "statements": 0,
       "branches": 100,
@@ -798,12 +804,6 @@
       "lines": 100
     },
     "lib/actorCache.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
-    "lib/alloDirectMessage.ts": {
       "statements": 100,
       "branches": 100,
       "functions": 100,
@@ -1760,6 +1760,12 @@
     "utils/postLanguages.ts": {
       "statements": 97,
       "branches": 91,
+      "functions": 100,
+      "lines": 100
+    },
+    "utils/postPermalink.ts": {
+      "statements": 100,
+      "branches": 100,
       "functions": 100,
       "lines": 100
     },
