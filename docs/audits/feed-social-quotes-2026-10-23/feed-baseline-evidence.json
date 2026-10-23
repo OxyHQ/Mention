@@ -1,0 +1,243 @@
+{
+  "generatedAt": "2026-10-23T08:33:40.148Z",
+  "release": {
+    "backendRevision": 700,
+    "sha": "5b9b48f43c2b7bc2699a0f7ca4fd019f203cc941",
+    "note": "steady 2/2 ECS verified before capture; immutable task mapping verified, fresh per-container digest enumeration unavailable"
+  },
+  "account": "@nate",
+  "feedSamples": [
+    {
+      "feed": "for_you",
+      "phase": "before",
+      "page": 1,
+      "at": "2026-10-23T08:22:08.232Z",
+      "release": {
+        "backendRevision": 700,
+        "sha": "5b9b48f43c2b7bc2699a0f7ca4fd019f203cc941",
+        "note": "steady 2/2 ECS verified before capture; immutable task mapping verified, fresh per-container digest enumeration unavailable"
+      },
+      "metrics": {
+        "page": 1,
+        "at": "2026-10-23T08:22:08.232Z",
+        "elapsedMs": 4202,
+        "flat": 20,
+        "logical": 20,
+        "authors": 15,
+        "maxAuthorPosts": 3,
+        "repeatedFocal": 0,
+        "quotedPosts": 0,
+        "unavailableQuotes": 0,
+        "boostsOfQuotes": 0,
+        "socialContexts": 0,
+        "socialTargetsInSlice": true,
+        "socialActorCounts": [],
+        "hasMore": true,
+        "cursorType": "session"
+      }
+    },
+    {
+      "feed": "for_you",
+      "phase": "before",
+      "page": 2,
+      "at": "2026-10-23T08:22:12.438Z",
+      "release": {
+        "backendRevision": 700,
+        "sha": "5b9b48f43c2b7bc2699a0f7ca4fd019f203cc941",
+        "note": "steady 2/2 ECS verified before capture; immutable task mapping verified, fresh per-container digest enumeration unavailable"
+      },
+      "metrics": {
+        "page": 2,
+        "at": "2026-10-23T08:22:12.438Z",
+        "elapsedMs": 2564,
+        "flat": 21,
+        "logical": 20,
+        "authors": 17,
+        "maxAuthorPosts": 2,
+        "repeatedFocal": 0,
+        "quotedPosts": 0,
+        "unavailableQuotes": 0,
+        "boostsOfQuotes": 0,
+        "socialContexts": 0,
+        "socialTargetsInSlice": true,
+        "socialActorCounts": [],
+        "hasMore": true,
+        "cursorType": "session"
+      }
+    },
+    {
+      "feed": "for_you",
+      "phase": "before",
+      "page": 3,
+      "at": "2026-10-23T08:22:15.005Z",
+      "release": {
+        "backendRevision": 700,
+        "sha": "5b9b48f43c2b7bc2699a0f7ca4fd019f203cc941",
+        "note": "steady 2/2 ECS verified before capture; immutable task mapping verified, fresh per-container digest enumeration unavailable"
+      },
+      "metrics": {
+        "page": 3,
+        "at": "2026-10-23T08:22:15.005Z",
+        "elapsedMs": 2285,
+        "flat": 20,
+        "logical": 20,
+        "authors": 17,
+        "maxAuthorPosts": 3,
+        "repeatedFocal": 0,
+        "quotedPosts": 0,
+        "unavailableQuotes": 0,
+        "boostsOfQuotes": 0,
+        "socialContexts": 0,
+        "socialTargetsInSlice": true,
+        "socialActorCounts": [],
+        "hasMore": true,
+        "cursorType": "session"
+      }
+    },
+    {
+      "feed": "following",
+      "phase": "before",
+      "page": 1,
+      "at": "2026-10-23T08:22:17.298Z",
+      "release": {
+        "backendRevision": 700,
+        "sha": "5b9b48f43c2b7bc2699a0f7ca4fd019f203cc941",
+        "note": "steady 2/2 ECS verified before capture; immutable task mapping verified, fresh per-container digest enumeration unavailable"
+      },
+      "metrics": {
+        "page": 1,
+        "at": "2026-10-23T08:22:17.298Z",
+        "elapsedMs": 3695,
+        "flat": 22,
+        "logical": 20,
+        "authors": 6,
+        "maxAuthorPosts": 5,
+        "repeatedFocal": 0,
+        "quotedPosts": 0,
+        "unavailableQuotes": 0,
+        "boostsOfQuotes": 0,
+        "socialContexts": 0,
+        "socialTargetsInSlice": true,
+        "socialActorCounts": [],
+        "hasMore": true,
+        "cursorType": "stateless"
+      }
+    },
+    {
+      "feed": "following",
+      "phase": "before",
+      "page": 2,
+      "at": "2026-10-23T08:22:21.003Z",
+      "release": {
+        "backendRevision": 700,
+        "sha": "5b9b48f43c2b7bc2699a0f7ca4fd019f203cc941",
+        "note": "steady 2/2 ECS verified before capture; immutable task mapping verified, fresh per-container digest enumeration unavailable"
+      },
+      "metrics": {
+        "page": 2,
+        "at": "2026-10-23T08:22:21.003Z",
+        "elapsedMs": 2264,
+        "flat": 22,
+        "logical": 19,
+        "authors": 10,
+        "maxAuthorPosts": 6,
+        "repeatedFocal": 0,
+        "quotedPosts": 0,
+        "unavailableQuotes": 0,
+        "boostsOfQuotes": 0,
+        "socialContexts": 0,
+        "socialTargetsInSlice": true,
+        "socialActorCounts": [],
+        "hasMore": true,
+        "cursorType": "stateless"
+      }
+    },
+    {
+      "feed": "following",
+      "phase": "before",
+      "page": 3,
+      "at": "2026-10-23T08:22:23.279Z",
+      "release": {
+        "backendRevision": 700,
+        "sha": "5b9b48f43c2b7bc2699a0f7ca4fd019f203cc941",
+        "note": "steady 2/2 ECS verified before capture; immutable task mapping verified, fresh per-container digest enumeration unavailable"
+      },
+      "metrics": {
+        "page": 3,
+        "at": "2026-10-23T08:22:23.279Z",
+        "elapsedMs": 2313,
+        "flat": 21,
+        "logical": 20,
+        "authors": 12,
+        "maxAuthorPosts": 3,
+        "repeatedFocal": 0,
+        "quotedPosts": 0,
+        "unavailableQuotes": 0,
+        "boostsOfQuotes": 0,
+        "socialContexts": 0,
+        "socialTargetsInSlice": true,
+        "socialActorCounts": [],
+        "hasMore": true,
+        "cursorType": "stateless"
+      }
+    },
+    {
+      "feed": "author|6981c9178fcdefaf81988ffb|posts",
+      "phase": "before",
+      "page": 1,
+      "at": "2026-10-23T08:23:16.184Z",
+      "release": {
+        "backendRevision": 700,
+        "sha": "5b9b48f43c2b7bc2699a0f7ca4fd019f203cc941",
+        "note": "steady 2/2 ECS verified before capture; immutable task mapping verified, fresh per-container digest enumeration unavailable"
+      },
+      "metrics": {
+        "page": 1,
+        "at": "2026-10-23T08:23:16.184Z",
+        "elapsedMs": 2420,
+        "flat": 22,
+        "logical": 20,
+        "authors": 1,
+        "maxAuthorPosts": 20,
+        "repeatedFocal": 0,
+        "quotedPosts": 2,
+        "unavailableQuotes": 0,
+        "boostsOfQuotes": 0,
+        "socialContexts": 0,
+        "socialTargetsInSlice": true,
+        "socialActorCounts": [],
+        "hasMore": true,
+        "cursorType": "stateless"
+      }
+    }
+  ],
+  "pairedExample": {
+    "outerId": "01a162ff-d59a-7c4f-9788-94e623c4da88",
+    "targetId": "01a162f2-fc18-771d-a10d-4b2ac5a66a53",
+    "feedItem": {
+      "at": "2026-10-23T08:00:47.356Z",
+      "succeeded": true,
+      "quotedPostId": null,
+      "originalPostId": null
+    },
+    "targetRead": {
+      "at": "2026-10-23T08:06:57.161Z",
+      "succeeded": true,
+      "public": true,
+      "published": true,
+      "mediaTypes": [
+        "video"
+      ]
+    },
+    "authorFeed": {
+      "found": true,
+      "quotedPostId": "01a162f2-fc18-771d-a10d-4b2ac5a66a53"
+    }
+  },
+  "limits": [
+    "The paired item reads preceded steady-state attribution; exact serving revision at those two reads was not independently captured.",
+    "No quote in a sampled page alone does not prove quote omission; paired supplied-example endpoints and exact database relation establish that bug.",
+    "Reads can update served history; no post/reaction/follow/settings mutations were performed.",
+    "Baseline samples are bounded and not a matched-inventory causal ranking experiment."
+  ]
+}
