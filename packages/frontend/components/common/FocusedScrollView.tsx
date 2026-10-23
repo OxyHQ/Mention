@@ -8,6 +8,7 @@ import {
   type ScrollViewProps,
   type ScrollViewInstance,
 } from 'react-native';
+import { useBottomEdgeInset } from '@oxy.so/bloom/layout';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { useFocusedScrollable } from '@/hooks/useFocusedScrollable';
 
@@ -24,8 +25,10 @@ import { useFocusedScrollable } from '@/hooks/useFocusedScrollable';
  *
  * On web the document is the scroller, so this is a plain ScrollView.
  */
-function NativeFocusedScrollView({ onScroll, ...props }: ScrollViewProps) {
+function NativeFocusedScrollView({ onScroll, contentContainerStyle, ...props }: ScrollViewProps) {
   const { handleScroll, scrollEventThrottle } = useLayoutScroll();
+  // The view scrolls under the shell's bottom bar; its end clears it.
+  const bottomEdge = useBottomEdgeInset();
   const ref = useFocusedScrollable<ScrollViewInstance>({ initialOffset: 0 });
   const handleOwnScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -37,6 +40,7 @@ function NativeFocusedScrollView({ onScroll, ...props }: ScrollViewProps) {
   return (
     <ScrollView
       {...props}
+      contentContainerStyle={[{ paddingBottom: bottomEdge }, contentContainerStyle]}
       ref={ref}
       onScroll={handleOwnScroll}
       scrollEventThrottle={scrollEventThrottle}

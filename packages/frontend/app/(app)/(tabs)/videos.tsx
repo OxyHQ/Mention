@@ -1,6 +1,8 @@
 import { VideoSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useCallback, useContext, useEffect, useRef, useState, useMemo, memo } from 'react';
+import { StatusBar } from 'expo-status-bar';
+import { useBottomEdgeInset } from '@oxy.so/bloom/layout';
 import {
   StyleSheet,
   View,
@@ -20,7 +22,7 @@ import Animated, {
   useSharedValue,
   type SharedValue,
 } from 'react-native-reanimated';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { BloomColorScope, useTheme } from '@oxy.so/bloom/theme';
 import { IconButton } from '@oxy.so/bloom/button';
 import { Screen, ScreenPager, type ScreenPagerHandle } from '@oxy.so/bloom/screen';
 import { PageHeader } from '@oxy.so/bloom/page-header';
@@ -1295,8 +1297,8 @@ export default function VideosScreen() {
   }, []);
   const activeRadius = armedIndex === currentVisibleIndex ? ACTIVE_WINDOW_RADIUS : 0;
 
-  // The Screen's available region already excludes app navigation.
-  const bottomBarHeight = 0;
+  // The reel plays edge to edge, under the app's bottom bar; its controls clear it.
+  const bottomBarHeight = useBottomEdgeInset();
 
   // The raw/original URL — always playable, used as `fallbackVideoUrl`.
   // Unchanged from before this HLS work; every existing resolution path
@@ -2102,167 +2104,171 @@ export default function VideosScreen() {
   return (
     <>
       <SEO title={t('seo.videos.title')} description={t('seo.videos.description')} />
-      <Screen
-        scroll="auto"
-        active={isFocused}
-        headerPlacement="overlay"
-        contentClearance={0}
-        testID="videos-screen"
-        style={{ backgroundColor: posts.length === 0 ? theme.colors.background : '#000000' }}
-        header={
-          <PageHeader
-            testID="videos-header"
-            titleAlign="center"
-            presentation="floating"
-            title={
-              <SegmentedControl<VideoFeedTab>
-                label={t('seo.videos.title')}
-                type="radio"
-                size="lg"
-                value={activeFeed}
-                onValueChange={handleSelectFeed}
-              >
-                <SegmentedControlItem value="videos">
-                  <SegmentedControlItemText>{t('For You')}</SegmentedControlItemText>
-                </SegmentedControlItem>
-                {canUsePrivateApi && (
-                  <SegmentedControlItem value="following">
-                    <SegmentedControlItemText>{t('Following')}</SegmentedControlItemText>
+      {isFocused && posts.length > 0 ? <StatusBar style="light" /> : null}
+      {/* The reel is a dark surface: its header and controls render dark over it. */}
+      <BloomColorScope mode={posts.length > 0 ? 'dark' : undefined} asChild>
+        <Screen
+          scroll="auto"
+          active={isFocused}
+          headerPlacement="overlay"
+          contentClearance={0}
+          testID="videos-screen"
+          style={{ backgroundColor: posts.length === 0 ? theme.colors.background : '#000000' }}
+          header={
+            <PageHeader
+              testID="videos-header"
+              titleAlign="center"
+              presentation="floating"
+              title={
+                <SegmentedControl<VideoFeedTab>
+                  label={t('seo.videos.title')}
+                  type="radio"
+                  size="lg"
+                  value={activeFeed}
+                  onValueChange={handleSelectFeed}
+                >
+                  <SegmentedControlItem value="videos">
+                    <SegmentedControlItemText>{t('For You')}</SegmentedControlItemText>
                   </SegmentedControlItem>
-                )}
-              </SegmentedControl>
-            }
-          />
-        }
-      >
-        <View
-          className="w-full native:flex-1"
-          onLayout={
-            Platform.OS === 'web'
-              ? undefined
-              : (event) => setViewportHeight(event.nativeEvent.layout.height)
+                  {canUsePrivateApi && (
+                    <SegmentedControlItem value="following">
+                      <SegmentedControlItemText>{t('Following')}</SegmentedControlItemText>
+                    </SegmentedControlItem>
+                  )}
+                </SegmentedControl>
+              }
+            />
           }
         >
-          {/* The reel publishes its own viewability (the snapped slide) to the
+          <View
+            className="w-full native:flex-1"
+            onLayout={
+              Platform.OS === 'web'
+                ? undefined
+                : (event) => setViewportHeight(event.nativeEvent.layout.height)
+            }
+          >
+            {/* The reel publishes its own viewability (the snapped slide) to the
                     playback authority. A context provider renders no view, so the
                     slides' layout is untouched. */}
-          {posts.length > 0 && (
-            <VideoViewabilityProvider viewableKeys={viewableVideoKeys}>
-              {Platform.OS === 'web' ? (
-                <ScreenPager
-                  ref={pagerRef}
-                  data={posts}
-                  keyExtractor={keyExtractor}
-                  renderRadius={WEB_RENDER_RADIUS}
-                  onIndexChange={setCurrentVisibleIndex}
-                  onEndReached={handleLoadMore}
-                  onEndReachedThreshold={2}
-                  renderItem={({ item, index, viewportHeight }) => (
-                    <VideoItem
-                      item={item}
-                      isActive={index === currentVisibleIndex}
-                      // See the native path: the session's owner keeps its player.
-                      isNear={isSlideNear(
-                        index,
-                        currentVisibleIndex,
-                        activeRadius,
-                        item.id === pipOwnerId,
-                        isFocused,
-                      )}
-                      onBufferAhead={handleBufferAhead}
-                      screenFocused={isFocused}
-                      theme={theme}
-                      onLike={handleLike}
-                      onComment={handleComment}
-                      onBoost={handleBoost}
-                      onSave={handleSave}
-                      onShare={handleShare}
-                      onSendInAllo={interactions.sendInAllo}
-                      formatCompactNumber={formatCompactNumber}
-                      muted={globalMuted}
-                      onMutedChange={handleMuteChange}
-                      bottomBarHeight={bottomBarHeight}
-                      t={t}
-                      windowHeight={viewportHeight}
-                      bottomSheetProgress={bottomSheetProgress}
-                      viewerId={viewerId}
-                      ownsSession={item.id === pipOwnerId}
-                      sessionActive={pipOwnerId !== null}
-                      sessionSource={item.id === pipOwnerId ? sessionSource : undefined}
-                      onSessionStart={startPipSession}
-                      onSessionEnd={endPipSession}
-                      onRegisterTransportSeek={registerTransportSeek}
-                    />
-                  )}
-                />
-              ) : WINDOW_HEIGHT > 0 ? (
-                <FlatList
-                  ref={flatListRef}
-                  data={posts}
-                  renderItem={renderVideoItem}
-                  keyExtractor={keyExtractor}
-                  pagingEnabled
-                  snapToInterval={WINDOW_HEIGHT}
-                  snapToAlignment="start"
-                  decelerationRate="fast"
-                  onEndReached={handleLoadMore}
-                  onEndReachedThreshold={FLATLIST_CONFIG.END_REACHED_THRESHOLD}
-                  onViewableItemsChanged={handleViewableItemsChanged}
-                  viewabilityConfig={VIEWABILITY_CONFIG}
-                  showsVerticalScrollIndicator={false}
-                  removeClippedSubviews
-                  maxToRenderPerBatch={FLATLIST_CONFIG.MAX_TO_RENDER_PER_BATCH}
-                  windowSize={FLATLIST_CONFIG.WINDOW_SIZE}
-                  initialNumToRender={FLATLIST_CONFIG.INITIAL_NUM_TO_RENDER}
-                  style={styles.list}
-                  contentContainerStyle={styles.listContent}
-                  contentInsetAdjustmentBehavior="never"
-                  getItemLayout={getItemLayout}
-                />
-              ) : null}
-            </VideoViewabilityProvider>
-          )}
+            {posts.length > 0 && (
+              <VideoViewabilityProvider viewableKeys={viewableVideoKeys}>
+                {Platform.OS === 'web' ? (
+                  <ScreenPager
+                    ref={pagerRef}
+                    data={posts}
+                    keyExtractor={keyExtractor}
+                    renderRadius={WEB_RENDER_RADIUS}
+                    onIndexChange={setCurrentVisibleIndex}
+                    onEndReached={handleLoadMore}
+                    onEndReachedThreshold={2}
+                    renderItem={({ item, index, viewportHeight }) => (
+                      <VideoItem
+                        item={item}
+                        isActive={index === currentVisibleIndex}
+                        // See the native path: the session's owner keeps its player.
+                        isNear={isSlideNear(
+                          index,
+                          currentVisibleIndex,
+                          activeRadius,
+                          item.id === pipOwnerId,
+                          isFocused,
+                        )}
+                        onBufferAhead={handleBufferAhead}
+                        screenFocused={isFocused}
+                        theme={theme}
+                        onLike={handleLike}
+                        onComment={handleComment}
+                        onBoost={handleBoost}
+                        onSave={handleSave}
+                        onShare={handleShare}
+                        onSendInAllo={interactions.sendInAllo}
+                        formatCompactNumber={formatCompactNumber}
+                        muted={globalMuted}
+                        onMutedChange={handleMuteChange}
+                        bottomBarHeight={bottomBarHeight}
+                        t={t}
+                        windowHeight={viewportHeight}
+                        bottomSheetProgress={bottomSheetProgress}
+                        viewerId={viewerId}
+                        ownsSession={item.id === pipOwnerId}
+                        sessionActive={pipOwnerId !== null}
+                        sessionSource={item.id === pipOwnerId ? sessionSource : undefined}
+                        onSessionStart={startPipSession}
+                        onSessionEnd={endPipSession}
+                        onRegisterTransportSeek={registerTransportSeek}
+                      />
+                    )}
+                  />
+                ) : WINDOW_HEIGHT > 0 ? (
+                  <FlatList
+                    ref={flatListRef}
+                    data={posts}
+                    renderItem={renderVideoItem}
+                    keyExtractor={keyExtractor}
+                    pagingEnabled
+                    snapToInterval={WINDOW_HEIGHT}
+                    snapToAlignment="start"
+                    decelerationRate="fast"
+                    onEndReached={handleLoadMore}
+                    onEndReachedThreshold={FLATLIST_CONFIG.END_REACHED_THRESHOLD}
+                    onViewableItemsChanged={handleViewableItemsChanged}
+                    viewabilityConfig={VIEWABILITY_CONFIG}
+                    showsVerticalScrollIndicator={false}
+                    removeClippedSubviews
+                    maxToRenderPerBatch={FLATLIST_CONFIG.MAX_TO_RENDER_PER_BATCH}
+                    windowSize={FLATLIST_CONFIG.WINDOW_SIZE}
+                    initialNumToRender={FLATLIST_CONFIG.INITIAL_NUM_TO_RENDER}
+                    style={styles.list}
+                    contentContainerStyle={styles.listContent}
+                    contentInsetAdjustmentBehavior="never"
+                    getItemLayout={getItemLayout}
+                  />
+                ) : null}
+              </VideoViewabilityProvider>
+            )}
 
-          {posts.length === 0 && (
-            <View
-              className="native:flex-1 web:min-h-[var(--bloom-screen-viewport-height)] items-center justify-center"
-              style={
-                isLoading
-                  ? undefined
-                  : {
-                      paddingTop: insets.top + 72,
-                      paddingBottom: bottomBarHeight + 24,
-                      paddingHorizontal: 24,
-                    }
-              }
-              testID="videos-status"
-            >
-              {isLoading ? (
-                <VideoSkeleton />
-              ) : (
-                <EmptyState
-                  title={t(hasLoadError ? 'videos.load_failed' : 'videos.no_video_posts_yet')}
-                  subtitle={t(
-                    hasLoadError ? 'videos.load_failed_description' : 'videos.empty_description',
-                  )}
-                  sticker={hasLoadError ? 'loadError' : 'videosTab'}
-                  action={{ label: t('common.retry'), onPress: handleRetry }}
-                />
-              )}
-            </View>
-          )}
+            {posts.length === 0 && (
+              <View
+                className="native:flex-1 web:min-h-[var(--bloom-screen-viewport-height)] items-center justify-center"
+                style={
+                  isLoading
+                    ? undefined
+                    : {
+                        paddingTop: insets.top + 72,
+                        paddingBottom: bottomBarHeight + 24,
+                        paddingHorizontal: 24,
+                      }
+                }
+                testID="videos-status"
+              >
+                {isLoading ? (
+                  <VideoSkeleton />
+                ) : (
+                  <EmptyState
+                    title={t(hasLoadError ? 'videos.load_failed' : 'videos.no_video_posts_yet')}
+                    subtitle={t(
+                      hasLoadError ? 'videos.load_failed_description' : 'videos.empty_description',
+                    )}
+                    sticker={hasLoadError ? 'loadError' : 'videosTab'}
+                    action={{ label: t('common.retry'), onPress: handleRetry }}
+                  />
+                )}
+              </View>
+            )}
 
-          {loadingMore && (
-            <View
-              className="absolute left-0 right-0 items-center"
-              style={{ bottom: bottomBarHeight + 24 }}
-              pointerEvents="none"
-            >
-              <SpinnerIcon size={24} className="text-white" />
-            </View>
-          )}
-        </View>
-      </Screen>
+            {loadingMore && (
+              <View
+                className="absolute left-0 right-0 items-center"
+                style={{ bottom: bottomBarHeight + 24 }}
+                pointerEvents="none"
+              >
+                <SpinnerIcon size={24} className="text-white" />
+              </View>
+            )}
+          </View>
+        </Screen>
+      </BloomColorScope>
     </>
   );
 }

@@ -1,6 +1,7 @@
 import type React from 'react';
 import { FlashList, type FlashListProps, type FlashListRef } from '@shopify/flash-list';
 import Animated, { useAnimatedScrollHandler, type AnimatedProps } from 'react-native-reanimated';
+import { useBottomEdgeInset } from '@oxy.so/bloom/layout';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { useFocusedScrollable } from '@/hooks/useFocusedScrollable';
 
@@ -33,9 +34,12 @@ export function FocusedFlashList<T>(
       scrollPosition.value = event.contentOffset.y;
     },
   });
+  // The list scrolls under the shell's bottom bar; its last row clears it.
+  const bottomEdge = useBottomEdgeInset();
   return (
     <AnimatedFlashList<T>
       {...props}
+      contentContainerStyle={{ paddingBottom: bottomEdge, ...props.contentContainerStyle }}
       ref={ref}
       onScroll={onScroll}
       scrollEventThrottle={scrollEventThrottle}

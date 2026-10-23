@@ -13,7 +13,7 @@ import {
   type ViewInstance,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { useHeaderDockInset } from '@oxy.so/bloom/layout';
+import { useBottomEdgeInset, useHeaderDockInset } from '@oxy.so/bloom/layout';
 import Animated, {
   runOnJS,
   useAnimatedScrollHandler,
@@ -293,10 +293,8 @@ const Feed = (props: FeedProps) => {
   const { scrollPosition, scrollEventThrottle } = useLayoutScroll();
   useScreenScrollOwner(flatListRef, isFocused && screenActive && scrollEnabled !== false);
 
-  // Fixed top inset for a feed that scrolls BEHIND an auto-hiding header + tab
-  // bar overlay. Reserved as constant scrollable top padding so the overlay
-  // chrome only translates and never reflows the list.
-  const topInset = 0;
+  // The feed scrolls under the shell's bottom bar; its last row clears it.
+  const bottomEdge = useBottomEdgeInset();
 
   // Bloom is a no-op on native today, but pass the same identity sub-key used
   // on web so feeds hosted by one route can never share an offset if native
@@ -409,7 +407,7 @@ const Feed = (props: FeedProps) => {
     viewableVideoKeys.publish(keys);
   }, [viewableVideoKeys]);
 
-  // The header spans [topInset, topInset + height) of the scrollable content, so
+  // The header spans [0, height) of the scrollable content, so
   // it is on screen exactly while the scroll offset has not passed its bottom
   // edge. Starts false: until it has been measured, silence is the safe answer.
   //
@@ -426,10 +424,10 @@ const Feed = (props: FeedProps) => {
 
   const handleHeaderLayout = useCallback(
     (event: LayoutChangeEvent) => {
-      headerBottomRef.current = topInset + event.nativeEvent.layout.height;
+      headerBottomRef.current = event.nativeEvent.layout.height;
       syncHeaderOnScreen();
     },
-    [topInset, syncHeaderOnScreen],
+    [syncHeaderOnScreen],
   );
 
   // Impression tracking: reconcile the full viewable set on each change.
@@ -571,9 +569,7 @@ const Feed = (props: FeedProps) => {
     },
   });
 
-  // Memoize RefreshControl to prevent recreation on every render. When the feed
-  // scrolls behind the overlay chrome, offset the pull-to-refresh spinner by the
-  // chrome inset so it appears below the chrome instead of behind it.
+  // Memoize RefreshControl to prevent recreation on every render.
   const refreshControl = useMemo(() => {
     if (hideRefreshControl) return undefined;
     return (
@@ -582,24 +578,22 @@ const Feed = (props: FeedProps) => {
         onRefresh={handleRefresh}
         colors={[theme.colors.primary]}
         tintColor={theme.colors.primary}
-        progressViewOffset={topInset || undefined}
       />
     );
-  }, [hideRefreshControl, refreshing, handleRefresh, theme.colors.primary, topInset]);
+  }, [hideRefreshControl, refreshing, handleRefresh, theme.colors.primary]);
 
   const containerStyle = feedRowStyles.container;
 
-  // Memoize list content style. `topInset` reserves the overlay-chrome height as
-  // constant scrollable top padding (native home/explore) so hiding the chrome
-  // never reflows the list; caller-supplied `contentContainerStyle` is applied
+  // Memoize list content style. A feed that owns its scroll clears the bottom
+  // bar it scrolls under; caller-supplied `contentContainerStyle` is applied
   // last so an explicit override still wins.
   const listContentStyle = useMemo(
     () => [
       feedRowStyles.listContent,
-      topInset > 0 ? { paddingTop: topInset } : null,
+      ownsScroll ? { paddingBottom: bottomEdge } : null,
       contentContainerStyle,
     ],
-    [contentContainerStyle, topInset],
+    [contentContainerStyle, ownsScroll, bottomEdge],
   );
 
   // FlashList accepts style arrays; preserve the caller's style directly.
