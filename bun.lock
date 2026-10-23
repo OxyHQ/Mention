@@ -272,7 +272,7 @@
     "@modelcontextprotocol/sdk": "1.32.1",
     "@oxy.so/bloom": "catalog:",
     "@oxy.so/contracts": "catalog:",
-    "@oxy.so/core": "6.15.1",
+    "@oxy.so/core": "6.15.2",
     "@oxy.so/protocol": "catalog:",
     "@oxy.so/services": "12.12.0",
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -329,8 +329,8 @@
   },
   "catalog": {
     "@oxy.so/bloom": "15.16.0",
-    "@oxy.so/contracts": "5.7.0",
-    "@oxy.so/core": "6.15.1",
+    "@oxy.so/contracts": "5.8.0",
+    "@oxy.so/core": "6.15.2",
     "@oxy.so/mcp": "1.3.1",
     "@oxy.so/protocol": "1.5.0",
     "@oxy.so/services": "12.12.0",
@@ -1006,9 +1006,9 @@
 
     "@oxy.so/bloom": ["@oxy.so/bloom@15.16.0", "", { "dependencies": { "@tanstack/react-virtual": "^3.14.3", "react-native-css": "3.1.0-rc.0", "react-remove-scroll-bar": "^2.3.8" }, "peerDependencies": { "@lottiefiles/dotlottie-react": ">=0.13.0", "@react-native-community/netinfo": ">=11.1.0", "expo": "*", "expo-blur": "*", "expo-font": "*", "expo-haptics": "*", "expo-image": "*", "expo-router": ">=3.0.0", "expo-video": "*", "lottie-react-native": ">=7.0.0", "nativewind": ">=5.0.0 || 5.0.0-rc.0", "react": ">=18.0.0", "react-dom": ">=18.0.0", "react-native": ">=0.73.0", "react-native-gesture-handler": ">=2.16.1", "react-native-keyboard-controller": ">=1.11.4", "react-native-reanimated": ">=3.13.0", "react-native-safe-area-context": ">=5.0.0", "react-native-screens": ">=3.16.0", "react-native-svg": ">=13.0.0", "react-native-webview": ">=13.0.0" }, "optionalPeers": ["@lottiefiles/dotlottie-react", "@react-native-community/netinfo", "expo", "expo-font", "expo-haptics", "expo-router", "expo-video", "lottie-react-native", "nativewind", "react-dom", "react-native-keyboard-controller", "react-native-webview"] }, "sha512-tvMMNqeBMZGo9hgQY7oq0JxQNfPKS+1CNQbiLq/2FA06Nz/bl+6wnHVJ/COcKdt+7srsElJaPa74E/WFR1ugHg=="],
 
-    "@oxy.so/contracts": ["@oxy.so/contracts@5.7.0", "", { "dependencies": { "zod": "^3.25.64" } }, "sha512-SRiqzcnKP6ttZlji4ybqeEekfH+FJZjR0mDHvGSIeYd3GW5/oXaEZIyA1uRFoyRwEeZNop1qW7AkQ5subLjfNg=="],
+    "@oxy.so/contracts": ["@oxy.so/contracts@5.8.0", "", { "dependencies": { "zod": "^3.25.64" } }, "sha512-jgoDHLPiYb3USMvC7oHeMHb7oEHYcqZ8YgxbjH1qQ5HwxXK2FBZoWf/86HuFt+Ja2EOoxH3WAI2i3prApprTfA=="],
 
-    "@oxy.so/core": ["@oxy.so/core@6.15.1", "", { "dependencies": { "@noble/ciphers": "^1.3.0", "@noble/hashes": "^1.8.0", "@oxy.so/contracts": "5.7.0", "@oxy.so/protocol": "^1.5.0", "@oxy.so/telemetry": "^2.1.0", "@scure/bip39": "^1.6.0", "buffer": "^6.0.3", "express-rate-limit": "^8.6.0", "helmet": "^8.0.0", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.1", "tldts": "^7.4.10", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "<3.0.0", "expo-crypto": "<59.0.0", "expo-secure-store": "<59.0.0", "express": "^4.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-h4FL6VGTPJmz3vqgKzjJCHlNip06/+YyYDx5NWaOvx23BwtxkyRgiR+xxPrrXcg2uC68rIsvvet2iFJzAlwHpw=="],
+    "@oxy.so/core": ["@oxy.so/core@6.15.2", "", { "dependencies": { "@noble/ciphers": "^1.3.0", "@noble/hashes": "^1.8.0", "@oxy.so/contracts": "5.8.0", "@oxy.so/protocol": "^1.5.0", "@oxy.so/telemetry": "^2.1.0", "@scure/bip39": "^1.6.0", "buffer": "^6.0.3", "express-rate-limit": "^8.6.0", "helmet": "^8.0.0", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.1", "tldts": "^7.4.10", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "<3.0.0", "expo-crypto": "<59.0.0", "expo-secure-store": "<59.0.0", "express": "^4.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-nMyHLYz4C+KQYylPqIZVu8HBTrFj7MJi7+CEb6RM5hxGYECgkx1ouUGZuhDzbkIbhXvonixXVqda8K57jqAaMw=="],
 
     "@oxy.so/db": ["@oxy.so/db@1.4.0", "", { "peerDependencies": { "drizzle-orm": "^0.45.2", "postgres": "^3.4.9" }, "bin": { "oxy-db-check-migration-locks": "dist/cjs/bin/check-migration-locks.js" } }, "sha512-qumZQoZ4khGXOl+LYC5uZquw5N3DdjBZoV3+WbwJ/zlLXCJ180Qhg72nRSalvIUQHoFIosuIr5DFHT0ia3Garg=="],
 

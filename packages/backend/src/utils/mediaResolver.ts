@@ -452,8 +452,12 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
           // `hlsReadyAt` is Oxy's own record of the finished transcode, carried
           // on the media row. Absent means absent: no URL, and the client plays
           // the progressive original directly rather than after a failure.
+          // The ready timestamp identifies the rendition generation, so a
+          // repaired ladder does not reuse a browser's cached old redirect.
           const hlsUrl = item.hlsReadyAt
-            ? oxyCdnUrlClient.assets.publicUrl(item.id, 'hls_master')
+            ? oxyCdnUrlClient.assets.publicUrl(item.id, 'hls_master', undefined, {
+                revision: item.hlsReadyAt,
+              })
             : undefined;
           return {
             id: item.id,
