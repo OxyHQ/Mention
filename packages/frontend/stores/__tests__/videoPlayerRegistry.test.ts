@@ -495,3 +495,15 @@ it('retires a superseded flight, but preserves the flight when the same media is
   expect(entryFor(KEY)).toBeUndefined();
   expect(entryFor(OTHER_KEY).refCount).toBe(1);
 });
+
+it('cancels the captured pending transition exactly once and clears its lookup', () => {
+  expect(pendingVideoTransition('post-1')).toBeNull();
+  holdAcrossTransition(KEY, SOURCE);
+  const pending = pendingVideoTransition('post-1');
+  expect(pending?.key).toBe(KEY);
+  expect(pending?.release()).toBe(true);
+  expect(entryFor(KEY)).toBeUndefined();
+  expect(mockVideo.created[0].releaseCount).toBe(1);
+  expect(pending?.release()).toBe(false);
+  expect(pendingVideoTransition('post-1')).toBeNull();
+});
