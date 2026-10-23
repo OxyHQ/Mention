@@ -142,6 +142,16 @@ export interface FeedPostSlice {
   items: FeedSliceItem[];
   isIncompleteThread: boolean;
   reason?: FeedSliceReason;
+  /** Viewer-scoped evidence, independent from thread/boost grouping. Never store on a post. */
+  socialContext?: {
+    type: 'likedBy';
+    /** The exact post liked, not a prepended parent or another item in the slice. */
+    postId: string;
+    /** At most three eligible followed actors whose positive likes are public. */
+    actors: PostUser[];
+    /** Current eligible followed likers within the bounded discovery window/network. */
+    total: number;
+  };
 }
 
 // Feed interstitials — recommendation cards spliced between post slices
