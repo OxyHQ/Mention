@@ -288,7 +288,7 @@ operator-run one-shot `packages/backend/src/scripts/importTelegramChannelExport.
    The operator uploads and presigns with the AWS CLI against R2, using a
    short-lived R2 token scoped to that one bucket (Object Read & Write). The
    token's id is the S3 access key id and the SHA-256 of its value is the secret
-   (oxy-infra `docs/runbooks/61-r2-object-storage.md`). Delete the token when
+   (oxy-infra runbook 61, "Object storage on Cloudflare R2"). Delete the token when
    the import is done.
 
    ```ini
