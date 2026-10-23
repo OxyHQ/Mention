@@ -115,11 +115,107 @@ physical-device result. The local privacy hook covers blocked accounts; immediat
 client-side mute/restriction suppression must not be claimed merely from that
 blocked-actor test.
 
-Two backend review checks remain particularly important. First, a social discovery
+The initial backend review raised two additional checks. First, a social discovery
 lane must use the canonical `isReply = false` predicate, not only a null local
 parent: unresolved federated replies also have null parent IDs. Second, a SQL
 `LIMIT` bounds returned candidates, not database work; a chronological post scan
 with correlated activity predicates needs an execution-plan check for sparse
 eligible activity. Freshly querying visible social labels proves disclosure
 revocation, but does not by itself prove removal of an already-pending candidate's
-serialized ranking uplift; those are separate acceptance questions.
+serialized ranking uplift; the proposed correction and its explicit snapshot-score
+boundary are described below.
+
+
+## Bounded production baseline before this correction
+
+The [sanitized seven-page capture](./feed-baseline-evidence.json) contains only
+aggregate metrics and the owner's public example identifiers. Feed reads ran at
+**08:22:08–08:23:16 UTC on 23 October 2026**, after ECS revision **700** was
+verified steady at 2/2, mapped to SHA
+`5b9b48f43c2b7bc2699a0f7ca4fd019f203cc941`. Fresh per-container digest enumeration
+was unavailable; the immutable task-to-image mapping and service state were
+verified separately.
+
+| Surface as @nate | Pages | Logical positions | Flattened posts | Embedded quote subjects observed |
+| --- | ---: | ---: | ---: | ---: |
+| For You | 3 | 60 | 61 | 0 |
+| Following | 3 | 59 | 65 | 0 |
+| Owner's Posts | 1 | 20 | 22 | 2 |
+| Total | 7 | 139 | 148 | 2 |
+
+All seven pages had a continuation. No repeated focal ID was reported within
+each sampled traversal. Flattened context is not an extra logical position.
+Zero quotes in the For You/Following sample alone cannot establish omission:
+the author page actually contained the supplied outer post with its correct
+quoted target, while the successful feed-item read returned no quoted subject.
+That paired observation plus the intact database relation isolates the route
+hydration failure. The earlier item read at 08:00:47 and direct target read at
+08:06:57 did not have an independently captured serving revision; do not assign
+them revision 700 merely because the later feed capture was on that revision.
+
+Reads can advance served history. This was a bounded observation, not a matched
+inventory experiment, and involved no post, reaction, follow or settings writes.
+
+## Independent review of the proposed correction
+
+These are local implementation and regression-test findings, **not a deployment
+claim**. The original gap matrix records the diagnosed baseline; production
+acceptance must be appended after the actual release.
+
+- Quote rendering uses an already-authorized graph, a path-local cycle guard and
+  two required reference hops. A generic unavailable marker preserves quote
+  intent without exposing the hidden subject's identity or reason. The actual
+  `/feed/item/:id` route is covered rather than relying on `/posts/:id` alone.
+- Social discovery starts from indexed eligible activity IDs, unions positive
+  opted-in likes with public published boosts, then applies target eligibility
+  and chronological pagination. There is no activity subquery limit that can
+  falsely exhaust the source before filtering targets. Unresolved federated
+  replies use canonical `isReply`, not a nullable local parent relation.
+- Supply, ranking counts and fresh explanations share the recent activity
+  window and eligible actor set. The eligible followed-actor cohort is capped at
+  500; per-page social count/evidence lookups cover at most 200 targets and return
+  at most three sampled actors per explanation. These bounds are not complete
+  coverage of arbitrarily large follow graphs. A person liking and boosting counts once for
+  people-based ranking. A boost-only explanation is distinguished from a like;
+  Following keeps its original chronological event semantics.
+- Pending candidates supplied only by social activity are revalidated on each
+  continuation/replay. Revoked candidates release their dedup IDs so another
+  lane may supply them later, while a separate retired count keeps the scan
+  budget conservative. Candidates already supplied independently remain with
+  their session snapshot score; labels reread current evidence. This does **not**
+  promise immediate recalculation of every score after third-party consent or
+  activity changes. The social evidence binding revision invalidates older
+  For You and Popular with Friends sessions lacking that provenance.
+- Viewer-specific explanations remain in feed state, outside canonical post
+  storage. Successful mute changes notify only the originating viewer, and
+  stale explanations disappear while a fresh read is pending. Independent
+  review found and corrected a native race: an in-flight continuation could
+  previously prevent refresh and stamp old evidence fresh. A forced rule reload
+  now supersedes initial and continuation requests, so their late responses
+  cannot append old labels or overwrite freshness/loading state.
+
+The frontend owner reported 46 focused memory-feed/store tests and 38
+service/hook/menu tests passing after the race correction. Three candidate
+Chromium flows passed: quote commentary plus navigation to its embedded subject,
+like explanation to the Likes dialog, and boost explanation to the Boosts dialog,
+without also navigating the outer row or issuing per-row like lookups. These are
+candidate-browser and local-state results, not a production browser or physical
+native-device result. Full integration gates and deployed verification remain
+separate acceptance steps.
+
+
+The backend owner reported 109 focused Vitest tests passing across the engine,
+session, real-database social evidence and two engagement-controller suites, plus
+78 Bun tests across source/count/preset/reply-policy/isolation suites. The quote
+suite passed 24 tests separately. These include exact pre-change session-binding
+rejection, privacy opt-out and unlike revalidation, retention through a remaining
+public boost, and optional explanation failure without losing readable content.
+A local `EXPLAIN ANALYZE` fixture with 10,000 unrelated posts and no eligible
+activity observed zero target-post scan loops. That demonstrates the intended
+empty-cohort query shape locally; it is not a production latency measurement.
+
+Independent code review found no remaining blocker in that scoped correction.
+The subsequent assessment of vote-transition timestamps is a separate follow-up:
+this evidence does not yet establish whether a negative-to-positive transition's
+recency should use creation time or the latest update. No schema/index or
+historical event-time claim follows from these test counts.
