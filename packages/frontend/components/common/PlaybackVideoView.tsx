@@ -2,7 +2,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 import type { VideoPlayer, VideoViewProps } from 'expo-video';
 import { VideoView, type VideoViewHandle } from '@oxy.so/bloom/video-view';
 import { needsJsHlsDecoder, useHlsPlayback } from '@/lib/hlsPlayback';
-import { setVideoHasRenderedFrame, useVideoLoadingDemand } from '@/stores/video-playback-control';
+import { setVideoHasRenderedFrame } from '@/stores/video-playback-control';
 
 import { acquireVideoPlayer, type VideoPlayerKey } from '@/stores/videoPlayerRegistry';
 import { videoSourceFor } from '@/utils/videoSource';
@@ -39,7 +39,6 @@ export const PlaybackVideoView = forwardRef<VideoViewHandle | null, PlaybackVide
     forwardedRef,
   ) {
     const viewRef = useRef<VideoViewHandle | null>(null);
-    const shouldLoad = useVideoLoadingDemand(player);
     // A persistent flight view can outlive both route presenters. Its lease
     // keeps the shared player alive until the actual view has unmounted.
     const initialSource = useRef(source);
@@ -62,7 +61,7 @@ export const PlaybackVideoView = forwardRef<VideoViewHandle | null, PlaybackVide
     }
     const decoderSource =
       sourceState.player === player && sourceState.loaded === source ? source : '';
-    const { ref: hlsRef } = useHlsPlayback(decoderSource, viewRef, shouldLoad, fallbackSource);
+    const { ref: hlsRef } = useHlsPlayback(decoderSource, viewRef, player, fallbackSource);
     const requestedSource = useRef({ player, source });
     const replacement = useRef<Promise<void>>(Promise.resolve());
     const sourceErrorRef = useRef(onSourceError);

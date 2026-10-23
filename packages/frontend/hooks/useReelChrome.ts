@@ -13,7 +13,7 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { createLogger } from '@oxy.so/core/logger';
 import type { MediaPixelSize } from '@/utils/mediaTypes';
 import { useVideoPlayback } from '@/context/VideoPlaybackContext';
-import { useVideoHasRenderedFrame, useVideoPlaybackControl } from '@/stores/video-playback-control';
+import { useVideoPlaybackControl } from '@/stores/video-playback-control';
 import { usePipAspectRatio } from '@/hooks/usePipAspectRatio';
 
 /**
@@ -213,9 +213,6 @@ export function useReelChrome({
   onSessionEnd,
   onRegisterTransportSeek,
 }: ReelChromeParams) {
-  // `hasRendered` latches true on the FIRST `readyToPlay` and never flips back,
-  // so a mid-playback re-buffer (status → loading) does NOT re-show the poster.
-  const hasRendered = useVideoHasRenderedFrame(player);
   // Live re-buffer flag: distinct from `hasRendered` so a mid-playback stall
   // shows only a small spinner over the already-rendered frame, never the poster.
   const [isBuffering, setIsBuffering] = useState(false);
@@ -487,7 +484,9 @@ export function useReelChrome({
   // Off-screen, blurred, backgrounded (unless in PiP), or viewer-paused → paused.
   //
   const shouldPlay = isWatched && playbackAllowed && !userPaused;
-  useVideoPlaybackControl(player, shouldPlay, canLoad);
+  // `hasRendered` latches true on the FIRST `readyToPlay` and never flips back,
+  // so a mid-playback re-buffer (status → loading) does NOT re-show the poster.
+  const hasRendered = useVideoPlaybackControl(player, shouldPlay, canLoad);
 
   // Keep the device awake while this surface is the one actually playing. Same
   // predicate as the player above, so the lock cannot outlive playback.

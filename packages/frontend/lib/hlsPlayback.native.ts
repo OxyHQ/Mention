@@ -1,3 +1,4 @@
+import type { VideoPlayer } from 'expo-video';
 import { useCallback } from 'react';
 import type { VideoViewHandle } from '@oxy.so/bloom/video-view';
 
@@ -29,7 +30,7 @@ export function needsJsHlsDecoder(_src: string | undefined | null): boolean {
 export function useHlsPlayback(
   _src: string,
   viewRef: React.RefObject<VideoViewHandle | null>,
-  _loading?: boolean,
+  _player: VideoPlayer,
   _fallbackSrc?: string,
 ): HlsPlayback {
   const ref = useCallback(

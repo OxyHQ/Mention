@@ -26,6 +26,7 @@ class PlaybackControl {
   }
 
   getSnapshot = (): PlaybackSnapshot => this.snapshot;
+  getRenderedFrame = (): boolean => this.snapshot.hasRenderedFrame;
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -114,25 +115,36 @@ export function useVideoPlaybackControl(
   player: VideoPlayer,
   shouldPlay: boolean,
   shouldLoad = shouldPlay,
-): void {
+): boolean {
   const [owner] = useState(() => ({}));
   const control = usePlaybackControl(player);
   useEffect(() => {
     control.publish(owner, { shouldPlay, shouldLoad });
   }, [control, owner, shouldPlay, shouldLoad]);
   useEffect(() => () => control.remove(owner), [control, owner]);
+  return useSyncExternalStore(
+    control.subscribe,
+    control.getRenderedFrame,
+    control.getRenderedFrame,
+  );
 }
 
-export function useVideoLoadingDemand(player: VideoPlayer): boolean {
-  const control = usePlaybackControl(player);
-  return useSyncExternalStore(control.subscribe, control.getSnapshot, control.getSnapshot)
-    .shouldLoad;
-}
-
-export function useVideoHasRenderedFrame(player: VideoPlayer): boolean {
-  const control = usePlaybackControl(player);
-  return useSyncExternalStore(control.subscribe, control.getSnapshot, control.getSnapshot)
-    .hasRenderedFrame;
+/** The decoder consumes demand directly; native views need no loading subscription. */
+export function subscribeVideoLoadingDemand(
+  player: VideoPlayer,
+  onChange: (loading: boolean) => void,
+): () => void {
+  const control = controlFor(player);
+  let previous: boolean | undefined;
+  const update = () => {
+    const loading = control.getSnapshot().shouldLoad;
+    if (loading === previous) return;
+    previous = loading;
+    onChange(loading);
+  };
+  const unsubscribe = control.subscribe(update);
+  update();
+  return unsubscribe;
 }
 
 export function setVideoHasRenderedFrame(player: VideoPlayer, hasRenderedFrame: boolean): void {

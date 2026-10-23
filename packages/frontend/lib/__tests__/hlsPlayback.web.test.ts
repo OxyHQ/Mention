@@ -17,6 +17,7 @@ import { URL as NodeURL } from 'node:url';
 import { createElement } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { VideoViewHandle } from '@oxy.so/bloom/video-view';
+import type { VideoPlayer } from 'expo-video';
 import { needsJsHlsDecoder, playProgressiveInstead, useHlsPlayback } from '../hlsPlayback.web';
 
 const LADDER = 'https://cloud.oxy.so/m1?variant=hls_master';
@@ -96,7 +97,7 @@ describe('useHlsPlayback ref', () => {
     const viewRef: { current: VideoViewHandle | null } = { current: null };
     let playback: ReturnType<typeof useHlsPlayback> | undefined;
     function Probe() {
-      playback = useHlsPlayback(src, viewRef);
+      playback = useHlsPlayback(src, viewRef, {} as VideoPlayer);
       return null;
     }
     act(() => {
