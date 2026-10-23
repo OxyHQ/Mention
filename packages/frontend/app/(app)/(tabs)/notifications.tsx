@@ -648,7 +648,6 @@ const NotificationsScreen: React.FC = () => {
           />
         }
       >
-
         {canUsePrivateApi && (
           <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
             {[
