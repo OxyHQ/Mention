@@ -9,7 +9,7 @@ describe('Edit Profile presentation', () => {
     const header = read('components/Profile/ProfileHeader.tsx');
     const route = read('app/(app)/edit-profile.tsx');
     expect(header).toMatch(/requestSettings\('\/settings\/edit-profile'\)/);
-    expect(route).toMatch(/requestSettings\('\/settings\/edit-profile'\)/);
+    expect(route).toMatch(/createSettingsRoute\('edit-profile'\)/);
     expect(read('components/settings/settingsRoutes.ts')).toMatch(/'edit-profile'/);
   });
 

@@ -13,7 +13,7 @@ import { join, resolve } from 'node:path';
  *
  * What does work is a MODULE fork: Metro resolves `./CameraCapture` to
  * `CameraCapture.web.tsx` on web, so nothing on that side names the package at
- * all. Same mechanism as `TabsPager.web.tsx` and `react-native-pager-view`.
+ * all. Same mechanism as Bloom's tab pager and `react-native-pager-view`.
  *
  * So the boundary is "which module imports it", and that is what this pins.
  * Moving the import up into the route file type-checks, renders correctly on

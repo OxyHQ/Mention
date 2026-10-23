@@ -1,8 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { useRouter } from '@/lib/navigation/router';
 
-import { pageIndexByName } from '@/components/navigation/tabs';
-import { useTabPager } from '@/context/TabPagerContext';
+import { useTabPager } from '@oxy.so/bloom/tab-pager';
 import { useSafeBack } from '@/hooks/useSafeBack';
 
 /**
@@ -50,7 +49,7 @@ export function useComposeExit(presentation: ComposePresentation): ComposeExit {
 
   const dismiss = useCallback(() => {
     if (presentation === 'tab') {
-      selectTab(pageIndexByName('index'));
+      selectTab('index');
       return;
     }
     safeBack();
@@ -58,7 +57,7 @@ export function useComposeExit(presentation: ComposePresentation): ComposeExit {
 
   const leaveAfterPublish = useCallback(() => {
     if (presentation === 'tab') {
-      leaveTab(pageIndexByName('write'), pageIndexByName('index'));
+      leaveTab('write', 'index');
       return;
     }
     if (router.canGoBack()) {

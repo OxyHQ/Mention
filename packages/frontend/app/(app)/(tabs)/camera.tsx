@@ -6,8 +6,7 @@ import { logger } from '@oxy.so/core/logger';
 import { CameraCapture } from '@/components/Camera/CameraCapture';
 import { CaptureReview } from '@/components/Camera/CaptureReview';
 import { useCaptureUpload, type LocalCapture } from '@/components/Camera/useCaptureUpload';
-import { useTabPager } from '@/context/TabPagerContext';
-import { pageIndexByName } from '@/components/navigation/tabs';
+import { useTabPager } from '@oxy.so/bloom/tab-pager';
 import { usePostsStore } from '@/stores/postsStore';
 import { setPendingShareMedia } from '@/utils/pendingShareMedia';
 import { buildCapturePost } from '@/utils/postBuilder';
@@ -74,7 +73,7 @@ export default function CameraPage() {
 
   const leaveToFeed = useCallback(() => {
     clearCapture();
-    selectTab(pageIndexByName('index'));
+    selectTab('index');
   }, [clearCapture, selectTab]);
 
   const retake = useCallback(() => {

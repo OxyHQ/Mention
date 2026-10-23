@@ -1,7 +1,6 @@
 import TestRenderer, { act } from 'react-test-renderer';
 
 import { useComposeExit, type ComposeExit, type ComposePresentation } from '../useComposeExit';
-import { pageIndexByName } from '@/components/navigation/tabs';
 
 /**
  * Where the composer goes once it is done, for each of its two routes.
@@ -28,7 +27,7 @@ jest.mock('expo-router', () => ({
 
 const mockSelectTab = jest.fn();
 const mockLeaveTab = jest.fn();
-jest.mock('@/context/TabPagerContext', () => ({
+jest.mock('@oxy.so/bloom/tab-pager', () => ({
   useTabPager: () => ({ selectTab: mockSelectTab, leaveTab: mockLeaveTab }),
 }));
 
@@ -79,7 +78,7 @@ describe('useComposeExit after a publish', () => {
   it('leaves the composer tab for Home and takes it out of the tabs history', () => {
     mountExit('tab').leaveAfterPublish();
 
-    expect(mockLeaveTab).toHaveBeenCalledWith(pageIndexByName('write'), pageIndexByName('index'));
+    expect(mockLeaveTab).toHaveBeenCalledWith('write', 'index');
     expect(mockSelectTab).not.toHaveBeenCalled();
   });
 });
@@ -88,7 +87,7 @@ describe('useComposeExit without publishing (the ✕ keeps the draft)', () => {
   it('switches the tab to Home, leaving the composer and its draft in place', () => {
     mountExit('tab').dismiss();
 
-    expect(mockSelectTab).toHaveBeenCalledWith(pageIndexByName('index'));
+    expect(mockSelectTab).toHaveBeenCalledWith('index');
     expect(mockLeaveTab).not.toHaveBeenCalled();
   });
 

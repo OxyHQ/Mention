@@ -111,7 +111,7 @@ interface CameraCaptureProps {
  * to a platform that never renders it. A module fork does keep it out: Metro
  * resolves `./CameraCapture` to `CameraCapture.web.tsx` on web, so nothing on
  * that side ever names the package. Same mechanism as
- * `components/navigation/TabsPager.web.tsx` and `react-native-pager-view`, and
+ * Bloom's tab pager and `react-native-pager-view`, and
  * `components/Camera/__tests__/cameraWebBoundary.test.ts` is what keeps it true.
  *
  * THE PREVIEW IS ONLY MOUNTED WHILE THE PAGE IS FOCUSED, and its owner enforces

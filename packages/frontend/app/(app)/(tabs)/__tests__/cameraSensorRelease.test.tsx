@@ -38,7 +38,7 @@ jest.mock('@/stores/postsStore', () => ({
   usePostsStore: (selector: (state: unknown) => unknown) => selector({ createPost: jest.fn() }),
 }));
 
-jest.mock('@/context/TabPagerContext', () => ({
+jest.mock('@oxy.so/bloom/tab-pager', () => ({
   useTabPager: () => ({ selectTab: jest.fn() }),
 }));
 

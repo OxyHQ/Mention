@@ -146,6 +146,11 @@ jest.mock('@/components/providers/CommunityNoteProvider', () => ({
   CommunityNoteProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
+// Pass-through: Bloom's tab pager is covered by Bloom's own tests.
+jest.mock('@/components/navigation/MentionTabPager', () => ({
+  MentionTabPager: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 jest.mock('@oxy.so/bloom/tab-bar', () => ({
   useMinimizeState: () => ({ minimized: { value: 0 } }),
   setMinimized: () => {},

@@ -17,6 +17,6 @@ describe('home compose FAB', () => {
     expect(Number(String(bloomManifest.version).split('.')[0])).toBeGreaterThanOrEqual(6);
     expect(source).toMatch(/action=\{\s*<Fab/);
     expect(fabLabelContract.collapsed).toBe(true);
-    expect(source).toContain('minimizeProgress={minimizeProgress}');
+    expect(source).toContain('minimizeProgress={useBottomBarHidden()}');
   });
 });

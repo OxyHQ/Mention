@@ -3,7 +3,7 @@ import { VideosRailProvider } from '@/context/VideosRailContext';
 import { VideoPlaybackProvider } from '@/context/VideoPlaybackContext';
 import { DrawerProvider } from '@/context/DrawerContext';
 import { BottomBarVisibilityProvider } from '@/context/BottomBarVisibilityContext';
-import { TabPagerProvider } from '@/context/TabPagerContext';
+import { MentionTabPager } from '@/components/navigation/MentionTabPager';
 import { CommunityNoteProvider } from './CommunityNoteProvider';
 
 /**
@@ -24,19 +24,17 @@ export const AppShellProviders = memo(function AppShellProviders({
             focused, foregrounded player may play, and only one may be audible */}
         <VideoPlaybackProvider>
           <DrawerProvider>
-            {/* Which root tab is showing, and where the bar's highlight sits.
-                It has to sit ABOVE the tabs layout, not inside it: the bottom
-                bar renders over pushed detail routes too (that is where its
-                `activeIndex` is -1), and on web there is no tabs navigator at
-                all. The navigator registers itself here when it mounts. */}
-            <TabPagerProvider>
+            {/* Bloom's tab pager: which root page is in front and where the
+                bar's highlight sits. Above the tabs layout, because the bar
+                renders over pushed detail routes too. */}
+            <MentionTabPager>
               {/* shared bottom-bar auto-hide signal, pinned visible on /videos */}
               <BottomBarVisibilityProvider>
                 {/* One answer for the whole shell to "can a note be written
                     here", so a feed page's rows read it instead of each asking. */}
                 <CommunityNoteProvider>{children}</CommunityNoteProvider>
               </BottomBarVisibilityProvider>
-            </TabPagerProvider>
+            </MentionTabPager>
           </DrawerProvider>
         </VideoPlaybackProvider>
       </VideosRailProvider>
