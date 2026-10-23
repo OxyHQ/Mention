@@ -33,8 +33,9 @@ function NotificationGlyph({
  *
  * The camera sits left of Home with no bar item: reached by swiping right off
  * the feed, as on Instagram, and never preloaded (a neighbour would hold the
- * sensor open behind the feed). The composer is the bar's action, not an item,
- * and mounts only when opened. On web the profile page is the viewer's own
+ * sensor open behind the feed). The composer is the bar's action, not an item:
+ * it is the last page, past Profile on the side of the FAB, and mounts only
+ * when opened. On web the profile page is the viewer's own
  * `/@handle`; on native it is `/you`.
  */
 function useMentionTabPages(): TabPage[] {
@@ -59,7 +60,6 @@ function useMentionTabPages(): TabPage[] {
         preload: true,
         bar: { label: t('bottomBar.videos'), icon: <RiVideoLine /> },
       },
-      { name: 'write', href: '/write' },
       {
         name: 'notifications',
         href: '/notifications',
@@ -90,6 +90,9 @@ function useMentionTabPages(): TabPage[] {
           ),
         },
       },
+      // Last, right of Profile: the composer is the bar's FAB, which sits at
+      // that end of the bar.
+      { name: 'write', href: '/write' },
     ],
     [t, unreadCount, username, avatar, avatarName],
   );
