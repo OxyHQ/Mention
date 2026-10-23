@@ -163,7 +163,7 @@ interface FollowButtonProps {
   /** Single-user mode (the profile row). */
   userId?: string;
   followAllLabel?: string;
-  onBulkFollow?: () => void;
+  onBulkFollow?: (result: { followedCount: number; results: unknown[] }) => void;
   onFollowChange?: (isFollowing: boolean) => void;
 }
 
@@ -175,6 +175,7 @@ jest.mock('@oxy.so/services/ui/client', () => {
     jest.requireActual<typeof import('react-native')>('react-native');
   return {
     useAuth: () => mockAuth,
+    useAuthStore: { getState: () => mockAuth },
     // The real by-id cache key, ported: the bands' avatar backfill
     // (`utils/userEnrichment`) reads `queryKeys.users.detail(id)` to skip
     // already-cached ids, so a stub-less mock would throw the moment a band
@@ -221,7 +222,7 @@ jest.mock('@oxy.so/services/ui/client', () => {
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel={followAllLabel}
-          onPress={onBulkFollow}
+          onPress={() => onBulkFollow?.({ followedCount: userIds.length, results: [] })}
         >
           <Text>{followAllLabel}</Text>
         </TouchableOpacity>

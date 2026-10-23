@@ -119,6 +119,11 @@ by the action. Successful writes notify the existing viewer-scoped ranking rule;
 SDK preflight is aborted if the viewer changes. A reactive staleness snapshot
 withdraws social reasons immediately while the replacement read is pending, and
 a failed replacement cannot restore that old evidence.
+Person follow controls use Mention's `components/FollowButton` adapter around the
+public SDK control. Accepted single follows/unfollows and changed bulk results
+invalidate only the originating viewer's feed evidence. Bulk callbacks with no
+changed edges do not invalidate; consumer callbacks (including federation sync)
+remain composed but cannot run for an outgoing viewer after an account switch.
 
 Feed request deduplication includes viewer generation, page size and normalized
 filters. Scroll identities use the same normalized filters with structured

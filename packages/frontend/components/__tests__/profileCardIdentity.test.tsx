@@ -69,6 +69,8 @@ jest.mock('@oxy.so/services/ui/client', () => {
   const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
   const ReactActual = jest.requireActual<typeof import('react')>('react');
   return {
+    useAuth: () => ({ user: { id: 'viewer' } }),
+    useAuthStore: { getState: () => ({ user: { id: 'viewer' } }) },
     upsertCachedUser: jest.fn(),
     upsertCachedUsers: jest.fn(),
     FollowButton: ({
