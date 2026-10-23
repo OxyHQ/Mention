@@ -75,7 +75,7 @@ vi.mock('../../services/userSummaryCache', () => ({
 
 import { config } from '../../config';
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
+import { clearPostScope, postScope, seedPosts } from '../helpers/postFixtures';
 import {
   gatherGlobalLane,
   gatherTrendingLane,
@@ -158,7 +158,7 @@ function toSlice(posts: object[]): FeedPostSlice[] {
 
 describe('For You candidate gathering — statement budget', () => {
   it('gathers shells with zero child-table statements, whatever the pool size', async () => {
-    await Promise.all(Array.from({ length: 5 }, () => seedPost(scope)));
+    await seedPosts(scope, Array(5).fill({}));
 
     metrics.reset();
     const [global, trending] = await Promise.all([
@@ -178,7 +178,7 @@ describe('For You candidate gathering — statement budget', () => {
   it('hydrates a small final page for the SAME cost whether it was sliced from a small or a large gathered pool', async () => {
     const PAGE_SIZE = 3;
 
-    await Promise.all(Array.from({ length: 5 }, () => seedPost(scope)));
+    await seedPosts(scope, Array(5).fill({}));
     const smallPool = await gatherGlobalLane(LANE_PARAMS);
     const smallPage = smallPool.slice(0, PAGE_SIZE);
 
@@ -196,7 +196,7 @@ describe('For You candidate gathering — statement budget', () => {
     await clearPostScope(scope);
     cacheStore.clear();
 
-    await Promise.all(Array.from({ length: 30 }, () => seedPost(scope)));
+    await seedPosts(scope, Array(30).fill({}));
     const largePool = await gatherGlobalLane(LANE_PARAMS);
     const largePage = largePool.slice(0, PAGE_SIZE);
 

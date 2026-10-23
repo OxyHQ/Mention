@@ -15,7 +15,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { config } from '../../config';
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { metrics } from '../../utils/metrics';
-import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
+import { clearPostScope, postScope, seedPosts } from '../helpers/postFixtures';
 import { exploreSource } from '../../mtn/feed/engine/sources/discoverySources';
 import type { FeedEngineContext } from '../../mtn/feed/engine/types';
 
@@ -63,7 +63,7 @@ const CTX: FeedEngineContext = { currentUserId: undefined };
 
 describe('Explore candidate gathering — statement budget', () => {
   it('gathers shells with zero child-table statements, marked _unassembled', async () => {
-    await Promise.all(Array.from({ length: 5 }, () => seedPost(scope)));
+    await seedPosts(scope, Array(5).fill({}));
 
     metrics.reset();
     const candidates = await exploreSource.gather(CTX, {}, 20);

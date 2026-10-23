@@ -88,7 +88,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { config } from '../../config';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { userSettings } from '../../db/schema/userProfile';
-import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
+import { clearPostScope, postScope, seedPost, seedPosts } from '../helpers/postFixtures';
 import { PostHydrationService } from '../../services/PostHydrationService';
 import { metrics } from '../../utils/metrics';
 import { captureHydrationRevisions } from '../../services/hydrationRevisions';
@@ -286,9 +286,7 @@ describe('the statement budget for one cold hydration', () => {
     expect((await statementsByTable()).get('post_imports')).toBeUndefined();
 
     cacheStore.clear();
-    const many = await Promise.all(
-      Array.from({ length: 20 }, () => seedPost(scope, { oxyUserId: AUTHOR_ID })),
-    );
+    const many = await seedPosts(scope, Array(20).fill({ oxyUserId: AUTHOR_ID }));
     metrics.reset();
     const hydratedMany = await hydrate(many);
 
