@@ -643,6 +643,88 @@ describe('bounded video metadata reconciliation', () => {
     metadataByIds.mockImplementation(async (ids: string[]) => ids.map(current));
   });
 
+  it('excludes authoritative audio fallbacks without changing rows and retains incomplete video as unresolved', async () => {
+    const ids = Array.from({ length: 4 }, () => randomUUID()).sort();
+    const postId = await seedWithMedia(
+      ids.map((id) => ({ id, type: 'video', alt: 'Keep this attachment' })),
+    );
+    const [variant] = await db
+      .select()
+      .from(postContentVariants)
+      .where(eq(postContentVariants.postId, postId));
+    await db.insert(postVariantMedia).values({
+      variantId: variant.id,
+      position: 0,
+      mediaId: ids[0],
+      type: 'video',
+      alt: 'Audio language override',
+    });
+    metadataByIds.mockResolvedValue([
+      { id: ids[0], mime: 'audio/x-wav', durationSec: 12 },
+      { id: ids[1], mime: ' Audio/MP4; codecs=mp4a.40.2 ', durationSec: 12, hlsReadyAt: readyAt },
+      { id: ids[2], mime: 'audio/mpeg', durationSec: 12 },
+      { id: ids[3], mime: 'video/mp4', durationSec: 12, hlsReadyAt: readyAt },
+    ]);
+    const before = await read();
+    const overrides = await db.select().from(postVariantMedia);
+    invalidatePostDetailCache.mockClear();
+    const {
+      passes: [report],
+    } = await reconcileVideoMetadata();
+    expect(report).toMatchObject({
+      scanned: 4,
+      excludedAudio: 3,
+      updated: 0,
+      unchanged: 0,
+      unresolved: 1,
+      rowsUpdated: 0,
+      postsUpdated: 0,
+      reachedEnd: true,
+      resumeAfterFileId: ids[2],
+    });
+    expect(await read()).toEqual(before);
+    expect(await db.select().from(postVariantMedia)).toEqual(overrides);
+    expect(invalidatePostDetailCache).not.toHaveBeenCalled();
+    // Once the real video becomes ready, the same pass can finish; audio never
+    // requires video geometry or a synthetic HLS stamp to be reported complete.
+    metadataByIds.mockResolvedValue([
+      { id: ids[0], mime: 'audio/x-wav', durationSec: 12 },
+      { id: ids[1], mime: 'audio/mp4', durationSec: 12 },
+      { id: ids[2], mime: 'audio/mpeg', durationSec: 12 },
+      { ...current(ids[3]), mime: 'video/mp4' },
+    ]);
+    expect((await reconcileVideoMetadata()).passes[0]).toMatchObject({
+      scanned: 4,
+      excludedAudio: 3,
+      updated: 1,
+      unchanged: 0,
+      unresolved: 0,
+      reachedEnd: true,
+      resumeAfterFileId: null,
+    });
+    expect(await db.select().from(postVariantMedia)).toEqual(overrides);
+    expect((await read()).filter((row) => row.mediaId !== ids[3])).toEqual(
+      before.filter((row) => row.mediaId !== ids[3]),
+    );
+  });
+
+  it('does not exclude missing assets or incomplete video based on a client MIME hint', async () => {
+    const ids = Array.from({ length: 3 }, () => randomUUID()).sort();
+    await seedWithMedia(ids.map((id) => ({ id, type: 'video', mime: 'audio/mpeg' })));
+    metadataByIds.mockResolvedValue([
+      { id: ids[0], mime: 'video/mp4', width: -1, height: 0 },
+      { id: ids[1], durationSec: 12 },
+    ]);
+    expect((await reconcileVideoMetadata()).passes[0]).toMatchObject({
+      scanned: 3,
+      excludedAudio: 0,
+      unresolved: 3,
+      unchanged: 0,
+      updated: 0,
+      resumeAfterFileId: null,
+    });
+  });
+
   it('deduplicates both tables, preserves content identity, and invalidates only committed changed posts', async () => {
     const sharedId = await seedWithMedia([stale(UUID_FILE_ID), { id: HEX_FILE_ID, type: 'image' }]);
     const variantOnly = await seedWithMedia([]);

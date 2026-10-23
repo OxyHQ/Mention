@@ -186,8 +186,12 @@ The workflow and scheduled task must also enforce their runtime deadline.
 A confirmed write uses the existing `CONFIRM_ADMIN_MUTATION=backfillMediaMetadata`
 guard and omits `--dry-run`. The scanner deduplicates file IDs, requests at most
 100 files from Oxy at once, and updates only changed intrinsic metadata and
-`hlsReadyAt`. Row/file identity guards protect concurrent edits; a newer stored
-readiness stamp is never replaced by an older source response. Changed post
+`hlsReadyAt`. Federated audio intentionally stored with Mention's video fallback
+is excluded only when Oxy's authoritative MIME is audio; `excludedAudio` counts
+these files separately from unchanged videos. Their rows and playback type remain
+untouched. Missing assets and incomplete video metadata still count as unresolved;
+an absent or unrecognized MIME never excludes a reference by itself. Row/file
+identity guards protect concurrent edits; a newer stored readiness stamp is never replaced by an older source response. Changed post
 detail caches are invalidated after the transaction commits.
 
 Every committed batch logs a durable checkpoint. Resume a bounded or interrupted

@@ -30,6 +30,8 @@ export interface VideoReconciliationPass {
   updated: number;
   unchanged: number;
   unresolved: number;
+  /** Authoritative audio assets carried by the federated video fallback. */
+  excludedAudio: number;
   rowsUpdated: number;
   postsUpdated: number;
   /** End of the current scan, which is not evidence that Oxy has finished encoding. */
@@ -109,12 +111,21 @@ async function refreshBatch(fileIds: string[], dryRun: boolean) {
       postIds: new Set<string>(),
       rowsUpdated: 0,
       unresolved: new Set(fileIds),
+      excludedAudio: new Set<string>(),
     };
   }
   const metadata = new Map<string, Partial<MediaItem> & { hlsReadyAt: string }>();
   const unresolved = new Set<string>();
+  const excludedAudio = new Set<string>();
   for (const fileId of fileIds) {
     const asset = resolved.get(fileId);
+    // Federated Audio attachments intentionally use Mention's video fallback.
+    // Only the authoritative asset MIME can exclude them from video repair.
+    const mime = asset?.mime?.split(';', 1)[0]?.trim();
+    if (mime && /^audio\/[^\s/;]+$/i.test(mime)) {
+      excludedAudio.add(fileId);
+      continue;
+    }
     const fields = asset ? readPersistedMediaFields({ ...asset, sizeBytes: asset.size }) : {};
     if (
       !fields.width ||
@@ -176,6 +187,7 @@ async function refreshBatch(fileIds: string[], dryRun: boolean) {
     postIds,
     rowsUpdated: changed.length,
     unresolved,
+    excludedAudio,
   };
 }
 
@@ -214,6 +226,7 @@ async function runVideoMetadataReconciliation(
       updated: 0,
       unchanged: 0,
       unresolved: 0,
+      excludedAudio: 0,
       rowsUpdated: 0,
       postsUpdated: 0,
       reachedEnd: false,
@@ -238,8 +251,12 @@ async function runVideoMetadataReconciliation(
       report.scanned += fileIds.length;
       report.updated += result.updatedFiles.size;
       report.unresolved += result.unresolved.size;
+      report.excludedAudio += result.excludedAudio.size;
       report.unchanged += fileIds.filter(
-        (id) => !result.updatedFiles.has(id) && !result.unresolved.has(id),
+        (id) =>
+          !result.updatedFiles.has(id) &&
+          !result.unresolved.has(id) &&
+          !result.excludedAudio.has(id),
       ).length;
       report.rowsUpdated += result.rowsUpdated;
       for (const postId of result.postIds) changedPosts.add(postId);
