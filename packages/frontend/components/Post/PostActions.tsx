@@ -1,26 +1,29 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, type PressableProps } from 'react-native';
-import { SpinnerIcon } from '@oxy.so/bloom/loading';
-import { RiTranslate2 } from '@oxy.so/bloom/icons/RiTranslate2';
-import { RiSendPlaneLine } from '@oxy.so/bloom/icons/RiSendPlaneLine';
+import React from 'react';
+import type { AccessibilityActionEvent } from 'react-native';
+import { EngagementAction, EngagementBar, EngagementGroup } from '@oxy.so/bloom/engagement-bar';
+import { RiArrowDownSLine } from '@oxy.so/bloom/icons/RiArrowDownSLine';
+import { RiArrowUpSLine } from '@oxy.so/bloom/icons/RiArrowUpSLine';
 import { RiBarChartBoxLine } from '@oxy.so/bloom/icons/RiBarChartBoxLine';
 import { RiBookmarkFill } from '@oxy.so/bloom/icons/RiBookmarkFill';
 import { RiBookmarkLine } from '@oxy.so/bloom/icons/RiBookmarkLine';
 import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
+import { RiHeart3Fill } from '@oxy.so/bloom/icons/RiHeart3Fill';
+import { RiHeart3Line } from '@oxy.so/bloom/icons/RiHeart3Line';
 import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
+import { RiSendPlaneLine } from '@oxy.so/bloom/icons/RiSendPlaneLine';
+import { RiTranslate2 } from '@oxy.so/bloom/icons/RiTranslate2';
 import { RiUpload2Line } from '@oxy.so/bloom/icons/RiUpload2Line';
 
-import { useTheme } from '@oxy.so/bloom/theme';
-import { useHaptics } from '@oxy.so/bloom/hooks';
 import { formatCompactNumber } from '@/utils/formatNumber';
-import { PressableScale } from '@oxy.so/bloom/pressable-scale';
-import { AnimatedLikeIcon } from '@/lib/animations/AnimatedLikeIcon';
-import { CountWheel } from '@/lib/animations/CountWheel';
 import { useVoteStyle } from '@/hooks/useVoteStyle';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
-import VotePill from './VotePill';
 
-const ICON_SIZE = 20;
+/** The translate icon's long press, offered to screen readers as an action. */
+const TRANSLATE_TO = [{ name: 'translateTo', label: 'Read in another language' }] as const;
+
+// The two vote arrows are adjacent halves of ONE pill, so neither hit region
+// may grow toward the other or it swallows the other's taps.
+const UPVOTE_HIT_SLOP = { top: 5, bottom: 5, left: 5, right: 0 };
+const DOWNVOTE_HIT_SLOP = { top: 5, bottom: 5, left: 0, right: 5 };
 
 /** Only what the bar itself renders. Counts it does not show (quotes, views) live on <PostDetailStats>. */
 interface Engagement {
@@ -51,7 +54,7 @@ interface Props {
    */
   onReply?: () => void;
   onBoost: () => void;
-  /** Returning false rejects the action without mounting the like animation. */
+  /** Returning false rejects the like: no haptic and no animation follow. */
   onLike: () => boolean | undefined;
   onDownvote?: () => void;
   onSave: () => void;
@@ -98,235 +101,121 @@ const PostActions: React.FC<Props> = ({
   isTranslated,
   isTranslating,
 }) => {
-  const theme = useTheme();
-  const haptic = useHaptics();
-  // State, not a ref: reading `ref.current` during render made the React
-  // Compiler skip this whole component — which every row mounts (#1103). It
-  // flips once, on the first like, in the same batch as the like itself.
-  const [hasBeenToggled, setHasBeenToggled] = useState(false);
   const voteStyle = useVoteStyle();
 
-  const replies = engagement?.replies ?? 0;
   const likes = engagement?.likes ?? 0;
-  const saves = engagement?.saves ?? 0;
-  const boosts = engagement?.boosts ?? 0;
-  const downvotes = engagement?.downvotes ?? 0;
-
-  // The translate icon's SECOND job — reading the post in some other language —
-  // hung off a long press, which no screen reader performs, so the accessibility
-  // action carries the same call. Both arrive together or not at all: an
-  // advertised action that does nothing is worse than an absent one.
-  const otherLanguagesProps: Partial<
-    Pick<PressableProps, 'onLongPress' | 'accessibilityActions' | 'onAccessibilityAction'>
-  > = onTranslateLongPress
-    ? {
-        onLongPress: () => {
-          haptic('medium');
-          onTranslateLongPress();
-        },
-        accessibilityActions: [{ name: 'translateTo', label: 'Read in another language' }],
-        onAccessibilityAction: (event) => {
-          if (event.nativeEvent.actionName === 'translateTo') onTranslateLongPress();
-        },
-      }
-    : {};
 
   // ONE action bar, rendered identically wherever a post appears — a feed row
   // and the focused post on `/p/:id` included. A focused post adds
   // <PostDetailStats> BELOW this bar; it does not get a bar of its own.
-  const actionIconRow = (
-    <View className="flex-row items-center" style={{ gap: 8 }}>
-      {voteStyle === 'pill' && onDownvote ? (
-        <VotePill
-          likeCount={likes}
-          downvoteCount={downvotes}
-          isLiked={!!isLiked}
-          isDownvoted={!!isDownvoted}
-          onUpvote={() => {
-            if (onLike() === false) return;
-            setHasBeenToggled(true);
-          }}
-          onDownvote={onDownvote}
-        />
-      ) : (
-        <PressableScale
-          style={styles.iconButton}
-          onPress={() => {
-            if (onLike() === false) return;
-            setHasBeenToggled(true);
-            haptic('light');
-          }}
-          hitSlop={HIT_SLOP_MD}
-          accessibilityLabel={isLiked ? 'Unlike' : 'Like'}
-        >
-          <View className="flex-row items-center gap-1">
-            <AnimatedLikeIcon isLiked={!!isLiked} hasBeenToggled={hasBeenToggled} />
-            <CountWheel likeCount={likes} isLiked={!!isLiked} hasBeenToggled={hasBeenToggled} />
-          </View>
-        </PressableScale>
-      )}
-
-      {onReply ? (
-        <PressableScale
-          style={styles.countedIconButton}
-          onPress={() => {
-            haptic('light');
-            onReply();
-          }}
-          hitSlop={HIT_SLOP_MD}
-          accessibilityLabel="Reply"
-        >
-          <RiChat3Line width={ICON_SIZE} height={ICON_SIZE} fill={theme.colors.textSecondary} />
-          {replies > 0 && (
-            <Text className="text-[13px] text-muted-foreground">
-              {formatCompactNumber(replies)}
-            </Text>
-          )}
-        </PressableScale>
-      ) : null}
-
-      <PressableScale
-        style={styles.countedIconButton}
-        onPress={() => {
-          haptic('light');
-          onBoost();
-        }}
-        hitSlop={HIT_SLOP_MD}
-        accessibilityLabel="Repost options"
-        accessibilityRole="button"
-      >
-        {isBoosted ? (
-          <RiRepeat2Line width={ICON_SIZE} height={ICON_SIZE} fill={theme.colors.success} />
-        ) : (
-          <RiRepeat2Line width={ICON_SIZE} height={ICON_SIZE} fill={theme.colors.textSecondary} />
-        )}
-        {boosts > 0 && (
-          <Text
-            className={isBoosted ? 'text-[13px]' : 'text-[13px] text-muted-foreground'}
-            style={isBoosted ? { color: theme.colors.success } : undefined}
-          >
-            {formatCompactNumber(boosts)}
-          </Text>
-        )}
-      </PressableScale>
-
-      {onSendInAllo ? (
-        <PressableScale
-          style={styles.iconButton}
-          onPress={() => {
-            haptic('light');
-            onSendInAllo();
-          }}
-          hitSlop={HIT_SLOP_MD}
-          accessibilityRole="button"
-          accessibilityLabel="Send in Allo"
-        >
-          <RiSendPlaneLine size="md" fill={theme.colors.textSecondary} />
-        </PressableScale>
-      ) : null}
-
-      <PressableScale
-        style={styles.iconButton}
-        onPress={() => {
-          haptic('light');
-          onShare();
-        }}
-        hitSlop={HIT_SLOP_MD}
-        accessibilityLabel="Share"
-      >
-        <RiUpload2Line width={ICON_SIZE} height={ICON_SIZE} fill={theme.colors.textSecondary} />
-      </PressableScale>
-
-      {/* Spacer: pushes Save + Translate + Insights to the right edge */}
-      <View className="flex-1" />
-
-      <PressableScale
-        className="flex-row items-center"
-        style={[styles.iconButton, { gap: 6 }]}
-        onPress={() => {
-          haptic('light');
-          onSave();
-        }}
-        hitSlop={HIT_SLOP_MD}
-        accessibilityRole="button"
-        accessibilityLabel={isSaved ? 'Remove from saved' : 'Save post'}
-      >
-        {isSaved ? (
-          <RiBookmarkFill width={ICON_SIZE} height={ICON_SIZE} fill={theme.colors.primary} />
-        ) : (
-          <RiBookmarkLine width={ICON_SIZE} height={ICON_SIZE} fill={theme.colors.textSecondary} />
-        )}
-        {saves > 0 && (
-          <Text
-            className={isSaved ? 'text-[13px]' : 'text-[13px] text-muted-foreground'}
-            style={isSaved ? { color: theme.colors.primary } : undefined}
-          >
-            {formatCompactNumber(saves)}
-          </Text>
-        )}
-      </PressableScale>
-
-      {onTranslate && (
-        <PressableScale
-          style={styles.iconButton}
-          onPress={() => {
-            haptic('light');
-            onTranslate();
-          }}
-          {...otherLanguagesProps}
-          hitSlop={HIT_SLOP_MD}
-          accessibilityLabel={isTranslated ? 'Show original' : 'Translate'}
-          disabled={isTranslating}
-        >
-          {isTranslating ? (
-            <SpinnerIcon size={16} className="text-muted-foreground" />
-          ) : (
-            <RiTranslate2
-              size="md"
-              fill={isTranslated ? theme.colors.primary : theme.colors.textSecondary}
-            />
-          )}
-        </PressableScale>
-      )}
-
-      {onInsightsPress && (
-        <PressableScale
-          style={styles.iconButton}
-          onPress={() => {
-            haptic('light');
-            onInsightsPress();
-          }}
-          hitSlop={HIT_SLOP_MD}
-          accessibilityLabel="Insights"
-        >
-          <RiBarChartBoxLine
-            width={ICON_SIZE}
-            height={ICON_SIZE}
-            fill={theme.colors.textSecondary}
+  return (
+    <EngagementBar
+      formatCount={formatCompactNumber}
+      trailing={
+        <>
+          <EngagementAction
+            icon={RiBookmarkLine}
+            activeIcon={RiBookmarkFill}
+            accessibilityLabel="Save post"
+            count={engagement?.saves}
+            active={!!isSaved}
+            onPress={onSave}
           />
-        </PressableScale>
+          {onTranslate ? (
+            <EngagementAction
+              icon={RiTranslate2}
+              accessibilityLabel="Translate"
+              active={!!isTranslated}
+              busy={isTranslating}
+              onPress={onTranslate}
+              // The icon's SECOND job — reading the post in some other language —
+              // hangs off a long press, which no screen reader performs, so the
+              // accessibility action carries the same call. Both arrive together
+              // or not at all: an advertised action that does nothing is worse
+              // than an absent one.
+              {...(onTranslateLongPress
+                ? {
+                    onLongPress: onTranslateLongPress,
+                    accessibilityActions: TRANSLATE_TO,
+                    onAccessibilityAction: (event: AccessibilityActionEvent) => {
+                      if (event.nativeEvent.actionName === 'translateTo') onTranslateLongPress();
+                    },
+                  }
+                : null)}
+            />
+          ) : null}
+          {onInsightsPress ? (
+            <EngagementAction
+              icon={RiBarChartBoxLine}
+              accessibilityLabel="Insights"
+              onPress={onInsightsPress}
+            />
+          ) : null}
+        </>
+      }
+    >
+      {voteStyle === 'pill' && onDownvote ? (
+        <EngagementGroup>
+          <EngagementAction
+            icon={RiArrowUpSLine}
+            accessibilityLabel="Upvote"
+            count={likes - (engagement?.downvotes ?? 0)}
+            active={!!isLiked}
+            rollCount
+            hitSlop={UPVOTE_HIT_SLOP}
+            onPress={onLike}
+          />
+          <EngagementAction
+            icon={RiArrowDownSLine}
+            accessibilityLabel="Downvote"
+            active={!!isDownvoted}
+            tone="error"
+            hitSlop={DOWNVOTE_HIT_SLOP}
+            onPress={onDownvote}
+          />
+        </EngagementGroup>
+      ) : (
+        <EngagementAction
+          icon={RiHeart3Line}
+          activeIcon={RiHeart3Fill}
+          accessibilityLabel="Like"
+          count={likes}
+          active={!!isLiked}
+          tone="error"
+          popOnActivate
+          rollCount
+          onPress={onLike}
+        />
       )}
-    </View>
+      {onReply ? (
+        <EngagementAction
+          icon={RiChat3Line}
+          accessibilityLabel="Reply"
+          count={engagement?.replies}
+          onPress={onReply}
+        />
+      ) : null}
+      <EngagementAction
+        icon={RiRepeat2Line}
+        accessibilityLabel="Repost options"
+        count={engagement?.boosts}
+        active={!!isBoosted}
+        tone="success"
+        onPress={onBoost}
+      />
+      {onSendInAllo ? (
+        <EngagementAction
+          icon={RiSendPlaneLine}
+          accessibilityLabel="Send in Allo"
+          onPress={onSendInAllo}
+        />
+      ) : null}
+      <EngagementAction icon={RiUpload2Line} accessibilityLabel="Share" onPress={onShare} />
+    </EngagementBar>
   );
-
-  return actionIconRow;
 };
 
 // Mounted once per feed row. Memoized so an unrelated re-render of a sibling row
 // (or the parent feed) does not re-render every action bar — effective because
 // PostItem now hands it a stable `engagement` object and memoized callbacks.
 export default React.memo(PostActions);
-
-const styles = StyleSheet.create({
-  iconButton: {
-    padding: 2,
-  },
-  // A plain style, not `className`: a class on the pressable costs every row an
-  // interop wrapper (the row-cost harness counts it), for a layout this states.
-  countedIconButton: {
-    padding: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-});

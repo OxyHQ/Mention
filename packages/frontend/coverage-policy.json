@@ -27,8 +27,7 @@
     {
       "id": "lib",
       "why": "Session, query client, query keys, share intents, telemetry, platform forks.",
-      "include": ["lib/**/*.ts", "lib/**/*.tsx"],
-      "exclude": ["lib/animations/**"]
+      "include": ["lib/**/*.ts", "lib/**/*.tsx"]
     },
     {
       "id": "db",
