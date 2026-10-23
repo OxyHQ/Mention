@@ -1,49 +1,32 @@
 name: Release packages
 
-# Publishes one public package of this repository to npm through Oxy's shared
-# `npm-release.yml`, with npm trusted publishing (OIDC) and provenance; there is
-# no NPM_TOKEN. A package's own gates are its `prepublishOnly`.
+# Publishes, on every push to main, each public package of this repository
+# whose version is not on npm yet, through Oxy's shared `npm-release.yml`, with
+# npm trusted publishing (OIDC) and provenance, once CI has passed on that
+# exact commit; there is no NPM_TOKEN. Merging a version bump is the release.
 # OxyHQ/oxy docs/engineering/package-rules.md#publishing.
 
 on:
-  workflow_dispatch:
-    inputs:
-      package:
-        description: Package name to release
-        required: true
-        type: string
-      expected_source_sha:
-        description: Exact protected commit to build and publish
-        required: true
-        type: string
-      dry_run:
-        description: Build, verify and preflight the registry without publishing
-        required: true
-        type: boolean
-        default: true
-      dist_tag:
-        description: npm dist-tag (latest only moves forward)
-        required: true
-        type: string
-        default: latest
+  push:
+    branches: [main]
 
 # Nothing at the workflow level: the calling job grants the shared workflow
-# exactly what its jobs need. Only its publish job keeps id-token, and only its
-# tag job (`<name>@<version>` at the released commit) writes contents.
+# exactly what its jobs need. Only its plan job reads Actions (the CI verdict),
+# only its publish job keeps id-token, and only its tag job
+# (`<name>@<version>` at the released commit) writes contents.
 permissions: {}
 
+# Every run waits its turn and none is ever cancelled: each releases what its
+# own commit holds that the registry does not.
 concurrency:
   group: release-packages
   cancel-in-progress: false
+  queue: max
 
 jobs:
   release:
     permissions:
+      actions: read
       contents: write
       id-token: write
     uses: OxyHQ/oxy/.github/workflows/npm-release.yml@main
-    with:
-      package: ${{ inputs.package }}
-      expected_source_sha: ${{ inputs.expected_source_sha }}
-      dry_run: ${{ inputs.dry_run }}
-      dist_tag: ${{ inputs.dist_tag }}

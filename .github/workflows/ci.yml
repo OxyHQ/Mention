@@ -189,6 +189,14 @@ jobs:
         run: bunx biome ci .
       - name: Verify workspace, build, lint and typecheck
         run: bun run check
+      # The published contracts and SDK: what gates their npm release, which
+      # runs no tests of its own. After `check`, which builds the contracts the
+      # SDK imports.
+      - name: Published contracts and SDK
+        run: |
+          bun scripts/event-openapi.ts --check
+          bun run --cwd packages/sdk build
+          bun run --cwd packages/sdk test
       # After `check`, which builds shared-types: the Drizzle schema imports it,
       # so a run before that would fail to load and — without the table-count
       # floor in the script — would have reported "no changes" as success.
