@@ -1,6 +1,6 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import type { Href } from '@/lib/navigation/router';
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -8,74 +8,24 @@ import { useTranslation } from 'react-i18next';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button } from '@oxy.so/bloom/button';
 import { Card } from '@oxy.so/bloom/card';
-import { Chip } from '@oxy.so/bloom/chip';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { Field } from '@oxy.so/bloom/field';
 import { Item } from '@oxy.so/bloom/item';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import {
-  SegmentedControl,
-  SegmentedControlItem,
-  SegmentedControlItemText,
-} from '@oxy.so/bloom/segmented-control';
-import { TagField } from '@oxy.so/bloom/tag-field';
-import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
-import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { AccountNode } from '@oxy.so/core';
 import { logger } from '@oxy.so/core/logger';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import type {
-  CreateMentionJobRequest,
-  CurrencyCode,
-  MentionJobApplicationMode,
-  MentionJobEmploymentType,
-  MentionJobSalaryInterval,
-  MentionJobWorkplaceType,
-} from '@mention/shared-types';
-import {
-  MENTION_JOB_APPLICATION_MODES,
-  MENTION_JOB_ELIGIBLE_EMPLOYER_KINDS,
-  MENTION_JOB_EMPLOYMENT_TYPES,
-  MENTION_JOB_SALARY_INTERVALS,
-  MENTION_JOB_WORKPLACE_TYPES,
-} from '@mention/shared-types/job';
+import type { CreateMentionJobRequest } from '@mention/shared-types';
+import { MENTION_JOB_ELIGIBLE_EMPLOYER_KINDS } from '@mention/shared-types/job';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { jobsService, getJobErrorMessage, isJobEntitlementError } from '@/services/jobsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { SignInRequired } from '@/components/common/SignInRequired';
-import JobLocationField, {
-  EMPTY_JOB_LOCATION,
-  isJobLocationIncomplete,
-  jobLocationInputFrom,
-  type JobLocationDraft,
-} from '@/components/Jobs/JobLocationField';
-import JobCurrencyField from '@/components/Jobs/JobCurrencyField';
-
-const WORKPLACE_LABELS: Record<MentionJobWorkplaceType, string> = {
-  onsite: 'On-site',
-  hybrid: 'Hybrid',
-  remote: 'Remote',
-};
-
-const EMPLOYMENT_LABELS: Record<MentionJobEmploymentType, string> = {
-  full_time: 'Full-time',
-  part_time: 'Part-time',
-  contract: 'Contract',
-  temporary: 'Temporary',
-  internship: 'Internship',
-  other: 'Other',
-};
-
-const INTERVAL_LABELS: Record<MentionJobSalaryInterval, string> = {
-  hour: 'Hour',
-  day: 'Day',
-  week: 'Week',
-  month: 'Month',
-  year: 'Year',
-};
+import { JobFormFields, useJobForm } from '@/components/Jobs/JobFormFields';
+import { jobLocationInputFrom } from '@/components/Jobs/JobLocationField';
 
 const ELIGIBLE_KINDS: readonly string[] = MENTION_JOB_ELIGIBLE_EMPLOYER_KINDS;
 
@@ -169,76 +119,25 @@ export default function CreateJobScreen() {
   const [employerPickerOpen, setEmployerPickerOpen] = useState(false);
   const [employer, setEmployer] = useState<AccountNode | null>(null);
 
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [location, setLocation] = useState<JobLocationDraft>(EMPTY_JOB_LOCATION);
+  const form = useJobForm();
 
-  const [workplaceType, setWorkplaceType] = useState<MentionJobWorkplaceType | ''>('');
-  const [employmentType, setEmploymentType] = useState<MentionJobEmploymentType | ''>('');
-
-  const [salaryMin, setSalaryMin] = useState('');
-  const [salaryMax, setSalaryMax] = useState('');
-  const [salaryCurrency, setSalaryCurrency] = useState<CurrencyCode>('USD');
-  const [salaryInterval, setSalaryInterval] = useState<MentionJobSalaryInterval>('year');
-
-  const [skills, setSkills] = useState<string[]>([]);
-
-  const [applicationMode, setApplicationMode] = useState<MentionJobApplicationMode>('mention');
-  const [externalApplyUrl, setExternalApplyUrl] = useState('');
-
-  const handleSkillsChange = useCallback((next: readonly string[]) => {
-    setSkills([...next]);
-  }, []);
-
-  const buildPayload = useCallback(
-    (publish: boolean): CreateMentionJobRequest | null => {
-      if (!employer) return null;
-      const trimmedTitle = title.trim();
-      const trimmedDescription = description.trim();
-      if (!trimmedTitle || !trimmedDescription) return null;
-
-      const hasSalary = salaryMin.trim().length > 0 || salaryMax.trim().length > 0;
-      const min = salaryMin.trim() ? Number(salaryMin) : undefined;
-      const max = salaryMax.trim() ? Number(salaryMax) : undefined;
-
-      return {
-        employerOxyUserId: employer.accountId,
-        title: trimmedTitle,
-        description: trimmedDescription,
-        location: jobLocationInputFrom(location),
-        workplaceType: workplaceType || undefined,
-        employmentType: employmentType || undefined,
-        salary: hasSalary
-          ? {
-              min: Number.isFinite(min) ? min : undefined,
-              max: Number.isFinite(max) ? max : undefined,
-              currency: salaryCurrency,
-              interval: salaryInterval,
-            }
-          : undefined,
-        skills: skills.length > 0 ? skills : undefined,
-        applicationMode,
-        externalApplyUrl:
-          applicationMode === 'external' ? externalApplyUrl.trim() || undefined : undefined,
-        publish,
-      };
-    },
-    [
-      employer,
-      title,
-      description,
-      location,
-      workplaceType,
-      employmentType,
-      salaryMin,
-      salaryMax,
-      salaryCurrency,
-      salaryInterval,
-      skills,
-      applicationMode,
-      externalApplyUrl,
-    ],
-  );
+  const buildPayload = (publish: boolean): CreateMentionJobRequest | null => {
+    if (!employer || !form.isComplete) return null;
+    return {
+      employerOxyUserId: employer.accountId,
+      title: form.title.trim(),
+      description: form.description.trim(),
+      location: jobLocationInputFrom(form.location),
+      workplaceType: form.workplaceType || undefined,
+      employmentType: form.employmentType || undefined,
+      salary: form.salary,
+      skills: form.skills.length > 0 ? form.skills : undefined,
+      applicationMode: form.applicationMode,
+      externalApplyUrl:
+        form.applicationMode === 'external' ? form.externalApplyUrl.trim() || undefined : undefined,
+      publish,
+    };
+  };
 
   const createMutation = useMutation({
     mutationFn: (payload: CreateMentionJobRequest) => jobsService.create(payload),
@@ -271,20 +170,14 @@ export default function CreateJobScreen() {
     },
   });
 
-  const submit = useCallback(
-    (publish: boolean) => {
-      const payload = buildPayload(publish);
-      if (!payload) return;
-      createMutation.mutate(payload);
-    },
-    [buildPayload, createMutation],
-  );
+  const submit = (publish: boolean) => {
+    const payload = buildPayload(publish);
+    if (!payload) return;
+    createMutation.mutate(payload);
+  };
 
-  const canSubmitBase = Boolean(
-    employer && title.trim() && description.trim() && !isJobLocationIncomplete(location),
-  );
-  const canPublish =
-    canSubmitBase && (applicationMode !== 'external' || externalApplyUrl.trim().length > 0);
+  const canSubmitBase = Boolean(employer && form.isComplete);
+  const canPublish = canSubmitBase && form.isApplyReady;
   const publishingIntent = createMutation.variables?.publish === true;
 
   return (
@@ -343,184 +236,7 @@ export default function CreateJobScreen() {
             onClose={() => setEmployerPickerOpen(false)}
           />
 
-          {/* Title */}
-          <View className="mt-4">
-            <TextField>
-              <TextFieldInput
-                label={t('jobs.create.jobTitle', { defaultValue: 'Job title' })}
-                value={title}
-                onChangeText={setTitle}
-                maxLength={200}
-              />
-            </TextField>
-          </View>
-
-          {/* Description */}
-          <View className="mt-3">
-            <Textarea
-              accessibilityLabel={t('jobs.create.description', { defaultValue: 'Description' })}
-              placeholder={t('jobs.create.description', { defaultValue: 'Description' })}
-              value={description}
-              onChangeText={setDescription}
-              rows={6}
-            />
-          </View>
-
-          {/* Location — a Clarity place or a country, never free text */}
-          <View className="mt-4">
-            <JobLocationField value={location} onChange={setLocation} />
-          </View>
-
-          {/* Workplace type */}
-          <Field
-            label={t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })}
-            style={{ marginTop: 16 }}
-          >
-            <SegmentedControl
-              label={t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })}
-              type="radio"
-              value={workplaceType || 'unset'}
-              onChange={(value) =>
-                setWorkplaceType(value === 'unset' ? '' : (value as MentionJobWorkplaceType))
-              }
-            >
-              <SegmentedControlItem value="unset">
-                <SegmentedControlItemText>
-                  {t('jobs.create.notSpecified', { defaultValue: 'Not specified' })}
-                </SegmentedControlItemText>
-              </SegmentedControlItem>
-              {MENTION_JOB_WORKPLACE_TYPES.map((value) => (
-                <SegmentedControlItem key={value} value={value}>
-                  <SegmentedControlItemText>{WORKPLACE_LABELS[value]}</SegmentedControlItemText>
-                </SegmentedControlItem>
-              ))}
-            </SegmentedControl>
-          </Field>
-
-          {/* Employment type — a chip row rather than a SegmentedControl: six
-              values would cram into an unreadable pill row on a phone width. */}
-          <Field
-            label={t('jobs.create.employmentType', { defaultValue: 'Employment type' })}
-            multiple
-            style={{ marginTop: 16 }}
-          >
-            <View className="flex-row flex-wrap gap-2">
-              {MENTION_JOB_EMPLOYMENT_TYPES.map((value) => (
-                <Chip
-                  key={value}
-                  selected={employmentType === value}
-                  onPress={() => setEmploymentType((prev) => (prev === value ? '' : value))}
-                >
-                  {EMPLOYMENT_LABELS[value]}
-                </Chip>
-              ))}
-            </View>
-          </Field>
-
-          {/* Salary */}
-          <Field
-            label={t('jobs.create.salary', { defaultValue: 'Salary (optional)' })}
-            multiple
-            style={{ marginTop: 16 }}
-          >
-            <View className="flex-row gap-2">
-              <View className="flex-1">
-                <TextField>
-                  <TextFieldInput
-                    label={t('jobs.create.salaryMin', { defaultValue: 'Min' })}
-                    value={salaryMin}
-                    onChangeText={setSalaryMin}
-                    keyboardType="numeric"
-                  />
-                </TextField>
-              </View>
-              <View className="flex-1">
-                <TextField>
-                  <TextFieldInput
-                    label={t('jobs.create.salaryMax', { defaultValue: 'Max' })}
-                    value={salaryMax}
-                    onChangeText={setSalaryMax}
-                    keyboardType="numeric"
-                  />
-                </TextField>
-              </View>
-            </View>
-            <View className="mt-2">
-              <JobCurrencyField value={salaryCurrency} onChange={setSalaryCurrency} />
-            </View>
-            <View className="mt-2">
-              <SegmentedControl
-                label={t('jobs.create.salaryInterval', { defaultValue: 'Per' })}
-                type="radio"
-                size="sm"
-                value={salaryInterval}
-                onChange={setSalaryInterval}
-              >
-                {MENTION_JOB_SALARY_INTERVALS.map((value) => (
-                  <SegmentedControlItem key={value} value={value}>
-                    <SegmentedControlItemText>{INTERVAL_LABELS[value]}</SegmentedControlItemText>
-                  </SegmentedControlItem>
-                ))}
-              </SegmentedControl>
-            </View>
-          </Field>
-
-          {/* Skills — Enter or a comma commits a skill; each chip removes itself. */}
-          <Field
-            label={t('jobs.create.skills', { defaultValue: 'Skills' })}
-            style={{ marginTop: 16 }}
-          >
-            <TagField
-              value={skills}
-              onChange={handleSkillsChange}
-              placeholder={t('jobs.create.addSkill', { defaultValue: 'Add a skill' })}
-            />
-          </Field>
-
-          {/* Application mode */}
-          <View className="mt-4">
-            <Field
-              label={t('jobs.create.applicationMode', { defaultValue: 'How do people apply?' })}
-            >
-              <SegmentedControl
-                label={t('jobs.create.applicationMode', { defaultValue: 'How do people apply?' })}
-                type="radio"
-                value={applicationMode}
-                onChange={setApplicationMode}
-              >
-                {MENTION_JOB_APPLICATION_MODES.map((value) => (
-                  <SegmentedControlItem key={value} value={value}>
-                    <SegmentedControlItemText>
-                      {value === 'mention'
-                        ? t('jobs.create.applyViaMention', { defaultValue: 'On Mention' })
-                        : t('jobs.create.applyExternally', { defaultValue: 'External link' })}
-                    </SegmentedControlItemText>
-                  </SegmentedControlItem>
-                ))}
-              </SegmentedControl>
-            </Field>
-            {applicationMode === 'external' ? (
-              <View className="mt-2">
-                <TextField isInvalid={!externalApplyUrl.trim()}>
-                  <TextFieldInput
-                    label={t('jobs.create.externalApplyUrl', { defaultValue: 'Application URL' })}
-                    value={externalApplyUrl}
-                    onChangeText={setExternalApplyUrl}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    keyboardType="url"
-                  />
-                </TextField>
-              </View>
-            ) : (
-              <Text className="text-muted-foreground text-xs mt-2">
-                {t('jobs.create.applyViaMentionHint', {
-                  defaultValue:
-                    'Applicants apply through Mention, and you’ll review applications from your dashboard.',
-                })}
-              </Text>
-            )}
-          </View>
+          <JobFormFields form={form} />
 
           {/* Submit */}
           <View className="flex-row gap-3 mt-6">
