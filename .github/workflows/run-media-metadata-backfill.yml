@@ -407,7 +407,7 @@ jobs:
               echo "### Video metadata reconciliation"
               echo ""
               echo "Mode: apply=$APPLY. Exit code: $EXIT_CODE."
-              echo "Read the per-pass checkpoint records for scanned, updated, unchanged, unresolved,"
+              echo "Read the per-pass checkpoint records for scanned, updated, unchanged, unresolved, excludedAudio,"
               echo "rowsUpdated, postsUpdated, reachedEnd and resumeAfterFileId."
               echo "Resume from resumeAfterFileId (blank means the beginning), never from scannedThroughFileId"
               echo "when unresolved files remain. A checkpoint is emitted only after its writes commit."
