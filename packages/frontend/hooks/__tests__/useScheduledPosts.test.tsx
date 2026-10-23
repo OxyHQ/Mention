@@ -1,4 +1,5 @@
 import TestRenderer, { act } from 'react-test-renderer';
+import { waitUntil } from '@/test-support/waitUntil';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { HydratedPost } from '@mention/shared-types';
 
@@ -90,34 +91,6 @@ function rerender(client: QueryClient) {
   act(() => {
     renderer?.update(tree(client));
   });
-}
-
-/**
- * Advance the world until `predicate` holds.
- *
- * CONDITION-based on purpose. The previous helper here flushed a FIXED number of
- * ticks (one microtask + one macrotask) and then let the assertions run, which
- * made every case in this file a race: react-query resolves a query across
- * several ticks and notifies its subscribers on a MACROtask, so on a slower or
- * more contended machine the probe had simply not re-rendered yet and the value
- * under assertion read `undefined`. It passed locally and took CI red.
- *
- * The iteration cap is a FAILURE ceiling, not the wait — it exists so a
- * condition that never becomes true reports itself by name instead of hanging
- * until jest's timeout, and it is far beyond what any of these cases need. What
- * makes the test deterministic is that nothing after the call runs until the
- * condition is actually true.
- */
-async function waitUntil(predicate: () => boolean, description: string): Promise<void> {
-  const FAILURE_CEILING = 500;
-  for (let attempt = 0; attempt < FAILURE_CEILING; attempt += 1) {
-    if (predicate()) return;
-    await act(async () => {
-      await Promise.resolve();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-  }
-  throw new Error(`waitUntil never saw: ${description}`);
 }
 
 /** The ids the hook is currently handing its caller. */
