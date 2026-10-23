@@ -97,3 +97,22 @@ composition; Oxy's API integration suites cover the database authority checks.
 Run backend Vitest and Bun suites, MCP suite, SDK suite, affected frontend tests,
 types, build and Biome before declaring this source checkpoint ready. Deployment
 and cross-service runtime canaries are still pending.
+
+## Own scheduled publication follow-up
+
+The own SDK now provides `identity()` and `publish(input, originalEffectKey)`
+through its shared workload/requester transport. `/publishing/v1/posts` is a thin
+adapter behind central authentication and the same post-write limiter: verified
+own principal plus matching account proof, durable receipt reservation, then the
+existing `createPost` domain handler. No MCP grant, fabricated connector or tool
+catalog is created. External `MentionPublishingClient` remains unchanged.
+
+The existing receipt table uses a distinct `oxy-service:<appId>` namespace for
+own publishers and the verified effective account. Duplicate/conflicting keys
+return 409 without executing again; the SDK reports an unknown outcome and
+never invents a post URL after a lost/invalid response. Schedio must retain the
+same key and body for each scheduled revision. Account switch, revocation and
+external branded credentials cannot select another person's publication.
+
+Source and candidate tests only: Schedio adoption, published SDK pins, reader
+rollout and production canaries are still pending.

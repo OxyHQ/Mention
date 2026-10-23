@@ -1,3 +1,6 @@
+import { postWriteRateLimiter } from './middleware/security';
+import { createServicePublishingRouter } from './routes/servicePublishing';
+import { createPost } from './controllers/posts/createPost';
 import deckRoutes from './routes/deck.routes';
 import { config } from './config';
 import { createDeploymentAdmission } from './middleware/deployment-admission';
@@ -173,6 +176,11 @@ export function createAppRoutes({ oxy, optionalAuth }: CreateAppRoutesDependenci
   if (config.deployment) authenticatedApi.use(createDeploymentAdmission(config.deployment, false));
   authenticatedApi.use('/posts/intent-media', intentMediaRoutes);
   authenticatedApi.use('/posts', postsRouter);
+  authenticatedApi.use(
+    '/publishing/v1',
+    ...(config.runtime.isProduction ? [postWriteRateLimiter] : []),
+    createServicePublishingRouter(createPost),
+  );
   authenticatedApi.use('/lists', listsRoutes);
   authenticatedApi.use('/notifications', notificationsRouter);
   authenticatedApi.use('/statistics', statisticsRoutes);

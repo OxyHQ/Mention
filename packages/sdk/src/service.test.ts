@@ -100,4 +100,40 @@ describe('own Mention service SDK', () => {
     expect(new URL(h.calls[1]!.url).pathname).toBe('/imports/v1/batches/batch%2Fa%3Fb');
     expect(h.calls).toHaveLength(2);
   });
+  it('publishes with the same durable key and preserves uncertain outcomes without retry', async () => {
+    const h = harness([
+      Response.json({ success: true, post: { id: 'published' } }),
+      Response.json({}, { status: 409 }),
+      Response.json({ bad: 'response' }),
+      Response.json({}, { status: 429, headers: { 'retry-after': '120' } }),
+    ]);
+    const client = mentionForOxyService(h.identity, {
+      requester: { accountId: 'person', taskId: 'scheduled-revision' },
+    });
+    const input = {
+      content: { text: 'hello' },
+      visibility: 'public' as const,
+      status: 'published' as const,
+    };
+    const key = `mcp:${'a'.repeat(64)}`;
+    expect(await client.publish(input, key)).toEqual({
+      id: 'published',
+      url: 'https://mention.earth/p/published',
+    });
+    await expect(client.publish(input, key)).rejects.toMatchObject({
+      status: 409,
+      unknownOutcome: true,
+    });
+    await expect(client.publish(input, key)).rejects.toMatchObject({ unknownOutcome: true });
+    await expect(client.publish(input, key)).rejects.toMatchObject({
+      status: 429,
+      retryAfterMs: 120000,
+    });
+    expect(h.calls).toHaveLength(4);
+    for (const call of h.calls) {
+      expect(new URL(call.url).pathname).toBe('/publishing/v1/posts');
+      expect(new Headers(call.init?.headers).get('Idempotency-Key')).toBe(key);
+      expect(new Headers(call.init?.headers).has('X-Oxy-MCP-Tool')).toBe(false);
+    }
+  });
 });

@@ -1,5 +1,8 @@
 import {
   MENTION_SERVICE_APPLICATION_ID,
+  MentionIdentity,
+  MentionPublishInput,
+  MentionPublishResponse,
   mentionImportBatchSchema,
   mentionImportBatchResponseSchema,
   mentionImportIdSchema,
@@ -32,6 +35,7 @@ export class MentionServiceError extends Error {
   constructor(
     readonly status: number,
     readonly unknownOutcome: boolean,
+    readonly retryAfterMs?: number,
   ) {
     super(
       unknownOutcome
@@ -64,10 +68,36 @@ export class MentionServiceClient {
     if (!response.ok)
       throw new MentionServiceError(
         response.status,
-        (init?.method === 'POST' || init?.method === 'DELETE') && response.status >= 500,
+        (init?.method === 'POST' || init?.method === 'DELETE') &&
+          (response.status >= 500 || response.status === 409),
+        retryAfter(response.headers.get('retry-after')),
       );
     return response.json();
   }
+  async identity() {
+    return MentionIdentity.parse(await this.request('/mcp/bundles/me'));
+  }
+  async publish(input: MentionPublishInput, effectKey: string) {
+    if (!/^mcp:[a-f0-9]{64}$/.test(effectKey)) throw new Error('Invalid Mention effect key');
+    const body = MentionPublishInput.parse(input);
+    try {
+      const result = MentionPublishResponse.parse(
+        await this.request('/publishing/v1/posts', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'Idempotency-Key': effectKey },
+          body: JSON.stringify(body),
+        }),
+      );
+      return {
+        id: result.post.id,
+        url: new URL(`/p/${encodeURIComponent(result.post.id)}`, 'https://mention.earth').href,
+      };
+    } catch (error) {
+      if (error instanceof MentionServiceError) throw error;
+      throw new MentionServiceError(0, true);
+    }
+  }
+
   async importBatch(input: MentionImportBatch) {
     return mentionImportBatchResponseSchema.parse(
       await this.request('/imports/v1/posts:batch', {
@@ -115,4 +145,11 @@ export function mentionForOxyService(
     }),
     baseURL,
   );
+}
+
+function retryAfter(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const seconds = Number(value);
+  const milliseconds = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(value) - Date.now();
+  return Number.isFinite(milliseconds) && milliseconds >= 0 ? milliseconds : undefined;
 }
