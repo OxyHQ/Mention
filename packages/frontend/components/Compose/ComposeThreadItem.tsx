@@ -15,9 +15,9 @@ import RoomCard from '@/components/RoomCard';
 import ComposeToolbar from '@/components/ComposeToolbar';
 import MentionTextInput, { type MentionTextInputHandle } from '@/components/MentionTextInput';
 import ComposeMentionSummary from '@/components/Compose/ComposeMentionSummary';
-import { CloseIcon } from '@/assets/icons/close-icon';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
+import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
+import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 // Deep imports rather than this directory's own barrel: the barrel re-exports
@@ -393,7 +393,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
             absolutely positioned against this row's own box, and rendering it
             after the header is what puts it above the content it overlaps. */}
           <TouchableOpacity style={styles.removeThreadBtn} onPress={handleRemove}>
-            <CloseIcon size={18} color="#5e5e5e" />
+            <RiCloseLine width={18} height={18} fill="#5e5e5e" />
           </TouchableOpacity>
 
           {/* Thread item attachments row */}
@@ -436,9 +436,10 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                               mediaIndex === 0 && styles.mediaReorderButtonDisabled,
                             ]}
                           >
-                            <BackArrowIcon
-                              size={14}
-                              color={
+                            <RiArrowLeftLine
+                              width={14}
+                              height={14}
+                              fill={
                                 mediaIndex === 0
                                   ? theme.colors.textTertiary
                                   : theme.colors.textSecondary
@@ -454,9 +455,10 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                               mediaIndex === mediaCount - 1 && styles.mediaReorderButtonDisabled,
                             ]}
                           >
-                            <ChevronRightIcon
-                              size={14}
-                              color={
+                            <RiArrowRightSLine
+                              width={14}
+                              height={14}
+                              fill={
                                 mediaIndex === mediaCount - 1
                                   ? theme.colors.textTertiary
                                   : theme.colors.textSecondary
@@ -471,7 +473,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                         style={styles.mediaRemoveButton}
                         hitSlop={HIT_SLOP_SM}
                       >
-                        <CloseIcon size={16} className="text-foreground" />
+                        <RiCloseLine width={16} height={16} fill={theme.colors.text} />
                       </TouchableOpacity>
                     </View>
                   );
@@ -504,7 +506,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                       style={styles.pollAttachmentRemoveButton}
                       hitSlop={HIT_SLOP_SM}
                     >
-                      <CloseIcon size={16} className="text-foreground" />
+                      <RiCloseLine width={16} height={16} fill={theme.colors.text} />
                     </TouchableOpacity>
                   </View>
                 )}
@@ -537,7 +539,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                       style={styles.pollAttachmentRemoveButton}
                       hitSlop={HIT_SLOP_SM}
                     >
-                      <CloseIcon size={16} className="text-foreground" />
+                      <RiCloseLine width={16} height={16} fill={theme.colors.text} />
                     </TouchableOpacity>
                   </View>
                 )}
@@ -559,7 +561,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                       style={styles.pollAttachmentRemoveButton}
                       hitSlop={HIT_SLOP_SM}
                     >
-                      <CloseIcon size={16} className="text-foreground" />
+                      <RiCloseLine width={16} height={16} fill={theme.colors.text} />
                     </TouchableOpacity>
                   </View>
                 )}
@@ -594,7 +596,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                       style={styles.pollAttachmentRemoveButton}
                       hitSlop={HIT_SLOP_SM}
                     >
-                      <CloseIcon size={16} className="text-foreground" />
+                      <RiCloseLine width={16} height={16} fill={theme.colors.text} />
                     </TouchableOpacity>
                   </View>
                 )}

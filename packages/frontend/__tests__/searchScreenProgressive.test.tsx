@@ -123,7 +123,6 @@ jest.mock('@oxy.so/bloom/search', () => {
     )),
   };
 });
-jest.mock('@/assets/icons/search-icon', () => ({ Search: mockStub('search-icon') }));
 jest.mock('@/components/SEO', () => ({ SEO: () => null }));
 jest.mock('@/components/Error', () => ({ Error: mockStub('error') }));
 jest.mock('@/components/common/EmptyState', () => ({ EmptyState: mockStub('empty') }));

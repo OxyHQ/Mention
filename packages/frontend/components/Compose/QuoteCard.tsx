@@ -8,7 +8,8 @@ import type { HydratedPost, HydratedPostSummary } from '@mention/shared-types';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 
-import { CloseIcon } from '@/assets/icons/close-icon';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { HIT_SLOP_SM } from '@/styles/hitSlop';
 
 interface QuoteCardProps {
@@ -32,6 +33,7 @@ interface QuoteCardProps {
  * of rendering this card — so an "unknown post" state isn't represented here.
  */
 const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
+  const { colors } = useTheme();
   const { t } = useTranslation();
 
   const previewText = useMemo(() => {
@@ -95,7 +97,7 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
         className="bg-background absolute right-2 top-2 rounded-full p-1.5"
         hitSlop={HIT_SLOP_SM}
       >
-        <CloseIcon size={14} className="text-foreground" />
+        <RiCloseLine width={14} height={14} fill={colors.text} />
       </TouchableOpacity>
     </Card>
   );

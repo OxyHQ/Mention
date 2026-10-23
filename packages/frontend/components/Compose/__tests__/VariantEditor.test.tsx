@@ -21,12 +21,6 @@ jest.mock('@oxy.so/bloom/avatar', () => ({
 jest.mock('@oxy.so/bloom/loading', () => ({
   Loading: jest.requireActual<typeof import('react-native')>('react-native').View,
 }));
-jest.mock('@/assets/icons/close-icon', () => ({
-  CloseIcon: jest.requireActual<typeof import('react-native')>('react-native').View,
-}));
-jest.mock('@/assets/icons/plus-icon', () => ({
-  Plus: jest.requireActual<typeof import('react-native')>('react-native').View,
-}));
 jest.mock('@/components/Compose/VideoPreview', () => ({
   VideoPreview: jest.requireActual<typeof import('react-native')>('react-native').View,
 }));

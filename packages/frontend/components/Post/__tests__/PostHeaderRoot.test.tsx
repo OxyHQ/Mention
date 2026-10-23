@@ -29,7 +29,6 @@ jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { textSecondary: '#8899a6' } }),
 }));
 jest.mock('@/components/AccountBadge', () => ({ AccountBadge: () => null }));
-jest.mock('@/assets/icons/boost-icon', () => ({ BoostIcon: () => null }));
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 
 // `@oxy.so/core` ships ESM and is not transformed in this suite; the header only

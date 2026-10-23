@@ -109,12 +109,7 @@ function ProfilePreview({ username, onNavigate }: { username: string; onNavigate
           verified={profile?.verified}
           badge={
             profile ? (
-              <AccountBadge
-                isFederated={profile.isFederated}
-                kind={profile.kind}
-                size={13}
-                className="text-muted-foreground"
-              />
+              <AccountBadge isFederated={profile.isFederated} kind={profile.kind} size={13} />
             ) : undefined
           }
           bio={profile?.bio || undefined}

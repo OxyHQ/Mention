@@ -44,7 +44,7 @@ import {
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import PostItem from '@/components/Feed/PostItem';
 import { Search } from '@oxy.so/bloom/search';
-import { Search as SearchIcon } from '@/assets/icons/search-icon';
+import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { SEO } from '@/components/SEO';
 import { ScreenFlashList } from '@/components/common/ScreenFlashList';
 import {
@@ -1230,7 +1230,7 @@ function SearchIndex() {
               onPress={handleSubmit}
               accessibilityRole="button"
             >
-              <SearchIcon size={18} className="text-muted-foreground" />
+              <RiSearchLine width={18} height={18} fill={theme.colors.textSecondary} />
               <Text className="flex-1 text-base text-foreground" numberOfLines={1}>
                 {t('search.suggestions.searchFor', 'Search for "{{query}}"', { query: item.term })}
               </Text>

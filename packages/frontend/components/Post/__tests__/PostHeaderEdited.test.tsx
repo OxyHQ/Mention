@@ -2,6 +2,7 @@ import type React from 'react';
 import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';
 
 import PostHeader from '../PostHeader';
+import { RiPencilLine } from '@oxy.so/bloom/icons/RiPencilLine';
 
 /**
  * The edited marker in the identity line.
@@ -28,8 +29,12 @@ jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToa
 // Host element names rather than components, so the props the header computed
 // survive into the rendered tree verbatim — the marker is found as the host
 // element the header rendered, not by a re-encoding of it.
-jest.mock('@oxy.so/bloom/icons', () => ({ RiChat3Fill: 'RiChat3Fill', RiMoreFill: 'RiMoreFill' }));
-jest.mock('@/assets/icons/draw-icon', () => ({ DrawIcon: 'DrawIcon' }));
+jest.mock('@oxy.so/bloom/icons', () => ({
+  RiChat3Fill: 'RiChat3Fill',
+  RiMoreFill: 'RiMoreFill',
+  RiPencilLine: 'RiPencilLine',
+  RiRepeat2Line: 'RiRepeat2Line',
+}));
 jest.mock('@/components/ui/LiveAvatar', () => ({ LiveAvatar: 'LiveAvatar' }));
 jest.mock('@oxy.so/bloom/avatar-group', () => ({ AvatarGroup: 'AvatarGroup' }));
 jest.mock('../../UserName', () => ({ __esModule: true, default: 'UserName' }));
@@ -39,7 +44,6 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 }));
 
 jest.mock('@/components/AccountBadge', () => ({ AccountBadge: () => null }));
-jest.mock('@/assets/icons/boost-icon', () => ({ BoostIcon: () => null }));
 
 /**
  * i18next's own resolution, narrowed to what this file needs: a flat dotted key
@@ -80,7 +84,7 @@ function render(props: Partial<HeaderProps> = {}): TestRenderer.ReactTestRendere
 
 /** The marker glyph itself, found as the icon the header rendered. */
 function markers(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance[] {
-  return renderer.root.findAll((node) => String(node.type) === 'DrawIcon');
+  return renderer.root.findAll((node) => node.type === RiPencilLine);
 }
 
 /**
@@ -148,11 +152,11 @@ describe('PostHeader edited marker', () => {
     const renderer = render({ isEdited: true });
     const found = markers(renderer);
     expect(found).toHaveLength(1);
-    // 14px, matching `BoostIcon`, the other SVG indicator in this row — not the
+    // 14px, matching `RiRepeat2Line`, the other SVG indicator in this row — not the
     // 12 the icon-FONT indicators use. A Material path is drawn inside padding
     // within its box, so the same nominal size renders smaller than a font
     // glyph; sizing it like the font ones would make it the odd one out.
-    expect(found[0].props.size).toBe(14);
+    expect(found[0].props.width).toBe(14);
   });
 
   it('labels the marker from the catalog, not from a raw key', () => {

@@ -23,7 +23,7 @@ import { customFeedsService, type CustomFeedDetail } from '@/services/customFeed
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';
 import { useAuth, FollowButton } from '@oxy.so/services/ui/client';
 import Feed from '@/components/Feed/Feed';
-import { ComposeIcon } from '@/assets/icons/compose-icon';
+import { RiQuillPenLine } from '@oxy.so/bloom/icons/RiQuillPenLine';
 import { Fab } from '@oxy.so/bloom/fab';
 import { PageAction } from '@/components/shell/PageAction';
 import { Avatar } from '@oxy.so/bloom/avatar';
@@ -839,7 +839,7 @@ function CustomFeedTimelineScreen() {
           <Fab
             size="md"
             onPress={() => router.push('/compose')}
-            icon={({ width, fill }) => <ComposeIcon size={width} color={fill} />}
+            icon={RiQuillPenLine}
             accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
           />
         </PageAction>

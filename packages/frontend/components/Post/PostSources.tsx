@@ -1,6 +1,7 @@
 import type React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { SourcesIcon } from '@/assets/icons/sources-icon';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { RiLinksLine } from '@oxy.so/bloom/icons/RiLinksLine';
 import type { PostSourceLink } from '@mention/shared-types';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
@@ -20,6 +21,7 @@ const getHostname = (url: string): string => {
 };
 
 const PostSources: React.FC<Props> = ({ sources, leftOffset = 0 }) => {
+  const { colors } = useTheme();
   if (!sources || sources.length === 0) {
     return null;
   }
@@ -40,7 +42,7 @@ const PostSources: React.FC<Props> = ({ sources, leftOffset = 0 }) => {
             onPress={() => openExternalLink(source.url)}
           >
             <View className="w-8 h-8 rounded-full items-center justify-center bg-card">
-              <SourcesIcon size={16} className="text-primary" />
+              <RiLinksLine width={16} height={16} fill={colors.primary} />
             </View>
             <View className="flex-1">
               <Text className="text-foreground text-sm font-semibold" numberOfLines={2}>

@@ -21,7 +21,7 @@ import { SEO } from '@/components/SEO';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { logger } from '@oxy.so/core/logger';
-import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
+import { RiRocket2Line } from '@oxy.so/bloom/icons/RiRocket2Line';
 
 interface MemberProfile {
   id: string;
@@ -139,7 +139,7 @@ export default function StarterPackDetailScreen() {
           />
         ) : (
           <View className="w-16 h-16 rounded-2xl items-center justify-center bg-primary/20">
-            <StarterPackIcon size={32} color={theme.colors.primary} />
+            <RiRocket2Line width={32} height={32} fill={theme.colors.primary} />
           </View>
         )}
 

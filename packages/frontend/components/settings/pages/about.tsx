@@ -1,4 +1,5 @@
 import { LogoIcon } from '@/assets/logo';
+import { useTheme } from '@oxy.so/bloom/theme';
 import {
   API_URL,
   INSTANCE_ABOUT,
@@ -29,6 +30,7 @@ import { Image, Text, View } from 'react-native';
 
 export default function AboutScreen() {
   const { t } = useTranslation();
+  const { colors } = useTheme();
   const router = useRouter();
 
   const { afterClose } = useMentionSettings();
@@ -91,7 +93,7 @@ export default function AboutScreen() {
                 accessibilityLabel={INSTANCE_NAME}
               />
             ) : (
-              <LogoIcon size={32} className="text-primary" />
+              <LogoIcon size={32} color={colors.primary} />
             )}
           </View>
           <Text className="text-xl font-bold text-foreground">{INSTANCE_NAME}</Text>

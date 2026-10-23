@@ -3,11 +3,12 @@ import { StyleSheet, Text, View, type PressableProps } from 'react-native';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { RiTranslate2 } from '@oxy.so/bloom/icons/RiTranslate2';
 import { RiSendPlaneLine } from '@oxy.so/bloom/icons/RiSendPlaneLine';
-import { CommentIcon } from '@/assets/icons/comment-icon';
-import { BoostIcon, BoostIconActive } from '@/assets/icons/boost-icon';
-import { ShareIcon } from '@/assets/icons/share-icon';
-import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
-import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
+import { RiBarChartBoxLine } from '@oxy.so/bloom/icons/RiBarChartBoxLine';
+import { RiBookmarkFill } from '@oxy.so/bloom/icons/RiBookmarkFill';
+import { RiBookmarkLine } from '@oxy.so/bloom/icons/RiBookmarkLine';
+import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
+import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
+import { RiUpload2Line } from '@oxy.so/bloom/icons/RiUpload2Line';
 
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useHaptics } from '@oxy.so/bloom/hooks';
@@ -175,7 +176,7 @@ const PostActions: React.FC<Props> = ({
           hitSlop={HIT_SLOP_MD}
           accessibilityLabel="Reply"
         >
-          <CommentIcon size={ICON_SIZE} className="text-muted-foreground" />
+          <RiChat3Line width={ICON_SIZE} height={ICON_SIZE} fill={theme.colors.textSecondary} />
           {replies > 0 && (
             <Text className="text-[13px] text-muted-foreground">
               {formatCompactNumber(replies)}
@@ -195,9 +196,9 @@ const PostActions: React.FC<Props> = ({
         accessibilityRole="button"
       >
         {isBoosted ? (
-          <BoostIconActive size={ICON_SIZE} color={theme.colors.success} />
+          <RiRepeat2Line width={ICON_SIZE} height={ICON_SIZE} fill={theme.colors.success} />
         ) : (
-          <BoostIcon size={ICON_SIZE} className="text-muted-foreground" />
+          <RiRepeat2Line width={ICON_SIZE} height={ICON_SIZE} fill={theme.colors.textSecondary} />
         )}
         {boosts > 0 && (
           <Text
@@ -233,7 +234,7 @@ const PostActions: React.FC<Props> = ({
         hitSlop={HIT_SLOP_MD}
         accessibilityLabel="Share"
       >
-        <ShareIcon size={ICON_SIZE} className="text-muted-foreground" />
+        <RiUpload2Line width={ICON_SIZE} height={ICON_SIZE} fill={theme.colors.textSecondary} />
       </PressableScale>
 
       {/* Spacer: pushes Save + Translate + Insights to the right edge */}
@@ -251,9 +252,9 @@ const PostActions: React.FC<Props> = ({
         accessibilityLabel={isSaved ? 'Remove from saved' : 'Save post'}
       >
         {isSaved ? (
-          <BookmarkActive size={ICON_SIZE} color={theme.colors.primary} />
+          <RiBookmarkFill width={ICON_SIZE} height={ICON_SIZE} fill={theme.colors.primary} />
         ) : (
-          <Bookmark size={ICON_SIZE} className="text-muted-foreground" />
+          <RiBookmarkLine width={ICON_SIZE} height={ICON_SIZE} fill={theme.colors.textSecondary} />
         )}
         {saves > 0 && (
           <Text
@@ -298,7 +299,11 @@ const PostActions: React.FC<Props> = ({
           hitSlop={HIT_SLOP_MD}
           accessibilityLabel="Insights"
         >
-          <AnalyticsIcon size={ICON_SIZE} className="text-muted-foreground" />
+          <RiBarChartBoxLine
+            width={ICON_SIZE}
+            height={ICON_SIZE}
+            fill={theme.colors.textSecondary}
+          />
         </PressableScale>
       )}
     </View>

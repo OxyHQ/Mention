@@ -3,7 +3,8 @@ import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 import { Button } from '@oxy.so/bloom/button';
-import { ChannelIcon } from '@/assets/icons/channel-icon';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { RiMegaphoneLine } from '@oxy.so/bloom/icons/RiMegaphoneLine';
 
 type ExplainerStep = 0 | 1 | 2;
 
@@ -81,6 +82,7 @@ export function ChannelInfoDialogProvider() {
  * `setTimeout` and no dependency on how the request was triggered.
  */
 function ChannelInfoDialogContent({ onClose }: { onClose: () => void }) {
+  const { colors } = useTheme();
   const { t } = useTranslation();
   const control = useDialogControl();
   const [step, setStep] = useState<ExplainerStep>(0);
@@ -130,7 +132,7 @@ function ChannelInfoDialogContent({ onClose }: { onClose: () => void }) {
     >
       <View className="items-center gap-4 py-4">
         <View className="w-20 h-20 rounded-full bg-primary/10 items-center justify-center">
-          <ChannelIcon size={40} className="text-primary" />
+          <RiMegaphoneLine width={40} height={40} fill={colors.primary} />
         </View>
         <Text className="text-foreground text-xl font-bold text-center">
           {t(STEP_KEYS[step].title)}

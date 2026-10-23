@@ -46,11 +46,6 @@ jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn() }));
 
 // Host-string stand-ins so "which marker" is read off the render rather than
 // re-derived from the props the test passed in.
-jest.mock('@/assets/icons/channel-icon', () => ({ ChannelIcon: 'ChannelIcon' }));
-jest.mock('@/assets/icons/fediverse-icon', () => ({ FediverseIcon: 'FediverseIcon' }));
-jest.mock('@/assets/icons/verified-icon', () => ({ VerifiedIcon: 'VerifiedIcon' }));
-jest.mock('@/assets/icons/agent-icon', () => ({ AgentIcon: 'AgentIcon' }));
-jest.mock('@/assets/icons/automated-icon', () => ({ AutomatedIcon: 'AutomatedIcon' }));
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({

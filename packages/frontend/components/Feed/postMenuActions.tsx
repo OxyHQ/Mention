@@ -15,25 +15,27 @@ import type { BottomSheetContextProps } from '@/context/BottomSheetContext';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { HydratedPost } from '@mention/shared-types';
 import type { FeedItem } from '@/db';
-import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
-import { LaneIcon } from '@/assets/icons/lane-icon';
-import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
-import { TrashIcon } from '@/assets/icons/trash-icon';
-import { SourcesIcon } from '@/assets/icons/sources-icon';
-import { LinkIcon } from '@/assets/icons/link-icon';
-import { PinIcon, UnpinIcon } from '@/assets/icons/pin-icon';
-import { HideIcon } from '@/assets/icons/hide-icon';
-import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
-import { ArticleIcon } from '@/assets/icons/article-icon';
-import { MuteIcon } from '@/assets/icons/mute-icon';
-import { ReportIcon } from '@/assets/icons/report-icon';
+import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
+import { RiBarChartBoxLine } from '@oxy.so/bloom/icons/RiBarChartBoxLine';
+import { RiBookmarkFill } from '@oxy.so/bloom/icons/RiBookmarkFill';
+import { RiBookmarkLine } from '@oxy.so/bloom/icons/RiBookmarkLine';
+import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
+import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
+import { RiFileList2Line } from '@oxy.so/bloom/icons/RiFileList2Line';
+import { RiLinkM } from '@oxy.so/bloom/icons/RiLinkM';
+import { RiLinksLine } from '@oxy.so/bloom/icons/RiLinksLine';
+import { RiListUnordered } from '@oxy.so/bloom/icons/RiListUnordered';
+import { RiMicOffLine } from '@oxy.so/bloom/icons/RiMicOffLine';
+import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
+import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
+import { RiSpamLine } from '@oxy.so/bloom/icons/RiSpamLine';
+import { RiUnpinLine } from '@oxy.so/bloom/icons/RiUnpinLine';
 import Ionicons from '@/components/common/Ionicons';
 import { muteService } from '@/services/muteService';
 import { lanesService } from '@/services/lanesService';
 import { noteLaneListsChanged } from '@/stores/laneInvalidation';
 import { reportService } from '@/services/reportService';
 import { communityService } from '@/services/communityService';
-import { List as ListIcon } from '@/assets/icons/list-icon';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { invalidateProfileCounts } from '@/stores/profileCountsInvalidation';
 import { postPermalink } from '@/utils/postPermalink';
@@ -209,7 +211,7 @@ export function buildPostMenuActions(
     const insightsAction = canViewInsights
       ? [
           {
-            icon: <AnalyticsIcon size={20} className="text-muted-foreground" />,
+            icon: <RiBarChartBoxLine width={20} height={20} fill={theme.colors.textSecondary} />,
             label: t('postActions.insights'),
             onPress: () => {
               bottomSheet.setBottomSheetContent(
@@ -233,13 +235,13 @@ export function buildPostMenuActions(
       // viewer's account, and `isOwner` is false without a session.
     } else if (!isSaved) {
       saveActionGroup.push({
-        icon: <Bookmark size={20} className="text-muted-foreground" />,
+        icon: <RiBookmarkLine width={20} height={20} fill={theme.colors.textSecondary} />,
         label: t('postActions.save'),
         onPress: onSave,
       });
     } else {
       saveActionGroup.push({
-        icon: <BookmarkActive size={20} className="text-muted-foreground" />,
+        icon: <RiBookmarkFill width={20} height={20} fill={theme.colors.textSecondary} />,
         label: t('postActions.unsave'),
         onPress: onSave,
       });
@@ -272,9 +274,9 @@ export function buildPostMenuActions(
     if (isOwner) {
       saveActionGroup.push({
         icon: isPinned ? (
-          <UnpinIcon size={20} className="text-muted-foreground" />
+          <RiUnpinLine width={20} height={20} fill={theme.colors.textSecondary} />
         ) : (
-          <PinIcon size={20} className="text-muted-foreground" />
+          <RiPushpinLine width={20} height={20} fill={theme.colors.textSecondary} />
         ),
         label: isPinned ? t('postActions.unpinFromProfile') : t('postActions.pinToProfile'),
         onPress: async () => {
@@ -312,7 +314,7 @@ export function buildPostMenuActions(
     const isReplyOrBoost = Boolean(viewPost?.parentPostId) || Boolean(viewPost?.boost);
     if (isOwner && !isReplyOrBoost) {
       saveActionGroup.push({
-        icon: <LaneIcon size={20} color={theme.colors.textSecondary} />,
+        icon: <RiNodeTree width={20} height={20} fill={theme.colors.textSecondary} />,
         label: t('lanes.postActions.moveToLane', { defaultValue: 'Move to lane…' }),
         onPress: () => {
           bottomSheet.setBottomSheetContent(
@@ -353,7 +355,7 @@ export function buildPostMenuActions(
     if (isOwner) {
       const isHidden = Boolean(viewPost?.metadata?.hideEngagementCounts);
       saveActionGroup.push({
-        icon: <HideIcon size={20} className="text-muted-foreground" />,
+        icon: <RiEyeOffLine width={20} height={20} fill={theme.colors.textSecondary} />,
         label: isHidden
           ? t('postActions.showEngagementCounts')
           : t('postActions.hideEngagementCounts'),
@@ -374,7 +376,7 @@ export function buildPostMenuActions(
 
     if (isOwner) {
       saveActionGroup.push({
-        icon: <ChevronRightIcon size={20} className="text-muted-foreground" />,
+        icon: <RiArrowRightSLine width={20} height={20} fill={theme.colors.textSecondary} />,
         label: t('postActions.replyOptions'),
         onPress: () => {
           bottomSheet.setBottomSheetContent(
@@ -456,7 +458,7 @@ export function buildPostMenuActions(
     const deleteAction = isOwner
       ? [
           {
-            icon: <TrashIcon size={20} className="text-destructive" />,
+            icon: <RiDeleteBinLine width={20} height={20} fill={theme.colors.error} />,
             label: t('postActions.delete'),
             onPress: handleDelete,
             color: theme.colors.error,
@@ -467,7 +469,7 @@ export function buildPostMenuActions(
     const articleAction = hasArticle
       ? [
           {
-            icon: <ArticleIcon size={20} className="text-muted-foreground" />,
+            icon: <RiFileList2Line width={20} height={20} fill={theme.colors.textSecondary} />,
             label: t('post.viewArticle', { defaultValue: 'View article' }),
             onPress: () => {
               onOpenArticle();
@@ -479,7 +481,7 @@ export function buildPostMenuActions(
     const sourcesAction = hasSources
       ? [
           {
-            icon: <SourcesIcon size={20} className="text-muted-foreground" />,
+            icon: <RiLinksLine width={20} height={20} fill={theme.colors.textSecondary} />,
             label: t('post.viewSources', { defaultValue: 'View sources' }),
             onPress: () => {
               onOpenSources();
@@ -593,7 +595,7 @@ export function buildPostMenuActions(
         getNormalizedUserHandle(viewPost?.user) || viewPost?.user?.name?.displayName || 'user';
       if (postLane) {
         muteReportAction.push({
-          icon: <MuteIcon size={20} className="text-muted-foreground" />,
+          icon: <RiMicOffLine width={20} height={20} fill={theme.colors.textSecondary} />,
           label: t('lanes.postActions.muteLane', {
             lane: postLane.name,
             username,
@@ -603,13 +605,13 @@ export function buildPostMenuActions(
         });
       }
       muteReportAction.push({
-        icon: <MuteIcon size={20} className="text-muted-foreground" />,
+        icon: <RiMicOffLine width={20} height={20} fill={theme.colors.textSecondary} />,
         label: t('postActions.muteUser', { username }),
         onPress: handleMuteUser,
       });
 
       muteReportAction.push({
-        icon: <ReportIcon size={20} className="text-destructive" />,
+        icon: <RiSpamLine width={20} height={20} fill={theme.colors.error} />,
         label: t('postActions.reportPost'),
         onPress: handleReportPost,
         color: theme.colors.error,
@@ -621,7 +623,7 @@ export function buildPostMenuActions(
     if (!isOwner && authorId && canUsePrivateApi) {
       const authorHandle = getNormalizedUserHandle(viewPost?.user) || '';
       addToListAction.push({
-        icon: <ListIcon size={20} className="text-muted-foreground" />,
+        icon: <RiListUnordered width={20} height={20} fill={theme.colors.textSecondary} />,
         label: t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' }),
         onPress: () => {
           bottomSheet.setBottomSheetContent(
@@ -648,7 +650,7 @@ export function buildPostMenuActions(
       const communityHandle = getNormalizedUserHandle(community) || '';
       const authorHandle = getNormalizedUserHandle(viewPost?.user) || '';
       communityModerationAction.push({
-        icon: <HideIcon size={20} className="text-muted-foreground" />,
+        icon: <RiEyeOffLine width={20} height={20} fill={theme.colors.textSecondary} />,
         label: t('communities.postActions.remove', {
           community: communityHandle,
           defaultValue: 'Remove from !{{community}}',
@@ -690,7 +692,7 @@ export function buildPostMenuActions(
       const authorId = viewPost?.user?.id;
       if (authorId && authorId !== viewerId) {
         communityModerationAction.push({
-          icon: <ReportIcon size={20} className="text-destructive" />,
+          icon: <RiSpamLine width={20} height={20} fill={theme.colors.error} />,
           label: t('communities.postActions.ban', {
             username: authorHandle,
             community: communityHandle,
@@ -739,7 +741,7 @@ export function buildPostMenuActions(
 
     const copyLinkAction = [
       {
-        icon: <LinkIcon size={20} className="text-muted-foreground" />,
+        icon: <RiLinkM width={20} height={20} fill={theme.colors.textSecondary} />,
         label: t('postActions.copyLink'),
         onPress: async () => {
           try {

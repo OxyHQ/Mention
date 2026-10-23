@@ -1,7 +1,8 @@
 import { Pressable } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
-import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
+import { RiBookmarkFill } from '@oxy.so/bloom/icons/RiBookmarkFill';
+import { RiBookmarkLine } from '@oxy.so/bloom/icons/RiBookmarkLine';
 import { usePodcastSave } from '@/hooks/usePodcastSave';
 
 /**
@@ -24,7 +25,11 @@ export const PodcastSaveButton = ({ podcastId }: { podcastId: string }) => {
       accessibilityLabel={label}
       className="size-[30px] rounded-full items-center justify-center bg-white/20 active:bg-white/30"
     >
-      {isSaved ? <BookmarkActive size={15} color="white" /> : <Bookmark size={15} color="white" />}
+      {isSaved ? (
+        <RiBookmarkFill width={15} height={15} fill="white" />
+      ) : (
+        <RiBookmarkLine width={15} height={15} fill="white" />
+      )}
     </Pressable>
   );
 };

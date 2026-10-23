@@ -16,10 +16,11 @@ import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
 import { RiHashtag } from '@oxy.so/bloom/icons/RiHashtag';
 import { RiLinkM } from '@oxy.so/bloom/icons/RiLinkM';
 import { RiMapPinLine } from '@oxy.so/bloom/icons/RiMapPinLine';
-import { VerifiedIcon } from '@/assets/icons/verified-icon';
-import { CalendarMonthIcon } from '@/assets/icons/calendar-month-icon';
-import { FediverseIcon } from '@/assets/icons/fediverse-icon';
-import { ExternalLinkIcon } from '@/assets/icons/external-link-icon';
+import { RiCalendar2Line } from '@oxy.so/bloom/icons/RiCalendar2Line';
+import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
+import { RiFediverseLine } from '@oxy.so/bloom/icons/RiFediverseLine';
+import { RiVerifiedBadgeFill } from '@oxy.so/bloom/icons/RiVerifiedBadgeFill';
+import { VERIFIED_BADGE_COLOR } from '@/styles/colors';
 import { showFediverseInfo } from '@/components/Fediverse/FediverseInfoDialog';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { BLUESKY_NETWORK_DOMAIN, federationInfoOf } from '@/utils/federationInfo';
@@ -35,7 +36,7 @@ import type { ProfileRouteFamily } from '@/components/Profile/profileRoute';
 import { ProfileUnavailable } from '@/components/Profile/ProfileUnavailable';
 import { resolveProfileColor } from '@oxy.so/bloom/color-presets';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
-import { BloomColorScope } from '@oxy.so/bloom/theme';
+import { BloomColorScope, useTheme } from '@oxy.so/bloom/theme';
 
 const ABOUT_AVATAR_SIZE = 80;
 
@@ -122,6 +123,7 @@ function AccountInfoContent({
   onRetry,
 }: AccountInfoContentProps) {
   const { t } = useTranslation();
+  const theme = useTheme();
   const categoryLabel = useAccountCategoryLabel();
 
   // Format join date
@@ -274,7 +276,7 @@ function AccountInfoContent({
         <SettingsListGroup title={t('Account details', { defaultValue: 'Account details' })}>
           {joinDate && (
             <SettingsListItem
-              icon={<CalendarMonthIcon size={20} className="text-muted-foreground" />}
+              icon={<RiCalendar2Line width={20} height={20} fill={theme.colors.textSecondary} />}
               title={t('Date joined', { defaultValue: 'Date joined' })}
               value={joinDate}
             />
@@ -320,7 +322,7 @@ function AccountInfoContent({
       {profileData.verified && (
         <SettingsListGroup title={t('Verification', { defaultValue: 'Verification' })}>
           <SettingsListItem
-            icon={<VerifiedIcon size={20} />}
+            icon={<RiVerifiedBadgeFill width={20} height={20} fill={VERIFIED_BADGE_COLOR} />}
             title={t('Verified', { defaultValue: 'Verified' })}
             value={
               verifiedDate
@@ -361,7 +363,7 @@ function AccountInfoContent({
           }
         >
           <SettingsListItem
-            icon={<FediverseIcon size={20} className="text-muted-foreground" />}
+            icon={<RiFediverseLine width={20} height={20} fill={theme.colors.textSecondary} />}
             title={t('fediverse.about.network', { defaultValue: 'Network' })}
             value={
               federationInfo.network === 'atproto'
@@ -390,7 +392,7 @@ function AccountInfoContent({
 
           {federationInfo.originalProfileUrl && (
             <SettingsListItem
-              icon={<ExternalLinkIcon size={20} className="text-muted-foreground" />}
+              icon={<RiExternalLinkLine width={20} height={20} fill={theme.colors.textSecondary} />}
               title={t('fediverse.about.viewOriginal', { defaultValue: 'View original profile' })}
               onPress={() => {
                 if (federationInfo.originalProfileUrl)
@@ -401,7 +403,7 @@ function AccountInfoContent({
 
           {federationInfo.network === 'activitypub' && (
             <SettingsListItem
-              icon={<FediverseIcon size={20} className="text-muted-foreground" />}
+              icon={<RiFediverseLine width={20} height={20} fill={theme.colors.textSecondary} />}
               title={t('fediverse.about.learnMore', {
                 defaultValue: 'Learn more about the fediverse',
               })}

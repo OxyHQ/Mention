@@ -33,6 +33,7 @@ jest.mock('@oxy.so/bloom/settings-list', () => ({
 }));
 jest.mock('@oxy.so/bloom/theme', () => ({
   BloomColorScope: ({ children }: { children: React.ReactNode }) => children,
+  useTheme: () => ({ colors: { textSecondary: '#666' } }),
 }));
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: 'Loading' }));
 jest.mock('expo-router', () => ({ Redirect: 'Redirect' }));
@@ -42,10 +43,6 @@ jest.mock('@/hooks/useAccountCategoryLabel', () => ({
 }));
 jest.mock('@/components/UserName', () => ({ __esModule: true, default: 'UserName' }));
 jest.mock('@/components/settings/RowIcon', () => ({ RowIcon: 'RowIcon' }));
-jest.mock('@/assets/icons/fediverse-icon', () => ({ FediverseIcon: 'FediverseIcon' }));
-jest.mock('@/assets/icons/verified-icon', () => ({ VerifiedIcon: 'VerifiedIcon' }));
-jest.mock('@/assets/icons/calendar-month-icon', () => ({ CalendarMonthIcon: 'CalendarMonthIcon' }));
-jest.mock('@/assets/icons/external-link-icon', () => ({ ExternalLinkIcon: 'ExternalLinkIcon' }));
 jest.mock('@/components/Fediverse/FediverseInfoDialog', () => ({ showFediverseInfo: jest.fn() }));
 jest.mock('@/utils/openExternalLink', () => ({ openExternalLink: jest.fn() }));
 jest.mock('@/components/Profile/ProfileUnavailable', () => ({
@@ -74,6 +71,7 @@ jest.mock('react-i18next', () => ({
 }));
 
 import { AccountInfoScreen } from '../AccountInfoScreen';
+import { RiFediverseLine } from '@oxy.so/bloom/icons/RiFediverseLine';
 import enStrings from '@/locales/en.json';
 
 function render(profile: Record<string, unknown>): ReactTestRenderer {
@@ -139,7 +137,7 @@ describe('AccountInfoScreen — one Fediverse section for every non-Oxy account'
 
       expect(section.props.title).toBe(enStrings['fediverse.about.title']);
       const network = row(section, enStrings['fediverse.about.network']);
-      expect(network.props.icon.type).toBe('FediverseIcon');
+      expect(network.props.icon.type).toBe(RiFediverseLine);
       expect(network.props.value).toBe(enStrings[`fediverse.about.${networkKey}`]);
 
       // Kept: the link to the ORIGINAL profile.

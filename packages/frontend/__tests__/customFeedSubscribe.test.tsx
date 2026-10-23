@@ -288,11 +288,6 @@ jest.mock('@oxy.so/bloom/typography', () => {
   return { Text: RNText };
 });
 
-jest.mock('@/assets/icons/compose-icon', () => {
-  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { ComposeIcon: () => <RNView testID="compose-icon" /> };
-});
-
 jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
 
 jest.mock('@/hooks/useFeedPreferences', () => ({

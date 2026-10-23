@@ -100,7 +100,7 @@ export const ChannelHeader = memo(function ChannelHeader({
         // avatar's left edge — coherent only while the avatar sat at the right
         // end of a row — and it drew `checkmark-circle` from Ionicons where
         // every other identity surface in the app draws the shared
-        // `VerifiedIcon` through `UserName`. Inline also puts it beside the
+        // `RiVerifiedBadgeFill` through `UserName`. Inline also puts it beside the
         // channel marker below, so the two facts about this identity read as
         // one cluster instead of two conventions.
         verified={verified}

@@ -3,9 +3,10 @@ import { ScrollView, StyleSheet, Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import ComposeToolbar from '@/components/ComposeToolbar';
-import { ScheduleIcon, ScheduleIconActive } from '@/assets/icons/schedule-icon';
-import { LaneIcon } from '@/assets/icons/lane-icon';
-import { CalendarIcon } from '@/assets/icons/calendar-icon';
+import { RiTimeFill } from '@oxy.so/bloom/icons/RiTimeFill';
+import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
+import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
+import { RiCalendarEventLine } from '@oxy.so/bloom/icons/RiCalendarEventLine';
 
 /**
  * WHAT BELONGS IN THIS ROW.
@@ -100,12 +101,20 @@ jest.mock('@oxy.so/bloom/icons', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   const glyph = (name: string) =>
     Object.assign((props: object) => <View {...props} />, { displayName: name });
-  return {
-    RiBroadcastLine: glyph('RiBroadcastLine'),
-    RiGroupFill: glyph('RiGroupFill'),
-    RiGroupLine: glyph('RiGroupLine'),
-    RiMic2Line: glyph('RiMic2Line'),
-  };
+  // Every `Ri*` name, one component per name, so a case can assert on the glyph
+  // it imports by subpath (the barrel and the subpaths are one mocked module).
+  const glyphs = new Map<string, ReturnType<typeof glyph>>();
+  return new Proxy(
+    { __esModule: true },
+    {
+      get(target, name) {
+        if (name in target) return target[name as keyof typeof target];
+        if (typeof name !== 'string' || !name.startsWith('Ri')) return undefined;
+        if (!glyphs.has(name)) glyphs.set(name, glyph(name));
+        return glyphs.get(name);
+      },
+    },
+  );
 });
 
 /** Icon-font glyphs live in the Unicode Private Use Area. */
@@ -199,12 +208,12 @@ describe('ComposeToolbar — the batch-level controls that were moved out', () =
     const tree = render(EVERY_HANDLER);
 
     // Both cuts of the glyph the control drew, so it cannot come back in either
-    // state. The EVENT control's `CalendarIcon` is a different picture and stays
+    // state. The EVENT control's `RiCalendarEventLine` is a different picture and stays
     // — the two shared one until recently, so asserting the schedule's absence
     // by looking for a calendar would find the wrong thing and pass.
-    expect(tree.root.findAllByType(ScheduleIcon)).toHaveLength(0);
-    expect(tree.root.findAllByType(ScheduleIconActive)).toHaveLength(0);
-    expect(tree.root.findAllByType(CalendarIcon)).toHaveLength(1);
+    expect(tree.root.findAllByType(RiTimeLine)).toHaveLength(0);
+    expect(tree.root.findAllByType(RiTimeFill)).toHaveLength(0);
+    expect(tree.root.findAllByType(RiCalendarEventLine)).toHaveLength(1);
     expect(a11yLabels(tree)).not.toContain('Schedule this post');
 
     act(() => tree.unmount());
@@ -324,19 +333,19 @@ describe('ComposeToolbar — the lane control', () => {
   }
 
   /**
-   * The lane control draws `LaneIcon`, ONE cut for both states, so the tint is
+   * The lane control draws `RiNodeTree`, ONE cut for both states, so the tint is
    * the whole signal — the `git-branch`/`git-branch-outline` pair it replaced
    * carried it in the shape as well. Asserting both ends is what keeps this from
    * passing against a control that never changes.
    */
   it('tints its glyph once the post is on a lane', () => {
     const plain = render({ onLanePress: noop });
-    expect(plain.root.findAllByType(LaneIcon)).toHaveLength(1);
-    expect(plain.root.findByType(LaneIcon).props.color).toBe('#666');
+    expect(plain.root.findAllByType(RiNodeTree)).toHaveLength(1);
+    expect(plain.root.findByType(RiNodeTree).props.fill).toBe('#666');
     act(() => plain.unmount());
 
     const assigned = render({ onLanePress: noop, hasLane: true });
-    expect(assigned.root.findByType(LaneIcon).props.color).toBe('#7c3aed');
+    expect(assigned.root.findByType(RiNodeTree).props.fill).toBe('#7c3aed');
     act(() => assigned.unmount());
   });
 
@@ -462,7 +471,7 @@ describe('ComposeToolbar — what assistive technology is told', () => {
 
 describe('ComposeToolbar — what the tint says', () => {
   const eventColor = (tree: TestRenderer.ReactTestRenderer) =>
-    tree.root.findByType(CalendarIcon).props.color;
+    tree.root.findByType(RiCalendarEventLine).props.fill;
 
   it('tints an attachment the post carries, and flags sources that need a title', () => {
     const plain = render({ onEventPress: noop, onSourcesPress: noop });

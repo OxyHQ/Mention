@@ -17,7 +17,7 @@ import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { isMentionCommunity } from '@mention/shared-types/profileUrls';
 import { CommunityPanel } from '@/components/Community/CommunityPanel';
 import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
-import { AlloIcon } from '@/assets/icons/allo-icon';
+import { RiSendPlaneFill } from '@oxy.so/bloom/icons/RiSendPlaneFill';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { RiNotification3Fill } from '@oxy.so/bloom/icons/RiNotification3Fill';
 import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
@@ -471,7 +471,9 @@ export function usePersonProfileView({
                 {!isFederated && (
                   <ButtonGroupItem
                     iconOnly
-                    renderLeadingIcon={({ size, color }) => <AlloIcon size={size} color={color} />}
+                    renderLeadingIcon={({ size, color }) => (
+                      <RiSendPlaneFill width={size} height={size} fill={color} />
+                    )}
                     onPress={handleDM}
                     accessibilityLabel={t('profile.actions.messageInAllo', {
                       handle,

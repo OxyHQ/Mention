@@ -7,17 +7,19 @@ import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useAppShell } from '@oxy.so/bloom/app-shell/hooks';
 import { IconButton } from '@oxy.so/bloom/button';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
-import { SidebarMenuIcon } from '@/assets/icons/sidebar-menu-icon';
+import { RiMenuLine } from '@oxy.so/bloom/icons/RiMenuLine';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
 import { LogoIcon } from '@/assets/logo';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useNavigateOrReselect } from '@/hooks/useNavigateOrReselect';
 
 export function MentionHomeHeader() {
   const router = useRouter();
   const shell = useAppShell();
   const { t } = useTranslation();
+  const { colors } = useTheme();
   const navigateOrReselect = useNavigateOrReselect();
   // A sheet, not a page. Signed out, the press opens the Oxy sign-in dialog
   // (`MentionAskProvider`).
@@ -31,7 +33,7 @@ export function MentionHomeHeader() {
           accessibilityLabel="Mention"
           hitSlop={8}
         >
-          <LogoIcon size={28} className="text-foreground" />
+          <LogoIcon size={28} color={colors.text} />
         </Pressable>
       }
       titleAlign="center"
@@ -41,7 +43,7 @@ export function MentionHomeHeader() {
           {shell.drawerAvailable && (
             <IconButton
               size="md"
-              leadingIcon={shell.drawerOpen ? RiCloseLine : SidebarMenuIcon}
+              leadingIcon={shell.drawerOpen ? RiCloseLine : RiMenuLine}
               accessibilityLabel={t('navigation.menu')}
               aria-expanded={shell.drawerOpen}
               onPress={shell.toggleDrawer}

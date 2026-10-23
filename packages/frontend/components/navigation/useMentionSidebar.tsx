@@ -1,5 +1,5 @@
-import type React from 'react';
-import { cloneElement, isValidElement, useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
+import type { BloomIconComponent } from '@oxy.so/bloom';
 import { usePathname, useRouter, type Href } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { useDeckAvailable } from '@/components/deck/useDeckAvailable';
@@ -17,37 +17,28 @@ import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { LogoIcon } from '@/assets/logo';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useMentionSettings } from '@/context/MentionSettingsContext';
 import { useDrawer } from '@/context/DrawerContext';
 import { useNavigateOrReselect } from '@/hooks/useNavigateOrReselect';
-import { Home, HomeActive } from '@/assets/icons/home-icon';
-import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
-import { Gear, GearActive } from '@/assets/icons/gear-icon';
-import { Search, SearchActive } from '@/assets/icons/search-icon';
-import { ComposeIcon } from '@/assets/icons/compose-icon';
-import { List, ListActive } from '@/assets/icons/list-icon';
-import { Video, VideoActive } from '@/assets/icons/video-icon';
-import { Hashtag, HashtagActive } from '@/assets/icons/hashtag-icon';
-import { ChannelIcon, ChannelIconActive } from '@/assets/icons/channel-icon';
-import { Bell, BellActive } from '@/assets/icons/bell-icon';
+import { RiBookmarkFill } from '@oxy.so/bloom/icons/RiBookmarkFill';
+import { RiBookmarkLine } from '@oxy.so/bloom/icons/RiBookmarkLine';
+import { RiHashtag } from '@oxy.so/bloom/icons/RiHashtag';
+import { RiHome5Fill } from '@oxy.so/bloom/icons/RiHome5Fill';
+import { RiHome5Line } from '@oxy.so/bloom/icons/RiHome5Line';
+import { RiListUnordered } from '@oxy.so/bloom/icons/RiListUnordered';
+import { RiMegaphoneFill } from '@oxy.so/bloom/icons/RiMegaphoneFill';
+import { RiMegaphoneLine } from '@oxy.so/bloom/icons/RiMegaphoneLine';
+import { RiNotification3Fill } from '@oxy.so/bloom/icons/RiNotification3Fill';
+import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
+import { RiQuillPenLine } from '@oxy.so/bloom/icons/RiQuillPenLine';
+import { RiSearchFill } from '@oxy.so/bloom/icons/RiSearchFill';
+import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
+import { RiSettings3Fill } from '@oxy.so/bloom/icons/RiSettings3Fill';
+import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
+import { RiVideoFill } from '@oxy.so/bloom/icons/RiVideoFill';
+import { RiVideoLine } from '@oxy.so/bloom/icons/RiVideoLine';
 import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
-
-function LiveRoomsIcon({ size = 24, color }: { size?: number; color?: string }) {
-  return <RiBroadcastLine width={size} height={size} fill={color} />;
-}
-
-function CommunitiesIcon({ size = 24, color }: { size?: number; color?: string }) {
-  return <RiGroupLine width={size} height={size} fill={color} />;
-}
-
-function CommunitiesIconActive({ size = 24, color }: { size?: number; color?: string }) {
-  return <RiGroupFill width={size} height={size} fill={color} />;
-}
-
-function paintNavigationIcon(icon: React.ReactNode, width?: number, fill?: string) {
-  if (!isValidElement<{ size?: number; color?: string }>(icon)) return icon;
-  return cloneElement(icon, { size: width, ...(icon.type === Avatar ? {} : { color: fill }) });
-}
 
 // Navigation belongs to Mention; measurement, scrolling, FAB and drawer chrome
 // belong to Bloom. The same descriptor feeds its desktop rail and mobile drawer.
@@ -65,6 +56,7 @@ export function useMentionSidebar(): SidebarProps {
   const { close } = useDrawer();
   const settings = useMentionSettings();
   const navigateOrReselect = useNavigateOrReselect();
+  const { colors } = useTheme();
   // The row for the page already open is not a destination: it takes the
   // reader back to the top, then reloads.
   const handleNavPress = useCallback(
@@ -110,59 +102,54 @@ export function useMentionSidebar(): SidebarProps {
   const sideBarData = useMemo<
     {
       title: string;
-      icon: React.ReactNode;
-      iconActive: React.ReactNode;
+      icon: BloomIconComponent;
+      iconActive: BloomIconComponent;
       route?: Href;
       onPress?: () => void;
     }[]
-  >(
-    () => [
+  >(() => {
+    // The row's glyph is the reader's own avatar, at the box the sidebar asks for.
+    const ProfileAvatarIcon: BloomIconComponent = ({ width }) => (
+      <Avatar
+        source={avatarUri}
+        name={avatarName}
+        size={width ?? 24}
+        variant={MEDIA_VARIANT_AVATAR}
+      />
+    );
+    return [
       {
         title: t('sidebar.home'),
-        icon: <Home />,
-        iconActive: <HomeActive />,
+        icon: RiHome5Line,
+        iconActive: RiHome5Fill,
         route: '/',
       },
       ...(user
         ? [
             {
               title: t('sidebar.profile'),
-              icon: (
-                <Avatar
-                  source={avatarUri}
-                  name={avatarName}
-                  size={24}
-                  variant={MEDIA_VARIANT_AVATAR}
-                />
-              ),
-              iconActive: (
-                <Avatar
-                  source={avatarUri}
-                  name={avatarName}
-                  size={24}
-                  variant={MEDIA_VARIANT_AVATAR}
-                />
-              ),
+              icon: ProfileAvatarIcon,
+              iconActive: ProfileAvatarIcon,
               onPress: handleNavigateProfile,
             },
           ]
         : []),
       {
         title: t('sidebar.explore'),
-        icon: <Search />,
-        iconActive: <SearchActive />,
+        icon: RiSearchLine,
+        iconActive: RiSearchFill,
         route: '/explore',
       },
       {
         title: t('sidebar.notifications'),
-        icon: <Bell />,
-        iconActive: <BellActive />,
+        icon: RiNotification3Line,
+        iconActive: RiNotification3Fill,
         route: '/notifications',
       },
       {
         title: t('sidebar.liveRooms'),
-        icon: <LiveRoomsIcon />,
-        iconActive: <LiveRoomsIcon />,
+        icon: RiBroadcastLine,
+        iconActive: RiBroadcastLine,
         route: '/live-rooms',
       },
       {
@@ -170,54 +157,61 @@ export function useMentionSidebar(): SidebarProps {
         // insights from their profile, so the row was a second door to a
         // place already one tap away, while channels had no door at all.
         title: t('sidebar.channels'),
-        icon: <ChannelIcon />,
-        iconActive: <ChannelIconActive />,
+        icon: RiMegaphoneLine,
+        iconActive: RiMegaphoneFill,
         route: '/channels',
       },
       ...(communitiesPreview
         ? [
             {
               title: t('sidebar.communities', { defaultValue: 'Communities' }),
-              icon: <CommunitiesIcon />,
-              iconActive: <CommunitiesIconActive />,
+              icon: RiGroupLine,
+              iconActive: RiGroupFill,
               route: '/communities' as Href,
             },
           ]
         : []),
       {
         title: t('sidebar.saved'),
-        icon: <Bookmark />,
-        iconActive: <BookmarkActive />,
+        icon: RiBookmarkLine,
+        iconActive: RiBookmarkFill,
         route: '/saved',
       },
       {
         title: t('sidebar.feeds'),
-        icon: <Hashtag />,
-        iconActive: <HashtagActive />,
+        icon: RiHashtag,
+        iconActive: RiHashtag,
         route: '/feeds',
       },
       {
         title: t('sidebar.lists'),
-        icon: <List />,
-        iconActive: <ListActive />,
+        icon: RiListUnordered,
+        iconActive: RiListUnordered,
         route: '/lists',
       },
       {
         title: t('sidebar.videos'),
-        icon: <Video />,
-        iconActive: <VideoActive />,
+        icon: RiVideoLine,
+        iconActive: RiVideoFill,
         route: '/videos',
       },
       {
         title: t('sidebar.settings'),
-        icon: <Gear />,
-        iconActive: <GearActive />,
+        icon: RiSettings3Line,
+        iconActive: RiSettings3Fill,
         route: '/settings',
         onPress: handleOpenSettings,
       },
-    ],
-    [t, user, avatarUri, avatarName, handleNavigateProfile, handleOpenSettings, communitiesPreview],
-  );
+    ];
+  }, [
+    t,
+    user,
+    avatarUri,
+    avatarName,
+    handleNavigateProfile,
+    handleOpenSettings,
+    communitiesPreview,
+  ]);
 
   const pathname = usePathname();
   return {
@@ -227,7 +221,7 @@ export function useMentionSidebar(): SidebarProps {
     showSearch: false,
     showThemeToggle: false,
     logo: {
-      icon: <LogoIcon size={28} className="text-foreground" />,
+      icon: <LogoIcon size={28} color={colors.text} />,
       accessibilityLabel: 'Mention',
       onPress: () => handleNavPress('/'),
     },
@@ -237,7 +231,7 @@ export function useMentionSidebar(): SidebarProps {
           {
             key: 'standard',
             label: t('deck.mode.standard', 'Standard'),
-            icon: ({ width, fill }) => paintNavigationIcon(<Home />, width, fill),
+            icon: RiHome5Line,
           },
           { key: 'deck', label: 'Deck', icon: RiDashboardLine },
         ]
@@ -251,8 +245,8 @@ export function useMentionSidebar(): SidebarProps {
         key: typeof route === 'string' ? route : title,
         label: title,
         // Bloom supplies the foreground paired with the selected surface.
-        icon: ({ width, fill }) => paintNavigationIcon(icon, width, fill),
-        activeIcon: ({ width, fill }) => paintNavigationIcon(iconActive, width, fill),
+        icon,
+        activeIcon: iconActive,
         href: typeof route === 'string' ? route : undefined,
         onPress:
           onPress ??
@@ -264,7 +258,7 @@ export function useMentionSidebar(): SidebarProps {
     }),
     primaryAction: {
       label: t('sidebar.compose'),
-      icon: ({ width, fill }) => <ComposeIcon size={width ?? 26} color={fill} />,
+      icon: RiQuillPenLine,
       onPress: handleComposePress,
     },
     footer: ({ collapsed }) => (

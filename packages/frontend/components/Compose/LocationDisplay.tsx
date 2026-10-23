@@ -11,8 +11,8 @@ import { Card } from '@oxy.so/bloom/card';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { LocationIcon } from '@/assets/icons/location-icon';
-import { CloseIcon } from '@/assets/icons/close-icon';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
+import { RiMapPinLine } from '@oxy.so/bloom/icons/RiMapPinLine';
 
 interface LocationDisplayProps {
   location: {
@@ -39,7 +39,7 @@ export const LocationDisplay: React.FC<LocationDisplayProps> = ({
   return (
     <Card appearance="subtle" border="thin" radius="radius-8" style={[styles.container, style]}>
       <View style={styles.header}>
-        <LocationIcon size={16} className="text-primary" />
+        <RiMapPinLine width={16} height={16} fill={theme.colors.primary} />
         {isGettingLocation ? (
           <>
             <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
@@ -51,7 +51,7 @@ export const LocationDisplay: React.FC<LocationDisplayProps> = ({
           <>
             <Text style={[styles.text, { color: theme.colors.text }]}>{location?.address}</Text>
             <TouchableOpacity onPress={onRemove}>
-              <CloseIcon size={16} className="text-muted-foreground" />
+              <RiCloseLine width={16} height={16} fill={theme.colors.textSecondary} />
             </TouchableOpacity>
           </>
         )}

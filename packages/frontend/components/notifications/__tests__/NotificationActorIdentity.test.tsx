@@ -82,8 +82,6 @@ jest.mock('@/components/Compose/CollabAcceptSheet', () => ({
   __esModule: true,
   default: () => null,
 }));
-jest.mock('@/assets/icons/done-all-icon', () => ({ DoneAllIcon: () => null }));
-jest.mock('@/assets/icons/trash-icon', () => ({ TrashIcon: () => null }));
 jest.mock('../notificationDescriptors', () => ({
   getDescriptor: () => ({
     icon: 'heart',

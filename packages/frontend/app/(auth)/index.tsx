@@ -4,11 +4,13 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 
 import { LogoIcon } from '@/assets/logo';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
 
 export default function AuthScreen() {
   const { signIn } = useAuth();
   const { t } = useTranslation();
+  const { colors } = useTheme();
 
   // Both layouts render always; NativeWind's `md` breakpoint (768px) toggles
   // which is displayed \u2014 the desktop split-screen at >=md, the stacked mobile
@@ -45,7 +47,7 @@ export default function AuthScreen() {
       {/* Stacked mobile layout (< md) */}
       <SafeAreaView className="flex md:hidden flex-1 justify-center items-center p-6">
         <View className="flex-1 justify-center items-center gap-4">
-          <LogoIcon size={48} className="text-primary" />
+          <LogoIcon size={48} color={colors.primary} />
           <Text className="text-[28px] font-bold mt-2 text-foreground">Mention</Text>
           <Text className="text-base text-center max-w-[280px] leading-[22px] text-muted-foreground">
             {t('See what\u2019s happening in the world right now.')}

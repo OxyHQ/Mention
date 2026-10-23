@@ -42,7 +42,15 @@ import { useAuth, FollowButton } from '@oxy.so/services/ui/client';
 import { useVideoPlayer, type VideoPlayer } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@/components/common/Ionicons';
-import { VerifiedIcon } from '@/assets/icons/verified-icon';
+import { RiBookmarkFill } from '@oxy.so/bloom/icons/RiBookmarkFill';
+import { RiBookmarkLine } from '@oxy.so/bloom/icons/RiBookmarkLine';
+import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
+import { RiHeart3Fill } from '@oxy.so/bloom/icons/RiHeart3Fill';
+import { RiHeart3Line } from '@oxy.so/bloom/icons/RiHeart3Line';
+import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
+import { RiUpload2Line } from '@oxy.so/bloom/icons/RiUpload2Line';
+import { RiVerifiedBadgeFill } from '@oxy.so/bloom/icons/RiVerifiedBadgeFill';
+import { VERIFIED_BADGE_COLOR } from '@/styles/colors';
 import { useRouter, useLocalSearchParams, useIsFocused } from '@/lib/navigation/router';
 import { useReselectReloadKey, useTabSelect } from '@/context/ScreenReselectContext';
 import { usePostsStore } from '@/stores/postsStore';
@@ -54,11 +62,6 @@ import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { SEO } from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
-import { HeartIcon, HeartIconActive } from '@/assets/icons/heart-icon';
-import { CommentIcon } from '@/assets/icons/comment-icon';
-import { BoostIcon, BoostIconActive } from '@/assets/icons/boost-icon';
-import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
-import { ShareIcon } from '@/assets/icons/share-icon';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
@@ -952,7 +955,12 @@ const VideoItem = memo<VideoItemProps>(
                         {userName}
                       </Text>
                       {item.user?.verified && (
-                        <VerifiedIcon size={14} style={styles.verifiedIcon} />
+                        <RiVerifiedBadgeFill
+                          width={14}
+                          height={14}
+                          fill={VERIFIED_BADGE_COLOR}
+                          style={styles.verifiedIcon}
+                        />
                       )}
                     </View>
                     <Text style={styles.userHandle} numberOfLines={1}>
@@ -1003,9 +1011,9 @@ const VideoItem = memo<VideoItemProps>(
             <ActionButton
               icon={
                 item.viewerState.isLiked ? (
-                  <HeartIconActive size={30} color={LIKE_ACTIVE_COLOR} />
+                  <RiHeart3Fill width={30} height={30} fill={LIKE_ACTIVE_COLOR} />
                 ) : (
-                  <HeartIcon size={30} color="white" />
+                  <RiHeart3Line width={30} height={30} fill="white" />
                 )
               }
               count={item.engagement.likes ?? 0}
@@ -1016,7 +1024,7 @@ const VideoItem = memo<VideoItemProps>(
               accessibilityLabel={t(item.viewerState.isLiked ? 'videos.unlike' : 'videos.like')}
             />
             <ActionButton
-              icon={<CommentIcon size={30} color="white" />}
+              icon={<RiChat3Line width={30} height={30} fill="white" />}
               count={item.engagement.replies ?? 0}
               onPress={() => onComment(item.id)}
               formatCompactNumber={formatCompactNumber}
@@ -1025,9 +1033,9 @@ const VideoItem = memo<VideoItemProps>(
             <ActionButton
               icon={
                 item.viewerState.isBoosted ? (
-                  <BoostIconActive size={30} color={BOOST_ACTIVE_COLOR} />
+                  <RiRepeat2Line width={30} height={30} fill={BOOST_ACTIVE_COLOR} />
                 ) : (
-                  <BoostIcon size={30} color="white" />
+                  <RiRepeat2Line width={30} height={30} fill="white" />
                 )
               }
               count={item.engagement.boosts ?? 0}
@@ -1043,9 +1051,9 @@ const VideoItem = memo<VideoItemProps>(
             <ActionButton
               icon={
                 item.viewerState.isSaved ? (
-                  <BookmarkActive size={30} color="white" />
+                  <RiBookmarkFill width={30} height={30} fill="white" />
                 ) : (
-                  <Bookmark size={30} color="white" />
+                  <RiBookmarkLine width={30} height={30} fill="white" />
                 )
               }
               count={item.engagement.saves ?? 0}
@@ -1062,7 +1070,7 @@ const VideoItem = memo<VideoItemProps>(
               accessibilityLabel={t('videos.sendInAllo')}
             />
             <ActionButton
-              icon={<ShareIcon size={30} color="white" />}
+              icon={<RiUpload2Line width={30} height={30} fill="white" />}
               count={0}
               onPress={() => onShare(item)}
               formatCompactNumber={formatCompactNumber}

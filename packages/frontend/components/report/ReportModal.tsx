@@ -7,7 +7,7 @@ import { Checkbox } from '@oxy.so/bloom/checkbox';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { CloseIcon } from '@/assets/icons/close-icon';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { REPORT_CATEGORIES } from '@/services/reportService';
 
 interface ReportModalProps {
@@ -51,7 +51,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({ visible, onClose, onSu
       {/* Header */}
       <View className="flex-row items-center px-4 py-3" style={{ minHeight: 56 }}>
         <TouchableOpacity onPress={handleCancel} className="p-2 z-10" activeOpacity={0.7}>
-          <CloseIcon size={20} className="text-foreground" />
+          <RiCloseLine width={20} height={20} fill={theme.colors.text} />
         </TouchableOpacity>
         <Text
           className="text-foreground text-lg font-bold absolute left-0 right-0 text-center"

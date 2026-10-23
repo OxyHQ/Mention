@@ -78,7 +78,6 @@ jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToa
 jest.mock('@/utils/alerts', () => ({
   confirmDialog: (...args: unknown[]) => mockConfirm(...args),
 }));
-jest.mock('@/assets/icons/drafts', () => ({ DraftsIcon: () => null }));
 jest.mock('@oxy.so/core/logger', () => ({
   createLogger: () => ({ error: jest.fn(), warn: jest.fn(), debug: jest.fn(), info: jest.fn() }),
 }));

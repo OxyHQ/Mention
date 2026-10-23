@@ -35,11 +35,12 @@ import {
 } from '@oxy.so/bloom/segmented-control';
 import type { AccountInsights, EngagementRatios } from '@/services/insightsService';
 import type { HydratedPost } from '@mention/shared-types';
-import { HeartIcon } from '@/assets/icons/heart-icon';
-import { CommentIcon } from '@/assets/icons/comment-icon';
-import { BoostIcon } from '@/assets/icons/boost-icon';
-import { ShareIcon } from '@/assets/icons/share-icon';
-import { CalendarIcon } from '@/assets/icons/calendar-icon';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { RiCalendarEventLine } from '@oxy.so/bloom/icons/RiCalendarEventLine';
+import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
+import { RiHeart3Line } from '@oxy.so/bloom/icons/RiHeart3Line';
+import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
+import { RiUpload2Line } from '@oxy.so/bloom/icons/RiUpload2Line';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import {
   buildInsightsSeries,
@@ -99,6 +100,7 @@ export function InsightsDashboard({
   activeTab,
   isFetching,
 }: InsightsDashboardProps) {
+  const { colors } = useTheme();
   const router = useRouter();
   const { t, i18n } = useTranslation();
   const [expanded, setExpanded] = useState<string | string[] | undefined>();
@@ -125,22 +127,22 @@ export function InsightsDashboard({
     {
       label: t('insights.post.likes'),
       value: stats.interactions.likes,
-      icon: <HeartIcon size={16} className="text-foreground" />,
+      icon: <RiHeart3Line width={16} height={16} fill={colors.text} />,
     },
     {
       label: t('insights.post.replies'),
       value: stats.interactions.replies,
-      icon: <CommentIcon size={16} className="text-foreground" />,
+      icon: <RiChat3Line width={16} height={16} fill={colors.text} />,
     },
     {
       label: t('insights.post.boosts'),
       value: stats.interactions.boosts,
-      icon: <BoostIcon size={16} className="text-foreground" />,
+      icon: <RiRepeat2Line width={16} height={16} fill={colors.text} />,
     },
     {
       label: t('insights.post.shares'),
       value: stats.interactions.shares,
-      icon: <ShareIcon size={16} className="text-foreground" />,
+      icon: <RiUpload2Line width={16} height={16} fill={colors.text} />,
     },
   ];
   const calendarDays = publishing.weekdays.total + publishing.weekends.total;
@@ -268,7 +270,7 @@ export function InsightsDashboard({
               appearance="subtle"
               tone="neutral"
               size="sm"
-              leading={<CalendarIcon size={16} className="text-foreground" />}
+              leading={<RiCalendarEventLine width={16} height={16} fill={colors.text} />}
               onPress={() => router.push('/insights/weekly_recap')}
             >
               {t('insights.weeklyRecap.title')}

@@ -9,8 +9,8 @@ import MentionTextInput, { type MentionTextInputHandle } from '@/components/Ment
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import { ComposeAltButton } from '@/components/Compose/ComposeAltButton';
 import { ComposeMediaPreview } from '@/components/Compose/ComposeMediaPreview';
-import { CloseIcon } from '@/assets/icons/close-icon';
-import { Plus } from '@/assets/icons/plus-icon';
+import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { describeContentLanguage } from '@/constants/contentLanguages';
 import { MEDIA_CARD_HEIGHT, MEDIA_CARD_WIDTH, type ComposerMediaItem } from '@/utils/composeUtils';
 import type { ComposeVariantItem } from '@/utils/composeVariants';
@@ -202,7 +202,7 @@ const VariantEditor = memo(function VariantEditor({
                     style={styles.mediaRemove}
                     hitSlop={HIT_SLOP_SM}
                   >
-                    <CloseIcon size={16} className="text-foreground" />
+                    <RiCloseLine width={16} height={16} fill={theme.colors.text} />
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -214,7 +214,7 @@ const VariantEditor = memo(function VariantEditor({
                 className="items-center justify-center border border-dashed border-border rounded-[15px]"
                 style={styles.mediaAddCard}
               >
-                <Plus size={20} color={theme.colors.textSecondary} />
+                <RiAddLine width={20} height={20} fill={theme.colors.textSecondary} />
                 <Text className="text-[13px] mt-1" style={{ color: theme.colors.textSecondary }}>
                   {t('compose.languages.addImage', { defaultValue: 'Add image' })}
                 </Text>

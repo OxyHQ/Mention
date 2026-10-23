@@ -41,7 +41,6 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 }));
 
 jest.mock('@/components/AccountBadge', () => ({ AccountBadge: () => null }));
-jest.mock('@/assets/icons/boost-icon', () => ({ BoostIcon: () => null }));
 
 // A load-time necessity, not an assertion: the header imports the toast module for
 // the edited marker, which this suite does not exercise. Untransformed ESM, so the

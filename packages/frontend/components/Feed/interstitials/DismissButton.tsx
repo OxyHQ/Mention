@@ -1,6 +1,7 @@
 import { TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { CloseIcon } from '@/assets/icons/close-icon';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { cn } from '@/lib/utils';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
@@ -26,6 +27,7 @@ export function DismissButton({
   accessibilityLabel,
   overlay = false,
 }: DismissButtonProps) {
+  const { colors } = useTheme();
   const { t } = useTranslation();
 
   return (
@@ -41,7 +43,7 @@ export function DismissButton({
         overlay && 'absolute right-2 top-2 z-10 bg-background/80',
       )}
     >
-      <CloseIcon size={14} className="text-muted-foreground" />
+      <RiCloseLine width={14} height={14} fill={colors.textSecondary} />
     </TouchableOpacity>
   );
 }

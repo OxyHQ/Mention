@@ -10,7 +10,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { HeartIcon, HeartIconActive } from '@/assets/icons/heart-icon';
+import { RiHeart3Fill } from '@oxy.so/bloom/icons/RiHeart3Fill';
+import { RiHeart3Line } from '@oxy.so/bloom/icons/RiHeart3Line';
 import { useTheme } from '@oxy.so/bloom/theme';
 
 const LIKE_ANIMATION_MS = 300;
@@ -35,18 +36,20 @@ interface LikeIconProps {
  */
 export function AnimatedLikeIcon(props: LikeIconProps) {
   if (!props.hasBeenToggled) {
-    return props.isLiked ? (
-      <LikedHeart big={props.big} />
-    ) : (
-      <HeartIcon className="text-muted-foreground" size={props.big ? 22 : 18} />
-    );
+    return props.isLiked ? <LikedHeart big={props.big} /> : <UnlikedHeart big={props.big} />;
   }
   return <AnimatedHeart {...props} />;
 }
 
+function UnlikedHeart({ big }: { big?: boolean }) {
+  const theme = useTheme();
+  const size = big ? 22 : 18;
+  return <RiHeart3Line fill={theme.colors.textSecondary} width={size} height={size} />;
+}
+
 function LikedHeart({ big }: { big?: boolean }) {
   const theme = useTheme();
-  return <HeartIconActive color={theme.colors.error} size={big ? 22 : 18} />;
+  return <RiHeart3Fill fill={theme.colors.error} width={big ? 22 : 18} height={big ? 22 : 18} />;
 }
 
 function AnimatedHeart({ isLiked, big, hasBeenToggled }: LikeIconProps) {
@@ -115,10 +118,10 @@ function AnimatedHeart({ isLiked, big, hasBeenToggled }: LikeIconProps) {
 
   const heart = isLiked ? (
     <Animated.View style={iconStyle}>
-      <HeartIconActive color={likeColor} size={size} />
+      <RiHeart3Fill fill={likeColor} width={size} height={size} />
     </Animated.View>
   ) : (
-    <HeartIcon className="text-muted-foreground" size={size} />
+    <RiHeart3Line fill={theme.colors.textSecondary} width={size} height={size} />
   );
 
   // The wrapper is the positioning context for the two burst rings, and those

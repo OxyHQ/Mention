@@ -4,7 +4,7 @@ import { useRouter, Slot, usePathname, type Href } from '@/lib/navigation/router
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Search } from '@/assets/icons/search-icon';
+import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { SEO } from '@/components/SEO';
 import { useTabSelect } from '@/context/ScreenReselectContext';
 import { isCurrentRoute } from '@/hooks/useNavigateOrReselect';
@@ -53,7 +53,7 @@ export default function ExploreLayout() {
               appearance="subtle"
               tone="neutral"
               iconOnly
-              icon={<Search size={20} />}
+              icon={RiSearchLine}
               onPress={() => router.push('/search')}
               accessibilityLabel={t('Search')}
             />

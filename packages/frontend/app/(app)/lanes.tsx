@@ -24,7 +24,6 @@ import {
   MAX_LANES_PER_OWNER,
   MAX_LANE_NAME_LENGTH,
 } from '@mention/shared-types/lane';
-import { LaneIcon } from '@/assets/icons/lane-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { EmptyState } from '@/components/common/EmptyState';
 import type { BloomIcon } from '@/components/settings/RowIcon';
@@ -311,7 +310,7 @@ export default function LanesScreen() {
 
           <SettingsListGroup title={t('lanes.addLane', { defaultValue: 'New lane' })}>
             <View className="px-4 py-3 flex-row items-center gap-3">
-              <LaneIcon size={20} color={colors.textSecondary} />
+              <RiNodeTree width={20} height={20} fill={colors.textSecondary} />
               <TextInput
                 className="flex-1 text-[15px] text-foreground"
                 placeholder={t('lanes.namePlaceholder', { defaultValue: 'Lane name' })}

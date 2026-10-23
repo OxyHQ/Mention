@@ -1,7 +1,7 @@
 import type React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { ChevronUpIcon } from '@/assets/icons/chevron-up-icon';
-import { ChevronDownIcon } from '@/assets/icons/chevron-down-icon';
+import { RiArrowDownSLine } from '@oxy.so/bloom/icons/RiArrowDownSLine';
+import { RiArrowUpSLine } from '@oxy.so/bloom/icons/RiArrowUpSLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useHaptics } from '@oxy.so/bloom/hooks';
 import { formatCompactNumber } from '@/utils/formatNumber';
@@ -47,7 +47,7 @@ const VotePill: React.FC<VotePillProps> = ({
         hitSlop={{ top: 5, bottom: 5, left: 5, right: 0 }}
         accessibilityLabel={isLiked ? 'Remove upvote' : 'Upvote'}
       >
-        <ChevronUpIcon size={ARROW_SIZE} color={upColor} />
+        <RiArrowUpSLine width={ARROW_SIZE} height={ARROW_SIZE} fill={upColor} />
       </PressableScale>
 
       {netScore !== 0 && (
@@ -71,7 +71,7 @@ const VotePill: React.FC<VotePillProps> = ({
         hitSlop={{ top: 5, bottom: 5, left: 0, right: 5 }}
         accessibilityLabel={isDownvoted ? 'Remove downvote' : 'Downvote'}
       >
-        <ChevronDownIcon size={ARROW_SIZE} color={downColor} />
+        <RiArrowDownSLine width={ARROW_SIZE} height={ARROW_SIZE} fill={downColor} />
       </PressableScale>
     </View>
   );

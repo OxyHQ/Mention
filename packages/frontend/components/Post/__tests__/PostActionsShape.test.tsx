@@ -22,17 +22,6 @@ jest.mock('@/hooks/useVoteStyle', () => ({ useVoteStyle: () => 'icons' }));
 jest.mock('@oxy.so/bloom/pressable-scale', () => ({ PressableScale: 'PressableScale' }));
 
 // Icons are react-native-svg subtrees and say nothing about the bar's shape.
-jest.mock('@/assets/icons/comment-icon', () => ({ CommentIcon: () => null }));
-jest.mock('@/assets/icons/boost-icon', () => ({
-  BoostIcon: () => null,
-  BoostIconActive: () => null,
-}));
-jest.mock('@/assets/icons/share-icon', () => ({ ShareIcon: () => null }));
-jest.mock('@/assets/icons/bookmark-icon', () => ({
-  Bookmark: () => null,
-  BookmarkActive: () => null,
-}));
-jest.mock('@/assets/icons/analytics-icon', () => ({ AnalyticsIcon: () => null }));
 jest.mock('@/lib/animations/AnimatedLikeIcon', () => ({ AnimatedLikeIcon: () => null }));
 jest.mock('@/lib/animations/CountWheel', () => ({ CountWheel: () => null }));
 

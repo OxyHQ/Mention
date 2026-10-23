@@ -41,7 +41,6 @@ jest.mock('@oxy.so/bloom/tabs', () => ({
 jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ isDark: false }) }));
 jest.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
 jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
-jest.mock('@/assets/icons/search-icon', () => ({ Search: () => null }));
 jest.mock('@/components/SEO', () => ({ SEO: () => null }));
 jest.mock('@/context/ScreenReselectContext', () => ({
   useTabSelect:

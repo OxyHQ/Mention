@@ -1,21 +1,15 @@
-import type { ComponentProps, ComponentType } from 'react';
+import type { ComponentProps } from 'react';
 import type Ionicons from '@/components/common/Ionicons';
 import type { Theme } from '@oxy.so/bloom/theme';
 
-import { GroupAddIcon } from '@/assets/icons/group-add-icon';
-import { DiversityIcon } from '@/assets/icons/diversity-icon';
-import { HeartIconActive } from '@/assets/icons/heart-icon';
-import { CommentIcon } from '@/assets/icons/comment-icon';
-import { BoostIcon } from '@/assets/icons/boost-icon';
+import type { BloomIconComponent } from '@oxy.so/bloom';
+import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
+import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
+import { RiHeart3Fill } from '@oxy.so/bloom/icons/RiHeart3Fill';
+import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
+import { RiUserAddFill } from '@oxy.so/bloom/icons/RiUserAddFill';
 
 export type IoniconName = ComponentProps<typeof Ionicons>['name'];
-
-/**
- * A custom badge glyph component (e.g. a Material Symbols SVG). Receives the
- * SAME `size`/`color` the Ionicon badge glyph does, so it drops into the badge
- * render site interchangeably with `<Ionicons>`.
- */
-export type BadgeIconComponent = ComponentType<{ size: number; color: string }>;
 
 /** A Bloom theme color token — resolved at render time as `theme.colors[token]`. */
 export type ColorToken = keyof Theme['colors'];
@@ -42,12 +36,10 @@ export interface NotificationDescriptor {
    */
   icon: IoniconName;
   /**
-   * Optional custom badge glyph (a Material Symbols SVG component). When present
-   * it renders instead of the {@link icon} Ionicon, receiving the SAME badge
-   * `size`/`color` — so a type can opt into a bespoke glyph without a separate
-   * render path.
+   * Optional Bloom glyph. When present it renders instead of the {@link icon}
+   * Ionicon, at the same badge size and colour.
    */
-  iconComponent?: BadgeIconComponent;
+  iconComponent?: BloomIconComponent;
   /** Semantic color token for the action badge fill. */
   colorToken: ColorToken;
   /** Whether this type has an associated post whose text is previewed inline. */
@@ -94,21 +86,21 @@ const DESCRIPTORS: Record<string, NotificationDescriptor> = {
   },
   like: {
     icon: 'heart',
-    iconComponent: HeartIconActive,
+    iconComponent: RiHeart3Fill,
     colorToken: 'success',
     hasPreview: true,
     actionPhrase: (t) => t('notification.action.like', { defaultValue: 'liked your post' }),
   },
   boost: {
     icon: 'repeat',
-    iconComponent: BoostIcon,
+    iconComponent: RiRepeat2Line,
     colorToken: 'success',
     hasPreview: true,
     actionPhrase: (t) => t('notification.action.boost', { defaultValue: 'boosted your post' }),
   },
   reply: {
     icon: 'chatbubble',
-    iconComponent: CommentIcon,
+    iconComponent: RiChat3Line,
     colorToken: 'warning',
     hasPreview: true,
     actionPhrase: (t) => t('notification.action.reply', { defaultValue: 'replied to your post' }),
@@ -127,7 +119,7 @@ const DESCRIPTORS: Record<string, NotificationDescriptor> = {
   },
   follow: {
     icon: 'person-add',
-    iconComponent: GroupAddIcon,
+    iconComponent: RiUserAddFill,
     colorToken: 'primary',
     hasPreview: false,
     actionPhrase: (t) => t('notification.action.follow', { defaultValue: 'started following you' }),
@@ -146,7 +138,7 @@ const DESCRIPTORS: Record<string, NotificationDescriptor> = {
   },
   collab_invite: {
     icon: 'people',
-    iconComponent: DiversityIcon,
+    iconComponent: RiGroupFill,
     colorToken: 'primary',
     hasPreview: true,
     actionPhrase: (t) =>

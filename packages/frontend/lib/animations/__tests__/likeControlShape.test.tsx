@@ -59,10 +59,6 @@ jest.mock('@oxy.so/bloom/theme', () => ({
     colors: { error: '#f4212e', textSecondary: '#8899a6', background: '#ffffff' },
   }),
 }));
-jest.mock('@/assets/icons/heart-icon', () => ({
-  HeartIcon: () => null,
-  HeartIconActive: () => null,
-}));
 
 /** Host node types, in tree order. */
 function hostTypes(element: React.ReactElement) {

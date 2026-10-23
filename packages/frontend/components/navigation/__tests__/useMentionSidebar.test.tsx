@@ -5,6 +5,9 @@ const mockNavigateOrReselect = jest.fn();
 const mockClose = jest.fn();
 const mockOpenSettings = jest.fn();
 
+jest.mock('@oxy.so/bloom/theme', () => ({
+  useTheme: () => ({ colors: { text: '#000', textSecondary: '#666', primary: '#7c3aed' } }),
+}));
 jest.mock('expo-router', () => ({
   usePathname: () => '/',
   useRouter: () => ({ push: jest.fn(), navigate: jest.fn() }),

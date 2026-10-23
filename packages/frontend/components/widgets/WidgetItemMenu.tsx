@@ -8,8 +8,8 @@ import {
 } from '@oxy.so/bloom/dropdown-menu';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { HideIcon } from '@/assets/icons/hide-icon';
-import { ShareIcon } from '@/assets/icons/share-icon';
+import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
+import { RiUpload2Line } from '@oxy.so/bloom/icons/RiUpload2Line';
 import { HIT_SLOP_LG } from '@/styles/hitSlop';
 
 const ICON_SIZE = 20;
@@ -49,13 +49,17 @@ export function WidgetItemMenu({ label, onNotInterested, onShare }: WidgetItemMe
       </DropdownMenuTrigger>
       <DropdownMenuContent label={label}>
         <DropdownMenuItem
-          leading={<HideIcon size={ICON_SIZE} color={theme.colors.textSecondary} />}
+          leading={
+            <RiEyeOffLine width={ICON_SIZE} height={ICON_SIZE} fill={theme.colors.textSecondary} />
+          }
           onPress={onNotInterested}
         >
           {t('widgetMenu.notInterested')}
         </DropdownMenuItem>
         <DropdownMenuItem
-          leading={<ShareIcon size={ICON_SIZE} color={theme.colors.textSecondary} />}
+          leading={
+            <RiUpload2Line width={ICON_SIZE} height={ICON_SIZE} fill={theme.colors.textSecondary} />
+          }
           onPress={onShare}
         >
           {t('widgetMenu.share')}

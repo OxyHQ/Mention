@@ -13,7 +13,7 @@ import {
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useRouter } from '@/lib/navigation/router';
 import { Image as BackgroundImage, type ImageSource } from 'expo-image';
-import { CloseIcon } from '@/assets/icons/close-icon';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { LogoIcon } from '@/assets/logo';
 import { Button, LinkButton } from '@oxy.so/bloom/button';
 import { Dialog } from '@oxy.so/bloom/dialog';
@@ -173,7 +173,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ visible, onClose }) => {
           accessibilityRole="button"
           accessibilityLabel="Close"
         >
-          <CloseIcon className="text-foreground" size={20} />
+          <RiCloseLine fill={theme.colors.text} width={20} height={20} />
         </Pressable>
 
         {/* Logo */}
@@ -186,11 +186,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ visible, onClose }) => {
               accessibilityLabel={INSTANCE_NAME}
             />
           ) : (
-            <LogoIcon
-              className={theme.isDark ? undefined : 'text-primary'}
-              color={theme.isDark ? '#FFFFFF' : undefined}
-              size={40}
-            />
+            <LogoIcon color={theme.isDark ? '#FFFFFF' : theme.colors.primary} size={40} />
           )}
           {INSTANCE_NAME !== 'Mention' ? <Muted>{INSTANCE_NAME}</Muted> : null}
         </View>
