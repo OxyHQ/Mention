@@ -144,12 +144,12 @@ export interface FeedPostSlice {
   reason?: FeedSliceReason;
   /** Viewer-scoped evidence, independent from thread/boost grouping. Never store on a post. */
   socialContext?: {
-    type: 'likedBy';
+    type: 'likedBy' | 'boostedBy';
     /** The exact post liked, not a prepended parent or another item in the slice. */
     postId: string;
-    /** At most three eligible followed actors whose positive likes are public. */
+    /** At most three eligible followed actors with public positive likes or public published boosts. */
     actors: PostUser[];
-    /** Current eligible followed likers within the bounded discovery window/network. */
+    /** Current distinct eligible followed actors for this action within the bounded window/network. */
     total: number;
   };
 }
