@@ -1,21 +1,27 @@
-vi.mock('@oxy.so/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@oxy.so/core')>()),
-  OxyServices: class {
-    session = { setAccessToken: vi.fn() };
-    assets = {
-      publicUrl: (id: string, variant?: string) =>
-        `https://cdn.test/${id}${variant ? `?variant=${variant}` : ''}`,
-      access: vi.fn(async (files: { fileId: string }[]) => ({
-        results: Object.fromEntries(
-          files.map(({ fileId }) => [
-            fileId,
-            { allowed: true, visibility: 'public', url: `https://cdn.test/${fileId}` },
-          ]),
-        ),
-      })),
-    };
-  },
-}));
+vi.mock('@oxy.so/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@oxy.so/core')>();
+  const cdnClient = new actual.OxyServices({
+    baseURL: 'https://api.oxy.so',
+    cloudURL: 'https://cdn.test',
+  });
+  return {
+    ...actual,
+    OxyServices: class {
+      session = { setAccessToken: vi.fn() };
+      assets = {
+        publicUrl: cdnClient.assets.publicUrl.bind(cdnClient.assets),
+        access: vi.fn(async (files: { fileId: string }[]) => ({
+          results: Object.fromEntries(
+            files.map(({ fileId }) => [
+              fileId,
+              { allowed: true, visibility: 'public', url: `https://cdn.test/${fileId}` },
+            ]),
+          ),
+        })),
+      };
+    },
+  };
+});
 vi.mock('../../db/posts/postSafetyRepository', () => ({
   loadPostSafetyAssessments: vi.fn(async () => new Map()),
 }));
@@ -184,7 +190,9 @@ describe('the HLS ladder on a hydrated post', () => {
     );
 
     const video = hydratedVideo(hydrated as never);
-    expect(video.hlsUrl).toEqual(expect.stringContaining(`${FILE_ID}?variant=hls_master`));
+    expect(video.hlsUrl).toBe(
+      `https://cdn.test/${FILE_ID}?variant=hls_master&revision=2026-10-10T01%3A42%3A43.597Z`,
+    );
     // The original stays the fallback.
     expect(video.url).toEqual(expect.stringContaining(FILE_ID));
   });
