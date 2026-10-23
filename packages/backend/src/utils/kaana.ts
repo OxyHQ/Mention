@@ -4,7 +4,8 @@ import { getServiceOxyClient } from './oxyHelpers';
 type KaanaSdk = typeof import('@kaana.ai/sdk', { with: { 'resolution-mode': 'import' }});
 
 let sdk: Promise<KaanaSdk> | undefined;
-let kaana: Promise<Kaana> | undefined;
+type OwnKaana = Kaana & { dispose(): void };
+let kaana: Promise<OwnKaana> | undefined;
 
 /**
  * `@kaana.ai/sdk` is ESM-only and this package emits CommonJS, so it is loaded
@@ -15,31 +16,29 @@ function kaanaSdk(): Promise<KaanaSdk> {
   return sdk;
 }
 
-/**
- * The one Kaana client. The credential is a service token minted for the
- * `kaana.ai` audience; Kaana refuses an `oxy-api` one.
- */
-export function kaanaClient(): Promise<Kaana> {
-  kaana ??= kaanaSdk().then(
-    ({ Kaana: Client }) =>
-      new Client({
-        credential: () => getServiceOxyClient().serviceTokenFor('kaana.ai'),
-        // Resolved per call, not captured once, so the one client follows the
-        // runtime's fetch (and a test's stub).
-        fetch: (input, init) => fetch(input, init),
-        // Never resend. Kaana already retries and fails over provider-side
-        // before any output; a second send here would wait out a long
-        // `retryAfterMs` inside a worker's deadline and blur the one-dispatch
-        // accounting the shadow ledger keeps (docs/jev-shadow-evaluation.md).
-        maxRetries: 0,
-      }),
-  );
+/** The product SDK binds workload transport and optional immutable inference attribution. */
+export function kaanaClient(accountId?: string): Promise<OwnKaana> {
+  const create = async () => {
+    const { kaanaForOxyService } = await import('@kaana.ai/sdk/server');
+    return kaanaForOxyService(getServiceOxyClient(), {
+      ...(accountId ? { attribution: { accountId } } : {}),
+      // The shadow ledger sends once; Kaana owns provider-side failover.
+      maxRetries: 0,
+    });
+  };
+  if (accountId) return create();
+  kaana ??= create();
   return kaana;
 }
 
-/** Test/lifecycle hook: the next {@link kaanaClient} call builds a new client. */
+/** Dispose the process-wide product transport; attributed calls dispose at their boundary. */
 export function resetKaanaClient(): void {
+  const previous = kaana;
   kaana = undefined;
+  void previous?.then(
+    (client) => client.dispose(),
+    () => undefined,
+  );
 }
 
 /** Refusals that mean "no more today": Oxy's daily cap, quota or spend limits. */

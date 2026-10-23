@@ -5,8 +5,8 @@ const state = vi.hoisted(() => ({
     inference: { timeoutMs: 1_000 },
   },
   create: vi.fn(),
-  credential: undefined as undefined | (() => Promise<string>),
-  serviceTokenFor: vi.fn(async (_audience: string) => 'service-token'),
+  factory: vi.fn(),
+  dispose: vi.fn(),
   logError: vi.fn(),
 }));
 
@@ -15,19 +15,17 @@ vi.mock('../../config', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ serviceTokenFor: state.serviceTokenFor }),
+  getServiceOxyClient: () => ({ identity: 'own-workload' }),
 }));
 
 vi.mock('../../utils/logger', () => ({
   logger: { error: state.logError },
 }));
 
-vi.mock('@kaana.ai/sdk', () => ({
-  Kaana: class {
-    responses = { create: state.create };
-    constructor(options: { credential: () => Promise<string> }) {
-      state.credential = options.credential;
-    }
+vi.mock('@kaana.ai/sdk/server', () => ({
+  kaanaForOxyService: (oxy: unknown, options: unknown) => {
+    state.factory(oxy, options);
+    return { responses: { create: state.create }, dispose: state.dispose };
   },
 }));
 
@@ -72,8 +70,11 @@ describe('Kaana inference boundary', () => {
       maxOutputTokens: 128,
     });
     expect(options).toEqual({ timeoutMs: 1_000, onBehalfOfUserId: 'user-123' });
-    await expect(state.credential?.()).resolves.toBe('service-token');
-    expect(state.serviceTokenFor).toHaveBeenCalledWith('kaana.ai');
+    expect(state.factory).toHaveBeenCalledWith(
+      { identity: 'own-workload' },
+      { attribution: { accountId: 'user-123' }, maxRetries: 0 },
+    );
+    expect(state.dispose).toHaveBeenCalledOnce();
   });
 
   it('surfaces failed attestation from the shared client without a customer-key fallback', async () => {

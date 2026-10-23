@@ -1557,9 +1557,17 @@ describe('PostClassificationService — Jev shadow lane', () => {
 
   it('runs the production lane with the canonical classifier off and records the answering model', async () => {
     classificationEnabled.value = false;
-    const token = vi.fn(async (_audience: string) => 'synthetic-only');
+    const token = vi.fn(async (_target: string | URL) => 'synthetic-only');
     vi.spyOn(oxyHelpers, 'getServiceOxyClient').mockReturnValue({
-      serviceTokenFor: token,
+      createServiceClient: () => ({
+        fetch: (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+          const headers = new Headers(init?.headers);
+          headers.set('authorization', 'Bearer synthetic-only');
+          return fetch(input, { ...init, headers });
+        },
+        getAccessToken: token,
+        dispose() {},
+      }),
     } as unknown as ReturnType<typeof oxyHelpers.getServiceOxyClient>);
     const post = await englishSubject('Native eligible content');
     candidates(post.id);
@@ -1594,7 +1602,7 @@ describe('PostClassificationService — Jev shadow lane', () => {
 
     await createProductionPostClassificationService().processQueue();
 
-    expect(token).toHaveBeenCalledWith('kaana.ai');
+    expect(transport).toHaveBeenCalled();
     expect(transport).toHaveBeenCalledTimes(1);
     expect(await ledgerOf(post.id)).toEqual([
       expect.objectContaining({

@@ -61,14 +61,14 @@ reuse the own path or infer an account from a header.
 | --- | --- | --- |
 | Mention backend/MCP → Oxy | Shared workload provider; MCP catalog/audit/introspection use v2 transport | Publish and pin composed core 7/contracts 6/MCP 1.4; Oxy receiver first; deploy and verify |
 | Alia → Mention → Oxy Files/privacy/safety | Actual capability ticket, live revalidation, no owner/session fallback | Alia/Oxy release ordering and runtime canary |
-| Move → Mention → Oxy | Own receiver and derived requester context; shared import contract and SDK `/server` factory | Migrate Move durable jobs and original task creation; publish/pin SDK; canary lookup/import/undo |
+| Move → Mention → Oxy | Own receiver and derived requester context; shared import contract and SDK `/server` factory | Move source 75dfab7 creates durable original tasks; publish/pin SDK; canary lookup/import/undo |
 | Mention backend → Clarity | `clarityForOxyService`, shared canonical service transport | Clarity receiver first, SDK release/pin, caller canary |
 | Mention frontend → Clarity | `clarityForOxySession`, shared linked client | Clarity SDK release/pin and frontend build/deploy |
 | Mention media cache → Oxy | Existing native streaming upload/delete transport still pending | Replace manual bearer/retry with shared streaming transport; preserve bounded memory, reopen/replay, cooldown and namespace deletion behavior |
-| Mention backend → Kaana | Existing SDK credential callback still pending | Add Kaana SDK own transport factory, then migrate caller; preserve streaming/retries/billing |
-| Mention frontend → Syra | Existing SDK token callback still pending | Add Syra linked-transport factory, then migrate caller |
+| Mention backend → Kaana | Product SDK own factory; immutable per-call attribution; no manual bearer | Publish/pin Kaana SDK and core; preserve one-dispatch shadow ledger and app-paid accounting |
+| Mention frontend → Syra | Product SDK linked-session factory, retained lazy client-only entry | Publish/pin Syra SDK and core; runtime account-switch canary |
 | Mention frontend → Alia | Existing product SDK client; no backend Alia proxy found | Coordinate final shared SDK adoption with Alia SDK owner |
-| Schedio → Mention | External publishing SDK behavior retained in this checkpoint | Own publishing transport and migration of scheduled jobs; keep real external Mastodon OAuth |
+| Schedio → Mention | Own publishing adapter/SDK; Schedio source f05b3d3 uses original automation root | Publish/pin SDK; receiver before caller; retain external Mastodon OAuth |
 
 No local allowlist, token decoding fallback or `internal`-tier promotion is added
 to Mention. Any temporary legacy workload bridge is centralized in Oxy and
@@ -114,5 +114,22 @@ never invents a post URL after a lost/invalid response. Schedio must retain the
 same key and body for each scheduled revision. Account switch, revocation and
 external branded credentials cannot select another person's publication.
 
-Source and candidate tests only: Schedio adoption, published SDK pins, reader
-rollout and production canaries are still pending.
+Source and candidate tests only: Schedio adoption is committed as f05b3d3; published SDK pins, reader rollout and production canaries remain pending.
+
+Kaana calls now use `kaanaForOxyService`. Calls attributed to a person create an
+isolated SDK client with immutable inference attribution and dispose it afterward;
+Jev's service-wide client retains `maxRetries: 0` and its existing durable ledger.
+Attribution remains app-paid accounting, never private-data or payer authority.
+Syra podcasts use `syraForOxySession` from the same lazy `/client` boundary, so
+refresh/account switching stay with Oxy and LiveKit is not pulled into that chunk.
+
+Native Files streaming is deliberately a separate pending change. The core 7
+raw fetch lane does not replay file/stream bodies. A subsequent shared explicit
+body-factory API must reopen the file for the single authenticated 401 retry,
+preserve bounded memory and cancellation, and retain namespace deletion and
+429 cooldown semantics before this caller can cut over.
+
+Candidate validation for this caller checkpoint: 50 backend inference/classification
+tests, the Syra client integration test, backend/frontend TypeScript, backend build
+and changed-file Biome checks passed. Candidate package overrides were restored
+before committing; registry releases and final dependency pins remain pending.
