@@ -870,6 +870,41 @@ describe('bounded video metadata reconciliation', () => {
     });
   });
 
+  it('allows only one manual or scheduled scan and releases the lock on completion', async () => {
+    await seedWithMedia([stale(UUID_FILE_ID)]);
+    let finishLookup: (value: ReturnType<typeof current>[]) => void = () => {};
+    let lookupStarted: () => void = () => {};
+    const started = new Promise<void>((resolve) => {
+      lookupStarted = resolve;
+    });
+    metadataByIds.mockImplementationOnce(() => {
+      lookupStarted();
+      return new Promise<ReturnType<typeof current>[]>((resolve) => {
+        finishLookup = resolve;
+      });
+    });
+    const first = reconcileVideoMetadata();
+    try {
+      await started;
+      expect(await reconcileVideoMetadata()).toEqual({ passes: [], alreadyRunning: true });
+      expect(metadataByIds).toHaveBeenCalledTimes(1);
+    } finally {
+      finishLookup([current(UUID_FILE_ID)]);
+    }
+    expect((await first).alreadyRunning).toBe(false);
+    expect((await reconcileVideoMetadata()).alreadyRunning).toBe(false);
+    expect(metadataByIds).toHaveBeenCalledTimes(2);
+  });
+
+  it('releases the advisory lock even if a post-commit dependency fails', async () => {
+    await seedWithMedia([stale(UUID_FILE_ID)]);
+    invalidatePostDetailCache.mockRejectedValueOnce(new Error('cache unavailable'));
+    await expect(reconcileVideoMetadata()).rejects.toThrow('cache unavailable');
+    const retry = await reconcileVideoMetadata();
+    expect(retry.alreadyRunning).toBe(false);
+    expect(retry.passes[0]).toMatchObject({ scanned: 1, unchanged: 1, updated: 0 });
+  });
+
   it.each([
     { limitFiles: 0 },
     { limitFiles: 1.5 },

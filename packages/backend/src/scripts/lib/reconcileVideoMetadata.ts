@@ -1,6 +1,6 @@
 import type { MediaItem } from '@mention/shared-types';
 import { and, eq, inArray, sql } from 'drizzle-orm';
-import { getDb } from '../../db/postgres';
+import { getDb, getPostgresClient } from '../../db/postgres';
 import { postContentVariants, postMedia, postVariantMedia } from '../../db/schema/postContent';
 import {
   isOxyFileId,
@@ -185,7 +185,7 @@ async function refreshBatch(fileIds: string[], dryRun: boolean) {
  * and operators must run a final pass after Oxy's repair inventory settles.
  * Checkpoints are emitted after committed batches to the workflow's durable log.
  */
-export async function reconcileVideoMetadata(
+async function runVideoMetadataReconciliation(
   options: VideoReconciliationOptions = {},
 ): Promise<{ passes: VideoReconciliationPass[] }> {
   const limitFiles = boundedInteger('--limit-files', options.limitFiles ?? 1000, 1, 1_000_000);
@@ -267,4 +267,33 @@ export async function reconcileVideoMetadata(
       await new Promise((resolve) => setTimeout(resolve, delaySeconds * 1000));
   }
   return { passes: reports };
+}
+
+/** A reserved session keeps manual and scheduled runs mutually exclusive. */
+export async function reconcileVideoMetadata(
+  options: VideoReconciliationOptions = {},
+): Promise<{ passes: VideoReconciliationPass[]; alreadyRunning: boolean }> {
+  const connection = await getPostgresClient().reserve();
+  let locked = false;
+  try {
+    const [result] = await connection<{ locked: boolean }[]>`
+      select pg_try_advisory_lock(hashtext('mention'), hashtext('video-metadata-reconciliation')) as locked
+    `;
+    locked = result.locked;
+    if (!locked) {
+      logger.info('[reconcileVideoMetadata] skipped: another reconciliation owns the lock');
+      return { passes: [], alreadyRunning: true };
+    }
+    return { ...(await runVideoMetadataReconciliation(options)), alreadyRunning: false };
+  } finally {
+    try {
+      if (locked) {
+        await connection`
+          select pg_advisory_unlock(hashtext('mention'), hashtext('video-metadata-reconciliation'))
+        `;
+      }
+    } finally {
+      connection.release();
+    }
+  }
 }
