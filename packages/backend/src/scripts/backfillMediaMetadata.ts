@@ -470,6 +470,7 @@ async function main(): Promise<void> {
         ...readVideoReconciliationOptions(values),
       });
       logger.info('[backfillMediaMetadata] video reconciliation finished', { dryRun, ...result });
+      if (result.alreadyRunning) return;
       const last = result.passes[result.passes.length - 1];
       if (!last?.reachedEnd || last.unresolved > 0) process.exitCode = EXIT_INCOMPLETE;
       return;

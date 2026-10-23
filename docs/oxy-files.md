@@ -171,12 +171,17 @@ code 75; they are not reported as successfully repaired.
 
 Set `refresh_videos=true` in the same workflow to refresh complete references
 across both media tables. `limit_files` bounds distinct video files per pass
-(default 1000); use 30000 for a complete pass over a roughly 26000-file backlog.
+(default 1000); use 100000 for a full scheduled pass over the current backlog.
 The command is included in the normal production runtime image:
 
 ```bash
-bun packages/backend/dist/src/scripts/backfillMediaMetadata.js --refresh-videos --dry-run --limit-files 30000
+bun packages/backend/dist/src/scripts/backfillMediaMetadata.js --refresh-videos --dry-run --limit-files 100000
 ```
+
+Manual and scheduled bulk runs share a PostgreSQL advisory lock. A concurrent
+invocation logs `alreadyRunning=true` and exits without scanning or writing. The
+lock is released in `finally`, or by PostgreSQL when the task connection closes.
+The workflow and scheduled task must also enforce their runtime deadline.
 
 A confirmed write uses the existing `CONFIRM_ADMIN_MUTATION=backfillMediaMetadata`
 guard and omits `--dry-run`. The scanner deduplicates file IDs, requests at most
@@ -198,7 +203,7 @@ the preceding scan was unchanged. A pass stopped by its file limit returns its
 cursor instead of repeatedly scanning the same prefix. For a repair lasting
 hours or days, run bounded full passes periodically from the live service's
 runtime revision; the workflow also supports manual recovery without one build
-per file. A 30000-file pass makes at most 300 Oxy batch requests, plus bounded
+per file. A 100000-file pass makes at most 1000 Oxy batch requests, plus bounded
 keyset queries and writes. Its duration depends on source and database latency.
 
 A successful scan only means the references match the metadata currently
