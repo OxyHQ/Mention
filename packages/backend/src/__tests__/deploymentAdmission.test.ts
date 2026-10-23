@@ -12,8 +12,7 @@ const dedicatedEnvironment = {
   MENTION_DEPLOYMENT_CONFIG: JSON.stringify(example),
   DATABASE_URL: 'postgresql://db.alpha.example/mention_alpha',
   REDIS_URL: 'rediss://cache.alpha.example:6379/0',
-  OXY_SERVICE_API_KEY: 'test-tenant-key',
-  OXY_SERVICE_API_SECRET: 'test-tenant-secret',
+  MENTION_SERVICE_APPLICATION_ID: 'dedicated-registered-application',
   MENTION_OXY_CLIENT_ID: 'test-tenant-client',
   MENTION_SHELL_ACCESS_KEY: 'test-shell-secret-with-at-least-32-characters',
 };
@@ -50,8 +49,7 @@ describe('managed deployment runtime', () => {
     for (const key of [
       'DATABASE_URL',
       'REDIS_URL',
-      'OXY_SERVICE_API_KEY',
-      'OXY_SERVICE_API_SECRET',
+      'MENTION_SERVICE_APPLICATION_ID',
       'MENTION_OXY_CLIENT_ID',
       'MENTION_SHELL_ACCESS_KEY',
     ]) {

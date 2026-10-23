@@ -45,7 +45,14 @@ vi.mock('../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
     users: { byUsername: getProfileByUsername, getMany: getUsersByIds },
     serviceRequest,
-    serviceToken: async () => 'fixture-mention-service-token',
+    createServiceClient: () => ({
+      fetch: (input: string | URL, init: RequestInit) =>
+        globalThis.fetch(input, {
+          ...init,
+          headers: { ...init.headers, Authorization: 'Bearer fixture-mention-service-token' },
+        }),
+      dispose: () => undefined,
+    }),
   }),
 }));
 

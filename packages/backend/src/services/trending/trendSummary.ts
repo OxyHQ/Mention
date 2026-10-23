@@ -31,7 +31,7 @@ import { and, eq } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { isUniqueViolation } from '@oxy.so/db';
 import { trendSummaries } from '../../db/schema/discovery';
-import { inferenceChat, isInferenceEnabled } from '../../utils/inference';
+import { inferenceChat } from '../../utils/inference';
 import { logger } from '../../utils/logger';
 import { metrics } from '../../utils/metrics';
 import { getRedisClient } from '../../utils/redis';
@@ -75,8 +75,6 @@ export async function resolveTrendSummary(input: {
   // spend.
   if (!stored.ok) return {};
   if (stored.description) return { description: stored.description };
-
-  if (!isInferenceEnabled()) return {};
 
   const views = await recordView(term, input.runStartedAt);
   if (views === null || views < MtnConfig.trending.summary.minViews) return {};

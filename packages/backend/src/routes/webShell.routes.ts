@@ -139,13 +139,19 @@ async function fetchProfile(handle: string): Promise<OxyProfileData | null> {
     // 15 minutes) across every Mention task behind the same egress address:
     // ~9,800 shell 503s a day ("Oxy profile lookup failed (429)", production
     // 2026-10-11/12). A first-party service token is limited per application.
-    const serviceToken = await getServiceOxyClient().serviceToken();
+    const transport = getServiceOxyClient().createServiceClient({
+      baseURL: OXY_API_URL,
+      audience: 'oxy-api',
+    });
     const path = `/profiles/username/${encodeURIComponent(handle)}`;
     const response = await measureOxyFetch('GET', path, () =>
-      fetch(`${OXY_API_URL}${path}`, {
-        headers: { Accept: 'application/json', Authorization: `Bearer ${serviceToken}` },
-        signal: controller.signal,
-      }),
+      transport
+        .fetch(`${OXY_API_URL}${path}`, {
+          headers: { Accept: 'application/json' },
+          signal: controller.signal,
+          redirect: 'error',
+        })
+        .finally(() => transport.dispose()),
     );
     // A 400 is Oxy refusing the handle itself — shorter or longer than any
     // username can be (`usernameParams`, `MIN/MAX_USERNAME_LENGTH`). It names no

@@ -1,4 +1,5 @@
 import {
+  MENTION_SERVICE_APPLICATION_ID,
   mentionImportBatchSchema,
   mentionImportBatchResponseSchema,
   mentionImportIdSchema,
@@ -9,14 +10,15 @@ import {
   type MentionImportLookup,
 } from '@oxy.so/mention-contracts';
 
-export const MENTION_SERVICE_APPLICATION_ID = '6a2f851751b784a86fd0e916';
+export { MENTION_SERVICE_APPLICATION_ID } from '@oxy.so/mention-contracts';
 export interface MentionServiceTransport {
   fetch: typeof fetch;
   dispose(): void;
 }
 export type MentionRequester = { accountId: string } & (
-  | { token: string; taskId?: never }
-  | { taskId: string; token?: never }
+  | { token: string; taskId?: never; requesterContext?: never }
+  | { taskId: string; token?: never; requesterContext?: never }
+  | { requesterContext: string; token?: never; taskId?: never }
 );
 /** Structural boundary: the application owns OxyServer and its workload provider. */
 export interface MentionServiceIdentity {

@@ -17,7 +17,7 @@ import {
 } from '../db/posts/postRepository';
 import type { PostRecord } from '../db/posts/postRecord';
 import type { PostClassificationScores } from '@mention/shared-types';
-import { inferenceJSON, isInferenceEnabled } from '../utils/inference';
+import { inferenceJSON } from '../utils/inference';
 import { logger } from '../utils/logger';
 import { config } from '../config';
 import { topicService } from './TopicService';
@@ -221,9 +221,9 @@ export class PostClassificationService {
   /** Shadow-lane candidates per cycle; the cycle deadline and the daily limit bind first. */
   private readonly SHADOW_BATCH_SIZE = 25;
 
-  /** The canonical classifier runs only when switched on AND inference has an identity. */
+  /** Product switch only; workload attestation is checked at the shared transport. */
   private canonicalEnabled(): boolean {
-    return config.classification.enabled && isInferenceEnabled();
+    return config.classification.enabled;
   }
 
   public start(): void {

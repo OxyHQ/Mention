@@ -47,7 +47,9 @@ async function endpoint(
       const body: Record<string, unknown> = raw ? JSON.parse(raw) : {};
       observed.push({ path: req.url ?? '', method: req.method, headers: req.headers, body });
       res.setHeader('content-type', 'application/json');
-      if (req.url === '/auth/service-token') {
+      if (req.url === '/auth/service-token/workload/challenge') {
+        res.end(JSON.stringify({ nonce: 'fixture-nonce' }));
+      } else if (req.url === '/auth/service-token/workload') {
         res.end(JSON.stringify({ token: 'fixture_presenter_service_token', expiresIn: 3600 }));
       } else if (req.url === '/capabilities/foreground-execution-authorizations') {
         approval = body;
@@ -117,10 +119,20 @@ async function endpoint(
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const serverClient = new OxyServer({
     baseURL: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
-    serviceAuth: { apiKey: 'fixture_presenter', apiSecret: 'fixture_secret' },
+    workloadCredentials: async () => ({
+      AccessKeyId: 'ASIA_TEST',
+      SecretAccessKey: 'test-only',
+      Token: 'temporary-test',
+    }),
   });
   return {
-    client: new ForegroundOxyProfileClient(serverClient, REQUESTER, 'fixture_subject', CATALOG),
+    client: new ForegroundOxyProfileClient(
+      serverClient,
+      REQUESTER,
+      'fixture_subject',
+      CATALOG,
+      'fixture_principal',
+    ),
     observed,
   };
 }
@@ -143,6 +155,12 @@ describe('foreground ranking through common agency and installed SDK transport',
     expect(approval?.headers.authorization).toBe('Bearer fixture_presenter_service_token');
     expect(approval?.body.subjectToken).toBe(REQUESTER);
     expect(approval?.body.expectedCatalog).toEqual(CATALOG);
+    expect(approval?.body).toMatchObject({
+      authority: 'first_party',
+      kind: 'direct_request',
+      actor: { type: 'requester', accountId: 'fixture_principal' },
+      resource: { effectiveAccountId: 'fixture_subject', resourceId: 'fixture_subject' },
+    });
     expect(approval?.body).not.toHaveProperty('requesterAccountId');
     const ticket = observed.find((record) => record.path === '/capabilities/tickets');
     expect(ticket?.body).toEqual({

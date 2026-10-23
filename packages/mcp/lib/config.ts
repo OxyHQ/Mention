@@ -26,18 +26,14 @@ const httpEnvSchema = z.object({
   MCP_ALLOWED_ORIGINS: z.string().optional(),
   MENTION_MCP_PUBLIC_URL: z.string().url().default(DEFAULT_MCP_PUBLIC_URL),
   OXY_API_URL: z.string().url().default(DEFAULT_OXY_API_URL),
-  /**
-   * Optional, and both-or-neither.
-   *
-   * A deployed MCP task proves what it is by attesting its ECS task role and
-   * receives the same Oxy service token with no secret anywhere (oxy ADR 0026),
-   * so requiring the pair would make a task that authenticates perfectly well
-   * refuse to boot. Where there is no attestation — a laptop — the pair is still
-   * how this process gets a token, and half a pair is a typo rather than a
-   * configuration: it would build a client whose every call fails at the token.
-   */
-  OXY_SERVICE_API_KEY: z.string().trim().min(1).optional(),
-  OXY_SERVICE_API_SECRET: z.string().trim().min(1).optional(),
+  OXY_SERVICE_API_KEY: z
+    .string()
+    .optional()
+    .refine((v) => !v, 'Use an infrastructure workload role; service keys are retired'),
+  OXY_SERVICE_API_SECRET: z
+    .string()
+    .optional()
+    .refine((v) => !v, 'Use an infrastructure workload role; service keys are retired'),
 });
 
 const DEFAULT_CORS_ORIGINS = [
@@ -57,10 +53,6 @@ export interface McpHttpConfig {
   maxSessions: number;
   publicUrl: string;
   oxyApiUrl: string;
-  /** Absent on a deployment: the task role attests instead. See the schema. */
-  oxyServiceApiKey?: string;
-  /** Absent on a deployment: the task role attests instead. See the schema. */
-  oxyServiceApiSecret?: string;
   allowedOrigins: ReadonlySet<string>;
   deploymentIdentity?: McpDeploymentIdentity;
 }
@@ -97,12 +89,6 @@ export function loadMcpHttpConfig(env: NodeJS.ProcessEnv = process.env): McpHttp
     maxSessions: parsed.MCP_MAX_SESSIONS,
     publicUrl: stripTrailingSlashes(parsed.MENTION_MCP_PUBLIC_URL),
     oxyApiUrl: stripTrailingSlashes(parsed.OXY_API_URL),
-    ...(parsed.OXY_SERVICE_API_KEY === undefined
-      ? {}
-      : { oxyServiceApiKey: parsed.OXY_SERVICE_API_KEY }),
-    ...(parsed.OXY_SERVICE_API_SECRET === undefined
-      ? {}
-      : { oxyServiceApiSecret: parsed.OXY_SERVICE_API_SECRET }),
     allowedOrigins: new Set([...DEFAULT_CORS_ORIGINS, ...configuredOrigins]),
   };
 }

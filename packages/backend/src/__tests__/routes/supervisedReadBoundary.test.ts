@@ -2,6 +2,7 @@ import express, { type ErrorRequestHandler } from 'express';
 import request from 'supertest';
 import { OxyServer } from '@oxy.so/core/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { MENTION_SERVICE_APPLICATION_ID } from '@oxy.so/mention-contracts';
 import { createOptionalAuth } from '../../middleware/optionalAuth';
 import { supervisedActionForRequest } from '../../middleware/supervisedAction';
 
@@ -29,7 +30,10 @@ describe('reviewed optional reads', () => {
     expect(result.status).toBe(503);
     expect(result.text).not.toContain('public cache body');
     expect(anonymousFeed).not.toHaveBeenCalled();
-    expect(oxy.middleware.auth).toHaveBeenCalledWith({ supervisedAction: 'content' });
+    expect(oxy.middleware.auth).toHaveBeenCalledWith({
+      supervisedAction: 'content',
+      expectedAudience: `oxy-service:${MENTION_SERVICE_APPLICATION_ID}`,
+    });
   });
 
   it('preserves genuinely anonymous browsing without turning it into a supervised session', async () => {

@@ -175,8 +175,9 @@ already issues, and CrowdSource resolves the tenant from the Oxy application tha
 token names ([oxy ADR 0026][adr-0026]). There is no key to hold, so the only
 thing a flag could still mean is "can this process authenticate" — which is a
 fact about where it runs, not something to type. `crowdSourceClient.ts` answers
-it: in ECS the task role attests, elsewhere the service api key does, and a local
-checkout can do neither.
+it through the shared workload provider: ECS task roles and local temporary
+AWS role/SSO credentials attest at Oxy. Customer API keys are not an own-service
+fallback; see [the migration ledger](./first-party-platform.md).
 
 `applicationId` is absent for the reason it always was: the application is
 whatever the identity resolves to, and a variable holding it could only ever

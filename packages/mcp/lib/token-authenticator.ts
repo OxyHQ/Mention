@@ -12,14 +12,14 @@ type TokenAuthConfig = Pick<McpHttpConfig, 'oxyApiUrl' | 'publicUrl' | 'deployme
 export type CentralTokenIntrospector = (token: string) => Promise<OxyMcpAccessTokenClaims | null>;
 
 export function createCentralTokenIntrospector(
-  config: Pick<McpHttpConfig, 'oxyApiUrl' | 'oxyServiceApiKey' | 'oxyServiceApiSecret'>,
+  config: Pick<McpHttpConfig, 'oxyApiUrl'>,
 ): CentralTokenIntrospector {
   const oxy = oxyServiceClient(config);
+  const transport = oxy.createServiceClient({ baseURL: config.oxyApiUrl, audience: 'oxy-api' });
   return (token) =>
     introspectOxyMcpAccessToken(token, {
       endpoint: `${config.oxyApiUrl}/auth/mcp/oauth/introspect`,
-      getServiceToken: () => oxy.serviceToken(),
-      invalidateServiceToken: () => oxy.invalidateServiceToken(),
+      transport,
     });
 }
 

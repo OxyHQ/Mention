@@ -3,8 +3,8 @@ import {
   withManagedDeploymentEnvironment,
   mcpDeploymentIdentity,
 } from '@mention/shared-types/deployment';
-import { canAttestWorkloadIdentity } from '@oxy.so/core/server';
 import * as z from 'zod';
+import { MENTION_SERVICE_APPLICATION_ID } from '@oxy.so/mention-contracts';
 
 const withoutTrailingSlash = (value: string): string => value.replace(/\/+$/, '');
 
@@ -407,6 +407,7 @@ const environmentSchema = z
     OXY_SERVICE_API_KEY: trimmedOptionalString,
     OXY_SERVICE_API_SECRET: optionalString(),
     MENTION_OXY_CLIENT_ID: trimmedOptionalString,
+    MENTION_SERVICE_APPLICATION_ID: trimmedOptionalString,
     MOVE_APPLICATION_ID: trimmedOptionalString,
     IP_HASH_SALT: optionalString(16),
     DEVICE_ID_SALT: optionalString(16),
@@ -488,13 +489,12 @@ const environmentSchema = z
         message: 'must match REDIS_URL when both aliases are supplied',
       });
     }
-    const hasOxyKey = Boolean(environment.OXY_SERVICE_API_KEY);
-    const hasOxySecret = Boolean(environment.OXY_SERVICE_API_SECRET);
-    if (hasOxyKey !== hasOxySecret) {
+    if (environment.OXY_SERVICE_API_KEY || environment.OXY_SERVICE_API_SECRET) {
       context.addIssue({
         code: 'custom',
-        path: [hasOxyKey ? 'OXY_SERVICE_API_SECRET' : 'OXY_SERVICE_API_KEY'],
-        message: 'OXY_SERVICE_API_KEY and OXY_SERVICE_API_SECRET must be configured together',
+        path: ['OXY_SERVICE_API_KEY'],
+        message:
+          'Oxy service keys are retired here; configure an infrastructure workload role instead',
       });
     }
     const hasFirebaseCredential = Boolean(environment.FIREBASE_SERVICE_ACCOUNT_BASE64);
@@ -535,9 +535,8 @@ export function parseRuntimeEnvironment(source: EnvironmentSource): RuntimeEnvir
     const requiredKeys = [
       'DATABASE_URL',
       'REDIS_URL',
-      'OXY_SERVICE_API_KEY',
-      'OXY_SERVICE_API_SECRET',
       'MENTION_OXY_CLIENT_ID',
+      'MENTION_SERVICE_APPLICATION_ID',
       'MENTION_SHELL_ACCESS_KEY',
     ] as const;
     for (const key of requiredKeys) {
@@ -674,18 +673,6 @@ export function getPhase2bSignalSelection(): string | undefined {
  */
 export function isDiscoveryLanguageFilterEnabled(): boolean | undefined {
   return parseDynamicFeedFlags().FOR_YOU_DISCOVERY_LANGUAGE;
-}
-
-export interface OxyServiceCredentials {
-  apiKey?: string;
-  apiSecret?: string;
-}
-
-export function getOxyServiceCredentials(): OxyServiceCredentials {
-  return {
-    apiKey: environment.OXY_SERVICE_API_KEY,
-    apiSecret: environment.OXY_SERVICE_API_SECRET,
-  };
 }
 
 export function getGifMediaProxySecret(): string | undefined {
@@ -902,6 +889,8 @@ export const config = {
   },
   identity: {
     mentionOxyClientId: environment.MENTION_OXY_CLIENT_ID,
+    serviceApplicationId:
+      environment.MENTION_SERVICE_APPLICATION_ID ?? MENTION_SERVICE_APPLICATION_ID,
   },
   imports: {
     /**
@@ -1024,20 +1013,11 @@ export function validateEnvironment(): void {
   if (config.runtime.isProduction && !environment.MENTION_SHELL_ACCESS_KEY) {
     missing.push('MENTION_SHELL_ACCESS_KEY');
   }
-  // Classification spends through the Kaana edge AS Mention, so it needs an
-  // identity Oxy accepts — the either-or `canAuthenticateAsService` answers,
-  // asked here directly because that module imports this one. Demanding the key
-  // pair alone made switching classification on in ECS, where the task role
-  // attests and no pair exists (oxy ADR 0026), a reason to put one back.
-  if (
-    config.classification.enabled &&
-    !canAttestWorkloadIdentity() &&
-    !(environment.OXY_SERVICE_API_KEY && environment.OXY_SERVICE_API_SECRET)
-  ) {
-    missing.push(
-      'an Oxy service identity (ECS task role, or OXY_SERVICE_API_KEY/OXY_SERVICE_API_SECRET)',
-    );
+  if (config.deployment && !environment.MENTION_SERVICE_APPLICATION_ID) {
+    missing.push('MENTION_SERVICE_APPLICATION_ID (the managed receiver registered application)');
   }
+  // Workload providers resolve temporary credentials lazily (ECS, local role or SSO).
+  // Actual attestation, not environment-variable heuristics, proves authority.
   if (config.gif.libraryWriteEnabled && !environment.KLIPY_APP_KEY && config.runtime.isProduction) {
     missing.push('KLIPY_APP_KEY');
   }

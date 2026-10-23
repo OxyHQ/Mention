@@ -6,8 +6,9 @@ import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../utils/logger';
 import { RedisStore } from '../middleware/rateLimitStore';
 import { hashedIpKey } from '../utils/ipKey';
-import { getServiceOxyClient, uploadServiceUserMedia } from '../utils/oxyHelpers';
+import { getServiceOxyClient, uploadServiceUserMedia, requesterFiles } from '../utils/oxyHelpers';
 import type { OxyAuthRequestWithMcp } from '../mcp/middleware/mcpAuth';
+import type { RequestSafetyContext } from '../utils/safetyRequester';
 import { config } from '../config';
 import { contentTypeFamilyFromString } from '../utils/safeUpstreamFetch';
 import { describeOxyError, oxyErrorStatus } from '../services/oxyFiles/oxyErrors';
@@ -143,14 +144,19 @@ function importRefusal(error: unknown): { status: number; message: string } {
  * what the service import's authority rests on (the same as the MCP upload).
  */
 async function importRemoteMedia(
+  requester: RequestSafetyContext,
   ownerUserId: string,
   rawUrl: string,
   signal: AbortSignal,
 ): Promise<{ fileId: string; contentType: string }> {
-  const imported = await getServiceOxyClient().assets.importUserMedia(ownerUserId, rawUrl, {
-    visibility: 'public',
-    signal,
-  });
+  const imported = await requesterFiles(requester, 'upload-media-from-url').importUserMedia(
+    ownerUserId,
+    rawUrl,
+    {
+      visibility: 'public',
+      signal,
+    },
+  );
   if (imported.file.status !== 'active') {
     throw Object.assign(new Error('The imported file is not active'), {
       status: HTTP_STATUS.BAD_GATEWAY,
@@ -241,7 +247,7 @@ router.post('/', intentMediaRateLimiter, async (req: AuthRequest, res: Response)
     if (hasUrl) {
       let imported: { fileId: string; contentType: string };
       try {
-        imported = await importRemoteMedia(userId, rawUrl, importAbort.signal);
+        imported = await importRemoteMedia(req, userId, rawUrl, importAbort.signal);
       } catch (error) {
         const refusal = importRefusal(error);
         if (refusal.status === HTTP_STATUS.FORBIDDEN) {
@@ -297,8 +303,9 @@ router.post('/', intentMediaRateLimiter, async (req: AuthRequest, res: Response)
     let fileId: string;
 
     try {
-      if (mcpContext) {
+      if (mcpContext || (req as RequestSafetyContext).capability || req.serviceApp) {
         const uploaded = await uploadServiceUserMedia({
+          requester: req,
           ownerUserId: userId,
           buffer,
           contentType,
@@ -306,7 +313,7 @@ router.post('/', intentMediaRateLimiter, async (req: AuthRequest, res: Response)
         });
         fileId = uploaded.fileId;
       } else {
-        const token = oxySessionToken || req.headers.authorization?.replace(/^Bearer\s+/i, '');
+        const token = oxySessionToken;
         if (!token) {
           res.status(HTTP_STATUS.UNAUTHORIZED).json({ error: 'Unauthorized' });
           return;

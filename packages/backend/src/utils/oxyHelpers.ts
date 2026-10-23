@@ -1,13 +1,12 @@
-import type { RequestSafetyContext } from './safetyRequester';
+import { verifiedDownstreamRequester, type RequestSafetyContext } from './safetyRequester';
 import { OxyServices } from '@oxy.so/core';
-import { OxyServer } from '@oxy.so/core/server';
+import type { OxyServer } from '@oxy.so/core/server';
 import { ForegroundOxyProfileClient } from '../services/ForegroundOxyProfileClient';
 import { extractBearerToken } from '@oxy.so/mcp';
 import { OxyPrivacyUnavailableError, type OxyClient } from './privacyHelpers';
-import { config, getOxyServiceCredentials } from '../config';
+import { config } from '../config';
 import { logger } from './logger';
-import { canAuthenticateAsService } from '../runtime/serviceIdentity';
-import { instrumentOxyEgress, measureOxyFetch } from './oxyMetrics';
+import { getRuntimeOxyClient } from '../runtime/oxyClient';
 
 const OXY_BASE_URL = config.oxyApiUrl;
 const OXY_MCP_CONNECTION_VIEWER_GRAPH_PATH = '/auth/mcp/oauth/connections/viewer-graph';
@@ -17,17 +16,22 @@ const OXY_MCP_CONNECTION_VIEWER_GRAPH_PATH = '/auth/mcp/oauth/connections/viewer
  *
  * Normal Oxy sessions receive an isolated token-scoped client. MCP requests
  * MUST NOT plant the resource-bound MCP bearer into OxyServices; instead they
- * use Mention's service credential delegated to the already-verified served
- * account via `X-Oxy-User-Id`. An MCP request also hands its token to the
- * delegated client, which presents it to Oxy — as proof, never as a session —
- * for the served account's privacy lists. A capability request has no such
- * proof, so its privacy reads fail closed.
+ * present their original connection proof to the shared authority. Capability
+ * requests use the original live ticket; neither proof is planted as a session.
  */
 export function createScopedOxyClient(req: RequestSafetyContext): OxyClient | undefined {
-  const delegatedUserId = (
-    req.mcp?.activeUserId ?? req.capability?.claims?.resource?.effectiveAccountId
-  )?.trim();
-  if (req.mcp || req.capability) {
+  if (req.capability) {
+    if (!req.capability.ticket || !req.capability.claims?.resource?.effectiveAccountId) {
+      throw new Error('Verified capability requester proof is missing');
+    }
+    return getServiceOxyClient().withRequester({ capabilityTicket: req.capability.ticket });
+  }
+  if (req.serviceApp)
+    return getServiceOxyClient().withRequester({
+      requesterContext: verifiedDownstreamRequester(req),
+    });
+  const delegatedUserId = req.mcp?.activeUserId?.trim();
+  if (req.mcp) {
     if (!delegatedUserId) {
       throw new Error('Verified delegated request is missing its effective Oxy account');
     }
@@ -62,7 +66,7 @@ export function createUserScopedOxyServices(
   req: RequestSafetyContext,
   options: { requestTimeout?: number } = {},
 ): OxyServices | undefined {
-  if (req.mcp || req.capability) return undefined;
+  if (req.mcp || req.capability || req.serviceApp) return undefined;
   const token = req.accessToken || extractBearerToken(req.headers ?? {});
   if (!token) return undefined;
   const client = new OxyServices({ baseURL: OXY_BASE_URL, ...options });
@@ -74,66 +78,30 @@ export function createUserScopedOxyServices(
 export function createForegroundOxyProfileClient(
   req: RequestSafetyContext,
 ): ForegroundOxyProfileClient | undefined {
-  if (!req.user || req.mcp || req.capability) return undefined;
+  if (!req.user || req.mcp || req.capability || req.serviceApp) return undefined;
   const token = req.accessToken;
   const configuration = process.env.MENTION_OXY_FOREGROUND_CATALOG_BINDING;
   if (!token || !configuration) throw new Error('FOREGROUND_RANKING_NOT_CONFIGURED');
+  if (!req.oxyActor || req.oxyActor.effectiveAccountId !== req.user.id)
+    throw new Error('FOREGROUND_REQUESTER_REQUIRED');
   let binding: unknown;
   try {
     binding = JSON.parse(configuration);
   } catch {
     throw new Error('FOREGROUND_CATALOG_INVALID');
   }
-  return new ForegroundOxyProfileClient(getServiceOxyClient(), token, req.user.id, binding);
+  return new ForegroundOxyProfileClient(
+    getServiceOxyClient(),
+    token,
+    req.user.id,
+    binding,
+    req.oxyActor.actorAccountId,
+  );
 }
 
-/**
- * Module-level singleton OxyServer instance authenticated with the rotating
- * service credential.
- * Used for server-side operations on behalf of the system (e.g. resolving federated actors).
- */
-const serviceClient: OxyServer = (() => {
-  const { apiKey, apiSecret } = getOxyServiceCredentials();
-  // `serviceIdentity`: the SDK's ordinary reads on this client (everything that
-  // is not `serviceRequest`) carry the service token too, rather than going
-  // out anonymous and sharing the NAT address's per-IP budget (#1173).
-  const client = new OxyServer({
-    baseURL: OXY_BASE_URL,
-    serviceIdentity: 'when-anonymous',
-    ...(apiKey && apiSecret ? { serviceAuth: { apiKey, apiSecret } } : {}),
-  });
-
-  if (!apiKey || !apiSecret) {
-    if (canAuthenticateAsService()) {
-      /**
-       * Not a warning, and not "unauthenticated".
-       *
-       * With no key pair the SDK attests this process's task role instead and
-       * mints the same service token (oxy ADR 0026). The old line said the client
-       * would be unauthenticated, which was true when the only identity was a
-       * secret and became false the day the deployment stopped carrying one — and
-       * a warning that says a working deployment is broken is how somebody ends up
-       * putting the credential back.
-       */
-      logger.info(
-        '[oxyHelpers] no service key pair; the Oxy client attests this task role instead',
-      );
-    } else {
-      logger.warn(
-        '[oxyHelpers] no Oxy service identity: neither a key pair nor an attestable task role. Calls needing one will fail.',
-      );
-    }
-  }
-  // The first Oxy client this process builds, and the only install point
-  // needed: `instrumentOxyEgress` patches the shared `HttpService` PROTOTYPE, so
-  // every instance built before or after — including the two constructed per
-  // request — is covered without threading anything through their call sites.
-  instrumentOxyEgress(client);
-  return client;
-})();
-
+/** Own service operations share the process workload identity, never a customer key. */
 export function getServiceOxyClient(): OxyServer {
-  return serviceClient;
+  return getRuntimeOxyClient();
 }
 
 function unwrapDataEnvelope(value: unknown): unknown {
@@ -280,63 +248,51 @@ function createServiceDelegatedOxyClient(viewerId: string, connectionToken?: str
   };
 }
 
-const OXY_ASSET_USER_MEDIA_PATH = '/assets/service/user-media';
+/** Select the SDK proof lane from already verified HTTP context, never an owner header. */
+export function requesterFiles(
+  req: RequestSafetyContext,
+  tool: 'upload-media' | 'upload-media-from-url',
+) {
+  const accountId = req.user?.id;
+  if (!accountId) throw new Error('Verified media account is missing');
+  const assets = getServiceOxyClient().assets;
+  if (req.mcp) {
+    const connectionToken = extractBearerToken(req.headers ?? {});
+    if (!connectionToken || req.mcp.activeUserId !== accountId)
+      throw new Error('Verified media connection proof is missing');
+    return assets.withMcpMediaRequester({ connectionToken, accountId, tool });
+  }
+  if (req.capability) {
+    if (!req.capability.ticket || req.capability.claims?.resource?.effectiveAccountId !== accountId)
+      throw new Error('Verified media capability proof is missing');
+    return assets.withRequester({ capabilityTicket: req.capability.ticket, accountId });
+  }
+  if (req.serviceApp)
+    return assets.withRequester({ requesterContext: verifiedDownstreamRequester(req), accountId });
+  if (!req.accessToken) throw new Error('Verified media session proof is missing');
+  return assets.withRequester({ requesterToken: req.accessToken });
+}
 
 export interface ServiceUserMediaUploadResult {
   fileId: string;
   contentType: string;
 }
-
-/**
- * Upload media bytes to Oxy as a durable public asset owned by a local user,
- * using the Mention service credential. Used when the caller authenticated with
- * an MCP JWT (no Oxy session bearer).
- */
+/** Public post media retains the original account and operation proof at Oxy Files. */
 export async function uploadServiceUserMedia(params: {
+  requester: RequestSafetyContext;
   ownerUserId: string;
   buffer: Buffer;
   contentType: string;
   fileName: string;
 }): Promise<ServiceUserMediaUploadResult> {
-  const client = getServiceOxyClient();
-  const token = await client.serviceToken();
-  const baseUrl = client.baseURL.replace(/\/+$/, '');
-  const url = `${baseUrl}${OXY_ASSET_USER_MEDIA_PATH}`;
-
-  const response = await measureOxyFetch('POST', OXY_ASSET_USER_MEDIA_PATH, () =>
-    fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': params.contentType,
-        'Content-Length': String(params.buffer.length),
-        'x-owner-user-id': params.ownerUserId,
-        'x-original-name': encodeURIComponent(params.fileName),
-        Accept: 'application/json',
-      },
-      body: new Uint8Array(params.buffer),
-    }),
+  if (params.requester.user?.id !== params.ownerUserId) throw new Error('Media account mismatch');
+  const file = await requesterFiles(params.requester, 'upload-media').uploadUserMedia(
+    params.ownerUserId,
+    new Uint8Array(params.buffer),
+    params.contentType,
+    { originalName: params.fileName, visibility: 'public' },
   );
-
-  const rawText = await response.text();
-  if (!response.ok) {
-    let detail = '';
-    try {
-      const errBody = JSON.parse(rawText) as { message?: string; error?: string };
-      detail = errBody.message || errBody.error || '';
-    } catch {
-      detail = rawText;
-    }
-    throw new Error(detail || `Oxy user-media upload failed (${response.status})`);
-  }
-
-  const body = JSON.parse(rawText) as { data?: { file?: { id?: string } } };
-  const fileId = body.data?.file?.id;
-  if (typeof fileId !== 'string' || fileId.length === 0) {
-    throw new Error('Oxy user-media upload response missing file id');
-  }
-
-  return { fileId, contentType: params.contentType };
+  return { fileId: file.id, contentType: params.contentType };
 }
 
 /**

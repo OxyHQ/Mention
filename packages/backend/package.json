@@ -1,7 +1,7 @@
 {
   "name": "@mention/backend",
   "version": "1.0.0",
-  "description": "Express 5 / Drizzle on PostgreSQL / Socket.io backend for Mention — the REST API, ActivityPub federation, and web shell",
+  "description": "Express 5 / Drizzle on PostgreSQL / Socket.io backend for Mention \u2014 the REST API, ActivityPub federation, and web shell",
   "license": "UNLICENSED",
   "author": "Mention Team",
   "private": true,
@@ -62,7 +62,8 @@
     "redis": "^6.3.0",
     "sanitize-html": "^2.18.1",
     "socket.io": "^4.8.4",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@aws-sdk/credential-provider-node": "3.972.84"
   },
   "devDependencies": {
     "@types/bun": "catalog:",

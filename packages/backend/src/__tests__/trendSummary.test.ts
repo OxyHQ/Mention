@@ -13,7 +13,6 @@ import { randomUUID } from 'node:crypto';
 
 const mocks = vi.hoisted(() => ({
   inferenceChat: vi.fn(),
-  isInferenceEnabled: vi.fn(() => true),
   incr: vi.fn(),
   expire: vi.fn(),
   set: vi.fn(),
@@ -22,7 +21,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../utils/inference', () => ({
   inferenceChat: (...args: unknown[]) => mocks.inferenceChat(...args),
-  isInferenceEnabled: () => mocks.isInferenceEnabled(),
 }));
 vi.mock('../utils/redis', () => ({ getRedisClient: () => mocks.getRedisClient() }));
 
@@ -74,7 +72,6 @@ afterAll(async () => {
 beforeEach(async () => {
   vi.clearAllMocks();
   await getDb().delete(trendSummaries).where(eq(trendSummaries.term, TERM));
-  mocks.isInferenceEnabled.mockReturnValue(true);
   mocks.inferenceChat.mockResolvedValue('The Orioles traded Dean Kremer to the Twins.');
   mocks.incr.mockResolvedValue(MtnConfig.trending.summary.minViews);
   mocks.expire.mockResolvedValue(1);
@@ -127,21 +124,12 @@ describe('resolveTrendSummary — demand pays for it', () => {
       expire: mocks.expire,
       set: mocks.set,
     });
-    mocks.isInferenceEnabled.mockReturnValue(true);
     await call();
     expect(mocks.expire).not.toHaveBeenCalled();
   });
 });
 
 describe('resolveTrendSummary — refuses to spend when it cannot justify it', () => {
-  it('never calls the model when no key is configured', async () => {
-    mocks.isInferenceEnabled.mockReturnValue(false);
-
-    expect(await call()).toEqual({});
-    expect(mocks.incr).not.toHaveBeenCalled();
-    expect(mocks.inferenceChat).not.toHaveBeenCalled();
-  });
-
   it('never generates when demand cannot be counted at all', async () => {
     // No Redis means no demand signal, and an uncountable open demonstrates
     // nothing — failing the other way would generate for every trend opened
