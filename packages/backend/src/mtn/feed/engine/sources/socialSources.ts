@@ -1,3 +1,9 @@
+import {
+  eligibleSocialActors,
+  networkEngagementExistsSql,
+} from '../../../../services/socialFeedEvidence';
+import { getNetworkEngagerCounts } from '../../../../services/networkEngagement';
+import { viewerLanguageSql } from '../../feedLanguage';
 /**
  * Social-graph + content source modules.
  *
@@ -5,8 +11,8 @@
  * the viewer's follow / engagement graph or from content classification. They
  * follow one authoring pattern: a single query selecting the candidate column
  * set, `(created_at DESC, id DESC)` + `chronoCursorSql` for timeline sources,
- * capped to `cap`, and soft-failing to `[]`. No ranking or hydration logic lives
- * here — the engine wraps them.
+ * capped to `cap`. The canonical social source propagates read failures so the
+ * engine can refuse to advance its cursor; older sources retain their fallbacks.
  */
 
 import { PostType, PostVisibility, MtnConfig } from '@mention/shared-types';
@@ -26,14 +32,13 @@ import {
 import { getDb } from '../../../../db/postgres';
 import {
   entityFollows,
-  likes,
   postContentVariants,
   postMentions,
   postSources,
   posts,
   starterPackMembers,
 } from '../../../../db/schema';
-import { assemblePostRecords } from '../../../../db/posts/postRepository';
+import { assemblePostRecords, assembleShellRecords } from '../../../../db/posts/postRepository';
 import { chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { discoverySafeSql } from '../../feedSafety';
 import { engagementScoreSql } from './discoverySources';
@@ -85,104 +90,71 @@ async function fetchPostsByIds(ids: string[]): Promise<CandidatePost[]> {
 /**
  * `friendsEngaged`: posts the viewer's follows liked or boosted in the recent
  * window, ranked by how many follows engaged with each ("Popular with Friends").
- * Pre-orders by friend-engagement count (stamped as `finalScore`) so the ranked
- * definition sees the most-engaged candidates; the engine re-ranks with its
- * engagement/recency signals. Excludes the viewer's own posts and boosts.
+ * Session reads retain chronological keyset order; the standalone preset also
+ * receives distinct-actor counts. For You uses its existing socialProof signal.
+ * Excludes the viewer's own posts and boosts; discovery also excludes replies.
  */
 export const friendsEngagedSource: SourceModule = {
   id: 'friendsEngaged',
   kind: 'source',
   userComposable: false,
-  gather: async (ctx, _params, cap) => {
-    const followingIds = ctx.followingIds ?? [];
-    if (followingIds.length === 0) return [];
-
-    const windowStart = new Date(
-      (ctx.rankingAsOf ?? Date.now()) - MtnConfig.feed.candidateSources.recencyWindowMs,
-    );
-    const db = getDb();
-
-    // GROUP BY on the likes table — the direct port of the `$group` pipeline.
-    const likeGroups = await db
-      .select({ postId: likes.postId, friendCount: sql<number>`count(*)::int` })
-      .from(likes)
-      .where(
-        and(
-          inArray(likes.userId, followingIds),
-          eq(likes.value, 1),
-          excludeSeenSql(ctx.seenPostIds ?? [], likes.postId),
-          gte(likes.createdAt, windowStart),
-        ),
-      )
-      .groupBy(likes.postId)
-      .orderBy(desc(sql`count(*)`))
-      .limit(cap);
-
-    const boostDocs = await db
-      .select({ boostOf: posts.boostOf })
-      .from(posts)
-      .where(
-        and(
-          eq(posts.type, PostType.BOOST),
-          inArray(posts.oxyUserId, followingIds),
-          gte(posts.createdAt, windowStart),
-          isNotNull(posts.boostOf),
-          excludeSeenSql(ctx.seenPostIds ?? [], posts.boostOf),
-        ),
-      )
-      .limit(cap);
-
-    const friendCountByPost = new Map<string, number>();
-    for (const group of likeGroups) {
-      if (group.postId) {
-        friendCountByPost.set(
-          group.postId,
-          (friendCountByPost.get(group.postId) ?? 0) + group.friendCount,
-        );
-      }
-    }
-    for (const boost of boostDocs) {
-      if (boost.boostOf) {
-        friendCountByPost.set(boost.boostOf, (friendCountByPost.get(boost.boostOf) ?? 0) + 1);
-      }
-    }
-    if (friendCountByPost.size === 0) return [];
-
+  gather: async (ctx, params, cap) => {
+    const followingIds = eligibleSocialActors(ctx);
+    if (!followingIds.length) return [];
+    const asOf = new Date(ctx.rankingAsOf ?? Date.now());
+    const since = new Date(asOf.getTime() - MtnConfig.feed.candidateSources.recencyWindowMs);
     const conditions: SQL[] = [
-      inArray(posts.id, Array.from(friendCountByPost.keys())),
       eq(posts.visibility, PostVisibility.PUBLIC),
       eq(posts.status, 'published'),
       notCollapsedCrosspostSql(),
       notABoostSql(),
+      sql`${posts.createdAt} <= ${asOf.toISOString()}`,
+      gte(posts.createdAt, since),
+      networkEngagementExistsSql(followingIds, since, asOf),
     ];
-    if (ctx.currentUserId) {
-      // Nullable author column: `<>` alone is NULL-propagating and would drop
-      // every author-less post. See `authorNotInSql` for the full explanation.
+    if (ctx.currentUserId)
       conditions.push(
         or(isNull(posts.oxyUserId), sql`${posts.oxyUserId} <> ${ctx.currentUserId}`) as SQL,
       );
+    if (params.discovery === true) {
+      conditions.push(eq(posts.isReply, false), discoverySafeSql());
+      const language = viewerLanguageSql(ctx.viewerBaseLanguages);
+      if (language) conditions.push(language);
     }
-
-    const rows = await db
+    const unseen = excludeSeenSql(ctx.seenPostIds ?? []);
+    if (unseen) conditions.push(unseen);
+    const keyset = await chronoCursorSql(ctx.cursor);
+    if (keyset) conditions.push(keyset);
+    const rows = await getDb()
       .select()
       .from(posts)
-      .where(and(...conditions));
-    const candidates: CandidatePost[] = await assemblePostRecords(rows, db);
-
-    return candidates
-      .map((post) => {
-        post.friendEngagementCount = friendCountByPost.get(post.id) ?? 0;
-        post.finalScore = post.friendEngagementCount;
-        return post;
-      })
-      .sort((a, b) => {
-        const diff = (b.finalScore ?? 0) - (a.finalScore ?? 0);
-        if (diff !== 0) return diff;
-        const at = new Date((a.createdAt as Date | string | undefined) ?? 0).getTime();
-        const bt = new Date((b.createdAt as Date | string | undefined) ?? 0).getTime();
-        return bt - at;
-      })
-      .slice(0, cap);
+      .where(and(...conditions))
+      .orderBy(...chronoOrderBy())
+      .limit(cap);
+    const candidates: CandidatePost[] = assembleShellRecords(rows).map((post) => ({
+      ...post,
+      _unassembled: true,
+    }));
+    // ForYou already loads canonical socialProof in its ranking pass.
+    if (params.discovery === true) return candidates;
+    const counts = await getNetworkEngagerCounts(
+      candidates.map((post) => post.id),
+      followingIds,
+      { since, asOf },
+    );
+    for (const post of candidates) {
+      post.friendEngagementCount = counts.get(post.id) ?? 0;
+      post.finalScore = post.friendEngagementCount;
+    }
+    // Session source watermarks must follow the same chronological SQL order.
+    return ctx.paginationSession
+      ? candidates
+      : candidates.sort(
+          (a, b) =>
+            (b.finalScore ?? 0) - (a.finalScore ?? 0) ||
+            b.createdAt.getTime() - a.createdAt.getTime() ||
+            b.id.localeCompare(a.id),
+        );
   },
 };
 

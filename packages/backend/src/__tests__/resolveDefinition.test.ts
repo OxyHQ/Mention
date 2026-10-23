@@ -23,6 +23,7 @@ describe('resolveDefinition', () => {
       'following',
       'lists',
       'affinity',
+      'friendsEngaged',
       'topic',
       'region',
       'trending',

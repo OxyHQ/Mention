@@ -168,6 +168,8 @@ export class FeedRankingService {
     seenPostIds?: string[];
     /** The viewer's following ids (for `socialProof`'s network set). */
     followingIds: string[];
+    socialEngagerIds?: string[];
+    rankingAsOf?: number;
     /** The viewer's mutual ids (for `socialProof` + `reciprocityBoost`). */
     mutualIds?: string[];
   }): Promise<OptInSignalContext> {
@@ -224,12 +226,18 @@ export class FeedRankingService {
     }
 
     if (enabledSignals.has('socialProof')) {
-      const engagerIds = Array.from(new Set([...(followingIds ?? []), ...(mutualIds ?? [])]));
+      const engagerIds =
+        params.socialEngagerIds ??
+        Array.from(new Set([...(followingIds ?? []), ...(mutualIds ?? [])]));
       if (engagerIds.length > 0) {
         loads.push(
           (async () => {
             const { getNetworkEngagerCounts } = await import('./networkEngagement.js');
-            optIn.networkEngagerCounts = await getNetworkEngagerCounts(postIds(), engagerIds);
+            const asOf = new Date(params.rankingAsOf ?? Date.now());
+            optIn.networkEngagerCounts = await getNetworkEngagerCounts(postIds(), engagerIds, {
+              asOf,
+              since: new Date(asOf.getTime() - MtnConfig.feed.candidateSources.recencyWindowMs),
+            });
           })(),
         );
       }
@@ -501,6 +509,7 @@ export class FeedRankingService {
       authoritativeSignals?: boolean;
       preserveCandidates?: boolean;
       followingIds?: string[]; // Array of Oxy user IDs
+      socialEngagerIds?: string[]; // Eligible followed actors, after negative/privacy exclusions
       activitySubscribedAuthorIds?: string[];
       userBehavior?: RankingUserBehavior;
       feedSettings?: FeedRankingSettings; // User feed settings
@@ -621,6 +630,8 @@ export class FeedRankingService {
       authorTrustTiers,
       seenPostIds: context.seenPostIds,
       followingIds: followingIds ?? [],
+      socialEngagerIds: context.socialEngagerIds,
+      rankingAsOf: context.rankingAsOf,
       mutualIds: context.mutualIds,
     });
 

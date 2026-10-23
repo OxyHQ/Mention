@@ -12,6 +12,7 @@ export interface RankedSessionCandidate {
   id: string;
   score: number;
   discovery: boolean;
+  socialOnly?: boolean;
 }
 
 /** Only identities, ranking metadata and source progress are cached, never bodies. */
@@ -22,6 +23,8 @@ export interface RankedFeedSession {
   expiresAt: number;
   pending: RankedSessionCandidate[];
   scannedIds: string[];
+  /** Keep the scan budget monotonic when revocations release IDs for independent lanes. */
+  retiredSocialCount?: number;
   initialSeenIds: string[];
   deliveredIds: string[];
   sourceCursors: Record<string, string | undefined>;
@@ -52,6 +55,9 @@ export function rankedSessionBinding(
       JSON.stringify({
         definition,
         ...(definition.id === 'explore' ? { scoreRevision: EXPLORE_RANKING_VERSION } : {}),
+        ...(definition.id === 'for_you' || definition.id === 'friends_popular'
+          ? { socialEvidenceRevision: 1 }
+          : {}),
         limit,
         viewer: ctx.currentUserId ?? null,
         settings: ctx.feedSettings,
@@ -124,7 +130,11 @@ export class RankedFeedSessionStore {
   /** Preserve source progress across continuations; live records are revalidated on replay. */
   async save(state: RankedFeedSession): Promise<string> {
     const ttl = Math.ceil((state.expiresAt - Date.now()) / 1000);
-    if (ttl <= 0 || state.scannedIds.length > RANKED_SESSION_MAX_SCANNED) throw expiredFeedCursor();
+    if (
+      ttl <= 0 ||
+      state.scannedIds.length + (state.retiredSocialCount ?? 0) > RANKED_SESSION_MAX_SCANNED
+    )
+      throw expiredFeedCursor();
     state.sessionId ??= randomUUID();
     const cursor = `fs1:${randomUUID()}`;
     const saved = await withRedisFallback(

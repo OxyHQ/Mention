@@ -255,6 +255,7 @@ export const forYouDefinition: FeedDefinition = {
     enabled('following'),
     enabled('lists'),
     enabled('affinity'),
+    enabled('friendsEngaged', { discovery: true }),
     enabled('topic'),
     enabled('region'),
     enabled('trending'),
