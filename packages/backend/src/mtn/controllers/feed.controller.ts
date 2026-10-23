@@ -262,7 +262,8 @@ function resolveLegacyFeed(descriptor: FeedDescriptor): FeedAPI | null {
  * `FeedResponse` under the same key helper — namespacing guarantees the two
  * never read each other's entries for an overlapping descriptor name.
  */
-const ANON_FEED_CACHE_NAMESPACE = 'mtn';
+// Hydrated anonymous DTOs must not reuse pre-fix entries that omitted quote subjects.
+const ANON_FEED_CACHE_NAMESPACE = 'mtn:quote-v2';
 
 /**
  * An author feed served EMPTY on its FIRST page is how a federated profile gets
