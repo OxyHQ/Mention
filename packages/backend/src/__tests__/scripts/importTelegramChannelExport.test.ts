@@ -144,6 +144,19 @@ describe('importTelegramChannelExport', () => {
     expect(deps.ingestBatch).not.toHaveBeenCalled();
   });
 
+  it('refuses writes before fetching media when no original task was authorized', async () => {
+    const deps = fakeDeps();
+    await expect(
+      importTelegramChannelExport(
+        manifest([item('1')]),
+        { targetOxyUserId: scope.user('channel-no-proof'), batchId: 'b', dryRun: false },
+        deps as unknown as TelegramImportDeps,
+      ),
+    ).rejects.toThrow('IMPORT_OXY_TASK_ID');
+    expect(deps.fetchStaged).not.toHaveBeenCalled();
+    expect(deps.ingestBatch).not.toHaveBeenCalled();
+  });
+
   it('uploads media as the target account, then ingests as telegram with the original date', async () => {
     const deps = fakeDeps();
     const target = scope.user('channel-live');
@@ -156,7 +169,12 @@ describe('importTelegramChannelExport', () => {
         }),
         item('10'),
       ]),
-      { targetOxyUserId: target, batchId: 'batch-1', dryRun: false },
+      {
+        targetOxyUserId: target,
+        batchId: 'batch-1',
+        dryRun: false,
+        taskId: 'original-mentioned-task',
+      },
       deps as unknown as TelegramImportDeps,
     );
 
@@ -214,7 +232,12 @@ describe('importTelegramChannelExport', () => {
         }),
         item('31'),
       ]),
-      { targetOxyUserId: target, batchId: 'batch-2', dryRun: false },
+      {
+        targetOxyUserId: target,
+        batchId: 'batch-2',
+        dryRun: false,
+        taskId: 'original-mentioned-task',
+      },
       deps as unknown as TelegramImportDeps,
     );
 
@@ -236,7 +259,12 @@ describe('importTelegramChannelExport', () => {
         }),
         item('41', { createdAt: '2024-06-01T00:00:00Z' }),
       ]),
-      { targetOxyUserId: scope.user('channel-fail'), batchId: 'b', dryRun: false },
+      {
+        targetOxyUserId: scope.user('channel-fail'),
+        batchId: 'b',
+        dryRun: false,
+        taskId: 'original-mentioned-task',
+      },
       deps as unknown as TelegramImportDeps,
     );
     expect(result).toMatchObject({ created: 1, failed: 1, failedItems: ['1/40'] });

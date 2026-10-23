@@ -5,7 +5,7 @@ import { asc, desc, gte, sql } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { topicStats } from '../db/schema/discovery';
 import { logger } from '../utils/logger';
-import { inferenceJSON, isInferenceEnabled } from '../utils/inference';
+import { inferenceJSON } from '../utils/inference';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { z } from 'zod';
 
@@ -333,8 +333,6 @@ Return ONLY valid JSON.`;
    * Finds popular topics from local stats, then writes metadata back to Oxy.
    */
   async enrichTopics(limit: number = 20): Promise<number> {
-    if (!isInferenceEnabled()) return 0;
-
     try {
       // Topics with high local engagement that might need enrichment. `topic_id`
       // breaks the tie: `post_count` alone is not a total order, so without it

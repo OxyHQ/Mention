@@ -20,22 +20,34 @@ and each imported item becomes an ordinary native post of the user.
 
 ## Who may call it
 
-Only Oxy Move, acting for one user:
+Only Oxy Move's verified workload may import for the original account. Use
+`mentionForOxyService` from `@oxy.so/mention-sdk/server`; it uses the shared Oxy
+transport, canonical receiver audience and the shared import contracts. The
+caller application must equal `MOVE_APPLICATION_ID`.
 
-- `Authorization: Bearer <Oxy service token>`. The token's application id must
-  equal `MOVE_APPLICATION_ID` in the backend config.
-- `X-Oxy-User-Id: <oxy user id>`: the user the import is for. Move is an
-  internal-tier app, so `oxy.auth()` accepts the delegation without a grant
-  (`@oxy.so/core` 1.8.0 or later).
+The caller supplies the original verified session or its own durable Oxy task
+through the SDK requester option. Oxy validates the requester and effective
+account on every call. A user ID header, the application's brand, an API key or
+an old `internal` tier does not authorize an import. Own calls have no OAuth
+scopes or per-app consent.
 
-Every other caller gets `403`. That includes a user session, an MCP token, a
-capability ticket, any other service app (internal ones too), and Move without
-`X-Oxy-User-Id`. If `MOVE_APPLICATION_ID` is unset, nobody can import.
+Every other caller gets `403`: user sessions sent directly to these service
+routes, MCP connections, capability tickets, other own services, external
+credentials and Move without valid original requester authority. If
+`MOVE_APPLICATION_ID` is unset, nobody can import. Managed Mention deployments
+must also set their registered `MENTION_SERVICE_APPLICATION_ID`; callers set
+`receiverApplicationId` to that same registration.
 
 Two error codes:
 
-- `IMPORT_CALLER_NOT_ALLOWED`: the caller is not Move.
-- `IMPORT_USER_REQUIRED`: Move sent no user.
+- `IMPORT_CALLER_NOT_ALLOWED`: the caller is not the verified own Move workload.
+- `IMPORT_USER_REQUIRED`: the original requester did not authorize this account.
+
+Import IDs, batching, repeated lookup parameters, ledger uniqueness and undo
+semantics remain the domain contract below. A response lost after a mutation
+has an unknown outcome: retain the original batch and reconcile through lookup.
+See [the migration ledger](./first-party-platform.md) for source versus rollout
+status and the pending Move/Schedio caller cutover.
 
 The routes use the backend's normal per-user rate limits, keyed on the
 delegated user. The JSON body limit is 1 MB per request.

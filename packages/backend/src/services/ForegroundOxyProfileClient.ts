@@ -63,13 +63,15 @@ export class ForegroundOxyProfileClient implements ForegroundProfileReader {
     private readonly requesterToken: string,
     private readonly subjectAccountId: string,
     catalog: unknown,
+    private readonly requesterAccountId: string,
   ) {
     this.catalog = capabilityCatalogBindingSchema.parse(catalog);
     if (
       !requesterToken ||
       requesterToken.length > 16_384 ||
       /\s/.test(requesterToken) ||
-      !subjectAccountId
+      !subjectAccountId ||
+      !requesterAccountId
     )
       throw new Error('FOREGROUND_REQUESTER_REQUIRED');
   }
@@ -81,6 +83,15 @@ export class ForegroundOxyProfileClient implements ForegroundProfileReader {
     const authorization = await this.server.agency
       .createForegroundExecutionAuthorization(
         {
+          authority: 'first_party',
+          kind: 'direct_request',
+          actor: { type: 'requester', accountId: this.requesterAccountId },
+          resource: {
+            appId: 'oxy',
+            effectiveAccountId: this.subjectAccountId,
+            resourceType: 'account',
+            resourceId: this.subjectAccountId,
+          },
           tool: 'recommendProfiles',
           expectedCatalog: this.catalog,
           runId,
@@ -120,6 +131,7 @@ export class ForegroundOxyProfileClient implements ForegroundProfileReader {
         !claims ||
         claims.tool !== stepId ||
         claims.actor.type !== 'requester' ||
+        claims.actor.accountId !== this.requesterAccountId ||
         claims.autonomy !== 'read_only' ||
         claims.resource.appId !== 'oxy' ||
         claims.resource.resourceType !== 'account' ||

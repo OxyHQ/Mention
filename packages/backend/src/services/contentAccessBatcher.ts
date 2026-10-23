@@ -161,6 +161,8 @@ async function sendBatches(pending: Pending[], requester: SafetyRequester): Prom
 }
 
 function keyOfRequester(requester: SafetyRequester): string {
+  if ('requesterContext' in requester) return `context:${requester.requesterContext}`;
+  if ('capabilityTicket' in requester) return `capability:${requester.capabilityTicket}`;
   if ('connectionToken' in requester) return `connection:${requester.connectionToken}`;
   if ('capabilityTicket' in requester) return `ticket:${requester.capabilityTicket}`;
   if ('requesterContext' in requester) return `context:${requester.requesterContext}`;

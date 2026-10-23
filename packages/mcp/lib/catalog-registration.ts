@@ -11,51 +11,29 @@
  * separate post-deploy task, two sources that a new catalogue version would
  * have split again.
  */
-import {
-  appCapabilityCatalogSchema,
-  type CapabilityCatalogBinding,
-  capabilityCatalogBindingSchema,
-} from '@oxy.so/contracts';
+import type { CapabilityCatalogBinding } from '@oxy.so/contracts';
 import type { OxyServer } from '@oxy.so/core/server';
-import { z } from 'zod/v4';
+import { registerCapabilityCatalog } from '@oxy.so/mcp';
 import { MENTION_CAPABILITY_CATALOG } from './mention-catalog.js';
 
-const registrationResponseSchema = z.object({
-  registration: z.object({ id: z.string(), version: z.string(), digest: z.string() }),
-});
-
-/** Register this process's catalogue and return the binding Oxy issues tickets for. */
+/** The shared workload transport registers exactly the catalogue this process serves. */
 export async function registerMentionCatalog(input: {
-  readonly oxy: Pick<OxyServer, 'serviceToken'>;
+  readonly oxy: Pick<OxyServer, 'createServiceClient'>;
   readonly oxyApiUrl: string;
-  readonly fetch?: typeof fetch;
-  readonly signal?: AbortSignal;
 }): Promise<CapabilityCatalogBinding> {
-  const catalog = appCapabilityCatalogSchema.parse(MENTION_CAPABILITY_CATALOG);
-  const serviceToken = await input.oxy.serviceToken();
-  const response = await (input.fetch ?? fetch)(
-    `${input.oxyApiUrl}/capabilities/catalogs/register`,
-    {
-      method: 'POST',
-      headers: { authorization: `Bearer ${serviceToken}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ catalog, deployedAt: new Date().toISOString() }),
-      signal: input.signal ?? AbortSignal.timeout(15_000),
-    },
-  );
-  if (!response.ok) {
-    // The body names WHICH rejection this is (a scope the credential lacks, a
-    // catalogue the API refused to parse); bounded so it cannot flood the log.
-    const detail = (await response.text().catch(() => '')).slice(0, 500);
-    throw new Error(
-      `Mention capability catalog registration failed (status=${response.status})${detail ? `: ${detail}` : ''}`,
-    );
-  }
-  const { registration } = registrationResponseSchema.parse(await response.json());
-  return capabilityCatalogBindingSchema.parse({
-    registrationId: registration.id,
-    version: registration.version,
-    digest: registration.digest,
+  const transport = input.oxy.createServiceClient({
+    baseURL: input.oxyApiUrl,
+    audience: 'oxy-api',
   });
+  try {
+    return await registerCapabilityCatalog(MENTION_CAPABILITY_CATALOG, {
+      oxyApiUrl: input.oxyApiUrl,
+      transport,
+      timeoutMs: 15_000,
+    });
+  } finally {
+    transport.dispose();
+  }
 }
 
 /**

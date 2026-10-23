@@ -36,6 +36,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
     assets: { metadataByIds: vi.fn().mockResolvedValue([]), importUserMedia: importUserMediaMock },
   }),
+  requesterFiles: () => ({ importUserMedia: importUserMediaMock }),
   uploadServiceUserMedia: (...args: unknown[]) => uploadServiceUserMediaMock(...args),
 }));
 

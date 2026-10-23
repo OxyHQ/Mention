@@ -10,7 +10,7 @@ import { posts } from '../db/schema/posts';
 import { postAuthorships, postContentVariants } from '../db/schema/postContent';
 import { userSettings } from '../db/schema/userProfile';
 import { logger } from '../utils/logger';
-import { inferenceChat, isInferenceEnabled } from '../utils/inference';
+import { inferenceChat } from '../utils/inference';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { userPreferenceService } from '../services/UserPreferenceService';
 import { recordDedupedView } from '../services/feedViewCounter';
@@ -858,10 +858,6 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    if (!isInferenceEnabled()) {
-      return res.json({ summary: null });
     }
 
     // Write the summary in the viewer's PRIMARY account language. Oxy stores

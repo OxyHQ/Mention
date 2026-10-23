@@ -17,8 +17,7 @@ vi.mock('@oxy.so/mcp', async (importOriginal) => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    serviceToken: async () => 'service-token',
-    invalidateServiceToken: () => undefined,
+    createServiceClient: () => ({ fetch: globalThis.fetch, dispose: () => undefined }),
   }),
 }));
 

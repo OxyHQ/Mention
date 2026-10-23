@@ -30,6 +30,10 @@ const MockOxyClient = vi.hoisted(
         followers: (...args: unknown[]) => mocks.getUserFollowers(...args),
       };
 
+      createServiceClient() {
+        return { fetch: globalThis.fetch, dispose: () => undefined };
+      }
+
       serviceRequest(...args: unknown[]) {
         return mocks.serviceRequest(...args);
       }

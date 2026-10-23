@@ -24,6 +24,10 @@ const mockState = vi.hoisted(() => {
     serviceRequest = vi.fn().mockResolvedValue({
       data: { blockedIds: [], restrictedIds: [], followingIds: [], mutualIds: [] },
     });
+    withRequester = vi.fn(() => ({
+      privacy: { blocked: vi.fn(), restricted: vi.fn() },
+      follows: { viewerGraph: vi.fn() },
+    }));
     assets = {
       setVisibility: vi
         .fn()
@@ -53,6 +57,7 @@ vi.mock('@oxy.so/core/server', async (importOriginal) => ({
 vi.mock('../../utils/privacyHelpers', async (importOriginal) => importOriginal());
 
 import {
+  getServiceOxyClient,
   createScopedOxyClient,
   createUserScopedOxyServices,
   createForegroundOxyProfileClient,
@@ -104,54 +109,51 @@ describe('request-scoped Oxy clients', () => {
     expect(mockState.instances.length).toBe(before);
   });
 
-  it('refuses unproved capability viewer graph without forwarding the ticket or acting as a viewer', async () => {
-    const serviceClient = mockState.instances[0];
-    const before = mockState.instances.length;
-    const client = createScopedOxyClient({
+  it('uses the centrally derived service context without reusing a task or service JWT as a session', () => {
+    const service = getServiceOxyClient() as unknown as InstanceType<
+      typeof mockState.FakeOxyClient
+    >;
+    const own = {
+      user: { id: 'original-person' },
+      accessToken: 'service-jwt',
+      serviceApp: { authority: 'first_party' as const },
+      serviceActingAs: {
+        userId: 'original-person',
+        authority: 'first_party' as const,
+        requesterContext: 'verified-context',
+      },
+    };
+    expect(createScopedOxyClient(own)).toBeDefined();
+    expect(service.withRequester).toHaveBeenCalledWith({ requesterContext: 'verified-context' });
+    expect(service.session.setAccessToken).not.toHaveBeenCalledWith('service-jwt');
+    expect(createUserScopedOxyServices(own)).toBeUndefined();
+    expect(() => createScopedOxyClient({ ...own, user: { id: 'other-account' } })).toThrow(
+      'requester proof',
+    );
+    expect(() => createScopedOxyClient({ ...own, serviceActingAs: undefined })).toThrow(
+      'requester proof',
+    );
+  });
+
+  it('requires the actual capability ticket and never plants it as a session', () => {
+    expect(() =>
+      createScopedOxyClient({
+        capability: { claims: { resource: { effectiveAccountId: 'assigned-account' } } },
+      }),
+    ).toThrow('proof is missing');
+    const service = getServiceOxyClient() as unknown as InstanceType<
+      typeof mockState.FakeOxyClient
+    >;
+    const result = createScopedOxyClient({
       headers: { authorization: 'Capability signed-ticket' },
       capability: {
+        ticket: 'signed-ticket',
         claims: { resource: { effectiveAccountId: 'assigned-account' } },
       },
     });
-
-    await expect(client?.follows.viewerGraph()).rejects.toMatchObject({
-      code: 'SERVICE_DELEGATION_NOT_AUTHORIZED',
-    });
-    expect(mockState.instances.length).toBe(before);
-    expect(serviceClient.serviceRequest).not.toHaveBeenCalled();
-    expect(serviceClient.session.setAccessToken).not.toHaveBeenCalledWith('signed-ticket');
-    expect(
-      createUserScopedOxyServices({
-        headers: { authorization: 'Capability signed-ticket' },
-        capability: {
-          claims: { resource: { effectiveAccountId: 'assigned-account' } },
-        },
-      }),
-    ).toBeUndefined();
-  });
-
-  /**
-   * Oxy answers `/users/me/graph` with the EMPTY graph for a service credential
-   * on purpose — blocks and restrictions are private relationship data it will
-   * not disclose to one. Reading the privacy lists off that 200 said "this
-   * viewer blocks nobody", which is the fail-OPEN the privacy path exists to
-   * prevent. A delegated caller with no proof Oxy accepts — a capability
-   * request — must be told it cannot resolve them.
-   */
-  it('refuses to answer a delegated privacy read rather than reporting no blocks', async () => {
-    const client = createScopedOxyClient({
-      headers: { authorization: 'Capability signed-ticket' },
-      capability: { claims: { resource: { effectiveAccountId: 'assigned-account' } } },
-    });
-
-    await expect(client?.privacy.blocked()).rejects.toMatchObject({
-      name: 'OxyPrivacyUnavailableError',
-      code: 'SERVICE_DELEGATION_NOT_AUTHORIZED',
-    });
-    await expect(client?.privacy.restricted()).rejects.toMatchObject({
-      name: 'OxyPrivacyUnavailableError',
-      code: 'SERVICE_DELEGATION_NOT_AUTHORIZED',
-    });
+    expect(result).toBeDefined();
+    expect(service.withRequester).toHaveBeenCalledWith({ capabilityTicket: 'signed-ticket' });
+    expect(service.session.setAccessToken).not.toHaveBeenCalledWith('signed-ticket');
   });
 });
 
@@ -176,7 +178,9 @@ describe('central MCP privacy reads', () => {
    * as a session, and one Oxy round trip answers all three reads.
    */
   it('reads blocks and restrictions of the served account with the connection token as proof', async () => {
-    const serviceClient = mockState.instances[0];
+    const serviceClient = getServiceOxyClient() as unknown as InstanceType<
+      typeof mockState.FakeOxyClient
+    >;
     serviceClient.serviceRequest.mockClear();
     serviceClient.serviceRequest.mockResolvedValueOnce({ account_id: 'served-account', graph });
     const before = mockState.instances.length;
@@ -201,7 +205,9 @@ describe('central MCP privacy reads', () => {
   });
 
   it('refuses the lists when Oxy answers for an account other than the one served', async () => {
-    const serviceClient = mockState.instances[0];
+    const serviceClient = getServiceOxyClient() as unknown as InstanceType<
+      typeof mockState.FakeOxyClient
+    >;
     serviceClient.serviceRequest.mockResolvedValueOnce({ account_id: 'another-account', graph });
     const client = centralClient();
 
@@ -211,7 +217,9 @@ describe('central MCP privacy reads', () => {
   });
 
   it('refuses a graph with no privacy lists instead of reading it as "blocks nobody"', async () => {
-    const serviceClient = mockState.instances[0];
+    const serviceClient = getServiceOxyClient() as unknown as InstanceType<
+      typeof mockState.FakeOxyClient
+    >;
     serviceClient.serviceRequest.mockResolvedValueOnce({
       account_id: 'served-account',
       graph: { followingIds: [] },
@@ -278,7 +286,16 @@ describe('verified foreground profile client selection', () => {
       digest: 'a'.repeat(64),
     });
     expect(
-      createForegroundOxyProfileClient({ user: { id: 'subject' }, accessToken: 'requester' }),
+      createForegroundOxyProfileClient({
+        user: { id: 'subject' },
+        accessToken: 'requester',
+        oxyActor: {
+          schemaVersion: 1,
+          actorAccountId: 'operator',
+          effectiveAccountId: 'subject',
+          delegated: true,
+        },
+      }),
     ).toBeDefined();
     expect(() =>
       createForegroundOxyProfileClient({
@@ -307,7 +324,16 @@ describe('verified foreground profile client selection', () => {
   it('fails closed for missing rollout configuration', () => {
     Reflect.deleteProperty(process.env, 'MENTION_OXY_FOREGROUND_CATALOG_BINDING');
     expect(() =>
-      createForegroundOxyProfileClient({ user: { id: 'subject' }, accessToken: 'requester' }),
+      createForegroundOxyProfileClient({
+        user: { id: 'subject' },
+        accessToken: 'requester',
+        oxyActor: {
+          schemaVersion: 1,
+          actorAccountId: 'operator',
+          effectiveAccountId: 'subject',
+          delegated: true,
+        },
+      }),
     ).toThrow('FOREGROUND_RANKING_NOT_CONFIGURED');
   });
   it('rejects extra free authority fields in configuration', () => {
@@ -318,7 +344,16 @@ describe('verified foreground profile client selection', () => {
       accountId: 'free-selector',
     });
     expect(() =>
-      createForegroundOxyProfileClient({ user: { id: 'subject' }, accessToken: 'requester' }),
+      createForegroundOxyProfileClient({
+        user: { id: 'subject' },
+        accessToken: 'requester',
+        oxyActor: {
+          schemaVersion: 1,
+          actorAccountId: 'operator',
+          effectiveAccountId: 'subject',
+          delegated: true,
+        },
+      }),
     ).toThrow();
   });
 });

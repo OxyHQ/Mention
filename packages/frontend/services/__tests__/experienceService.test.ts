@@ -2,7 +2,8 @@ const mockFetch = jest.fn();
 const mockAuthenticatedResponse = jest.fn();
 const mockGetAccessToken = jest.fn();
 const mockCreateLinkedClient = jest.fn().mockReturnValue({
-  client: { requestAuthenticatedResponse: mockAuthenticatedResponse },
+  fetch: (...args: unknown[]) => mockAuthenticatedResponse(...args),
+  dispose: jest.fn(),
 });
 
 jest.mock('@/config', () => ({ CLARITY_API_URL: 'https://clarity.example' }));
@@ -69,7 +70,7 @@ test('delegates owner writes to Oxy canonical authenticated response transport',
   mockAuthenticatedResponse.mockResolvedValue(response(undefined, 204));
   await expect(experienceService.remove('exp/a?x=1')).resolves.toBeUndefined();
 
-  const calls = mockAuthenticatedResponse.mock.calls.map(([config]) => config);
+  const calls = mockAuthenticatedResponse.mock.calls.map(([url, init]) => ({ url, ...init }));
   expect(calls.map(({ url, method }) => [url, method])).toEqual([
     ['https://clarity.example/api/experience', 'POST'],
     ['https://clarity.example/api/experience/exp%2Fa%3Fx%3D1', 'PUT'],
@@ -77,30 +78,18 @@ test('delegates owner writes to Oxy canonical authenticated response transport',
   ]);
   expect(JSON.parse(calls[0].body)).toEqual(input);
   expect(JSON.parse(calls[1].body)).toEqual(input);
-  expect(calls[0].headers.get('authorization')).toBe('Bearer current-token');
+  expect(new Headers(calls[0].headers).has('authorization')).toBe(false);
+  expect(mockGetAccessToken).not.toHaveBeenCalled();
   expect(calls[0].signal).toBeInstanceOf(AbortSignal);
   expect(mockFetch).not.toHaveBeenCalled();
 });
 
-test('reads the current bearer for each write after an account change', async () => {
-  await experienceService.create(input);
-  mockGetAccessToken.mockReturnValue('other-account-token');
-  await experienceService.update('exp-2', input);
-  expect(mockAuthenticatedResponse.mock.calls[1][0].headers.get('authorization')).toBe(
-    'Bearer other-account-token',
-  );
-});
-
-test('blocks an account change between SDK credential lookup and transport entry', async () => {
-  mockGetAccessToken.mockReturnValueOnce('old-account').mockReturnValue('new-account');
-  await expect(experienceService.create(input)).rejects.toThrow('The request session changed');
-  expect(mockAuthenticatedResponse).not.toHaveBeenCalled();
-});
-
-test('does not send writes without a session', async () => {
-  mockGetAccessToken.mockReturnValue(null);
-  await expect(experienceService.create(input)).rejects.toThrow();
-  expect(mockAuthenticatedResponse).not.toHaveBeenCalled();
+test('leaves missing-session and account-switch refusals to the shared linked transport', async () => {
+  const error = new Error('Session changed during refresh');
+  mockAuthenticatedResponse.mockRejectedValueOnce(error);
+  await expect(experienceService.create(input)).rejects.toBe(error);
+  expect(mockAuthenticatedResponse).toHaveBeenCalledTimes(1);
+  expect(mockGetAccessToken).not.toHaveBeenCalled();
   expect(mockFetch).not.toHaveBeenCalled();
 });
 
@@ -137,10 +126,8 @@ test('uses the current viewer session for private history without sharing the an
   mockAuthenticatedResponse.mockResolvedValue(response({ items: [experience], nextCursor: null }));
   await expect(experienceService.list('user-1', true)).resolves.toEqual([experience]);
   expect(mockAuthenticatedResponse).toHaveBeenCalledWith(
-    expect.objectContaining({
-      method: 'GET',
-      url: 'https://clarity.example/api/experience/users/user-1',
-    }),
+    'https://clarity.example/api/experience/users/user-1',
+    expect.objectContaining({ method: 'GET' }),
   );
   expect(mockFetch).not.toHaveBeenCalled();
 });

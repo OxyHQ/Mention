@@ -71,7 +71,7 @@ With the manifest unset, the normal public Mention defaults remain unchanged.
 ## Secret and storage requirements
 
 The backend refuses managed configuration without explicit `DATABASE_URL`,
-`REDIS_URL`, `OXY_SERVICE_API_KEY`, `OXY_SERVICE_API_SECRET`, `MENTION_OXY_CLIENT_ID`
+`REDIS_URL`, the registered infrastructure workload role, `MENTION_OXY_CLIENT_ID`
 and `MENTION_SHELL_ACCESS_KEY`. Other existing runtime secret requirements still
 apply. MCP requires its own centrally registered Oxy service credentials.
 Keep secrets in the infrastructure secret store; they never belong in this JSON.

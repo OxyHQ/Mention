@@ -31,9 +31,20 @@ import type { McpHttpConfig } from '../../../../mcp/lib/config';
 
 const keys = generateKeyPairSync('ed25519');
 const oldEnvironment = new Map(
-  ['MENTION_API_URL', 'MENTION_MCP_PUBLIC_URL'].map((key) => [key, process.env[key]]),
+  [
+    'MENTION_API_URL',
+    'MENTION_MCP_PUBLIC_URL',
+    'AWS_ACCESS_KEY_ID',
+    'AWS_SECRET_ACCESS_KEY',
+    'AWS_SESSION_TOKEN',
+    'AWS_CREDENTIAL_EXPIRATION',
+    'AWS_EC2_METADATA_DISABLED',
+  ].map((key) => [key, process.env[key]]),
 );
+const serviceToken = `e30.${Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600, authority: 'first_party' })).toString('base64url')}.fixture`;
 const servers: Server[] = [];
+let authorityLimiter: ReturnType<typeof rateLimit>;
+let domainLimiter: ReturnType<typeof rateLimit>;
 const account = 'fixture-i05-assigned';
 let db: Database;
 let issuer: string;
@@ -117,20 +128,29 @@ async function rpc(
 }
 
 beforeAll(async () => {
+  process.env.AWS_ACCESS_KEY_ID = 'ASIA_MENTION_TEST';
+  process.env.AWS_SECRET_ACCESS_KEY = 'test-only-workload-secret';
+  process.env.AWS_SESSION_TOKEN = 'temporary-test-session';
+  process.env.AWS_CREDENTIAL_EXPIRATION = new Date(Date.now() + 3600_000).toISOString();
+  process.env.AWS_EC2_METADATA_DISABLED = 'true';
   db = await connectPostgres();
   const oxy = express();
   oxy.use(
-    rateLimit({
+    (authorityLimiter = rateLimit({
       windowMs: 60_000,
       limit: 128,
       keyGenerator: () => 'fixture-i05-authority',
       validate: false,
-    }),
+    })),
   );
   oxy.use(express.json());
-  oxy.post('/auth/service-token', (_request, response) =>
-    response.json({ token: 'fixture-service-token', expiresIn: 3600 }),
+  oxy.post('/auth/service-token/workload/challenge', (_request, response) =>
+    response.json({ nonce: 'fixture' }),
   );
+  oxy.post('/auth/service-token/workload', (request, response) => {
+    expect(request.body.protocolVersion).toBe(2);
+    response.json({ token: serviceToken, expiresIn: 3600 });
+  });
   oxy.get('/capabilities/.well-known/jwks.json', (_request, response) =>
     response.json({
       keys: [
@@ -144,7 +164,7 @@ beforeAll(async () => {
     }),
   );
   oxy.post('/capabilities/tickets/introspect', (request, response) => {
-    expect(request.header('authorization')).toBe('Bearer fixture-service-token');
+    expect(request.header('authorization')).toBe(`Bearer ${serviceToken}`);
     const claims = verifyCapabilityTicket(request.body.ticket, {
       issuer,
       audience: catalog.audience,
@@ -165,12 +185,12 @@ beforeAll(async () => {
   issuer = await listen(createServer(oxy));
   const domain = express();
   domain.use(
-    rateLimit({
+    (domainLimiter = rateLimit({
       windowMs: 60_000,
       limit: 128,
       keyGenerator: () => 'fixture-i05-domain',
       validate: false,
-    }),
+    })),
   );
   domain.use(express.json());
   const verify = createLiveCapabilityTicketVerifier({
@@ -181,7 +201,7 @@ beforeAll(async () => {
       const response = await fetch(`${issuer}/capabilities/tickets/introspect`, {
         method: 'POST',
         headers: {
-          authorization: 'Bearer fixture-service-token',
+          authorization: `Bearer ${serviceToken}`,
           'content-type': 'application/json',
         },
         body: JSON.stringify({ ticket: token }),
@@ -234,8 +254,6 @@ beforeAll(async () => {
     maxSessions: 1,
     publicUrl: origin,
     oxyApiUrl: issuer,
-    oxyServiceApiKey: 'fixture-key',
-    oxyServiceApiSecret: 'fixture-secret',
     legacyOauthIssuer: issuer,
     jwtSecret: '',
     allowedOrigins: new Set(),
@@ -244,6 +262,9 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
+  // Each test has a fresh policy window; auth revalidation adds real fixture requests.
+  authorityLimiter.resetKey('fixture-i05-authority');
+  domainLimiter.resetKey('fixture-i05-domain');
   active = true;
   revokeAtBackend = false;
   auditUnavailable = false;

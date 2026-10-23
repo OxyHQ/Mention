@@ -1,6 +1,6 @@
 import { publicDeploymentInfo } from '@mention/shared-types/deployment';
 import type { RequestHandler } from 'express';
-import { OxyServer, createOxyRateLimit } from '@oxy.so/core/server';
+import { createOxyRateLimit } from '@oxy.so/core/server';
 import { createApp } from './app';
 import { appRoutePredicates, createAppRoutes } from './appRoutes';
 import { config } from './config';
@@ -14,7 +14,7 @@ import { contentAccessScope } from './services/contentAccessBatcher';
 import { count, sql } from 'drizzle-orm';
 import { getDb } from './db/postgres';
 import { posts } from './db/schema/posts';
-import { setRuntimeOxyClient } from './runtime/oxyClient';
+import { getRuntimeOxyClient } from './runtime/oxyClient';
 import { globalErrorHandler } from './utils/error';
 import { isAllowedOrigin } from './utils/allowedOrigins';
 import { logger } from './utils/logger';
@@ -84,8 +84,7 @@ export function createRuntimeApp(activity?: RequestHandler) {
   // operators) went out anonymous and was charged to the cluster's one NAT
   // address, paying oxy-api's +500 ms `slowDown` past 100 anonymous requests
   // per 15 minutes (#1173). With it they carry Mention's service token.
-  const oxy = new OxyServer({ baseURL: config.oxyApiUrl, serviceIdentity: 'when-anonymous' });
-  setRuntimeOxyClient(oxy);
+  const oxy = getRuntimeOxyClient();
 
   // `rate-limit:api:` belongs to THIS limiter — the app-wide one, whose scope is
   // the entire API surface. Route-level limiters must not reuse it: they key

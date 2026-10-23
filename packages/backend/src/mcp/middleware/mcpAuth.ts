@@ -79,11 +79,11 @@ async function resolveCentralMcpUser(token: string): Promise<McpAuthOutcome> {
   try {
     const oxy = getServiceOxyClient();
     const oxyApiUrl = config.oxyApiUrl.replace(/\/+$/, '');
+    const transport = oxy.createServiceClient({ baseURL: oxyApiUrl, audience: 'oxy-api' });
     const claims = await introspectOxyMcpAccessToken(token, {
       endpoint: `${oxyApiUrl}/auth/mcp/oauth/introspect`,
-      getServiceToken: () => oxy.serviceToken(),
-      invalidateServiceToken: () => oxy.invalidateServiceToken(),
-    });
+      transport,
+    }).finally(() => transport.dispose());
     if (!claims) return { status: 'revoked' };
     if (
       claims.iss !== oxyApiUrl ||
@@ -208,6 +208,9 @@ export function createRequireMcpOrOxyAuth(oxy: OxyServer): RequestHandler {
       return;
     }
 
-    oxy.middleware.auth({ supervisedAction: supervisedActionForRequest(req) })(req, res, next);
+    oxy.middleware.auth({
+      expectedAudience: `oxy-service:${config.identity.serviceApplicationId}`,
+      supervisedAction: supervisedActionForRequest(req),
+    })(req, res, next);
   };
 }

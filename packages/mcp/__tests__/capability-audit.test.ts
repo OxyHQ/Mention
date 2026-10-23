@@ -9,7 +9,7 @@ describe('Oxy capability audit failures', () => {
     globalThis.fetch = originalFetch;
   });
 
-  test("carry Oxy's own reason, so a missing service scope is not an anonymous outage", async () => {
+  test('surfaces the shared authority refusal without another delivery attempt', async () => {
     globalThis.fetch = vi.fn(async (input: string | URL | Request) => {
       if (String(input).endsWith('/capabilities/audit')) {
         return new Response(JSON.stringify({ error: 'insufficient_service_scope' }), {
@@ -18,15 +18,11 @@ describe('Oxy capability audit failures', () => {
       }
       return new Response('{}', { status: 404 });
     }) as unknown as typeof fetch;
-    const audit = createMentionCapabilityAudit({
-      oxyApiUrl: 'https://api.oxy.test',
-      oxyServiceApiKey: 'key',
-      oxyServiceApiSecret: 'secret',
+    const tokenSpy = vi.spyOn(OxyServer.prototype, 'createServiceClient').mockReturnValue({
+      fetch: globalThis.fetch,
+      dispose() {},
     });
-    // The service token is minted through the same client; stub it out.
-    const tokenSpy = vi
-      .spyOn(OxyServer.prototype, 'serviceToken')
-      .mockResolvedValue('service-token');
+    const audit = createMentionCapabilityAudit({ oxyApiUrl: 'https://api.oxy.test' });
     try {
       await expect(
         audit.audit({
@@ -34,7 +30,7 @@ describe('Oxy capability audit failures', () => {
           result: { status: 'succeeded' },
           rollbackSupported: false,
         }),
-      ).rejects.toThrow(/403: .*insufficient_service_scope/);
+      ).rejects.toMatchObject({ status: 403 });
     } finally {
       tokenSpy.mockRestore();
     }

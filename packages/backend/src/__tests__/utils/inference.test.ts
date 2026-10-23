@@ -4,10 +4,6 @@ const state = vi.hoisted(() => ({
   config: {
     inference: { timeoutMs: 1_000 },
   },
-  credentials: {
-    apiKey: 'application-id' as string | undefined,
-    apiSecret: 'application-secret' as string | undefined,
-  },
   create: vi.fn(),
   credential: undefined as undefined | (() => Promise<string>),
   serviceTokenFor: vi.fn(async (_audience: string) => 'service-token'),
@@ -16,7 +12,6 @@ const state = vi.hoisted(() => ({
 
 vi.mock('../../config', () => ({
   config: state.config,
-  getOxyServiceCredentials: () => state.credentials,
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -36,15 +31,13 @@ vi.mock('@kaana.ai/sdk', () => ({
   },
 }));
 
-import { inferenceChat, inferenceJSON, isInferenceEnabled } from '../../utils/inference';
+import { inferenceChat, inferenceJSON } from '../../utils/inference';
 import { resetKaanaClient } from '../../utils/kaana';
 
 describe('Kaana inference boundary', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetKaanaClient();
-    state.credentials.apiKey = 'application-id';
-    state.credentials.apiSecret = 'application-secret';
     state.create.mockResolvedValue({
       output: [{ role: 'assistant', content: [{ type: 'text', text: 'answer' }] }],
     });
@@ -83,14 +76,12 @@ describe('Kaana inference boundary', () => {
     expect(state.serviceTokenFor).toHaveBeenCalledWith('kaana.ai');
   });
 
-  it('fails closed without a service identity', async () => {
-    state.credentials.apiKey = undefined;
-    state.credentials.apiSecret = undefined;
-    expect(isInferenceEnabled()).toBe(false);
+  it('surfaces failed attestation from the shared client without a customer-key fallback', async () => {
+    state.create.mockRejectedValueOnce(new Error('workload attestation refused'));
     await expect(
-      inferenceChat([{ role: 'user', content: 'Hello' }], { feature: 'test-feature' }),
-    ).rejects.toThrow('service identity');
-    expect(state.create).not.toHaveBeenCalled();
+      inferenceChat([{ role: 'user', content: 'Hello' }], { feature: 'test' }),
+    ).rejects.toThrow('workload attestation refused');
+    expect(state.create).toHaveBeenCalledOnce();
   });
 
   it('unwraps fenced JSON without weakening parse failures', async () => {

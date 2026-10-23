@@ -1,30 +1,8 @@
 /**
- * The content-import API — the server-to-server door Oxy Move writes through.
- *
- * Contract (request/response shapes, statuses, guarantees): `docs/import.mdx`.
- * Domain behaviour: `services/PostImportService.ts`. This file is the gate and
- * the validation.
- *
- * ## Who may call: Oxy Move, and only Oxy Move
- *
- * The caller must present an Oxy SERVICE TOKEN whose application id is exactly
- * `MOVE_APPLICATION_ID`, plus `X-Oxy-User-Id` naming the user the import is for.
- * `oxy.auth()` (mounted in front of this router as `requireAuth`) verifies the
- * token and puts the application on `req.serviceApp`, and — for one of Oxy's own
- * INTERNAL-tier applications — accepts the delegated user without a grant.
- *
- * That tier rule is exactly why this gate exists: every internal application may
- * act as every user, so "a service token acting for this user" is not an
- * authorization to write years of posts into their profile. This route admits
- * one application by id, and refuses everything else with 403:
- *
- * - a user SESSION (no `req.serviceApp`) — a person imports through Move, not
- *   by calling this directly;
- * - an MCP token or a capability ticket, which never populate `req.serviceApp`;
- * - any OTHER service application, internal or not;
- * - Move itself without `X-Oxy-User-Id` (acting as itself, for nobody).
- *
- * Unset `MOVE_APPLICATION_ID` admits nobody.
+ * Move's content import boundary. Shared Oxy middleware must verify an active
+ * own workload and the original requester session/task for the effective account.
+ * The Move-only domain gate remains: an attributed header or external key, even
+ * for Move's app registration, is not authority to import a person's history.
  */
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
@@ -146,17 +124,26 @@ function requireMoveServiceCaller(req: Request, res: Response, next: NextFunctio
   const moveAppId = config.imports.moveApplicationId;
   const serviceApp = authed.serviceApp;
   const actingUserId = authed.serviceActingAs?.userId;
-  if (!moveAppId || !serviceApp || serviceApp.appId !== moveAppId) {
+  if (
+    !moveAppId ||
+    !serviceApp ||
+    serviceApp.appId !== moveAppId ||
+    serviceApp.authority !== 'first_party'
+  ) {
     res.status(403).json({
       error: 'IMPORT_CALLER_NOT_ALLOWED',
       message: 'Content import is only available to the Oxy Move service',
     });
     return;
   }
-  if (!actingUserId || authed.user?.id !== actingUserId) {
+  if (
+    !actingUserId ||
+    authed.user?.id !== actingUserId ||
+    authed.serviceActingAs?.authority !== 'first_party'
+  ) {
     res.status(403).json({
       error: 'IMPORT_USER_REQUIRED',
-      message: 'X-Oxy-User-Id must name the user the import is for',
+      message: 'The original requester must authorize this account import',
     });
     return;
   }
