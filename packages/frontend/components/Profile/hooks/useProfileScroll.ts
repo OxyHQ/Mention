@@ -1,258 +1,66 @@
-import { usePanelScrollContainer } from '@oxy.so/bloom/app-shell/hooks';
-import { useRef, useCallback, useEffect, useMemo, type RefObject } from 'react';
-import { type Animated, Platform } from 'react-native';
-import {
-  useLayoutScroll,
-  extractOffsetY,
-  type ScrollableRef,
-  type ScrollableRefTarget,
-  type ScrollEvent,
-} from '@/context/LayoutScrollContext';
-import { useFocusedScrollable } from '@/hooks/useFocusedScrollable';
+import { useCallback, useRef } from 'react';
+import { Platform } from 'react-native';
+import { useFrontScroller } from '@/context/ScreenReselectContext';
 import { usePostsStore } from '@/stores/postsStore';
 import { getFeedMeta } from '@/db/feedQueries';
-import type { FeedType } from '@mention/shared-types';
 import { isAuthorFeedFilter } from '@mention/shared-types/mtn/feedDescriptor';
 import { isVirtualizedProfileGridTab, LAYOUT, type ProfileTab } from '../types';
+import { useProfileDocumentPaging } from './useProfileDocumentPaging';
 
 interface UseProfileScrollOptions {
   profileId?: string;
   currentTab: ProfileTab;
-  /**
-   * Set while a LANE tab is open. A lane tab renders as `posts`, so the
-   * author-feed narrowing below cannot tell it apart on `currentTab` alone — and
-   * paging it as an author feed writes a page of the profile's whole output into
-   * `user:<id>:posts`, a feed the lane tab does not read. Its `<Feed>` owns its
-   * own pagination (it is fetched by the lane descriptor), so this pager stands
-   * down entirely.
-   */
   currentLaneId?: string;
 }
 
-/**
- * Spelled out rather than inferred: the inferred type names React Native 0.88's
- * internal `AnimatedValue` class, which a composite project cannot emit (TS2883).
- */
 export interface ProfileScroll {
-  scrollY: Animated.Value;
-  scrollRef: RefObject<ScrollableRef | null>;
-  onScroll: (event: ScrollEvent) => void;
-  assignScrollRef: (node: ScrollableRefTarget | null) => void;
+  /** Move the profile's scroller — its list, or the web document — to an offset. */
   scrollToContent: (offset: number) => void;
-}
-
-interface ScrollSlice {
-  hasMore: boolean;
-  nextCursor?: string;
-  isLoading: boolean;
+  /** Ask for the next page of the author feed the tab shows, once at a time. */
+  loadMore: () => void;
 }
 
 /**
- * Hook for managing profile scroll behavior
- * Handles infinite scroll, scroll registration, and scroll-to functionality
+ * The profile's scroll: the jump to its tabs, and the paging of an author feed
+ * that no `Feed` of its own pages. Native lists bind their Screen and page from
+ * `onEndReached`; the web document pages from its scroll position.
  */
 export function useProfileScroll({
   profileId,
   currentTab,
   currentLaneId,
 }: UseProfileScrollOptions): ProfileScroll {
-  const panel = usePanelScrollContainer<HTMLElement>();
-  const { scrollY, createAnimatedScrollHandler, scrollToOffset, setScrollY } = useLayoutScroll();
-  const claimScroll = useFocusedScrollable<ScrollableRef>();
-
-  // The active scroller: the profile ScrollView on non-feed tabs, the grid's
-  // FlashList on virtualized ones.
-  const scrollRef = useRef<ScrollableRef | null>(null);
+  const frontScroller = useFrontScroller();
   const loadingMoreRef = useRef(false);
-  const lastScrollCheckRef = useRef(0);
 
-  // Store method refs for performance (avoid subscription on every scroll)
-  const fetchUserFeedRef = useRef<
-    | ((
-        userId: string,
-        request: { type: FeedType; cursor?: string; limit: number },
-      ) => Promise<{ pending: boolean }>)
-    | null
-  >(null);
-
-  const getUserSliceRef = useRef<
-    ((userId: string, type: FeedType) => ScrollSlice | undefined) | null
-  >(null);
-
-  // Initialize store method refs
-  useEffect(() => {
+  const loadMore = useCallback(() => {
+    if (!profileId || loadingMoreRef.current) return;
+    // Lanes and the feed tabs a `Feed` renders page themselves; so do native
+    // grids, from their own list. The web grids follow the document.
+    if (!isAuthorFeedFilter(currentTab) || currentLaneId) return;
+    if (isVirtualizedProfileGridTab(currentTab) !== (Platform.OS === 'web')) return;
+    const feedKey = `user:${profileId}:${currentTab}`;
+    const meta = getFeedMeta(feedKey);
     const store = usePostsStore.getState();
-    fetchUserFeedRef.current = store.fetchUserFeed;
-    getUserSliceRef.current = (userId: string, type: FeedType) => {
-      const feedKey = `user:${userId}:${type}`;
-      const ui = usePostsStore.getState().feedUI[feedKey];
-      const meta = getFeedMeta(feedKey);
-      return {
-        hasMore: meta?.hasMore ?? true,
-        nextCursor: meta?.nextCursor,
-        isLoading: ui?.isLoading ?? false,
-      };
-    };
-  }, []);
+    if (!(meta?.hasMore ?? true) || !meta?.nextCursor || store.feedUI[feedKey]?.isLoading) return;
+    loadingMoreRef.current = true;
+    void store
+      .fetchUserFeed(profileId, {
+        type: currentTab,
+        cursor: meta.nextCursor,
+        limit: LAYOUT.FEED_LIMIT,
+      })
+      .finally(() => {
+        loadingMoreRef.current = false;
+      });
+  }, [profileId, currentTab, currentLaneId]);
 
-  // Track which profile we last registered for, so we only reset scroll on profile change
-  const lastProfileRef = useRef<string | undefined>(undefined);
+  useProfileDocumentPaging(loadMore);
 
-  // Assign scroll ref with registration
-  const assignScrollRef = useCallback(
-    (node: ScrollableRefTarget | null) => {
-      const scroller = node && 'getNode' in node ? node.getNode() : node;
-      scrollRef.current = scroller;
-      // Claim first, so the owner being replaced keeps the offset it had.
-      claimScroll(scroller);
-      // Only reset scroll position when navigating to a different profile,
-      // not when switching tabs within the same profile
-      if (scroller && lastProfileRef.current !== profileId) {
-        setScrollY(0);
-        lastProfileRef.current = profileId;
-      }
-    },
-    [claimScroll, setScrollY, profileId],
-  );
-
-  // Shared near-bottom load-more trigger. It closes over the profile and the tab
-  // rather than reading them from refs mirrored during render: that write is
-  // illegal input for the React Compiler, and WHICH feed to page is the one thing
-  // here that must never be stale. A lagging pair pages the profile or the tab
-  // you just left — the request lands in `user:<other>:<other>`, so the list you
-  // are actually looking at never grows and simply looks like it ended, while a
-  // slice you cannot see fills up behind it.
-  //
-  // The identity churn this costs is bounded to a tab switch or a profile
-  // change, both of which already re-render the whole screen (`assignScrollRef`
-  // is keyed on `profileId` for the same reason), and `loadingMoreRef` absorbs
-  // any duplicate call a fresh subscription delivers.
-  const maybeLoadMore = useCallback(
-    (distanceFromBottom: number) => {
-      if (distanceFromBottom >= LAYOUT.LOAD_MORE_THRESHOLD) return;
-      if (
-        !profileId ||
-        loadingMoreRef.current ||
-        !fetchUserFeedRef.current ||
-        !getUserSliceRef.current
-      ) {
-        return;
-      }
-      // Three of the nine tabs — feeds, starter packs, lists — are not backed by an
-      // author feed at all, and paging them is not merely pointless: the slice
-      // getter below reports `hasMore: true` for a feed key nothing has ever
-      // written, so scrolling one of those tabs to the bottom fires a real request
-      // that `feedService.getUserFeed` coerces back to `posts` and files under
-      // `user:<id>:feeds`. Narrow honestly against the descriptor's own filter set
-      // rather than asserting the tab into `FeedType`, so a tab added to
-      // `TAB_NAMES` without a feed behind it stops here too.
-      if (!isAuthorFeedFilter(currentTab)) return;
-      // A lane tab renders as `posts` and would pass the check above (see
-      // `currentLaneId`): its feed is its own descriptor and pages itself.
-      if (currentLaneId) return;
-      // Native media/video grids own pagination through FlashList.onEndReached.
-      // Running the profile's generic scroll detector too would issue a duplicate
-      // request. On WEB there is no such owner — the web grid does not wire
-      // `onEndReached` at all — so this stays the only pagination those tabs get,
-      // and it must page the tab's OWN feed: `videos` is the author `videos`
-      // descriptor, with its own cursor.
-      if (Platform.OS !== 'web' && isVirtualizedProfileGridTab(currentTab)) return;
-      // On WEB the grids are the ONLY tabs this pager serves. Every other author
-      // tab renders a `<Feed>`, which pages itself (its IntersectionObserver
-      // sentinel) out of its own React Query cache — not the `user:<id>:<tab>`
-      // slice written here, which nothing on a web feed tab reads. Paging it here
-      // too sent every page of the profile twice: on a cold load the window's
-      // first scroll event lands while the document is still short, so the
-      // first page went out twice before anything rendered (measured on
-      // mention.earth: two identical `descriptor=author|…|posts` requests).
-      if (Platform.OS === 'web' && !isVirtualizedProfileGridTab(currentTab)) return;
-
-      const slice = getUserSliceRef.current(profileId, currentTab);
-      // A load-more is the page AFTER one the list already holds. With no cursor
-      // nothing has landed yet (an unwritten key reads as `hasMore: true`), and
-      // the first page is the list's own request — sending it from here as well
-      // restarted that request (`fetchUserFeed` aborts an in-flight read of the
-      // same page) instead of adding anything.
-      if (slice?.hasMore && slice.nextCursor && !slice.isLoading) {
-        loadingMoreRef.current = true;
-        const fetchUserFeed = fetchUserFeedRef.current;
-        void (async () => {
-          try {
-            await fetchUserFeed(profileId, {
-              type: currentTab,
-              cursor: slice.nextCursor,
-              limit: LAYOUT.FEED_LIMIT,
-            });
-          } finally {
-            loadingMoreRef.current = false;
-          }
-        })();
-      }
-    },
-    [profileId, currentTab, currentLaneId],
-  );
-
-  // NATIVE scroll event handler with throttling + infinite scroll.
-  const handleScrollEvent = useCallback(
-    (event: ScrollEvent) => {
-      const now = Date.now();
-      if (now - lastScrollCheckRef.current < LAYOUT.SCROLL_CHECK_THROTTLE) {
-        return;
-      }
-      lastScrollCheckRef.current = now;
-
-      const nativeEvent = event?.nativeEvent ?? {};
-      const layoutMeasurement = nativeEvent.layoutMeasurement as { height?: number } | undefined;
-      const contentSize = nativeEvent.contentSize as { height?: number } | undefined;
-
-      const y = extractOffsetY(event);
-      const viewHeight = layoutMeasurement?.height ?? 0;
-      const contentHeight = contentSize?.height ?? 0;
-      maybeLoadMore(contentHeight - (y + viewHeight));
-    },
-    [maybeLoadMore],
-  );
-
-  // Create animated scroll handler (native only — web uses the document scroll).
-  const onScroll = useMemo(
-    () => createAnimatedScrollHandler(handleScrollEvent),
-    [createAnimatedScrollHandler, handleScrollEvent],
-  );
-
-  // WEB infinite scroll: the profile renders in normal document flow (no inner
-  // ScrollView), so pagination is driven by the same shared `scrollY` the header
-  // animations consume — fed by LayoutScrollContext's window 'scroll' listener.
-  // This is an Animated.Value subscription (mirrors HomeScreen's `scrollY`
-  // listener), not a new DOM listener. No-op on native (`onScroll` handles it).
-  useEffect(() => {
-    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
-    const listenerId = scrollY.addListener(({ value }) => {
-      const y = typeof value === 'number' ? value : 0;
-      const docHeight = panel?.current?.scrollHeight ?? document.documentElement.scrollHeight;
-      const viewHeight = panel?.current?.clientHeight ?? window.innerHeight;
-      maybeLoadMore(docHeight - (y + viewHeight));
-    });
-    return () => {
-      scrollY.removeListener(listenerId);
-    };
-  }, [scrollY, maybeLoadMore, panel]);
-
-  // The active owner may be the profile ScrollView (non-feed tabs), Feed's
-  // FlashList (virtualized tabs), or the web document. LayoutScrollContext
-  // already tracks that owner, so the same stat-button action works in all
-  // three modes.
   const scrollToContent = useCallback(
-    (offset: number) => {
-      scrollToOffset(offset);
-    },
-    [scrollToOffset],
+    (offset: number) => frontScroller()?.scrollToOffset(offset),
+    [frontScroller],
   );
 
-  return {
-    scrollY,
-    scrollRef,
-    onScroll,
-    assignScrollRef,
-    scrollToContent,
-  };
+  return { scrollToContent, loadMore };
 }

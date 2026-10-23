@@ -1,10 +1,11 @@
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import { useCallback, useEffect } from 'react';
-import { View, Text, Platform } from 'react-native';
+import { View, Text } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { listsService, type MentionList } from '@/services/listsService';
 import { entityFollowService } from '@/services/entityFollowService';
 import { subscribeToListChanges } from '@/services/listMutations';
@@ -15,13 +16,10 @@ import { SEO } from '@/components/SEO';
 import { ListCard as ListCardComponent, type ListCardData } from '@/components/ListCard';
 import { EmptyState } from '@/components/common/EmptyState';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { FocusedScrollView } from '@/components/common/FocusedScrollView';
 import { useScreenReselect } from '@/context/ScreenReselectContext';
 import { SignInRequired } from '@/components/common/SignInRequired';
 
 const FOLLOWED_LIST_PAGE_SIZE = 50;
-
-const IS_WEB = Platform.OS === 'web';
 
 function toListCardData(list: MentionList): ListCardData {
   const owner = list.owner;
@@ -174,20 +172,22 @@ function ListsScreen() {
   return (
     <>
       <SEO title={t('seo.lists.title')} description={t('seo.lists.description')} />
-      <View className="flex-1">
-        <PageHeader
-          title={t('lists.title')}
-          onBack={() => safeBack()}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-          actions={
-            canUsePrivateApi ? (
-              <Button size="sm" onPress={() => router.push('/lists/create')}>
-                {t('lists.new')}
-              </Button>
-            ) : undefined
-          }
-        />
-
+      <Screen
+        header={
+          <PageHeader
+            title={t('lists.title')}
+            onBack={() => safeBack()}
+            backLabel={t('common.back', { defaultValue: 'Back' })}
+            actions={
+              canUsePrivateApi ? (
+                <Button size="sm" onPress={() => router.push('/lists/create')}>
+                  {t('lists.new')}
+                </Button>
+              ) : undefined
+            }
+          />
+        }
+      >
         <SignInRequired
           label={t('lists.signInRequired', { defaultValue: 'Sign in to use lists' })}
           description={t('lists.signInRequiredDesc', {
@@ -195,20 +195,14 @@ function ListsScreen() {
               'Lists group the accounts you want to read together. The ones you create or follow appear here.',
           })}
         >
-          {/* WEB: the document (body) is the scroller — the shell owns scroll, so
-              the directory renders in normal flow. A ScrollView here would nest a
-              second scroll container inside the ContentPanel and break the sticky
-              side rails, window scroll-restoration and bottom-bar auto-hide.
-              NATIVE: a ScrollView is the correct screen scroller. */}
-          {IS_WEB ? (
-            <View className="px-3 pt-2.5">{content}</View>
-          ) : (
-            <FocusedScrollView showsVerticalScrollIndicator={false} className="px-3 pt-2.5">
-              {content}
-            </FocusedScrollView>
-          )}
+          <ScreenScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerClassName="px-3 pt-2.5"
+          >
+            {content}
+          </ScreenScrollView>
         </SignInRequired>
-      </View>
+      </Screen>
     </>
   );
 }

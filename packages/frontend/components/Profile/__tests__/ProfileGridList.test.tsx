@@ -1,4 +1,3 @@
-import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { Text } from 'react-native';
 import { ProfileGridList, type ProfileGridEntry } from '../ProfileGridList';
@@ -6,15 +5,12 @@ import { ProfileGridList, type ProfileGridEntry } from '../ProfileGridList';
 const mockFlashListRender = jest.fn();
 jest.mock('@oxy.so/bloom/layout', () => ({ useHeaderDockInset: () => 73 }));
 
-jest.mock('@shopify/flash-list', () => {
-  const ReactModule = jest.requireActual<typeof React>('react');
-  return {
-    FlashList: ReactModule.forwardRef((props: Record<string, unknown>, _ref: unknown) => {
-      mockFlashListRender(props);
-      return null;
-    }),
-  };
-});
+jest.mock('@/components/common/ScreenFlashList', () => ({
+  ScreenFlashList: (props: Record<string, unknown>) => {
+    mockFlashListRender(props);
+    return null;
+  },
+}));
 
 describe('ProfileGridList scroll ownership', () => {
   beforeAll(() => {

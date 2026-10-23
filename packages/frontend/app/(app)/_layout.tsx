@@ -129,7 +129,7 @@ export default function AppLayout() {
         <AppShell
           testID="mention-shell"
           variant="feed"
-          scroll={IS_WEB ? 'document' : 'fixed'}
+          scroll={IS_WEB ? 'document' : 'page'}
           drawer="reveal"
           drawerOpen={drawer.isOpen}
           onDrawerOpenChange={(open) => (open ? drawer.open() : drawer.close())}

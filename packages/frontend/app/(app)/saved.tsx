@@ -2,7 +2,7 @@ import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import { Screen } from '@oxy.so/bloom/screen';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@oxy.so/bloom/button';
 import { Dialog, useDialogControl, type DialogAction } from '@oxy.so/bloom/dialog';
@@ -23,7 +23,6 @@ import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { feedService, type SavedPostsPage } from '@/services/feedService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { logger } from '@oxy.so/core/logger';
-import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { useScreenReselect, useTabSelect } from '@/context/ScreenReselectContext';
 import SavedPostsList, { type SavedPost } from '@/components/saved/SavedPostsList';
 import { usePostsStore } from '@/stores/postsStore';
@@ -59,7 +58,6 @@ const SavedPostsScreen: React.FC = () => {
   const { t } = useTranslation();
   const { canUsePrivateApi, isPrivateApiPending, user } = useAuth();
   const queryClient = useQueryClient();
-  const { scrollPosition } = useLayoutScroll();
   const cachePosts = usePostsStore((state) => state.cachePosts);
   const viewerId = user?.id;
 
@@ -320,12 +318,11 @@ const SavedPostsScreen: React.FC = () => {
   return (
     <>
       <SEO title={t('seo.saved.title')} description={t('seo.saved.description')} />
-      <HeaderDockProvider scrollY={Platform.OS === 'web' ? undefined : scrollPosition}>
+      <HeaderDockProvider>
         <Screen
           scroll="auto"
           header={<PageHeader title={t('screens.saved.title')} presentation="floating" />}
         >
-
           {/* Search and folder tabs dock under the header. Creating a folder
                         is an action, not a section, so it lives in the FAB. */}
           <StickySection>

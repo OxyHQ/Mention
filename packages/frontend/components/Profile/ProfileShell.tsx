@@ -3,9 +3,8 @@ import type React from 'react';
 import { Screen, type ScreenProps } from '@oxy.so/bloom/screen';
 import { useState } from 'react';
 import { Platform, View, type ViewProps } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
+import { ScreenFlashList } from '@/components/common/ScreenFlashList';
 import { HeaderDockProvider, StickySection, useHeaderDockInset } from '@oxy.so/bloom/layout';
-import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { BloomColorScope } from '@oxy.so/bloom/theme';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { ProfileUnavailable } from './ProfileUnavailable';
@@ -91,13 +90,12 @@ export interface ProfileShellProps {
  * `CoverHeader`, and nowhere else.
  */
 export function ProfileShell(props: ProfileShellProps) {
-  const { scrollPosition } = useLayoutScroll();
   const color = resolveProfileColor(props.accentColor ?? props.profileData?.design.color);
   // A preset is the profile's `Screen` claim, which themes the whole shell (the
   // sidebar, the frame, the bottom bar) on a split layout and only this column
   // in the Deck. An exact seed has no claim, so it scopes the content alone.
   return (
-    <HeaderDockProvider scrollY={IS_WEB ? undefined : scrollPosition}>
+    <HeaderDockProvider>
       <BloomColorScope seed={color?.seed} asChild>
         <ProfileShellBody {...props} colorPreset={color?.colorPreset} />
       </BloomColorScope>
@@ -232,20 +230,16 @@ function ProfileShellBody({
                 listOwnsScroll
                 listContentHeaderComponent={listHeader}
                 listStickyHeaderComponent={stickyTabs}
-                listOnScroll={nativeGridOwnsScroll ? chrome.onScroll : undefined}
-                listScrollRef={nativeGridOwnsScroll ? chrome.assignScrollRef : undefined}
               />
             </View>
           ) : (
-            <FlashList
-              ref={chrome.assignScrollRef}
+            <ScreenFlashList
               data={['tabs', 'content'] as const}
               keyExtractor={(item) => item}
               renderItem={({ item }) => (item === 'tabs' ? stickyTabs : nativeContent)}
               ListHeaderComponent={listHeader}
               ListHeaderComponentStyle={{ flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' }}
-              onScroll={chrome.onScroll}
-              scrollEventThrottle={16}
+              onEndReached={chrome.loadMore}
               showsVerticalScrollIndicator={false}
               // The tabs are the first data row; FlashList keeps ListHeaderComponent
               // outside the data index space.

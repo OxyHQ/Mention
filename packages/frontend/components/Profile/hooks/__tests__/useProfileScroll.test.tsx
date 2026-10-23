@@ -1,23 +1,16 @@
-import { Platform } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
-
 import { useProfileScroll } from '../useProfileScroll';
 import type { ProfileTab } from '../../types';
 
 /**
- * Which feed the profile's near-bottom detector pages.
+ * Which feed the profile pages, and where its jump goes.
  *
- * The hook is one scroll listener serving nine tabs across every profile the
- * reader visits, so the only thing it really has to get right is WHICH slice a
- * load-more belongs to. It used to read the tab and the profile from refs
- * mirrored during render — illegal input for the React Compiler — and a lagging
- * pair sends the request to `user:<profile you left>:<tab you left>`: the list on
- * screen never grows and simply looks like it ended, while a slice the reader
- * cannot see fills up behind it. Nothing errors, so only an assertion on the
- * fetch ARGUMENTS catches it.
+ * One hook serves every tab of every profile the reader visits, so the thing it
+ * has to get right is WHICH slice a load-more belongs to: a lagging tab or
+ * profile sends the request to `user:<profile you left>:<tab you left>`, the
+ * list on screen never grows and simply looks like it ended. Nothing errors, so
+ * only an assertion on the fetch ARGUMENTS catches it.
  */
-
-const SCROLL_CHECK_THROTTLE = 180;
 
 interface FeedMeta {
   hasMore: boolean;
@@ -29,285 +22,72 @@ const mockGetFeedMeta = jest.fn<FeedMeta, [string]>(() => ({
   hasMore: true,
   nextCursor: 'cursor-1',
 }));
-let mockFeedUI: Record<string, { isLoading: boolean }> = {};
-// The web pager listens to the shared `scrollY`, not to a ScrollView.
-let mockScrollYListener: ((state: { value: number }) => void) | null = null;
+const mockScrollToOffset = jest.fn();
 
 jest.mock('@/stores/postsStore', () => ({
-  usePostsStore: {
-    getState: () => ({
-      fetchUserFeed: mockFetchUserFeed,
-      feedUI: mockFeedUI,
-    }),
-  },
+  usePostsStore: { getState: () => ({ fetchUserFeed: mockFetchUserFeed, feedUI: {} }) },
+}));
+jest.mock('@/db/feedQueries', () => ({ getFeedMeta: (key: string) => mockGetFeedMeta(key) }));
+jest.mock('@/context/ScreenReselectContext', () => ({
+  useFrontScroller: () => () => ({ offset: () => 0, scrollToOffset: mockScrollToOffset }),
 }));
 
-jest.mock('@/db/feedQueries', () => ({
-  getFeedMeta: (key: string) => mockGetFeedMeta(key),
-}));
-
-// `createAnimatedScrollHandler` hands back the listener untouched so a test can
-// deliver a scroll the way the ScrollView would. Everything else on the context
-// is inert here — this hook's job under test is pagination, not the header
-// animation the shared `scrollY` also drives.
-// Focus ownership of the scroller is `useFocusedScrollable`'s own concern.
-jest.mock('@/hooks/useFocusedScrollable', () => ({
-  useFocusedScrollable: () => () => {},
-}));
-
-jest.mock('@/context/LayoutScrollContext', () => ({
-  useLayoutScroll: () => ({
-    scrollY: {
-      addListener: (listener: (state: { value: number }) => void) => {
-        mockScrollYListener = listener;
-        return 'listener-1';
-      },
-      removeListener: () => {},
-    },
-    createAnimatedScrollHandler: (listener: (event: unknown) => void) => listener,
-    scrollToOffset: () => {},
-    setScrollY: () => {},
-  }),
-  extractOffsetY: (event: { nativeEvent: { contentOffset: { y: number } } }) =>
-    event.nativeEvent.contentOffset.y,
-}));
-
-type ScrollResult = ReturnType<typeof useProfileScroll>;
-
-let latest: ScrollResult | null = null;
-
+let latest!: ReturnType<typeof useProfileScroll>;
 function Probe({ profileId, currentTab }: { profileId?: string; currentTab: ProfileTab }) {
   latest = useProfileScroll({ profileId, currentTab });
   return null;
 }
 
-/**
- * A scroll that lands within `LOAD_MORE_THRESHOLD` of the bottom. The hook
- * throttles to one check per 180ms, so each delivery advances the clock past it
- * — otherwise the second scroll of a test is silently swallowed and the test
- * passes for the wrong reason.
- */
-function scrollToBottom() {
-  jest.advanceTimersByTime(SCROLL_CHECK_THROTTLE + 1);
-  act(() => {
-    latest!.onScroll({
-      nativeEvent: {
-        contentOffset: { y: 900 },
-        layoutMeasurement: { height: 800 },
-        contentSize: { height: 1750 },
-      },
-    });
-  });
-}
-
 async function mount(profileId: string | undefined, currentTab: ProfileTab) {
-  let renderer: TestRenderer.ReactTestRenderer;
+  let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(<Probe profileId={profileId} currentTab={currentTab} />);
   });
-  return renderer!;
+  return {
+    rerender: (nextProfile: string | undefined, nextTab: ProfileTab) =>
+      act(async () => {
+        renderer.update(<Probe profileId={nextProfile} currentTab={nextTab} />);
+      }),
+  };
 }
 
-beforeAll(() => {
-  (
-    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
-  ).IS_REACT_ACT_ENVIRONMENT = true;
-});
-
-beforeEach(() => {
-  jest.useFakeTimers();
-  jest.clearAllMocks();
-  mockFeedUI = {};
-  mockScrollYListener = null;
-  mockGetFeedMeta.mockReturnValue({ hasMore: true, nextCursor: 'cursor-1' });
-  latest = null;
-});
-
-afterEach(() => {
-  jest.useRealTimers();
-});
-
-describe('useProfileScroll load-more targeting', () => {
-  it('pages the tab that is on screen NOW, not the one it mounted with', async () => {
-    const renderer = await mount('user-1', 'posts');
-
-    scrollToBottom();
-    expect(mockFetchUserFeed).toHaveBeenLastCalledWith(
-      'user-1',
-      expect.objectContaining({ type: 'posts' }),
-    );
-
-    // Switch to Replies. The detector is the same listener; only the tab moved.
-    await act(async () => {
-      renderer.update(<Probe profileId="user-1" currentTab="replies" />);
-    });
-
-    scrollToBottom();
-    expect(mockFetchUserFeed).toHaveBeenLastCalledWith(
-      'user-1',
-      expect.objectContaining({ type: 'replies' }),
-    );
-    expect(mockFetchUserFeed).toHaveBeenCalledTimes(2);
-
-    act(() => renderer.unmount());
+async function loadMore() {
+  await act(async () => {
+    latest.loadMore();
   });
+}
 
-  it('pages the profile that is on screen NOW, not the one it mounted with', async () => {
-    const renderer = await mount('user-1', 'posts');
+beforeEach(() => jest.clearAllMocks());
 
-    scrollToBottom();
-    expect(mockFetchUserFeed).toHaveBeenLastCalledWith('user-1', expect.anything());
-
-    await act(async () => {
-      renderer.update(<Probe profileId="user-2" currentTab="posts" />);
-    });
-
-    scrollToBottom();
-    // The dangerous failure is not an error — it is this call naming `user-1`,
-    // which grows a slice nobody is looking at while user-2's list stalls.
-    expect(mockFetchUserFeed).toHaveBeenLastCalledWith('user-2', expect.anything());
-
-    act(() => renderer.unmount());
-  });
-
-  it("reads the slice for the current tab, so hasMore is the right feed's", async () => {
-    const renderer = await mount('user-1', 'posts');
-
-    scrollToBottom();
-    expect(mockGetFeedMeta).toHaveBeenLastCalledWith('user:user-1:posts');
-
-    await act(async () => {
-      renderer.update(<Probe profileId="user-1" currentTab="likes" />);
-    });
-    scrollToBottom();
-    expect(mockGetFeedMeta).toHaveBeenLastCalledWith('user:user-1:likes');
-
-    act(() => renderer.unmount());
-  });
-
-  it('stops paging a feed that says it has no more', async () => {
-    mockGetFeedMeta.mockReturnValue({ hasMore: false });
-    const renderer = await mount('user-1', 'posts');
-
-    scrollToBottom();
-    expect(mockFetchUserFeed).not.toHaveBeenCalled();
-
-    act(() => renderer.unmount());
-  });
-
-  it('does not page while still far from the bottom', async () => {
-    const renderer = await mount('user-1', 'posts');
-
-    jest.advanceTimersByTime(SCROLL_CHECK_THROTTLE + 1);
-    act(() => {
-      latest!.onScroll({
-        nativeEvent: {
-          contentOffset: { y: 0 },
-          layoutMeasurement: { height: 800 },
-          contentSize: { height: 9000 },
-        },
-      });
-    });
-    expect(mockFetchUserFeed).not.toHaveBeenCalled();
-
-    act(() => renderer.unmount());
-  });
-
-  it('leaves the first page to the list: no cursor, no load-more', async () => {
-    mockGetFeedMeta.mockReturnValue({ hasMore: true });
-    const renderer = await mount('user-1', 'posts');
-
-    scrollToBottom();
-    expect(mockFetchUserFeed).not.toHaveBeenCalled();
-
-    act(() => renderer.unmount());
-  });
-
-  it('does not page a profile it has no id for', async () => {
-    const renderer = await mount(undefined, 'posts');
-
-    scrollToBottom();
-    expect(mockFetchUserFeed).not.toHaveBeenCalled();
-
-    act(() => renderer.unmount());
-  });
-
-  // Feeds, starter packs and lists are tabs with no author feed behind them. The
-  // "no more to page" answer cannot come from the slice: an unwritten feed key
-  // has no meta row, and the getter reads a missing row as `hasMore: true` so a
-  // fresh feed can make its first request. So a tab that never had a feed looks
-  // exactly like one whose first page has not loaded, and the detector pages it.
-  it.each<ProfileTab>(['feeds', 'starter_packs', 'lists'])(
-    'does not page %s, which is not backed by an author feed',
-    async (tab) => {
-      const renderer = await mount('user-1', tab);
-
-      scrollToBottom();
-      expect(mockFetchUserFeed).not.toHaveBeenCalled();
-
-      act(() => renderer.unmount());
-    },
+it('pages the tab and the profile that are on screen NOW', async () => {
+  const tree = await mount('user-1', 'posts');
+  await loadMore();
+  expect(mockFetchUserFeed).toHaveBeenLastCalledWith(
+    'user-1',
+    expect.objectContaining({ type: 'posts', cursor: 'cursor-1' }),
   );
+  await tree.rerender('user-2', 'replies');
+  await loadMore();
+  expect(mockFetchUserFeed).toHaveBeenLastCalledWith(
+    'user-2',
+    expect.objectContaining({ type: 'replies' }),
+  );
+  expect(mockGetFeedMeta).toHaveBeenLastCalledWith('user:user-2:replies');
 });
 
-/**
- * On the web a feed tab is a `<Feed>` that pages itself from its own cache, so
- * this pager serves only the grids, whose web list has no end detection.
- * Paging a feed tab here too requested every page of the profile twice.
- */
-describe('useProfileScroll on the web', () => {
-  // Only the two measurements the web pager reads; the test runs without a DOM.
-  const globals = globalThis as unknown as {
-    document?: unknown;
-    window?: { innerHeight?: number };
-  };
-  const originalDocument = globals.document;
-  const originalInnerHeight = globals.window?.innerHeight;
+it('stops at the end of a feed, before its first page, and without a profile', async () => {
+  mockGetFeedMeta.mockReturnValueOnce({ hasMore: false, nextCursor: 'cursor-1' });
+  await mount('user-1', 'posts');
+  await loadMore();
+  mockGetFeedMeta.mockReturnValueOnce({ hasMore: true });
+  await loadMore();
+  await mount(undefined, 'posts');
+  await loadMore();
+  expect(mockFetchUserFeed).not.toHaveBeenCalled();
+});
 
-  beforeEach(() => {
-    jest.replaceProperty(Platform, 'OS', 'web');
-    // A document 100px taller than the viewport: any scroll is near the bottom.
-    globals.document = { documentElement: { scrollHeight: 1000 } };
-    if (globals.window) globals.window.innerHeight = 900;
-  });
-
-  afterEach(() => {
-    jest.restoreAllMocks();
-    globals.document = originalDocument;
-    if (globals.window) globals.window.innerHeight = originalInnerHeight;
-  });
-
-  function scrollDocument() {
-    act(() => {
-      mockScrollYListener?.({ value: 0 });
-    });
-  }
-
-  it.each<ProfileTab>(['posts', 'replies', 'likes'])(
-    'leaves %s to its <Feed>, which pages itself',
-    async (tab) => {
-      const renderer = await mount('user-1', tab);
-
-      expect(mockScrollYListener).not.toBeNull();
-      scrollDocument();
-      expect(mockFetchUserFeed).not.toHaveBeenCalled();
-
-      act(() => renderer.unmount());
-    },
-  );
-
-  it.each<ProfileTab>(['media', 'videos'])(
-    'pages the %s grid, which has no pager of its own',
-    async (tab) => {
-      const renderer = await mount('user-1', tab);
-
-      scrollDocument();
-      expect(mockFetchUserFeed).toHaveBeenCalledWith(
-        'user-1',
-        expect.objectContaining({ type: tab, cursor: 'cursor-1' }),
-      );
-
-      act(() => renderer.unmount());
-    },
-  );
+it('jumps the scroller in front to the requested offset', async () => {
+  await mount('user-1', 'posts');
+  act(() => latest.scrollToContent(420));
+  expect(mockScrollToOffset).toHaveBeenCalledWith(420);
 });

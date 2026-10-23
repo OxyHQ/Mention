@@ -1,3 +1,5 @@
+// The native list owner; the web shell scrolls the document.
+jest.mock('@/components/common/ScreenFlashList', () => ({ ScreenFlashList: () => null }));
 jest.mock('@oxy.so/bloom/screen', () => ({
   Screen: (props: {
     header?: React.ReactNode;
@@ -16,11 +18,10 @@ jest.mock('@oxy.so/bloom/screen', () => ({
 }));
 
 import type React from 'react';
-import { Animated, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { ProfileShell, type ProfileShellProps } from '../ProfileShell';
 
-const mockScrollPosition = { value: 0 };
 const mockHeader = jest.fn();
 const mockScreen = jest.fn();
 const mockColorScope = jest.fn();
@@ -73,9 +74,6 @@ jest.mock('@oxy.so/bloom/theme', () => ({
     return props.children;
   },
 }));
-jest.mock('@/context/LayoutScrollContext', () => ({
-  useLayoutScroll: () => ({ scrollPosition: mockScrollPosition }),
-}));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (_key: string, options: { defaultValue: string }) => options.defaultValue,
@@ -126,10 +124,7 @@ type TabsProps = NonNullable<ProfileShellProps['tabs']>;
 function makeProps(tab: TabsProps['tab'] = 'lists'): ProfileShellProps & { tabs: TabsProps } {
   return {
     chrome: {
-      scrollY: new Animated.Value(0),
-      scrollRef: { current: null },
-      onScroll: jest.fn(),
-      assignScrollRef: jest.fn(),
+      loadMore: jest.fn(),
       scrollToContent: jest.fn(),
       contentHeight: 0,
       setContentHeight: jest.fn(),

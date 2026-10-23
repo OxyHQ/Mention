@@ -1,6 +1,5 @@
 import type React from 'react';
-import type { FlatList, View } from 'react-native';
-import type { ScrollableRef } from '@/context/LayoutScrollContext';
+import type { View } from 'react-native';
 
 /** Minimal shape every profile-grid entry shares, used for keying + layout. */
 export interface ProfileGridEntry {
@@ -22,7 +21,5 @@ export interface ProfileGridListProps<T extends ProfileGridEntry> {
   listStickyHeaderComponent?: React.ReactElement | null;
   emptyComponent?: React.ReactElement | null;
   contentContainerStyle?: React.ComponentProps<typeof View>['style'];
-  onScroll?: React.ComponentProps<typeof FlatList<T>>['onScroll'];
-  scrollRef?: (node: ScrollableRef | null) => void;
   onEndReached?: () => void;
 }

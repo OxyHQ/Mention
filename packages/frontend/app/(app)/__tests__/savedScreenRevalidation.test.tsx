@@ -89,9 +89,6 @@ jest.mock('@/context/ScreenReselectContext', () => ({
 }));
 
 // The header dock is layout, not the code under test.
-jest.mock('@/context/LayoutScrollContext', () => ({
-  useLayoutScroll: () => ({ scrollPosition: { value: 0 } }),
-}));
 jest.mock('@oxy.so/bloom/layout', () => ({
   useBottomEdgeInset: () => 0,
   HeaderDockProvider: ({ children }: { children: React.ReactNode }) => children,

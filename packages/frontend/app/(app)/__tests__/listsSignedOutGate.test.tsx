@@ -80,13 +80,15 @@ jest.mock('@/components/common/EmptyState', () => {
   };
 });
 jest.mock('@/assets/icons/list-icon', () => ({ List: () => null }));
-jest.mock('@/components/common/FocusedScrollView', () => {
+jest.mock('@oxy.so/bloom/screen', () => {
   const { View: MockView } = jest.requireActual('react-native');
-  return {
-    FocusedScrollView: ({ children }: { children: React.ReactNode }) => (
-      <MockView>{children}</MockView>
-    ),
-  };
+  const Pass = ({ header, children }: { header?: React.ReactNode; children: React.ReactNode }) => (
+    <MockView>
+      {header}
+      {children}
+    </MockView>
+  );
+  return { Screen: Pass, ScreenScrollView: Pass };
 });
 jest.mock('@/context/ScreenReselectContext', () => ({ useScreenReselect: () => {} }));
 

@@ -4,7 +4,7 @@ import type { SharedValue } from 'react-native-reanimated';
 import {
   BottomBarVisibilityProvider,
   useBottomBarHidden,
-} from '@/context/BottomBarVisibilityContext';
+} from '@/context/BottomBarVisibilityContext.web';
 
 // ── The new driver is a CONTINUOUS diffClamp integrator (no bistable toggle, no
 // timing animation). It reads the shared reanimated `scrollPosition` via a
@@ -15,12 +15,12 @@ import {
 // and NEVER snaps to 0/1 or oscillates, /videos stays pinned visible, and a
 // programmatic jump is ignored.
 
-// The provider consumes `scrollPosition` from LayoutScrollContext — mock it as a
-// plain mutable holder we can drive directly.
+// The provider consumes the document's `scrollPosition` — mock it as a plain
+// mutable holder we can drive directly.
 const mockScrollPosition = { value: 0 };
 
-jest.mock('@/context/LayoutScrollContext', () => ({
-  useLayoutScroll: () => ({ scrollPosition: mockScrollPosition }),
+jest.mock('@/context/DocumentScroll.web', () => ({
+  useDocumentScroll: () => ({ scrollPosition: mockScrollPosition }),
 }));
 
 // The provider pins the chrome visible on /videos by reading the pathname.

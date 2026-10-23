@@ -26,7 +26,7 @@ import { AccountSwitchReset } from '@/components/providers/AccountSwitchReset';
 import { AppShellProviders } from '@/components/providers/AppShellProviders';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
 import { ScreenReselectProvider } from '@/context/ScreenReselectContext';
-import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
+import { DocumentScrollProvider } from '@/context/DocumentScroll';
 import { OXY_CLIENT_ID, OXY_AUTH_REDIRECT_URI } from '@/config';
 import { ContentDialogHost } from '@/components/common/ContentDialog';
 import { FediverseInfoDialogProvider } from '@/components/Fediverse/FediverseInfoDialog';
@@ -137,7 +137,7 @@ export const AppProviders = memo(function AppProviders({
                 <BootMilestone name="cache-owner-established" />
                 <I18nextProvider i18n={i18n}>
                   {/*
-                   * `LayoutScrollProvider` and `AppShellProviders` sit ABOVE
+                   * `DocumentScrollProvider` and `AppShellProviders` sit ABOVE
                    * `BottomSheetProvider` — and above this component's own
                    * `children` — on purpose, and moving either back down
                    * reintroduces a crash.
@@ -154,12 +154,12 @@ export const AppProviders = memo(function AppProviders({
                    * picker asked for the video playback authority from inside a
                    * sheet and threw.
                    *
-                   * `AppShellProviders` needs `LayoutScrollProvider` above it
-                   * (`BottomBarVisibilityProvider` reads the shared scroll
-                   * position), which is why that one moved up too. The tree below
+                   * `AppShellProviders` needs `DocumentScrollProvider` above it
+                   * (the web `BottomBarVisibilityProvider` reads the document's
+                   * scroll), which is why that one moved up too. The tree below
                    * is unchanged.
                    */}
-                  <LayoutScrollProvider>
+                  <DocumentScrollProvider>
                     <AppShellProviders>
                       {/* The feed rows' one command controller (#1103). ABOVE the
                         sheet provider, so a post rendered inside a sheet still
@@ -203,7 +203,7 @@ export const AppProviders = memo(function AppProviders({
                         </BottomSheetProvider>
                       </PostInteractionsProvider>
                     </AppShellProviders>
-                  </LayoutScrollProvider>
+                  </DocumentScrollProvider>
                 </I18nextProvider>
               </AccountSwitchReset>
             </StickersProvider>

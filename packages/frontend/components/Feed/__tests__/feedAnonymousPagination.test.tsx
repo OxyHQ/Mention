@@ -2,7 +2,16 @@ jest.mock('@/hooks/useFeedVisibility', () => ({ useFeedVisibility: jest.fn() }))
 jest.mock('@/services/socketService', () => ({
   socketService: { subscribeToFeedUpdates: jest.fn(() => jest.fn()) },
 }));
-jest.mock('@oxy.so/bloom/screen', () => ({ useScreenViewport: () => null }));
+jest.mock('@oxy.so/bloom/screen', () => ({
+  useScreenViewport: () => null,
+  // The feed hands Bloom its scroll handler; Bloom's own chrome is not under test.
+  useScreenScroll: ({ handler }: { handler?: unknown }) => ({
+    onScroll: handler,
+    contentInsets: { top: 0, bottom: 0 },
+    scrollY: { value: 0 },
+  }),
+}));
+jest.mock('@/context/ScreenReselectContext', () => ({ useReselectScroller: () => undefined }));
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
@@ -50,16 +59,7 @@ jest.mock('react-native-reanimated', () => {
   };
 });
 
-const mockScrollPosition = { value: 0 };
 const mockSetFeedScrollOffset = jest.fn();
-
-jest.mock('@/context/LayoutScrollContext', () => ({
-  useLayoutScroll: () => ({
-    scrollPosition: mockScrollPosition,
-    scrollEventThrottle: 16,
-    registerScrollable: () => () => undefined,
-  }),
-}));
 
 jest.mock('@/stores/feedScrollStore', () => ({
   getFeedScrollOffset: () => 0,

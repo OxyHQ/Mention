@@ -9,6 +9,7 @@ import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button } from '@oxy.so/bloom/button';
 import { Item } from '@oxy.so/bloom/item';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { logger } from '@oxy.so/core/logger';
@@ -18,7 +19,6 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { communityService } from '@/services/communityService';
 import { displayNameOrHandle } from '@/utils/displayName';
-import { FocusedScrollView } from '@/components/common/FocusedScrollView';
 import { SignInRequired } from '@/components/common/SignInRequired';
 import { CommunitiesPreviewGate } from '@/hooks/useCommunitiesPreview';
 
@@ -86,18 +86,21 @@ function CommunityBansScreen() {
   );
 
   return (
-    <View className="flex-1">
-      <PageHeader
-        title={t('communities.bansTitle', { defaultValue: 'Banned from this community' })}
-        onBack={() => safeBack()}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-      />
+    <Screen
+      header={
+        <PageHeader
+          title={t('communities.bansTitle', { defaultValue: 'Banned from this community' })}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+        />
+      }
+    >
       <SignInRequired
         label={t('communities.signInRequired', {
           defaultValue: 'Sign in to manage your communities',
         })}
       >
-        <FocusedScrollView className="flex-1" contentContainerClassName="pb-10">
+        <ScreenScrollView contentContainerClassName="pb-10">
           {isLoading ? (
             <View className="py-8">
               <ListSkeleton />
@@ -115,9 +118,9 @@ function CommunityBansScreen() {
           ) : (
             bans.map(renderBan)
           )}
-        </FocusedScrollView>
+        </ScreenScrollView>
       </SignInRequired>
-    </View>
+    </Screen>
   );
 }
 

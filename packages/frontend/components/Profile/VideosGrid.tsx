@@ -23,8 +23,6 @@ interface VideosGridProps {
   listContentHeaderComponent?: React.ReactElement | null;
   listStickyHeaderComponent?: React.ReactElement | null;
   contentContainerStyle?: React.ComponentProps<typeof View>['style'];
-  onScroll?: React.ComponentProps<typeof ProfileGridList<VideoGridEntry>>['onScroll'];
-  scrollRef?: React.ComponentProps<typeof ProfileGridList<VideoGridEntry>>['scrollRef'];
 }
 
 interface VideoGridEntry extends ProfileGridEntry {
@@ -55,8 +53,6 @@ const VideosGrid: React.FC<VideosGridProps> = ({
   listContentHeaderComponent,
   listStickyHeaderComponent,
   contentContainerStyle,
-  onScroll,
-  scrollRef,
 }) => {
   const { oxyServices } = useAuth();
   const router = useRouter();
@@ -184,8 +180,6 @@ const VideosGrid: React.FC<VideosGridProps> = ({
       listStickyHeaderComponent={listStickyHeaderComponent}
       emptyComponent={emptyContent}
       contentContainerStyle={contentContainerStyle}
-      onScroll={onScroll}
-      scrollRef={scrollRef}
       onEndReached={loadMore}
     />
   );

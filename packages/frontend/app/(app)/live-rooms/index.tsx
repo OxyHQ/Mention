@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useEffect, useState, useCallback, useContext } from 'react';
-import { View, Text, RefreshControl, Platform } from 'react-native';
+import { View, Text, RefreshControl } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Button } from '@oxy.so/bloom/button';
@@ -8,6 +8,7 @@ import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { RiCalendarLine } from '@oxy.so/bloom/icons/RiCalendarLine';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Text as BloomText } from '@oxy.so/bloom/typography';
 
 import { EmptyState } from '@/components/common/EmptyState';
@@ -24,7 +25,6 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { useTranslation } from 'react-i18next';
 import { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR } from '@/styles/colors';
 import { CreateRoomSheet } from '@/components/rooms/CreateRoomSheet';
-import { FocusedScrollView } from '@/components/common/FocusedScrollView';
 import { useScreenReselect } from '@/context/ScreenReselectContext';
 import { SignInRequired } from '@/components/common/SignInRequired';
 
@@ -185,27 +185,29 @@ const LiveRoomsScreen = () => {
   return (
     <>
       <SEO title="Live Rooms" description="Join live audio conversations" />
-      <View className="flex-1">
-        <PageHeader
-          title={t('agora.title')}
-          actions={
-            // Signed out, Syra refuses the create with a 401, and the sheet
-            // gave no sign of it. The button is only offered to a reader who
-            // can create; everyone else gets the sign-in prompt below.
-            canUsePrivateApi ? (
-              <Button
-                appearance="solid"
-                tone="accent"
-                size="sm"
-                leadingIcon={RiAddLine}
-                onPress={openCreateSheet}
-              >
-                Create
-              </Button>
-            ) : undefined
-          }
-        />
-
+      <Screen
+        header={
+          <PageHeader
+            title={t('agora.title')}
+            actions={
+              // Signed out, Syra refuses the create with a 401, and the sheet
+              // gave no sign of it. The button is only offered to a reader who
+              // can create; everyone else gets the sign-in prompt below.
+              canUsePrivateApi ? (
+                <Button
+                  appearance="solid"
+                  tone="accent"
+                  size="sm"
+                  leadingIcon={RiAddLine}
+                  onPress={openCreateSheet}
+                >
+                  Create
+                </Button>
+              ) : undefined
+            }
+          />
+        }
+      >
         <SignInRequired
           label={t('agora.signInRequired', { defaultValue: 'Sign in to join live rooms' })}
           description={t('agora.signInRequiredDesc', {
@@ -213,28 +215,21 @@ const LiveRoomsScreen = () => {
               'Live audio conversations, and the rooms you host, appear here once you sign in.',
           })}
         >
-          {/* WEB hands scroll to the shared panel/document (no nested scroller that
-              would break sticky rails + window scroll restoration); NATIVE keeps a
-              ScrollView (+ pull-to-refresh) as the screen's scroller. */}
-          {Platform.OS === 'web' ? (
-            <View className="pb-6">{body}</View>
-          ) : (
-            <FocusedScrollView
-              showsVerticalScrollIndicator={false}
-              refreshControl={
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={onRefresh}
-                  tintColor={theme.colors.primary}
-                />
-              }
-              contentContainerClassName="pb-6"
-            >
-              {body}
-            </FocusedScrollView>
-          )}
+          <ScreenScrollView
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={theme.colors.primary}
+              />
+            }
+            contentContainerClassName="pb-6"
+          >
+            {body}
+          </ScreenScrollView>
         </SignInRequired>
-      </View>
+      </Screen>
     </>
   );
 };
