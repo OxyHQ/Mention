@@ -215,7 +215,37 @@ activity observed zero target-post scan loops. That demonstrates the intended
 empty-cohort query shape locally; it is not a production latency measurement.
 
 Independent code review found no remaining blocker in that scoped correction.
-The subsequent assessment of vote-transition timestamps is a separate follow-up:
-this evidence does not yet establish whether a negative-to-positive transition's
-recency should use creation time or the latest update. No schema/index or
-historical event-time claim follows from these test counts.
+The final backend commits are `7acaae3d9` (bounded quote hydration), `802847cb1`
+(social discovery/evidence) and `53a0dd11d` (anonymous quote-cache cutover).
+The common `mtn:quote-v2` namespace preserves the existing Explore and Media
+ranking-version suffixes; old anonymous DTOs cannot conceal the repaired quote
+context. The owner reported 30 controller tests, backend typechecking and the
+feed hot-path validator passing for the final backend work.
+
+A subsequent 53-test database engagement-command run established a recency
+limitation: changing an old downvote to a like advances `updatedAt` while keeping
+`createdAt`. Recent social evidence currently uses the latter. For You's social
+candidate lane also requires the target itself to be within 72 hours, so an old
+relationship to an older target is outside that lane's candidate window. An
+older target supplied independently can therefore lack a recent social label
+when the vote changes later. This is a measured boundary, not a claim that
+`createdAt` records the latest positive transition. No event history, index or
+schema was fabricated or changed to mask that limitation.
+
+
+A final client review also closed the accepted follow/unfollow boundary. Mention's
+adapter wraps the public SDK button and composes its existing callbacks across
+profile, hover, video, discovery and starter-pack surfaces. Single-user feed
+invalidation follows the SDK's accepted callback; bulk changes inspect successful
+result counts because the SDK's bulk-unfollow callback can also run after a
+resolved all-failure result. No optimistic state or failed bulk result invalidates
+the feed. A late response can invalidate only its captured viewer and cannot
+invoke a stale consumer callback under the incoming account. Existing federated
+synchronization is preserved; the adapter introduces no status lookup or SDK
+internal mutation. The unresolved-remote actor control and non-account entity
+subscriptions retain their separate existing paths.
+
+The adapter owner reported 79 focused tests passing across FollowButton, profile
+card identity and feed interstitial suites. Full frontend coverage is a separate
+integration gate; this does not claim a production follow/unfollow action was
+performed to verify the behavior.
