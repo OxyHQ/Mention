@@ -9,6 +9,10 @@ name: Release packages
 on:
   push:
     branches: [main]
+  # The same release for main's current head, without a new push: after a fix
+  # to the shared workflow, which a re-run of a failed run does not pick up
+  # (a re-run keeps the workflow commit it started with).
+  workflow_dispatch:
 
 # Nothing at the workflow level: the calling job grants the shared workflow
 # exactly what its jobs need. Only its plan job reads Actions (the CI verdict),
