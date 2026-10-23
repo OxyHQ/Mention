@@ -115,6 +115,9 @@ vi.mock('../../services/userSummaryCache', () => ({
   }),
 }));
 
+// Load the real handler with the test module, outside individual request deadlines.
+import { feedController } from '../../controllers/feed.controller';
+import { logger } from '../../utils/logger';
 import { PostHydrationService } from '../../services/PostHydrationService';
 import { UNRATED_MATERIAL_ITEM } from '../../services/contentAccessBatcher';
 
@@ -486,8 +489,6 @@ describe('PostHydrationService — boost original embedding is deterministic', (
   });
 
   it('embeds the subject through the real GET /feed/item/:id detail handler', async () => {
-    const { feedController } = await import('../../controllers/feed.controller');
-    const { logger } = await import('../../utils/logger');
     const errors = vi.spyOn(logger, 'error');
     const original = await seedOriginal({ type: PostType.VIDEO });
     const quote = await seedOriginal({ type: PostType.QUOTE, quoteOf: original.id });
