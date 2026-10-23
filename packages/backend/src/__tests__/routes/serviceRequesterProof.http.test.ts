@@ -1,3 +1,5 @@
+import { mentionForOxyService } from '@oxy.so/mention-sdk/server';
+import { createServicePublishingRouter } from '../../routes/servicePublishing';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
@@ -43,6 +45,8 @@ const claims = {
 };
 const signed = `${encode({ alg: 'EdDSA', typ: 'JWT', kid: 'fixture' })}.${encode(claims)}`;
 const moveToken = `${signed}.${sign(null, Buffer.from(signed), keys.privateKey).toString('base64url')}`;
+const externalSigned = `${encode({ alg: 'EdDSA', typ: 'JWT', kid: 'fixture' })}.${encode({ ...claims, authority: 'external', credentialId: 'credential_move', scopes: ['social.posts.publish'] })}`;
+const externalToken = `${externalSigned}.${sign(null, Buffer.from(externalSigned), keys.privateKey).toString('base64url')}`;
 const platformToken = `e30.${encode({ exp: now + 300, authority: 'first_party' })}.fixture`;
 const jwks = `data:application/json,${encodeURIComponent(
   JSON.stringify({
@@ -58,6 +62,8 @@ let oxy: OxyServer;
 let receiverURL: string;
 let revoked = false;
 let downstreamRevoked = false;
+const publications: string[] = [];
+const receipts = new Set<string>();
 const writes: Array<{
   account: string;
   proof: string;
@@ -96,8 +102,8 @@ beforeAll(async () => {
     const authorized =
       !revoked &&
       req.query.appId === 'move' &&
-      req.query.userId === 'original-person' &&
-      req.query.taskId === 'original-move-task';
+      ((req.query.userId === 'original-person' && req.query.taskId === 'original-move-task') ||
+        (req.query.userId === 'second-person' && req.query.taskId === 'second-task'));
     res.json(
       authorized
         ? { authorized: true, authority: 'first_party', epoch: '1', requesterContext: context }
@@ -138,6 +144,30 @@ beforeAll(async () => {
   app.use(express.json());
   app.use(oxy.middleware.auth({ serviceTokenJwksUrl: jwks, expectedAudience: audience }));
   app.use('/posts/intent-media', intentMediaRoutes);
+  app.use(
+    '/publishing/v1',
+    createServicePublishingRouter(
+      (req, res) => {
+        const account = req.user!.id;
+        publications.push(account);
+        res.status(201).json({ success: true, post: { id: `post-${account}` } });
+      },
+      {
+        async reserve(identity) {
+          const key = `${identity.oxyUserId}:${identity.clientId}:${identity.idempotencyKey}`;
+          if (receipts.has(key))
+            return {
+              kind: 'duplicate' as const,
+              status: 'succeeded' as const,
+              responseStatus: 201,
+            };
+          receipts.add(key);
+          return { kind: 'reserved' as const, receiptId: key };
+        },
+        async finalize() {},
+      },
+    ),
+  );
   receiver = app.listen(0, '127.0.0.1');
   await new Promise<void>((resolve) => receiver.once('listening', resolve));
   receiverURL = `http://127.0.0.1:${(receiver.address() as AddressInfo).port}`;
@@ -146,6 +176,8 @@ beforeEach(() => {
   revoked = false;
   downstreamRevoked = false;
   writes.length = 0;
+  publications.length = 0;
+  receipts.clear();
 });
 afterAll(async () => {
   clearRuntimeOxyClient();
@@ -197,5 +229,72 @@ describe('Move shared SDK → Mention receiver → Oxy Files', () => {
     downstreamRevoked = true;
     expect((await upload()).status).toBe(502);
     expect(writes).toHaveLength(0);
+  });
+});
+
+describe('Own publishing SDK → Mention shared auth → native publication adapter', () => {
+  const key = `mcp:${'b'.repeat(64)}`;
+  const input = {
+    content: { text: 'scheduled' },
+    visibility: 'public' as const,
+    status: 'published' as const,
+  };
+  function publishing(accountId = 'original-person', taskId = 'original-move-task') {
+    return mentionForOxyService(caller, { baseURL: receiverURL, requester: { accountId, taskId } });
+  }
+  it('reserves a stable effect before domain dispatch and refuses duplicate without another effect', async () => {
+    const sdk = publishing();
+    try {
+      expect((await sdk.publish(input, key)).id).toBe('post-original-person');
+      await expect(sdk.publish(input, key)).rejects.toMatchObject({
+        status: 409,
+        unknownOutcome: true,
+      });
+      expect(publications).toEqual(['original-person']);
+    } finally {
+      sdk.dispose();
+    }
+  });
+  it('keeps the same idempotency key separate for two independently authorized accounts', async () => {
+    const first = publishing(),
+      second = publishing('second-person', 'second-task');
+    try {
+      await first.publish(input, key);
+      await second.publish(input, key);
+      expect(publications).toEqual(['original-person', 'second-person']);
+    } finally {
+      first.dispose();
+      second.dispose();
+    }
+  });
+  it('refuses wrong-account and revoked original authority before reserving or publishing', async () => {
+    const wrong = publishing('second-person'),
+      valid = publishing();
+    try {
+      await expect(wrong.publish(input, key)).rejects.toMatchObject({ status: 403 });
+      revoked = true;
+      await expect(valid.publish(input, key)).rejects.toMatchObject({ status: 401 });
+      expect(publications).toEqual([]);
+      expect(receipts.size).toBe(0);
+    } finally {
+      wrong.dispose();
+      valid.dispose();
+    }
+  });
+  it('never turns an official application external credential and a user header into own publication authority', async () => {
+    const response = await fetch(`${receiverURL}/publishing/v1/posts`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${externalToken}`,
+        'X-Oxy-User-Id': 'original-person',
+        'X-Oxy-Task-Id': 'original-move-task',
+        'Content-Type': 'application/json',
+        'Idempotency-Key': key,
+      },
+      body: JSON.stringify(input),
+    });
+    expect([401, 403]).toContain(response.status);
+    expect(publications).toEqual([]);
+    expect(receipts.size).toBe(0);
   });
 });
