@@ -1,49 +1,42 @@
-import { EventEmitter } from 'node:events';
-import { PassThrough, type Readable } from 'node:stream';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { OxyServer } from '@oxy.so/core/server';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-/**
- * Verifies the federated media-cache → Oxy write boundary:
- *  - `uploadCachedMedia` POSTs to `/assets/service/cache`, attaches the
- *    SDK-managed service token as a bearer, sends `Content-Type`/`x-original-name`,
- *    STREAMS the temp file as the raw request body (no in-memory buffering), and
- *    returns `data.file.id` from the response.
- *  - `deleteCachedMedia` issues a DELETE to `/assets/service/cache/:id` with the
- *    service bearer.
- *
- * The oxy-api base URL is taken from the service client's `baseURL` — never
- * hardcoded — and the service token from the client's `serviceToken()`.
- */
-
-// --- Force the write side ON for this suite (gated OFF by default in prod). ---
-vi.mock('../../services/mediaCache/constants', () => ({
-  MEDIA_CACHE_WRITE_ENABLED: true,
-}));
-
-const SERVICE_TOKEN = 'svc-token-xyz';
+/** Actual workload transport, with fetch responses standing in for Oxy. */
+vi.mock('../../services/mediaCache/constants', () => ({ MEDIA_CACHE_WRITE_ENABLED: true }));
+const SERVICE_TOKEN = `e30.${Buffer.from(
+  JSON.stringify({
+    type: 'service',
+    authority: 'first_party',
+    appId: 'mention',
+    credentialId: 'wl_mention',
+    ownerAccountId: 'owner',
+    environment: 'production',
+    aud: 'oxy-api',
+    iss: 'oxy-auth',
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 300,
+  }),
+).toString('base64url')}.fixture`;
 const OXY_BASE = 'http://oxy.test';
-const serviceToken = vi.fn<() => Promise<string>>().mockResolvedValue(SERVICE_TOKEN);
-const invalidateServiceToken = vi.fn<() => void>();
-
-vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ serviceToken, baseURL: OXY_BASE, invalidateServiceToken }),
-}));
-
-// --- Capture native HTTP requests + their streamed bodies. ---
+const mint = vi.fn();
+const nativeFetch = globalThis.fetch;
+let oxy: OxyServer;
+vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => oxy }));
 interface CapturedRequest {
   options: {
     method: string;
     hostname: string;
-    port: number | string;
+    port: string;
     path: string;
     headers: Record<string, string>;
   };
   bodyChunks: Buffer[];
 }
-
 const requests: CapturedRequest[] = [];
 let respond: (captured: CapturedRequest) => {
   statusCode: number;
@@ -53,97 +46,52 @@ let respond: (captured: CapturedRequest) => {
   statusCode: 200,
   body: JSON.stringify({ data: { file: { id: 'oxy_file_default' } } }),
 });
-
-/** A writable client request that records everything piped into it. */
-class FakeClientRequest extends PassThrough {
-  constructor(
-    private readonly captured: CapturedRequest,
-    private readonly onResponse: (res: Readable & { statusCode: number }) => void,
-  ) {
-    super();
-    this.on('data', (chunk: Buffer) => this.captured.bodyChunks.push(chunk));
-    this.on('finish', () => this.flushResponse());
+async function authorityFetch(
+  input: string | URL | Request,
+  init?: RequestInit,
+): Promise<Response> {
+  const url = new URL(input instanceof Request ? input.url : String(input));
+  if (url.pathname === '/auth/service-token/workload/challenge') {
+    return Response.json({ nonce: 'fixture-nonce' });
   }
-  setTimeout(): this {
-    return this;
+  if (url.pathname === '/auth/service-token/workload') {
+    const body = JSON.parse(String(init?.body));
+    expect(body.protocolVersion).toBe(2);
+    expect(body.audience ?? 'oxy-api').toBe('oxy-api');
+    expect(body.scopes).toBeUndefined();
+    return Response.json(await mint());
   }
-  private flushResponse(): void {
-    const { statusCode, body, headers } = respond(this.captured);
-    const res = new PassThrough() as PassThrough & {
-      statusCode: number;
-      headers: Record<string, string>;
-    };
-    res.statusCode = statusCode;
-    // Response headers matter here: `Retry-After` is what sizes the store's
-    // write-budget cooldown.
-    res.headers = headers ?? {};
-    this.onResponse(res);
-    res.end(Buffer.from(body, 'utf8'));
-  }
-}
-
-/** DELETE has no streamed body — `request.end()` triggers the response. */
-class FakeBodylessRequest extends EventEmitter {
-  constructor(
-    private readonly captured: CapturedRequest,
-    private readonly onResponse: (res: Readable & { statusCode: number }) => void,
-  ) {
-    super();
-  }
-  setTimeout(): this {
-    return this;
-  }
-  destroy(): void {
-    /* no-op for tests */
-  }
-  end(): void {
-    const { statusCode, body, headers } = respond(this.captured);
-    const res = new PassThrough() as PassThrough & {
-      statusCode: number;
-      headers: Record<string, string>;
-    };
-    res.statusCode = statusCode;
-    res.headers = headers ?? {};
-    this.onResponse(res);
-    res.end(Buffer.from(body, 'utf8'));
-  }
-}
-
-function fakeRequest(
-  options: CapturedRequest['options'],
-  callback: (res: Readable & { statusCode: number }) => void,
-): PassThrough | EventEmitter {
-  const captured: CapturedRequest = { options, bodyChunks: [] };
+  expect(init?.redirect).toBe('error');
+  expect(init?.credentials).toBe('omit');
+  const headers = Object.fromEntries(new Headers(init?.headers).entries());
+  const captured: CapturedRequest = {
+    options: {
+      method: init?.method ?? 'GET',
+      hostname: url.hostname,
+      port: url.port,
+      path: `${url.pathname}${url.search}`,
+      headers,
+    },
+    bodyChunks: [],
+  };
   requests.push(captured);
-  return options.method === 'DELETE'
-    ? new FakeBodylessRequest(captured, callback)
-    : new FakeClientRequest(captured, callback);
+  if (init?.body instanceof ReadableStream) {
+    const reader = init.body.getReader();
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      captured.bodyChunks.push(Buffer.from(value));
+    }
+    reader.releaseLock();
+  } else if (init?.body !== undefined) {
+    captured.bodyChunks.push(Buffer.from(String(init.body)));
+  }
+  const answer = respond(captured);
+  return new Response(answer.statusCode === 204 ? null : answer.body, {
+    status: answer.statusCode,
+    headers: answer.headers,
+  });
 }
-
-vi.mock('node:http', () => ({
-  default: {
-    request: (
-      options: CapturedRequest['options'],
-      cb: (res: Readable & { statusCode: number }) => void,
-    ) => fakeRequest(options, cb),
-  },
-  request: (
-    options: CapturedRequest['options'],
-    cb: (res: Readable & { statusCode: number }) => void,
-  ) => fakeRequest(options, cb),
-}));
-vi.mock('node:https', () => ({
-  default: {
-    request: (
-      options: CapturedRequest['options'],
-      cb: (res: Readable & { statusCode: number }) => void,
-    ) => fakeRequest(options, cb),
-  },
-  request: (
-    options: CapturedRequest['options'],
-    cb: (res: Readable & { statusCode: number }) => void,
-  ) => fakeRequest(options, cb),
-}));
 
 import {
   uploadCachedMedia,
@@ -162,8 +110,16 @@ let workDir: string;
 
 beforeEach(async () => {
   requests.length = 0;
-  serviceToken.mockClear();
-  invalidateServiceToken.mockClear();
+  mint.mockReset().mockResolvedValue({ token: SERVICE_TOKEN, expiresIn: 300 });
+  vi.stubGlobal('fetch', authorityFetch);
+  oxy = new OxyServer({
+    baseURL: OXY_BASE,
+    workloadCredentials: async () => ({
+      AccessKeyId: 'ASIA_TEST',
+      SecretAccessKey: 'test-only',
+      Token: 'temporary-test',
+    }),
+  });
   respond = () => ({
     statusCode: 200,
     body: JSON.stringify({ data: { file: { id: 'oxy_file_default' } } }),
@@ -173,10 +129,108 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  oxy.dispose();
+  vi.unstubAllGlobals();
   await rm(workDir, { recursive: true, force: true });
 });
 
 describe('oxyMediaStore.uploadCachedMedia', () => {
+  it('does not mint or open a file for an already cancelled upload', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      uploadCachedMedia({
+        filePath: join(workDir, 'does-not-exist'),
+        contentType: 'image/png',
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow();
+    expect(mint).not.toHaveBeenCalled();
+    expect(requests).toHaveLength(0);
+  });
+
+  it('streams the complete disk file again after one real HTTP 401', async () => {
+    vi.stubGlobal('fetch', nativeFetch);
+    const payload = Buffer.alloc(2 * 1024 * 1024, 0x61);
+    const filePath = join(workDir, 'large.bin');
+    await writeFile(filePath, payload);
+    const uploads: Buffer[][] = [];
+    let cancelUpload: AbortController | undefined;
+    let uploadDisconnected: (() => void) | undefined;
+    const server = createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on('data', (chunk: Buffer) => {
+        chunks.push(chunk);
+        if (req.url === '/assets/service/cache') cancelUpload?.abort();
+      });
+      req.on('aborted', () => uploadDisconnected?.());
+      req.on('end', () => {
+        res.setHeader('content-type', 'application/json');
+        if (req.url === '/auth/service-token/workload/challenge') {
+          res.end(JSON.stringify({ nonce: 'real-http-nonce' }));
+          return;
+        }
+        if (req.url === '/auth/service-token/workload') {
+          const claims = JSON.parse(Buffer.concat(chunks).toString());
+          expect(claims.protocolVersion).toBe(2);
+          expect(claims.scopes).toBeUndefined();
+          void mint().then((body) => res.end(JSON.stringify(body)));
+          return;
+        }
+        expect(req.url).toBe('/assets/service/cache');
+        expect(req.headers.authorization).toBe(`Bearer ${SERVICE_TOKEN}`);
+        expect(req.headers['content-type']).toBe('application/octet-stream');
+        uploads.push(chunks);
+        res.statusCode = uploads.length === 1 ? 401 : 201;
+        res.end(JSON.stringify({ data: { file: { id: 'streamed-file' } } }));
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    oxy.dispose();
+    oxy = new OxyServer({
+      baseURL: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+      workloadCredentials: async () => ({
+        AccessKeyId: 'ASIA_TEST',
+        SecretAccessKey: 'test-only',
+        Token: 'temporary-test',
+      }),
+    });
+    try {
+      expect(
+        await uploadCachedMedia({
+          filePath,
+          contentType: 'application/octet-stream',
+          sizeBytes: payload.length,
+        }),
+      ).toMatchObject({ oxyFileId: 'streamed-file' });
+      expect(mint).toHaveBeenCalledTimes(2);
+      expect(uploads).toHaveLength(2);
+      for (const chunks of uploads) {
+        expect(chunks.length).toBeGreaterThan(1);
+        expect(Buffer.concat(chunks).equals(payload)).toBe(true);
+      }
+      await truncate(filePath, 64 * 1024 * 1024);
+      cancelUpload = new AbortController();
+      const disconnected = new Promise<void>((resolve) => {
+        uploadDisconnected = resolve;
+      });
+      await expect(
+        uploadCachedMedia({
+          filePath,
+          contentType: 'application/octet-stream',
+          sizeBytes: 64 * 1024 * 1024,
+          signal: cancelUpload.signal,
+        }),
+      ).rejects.toMatchObject({ name: 'AbortError', code: 'CANCELLED' });
+      await disconnected;
+      expect(mint).toHaveBeenCalledTimes(2);
+      expect(uploads).toHaveLength(2);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
   it('POSTs to /assets/service/cache with the service bearer, headers, and the file body, returning data.file.id', async () => {
     const filePath = join(workDir, 'media.bin');
     const payload = Buffer.from('hello-fediverse-media');
@@ -199,17 +253,17 @@ describe('oxyMediaStore.uploadCachedMedia', () => {
       sizeBytes: payload.byteLength,
       contentType: 'image/png',
     });
-    expect(serviceToken).toHaveBeenCalledTimes(1);
+    expect(mint).toHaveBeenCalledTimes(1);
 
     expect(requests).toHaveLength(1);
     const sent = requests[0];
     expect(sent.options.method).toBe('POST');
     expect(sent.options.hostname).toBe('oxy.test');
     expect(sent.options.path).toBe('/assets/service/cache');
-    expect(sent.options.headers.Authorization).toBe(`Bearer ${SERVICE_TOKEN}`);
-    expect(sent.options.headers['Content-Type']).toBe('image/png');
+    expect(sent.options.headers.authorization).toBe(`Bearer ${SERVICE_TOKEN}`);
+    expect(sent.options.headers['content-type']).toBe('image/png');
     expect(sent.options.headers['x-original-name']).toBe('avatar.png');
-    expect(sent.options.headers['Content-Length']).toBe(String(payload.byteLength));
+    expect(sent.options.headers['content-length']).toBe(String(payload.byteLength));
 
     // The temp file was STREAMED as the raw request body (not JSON-wrapped).
     expect(Buffer.concat(sent.bodyChunks).toString('utf8')).toBe('hello-fediverse-media');
@@ -222,7 +276,7 @@ describe('oxyMediaStore.uploadCachedMedia', () => {
     await uploadCachedMedia({ filePath, contentType: 'video/mp4' });
 
     expect(requests[0].options.headers['x-original-name']).toBeUndefined();
-    expect(requests[0].options.headers['Content-Type']).toBe('video/mp4');
+    expect(requests[0].options.headers['content-type']).toBe('video/mp4');
   });
 
   it('throws OxyMediaStoreRequestError on a non-2xx upload response', async () => {
@@ -269,8 +323,7 @@ describe('oxyMediaStore.uploadCachedMedia', () => {
     expect(result.oxyFileId).toBe('oxy_file_after_retry');
 
     // The cached token was dropped exactly once, and a fresh token minted per attempt.
-    expect(invalidateServiceToken).toHaveBeenCalledTimes(1);
-    expect(serviceToken).toHaveBeenCalledTimes(2);
+    expect(mint).toHaveBeenCalledTimes(2);
 
     // Two POSTs were issued; the retry re-opened the file and streamed the FULL body.
     expect(requests).toHaveLength(2);
@@ -290,7 +343,7 @@ describe('oxyMediaStore.uploadCachedMedia', () => {
 
     // Recovered exactly once: 2 requests, 1 invalidation, no infinite retry loop.
     expect(requests).toHaveLength(2);
-    expect(invalidateServiceToken).toHaveBeenCalledTimes(1);
+    expect(mint).toHaveBeenCalledTimes(2);
   });
 
   it('does NOT invalidate the token on a non-401 upload failure', async () => {
@@ -303,7 +356,7 @@ describe('oxyMediaStore.uploadCachedMedia', () => {
     );
 
     expect(requests).toHaveLength(1);
-    expect(invalidateServiceToken).not.toHaveBeenCalled();
+    expect(mint).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -338,8 +391,8 @@ describe('oxyMediaStore.uploadFederatedMedia', () => {
     expect(sent.options.method).toBe('POST');
     expect(sent.options.hostname).toBe('oxy.test');
     expect(sent.options.path).toBe('/assets/service/federation');
-    expect(sent.options.headers.Authorization).toBe(`Bearer ${SERVICE_TOKEN}`);
-    expect(sent.options.headers['Content-Type']).toBe('image/jpeg');
+    expect(sent.options.headers.authorization).toBe(`Bearer ${SERVICE_TOKEN}`);
+    expect(sent.options.headers['content-type']).toBe('image/jpeg');
     expect(sent.options.headers['x-original-name']).toBe('photo.jpg');
     expect(sent.options.headers['x-owner-user-id']).toBe('6a3000000000000000000000');
     expect(JSON.parse(sent.options.headers['x-media-metadata'])).toEqual({
@@ -404,7 +457,7 @@ describe('oxyMediaStore.deleteCachedMedia', () => {
     const sent = requests[0];
     expect(sent.options.method).toBe('DELETE');
     expect(sent.options.path).toBe('/assets/service/cache/oxy_file_to_delete');
-    expect(sent.options.headers.Authorization).toBe(`Bearer ${SERVICE_TOKEN}`);
+    expect(sent.options.headers.authorization).toBe(`Bearer ${SERVICE_TOKEN}`);
     // No body is streamed on delete.
     expect(sent.bodyChunks).toHaveLength(0);
   });
@@ -446,12 +499,11 @@ describe('oxyMediaStore.deleteCachedMedia', () => {
 
     await deleteCachedMedia('oxy_file_to_delete');
 
-    expect(invalidateServiceToken).toHaveBeenCalledTimes(1);
-    expect(serviceToken).toHaveBeenCalledTimes(2);
+    expect(mint).toHaveBeenCalledTimes(2);
     expect(requests).toHaveLength(2);
     expect(requests[1].options.method).toBe('DELETE');
     expect(requests[1].options.path).toBe('/assets/service/cache/oxy_file_to_delete');
-    expect(requests[1].options.headers.Authorization).toBe(`Bearer ${SERVICE_TOKEN}`);
+    expect(requests[1].options.headers.authorization).toBe(`Bearer ${SERVICE_TOKEN}`);
   });
 
   it('throws when the delete retry also returns 401', async () => {
@@ -460,7 +512,7 @@ describe('oxyMediaStore.deleteCachedMedia', () => {
     await expect(deleteCachedMedia('missing')).rejects.toBeInstanceOf(OxyMediaStoreRequestError);
 
     expect(requests).toHaveLength(2);
-    expect(invalidateServiceToken).toHaveBeenCalledTimes(1);
+    expect(mint).toHaveBeenCalledTimes(2);
   });
 
   it('does NOT invalidate the token on a non-401 delete failure', async () => {
@@ -469,7 +521,7 @@ describe('oxyMediaStore.deleteCachedMedia', () => {
     await expect(deleteCachedMedia('missing')).rejects.toBeInstanceOf(OxyMediaStoreRequestError);
 
     expect(requests).toHaveLength(1);
-    expect(invalidateServiceToken).not.toHaveBeenCalled();
+    expect(mint).toHaveBeenCalledTimes(1);
   });
 });
 

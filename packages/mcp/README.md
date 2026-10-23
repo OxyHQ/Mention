@@ -344,7 +344,7 @@ tells its client to reconnect.
 
 ### Frontend UI
 
-- `auth.oxy.so` — central account selection and consent for all connections
+- `auth.oxy.so` — central account selection and consent for external MCP clients
 - `packages/frontend/components/settings/pages/connected-ai.tsx` — the account's connectors for this MCP resource, read from and revoked through Oxy
 
 ## Environment variables
@@ -357,8 +357,6 @@ tells its client to reconnect.
 | `MENTION_API_TIMEOUT_MS` | `10000` | Per-attempt Mention API timeout; GET retries once |
 | `MENTION_MCP_PUBLIC_URL` | `https://mcp.mention.earth` | Exact protected resource |
 | `OXY_API_URL` | `https://api.oxy.so` | Central OAuth issuer and introspection API |
-| `OXY_SERVICE_API_KEY` | (optional) | Mention service credential id. A deployed task attests its ECS role instead and carries neither ([oxy ADR 0026][adr-0026]); set both where nothing can attest, such as a laptop. |
-| `OXY_SERVICE_API_SECRET` | (optional) | The secret half. Both or neither — half a pair builds a client whose every call fails at the token. |
 | `MCP_PORT` | `3100` | HTTP listen port |
 | `MCP_ALLOWED_ORIGINS` | Claude defaults | Extra CORS origins |
 | `MCP_MAX_REQUEST_BODY_BYTES` | `1048576` | Maximum JSON request body retained in memory |
@@ -369,10 +367,15 @@ tells its client to reconnect.
 | Variable | Purpose |
 |----------|---------|
 | `OXY_API_URL` | Central introspection API |
-| `OXY_SERVICE_API_KEY` / `OXY_SERVICE_API_SECRET` | Live service authentication to Oxy, where the process cannot attest its task role |
 | `MENTION_MCP_JWT_SECRET` | No longer signs anything; only the last fallback salt for `IP_HASH_SALT` |
 
 Secrets live only in SSM `/oxy/mention/*` and `/oxy/mention-mcp/*`, set by their owner; no workflow writes them ([docs/AWS_DEPLOYMENT.md](../../docs/AWS_DEPLOYMENT.md#runtime-secrets)).
+
+Both own processes use the shared AWS workload provider and an active registered
+role binding. Local development uses temporary assumed-role or SSO credentials
+through that same provider. Customer API keys are not a fallback for a process
+without workload identity. The external client's OAuth consent and revocation
+remain independent of the server's own workload authentication.
 
 ## Deployment (AWS)
 
