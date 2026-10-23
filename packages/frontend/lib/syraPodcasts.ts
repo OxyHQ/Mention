@@ -17,13 +17,12 @@ import { SYRA_API_URL } from '@/config';
  */
 let clientPromise: Promise<SyraClient> | null = null;
 
-type SyraSdk = Pick<typeof import('@syra.fm/sdk/client'), 'createSyraClient'>;
+type SyraSdk = Pick<typeof import('@syra.fm/sdk/client'), 'syraForOxySession'>;
 
 /** The client for a loaded SDK. Split out so it is testable without a dynamic import. */
-export function buildSyraClient({ createSyraClient }: SyraSdk): SyraClient {
-  return createSyraClient({
+export function buildSyraClient({ syraForOxySession }: SyraSdk): SyraClient {
+  return syraForOxySession(oxyServices, {
     baseURL: SYRA_API_URL.replace(/\/api\/?$/, ''),
-    getAccessToken: () => oxyServices.http.getAccessToken(),
   });
 }
 

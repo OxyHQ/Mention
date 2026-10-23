@@ -32,32 +32,37 @@ export async function inferenceChat(
   messages: InferenceChatMessage[],
   options: InferenceChatOptions,
 ): Promise<string> {
-  const response = await (await kaanaClient()).responses.create(
-    {
-      model: MENTION_TEXT_POWER_LEVEL,
-      input: messages.map((message) => ({
-        role: message.role,
-        content: [{ type: 'text', text: message.content }],
-      })),
-      labels: { product: 'mention', feature: options.feature },
-      ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
-      maxOutputTokens: Math.min(
-        options.maxTokens ?? DEFAULT_OUTPUT_TOKENS,
-        MENTION_MAX_OUTPUT_TOKENS,
-      ),
-    },
-    {
-      timeoutMs: config.inference.timeoutMs,
-      ...(options.delegatedUserId === undefined
-        ? {}
-        : { onBehalfOfUserId: options.delegatedUserId }),
-    },
-  );
-  return response.output
-    .filter((message) => message.role === 'assistant')
-    .flatMap((message) => message.content)
-    .flatMap((part) => (part.type === 'text' || part.type === 'refusal' ? [part.text] : []))
-    .join('');
+  const client = await kaanaClient(options.delegatedUserId);
+  try {
+    const response = await client.responses.create(
+      {
+        model: MENTION_TEXT_POWER_LEVEL,
+        input: messages.map((message) => ({
+          role: message.role,
+          content: [{ type: 'text', text: message.content }],
+        })),
+        labels: { product: 'mention', feature: options.feature },
+        ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
+        maxOutputTokens: Math.min(
+          options.maxTokens ?? DEFAULT_OUTPUT_TOKENS,
+          MENTION_MAX_OUTPUT_TOKENS,
+        ),
+      },
+      {
+        timeoutMs: config.inference.timeoutMs,
+        ...(options.delegatedUserId === undefined
+          ? {}
+          : { onBehalfOfUserId: options.delegatedUserId }),
+      },
+    );
+    return response.output
+      .filter((message) => message.role === 'assistant')
+      .flatMap((message) => message.content)
+      .flatMap((part) => (part.type === 'text' || part.type === 'refusal' ? [part.text] : []))
+      .join('');
+  } finally {
+    if (options.delegatedUserId) client.dispose();
+  }
 }
 
 /** Send a request and parse its text output as JSON. */
