@@ -41,7 +41,7 @@ without replacing Bloom with test mocks.
 `lib/hlsPlayback.web.ts` uses the normal Expo/Jest transform plus the existing
 promise-based dynamic-import transform used by the row-cost harness. This narrow
 Jest override lets its real lifecycle and playback-controller code execute while
-`hls.js` is mocked at the external decoder boundary. Production keeps Metro's
+[hls.js](https://github.com/video-dev/hls.js) is mocked at the external decoder boundary. Production keeps Metro's
 lazy chunk unchanged. Tests assert loading demand, buffer-preserving resume,
 source/player changes, fatal fallback, cancelled imports and cleanup; Playwright
 separately verifies actual decoded frames.
