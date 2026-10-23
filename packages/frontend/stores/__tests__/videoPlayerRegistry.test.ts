@@ -62,6 +62,7 @@ import {
   __resetVideoPlayerRegistry,
   acquireVideoPlayer,
   holdAcrossTransition,
+  pendingVideoTransition,
   releaseTransitionHold,
   peekVideoPlayer,
   useVideoPlayerLease,
@@ -444,4 +445,53 @@ describe('holding a player across a route change', () => {
 
     expect(entryFor(KEY).refCount).toBe(1);
   });
+});
+
+describe('cancelled handoff', () => {
+  it('releases the bridge while the mounted flight view keeps the decoder alive', () => {
+    const origin = acquire(KEY, SOURCE);
+    const view = acquire(KEY, SOURCE);
+    const cancel = holdAcrossTransition(KEY, SOURCE);
+    origin.release();
+    expect(cancel()).toBe(true);
+    expect(cancel()).toBe(false);
+    expect(entryFor(KEY).refCount).toBe(1);
+    expect(mockVideo.created[0].releaseCount).toBe(0);
+    view.release();
+    expect(entryFor(KEY)).toBeUndefined();
+    expect(mockVideo.created[0].releaseCount).toBe(1);
+  });
+
+  it('does not let an old navigation cancel a newer bridge for the same media', () => {
+    holdAcrossTransition(KEY, SOURCE);
+    const old = pendingVideoTransition('post-1');
+    expect(pendingVideoTransition('unrelated')).toBeNull();
+    const cancel = holdAcrossTransition(KEY, SOURCE);
+    expect(old?.release()).toBe(false);
+    expect(entryFor(KEY).refCount).toBe(1);
+    expect(cancel()).toBe(true);
+    expect(entryFor(KEY)).toBeUndefined();
+  });
+
+  it('makes cancellation inert after a destination has acquired its lease', () => {
+    const cancel = holdAcrossTransition(KEY, SOURCE);
+    const destination = acquire(KEY, SOURCE);
+    releaseTransitionHold(KEY);
+    expect(cancel()).toBe(false);
+    expect(entryFor(KEY).refCount).toBe(1);
+    destination.release();
+    expect(entryFor(KEY)).toBeUndefined();
+  });
+});
+
+it('retires a superseded flight, but preserves the flight when the same media is retapped', () => {
+  const retiredFirst = jest.fn();
+  const retiredSecond = jest.fn();
+  holdAcrossTransition(KEY, SOURCE, retiredFirst);
+  holdAcrossTransition(KEY, SOURCE, retiredSecond);
+  expect(retiredFirst).not.toHaveBeenCalled();
+  holdAcrossTransition(OTHER_KEY, SOURCE);
+  expect(retiredSecond).toHaveBeenCalledTimes(1);
+  expect(entryFor(KEY)).toBeUndefined();
+  expect(entryFor(OTHER_KEY).refCount).toBe(1);
 });

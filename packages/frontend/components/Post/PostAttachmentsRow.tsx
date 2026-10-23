@@ -41,7 +41,7 @@ import type {
   MeasureThumb,
   MeasuredRect,
 } from '@oxy.so/bloom/zoomable-media-gallery';
-import { useMediaFlight } from '@oxy.so/bloom/media-flight';
+import { useMediaFlight, hasFlight, releaseFlight } from '@oxy.so/bloom/media-flight';
 import {
   holdAcrossTransition,
   peekVideoPlayer,
@@ -664,15 +664,15 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
         // mean there is nothing to carry, not that navigation should fail.
         const flightId = videoPlayerKey(postId, mediaId);
         const player = peekVideoPlayer(flightId);
+        let releaseBridge: (() => boolean) | undefined;
+        const cancelFlight = () => {
+          // Native Bloom owns its flying surface until adoption. On web the
+          // persistent PlaybackVideoView holds its own lease during unbinding.
+          if (Platform.OS !== 'web' && hasFlight(flightId)) return;
+          if (releaseBridge?.()) releaseFlight(flightId);
+        };
         if (player) {
           try {
-            // Take a reference for the transition itself. Between this row
-            // unmounting with its route and the reel slide mounting to take its
-            // own, NOBODY owns the player — measured, the count reaches zero in
-            // that gap and the registry does the correct thing with it, which is
-            // to destroy the video being handed over.
-            holdAcrossTransition(flightId, mediaSrcById.get(mediaId) ?? '');
-
             // Bounded, and on purpose. `measureAnchor` resolves ONLY from inside
             // `measureInWindow`'s callback, so a host node that never calls back —
             // or that has no such method to begin with — leaves this awaiting for
@@ -702,19 +702,30 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
               const destination = panel
                 ? { x: panel.x, y: 0, width: panel.width, height: window.height }
                 : { x: 0, y: 0, width: window.width, height: window.height };
-              await Promise.race([
-                flyTo(
+              // Measurement can outlive the origin row. Re-read immediately
+              // before taking the bridge; no await separates these operations.
+              const livePlayer = peekVideoPlayer(flightId);
+              if (livePlayer) {
+                releaseBridge = holdAcrossTransition(
                   flightId,
-                  destination,
-                  { kind: 'video', player, poster: posterByMediaId.get(mediaId) },
-                  // The reel letterboxes rather than crops, so the surface stops
-                  // cropping on the way in or the picture would jump at the landing.
-                  { from, contentFit: 'contain', cornerRadius: 0 },
-                ),
-                new Promise<void>((resolve) => setTimeout(resolve, FLIGHT_STEP_TIMEOUT_MS)),
-              ]);
+                  mediaSrcById.get(mediaId) ?? '',
+                  Platform.OS === 'web' ? () => releaseFlight(flightId) : undefined,
+                );
+                await Promise.race([
+                  flyTo(
+                    flightId,
+                    destination,
+                    { kind: 'video', player: livePlayer, poster: posterByMediaId.get(mediaId) },
+                    // The reel letterboxes rather than crops, so the surface stops
+                    // cropping on the way in or the picture would jump at the landing.
+                    { from, contentFit: 'contain', cornerRadius: 0 },
+                  ),
+                  new Promise<void>((resolve) => setTimeout(resolve, FLIGHT_STEP_TIMEOUT_MS)),
+                ]);
+              }
             }
           } catch (error) {
+            cancelFlight();
             logger.warn('Video flight skipped; opening the reel without it', {
               postId,
               mediaId,
@@ -723,7 +734,12 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
           }
         }
 
-        router.push(`/videos${query}`);
+        try {
+          router.push(`/videos${query}`);
+        } catch (error) {
+          cancelFlight();
+          throw error;
+        }
       },
       [postId, mediaArray, router, measureAnchor, flyTo, posterByMediaId, mediaSrcById],
     );

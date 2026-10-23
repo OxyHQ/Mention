@@ -74,6 +74,22 @@ The Screen owns available height and navigation clearance. Do not set document
 snap styles or window-sized item heights in the app. Scrollbars belong to Bloom's
 scroll owners, including the horizontal document scrollbar in Deck.
 
+Feed and reel videos render the same `PlaybackVideoView` in Bloom's persistent
+media node. Its stable internal ref owns HLS, so changing the presenter preserves
+the element, decoder and buffer. Source replacement belongs to that view and is
+serialized; presenters supply the desired source and never replace it themselves.
+`VideoPlaybackContext` decides eligibility; `video-playback-control` combines those
+answers once per shared player, retains the first-frame state, and gates loading.
+A hidden feed cannot pause the player adopted by the reel. Neighbor preloading is
+bounded by the reel window and stops when the screen or document is inactive,
+except for the actual PiP owner. Media selection includes both post and media index.
+
+The persistent video view holds its own registry lease, so cancelling a web handoff
+releases the navigation bridge without freeing a mounted decoder. No-anchor and
+no-flight paths do not retain a bridge. Native Bloom owns a separate flying view;
+its bridge remains until adoption while that native flight exists, because Bloom
+does not expose completion of its asynchronous unbinding through its public API.
+
 ## Loading screens
 
 Render the screen header and scroll owner immediately. First reads use the matching

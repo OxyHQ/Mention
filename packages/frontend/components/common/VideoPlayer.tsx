@@ -12,7 +12,9 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useVideoPlayer, type VideoPlayer as ExpoVideoPlayer } from 'expo-video';
-import { VideoView, type VideoViewHandle } from '@oxy.so/bloom/video-view';
+import type { VideoViewHandle } from '@oxy.so/bloom/video-view';
+import type { VideoPlayerKey } from '@/stores/videoPlayerRegistry';
+import { PlaybackVideoView } from './PlaybackVideoView';
 import { MediaFlightHost, type MediaFlightHostProps } from '@oxy.so/bloom/media-flight';
 import { PlayButton } from '@oxy.so/bloom/media-controls';
 import { useTranslation } from 'react-i18next';
@@ -22,7 +24,8 @@ import { RiVolumeMuteLine } from '@oxy.so/bloom/icons/RiVolumeMuteLine';
 import { RiVolumeUpLine } from '@oxy.so/bloom/icons/RiVolumeUpLine';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { useVideoPlayback } from '@/context/VideoPlaybackContext';
-import { useHlsPlayback } from '@/lib/hlsPlayback';
+import { needsJsHlsDecoder } from '@/lib/hlsPlayback';
+import { useVideoHasRenderedFrame, useVideoPlaybackControl } from '@/stores/video-playback-control';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 import { formatDuration } from '@/utils/formatDuration';
 import { videoSourceFor } from '@/utils/videoSource';
@@ -101,7 +104,7 @@ interface VideoPlayerProps {
    * picture survives this row unmounting mid-flight — and there is no element
    * here to be detached, which is what used to pause the flying video.
    */
-  flightHostId?: string;
+  flightHostId?: VideoPlayerKey;
 }
 
 /**
@@ -191,6 +194,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   player: externalPlayer,
   flightHostId,
 }) => {
+  const { t } = useTranslation();
   const isPreviewMode = onPress !== undefined && !gif;
   // Only the full controls overlay draws the playhead. A feed preview or a GIF
   // has no bar, and tracking time there re-rendered the whole player (flight
@@ -234,7 +238,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [isSeeking, setIsSeeking] = useState(false);
   // First-frame latch: once the video has rendered a frame we drop the poster
   // and never bring it back (a mid-playback re-buffer must not re-flash it).
-  const [hasRenderedFrame, setHasRenderedFrame] = useState(false);
   // Poster 404/load failure → hide it (no broken image), revealing the surface.
   const [posterFailed, setPosterFailed] = useState(false);
   // Dedupes the aspect-ratio callback: emit at most once per distinct ratio per
@@ -248,11 +251,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // `fallbackFor` doubles as the one-shot latch for `fallbackSrc`: it names the
   // source the fallback was swapped in for, so a new `src` re-arms it. One state
   // slot for both, because this component is mounted by every video row.
-  const [srcState, setSrcState] = useState<{ src: string; fallbackFor?: string }>({ src });
+  const [srcState, setSrcState] = useState<{
+    src: string;
+    fallbackFor?: string;
+    failedFor?: string;
+  }>({ src });
   const usedFallback = srcState.fallbackFor === src;
+  const hasError = srcState.failedFor === src;
   if (srcState.src !== src) {
     setSrcState({ src });
-    setHasRenderedFrame(false);
     setPosterFailed(false);
     setReportedRatio(null);
     setDuration(0);
@@ -281,24 +288,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // player's viewport center-Y AND whether it still intersects the viewport.
   const containerRef = useRef<ViewInstance>(null);
 
-  // Federated video is an HLS playlist, which Chrome and Firefox cannot decode.
-  // On web such a source is handed to hls.js, which attaches a MediaSource to
-  // this same element — so the source must be WITHHELD from expo-video (`null`),
-  // or the element would first attempt, and fail, a native load of the playlist.
-  // Inert on native: ExoPlayer/AVPlayer decode HLS themselves.
-  // Segment loading pauses with playback — but only for a player this row owns.
-  // A borrowed one may be playing somewhere else right now (a feed video carried
-  // into the reel keeps this row, and its hls.js instance, mounted underneath).
-  const { active: hlsActive, ref: hlsRef } = useHlsPlayback(
-    src,
-    videoViewRef,
-    externalPlayer ? true : mayPlay,
-    fallbackSrc,
+  const [ownSource] = useState(() =>
+    externalPlayer || needsJsHlsDecoder(src) ? null : videoSourceFor(src),
   );
-
-  // `videoSourceFor` returns one object per url, so this is stable across
-  // renders — `useVideoPlayer` rebuilds its player when the source changes.
-  const ownSource = externalPlayer || hlsActive ? null : videoSourceFor(src);
 
   // Built unconditionally so the hook order never depends on a prop, but with a
   // `null` source when a player was handed in — a null-sourced player opens no
@@ -309,6 +301,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     p.timeUpdateEventInterval = tracksTime ? TIME_UPDATE_INTERVAL : 0;
   });
   const player = externalPlayer ?? ownPlayer;
+  const hasRenderedFrame = useVideoHasRenderedFrame(player);
+  const desiredSource = usedFallback && fallbackSrc ? fallbackSrc : src;
 
   // The setup callback above only ever runs for the player built here, so a
   // borrowed one is configured from this effect instead. Idempotent property
@@ -341,7 +335,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // Player events. `useEvent` / `useEventListener` (from expo) own the
   // subscription AND its removal, so playback state is derived from the player's
   // own event stream instead of hand-rolled listener effects.
-  const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: false });
+  const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
 
   useEventListener(player, 'playingChange', ({ isPlaying: playing }) => {
     if (playing) {
@@ -355,16 +349,20 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   });
 
+  const handleSourceError = useCallback(() => {
+    if (fallbackSrc && !usedFallback) setSrcState({ src, fallbackFor: src });
+    else
+      setSrcState((previous) =>
+        previous.failedFor === src ? previous : { ...previous, failedFor: src },
+      );
+  }, [fallbackSrc, usedFallback, src]);
+
   useEventListener(player, 'statusChange', ({ status }) => {
-    if (status === 'error' && fallbackSrc && !usedFallback) {
-      setSrcState({ src, fallbackFor: src });
-      player.replaceAsync(videoSourceFor(fallbackSrc)).catch(() => {
-        // A rejected swap leaves the failed source in place; nothing to add.
-      });
+    if (status === 'error') {
+      handleSourceError();
       return;
     }
     if (status !== 'readyToPlay') return;
-    setHasRenderedFrame(true);
     if (player.duration > 0) {
       setDuration(player.duration);
     }
@@ -425,19 +423,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     return () => observer.disconnect();
   }, [reportVisibility]);
 
-  // The ONE playback signal: the authority already folded visibility, screen
-  // focus, app foreground and the single-audible-slot rule into `shouldPlay`.
-  // `autoPlay` only gates AUTOMATIC start, so a manually started video keeps
-  // playing; anything the authority disallows always pauses.
-  useEffect(() => {
-    if (!mayPlay) {
-      player.pause();
-      return;
-    }
-    if (autoPlay) {
-      player.play();
-    }
-  }, [player, mayPlay, autoPlay]);
+  const [manualPlayback, setManualPlayback] = useState<boolean | null>(null);
+  const [previousMayPlay, setPreviousMayPlay] = useState(mayPlay);
+  if (previousMayPlay !== mayPlay) {
+    setPreviousMayPlay(mayPlay);
+    if (!mayPlay) setManualPlayback(null);
+  }
+  useVideoPlaybackControl(player, mayPlay && !hasError && (manualPlayback ?? autoPlay));
 
   useEffect(() => {
     return () => {
@@ -462,6 +454,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   const handlePlayPause = useCallback(() => {
     if (isPlaying) {
+      setManualPlayback(false);
       player.pause();
       // Keep controls visible when paused
       if (hideControlsTimer.current) {
@@ -472,6 +465,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     // Manual play wins: claim the audible slot so this becomes THE playing video
     // and every other on-screen video pauses.
     claimActive();
+    setManualPlayback(true);
     player.play();
     scheduleHideControls();
   }, [player, isPlaying, scheduleHideControls, claimActive]);
@@ -532,8 +526,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // stops an outgoing surface pausing the one that just landed.
   const renderFlightVideo = useCallback(
     ({ player: slotPlayer, style: slotStyle, contentFit: slotFit }: FlightVideoSlotProps) => (
-      <VideoView
-        ref={hlsRef}
+      <PlaybackVideoView
+        ref={videoViewRef}
+        registryKey={flightHostId}
+        source={desiredSource}
+        fallbackSource={fallbackSrc}
+        onSourceError={handleSourceError}
+        detached={slotPlayer === null}
         // `null` is forwarded verbatim — it is the instruction to unbind
         // this element, and expo-video answers it by emptying the source
         // without an event, which is what stops an outgoing surface
@@ -542,7 +541,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         // that is the object this component already holds, fully typed.
         // Narrowed rather than cast, because `VideoPlayerLike` is
         // deliberately smaller than expo-video's `VideoPlayer`.
-        player={slotPlayer === null ? null : player}
+        player={player}
         style={slotStyle}
         contentFit={slotFit}
         nativeControls={false}
@@ -550,7 +549,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         allowsPictureInPicture={false}
       />
     ),
-    [player, isPreviewMode, gif, hlsRef],
+    [player, flightHostId, isPreviewMode, gif, desiredSource, fallbackSrc, handleSourceError],
   );
 
   const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
@@ -559,8 +558,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   return (
     <View ref={containerRef} style={[styles.container, style]}>
       {flightHostId === undefined ? (
-        <VideoView
-          ref={hlsRef}
+        <PlaybackVideoView
+          ref={videoViewRef}
+          source={desiredSource}
+          fallbackSource={fallbackSrc}
+          onSourceError={handleSourceError}
           player={player}
           style={styles.video}
           contentFit={contentFit}
@@ -599,6 +601,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         />
       )}
 
+      {hasError && (
+        <View
+          className="absolute inset-0 items-center justify-center bg-black/60"
+          pointerEvents="none"
+          accessibilityRole="alert"
+        >
+          <Text className="text-sm text-white">{t('videos.unavailable')}</Text>
+        </View>
+      )}
+
       {!gif &&
         (isPreviewMode ? (
           <>
@@ -608,7 +620,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
             {/* The browser refused to start this video — Safari does without a
                 tap, always in Low Power Mode — so offer the tap that starts it
                 here, rather than a still frame that looks like the video. */}
-            {mayPlay && !isPlaying && (
+            {mayPlay && !isPlaying && !hasError && (
               <VideoPlayPauseButton playing={false} onPress={handlePlayPause} />
             )}
 
