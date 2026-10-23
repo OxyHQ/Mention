@@ -12,15 +12,18 @@
  */
 
 import type { MediaItem } from '@mention/shared-types';
-import { and, asc, gt, sql } from 'drizzle-orm';
+import { parseArgs } from 'node:util';
+import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { connectPostgres, getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
-import { postMedia } from '../db/schema/postContent';
+import { postContentVariants, postMedia, postVariantMedia } from '../db/schema/postContent';
 import { findPostRecords } from '../db/posts/postRepository';
 import {
   mediaMetadataChanged,
   mediaMetadataService,
   isOxyFileId,
+  mergeMediaItem,
+  readPersistedMediaFields,
 } from '../services/MediaMetadataService';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
@@ -169,11 +172,153 @@ async function applyMediaMetadata(writes: readonly MediaMetadataWrite[]): Promis
   `);
 }
 
+interface FileMediaMetadataWrite {
+  rowId: string;
+  postId: string;
+  item: MediaItem;
+}
+
+/** A concurrent edit may replace a row or its file while Oxy is being read. */
+async function applyFileMediaMetadata(
+  table: typeof postMedia | typeof postVariantMedia,
+  writes: readonly FileMediaMetadataWrite[],
+): Promise<Set<string>> {
+  if (writes.length === 0) return new Set();
+  const values = writes.map(
+    ({ rowId, item }) => sql`(
+      ${rowId}::text, ${item.id}::text,
+      ${item.width ?? null}::integer, ${item.height ?? null}::integer,
+      ${item.durationSec ?? null}::double precision,
+      ${item.orientation ?? null}::text, ${item.aspectRatio ?? null}::double precision,
+      ${item.sizeBytes ?? null}::integer, ${item.hlsReadyAt ?? null}::timestamptz
+    )`,
+  );
+  const updated = await getDb().execute<{ id: string }>(sql`
+    update ${table} set
+      width = v.width, height = v.height, duration_sec = v.duration_sec,
+      orientation = v.orientation, aspect_ratio = v.aspect_ratio,
+      size_bytes = v.size_bytes, hls_ready_at = v.hls_ready_at
+    from (values ${sql.join(values, sql`, `)})
+      as v(id, media_id, width, height, duration_sec, orientation, aspect_ratio, size_bytes, hls_ready_at)
+    where ${table.id} = v.id and ${table.mediaId} = v.media_id and ${table.type} = 'video'
+    returning ${table.id}
+  `);
+  return new Set(updated.map((row) => row.id));
+}
+
+/** Refresh valid but stale metadata after Oxy replaces a video's encoding profile. */
+async function refreshFileMediaMetadata(
+  fileId: string,
+  pageSize: number,
+  dryRun: boolean,
+): Promise<BackfillMediaMetadataResult> {
+  const db = getDb();
+  const result: BackfillMediaMetadataResult = { scanned: 0, updated: 0, skipped: 0, unresolved: 0 };
+  let lastId: string | undefined;
+  for (;;) {
+    // Both arms start at the media_id index; a targeted repair never scans or
+    // hydrates every post to find the few references to one file.
+    const page = await db.execute<{ id: string }>(sql`
+      select id from (
+        select ${postMedia.postId} as id from ${postMedia}
+          where ${postMedia.mediaId} = ${fileId} and ${postMedia.type} = 'video'
+        union
+        select ${postContentVariants.postId} as id from ${postVariantMedia}
+          join ${postContentVariants} on ${postContentVariants.id} = ${postVariantMedia.variantId}
+          where ${postVariantMedia.mediaId} = ${fileId} and ${postVariantMedia.type} = 'video'
+      ) references_file
+      where ${lastId ? sql`id > ${lastId}` : sql`true`}
+      order by id limit ${pageSize}
+    `);
+    if (page.length === 0) break;
+    const postIds = page.map((row) => row.id);
+    lastId = postIds[postIds.length - 1];
+    result.scanned += page.length;
+    const [sharedRows, variantRows] = await Promise.all([
+      db
+        .select({ media: postMedia, postId: postMedia.postId })
+        .from(postMedia)
+        .where(
+          and(
+            inArray(postMedia.postId, postIds),
+            eq(postMedia.mediaId, fileId),
+            eq(postMedia.type, 'video'),
+          ),
+        ),
+      db
+        .select({ media: postVariantMedia, postId: postContentVariants.postId })
+        .from(postVariantMedia)
+        .innerJoin(postContentVariants, eq(postContentVariants.id, postVariantMedia.variantId))
+        .where(
+          and(
+            inArray(postContentVariants.postId, postIds),
+            eq(postVariantMedia.mediaId, fileId),
+            eq(postVariantMedia.type, 'video'),
+          ),
+        ),
+    ]);
+    const rows = [...sharedRows, ...variantRows];
+    const current: MediaItem[] = rows.map(({ media }) => ({
+      id: media.mediaId,
+      type: 'video',
+      ...readPersistedMediaFields({ ...media, hlsReadyAt: media.hlsReadyAt?.toISOString() }),
+    }));
+    const lookup: MediaItem[] = [{ id: fileId, type: 'video' }];
+    const [resolved] = await enrichWithRetry(lookup);
+    const metadata = resolved ? readPersistedMediaFields({ ...resolved }) : {};
+    // Start the lookup without old values, so a missing or not-yet-repaired
+    // asset cannot borrow its old dimensions or ladder stamp and look complete.
+    if (
+      !metadata.width ||
+      !metadata.height ||
+      !metadata.durationSec ||
+      !metadata.orientation ||
+      !metadata.aspectRatio ||
+      !metadata.hlsReadyAt
+    ) {
+      result.unresolved += page.length;
+    } else {
+      const sharedWrites: FileMediaMetadataWrite[] = [];
+      const variantWrites: FileMediaMetadataWrite[] = [];
+      rows.forEach((row, index) => {
+        const previous = current[index];
+        if (!previous) return;
+        const item = mergeMediaItem(previous, metadata);
+        if (!mediaMetadataChanged([previous], [item])) return;
+        const writes = index < sharedRows.length ? sharedWrites : variantWrites;
+        writes.push({ rowId: row.media.id, postId: row.postId, item });
+      });
+      const writes = [...sharedWrites, ...variantWrites];
+      let changed = writes;
+      if (!dryRun) {
+        const sharedUpdated = await applyFileMediaMetadata(postMedia, sharedWrites);
+        const variantUpdated = await applyFileMediaMetadata(postVariantMedia, variantWrites);
+        changed = [
+          ...sharedWrites.filter((write) => sharedUpdated.has(write.rowId)),
+          ...variantWrites.filter((write) => variantUpdated.has(write.rowId)),
+        ];
+      }
+      const updated = new Set(changed.map((write) => write.postId)).size;
+      result.updated += updated;
+      result.skipped += page.length - updated;
+    }
+    logger.info('[backfillMediaMetadata] progress', { dryRun, fileId, ...result });
+    if (page.length < pageSize) break;
+  }
+  return result;
+}
+
 export async function backfillMediaMetadata(
-  opts: { batchSize?: number; dryRun?: boolean } = {},
+  opts: { batchSize?: number; dryRun?: boolean; fileId?: string } = {},
 ): Promise<BackfillMediaMetadataResult> {
   const pageSize = opts.batchSize ?? DEFAULT_PAGE_SIZE;
   const dryRun = opts.dryRun ?? false;
+  if (opts.fileId !== undefined) {
+    if (!isOxyFileId(opts.fileId) || opts.fileId !== opts.fileId.trim()) {
+      throw new Error('--file-id must name one Oxy file, not a remote URL');
+    }
+    return refreshFileMediaMetadata(opts.fileId, pageSize, dryRun);
+  }
 
   // "Has at least one media row that still NEEDS enriching", as an EXISTS over
   // the child table. It replaces a plain "has any media row" probe, and the
@@ -316,7 +461,14 @@ export async function backfillMediaMetadata(
 }
 
 async function main(): Promise<void> {
-  const dryRun = process.argv.includes('--dry-run');
+  const { values } = parseArgs({
+    options: {
+      'dry-run': { type: 'boolean', default: false },
+      'file-id': { type: 'string' },
+    },
+  });
+  const dryRun = values['dry-run'];
+  const fileId = values['file-id'];
 
   try {
     assertAdminMutationAllowed({
@@ -324,8 +476,8 @@ async function main(): Promise<void> {
       dryRun,
     });
     await connectPostgres();
-    const result = await backfillMediaMetadata({ dryRun });
-    logger.info('[backfillMediaMetadata] complete', { dryRun, ...result });
+    const result = await backfillMediaMetadata({ dryRun, fileId });
+    logger.info('[backfillMediaMetadata] complete', { dryRun, fileId, ...result });
     // A sweep that could not resolve some posts is INCOMPLETE, not failed:
     // everything it did write is committed, and the posts it missed never left
     // the candidate set, so a re-run picks them up. Saying so with a distinct

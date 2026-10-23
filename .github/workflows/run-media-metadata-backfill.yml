@@ -5,6 +5,8 @@ name: Run media-metadata backfill
 # `aspect_ratio`, `size_bytes`. Oxy derives those by probing the asset AFTER the
 # upload call returns, so a post is created before they exist and an enrichment
 # pass fills them in later.
+# Optional file_id refreshes even complete metadata for that Oxy video after
+# a rendition repair, including language-variant media overrides.
 #
 # WHY THE BACKLOG EXISTS, and why it is not small. `MediaMetadataService`
 # decided which media items were worth asking Oxy about with a 24-hex ObjectId
@@ -43,8 +45,8 @@ name: Run media-metadata backfill
 #
 # WHAT IT WRITES. Only the intrinsic-metadata fields, and only from Oxy's own
 # answer for that asset id. It never deletes, never touches text, alt text,
-# authorship or engagement, and it rewrites a post's content graph only when at
-# least one field actually changes.
+# authorship or engagement. Rows are updated in place only when intrinsic
+# metadata changes; targeted writes also match the row and file identity.
 #
 #   dry_run=true (the default) → reads only, and reports how many posts WOULD be
 #     updated. This is the run to read first: it is also the measurement of how
@@ -68,10 +70,13 @@ on:
         description: 'For a real write, enter: BACKFILL MEDIA METADATA'
         required: false
         type: string
+      file_id:
+        description: 'Optional Oxy video file id: refresh existing metadata in shared and language-variant media'
+        required: false
+        type: string
 
 concurrency:
-  # Two sweeps would ask Oxy about the same assets twice and race on the
-  # delete-then-insert that rewrites a post's media rows.
+  # Two repairs would ask Oxy about the same assets twice and race on writes.
   group: backfill-media-metadata
   cancel-in-progress: false
 
@@ -178,6 +183,7 @@ jobs:
           IMAGE: ${{ steps.ecr.outputs.registry }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
           DRY_RUN: ${{ inputs.dry_run }}
           CONFIRM_WRITE: ${{ inputs.confirm_write }}
+          FILE_ID: ${{ inputs.file_id }}
         run: |
           set -euo pipefail
           BACKFILL_TASK_DEF=""
@@ -268,12 +274,14 @@ jobs:
           OVERRIDES=$(jq -nc \
             --arg name "$CONTAINER" \
             --arg apply "$APPLY" \
+            --arg fileId "$FILE_ID" \
             '{containerOverrides:[{
                name: $name,
                command: (
                  ["busybox","timeout","-s","TERM","-k","30","3300",
                   "bun","packages/backend/dist/src/scripts/backfillMediaMetadata.js"]
                  + (if $apply == "true" then [] else ["--dry-run"] end)
+                 + (if $fileId == "" then [] else ["--file-id", $fileId] end)
                ),
                environment: (
                  if $apply == "true"
