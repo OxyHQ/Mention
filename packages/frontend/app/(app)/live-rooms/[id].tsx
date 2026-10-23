@@ -1,7 +1,7 @@
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useEffect, useState, useCallback, useContext } from 'react';
-import { View, Text, TouchableOpacity, Share } from 'react-native';
+import { View, Text, Share } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useQueries } from '@tanstack/react-query';
 import { queryKeys } from '@oxy.so/services/ui/client';
@@ -29,6 +29,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@oxy.so/bloom/dropdown-menu';
+import { PageFooter } from '@oxy.so/bloom/page-footer';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Text as BloomText } from '@oxy.so/bloom/typography';
@@ -48,7 +49,7 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { confirmDialog } from '@/utils/alerts';
 import { reportService } from '@/services/reportService';
 import { ReportModal } from '@/components/report/ReportModal';
-import { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR } from '@/styles/colors';
+import { LIVE_INDICATOR_COLOR } from '@/styles/colors';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
@@ -332,62 +333,63 @@ const RoomDetailScreen = () => {
         bottomBar={
           // Actions — a live host gets Join + End side by side, hence the row.
           !loading && room ? (
-            <View className="flex-row gap-2 px-4 py-3 bg-card border-t border-border">
-              {isLive && (
-                <TouchableOpacity
-                  className="flex-1 flex-row items-center justify-center gap-2 py-3.5 rounded-3xl bg-primary"
-                  style={{ opacity: actionLoading ? 0.6 : 1 }}
-                  onPress={() => joinLiveRoom(id)}
-                  disabled={actionLoading}
-                >
-                  <RiBroadcastLine width={20} height={20} fill={theme.colors.primaryForeground} />
-                  <Text className="text-base font-semibold text-primary-foreground">Join Live</Text>
-                </TouchableOpacity>
-              )}
-              {isHost && isScheduled && (
-                <TouchableOpacity
-                  className="flex-1 flex-row items-center justify-center gap-2 py-3.5 rounded-3xl bg-primary"
-                  style={{ opacity: actionLoading ? 0.6 : 1 }}
-                  onPress={handleStartRoom}
-                  disabled={actionLoading}
-                >
-                  <RiPlayFill width={20} height={20} fill={theme.colors.primaryForeground} />
-                  <Text className="text-base font-semibold text-primary-foreground">
+            <PageFooter>
+              <View className="flex-row gap-2">
+                {isLive && (
+                  <Button
+                    className="flex-1"
+                    leadingIcon={RiBroadcastLine}
+                    onPress={() => joinLiveRoom(id)}
+                    disabled={actionLoading}
+                  >
+                    Join Live
+                  </Button>
+                )}
+                {isHost && isScheduled && (
+                  <Button
+                    className="flex-1"
+                    leadingIcon={RiPlayFill}
+                    onPress={handleStartRoom}
+                    loading={actionLoading}
+                  >
                     Start Room
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {!isHost && isScheduled && (
-                <View className="flex-1 flex-row items-center justify-center gap-2 py-3.5 rounded-3xl bg-muted">
-                  <RiTimeLine width={20} height={20} fill={theme.colors.textSecondary} />
-                  <Text className="text-base font-semibold text-muted-foreground">
+                  </Button>
+                )}
+                {!isHost && isScheduled && (
+                  <Button
+                    className="flex-1"
+                    appearance="subtle"
+                    tone="neutral"
+                    leadingIcon={RiTimeLine}
+                    disabled
+                  >
                     Room not started yet
-                  </Text>
-                </View>
-              )}
-              {isHost && isLive && (
-                <TouchableOpacity
-                  className="flex-1 flex-row items-center justify-center gap-2 py-3.5 rounded-3xl"
-                  style={{
-                    backgroundColor: LIVE_INDICATOR_COLOR,
-                    opacity: actionLoading ? 0.6 : 1,
-                  }}
-                  onPress={handleEndRoom}
-                  disabled={actionLoading}
-                >
-                  <RiStopFill width={20} height={20} fill={LIVE_INDICATOR_FOREGROUND_COLOR} />
-                  <Text className="text-base font-semibold text-white">End Room</Text>
-                </TouchableOpacity>
-              )}
-              {isEnded && (
-                <View className="flex-1 flex-row items-center justify-center gap-2 py-3.5 rounded-3xl bg-muted">
-                  <RiCheckboxCircleLine width={20} height={20} fill={theme.colors.textSecondary} />
-                  <Text className="text-base font-semibold text-muted-foreground">
+                  </Button>
+                )}
+                {isHost && isLive && (
+                  <Button
+                    className="flex-1"
+                    tone="danger"
+                    leadingIcon={RiStopFill}
+                    onPress={handleEndRoom}
+                    loading={actionLoading}
+                  >
+                    End Room
+                  </Button>
+                )}
+                {isEnded && (
+                  <Button
+                    className="flex-1"
+                    appearance="subtle"
+                    tone="neutral"
+                    leadingIcon={RiCheckboxCircleLine}
+                    disabled
+                  >
                     This room has ended
-                  </Text>
-                </View>
-              )}
-            </View>
+                  </Button>
+                )}
+              </View>
+            </PageFooter>
           ) : undefined
         }
       >

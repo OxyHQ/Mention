@@ -629,6 +629,8 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
       scroll="auto"
       header={header}
       testID="post-screen"
+      // The reply prompt floats over the thread, which scrolls under it.
+      bottomBarPlacement="overlay"
       bottomBar={
         user && postAcceptsReplies(post) ? (
           <PageFooter scrim="auto">
