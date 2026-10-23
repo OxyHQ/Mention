@@ -146,6 +146,13 @@ outcomes. Backend TypeScript, production build and changed-file Biome pass.
 The tests use valid five-minute workload tokens; no manual-token mock bypasses
 the shared transport. Final registry-pinned composition remains pending.
 
+The final composed core 7.1 candidate (`1421bc6`) with contracts 6 and patched
+Zod 4 also passes 88 backend tests, including the transitive requester/Files
+HTTP routes, all 183 MCP tests, and backend/MCP TypeScript. That supersedes the
+older streaming-only candidate for compatibility evidence. Source is unchanged
+from the built streaming checkpoint; package publication, registry pins and
+runtime canaries remain separate release gates.
+
 Candidate validation for this caller checkpoint: 50 backend inference/classification
 tests, the Syra client integration test, backend/frontend TypeScript, backend build
 and changed-file Biome checks passed. Candidate package overrides were restored
