@@ -63,8 +63,9 @@ export const OXY_AUTH_REDIRECT_URI =
 // Public web origin used to build shareable deep links (posts, trends, rooms).
 export const WEB_BASE_URL = process.env.EXPO_PUBLIC_WEB_BASE_URL || 'https://mention.earth';
 
-// Allo store listings, for "Message in Allo" when Allo is not installed
-// (lib/alloDirectMessage.ts). Unset while Allo has no listing.
+// Allo store listings, offered when Allo is not installed and a profile's
+// "Message" or a post's "Send in Allo" is pressed (hooks/useOpenInAllo.tsx).
+// Unset while Allo has no listing.
 export const ALLO_APP_STORE_URL = process.env.EXPO_PUBLIC_ALLO_APP_STORE_URL || '';
 export const ALLO_PLAY_STORE_URL = process.env.EXPO_PUBLIC_ALLO_PLAY_STORE_URL || '';
 

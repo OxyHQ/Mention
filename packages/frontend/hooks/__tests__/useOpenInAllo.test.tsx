@@ -1,12 +1,12 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import { Linking, Platform } from 'react-native';
 import type { ActionMenuAction } from '@/components/common/actionMenuGroups';
-import { useMessageInAllo } from '../useMessageInAllo';
+import { useOpenInAllo } from '../useOpenInAllo';
 
 /**
- * The profile's envelope button binds `lib/alloDirectMessage` to the platform:
- * `Linking` for the app scheme, `openExternalLink` for the web app, and the
- * app's action menu for the "not installed" offer.
+ * Binds `@oxy.so/allo-sdk/links` (whose own tests cover which URL opens when)
+ * to the platform: `Linking` for the app scheme, `openExternalLink` for the web
+ * app, and the app's action menu for the "not installed" offer.
  */
 
 const mockShowActionMenu = jest.fn();
@@ -31,13 +31,13 @@ jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-const ID = '01929c4e-7b1a-7c3d-9e2f-0a1b2c3d4e5f';
-const WEB = `https://allo.you/c/${ID}`;
+const LINKS = { app: 'allo://c/abc', web: 'https://allo.you/c/abc' };
 
 function renderHook(): () => void {
   let press: () => void = () => undefined;
   function Probe() {
-    press = useMessageInAllo(ID, 'alice');
+    const open = useOpenInAllo();
+    press = () => open(LINKS, 'Allo is not installed.');
     return null;
   }
   act(() => {
@@ -64,25 +64,16 @@ afterEach(() => {
   setOS(originalOS);
 });
 
-it('opens the conversation in the installed app', async () => {
+it('hands the app link to the OS', async () => {
   setOS('android');
   openURL.mockResolvedValue(true);
   renderHook()();
   await flush();
-  expect(openURL).toHaveBeenCalledWith(`allo://c/${ID}`);
+  expect(openURL).toHaveBeenCalledWith(LINKS.app);
   expect(mockOpenExternalLink).not.toHaveBeenCalled();
 });
 
-it('opens the web app when Allo is not installed and has no listing', async () => {
-  setOS('android');
-  openURL.mockRejectedValue(new Error('No Activity found to handle Intent'));
-  renderHook()();
-  await flush();
-  expect(mockOpenExternalLink).toHaveBeenCalledWith(WEB);
-  expect(mockShowActionMenu).not.toHaveBeenCalled();
-});
-
-it('offers "Get Allo" and the web app when a listing is configured', async () => {
+it('offers "Get Allo" and the web app, under the caller\'s label, when Allo is not installed', async () => {
   setOS('android');
   const store = 'https://play.google.com/store/apps/details?id=com.allo.app';
   mockPlayStoreUrl = store;
@@ -96,21 +87,13 @@ it('offers "Get Allo" and the web app when a listing is configured', async () =>
   const [{ label, groups }] = mockShowActionMenu.mock.calls[0] as [
     { label: string; groups: ActionMenuAction[][] },
   ];
-  expect(label).toBe('profile.allo.notInstalled');
+  expect(label).toBe('Allo is not installed.');
   const [getApp, openWeb] = groups[0];
-  expect(getApp.label).toBe('profile.allo.getApp');
-  expect(openWeb.label).toBe('profile.allo.openWeb');
+  expect(getApp.label).toBe('allo.getApp');
+  expect(openWeb.label).toBe('allo.openWeb');
 
   getApp.onPress();
   expect(openURL).toHaveBeenLastCalledWith(store);
   openWeb.onPress();
-  expect(mockOpenExternalLink).toHaveBeenCalledWith(WEB);
-});
-
-it('opens the web app in a new tab on web', async () => {
-  setOS('web');
-  renderHook()();
-  await flush();
-  expect(mockOpenExternalLink).toHaveBeenCalledWith(WEB);
-  expect(openURL).not.toHaveBeenCalled();
+  expect(mockOpenExternalLink).toHaveBeenCalledWith(LINKS.web);
 });

@@ -35,6 +35,8 @@ export interface PostInteractions {
   toggleSave: (post: HydratedPost, source?: string) => Promise<void>;
   toggleBoost: (post: HydratedPost, source?: string) => Promise<void>;
   share: (post: HydratedPost) => void;
+  /** Send the post's permalink to someone in Allo (Mention has no chat of its own). */
+  sendInAllo: (postId: string) => void;
   openSources: (sources: PostSourceLink[]) => void;
   openInsights: (postId: string) => void;
   openCommunityNoteAbout: (note: CommunityNoteSummary) => void;
@@ -54,7 +56,12 @@ export interface PostInteractions {
  */
 export type BoundPostCommands = Pick<
   PostInteractions,
-  'requireSession' | 'openSources' | 'openInsights' | 'openCommunityNoteAbout' | 'prefetchProfile'
+  | 'requireSession'
+  | 'sendInAllo'
+  | 'openSources'
+  | 'openInsights'
+  | 'openCommunityNoteAbout'
+  | 'prefetchProfile'
 >;
 
 /** The canonical copy of a post right now, or the row's copy when the store has none. */
@@ -150,6 +157,7 @@ function createController(): Controller {
     share: (post) => {
       void sharePost(currentPost(post));
     },
+    sendInAllo: whenBound('sendInAllo'),
     openSources: whenBound('openSources'),
     openInsights: whenBound('openInsights'),
     openCommunityNoteAbout: whenBound('openCommunityNoteAbout'),

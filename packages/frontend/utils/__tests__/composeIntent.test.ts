@@ -10,7 +10,6 @@
 
 import {
   buildComposeText,
-  buildQuoteFallbackUrl,
   hasIntentContent,
   MAX_HASHTAGS,
   MAX_MENTIONS,
@@ -552,12 +551,6 @@ describe('hasIntentContent', () => {
 
   it('returns true for quotesDisabled false', () => {
     expect(hasIntentContent({ quotesDisabled: false })).toBe(true);
-  });
-});
-
-describe('buildQuoteFallbackUrl', () => {
-  it('builds canonical post URL', () => {
-    expect(buildQuoteFallbackUrl('abc123')).toBe('https://mention.earth/p/abc123');
   });
 });
 
