@@ -608,6 +608,7 @@ router.get(
 // The captured group is the handle segment (`user` or `user@domain`).
 router.get(
   namedRoutePattern(/^\/@([^/]+)(?:\/.*)?$/, '/@:handle'),
+  webShellRateLimiter,
   async (req: Request, res: Response) => {
     warmShell();
     // Express 5 has already decoded the captured segment; decoding it again
@@ -713,6 +714,7 @@ router.get(
 // remote software to guess which is canonical.
 router.get(
   namedRoutePattern(/^\/c\/([^/]+)\/?$/, '/c/:handle'),
+  webShellRateLimiter,
   async (req: Request, res: Response) => {
     warmShell();
     // Express 5 has already decoded the captured segment; decoding it again
