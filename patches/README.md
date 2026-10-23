@@ -56,6 +56,18 @@ a Pixel 8a release build: the container moves from (42, 578) to the panel's own
 renders this host); remove when upstream
 fixes `StackHost.onLayout` / `layoutContainerNow`.
 
+The same stack adds every pushed screen over the last one and never hides the
+screen it covers, so every screen of the stack stayed VISIBLE and the
+RenderThread prepared and drew all of them each frame under the top one. On a
+Pixel 10 Pro release build, scrolling a profile went from 0.9% janky frames
+(p50 8 ms) to 27% (p50 21 ms) after 20 pushed screens, nearly all of it in
+`syncFrameState`/`Drawing` behind the top screen. The patch hides the covered
+screen in the push transaction, as AndroidX intends: the screen's own
+`exitTransition` and `reenterTransition`, declared by the library and never
+played until now, run on push and pop, and popping the record (Back,
+predictive back, a JS pop) shows it again. Remove when upstream hides covered
+stack screens.
+
 # @oxy.so/bloom 6.2.0
 
 `SettingsModal` ignored a close requested before its enter frame: `show()`
