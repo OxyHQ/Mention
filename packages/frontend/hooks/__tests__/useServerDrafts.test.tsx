@@ -1,4 +1,5 @@
 import TestRenderer, { act } from 'react-test-renderer';
+import { waitUntil } from '@/test-support/waitUntil';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { HydratedPost } from '@mention/shared-types';
 
@@ -82,19 +83,6 @@ function rerender(client: QueryClient) {
   act(() => {
     renderer?.update(tree(client));
   });
-}
-
-/** Condition-based, for the reason spelled out in `useScheduledPosts.test.tsx`. */
-async function waitUntil(predicate: () => boolean, description: string): Promise<void> {
-  const FAILURE_CEILING = 500;
-  for (let attempt = 0; attempt < FAILURE_CEILING; attempt += 1) {
-    if (predicate()) return;
-    await act(async () => {
-      await Promise.resolve();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-  }
-  throw new Error(`waitUntil never saw: ${description}`);
 }
 
 function cachedIds(client: QueryClient): string[] | undefined {

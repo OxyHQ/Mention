@@ -2,6 +2,7 @@ import type React from 'react';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import TestRenderer, { act } from 'react-test-renderer';
+import { waitUntil } from '@/test-support/waitUntil';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ChannelWritersResponse } from '@mention/shared-types';
 import enMessages from '@/locales/en.json';
@@ -300,31 +301,6 @@ function render(element: React.ReactElement, client: QueryClient): TestRenderer.
   const created = renderer as unknown as TestRenderer.ReactTestRenderer;
   renderers.push(created);
   return created;
-}
-
-/**
- * Advance the world until `predicate` holds.
- *
- * CONDITION-based, and on a value the tree has actually RENDERED — never on
- * `client.isFetching()`. React Query notifies its subscribers on a macrotask
- * AFTER the fetch count drops, so a wait that stops at `isFetching() === 0`
- * reads the probe before it has re-rendered and sees the pre-settle value. That
- * is a race, and it is one that only loses under load: every case in this file
- * passed run on its own and one of them took the full suite red.
- *
- * The iteration cap is a FAILURE ceiling, not the wait — a condition that never
- * becomes true reports itself by name instead of hanging to jest's timeout.
- */
-async function waitUntil(predicate: () => boolean, description: string): Promise<void> {
-  const FAILURE_CEILING = 500;
-  for (let attempt = 0; attempt < FAILURE_CEILING; attempt += 1) {
-    if (predicate()) return;
-    await act(async () => {
-      await Promise.resolve();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-  }
-  throw new Error(`waitUntil never saw: ${description}`);
 }
 
 /**
