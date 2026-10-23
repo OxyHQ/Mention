@@ -28,86 +28,20 @@
  */
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
-import { z } from 'zod';
+import type { z } from 'zod';
+import { PostVisibility } from '@mention/shared-types';
 import type { OxyAuthRequest } from '@oxy.so/core/server';
-import { IMPORT_PLATFORMS, PostVisibility } from '@mention/shared-types';
-import { config } from '../config';
 import {
-  MAX_IMPORT_BATCH_ITEMS,
-  MAX_IMPORT_LINKS_PER_ITEM,
-  MAX_IMPORT_MEDIA_PER_ITEM,
-  postImportService,
-} from '../services/PostImportService';
+  mentionImportBatchSchema as batchSchema,
+  mentionImportLookupSchema as lookupSchema,
+  mentionImportIdSchema,
+} from '@oxy.so/mention-contracts';
+import { config } from '../config';
+import { postImportService } from '../services/PostImportService';
 import { sanitizeArticle } from '../controllers/posts/composeInput';
 import { logger } from '../utils/logger';
 
 const router = Router();
-
-/** An opaque id from another system: bounded, no whitespace at the ends. */
-const opaqueId = (label: string) =>
-  z
-    .string(`${label} must be a string`)
-    .trim()
-    .min(1, `${label} must not be empty`)
-    .max(512, `${label} must be at most 512 characters`);
-
-const httpUrl = (label: string) =>
-  z
-    .string(`${label} must be a string`)
-    .trim()
-    .max(2048, `${label} must be at most 2048 characters`)
-    .refine((value) => {
-      try {
-        const url = new URL(value);
-        return url.protocol === 'https:' || url.protocol === 'http:';
-      } catch {
-        return false;
-      }
-    }, `${label} must be an http(s) URL`);
-
-const platformSchema = z.enum(
-  IMPORT_PLATFORMS,
-  `platform must be one of: ${IMPORT_PLATFORMS.join(', ')}`,
-);
-
-const itemSchema = z.object({
-  sourceId: opaqueId('sourceId'),
-  sourceUrl: httpUrl('sourceUrl'),
-  sourceAccountId: opaqueId('sourceAccountId').optional(),
-  sourceItemId: opaqueId('sourceItemId').optional(),
-  // ISO 8601 with an offset. Stored at millisecond precision — a JS Date cannot
-  // hold more, and the feed cursor is millisecond-precise (0002 migration).
-  createdAt: z.iso.datetime({ offset: true, message: 'createdAt must be an ISO 8601 date-time' }),
-  text: z.string('text must be a string').max(config.posts.maxTextLength).default(''),
-  contentWarning: z.string().trim().max(500).optional(),
-  language: z.string().trim().min(2).max(35).optional(),
-  visibility: z.enum([PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY]),
-  replyToSourceId: opaqueId('replyToSourceId').optional(),
-  quoteSourceId: opaqueId('quoteSourceId').optional(),
-  media: z
-    .array(
-      z.object({
-        assetId: opaqueId('media.assetId'),
-        alt: z
-          .string()
-          .max(config.posts.maxAltTextLength * 2)
-          .optional(),
-      }),
-    )
-    .max(MAX_IMPORT_MEDIA_PER_ITEM)
-    .default([]),
-  article: z.object({ title: z.string().optional(), body: z.string().optional() }).optional(),
-  links: z.array(httpUrl('links[]')).max(MAX_IMPORT_LINKS_PER_ITEM).optional(),
-});
-
-const batchSchema = z.object({
-  platform: platformSchema,
-  batchId: opaqueId('batchId'),
-  items: z
-    .array(itemSchema)
-    .min(1, 'items must not be empty')
-    .max(MAX_IMPORT_BATCH_ITEMS, `items must hold at most ${MAX_IMPORT_BATCH_ITEMS} entries`),
-});
 
 /**
  * Repeated query values (`?sourceIds=a&sourceIds=b`); empty entries dropped.
@@ -121,14 +55,6 @@ function queryList(value: unknown): string[] {
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0);
 }
-
-const MAX_LOOKUP_IDS = 200;
-
-const lookupSchema = z.object({
-  platform: platformSchema,
-  sourceIds: z.array(opaqueId('sourceIds[]')).max(MAX_LOOKUP_IDS),
-  federatedIds: z.array(opaqueId('federatedIds[]')).max(MAX_LOOKUP_IDS),
-});
 
 function firstIssue(error: z.ZodError): string {
   const issue = error.issues[0];
@@ -183,6 +109,8 @@ router.post('/v1/posts\\:batch', async (req: Request, res: Response) => {
       items: items.map((item) => ({
         ...item,
         createdAt: new Date(item.createdAt),
+        visibility:
+          item.visibility === 'public' ? PostVisibility.PUBLIC : PostVisibility.FOLLOWERS_ONLY,
         article: sanitizeArticle(item.article),
       })),
     });
@@ -197,7 +125,7 @@ router.post('/v1/posts\\:batch', async (req: Request, res: Response) => {
 
 /** `DELETE /imports/v1/batches/:batchId` — undo one batch of the acting user. */
 router.delete('/v1/batches/:batchId', async (req: Request, res: Response) => {
-  const parsed = opaqueId('batchId').safeParse(req.params.batchId);
+  const parsed = mentionImportIdSchema.safeParse(req.params.batchId);
   if (!parsed.success) {
     return res.status(400).json({ error: 'INVALID_BATCH_ID', message: firstIssue(parsed.error) });
   }
