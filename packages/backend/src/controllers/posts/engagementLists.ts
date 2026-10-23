@@ -1,7 +1,5 @@
 import { publicPositiveLikeSql } from '../../services/socialFeedEvidence';
-import { loadPostRecord } from '../../db/posts/postRepository';
-import { postHydrationService } from '../../services/PostHydrationService';
-import { UserPrivacyManager } from '../../mtn/UserPrivacyManager';
+import { loadPostEngagementAudience } from '../../services/postEngagementAudience';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
 /**
  * The engagement READ lists — who liked a post, which of the people you follow
@@ -50,26 +48,13 @@ const clampLikesLimit = (limit: number | undefined): number =>
 const mapActorSummary = (userId: string, user: PostUser | undefined): PostUser =>
   user ?? degradedActorSummary(userId);
 
-/** Authorize the subject before disclosing activity; reuse privacy for actor exclusions. */
+/** Adapt HTTP requester proofs; the service owns subject authorization and storage. */
 async function engagementAudience(req: AuthRequest, postId: string): Promise<Set<string> | null> {
-  const oxyClient = createScopedOxyClient(req);
-  const [post, privacy] = await Promise.all([
-    loadPostRecord(postId),
-    req.user?.id
-      ? UserPrivacyManager.loadPrivacyState(req.user.id, { oxyClient, includeRestricted: true })
-      : undefined,
-  ]);
-  if (!post || (post.oxyUserId && privacy?.excludedUserIds.has(post.oxyUserId))) return null;
-  const [visible] = await postHydrationService.hydratePosts([post], {
+  return loadPostEngagementAudience(postId, {
     viewerId: req.user?.id,
-    oxyClient,
+    oxyClient: createScopedOxyClient(req),
     safetyRequester: safetyRequesterFor(req),
-    maxDepth: 0,
-    viewerPrivacy: privacy
-      ? { blockedIds: [...privacy.blockedUserIds], restrictedIds: [...privacy.restrictedUserIds] }
-      : undefined,
   });
-  return visible ? (privacy?.excludedUserIds ?? new Set()) : null;
 }
 
 // Get users who liked a post
