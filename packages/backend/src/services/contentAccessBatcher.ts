@@ -162,6 +162,8 @@ async function sendBatches(pending: Pending[], requester: SafetyRequester): Prom
 
 function keyOfRequester(requester: SafetyRequester): string {
   if ('connectionToken' in requester) return `connection:${requester.connectionToken}`;
+  if ('capabilityTicket' in requester) return `ticket:${requester.capabilityTicket}`;
+  if ('requesterContext' in requester) return `context:${requester.requesterContext}`;
   return requester.accessToken ? `session:${requester.accessToken}` : 'anonymous';
 }
 

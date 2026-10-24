@@ -40,12 +40,15 @@ describe('server-side Oxy clients carry the service token on session-less reads'
     }) as typeof fetch;
 
     const client = getClient();
-    // A local checkout can mint nothing; pretend this one can, as a task can.
-    spyOn(
-      client as unknown as { canMintServiceToken(): boolean },
-      'canMintServiceToken',
-    ).mockReturnValue(true);
-    spyOn(client, 'serviceToken').mockResolvedValue('mention-service-token');
+    // A local checkout can mint nothing; pretend this one can, as a task can,
+    // and stub the platform token core sends on a session-less read (its
+    // workload-identity lane since core 7).
+    const internals = client as unknown as {
+      canMintServiceToken(): boolean;
+      platformServiceToken(): Promise<string>;
+    };
+    spyOn(internals, 'canMintServiceToken').mockReturnValue(true);
+    spyOn(internals, 'platformServiceToken').mockResolvedValue('mention-service-token');
 
     await client.users.byUsername(`alice-${Math.random().toString(36).slice(2)}`, { cache: false });
 

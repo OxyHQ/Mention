@@ -5,7 +5,7 @@ import { View, Text, Share } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useQueries } from '@tanstack/react-query';
 import { queryKeys } from '@oxy.so/services/ui/client';
-import type { User } from '@oxy.so/core';
+import type { OxyServices, User } from '@oxy.so/core';
 import { toast } from '@oxy.so/bloom/toast';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
@@ -37,7 +37,6 @@ import { SEO } from '@/components/SEO';
 
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useRoomUsers, getDisplayName, getAvatarUrl } from '@/hooks/useRoomUsers';
-import type { FileUrlResolver } from '@/utils/imageUrlCache';
 import { useUserById } from '@/hooks/useCachedUser';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import { roomsService, type Room } from '@/lib/syraApi';
@@ -63,7 +62,7 @@ const MAX_PARTICIPANT_AVATARS = 10;
  */
 function useRoomAvatarItems(
   userIds: string[],
-  oxyServices: FileUrlResolver & { users: { get(id: string): Promise<User> } },
+  oxyServices: Pick<OxyServices, 'assets' | 'users'>,
 ): AvatarGroupItem[] {
   const results = useQueries({
     queries: userIds.map((userId) => ({
@@ -94,7 +93,13 @@ function renderFollowAction(item: AvatarGroupItem) {
   return item.id ? <FollowButton userId={item.id} size="sm" /> : null;
 }
 
-const HostInfo = ({ hostId, oxyServices }: { hostId: string; oxyServices: FileUrlResolver }) => {
+const HostInfo = ({
+  hostId,
+  oxyServices,
+}: {
+  hostId: string;
+  oxyServices: Pick<OxyServices, 'assets'>;
+}) => {
   const profile = useUserById(hostId);
   const displayName = getDisplayName(profile, hostId);
   const avatarUri = getAvatarUrl(profile, oxyServices);

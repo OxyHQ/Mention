@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { Image } from 'expo-image';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
-import { proxyExternalUrl } from '@/utils/imageUrlCache';
+import { proxyExternalUrl } from '@/utils/mediaUrls';
 import { linkPreviewImageSources } from '@/utils/linkPreviewImage';
 
 interface ExternalEmbedPosterProps {

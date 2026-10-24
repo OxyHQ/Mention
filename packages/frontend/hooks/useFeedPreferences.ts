@@ -72,6 +72,9 @@ export function useFeedPreferences(): UseFeedPreferences {
     enabled: canUsePrivateApi,
     staleTime: 5 * 60 * 1000,
     queryFn: () => feedPreferencesService.get(),
+    // The home tab row: kept for this account across restarts, so a returning
+    // viewer's first paint shows their tabs instead of shifting the feed down.
+    meta: { persist: 'account' },
   });
 
   const savedFeeds = useMemo<SavedFeed[]>(

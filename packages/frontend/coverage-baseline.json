@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 48.15,
-      "covered": 13145,
-      "total": 27296
+      "pct": 48.41,
+      "covered": 13144,
+      "total": 27150
     },
     "branches": {
-      "pct": 44.02,
-      "covered": 8910,
-      "total": 20240
+      "pct": 44.25,
+      "covered": 8913,
+      "total": 20138
     },
     "functions": {
-      "pct": 43.16,
-      "covered": 3052,
-      "total": 7071
+      "pct": 43.23,
+      "covered": 3042,
+      "total": 7036
     },
     "lines": {
-      "pct": 48.93,
-      "covered": 11918,
-      "total": 24355
+      "pct": 49.2,
+      "covered": 11921,
+      "total": 24225
     }
   },
   "pins": {
@@ -193,7 +193,7 @@
     },
     "hooks/useAccountTheme.ts": {
       "statements": 100,
-      "branches": 94,
+      "branches": 100,
       "functions": 100,
       "lines": 100
     },
@@ -354,12 +354,6 @@
       "lines": 0
     },
     "hooks/useForYouTuning.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useImageUrl.ts": {
       "statements": 0,
       "branches": 0,
       "functions": 0,
@@ -1427,12 +1421,6 @@
       "functions": 100,
       "lines": 100
     },
-    "stores/themeSourceStore.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
     "stores/threadHoverStore.ts": {
       "statements": 66,
       "branches": 100,
@@ -1637,12 +1625,6 @@
       "functions": 100,
       "lines": 87
     },
-    "utils/imageUrlCache.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
     "utils/isHostOf.ts": {
       "statements": 100,
       "branches": 100,
@@ -1672,6 +1654,12 @@
       "branches": 62,
       "functions": 57,
       "lines": 66
+    },
+    "utils/mediaUrls.ts": {
+      "statements": 94,
+      "branches": 95,
+      "functions": 100,
+      "lines": 97
     },
     "utils/mentionSearch.ts": {
       "statements": 100,

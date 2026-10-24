@@ -1,4 +1,4 @@
-import { USER_PROFILE_COLOR_PRESETS } from '@oxy.so/contracts';
+import { USER_PROFILE_COLOR_PRESETS } from '@oxy.so/contracts/client';
 import {
   FREE_COLOR_NAMES,
   HANDLE_COLOR_NAMES,

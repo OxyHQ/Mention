@@ -8,9 +8,10 @@ import { useAuth } from '@oxy.so/services/ui/client';
  * the session can reach the private API.
  *
  * The active Bloom theme (color mode + preset) is NOT driven from here: it is
- * owned by `useAccountThemeSync`, which applies the portable Oxy account theme
- * (`user.themePreference`) when the local source is `account`, and otherwise
- * leaves Bloom on its own persisted (app-default) value.
+ * owned by `useAccountThemeSync` (the SDK's `useAccountTheme`), which applies
+ * the portable Oxy account theme (`user.themePreference`) when the device's
+ * theme source is `account`, and otherwise leaves Bloom on its own persisted
+ * (app-default) value.
  */
 export function useServerAppearanceSync(): void {
   const { canUsePrivateApi } = useAuth();

@@ -1,5 +1,4 @@
 import { SettingsSelect } from '@/components/settings/SettingsSelect';
-import { useThemeControls } from '@/hooks/useAccountTheme';
 import {
   useAppearanceStore,
   type PostReadMoreAction,
@@ -9,6 +8,7 @@ import { Loading } from '@oxy.so/bloom/loading';
 import { SettingsGeneralPage } from '@oxy.so/bloom/settings-modal';
 import { Switch } from '@oxy.so/bloom/switch';
 import { useBloomTheme } from '@oxy.so/bloom/theme';
+import { useAccountThemeControls } from '@oxy.so/services/ui/client';
 import { toast } from '@oxy.so/bloom/toast';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -19,7 +19,7 @@ export default function AppearanceSettingsScreen() {
   const mySettings = useAppearanceStore((state) => state.mySettings);
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
   const { mode: bloomMode } = useBloomTheme();
-  const { source, changeThemeSource, changeThemeMode } = useThemeControls();
+  const { source, changeThemeSource, changeThemeMode } = useAccountThemeControls();
   const { t } = useTranslation();
 
   const themeMode: ThemeMode =

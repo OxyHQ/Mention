@@ -7,10 +7,14 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import {
   ORGANIZATION_NAME_MAX_LENGTH,
   ORGANIZATION_TYPES,
-  createOrganizationSchema,
-  type Organization,
-  type SafetyOrganizationIdentity,
-  type OrganizationType,
+  checkContract,
+  createOrganizationCheck,
+} from '@oxy.so/contracts/client';
+import type {
+  CreateOrganization,
+  Organization,
+  SafetyOrganizationIdentity,
+  OrganizationType,
 } from '@oxy.so/contracts';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button } from '@oxy.so/bloom/button';
@@ -96,17 +100,10 @@ export function ExperienceEmployerField({
     onChange(organization);
   }
   const create = useMutation({
-    mutationFn: () => {
+    mutationFn: (organization: CreateOrganization) => {
       if (!canUsePrivateApi || disabled || !supervision.ready || supervision.supervised)
         throw new Error('A personal session is required');
-      return oxyServices.organizations.create(
-        createOrganizationSchema.parse({
-          name: query.trim(),
-          organizationType,
-          websiteUrl: website.trim() || null,
-          countryCode: country.trim().toUpperCase() || null,
-        }),
-      );
+      return oxyServices.organizations.create(organization);
     },
     onSuccess: (organization) => {
       select(organization);
@@ -321,14 +318,16 @@ export function ExperienceEmployerField({
                   disabled={disabled || create.isPending || !canUsePrivateApi}
                   loading={create.isPending}
                   onPress={() => {
-                    const result = createOrganizationSchema.safeParse({
+                    // The client twin of the contract's schema: the same verdict,
+                    // without loading Zod into the app.
+                    const organization = checkContract(createOrganizationCheck, {
                       name: query.trim(),
                       organizationType,
                       websiteUrl: website.trim() || null,
                       countryCode: country.trim().toUpperCase() || null,
                     });
-                    setCreateInvalid(!result.success);
-                    if (result.success) create.mutate();
+                    setCreateInvalid(organization === null);
+                    if (organization) create.mutate(organization);
                   }}
                 >
                   {t('profile.experience.createOrganization')}

@@ -5,7 +5,7 @@ import { Image } from 'expo-image';
 import { AspectRatio } from '@oxy.so/bloom/aspect-ratio';
 import { useDialogControl } from '@oxy.so/bloom/dialog';
 import { parseEmbedPlayerFromUrl, canEmbed } from '@/utils/embedPlayer';
-import { proxyExternalUrl } from '@/utils/imageUrlCache';
+import { proxyExternalUrl } from '@/utils/mediaUrls';
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 import { ExternalEmbedPlayer } from './ExternalEmbedPlayer';
 import { EmbedConsentDialog } from './EmbedConsentDialog';

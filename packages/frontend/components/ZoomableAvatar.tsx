@@ -22,10 +22,9 @@ import {
   type MeasuredRect,
   type ZoomableMediaGalleryHandle,
 } from '@oxy.so/bloom/zoomable-media-gallery';
-import { useAuth } from '@oxy.so/services/ui/client';
+import { useAuth, useFileDownloadUrl } from '@oxy.so/services/ui/client';
 
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
-import { useImageUrl } from '@/hooks/useImageUrl';
 import { MEDIA_VARIANT_FULL, MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 
 interface ZoomableAvatarProps {
@@ -84,7 +83,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
 
   // An absolute http(s) `source` is a FINAL, server-resolved URL. A non-http
   // string is a raw Oxy file id (legacy profile-design data) resolved through
-  // the app resolver, with `useImageUrl` as the async fallback on a cache miss.
+  // the app resolver, with `useFileDownloadUrl` as the async fallback.
   const fileId = typeof source === 'string' && !source.startsWith('http') ? source : undefined;
   // The resting avatar is 70–90px, so it takes the 256px square crop; the zoomed
   // image fills most of the screen, so it takes the 2048px rendition. BOTH pass
@@ -92,11 +91,10 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   // avatar crop, which is what made the zoom look pixelated.
   const resolvedThumb = imageResolver?.(fileId ?? '', MEDIA_VARIANT_AVATAR_LG);
   const resolvedFull = imageResolver?.(fileId ?? '', MEDIA_VARIANT_FULL);
-  const asyncThumb = useImageUrl(
-    errored ? undefined : fileId,
-    MEDIA_VARIANT_AVATAR_LG,
-    oxyServices,
-  );
+  const asyncThumb =
+    useFileDownloadUrl(oxyServices, errored ? undefined : fileId, {
+      variant: MEDIA_VARIANT_AVATAR_LG,
+    }).url ?? undefined;
 
   const thumbUri = useMemo(() => {
     if (!source || errored) return undefined;

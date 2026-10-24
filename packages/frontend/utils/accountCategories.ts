@@ -1,4 +1,5 @@
-import { ACCOUNT_CATEGORY_IDS, type AccountCategoryId } from '@oxy.so/contracts';
+import { ACCOUNT_CATEGORY_IDS } from '@oxy.so/contracts/client';
+import type { AccountCategoryId } from '@oxy.so/contracts';
 
 /**
  * An account's categories — what a channel, organization, project or bot IS.

@@ -9,7 +9,6 @@ import { RiCameraLine } from '@oxy.so/bloom/icons/RiCameraLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { RiImageLine } from '@oxy.so/bloom/icons/RiImageLine';
 import { MEDIA_VARIANT_BANNER } from '@mention/shared-types/post';
-import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 
 /**
@@ -82,7 +81,7 @@ export const BannerSection: React.FC = () => {
               // Same variant the profile banner asks for, so this preview and
               // the profile share ONE cache entry instead of pulling two
               // differently-sized copies of the picked image.
-              uri: getCachedFileDownloadUrlSync(oxyServices, headerImageRef, MEDIA_VARIANT_BANNER),
+              uri: oxyServices.assets.renderUrl(headerImageRef, MEDIA_VARIANT_BANNER),
             }}
             className="w-full aspect-[3/1] bg-muted"
             contentFit="cover"
