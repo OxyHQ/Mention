@@ -1,4 +1,4 @@
-import { isDelegatedActAsEligibleKind } from '@oxy.so/contracts';
+import { isDelegatedActAsEligibleKind } from '@oxy.so/contracts/client';
 import type { AccountNode } from '@oxy.so/core';
 
 /**
