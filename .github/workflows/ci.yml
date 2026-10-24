@@ -197,6 +197,10 @@ jobs:
           bun scripts/event-openapi.ts --check
           bun run --cwd packages/sdk build
           bun run --cwd packages/sdk test
+          bun run --cwd packages/sdk typecheck
+          bun install --cwd tests/sdk-transport --frozen-lockfile --minimum-release-age=0
+          bun run --cwd tests/sdk-transport typecheck
+          bun run --cwd tests/sdk-transport test
       # After `check`, which builds shared-types: the Drizzle schema imports it,
       # so a run before that would fail to load and — without the table-count
       # floor in the script — would have reported "no changes" as success.
