@@ -109,7 +109,7 @@ test('loaded profile adopts one head and navigation drops the old profile schema
   await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
   await expect(page.locator('meta[property="og:url"]')).toHaveCount(1);
   await expect(page.locator('script[type="application/ld+json"]')).toHaveCount(1);
-  await page.locator('[data-testid="sidebar-item-/explore"]:visible').click();
+  await page.locator('[data-testid="sidebar-item-explore"]:visible').click();
   await expect(page).toHaveURL(/\/explore(?:\?|$)/);
   await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
@@ -344,7 +344,7 @@ test('a verified alias waits for readiness and adopts the primary canonical', as
     canonical,
   );
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'index,follow');
-  await page.locator('[data-testid="sidebar-item-/explore"]:visible').click();
+  await page.locator('[data-testid="sidebar-item-explore"]:visible').click();
   await expect(page).toHaveURL(/\/explore(?:\?|$)/);
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     'href',
