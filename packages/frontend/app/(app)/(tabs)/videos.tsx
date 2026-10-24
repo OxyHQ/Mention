@@ -1,5 +1,6 @@
 import { VideoSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
+import { useRoute } from 'expo-router';
 import { useCallback, useContext, useEffect, useRef, useState, useMemo, memo } from 'react';
 import {
   StyleSheet,
@@ -42,7 +43,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@/components/common/Ionicons';
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
 import { useRouter, useLocalSearchParams, useIsFocused } from '@/lib/navigation/router';
-import { useReselectReloadKey, useTabSelect } from '@/context/ScreenReselectContext';
+import { useScreenReselect, useTabSelect } from '@/context/ScreenReselectContext';
 import { usePostsStore } from '@/stores/postsStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { feedService } from '@/services/feedService';
@@ -96,7 +97,7 @@ import {
   videoPlayerKey,
   type VideoPlayerKey,
 } from '@/stores/videoPlayerRegistry';
-import { loadVideoPagesUntilProgress } from '@/utils/video-feed-pagination';
+import { useVideoFeed, type VideoFeedTab } from '@/hooks/useVideoFeed';
 import { resolveFeedDescriptor } from '@/utils/feedTelemetry';
 import { postPermalink } from '@/utils/postPermalink';
 import { usePostInteractions } from '@/components/Feed/postInteractions';
@@ -241,10 +242,6 @@ const BOOST_ACTIVE_COLOR = '#10B981';
 // offered (TikTok-style expandable caption).
 const CAPTION_EXPAND_MIN_CHARS = 80;
 
-// The /videos feed tabs. 'videos' is the ranked "For You" video feed; 'following'
-// is the general following feed filtered down to video posts.
-type VideoFeedTab = 'videos' | 'following';
-
 // ── Types ────────────────────────────────────────────────────────
 // Runtime media reference. The shared `MediaItem` declares `id` + `type` plus the
 // server-resolved final URLs (`url`, `thumbUrl`, `posterUrl`). We type the superset
@@ -266,6 +263,7 @@ interface MediaRef {
 }
 
 interface VideoPost extends HydratedPost {
+  mediaIndex: number;
   videoUrl: string;
   // The raw (non-HLS) original URL, always playable. `videoUrl` prefers the
   // adaptive HLS stream when present; `ActiveVideoSurface` retries with this
@@ -290,6 +288,7 @@ interface VideoPost extends HydratedPost {
 }
 
 interface ViewableItem {
+  item: VideoPost;
   index: number | null | undefined;
   isViewable: boolean;
 }
@@ -1129,7 +1128,9 @@ export default function VideosScreen() {
   const insets = useSafeAreaInsets();
   const [WINDOW_HEIGHT, setViewportHeight] = useState(0);
   const pagerRef = useRef<ScreenPagerHandle>(null);
-  const inDeck = Boolean(useOptionalPanelRouter());
+  const panelRouter = useOptionalPanelRouter();
+  const inDeck = Boolean(panelRouter);
+  const route = useRoute();
   const isFocused = useIsFocused();
   const params = useLocalSearchParams<{ postId?: string; mediaIndex?: string }>();
   const { oxyServices, user, canUsePrivateApi, isAuthResolved, isAuthenticated } = useAuth();
@@ -1160,143 +1161,9 @@ export default function VideosScreen() {
     return () => setBottomSheetProgress?.(undefined);
   }, [bottomSheetProgress, setBottomSheetProgress]);
 
-  const [posts, setPosts] = useState<VideoPost[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasLoadError, setHasLoadError] = useState(false);
-  const loadGenerationRef = useRef(0);
-  const [retryNonce, setRetryNonce] = useState(0);
-  const handleRetry = useCallback(() => setRetryNonce((value) => value + 1), []);
-  const [hasMore, setHasMore] = useState(true);
-  const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [currentVisibleIndex, setCurrentVisibleIndex] = useState(0);
-
-  // Close the mobile bottom sheet when the active video changes — otherwise
-  // swiping to a new video while it's open would leave the PREVIOUS video's
-  // replies showing over the new one. Desktop has no such toggle anymore —
-  // the always-open replies column (RightBar) reflects whatever video is
-  // currently active via VideosRailContext's `activePost`, no reset needed.
-  const isFirstVisibleIndexRender = useRef(true);
-  useEffect(() => {
-    if (isFirstVisibleIndexRender.current) {
-      isFirstVisibleIndexRender.current = false;
-      return;
-    }
-    openBottomSheet(false);
-  }, [currentVisibleIndex, openBottomSheet]);
-
-  // Prefetch posters in a wider radius than the live-player window — see
-  // `POSTER_PREFETCH_RADIUS` above.
-  useEffect(() => {
-    const start = Math.max(0, currentVisibleIndex - POSTER_PREFETCH_RADIUS);
-    const end = Math.min(posts.length - 1, currentVisibleIndex + POSTER_PREFETCH_RADIUS);
-    for (let i = start; i <= end; i++) {
-      const posterUrl = posts[i]?.posterUrl;
-      if (posterUrl) {
-        Image.prefetch(posterUrl).catch(() => {
-          // Prefetch is a pure optimization — a failure here is
-          // identical to a cache miss, never surfaced to the viewer.
-        });
-      }
-    }
-  }, [currentVisibleIndex, posts]);
-  // 'videos' = For You (ranked video feed); 'following' = following feed filtered
-  // to videos. Read through a ref inside the stable load callbacks so switching
-  // tabs doesn't thrash callback identity.
-  const [activeFeed, setActiveFeed] = useState<VideoFeedTab>('videos');
-  const activeFeedRef = useRef<VideoFeedTab>(activeFeed);
-  activeFeedRef.current = activeFeed;
-  const globalMuted = useVideoMuteStore((s) => s.isMuted);
-  const loadMutedState = useVideoMuteStore((s) => s.loadMutedState);
-
-  // If the viewer signs out while on Following, fall back to For You. Gated on
-  // `isAuthResolved` so the undetermined cold-boot window (where the session is
-  // about to restore) doesn't yank a Following viewer back to For You. Adjusted
-  // during render rather than in an effect — this converges in one pass (the
-  // condition is false once `activeFeed` flips) and avoids a throwaway Following
-  // fetch from the load effect below. See React "You Might Not Need an Effect".
-  if (isAuthResolved && !isAuthenticated && activeFeed === 'following') {
-    setActiveFeed('videos');
-  }
-  // The deep-link target post + media index.
-  //
-  // These used to be frozen at first mount, and that was right while this
-  // screen was a pushed route: it was rebuilt on every entry, so freezing only
-  // said "param ticks after arrival must not re-order the reel under the
-  // reader". As a TAB it is mounted for the life of the app, and a freeze then
-  // means the SECOND `router.push('/videos?postId=…')` — from a profile's
-  // media grid, from a post's attachment row — silently opens the reel the
-  // reader was last on. So the rule is stated as what it always meant: adopt a
-  // target that is genuinely NEW, ignore everything else.
-  //
-  // Ignoring "everything else" is the load-bearing half. A tick that repeats
-  // the same id is the repaint the freeze existed for, and a tick that DROPS
-  // the param — which is what arriving on the tab by tap or swipe looks like —
-  // must never un-pin a reel the reader is in the middle of. Adjusted during
-  // render rather than in an effect, converging in one pass, for the same
-  // reason as the feed reset just above.
-  const parsedMediaIndex = Number(params.mediaIndex);
-  const paramTarget = params.postId
-    ? {
-        postId: params.postId,
-        mediaIndex:
-          Number.isInteger(parsedMediaIndex) && parsedMediaIndex >= 0
-            ? parsedMediaIndex
-            : undefined,
-      }
-    : null;
-  const [target, setTarget] = useState<{ postId: string; mediaIndex?: number } | null>(
-    () => paramTarget,
-  );
-  if (
-    paramTarget &&
-    (paramTarget.postId !== target?.postId || paramTarget.mediaIndex !== target?.mediaIndex)
-  ) {
-    setTarget(paramTarget);
-  }
-  const targetPostId = target?.postId;
-  const targetMediaIndex = target?.mediaIndex;
-
-  useEffect(() => {
-    if (!isFocused || !targetPostId) return;
-    const pending = pendingVideoTransition(targetPostId);
-    if (!pending) return;
-    const cancel = () => {
-      if (Platform.OS !== 'web' && hasFlight(pending.key)) return;
-      if (pending.release()) releaseFlight(pending.key);
-    };
-    if (hasLoadError) cancel();
-    return cancel;
-  }, [isFocused, targetPostId, targetMediaIndex, hasLoadError]);
-
   const flatListRef = useRef<FlatList<VideoPost>>(null);
-
-  // The neighbours wait until the video the viewer is watching has runway.
-  // Re-armed on every slide, because each landing starts a fresh fetch and is
-  // exactly as starvable as the first.
-  // Held against the INDEX rather than as a flag, so it re-arms by itself when
-  // the viewer swipes — no effect, and no way to leave it armed for a slide
-  // that has not buffered anything yet.
-  const [armedIndex, setArmedIndex] = useState<number | null>(null);
-  // Read through a ref so the callback keeps ONE identity for the screen's
-  // life: it is a prop of every mounted slide, and a new function per swipe
-  // broke `VideoItem`'s memo for all of them at once.
-  const currentVisibleIndexRef = useRef(currentVisibleIndex);
-  const armedIndexRef = useRef(armedIndex);
-  useEffect(() => {
-    currentVisibleIndexRef.current = currentVisibleIndex;
-    armedIndexRef.current = armedIndex;
-  }, [currentVisibleIndex, armedIndex]);
-  const handleBufferAhead = useCallback((seconds: number) => {
-    const index = currentVisibleIndexRef.current;
-    if (armedIndexRef.current === index || seconds < PRELOAD_BUFFER_SECONDS) return;
-    armedIndexRef.current = index;
-    setArmedIndex(index);
-  }, []);
-  const activeRadius = armedIndex === currentVisibleIndex ? ACTIVE_WINDOW_RADIUS : 0;
-
-  // The Screen's available region already excludes app navigation.
-  const bottomBarHeight = 0;
+  const globalMuted = useVideoMuteStore((state) => state.isMuted);
+  const loadMutedState = useVideoMuteStore((state) => state.loadMutedState);
 
   // The raw/original URL — always playable, used as `fallbackVideoUrl`.
   // Unchanged from before this HLS work; every existing resolution path
@@ -1356,7 +1223,8 @@ export default function VideosScreen() {
       if (media.length === 0) return null;
 
       let selected: MediaRef | undefined;
-      if (preferredMediaIndex !== undefined && media[preferredMediaIndex]?.type === 'video') {
+      if (preferredMediaIndex !== undefined) {
+        if (media[preferredMediaIndex]?.type !== 'video') return null;
         selected = media[preferredMediaIndex];
       } else {
         selected =
@@ -1372,6 +1240,7 @@ export default function VideosScreen() {
 
       return {
         ...post,
+        mediaIndex: media.indexOf(selected),
         createdAt: post.metadata.createdAt,
         videoUrl,
         fallbackVideoUrl,
@@ -1396,178 +1265,135 @@ export default function VideosScreen() {
     [toVideoPost],
   );
 
-  // Target post — fetched independently of the ranked chain and shown first.
-  const fetchPostById = useCallback(
-    async (postId: string): Promise<VideoPost | null> => {
-      try {
-        const post = await getPostById(postId);
-        if (!post) return null;
-        return toVideoPost(post, targetMediaIndex);
-      } catch {
-        return null;
-      }
-    },
-    [getPostById, toVideoPost, targetMediaIndex],
-  );
-
-  // Stable snapshot of currently-shown ids for StrictMode-safe de-dup counting
-  // (the setPosts updater can run twice in dev; we must count deterministically).
-  const shownIdsRef = useRef<Set<string>>(new Set());
-
-  // Infinite-scroll source: the ranked `videos` MTN feed (For You) or the
-  // general `following` feed filtered to videos. Reads the active tab through a
-  // ref so the callback identity stays stable across tab switches. De-dupes
-  // against everything already shown and returns how many NEW posts were appended.
-  const fetchVideos = useCallback(
-    async (cursor?: string, generation = loadGenerationRef.current) => {
-      try {
-        const response = await feedService.getFeed({
-          type: activeFeedRef.current === 'following' ? 'following' : 'videos',
-          cursor,
-          limit: FEED_PAGE_LIMIT,
-        });
-
-        if (generation !== loadGenerationRef.current) return null;
-        setHasLoadError(false);
-
-        // The `following` descriptor returns all post types; both paths run
-        // through filterVideoPosts so only video posts reach the reel.
-        const videoPosts = filterVideoPosts(response.items ?? []);
-        const newPosts = videoPosts.filter((p) => !shownIdsRef.current.has(p.id));
-
-        if (newPosts.length > 0) {
-          for (const post of newPosts) shownIdsRef.current.add(post.id);
-          // Seed the SHARED post cache, exactly as `useFeedState` does for
-          // every other feed. Without it the reel is invisible to the store:
-          // `updatePostEverywhere` is a read-modify-write that returns null
-          // for a post it has never seen, so every store write about a reel
-          // post — a like, a save, the server's view count — was a silent
-          // no-op, and none of it reached `/p/[id]` or the profile grids.
-          // Only the deep-link target escaped that, because `getPostById`
-          // upserts on its way through.
-          cachePosts(newPosts);
-          setPosts((prev) => {
-            const existingIds = new Set(prev.map((p) => p.id));
-            const toAdd = newPosts.filter((p) => !existingIds.has(p.id));
-            return toAdd.length === 0 ? prev : [...prev, ...toAdd];
-          });
-        }
-
-        setHasMore(response.hasMore || false);
-        setNextCursor(response.nextCursor);
-
-        return {
-          added: newPosts.length,
-          hasMore: response.hasMore,
-          nextCursor: response.nextCursor,
-        };
-      } catch {
-        // feedService logs the failure. Keep any playable posts and offer retry.
-        if (generation !== loadGenerationRef.current) return null;
-        setHasLoadError(true);
-        setHasMore(false);
-        return null;
-      }
-    },
-    [filterVideoPosts, cachePosts],
-  );
-
-  // Walk forward through `videos` pages until at least one NEW post is added or
-  // the feed is exhausted, so a page of pure duplicates doesn't dead-end the reel.
-  const fetchVideosUntilProgress = useCallback(
-    async (startCursor?: string): Promise<void> => {
-      const generation = loadGenerationRef.current;
-      await loadVideoPagesUntilProgress((cursor) => fetchVideos(cursor, generation), startCursor);
-    },
-    [fetchVideos],
-  );
-
-  // Reset the reel scroll window to the top across both platforms — used on a
-  // tab switch so the new feed starts from the first slide.
   const scrollReelToTop = useCallback(() => {
-    if (Platform.OS === 'web') {
-      pagerRef.current?.scrollToIndex(0, { animated: false });
-    } else {
-      flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
-    }
+    if (Platform.OS === 'web') pagerRef.current?.scrollToIndex(0, { animated: false });
+    else flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, []);
-
-  // Reselecting the tab away from the first slide goes back to it; on the
-  // first slide it rebuilds the reel (`reloadNonce` re-runs the load below).
-  const reloadNonce = useReselectReloadKey({
+  const parsedMediaIndex = Number(params.mediaIndex);
+  const routeTarget = params.postId
+    ? {
+        postId: params.postId,
+        mediaIndex:
+          Number.isInteger(parsedMediaIndex) && parsedMediaIndex >= 0
+            ? parsedMediaIndex
+            : undefined,
+      }
+    : null;
+  const {
+    posts,
+    sessionId,
+    setPosts,
+    isLoading,
+    hasLoadError,
+    hasMore,
+    loadingMore,
+    currentVisibleIndex,
+    selectIndex: setCurrentVisibleIndex,
+    selectPost,
+    activeFeed,
+    selectFeed: setActiveFeed,
+    target,
+    refresh: handleRetry,
+    loadMore: handleLoadMore,
+  } = useVideoFeed<VideoPost>({
+    target: routeTarget,
+    focused: isFocused,
+    navigationEntry: panelRouter?.key ?? route.params,
+    viewerId,
+    signedOut: isAuthResolved && !isAuthenticated,
+    readTarget: async (requested) => {
+      const post = await getPostById(requested.postId);
+      if (!post) return null;
+      const media = post.content.media ?? post.attachments.media ?? [];
+      const mediaIndex = requested.mediaId
+        ? media.findIndex((item) => item.id === requested.mediaId)
+        : requested.mediaIndex;
+      return toVideoPost(post, mediaIndex);
+    },
+    readPage: async (type, cursor) => {
+      const response = await feedService.getFeed({ type, cursor, limit: FEED_PAGE_LIMIT });
+      return { ...response, items: filterVideoPosts(response.items ?? []) };
+    },
+    cachePosts,
+    resetScroll: scrollReelToTop,
+  });
+  const targetPostId = target?.postId;
+  const targetMediaIndex = target?.mediaIndex;
+  useScreenReselect({
     isAtTop: () => currentVisibleIndex === 0,
     scrollToTop: scrollReelToTop,
+    refresh: handleRetry,
   });
 
-  // Initial load + tab switch + reload. Target first (own try/catch), then the ranked
-  // chain. `viewerId` rebuilds the reel when the session resolves on cold boot
-  // (the feed and per-post flags are viewer-dependent). `activeFeed` rebuilds it
-  // on a tab switch — this effect already resets the accumulated state, so the
-  // de-dup set never suppresses the new feed's results. The deep-link target
-  // post is only pinned on the For You tab so a Following reload doesn't re-pin it.
+  // Close the mobile bottom sheet when the active video changes — otherwise
+  // swiping to a new video while it's open would leave the PREVIOUS video's
+  // replies showing over the new one. Desktop has no such toggle anymore —
+  // the always-open replies column (RightBar) reflects whatever video is
+  // currently active via VideosRailContext's `activePost`, no reset needed.
+  const isFirstVisibleIndexRender = useRef(true);
   useEffect(() => {
-    let isMounted = true;
-    loadGenerationRef.current += 1;
-
-    const load = async () => {
-      setIsLoading(true);
-      setHasLoadError(false);
-      setLoadingMore(false);
-      shownIdsRef.current = new Set();
-      setPosts([]);
-      setNextCursor(undefined);
-      setHasMore(true);
-      setCurrentVisibleIndex(0);
-      scrollReelToTop();
-
-      if (targetPostId && activeFeed === 'videos') {
-        const targetPost = await fetchPostById(targetPostId);
-        if (!isMounted) return;
-        if (targetPost) {
-          shownIdsRef.current.add(targetPost.id);
-          setPosts((prev) =>
-            prev.some((p) => p.id === targetPost.id) ? prev : [targetPost, ...prev],
-          );
-          setCurrentVisibleIndex(0);
-        }
-      }
-
-      await fetchVideosUntilProgress(undefined);
-
-      if (!isMounted) return;
-      setIsLoading(false);
-    };
-
-    load();
-
-    return () => {
-      isMounted = false;
-      loadGenerationRef.current += 1;
-    };
-  }, [
-    targetPostId,
-    viewerId,
-    activeFeed,
-    reloadNonce,
-    retryNonce,
-    fetchPostById,
-    fetchVideosUntilProgress,
-    scrollReelToTop,
-  ]);
-
-  const handleLoadMore = useCallback(async () => {
-    if (loadingMore || !hasMore || !nextCursor) return;
-    const generation = loadGenerationRef.current;
-    setLoadingMore(true);
-    try {
-      await fetchVideosUntilProgress(nextCursor);
-    } finally {
-      if (generation === loadGenerationRef.current) setLoadingMore(false);
+    if (isFirstVisibleIndexRender.current) {
+      isFirstVisibleIndexRender.current = false;
+      return;
     }
-  }, [fetchVideosUntilProgress, hasMore, nextCursor, loadingMore]);
+    openBottomSheet(false);
+  }, [currentVisibleIndex, openBottomSheet]);
 
-  // Stable for the lifetime of the screen: its only output is the stable
-  // `setCurrentVisibleIndex` setter, so the FlatList never sees a new identity.
+  // Prefetch posters in a wider radius than the live-player window — see
+  // `POSTER_PREFETCH_RADIUS` above.
+  useEffect(() => {
+    const start = Math.max(0, currentVisibleIndex - POSTER_PREFETCH_RADIUS);
+    const end = Math.min(posts.length - 1, currentVisibleIndex + POSTER_PREFETCH_RADIUS);
+    for (let i = start; i <= end; i++) {
+      const posterUrl = posts[i]?.posterUrl;
+      if (posterUrl) {
+        Image.prefetch(posterUrl).catch(() => {
+          // Prefetch is a pure optimization — a failure here is
+          // identical to a cache miss, never surfaced to the viewer.
+        });
+      }
+    }
+  }, [currentVisibleIndex, posts]);
+  useEffect(() => {
+    if (!isFocused || !targetPostId) return;
+    const pending = pendingVideoTransition(targetPostId);
+    if (!pending) return;
+    const cancel = () => {
+      if (Platform.OS !== 'web' && hasFlight(pending.key)) return;
+      if (pending.release()) releaseFlight(pending.key);
+    };
+    if (hasLoadError) cancel();
+    return cancel;
+  }, [isFocused, targetPostId, targetMediaIndex, hasLoadError]);
+
+  // The neighbours wait until the video the viewer is watching has runway.
+  // Re-armed on every slide, because each landing starts a fresh fetch and is
+  // exactly as starvable as the first.
+  // Held against the INDEX rather than as a flag, so it re-arms by itself when
+  // the viewer swipes — no effect, and no way to leave it armed for a slide
+  // that has not buffered anything yet.
+  const [armedIndex, setArmedIndex] = useState<number | null>(null);
+  // Read through a ref so the callback keeps ONE identity for the screen's
+  // life: it is a prop of every mounted slide, and a new function per swipe
+  // broke `VideoItem`'s memo for all of them at once.
+  const currentVisibleIndexRef = useRef(currentVisibleIndex);
+  const armedIndexRef = useRef(armedIndex);
+  useEffect(() => {
+    currentVisibleIndexRef.current = currentVisibleIndex;
+    armedIndexRef.current = armedIndex;
+  }, [currentVisibleIndex, armedIndex]);
+  const handleBufferAhead = useCallback((seconds: number) => {
+    const index = currentVisibleIndexRef.current;
+    if (armedIndexRef.current === index || seconds < PRELOAD_BUFFER_SECONDS) return;
+    armedIndexRef.current = index;
+    setArmedIndex(index);
+  }, []);
+  const activeRadius = armedIndex === currentVisibleIndex ? ACTIVE_WINDOW_RADIUS : 0;
+
+  // The Screen's available region already excludes app navigation.
+  const bottomBarHeight = 0;
+
+  // Native reports the actual item, so an old index cannot select a new post.
   const handleViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: ViewableItem[] }) => {
       // AN EMPTY SET MEANS "BETWEEN SLIDES", NOT "NOTHING TO SHOW", and the
@@ -1589,12 +1415,10 @@ export default function VideosScreen() {
       // So an empty set changes nothing. The reader is still between the two
       // slides the window already covers, and the next non-empty report says
       // where they landed.
-      const next = viewableItems?.find((vi) => vi.isViewable)?.index;
-      if (next != null) {
-        setCurrentVisibleIndex(next);
-      }
+      const next = viewableItems?.find((item) => item.isViewable)?.item;
+      if (next) selectPost(next);
     },
-    [],
+    [selectPost],
   );
 
   // Scroll the reel to a clamped target index. Powers the rail arrows + the
@@ -1638,7 +1462,9 @@ export default function VideosScreen() {
   // the pagination state above is) because the surface that reports the end is
   // unmounting, and its callback closes over the render BEFORE the rebuild.
   const postsLengthRef = useRef(posts.length);
-  postsLengthRef.current = posts.length;
+  useEffect(() => {
+    postsLengthRef.current = posts.length;
+  }, [posts.length]);
 
   const handleSessionEnded = useCallback(
     (index: number) => {
@@ -1646,7 +1472,7 @@ export default function VideosScreen() {
       setCurrentVisibleIndex(index);
       goToIndex(index, false);
     },
-    [goToIndex],
+    [goToIndex, setCurrentVisibleIndex],
   );
 
   const {
@@ -1738,24 +1564,27 @@ export default function VideosScreen() {
         toast(t('common.error'), { type: 'error' });
       }
     },
-    [haptic, likePost, unlikePost, t],
+    [haptic, likePost, unlikePost, t, setPosts],
   );
 
-  const handleCommentPosted = useCallback((postId: string) => {
-    setPosts((prev) =>
-      prev.map((p) =>
-        p.id === postId
-          ? {
-              ...p,
-              engagement: {
-                ...p.engagement,
-                replies: (p.engagement.replies ?? 0) + 1,
-              },
-            }
-          : p,
-      ),
-    );
-  }, []);
+  const handleCommentPosted = useCallback(
+    (postId: string) => {
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId
+            ? {
+                ...p,
+                engagement: {
+                  ...p.engagement,
+                  replies: (p.engagement.replies ?? 0) + 1,
+                },
+              }
+            : p,
+        ),
+      );
+    },
+    [setPosts],
+  );
 
   const handleComment = useCallback(
     (postId: string) => {
@@ -1808,7 +1637,7 @@ export default function VideosScreen() {
         toast(t('common.error'), { type: 'error' });
       }
     },
-    [haptic, boostPost, unboostPost, t],
+    [haptic, boostPost, unboostPost, t, setPosts],
   );
 
   // Same optimistic shape as like/boost: the store's own update lands on its
@@ -1845,7 +1674,7 @@ export default function VideosScreen() {
         toast(t('common.error'), { type: 'error' });
       }
     },
-    [haptic, savePost, unsavePost, t],
+    [haptic, savePost, unsavePost, t, setPosts],
   );
 
   // Mention has no chat; sending a reel to someone happens in Allo.
@@ -2150,6 +1979,7 @@ export default function VideosScreen() {
             <VideoViewabilityProvider viewableKeys={viewableVideoKeys}>
               {Platform.OS === 'web' ? (
                 <ScreenPager
+                  key={sessionId}
                   ref={pagerRef}
                   data={posts}
                   keyExtractor={keyExtractor}
@@ -2197,6 +2027,7 @@ export default function VideosScreen() {
                 />
               ) : WINDOW_HEIGHT > 0 ? (
                 <FlatList
+                  key={sessionId}
                   ref={flatListRef}
                   data={posts}
                   renderItem={renderVideoItem}
