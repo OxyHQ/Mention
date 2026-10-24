@@ -159,11 +159,12 @@ jest.mock('@oxy.so/bloom/avatar', () => {
   return { Avatar: () => <RNView testID="avatar" /> };
 });
 
-/** The info sheet is closed until presented, so it contributes no controls. */
-jest.mock('@oxy.so/bloom/bottom-sheet', () => ({
-  __esModule: true,
-  BottomSheet: () => null,
+/** The info and review dialogs are closed until opened, so they contribute no controls. */
+jest.mock('@oxy.so/bloom/dialog', () => ({
+  Dialog: () => null,
+  useDialogControl: () => ({ open: () => undefined, close: () => undefined }),
 }));
+jest.mock('@/components/ProfileCard', () => ({ ProfileCard: () => null }));
 
 /** Bloom's rating / textarea / divider ship ESM sources; the flows here never draw them. */
 jest.mock('@oxy.so/bloom/rating', () => ({ Rating: () => null, RatingInput: () => null }));
