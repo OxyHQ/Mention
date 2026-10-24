@@ -1,22 +1,30 @@
 import { readFile } from 'node:fs/promises';
 import { createGunzip } from 'node:zlib';
+import { exceptionMatches, validateAuditException } from './security-audit-policy.mjs';
 
 const exceptionFile = new URL('../security-audit-exceptions.json', import.meta.url);
 const parsed = JSON.parse(await readFile(exceptionFile, 'utf8'));
 const exceptions = Array.isArray(parsed.exceptions) ? parsed.exceptions : [];
 const today = new Date();
 
+const proofByAdvisory = new Map();
 for (const entry of exceptions) {
-  for (const field of ['advisory', 'package', 'scope', 'reason', 'compensation', 'expires']) {
-    if (typeof entry[field] !== 'string' || entry[field].trim() === '') {
-      throw new Error(`Security audit exception is missing ${field}`);
-    }
-  }
-  const expires = new Date(`${entry.expires}T23:59:59.999Z`);
-  if (!Number.isFinite(expires.getTime()) || expires < today) {
-    throw new Error(`Security audit exception ${entry.advisory} expired on ${entry.expires}`);
+  validateAuditException(entry, today);
+  if (entry.resolutionGuard) {
+    const proofPath = entry.resolutionGuard.proof;
+    if (
+      typeof proofPath !== 'string' ||
+      !proofPath.startsWith('docs/') ||
+      proofPath.split('/').includes('..')
+    )
+      throw new Error('Guarded security audit exception requires a repository review document');
+    proofByAdvisory.set(
+      entry.advisory,
+      await readFile(new URL(`../${proofPath}`, import.meta.url), 'utf8'),
+    );
   }
 }
+const lockfile = Bun.JSONC.parse(await readFile(new URL('../bun.lock', import.meta.url), 'utf8'));
 
 const child = Bun.spawn([process.execPath, 'audit', '--json'], {
   cwd: new URL('..', import.meta.url).pathname,
@@ -79,7 +87,6 @@ const severityRank = new Map([
   ['high', 3],
   ['critical', 4],
 ]);
-const ignoredAdvisories = new Set(exceptions.map((entry) => entry.advisory));
 const blocking = [];
 
 for (const [packageName, advisories] of Object.entries(payload)) {
@@ -92,7 +99,16 @@ for (const [packageName, advisories] of Object.entries(payload)) {
         .pop() || String(advisory?.id ?? '');
     if (
       (severityRank.get(severity) ?? 0) >= severityRank.get('high') &&
-      !ignoredAdvisories.has(id)
+      !exceptions.some((entry) =>
+        exceptionMatches({
+          entry,
+          packageName,
+          advisory,
+          packages: lockfile.packages,
+          proof: proofByAdvisory.get(entry.advisory),
+          today,
+        }),
+      )
     ) {
       blocking.push({
         package: packageName,
