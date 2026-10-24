@@ -31,7 +31,7 @@ jest.mock('@/hooks/useCachedUser', () => ({ useCachedUserSnapshot: () => undefin
 jest.mock('@/utils/userEnrichment', () => ({
   prewarmUsersByIds: jest.fn(() => Promise.resolve([])),
 }));
-jest.mock('@/context/ScreenReselectContext', () => ({ useScreenReselect: () => {} }));
+jest.mock('@oxy.so/bloom/screen', () => ({ useScreenReselectHandler: () => {} }));
 jest.mock('expo-router', () => ({ Link: 'profile-link' }));
 jest.mock('@oxy.so/bloom/avatar', () => ({ Avatar: 'avatar' }));
 jest.mock('@oxy.so/bloom/button', () => ({ Button: 'button' }));

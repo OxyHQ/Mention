@@ -14,7 +14,6 @@ jest.mock('@oxy.so/bloom/screen', () => ({
     scrollY: { value: 0 },
   }),
 }));
-jest.mock('@/context/ScreenReselectContext', () => ({ useReselectScroller: () => undefined }));
 jest.mock('expo-router', () => ({ useIsFocused: () => true }));
 
 const mockListProps: Record<string, unknown>[] = [];

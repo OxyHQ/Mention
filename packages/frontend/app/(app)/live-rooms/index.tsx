@@ -25,7 +25,7 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { useTranslation } from 'react-i18next';
 import { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR } from '@/styles/colors';
 import { CreateRoomSheet } from '@/components/rooms/CreateRoomSheet';
-import { useScreenReselect } from '@/context/ScreenReselectContext';
+import { ScreenReselect } from '@/components/common/ScreenReselect';
 import { SignInRequired } from '@/components/common/SignInRequired';
 
 const SectionHeader = ({
@@ -89,8 +89,6 @@ const LiveRoomsScreen = () => {
     setRefreshing(true);
     loadRooms();
   }, [loadRooms]);
-  useScreenReselect({ refresh: onRefresh });
-
   const openCreateSheet = useCallback(() => {
     bottomSheet.setBottomSheetContent(
       <CreateRoomSheet
@@ -208,6 +206,7 @@ const LiveRoomsScreen = () => {
           />
         }
       >
+        <ScreenReselect refresh={onRefresh} />
         <SignInRequired
           label={t('agora.signInRequired', { defaultValue: 'Sign in to join live rooms' })}
           description={t('agora.signInRequiredDesc', {

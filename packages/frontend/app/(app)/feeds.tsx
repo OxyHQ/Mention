@@ -40,7 +40,7 @@ import { Search } from '@oxy.so/bloom/search';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { logger } from '@oxy.so/core/logger';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { useScreenReselect } from '@/context/ScreenReselectContext';
+import { ScreenReselect } from '@/components/common/ScreenReselect';
 
 /**
  * Live trends offered on this screen.
@@ -317,7 +317,6 @@ const FeedsScreen: React.FC = () => {
     setRefreshing(true);
     loadFeeds();
   }, [loadFeeds]);
-  useScreenReselect({ refresh: onRefresh });
 
   // Presets available to this viewer: hide viewer-relative (requiresAuth) presets
   // for anonymous viewers.
@@ -536,6 +535,7 @@ const FeedsScreen: React.FC = () => {
           />
         }
       >
+        <ScreenReselect refresh={onRefresh} />
         <ScreenScrollView
           showsVerticalScrollIndicator={false}
           refreshControl={

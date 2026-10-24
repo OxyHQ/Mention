@@ -22,7 +22,6 @@ import { BootMilestone } from '@/components/BootMilestone';
 import { AccountSwitchReset } from '@/components/providers/AccountSwitchReset';
 import { AppShellProviders } from '@/components/providers/AppShellProviders';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
-import { DocumentScrollProvider } from '@/context/DocumentScroll';
 import { OXY_CLIENT_ID, OXY_AUTH_REDIRECT_URI } from '@/config';
 import { ContentDialogHost } from '@/components/common/ContentDialog';
 import { FediverseInfoDialogProvider } from '@/components/Fediverse/FediverseInfoDialog';
@@ -127,10 +126,9 @@ export const AppProviders = memo(function AppProviders({
               <BootMilestone name="cache-owner-established" />
               <I18nextProvider i18n={i18n}>
                 {/*
-                 * `DocumentScrollProvider` and `AppShellProviders` sit ABOVE
-                 * `BottomSheetProvider` — and above this component's own
-                 * `children` — on purpose, and moving either back down
-                 * reintroduces a crash.
+                 * `AppShellProviders` sits ABOVE `BottomSheetProvider` — and
+                 * above this component's own `children` — on purpose, and
+                 * moving it back down reintroduces a crash.
                  *
                  * Two surfaces render content far above where its JSX was
                  * written, and React resolves context by RENDER position:
@@ -143,54 +141,47 @@ export const AppProviders = memo(function AppProviders({
                  * surface rendered was outside all of them — the composer's GIF
                  * picker asked for the video playback authority from inside a
                  * sheet and threw.
-                 *
-                 * `AppShellProviders` needs `DocumentScrollProvider` above it
-                 * (its `ScreenReselectProvider` scrolls the document back to
-                 * the top), which is why that one moved up too. The tree below
-                 * is unchanged.
                  */}
-                <DocumentScrollProvider>
-                  <AppShellProviders>
-                    {/* The feed rows' one command controller (#1103). ABOVE the
-                        sheet provider, so a post rendered inside a sheet still
-                        reaches it; its services are bound from inside the sheet
-                        by <PostInteractionsBinder />. */}
-                    <PostInteractionsProvider>
-                      <BottomSheetProvider>
-                        <AppErrorBoundary>
-                          <LiveRoomControllerProvider>
-                            {children}
-                            {/*
-                             * No <ToastOutlet /> here on purpose. Bloom's toast
-                             * stack must be mounted exactly once — every mount
-                             * subscribes to the same store and renders the same
-                             * rows, so a second outlet shows every toast twice.
-                             * OxyProvider above already mounts one at the app
-                             * root, and it carries Bloom's defaults.
-                             */}
-                            {/*
-                             * Same for Bloom's imperative surface stack:
-                             * OxyProvider mounts the one <SurfaceProvider>, and
-                             * confirm(), alert() and the action menu
-                             * (showActionMenu) all present into it.
-                             */}
-                            <PostInteractionsBinder />
-                            <ContentDialogHost />
-                            <FediverseInfoDialogProvider />
-                            <ChannelInfoDialogProvider />
-                            <LiveFeatureHost />
-                            {/*
-                             * The one live-presence poll. Inside
-                             * AccountSwitchReset so it is viewer-scoped and
-                             * torn down with the previous identity.
-                             */}
-                            <LivePresencePoller />
-                          </LiveRoomControllerProvider>
-                        </AppErrorBoundary>
-                      </BottomSheetProvider>
-                    </PostInteractionsProvider>
-                  </AppShellProviders>
-                </DocumentScrollProvider>
+                <AppShellProviders>
+                  {/* The feed rows' one command controller (#1103). ABOVE the
+                      sheet provider, so a post rendered inside a sheet still
+                      reaches it; its services are bound from inside the sheet
+                      by <PostInteractionsBinder />. */}
+                  <PostInteractionsProvider>
+                    <BottomSheetProvider>
+                      <AppErrorBoundary>
+                        <LiveRoomControllerProvider>
+                          {children}
+                          {/*
+                           * No <ToastOutlet /> here on purpose. Bloom's toast
+                           * stack must be mounted exactly once — every mount
+                           * subscribes to the same store and renders the same
+                           * rows, so a second outlet shows every toast twice.
+                           * OxyProvider above already mounts one at the app
+                           * root, and it carries Bloom's defaults.
+                           */}
+                          {/*
+                           * Same for Bloom's imperative surface stack:
+                           * OxyProvider mounts the one <SurfaceProvider>, and
+                           * confirm(), alert() and the action menu
+                           * (showActionMenu) all present into it.
+                           */}
+                          <PostInteractionsBinder />
+                          <ContentDialogHost />
+                          <FediverseInfoDialogProvider />
+                          <ChannelInfoDialogProvider />
+                          <LiveFeatureHost />
+                          {/*
+                           * The one live-presence poll. Inside
+                           * AccountSwitchReset so it is viewer-scoped and
+                           * torn down with the previous identity.
+                           */}
+                          <LivePresencePoller />
+                        </LiveRoomControllerProvider>
+                      </AppErrorBoundary>
+                    </BottomSheetProvider>
+                  </PostInteractionsProvider>
+                </AppShellProviders>
               </I18nextProvider>
             </AccountSwitchReset>
           </StickersProvider>

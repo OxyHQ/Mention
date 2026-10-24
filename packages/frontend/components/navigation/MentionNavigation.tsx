@@ -28,7 +28,6 @@ import { TabPagerProvider } from '@oxy.so/bloom/tab-pager/expo-router';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { requestSettings } from '@/components/settings/settingsRoutes';
-import { useReselect } from '@/context/ScreenReselectContext';
 import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
 
@@ -177,9 +176,5 @@ export function useMentionDestinations(): AppDestination[] {
  * then reloads.
  */
 export function MentionNavigation({ children }: { children: ReactNode }) {
-  return (
-    <TabPagerProvider destinations={useMentionDestinations()} onReselect={useReselect()}>
-      {children}
-    </TabPagerProvider>
-  );
+  return <TabPagerProvider destinations={useMentionDestinations()}>{children}</TabPagerProvider>;
 }

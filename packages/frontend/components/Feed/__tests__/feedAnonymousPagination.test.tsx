@@ -12,7 +12,6 @@ jest.mock('@oxy.so/bloom/screen', () => ({
     scrollY: { value: 0 },
   }),
 }));
-jest.mock('@/context/ScreenReselectContext', () => ({ useReselectScroller: () => undefined }));
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 

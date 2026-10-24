@@ -23,7 +23,7 @@ import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { feedService, type SavedPostsPage } from '@/services/feedService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { logger } from '@oxy.so/core/logger';
-import { useScreenReselect, useTabSelect } from '@/context/ScreenReselectContext';
+import { ScreenReselect } from '@/components/common/ScreenReselect';
 import SavedPostsList, { type SavedPost } from '@/components/saved/SavedPostsList';
 import { usePostsStore } from '@/stores/postsStore';
 
@@ -106,13 +106,9 @@ const SavedPostsScreen: React.FC = () => {
     [folders, t],
   );
 
-  const selectFolder = useTabSelect(selectedFolder, setSelectedFolder);
-  const handleFolderTabPress = useCallback(
-    (tabId: string) => {
-      selectFolder(tabId === ALL_FOLDERS_TAB_ID ? null : tabId.slice(FOLDER_TAB_PREFIX.length));
-    },
-    [selectFolder],
-  );
+  const handleFolderTabPress = useCallback((tabId: string) => {
+    setSelectedFolder(tabId === ALL_FOLDERS_TAB_ID ? null : tabId.slice(FOLDER_TAB_PREFIX.length));
+  }, []);
 
   const savedPostsQuery = useInfiniteQuery({
     queryKey: viewerQueryKeys.savedPosts(viewerId, debouncedSearch, selectedFolder),
@@ -141,7 +137,6 @@ const SavedPostsScreen: React.FC = () => {
     isPending: savedPostsPending,
     refetch: refetchSavedPosts,
   } = savedPostsQuery;
-  useScreenReselect({ refresh: refetchSavedPosts });
 
   const posts = useMemo(() => flattenSavedPages(savedPostsData?.pages), [savedPostsData?.pages]);
 
@@ -323,6 +318,7 @@ const SavedPostsScreen: React.FC = () => {
           scroll="auto"
           header={<PageHeader title={t('screens.saved.title')} presentation="floating" />}
         >
+          <ScreenReselect refresh={refetchSavedPosts} />
           {/* Search and folder tabs dock under the header. Creating a folder
                         is an action, not a section, so it lives in the FAB. */}
           <StickySection>
@@ -337,6 +333,7 @@ const SavedPostsScreen: React.FC = () => {
             <Tabs
               value={selectedFolder === null ? ALL_FOLDERS_TAB_ID : folderTabId(selectedFolder)}
               onValueChange={handleFolderTabPress}
+              pressOpenTab="reselect"
               variant="underline"
             >
               {folderTabs.map((tab) => (

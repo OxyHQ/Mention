@@ -78,7 +78,6 @@ jest.mock('@/components/common/EmptyState', () => {
       action ? <MockText testID="empty-create">{action.label}</MockText> : null,
   };
 });
-jest.mock('@/context/ScreenReselectContext', () => ({ useScreenReselect: () => {} }));
 
 import ListsScreen from '../lists';
 

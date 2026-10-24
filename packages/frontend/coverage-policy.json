@@ -277,6 +277,24 @@
       "metric": "lines",
       "date": "2026-10-24",
       "reason": "The pager, its scroll plumbing, the navigation chrome, the icon set and the vote animations moved into Bloom (tab-pager destinations, AppShell, Screen/VirtualList, icons, EngagementBar; tested there); Mention's own TabsPager, TabPagerContext, BottomBar, useFocusedScrollable, useNavigateOrReselect, useKeyboardVisibility, the bar-visibility provider, UnreadBadge, assets/icons and lib/animations were deleted, which lowers the overall ratio by about half a point."
+    },
+    {
+      "path": "total",
+      "metric": "statements",
+      "date": "2026-10-24",
+      "reason": "Reselect (back to the top, then a reload) moved to Bloom's reselect (ScreenReselectScope, useScreenReselectHandler, Tabs pressOpenTab; tested there); Mention's ScreenReselectContext, its document scroller (context/DocumentScroll) and their tests were deleted, which lowers the overall ratio by under 0.1 point."
+    },
+    {
+      "path": "total",
+      "metric": "functions",
+      "date": "2026-10-24",
+      "reason": "Reselect (back to the top, then a reload) moved to Bloom's reselect (ScreenReselectScope, useScreenReselectHandler, Tabs pressOpenTab; tested there); Mention's ScreenReselectContext, its document scroller (context/DocumentScroll) and their tests were deleted, which lowers the overall ratio by under 0.1 point."
+    },
+    {
+      "path": "total",
+      "metric": "lines",
+      "date": "2026-10-24",
+      "reason": "Reselect (back to the top, then a reload) moved to Bloom's reselect (ScreenReselectScope, useScreenReselectHandler, Tabs pressOpenTab; tested there); Mention's ScreenReselectContext, its document scroller (context/DocumentScroll) and their tests were deleted, which lowers the overall ratio by under 0.1 point."
     }
   ],
   "globalDriftAllowancePoints": 0.75,
@@ -287,8 +305,8 @@
     "one defensible line at a time, and a bound cannot tell growth from shrinkage."
   ],
   "expectedCounts": {
-    "domainFiles": 309,
-    "pins": 304,
+    "domainFiles": 310,
+    "pins": 305,
     "unenforceable": 5,
     "belowBarExemptions": 8,
     "criticalPaths": 36,

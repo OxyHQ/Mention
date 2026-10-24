@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import Feed from '@/components/Feed/Feed';
-import { useReselectReloadKey } from '@/context/ScreenReselectContext';
+import { useReselectReloadKey } from '@/hooks/useReselectReloadKey';
 import { TrendsWidget } from '@/components/widgets/TrendsWidget';
 
 /**
