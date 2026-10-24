@@ -7,7 +7,11 @@ const POST_ID = '019e23ee-2d68-7000-8000-000000000009';
 const MEDIA_ORIGIN = 'https://media.mention.earth/playback-regression';
 const POSTER = `${MEDIA_ORIGIN}/poster.svg`;
 
-async function arrangeVideoPost(page: Page, format: 'mp4' | 'hls') {
+async function arrangeVideoPost(
+  page: Page,
+  format: 'mp4' | 'hls',
+  options: { rankedReady?: Promise<void>; otherRankedPost?: boolean; missingTarget?: boolean } = {},
+) {
   const requests: string[] = [];
   await page.route(`${MEDIA_ORIGIN}/**`, async (route) => {
     const filename = new URL(route.request().url()).pathname.split('/').pop();
@@ -75,14 +79,28 @@ async function arrangeVideoPost(page: Page, format: 'mp4' | 'hls') {
     metadata: { visibility: 'public', status: 'published', createdAt: '2026-01-01T00:00:00Z' },
     engagement: { likes: 0, downvotes: 0, replies: 0, boosts: 0, views: 0 },
   };
-  await page.route(`**/feed/item/${POST_ID}`, (route) => route.fulfill({ json: post }));
-  await page.route(`**/posts/${POST_ID}`, (route) => route.fulfill({ json: post }));
+  const targetResponse = options.missingTarget
+    ? { status: 404, json: { message: 'Post unavailable' } }
+    : { json: post };
+  await page.route(`**/feed/item/${POST_ID}`, (route) => route.fulfill(targetResponse));
+  await page.route(`**/posts/${POST_ID}`, (route) => route.fulfill(targetResponse));
   await page.route(`**/feed/replies/${POST_ID}**`, (route) =>
     route.fulfill({ json: { items: [], hasMore: false } }),
   );
-  await page.route('**/feed/mtn?**', (route) =>
-    route.fulfill({ json: { items: [post], hasMore: false } }),
-  );
+  await page.route('**/feed/mtn?**', async (route) => {
+    await options.rankedReady;
+    const ranked = options.otherRankedPost
+      ? {
+          ...post,
+          id: '019e23ee-2d68-7000-8000-000000000010',
+          content: {
+            text: 'Different ranked video',
+            media: [media[1]],
+          },
+        }
+      : post;
+    await route.fulfill({ json: { items: [ranked], hasMore: false } });
+  });
   await page.route(`**/statistics/post/${POST_ID}/view`, (route) =>
     route.fulfill({ json: { viewsCount: 1 } }),
   );
@@ -209,6 +227,108 @@ test('Back during a video handoff settles on a playable post', async ({ page, ca
   const position = await returned.evaluate((element: HTMLVideoElement) => element.currentTime);
   await expect
     .poll(() => returned.evaluate((element: HTMLVideoElement) => element.currentTime))
+    .toBeGreaterThan(position + 0.5);
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+test('a delayed ranked response keeps the requested video and its decoder selected', async ({
+  page,
+  candidate,
+}) => {
+  await page.setViewportSize({ width: 412, height: 915 });
+  let releaseRanked: () => void = () => {
+    throw new Error('Ranked barrier is not initialized');
+  };
+  const rankedReady = new Promise<void>((resolve) => {
+    releaseRanked = resolve;
+  });
+  await arrangeVideoPost(page, 'hls', { rankedReady, otherRankedPost: true });
+  await page.goto(`/p/${POST_ID}`);
+  const requested = await observeFrames(page);
+  const bounds = await requested.boundingBox();
+  if (!bounds) throw new Error('Video has no bounds');
+  await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await expect(page).toHaveURL(/\/videos\?postId=/);
+  await expect
+    .poll(() => requested.evaluate((video: HTMLVideoElement) => video.currentTime))
+    .toBeGreaterThan(0.5);
+  const before = await requested.evaluate((video: HTMLVideoElement) => ({
+    time: video.currentTime,
+    src: video.currentSrc,
+  }));
+  const rankedResponse = page.waitForResponse((response) => response.url().includes('/feed/mtn?'));
+  releaseRanked();
+  await rankedResponse;
+  await expect(page.getByText('Different ranked video', { exact: true })).toBeAttached();
+  await expect
+    .poll(() => requested.evaluate((video: HTMLVideoElement) => video.currentTime))
+    .toBeGreaterThan(before.time + 1);
+  expect(await requested.evaluate((video: HTMLVideoElement) => video.currentSrc)).toBe(before.src);
+  expect(await requested.evaluate((video: HTMLVideoElement) => video.paused)).toBe(false);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+test('an unavailable requested post never silently opens a different ranked video', async ({
+  page,
+  candidate,
+}) => {
+  let rankedRequests = 0;
+  page.on('request', (request) => {
+    if (request.url().includes('/feed/mtn?')) rankedRequests++;
+  });
+  await arrangeVideoPost(page, 'mp4', { missingTarget: true, otherRankedPost: true });
+  await page.goto(`/videos?postId=${POST_ID}&mediaIndex=0`);
+  await expect(page.getByTestId('videos-status').getByRole('button')).toBeVisible();
+  await expect(page.getByText('Different ranked video', { exact: true })).toHaveCount(0);
+  await expect(page.getByTestId('videos-screen').locator('video')).toHaveCount(0);
+  expect(rankedRequests).toBe(0);
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
+test('immediate ranking and an explicit repeated navigation keep the requested media selected', async ({
+  page,
+  candidate,
+}) => {
+  await page.setViewportSize({ width: 412, height: 915 });
+  // An immediate ranked page also exercises restoration while content grows;
+  // the delayed-page case alone could miss this timing.
+  await arrangeVideoPost(page, 'mp4', { otherRankedPost: true });
+  await page.goto(`/p/${POST_ID}`);
+  const openFirstAttachment = async () => {
+    const first = page.locator(`video[src="${MEDIA_ORIGIN}/clip.mp4"]`).first();
+    await expect(first).toBeVisible();
+    const bounds = await first.boundingBox();
+    if (!bounds) throw new Error('Requested video has no bounds');
+    await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    await expect(page).toHaveURL(new RegExp(`/videos\\?postId=${POST_ID}&mediaIndex=0`));
+  };
+  await openFirstAttachment();
+  const screen = page.getByTestId('videos-screen');
+  const ranked = screen.locator(`video[src="${MEDIA_ORIGIN}/second.mp4"]`);
+  await expect(ranked).toBeAttached();
+  const original = screen.locator(`video[src="${MEDIA_ORIGIN}/clip.mp4"]`);
+  await expect
+    .poll(() => original.evaluate((video: HTMLVideoElement) => video.currentTime))
+    .toBeGreaterThan(0.5);
+  await expect.poll(() => original.evaluate((video: HTMLVideoElement) => video.paused)).toBe(false);
+  await ranked.scrollIntoViewIfNeeded();
+  await expect.poll(() => ranked.evaluate((video: HTMLVideoElement) => video.paused)).toBe(false);
+  const before = await ranked.evaluate((video: HTMLVideoElement) => video.currentTime);
+  await expect
+    .poll(() => ranked.evaluate((video: HTMLVideoElement) => video.currentTime))
+    .toBeGreaterThan(before + 0.5);
+  // An explicit repeat from the post is a new intent, even with identical params.
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`/p/${POST_ID}$`));
+  await openFirstAttachment();
+  const requested = screen.locator(`video[src="${MEDIA_ORIGIN}/clip.mp4"]`);
+  await expect
+    .poll(() => requested.evaluate((video: HTMLVideoElement) => video.paused))
+    .toBe(false);
+  const position = await requested.evaluate((video: HTMLVideoElement) => video.currentTime);
+  await expect
+    .poll(() => requested.evaluate((video: HTMLVideoElement) => video.currentTime))
     .toBeGreaterThan(position + 0.5);
   expect(candidate.scriptErrors).toEqual([]);
 });

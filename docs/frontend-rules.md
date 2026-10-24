@@ -84,6 +84,11 @@ A hidden feed cannot pause the player adopted by the reel. Neighbor preloading i
 bounded by the reel window and stops when the screen or document is inactive,
 except for the actual PiP owner. Media selection includes both post and media index.
 
+The reel owns a loading session for each navigation intent, viewer, and chosen feed.
+Selection follows the post and media identity; ranked pages only append unique posts.
+Callback recreation and ordinary route refocus do not restart the session. An explicit
+target that cannot load remains a retryable error instead of opening an unrelated video.
+
 The persistent video view holds its own registry lease, so cancelling a web handoff
 releases the navigation bridge without freeing a mounted decoder. No-anchor and
 no-flight paths do not retain a bridge. Explicit flight cancellation is limited to
