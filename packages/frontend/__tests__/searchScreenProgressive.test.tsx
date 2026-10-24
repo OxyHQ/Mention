@@ -32,6 +32,7 @@ jest.mock('expo-router', () => ({
   useRouter: () => jest.requireMock('expo-router').router,
   router: { push: jest.fn() },
   useLocalSearchParams: () => ({ q: 'rust' }),
+  useIsFocused: () => true,
 }));
 
 jest.mock('@oxy.so/services/ui/client', () => ({

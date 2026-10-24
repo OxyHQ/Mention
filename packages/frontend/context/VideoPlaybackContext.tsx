@@ -10,16 +10,17 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
-import { AppState, Dimensions, Platform } from 'react-native';
-import { useIsFocused } from '@/lib/navigation/router';
+import { Dimensions, Platform } from 'react-native';
+import { useScreenVisible } from '@oxy.so/bloom/screen';
 
 /**
  * The single app-wide authority answering "may this player play right now?".
  *
  * Three inputs:
  *
- * - **Visible** — on screen AND its screen is focused AND the app/tab is in the
- *   foreground. Applies to EVERY player, GIFs included; anything else pauses.
+ * - **Visible** — on screen AND its screen is visible (Bloom's
+ *   `useScreenVisible()`: the Screen is in front and the app/tab is in the
+ *   foreground). Applies to EVERY player, GIFs included; anything else pauses.
  * - **Active** — among the *visible audible* players, exactly one may play: the
  *   one closest to the viewport's ideal line (web) or highest in the list's
  *   viewable order (native). Silent players (GIF mode) never compete, so several
@@ -39,7 +40,7 @@ import { useIsFocused } from '@/lib/navigation/router';
  * {@link VideoViewabilityProvider}, either by their own key or through a
  * {@link VideoViewabilityScope} when the list cannot address them individually;
  * a native player with no list above it (post detail, single-video screens, the
- * GIF picker) is visible while its screen is focused.
+ * GIF picker) is visible while its screen is.
  *
  * Where a source EXISTS, an unmatched player is NOT visible. "Unknown, so assume
  * yes" is precisely how an off-screen video keeps playing, which is the bug this
@@ -54,45 +55,6 @@ const IS_WEB = Platform.OS === 'web';
  * scrolling a feed).
  */
 const IDEAL_VIEWPORT_LINE_DIVISOR = 2.5;
-
-/**
- * App/tab foreground, tracked ONCE for the whole app instead of per player.
- * Exposed through `useSyncExternalStore` because `AppState` / `document` are
- * external mutable state: the React Compiler would freeze a plain render-time
- * read forever.
- */
-function subscribeForeground(onStoreChange: () => void): () => void {
-  if (IS_WEB) {
-    if (typeof document === 'undefined') return () => {};
-    document.addEventListener('visibilitychange', onStoreChange);
-    return () => document.removeEventListener('visibilitychange', onStoreChange);
-  }
-  // `addEventListener` THROWS when AppState has no native module behind it, so
-  // this is a guard against a crash, not a nicety.
-  if (!AppState.isAvailable) return () => {};
-  const subscription = AppState.addEventListener('change', onStoreChange);
-  return () => subscription.remove();
-}
-
-function getForegroundSnapshot(): boolean {
-  if (IS_WEB) {
-    return typeof document === 'undefined' || document.visibilityState === 'visible';
-  }
-  // iOS reports a transient 'inactive' (app switcher, incoming call), which is
-  // genuinely not foreground. But `AppState.currentState` is null until the
-  // native module answers — and stays null forever where AppState is
-  // unavailable — so only a POSITIVELY reported non-active state may mute the
-  // app. Treating "no answer" as backgrounded would silence every video
-  // everywhere the module is missing, and an absent AppState is not evidence
-  // that the app is in the background.
-  const state = AppState.currentState;
-  return state == null || state === 'active';
-}
-
-/** Server render: nothing is playing yet, so foreground is the neutral answer. */
-function getForegroundServerSnapshot(): boolean {
-  return true;
-}
 
 /**
  * A value with keyed readers, outside React state.
@@ -136,9 +98,9 @@ interface PlayerRegistration {
   /** Silent players (GIF mode) never compete for the single audible slot. */
   silent: boolean;
   /**
-   * Visible AND on a focused screen — or the owner of an open session, whose
-   * surface is deliberately no longer the on-screen one. Screen focus belongs in
-   * candidacy, not only in the final gate: a blurred screen's player is often
+   * Visible AND on a visible screen — or the owner of an open session, whose
+   * surface is deliberately no longer the on-screen one. Screen visibility belongs
+   * in candidacy, not only in the final gate: a blurred screen's player is often
    * still intersecting the viewport, and if it could still hold the audible slot
    * it would silence the video on the screen the viewer actually navigated to.
    */
@@ -172,7 +134,6 @@ interface VideoPlaybackContextValue {
    * A store, not a value: a new winner wakes only the old and the new one.
    */
   active: Store<string | null>;
-  foreground: boolean;
   publish: (id: string, registration: PlayerRegistration) => void;
   unpublish: (id: string) => void;
   claimActive: (id: string) => void;
@@ -232,11 +193,6 @@ export function VideoPlaybackProvider({
   children: React.ReactNode;
 }): React.ReactElement {
   const [active] = useState(() => createStore<string | null>(null));
-  const foreground = useSyncExternalStore(
-    subscribeForeground,
-    getForegroundSnapshot,
-    getForegroundServerSnapshot,
-  );
 
   // Mounted players and the viewer's manual override live outside React state on
   // purpose: registrations churn while scrolling and must not re-render the tree.
@@ -332,8 +288,8 @@ export function VideoPlaybackProvider({
   );
 
   const value = useMemo<VideoPlaybackContextValue>(
-    () => ({ active, foreground, publish, unpublish, claimActive }),
-    [active, foreground, publish, unpublish, claimActive],
+    () => ({ active, publish, unpublish, claimActive }),
+    [active, publish, unpublish, claimActive],
   );
 
   return <VideoPlaybackContext.Provider value={value}>{children}</VideoPlaybackContext.Provider>;
@@ -479,7 +435,7 @@ export interface UseVideoPlaybackOptions {
 export interface UseVideoPlaybackResult {
   /** The ONLY playback signal a consumer needs. */
   shouldPlay: boolean;
-  /** Preloading is allowed only on a foregrounded, focused screen or for PiP. */
+  /** Preloading is allowed only on a visible screen or for PiP. */
   canLoad: boolean;
   /** Manual play wins: claim the audible slot. */
   claimActive: () => void;
@@ -509,14 +465,14 @@ export function useVideoPlayback({
   if (!authority) {
     throw new Error('useVideoPlayback must be used inside a <VideoPlaybackProvider>');
   }
-  const { active, foreground, publish, unpublish, claimActive: claimActiveById } = authority;
+  const { active, publish, unpublish, claimActive: claimActiveById } = authority;
   // This player's own slice of the election, so a new winner wakes two players.
   const readIsActive = (): boolean => active.get() === id;
   const isActive = useSyncExternalStore(active.subscribe, readIsActive, readIsActive);
 
   const viewabilitySource = useContext(VideoViewabilityContext);
   const keyRank = useKeyRank(viewabilitySource, viewabilityKey);
-  const screenFocused = useIsFocused();
+  const screenVisible = useScreenVisible();
 
   const [webVisibility, setWebVisibility] = useState<WebVisibility>(UNOBSERVED);
   const reportVisibility = useCallback((y: number, isIntersecting: boolean) => {
@@ -536,7 +492,7 @@ export function useVideoPlayback({
   // that opened the session leaves that surface behind on purpose (the pager
   // moves on, or the app is backgrounded entirely), so its viewability source is
   // describing something the viewer is no longer being shown.
-  const eligible = ownsSession || (visible && screenFocused);
+  const eligible = ownsSession || (visible && screenVisible);
 
   // The authority is an imperative registry outside React's tree; publishing this
   // player's candidacy into it — and removing it on unmount, which is what
@@ -551,9 +507,9 @@ export function useVideoPlayback({
 
   const claimActive = useCallback(() => claimActiveById(id), [claimActiveById, id]);
 
-  const shouldPlay = eligible && (foreground || ownsSession) && (silent || isActive);
+  const shouldPlay = eligible && (silent || isActive);
 
-  const canLoad = ownsSession || (screenFocused && foreground);
+  const canLoad = ownsSession || screenVisible;
   return { shouldPlay, canLoad, claimActive, reportVisibility };
 }
 

@@ -45,7 +45,10 @@ jest.mock('@oxy.so/bloom/button', () => {
       R.createElement(RN.Pressable, { onPress }, R.createElement(RN.Text, null, children)),
   };
 });
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: mockPush }),
+  useIsFocused: () => true,
+}));
 jest.mock('@/components/Feed/PostItem', () => ({ __esModule: true, default: () => null }));
 jest.mock('@oxy.so/bloom/tabs', () => {
   const R = jest.requireActual<typeof import('react')>('react');

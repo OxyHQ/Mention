@@ -280,21 +280,27 @@
     },
     {
       "path": "total",
-      "metric": "statements",
+      "metric": "branches",
       "date": "2026-10-24",
-      "reason": "Reselect (back to the top, then a reload) moved to Bloom's reselect (ScreenReselectScope, useScreenReselectHandler, Tabs pressOpenTab; tested there); Mention's ScreenReselectContext, its document scroller (context/DocumentScroll) and their tests were deleted, which lowers the overall ratio by under 0.1 point."
+      "reason": "Web list virtualization and screen visibility moved to Bloom (VirtualList / visibility hooks), tested there; Mention's useOwnerVirtualizer, useScrollMarginOrigin, LoadMoreSentinel and its own AppState/visibilitychange foreground subscriptions were deleted with their tests."
     },
     {
-      "path": "total",
+      "path": "hooks/useReferenceVisibility.ts",
+      "metric": "branches",
+      "date": "2026-10-24",
+      "reason": "Web list virtualization and screen visibility moved to Bloom (VirtualList / visibility hooks), tested there; Mention's useOwnerVirtualizer, useScrollMarginOrigin, LoadMoreSentinel and its own AppState/visibilitychange foreground subscriptions were deleted with their tests."
+    },
+    {
+      "path": "hooks/useReferenceVisibility.ts",
       "metric": "functions",
       "date": "2026-10-24",
-      "reason": "Reselect (back to the top, then a reload) moved to Bloom's reselect (ScreenReselectScope, useScreenReselectHandler, Tabs pressOpenTab; tested there); Mention's ScreenReselectContext, its document scroller (context/DocumentScroll) and their tests were deleted, which lowers the overall ratio by under 0.1 point."
+      "reason": "Web list virtualization and screen visibility moved to Bloom (VirtualList / visibility hooks), tested there; Mention's useOwnerVirtualizer, useScrollMarginOrigin, LoadMoreSentinel and its own AppState/visibilitychange foreground subscriptions were deleted with their tests."
     },
     {
-      "path": "total",
+      "path": "hooks/useReferenceVisibility.ts",
       "metric": "lines",
       "date": "2026-10-24",
-      "reason": "Reselect (back to the top, then a reload) moved to Bloom's reselect (ScreenReselectScope, useScreenReselectHandler, Tabs pressOpenTab; tested there); Mention's ScreenReselectContext, its document scroller (context/DocumentScroll) and their tests were deleted, which lowers the overall ratio by under 0.1 point."
+      "reason": "Web list virtualization and screen visibility moved to Bloom (VirtualList / visibility hooks), tested there; Mention's useOwnerVirtualizer, useScrollMarginOrigin, LoadMoreSentinel and its own AppState/visibilitychange foreground subscriptions were deleted with their tests."
     }
   ],
   "globalDriftAllowancePoints": 0.75,
@@ -305,8 +311,8 @@
     "one defensible line at a time, and a bound cannot tell growth from shrinkage."
   ],
   "expectedCounts": {
-    "domainFiles": 310,
-    "pins": 305,
+    "domainFiles": 308,
+    "pins": 303,
     "unenforceable": 5,
     "belowBarExemptions": 8,
     "criticalPaths": 36,

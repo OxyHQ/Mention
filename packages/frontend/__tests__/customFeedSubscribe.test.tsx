@@ -79,6 +79,7 @@ jest.mock('expo-router', () => ({
   useRouter: () => jest.requireMock('expo-router').router,
   router: { push: jest.fn() },
   useLocalSearchParams: () => ({ id: 'feed-1' }),
+  useIsFocused: () => true,
 }));
 
 /** The subscription path under test. */

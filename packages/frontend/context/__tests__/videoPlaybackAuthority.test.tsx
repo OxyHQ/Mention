@@ -1,7 +1,6 @@
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { AppState } from 'react-native';
-import { useIsFocused } from 'expo-router';
+import { useScreenVisible } from '@oxy.so/bloom/screen';
 import {
   VideoPlaybackProvider,
   VideoViewabilityProvider,
@@ -13,10 +12,10 @@ import {
 
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
 
-// Screen focus is navigation state; the authority only folds it in. Mocked so a
-// test can blur the screen its players are on.
-jest.mock('expo-router', () => ({
-  useIsFocused: jest.fn(() => true),
+// Screen visibility (in front, app in the foreground) is Bloom's; the authority
+// only folds it in. Mocked so a test can hide the screen its players are on.
+jest.mock('@oxy.so/bloom/screen', () => ({
+  useScreenVisible: jest.fn(() => true),
 }));
 
 /**
@@ -59,13 +58,7 @@ function update(renderer: TestRenderer.ReactTestRenderer, element: React.ReactEl
 }
 
 beforeEach(() => {
-  // jest-expo leaves `AppState.currentState` as a mock FUNCTION, which is
-  // neither 'active' nor null, so the authority would read every player as
-  // backgrounded. Pin it to the value a running app reports so these tests
-  // exercise the real foreground path. Backgrounding TRANSITIONS are not
-  // covered here — they need a device.
-  AppState.currentState = 'active';
-  jest.mocked(useIsFocused).mockReturnValue(true);
+  jest.mocked(useScreenVisible).mockReturnValue(true);
   probes.clear();
 });
 
@@ -388,8 +381,8 @@ describe('video playback authority — Picture-in-Picture session', () => {
     expect(shouldPlay('onscreen')).toBe(true);
   });
 
-  it('plays while the app is backgrounded, when nothing else may', () => {
-    AppState.currentState = 'background';
+  it('plays while its screen is not visible — backgrounded, or a route pushed over the reel', () => {
+    jest.mocked(useScreenVisible).mockReturnValue(false);
     render(
       <VideoPlaybackProvider>
         <VideoViewabilityProvider viewableKeys={new Set(['post-a', 'post-b'])}>
@@ -401,19 +394,6 @@ describe('video playback authority — Picture-in-Picture session', () => {
 
     expect(shouldPlay('owner')).toBe(true);
     expect(shouldPlay('onscreen')).toBe(false);
-  });
-
-  it('plays on a blurred screen — another route pushed over the reel', () => {
-    jest.mocked(useIsFocused).mockReturnValue(false);
-    render(
-      <VideoPlaybackProvider>
-        <VideoViewabilityProvider viewableKeys={new Set(['post-a'])}>
-          <Player id="owner" viewabilityKey="post-a" ownsSession />
-        </VideoViewabilityProvider>
-      </VideoPlaybackProvider>,
-    );
-
-    expect(shouldPlay('owner')).toBe(true);
   });
 
   it('outranks a manual claim by another player', () => {
@@ -435,9 +415,9 @@ describe('video playback authority — Picture-in-Picture session', () => {
   });
 });
 
-describe('video playback authority — screen focus', () => {
-  it('does not let a blurred screen hold the audible slot', () => {
-    jest.mocked(useIsFocused).mockReturnValue(false);
+describe('video playback authority — screen visibility', () => {
+  it('does not let a hidden screen hold the audible slot', () => {
+    jest.mocked(useScreenVisible).mockReturnValue(false);
     render(
       <VideoPlaybackProvider>
         <VideoViewabilityProvider viewableKeys={new Set(['post-a'])}>

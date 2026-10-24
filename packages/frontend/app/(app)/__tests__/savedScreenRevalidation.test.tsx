@@ -82,6 +82,7 @@ jest.mock('expo-router', () => ({
   usePathname: () => '/saved',
   useLocalSearchParams: () => ({}),
   useFocusEffect: jest.fn(),
+  useIsFocused: () => true,
   Link: () => null,
 }));
 

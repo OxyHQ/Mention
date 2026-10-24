@@ -1,27 +1,16 @@
-import { useEffect, useId, useState, useSyncExternalStore } from 'react';
-import { AppState, Platform } from 'react-native';
-import { useIsFocused } from '@/lib/navigation/router';
+import { useEffect, useId, useState } from 'react';
+import { Platform } from 'react-native';
+import { useScreenVisible } from '@oxy.so/bloom/screen';
 import { useNativeRowVisibility } from '@/context/VideoPlaybackContext';
 
-function subscribeForeground(listener: () => void) {
-  if (Platform.OS === 'web') {
-    document.addEventListener('visibilitychange', listener);
-    return () => document.removeEventListener('visibilitychange', listener);
-  }
-  if (!AppState.isAvailable) return () => {};
-  const subscription = AppState.addEventListener('change', listener);
-  return () => subscription.remove();
-}
-const foreground = () =>
-  Platform.OS === 'web'
-    ? typeof document !== 'undefined' && document.visibilityState === 'visible'
-    : AppState.currentState === null || AppState.currentState === 'active';
-
-/** Web measures the card; native uses FlashList's actual viewable keys, never mounting. */
+/**
+ * Whether a reference card is in front of the reader: its Screen is visible and
+ * the card itself is on screen. Web measures the card; native uses FlashList's
+ * actual viewable keys, never mounting.
+ */
 export function useReferenceVisibility(viewabilityKey?: string) {
   const id = `reference-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
-  const focused = useIsFocused();
-  const active = useSyncExternalStore(subscribeForeground, foreground, () => false);
+  const screenVisible = useScreenVisible();
   const nativeVisible = useNativeRowVisibility(viewabilityKey);
   const [intersecting, setIntersecting] = useState(false);
   useEffect(() => {
@@ -36,6 +25,6 @@ export function useReferenceVisibility(viewabilityKey?: string) {
   }, [id]);
   return {
     nativeID: id,
-    visible: focused && active && (Platform.OS === 'web' ? intersecting : nativeVisible),
+    visible: screenVisible && (Platform.OS === 'web' ? intersecting : nativeVisible),
   };
 }

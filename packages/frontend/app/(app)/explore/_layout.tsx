@@ -1,6 +1,6 @@
 import { Screen } from '@oxy.so/bloom/screen';
 import { useTranslation } from 'react-i18next';
-import { useRouter, Slot, usePathname, type Href } from '@/lib/navigation/router';
+import { useRouter, Slot, usePathname, type Href, useIsFocused } from '@/lib/navigation/router';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
@@ -29,6 +29,7 @@ const TABS = [
 ] as const satisfies readonly { id: string; label: string; href: Href }[];
 
 export default function ExploreLayout() {
+  const isFocused = useIsFocused();
   const router = useRouter();
   const pushTab = (id: string) => {
     const tab = TABS.find((candidate) => candidate.id === id);
@@ -40,6 +41,7 @@ export default function ExploreLayout() {
 
   return (
     <Screen
+      active={isFocused}
       scroll="auto"
       header={
         <PageHeader

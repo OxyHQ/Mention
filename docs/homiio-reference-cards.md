@@ -24,8 +24,8 @@ approximate area label, date, status, and a canonical link only.
 `(ids, { signal })` and returns `{ items, unavailableIds }`, with one accounted-for
 result per ID. `useVisibleReference(store, id, visible)` subscribes only while a
 card is visible. `useReferenceVisibility(postId)` uses an IntersectionObserver on
-web and the native feed's actual FlashList viewable keys, plus screen focus and
-foreground state. The store combines subscriptions over 16 ms, deduplicates IDs,
+web and the native feed's actual FlashList viewable keys, gated on Bloom's
+`useScreenVisible()` (the Screen is in front and the app is in the foreground). The store combines subscriptions over 16 ms, deduplicates IDs,
 and lives outside persistent feed/query/SQLite caches. Hiding the last matching
 card forgets its data. Re-entry and 30-second visible refreshes validate current
 facts, replacing them with loading first. An 8-second timeout wins even against a

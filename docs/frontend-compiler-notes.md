@@ -69,60 +69,28 @@ the optimization would CONTAIN before spending a refactor to unlock it, and
 never restructure a `try`/`finally` that exists to guarantee cleanup on the
 error path — that trades correctness for a cache.
 
-## Web feed virtualization — why `Math.max(totalSize, lastItemEnd)` stays
+## Web list virtualization lives in Bloom
 
-`packages/frontend/components/Feed/Feed.web.tsx`'s spacer size uses
-`Math.max(totalSize, lastItemEnd)` (`virtualItems.at(-1)?.end ?? 0`). Keep
-it — but it is belt-and-braces, and the story it used to carry ("on prod
-builds `getTotalSize()` can return 0 even with measured rows") was NOT a
-react-virtual quirk. It was the React Compiler, and the mechanism
-generalizes to every virtualized web list here.
+Every virtualized web list here (`Feed.web.tsx`, `NotificationsList.web.tsx`,
+`SavedPostsList.web.tsx`, `ProfileGridList.web.tsx`) renders Bloom's
+`VirtualList` (`@oxy.so/bloom/list`). It windows against the scroller of the
+Screen in front — the window for document flow, the panel element for an
+element-kind panel — re-reads its origin when a retained screen is shown again,
+paginates through `onEndReached`, and stays idle while its Screen is inactive.
+None of that is Mention's code any more, and neither are its tests.
 
-`useWindowVirtualizer` returns an instance whose identity is stable for the
-component's lifetime (`useState(() => new Virtualizer(...))`) and forces
-re-renders through a reducer INTERNAL to the hook. Nothing the component
-can see changes on scroll, so the compiler caches `getTotalSize()` — and,
-when its grouping reaches that far, `getVirtualItems()` and the whole row
-JSX — keyed on props plus that stable instance, and serves the first result
-forever. Dev hides it (`enableResetCacheOnSourceFileChanges` is true there,
-so fast refresh clears the cache on every edit); prod does not.
+The compiler finding that drove the old app-local virtualizers still holds for
+anything that calls `@tanstack/react-virtual` directly: the virtualizer instance
+is stable for the component's lifetime and re-renders through a reducer internal
+to the hook, so a compiled caller serves its first `getTotalSize()` /
+`getVirtualItems()` forever in production builds (dev hides it — fast refresh
+clears the cache on every edit). `ProfileGridList` once shipped that way: 8 rows
+and ~550px of blank below them. Do not add a second virtualizer to the app;
+extend Bloom's. If one is unavoidable, opt it out with `'use no memo'`, compile
+it with the app's own `babel-plugin-react-compiler` and read the
+CompileError/CompileSuccess events, and verify on a PROD build (`expo export
+web`), not the dev server.
 
-Verified by compiling `Feed.web.tsx` as of `e4ea113f`, the commit that
-added the `Math.max`: it compiled, with `getTotalSize()` frozen on
-`virtualizer`. `ce87804e` an hour later added a render-phase ref write that
-made the compiler refuse the whole function, removing the freeze BY
-ACCIDENT — which is why `Math.max` has been redundant since. Do not remove
-it; a workaround whose cause is gone is still cheap insurance.
-
-A virtualized web list must therefore be opted out explicitly.
-`ProfileGridList.web.tsx`, `SavedPostsList.web.tsx`, `Feed.web.tsx`, and
-`NotificationsList.web.tsx` carry `'use no memo'` with the reason in-source.
-Do not rely on incidental render-phase ref accesses to prevent compilation.
-Symptoms differ by how far the grouping reached: a frozen
-`getTotalSize()` alone means a short spacer and sticky rails that scroll
-away; a frozen `getVirtualItems()` means rows past the first window never
-mount (`ProfileGridList` shipped that way — 8 rows and ~550px of blank
-below them).
-
-Do NOT reason about which shape is safe: grouping is per-file, and a
-captured ref does NOT reliably prevent it (measured both ways). Compile the
-file with the app's own `babel-plugin-react-compiler` and read the
-CompileError/CompileSuccess events — not a grep of the output, which
-comments like these will match. Always verify virtualization bugs on a PROD
-build (`expo export web`), not the dev server.
-
-### Retained panels and row measurements
-
-A retained Deck screen can move between document and panel scroll owners while
-hidden. `useOwnerVirtualizer` selects a different virtualizer for each owner.
-Pass its stable `measureElement` directly to measurement-only row refs. If a row
-also binds post identity or impression tracking, scope its callback cache to
-`measureElement`; caching solely by row key keeps the previous owner's callback
-and leaves the new owner using estimated heights. Replacement impression
-observers must observe already-mounted post rows as well as future mounts.
-
-The regression test `webListOwnerMeasurement.test.tsx` covers both ownership
-directions and stable-owner renders for feeds and notifications. Production
-verification also delays a Following response until Deck is hidden, then reopens
-Deck: row spacing must use measured content heights, including content taller
-than the initial estimate.
+A row that needs its own DOM observation (the web feed's impression tracking)
+wraps its content in a node of its own inside `renderItem` and observes that,
+never the list's measured row element.

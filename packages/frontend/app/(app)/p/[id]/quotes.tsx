@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useLocalSearchParams } from '@/lib/navigation/router';
+import { useLocalSearchParams, useIsFocused } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import Feed from '@/components/Feed/Feed';
 import { PageHeader } from '@oxy.so/bloom/page-header';
@@ -12,6 +12,7 @@ import { SEO } from '@/components/SEO';
  * than the user-list sheet that likes and boosts open.
  */
 export default function PostQuotesScreen() {
+  const isFocused = useIsFocused();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useTranslation();
 
@@ -20,6 +21,7 @@ export default function PostQuotesScreen() {
 
   return (
     <Screen
+      active={isFocused}
       header={<PageHeader title={title} backLabel={t('common.back', { defaultValue: 'Back' })} />}
     >
       <SEO

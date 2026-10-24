@@ -52,6 +52,7 @@ import Feed from '@/components/Feed/Feed';
 import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { SignInRequired } from '@/components/common/SignInRequired';
+import { useIsFocused } from '@/lib/navigation/router';
 
 type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 type ModuleState = { enabled: boolean; params: Record<string, unknown> };
@@ -737,6 +738,7 @@ export function FeedBuilder({
   feedId?: string;
   initialFeed?: CustomFeed;
 }) {
+  const isFocused = useIsFocused();
   const { t } = useTranslation();
   const { oxyServices, user, canUsePrivateApi } = useAuth();
   const queryClient = useQueryClient();
@@ -943,6 +945,7 @@ export function FeedBuilder({
 
   return (
     <Screen
+      active={isFocused}
       header={
         <PageHeader
           title={feedId ? t('feeds.builder.editTitle') : t('feeds.builder.createTitle')}
