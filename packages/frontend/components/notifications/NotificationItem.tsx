@@ -4,7 +4,6 @@ import { Image } from 'expo-image';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import Ionicons from '@/components/common/Ionicons';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Button } from '@oxy.so/bloom/button';
@@ -749,15 +748,11 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
               className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full border-2 border-background items-center justify-center"
               style={{ backgroundColor: badgeColor }}
             >
-              {descriptor.iconComponent ? (
-                <descriptor.iconComponent
-                  width={BADGE_ICON_SIZE}
-                  height={BADGE_ICON_SIZE}
-                  fill={BADGE_GLYPH_COLOR}
-                />
-              ) : (
-                <Ionicons name={descriptor.icon} size={BADGE_ICON_SIZE} color={BADGE_GLYPH_COLOR} />
-              )}
+              <descriptor.icon
+                width={BADGE_ICON_SIZE}
+                height={BADGE_ICON_SIZE}
+                fill={BADGE_GLYPH_COLOR}
+              />
             </View>
           </View>
 

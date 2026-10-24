@@ -6,7 +6,7 @@ import { Image } from 'expo-image';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
-import Ionicons from '@/components/common/Ionicons';
+import { RiStackLine } from '@oxy.so/bloom/icons/RiStackLine';
 import { EmptyState } from '@/components/common/EmptyState';
 import type { FeedItem } from '@/db';
 import type { HydratedPostSummary, MediaItem } from '@mention/shared-types';
@@ -206,7 +206,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
               className="absolute top-1 right-1 rounded p-0.5"
               style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
             >
-              <Ionicons name="albums-outline" size={CAROUSEL_ICON_SIZE} color="white" />
+              <RiStackLine width={CAROUSEL_ICON_SIZE} height={CAROUSEL_ICON_SIZE} fill="white" />
             </View>
           )}
         </TouchableOpacity>

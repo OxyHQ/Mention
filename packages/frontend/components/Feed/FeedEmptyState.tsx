@@ -72,7 +72,7 @@ export const FeedEmptyState = memo<FeedEmptyStateProps>(
               : t('feed.empty.message'),
             onRetry,
           }}
-          icon={isOffline ? { name: 'cloud-offline-outline', size: 36 } : undefined}
+          sticker={isOffline ? 'offline' : undefined}
         />
       );
     }

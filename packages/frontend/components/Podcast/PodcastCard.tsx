@@ -11,7 +11,8 @@ import {
   type DimensionValue,
 } from 'react-native';
 import { Image } from 'expo-image';
-import Ionicons from '@/components/common/Ionicons';
+import { RiRadioLine } from '@oxy.so/bloom/icons/RiRadioLine';
+import { RiVideoLine } from '@oxy.so/bloom/icons/RiVideoLine';
 import Svg, { Path } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
 import { Card } from '@oxy.so/bloom/card';
@@ -117,12 +118,10 @@ const ProviderRow = ({ provider, className }: { provider: Provider; className?: 
       <SpotifyGlyph size={13} color={WHITE_MUTED} />
     ) : provider.glyph === 'apple' ? (
       <RiAppleFill width={13} height={13} fill={WHITE_MUTED} />
+    ) : provider.glyph === 'youtube' ? (
+      <RiVideoLine width={13} height={13} fill={WHITE_MUTED} />
     ) : (
-      <Ionicons
-        name={provider.glyph === 'youtube' ? 'logo-youtube' : 'radio'}
-        size={13}
-        color={WHITE_MUTED}
-      />
+      <RiRadioLine width={13} height={13} fill={WHITE_MUTED} />
     )}
     <Text className="text-white/70 text-[13px] font-semibold" numberOfLines={1}>
       {provider.label}

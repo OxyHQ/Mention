@@ -46,7 +46,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { FollowButton } from '@/components/FollowButton';
 import { useVideoPlayer, type VideoPlayer } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
-import Ionicons from '@/components/common/Ionicons';
+import { RiMusic2Line } from '@oxy.so/bloom/icons/RiMusic2Line';
 import { RiBookmarkFill } from '@oxy.so/bloom/icons/RiBookmarkFill';
 import { RiBookmarkLine } from '@oxy.so/bloom/icons/RiBookmarkLine';
 import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
@@ -999,12 +999,7 @@ const VideoItem = memo<VideoItemProps>(
                 </View>
               ) : null}
               <View style={styles.soundRow} pointerEvents="none">
-                <Ionicons
-                  name="musical-notes-outline"
-                  size={13}
-                  color="#FFFFFF"
-                  style={styles.soundIcon}
-                />
+                <RiMusic2Line width={13} height={13} fill="#FFFFFF" />
                 <Text style={styles.soundText} numberOfLines={1}>
                   {t('videos.original_audio')} · @{userHandle}
                 </Text>
@@ -2526,9 +2521,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     marginTop: 2,
-  },
-  soundIcon: {
-    ...TEXT_SHADOW_STRONG,
   },
   soundText: {
     color: '#FFFFFF',

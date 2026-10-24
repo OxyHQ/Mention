@@ -397,7 +397,6 @@ const RoomDetailScreen = () => {
             <DetailSkeleton />
           ) : !room ? (
             <EmptyState
-              icon={{ name: 'alert-circle-outline' }}
               error={{
                 title: t('agora.roomUnavailableTitle', { defaultValue: "Couldn't load this room" }),
                 message: t('agora.roomUnavailableMessage', {

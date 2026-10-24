@@ -30,7 +30,8 @@ import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
 import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
 import { RiSpamLine } from '@oxy.so/bloom/icons/RiSpamLine';
 import { RiUnpinLine } from '@oxy.so/bloom/icons/RiUnpinLine';
-import Ionicons from '@/components/common/Ionicons';
+import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
+import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
 import { muteService } from '@/services/muteService';
 import { lanesService } from '@/services/lanesService';
 import { noteLaneListsChanged } from '@/stores/laneInvalidation';
@@ -256,7 +257,7 @@ export function buildPostMenuActions(
       const withinEditWindow = createdAtMs > 0 && Date.now() - createdAtMs < 30 * 60 * 1000;
       if (isChannelPost || withinEditWindow) {
         saveActionGroup.push({
-          icon: <Ionicons name="create-outline" size={20} color={theme.colors.textSecondary} />,
+          icon: <RiEditBoxLine width={20} height={20} fill={theme.colors.textSecondary} />,
           label: t('postActions.edit'),
           onPress: () => router.push(`/compose?editPostId=${postId}`),
         });
@@ -410,7 +411,7 @@ export function buildPostMenuActions(
     const stopSharingAction = canStopSharing
       ? [
           {
-            icon: <Ionicons name="close-circle-outline" size={20} color={theme.colors.error} />,
+            icon: <RiCloseCircleLine width={20} height={20} fill={theme.colors.error} />,
             label: t('collab.stopSharing', { defaultValue: 'Stop sharing' }),
             onPress: async () => {
               const confirmed = await confirmDialog({

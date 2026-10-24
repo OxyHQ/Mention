@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
+import { RiLinkM } from '@oxy.so/bloom/icons/RiLinkM';
 import PostSources from './PostSources';
 import type { PostSourceLink } from '@mention/shared-types';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -46,10 +47,7 @@ const PostSourcesSheet: React.FC<PostSourcesSheetProps> = ({ sources, onClose })
             title={t('post.sourcesSheet.empty', {
               defaultValue: 'No sources available for this post.',
             })}
-            icon={{
-              name: 'link-outline',
-              size: 48,
-            }}
+            icon={RiLinkM}
             containerStyle={{ flex: 1 }}
           />
         )}

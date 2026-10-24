@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button } from '@oxy.so/bloom/button';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
+import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Item } from '@oxy.so/bloom/item';
 import { getNormalizedUserHandle } from '@oxy.so/core';
@@ -113,7 +114,7 @@ const CommunityPickerSheet = memo(function CommunityPickerSheet({
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
             <EmptyState
-              icon={{ name: 'people-outline' }}
+              icon={RiGroupLine}
               subtitle={t('compose.community.empty', {
                 defaultValue: 'Join a community to post in it.',
               })}

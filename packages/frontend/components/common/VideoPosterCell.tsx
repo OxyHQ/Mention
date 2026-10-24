@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Text, View, type TextStyle } from 'react-native';
 import { Image } from 'expo-image';
-import Ionicons from '@/components/common/Ionicons';
+import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { RiFilmLine } from '@oxy.so/bloom/icons/RiFilmLine';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { formatDuration } from '@/utils/formatDuration';
@@ -57,8 +57,8 @@ const META_TEXT_COLOR = 'white';
  * a pill that would eat a third of the width of a ~120px cell. Same values as
  * the reels screen uses over moving video; redeclared rather than imported,
  * because that module is a ROUTE and `components/common/` must not depend on
- * one. `Ionicons` is a `Text`-based glyph font, so the glyph takes the shadow
- * exactly like the number does.
+ * one. Only the text takes it: the play glyph is an SVG, which a text shadow
+ * does not reach.
  */
 const META_TEXT_SHADOW: Pick<
   TextStyle,
@@ -148,11 +148,10 @@ const VideoPosterCell = React.memo<VideoPosterCellProps>(
             with a different count.
           */}
           <View className="flex-row items-center gap-0.5">
-            <Ionicons
-              name="play"
-              size={META_PLAY_ICON_SIZE}
-              color={META_TEXT_COLOR}
-              style={META_TEXT_SHADOW}
+            <RiPlayFill
+              width={META_PLAY_ICON_SIZE}
+              height={META_PLAY_ICON_SIZE}
+              fill={META_TEXT_COLOR}
             />
             {viewsLabel !== null && (
               <Text className="text-white text-xs font-semibold" style={META_TEXT_SHADOW}>

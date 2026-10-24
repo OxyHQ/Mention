@@ -65,7 +65,6 @@ jest.mock('@/db', () => ({
   clearAllCachedData: jest.fn(),
 }));
 
-jest.mock('@oxy.so/bloom/icons', () => ({ RiFilmLine: () => null }));
 jest.mock('@/services/feedService', () => ({ feedService: {} }));
 jest.mock('@/services/echoGuard', () => ({ markLocalAction: jest.fn() }));
 jest.mock('@/lib/precacheActorsFromPosts', () => ({
@@ -138,7 +137,7 @@ const makePost = (id: string, views: number | null): FeedItem => ({
   },
 });
 
-/** Mount awaits an async act: `Ionicons` resolves its font in a promise. */
+/** Mount inside an async act so the first render's effects settle. */
 async function mount(element: React.ReactElement) {
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
@@ -147,11 +146,7 @@ async function mount(element: React.ReactElement) {
   return renderer;
 }
 
-/**
- * The strings the cell paints as LABELS — the same discriminator
- * `VideoPosterCell.test.tsx` uses: an icon glyph is also a host `Text`, and it is
- * the only one without a `className`.
- */
+/** The strings the cell paints as labels, as `VideoPosterCell.test.tsx` reads them. */
 function labels(renderer: TestRenderer.ReactTestRenderer): string[] {
   return renderer.root
     .findAll((node) => String(node.type) === 'Text', { deep: true })

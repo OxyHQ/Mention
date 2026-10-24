@@ -262,7 +262,7 @@ const SavedPostsScreen: React.FC = () => {
               await refetchSavedPosts();
             },
           }}
-          icon={{ name: 'cloud-offline-outline' }}
+          sticker="offline"
           containerStyle={{ paddingTop: 60 }}
         />
       );
