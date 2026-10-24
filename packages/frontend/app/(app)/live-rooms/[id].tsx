@@ -1,6 +1,6 @@
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
-import { useEffect, useState, useCallback, useContext } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { View, Text, Share } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useQueries } from '@tanstack/react-query';
@@ -45,7 +45,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { FollowButton } from '@/components/FollowButton';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { presentSheet } from '@/utils/sheet';
 import { confirmDialog } from '@/utils/alerts';
 import { reportService } from '@/services/reportService';
 import { ReportModal } from '@/components/report/ReportModal';
@@ -134,7 +134,6 @@ const RoomDetailScreen = () => {
   const [loading, setLoading] = useState(true);
   const [isJoined, setIsJoined] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const bottomSheet = useContext(BottomSheetContext);
 
   const loadRoom = useCallback(async () => {
     if (!id) return;
@@ -228,12 +227,12 @@ const RoomDetailScreen = () => {
 
   const handleReport = () => {
     if (!id) return;
-    bottomSheet.setBottomSheetContent(
+    void presentSheet((surface) => (
       <ReportModal
         visible={true}
-        onClose={() => bottomSheet.openBottomSheet(false)}
+        onClose={() => surface.dismiss()}
         onSubmit={async (categories, details) => {
-          bottomSheet.openBottomSheet(false);
+          surface.dismiss();
           const success = await reportService.reportRoom(id, categories, details);
           if (success) {
             toast(
@@ -248,9 +247,8 @@ const RoomDetailScreen = () => {
             });
           }
         }}
-      />,
-    );
-    bottomSheet.openBottomSheet(true);
+      />
+    ));
   };
 
   // Resolve user IDs to real profiles. Hooks must run on every render, so this

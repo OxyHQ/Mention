@@ -1,5 +1,5 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
-import { useCallback, useContext, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,7 +14,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import type { MentionJobApplication, MentionJobApplicationStatus } from '@mention/shared-types';
 import { MENTION_JOB_APPLICATION_STATUSES } from '@mention/shared-types/job';
 import { Error as ErrorState } from '@/components/Error';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { presentSheet } from '@/utils/sheet';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { jobApplicationsService, isJobForbiddenError } from '@/services/jobApplicationsService';
 import JobApplicationDetailSheet from '@/components/Jobs/JobApplicationDetailSheet';
@@ -45,7 +45,6 @@ export default function JobApplicationsScreen() {
   const jobId = String(id);
   const { t } = useTranslation();
   const { user, canUsePrivateApi } = useAuth();
-  const bottomSheet = useContext(BottomSheetContext);
   const queryClient = useQueryClient();
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -80,25 +79,26 @@ export default function JobApplicationsScreen() {
   // The updated row itself is not read here — every status-filtered view of
   // this job's applications is simply invalidated, since a status change can
   // move the row between buckets (e.g. out of the tab currently open).
-  const handleStatusChanged = useCallback(() => {
+  const invalidateApplications = useCallback(() => {
     void queryClient.invalidateQueries({
       queryKey: viewerQueryKeys.jobApplicationsRoot(user?.id, jobId),
     });
-    bottomSheet.openBottomSheet(false);
-  }, [queryClient, user?.id, jobId, bottomSheet]);
+  }, [queryClient, user?.id, jobId]);
 
   const openApplication = useCallback(
     (application: MentionJobApplication) => {
-      bottomSheet.setBottomSheetContent(
+      void presentSheet((surface) => (
         <JobApplicationDetailSheet
           jobId={jobId}
           application={application}
-          onStatusChanged={handleStatusChanged}
-        />,
-      );
-      bottomSheet.openBottomSheet(true);
+          onStatusChanged={() => {
+            invalidateApplications();
+            surface.dismiss();
+          }}
+        />
+      ));
     },
-    [bottomSheet, jobId, handleStatusChanged],
+    [jobId, invalidateApplications],
   );
 
   // Bloom's VirtualList pages from `onEndReached` on both platforms. A FlashList

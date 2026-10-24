@@ -1,11 +1,11 @@
 import type React from 'react';
-import { useContext, useEffect } from 'react';
+import { useEffect } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient } from '@tanstack/react-query';
 import type { OxyServices } from '@oxy.so/core';
 
 import { AppProviders } from '../AppProviders';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { presentSheet } from '@/utils/sheet';
 import { useVideoPlayback } from '@/context/VideoPlaybackContext';
 import { useVideosRail } from '@/context/VideosRailContext';
 import { usePostInteractions, type PostInteractions } from '@/components/Feed/postInteractions';
@@ -18,17 +18,17 @@ import { usePostInteractions, type PostInteractions } from '@/components/Feed/po
  * Two surfaces render content at a position far above where its JSX was written,
  * and React resolves context by render position, not by authoring position:
  *
- * - `BottomSheetProvider` parks whatever `setBottomSheetContent` is handed in
- *   state and renders it beside its own children. A `<GifPickerSheet/>` built by
- *   `components/Compose/ComposeScreen.tsx` therefore mounts wherever that
- *   PROVIDER sits, not where compose sits.
+ * - Bloom's `<SurfaceHost />` renders every presented sheet beside its own
+ *   siblings. A `<GifPickerSheet/>` presented by
+ *   `components/Compose/ComposeScreen.tsx` therefore mounts wherever that HOST
+ *   sits, not where compose sits.
  * - Bloom's NATIVE portal group re-registers `<Portal>` children onto its
  *   `<Outlet/>`, which `app/_layout.tsx` mounts beside `<AuthRouter/>`. (Bloom's
  *   WEB portal is `ReactDOM.createPortal`, which does preserve context, so that
  *   half is native-only.)
  *
  * Both land at the `AppProviders` level, so every app-shell context has to be
- * mounted ABOVE `BottomSheetProvider` and above `AppProviders`' own children —
+ * mounted ABOVE the surface host and above `AppProviders`' own children —
  * not down in `app/(app)/_layout.tsx` where only routed screens can see it.
  *
  * These tests pin that. They render the REAL `AppProviders` and assert from the
@@ -38,8 +38,8 @@ import { usePostInteractions, type PostInteractions } from '@/components/Feed/po
  */
 
 // Only the leaves that need a host environment are mocked. Every provider whose
-// NESTING this test is about — AppShellProviders and BottomSheetProvider — is
-// the real one.
+// NESTING this test is about — AppShellProviders and the surface host's place
+// in AppProviders — is the real one.
 jest.mock('react-native-safe-area-context', () => ({
   SafeAreaProvider: ({ children }: { children: React.ReactNode }) => children,
   initialWindowMetrics: null,
@@ -127,7 +127,6 @@ jest.mock('@/components/Feed/PostInteractionsBinder', () => ({
 }));
 jest.mock('@/hooks/usePostShare', () => ({ sharePost: jest.fn() }));
 jest.mock('@/stores/postsStore', () => ({ usePostsStore: { getState: () => ({}) } }));
-jest.mock('@/components/common/ContentDialog', () => ({ ContentDialogHost: () => null }));
 jest.mock('@/components/Fediverse/FediverseInfoDialog', () => ({
   FediverseInfoDialogProvider: () => null,
 }));
@@ -154,13 +153,49 @@ jest.mock('@oxy.so/bloom/tab-pager/expo-router', () => ({
 }));
 jest.mock('@/hooks/useUnreadCount', () => ({ useUnreadCount: () => 0 }));
 
-// Renders its children inline instead of behind present/dismiss. The sheet's
-// React POSITION — the only thing under test — is identical either way: on
-// native the real sheet is an RN <Modal>, which keeps its children in the React
-// tree, and on web it is `createPortal`, which preserves context too.
-jest.mock('@oxy.so/bloom/bottom-sheet', () => ({
-  BottomSheet: ({ children }: { children: React.ReactNode }) => children,
-}));
+// Bloom's surface stack, minus the Dialog: the host draws each presented
+// surface inline where it is mounted. The sheet's React POSITION — the only
+// thing under test — is identical either way: on native Bloom's portal group
+// re-parents the Dialog onto the outlet at this same depth, and on web it is
+// `createPortal`, which preserves the host's context.
+jest.mock('@oxy.so/bloom/surfaces', () => {
+  const R = jest.requireActual<typeof import('react')>('react');
+  let stack: ((surface: unknown) => React.ReactNode)[] = [];
+  const listeners = new Set<() => void>();
+  const surface = { dismiss: () => {}, present: () => Promise.resolve() };
+  return {
+    present: (render: (surface: unknown) => React.ReactNode) => {
+      stack = [...stack, render];
+      for (const listener of listeners) listener();
+      return new Promise(() => {});
+    },
+    SurfaceHost: () => {
+      const entries = R.useSyncExternalStore(
+        (listener: () => void) => {
+          listeners.add(listener);
+          return () => listeners.delete(listener);
+        },
+        () => stack,
+      );
+      return entries.map((render, index) =>
+        R.createElement(R.Fragment, { key: index }, render(surface)),
+      );
+    },
+    __reset: () => {
+      stack = [];
+    },
+  };
+});
+
+// Every app a case renders is unmounted after it: a host left mounted would
+// draw the next case's sheets too.
+const mounted: TestRenderer.ReactTestRenderer[] = [];
+afterEach(() => {
+  act(() => {
+    for (const renderer of mounted.splice(0)) renderer.unmount();
+  });
+  jest.requireMock<{ __reset: () => void }>('@oxy.so/bloom/surfaces').__reset();
+});
 
 const oxyServices = {} as OxyServices;
 
@@ -174,20 +209,20 @@ function renderApp(children: React.ReactNode): TestRenderer.ReactTestRenderer {
     );
   });
   if (!renderer) throw new Error('renderer was not created');
+  mounted.push(renderer);
   return renderer;
 }
 
-/** Pushes `content` into the bottom sheet from inside the app tree, exactly as a routed screen does. */
+/** Presents `content` as a sheet from inside the app tree, exactly as a routed screen does. */
 function SheetPusher({ content }: { content: React.ReactNode }) {
-  const { setBottomSheetContent } = useContext(BottomSheetContext);
   useEffect(() => {
-    setBottomSheetContent(content);
-  }, [setBottomSheetContent, content]);
+    void presentSheet(() => content);
+  }, [content]);
   return null;
 }
 
 describe('app-shell contexts reach hoisted content', () => {
-  it('lets bottom-sheet content use the video playback authority', () => {
+  it('lets sheet content use the video playback authority', () => {
     // The reported crash: compose hands the GIF picker to the sheet, the picker
     // renders a <VideoPlayer/>, and the player asks for the playback authority.
     const GifPickerLikeContent = () => {
@@ -241,7 +276,7 @@ describe('app-shell contexts reach hoisted content', () => {
 
   it('gives a post rendered in a sheet the app post-interaction controller', () => {
     // Feed rows issue every command through one controller (#1103). The sheet
-    // renders its content at the BottomSheetProvider's depth, so a post shown
+    // renders its content at the surface host's depth, so a post shown
     // in a sheet only reaches the controller if its provider sits above that —
     // below it, the row would silently get the unbound fallback.
     let fromTree: PostInteractions | undefined;

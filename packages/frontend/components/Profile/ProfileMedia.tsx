@@ -1,6 +1,6 @@
-import { memo, useCallback, useContext } from 'react';
+import { memo, useCallback } from 'react';
 import type { ProfileMedia as ProfileMediaData } from '@/stores/appearanceStore';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { presentSheet } from '@/utils/sheet';
 import { ProfileSong } from './ProfileSong';
 import { PodcastCard } from '@/components/Podcast/PodcastCard';
 import { MediaPickerSheet } from './MediaPickerSheet';
@@ -24,14 +24,11 @@ interface ProfileMediaProps {
  * renders its single matching branch.
  */
 export const ProfileMedia = memo(function ProfileMedia({ media, isOwnProfile }: ProfileMediaProps) {
-  const bottomSheet = useContext(BottomSheetContext);
-
   const openPicker = useCallback(() => {
-    bottomSheet.setBottomSheetContent(
-      <MediaPickerSheet currentMedia={media} onClose={() => bottomSheet.openBottomSheet(false)} />,
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, media]);
+    void presentSheet((surface) => (
+      <MediaPickerSheet currentMedia={media} onClose={() => surface.dismiss()} />
+    ));
+  }, [media]);
 
   if (!media) {
     // Nothing pinned: management now lives on the Edit Profile screen

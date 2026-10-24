@@ -3,10 +3,10 @@
  * Extracted from _layout.tsx for better organization
  */
 
-import { useContext, useEffect } from 'react';
+import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
-import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { presentSheet } from '@/utils/sheet';
 import { NotificationPermissionSheet } from '@/components/NotificationPermissionSheet';
 import { hasNotificationPermission, requestNotificationPermissions } from '@/utils/notifications';
 import { INITIALIZATION_TIMEOUT } from '@/lib/constants';
@@ -19,8 +19,6 @@ interface NotificationPermissionGateProps {
  * Shows notification permission prompt when needed (native only)
  */
 export function NotificationPermissionGate({ appIsReady }: NotificationPermissionGateProps) {
-  const bs = useContext(BottomSheetContext);
-
   useEffect(() => {
     if (Platform.OS === 'web') {
       return;
@@ -38,19 +36,18 @@ export function NotificationPermissionGate({ appIsReady }: NotificationPermissio
         return;
       }
 
-      bs.setBottomSheetContent(
+      void presentSheet((surface) => (
         <NotificationPermissionSheet
-          onLater={() => bs.openBottomSheet(false)}
+          onLater={() => surface.dismiss()}
           onEnable={async () => {
             const granted = await requestNotificationPermissions();
-            bs.openBottomSheet(false);
+            surface.dismiss();
             if (granted) {
               // token registration handled by <RegisterPush />
             }
           }}
-        />,
-      );
-      bs.openBottomSheet(true);
+        />
+      ));
     };
 
     const timeout = setTimeout(run, INITIALIZATION_TIMEOUT.PERMISSION_PROMPT_DELAY);
@@ -59,7 +56,7 @@ export function NotificationPermissionGate({ appIsReady }: NotificationPermissio
       didCancel = true;
       clearTimeout(timeout);
     };
-  }, [bs, appIsReady]);
+  }, [appIsReady]);
 
   return null;
 }

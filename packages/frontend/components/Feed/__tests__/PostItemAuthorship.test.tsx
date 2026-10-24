@@ -59,9 +59,16 @@ interface CapturedDialog {
   ) => React.ReactElement<{ children?: React.ReactElement<AuthorPanelProps> }>;
 }
 const mockDialogs: CapturedDialog[] = [];
-jest.mock('@/components/common/ContentDialog', () => ({
-  showContentDialog: (dialog: CapturedDialog) => {
-    mockDialogs.push(dialog);
+jest.mock('@/utils/sheet', () => ({
+  presentSheet: (
+    render: (surface: { dismiss: () => void }) => React.ReactElement,
+    options?: { label?: string },
+  ) => {
+    mockDialogs.push({
+      label: options?.label ?? '',
+      render: (close) => render({ dismiss: close }) as ReturnType<CapturedDialog['render']>,
+    });
+    return Promise.resolve();
   },
 }));
 
@@ -77,11 +84,6 @@ jest.mock('@/stores/threadHoverStore', () => ({
   useThreadHoverStore: (selector: (state: unknown) => unknown) =>
     selector({ setHoveredSlice: () => undefined, hoveredSliceKey: null }),
 }));
-
-// The real `BottomSheetContext` is used — `useContext` needs a genuine context
-// object and its defaults already no-op — so only the untransformed Bloom module
-// it imports is stubbed. Nothing in these tests opens a bottom sheet.
-jest.mock('@oxy.so/bloom/bottom-sheet', () => ({ BottomSheet: 'BottomSheet' }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { textSecondary: '#8899a6', border: '#e1e8ed' } }),

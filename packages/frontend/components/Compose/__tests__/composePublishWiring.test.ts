@@ -115,18 +115,16 @@ describe('the save-draft prompt', () => {
 describe('resuming a draft', () => {
   const at = screen.indexOf('const handleResumeDraft');
   const resume = screen.slice(at, screen.indexOf('\n  }, [', at));
+  const sheet = screen.slice(screen.indexOf('onLoadDraft={'), screen.indexOf('currentDraftId={'));
 
   it('closes the Unpublished sheet before restoring the draft, and hands the composer focus', () => {
     expect(at).toBeGreaterThan(-1);
-    expect(resume.indexOf('openBottomSheet(false)')).toBeGreaterThan(-1);
-    expect(resume.indexOf('openBottomSheet(false)')).toBeLessThan(
-      resume.indexOf('loadDraft(draft)'),
+    expect(sheet.indexOf('surface.dismiss()')).toBeGreaterThan(-1);
+    expect(sheet.indexOf('surface.dismiss()')).toBeLessThan(
+      sheet.indexOf('handleResumeDraft(draft)'),
     );
+    expect(resume).toContain('loadDraft(draft)');
     expect(resume).toContain('.focus()');
-  });
-
-  it('is what the sheet is given as onLoadDraft', () => {
-    expect(screen).toContain('onLoadDraft={handleResumeDraft}');
   });
 });
 

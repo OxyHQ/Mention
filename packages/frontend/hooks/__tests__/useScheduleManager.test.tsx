@@ -3,8 +3,14 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { View } from 'react-native';
 import type { TFunction } from 'i18next';
 
+import type { SurfaceRenderFn } from '@oxy.so/bloom/surfaces';
+
 import { useScheduleManager } from '../useScheduleManager';
 import type { ScheduleOption, ScheduleSheetProps } from '@/components/Compose/ScheduleSheet';
+import { presentSheet } from '@/utils/sheet';
+
+jest.mock('@/utils/sheet', () => ({ presentSheet: jest.fn(() => Promise.resolve()) }));
+const presentSheetMock = jest.mocked(presentSheet);
 
 /**
  * Every composer state can be scheduled, including a THREAD.
@@ -32,18 +38,12 @@ const ScheduleSheetStub: React.ComponentType<ScheduleSheetProps> = (props) => {
 };
 
 function setup() {
-  const openBottomSheet = jest.fn();
-  const setBottomSheetContent = jest.fn();
+  presentSheetMock.mockClear();
   const toast = jest.fn();
-  const bottomSheet = {
-    openBottomSheet,
-    setBottomSheetContent,
-    bottomSheetRef: { current: null },
-  };
 
   let api: ReturnType<typeof useScheduleManager> | undefined;
   const Probe = () => {
-    api = useScheduleManager({ bottomSheet, t, toast: toast as never });
+    api = useScheduleManager({ t, toast: toast as never });
     return null;
   };
 
@@ -58,22 +58,22 @@ function setup() {
       if (!api) throw new Error('hook unmounted');
       return api;
     },
-    openBottomSheet,
-    setBottomSheetContent,
     toast,
     tree,
   };
 }
 
-/** Render whatever the manager pushed into the sheet, to read its props. */
-function renderSheetContent(content: unknown) {
+/** Render the sheet the manager last presented, to read its props. */
+function renderPresentedSheet() {
+  const render = presentSheetMock.mock.calls.at(-1)?.[0] as SurfaceRenderFn | undefined;
+  const surface = { dismiss: jest.fn(), present: jest.fn() };
   capturedSheetProps.length = 0;
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
-    tree = TestRenderer.create(content as React.ReactElement);
+    tree = TestRenderer.create(render?.(surface) as React.ReactElement);
   });
   act(() => tree?.unmount());
-  return capturedSheetProps.at(-1);
+  return { props: capturedSheetProps.at(-1), surface };
 }
 
 beforeAll(() => {
@@ -88,8 +88,7 @@ describe('useScheduleManager', () => {
 
     act(() => harness.api.openScheduleSheet(ScheduleSheetStub));
 
-    expect(harness.setBottomSheetContent).toHaveBeenCalledTimes(1);
-    expect(harness.openBottomSheet).toHaveBeenCalledWith(true);
+    expect(presentSheetMock).toHaveBeenCalledTimes(1);
     // A refusal here is exactly the behaviour that is gone.
     expect(harness.toast).not.toHaveBeenCalled();
 
@@ -103,7 +102,7 @@ describe('useScheduleManager', () => {
     act(() => harness.api.handleScheduleSelect(chosen));
     act(() => harness.api.openScheduleSheet(ScheduleSheetStub));
 
-    const props = renderSheetContent(harness.setBottomSheetContent.mock.calls.at(-1)?.[0]);
+    const { props } = renderPresentedSheet();
     expect(props?.scheduledAt).toEqual(chosen);
     expect(props?.options.length).toBeGreaterThan(0);
 
@@ -117,7 +116,7 @@ describe('useScheduleManager', () => {
     act(() => harness.api.clearSchedule({ silent: true }));
     act(() => harness.api.openScheduleSheet(ScheduleSheetStub));
 
-    const props = renderSheetContent(harness.setBottomSheetContent.mock.calls.at(-1)?.[0]);
+    const { props } = renderPresentedSheet();
     expect(props?.scheduledAt).toBeNull();
 
     act(() => harness.tree.unmount());
@@ -128,12 +127,14 @@ describe('useScheduleManager sheet actions', () => {
   it('announces a chosen time and closes the sheet', () => {
     const harness = setup();
 
-    act(() => harness.api.handleScheduleSelect(new Date(Date.now() + 60_000)));
+    act(() => harness.api.openScheduleSheet(ScheduleSheetStub));
+    const { props, surface } = renderPresentedSheet();
+    act(() => props?.onSelect(new Date(Date.now() + 60_000)));
 
     expect(harness.toast).toHaveBeenCalledWith(expect.stringContaining('Scheduled for'), {
       type: 'success',
     });
-    expect(harness.openBottomSheet).toHaveBeenLastCalledWith(false);
+    expect(surface.dismiss).toHaveBeenCalled();
 
     act(() => harness.tree.unmount());
   });
@@ -142,10 +143,12 @@ describe('useScheduleManager sheet actions', () => {
     const harness = setup();
 
     act(() => harness.api.handleScheduleSelect(new Date(Date.now() + 60_000)));
-    act(() => harness.api.handleScheduleClear());
+    act(() => harness.api.openScheduleSheet(ScheduleSheetStub));
+    const { props, surface } = renderPresentedSheet();
+    act(() => props?.onClear());
 
     expect(harness.toast).toHaveBeenLastCalledWith('Scheduling removed', { type: 'success' });
-    expect(harness.openBottomSheet).toHaveBeenLastCalledWith(false);
+    expect(surface.dismiss).toHaveBeenCalled();
     expect(harness.api.scheduledAt).toBeNull();
 
     act(() => harness.tree.unmount());
@@ -156,9 +159,11 @@ describe('useScheduleManager sheet actions', () => {
     const chosen = new Date(Date.now() + 60_000);
 
     act(() => harness.api.setScheduledAt(chosen));
-    act(() => harness.api.handleScheduleClose());
+    act(() => harness.api.openScheduleSheet(ScheduleSheetStub));
+    const { props, surface } = renderPresentedSheet();
+    act(() => props?.onClose());
 
-    expect(harness.openBottomSheet).toHaveBeenLastCalledWith(false);
+    expect(surface.dismiss).toHaveBeenCalled();
     expect(harness.api.scheduledAt).toEqual(chosen);
 
     act(() => harness.tree.unmount());
@@ -190,7 +195,7 @@ describe('useScheduleManager quick-pick options', () => {
 
     const harness = setup();
     act(() => harness.api.openScheduleSheet(ScheduleSheetStub));
-    const props = renderSheetContent(harness.setBottomSheetContent.mock.calls.at(-1)?.[0]);
+    const { props } = renderPresentedSheet();
     act(() => harness.tree.unmount());
 
     if (!props) throw new Error('the manager pushed no sheet content');

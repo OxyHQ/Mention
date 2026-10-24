@@ -88,6 +88,8 @@ describe('action menu wiring', () => {
       // host rather than hand-rolling a third one.
       join('app', '(app)', 'lanes.tsx'),
       join('components', 'Feed', 'showRepostMenu.tsx'),
+      // A notification's long-press: mark as read, delete.
+      join('components', 'notifications', 'NotificationItem.tsx'),
       // Opening Allo (a profile's Message, a post's Send) when it is not
       // installed: get Allo, or open it on the web (#1140).
       join('hooks', 'useOpenInAllo.tsx'),
@@ -99,11 +101,9 @@ describe('action menu wiring', () => {
   // to a future edit.
   // Presented on Bloom's one surface stack (no app-local host to mount twice),
   // as a responsive Dialog: a centered card from md up, a sheet below.
-  it('is a responsive surface, not a bottom sheet', () => {
+  it('is a responsive surface, presented like every other sheet', () => {
     const source = readFileSync(join(FRONTEND, 'components', 'common', 'ActionMenu.tsx'), 'utf8');
 
-    expect(source).toMatch(/from '@oxy\.so\/bloom\/surfaces'/);
-    expect(source).toMatch(/placement:\s*\{\s*base:\s*'bottom',\s*md:\s*'center'\s*\}/);
-    expect(source).not.toMatch(/BottomSheetContext/);
+    expect(source).toMatch(/presentSheet\(/);
   });
 });

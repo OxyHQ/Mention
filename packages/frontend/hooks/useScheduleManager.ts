@@ -2,16 +2,15 @@ import { useState, useCallback, createElement, Suspense } from 'react';
 import type { TFunction } from 'i18next';
 import type { toast as toastFn } from '@oxy.so/bloom/toast';
 import type { ScheduleOption, ScheduleSheetProps } from '@/components/Compose/ScheduleSheet';
-import type { BottomSheetContextProps } from '@/context/BottomSheetContext';
+import { presentSheet } from '@/utils/sheet';
 import { addMinutes, formatScheduledLabel } from '@/utils/dateUtils';
 
 interface UseScheduleManagerProps {
-  bottomSheet: BottomSheetContextProps;
   t: TFunction;
   toast: typeof toastFn;
 }
 
-export const useScheduleManager = ({ bottomSheet, t, toast }: UseScheduleManagerProps) => {
+export const useScheduleManager = ({ t, toast }: UseScheduleManagerProps) => {
   // The chosen time is state and nothing else. It used to be mirrored into a ref
   // written during render, which the composer read when building the payload —
   // three ways to be wrong at once: the write is illegal input for the React
@@ -43,19 +42,9 @@ export const useScheduleManager = ({ bottomSheet, t, toast }: UseScheduleManager
         }),
         { type: 'success' },
       );
-      bottomSheet.openBottomSheet(false);
     },
-    [bottomSheet, t, toast],
+    [t, toast],
   );
-
-  const handleScheduleClear = useCallback(() => {
-    clearSchedule();
-    bottomSheet.openBottomSheet(false);
-  }, [bottomSheet, clearSchedule]);
-
-  const handleScheduleClose = useCallback(() => {
-    bottomSheet.openBottomSheet(false);
-  }, [bottomSheet]);
 
   const getScheduleOptions = useCallback((): ScheduleOption[] => {
     const now = new Date();
@@ -107,30 +96,28 @@ export const useScheduleManager = ({ bottomSheet, t, toast }: UseScheduleManager
     (ScheduleSheetComponent: React.ComponentType<ScheduleSheetProps>) => {
       const options = getScheduleOptions();
 
-      bottomSheet.setBottomSheetContent(
+      void presentSheet((surface) =>
         createElement(
           Suspense,
           { fallback: null },
           createElement(ScheduleSheetComponent, {
             scheduledAt: scheduledAt,
             options: options,
-            onSelect: handleScheduleSelect,
-            onClear: handleScheduleClear,
-            onClose: handleScheduleClose,
+            onSelect: (date: Date) => {
+              handleScheduleSelect(date);
+              surface.dismiss();
+            },
+            onClear: () => {
+              clearSchedule();
+              surface.dismiss();
+            },
+            onClose: () => surface.dismiss(),
             formatLabel: formatScheduledLabel,
           }),
         ),
       );
-      bottomSheet.openBottomSheet(true);
     },
-    [
-      scheduledAt,
-      bottomSheet,
-      handleScheduleSelect,
-      handleScheduleClear,
-      handleScheduleClose,
-      getScheduleOptions,
-    ],
+    [scheduledAt, handleScheduleSelect, clearSchedule, getScheduleOptions],
   );
 
   return {
@@ -139,8 +126,6 @@ export const useScheduleManager = ({ bottomSheet, t, toast }: UseScheduleManager
     formatScheduledLabel,
     clearSchedule,
     handleScheduleSelect,
-    handleScheduleClear,
-    handleScheduleClose,
     openScheduleSheet,
   };
 };

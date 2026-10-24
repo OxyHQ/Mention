@@ -1,10 +1,10 @@
-import { lazy, Suspense, useContext, useEffect, useMemo } from 'react';
+import { lazy, Suspense, useEffect, useMemo } from 'react';
 import { useRouter } from '@/lib/navigation/router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { presentSheet } from '@/utils/sheet';
 import { useCommunityNoteHandlerContext } from '@/context/CommunityNoteHandlersContext';
 import { createCommunityNoteSheets } from '@/components/CommunityNotes/useCommunityNoteSheets';
 import { prefetchFeed } from '@/hooks/useFeedQuery';
@@ -30,14 +30,13 @@ export function PostInteractionsBinder() {
   const { t } = useTranslation();
   const { user, isAuthenticated, canUsePrivateApi } = useAuth();
   const router = useRouter();
-  const bottomSheet = useContext(BottomSheetContext);
   const queryClient = useQueryClient();
   const noteHandlers = useCommunityNoteHandlerContext();
   const openInAllo = useOpenInAllo();
   const viewerId = user?.id;
 
   const commands = useMemo<BoundPostCommands>(() => {
-    const noteSheets = createCommunityNoteSheets({ bottomSheet, router, handlers: noteHandlers });
+    const noteSheets = createCommunityNoteSheets({ router, handlers: noteHandlers });
     const requireSession = () => {
       if (canUsePrivateApi) return true;
       toast(
@@ -53,16 +52,11 @@ export function PostInteractionsBinder() {
 
     const openSources: BoundPostCommands['openSources'] = (sources) => {
       if (sources.length === 0) return;
-      const close = () => {
-        bottomSheet.setBottomSheetContent(null);
-        bottomSheet.openBottomSheet(false);
-      };
-      bottomSheet.setBottomSheetContent(
+      void presentSheet((surface) => (
         <Suspense fallback={null}>
-          <PostSourcesSheet sources={sources} onClose={close} />
-        </Suspense>,
-      );
-      bottomSheet.openBottomSheet(true);
+          <PostSourcesSheet sources={sources} onClose={() => surface.dismiss()} />
+        </Suspense>
+      ));
     };
 
     return {
@@ -88,12 +82,11 @@ export function PostInteractionsBinder() {
         });
       },
       openInsights: (postId) => {
-        bottomSheet.setBottomSheetContent(
+        void presentSheet((surface) => (
           <Suspense fallback={null}>
-            <PostInsightsSheet postId={postId} onClose={() => bottomSheet.openBottomSheet(false)} />
-          </Suspense>,
-        );
-        bottomSheet.openBottomSheet(true);
+            <PostInsightsSheet postId={postId} onClose={() => surface.dismiss()} />
+          </Suspense>
+        ));
       },
       openCommunityNoteAbout: (note) => noteSheets.openAbout(note),
     };
@@ -103,7 +96,6 @@ export function PostInteractionsBinder() {
     isAuthenticated,
     canUsePrivateApi,
     router,
-    bottomSheet,
     queryClient,
     noteHandlers,
     openInAllo,

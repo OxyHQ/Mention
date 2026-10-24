@@ -1,5 +1,5 @@
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { View, Text, Platform } from 'react-native';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Button } from '@oxy.so/bloom/button';
@@ -32,7 +32,7 @@ import {
   usePostsStore,
   usePostSelector,
 } from '@/stores/postsStore';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { presentSheet } from '@/utils/sheet';
 import ReplyPreferencesSheet from '@/components/ReplyPreferencesSheet';
 import type { FeedType, HydratedPost, Reply, FeedBoost as Boost } from '@mention/shared-types';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -115,7 +115,6 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
   const theme = useTheme();
   const { t } = useTranslation();
   const { treeView, sortOrder } = useThreadPreferences();
-  const { openBottomSheet, setBottomSheetContent } = React.useContext(BottomSheetContext);
 
   // The cached post for this id, read reactively from the shared cache (re-reads
   // whenever the cache mutates: background revalidation, optimistic like/boost,
@@ -199,9 +198,8 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
   const feedContentStyle = useMemo(() => ({ paddingBottom: FEED_BOTTOM_PADDING }), []);
 
   const openReplyPreferences = useCallback(() => {
-    setBottomSheetContent(<ReplyPreferencesSheet />);
-    openBottomSheet(true);
-  }, [setBottomSheetContent, openBottomSheet]);
+    void presentSheet(() => <ReplyPreferencesSheet />);
+  }, []);
 
   const handleOpenReply = useCallback(() => {
     // A new reply attaches to the thread tail (or the focused post / boost

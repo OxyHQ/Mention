@@ -2,7 +2,7 @@ import type React from 'react';
 import { Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { CommunityNoteSummary, HydratedPostSummary } from '@mention/shared-types';
-import { BottomSheetContext, type BottomSheetContextProps } from '@/context/BottomSheetContext';
+import { presentSheet } from '@/utils/sheet';
 import { AboutNoteSheet } from '../AboutNoteSheet';
 import { CommunityNotesScreen } from '../CommunityNotesScreen';
 import { NoteSubmittedSheet } from '../NoteSubmittedSheet';
@@ -36,7 +36,8 @@ jest.mock('@oxy.so/bloom/screen', () => ({
   ],
   ScreenScrollView: ({ children }: { children: React.ReactNode }) => children,
 }));
-jest.mock('@oxy.so/bloom/bottom-sheet', () => ({ BottomSheet: () => null }));
+jest.mock('@/utils/sheet', () => ({ presentSheet: jest.fn(() => Promise.resolve()) }));
+const presentSheetMock = jest.mocked(presentSheet);
 jest.mock('@oxy.so/bloom/button', () => {
   const RN = jest.requireActual<typeof import('react-native')>('react-native');
   const R = jest.requireActual<typeof import('react')>('react');
@@ -155,87 +156,85 @@ describe('explainer sheets', () => {
 
 describe('useCommunityNoteSheets', () => {
   function mountHook(handlers: Parameters<typeof useCommunityNoteSheets>[0]) {
-    const sheet: BottomSheetContextProps = {
-      openBottomSheet: jest.fn(),
-      setBottomSheetContent: jest.fn(),
-    } as unknown as BottomSheetContextProps;
+    presentSheetMock.mockClear();
     const result: { current: ReturnType<typeof useCommunityNoteSheets> | null } = { current: null };
     function Probe() {
       result.current = useCommunityNoteSheets(handlers);
       return null;
     }
-    render(
-      <BottomSheetContext.Provider value={sheet}>
-        <Probe />
-      </BottomSheetContext.Provider>,
-    );
+    render(<Probe />);
     if (!result.current) throw new Error('hook did not mount');
-    return { sheets: result.current, sheet };
+    return result.current;
   }
 
   it('offers writing and rating only when a handler can receive them', () => {
-    expect(mountHook({}).sheets).toMatchObject({ canWrite: false, canRate: false });
-    expect(mountHook({ submitNote: jest.fn(), rateNote: jest.fn() }).sheets).toMatchObject({
+    expect(mountHook({})).toMatchObject({ canWrite: false, canRate: false });
+    expect(mountHook({ submitNote: jest.fn(), rateNote: jest.fn() })).toMatchObject({
       canWrite: true,
       canRate: true,
     });
   });
 
-  /** The sheet element a flow put in the shared sheet (unwrapped from its Suspense). */
-  const shown = (sheet: BottomSheetContextProps, call: number) =>
-    (sheet.setBottomSheetContent as jest.Mock).mock.calls[call][0].props
-      .children as React.ReactElement<Record<string, (...args: unknown[]) => unknown>>;
+  /** Each presented step, rendered with its own surface (unwrapped from its Suspense). */
+  const surfaces: { dismiss: jest.Mock; present: jest.Mock }[] = [];
+  const shown = (call: number) => {
+    const render = presentSheetMock.mock.calls[call][0];
+    const surface = { dismiss: jest.fn(), present: jest.fn() };
+    surfaces[call] = surface;
+    const element = render(surface) as React.ReactElement<{ children: React.ReactElement }>;
+    return element.props.children as React.ReactElement<
+      Record<string, (...args: unknown[]) => unknown>
+    >;
+  };
 
   it('write flow: tips -> form -> sends the draft -> submitted -> done', async () => {
     const submitNote = jest.fn().mockResolvedValue(undefined);
-    const { sheets, sheet } = mountHook({ submitNote });
+    const sheets = mountHook({ submitNote });
     act(() => sheets.openWriteFlow(post));
 
-    const tips = shown(sheet, 0);
+    const tips = shown(0);
     act(() => void tips.props.onLearnMore());
     act(() => void tips.props.onContinue());
+    // The form takes the tips' place.
+    expect(surfaces[0].dismiss).toHaveBeenCalled();
 
-    const form = shown(sheet, 1);
+    const form = shown(1);
     await act(async () => {
       await form.props.onSubmit({ text: 'Context', sourceUrl: '' });
     });
     expect(submitNote).toHaveBeenCalledWith('post-1', { text: 'Context', sourceUrl: '' });
+    expect(surfaces[1].dismiss).toHaveBeenCalled();
 
-    const submitted = shown(sheet, 2);
-    act(() => void submitted.props.onDone());
+    const submitted = shown(2);
     act(() => void submitted.props.onManageNotes());
+    expect(surfaces[2].dismiss).toHaveBeenCalled();
     expect(mockPush).toHaveBeenCalledWith('/community-notes');
   });
 
   it('rate flow: about -> reasons -> sends the rating and reports it back', async () => {
     const rateNote = jest.fn().mockResolvedValue(undefined);
     const onRated = jest.fn();
-    const { sheets, sheet } = mountHook({ rateNote });
+    const sheets = mountHook({ rateNote });
     act(() => sheets.openAbout(note()));
-    act(() => void shown(sheet, 0).props.onRate('helpful'));
+    act(() => void shown(0).props.onRate('helpful'));
+    expect(surfaces[0].dismiss).toHaveBeenCalled();
 
     await act(async () => {
-      await shown(sheet, 1).props.onSubmit(['relevant']);
+      await shown(1).props.onSubmit(['relevant']);
     });
     expect(rateNote).toHaveBeenCalledWith('note-1', 'helpful', ['relevant']);
+    expect(surfaces[1].dismiss).toHaveBeenCalled();
 
     act(() => sheets.openRateReasons(note(), 'not_helpful', onRated));
     await act(async () => {
-      await shown(sheet, 2).props.onSubmit(['incorrect']);
+      await shown(2).props.onSubmit(['incorrect']);
     });
     expect(onRated).toHaveBeenCalledWith('not_helpful');
   });
 
-  it('opens each flow in the shared sheet and routes to the hub', () => {
-    const { sheets, sheet } = mountHook({ submitNote: jest.fn(), rateNote: jest.fn() });
-    act(() => sheets.openWriteFlow(post));
-    act(() => sheets.openAbout(note()));
-    act(() => sheets.openRateReasons(note(), 'not_helpful'));
-    expect(sheet.setBottomSheetContent).toHaveBeenCalledTimes(3);
-    expect(sheet.openBottomSheet).toHaveBeenCalledWith(true);
-
+  it('routes to the hub', () => {
+    const sheets = mountHook({ submitNote: jest.fn(), rateNote: jest.fn() });
     act(() => sheets.openManageNotes());
-    expect(sheet.openBottomSheet).toHaveBeenCalledWith(false);
     expect(mockPush).toHaveBeenCalledWith('/community-notes');
   });
 });

@@ -1,5 +1,5 @@
 import { useScreenBack } from '@oxy.so/bloom/screen';
-import { Fragment, useContext } from 'react';
+import { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -16,7 +16,6 @@ import type { HydratedPost } from '@mention/shared-types';
 import type { ActionMenuAction } from '@/components/common/actionMenuGroups';
 import { createCommunityNoteSheets } from '@/components/CommunityNotes/useCommunityNoteSheets';
 import { useOperatesAccount } from '@/components/Profile/hooks/useOperatesAccount';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { useCommunityNoteHandlerContext } from '@/context/CommunityNoteHandlersContext';
 import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
 import { useRouter } from '@/lib/navigation/router';
@@ -51,7 +50,6 @@ export function PostMenuContent({
   const { user, canUsePrivateApi } = useAuth();
   const router = useRouter();
   const back = useScreenBack();
-  const bottomSheet = useContext(BottomSheetContext);
   const queryClient = useQueryClient();
   const noteHandlers = useCommunityNoteHandlerContext();
   const interactions = usePostInteractions();
@@ -94,14 +92,13 @@ export function PostMenuContent({
       canUsePrivateApi,
       router,
       back,
-      bottomSheet,
       queryClient,
     },
   );
 
   // CrowdSource ownership stays where it was: the handlers decide whether the
   // flow is offered at all, and an author never notes their own post.
-  const noteSheets = createCommunityNoteSheets({ bottomSheet, router, handlers: noteHandlers });
+  const noteSheets = createCommunityNoteSheets({ router, handlers: noteHandlers });
   const communityNoteAction =
     noteSheets.canWrite && !isOwner
       ? [
