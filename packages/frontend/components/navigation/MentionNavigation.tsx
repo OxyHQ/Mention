@@ -166,15 +166,7 @@ export function useMentionDestinations(): AppDestination[] {
       },
       { name: 'write', href: '/write', page: true },
     ],
-    [
-      t,
-      unreadCount,
-      communitiesPreview,
-      username,
-      user,
-      ProfileAvatar,
-      openAccounts,
-    ],
+    [t, unreadCount, communitiesPreview, username, user, ProfileAvatar, openAccounts],
   );
 }
 
