@@ -15,6 +15,8 @@ import type {
   PostRoomContent,
 } from '@mention/shared-types/post';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
+import type { FeedPostSlice } from '@mention/shared-types/feed';
+import { RiHeartFill } from '@oxy.so/bloom/icons/RiHeartFill';
 import { usePostSelector } from '../../stores/postsStore';
 import PostHeader from '../Post/PostHeader';
 import { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT } from '../Post/postContextRowLayout';
@@ -108,6 +110,7 @@ interface PostItemProps {
    * nesting instead and never set this prop.
    */
   repostedBy?: PostUser;
+  socialContext?: FeedPostSlice['socialContext'];
   /**
    * Render the FOCUSED post-detail variant: full-width body, the usual action bar,
    * the full absolute timestamp + engagement-stats rows, and a
@@ -156,6 +159,7 @@ const PostItem: React.FC<PostItemProps> = ({
   replyBranch = false,
   attachedBelow = false,
   repostedBy,
+  socialContext,
   isPostDetail: isPostDetailProp = false,
   threadPosition,
   feedDescriptor,
@@ -214,6 +218,7 @@ const PostItem: React.FC<PostItemProps> = ({
   const knownIdentities = useKnownIdentitySet([
     viewPost?.user?.id,
     repostedBy?.id,
+    ...(socialContext?.actors.map((actor) => actor.id) ?? []),
     ...(viewPost?.authors?.map((entry) => entry.id) ?? []),
   ]);
   // Read into locals first: the React Compiler memoizes on the values a memo
@@ -314,6 +319,7 @@ const PostItem: React.FC<PostItemProps> = ({
   // empty body, so we render a muted "no longer available" placeholder in the
   // embedded-original slot instead of a blank card.
   const boostUnavailable = Boolean(viewPost?.boost?.unavailable);
+  const quoteUnavailable = Boolean(viewPost?.quotedPostUnavailable) && !nestedPost;
 
   const hasSourceLinkCard = extractUrls(content.text ?? '')
     .slice(0, MAX_POST_DOCUMENTS)
@@ -730,7 +736,11 @@ const PostItem: React.FC<PostItemProps> = ({
   // between the identity row and inline body text. Subsequent external blocks
   // still use the normal section gap.
   const hasBelowHeaderBlocks = Boolean(
-    (hasValidLocation && location) || shouldRenderMediaBlock || boostUnavailable || !isNested,
+    (hasValidLocation && location) ||
+      shouldRenderMediaBlock ||
+      boostUnavailable ||
+      quoteUnavailable ||
+      !isNested,
   );
   const headerToBlocksGap = content.text || content.title ? SECTION_GAP : HEADER_CONTENT_GAP;
 
@@ -819,6 +829,74 @@ const PostItem: React.FC<PostItemProps> = ({
         </View>
       </ProfileHoverCard>,
     );
+  }
+  if (
+    !isNested &&
+    socialContext &&
+    socialContext.postId === viewPostId &&
+    socialContext.total > 0 &&
+    !(
+      socialContext.type === 'boostedBy' &&
+      reposter &&
+      socialContext.actors.every((actor) => actor.id === reposter.id)
+    )
+  ) {
+    const names = socialContext.actors
+      .slice(0, 2)
+      .map((actor) => {
+        const identity = mergeKnownIdentity(actor, knownIdentities.get(actor.id));
+        return displayNameOrHandle(
+          identity.name?.displayName,
+          getNormalizedUserHandle(identity) ?? '',
+        );
+      })
+      .filter(Boolean);
+    const isBoostSocialContext = socialContext.type === 'boostedBy';
+    const label = isBoostSocialContext
+      ? `${t('post.repostedBy', { defaultValue: 'Reposted by' })} ${names.join(', ')}`
+      : names.length < 2 || socialContext.total === 1
+        ? t('post.likedBy.one', { name1: names[0], defaultValue: 'Liked by {{name1}}' })
+        : socialContext.total === 2
+          ? t('post.likedBy.two', {
+              name1: names[0],
+              name2: names[1],
+              defaultValue: 'Liked by {{name1}} and {{name2}}',
+            })
+          : t('post.likedBy.many', {
+              name1: names[0],
+              name2: names[1],
+              count: socialContext.total - 2,
+              defaultValue: 'Liked by {{name1}}, {{name2}} and {{count}} others',
+            });
+    if (names.length > 0)
+      contextRows.push(
+        <Pressable
+          key="social-reason"
+          className="flex-row items-center"
+          style={{ height: POST_CONTEXT_ROW_HEIGHT }}
+          accessibilityRole="button"
+          accessibilityLabel={label}
+          onPress={(event) => {
+            event.stopPropagation();
+            if (isBoostSocialContext) openBoostsList();
+            else openLikesList();
+          }}
+        >
+          <View className="-ml-4 mr-[3px]">
+            {isBoostSocialContext ? (
+              <BoostIcon size={13} color={theme.colors.textSecondary} />
+            ) : (
+              <RiHeartFill width={13} height={13} fill={theme.colors.textSecondary} />
+            )}
+          </View>
+          <Text
+            className="text-muted-foreground text-[13px] font-semibold shrink"
+            numberOfLines={1}
+          >
+            {label}
+          </Text>
+        </Pressable>,
+      );
   }
   if (showPinned) {
     contextRows.push(
@@ -1110,13 +1188,17 @@ const PostItem: React.FC<PostItemProps> = ({
                 </View>
               )}
 
-              {boostUnavailable && !isContentGated && (
+              {(boostUnavailable || quoteUnavailable) && !isContentGated && (
                 <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
                   <View className="border-border rounded-2xl border px-3 py-3">
                     <Text className="text-muted-foreground text-[14px]">
-                      {t('post.boostUnavailable', {
-                        defaultValue: 'This post is no longer available',
-                      })}
+                      {quoteUnavailable
+                        ? t('post.quoteUnavailable', {
+                            defaultValue: 'This quoted post is unavailable',
+                          })
+                        : t('post.boostUnavailable', {
+                            defaultValue: 'This post is no longer available',
+                          })}
                     </Text>
                   </View>
                 </View>
@@ -1267,7 +1349,8 @@ const rowPlacementEqual = (prevProps: PostItemProps, nextProps: PostItemProps): 
   prevProps.isThread === nextProps.isThread &&
   // Same original post id can be reposted by different actors across rows;
   // compare the booster so a recycled row never shows a stale "Reposted by".
-  prevProps.repostedBy?.id === nextProps.repostedBy?.id;
+  prevProps.repostedBy?.id === nextProps.repostedBy?.id &&
+  prevProps.socialContext === nextProps.socialContext;
 
 const MemoPostItem = React.memo(PostItem, (prevProps, nextProps) => {
   if (!rowPlacementEqual(prevProps, nextProps)) return false;
@@ -1292,6 +1375,12 @@ const MemoPostItem = React.memo(PostItem, (prevProps, nextProps) => {
   // Compare identity and key engagement/viewer state
   return (
     prev?.id === next?.id &&
+    // Hydration and access changes can add/remove an embedded post without
+    // editing the quoting parent. Never retain a missing or revoked quote.
+    prev?.quotedPost === next?.quotedPost &&
+    prev?.quotedPostUnavailable === next?.quotedPostUnavailable &&
+    prev?.originalPost === next?.originalPost &&
+    prev?.boost === next?.boost &&
     prev?.viewerState?.isLiked === next?.viewerState?.isLiked &&
     prev?.viewerState?.isDownvoted === next?.viewerState?.isDownvoted &&
     prev?.viewerState?.isBoosted === next?.viewerState?.isBoosted &&

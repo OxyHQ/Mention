@@ -31,6 +31,30 @@
       "reason": "No patched release exists: the advisory covers `<= 1.4.0` and 1.4.0 is the newest version. The lockfile reaches node-forge only through @expo/cli and @expo/code-signing-certificates, which @expo/cli depends on.",
       "compensation": "@expo/cli runs on developer and CI machines to bundle and serve the app; nothing in the backend, the MCP server or the shipped app imports node-forge, and Mention ships no expo-updates code signing that verifies with it. The flaw is signature-verification permissiveness in PKCS#1 v1.5, which no runtime path of Mention performs with this library.",
       "expires": "2026-10-31"
+    },
+    {
+      "advisory": "GHSA-mrhx-c7xc-m3w5",
+      "package": "zod",
+      "scope": "Exact reviewed Zod 3.25.76 runtime and Expo tooling resolutions",
+      "reason": "No patched Zod 3 exists. Current Oxy major upgrades include a separate authority migration; overriding Zod 3 consumers to major 4 is not compatible. Mention and Kaana application schemas use patched Zod 4.6.7.",
+      "compensation": "Reviewed actual call paths: signature-verified/scalar claims, application-built batches capped at 100, static MCP catalogs and configured Oxy responses. The arbitrary-host protocol DID resolver is not invoked. This accepts residual authority-response risk temporarily; see the required review. New vulnerable resolutions or consumer versions fail closed.",
+      "expires": "2026-10-27",
+      "resolutionGuard": {
+        "vulnerableRange": "<4.6.6",
+        "proof": "docs/audits/feed-social-quotes-2026-10-23/zod3-review.md",
+        "resolutions": {
+          "@expo/cli/zod": "zod@3.25.76",
+          "@oxy.so/contracts/zod": "zod@3.25.76",
+          "@oxy.so/core/zod": "zod@3.25.76",
+          "@oxy.so/protocol/zod": "zod@3.25.76"
+        },
+        "owners": {
+          "@expo/cli": "@expo/cli@58.1.13",
+          "@oxy.so/contracts": "@oxy.so/contracts@5.8.0",
+          "@oxy.so/core": "@oxy.so/core@6.17.0",
+          "@oxy.so/protocol": "@oxy.so/protocol@1.5.0"
+        }
+      }
     }
   ]
 }

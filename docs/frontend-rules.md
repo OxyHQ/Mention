@@ -116,8 +116,32 @@ Hydrated quotes render synchronously with their parent post. `PostItem` supplies
 stable nested renderer to the attachment row; do not reimport it through
 `React.lazy` with an empty fallback. That boundary adds the quote's height after
 the virtualizer has measured the parent and shifts the reading position. Keep the
-depth limit and memo comparison. Feed action glyphs use fixed-size SVGs, so a
-late icon-font load cannot change the row height.
+depth limit and memo comparison. The cache retains two related-post hops, so a
+boost of a quote keeps both the quote author's comment and its original. Changes
+to embedded relations invalidate the row memo independently of the parent's edit
+timestamp. A `quotedPostUnavailable` marker renders a generic translated message
+without guessing the missing post's identity or access policy. Feed action glyphs
+use fixed-size SVGs, so a late icon-font load cannot change the row height.
+
+Feed social reasons come only from `FeedPostSlice.socialContext`, independently
+of thread/boost grouping. Its target `postId` decides which row gets “Liked by” or “Reposted by”; a
+prepended parent never inherits a reply's reason. Named actors and totals are the
+server's eligible public evidence, not inferred from engagement counters. The
+label opens that post's matching likes/reposts list and makes no per-row read.
+A social repost reason does not duplicate an identical structural booster row. Native
+unscoped feeds retain the evidence in viewer-scoped `feedUI`, replace it on refresh
+and discard it on account changes; it never enters the global post cache. A named
+actor blocked locally suppresses the stale label until the next authorized read.
+Mute/unmute writes go through `muteService`, with the originating viewer passed
+by the action. Successful writes notify the existing viewer-scoped ranking rule;
+SDK preflight is aborted if the viewer changes. A reactive staleness snapshot
+withdraws social reasons immediately while the replacement read is pending, and
+a failed replacement cannot restore that old evidence.
+Person follow controls use Mention's `components/FollowButton` adapter around the
+public SDK control. Accepted single follows/unfollows and changed bulk results
+invalidate only the originating viewer's feed evidence. Bulk callbacks with no
+changed edges do not invalidate; consumer callbacks (including federation sync)
+remain composed but cannot run for an outgoing viewer after an account switch.
 
 Feed request deduplication includes viewer generation, page size and normalized
 filters. Scroll identities use the same normalized filters with structured

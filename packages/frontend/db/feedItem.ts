@@ -2,8 +2,11 @@ import type { HydratedPost, HydratedPostSummary } from '@mention/shared-types';
 import type { FeedItem } from './schema';
 
 type TransformOptions = {
-  skipRelated?: boolean;
+  nestingDepth?: number;
 };
+
+/** Retain a boosted quote and its original, without caching an unbounded graph. */
+const MAX_RELATED_POST_DEPTH = 2;
 
 /**
  * Add the small set of local rendering/cache fields to the canonical hydrated
@@ -57,6 +60,7 @@ type HandledPostKey =
   | 'communityNote'
   | 'originalPost'
   | 'quotedPost'
+  | 'quotedPostUnavailable'
   | 'boost'
   | 'context';
 
@@ -73,21 +77,24 @@ export function toFeedItem(
 ): FeedItem {
   const hydrated: HydratedPost = post;
   const mediaIds = post.attachments.media?.map((item) => item.id) ?? [];
+  const nestingDepth = options.nestingDepth ?? 0;
+  const canIncludeRelated = nestingDepth < MAX_RELATED_POST_DEPTH;
 
   const originalPost =
-    !options.skipRelated && hydrated.originalPost
-      ? toFeedItem(hydrated.originalPost, { skipRelated: true })
+    canIncludeRelated && hydrated.originalPost
+      ? toFeedItem(hydrated.originalPost, { nestingDepth: nestingDepth + 1 })
       : null;
   const quotedPost =
-    !options.skipRelated && hydrated.quotedPost
-      ? toFeedItem(hydrated.quotedPost, { skipRelated: true })
+    canIncludeRelated && hydrated.quotedPost
+      ? toFeedItem(hydrated.quotedPost, { nestingDepth: nestingDepth + 1 })
       : null;
   const boost = hydrated.boost
     ? {
         ...hydrated.boost,
-        originalPost: hydrated.boost.originalPost
-          ? toFeedItem(hydrated.boost.originalPost, { skipRelated: true })
-          : null,
+        originalPost:
+          canIncludeRelated && hydrated.boost.originalPost
+            ? toFeedItem(hydrated.boost.originalPost, { nestingDepth: nestingDepth + 1 })
+            : null,
       }
     : null;
 
@@ -141,6 +148,7 @@ export function toFeedItem(
     community: post.community,
     originalPost,
     quotedPost,
+    quotedPostUnavailable: hydrated.quotedPostUnavailable,
     boost,
     context: hydrated.context,
     date: post.metadata.createdAt,

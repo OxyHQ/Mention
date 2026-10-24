@@ -105,7 +105,7 @@ export function ProfileMoreMenu({
   const displayUsername = profileData.username;
 
   const handleMute = async () => {
-    const success = await muteService.muteUser(profileData.id);
+    const success = await muteService.muteUser(profileData.id, user?.id);
     if (success) {
       toast(
         t('profile.muted', {

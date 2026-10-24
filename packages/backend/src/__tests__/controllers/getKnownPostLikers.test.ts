@@ -1,3 +1,4 @@
+import { userSettings } from '../../db/schema/userProfile';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -82,12 +83,14 @@ const SAMPLE_LIMIT = 3;
 
 /** The post the endpoint is about. A real row, so the id is a real post id. */
 let postId: string;
+const settingsIds = new Set<string>();
 
 function buildRequest(overrides: Record<string, unknown> = {}) {
   return {
     params: { id: postId },
     query: {},
     headers: {},
+    accessToken: overrides.user ? 'test-viewer-session' : undefined,
     ...overrides,
   };
 }
@@ -109,12 +112,18 @@ function buildResponse() {
 
 /** Store one real like (or downvote) on the post under test. */
 async function seedLike(userId: string, value: 1 | -1 = 1): Promise<void> {
+  settingsIds.add(userId);
+  await getDb()
+    .insert(userSettings)
+    .values({ oxyUserId: userId, privacyShowLikes: true })
+    .onConflictDoNothing();
   await getDb().insert(likes).values({ userId, postId, value });
 }
 
 /** Point the viewer graph at a fixed following list. */
 function viewerFollows(followingIds: string[]): void {
   hoisted.createScopedOxyClient.mockReturnValue({
+    privacy: { blocked: async () => [], restricted: async () => [] },
     follows: {
       viewerGraph: async () => ({ followingIds, mutualIds: [], blockedIds: [] }),
     },
@@ -151,6 +160,11 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  if (settingsIds.size)
+    await getDb()
+      .delete(userSettings)
+      .where(inArray(userSettings.oxyUserId, [...settingsIds]));
+  settingsIds.clear();
   // `likes.post_id` is `ON DELETE CASCADE`, so removing the post takes its likes
   // with it — but do it explicitly first, because a like row surviving its post
   // would be invisible here and answer another test's query.
@@ -199,6 +213,45 @@ describe('getKnownPostLikers', () => {
       likers: [{ id: followed, username: 'ana', name: { displayName: 'ana' } }],
       total: 1,
     });
+  });
+
+  it('omits private/default-private and blocked actors from both sample and total', async () => {
+    const visible = scope.user('visible'),
+      hidden = scope.user('hidden'),
+      unknown = scope.user('unknown'),
+      blocked = scope.user('blocked');
+    await seedLike(visible);
+    await seedLike(hidden);
+    await seedLike(blocked);
+    await getDb()
+      .update(userSettings)
+      .set({ privacyShowLikes: false })
+      .where(eq(userSettings.oxyUserId, hidden));
+    await getDb().insert(likes).values({ userId: unknown, postId, value: 1 });
+    viewerFollows([visible, hidden, unknown, blocked]);
+    hoisted.createScopedOxyClient.mockReturnValue({
+      follows: { viewerGraph: async () => ({ followingIds: [visible, hidden, unknown, blocked] }) },
+      privacy: { blocked: async () => [{ id: blocked }], restricted: async () => [] },
+    });
+    resolveSummaries([
+      [visible, 'visible'],
+      [hidden, 'hidden'],
+      [blocked, 'blocked'],
+    ]);
+    expect((await callEndpoint({ user: { id: scope.user('privacy-viewer') } })).body).toMatchObject(
+      { total: 1, likers: [{ id: visible }] },
+    );
+  });
+
+  it('withholds all actor evidence when the subject access decision denies reading it', async () => {
+    const actor = scope.user('subject-denied');
+    await seedLike(actor);
+    viewerFollows([actor]);
+    const { postHydrationService } = await import('../../services/PostHydrationService');
+    vi.mocked(postHydrationService.hydratePosts).mockResolvedValueOnce([]);
+    const result = await callEndpoint({ user: { id: VIEWER } });
+    expect(result).toMatchObject({ status: 404, body: { message: 'Post not found' } });
+    expect(hoisted.resolveUserSummaries).not.toHaveBeenCalled();
   });
 
   it('counts DOWNVOTES as neither likers nor total', async () => {
@@ -292,7 +345,7 @@ describe('getKnownPostLikers', () => {
     expect(await callEndpoint({ params: { id: '' } })).toMatchObject({ status: 400 });
   });
 
-  it('answers 200 + empty for a post id that names no row', async () => {
+  it('withholds activity for a post id that names no row', async () => {
     // The primary key is `text` holding BOTH shapes — ObjectId hex for rows that
     // predate the cutover, uuid v7 since — so there is no id SHAPE left to
     // reject: an unknown id is a post with no known likers, which is a 200. (The
@@ -305,7 +358,7 @@ describe('getKnownPostLikers', () => {
       user: { id: VIEWER },
     });
 
-    expect(captured.status).toBeUndefined();
-    expect(captured.body).toEqual({ likers: [], total: 0 });
+    expect(captured.status).toBe(404);
+    expect(captured.body).toEqual({ message: 'Post not found' });
   });
 });

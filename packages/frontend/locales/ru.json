@@ -1442,6 +1442,7 @@
   "post.contentWarningShow": "Показать",
   "post.contentWarningHide": "Скрыть",
   "post.boostUnavailable": "Этот пост больше недоступен",
+  "post.quoteUnavailable": "Эта цитируемая публикация недоступна",
   "compose.languages.pickerTitle": "Язык поста",
   "compose.languages.alreadyAdded": "Уже добавлен",
   "compose.languages.current": "Текущий",

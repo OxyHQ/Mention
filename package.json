@@ -34,7 +34,7 @@
     "build:shared-types": "bun run --cwd packages/contracts build && bun run --cwd packages/shared-types build",
     "build:frontend": "bun run --cwd packages/frontend build",
     "build:backend": "bun run build:shared-types && bun run --cwd packages/backend build",
-    "audit:security": "bun ./scripts/audit-security.mjs",
+    "audit:security": "node --test ./scripts/security-audit-policy.test.mjs && bun ./scripts/audit-security.mjs",
     "doctor": "bun ./scripts/doctor.mjs",
     "doctor:oxy": "oxy-doctor --ci",
     "check": "bun run check:workspace && bun run build && bun run check:types",
@@ -91,6 +91,7 @@
     "yaml": "^2.9.1"
   },
   "overrides": {
+    "body-parser": "2.4.0",
     "@modelcontextprotocol/sdk": "1.32.1",
     "proxy-addr": "2.0.8",
     "shell-quote": "1.12.0",

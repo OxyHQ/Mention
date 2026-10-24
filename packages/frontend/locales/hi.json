@@ -1410,6 +1410,7 @@
   "post.contentWarningShow": "दिखाएं",
   "post.contentWarningHide": "छिपाएं",
   "post.boostUnavailable": "यह पोस्ट अब उपलब्ध नहीं है",
+  "post.quoteUnavailable": "यह उद्धृत पोस्ट उपलब्ध नहीं है",
   "compose.languages.pickerTitle": "पोस्ट की भाषा",
   "compose.languages.alreadyAdded": "पहले से जोड़ी गई",
   "compose.languages.current": "मौजूदा",

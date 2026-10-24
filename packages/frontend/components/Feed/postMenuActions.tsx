@@ -508,7 +508,7 @@ export function buildPostMenuActions(
 
       if (!confirmed) return;
 
-      const success = await muteService.muteUser(userId);
+      const success = await muteService.muteUser(userId, viewerId);
       if (success) {
         toast(t('postActions.userMuted', { username }), { type: 'success' });
       } else {

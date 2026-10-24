@@ -472,6 +472,22 @@ describe('votes move both counters and carry the transition', () => {
     expect(event).toMatchObject({ payloadPreviousValue: 1, payloadValue: -1 });
   });
 
+  it('preserves relationship creation time but advances activity time on an old downvote becoming a like', async () => {
+    const postId = await seedPost();
+    const old = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    await votePostCommand({ userId: 'viewer-a', postId, value: -1 });
+    await db.update(likes).set({ createdAt: old, updatedAt: old }).where(eq(likes.postId, postId));
+    const startedAt = Date.now();
+    const switched = await votePostCommand({ userId: 'viewer-a', postId, value: 1 });
+    const [stored] = await db.select().from(likes).where(eq(likes.postId, postId));
+    expect(switched).toMatchObject({ changed: true, previousValue: -1, value: 1 });
+    expect(stored?.createdAt.getTime()).toBe(old.getTime());
+    expect(stored?.updatedAt.getTime()).toBeGreaterThanOrEqual(startedAt);
+    await votePostCommand({ userId: 'viewer-a', postId, value: 1 });
+    const [unchanged] = await db.select().from(likes).where(eq(likes.postId, postId));
+    expect(unchanged?.updatedAt).toEqual(stored?.updatedAt);
+  });
+
   it('answers an unchanged vote without writing anything', async () => {
     const postId = await seedPost();
     const first = await votePostCommand({ userId: 'viewer-a', postId, value: 1 });

@@ -474,6 +474,44 @@ describe('useFeedState memory mode: one feed query', () => {
       expect(ids()).toEqual(['new-ranking']);
     });
 
+    it('withdraws old social evidence while a rule-change replacement is held', async () => {
+      const initial = page(['liked-post']);
+      const socialContext = {
+        type: 'likedBy' as const,
+        postId: 'liked-post',
+        actors: [{ id: 'known', name: { displayName: 'Known' } }],
+        total: 1,
+      };
+      initial.slices = [
+        {
+          _sliceKey: 'liked-post',
+          items: [
+            {
+              post: initial.items[0],
+              isThreadParent: false,
+              isThreadChild: false,
+              isThreadLastChild: false,
+            },
+          ],
+          isIncompleteThread: false,
+          socialContext,
+        },
+      ];
+      getFeedMock.mockResolvedValueOnce(initial);
+      await mount(explore);
+      await flush();
+      expect(latest?.slices?.[0].socialContext).toEqual(socialContext);
+      const refreshed = deferred<SlicedFeedResponse>();
+      getFeedMock.mockImplementationOnce(() => refreshed.promise);
+      act(() => notifyFeedRankingChanged(explore.currentUserId));
+      await flush();
+      expect(ids()).toEqual(['liked-post']);
+      expect(latest?.slices?.[0].socialContext).toBeUndefined();
+      refreshed.resolve(page(['fresh']));
+      await flush();
+      expect(ids()).toEqual(['fresh']);
+    });
+
     it('replaces expired ranked pages with a fresh first page exactly once', async () => {
       await loadTwoPages();
       getFeedMock.mockRejectedValueOnce({ status: 410, code: 'FEED_CURSOR_EXPIRED' });

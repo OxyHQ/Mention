@@ -209,10 +209,12 @@ describe('MtnFeedController.getFeed → engine', () => {
   });
 
   it.each([
-    ['explore', 'mtn:explore-v3'],
-    ['media', 'mtn:media-v2'],
+    ['explore', 'mtn:quote-v2:explore-v3'],
+    ['media', 'mtn:quote-v2:media-v2'],
+    ['for_you', 'mtn:quote-v2'],
+    ['following', 'mtn:quote-v2'],
   ])(
-    'versions anonymous %s cache entries without changing other feeds',
+    'versions anonymous %s quote hydration while preserving ranking cutovers',
     async (descriptor, namespace) => {
       const res = makeRes();
       await mtnFeedController.getFeed(
@@ -417,7 +419,7 @@ describe('MtnFeedController.getFeed → anonymous cache', () => {
     await mtnFeedController.getFeed(req, res as never);
 
     expect(anonCache.buildKey).toHaveBeenCalledWith(
-      expect.objectContaining({ namespace: 'mtn', type: 'for_you' }),
+      expect.objectContaining({ namespace: 'mtn:quote-v2', type: 'for_you' }),
     );
     expect(anonCache.read).toHaveBeenCalledWith(
       'anon-key',

@@ -42,7 +42,14 @@ import { inArray } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
 import { closePostgres, connectPostgres, type Database } from '../db/postgres';
-import { entityFollows, likes, posts, starterPackMembers, starterPacks } from '../db/schema';
+import {
+  entityFollows,
+  likes,
+  posts,
+  starterPackMembers,
+  starterPacks,
+  userSettings,
+} from '../db/schema';
 import { insertPostRecord } from '../db/posts/postRepository';
 import type { PostRecord, PostRecordInput } from '../db/posts/postRecord';
 import { mutualsSource } from '../mtn/feed/engine/sources/userSources';
@@ -106,6 +113,9 @@ function suiteIdsOf(records: readonly CandidatePost[]): string[] {
 
 beforeAll(async () => {
   db = await connectPostgres();
+  await db
+    .insert(userSettings)
+    .values([FRIEND_A, FRIEND_B].map((oxyUserId) => ({ oxyUserId, privacyShowLikes: true })));
 });
 
 afterEach(async () => {
@@ -122,6 +132,7 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
+  await db.delete(userSettings).where(inArray(userSettings.oxyUserId, [FRIEND_A, FRIEND_B]));
   await closePostgres();
 });
 
@@ -172,7 +183,11 @@ describe('the friendsEngaged source', () => {
       .insert(likes)
       .values({ userId: FRIEND_B, postId: noFriends.id, value: -1, createdAt: at(-1_000) });
 
-    const ctx: FeedEngineContext = { currentUserId: VIEWER, followingIds: [FRIEND_A, FRIEND_B] };
+    const ctx: FeedEngineContext = {
+      currentUserId: VIEWER,
+      rankingAsOf: HORIZON,
+      followingIds: [FRIEND_A, FRIEND_B],
+    };
     const gathered = await friendsEngagedSource.gather(ctx, {}, 30);
 
     expect(idsOf(gathered)).toEqual([twoFriends.id, oneFriend.id]);
@@ -191,7 +206,11 @@ describe('the friendsEngaged source', () => {
     });
     await like(FRIEND_B, original.id);
 
-    const ctx: FeedEngineContext = { currentUserId: VIEWER, followingIds: [FRIEND_A, FRIEND_B] };
+    const ctx: FeedEngineContext = {
+      currentUserId: VIEWER,
+      rankingAsOf: HORIZON,
+      followingIds: [FRIEND_A, FRIEND_B],
+    };
     const gathered = await friendsEngagedSource.gather(ctx, {}, 30);
 
     // The BOOST post itself never appears — it has an empty body, and the
@@ -206,7 +225,11 @@ describe('the friendsEngaged source', () => {
     await like(FRIEND_A, mine.id);
     await like(FRIEND_A, theirs.id);
 
-    const ctx: FeedEngineContext = { currentUserId: VIEWER, followingIds: [FRIEND_A] };
+    const ctx: FeedEngineContext = {
+      currentUserId: VIEWER,
+      rankingAsOf: HORIZON,
+      followingIds: [FRIEND_A],
+    };
     expect(idsOf(await friendsEngagedSource.gather(ctx, {}, 30))).toEqual([theirs.id]);
   });
 
@@ -220,7 +243,11 @@ describe('the friendsEngaged source', () => {
     const authorless = await create({ oxyUserId: null, createdAt: at(-1_000) });
     await like(FRIEND_A, authorless.id);
 
-    const ctx: FeedEngineContext = { currentUserId: VIEWER, followingIds: [FRIEND_A] };
+    const ctx: FeedEngineContext = {
+      currentUserId: VIEWER,
+      rankingAsOf: HORIZON,
+      followingIds: [FRIEND_A],
+    };
     expect(idsOf(await friendsEngagedSource.gather(ctx, {}, 30))).toEqual([authorless.id]);
   });
 
@@ -228,7 +255,11 @@ describe('the friendsEngaged source', () => {
     const post = await create();
     await like(FRIEND_A, post.id);
     expect(
-      await friendsEngagedSource.gather({ currentUserId: VIEWER, followingIds: [] }, {}, 30),
+      await friendsEngagedSource.gather(
+        { currentUserId: VIEWER, rankingAsOf: HORIZON, followingIds: [] },
+        {},
+        30,
+      ),
     ).toEqual([]);
   });
 });
@@ -307,7 +338,11 @@ describe('the repliesFromFollows source', () => {
       visibility: PostVisibility.FOLLOWERS_ONLY,
     });
 
-    const ctx: FeedEngineContext = { currentUserId: VIEWER, followingIds: [FRIEND_A] };
+    const ctx: FeedEngineContext = {
+      currentUserId: VIEWER,
+      rankingAsOf: HORIZON,
+      followingIds: [FRIEND_A],
+    };
     expect(idsOf(await repliesFromFollowsSource.gather(ctx, {}, 30))).toEqual([
       nativeReply.id,
       federatedReply.id,
@@ -318,7 +353,11 @@ describe('the repliesFromFollows source', () => {
     const root = await create({ oxyUserId: FRIEND_A });
     await create({ oxyUserId: FRIEND_A, parentPostId: root.id });
     expect(
-      await repliesFromFollowsSource.gather({ currentUserId: VIEWER, followingIds: [] }, {}, 30),
+      await repliesFromFollowsSource.gather(
+        { currentUserId: VIEWER, rankingAsOf: HORIZON, followingIds: [] },
+        {},
+        30,
+      ),
     ).toEqual([]);
   });
 });
@@ -341,7 +380,11 @@ describe('the boostsFromFollows source', () => {
       content: { variants: [] },
     });
 
-    const ctx: FeedEngineContext = { currentUserId: VIEWER, followingIds: [FRIEND_A] };
+    const ctx: FeedEngineContext = {
+      currentUserId: VIEWER,
+      rankingAsOf: HORIZON,
+      followingIds: [FRIEND_A],
+    };
     expect(idsOf(await boostsFromFollowsSource.gather(ctx, {}, 30))).toEqual([boost.id]);
   });
 });
@@ -521,7 +564,7 @@ describe('the onThisDay source', () => {
     await create({ oxyUserId: STRANGER, createdAt: anniversary });
 
     const gathered = await onThisDaySource.gather(
-      { currentUserId: VIEWER, followingIds: [FRIEND_A] },
+      { currentUserId: VIEWER, rankingAsOf: HORIZON, followingIds: [FRIEND_A] },
       { scope: 'follows' },
       30,
     );

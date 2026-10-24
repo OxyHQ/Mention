@@ -1,3 +1,4 @@
+import { userSettings } from '../../db/schema/userProfile';
 /**
  * "How many people in your network engaged with this post" — the `socialProof`
  * ranking signal.
@@ -31,6 +32,9 @@ const STRANGER = scope.user('stranger');
 
 beforeAll(async () => {
   await connectPostgres();
+  await getDb()
+    .insert(userSettings)
+    .values([FRIEND_A, FRIEND_B].map((oxyUserId) => ({ oxyUserId, privacyShowLikes: true })));
 });
 
 afterEach(async () => {
@@ -41,6 +45,9 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
+  await getDb()
+    .delete(userSettings)
+    .where(inArray(userSettings.oxyUserId, [FRIEND_A, FRIEND_B]));
   await closePostgres();
 });
 

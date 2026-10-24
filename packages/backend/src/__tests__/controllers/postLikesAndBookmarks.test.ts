@@ -1,3 +1,4 @@
+import { userSettings } from '../../db/schema/userProfile';
 import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -66,7 +67,7 @@ vi.mock('../../services/PostHydrationService', () => ({
   }),
 }));
 
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { bookmarkFolders, bookmarks, likes } from '../../db/schema/engagement';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
@@ -75,7 +76,7 @@ import {
   getBookmarkFolders,
   getSavedPosts,
 } from '../../controllers/posts/bookmarks';
-import { getPostLikes } from '../../controllers/posts/engagementLists';
+import { getPostLikes, getPostBoosts } from '../../controllers/posts/engagementLists';
 import type { PostRecord } from '../../db/posts/postRecord';
 
 const scope = serviceScope('post-likes-bookmarks');
@@ -121,11 +122,23 @@ beforeAll(async () => {
 beforeEach(async () => {
   vi.clearAllMocks();
   await clearServiceScope(scope);
-  hoisted.createScopedOxyClient.mockReturnValue({});
+  hoisted.createScopedOxyClient.mockReturnValue({
+    privacy: { blocked: async () => [], restricted: async () => [] },
+  });
   hoisted.resolveUserSummaries.mockResolvedValue(new Map());
 });
 
 afterEach(async () => {
+  await getDb()
+    .delete(userSettings)
+    .where(
+      inArray(
+        userSettings.oxyUserId,
+        ['liker-a', 'liker-b', 'liker-c', 'tied-a', 'tied-b', 'tied-c'].map((label) =>
+          scope.user(label),
+        ),
+      ),
+    );
   // Both tables are `ON DELETE CASCADE` to `posts.id`, so clearing the scope
   // takes them with it. Ordering note for anyone extending this file: the clear
   // runs in `afterEach` and NOT from any seed helper, so a row seeded inside a
@@ -149,11 +162,19 @@ describe('getPostLikes — the (created_at DESC, id DESC) keyset', () => {
     const post = await seedPost(scope, { oxyUserId: scope.user('author') });
     const base = Date.parse('2026-07-01T12:00:00.000Z');
     const users = ['liker-a', 'liker-b', 'liker-c'].map((label) => scope.user(label));
+    await getDb()
+      .insert(userSettings)
+      .values(users.map((oxyUserId) => ({ oxyUserId, privacyShowLikes: true })))
+      .onConflictDoNothing();
     for (const [index, userId] of users.entries()) {
       await getDb()
         .insert(likes)
         .values({ userId, postId: post.id, value: 1, createdAt: new Date(base + index * 1000) });
     }
+    await getDb()
+      .insert(userSettings)
+      .values(users.map((oxyUserId) => ({ oxyUserId, privacyShowLikes: true })))
+      .onConflictDoNothing();
     resolveSummaries(users);
     return { post, newestFirst: [...users].reverse() };
   }
@@ -217,6 +238,10 @@ describe('getPostLikes — the (created_at DESC, id DESC) keyset', () => {
         await tx.insert(likes).values({ userId, postId: post.id, value: 1 });
       }
     });
+    await getDb()
+      .insert(userSettings)
+      .values(users.map((oxyUserId) => ({ oxyUserId, privacyShowLikes: true })))
+      .onConflictDoNothing();
     resolveSummaries(users);
 
     const stamps = await getDb()
@@ -237,6 +262,36 @@ describe('getPostLikes — the (created_at DESC, id DESC) keyset', () => {
     const seen = [...first.users, ...second.users].map((user) => user.id);
     expect(new Set(seen).size).toBe(3);
     expect([...seen].sort()).toEqual([...users].sort());
+  });
+
+  it('lists only positive opted-in likes, excluding a downvoter and private activity', async () => {
+    const { post, newestFirst } = await seedThreeLikes();
+    await getDb().update(likes).set({ value: -1 }).where(eq(likes.userId, newestFirst[0]));
+    await getDb()
+      .update(userSettings)
+      .set({ privacyShowLikes: false })
+      .where(eq(userSettings.oxyUserId, newestFirst[1]));
+    expect((await page(post.id)).users.map((user) => user.id)).toEqual([newestFirst[2]]);
+  });
+
+  it('lists only public published boosts, never draft or private reposts', async () => {
+    const post = await seedPost(scope, { oxyUserId: scope.user('author') });
+    for (const [label, status, visibility] of [
+      ['public', 'published', 'public'],
+      ['draft', 'draft', 'public'],
+      ['private', 'published', 'private'],
+    ] as const)
+      await seedPost(scope, {
+        oxyUserId: scope.user(label),
+        type: 'boost',
+        boostOf: post.id,
+        status,
+        visibility,
+      });
+    resolveSummaries([scope.user('public'), scope.user('draft'), scope.user('private')]);
+    const { res, captured } = buildResponse();
+    await getPostBoosts(buildRequest({ params: { id: post.id } }) as never, res as never);
+    expect(captured.body).toMatchObject({ users: [{ id: scope.user('public') }], hasMore: false });
   });
 
   it('counts only the likes on THIS post', async () => {
