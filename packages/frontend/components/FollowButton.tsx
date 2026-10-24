@@ -1,4 +1,5 @@
 import type { ComponentProps } from 'react';
+import type { BulkFollowResult, BulkUnfollowResult } from '@oxy.so/core';
 import { FollowButton as OxyFollowButton, useAuth, useAuthStore } from '@oxy.so/services/ui/client';
 import { notifyFeedRankingChanged } from '@/stores/feedRankingInvalidation';
 
@@ -19,11 +20,11 @@ export function FollowButton(props: ComponentProps<typeof OxyFollowButton>) {
         onFollowChange={(following) => {
           if (isCurrentViewer()) props.onFollowChange?.(following);
         }}
-        onBulkFollow={(result) => {
+        onBulkFollow={(result: BulkFollowResult) => {
           if (result.followedCount > 0) notify();
           if (isCurrentViewer()) props.onBulkFollow?.(result);
         }}
-        onBulkUnfollow={(result) => {
+        onBulkUnfollow={(result: BulkUnfollowResult) => {
           if (result.unfollowedCount > 0) notify();
           if (isCurrentViewer()) props.onBulkUnfollow?.(result);
         }}
