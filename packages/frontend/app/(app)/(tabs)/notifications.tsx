@@ -34,7 +34,6 @@ import {
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { NotificationsList } from '@/components/NotificationsList';
 import { NotificationSkeleton } from '@/components/notifications/NotificationSkeleton';
-import { ScreenReselect } from '@/components/common/ScreenReselect';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { toast } from '@oxy.so/bloom/toast';
 import { confirmDialog } from '@/utils/alerts';
@@ -601,6 +600,7 @@ const NotificationsScreen: React.FC = () => {
     <>
       <SEO title={t('seo.notifications.title')} description={t('seo.notifications.description')} />
       <Screen
+        reselect={{ refresh: handleRefresh }}
         active={isFocused}
         scroll="auto"
         header={
@@ -645,7 +645,6 @@ const NotificationsScreen: React.FC = () => {
           />
         }
       >
-        <ScreenReselect refresh={handleRefresh} />
         {canUsePrivateApi && (
           <Tabs
             value={activeTab}

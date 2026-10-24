@@ -25,7 +25,6 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { useTranslation } from 'react-i18next';
 import { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR } from '@/styles/colors';
 import { CreateRoomSheet } from '@/components/rooms/CreateRoomSheet';
-import { ScreenReselect } from '@/components/common/ScreenReselect';
 import { SignInRequired } from '@/components/common/SignInRequired';
 
 const SectionHeader = ({
@@ -184,6 +183,7 @@ const LiveRoomsScreen = () => {
     <>
       <SEO title="Live Rooms" description="Join live audio conversations" />
       <Screen
+        reselect={{ refresh: onRefresh }}
         header={
           <PageHeader
             title={t('agora.title')}
@@ -206,7 +206,6 @@ const LiveRoomsScreen = () => {
           />
         }
       >
-        <ScreenReselect refresh={onRefresh} />
         <SignInRequired
           label={t('agora.signInRequired', { defaultValue: 'Sign in to join live rooms' })}
           description={t('agora.signInRequiredDesc', {

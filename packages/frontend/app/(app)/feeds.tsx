@@ -39,7 +39,6 @@ import { Search } from '@oxy.so/bloom/search';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { logger } from '@oxy.so/core/logger';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { ScreenReselect } from '@/components/common/ScreenReselect';
 
 /**
  * Live trends offered on this screen.
@@ -518,6 +517,7 @@ const FeedsScreen: React.FC = () => {
     <>
       <SEO title={t('seo.feeds.title')} description={t('seo.feeds.description')} />
       <Screen
+        reselect={{ refresh: onRefresh }}
         header={
           <PageHeader
             title={t('Feeds')}
@@ -545,7 +545,6 @@ const FeedsScreen: React.FC = () => {
           ) : undefined
         }
       >
-        <ScreenReselect refresh={onRefresh} />
         <ScreenScrollView
           showsVerticalScrollIndicator={false}
           refreshControl={

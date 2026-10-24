@@ -22,7 +22,6 @@ import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { feedService, type SavedPostsPage } from '@/services/feedService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { logger } from '@oxy.so/core/logger';
-import { ScreenReselect } from '@/components/common/ScreenReselect';
 import SavedPostsList, { type SavedPost } from '@/components/saved/SavedPostsList';
 import { usePostsStore } from '@/stores/postsStore';
 import { useIsFocused } from '@/lib/navigation/router';
@@ -316,6 +315,7 @@ const SavedPostsScreen: React.FC = () => {
       <SEO title={t('seo.saved.title')} description={t('seo.saved.description')} />
       <HeaderDockProvider>
         <Screen
+          reselect={{ refresh: refetchSavedPosts }}
           active={isFocused}
           scroll="auto"
           header={<PageHeader title={t('screens.saved.title')} presentation="floating" />}
@@ -331,7 +331,6 @@ const SavedPostsScreen: React.FC = () => {
             ) : undefined
           }
         >
-          <ScreenReselect refresh={refetchSavedPosts} />
           {/* Search and folder tabs dock under the header. Creating a folder
                         is an action, not a section, so it lives in the FAB. */}
           <StickySection>

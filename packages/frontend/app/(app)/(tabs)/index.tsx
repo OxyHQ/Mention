@@ -10,7 +10,6 @@ import { PRESET_FEEDS } from '@mention/shared-types/mtn/presetFeeds';
 import { parseFeedDescriptor } from '@mention/shared-types/mtn/feedDescriptor';
 import type { FeedType } from '@mention/shared-types/feed';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
-import { ScreenReselect } from '@/components/common/ScreenReselect';
 import { SEO } from '@/components/SEO';
 import { siteStructuredData } from '@mention/shared-types/seo';
 import { INSTANCE_LOGO_URL, INSTANCE_NAME, WEB_BASE_URL } from '@/config';
@@ -166,8 +165,12 @@ const HomeScreen: React.FC = () => {
         description={t('seo.home.description')}
         jsonLd={SITE_STRUCTURED_DATA}
       />
-      <Screen active={isFocused} scroll="auto" header={<MentionHomeHeader />}>
-        <ScreenReselect refresh={reloadCurrentTab} />
+      <Screen
+        reselect={{ refresh: reloadCurrentTab }}
+        active={isFocused}
+        scroll="auto"
+        header={<MentionHomeHeader />}
+      >
         <Tabs
           value={activeTab}
           onValueChange={setActiveTab}

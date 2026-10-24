@@ -18,7 +18,6 @@ import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { useRefreshJoinedCommunitiesAfterCreate } from '@/hooks/useCommunities';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { displayNameOrHandle } from '@/utils/displayName';
-import { ScreenReselect } from '@/components/common/ScreenReselect';
 import { SignInRequired } from '@/components/common/SignInRequired';
 import { profileBasePath, profileRouteFamily } from '@/components/Profile/profileRoute';
 import type { OperatedAccountKind } from './OperatedAccountSettingsScreen';
@@ -136,11 +135,11 @@ export function OperatedAccountsScreen({ kind, copy }: OperatedAccountsScreenPro
 
   return (
     <Screen
+      reselect={{ refresh: refetch }}
       header={
         <PageHeader title={copy.title} backLabel={t('common.back', { defaultValue: 'Back' })} />
       }
     >
-      <ScreenReselect refresh={refetch} />
       <SignInRequired label={copy.signInRequired} description={copy.signInRequiredDesc}>
         <ScreenScrollView contentContainerClassName="pb-10">
           <View className="px-4 pt-4 pb-2">

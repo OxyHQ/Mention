@@ -15,7 +15,6 @@ import { SEO } from '@/components/SEO';
 import { ListCard as ListCardComponent, type ListCardData } from '@/components/ListCard';
 import { EmptyState } from '@/components/common/EmptyState';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { ScreenReselect } from '@/components/common/ScreenReselect';
 import { SignInRequired } from '@/components/common/SignInRequired';
 
 const FOLLOWED_LIST_PAGE_SIZE = 50;
@@ -169,6 +168,7 @@ function ListsScreen() {
     <>
       <SEO title={t('seo.lists.title')} description={t('seo.lists.description')} />
       <Screen
+        reselect={{ refresh: refreshLists }}
         header={
           <PageHeader
             title={t('lists.title')}
@@ -183,7 +183,6 @@ function ListsScreen() {
           />
         }
       >
-        <ScreenReselect refresh={refreshLists} />
         <SignInRequired
           label={t('lists.signInRequired', { defaultValue: 'Sign in to use lists' })}
           description={t('lists.signInRequiredDesc', {

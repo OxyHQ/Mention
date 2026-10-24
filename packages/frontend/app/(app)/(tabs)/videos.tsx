@@ -57,7 +57,6 @@ import { RiUpload2Line } from '@oxy.so/bloom/icons/RiUpload2Line';
 import { RiVerifiedBadgeFill } from '@oxy.so/bloom/icons/RiVerifiedBadgeFill';
 import { VERIFIED_BADGE_COLOR } from '@/styles/colors';
 import { useRouter, useLocalSearchParams, useIsFocused } from '@/lib/navigation/router';
-import { ScreenReselect } from '@/components/common/ScreenReselect';
 import { usePostsStore } from '@/stores/postsStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { feedService } from '@/services/feedService';
@@ -2115,6 +2114,11 @@ export default function VideosScreen() {
       {/* The reel is a dark surface: its header and controls render dark over it. */}
       <BloomColorScope mode={posts.length > 0 ? 'dark' : undefined} asChild>
         <Screen
+          reselect={{
+            isAtTop: () => currentVisibleIndex === 0,
+            scrollToTop: scrollReelToTop,
+            refresh: () => setReloadNonce((nonce) => nonce + 1),
+          }}
           scroll="auto"
           active={isFocused}
           headerPlacement="overlay"
@@ -2147,11 +2151,6 @@ export default function VideosScreen() {
             />
           }
         >
-          <ScreenReselect
-            isAtTop={() => currentVisibleIndex === 0}
-            scrollToTop={scrollReelToTop}
-            refresh={() => setReloadNonce((nonce) => nonce + 1)}
-          />
           <View
             className="w-full native:flex-1"
             onLayout={
