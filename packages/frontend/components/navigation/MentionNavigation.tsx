@@ -54,18 +54,19 @@ export function useMentionDestinations(): AppDestination[] {
   // Photo-less accounts get their initial, as in the Oxy account menu.
   const avatarName = user?.name?.displayName || username || undefined;
   // The reader's own avatar, at whatever box the bar or the sidebar asks for.
-  const ProfileAvatar = useMemo<BloomIconComponent>(
-    () =>
-      ({ width }) => (
+  const ProfileAvatar = useMemo<BloomIconComponent>(() => {
+    function ProfileAvatar({ width }: { width?: number }) {
+      return (
         <Avatar
           size={width ?? 26}
           source={avatar}
           name={avatarName}
           variant={MEDIA_VARIANT_AVATAR}
         />
-      ),
-    [avatar, avatarName],
-  );
+      );
+    }
+    return ProfileAvatar;
+  }, [avatar, avatarName]);
   const openAccounts = useCallback(() => {
     haptic('heavy');
     showBottomSheet?.('ManageAccount');
