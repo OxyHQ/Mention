@@ -1,8 +1,8 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import type React from 'react';
 import { Text, TouchableOpacity } from 'react-native';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 import { cn } from '@/lib/utils';
-import { HIT_SLOP_SM } from '@/styles/hitSlop';
 
 interface ComposeAltButtonProps {
   /** Whether an alt description has already been entered for this image. */
@@ -28,7 +28,7 @@ export const ComposeAltButton: React.FC<ComposeAltButtonProps> = ({ hasAlt, rais
       raised ? 'bottom-12' : 'bottom-2',
       hasAlt ? 'bg-primary' : 'bg-black/60',
     )}
-    hitSlop={HIT_SLOP_SM}
+    hitSlop={tokens.hitSlop.sm}
     accessibilityRole="button"
   >
     {hasAlt ? <RiCheckLine width={11} height={11} fill="#ffffff" /> : null}

@@ -10,7 +10,6 @@ import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
 import { RiUserLine } from '@oxy.so/bloom/icons/RiUserLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useLocalSearchParams } from '@/lib/navigation/router';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { labelerService } from '@/services/labelerService';
@@ -125,7 +124,6 @@ const LabelerDetailScreen: React.FC = () => {
   const theme = useTheme();
   const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const safeBack = useSafeBack();
 
   const [labeler, setLabeler] = useState<LabelerDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -253,7 +251,6 @@ const LabelerDetailScreen: React.FC = () => {
         header={
           <PageHeader
             title={t('labelers.detailTitle', { defaultValue: 'Labeler' })}
-            onBack={() => safeBack()}
             backLabel={t('common.back', { defaultValue: 'Back' })}
           />
         }
@@ -271,7 +268,6 @@ const LabelerDetailScreen: React.FC = () => {
         header={
           <PageHeader
             title={t('labelers.detailTitle', { defaultValue: 'Labeler' })}
-            onBack={() => safeBack()}
             backLabel={t('common.back', { defaultValue: 'Back' })}
           />
         }
@@ -427,11 +423,7 @@ const LabelerDetailScreen: React.FC = () => {
   return (
     <Screen
       header={
-        <PageHeader
-          title={labeler.name}
-          onBack={() => safeBack()}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
+        <PageHeader title={labeler.name} backLabel={t('common.back', { defaultValue: 'Back' })} />
       }
     >
       <ScreenScrollView

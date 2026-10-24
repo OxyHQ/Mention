@@ -4,7 +4,6 @@ import { Platform, View } from 'react-native';
 import { useLocalSearchParams, usePathname } from '@/lib/navigation/router';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Text } from '@oxy.so/bloom/typography';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import Feed from '@/components/Feed/Feed';
 import { SEO } from '@/components/SEO';
@@ -14,7 +13,6 @@ import { EntityFollowButton } from '@/components/EntityFollowButton';
 
 export default function HashtagScreen() {
   const { tag } = useLocalSearchParams<{ tag: string }>();
-  const safeBack = useSafeBack();
   const { t } = useTranslation();
 
   const hashtag = tag?.replace(/^#/, '') || '';
@@ -55,11 +53,7 @@ export default function HashtagScreen() {
     <Screen
       scroll="auto"
       header={
-        <PageHeader
-          title={displayTag}
-          onBack={() => safeBack()}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
+        <PageHeader title={displayTag} backLabel={t('common.back', { defaultValue: 'Back' })} />
       }
     >
       <SEO

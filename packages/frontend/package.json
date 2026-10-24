@@ -56,6 +56,7 @@
       "^@oxy.so/bloom/icons$": "<rootDir>/test-support/bloomIcons.js",
       "^@oxy.so/bloom/icons/(.*)$": "<rootDir>/test-support/bloomIcons.js",
       "^@oxy.so/bloom/empty-state$": "<rootDir>/test-support/bloomEmptyState.js",
+      "^@oxy.so/bloom/screen$": "<rootDir>/test-support/bloomScreen.js",
       "^@oxy.so/bloom/dropdown-menu$": "<rootDir>/test-support/bloomDropdownMenu.js",
       "^@oxy.so/bloom/typography$": "<rootDir>/test-support/bloomTypography.js",
       "^@oxy.so/bloom/sticker$": "<rootDir>/test-support/bloomSticker.js"

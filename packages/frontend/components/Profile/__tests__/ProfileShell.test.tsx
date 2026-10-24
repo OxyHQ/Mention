@@ -1,4 +1,5 @@
 jest.mock('@oxy.so/bloom/screen', () => ({
+  ...jest.requireActual('@oxy.so/bloom/screen'),
   Screen: (props: {
     header?: React.ReactNode;
     bottomBar?: React.ReactNode;
@@ -67,7 +68,6 @@ jest.mock('react-i18next', () => ({
     t: (_key: string, options: { defaultValue: string }) => options.defaultValue,
   }),
 }));
-jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
 jest.mock('@/components/UserName', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/components/common/EmptyState', () => ({ EmptyState: () => null }));
 jest.mock('@/assets/illustrations/NoUpdates', () => ({ NoUpdatesIllustration: () => null }));
@@ -249,14 +249,16 @@ test('a private feed uses the shell list instead of mounting another viewport', 
 // handed `onBack`, so the shell withholds it there, while a pushed profile
 // (`/@handle`) keeps its Back.
 test('a pushed profile has Back; the root profile tab does not', () => {
+  // A pushed profile leaves `onBack` to its Screen, which offers the app's Back;
+  // the root profile tab declines it outright.
   const pushed = renderShell(makeProps());
-  expect(typeof mockHeader.mock.calls.at(-1)?.[0].onBack).toBe('function');
+  expect(mockHeader.mock.calls.at(-1)?.[0].onBack).toBeUndefined();
   act(() => pushed.unmount());
 
   mockHeader.mockClear();
   const rootTab = renderShell({ ...makeProps(), isRootTab: true });
   expect(mockHeader).toHaveBeenCalled();
-  expect(mockHeader.mock.calls.at(-1)?.[0].onBack).toBeUndefined();
+  expect(mockHeader.mock.calls.at(-1)?.[0].onBack).toBeNull();
   act(() => rootTab.unmount());
 });
 

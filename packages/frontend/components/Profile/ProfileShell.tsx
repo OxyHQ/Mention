@@ -187,7 +187,7 @@ function ProfileShellBody({
   // Native pushed routes are rendered above the tab navigator by the stack, so
   // the route must be opaque or the pager shows through while the list lays
   // out. It is painted in the surface fill, the colour of every other native
-  // route (StackScene), not the theme background it used to name. Web leaves
+  // route (Bloom's StackScene), not the theme background it used to name. Web leaves
   // the page to the content panel, like every other screen.
   return (
     <Screen

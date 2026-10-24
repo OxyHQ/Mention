@@ -9,7 +9,10 @@ const mockViewport = {
   metrics: { scrollY: { value: 0 } },
 };
 const mockSubscribe = jest.fn();
-jest.mock('@oxy.so/bloom/screen', () => ({ useScreenViewport: () => mockViewport }));
+jest.mock('@oxy.so/bloom/screen', () => ({
+  ...jest.requireActual('@oxy.so/bloom/screen'),
+  useScreenViewport: () => mockViewport,
+}));
 jest.mock('@/services/socketService', () => ({
   socketService: { subscribeToFeedUpdates: (...args: unknown[]) => mockSubscribe(...args) },
 }));

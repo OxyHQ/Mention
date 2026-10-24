@@ -1,4 +1,5 @@
 jest.mock('@oxy.so/bloom/screen', () => ({
+  ...jest.requireActual('@oxy.so/bloom/screen'),
   Screen: ({
     header,
     children,

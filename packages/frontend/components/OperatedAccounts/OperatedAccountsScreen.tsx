@@ -15,7 +15,6 @@ import type { AccountNode } from '@oxy.so/core';
 import { logger } from '@oxy.so/core/logger';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { useRefreshJoinedCommunitiesAfterCreate } from '@/hooks/useCommunities';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { displayNameOrHandle } from '@/utils/displayName';
@@ -72,7 +71,6 @@ export function OperatedAccountsScreen({ kind, copy }: OperatedAccountsScreenPro
   const router = useRouter();
   const { t } = useTranslation();
   const { user, oxyServices, canUsePrivateApi } = useAuth();
-  const safeBack = useSafeBack();
   const queryClient = useQueryClient();
   const refreshJoinedCommunities = useRefreshJoinedCommunitiesAfterCreate();
 
@@ -141,11 +139,7 @@ export function OperatedAccountsScreen({ kind, copy }: OperatedAccountsScreenPro
   return (
     <Screen
       header={
-        <PageHeader
-          title={copy.title}
-          onBack={() => safeBack()}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
+        <PageHeader title={copy.title} backLabel={t('common.back', { defaultValue: 'Back' })} />
       }
     >
       <SignInRequired label={copy.signInRequired} description={copy.signInRequiredDesc}>

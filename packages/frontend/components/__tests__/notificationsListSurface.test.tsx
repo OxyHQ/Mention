@@ -7,6 +7,7 @@ jest.mock('react-native-reanimated', () => ({
   default: { createAnimatedComponent: (component: unknown) => component },
 }));
 jest.mock('@oxy.so/bloom/screen', () => ({
+  ...jest.requireActual('@oxy.so/bloom/screen'),
   useScreenScroll: () => ({
     onScroll: undefined,
     contentInsets: { top: 0, bottom: 0 },

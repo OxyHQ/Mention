@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { FormSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import {
@@ -45,13 +46,11 @@ import { Divider } from '@oxy.so/bloom/divider';
 import { useHaptics } from '@oxy.so/bloom/hooks';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { customFeedsService } from '@/services/customFeedsService';
 import { useFeedModules } from '@/hooks/useFeedModules';
 import Feed from '@/components/Feed/Feed';
 import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 import { SignInRequired } from '@/components/common/SignInRequired';
 
 type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
@@ -301,7 +300,7 @@ const AccountPicker = ({
           </View>
           <TouchableOpacity
             onPress={() => onChange(selected.filter((s) => s.id !== u.id))}
-            hitSlop={HIT_SLOP_MD}
+            hitSlop={tokens.hitSlop.md}
           >
             <RiCloseCircleLine width={22} height={22} fill={theme.colors.textSecondary} />
           </TouchableOpacity>
@@ -739,7 +738,6 @@ export function FeedBuilder({
   initialFeed?: CustomFeed;
 }) {
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
   const { oxyServices, user, canUsePrivateApi } = useAuth();
   const queryClient = useQueryClient();
   const { catalog, isLoading: catalogLoading } = useFeedModules();
@@ -948,7 +946,6 @@ export function FeedBuilder({
       header={
         <PageHeader
           title={feedId ? t('feeds.builder.editTitle') : t('feeds.builder.createTitle')}
-          onBack={() => safeBack()}
           backLabel={t('common.back', { defaultValue: 'Back' })}
           actions={
             canUsePrivateApi ? (

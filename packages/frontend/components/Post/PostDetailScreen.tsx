@@ -12,13 +12,12 @@ import {
 import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { RiEqualizerLine } from '@oxy.so/bloom/icons/RiEqualizerLine';
 import { useRouter } from '@/lib/navigation/router';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { usePostReadAccess } from '@/hooks/usePostReadAccess';
 import { EmptyState } from '@/components/common/EmptyState';
 import PostItem from '@/components/Feed/PostItem';
 import Feed from '@/components/Feed/Feed';
 import { FeedHeader } from '@/components/Feed/FeedHeader';
-import { Screen } from '@oxy.so/bloom/screen';
+import { Screen, useScreenBack } from '@oxy.so/bloom/screen';
 import { PageFooter } from '@oxy.so/bloom/page-footer';
 import {
   useThreadPreferences,
@@ -108,7 +107,7 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
   const requiresFreshReads = access.supervised;
   usePrefetchReplies(id ? String(id) : '');
   const router = useRouter();
-  const safeBack = useSafeBack();
+  const back = useScreenBack();
   const getPostById = usePostsStore((state) => state.getPostById);
   const revalidatePostById = usePostsStore((state) => state.revalidatePostById);
   const { user } = useAuth();
@@ -451,7 +450,7 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
 
   const handleBack = () => {
     if (onBack) onBack();
-    else safeBack();
+    else back?.();
   };
 
   // Server discovery policy includes author privacy, boost origins and remote

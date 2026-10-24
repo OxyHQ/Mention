@@ -10,7 +10,7 @@ import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Button } from '@oxy.so/bloom/button';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
-import { useSurfaceFill } from '@oxy.so/bloom/styles';
+import { useSurfaceFill, tokens } from '@oxy.so/bloom/styles';
 import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
@@ -40,7 +40,6 @@ import { usePostsStore } from '@/stores/postsStore';
 import { cn } from '@/lib/utils';
 import { createLogger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 const logger = createLogger('NotificationItem');
 
@@ -849,7 +848,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                 ) : null}
                 <Pressable
                   onPress={toggleExpanded}
-                  hitSlop={HIT_SLOP_MD}
+                  hitSlop={tokens.hitSlop.md}
                   accessibilityRole="button"
                 >
                   <Text className="text-primary text-sm font-semibold">

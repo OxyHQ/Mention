@@ -3,7 +3,6 @@ import { useMemo } from 'react';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useOptionalPanelNavigation } from '@oxy.so/bloom/app-shell/hooks';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { Screen } from '@oxy.so/bloom/screen';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -32,7 +31,6 @@ const PASS_THROUGH_DESCRIPTOR_PREFIXES = ['feedgen|', 'trend|'] as const;
 
 export default function PresetFeedViewScreen() {
   const { descriptor, title } = useLocalSearchParams<{ descriptor: string; title: string }>();
-  const safeBack = useSafeBack();
   const panelNavigation = useOptionalPanelNavigation();
   const { t } = useTranslation();
   const { canUsePrivateApi, isPrivateApiPending } = useAuth();
@@ -111,11 +109,7 @@ export default function PresetFeedViewScreen() {
     <Screen
       scroll="auto"
       header={
-        <PageHeader
-          title={headerTitle}
-          onBack={panelNavigation ? undefined : safeBack}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
+        <PageHeader title={headerTitle} backLabel={t('common.back', { defaultValue: 'Back' })} />
       }
     >
       <SEO title={headerTitle} description={t('seo.feeds.description')} />

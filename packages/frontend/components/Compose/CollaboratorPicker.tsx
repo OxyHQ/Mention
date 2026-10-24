@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useState, useEffect } from 'react';
@@ -12,7 +13,6 @@ import { MAX_POST_COLLABORATORS, MEDIA_VARIANT_AVATAR } from '@mention/shared-ty
 import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
 import { displayNameOrHandle } from '@/utils/displayName';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 export interface CollaboratorUser {
   id: string;
@@ -133,7 +133,7 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
               <Text className="text-foreground text-sm" numberOfLines={1}>
                 {displayNameOrHandle(collab.displayName, `@${collab.username}`)}
               </Text>
-              <TouchableOpacity onPress={() => removeUser(collab.id)} hitSlop={HIT_SLOP_MD}>
+              <TouchableOpacity onPress={() => removeUser(collab.id)} hitSlop={tokens.hitSlop.md}>
                 <RiCloseCircleLine width={18} height={18} fill={colors.textSecondary} />
               </TouchableOpacity>
             </View>

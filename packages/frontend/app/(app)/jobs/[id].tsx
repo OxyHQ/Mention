@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { Suspense, lazy, useCallback, useContext, useEffect, useRef } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
@@ -15,7 +16,6 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle, type User } from '@oxy.so/core';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import type { MentionJobStatus } from '@mention/shared-types';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { shareLink } from '@/utils/shareLink';
@@ -23,7 +23,6 @@ import { jobsService, recordJobMetric } from '@/services/jobsService';
 import { reportService } from '@/services/reportService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 import { useJobVocabulary } from '@/utils/jobVocabulary';
 
 const ReportModal = lazy(() =>
@@ -83,7 +82,6 @@ export default function JobDetailScreen() {
   const idOrSlug = String(id);
   const { t } = useTranslation();
   const { user, oxyServices } = useAuth();
-  const safeBack = useSafeBack();
   const bottomSheet = useContext(BottomSheetContext);
   const vocabulary = useJobVocabulary();
 
@@ -170,7 +168,6 @@ export default function JobDetailScreen() {
   const header = (
     <PageHeader
       title={t('jobs.detail.title', { defaultValue: 'Job' })}
-      onBack={() => safeBack()}
       backLabel={t('common.back', { defaultValue: 'Back' })}
     />
   );
@@ -288,7 +285,11 @@ export default function JobDetailScreen() {
           </Button>
         </View>
 
-        <TouchableOpacity onPress={openReport} className="mt-4 self-center" hitSlop={HIT_SLOP_MD}>
+        <TouchableOpacity
+          onPress={openReport}
+          className="mt-4 self-center"
+          hitSlop={tokens.hitSlop.md}
+        >
           <Text className="text-muted-foreground text-xs">
             {t('jobs.detail.report', { defaultValue: 'Report this listing' })}
           </Text>

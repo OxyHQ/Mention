@@ -16,7 +16,6 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import type { AccountNode } from '@oxy.so/core';
 import { logger } from '@oxy.so/core/logger';
 import type { MentionJobPosting, MentionJobStatus } from '@mention/shared-types';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { confirmDestructive } from '@/utils/alerts';
 import { formatTimeAgo } from '@/utils/dateUtils';
 import { displayNameOrHandle } from '@/utils/displayName';
@@ -50,7 +49,6 @@ export default function MyJobsScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { user, oxyServices, canUsePrivateApi } = useAuth();
-  const safeBack = useSafeBack();
   const queryClient = useQueryClient();
   const [pendingId, setPendingId] = useState<string | null>(null);
 
@@ -145,7 +143,6 @@ export default function MyJobsScreen() {
   const header = (
     <PageHeader
       title={t('jobs.mine.title', { defaultValue: 'My jobs' })}
-      onBack={() => safeBack()}
       backLabel={t('common.back', { defaultValue: 'Back' })}
       actions={
         canUsePrivateApi ? (

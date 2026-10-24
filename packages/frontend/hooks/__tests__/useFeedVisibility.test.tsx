@@ -16,6 +16,7 @@ jest.mock('react-native', () => ({
 }));
 jest.mock('@/lib/navigation/router', () => ({ useIsFocused: () => mockFocused }));
 jest.mock('@oxy.so/bloom/screen', () => ({
+  ...jest.requireActual('@oxy.so/bloom/screen'),
   useScreenViewport: () => ({ active: mockScreenActive }),
 }));
 

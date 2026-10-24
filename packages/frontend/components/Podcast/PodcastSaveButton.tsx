@@ -1,6 +1,6 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { Pressable } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 import { RiBookmarkFill } from '@oxy.so/bloom/icons/RiBookmarkFill';
 import { RiBookmarkLine } from '@oxy.so/bloom/icons/RiBookmarkLine';
 import { usePodcastSave } from '@/hooks/usePodcastSave';
@@ -19,7 +19,7 @@ export const PodcastSaveButton = ({ podcastId }: { podcastId: string }) => {
   return (
     <Pressable
       onPress={toggleSave}
-      hitSlop={HIT_SLOP_MD}
+      hitSlop={tokens.hitSlop.md}
       accessibilityRole="button"
       accessibilityState={{ selected: isSaved }}
       accessibilityLabel={label}

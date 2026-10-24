@@ -1,3 +1,4 @@
+import { useScreenBack } from '@oxy.so/bloom/screen';
 import { Fragment, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
@@ -18,7 +19,6 @@ import { useOperatesAccount } from '@/components/Profile/hooks/useOperatesAccoun
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { useCommunityNoteHandlerContext } from '@/context/CommunityNoteHandlersContext';
 import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { useRouter } from '@/lib/navigation/router';
 import { buildPostMenuActions } from './postMenuActions';
 import { currentPost, usePostInteractions } from './postInteractions';
@@ -50,7 +50,7 @@ export function PostMenuContent({
   const { t } = useTranslation();
   const { user, canUsePrivateApi } = useAuth();
   const router = useRouter();
-  const safeBack = useSafeBack();
+  const back = useScreenBack();
   const bottomSheet = useContext(BottomSheetContext);
   const queryClient = useQueryClient();
   const noteHandlers = useCommunityNoteHandlerContext();
@@ -93,7 +93,7 @@ export function PostMenuContent({
       viewerId: user?.id,
       canUsePrivateApi,
       router,
-      safeBack,
+      back,
       bottomSheet,
       queryClient,
     },

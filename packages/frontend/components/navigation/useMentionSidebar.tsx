@@ -1,8 +1,9 @@
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { useDeckAvailable } from '@/components/deck/useDeckAvailable';
 import { useDeckSettings } from '@/components/deck/deckSettings';
+import { useAppShell } from '@oxy.so/bloom/app-shell';
 import type { SidebarProps } from '@oxy.so/bloom/sidebar';
 import { useTabPager } from '@oxy.so/bloom/tab-pager';
 import { ProfileButton } from '@oxy.so/services/ui/client';
@@ -12,52 +13,67 @@ import { RiDashboardLine } from '@oxy.so/bloom/icons/RiDashboardLine';
 import { RiHome5Line } from '@oxy.so/bloom/icons/RiHome5Line';
 import { LogoIcon } from '@/assets/logo';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { useDrawer } from '@/context/DrawerContext';
 
-// The chrome around the sidebar's rows. The rows themselves, their selection,
-// badges and the compose action are Mention's destinations, which Bloom's app
-// shell draws (`MentionNavigation`); the drawer closes itself on a choice made
-// in its rows. The logo and the account footer are not rows, so they close it.
-export function useMentionSidebar(): SidebarProps {
+/**
+ * The account control at the foot of the sidebar. It is the app's own content
+ * in the drawer, not a row Bloom draws, so it closes the drawer itself before
+ * going anywhere.
+ */
+function MentionSidebarFooter({ collapsed }: { collapsed: boolean }) {
   const { t } = useTranslation();
-  const deckAvailable = useDeckAvailable();
-  const deckEnabled = useDeckSettings((state) => state.deckEnabled);
   const router = useRouter();
   const { signIn } = useAuth();
   const { selectDestination } = useTabPager();
-  const { close } = useDrawer();
-  const { colors } = useTheme();
-  const go = useCallback(
-    (destination: string) => {
-      close();
-      selectDestination(destination);
-    },
-    [close, selectDestination],
-  );
-  const handleAddAccount = useCallback(() => {
-    close();
-    signIn().catch(() => {});
-  }, [close, signIn]);
-  const accountMenuItems = useMemo<AccountDialogMenuItem[]>(
+  const { closeDrawer } = useAppShell();
+  const menuItems = useMemo<AccountDialogMenuItem[]>(
     () => [
       {
         key: 'mention-settings',
         label: t('sidebar.accountMenu.settings'),
         icon: 'cog-outline',
-        onPress: () => go('settings'),
+        onPress: () => {
+          closeDrawer();
+          selectDestination('settings');
+        },
       },
       {
         key: 'mention-plus',
         label: t('sidebar.accountMenu.plus'),
         icon: 'crown-outline',
         onPress: () => {
-          close();
+          closeDrawer();
           router.navigate('/plus');
         },
       },
     ],
-    [t, go, close, router],
+    [t, closeDrawer, selectDestination, router],
   );
+  return (
+    <ProfileButton
+      expanded={!collapsed}
+      menuItems={menuItems}
+      onNavigateProfile={() => {
+        closeDrawer();
+        selectDestination('you');
+      }}
+      onAddAccount={() => {
+        closeDrawer();
+        signIn().catch(() => {});
+      }}
+    />
+  );
+}
+
+// The chrome around the sidebar's rows. The rows themselves, their selection,
+// badges and the compose action are Mention's destinations, which Bloom's app
+// shell draws (`MentionNavigation`); the drawer closes itself on a choice made
+// in its rows or on the logo.
+export function useMentionSidebar(): SidebarProps {
+  const { t } = useTranslation();
+  const deckAvailable = useDeckAvailable();
+  const deckEnabled = useDeckSettings((state) => state.deckEnabled);
+  const { selectDestination } = useTabPager();
+  const { colors } = useTheme();
 
   return {
     surface: 'plain',
@@ -68,7 +84,7 @@ export function useMentionSidebar(): SidebarProps {
     logo: {
       icon: <LogoIcon size={28} color={colors.text} />,
       accessibilityLabel: 'Mention',
-      onPress: () => go('index'),
+      onPress: () => selectDestination('index'),
     },
     modes: deckAvailable
       ? [
@@ -84,13 +100,6 @@ export function useMentionSidebar(): SidebarProps {
     modesPresentation: 'toggle',
     modesLabel: t('deck.mode.label', 'Deck mode'),
     onModeChange: (mode) => useDeckSettings.getState().setDeckEnabled(mode === 'deck'),
-    footer: ({ collapsed }) => (
-      <ProfileButton
-        expanded={!collapsed}
-        menuItems={accountMenuItems}
-        onNavigateProfile={() => go('you')}
-        onAddAccount={handleAddAccount}
-      />
-    ),
+    footer: ({ collapsed }) => <MentionSidebarFooter collapsed={collapsed} />,
   };
 }

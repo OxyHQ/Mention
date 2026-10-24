@@ -1,10 +1,10 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import type React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiLinksLine } from '@oxy.so/bloom/icons/RiLinksLine';
 import type { PostSourceLink } from '@mention/shared-types';
 import { openExternalLink } from '@/utils/openExternalLink';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface Props {
   sources?: PostSourceLink[];
@@ -38,7 +38,7 @@ const PostSources: React.FC<Props> = ({ sources, leftOffset = 0 }) => {
             key={`${source.url}-${index}`}
             className="flex-row items-center border border-border bg-surface rounded-xl py-2.5 px-3 gap-3"
             activeOpacity={0.85}
-            hitSlop={HIT_SLOP_MD}
+            hitSlop={tokens.hitSlop.md}
             onPress={() => openExternalLink(source.url)}
           >
             <View className="w-8 h-8 rounded-full items-center justify-center bg-card">

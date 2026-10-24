@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useCallback, useState } from 'react';
@@ -19,7 +20,6 @@ import { isPastDue, scheduledDate } from '@/utils/postSchedule';
 import { confirmDialog } from '@/utils/alerts';
 import { formatScheduledLabel } from '@/utils/dateUtils';
 import { createLogger } from '@oxy.so/core/logger';
-import { HIT_SLOP_LG } from '@/styles/hitSlop';
 import { EmptyState } from '@/components/common/EmptyState';
 
 const logger = createLogger('ScheduledPostsList');
@@ -248,7 +248,7 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
             className="p-1 mr-1"
             onPress={() => onEdit(item)}
             disabled={isCancelling}
-            hitSlop={HIT_SLOP_LG}
+            hitSlop={tokens.hitSlop.lg}
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel={t('compose.scheduled.edit', {
@@ -261,7 +261,7 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
             className="p-1"
             onPress={() => handleCancel(item)}
             disabled={isCancelling}
-            hitSlop={HIT_SLOP_LG}
+            hitSlop={tokens.hitSlop.lg}
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel={t('compose.scheduled.cancelTitle', {

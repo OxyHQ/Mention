@@ -21,7 +21,10 @@ const mockDocument = makeVirtualizer();
 const mockPanel = makeVirtualizer();
 const mockTracker = { current: { setVisible: jest.fn(), setHidden: jest.fn() } };
 jest.mock('@oxy.so/bloom/app-shell/hooks', () => ({ usePanelScrollContainer: () => mockOwner }));
-jest.mock('@oxy.so/bloom/screen', () => ({ useScreenViewport: () => null }));
+jest.mock('@oxy.so/bloom/screen', () => ({
+  ...jest.requireActual('@oxy.so/bloom/screen'),
+  useScreenViewport: () => null,
+}));
 jest.mock('@oxy.so/bloom/scroll', () => ({
   useScrollRestoration: () => ({ restorePending: false }),
 }));

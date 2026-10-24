@@ -1,5 +1,7 @@
 jest.mock('@oxy.so/bloom/screen', () => ({
+  ...jest.requireActual('@oxy.so/bloom/screen'),
   Screen: ({ children }: { children: React.ReactNode }) => children,
+  useScreenBack: () => mockBack,
 }));
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
 jest.mock('@/hooks/useSupervisionState', () => ({
@@ -31,7 +33,7 @@ type ProfileState = {
 let mockProfile: ProfileState;
 const mockGetUserFollowers = jest.fn();
 const mockGetUserFollowing = jest.fn();
-const mockSafeBack = jest.fn();
+const mockBack = jest.fn();
 let mockPathname = '/@qa_missing/followers';
 
 jest.mock('expo-router', () => ({
@@ -40,7 +42,6 @@ jest.mock('expo-router', () => ({
   usePathname: () => mockPathname,
   router: { push: jest.fn() },
 }));
-jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => mockSafeBack }));
 jest.mock('@/hooks/useProfileData', () => ({ useProfileData: () => mockProfile }));
 
 jest.mock('@/hooks/useRecommendations', () => ({
@@ -251,7 +252,7 @@ describe.each(['followers', 'following'])('the %s route', (tab) => {
         byTestId(tree, 'not-found-back')[0].props.onClick?.() ??
         byTestId(tree, 'not-found-back')[0].props.onPress?.(),
     );
-    expect(mockSafeBack).toHaveBeenCalled();
+    expect(mockBack).toHaveBeenCalled();
     expect(mockGetUserFollowers).not.toHaveBeenCalled();
     expect(mockGetUserFollowing).not.toHaveBeenCalled();
   });

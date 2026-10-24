@@ -1,9 +1,9 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { cn } from '@/lib/utils';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface DismissButtonProps {
   onPress: () => void;
@@ -34,7 +34,7 @@ export function DismissButton({
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.6}
-      hitSlop={HIT_SLOP_MD}
+      hitSlop={tokens.hitSlop.md}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={t('feed.interstitial.dismissHint')}

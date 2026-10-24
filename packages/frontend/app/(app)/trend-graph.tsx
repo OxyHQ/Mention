@@ -8,7 +8,6 @@ import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Text } from '@oxy.so/bloom/typography';
 
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { SEO } from '@/components/SEO';
 import { trendingService } from '@/services/trendingService';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
@@ -43,7 +42,6 @@ const GRAPH_STALE_TIME_MS = 5 * 60_000;
 
 export default function TrendGraphScreen() {
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
 
   const [language, setLanguage] = useState<string | null>(null);
   const [region, setRegion] = useState<string | null>(null);
@@ -68,7 +66,6 @@ export default function TrendGraphScreen() {
         header={
           <PageHeader
             title={t('trendGraph.title')}
-            onBack={() => safeBack()}
             backLabel={t('common.back', { defaultValue: 'Back' })}
           />
         }

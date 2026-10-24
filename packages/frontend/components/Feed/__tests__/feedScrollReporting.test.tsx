@@ -3,6 +3,7 @@ jest.mock('@/services/socketService', () => ({
   socketService: { subscribeToFeedUpdates: jest.fn(() => jest.fn()) },
 }));
 jest.mock('@oxy.so/bloom/screen', () => ({
+  ...jest.requireActual('@oxy.so/bloom/screen'),
   useScreenViewport: () => null,
   // The feed hands Bloom its scroll handler; Bloom's own chrome is not under test.
   useScreenScroll: ({ handler }: { handler?: unknown }) => ({

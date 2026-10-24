@@ -90,7 +90,7 @@ export function NotificationsList({
         showsVerticalScrollIndicator={false}
         // No fill of its own. The list used to paint `colors.background`,
         // which is darker than the panel fill every other tab shows
-        // through (`StackScene` / `useSurfaceFill`), so the Notifications
+        // through (Bloom's `StackScene` / `useSurfaceFill`), so the Notifications
         // body read as a different surface from its own header.
         //
         // Empty, the content grows to the viewport: the empty state is

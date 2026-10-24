@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { INSTANCE_NAME, INSTANCE_LOGO_URL } from '@/config';
 import type React from 'react';
 import { useCallback, useMemo, memo, useId } from 'react';
@@ -27,7 +28,6 @@ import Svg, {
   Text as SvgText,
   TSpan,
 } from 'react-native-svg';
-import { HIT_SLOP_LG } from '@/styles/hitSlop';
 
 interface WelcomeModalProps {
   visible: boolean;
@@ -169,7 +169,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ visible, onClose }) => {
         <Pressable
           onPress={onClose}
           style={styles.closeButton}
-          hitSlop={HIT_SLOP_LG}
+          hitSlop={tokens.hitSlop.lg}
           accessibilityRole="button"
           accessibilityLabel="Close"
         >

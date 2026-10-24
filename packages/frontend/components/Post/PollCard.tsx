@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { PollSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useMemo, useState } from 'react';
@@ -9,7 +10,6 @@ import { StatBar } from '@oxy.so/bloom/stat-bar';
 import { toast } from '@oxy.so/bloom/toast';
 import { createLogger } from '@oxy.so/core/logger';
 import { pollService, PollContractError, type PollDetailOption } from '@/services/pollService';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const logger = createLogger('PollCard');
@@ -120,7 +120,7 @@ const PollCard: React.FC<PollCardProps> = ({ pollId }) => {
             <Pressable
               key={opt._id}
               onPress={() => handleVote(opt._id)}
-              hitSlop={HIT_SLOP_MD}
+              hitSlop={tokens.hitSlop.md}
               disabled={locked || voting}
               accessibilityRole="button"
               accessibilityLabel={`${opt.text}, ${Math.round(pct * 100)}%`}

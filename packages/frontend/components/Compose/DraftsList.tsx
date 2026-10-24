@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useState, useCallback } from 'react';
@@ -21,7 +22,6 @@ import { useDraftsList, type DraftListItem } from '@/hooks/useDraftsList';
 import { toast } from '@oxy.so/bloom/toast';
 import { confirmDialog } from '@/utils/alerts';
 import { createLogger } from '@oxy.so/core/logger';
-import { HIT_SLOP_LG } from '@/styles/hitSlop';
 import {
   confirmAndDeleteServerDraft,
   confirmAndPublishDraft,
@@ -321,7 +321,7 @@ const DraftsList: React.FC<DraftsListProps> = ({
               className="p-1 mr-1"
               onPress={() => handlePublishServerDraft(item.post)}
               disabled={isBusy}
-              hitSlop={HIT_SLOP_LG}
+              hitSlop={tokens.hitSlop.lg}
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel={t('compose.serverDrafts.publishTitle', {
@@ -335,7 +335,7 @@ const DraftsList: React.FC<DraftsListProps> = ({
             className="p-1 mr-1"
             onPress={openPreview}
             disabled={isBusy}
-            hitSlop={HIT_SLOP_LG}
+            hitSlop={tokens.hitSlop.lg}
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel={t('compose.draftPreviewA11y', { defaultValue: 'Preview draft' })}
@@ -346,7 +346,7 @@ const DraftsList: React.FC<DraftsListProps> = ({
             className="p-1"
             onPress={remove}
             disabled={isBusy}
-            hitSlop={HIT_SLOP_LG}
+            hitSlop={tokens.hitSlop.lg}
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel={t('compose.deleteDraft')}

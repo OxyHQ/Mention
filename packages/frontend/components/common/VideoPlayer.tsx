@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
   View,
@@ -26,7 +27,6 @@ import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { useVideoPlayback } from '@/context/VideoPlaybackContext';
 import { needsJsHlsDecoder } from '@/lib/hlsPlayback';
 import { useVideoPlaybackControl } from '@/stores/video-playback-control';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 import { formatDuration } from '@/utils/formatDuration';
 import { videoSourceFor } from '@/utils/videoSource';
 import { findVideoElement } from './videoElementSize';
@@ -629,7 +629,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
             {/* Mute/unmute stays available without leaving the feed; sits above the tap surface */}
             <Pressable
               onPress={handlePreviewMuteToggle}
-              hitSlop={HIT_SLOP_MD}
+              hitSlop={tokens.hitSlop.md}
               style={styles.previewMuteButton}
             >
               <View style={styles.previewMuteButtonInner}>
@@ -668,7 +668,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
                   {/* Mute button */}
                   <Pressable
                     onPress={handleMuteToggle}
-                    hitSlop={HIT_SLOP_MD}
+                    hitSlop={tokens.hitSlop.md}
                     style={styles.controlButton}
                   >
                     <MuteIcon size="md" fill="white" />
@@ -677,7 +677,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
                   {/* Fullscreen button */}
                   <Pressable
                     onPress={handleFullscreen}
-                    hitSlop={HIT_SLOP_MD}
+                    hitSlop={tokens.hitSlop.md}
                     style={styles.controlButton}
                   >
                     <RiExpandDiagonalSLine size="md" fill="white" />

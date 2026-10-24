@@ -20,7 +20,6 @@ import { logger } from '@oxy.so/core/logger';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import type { CreateMentionJobRequest } from '@mention/shared-types';
 import { MENTION_JOB_ELIGIBLE_EMPLOYER_KINDS } from '@mention/shared-types/job';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { jobsService, getJobErrorMessage, isJobEntitlementError } from '@/services/jobsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -103,7 +102,6 @@ export default function CreateJobScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { user, oxyServices, canUsePrivateApi } = useAuth();
-  const safeBack = useSafeBack();
   const queryClient = useQueryClient();
 
   const { data: accounts = [], isLoading: accountsLoading } = useQuery<AccountNode[]>({
@@ -186,7 +184,6 @@ export default function CreateJobScreen() {
       header={
         <PageHeader
           title={t('jobs.create.title', { defaultValue: 'Create job' })}
-          onBack={() => safeBack()}
           backLabel={t('common.back', { defaultValue: 'Back' })}
         />
       }

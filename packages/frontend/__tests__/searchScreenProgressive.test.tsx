@@ -59,7 +59,6 @@ jest.mock('@/utils/storage', () => ({
   },
 }));
 
-jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
 jest.mock('@/hooks/useDismissKeyboardOnBlur', () => ({
   useDismissKeyboardOnBlur: () => undefined,
 }));
@@ -99,6 +98,7 @@ jest.mock('@oxy.so/bloom/page-header', () => ({
   PageHeader: ({ accessory }: { accessory?: import('react').ReactNode }) => accessory ?? null,
 }));
 jest.mock('@oxy.so/bloom/screen', () => ({
+  ...jest.requireActual('@oxy.so/bloom/screen'),
   Screen: ({
     header,
     children,

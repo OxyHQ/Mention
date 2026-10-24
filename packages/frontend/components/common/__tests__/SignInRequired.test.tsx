@@ -30,10 +30,6 @@ jest.mock('@oxy.so/services/ui/client', () => {
   };
 });
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
-jest.mock('@oxy.so/bloom/screen', () => {
-  const { View: MockView } = jest.requireActual('react-native');
-  return { ScreenScrollView: MockView };
-});
 
 import { SignInRequired } from '../SignInRequired';
 

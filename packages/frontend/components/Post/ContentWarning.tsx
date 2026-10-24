@@ -1,9 +1,9 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { useTranslation } from 'react-i18next';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface Props {
   /** The content-warning summary carried on the post (e.g. Mastodon `summary`). */
@@ -43,7 +43,7 @@ const ContentWarning: React.FC<Props> = ({ text, revealed, onToggle }) => {
         </Text>
         <Pressable
           onPress={onToggle}
-          hitSlop={HIT_SLOP_MD}
+          hitSlop={tokens.hitSlop.md}
           accessibilityRole="button"
           accessibilityLabel={hide}
         >

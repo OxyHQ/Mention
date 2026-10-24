@@ -10,7 +10,6 @@ import { listsService, type MentionList } from '@/services/listsService';
 import { entityFollowService } from '@/services/entityFollowService';
 import { subscribeToListChanges } from '@/services/listMutations';
 import { useRouter, useFocusEffect } from '@/lib/navigation/router';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import { SEO } from '@/components/SEO';
 import { ListCard as ListCardComponent, type ListCardData } from '@/components/ListCard';
@@ -44,7 +43,6 @@ function toListCardData(list: MentionList): ListCardData {
 function ListsScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
   const { canUsePrivateApi, user } = useAuth();
   const viewerId = user?.id;
   const queryClient = useQueryClient();
@@ -176,7 +174,6 @@ function ListsScreen() {
         header={
           <PageHeader
             title={t('lists.title')}
-            onBack={() => safeBack()}
             backLabel={t('common.back', { defaultValue: 'Back' })}
             actions={
               canUsePrivateApi ? (

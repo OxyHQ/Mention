@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import type React from 'react';
 import { useMemo, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
@@ -11,7 +12,6 @@ import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/common/EmptyState';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 type SourceField = 'title' | 'url';
 
@@ -137,7 +137,7 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
                     <TouchableOpacity
                       onPress={() => onRemove(source.id)}
                       className="p-1"
-                      hitSlop={HIT_SLOP_MD}
+                      hitSlop={tokens.hitSlop.md}
                       accessibilityRole="button"
                       accessibilityLabel={t('common.remove', { defaultValue: 'Remove' })}
                     >

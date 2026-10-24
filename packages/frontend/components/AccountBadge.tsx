@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { useCallback } from 'react';
 import {
   Pressable,
@@ -13,7 +14,6 @@ import type { BloomIconComponent } from '@oxy.so/bloom';
 import { RiFediverseLine } from '@oxy.so/bloom/icons/RiFediverseLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiMegaphoneLine } from '@oxy.so/bloom/icons/RiMegaphoneLine';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 /**
  * The quiet marker that sits beside a name saying what KIND of account it is —
@@ -122,7 +122,7 @@ function IdentityMarker({
       onPress={handlePress}
       accessibilityRole="button"
       accessibilityLabel={a11yLabel}
-      hitSlop={HIT_SLOP_MD}
+      hitSlop={tokens.hitSlop.md}
       className={containerClassName}
       style={style}
     >

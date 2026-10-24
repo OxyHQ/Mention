@@ -1,5 +1,6 @@
 jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'));
 jest.mock('@oxy.so/bloom/screen', () => ({
+  ...jest.requireActual('@oxy.so/bloom/screen'),
   Screen: ({
     header,
     children,
@@ -95,8 +96,6 @@ jest.mock('@oxy.so/bloom/layout', () => ({
   StickySection: ({ children }: { children: React.ReactNode }) => children,
 }));
 jest.mock('expo-router/head', () => ({ __esModule: true, default: () => null }));
-
-jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
 
 const mockAuth = {
   user: { id: 'viewer-1' },

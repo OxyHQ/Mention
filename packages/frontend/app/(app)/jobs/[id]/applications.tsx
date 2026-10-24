@@ -14,7 +14,6 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import type { MentionJobApplication, MentionJobApplicationStatus } from '@mention/shared-types';
 import { MENTION_JOB_APPLICATION_STATUSES } from '@mention/shared-types/job';
 import { Error as ErrorState } from '@/components/Error';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { jobApplicationsService, isJobForbiddenError } from '@/services/jobApplicationsService';
@@ -46,7 +45,6 @@ export default function JobApplicationsScreen() {
   const jobId = String(id);
   const { t } = useTranslation();
   const { user, canUsePrivateApi } = useAuth();
-  const safeBack = useSafeBack();
   const bottomSheet = useContext(BottomSheetContext);
   const queryClient = useQueryClient();
 
@@ -170,7 +168,6 @@ export default function JobApplicationsScreen() {
       header={
         <PageHeader
           title={t('jobs.applications.title', { defaultValue: 'Applications' })}
-          onBack={() => safeBack()}
           backLabel={t('common.back', { defaultValue: 'Back' })}
           accessory={forbidden ? undefined : filterRow}
         />

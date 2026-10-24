@@ -210,17 +210,6 @@ jest.mock('@oxy.so/bloom/page-header', () => {
   };
 });
 
-jest.mock('@oxy.so/bloom/screen', () => {
-  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
-  const Pass = ({ header, children }: { header?: React.ReactNode; children: React.ReactNode }) => (
-    <RNView>
-      {header}
-      {children}
-    </RNView>
-  );
-  return { Screen: Pass, ScreenScrollView: Pass };
-});
-
 jest.mock('@oxy.so/bloom/fab', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
   return { Fab: () => <RNView testID="fab" /> };
@@ -287,8 +276,6 @@ jest.mock('@oxy.so/bloom/typography', () => {
   const { Text: RNText } = jest.requireActual<typeof import('react-native')>('react-native');
   return { Text: RNText };
 });
-
-jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
 
 jest.mock('@/hooks/useFeedPreferences', () => ({
   useFeedPreferences: () => ({ isPinned: () => false, pin: jest.fn(), unpin: jest.fn() }),

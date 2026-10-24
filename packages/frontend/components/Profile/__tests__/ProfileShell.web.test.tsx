@@ -1,6 +1,7 @@
 // The native list owner; the web shell scrolls the document.
 jest.mock('@/components/common/ScreenFlashList', () => ({ ScreenFlashList: () => null }));
 jest.mock('@oxy.so/bloom/screen', () => ({
+  ...jest.requireActual('@oxy.so/bloom/screen'),
   Screen: (props: {
     header?: React.ReactNode;
     bottomBar?: React.ReactNode;
@@ -79,7 +80,6 @@ jest.mock('react-i18next', () => ({
     t: (_key: string, options: { defaultValue: string }) => options.defaultValue,
   }),
 }));
-jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
 jest.mock('@/components/UserName', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/components/common/EmptyState', () => ({ EmptyState: () => null }));
 jest.mock('@/assets/illustrations/NoUpdates', () => ({ NoUpdatesIllustration: () => null }));

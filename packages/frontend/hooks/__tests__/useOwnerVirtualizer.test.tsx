@@ -11,6 +11,7 @@ jest.mock('@oxy.so/bloom/app-shell/hooks', () => ({
   useAppShellPanel: () => ({ active: mockPanelActive }),
 }));
 jest.mock('@oxy.so/bloom/screen', () => ({
+  ...jest.requireActual('@oxy.so/bloom/screen'),
   useScreenViewport: () => ({ active: mockViewportActive }),
 }));
 jest.mock('@tanstack/react-virtual', () => ({

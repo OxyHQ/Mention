@@ -11,7 +11,6 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Text } from '@oxy.so/bloom/typography';
-import { useSafeBack } from '@/hooks/useSafeBack';
 
 import { EmptyState } from '@/components/common/EmptyState';
 import { Error as ErrorComponent } from '@/components/Error';
@@ -28,7 +27,6 @@ const SUGGESTED_PREVIEW_COUNT = 5;
 export default function PokesScreen() {
   const { user, isAuthenticated, canUsePrivateApi } = useAuth();
   const queryClient = useQueryClient();
-  const safeBack = useSafeBack();
   const { t } = useTranslation();
   const theme = useTheme();
   const [refreshing, setRefreshing] = useState(false);
@@ -315,7 +313,6 @@ export default function PokesScreen() {
         header={
           <PageHeader
             title={t('pokes.title', { defaultValue: 'Pokes' })}
-            onBack={() => safeBack()}
             backLabel={t('common.back', { defaultValue: 'Back' })}
           />
         }

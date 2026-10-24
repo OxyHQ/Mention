@@ -18,7 +18,6 @@ import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { customFeedsService, type MarketplaceFeed } from '@/services/customFeedsService';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { formatCompactNumber } from '@/utils/formatNumber';
@@ -132,7 +131,6 @@ const MarketplaceFeedCard = React.memo(function MarketplaceFeedCard({
 function FeedMarketplaceScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
@@ -416,7 +414,6 @@ function FeedMarketplaceScreen() {
       header={
         <PageHeader
           title={t('marketplace.title', { defaultValue: 'Feed Marketplace' })}
-          onBack={() => safeBack()}
           backLabel={t('common.back', { defaultValue: 'Back' })}
           actions={
             <Button

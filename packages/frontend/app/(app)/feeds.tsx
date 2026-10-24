@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type React from 'react';
@@ -39,7 +40,6 @@ import { Search } from '@oxy.so/bloom/search';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { logger } from '@oxy.so/core/logger';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 import { useScreenReselect } from '@/context/ScreenReselectContext';
 
 /**
@@ -92,7 +92,7 @@ const PinButton = ({ pinned, onPress }: { pinned: boolean; onPress: () => void }
   return (
     <TouchableOpacity
       onPress={onPress}
-      hitSlop={HIT_SLOP_MD}
+      hitSlop={tokens.hitSlop.md}
       style={[
         styles.pinBtn,
         pinned

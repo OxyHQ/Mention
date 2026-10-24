@@ -91,7 +91,8 @@ export interface PostMenuDeps {
    */
   canUsePrivateApi: boolean;
   router: ReturnType<typeof useRouter>;
-  safeBack: () => void;
+  /** The app's Back, to leave a post's own page once it is deleted. */
+  back: (() => void) | undefined;
   bottomSheet: BottomSheetContextProps;
   queryClient: QueryClient;
 }
@@ -149,16 +150,7 @@ export function buildPostMenuActions(
     onOpenArticle,
     onOpenSources,
   }: PostMenuParams,
-  {
-    theme,
-    t,
-    viewerId,
-    canUsePrivateApi,
-    router,
-    safeBack,
-    bottomSheet,
-    queryClient,
-  }: PostMenuDeps,
+  { theme, t, viewerId, canUsePrivateApi, router, back, bottomSheet, queryClient }: PostMenuDeps,
 ): PostMenuActions {
   const { removePostEverywhere, reinsertPost, updatePostEverywhere } = usePostsStore.getState();
   {
@@ -187,7 +179,7 @@ export function buildPostMenuActions(
       // on native; the feed query cache on web) so it vanishes instantly —
       // Twitter/Threads-style — instead of lingering through the round-trip.
       removePostEverywhere(postId);
-      if (isPostDetail) safeBack();
+      if (isPostDetail) back?.();
 
       try {
         await feedService.deletePost(postId);

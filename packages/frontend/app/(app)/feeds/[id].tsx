@@ -17,8 +17,7 @@ import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
-import { useSafeBack } from '@/hooks/useSafeBack';
+import { Screen, ScreenScrollView, useScreenBack } from '@oxy.so/bloom/screen';
 import { customFeedsService, type CustomFeedDetail } from '@/services/customFeedsService';
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -92,7 +91,7 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
+  const back = useScreenBack();
   const creatorHandle = profileHandle(feed.owner);
   // The bare handle (no `@`) the hover preview resolves; `creatorHandle` is the
   // display form.
@@ -100,7 +99,7 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
 
   return (
     <PageHeader
-      onBack={safeBack}
+      onBack={back}
       backLabel={t('common.back', { defaultValue: 'Back' })}
       title={
         <Pressable
@@ -637,7 +636,7 @@ function CustomFeedTimelineScreen() {
   const router = useRouter();
   const theme = useTheme();
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
+  const back = useScreenBack();
   const { id } = useLocalSearchParams<{ id: string }>();
   const feedId = typeof id === 'string' ? id : '';
   const { user } = useAuth();
@@ -802,7 +801,7 @@ function CustomFeedTimelineScreen() {
         ) : (
           <PageHeader
             title="Feed"
-            onBack={safeBack}
+            onBack={back}
             backLabel={t('common.back', { defaultValue: 'Back' })}
           />
         )

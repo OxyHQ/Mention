@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { memo, useCallback, type ReactNode, type Ref } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Avatar } from '@oxy.so/bloom/avatar';
@@ -14,7 +15,6 @@ import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { describeContentLanguage } from '@/constants/contentLanguages';
 import { MEDIA_CARD_HEIGHT, MEDIA_CARD_WIDTH, type ComposerMediaItem } from '@/utils/composeUtils';
 import type { ComposeVariantItem } from '@/utils/composeVariants';
-import { HIT_SLOP_SM } from '@/styles/hitSlop';
 import { AVATAR_SIZE, BOTTOM_LEFT_PAD, HPAD } from './composeLayout';
 import type { MentionData, MentionTextValue } from '@/utils/mentions';
 
@@ -200,7 +200,7 @@ const VariantEditor = memo(function VariantEditor({
                     onPress={() => onRemoveOwnMedia(itemId, media.id)}
                     className="bg-card"
                     style={styles.mediaRemove}
-                    hitSlop={HIT_SLOP_SM}
+                    hitSlop={tokens.hitSlop.sm}
                   >
                     <RiCloseLine width={16} height={16} fill={theme.colors.text} />
                   </TouchableOpacity>

@@ -6,7 +6,6 @@ import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useQueries } from '@tanstack/react-query';
 import { queryKeys } from '@oxy.so/services/ui/client';
 import type { User } from '@oxy.so/core';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { toast } from '@oxy.so/bloom/toast';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
@@ -31,7 +30,7 @@ import {
 } from '@oxy.so/bloom/dropdown-menu';
 import { PageFooter } from '@oxy.so/bloom/page-footer';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { Screen, ScreenScrollView, useScreenBack } from '@oxy.so/bloom/screen';
 import { Text as BloomText } from '@oxy.so/bloom/typography';
 import { EmptyState } from '@/components/common/EmptyState';
 import { SEO } from '@/components/SEO';
@@ -129,7 +128,7 @@ const RoomDetailScreen = () => {
   const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user, oxyServices } = useAuth();
-  const safeBack = useSafeBack();
+  const back = useScreenBack();
   const { joinLiveRoom } = useLiveRoom();
   const [room, setRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);
@@ -175,7 +174,7 @@ const RoomDetailScreen = () => {
     setActionLoading(true);
     const success = await roomsService.endRoom(id);
     if (success) {
-      safeBack();
+      back?.();
     } else {
       toast('Failed to end room', { type: 'error' });
     }
@@ -279,7 +278,6 @@ const RoomDetailScreen = () => {
         header={
           <PageHeader
             title={room ? undefined : t('agora.room')}
-            onBack={() => safeBack()}
             backLabel={t('common.back', { defaultValue: 'Back' })}
             actions={
               room ? (

@@ -5,7 +5,6 @@ import {
 } from '../ProfilePageHeader';
 
 jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
-jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
 jest.mock('@/components/UserName', () => ({ __esModule: true, default: () => null }));
 
 // The stats row and a tab reselect scroll here. The summary starts

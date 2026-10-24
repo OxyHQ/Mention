@@ -4,6 +4,7 @@ import { ProfileGridList, type ProfileGridEntry } from '../ProfileGridList.web';
 const mockUseWindowVirtualizer = jest.fn();
 
 jest.mock('@oxy.so/bloom/screen', () => ({
+  ...jest.requireActual('@oxy.so/bloom/screen'),
   useScreenViewport: () => ({ active: true }),
 }));
 

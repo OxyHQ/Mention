@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { useMemo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
@@ -10,7 +11,6 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
-import { HIT_SLOP_SM } from '@/styles/hitSlop';
 
 interface QuoteCardProps {
   /** The fetched quoted post; null while loading or if not found. */
@@ -95,7 +95,7 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
         accessibilityRole="button"
         accessibilityLabel={t('compose.quote.dismiss', { defaultValue: 'Remove quoted post' })}
         className="bg-background absolute right-2 top-2 rounded-full p-1.5"
-        hitSlop={HIT_SLOP_SM}
+        hitSlop={tokens.hitSlop.sm}
       >
         <RiCloseLine width={14} height={14} fill={colors.text} />
       </TouchableOpacity>

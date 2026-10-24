@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { memo, useCallback, useMemo, type ReactNode } from 'react';
 import { isHostOf } from '@/utils/isHostOf';
 import {
@@ -22,7 +23,6 @@ import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
 import type { PostPodcastEpisode } from '@mention/shared-types/post';
 import { cn } from '@/lib/utils';
 import { openExternalLink } from '@/utils/openExternalLink';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 import { SINGLE_MEDIA_MAX_HEIGHT } from '@/utils/composeUtils';
 import { useArtworkAccent } from './useArtworkAccent';
 
@@ -250,7 +250,7 @@ export const PodcastCard = memo(function PodcastCard({
               onPress={onEdit}
               accessibilityRole="button"
               accessibilityLabel={t('profile.media.edit')}
-              hitSlop={HIT_SLOP_MD}
+              hitSlop={tokens.hitSlop.md}
               className="p-1"
             >
               <RiEditLine size="sm" fill={colors.textSecondary} />

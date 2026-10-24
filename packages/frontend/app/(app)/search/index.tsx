@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { FeedSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type React from 'react';
@@ -14,7 +15,6 @@ import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { skipToken, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { useDismissKeyboardOnBlur } from '@/hooks/useDismissKeyboardOnBlur';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen } from '@oxy.so/bloom/screen';
@@ -73,7 +73,6 @@ import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { useLatchedState } from '@/hooks/useLatchedState';
 import { useSearchAllSources } from '@/hooks/useSearchAllSources';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 type ResultTab = 'posts' | 'users' | 'feeds' | 'hashtags' | 'lists' | 'starterPacks' | 'saved';
 type SearchTab = 'all' | ResultTab;
@@ -447,7 +446,6 @@ function SearchIndex() {
   const router = useRouter();
   const { t } = useTranslation();
   const theme = useTheme();
-  const safeBack = useSafeBack();
   // The box is autofocused; leaving by a result or a tab must not carry the
   // keyboard onto the next screen.
   useDismissKeyboardOnBlur();
@@ -1106,7 +1104,7 @@ function SearchIndex() {
             <View className="w-full flex-row items-center justify-between px-3 pt-4 pb-2">
               <Text className="text-lg font-bold text-foreground">{item.title}</Text>
               {item.action ? (
-                <TouchableOpacity onPress={item.action.onPress} hitSlop={HIT_SLOP_MD}>
+                <TouchableOpacity onPress={item.action.onPress} hitSlop={tokens.hitSlop.md}>
                   <Text className="text-sm font-semibold text-primary">{item.action.label}</Text>
                 </TouchableOpacity>
               ) : null}
@@ -1128,7 +1126,7 @@ function SearchIndex() {
               </View>
               <TouchableOpacity
                 onPress={() => void handleRemoveRecent(item.term)}
-                hitSlop={HIT_SLOP_MD}
+                hitSlop={tokens.hitSlop.md}
                 accessibilityRole="button"
                 accessibilityLabel={t('search.removeRecent', 'Remove from recent searches')}
               >
@@ -1430,7 +1428,6 @@ function SearchIndex() {
         header={
           <PageHeader
             title={t('search.title', 'Search')}
-            onBack={() => safeBack()}
             backLabel={t('common.back', { defaultValue: 'Back' })}
             accessory={
               <>

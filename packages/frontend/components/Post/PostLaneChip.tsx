@@ -1,8 +1,8 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import React, { useCallback } from 'react';
 import { type GestureResponderEvent, Pressable, Text } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import type { LaneSummary } from '@mention/shared-types';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 /**
  * The widest the chip may grow before it starts truncating. A lane name can be
@@ -87,7 +87,7 @@ const PostLaneChip: React.FC<Props> = ({ lane, authorHandle, feedDescriptor }) =
   return (
     <Pressable
       onPress={handlePress}
-      hitSlop={HIT_SLOP_MD}
+      hitSlop={tokens.hitSlop.md}
       accessibilityRole="link"
       accessibilityLabel={lane.name}
       style={{ flexShrink: CHIP_SHRINK, minWidth: 0, maxWidth: MAX_CHIP_WIDTH }}

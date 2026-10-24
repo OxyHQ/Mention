@@ -1,6 +1,5 @@
 import type React from 'react';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import type { ProfileData } from '@/hooks/useProfileData';
 import UserName from '@/components/UserName';
 
@@ -34,14 +33,13 @@ export function ProfilePageHeader({
    */
   showBack?: boolean;
 }) {
-  const safeBack = useSafeBack();
   return (
     <PageHeader
       title={<UserName name={profileData.design.displayName} verified={profileData.verified} />}
       titleReveal="onDock"
       presentation="floating"
       testID="profile-page-header"
-      onBack={showBack ? safeBack : undefined}
+      onBack={showBack ? undefined : null}
       actions={actions}
     />
   );
