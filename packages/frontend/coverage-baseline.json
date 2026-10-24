@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 48.18,
-      "covered": 13266,
-      "total": 27532
+      "pct": 48.17,
+      "covered": 13169,
+      "total": 27336
     },
     "branches": {
-      "pct": 44.11,
-      "covered": 8962,
-      "total": 20313
+      "pct": 44.06,
+      "covered": 8929,
+      "total": 20265
     },
     "functions": {
-      "pct": 43,
-      "covered": 3081,
-      "total": 7165
+      "pct": 43.16,
+      "covered": 3056,
+      "total": 7080
     },
     "lines": {
       "pct": 48.95,
-      "covered": 12031,
-      "total": 24578
+      "covered": 11942,
+      "total": 24395
     }
   },
   "pins": {
@@ -623,6 +623,12 @@
       "functions": 100,
       "lines": 100
     },
+    "hooks/useReselectReloadKey.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "hooks/useRevealOwnNewPost.ts": {
       "statements": 100,
       "branches": 100,
@@ -640,12 +646,6 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
-    },
-    "hooks/useSafeBack.ts": {
-      "statements": 80,
-      "branches": 50,
-      "functions": 100,
-      "lines": 80
     },
     "hooks/useScheduleManager.ts": {
       "statements": 100,
