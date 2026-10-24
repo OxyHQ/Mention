@@ -1,6 +1,6 @@
 import { memo, type ReactNode } from 'react';
 import { VideosRailProvider } from '@/context/VideosRailContext';
-import { VideoPlaybackProvider } from '@/context/VideoPlaybackContext';
+import { VideoPlaybackProvider } from '@oxy.so/bloom/video-playback';
 import { MentionNavigation } from '@/components/navigation/MentionNavigation';
 import { CommunityNoteProvider } from './CommunityNoteProvider';
 

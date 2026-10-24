@@ -75,7 +75,7 @@ import { readMediaDurationSec, readMediaPixelSize, type MediaPixelSize } from '@
 import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
 import { useVideosRail, type VideosRailActivePost } from '@/context/VideosRailContext';
-import { VideoViewabilityProvider } from '@/context/VideoPlaybackContext';
+import { VideoViewabilityProvider } from '@oxy.so/bloom/video-playback';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { LazyVideoReplies } from '@/components/videos/LazyVideoReplies';
 import { useVideoPipSession } from '@/hooks/useVideoPipSession';

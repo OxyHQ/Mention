@@ -24,9 +24,8 @@ import { RiExpandDiagonalSLine } from '@oxy.so/bloom/icons/RiExpandDiagonalSLine
 import { RiVolumeMuteLine } from '@oxy.so/bloom/icons/RiVolumeMuteLine';
 import { RiVolumeUpLine } from '@oxy.so/bloom/icons/RiVolumeUpLine';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
-import { useVideoPlayback } from '@/context/VideoPlaybackContext';
+import { useVideoPlayback, useVideoPlaybackControl } from '@oxy.so/bloom/video-playback';
 import { needsJsHlsDecoder } from '@/lib/hlsPlayback';
-import { useVideoPlaybackControl } from '@/stores/video-playback-control';
 import { formatDuration } from '@/utils/formatDuration';
 import { videoSourceFor } from '@/utils/videoSource';
 import { findVideoElement } from './videoElementSize';
@@ -119,8 +118,7 @@ type FlightVideoSlotProps = Parameters<NonNullable<MediaFlightHostProps['renderV
  *
  * RNW exposes it as `_nativeNode` or `getNode()`, neither of which is on the
  * typed ref, with the ref itself as a last resort — narrowed structurally so
- * this needs no `as any`. Two callers need it: the visibility observer, and the
- * position the authority reads when it elects.
+ * this needs no `as any`. Used to read the `<video>` element's own size on web.
  */
 function resolveDomElement(ref: ViewInstance | null): Element | null {
   const candidate = ref as
@@ -208,27 +206,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // audible slot. GIF mode is `silent`: still visibility-gated, but it never
   // competes for that slot, so several visible GIFs may loop at once.
   const playerInstanceId = useId();
-  // Read at SELECTION time, not published from the observer: an
-  // `IntersectionObserver` only fires on a threshold crossing, so a player that
-  // stays visible while the page scrolls would otherwise be ranked by where it
-  // was when it last crossed. Returns `undefined` off-web and before the node
-  // resolves, and the authority falls back to the published value.
-  const measureOrder = useCallback((): number | undefined => {
-    const element = resolveDomElement(containerRef.current);
-    // `undefined`, never 0: with no node there is no position, and 0 is a real
-    // one — the top of the viewport. Returning it made a row whose node had gone
-    // (mid-flight, mid-unmount) rank as if it were up there, which took the slot
-    // away from the row that was actually playing.
-    if (!element) return undefined;
-    const rect = element.getBoundingClientRect();
-    return rect.y + rect.height / 2;
-  }, []);
+  // Root container: on web the authority observes it (is it on screen) and
+  // measures it (how close to the audible line) itself.
+  const containerRef = useRef<ViewInstance>(null);
 
-  const { shouldPlay, claimActive, reportVisibility } = useVideoPlayback({
+  const { shouldPlay, claimActive } = useVideoPlayback({
     id: playerInstanceId,
+    target: containerRef,
     viewabilityKey,
     silent: gif || concealed,
-    measureOrder,
   });
   const mayPlay = shouldPlay && !concealed;
 
@@ -284,9 +270,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seekSettleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const progressBarRef = useRef<ViewInstance>(null);
-  // Root container — observed by an IntersectionObserver on web to report this
-  // player's viewport center-Y AND whether it still intersects the viewport.
-  const containerRef = useRef<ViewInstance>(null);
 
   const [ownSource] = useState(() =>
     externalPlayer || needsJsHlsDecoder(src) ? null : videoSourceFor(src),
@@ -387,40 +370,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       reportAspectRatio(track.size.width, track.size.height);
     }
   });
-
-  // Web only: this player's own IntersectionObserver is its visibility source. It
-  // reports BOTH the viewport center-Y (which contests the single audible slot)
-  // and whether the player still intersects the viewport at all — the latter is
-  // what makes a video that scrolled past go silent instead of playing forever.
-  // GIFs report too: they never compete for audio, but an off-screen GIF must
-  // stop decoding.
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-
-    const element = resolveDomElement(containerRef.current);
-
-    if (!element || typeof window === 'undefined' || !('IntersectionObserver' in window)) {
-      // No observer to report with (no DOM node resolved, or a runtime without
-      // IntersectionObserver): treat the player as visible so the screen still
-      // works, rather than silently never playing.
-      reportVisibility(0, true);
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[entries.length - 1];
-        if (!entry) return;
-        reportVisibility(
-          entry.boundingClientRect.y + entry.boundingClientRect.height / 2,
-          entry.isIntersecting,
-        );
-      },
-      { threshold: 0.5 },
-    );
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [reportVisibility]);
 
   const [manualPlayback, setManualPlayback] = useState<boolean | null>(null);
   const [previousMayPlay, setPreviousMayPlay] = useState(mayPlay);
