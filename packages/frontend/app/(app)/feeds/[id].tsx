@@ -23,9 +23,6 @@ import { useFeedPreferences } from '@/hooks/useFeedPreferences';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { FollowButton } from '@/components/FollowButton';
 import Feed from '@/components/Feed/Feed';
-import { RiQuillPenLine } from '@oxy.so/bloom/icons/RiQuillPenLine';
-import { Fab } from '@oxy.so/bloom/fab';
-import { PageAction } from '@/components/shell/PageAction';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
@@ -833,18 +830,6 @@ function CustomFeedTimelineScreen() {
           {activeTab === 'topics' && <TopicsTab keywords={keywords} />}
           {activeTab === 'reviews' && <ReviewsTab feedId={feedId} />}
         </ScreenScrollView>
-      )}
-
-      {/* PageAction follows the shell's bottom navigation clearance. */}
-      {!isLoading && !hasError && (
-        <PageAction>
-          <Fab
-            size="md"
-            onPress={() => router.push('/compose')}
-            icon={RiQuillPenLine}
-            accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
-          />
-        </PageAction>
       )}
 
       {/* Feed info bottom sheet */}

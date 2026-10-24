@@ -2,7 +2,6 @@ import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import { useMemo } from 'react';
 import { useLocalSearchParams, useIsFocused } from '@/lib/navigation/router';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { useOptionalPanelNavigation } from '@oxy.so/bloom/app-shell/hooks';
 import { Screen } from '@oxy.so/bloom/screen';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -32,7 +31,6 @@ const PASS_THROUGH_DESCRIPTOR_PREFIXES = ['feedgen|', 'trend|'] as const;
 export default function PresetFeedViewScreen() {
   const isFocused = useIsFocused();
   const { descriptor, title } = useLocalSearchParams<{ descriptor: string; title: string }>();
-  const panelNavigation = useOptionalPanelNavigation();
   const { t } = useTranslation();
   const { canUsePrivateApi, isPrivateApiPending } = useAuth();
 

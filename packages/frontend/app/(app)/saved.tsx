@@ -18,7 +18,6 @@ import { SEO } from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { Fab } from '@oxy.so/bloom/fab';
-import { PageAction } from '@/components/shell/PageAction';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { feedService, type SavedPostsPage } from '@/services/feedService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -320,6 +319,17 @@ const SavedPostsScreen: React.FC = () => {
           active={isFocused}
           scroll="auto"
           header={<PageHeader title={t('screens.saved.title')} presentation="floating" />}
+          // The page's own action; the shell's compose FAB steps aside for it.
+          primaryAction={
+            canUsePrivateApi ? (
+              <Fab
+                size="md"
+                onPress={newFolderControl.open}
+                icon={RiAddLine}
+                accessibilityLabel={t('saved.newFolder', 'New folder')}
+              />
+            ) : undefined
+          }
         >
           <ScreenReselect refresh={refetchSavedPosts} />
           {/* Search and folder tabs dock under the header. Creating a folder
@@ -353,19 +363,6 @@ const SavedPostsScreen: React.FC = () => {
             onEndReached={handleEndReached}
             onLongPress={handleLongPress}
           />
-
-          {/* Create-folder FAB — same anchor and BottomBar clearance as the
-                        create action on feeds, lists and the home feed. */}
-          {canUsePrivateApi ? (
-            <PageAction>
-              <Fab
-                size="md"
-                onPress={newFolderControl.open}
-                icon={RiAddLine}
-                accessibilityLabel={t('saved.newFolder', 'New folder')}
-              />
-            </PageAction>
-          ) : null}
         </Screen>
       </HeaderDockProvider>
 

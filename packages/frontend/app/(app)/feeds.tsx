@@ -25,7 +25,6 @@ import { reportTrendEvent } from '@/utils/feedTelemetry';
 import type { Trend } from '@/interfaces/Trend';
 
 import { Fab } from '@oxy.so/bloom/fab';
-import { PageAction } from '@/components/shell/PageAction';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
@@ -534,6 +533,17 @@ const FeedsScreen: React.FC = () => {
             }
           />
         }
+        // The page's own action; the shell's compose FAB steps aside for it.
+        primaryAction={
+          canEdit ? (
+            <Fab
+              size="md"
+              onPress={() => router.push('/feeds/new')}
+              icon={RiAddLine}
+              accessibilityLabel={t('feeds.create.title', { defaultValue: 'Create feed' })}
+            />
+          ) : undefined
+        }
       >
         <ScreenReselect refresh={onRefresh} />
         <ScreenScrollView
@@ -549,18 +559,6 @@ const FeedsScreen: React.FC = () => {
         >
           {content}
         </ScreenScrollView>
-
-        {/* PageAction follows the shell's bottom navigation clearance. */}
-        {canEdit ? (
-          <PageAction>
-            <Fab
-              size="md"
-              onPress={() => router.push('/feeds/new')}
-              icon={RiAddLine}
-              accessibilityLabel={t('feeds.create.title', { defaultValue: 'Create feed' })}
-            />
-          </PageAction>
-        ) : null}
       </Screen>
     </>
   );
