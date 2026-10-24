@@ -106,49 +106,46 @@ export function createCommunityNoteSheets({
     />
   );
 
-  const writeForm =
-    (post: HydratedPostSummary): Step =>
-    (surface) => (
-      <WriteNoteSheet
-        post={post}
-        onClose={() => surface.dismiss()}
-        onSubmit={async (draft) => {
-          await submitNote?.(post.id, draft);
-          next(surface, submitted);
-        }}
-      />
-    );
+  const writeForm = (surface: SurfaceControls, post: HydratedPostSummary) => (
+    <WriteNoteSheet
+      post={post}
+      onClose={() => surface.dismiss()}
+      onSubmit={async (draft) => {
+        await submitNote?.(post.id, draft);
+        next(surface, submitted);
+      }}
+    />
+  );
 
   const openWriteFlow = (post: HydratedPostSummary) => {
     show((surface) => (
       <WritingTipsSheet
         onClose={() => surface.dismiss()}
-        onContinue={() => next(surface, writeForm(post), true)}
+        onContinue={() => next(surface, (form) => writeForm(form, post), true)}
         onLearnMore={() => openExternalLink(COMMUNITY_NOTES_HELP_URL)}
       />
     ));
   };
 
-  const rateReasons =
-    (
-      note: CommunityNoteSummary,
-      rating: CommunityNoteRating,
-      onRated?: (rating: CommunityNoteRating) => void,
-    ): Step =>
-    (surface) => (
-      <RateNoteSheet
-        rating={rating}
-        onClose={() => surface.dismiss()}
-        onSubmit={async (reasons) => {
-          await rateNote?.(note.id, rating, reasons);
-          onRated?.(rating);
-          surface.dismiss();
-        }}
-      />
-    );
+  const rateReasons = (
+    surface: SurfaceControls,
+    note: CommunityNoteSummary,
+    rating: CommunityNoteRating,
+    onRated?: (rating: CommunityNoteRating) => void,
+  ) => (
+    <RateNoteSheet
+      rating={rating}
+      onClose={() => surface.dismiss()}
+      onSubmit={async (reasons) => {
+        await rateNote?.(note.id, rating, reasons);
+        onRated?.(rating);
+        surface.dismiss();
+      }}
+    />
+  );
 
   const openRateReasons: CommunityNoteSheets['openRateReasons'] = (note, rating, onRated) => {
-    show(rateReasons(note, rating, onRated));
+    show((surface) => rateReasons(surface, note, rating, onRated));
   };
 
   const openAbout = (note: CommunityNoteSummary) => {
@@ -157,7 +154,11 @@ export function createCommunityNoteSheets({
         <AboutNoteSheet
           note={note}
           onClose={() => surface.dismiss()}
-          onRate={rateNote ? (rating) => next(surface, rateReasons(note, rating)) : undefined}
+          onRate={
+            rateNote
+              ? (rating) => next(surface, (reasons) => rateReasons(reasons, note, rating))
+              : undefined
+          }
         />
       ),
       true,
