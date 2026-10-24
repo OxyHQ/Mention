@@ -71,10 +71,6 @@ jest.mock('@oxy.so/bloom/loading', () => {
 
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 
-// Ships untranspiled TS, and is reached only through `BottomSheetContext`'s
-// provider — which this file replaces with its own.
-jest.mock('@oxy.so/bloom/bottom-sheet', () => ({ BottomSheet: () => null }));
-
 jest.mock('@oxy.so/bloom/settings-modal', () => {
   const { View } = jest.requireActual('react-native');
   return { SettingsCard: View, SettingsSection: View, SettingsRow: View };

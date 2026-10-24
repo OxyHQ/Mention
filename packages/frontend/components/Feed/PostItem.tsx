@@ -43,7 +43,7 @@ import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
 import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { usePostLanguage } from '@/hooks/usePostLanguage';
 import { usePostLanguagePicker } from '@/hooks/usePostLanguagePicker';
-import { showContentDialog } from '@/components/common/ContentDialog';
+import { presentSheet } from '@/utils/sheet';
 import {
   THREAD_LINE_WIDTH,
   THREAD_LINE_BORDER_RADIUS,
@@ -574,17 +574,21 @@ const PostItem: React.FC<PostItemProps> = ({
   const openEngagementList = useCallback(
     (type: 'likes' | 'boosts') => {
       if (!viewPostId) return;
-      showContentDialog({
-        label:
-          type === 'likes'
-            ? t('post.likesTitle', { defaultValue: 'Likes' })
-            : t('post.boostsTitle', { defaultValue: 'Reposts' }),
-        render: (close) => (
+      void presentSheet(
+        (surface) => (
           <Suspense fallback={null}>
-            <EngagementList postId={viewPostId} type={type} onClose={close} />
+            <EngagementList postId={viewPostId} type={type} onClose={() => surface.dismiss()} />
           </Suspense>
         ),
-      });
+        {
+          label:
+            type === 'likes'
+              ? t('post.likesTitle', { defaultValue: 'Likes' })
+              : t('post.boostsTitle', { defaultValue: 'Reposts' }),
+          // The list owns its scrolling: no second scroll container around it.
+          scrollable: false,
+        },
+      );
     },
     [viewPostId, t],
   );
@@ -617,14 +621,18 @@ const PostItem: React.FC<PostItemProps> = ({
     const label = namesWriter
       ? t('collab.writtenByTitle', { defaultValue: 'Published by' })
       : t('collab.collaboratorsTitle', { defaultValue: 'Collaborators' });
-    showContentDialog({
-      label,
-      render: (close) => (
+    void presentSheet(
+      (surface) => (
         <Suspense fallback={null}>
-          <CollaboratorsList authors={collaborators} onClose={close} title={label} />
+          <CollaboratorsList
+            authors={collaborators}
+            onClose={() => surface.dismiss()}
+            title={label}
+          />
         </Suspense>
       ),
-    });
+      { label, scrollable: false },
+    );
   }, [collaborators, t]);
 
   const roomId = roomContent?.roomId;

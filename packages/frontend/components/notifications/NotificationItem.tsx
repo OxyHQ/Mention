@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, Pressable, Text } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from '@/lib/navigation/router';
@@ -33,7 +33,8 @@ import { useKnownIdentitySet, type IdentityUpdate } from '@/stores/identityUpdat
 import type { GroupedNotification } from '@/utils/groupNotifications';
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { presentSheet } from '@/utils/sheet';
+import { showActionMenu } from '@/components/common/ActionMenu';
 import { feedService } from '@/services/feedService';
 import { usePostsStore } from '@/stores/postsStore';
 import { cn } from '@/lib/utils';
@@ -298,37 +299,6 @@ const AvatarStrip: React.FC<{ actors: ResolvedActor[]; totalActors: number }> = 
 
 const ACTION_ICON_SIZE = 20;
 
-/**
- * One row of the long-press action sheet. Grouped, rounded rows with a
- * `destructive` variant for the red delete affordance.
- */
-const NotificationActionRow: React.FC<{
-  icon: React.ReactNode;
-  label: string;
-  onPress: () => void;
-  destructive?: boolean;
-  isFirst: boolean;
-  isLast: boolean;
-}> = ({ icon, label, onPress, destructive, isFirst, isLast }) => (
-  <Pressable
-    className={cn(
-      'bg-surface flex-row items-center justify-between py-3 px-3.5 active:opacity-70',
-      isFirst && 'rounded-t-2xl',
-      isLast ? 'rounded-b-2xl' : 'mb-1',
-    )}
-    onPress={onPress}
-    accessibilityRole="button"
-    accessibilityLabel={label}
-  >
-    <Text
-      className={cn('text-base font-medium', destructive ? 'text-destructive' : 'text-foreground')}
-    >
-      {label}
-    </Text>
-    <View className="ml-3">{icon}</View>
-  </Pressable>
-);
-
 interface NotificationItemProps {
   item: GroupedNotification;
   /** Marks the given notification ids read (single -> `[id]`, group -> all ids). */
@@ -348,7 +318,6 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   const surfaceFill = useSurfaceFill();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const bottomSheet = useContext(BottomSheetContext);
   // Shared post cache (SQLite/memory) that every feed + the post detail read from.
   // Accepting/declining an invite mutates the post's authorship, so the updated
   // post must be propagated here — updating only the React Query post-detail cache
@@ -531,69 +500,45 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   // row is unread) and a destructive "Delete". Dismissing the sheet is the
   // implicit cancel. Tapping a row acts, then closes the sheet.
   const handleLongPress = useCallback(() => {
-    const rows: {
-      key: string;
-      icon: React.ReactNode;
-      label: string;
-      onPress: () => void;
-      destructive?: boolean;
-    }[] = [];
-    if (hasUnread) {
-      rows.push({
-        key: 'mark-read',
-        icon: (
-          <RiCheckDoubleLine
-            width={ACTION_ICON_SIZE}
-            height={ACTION_ICON_SIZE}
-            fill={theme.colors.textSecondary}
-          />
-        ),
-        label: t('notification.mark_read', { defaultValue: 'Mark as read' }),
-        onPress: () => {
-          bottomSheet.openBottomSheet(false);
-          onMarkAsRead(item.notificationIds);
-        },
-      });
-    }
-    rows.push({
-      key: 'delete',
-      icon: (
-        <RiDeleteBinLine
-          width={ACTION_ICON_SIZE}
-          height={ACTION_ICON_SIZE}
-          fill={theme.colors.error}
-        />
-      ),
-      label: t('notification.delete', { defaultValue: 'Delete' }),
-      destructive: true,
-      onPress: () => {
-        bottomSheet.openBottomSheet(false);
-        onDelete(item.notificationIds);
-      },
+    showActionMenu({
+      label: t('common.options', { defaultValue: 'Options' }),
+      groups: [
+        hasUnread
+          ? [
+              {
+                icon: (
+                  <RiCheckDoubleLine
+                    width={ACTION_ICON_SIZE}
+                    height={ACTION_ICON_SIZE}
+                    fill={theme.colors.textSecondary}
+                  />
+                ),
+                label: t('notification.mark_read', { defaultValue: 'Mark as read' }),
+                onPress: () => onMarkAsRead(item.notificationIds),
+              },
+            ]
+          : [],
+        [
+          {
+            icon: (
+              <RiDeleteBinLine
+                width={ACTION_ICON_SIZE}
+                height={ACTION_ICON_SIZE}
+                fill={theme.colors.error}
+              />
+            ),
+            label: t('notification.delete', { defaultValue: 'Delete' }),
+            color: theme.colors.error,
+            onPress: () => onDelete(item.notificationIds),
+          },
+        ],
+      ],
     });
-
-    bottomSheet.setBottomSheetContent(
-      <View className="bg-card p-4">
-        {rows.map((row, index) => (
-          <NotificationActionRow
-            key={row.key}
-            icon={row.icon}
-            label={row.label}
-            onPress={row.onPress}
-            destructive={row.destructive}
-            isFirst={index === 0}
-            isLast={index === rows.length - 1}
-          />
-        ))}
-      </View>,
-    );
-    bottomSheet.openBottomSheet(true);
   }, [
     hasUnread,
     theme.colors.textSecondary,
     theme.colors.error,
     t,
-    bottomSheet,
     onMarkAsRead,
     onDelete,
     item.notificationIds,
@@ -626,8 +571,9 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
     };
   }, [resolvedPrimary, bylineName]);
 
-  const runAccept = useCallback(async () => {
-    if (!postId) return;
+  /** Resolves `true` once the invite is accepted. */
+  const runAccept = useCallback(async (): Promise<boolean> => {
+    if (!postId) return false;
     setActionLoading(true);
     try {
       const result = await feedService.acceptCollabInvite(postId);
@@ -640,31 +586,24 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
         cachePosts([result.post]);
       }
       onMarkAsRead(item.notificationIds);
-      bottomSheet.openBottomSheet(false);
       toast(t('collab.acceptedToast', { defaultValue: "You're now a collaborator on this post" }), {
         type: 'success',
       });
+      return true;
     } catch (error) {
       logger.error('Failed to accept collab invite', error);
       toast(t('collab.acceptFailed', { defaultValue: 'Failed to accept invite' }), {
         type: 'error',
       });
+      return false;
     } finally {
       setActionLoading(false);
     }
-  }, [
-    postId,
-    queryClient,
-    cachePosts,
-    onMarkAsRead,
-    item.notificationIds,
-    bottomSheet,
-    t,
-    user?.id,
-  ]);
+  }, [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, t, user?.id]);
 
-  const runDecline = useCallback(async () => {
-    if (!postId) return;
+  /** Resolves `true` once the invite is declined. */
+  const runDecline = useCallback(async (): Promise<boolean> => {
+    if (!postId) return false;
     setActionLoading(true);
     try {
       const result = await feedService.declineCollabInvite(postId);
@@ -676,39 +615,33 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
         cachePosts([result.post]);
       }
       onMarkAsRead(item.notificationIds);
-      bottomSheet.openBottomSheet(false);
+      return true;
     } catch (error) {
       logger.error('Failed to decline collab invite', error);
       toast(t('collab.declineFailed', { defaultValue: 'Failed to decline invite' }), {
         type: 'error',
       });
+      return false;
     } finally {
       setActionLoading(false);
     }
-  }, [
-    postId,
-    queryClient,
-    cachePosts,
-    onMarkAsRead,
-    item.notificationIds,
-    bottomSheet,
-    t,
-    user?.id,
-  ]);
+  }, [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, t, user?.id]);
 
   const openAcceptSheet = useCallback(() => {
     if (!inviter) return;
-    bottomSheet.setBottomSheetContent(
+    void presentSheet((surface) => (
       <CollabAcceptSheet
         inviter={inviter}
-        loading={actionLoading}
-        onAccept={runAccept}
-        onDecline={runDecline}
-        onClose={() => bottomSheet.openBottomSheet(false)}
-      />,
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, inviter, actionLoading, runAccept, runDecline]);
+        onAccept={async () => {
+          if (await runAccept()) surface.dismiss();
+        }}
+        onDecline={async () => {
+          if (await runDecline()) surface.dismiss();
+        }}
+        onClose={() => surface.dismiss()}
+      />
+    ));
+  }, [inviter, runAccept, runDecline]);
 
   const toggleExpanded = useCallback(() => setExpanded((v) => !v), []);
 

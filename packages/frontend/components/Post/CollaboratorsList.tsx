@@ -33,7 +33,7 @@ interface CollaboratorsListProps {
  * every row and the same {@link profileHrefForUser} navigation as
  * {@link EngagementList}.
  *
- * Rendered on the shared content-dialog surface (`showContentDialog`), the same
+ * Presented with `presentSheet`, the same
  * one the post's ⋯ menu uses — centered card on desktop, bottom sheet on mobile.
  */
 const CollaboratorsList: React.FC<CollaboratorsListProps> = ({ authors, onClose, title }) => {

@@ -70,10 +70,6 @@ jest.mock('@/hooks/usePostLanguage', () => ({
     selectLanguage: () => undefined,
   }),
 }));
-jest.mock('@/context/BottomSheetContext', () => {
-  const ReactActual = jest.requireActual<typeof import('react')>('react');
-  return { BottomSheetContext: ReactActual.createContext(null) };
-});
 jest.mock('@/components/Post/PostContentText', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/hooks/usePostLanguagePicker', () => ({
   usePostLanguagePicker: () => () => undefined,
@@ -88,7 +84,7 @@ jest.mock('@/components/Post/PostAttachmentsRow', () => ({
   default: () => null,
 }));
 jest.mock('@/components/common/ActionMenu', () => ({ showActionMenu: jest.fn() }));
-jest.mock('@/components/common/ContentDialog', () => ({ showContentDialog: jest.fn() }));
+jest.mock('@/utils/sheet', () => ({ presentSheet: jest.fn() }));
 jest.mock('@/lib/queryClient', () => ({
   queryClient: { invalidateQueries: jest.fn(), setQueryData: jest.fn(), getQueryData: jest.fn() },
 }));

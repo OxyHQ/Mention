@@ -41,7 +41,7 @@ interface JobApplicationDetailSheetProps {
  * The employer's full view of one application — every disclosed field, a
  * status changer, and the internal notes thread (never shown to the
  * applicant; see `jobApplications.controller.ts`'s privacy invariant). Opened
- * from `app/(app)/jobs/[id]/applications.tsx` via `BottomSheetContext`.
+ * from `app/(app)/jobs/[id]/applications.tsx` with `presentSheet`.
  */
 const JobApplicationDetailSheet = ({
   jobId,

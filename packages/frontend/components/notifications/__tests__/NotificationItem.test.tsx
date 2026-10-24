@@ -162,15 +162,8 @@ jest.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
-jest.mock('@/context/BottomSheetContext', () => {
-  const ReactActual = jest.requireActual<typeof import('react')>('react');
-  return {
-    BottomSheetContext: ReactActual.createContext({
-      openBottomSheet: jest.fn(),
-      setBottomSheetContent: jest.fn(),
-    }),
-  };
-});
+jest.mock('@/utils/sheet', () => ({ presentSheet: jest.fn() }));
+jest.mock('@/components/common/ActionMenu', () => ({ showActionMenu: jest.fn() }));
 
 jest.mock('@oxy.so/core/logger', () => ({
   ...jest.requireActual('@oxy.so/core/logger'),

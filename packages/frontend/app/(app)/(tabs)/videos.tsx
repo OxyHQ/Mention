@@ -1,7 +1,7 @@
 import { VideoSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useRoute } from 'expo-router';
-import { useCallback, useContext, useEffect, useRef, useState, useMemo, memo } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo, memo } from 'react';
 import { useBottomEdgeInset } from '@oxy.so/bloom/layout';
 import {
   StyleSheet,
@@ -77,7 +77,8 @@ import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
 import { useVideosRail, type VideosRailActivePost } from '@/context/VideosRailContext';
 import { VideoViewabilityProvider } from '@/context/VideoPlaybackContext';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { presentSheet } from '@/utils/sheet';
+import type { SurfaceControls } from '@oxy.so/bloom/surfaces';
 import { LazyVideoReplies } from '@/components/videos/LazyVideoReplies';
 import { useVideoPipSession } from '@/hooks/useVideoPipSession';
 import { useReelImpressions } from '@/hooks/useReelImpressions';
@@ -250,6 +251,8 @@ const BOOST_ACTIVE_COLOR = '#10B981';
 // Caption is collapsed to two lines until this length, where a "more" toggle is
 // offered (TikTok-style expandable caption).
 const CAPTION_EXPAND_MIN_CHARS = 80;
+/** The replies sheet's height as a fraction of the viewport; the video shrinks into the rest. */
+const REPLIES_SHEET_RATIO = 0.62;
 
 // ── Types ────────────────────────────────────────────────────────
 // Runtime media reference. The shared `MediaItem` declares `id` + `type` plus the
@@ -858,7 +861,7 @@ const VideoItem = memo<VideoItemProps>(
       const progress = bottomSheetProgress?.value ?? 0;
       return {
         transform: [
-          { translateY: -(windowHeight * 0.31 * progress) },
+          { translateY: -(windowHeight * (REPLIES_SHEET_RATIO / 2) * progress) },
           { scale: interpolate(progress, [0, 1], [1, 0.38]) },
         ],
       };
@@ -1161,14 +1164,11 @@ export default function VideosScreen() {
   const rightBarVisible = useIsRightBarVisible();
   const isDesktop = rightBarVisible && !inDeck;
   const { setRailState, requestComposerFocus } = useVideosRail();
-  const { openBottomSheet, setBottomSheetContent, setBottomSheetProgress } =
-    useContext(BottomSheetContext);
+  // The replies sheet's presented fraction, which the active video's shrink
+  // follows frame by frame (`repliesTransformStyle`).
   const bottomSheetProgress = useSharedValue(0);
-
-  useEffect(() => {
-    setBottomSheetProgress?.(bottomSheetProgress);
-    return () => setBottomSheetProgress?.(undefined);
-  }, [bottomSheetProgress, setBottomSheetProgress]);
+  // Closes the replies sheet that is open now, if any.
+  const closeReplies = useRef<(() => void) | null>(null);
 
   const flatListRef = useRef<FlatList<VideoPost>>(null);
   const globalMuted = useVideoMuteStore((state) => state.isMuted);
@@ -1340,8 +1340,8 @@ export default function VideosScreen() {
       isFirstVisibleIndexRender.current = false;
       return;
     }
-    openBottomSheet(false);
-  }, [currentVisibleIndex, openBottomSheet]);
+    closeReplies.current?.();
+  }, [currentVisibleIndex]);
 
   // Prefetch posters in a wider radius than the live-player window — see
   // `POSTER_PREFETCH_RADIUS` above.
@@ -1603,17 +1603,39 @@ export default function VideosScreen() {
         requestComposerFocus();
         return;
       }
-      setBottomSheetContent(
-        <LazyVideoReplies
-          postId={postId}
-          onClose={() => openBottomSheet(false)}
-          onCommentPosted={() => handleCommentPosted(postId)}
-        />,
-        { scrollable: false, presentation: 'videoReplies' },
-      );
-      openBottomSheet(true);
+      let surface: SurfaceControls | undefined;
+      const close = () => surface?.dismiss();
+      closeReplies.current = close;
+      void presentSheet(
+        (controls) => {
+          surface = controls;
+          return (
+            <LazyVideoReplies
+              postId={postId}
+              onClose={close}
+              onCommentPosted={() => handleCommentPosted(postId)}
+            />
+          );
+        },
+        {
+          placement: 'bottom',
+          scrollable: false,
+          // The video stays in view above the sheet, behind no dim; a tap on it
+          // still closes the sheet.
+          backdrop: { blurIntensity: 0, dimOpacity: 0 },
+          progress: bottomSheetProgress,
+          // A fixed height, so the replies loading in never resize the sheet
+          // the video is laid out against.
+          frame: {
+            key: 'video-replies',
+            size: { height: Math.round(WINDOW_HEIGHT * REPLIES_SHEET_RATIO) },
+          },
+        },
+      ).then(() => {
+        if (closeReplies.current === close) closeReplies.current = null;
+      });
     },
-    [isDesktop, requestComposerFocus, setBottomSheetContent, openBottomSheet, handleCommentPosted],
+    [isDesktop, requestComposerFocus, handleCommentPosted, bottomSheetProgress, WINDOW_HEIGHT],
   );
 
   const handleBoost = useCallback(

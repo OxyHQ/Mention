@@ -1,13 +1,14 @@
 import type React from 'react';
-import { lazy, Suspense, useContext, useMemo } from 'react';
+import { lazy, Suspense, useMemo } from 'react';
+import type { SurfaceControls } from '@oxy.so/bloom/surfaces';
 import { useRouter } from '@/lib/navigation/router';
 import type {
   CommunityNoteRating,
   CommunityNoteSummary,
   HydratedPostSummary,
 } from '@mention/shared-types';
-import { BottomSheetContext, type BottomSheetContextProps } from '@/context/BottomSheetContext';
 import { openExternalLink } from '@/utils/openExternalLink';
+import { presentSheet } from '@/utils/sheet';
 import type { CommunityNoteDraft } from './WriteNoteSheet';
 
 // Loaded when a sheet first opens, never with the post row: every feed row
@@ -55,8 +56,8 @@ export interface CommunityNoteSheets {
 }
 
 /**
- * The community-note flows, as bottom sheets swapped in place in the app's one
- * sheet:
+ * The community-note flows, as sheets on the app's surface stack, each step
+ * replacing the one before it:
  *
  * - write: writing tips → the note form → "submitted"
  * - rate: Helpful / Not helpful → why → done
@@ -71,75 +72,94 @@ export interface CommunityNoteSheets {
  * the `useCommunityNoteSheets` wrapper below.
  */
 export function createCommunityNoteSheets({
-  bottomSheet,
   router,
   handlers = {},
 }: {
-  bottomSheet: BottomSheetContextProps;
   router: ReturnType<typeof useRouter>;
   handlers?: CommunityNoteWriteHandlers;
 }): CommunityNoteSheets {
   const { submitNote, rateNote } = handlers;
 
-  const close = () => bottomSheet.openBottomSheet(false);
+  type Step = (surface: SurfaceControls) => React.ReactNode;
 
-  const show = (content: React.ReactNode, scrollable = false) => {
-    bottomSheet.setBottomSheetContent(<Suspense fallback={null}>{content}</Suspense>, {
+  const show = (step: Step, scrollable = false) => {
+    void presentSheet((surface) => <Suspense fallback={null}>{step(surface)}</Suspense>, {
       scrollable,
     });
-    bottomSheet.openBottomSheet(true);
   };
 
-  const openManageNotes = () => {
-    close();
-    router.push(COMMUNITY_NOTES_ROUTE);
+  /** The next step of a flow takes the place of the sheet it was opened from. */
+  const next = (from: SurfaceControls, step: Step, scrollable = false) => {
+    from.dismiss();
+    show(step, scrollable);
   };
 
-  const openWriteForm = (post: HydratedPostSummary) => {
-    show(
+  const openManageNotes = () => router.push(COMMUNITY_NOTES_ROUTE);
+
+  const submitted: Step = (surface) => (
+    <NoteSubmittedSheet
+      onDone={() => surface.dismiss()}
+      onManageNotes={() => {
+        surface.dismiss();
+        openManageNotes();
+      }}
+    />
+  );
+
+  const writeForm =
+    (post: HydratedPostSummary): Step =>
+    (surface) => (
       <WriteNoteSheet
         post={post}
-        onClose={close}
+        onClose={() => surface.dismiss()}
         onSubmit={async (draft) => {
           await submitNote?.(post.id, draft);
-          show(<NoteSubmittedSheet onDone={close} onManageNotes={openManageNotes} />);
+          next(surface, submitted);
         }}
-      />,
-      true,
+      />
     );
-  };
 
   const openWriteFlow = (post: HydratedPostSummary) => {
-    show(
+    show((surface) => (
       <WritingTipsSheet
-        onClose={close}
-        onContinue={() => openWriteForm(post)}
+        onClose={() => surface.dismiss()}
+        onContinue={() => next(surface, writeForm(post), true)}
         onLearnMore={() => openExternalLink(COMMUNITY_NOTES_HELP_URL)}
-      />,
-    );
+      />
+    ));
   };
 
-  const openRateReasons: CommunityNoteSheets['openRateReasons'] = (note, rating, onRated) => {
-    show(
+  const rateReasons =
+    (
+      note: CommunityNoteSummary,
+      rating: CommunityNoteRating,
+      onRated?: (rating: CommunityNoteRating) => void,
+    ): Step =>
+    (surface) => (
       <RateNoteSheet
         rating={rating}
-        onClose={close}
+        onClose={() => surface.dismiss()}
         onSubmit={async (reasons) => {
           await rateNote?.(note.id, rating, reasons);
           onRated?.(rating);
-          close();
+          surface.dismiss();
         }}
-      />,
+      />
     );
+
+  const openRateReasons: CommunityNoteSheets['openRateReasons'] = (note, rating, onRated) => {
+    show(rateReasons(note, rating, onRated));
   };
 
   const openAbout = (note: CommunityNoteSummary) => {
     show(
-      <AboutNoteSheet
-        note={note}
-        onClose={close}
-        onRate={rateNote ? (rating) => openRateReasons(note, rating) : undefined}
-      />,
+      (surface) => (
+        <AboutNoteSheet
+          note={note}
+          onClose={() => surface.dismiss()}
+          onRate={rateNote ? (rating) => next(surface, rateReasons(note, rating)) : undefined}
+        />
+      ),
       true,
     );
   };
@@ -160,11 +180,10 @@ export function createCommunityNoteSheets({
 export function useCommunityNoteSheets(
   handlers: CommunityNoteWriteHandlers = {},
 ): CommunityNoteSheets {
-  const bottomSheet = useContext(BottomSheetContext);
   const router = useRouter();
   const { submitNote, rateNote } = handlers;
   return useMemo(
-    () => createCommunityNoteSheets({ bottomSheet, router, handlers: { submitNote, rateNote } }),
-    [bottomSheet, router, submitNote, rateNote],
+    () => createCommunityNoteSheets({ router, handlers: { submitNote, rateNote } }),
+    [router, submitNote, rateNote],
   );
 }

@@ -1,11 +1,11 @@
-import { memo, useCallback, useContext } from 'react';
+import { memo, useCallback } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Item } from '@oxy.so/bloom/item';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiLink } from '@oxy.so/bloom/icons/RiLink';
 import type { ProfileLink } from '@oxy.so/core';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { presentSheet } from '@/utils/sheet';
 import { prettifyUrl } from '@/utils/prettifyUrl';
 import { openExternalLink } from '@/utils/openExternalLink';
 
@@ -23,7 +23,7 @@ interface LinkSummarySheetProps {
 
 /**
  * Bottom-sheet content listing every profile link (Linktree-style). Opened from
- * the collapsed `LinkSummary` row through Mention's shared `BottomSheetContext`.
+ * the collapsed `LinkSummary` row with `presentSheet`.
  */
 function LinkSummarySheet({ links, onPressLink, onClose }: LinkSummarySheetProps) {
   const { t } = useTranslation();
@@ -59,18 +59,16 @@ function LinkSummarySheet({ links, onPressLink, onClose }: LinkSummarySheetProps
 export const LinkSummary = memo(function LinkSummary({ links, onPressLink }: LinkSummaryProps) {
   const { t } = useTranslation();
   const { colors } = useTheme();
-  const bottomSheet = useContext(BottomSheetContext);
 
   const openSheet = useCallback(() => {
-    bottomSheet.setBottomSheetContent(
+    void presentSheet((surface) => (
       <LinkSummarySheet
         links={links}
         onPressLink={onPressLink ?? ((url) => openExternalLink(url))}
-        onClose={() => bottomSheet.openBottomSheet(false)}
-      />,
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, links, onPressLink]);
+        onClose={() => surface.dismiss()}
+      />
+    ));
+  }, [links, onPressLink]);
 
   if (links.length === 0) {
     return null;

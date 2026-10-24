@@ -1,5 +1,5 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useInfiniteQuery } from '@tanstack/react-query';
@@ -25,7 +25,7 @@ import {
   MENTION_JOB_WORKPLACE_TYPES,
 } from '@mention/shared-types/job';
 import { Error as ErrorState } from '@/components/Error';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { presentSheet } from '@/utils/sheet';
 import { Storage } from '@/utils/storage';
 import { viewerQueryKeys, viewerStorageKey } from '@/lib/viewerQueryKeys';
 import { jobsService, type MentionJobDiscoveryFilters } from '@/services/jobsService';
@@ -124,7 +124,6 @@ type DiscoveryRow =
 export default function JobsDiscoveryScreen() {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const bottomSheet = useContext(BottomSheetContext);
   const viewerId = user?.id;
 
   const [draft, setDraft] = useState<DraftFilters>(EMPTY_DRAFT);
@@ -263,18 +262,11 @@ export default function JobsDiscoveryScreen() {
     [savedStorageKey, t],
   );
 
-  const reportJob = useCallback(
-    (job: JobSearchResult) => {
-      bottomSheet.setBottomSheetContent(
-        <ExternalJobReportSheet
-          clarityJobId={job.id}
-          onClose={() => bottomSheet.openBottomSheet(false)}
-        />,
-      );
-      bottomSheet.openBottomSheet(true);
-    },
-    [bottomSheet],
-  );
+  const reportJob = useCallback((job: JobSearchResult) => {
+    void presentSheet((surface) => (
+      <ExternalJobReportSheet clarityJobId={job.id} onClose={() => surface.dismiss()} />
+    ));
+  }, []);
 
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = discoveryQuery;
   const handleEndReached = useCallback(() => {

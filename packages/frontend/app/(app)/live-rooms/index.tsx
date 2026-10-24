@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useEffect, useState, useCallback, useContext } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { View, Text, RefreshControl } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -21,7 +21,7 @@ import { useRoomUsers } from '@/hooks/useRoomUsers';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import { roomsService, type Room } from '@/lib/syraApi';
 import { logger } from '@oxy.so/core/logger';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { presentSheet } from '@/utils/sheet';
 import { useTranslation } from 'react-i18next';
 import { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR } from '@/styles/colors';
 import { CreateRoomSheet } from '@/components/rooms/CreateRoomSheet';
@@ -50,7 +50,6 @@ const LiveRoomsScreen = () => {
   const { canUsePrivateApi } = useAuth();
   const theme = useTheme();
   const { t } = useTranslation();
-  const bottomSheet = useContext(BottomSheetContext);
   const { joinLiveRoom } = useLiveRoom();
   const [liveRooms, setLiveRooms] = useState<Room[]>([]);
   const [scheduledRooms, setScheduledRooms] = useState<Room[]>([]);
@@ -89,15 +88,14 @@ const LiveRoomsScreen = () => {
     loadRooms();
   }, [loadRooms]);
   const openCreateSheet = useCallback(() => {
-    bottomSheet.setBottomSheetContent(
+    void presentSheet((surface) => (
       <CreateRoomSheet
-        onClose={() => bottomSheet.openBottomSheet(false)}
+        onClose={() => surface.dismiss()}
         mode="standalone"
         onRoomCreated={loadRooms}
-      />,
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, loadRooms]);
+      />
+    ));
+  }, [loadRooms]);
 
   // Resolve all host IDs to user profiles
   const allHostIds = [...liveRooms, ...scheduledRooms].map((r) => r.host).filter(Boolean);
