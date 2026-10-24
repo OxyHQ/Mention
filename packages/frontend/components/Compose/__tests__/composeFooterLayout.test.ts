@@ -62,7 +62,7 @@ describe('the composer footer', () => {
   });
 
   it('clears the bottom safe area itself, since the shell bar is never drawn over it', () => {
-    expect(screen).toContain("edges={['top', 'bottom']}");
+    expect(screen).toContain('className="flex-1 bg-card pt-safe pb-safe"');
     // The old per-screen guesses at the shell bar's height are gone.
     expect(screen).not.toMatch(/bottomBarVisible/);
   });

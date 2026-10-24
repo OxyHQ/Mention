@@ -295,6 +295,27 @@ describe('bound sheet commands', () => {
     expect(closeShownSheet().dismiss).toHaveBeenCalled();
   });
 
+  it('unbinds when the binder unmounts', () => {
+    let interactions: PostInteractions | undefined;
+    const Probe = () => {
+      interactions = usePostInteractions();
+      return null;
+    };
+    const tree = (withBinder: boolean) => (
+      <PostInteractionsProvider>
+        {withBinder ? <PostInteractionsBinder /> : null}
+        <Probe />
+      </PostInteractionsProvider>
+    );
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(tree(true));
+    });
+    act(() => renderer.update(tree(false)));
+    interactions?.openInsights('p1');
+    expect(presentSheetMock).not.toHaveBeenCalled();
+  });
+
   it('without a binder, a sheet command is a logged no-op', () => {
     const commands = capture((probe) => (
       <PostInteractionsProvider>{probe}</PostInteractionsProvider>

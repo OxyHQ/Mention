@@ -365,12 +365,14 @@ describe('what the actions do', () => {
       presentSheetMock.mockClear();
       find(actions, label).onPress();
       expect(presentSheetMock).toHaveBeenCalledTimes(1);
+      expect(presentSheetMock.mock.calls[0][0](surface)).toBeTruthy();
     }
     const strangerActions = build({ viewPost: makePost() });
     for (const label of ['postActions.reportPost', 'lists.addTo.menuItem']) {
       presentSheetMock.mockClear();
       find(strangerActions, label).onPress();
       expect(presentSheetMock).toHaveBeenCalledTimes(1);
+      expect(presentSheetMock.mock.calls[0][0](surface)).toBeTruthy();
     }
   });
 

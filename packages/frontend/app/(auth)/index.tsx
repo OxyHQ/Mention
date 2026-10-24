@@ -1,5 +1,4 @@
 import { View, Text, StyleSheet } from 'react-native';
-import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 
@@ -45,7 +44,7 @@ export default function AuthScreen() {
       </View>
 
       {/* Stacked mobile layout (< md) */}
-      <SafeAreaView className="flex md:hidden flex-1 justify-center items-center p-6">
+      <View className="flex md:hidden flex-1 justify-center items-center px-6 pt-safe-offset-6 pb-safe-offset-6">
         <View className="flex-1 justify-center items-center gap-4">
           <LogoIcon size={48} color={colors.primary} />
           <Text className="text-[28px] font-bold mt-2 text-foreground">Mention</Text>
@@ -64,7 +63,7 @@ export default function AuthScreen() {
             {t('Sign In with Oxy')}
           </Button>
         </View>
-      </SafeAreaView>
+      </View>
     </>
   );
 }
