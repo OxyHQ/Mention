@@ -220,16 +220,17 @@ module.exports = (_config) => {
           // Re-encodes the generated bitmap resources into real lossless
           // WebP — Expo emits PNG bytes whatever extension it writes. See
           // the plugin header for the @expo/image-utils bug behind it.
+          // Needs `sharp` (a devDependency of this package).
           //
           // Registered FIRST so that it RUNS LAST. `withMod`'s
           // `interceptingMod` awaits its own action and only then calls
           // `nextMod` (the previously registered mod), so the mod chain
           // executes in reverse registration order. It has to run after
-          // every image generator: `withSplashBranding` rewrites the
+          // every image generator: `@oxy.so/expo-splash` rewrites the
           // splash images, and when this ran before it the tree ended up
           // with both a `.png` and a `.webp` claiming the same
           // `@drawable/splashscreen_logo` resource name.
-          './plugins/withAndroidWebpMipmaps',
+          '@oxy.so/app-preset/plugin/withOxyAndroidWebp',
           [
             // Async routes split each route into its own lazy chunk under
             // `_expo/static/js/web/` so heavy screens (compose, videos,
@@ -259,7 +260,7 @@ module.exports = (_config) => {
               // (bbox diagonal ~136dp) — comfortably inside the ~160dp
               // safe circle. (The prior 320 pushed the M to ~167×182dp,
               // which the circle clipped.) Oxy branding is pinned to the
-              // bottom by the `withSplashBranding` plugin below (the
+              // bottom by the `@oxy.so/expo-splash` plugin below (the
               // "Instagram, from Meta" pattern).
               image: './assets/images/splash-logo.png',
               imageWidth: 176,
@@ -456,14 +457,17 @@ module.exports = (_config) => {
           // this plugin augments). Android 12+ uses the official branding
           // slot; iOS adds a bottom-pinned UIImageView to the storyboard.
           base.push([
-            './plugins/withSplashBranding',
+            '@oxy.so/expo-splash',
             {
+              // Mention's own branding images, not the package's bundled
+              // ones (which differ byte for byte).
+              //
               // ANDROID: authored at the OS branding container's 2.5:1
               // aspect (200:80) — a small centered Oxy symbol inside
               // transparent padding — because the OS STRETCHES this
               // drawable to fill that container (it is set as a View
               // background, not FIT_CENTER). See the plugin header.
-              image: './assets/images/splash-branding-oxy.png',
+              androidImage: './assets/images/splash-branding-oxy.png',
               // iOS: the TIGHT square Oxy symbol. iOS uses
               // scaleAspectFit (no container stretch), so it needs the
               // symbol without the Android 2.5:1 padding.
