@@ -36,7 +36,6 @@ import { NotificationsList } from '@/components/NotificationsList';
 import { NotificationSkeleton } from '@/components/notifications/NotificationSkeleton';
 import { useScreenReselect, useTabSelect } from '@/context/ScreenReselectContext';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
-import { StatusBar } from 'expo-status-bar';
 import { toast } from '@oxy.so/bloom/toast';
 import { confirmDialog } from '@/utils/alerts';
 import { SEO } from '@/components/SEO';
@@ -44,9 +43,9 @@ import { requestSettings } from '@/components/settings/settingsRoutes';
 import { Error } from '@/components/Error';
 import { EmptyState } from '@/components/common/EmptyState';
 import type { EmptyStateStickerName } from '@/lib/stickers';
-import { BellActive } from '@/assets/icons/bell-icon';
-import { DoneAllIcon } from '@/assets/icons/done-all-icon';
-import { Gear } from '@/assets/icons/gear-icon';
+import { RiCheckDoubleLine } from '@oxy.so/bloom/icons/RiCheckDoubleLine';
+import { RiNotification3Fill } from '@oxy.so/bloom/icons/RiNotification3Fill';
+import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
 import { prewarmUsersByIds } from '@/utils/userEnrichment';
 
 const notificationLogger = createLogger('Notifications');
@@ -618,7 +617,7 @@ const NotificationsScreen: React.FC = () => {
                     appearance="subtle"
                     tone="neutral"
                     iconOnly
-                    icon={<DoneAllIcon size={20} color={theme.colors.primary} />}
+                    icon={<RiCheckDoubleLine width={20} height={20} fill={theme.colors.primary} />}
                     onPress={handleMarkAllAsRead}
                     disabled={markAllAsReadMutation.isPending}
                     accessibilityLabel={t('notification.mark_all_read')}
@@ -628,7 +627,7 @@ const NotificationsScreen: React.FC = () => {
                   appearance="subtle"
                   tone="neutral"
                   iconOnly
-                  icon={<BellActive size={20} color={theme.colors.text} />}
+                  icon={<RiNotification3Fill width={20} height={20} fill={theme.colors.text} />}
                   onPress={() => requestSettings('/settings/notifications/subscriptions')}
                   accessibilityLabel={t('subscription.list.title', {
                     defaultValue: 'Activity notifications',
@@ -638,7 +637,7 @@ const NotificationsScreen: React.FC = () => {
                   appearance="subtle"
                   tone="neutral"
                   iconOnly
-                  icon={<Gear size={20} color={theme.colors.text} />}
+                  icon={<RiSettings3Line width={20} height={20} fill={theme.colors.text} />}
                   onPress={() => requestSettings('/settings/notifications')}
                   accessibilityLabel={t('notification.settings', {
                     defaultValue: 'Notification settings',
@@ -649,8 +648,6 @@ const NotificationsScreen: React.FC = () => {
           />
         }
       >
-        <StatusBar style={theme.isDark ? 'light' : 'dark'} />
-
         {canUsePrivateApi && (
           <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
             {[
@@ -686,7 +683,6 @@ const NotificationsScreen: React.FC = () => {
           </Tabs>
         )}
 
-        {renderContent()}
         {renderContent()}
       </Screen>
     </>

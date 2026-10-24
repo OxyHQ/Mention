@@ -14,7 +14,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { starterPacksService, type StarterPackCollection } from '@/services/starterPacksService';
 import { createLogger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
+import { RiRocket2Line } from '@oxy.so/bloom/icons/RiRocket2Line';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 const logger = createLogger('AddToStarterPackSheet');
@@ -218,7 +218,7 @@ export function AddToStarterPackSheet({
         </View>
       ) : rows.length === 0 ? (
         <View className="items-center justify-center py-8 gap-3">
-          <StarterPackIcon size={40} className="text-muted-foreground" />
+          <RiRocket2Line width={40} height={40} fill={theme.colors.textSecondary} />
           <Text className="text-muted-foreground text-sm text-center">
             {t('starterPacks.addTo.empty', { defaultValue: 'You have no starter packs yet' })}
           </Text>
@@ -248,7 +248,7 @@ export function AddToStarterPackSheet({
                 accessible={false}
               >
                 <View className="w-9 h-9 rounded-lg items-center justify-center bg-muted">
-                  <StarterPackIcon size={18} className="text-foreground" />
+                  <RiRocket2Line width={18} height={18} fill={theme.colors.text} />
                 </View>
                 <Text className="text-foreground text-[15px] font-medium flex-1" numberOfLines={1}>
                   {row.name}

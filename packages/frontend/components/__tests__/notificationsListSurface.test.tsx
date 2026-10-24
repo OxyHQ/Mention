@@ -2,38 +2,18 @@ import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { Text } from 'react-native';
 
-/**
- * The notifications list scrolls for ONE consumer: the auto-hiding chrome, which
- * integrates its position from the shared `scrollPosition` inside a UI-thread
- * worklet. So the offset has no business crossing to the JS thread — and while
- * it did, it could only cross when the JS thread was free, which on a tab whose
- * rows carry avatars and text is exactly when it is not.
- */
-
-const scrollHandlers: { onScroll?: (event: { contentOffset: { y: number } }) => void } = {};
-
 jest.mock('react-native-reanimated', () => ({
   __esModule: true,
   default: { createAnimatedComponent: (component: unknown) => component },
-  useAnimatedScrollHandler: (handlers: typeof scrollHandlers) => {
-    Object.assign(scrollHandlers, handlers);
-    return handlers;
-  },
 }));
-
-const mockScrollPosition = { value: 0 };
-/** Present so the test can prove it is NOT what the list drives any more. */
-const mockHandleScroll = jest.fn();
-
-jest.mock('@/context/LayoutScrollContext', () => ({
-  useLayoutScroll: () => ({
-    scrollPosition: mockScrollPosition,
-    scrollEventThrottle: 16,
-    registerScrollable: () => () => undefined,
-    handleScroll: mockHandleScroll,
+jest.mock('@oxy.so/bloom/screen', () => ({
+  useScreenScroll: () => ({
+    onScroll: undefined,
+    contentInsets: { top: 0, bottom: 0 },
+    scrollY: { value: 0 },
   }),
 }));
-
+jest.mock('@/context/ScreenReselectContext', () => ({ useReselectScroller: () => undefined }));
 jest.mock('expo-router', () => ({ useIsFocused: () => true }));
 
 const mockListProps: Record<string, unknown>[] = [];
@@ -58,40 +38,6 @@ jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
 // The mocks above must be installed first.
 import { NotificationsList } from '../NotificationsList.native';
 
-describe('the notifications list’s scroll', () => {
-  it('writes the shared position from the scroll worklet, never through JS', () => {
-    let renderer!: TestRenderer.ReactTestRenderer;
-    act(() => {
-      renderer = TestRenderer.create(
-        <NotificationsList
-          items={[]}
-          renderRow={() => <Text>row</Text>}
-          header={null}
-          emptyState={<Text>empty</Text>}
-          tabKey="all"
-          refreshing={false}
-          onRefresh={() => undefined}
-        />,
-      );
-    });
-
-    act(() => {
-      scrollHandlers.onScroll?.({ contentOffset: { y: 64 } });
-    });
-
-    expect(mockScrollPosition.value).toBe(64);
-    // The other half: a list that ALSO reported through JS would still be
-    // paying for the callback this change exists to remove.
-    expect(mockHandleScroll).not.toHaveBeenCalled();
-
-    act(() => {
-      renderer.unmount();
-    });
-  });
-});
-
-// #1140: the Notifications body was darker than every other tab, and pulling
-// its empty state did not refresh.
 describe('the notifications list’s surface and refresh', () => {
   function render(items: unknown[]) {
     mockListProps.length = 0;
@@ -122,12 +68,12 @@ describe('the notifications list’s surface and refresh', () => {
 
   it('grows an empty list to the viewport and keeps the refresh control on it', () => {
     const props = render([]);
-    expect(props.contentContainerStyle).toEqual({ flexGrow: 1 });
+    expect(props.contentContainerStyle).toMatchObject({ flexGrow: 1 });
     expect(props.refreshControl).toBeTruthy();
   });
 
   it('leaves a populated list to size to its rows', () => {
     const props = render([{ kind: 'header', key: 'h', title: 'Today' }]);
-    expect(props.contentContainerStyle).toBeUndefined();
+    expect(props.contentContainerStyle).not.toHaveProperty('flexGrow');
   });
 });

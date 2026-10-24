@@ -10,13 +10,14 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 import { AppShell, type PanelNavigationState } from '@oxy.so/bloom/app-shell';
+import { RiQuillPenLine } from '@oxy.so/bloom/icons/RiQuillPenLine';
+import { useTabPager } from '@oxy.so/bloom/tab-pager';
 import { DeckColumn, DeckColumnHeaderActions } from '@/components/deck/DeckColumn';
 import { useDeckAvailable } from '@/components/deck/useDeckAvailable';
 import { registerPanelSurface } from '@/components/shell/panelSurface';
 import { bottomBarContent } from '@/components/shell/bottomBarRoutes';
 
 import { stackSceneLayout } from '@/components/navigation/StackScene';
-import { BottomBar } from '@/components/BottomBar';
 import KeyboardShortcutsModal from '@/components/KeyboardShortcutsModal';
 import RegisterPush from '@/components/RegisterPushToken';
 import { RealtimePostsBridge } from '@/components/RealtimePostsBridge';
@@ -28,9 +29,9 @@ import { useDrawer } from '@/context/DrawerContext';
 import { SignInBanner } from '@/components/SignInBanner';
 import WelcomeModalGate from '@/components/WelcomeModalGate';
 import { BootMilestone } from '@/components/BootMilestone';
+import { reportBoundaryError } from '@/components/AppErrorBoundary';
 
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
-import { useKeyboardVisibility } from '@/hooks/useKeyboardVisibility';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -43,6 +44,7 @@ export default function AppLayout() {
   const { t } = useTranslation();
   useDeckSync();
   const sidebar = useMentionSidebar();
+  const { selectTab } = useTabPager();
   const activeDeckPanel = useDeckSettings((state) => state.activePanel);
   const deckRevealPanel = useDeckSettings((state) => state.revealPanel);
   const deckViewer = useDeckSettings((state) => state.viewer);
@@ -52,7 +54,6 @@ export default function AppLayout() {
   const updateDeckPanel = useDeckSettings((state) => state.updatePanel);
   const deckEnabled = useDeckSettings((state) => state.deckEnabled);
   const hasDefaultLeadingPanel = useDeckSettings(isDefaultLeadingDeckPanel);
-  const keyboardVisible = useKeyboardVisibility();
   const drawer = useDrawer();
   const { isAuthenticated, isAuthResolved } = useAuth();
   const pathname = usePathname();
@@ -99,15 +100,11 @@ export default function AppLayout() {
     </>
   );
 
-  // Navigation belongs to the shell; the anonymous invitation belongs to the
-  // main panel's Bloom footer. Both retain the route, keyboard and auth rules.
-  const bottomContent = bottomBarContent({
-    pathname,
-    keyboardVisible,
-    isAuthenticated,
-    isAuthResolved,
-  });
-  const bottomBar = bottomContent === 'tabs' ? <BottomBar /> : undefined;
+  // The shell draws its navigation from Mention's destinations
+  // (`MentionNavigation`); the anonymous invitation belongs to the main panel's
+  // Bloom footer. Which of them shows follows the route and the session; Bloom hides
+  // both under the keyboard.
+  const bottomContent = bottomBarContent({ pathname, isAuthenticated, isAuthResolved });
 
   // The app-shell contexts this subtree reads (screen color, videos rail, video
   // playback, drawer, bottom-bar visibility) are mounted by <AppShellProviders>
@@ -128,18 +125,27 @@ export default function AppLayout() {
         <AppShell
           testID="mention-shell"
           variant="feed"
-          scroll={IS_WEB ? 'document' : 'fixed'}
+          scroll={IS_WEB ? 'document' : 'page'}
           drawer="reveal"
           drawerOpen={drawer.isOpen}
           onDrawerOpenChange={(open) => (open ? drawer.open() : drawer.close())}
           sidebar={sidebar}
+          // The sidebar's compose row and the bar's FAB: the composer page.
+          primaryAction={{
+            icon: RiQuillPenLine,
+            accessibilityLabel: t('sidebar.compose'),
+            onPress: () => selectTab('write'),
+          }}
           header={null}
           navigationAlign="content"
           navigationGap={0}
           gutter={8}
-          bottomBar={bottomBar}
+          bottomBar={bottomContent === 'tabs' ? undefined : null}
           bottomBarVisibility="compact"
-          reserveBottomBarSpace={pathname !== '/camera'}
+          // Native content scrolls under the floating bar (Bloom's scrollers pad
+          // their end clear of it); the web document reserves it, except under
+          // the full-bleed camera.
+          reserveBottomBarSpace={IS_WEB && pathname !== '/camera'}
           panelLayout={{
             mode: deckOpen ? 'deck' : 'split',
             transition: 'exit-before-enter',
@@ -172,6 +178,9 @@ export default function AppLayout() {
               {
                 id: 'main',
                 visible: true,
+                // A screen that throws fails inside its panel, never the whole app;
+                // navigating to another route recovers it.
+                errorBoundary: { resetKey: pathname, onError: reportBoundaryError },
                 // The Expo child navigator keeps the same host across every layout mode,
                 // including the Deck entry link that opens the home route.
                 keepMounted: true,
@@ -194,6 +203,7 @@ export default function AppLayout() {
               {
                 id: 'context',
                 visible: !deckOpen,
+                errorBoundary: { onError: reportBoundaryError },
                 sticky: true,
                 width: 350,
                 hideBelow: 990,
@@ -209,6 +219,7 @@ export default function AppLayout() {
                   return {
                     id,
                     visible: deckOpen && !(hasDefaultLeadingPanel && id === firstDeckId),
+                    errorBoundary: { onError: reportBoundaryError },
                     width: panel.width,
                     appearance: panel.appearance,
                     colorPreset: panel.colorPreset,

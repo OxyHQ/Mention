@@ -5,13 +5,11 @@
  */
 
 import type React from 'react';
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import type { QueryClient } from '@tanstack/react-query';
 import { I18nextProvider } from 'react-i18next';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
 import { OxyProvider } from '@oxy.so/services/ui/client';
 import { OxyOneVideo } from '@oxy.so/services/ui/one-video';
 import { AliaAvatarIcon } from '@alia.onl/sdk/avatar';
@@ -24,8 +22,7 @@ import { BootMilestone } from '@/components/BootMilestone';
 import { AccountSwitchReset } from '@/components/providers/AccountSwitchReset';
 import { AppShellProviders } from '@/components/providers/AppShellProviders';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
-import { ScreenReselectProvider } from '@/context/ScreenReselectContext';
-import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
+import { DocumentScrollProvider } from '@/context/DocumentScroll';
 import { OXY_CLIENT_ID, OXY_AUTH_REDIRECT_URI } from '@/config';
 import { ContentDialogHost } from '@/components/common/ContentDialog';
 import { FediverseInfoDialogProvider } from '@/components/Fediverse/FediverseInfoDialog';
@@ -38,10 +35,7 @@ import { PostInteractionsBinder } from '@/components/Feed/PostInteractionsBinder
 import i18n, { setLanguage } from '@/lib/i18n';
 import { DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES } from '@/lib/constants';
 import { handleLanguageError } from '@/components/providers/handleLanguageError';
-import { createLogger } from '@oxy.so/core/logger';
 import { configureLottieWeb } from '@/lib/lottieWeb';
-
-const logger = createLogger('AppProviders');
 
 // Before any sticker renders: the web Lottie renderer loads from this origin.
 configureLottieWeb();
@@ -62,156 +56,145 @@ export const AppProviders = memo(function AppProviders({
   // One sticker client per OxyServices: it memoizes resolved stickers for the
   // life of the app and acts with this client's session.
   const stickersClient = useMemo(() => createStickersClient(oxyServices), [oxyServices]);
-  const handleBoundaryError = useCallback((error: Error, errorInfo: React.ErrorInfo) => {
-    logger.error('Error caught by boundary', error, { errorInfo });
-  }, []);
-
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       {/* Bloom renders its children only once its fonts have loaded. */}
       <BootMilestone name="fonts-ready" />
       <GestureHandlerRootView style={{ flex: 1 }}>
         {/*
-         * react-native-keyboard-controller's root provider. It MUST sit inside
-         * GestureHandlerRootView and above everything that consumes
-         * KeyboardContext — OxyProvider's sheets and Bloom's BottomSheet — or
-         * those hooks log "Couldn't find real values for KeyboardContext" on
-         * native. It is a passthrough no-op on web (the library handles the
-         * platform split internally; no manual .web fork needed).
+         * No KeyboardProvider here: OxyProvider mounts react-native-keyboard-controller's
+         * one root provider. A second one above it took the native keyboard events,
+         * so every KeyboardAvoidingView and keyboard hook under OxyProvider read a
+         * closed keyboard (the composer's Post button stayed behind it).
          */}
-        <KeyboardProvider>
+        {/*
+         * `webAuthMode="popup"` keeps the SDK off the two lanes that would
+         * navigate this tab away: the silent full-page `prompt=none` restore
+         * on cold boot, and the post-login hub-sync bounce. Without it a
+         * signed-out cold boot on a deep route leaves the origin entirely —
+         * `/explore` → `auth.oxy.so/authorize` → back — which destroys every
+         * bit of in-page state before the user has done anything.
+         */}
+        {/*
+         * `backgroundSession` is what makes the FOLLOWING home-screen widget
+         * possible. That widget's WorkManager worker runs with no JS runtime —
+         * often with the app process dead — so it cannot reach this session at
+         * all; the SDK instead provisions a purpose-built, non-rotating
+         * credential while the app runs and stores it where the widget's Kotlin
+         * (`so.oxy.session.OxyBackgroundSession`) can exchange it for a short
+         * access token. This prop is the whole integration: no app-local token
+         * helper, no manual `Authorization`.
+         *
+         * It cannot create a session, only extend one the user established
+         * here, and every mint is re-authorized server-side against the live
+         * device session — so a sign-out or an account switch takes the widget's
+         * content with it. Android-only; inert on web and iOS. The trending-posts
+         * widget needs none of this (Explore answers anonymously) and is
+         * unaffected either way.
+         */}
+        <OxyProvider
+          onAskAlia={onAskAlia}
+          documentationUrl="https://oxy.so/developers/docs/mention/"
+          aliaAvatar={<AliaAvatarIcon width={32} height={32} />}
+          oxyOneArtwork={<OxyOneVideo />}
+          oxyServices={oxyServices}
+          clientId={OXY_CLIENT_ID}
+          authRedirectUri={OXY_AUTH_REDIRECT_URI}
+          webAuthMode="popup"
+          storageKeyPrefix="mention"
+          queryClient={queryClient}
+          backgroundSession
+          language={{
+            supportedLocales: SUPPORTED_LANGUAGES,
+            fallbackLocale: DEFAULT_LANGUAGE,
+            onChange: setLanguage,
+            onError: handleLanguageError,
+          }}
+        >
           {/*
-           * `webAuthMode="popup"` keeps the SDK off the two lanes that would
-           * navigate this tab away: the silent full-page `prompt=none` restore
-           * on cold boot, and the post-login hub-sync bounce. Without it a
-           * signed-out cold boot on a deep route leaves the origin entirely —
-           * `/explore` → `auth.oxy.so/authorize` → back — which destroys every
-           * bit of in-page state before the user has done anything.
+           * The boot visual, held up for exactly as long as AccountSwitchReset
+           * keeps account-dependent descendants unmounted. It must be supplied
+           * HERE rather than below, because this gate is above the root
+           * layout's own splash branch — anything the root renders is already
+           * a descendant of it, so during the auth window the root's splash
+           * cannot paint at all. It holds until the gate opens and the root
+           * takes over.
            */}
-          {/*
-           * `backgroundSession` is what makes the FOLLOWING home-screen widget
-           * possible. That widget's WorkManager worker runs with no JS runtime —
-           * often with the app process dead — so it cannot reach this session at
-           * all; the SDK instead provisions a purpose-built, non-rotating
-           * credential while the app runs and stores it where the widget's Kotlin
-           * (`so.oxy.session.OxyBackgroundSession`) can exchange it for a short
-           * access token. This prop is the whole integration: no app-local token
-           * helper, no manual `Authorization`.
-           *
-           * It cannot create a session, only extend one the user established
-           * here, and every mint is re-authorized server-side against the live
-           * device session — so a sign-out or an account switch takes the widget's
-           * content with it. Android-only; inert on web and iOS. The trending-posts
-           * widget needs none of this (Explore answers anonymously) and is
-           * unaffected either way.
-           */}
-          <OxyProvider
-            onAskAlia={onAskAlia}
-            documentationUrl="https://oxy.so/developers/docs/mention/"
-            aliaAvatar={<AliaAvatarIcon width={32} height={32} />}
-            oxyOneArtwork={<OxyOneVideo />}
-            oxyServices={oxyServices}
-            clientId={OXY_CLIENT_ID}
-            authRedirectUri={OXY_AUTH_REDIRECT_URI}
-            webAuthMode="popup"
-            storageKeyPrefix="mention"
-            queryClient={queryClient}
-            backgroundSession
-            language={{
-              supportedLocales: SUPPORTED_LANGUAGES,
-              fallbackLocale: DEFAULT_LANGUAGE,
-              onChange: setLanguage,
-              onError: handleLanguageError,
-            }}
-          >
-            {/*
-             * The boot visual, held up for exactly as long as AccountSwitchReset
-             * keeps account-dependent descendants unmounted. It must be supplied
-             * HERE rather than below, because this gate is above the root
-             * layout's own splash branch — anything the root renders is already
-             * a descendant of it, so during the auth window the root's splash
-             * cannot paint at all. It holds until the gate opens and the root
-             * takes over.
-             */}
-            {/* Oxy's shared sticker catalogue, read through the query client
+          {/* Oxy's shared sticker catalogue, read through the query client
                 OxyProvider just installed. */}
-            <StickersProvider client={stickersClient}>
-              <AccountSwitchReset fallback={<AppSplashScreen />}>
-                <BootMilestone name="cache-owner-established" />
-                <I18nextProvider i18n={i18n}>
-                  {/*
-                   * `LayoutScrollProvider` and `AppShellProviders` sit ABOVE
-                   * `BottomSheetProvider` — and above this component's own
-                   * `children` — on purpose, and moving either back down
-                   * reintroduces a crash.
-                   *
-                   * Two surfaces render content far above where its JSX was
-                   * written, and React resolves context by RENDER position:
-                   * `BottomSheetProvider` parks whatever `setBottomSheetContent`
-                   * is handed in state and renders it beside its own children, and
-                   * bloom's NATIVE portal group re-parents `<Portal>` children onto
-                   * the `<Outlet/>` that `app/_layout.tsx` mounts among the
-                   * children below. Both land at THIS depth. While the app-shell
-                   * contexts lived in `app/(app)/_layout.tsx`, anything either
-                   * surface rendered was outside all of them — the composer's GIF
-                   * picker asked for the video playback authority from inside a
-                   * sheet and threw.
-                   *
-                   * `AppShellProviders` needs `LayoutScrollProvider` above it
-                   * (`BottomBarVisibilityProvider` reads the shared scroll
-                   * position), which is why that one moved up too. The tree below
-                   * is unchanged.
-                   */}
-                  <LayoutScrollProvider>
-                    <AppShellProviders>
-                      {/* The feed rows' one command controller (#1103). ABOVE the
+          <StickersProvider client={stickersClient}>
+            <AccountSwitchReset fallback={<AppSplashScreen />}>
+              <BootMilestone name="cache-owner-established" />
+              <I18nextProvider i18n={i18n}>
+                {/*
+                 * `DocumentScrollProvider` and `AppShellProviders` sit ABOVE
+                 * `BottomSheetProvider` — and above this component's own
+                 * `children` — on purpose, and moving either back down
+                 * reintroduces a crash.
+                 *
+                 * Two surfaces render content far above where its JSX was
+                 * written, and React resolves context by RENDER position:
+                 * `BottomSheetProvider` parks whatever `setBottomSheetContent`
+                 * is handed in state and renders it beside its own children, and
+                 * bloom's NATIVE portal group re-parents `<Portal>` children onto
+                 * the `<Outlet/>` that `app/_layout.tsx` mounts among the
+                 * children below. Both land at THIS depth. While the app-shell
+                 * contexts lived in `app/(app)/_layout.tsx`, anything either
+                 * surface rendered was outside all of them — the composer's GIF
+                 * picker asked for the video playback authority from inside a
+                 * sheet and threw.
+                 *
+                 * `AppShellProviders` needs `DocumentScrollProvider` above it
+                 * (its `ScreenReselectProvider` scrolls the document back to
+                 * the top), which is why that one moved up too. The tree below
+                 * is unchanged.
+                 */}
+                <DocumentScrollProvider>
+                  <AppShellProviders>
+                    {/* The feed rows' one command controller (#1103). ABOVE the
                         sheet provider, so a post rendered inside a sheet still
                         reaches it; its services are bound from inside the sheet
                         by <PostInteractionsBinder />. */}
-                      <PostInteractionsProvider>
-                        <BottomSheetProvider>
-                          <AppErrorBoundary onError={handleBoundaryError}>
-                            <LiveRoomControllerProvider>
-                              <ScreenReselectProvider>
-                                {children}
-                                <StatusBar style="auto" />
-                                {/*
-                                 * No <ToastOutlet /> here on purpose. Bloom's toast
-                                 * stack must be mounted exactly once — every mount
-                                 * subscribes to the same store and renders the same
-                                 * rows, so a second outlet shows every toast twice.
-                                 * OxyProvider above already mounts one at the app
-                                 * root, and it carries Bloom's defaults.
-                                 */}
-                                {/*
-                                 * Same for Bloom's imperative surface stack:
-                                 * OxyProvider mounts the one <SurfaceProvider>, and
-                                 * confirm(), alert() and the action menu
-                                 * (showActionMenu) all present into it.
-                                 */}
-                                <PostInteractionsBinder />
-                                <ContentDialogHost />
-                                <FediverseInfoDialogProvider />
-                                <ChannelInfoDialogProvider />
-                              </ScreenReselectProvider>
-                              <LiveFeatureHost />
-                              {/*
-                               * The one live-presence poll. Inside
-                               * AccountSwitchReset so it is viewer-scoped and
-                               * torn down with the previous identity.
-                               */}
-                              <LivePresencePoller />
-                            </LiveRoomControllerProvider>
-                          </AppErrorBoundary>
-                        </BottomSheetProvider>
-                      </PostInteractionsProvider>
-                    </AppShellProviders>
-                  </LayoutScrollProvider>
-                </I18nextProvider>
-              </AccountSwitchReset>
-            </StickersProvider>
-          </OxyProvider>
-        </KeyboardProvider>
+                    <PostInteractionsProvider>
+                      <BottomSheetProvider>
+                        <AppErrorBoundary>
+                          <LiveRoomControllerProvider>
+                            {children}
+                            {/*
+                             * No <ToastOutlet /> here on purpose. Bloom's toast
+                             * stack must be mounted exactly once — every mount
+                             * subscribes to the same store and renders the same
+                             * rows, so a second outlet shows every toast twice.
+                             * OxyProvider above already mounts one at the app
+                             * root, and it carries Bloom's defaults.
+                             */}
+                            {/*
+                             * Same for Bloom's imperative surface stack:
+                             * OxyProvider mounts the one <SurfaceProvider>, and
+                             * confirm(), alert() and the action menu
+                             * (showActionMenu) all present into it.
+                             */}
+                            <PostInteractionsBinder />
+                            <ContentDialogHost />
+                            <FediverseInfoDialogProvider />
+                            <ChannelInfoDialogProvider />
+                            <LiveFeatureHost />
+                            {/*
+                             * The one live-presence poll. Inside
+                             * AccountSwitchReset so it is viewer-scoped and
+                             * torn down with the previous identity.
+                             */}
+                            <LivePresencePoller />
+                          </LiveRoomControllerProvider>
+                        </AppErrorBoundary>
+                      </BottomSheetProvider>
+                    </PostInteractionsProvider>
+                  </AppShellProviders>
+                </DocumentScrollProvider>
+              </I18nextProvider>
+            </AccountSwitchReset>
+          </StickersProvider>
+        </OxyProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );

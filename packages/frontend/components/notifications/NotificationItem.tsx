@@ -26,8 +26,8 @@ import { LinkifiedText } from '../common/LinkifiedText';
 import { ProfileHoverCard } from '../ProfileHoverCard';
 import { AccountBadge } from '@/components/AccountBadge';
 import CollabAcceptSheet from '@/components/Compose/CollabAcceptSheet';
-import { DoneAllIcon } from '@/assets/icons/done-all-icon';
-import { TrashIcon } from '@/assets/icons/trash-icon';
+import { RiCheckDoubleLine } from '@oxy.so/bloom/icons/RiCheckDoubleLine';
+import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { getDescriptor, type TranslateFn } from './notificationDescriptors';
 import { useUserById } from '@/hooks/useCachedUser';
 import { useKnownIdentitySet, type IdentityUpdate } from '@/stores/identityUpdates';
@@ -543,7 +543,13 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
     if (hasUnread) {
       rows.push({
         key: 'mark-read',
-        icon: <DoneAllIcon size={ACTION_ICON_SIZE} color={theme.colors.textSecondary} />,
+        icon: (
+          <RiCheckDoubleLine
+            width={ACTION_ICON_SIZE}
+            height={ACTION_ICON_SIZE}
+            fill={theme.colors.textSecondary}
+          />
+        ),
         label: t('notification.mark_read', { defaultValue: 'Mark as read' }),
         onPress: () => {
           bottomSheet.openBottomSheet(false);
@@ -553,7 +559,13 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
     }
     rows.push({
       key: 'delete',
-      icon: <TrashIcon size={ACTION_ICON_SIZE} color={theme.colors.error} />,
+      icon: (
+        <RiDeleteBinLine
+          width={ACTION_ICON_SIZE}
+          height={ACTION_ICON_SIZE}
+          fill={theme.colors.error}
+        />
+      ),
       label: t('notification.delete', { defaultValue: 'Delete' }),
       destructive: true,
       onPress: () => {
@@ -739,7 +751,11 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
               style={{ backgroundColor: badgeColor }}
             >
               {descriptor.iconComponent ? (
-                <descriptor.iconComponent size={BADGE_ICON_SIZE} color={BADGE_GLYPH_COLOR} />
+                <descriptor.iconComponent
+                  width={BADGE_ICON_SIZE}
+                  height={BADGE_ICON_SIZE}
+                  fill={BADGE_GLYPH_COLOR}
+                />
               ) : (
                 <Ionicons name={descriptor.icon} size={BADGE_ICON_SIZE} color={BADGE_GLYPH_COLOR} />
               )}
@@ -783,7 +799,6 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                       isFederated={resolvedPrimary.isFederated}
                       kind={resolvedPrimary.kind}
                       size={13}
-                      className="text-muted-foreground"
                       containerClassName="self-center ml-1"
                     />
                   ) : null}

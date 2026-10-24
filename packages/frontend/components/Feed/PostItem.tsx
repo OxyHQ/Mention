@@ -39,8 +39,8 @@ import { Text as BloomText } from '@oxy.so/bloom/typography';
 import { useTranslation } from 'react-i18next';
 import { usePostInteractions } from './postInteractions';
 import { showRepostMenu } from './showRepostMenu';
-import { PinIcon } from '@/assets/icons/pin-icon';
-import { BoostIcon } from '@/assets/icons/boost-icon';
+import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
+import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { usePostLanguage } from '@/hooks/usePostLanguage';
 import { usePostLanguagePicker } from '@/hooks/usePostLanguagePicker';
 import { showContentDialog } from '@/components/common/ContentDialog';
@@ -814,7 +814,7 @@ const PostItem: React.FC<PostItemProps> = ({
       <ProfileHoverCard key="reposted" username={reposterHandle}>
         <View className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
           <View className="-ml-4 mr-[3px]">
-            <BoostIcon size={13} color={theme.colors.textSecondary} />
+            <RiRepeat2Line width={13} height={13} fill={theme.colors.textSecondary} />
           </View>
           {reposterHref ? (
             // A link to the BOOSTER's profile. The click stops here:
@@ -884,7 +884,7 @@ const PostItem: React.FC<PostItemProps> = ({
         >
           <View className="-ml-4 mr-[3px]">
             {isBoostSocialContext ? (
-              <BoostIcon size={13} color={theme.colors.textSecondary} />
+              <RiRepeat2Line width={13} height={13} fill={theme.colors.textSecondary} />
             ) : (
               <RiHeartFill width={13} height={13} fill={theme.colors.textSecondary} />
             )}
@@ -906,7 +906,7 @@ const PostItem: React.FC<PostItemProps> = ({
         style={{ height: POST_CONTEXT_ROW_HEIGHT }}
       >
         <View className="-ml-4 mr-[3px]">
-          <PinIcon size={13} className="text-muted-foreground" />
+          <RiPushpinLine width={13} height={13} fill={theme.colors.textSecondary} />
         </View>
         <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
           {t('post.pinned', { defaultValue: 'Pinned' })}

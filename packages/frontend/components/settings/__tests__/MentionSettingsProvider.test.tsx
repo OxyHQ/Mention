@@ -140,5 +140,6 @@ it('retains every settings address and rejects unrelated routes', () => {
     expect(settingsPageFromRoute(page === 'account' ? '/settings' : `/settings/${page}`)).toBe(
       page,
     );
+  expect(settingsPageFromRoute('/edit-profile')).toBe('edit-profile');
   expect(settingsPageFromRoute('/transparency')).toBeNull();
 });

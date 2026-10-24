@@ -1,10 +1,11 @@
 import { FormSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Card } from '@oxy.so/bloom/card';
 import { Divider } from '@oxy.so/bloom/divider';
@@ -225,18 +226,18 @@ function EditListMembersScreen() {
 
   if (loading) {
     return (
-      <View className="flex-1">
-        {header}
-        <FormSkeleton />
-      </View>
+      <Screen header={header}>
+        <ScreenScrollView>
+          <FormSkeleton />
+        </ScreenScrollView>
+      </Screen>
     );
   }
 
   if (error) {
     return (
-      <View className="flex-1">
-        {header}
-        <View className="flex-1 items-center justify-center gap-3 px-8">
+      <Screen header={header}>
+        <ScreenScrollView contentContainerClassName="flex-1 items-center justify-center gap-3 px-8">
           <RiAlertLine size="3xl" fill={theme.colors.textSecondary} />
           <Text className="text-muted-foreground text-base text-center">{error}</Text>
           <TouchableOpacity onPress={load}>
@@ -244,18 +245,14 @@ function EditListMembersScreen() {
               {t('common.retry', { defaultValue: 'Try again' })}
             </Text>
           </TouchableOpacity>
-        </View>
-      </View>
+        </ScreenScrollView>
+      </Screen>
     );
   }
 
   return (
-    <View className="flex-1">
-      {header}
-      <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
-        keyboardShouldPersistTaps="handled"
-      >
+    <Screen header={header}>
+      <ScreenScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
         <Field
           label={t('lists.edit.addMembers', { defaultValue: 'Add members' })}
           style={{ marginBottom: 10 }}
@@ -358,8 +355,8 @@ function EditListMembersScreen() {
             })}
           </Card>
         )}
-      </ScrollView>
-    </View>
+      </ScreenScrollView>
+    </Screen>
   );
 }
 

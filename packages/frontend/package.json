@@ -106,7 +106,7 @@
     "@expo/vector-icons": "^15.1.1",
     "@livekit/react-native": "^3.1.0",
     "@livekit/react-native-expo-plugin": "^1.1.0",
-    "@livekit/react-native-webrtc": "^144.2.0",
+    "@livekit/react-native-webrtc": "^150.1.0",
     "@lottiefiles/dotlottie-react": "^0.20.0",
     "@lottiefiles/dotlottie-web": "0.81.0",
     "@mention/shared-types": "workspace:*",
@@ -159,7 +159,6 @@
     "expo-share-intent": "^8.0.1",
     "expo-splash-screen": "~58.0.10",
     "expo-sqlite": "~58.0.13",
-    "expo-status-bar": "~58.0.3",
     "expo-system-ui": "~58.0.6",
     "expo-video": "~58.0.12",
     "expo-web-browser": "~58.0.6",
@@ -224,6 +223,13 @@
     "lightningcss-linux-x64-gnu": "1.30.1"
   },
   "expo": {
+    "autolinking": {
+      "android": {
+        "buildFromSource": [
+          "expo-video"
+        ]
+      }
+    },
     "install": {
       "exclude": [
         "jest",

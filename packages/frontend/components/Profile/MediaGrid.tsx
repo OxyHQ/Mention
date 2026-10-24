@@ -24,8 +24,6 @@ interface MediaGridProps {
   listContentHeaderComponent?: React.ReactElement | null;
   listStickyHeaderComponent?: React.ReactElement | null;
   contentContainerStyle?: React.ComponentProps<typeof View>['style'];
-  onScroll?: React.ComponentProps<typeof ProfileGridList<MediaGridEntry>>['onScroll'];
-  scrollRef?: React.ComponentProps<typeof ProfileGridList<MediaGridEntry>>['scrollRef'];
 }
 
 interface MediaGridEntry extends ProfileGridEntry {
@@ -81,8 +79,6 @@ const MediaGrid: React.FC<MediaGridProps> = ({
   listContentHeaderComponent,
   listStickyHeaderComponent,
   contentContainerStyle,
-  onScroll,
-  scrollRef,
 }) => {
   const router = useRouter();
   const theme = useTheme();
@@ -252,8 +248,6 @@ const MediaGrid: React.FC<MediaGridProps> = ({
       listStickyHeaderComponent={listStickyHeaderComponent}
       emptyComponent={emptyContent}
       contentContainerStyle={contentContainerStyle}
-      onScroll={onScroll}
-      scrollRef={scrollRef}
       onEndReached={loadMore}
     />
   );

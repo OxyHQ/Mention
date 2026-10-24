@@ -1,4 +1,4 @@
-import { Screen } from '@oxy.so/bloom/screen';
+import { Screen, type ScreenProps } from '@oxy.so/bloom/screen';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Text } from '@oxy.so/bloom/typography';
@@ -148,22 +148,23 @@ function AuthorizedConnectionsScreen() {
   // column in the Deck; an exact seed has no claim, so it scopes the content.
   return (
     <BloomColorScope seed={color?.seed} asChild>
-      <Screen colorPreset={color?.colorPreset}>
-        <ConnectionsContent
-          routeUsername={username}
-          cleanUsername={cleanUsername}
-          profileData={profileData}
-          profileLoading={profileLoading}
-          profileError={profileError}
-          profileNotFound={profileNotFound}
-          refreshProfile={refreshProfile}
-        />
-      </Screen>
+      <ConnectionsContent
+        colorPreset={color?.colorPreset}
+        routeUsername={username}
+        cleanUsername={cleanUsername}
+        profileData={profileData}
+        profileLoading={profileLoading}
+        profileError={profileError}
+        profileNotFound={profileNotFound}
+        refreshProfile={refreshProfile}
+      />
     </BloomColorScope>
   );
 }
 
 interface ConnectionsContentProps {
+  /** The profile's color preset: the Screen's claim (see ProfileShell). */
+  colorPreset?: ScreenProps['colorPreset'];
   routeUsername?: string;
   cleanUsername: string;
   profileData: ProfileData | null;
@@ -176,6 +177,7 @@ interface ConnectionsContentProps {
 }
 
 function ConnectionsContent({
+  colorPreset,
   routeUsername,
   cleanUsername,
   profileData,
@@ -530,7 +532,9 @@ function ConnectionsContent({
   // the profile in the URL to exist.
   const needsProfile = !isRecommendationsTab;
 
-  const renderContent = () => {
+  // One list in every state, so Bloom pads each of them (the skeleton, the
+  // failures, the empty tab) clear of the header and the bottom bar.
+  const renderEmpty = () => {
     if (needsProfile && !profileData && !profileLoading && profileError) {
       return (
         <ProfileUnavailable
@@ -543,7 +547,7 @@ function ConnectionsContent({
       );
     }
 
-    if (activeError && currentData.length === 0 && !activeLoading) {
+    if (activeError && !activeLoading) {
       return (
         <ErrorComponent
           title={t('Error', { defaultValue: 'Error' })}
@@ -558,28 +562,47 @@ function ConnectionsContent({
     // Every tab of this screen is a list of the SAME user row, so both waits (the
     // tab's own fetch, and the profile lookup that keys it) paint the row
     // skeletons rather than a centered spinner the list then replaces.
-    const isWaitingForRows =
-      (activeLoading && currentData.length === 0) || (needsProfile && profileLoading);
-    if (isWaitingForRows) {
+    if (activeLoading || (needsProfile && profileLoading)) {
       return <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />;
     }
 
     return (
+      <EmptyState
+        title={getEmptyMessage()}
+        subtitle={getEmptySubtitle() || undefined}
+        sticker={EMPTY_STICKER_BY_TAB[activeTab]}
+        containerStyle={{ paddingTop: 60 }}
+      />
+    );
+  };
+
+  return (
+    <Screen
+      colorPreset={colorPreset}
+      header={
+        <PageHeader
+          title={getTitle()}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+          accessory={
+            <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
+              {tabs.map((tab: { id: string; label: string; count?: number }) => (
+                <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
+              ))}
+            </Tabs>
+          }
+        />
+      }
+    >
       <VirtualList
+        screen={{}}
         data={currentData}
         renderItem={renderUser}
         keyExtractor={(item: ConnectionUser) =>
           String(item.id || item._id || item.userID || item.username)
         }
         ListHeaderComponent={activeTab === 'who-may-know' ? renderInviteBanner : undefined}
-        ListEmptyComponent={
-          <EmptyState
-            title={getEmptyMessage()}
-            subtitle={getEmptySubtitle() || undefined}
-            sticker={EMPTY_STICKER_BY_TAB[activeTab]}
-            containerStyle={{ paddingTop: 60 }}
-          />
-        }
+        ListEmptyComponent={renderEmpty()}
         removeClippedSubviews={false}
         maxToRenderPerBatch={10}
         windowSize={10}
@@ -590,24 +613,6 @@ function ConnectionsContent({
         refreshing={activeRefreshing}
         onRefresh={refreshCurrent}
       />
-    );
-  };
-
-  return (
-    <View className="flex-1">
-      <PageHeader
-        title={getTitle()}
-        onBack={() => safeBack()}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-      />
-
-      <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
-        {tabs.map((tab: { id: string; label: string; count?: number }) => (
-          <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
-        ))}
-      </Tabs>
-
-      {renderContent()}
-    </View>
+    </Screen>
   );
 }

@@ -4,6 +4,7 @@ import { View } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import Animated, {
   useDerivedValue,
+  useSharedValue,
   useAnimatedStyle,
   interpolate,
   Extrapolation,
@@ -13,7 +14,6 @@ import { ZoomableAvatar } from '@/components/ZoomableAvatar';
 import { LiveAvatar } from '@/components/ui/LiveAvatar';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { useLiveUser } from '@/stores/livePresenceStore';
-import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
 import { Button } from '@oxy.so/bloom/button';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
@@ -77,12 +77,12 @@ export const ProfileHeader = memo(function ProfileHeader({
   useFederatedFollowSync(profileId, isFederated, actorUri);
 
   // Normalized 0 → 1 collapse driver for the avatar shrink, derived on the UI
-  // thread from the current Bloom viewport, so a previous route cannot leave
-  // this avatar collapsed. Maps the first
-  // HEADER_HEIGHT_EXPANDED px of scroll to the full shrink; clamped past that.
-  const { scrollPosition: legacyScrollPosition } = useLayoutScroll();
-  const ownerScrollPosition = useScrollOffset();
-  const scrollPosition = ownerScrollPosition ?? legacyScrollPosition;
+  // thread from this profile's own Screen offset, so a previous route cannot
+  // leave this avatar collapsed. Maps the first HEADER_HEIGHT_EXPANDED px of
+  // scroll to the full shrink; clamped past that.
+  const screenOffset = useScrollOffset();
+  const atRest = useSharedValue(0);
+  const scrollPosition = screenOffset ?? atRest;
   const avatarCollapseProgress = useDerivedValue(() =>
     interpolate(
       scrollPosition.value,

@@ -56,8 +56,6 @@ interface ProfileTabsRuntimeProps extends ProfileTabsProps {
   listStickyHeaderComponent?: React.ReactElement | null;
   listOwnsScroll?: boolean;
   listContentContainerStyle?: React.ComponentProps<typeof View>['style'];
-  listOnScroll?: React.ComponentProps<typeof MediaGrid>['onScroll'];
-  listScrollRef?: React.ComponentProps<typeof MediaGrid>['scrollRef'];
 }
 
 /**
@@ -77,8 +75,6 @@ export const ProfileTabs = memo(function ProfileTabs({
   listStickyHeaderComponent,
   listOwnsScroll = false,
   listContentContainerStyle,
-  listOnScroll,
-  listScrollRef,
   onProfileRefresh,
 }: ProfileTabsRuntimeProps) {
   const theme = useTheme();
@@ -207,8 +203,6 @@ export const ProfileTabs = memo(function ProfileTabs({
         listContentHeaderComponent={listContentHeaderComponent}
         listStickyHeaderComponent={listStickyHeaderComponent}
         contentContainerStyle={listContentContainerStyle}
-        onScroll={listOnScroll}
-        scrollRef={listScrollRef}
       />
     );
   }
@@ -225,8 +219,6 @@ export const ProfileTabs = memo(function ProfileTabs({
         listContentHeaderComponent={listContentHeaderComponent}
         listStickyHeaderComponent={listStickyHeaderComponent}
         contentContainerStyle={listContentContainerStyle}
-        onScroll={listOnScroll}
-        scrollRef={listScrollRef}
       />
     );
   }

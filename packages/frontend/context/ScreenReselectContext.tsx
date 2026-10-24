@@ -9,7 +9,7 @@ import {
   useState,
 } from 'react';
 import { useIsFocused } from '@/lib/navigation/router';
-import { useLayoutScroll } from '@/context/LayoutScrollContext';
+import { useDocumentScroller } from '@/context/DocumentScroll';
 import { useRefSync } from '@/hooks/useRefSync';
 
 /**
@@ -19,8 +19,8 @@ import { useRefSync } from '@/hooks/useRefSync';
  * reader back to the top, and a press while already there reloads.
  *
  * A screen only says HOW it reloads. Where the top is belongs to whoever owns
- * the scroller: the web document or the registered native list
- * (`LayoutScrollContext`). A screen that drives its own scroller (the reel,
+ * the scroller: the web document, or the native list in front
+ * (`useReselectScroller`). A screen that drives its own scroller (the reel,
  * where the top is the first slide) supplies both halves itself.
  */
 export type ReselectHandler = {
@@ -32,48 +32,68 @@ export type ReselectHandler = {
 /** Within this many points of the top, the reader is at the top. */
 export const AT_TOP_THRESHOLD = 4;
 
-/**
- * Whether an offset is the top. A screen with no scroller to measure (`null`)
- * cannot be anywhere else.
- */
-export function isOffsetAtTop(offset: number | null): boolean {
-  return offset === null || offset <= AT_TOP_THRESHOLD;
-}
+/** The scroller in front: where it is, and how to move it. */
+export type ReselectScroller = {
+  offset: () => number;
+  scrollToOffset: (offset: number) => void;
+};
 
 type ScreenReselectContextValue = {
   reselect: () => void;
   register: (read: () => ReselectHandler) => () => void;
+  registerScroller: (read: () => ReselectScroller) => () => void;
+  frontScroller: () => ReselectScroller | null;
 };
 
-const ScreenReselectContext = createContext<ScreenReselectContextValue | null>(null);
-
-export function ScreenReselectProvider({ children }: { children: React.ReactNode }) {
-  const { getScrollOffset, scrollToTop } = useLayoutScroll();
-  // One slot, last registration wins, and a cleanup only clears the slot it
-  // filled — the same ownership rule as `registerScrollable`, for the same
-  // reason: a screen that lost focus must not take the next screen's slot
-  // with it when it unregisters late.
-  const activeRef = useRef<{ id: number; read: () => ReselectHandler } | null>(null);
+/**
+ * One slot, last registration wins, and a cleanup only clears the slot it
+ * filled: a screen that lost focus must not take the next screen's slot with
+ * it when it unregisters late.
+ */
+function useSlot<T>() {
+  const activeRef = useRef<{ id: number; read: () => T } | null>(null);
   const counterRef = useRef(0);
-
-  const register = useCallback((read: () => ReselectHandler) => {
+  const register = useCallback((read: () => T) => {
     const id = ++counterRef.current;
     activeRef.current = { id, read };
     return () => {
       if (activeRef.current?.id === id) activeRef.current = null;
     };
   }, []);
+  const read = useCallback(() => activeRef.current?.read() ?? null, []);
+  return [register, read] as const;
+}
+
+const ScreenReselectContext = createContext<ScreenReselectContextValue | null>(null);
+
+export function ScreenReselectProvider({ children }: { children: React.ReactNode }) {
+  const [register, readHandler] = useSlot<ReselectHandler>();
+  const [registerScroller, readScroller] = useSlot<ReselectScroller>();
+  const documentScroller = useDocumentScroller();
+
+  const frontScroller = useCallback(
+    () => readScroller() ?? documentScroller,
+    [readScroller, documentScroller],
+  );
 
   const reselect = useCallback(() => {
-    const handler = activeRef.current?.read();
+    const handler = readHandler();
+    const scroller = frontScroller();
     // Away from the top a press only scrolls; at the top it also reloads,
-    // and the scroll keeps what arrives in view.
-    const atTop = handler?.isAtTop ? handler.isAtTop() : isOffsetAtTop(getScrollOffset());
-    (handler?.scrollToTop ?? scrollToTop)();
+    // and the scroll keeps what arrives in view. A screen with nothing to
+    // scroll cannot be anywhere but its top.
+    const atTop = handler?.isAtTop
+      ? handler.isAtTop()
+      : (scroller?.offset() ?? 0) <= AT_TOP_THRESHOLD;
+    if (handler?.scrollToTop) handler.scrollToTop();
+    else scroller?.scrollToOffset(0);
     if (atTop) void handler?.refresh?.();
-  }, [getScrollOffset, scrollToTop]);
+  }, [readHandler, frontScroller]);
 
-  const value = useMemo(() => ({ reselect, register }), [reselect, register]);
+  const value = useMemo(
+    () => ({ reselect, register, registerScroller, frontScroller }),
+    [reselect, register, registerScroller, frontScroller],
+  );
 
   return <ScreenReselectContext.Provider value={value}>{children}</ScreenReselectContext.Provider>;
 }
@@ -92,17 +112,40 @@ export function useReselect(): () => void {
 /**
  * Declare what reselecting this screen means. Registered only while the screen
  * is focused: the native tab pager keeps every tab mounted, and a background
- * tab must never answer for the one in front of the reader.
+ * tab must never answer for the one in front of the reader. Outside every
+ * screen (a list in a sheet or a dialog) there is nothing to answer.
  */
 export function useScreenReselect(handler: ReselectHandler) {
-  const { register } = useScreenReselectContext();
+  const register = useContext(ScreenReselectContext)?.register;
   const isFocused = useIsFocused();
   const handlerRef = useRefSync(handler);
 
   useEffect(() => {
-    if (!isFocused) return;
+    if (!isFocused || !register) return;
     return register(() => handlerRef.current);
   }, [isFocused, register, handlerRef]);
+}
+
+/**
+ * The list in front answers where it is and moves when asked: a reselect takes
+ * it to the top, a profile to its tabs. Registered only while its screen is
+ * focused, for the same reason as {@link useScreenReselect}, and only by a list
+ * that scrolls itself (`enabled`). A list in a sheet or a dialog, outside every
+ * screen, registers nothing.
+ */
+export function useReselectScroller(scroller: ReselectScroller, enabled = true) {
+  const registerScroller = useContext(ScreenReselectContext)?.registerScroller;
+  const isFocused = useIsFocused();
+  const scrollerRef = useRefSync(scroller);
+  useEffect(() => {
+    if (!isFocused || !enabled || !registerScroller) return;
+    return registerScroller(() => scrollerRef.current);
+  }, [isFocused, enabled, registerScroller, scrollerRef]);
+}
+
+/** The scroller in front of the reader — a focused list, else the web document. */
+export function useFrontScroller(): () => ReselectScroller | null {
+  return useScreenReselectContext().frontScroller;
 }
 
 /**

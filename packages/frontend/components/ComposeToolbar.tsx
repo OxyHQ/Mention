@@ -10,15 +10,15 @@ import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
-import { MediaIcon } from '@/assets/icons/media-icon';
-import { PollIcon } from '@/assets/icons/poll-icon';
-import { LocationIcon } from '@/assets/icons/location-icon';
-import { EmojiIcon } from '@/assets/icons/emoji-icon';
-import { GifIcon } from '@/assets/icons/gif-icon';
-import { SourcesIcon } from '@/assets/icons/sources-icon';
-import { ArticleIcon } from '@/assets/icons/article-icon';
-import { CalendarIcon } from '@/assets/icons/calendar-icon';
-import { LaneIcon } from '@/assets/icons/lane-icon';
+import { RiBarChartHorizontalLine } from '@oxy.so/bloom/icons/RiBarChartHorizontalLine';
+import { RiCalendarEventLine } from '@oxy.so/bloom/icons/RiCalendarEventLine';
+import { RiEmotionHappyLine } from '@oxy.so/bloom/icons/RiEmotionHappyLine';
+import { RiFileGifLine } from '@oxy.so/bloom/icons/RiFileGifLine';
+import { RiFileList2Line } from '@oxy.so/bloom/icons/RiFileList2Line';
+import { RiGalleryLine } from '@oxy.so/bloom/icons/RiGalleryLine';
+import { RiLinksLine } from '@oxy.so/bloom/icons/RiLinksLine';
+import { RiMapPinLine } from '@oxy.so/bloom/icons/RiMapPinLine';
+import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
 import Ionicons from '@/components/common/Ionicons';
 
 /**
@@ -172,7 +172,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(
             onPress={withHaptic(onMediaPress)}
             disabled={disabled || hasPoll}
           >
-            {(color) => <MediaIcon size={20} color={color} />}
+            {(color) => <RiGalleryLine width={20} height={20} fill={color} />}
           </ToolbarAction>
         )}
 
@@ -182,7 +182,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(
             onPress={withHaptic(onGifPress)}
             disabled={disabled}
           >
-            {(color) => <GifIcon size={20} color={color} />}
+            {(color) => <RiFileGifLine width={20} height={20} fill={color} />}
           </ToolbarAction>
         )}
 
@@ -192,7 +192,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(
             onPress={withHaptic(onEmojiPress)}
             disabled={disabled}
           >
-            {(color) => <EmojiIcon size={20} color={color} />}
+            {(color) => <RiEmotionHappyLine width={20} height={20} fill={color} />}
           </ToolbarAction>
         )}
 
@@ -203,7 +203,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(
             disabled={disabled || hasMedia}
             active={hasPoll}
           >
-            {(color) => <PollIcon size={20} color={color} />}
+            {(color) => <RiBarChartHorizontalLine width={20} height={20} fill={color} />}
           </ToolbarAction>
         )}
 
@@ -215,7 +215,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(
             invalid={hasSourceErrors}
             active={hasSources}
           >
-            {(color) => <SourcesIcon size={20} color={color} />}
+            {(color) => <RiLinksLine width={20} height={20} fill={color} />}
           </ToolbarAction>
         )}
 
@@ -226,7 +226,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(
             disabled={disabled}
             active={hasArticle}
           >
-            {(color) => <ArticleIcon size={20} color={color} />}
+            {(color) => <RiFileList2Line width={20} height={20} fill={color} />}
           </ToolbarAction>
         )}
 
@@ -237,7 +237,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(
             disabled={disabled}
             active={hasEvent}
           >
-            {(color) => <CalendarIcon size={20} color={color} />}
+            {(color) => <RiCalendarEventLine width={20} height={20} fill={color} />}
           </ToolbarAction>
         )}
 
@@ -307,7 +307,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(
                         federation are untouched by it. It is a track the post is
                         filed on. The tint carries the on/off state, the way every
                         other icon in this row signals its attachment. */}
-            {(color) => <LaneIcon size={20} color={color} />}
+            {(color) => <RiNodeTree width={20} height={20} fill={color} />}
           </ToolbarAction>
         )}
 
@@ -328,7 +328,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(
                   style={{ flex: undefined }}
                 />
               ) : (
-                <LocationIcon size={20} color={color} />
+                <RiMapPinLine width={20} height={20} fill={color} />
               )
             }
           </ToolbarAction>

@@ -19,11 +19,11 @@ import { refreshPrivacyLists } from '@/services/privacyService';
 import { setPrivacyListMembership } from '@/hooks/usePrivacyControls';
 import { reportService } from '@/services/reportService';
 import { confirmDialog } from '@/utils/alerts';
-import { List as ListIcon } from '@/assets/icons/list-icon';
-import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
-import { MuteIcon } from '@/assets/icons/mute-icon';
-import { BlockIcon } from '@/assets/icons/block-icon';
-import { ReportIcon } from '@/assets/icons/report-icon';
+import { RiForbidLine } from '@oxy.so/bloom/icons/RiForbidLine';
+import { RiListUnordered } from '@oxy.so/bloom/icons/RiListUnordered';
+import { RiMicOffLine } from '@oxy.so/bloom/icons/RiMicOffLine';
+import { RiRocket2Line } from '@oxy.so/bloom/icons/RiRocket2Line';
+import { RiSpamLine } from '@oxy.so/bloom/icons/RiSpamLine';
 import type { ProfileData } from '@/hooks/useProfileData';
 
 /** What the profile's "…" button needs: the menu's name and its groups, built on open. */
@@ -218,13 +218,13 @@ export function ProfileMoreMenu({
         {canUsePrivateApi ? (
           <>
             <DropdownMenuItem
-              leading={<ListIcon size={22} className="text-foreground" />}
+              leading={<RiListUnordered width={22} height={22} fill={theme.colors.text} />}
               onPress={handleAddToList}
             >
               {t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' })}
             </DropdownMenuItem>
             <DropdownMenuItem
-              leading={<StarterPackIcon size={22} className="text-foreground" />}
+              leading={<RiRocket2Line width={22} height={22} fill={theme.colors.text} />}
               onPress={handleAddToStarterPack}
             >
               {t('starterPacks.addTo.menuItem', {
@@ -234,7 +234,7 @@ export function ProfileMoreMenu({
             {viewerOperatesAccount ? null : (
               <>
                 <DropdownMenuItem
-                  leading={<MuteIcon size={22} className="text-foreground" />}
+                  leading={<RiMicOffLine width={22} height={22} fill={theme.colors.text} />}
                   onPress={handleMute}
                 >
                   {t('profile.muteUser', {
@@ -245,7 +245,7 @@ export function ProfileMoreMenu({
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   variant="destructive"
-                  leading={<BlockIcon size={22} color={theme.colors.error} />}
+                  leading={<RiForbidLine width={22} height={22} fill={theme.colors.error} />}
                   onPress={handleBlock}
                 >
                   {t('profile.blockUser', {
@@ -255,7 +255,7 @@ export function ProfileMoreMenu({
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   variant="destructive"
-                  leading={<ReportIcon size={22} color={theme.colors.error} />}
+                  leading={<RiSpamLine width={22} height={22} fill={theme.colors.error} />}
                   onPress={handleReport}
                 >
                   {t('profile.reportUser', { defaultValue: 'Report' })}

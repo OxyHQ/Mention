@@ -1,25 +1,18 @@
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
-const mockScrollToTop = jest.fn();
-let mockOffset: number | null = 0;
+const mockScrollToOffset = jest.fn();
+let mockOffset = 0;
 let mockFocused = true;
-
-jest.mock('@/context/LayoutScrollContext', () => ({
-  useLayoutScroll: () => ({
-    getScrollOffset: () => mockOffset,
-    scrollToTop: mockScrollToTop,
-  }),
-}));
 jest.mock('expo-router', () => ({ useIsFocused: () => mockFocused }));
 
 // The mocks above must be installed first.
 import {
   AT_TOP_THRESHOLD,
   ScreenReselectProvider,
-  isOffsetAtTop,
   useReselect,
   useReselectReloadKey,
+  useReselectScroller,
   useScreenReselect,
   useTabSelect,
   type ReselectHandler,
@@ -35,12 +28,19 @@ function Screen({ handler }: { handler: ReselectHandler }) {
   return null;
 }
 
+/** The list in front of the reader. */
+function List() {
+  useReselectScroller({ offset: () => mockOffset, scrollToOffset: mockScrollToOffset });
+  return null;
+}
+
 function render(children: React.ReactNode) {
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
     renderer = TestRenderer.create(
       <ScreenReselectProvider>
         <Trigger />
+        <List />
         {children}
       </ScreenReselectProvider>,
     );
@@ -54,24 +54,13 @@ beforeEach(() => {
   mockFocused = true;
 });
 
-describe('isOffsetAtTop', () => {
-  it('reads a screen with nothing to measure as the top', () => {
-    expect(isOffsetAtTop(null)).toBe(true);
-  });
-  it('counts a few points of drift as the top, and anything past them as not', () => {
-    expect(isOffsetAtTop(0)).toBe(true);
-    expect(isOffsetAtTop(AT_TOP_THRESHOLD)).toBe(true);
-    expect(isOffsetAtTop(AT_TOP_THRESHOLD + 1)).toBe(false);
-  });
-});
-
 describe('reselecting the screen in front', () => {
   it('only scrolls back up when the reader is down the page', () => {
     const refresh = jest.fn();
     mockOffset = 800;
     render(<Screen handler={{ refresh }} />);
     act(() => reselect());
-    expect(mockScrollToTop).toHaveBeenCalledTimes(1);
+    expect(mockScrollToOffset).toHaveBeenCalledWith(0);
     expect(refresh).not.toHaveBeenCalled();
   });
 
@@ -80,7 +69,15 @@ describe('reselecting the screen in front', () => {
     render(<Screen handler={{ refresh }} />);
     act(() => reselect());
     expect(refresh).toHaveBeenCalledTimes(1);
-    expect(mockScrollToTop).toHaveBeenCalledTimes(1);
+    expect(mockScrollToOffset).toHaveBeenCalledWith(0);
+  });
+
+  it('counts a few points of drift as the top', () => {
+    const refresh = jest.fn();
+    mockOffset = AT_TOP_THRESHOLD;
+    render(<Screen handler={{ refresh }} />);
+    act(() => reselect());
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 
   it('lets a screen that drives its own scroller decide where its top is', () => {
@@ -94,13 +91,13 @@ describe('reselecting the screen in front', () => {
     atTop = true;
     act(() => reselect());
     expect(refresh).toHaveBeenCalledTimes(1);
-    expect(mockScrollToTop).not.toHaveBeenCalled();
+    expect(mockScrollToOffset).not.toHaveBeenCalled();
   });
 
   it('still scrolls when no screen has said how it reloads', () => {
     render(null);
     act(() => reselect());
-    expect(mockScrollToTop).toHaveBeenCalledTimes(1);
+    expect(mockScrollToOffset).toHaveBeenCalledWith(0);
   });
 
   it('never answers for a screen that is not in front', () => {
@@ -119,6 +116,7 @@ describe('reselecting the screen in front', () => {
       renderer.update(
         <ScreenReselectProvider>
           <Trigger />
+          <List />
           <Screen key="older" handler={{ refresh: older }} />
           <Screen key="newer" handler={{ refresh: newer }} />
         </ScreenReselectProvider>,
@@ -128,6 +126,7 @@ describe('reselecting the screen in front', () => {
       renderer.update(
         <ScreenReselectProvider>
           <Trigger />
+          <List />
           <Screen key="newer" handler={{ refresh: newer }} />
         </ScreenReselectProvider>,
       );
@@ -145,6 +144,7 @@ describe('reselecting the screen in front', () => {
       renderer.update(
         <ScreenReselectProvider>
           <Trigger />
+          <List />
           <Screen handler={{ refresh: second }} />
         </ScreenReselectProvider>,
       );
@@ -153,6 +153,15 @@ describe('reselecting the screen in front', () => {
     expect(second).toHaveBeenCalledTimes(1);
     expect(first).not.toHaveBeenCalled();
   });
+});
+
+it('lets a list outside every screen render without registering', () => {
+  // A feed in a sheet or a dialog sits outside the provider.
+  expect(() =>
+    act(() => {
+      TestRenderer.create(<List />);
+    }),
+  ).not.toThrow();
 });
 
 describe('useTabSelect', () => {

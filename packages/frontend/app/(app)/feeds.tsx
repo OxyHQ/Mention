@@ -2,9 +2,10 @@ import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, RefreshControl, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
@@ -39,10 +40,7 @@ import { formatCompactNumber } from '@/utils/formatNumber';
 import { logger } from '@oxy.so/core/logger';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
-import { FocusedScrollView } from '@/components/common/FocusedScrollView';
 import { useScreenReselect } from '@/context/ScreenReselectContext';
-
-const IS_WEB = Platform.OS === 'web';
 
 /**
  * Live trends offered on this screen.
@@ -521,44 +519,36 @@ const FeedsScreen: React.FC = () => {
   return (
     <>
       <SEO title={t('seo.feeds.title')} description={t('seo.feeds.description')} />
-      <View className="flex-1 relative flex-col">
-        <PageHeader
-          title={t('Feeds')}
-          actions={
-            <Button
-              appearance="subtle"
-              tone="neutral"
-              iconOnly
-              leadingIcon={RiSettings3Line}
-              onPress={() => requestSettings('/settings/feed')}
-              accessibilityLabel={t('sidebar.settings', { defaultValue: 'Settings' })}
-            />
-          }
-        />
-
-        {/* WEB: the document (body) is the scroller — the shell owns scroll, so
-            the directory renders in normal flow. A ScrollView here would nest a
-            second scroll container inside the ContentPanel and break the sticky
-            side rails, window scroll-restoration and bottom-bar auto-hide.
-            NATIVE: a ScrollView is the correct screen scroller (with
-            pull-to-refresh). */}
-        {IS_WEB ? (
-          <View className="px-4">{content}</View>
-        ) : (
-          <FocusedScrollView
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor={theme.colors.primary}
+      <Screen
+        header={
+          <PageHeader
+            title={t('Feeds')}
+            actions={
+              <Button
+                appearance="subtle"
+                tone="neutral"
+                iconOnly
+                leadingIcon={RiSettings3Line}
+                onPress={() => requestSettings('/settings/feed')}
+                accessibilityLabel={t('sidebar.settings', { defaultValue: 'Settings' })}
               />
             }
-            contentContainerStyle={styles.scrollContent}
-          >
-            {content}
-          </FocusedScrollView>
-        )}
+          />
+        }
+      >
+        <ScreenScrollView
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.colors.primary}
+            />
+          }
+          contentContainerStyle={styles.scrollContent}
+        >
+          {content}
+        </ScreenScrollView>
 
         {/* PageAction follows the shell's bottom navigation clearance. */}
         {canEdit ? (
@@ -571,7 +561,7 @@ const FeedsScreen: React.FC = () => {
             />
           </PageAction>
         ) : null}
-      </View>
+      </Screen>
     </>
   );
 };

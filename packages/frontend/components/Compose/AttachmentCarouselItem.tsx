@@ -1,9 +1,10 @@
 import type React from 'react';
 import type { ReactNode } from 'react';
 import { View, TouchableOpacity, type ViewStyle, type StyleProp } from 'react-native';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
-import { CloseIcon } from '@/assets/icons/close-icon';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
+import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { cn } from '@/lib/utils';
 import { HIT_SLOP_SM } from '@/styles/hitSlop';
 
@@ -26,6 +27,7 @@ const AttachmentCarouselItem: React.FC<AttachmentCarouselItemProps> = ({
   wrapperStyle,
   children,
 }) => {
+  const { colors } = useTheme();
   const canMoveLeft = index > 0;
   const canMoveRight = index < total - 1;
 
@@ -41,14 +43,14 @@ const AttachmentCarouselItem: React.FC<AttachmentCarouselItemProps> = ({
             disabled={!canMoveLeft}
             className={cn('rounded-full p-1.5 bg-background', !canMoveLeft && 'opacity-40')}
           >
-            <BackArrowIcon size={14} className="text-muted-foreground" />
+            <RiArrowLeftLine width={14} height={14} fill={colors.textSecondary} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => onMove(attachmentKey, 'right')}
             disabled={!canMoveRight}
             className={cn('rounded-full p-1.5 bg-background', !canMoveRight && 'opacity-40')}
           >
-            <ChevronRightIcon size={14} className="text-muted-foreground" />
+            <RiArrowRightSLine width={14} height={14} fill={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       ) : null}
@@ -61,7 +63,7 @@ const AttachmentCarouselItem: React.FC<AttachmentCarouselItemProps> = ({
         className="absolute top-2 right-2 rounded-full p-1.5 bg-background"
         hitSlop={HIT_SLOP_SM}
       >
-        <CloseIcon size={16} className="text-foreground" />
+        <RiCloseLine width={16} height={16} fill={colors.text} />
       </TouchableOpacity>
     </View>
   );

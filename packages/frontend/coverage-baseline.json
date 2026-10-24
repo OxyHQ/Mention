@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 48.84,
-      "covered": 13875,
-      "total": 28405
+      "pct": 48.28,
+      "covered": 13367,
+      "total": 27683
     },
     "branches": {
-      "pct": 44.14,
-      "covered": 9277,
-      "total": 21015
+      "pct": 44.19,
+      "covered": 9038,
+      "total": 20450
     },
     "functions": {
-      "pct": 43.24,
-      "covered": 3198,
-      "total": 7395
+      "pct": 43.04,
+      "covered": 3101,
+      "total": 7204
     },
     "lines": {
-      "pct": 49.63,
-      "covered": 12598,
-      "total": 25381
+      "pct": 49.06,
+      "covered": 12128,
+      "total": 24716
     }
   },
   "pins": {
@@ -54,10 +54,10 @@
       "lines": 100
     },
     "components/providers/AppProviders.tsx": {
-      "statements": 87,
+      "statements": 100,
       "branches": 100,
-      "functions": 66,
-      "lines": 85
+      "functions": 100,
+      "lines": 100
     },
     "components/providers/AppShellProviders.tsx": {
       "statements": 100,
@@ -347,12 +347,6 @@
       "functions": 100,
       "lines": 100
     },
-    "hooks/useFocusedScrollable.ts": {
-      "statements": 100,
-      "branches": 91,
-      "functions": 100,
-      "lines": 100
-    },
     "hooks/useFollowEntity.ts": {
       "statements": 0,
       "branches": 0,
@@ -386,12 +380,6 @@
     "hooks/useKeyboardShortcuts.ts": {
       "statements": 0,
       "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/useKeyboardVisibility.ts": {
-      "statements": 0,
-      "branches": 100,
       "functions": 0,
       "lines": 0
     },
@@ -460,12 +448,6 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
-    },
-    "hooks/useNavigateOrReselect.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
     },
     "hooks/useOpenInAllo.tsx": {
       "statements": 72,

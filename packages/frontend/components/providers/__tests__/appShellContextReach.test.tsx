@@ -39,7 +39,7 @@ import { usePostInteractions, type PostInteractions } from '@/components/Feed/po
 
 // Only the leaves that need a host environment are mocked. Every provider whose
 // NESTING this test is about — AppShellProviders, BottomSheetProvider,
-// LayoutScrollProvider — is the real one.
+// DocumentScrollProvider — is the real one.
 jest.mock('react-native-safe-area-context', () => ({
   SafeAreaProvider: ({ children }: { children: React.ReactNode }) => children,
   initialWindowMetrics: null,
@@ -53,7 +53,11 @@ jest.mock('react-native-keyboard-controller', () => ({
   KeyboardProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
+// The root status bar reads Bloom's theme; production mounts AppProviders inside BloomProvider.
+jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
+  useTheme: () => ({ isDark: false }),
+}));
 jest.mock('@oxy.so/services/ui/one-video', () => ({ OxyOneVideo: () => null }));
 jest.mock('@alia.onl/sdk/avatar', () => ({ AliaAvatarIcon: () => null }));
 
@@ -67,7 +71,7 @@ jest.mock('@/components/AppSplashScreen', () => ({
 }));
 
 // Reanimated's real entry pulls in the worklets native module, which has no host
-// here. Same minimal stub the LayoutScroll/BottomBarVisibility suites use.
+// here; a minimal stub.
 jest.mock('react-native-reanimated', () => ({
   useSharedValue: (initial: number) => ({ value: initial }),
   useAnimatedReaction: () => {},
@@ -96,6 +100,7 @@ jest.mock('@oxy.so/services/ui/client', () => ({
 
 jest.mock('react-i18next', () => ({
   I18nextProvider: ({ children }: { children: React.ReactNode }) => children,
+  useTranslation: () => ({ t: (key: string) => key }),
 }));
 
 jest.mock('@/lib/i18n', () => ({ __esModule: true, default: {} }));
@@ -141,10 +146,13 @@ jest.mock('@/components/providers/CommunityNoteProvider', () => ({
   CommunityNoteProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-jest.mock('@oxy.so/bloom/tab-bar', () => ({
-  useMinimizeState: () => ({ minimized: { value: 0 } }),
-  setMinimized: () => {},
+// Mention's destinations run for real — every hook they call must be reachable
+// from where the navigation is mounted — over a pass-through Bloom provider,
+// which Bloom's own tests cover.
+jest.mock('@oxy.so/bloom/tab-pager/expo-router', () => ({
+  TabPagerProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
+jest.mock('@/hooks/useUnreadCount', () => ({ useUnreadCount: () => 0 }));
 
 // Renders its children inline instead of behind present/dismiss. The sheet's
 // React POSITION — the only thing under test — is identical either way: on

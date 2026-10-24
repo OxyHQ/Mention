@@ -19,8 +19,8 @@ export type BottomBarContent = 'tabs' | 'sign-in' | null;
 
 /**
  * The bottom edge: the tab bar for a signed-in reader, the sign-in invitation
- * for an anonymous one, and nothing on a full-screen route or over the
- * keyboard. The invitation is owned by the main panel's Screen: its pinned
+ * for an anonymous one, and nothing on a full-screen route. (Bloom hides both
+ * while the keyboard is up.) The invitation is owned by the main panel's Screen: its pinned
  * bar reserves its measured height at the end of the column, so nothing it
  * covers is lost and nothing loading above it moves it. Rendered inline after
  * the route instead, every change in the page's height pushed it down the
@@ -31,16 +31,14 @@ export type BottomBarContent = 'tabs' | 'sign-in' | null;
  */
 export function bottomBarContent({
   pathname,
-  keyboardVisible,
   isAuthenticated,
   isAuthResolved,
 }: {
   pathname: string | null | undefined;
-  keyboardVisible: boolean;
   isAuthenticated: boolean;
   isAuthResolved: boolean;
 }): BottomBarContent {
-  if (keyboardVisible || hidesBottomBar(pathname)) return null;
+  if (hidesBottomBar(pathname)) return null;
   if (isAuthenticated) return 'tabs';
   return isAuthResolved ? 'sign-in' : null;
 }

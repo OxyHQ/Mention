@@ -11,8 +11,7 @@ import { Redirect } from '@/lib/navigation/router';
  *
  * This fork is ALSO what keeps `expo-camera` out of the web bundle: the import
  * lives in `camera.tsx`, which a web build never resolves. Same mechanism, and
- * the same reason, as `components/navigation/TabsPager.web.tsx` and
- * `react-native-pager-view`, and it is checked the same way — the bundle
+ * the same reason, as Bloom's tab pager and `react-native-pager-view`, and it is checked the same way — the bundle
  * analyzer must not find the package in `dist/`.
  */
 export default function CameraPageWeb() {

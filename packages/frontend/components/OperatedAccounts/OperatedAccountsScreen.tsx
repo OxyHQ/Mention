@@ -14,11 +14,11 @@ import { accountNameMaxLength, getNormalizedUserHandle } from '@oxy.so/core';
 import type { AccountNode } from '@oxy.so/core';
 import { logger } from '@oxy.so/core/logger';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useRefreshJoinedCommunitiesAfterCreate } from '@/hooks/useCommunities';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { displayNameOrHandle } from '@/utils/displayName';
-import { FocusedScrollView } from '@/components/common/FocusedScrollView';
 import { useScreenReselect } from '@/context/ScreenReselectContext';
 import { SignInRequired } from '@/components/common/SignInRequired';
 import { profileBasePath, profileRouteFamily } from '@/components/Profile/profileRoute';
@@ -139,15 +139,17 @@ export function OperatedAccountsScreen({ kind, copy }: OperatedAccountsScreenPro
   );
 
   return (
-    <View className="flex-1">
-      <PageHeader
-        title={copy.title}
-        onBack={() => safeBack()}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-      />
-
+    <Screen
+      header={
+        <PageHeader
+          title={copy.title}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+        />
+      }
+    >
       <SignInRequired label={copy.signInRequired} description={copy.signInRequiredDesc}>
-        <FocusedScrollView className="flex-1" contentContainerClassName="pb-10">
+        <ScreenScrollView contentContainerClassName="pb-10">
           <View className="px-4 pt-4 pb-2">
             <Text className="text-foreground text-lg font-bold">{copy.createTitle}</Text>
             <Text className="text-muted-foreground text-[13px] mt-1">{copy.createSubtitle}</Text>
@@ -221,8 +223,8 @@ export function OperatedAccountsScreen({ kind, copy }: OperatedAccountsScreenPro
               );
             })
           )}
-        </FocusedScrollView>
+        </ScreenScrollView>
       </SignInRequired>
-    </View>
+    </Screen>
   );
 }

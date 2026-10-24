@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { Pressable } from 'react-native';
-import { FocusedFlashList } from '@/components/common/FocusedFlashList';
+import { ScreenFlashList } from '@/components/common/ScreenFlashList';
 import PostItem from '@/components/Feed/PostItem';
 import type { SavedPost, SavedPostsListProps } from './SavedPostsList.types';
 
@@ -26,7 +26,7 @@ export default function SavedPostsList({
   return (
     // The saved list is the page: it owns the shared scroll while Saved is in
     // front, so the chrome follows it and reselecting Saved takes it back up.
-    <FocusedFlashList
+    <ScreenFlashList
       data={posts}
       keyExtractor={keyExtractor}
       getItemType={getItemType}

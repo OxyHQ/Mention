@@ -26,7 +26,6 @@ jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToa
 // survive into the rendered tree verbatim — the marker is found as the host
 // element the header rendered, not by a re-encoding of it.
 jest.mock('@oxy.so/bloom/icons', () => ({ RiChat3Fill: 'RiChat3Fill', RiMoreFill: 'RiMoreFill' }));
-jest.mock('@/assets/icons/draw-icon', () => ({ DrawIcon: 'DrawIcon' }));
 jest.mock('@/components/ui/LiveAvatar', () => ({ LiveAvatar: 'LiveAvatar' }));
 jest.mock('@oxy.so/bloom/avatar-group', () => ({ AvatarGroup: 'AvatarGroup' }));
 jest.mock('../../UserName', () => ({ __esModule: true, default: 'UserName' }));
@@ -36,7 +35,6 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 }));
 
 jest.mock('@/components/AccountBadge', () => ({ AccountBadge: () => null }));
-jest.mock('@/assets/icons/boost-icon', () => ({ BoostIcon: () => null }));
 
 /**
  * i18next's own resolution, narrowed to what this file needs: a flat dotted key

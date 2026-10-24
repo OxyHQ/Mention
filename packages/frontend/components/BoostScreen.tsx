@@ -9,13 +9,13 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
   type TextInputInstance,
 } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Divider } from '@oxy.so/bloom/divider';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import type { CreateBoostRequest } from '@mention/shared-types/feed';
@@ -124,114 +124,119 @@ const BoostScreen: React.FC = () => {
       className="flex-1"
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      {/* Header */}
-      <View
-        className="flex-row justify-between items-center px-4"
-        style={{ paddingBottom: 12, paddingTop: insets.top }}
-      >
-        <TouchableOpacity onPress={handleCancel} className="py-2 px-3">
-          <Text className="text-primary text-base font-semibold">Cancel</Text>
-        </TouchableOpacity>
-
-        <View className="flex-row items-center">
-          <TouchableOpacity
-            className="rounded-full px-5 py-2"
-            style={[!canBoost && { opacity: 0.5 }]}
-            onPress={handleBoost}
-            disabled={!canBoost}
-          >
-            <Text className="text-base font-bold" style={[!canBoost && { opacity: 0.7 }]}>
-              {isSubmitting ? 'Boosting...' : 'Boost'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      <Divider />
-
-      <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
-        {/* Boost Header */}
-        <View className="flex-row items-center py-3">
-          <RiRepeat2Line width={20} height={20} fill={theme.colors.primary} />
-          <Text className="text-primary text-base font-semibold ml-2">Boost</Text>
-        </View>
-        <Divider />
-
-        {/* Original Post */}
-        <View className="py-4 mt-4">
-          <View className="flex-row items-center mb-2">
-            <Avatar
-              source={originalPost.user.avatar ?? undefined}
-              size={32}
-              variant={MEDIA_VARIANT_AVATAR}
-              style={{ marginRight: 8 }}
-            />
-            <View className="flex-1">
-              <UserName
-                name={originalPost.user.name?.displayName}
-                handle={getNormalizedUserHandle(originalPost.user) ?? undefined}
-                verified={originalPost.user.verified}
-                variant="small"
-                style={{ handle: { fontSize: 13 } }}
-              />
-            </View>
-          </View>
-          <PostContentText
-            content={originalPost.content}
-            postId={originalPost.id}
-            previewChars={Infinity}
-          />
-        </View>
-        <Divider />
-
-        {/* Boost Input */}
-        <View className="flex-1 mt-4">
-          <View className="flex-row mb-3">
-            <Avatar
-              source={user?.avatar}
-              size={48}
-              variant={MEDIA_VARIANT_AVATAR}
-              style={{ marginRight: 12 }}
-            />
-            <View className="justify-center">
-              <Text className="text-foreground text-base font-bold mb-0.5">
-                {user?.name.displayName}
-              </Text>
-              <Text className="text-muted-foreground text-sm">@{user?.username}</Text>
-            </View>
-          </View>
-
-          <TextInput
-            ref={textInputRef}
-            className="text-foreground"
-            style={{
-              fontSize: 20,
-              lineHeight: 28,
-              minHeight: 120,
-              textAlignVertical: 'top',
-              color: theme.colors.text,
-            }}
-            placeholder={t('compose.commentPlaceholder')}
-            placeholderTextColor={theme.colors.textTertiary}
-            value={content}
-            onChangeText={setContent}
-            multiline
-            autoFocus
-            maxLength={MAX_CHARACTERS + 50}
-            textAlignVertical="top"
-          />
-
-          {/* Character Count */}
-          <View className="flex-row justify-end items-center mt-4 mb-5">
-            <Text
-              className="text-muted-foreground text-sm font-medium"
-              style={isOverLimit ? { color: theme.colors.error } : undefined}
+      <Screen
+        header={
+          <View className="bg-background">
+            <View
+              className="flex-row justify-between items-center px-4"
+              style={{ paddingBottom: 12, paddingTop: insets.top }}
             >
-              {characterCount}
-            </Text>
-            <Text className="text-muted-foreground text-sm ml-0.5">/{MAX_CHARACTERS}</Text>
+              <TouchableOpacity onPress={handleCancel} className="py-2 px-3">
+                <Text className="text-primary text-base font-semibold">Cancel</Text>
+              </TouchableOpacity>
+
+              <View className="flex-row items-center">
+                <TouchableOpacity
+                  className="rounded-full px-5 py-2"
+                  style={[!canBoost && { opacity: 0.5 }]}
+                  onPress={handleBoost}
+                  disabled={!canBoost}
+                >
+                  <Text className="text-base font-bold" style={[!canBoost && { opacity: 0.7 }]}>
+                    {isSubmitting ? 'Boosting...' : 'Boost'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            <Divider />
           </View>
-        </View>
-      </ScrollView>
+        }
+      >
+        <ScreenScrollView contentContainerClassName="px-4" showsVerticalScrollIndicator={false}>
+          {/* Boost Header */}
+          <View className="flex-row items-center py-3">
+            <RiRepeat2Line width={20} height={20} fill={theme.colors.primary} />
+            <Text className="text-primary text-base font-semibold ml-2">Boost</Text>
+          </View>
+          <Divider />
+
+          {/* Original Post */}
+          <View className="py-4 mt-4">
+            <View className="flex-row items-center mb-2">
+              <Avatar
+                source={originalPost.user.avatar ?? undefined}
+                size={32}
+                variant={MEDIA_VARIANT_AVATAR}
+                style={{ marginRight: 8 }}
+              />
+              <View className="flex-1">
+                <UserName
+                  name={originalPost.user.name?.displayName}
+                  handle={getNormalizedUserHandle(originalPost.user) ?? undefined}
+                  verified={originalPost.user.verified}
+                  variant="small"
+                  style={{ handle: { fontSize: 13 } }}
+                />
+              </View>
+            </View>
+            <PostContentText
+              content={originalPost.content}
+              postId={originalPost.id}
+              previewChars={Infinity}
+            />
+          </View>
+          <Divider />
+
+          {/* Boost Input */}
+          <View className="flex-1 mt-4">
+            <View className="flex-row mb-3">
+              <Avatar
+                source={user?.avatar}
+                size={48}
+                variant={MEDIA_VARIANT_AVATAR}
+                style={{ marginRight: 12 }}
+              />
+              <View className="justify-center">
+                <Text className="text-foreground text-base font-bold mb-0.5">
+                  {user?.name.displayName}
+                </Text>
+                <Text className="text-muted-foreground text-sm">@{user?.username}</Text>
+              </View>
+            </View>
+
+            <TextInput
+              ref={textInputRef}
+              className="text-foreground"
+              style={{
+                fontSize: 20,
+                lineHeight: 28,
+                minHeight: 120,
+                textAlignVertical: 'top',
+                color: theme.colors.text,
+              }}
+              placeholder={t('compose.commentPlaceholder')}
+              placeholderTextColor={theme.colors.textTertiary}
+              value={content}
+              onChangeText={setContent}
+              multiline
+              autoFocus
+              maxLength={MAX_CHARACTERS + 50}
+              textAlignVertical="top"
+            />
+
+            {/* Character Count */}
+            <View className="flex-row justify-end items-center mt-4 mb-5">
+              <Text
+                className="text-muted-foreground text-sm font-medium"
+                style={isOverLimit ? { color: theme.colors.error } : undefined}
+              >
+                {characterCount}
+              </Text>
+              <Text className="text-muted-foreground text-sm ml-0.5">/{MAX_CHARACTERS}</Text>
+            </View>
+          </View>
+        </ScreenScrollView>
+      </Screen>
 
       <Dialog
         control={discardControl}

@@ -3,7 +3,6 @@ import { Activity, useState, useEffect, useMemo } from 'react';
 import { Screen } from '@oxy.so/bloom/screen';
 import { MentionHomeHeader } from '@/components/navigation/MentionHomeHeader';
 import { useTranslation } from 'react-i18next';
-import { StatusBar } from 'expo-status-bar';
 import { useRouter } from '@/lib/navigation/router';
 import Feed from '@/components/Feed/Feed';
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';
@@ -11,7 +10,6 @@ import { PRESET_FEEDS } from '@mention/shared-types/mtn/presetFeeds';
 import { parseFeedDescriptor } from '@mention/shared-types/mtn/feedDescriptor';
 import type { FeedType } from '@mention/shared-types/feed';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { useReselectReloadKeys, useTabSelect } from '@/context/ScreenReselectContext';
 import { SEO } from '@/components/SEO';
 import { siteStructuredData } from '@mention/shared-types/seo';
@@ -56,7 +54,6 @@ const HomeScreen: React.FC = () => {
   const router = useRouter();
   const { t } = useTranslation();
   const { isAuthResolved, canUsePrivateApi, user } = useAuth();
-  const theme = useTheme();
   const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
   // The home tabs ARE the viewer's server-persisted pinned feeds (server order),
   // so pinning in the feeds screen updates the tab bar cross-device. Anonymous
@@ -165,7 +162,6 @@ const HomeScreen: React.FC = () => {
         jsonLd={SITE_STRUCTURED_DATA}
       />
       <Screen scroll="auto" header={<MentionHomeHeader />}>
-        <StatusBar style={theme.isDark ? 'light' : 'dark'} />
         <Tabs
           value={activeTab}
           onValueChange={handleTabPress}

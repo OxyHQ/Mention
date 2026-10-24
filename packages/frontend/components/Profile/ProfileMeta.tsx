@@ -2,9 +2,10 @@ import { memo, useCallback } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
-import { LocationIcon } from '@/assets/icons/location-icon';
-import { EmojiNatureIcon } from '@/assets/icons/emoji-nature-icon';
-import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
+import { RiFlowerLine } from '@oxy.so/bloom/icons/RiFlowerLine';
+import { RiMapPinLine } from '@oxy.so/bloom/icons/RiMapPinLine';
 import type { ProfileMetaProps } from './types';
 
 /**
@@ -16,6 +17,7 @@ export const ProfileMeta = memo(function ProfileMeta({
   createdAt,
   aboutHref,
 }: ProfileMetaProps) {
+  const { colors } = useTheme();
   const router = useRouter();
   const { t } = useTranslation();
 
@@ -41,7 +43,7 @@ export const ProfileMeta = memo(function ProfileMeta({
     <View className="flex-row flex-wrap mb-3 gap-x-4 gap-y-1">
       {hasLocation && (
         <View className="flex-row items-center gap-1">
-          <LocationIcon size={16} className="text-muted-foreground" />
+          <RiMapPinLine width={16} height={16} fill={colors.textSecondary} />
           <Text className="text-muted-foreground text-[15px]">{location}</Text>
         </View>
       )}
@@ -53,11 +55,13 @@ export const ProfileMeta = memo(function ProfileMeta({
           disabled={!aboutHref}
           activeOpacity={0.7}
         >
-          <EmojiNatureIcon size={16} className="text-muted-foreground" />
+          <RiFlowerLine width={16} height={16} fill={colors.textSecondary} />
           <Text className="text-muted-foreground text-[15px]">
             {t('profile.joined')} {formatJoinDate(createdAt)}
           </Text>
-          {aboutHref ? <ChevronRightIcon size={16} className="text-muted-foreground" /> : null}
+          {aboutHref ? (
+            <RiArrowRightSLine width={16} height={16} fill={colors.textSecondary} />
+          ) : null}
         </TouchableOpacity>
       )}
     </View>

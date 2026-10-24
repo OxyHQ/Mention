@@ -17,6 +17,7 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useDismissKeyboardOnBlur } from '@/hooks/useDismissKeyboardOnBlur';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen } from '@oxy.so/bloom/screen';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
@@ -40,12 +41,12 @@ import {
   toProfileHandleSuggestion,
   type ActiveOperatorToken,
 } from '@/utils/searchSuggestions';
-import { FlashList } from '@shopify/flash-list';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import PostItem from '@/components/Feed/PostItem';
 import { Search } from '@oxy.so/bloom/search';
-import { Search as SearchIcon } from '@/assets/icons/search-icon';
+import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { SEO } from '@/components/SEO';
+import { ScreenFlashList } from '@/components/common/ScreenFlashList';
 import {
   ProfileCard,
   ProfileCardSkeletonList,
@@ -1229,7 +1230,7 @@ function SearchIndex() {
               onPress={handleSubmit}
               accessibilityRole="button"
             >
-              <SearchIcon size={18} className="text-muted-foreground" />
+              <RiSearchLine width={18} height={18} fill={theme.colors.textSecondary} />
               <Text className="flex-1 text-base text-foreground" numberOfLines={1}>
                 {t('search.suggestions.searchFor', 'Search for "{{query}}"', { query: item.term })}
               </Text>
@@ -1425,50 +1426,55 @@ function SearchIndex() {
   return (
     <>
       <SEO title={t('seo.search.title')} description={t('seo.search.description')} />
-      <View className="flex-1">
-        <PageHeader
-          title={t('search.title', 'Search')}
-          onBack={() => safeBack()}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
+      <Screen
+        header={
+          <PageHeader
+            title={t('search.title', 'Search')}
+            onBack={() => safeBack()}
+            backLabel={t('common.back', { defaultValue: 'Back' })}
+            accessory={
+              <>
+                <View className="my-2">
+                  <Search
+                    ref={searchInputRef}
+                    label={t('search.placeholder', 'Search...')}
+                    value={query}
+                    onChangeText={handleQueryChange}
+                    onSelectionChange={handleSelectionChange}
+                    onSubmitEditing={handleSubmit}
+                    onClearText={clearSearch}
+                    autoFocus
+                  />
+                </View>
 
-        <View className="mx-4 my-2">
-          <Search
-            ref={searchInputRef}
-            label={t('search.placeholder', 'Search...')}
-            value={query}
-            onChangeText={handleQueryChange}
-            onSelectionChange={handleSelectionChange}
-            onSubmitEditing={handleSubmit}
-            onClearText={clearSearch}
-            autoFocus
-          />
-        </View>
+                <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
+                  {tabs.map((tab: { id: string; label: string; count?: number }) => (
+                    <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
+                  ))}
+                </Tabs>
 
-        <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
-          {tabs.map((tab: { id: string; label: string; count?: number }) => (
-            <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
-          ))}
-        </Tabs>
-
-        {/* Refining a query keeps the previous rows on screen, so the
+                {/* Refining a query keeps the previous rows on screen, so the
                     only signal that newer ones are coming is this hairline.
                     It sits in the layout (a fixed-height track that is empty
                     when idle) rather than overlaying the list, so results
                     never shift by a pixel when it appears. */}
-        <View className="h-0.5 w-full overflow-hidden" accessibilityElementsHidden>
-          {refreshing ? (
-            <View testID="search-refreshing" className="h-full w-full bg-primary/60" />
-          ) : null}
-        </View>
-
+                <View className="h-0.5 w-full overflow-hidden" accessibilityElementsHidden>
+                  {refreshing ? (
+                    <View testID="search-refreshing" className="h-full w-full bg-primary/60" />
+                  ) : null}
+                </View>
+              </>
+            }
+          />
+        }
+      >
         {/* ONE scroll container for every state — suggestions, results,
                     loading, error and empty all render through this list as ROWS,
                     so the container never swaps (no scroll or keyboard reset on
                     the first keystroke) and the suggestions have no focus-bound
                     lifecycle to get wrong. */}
         <View className="flex-1 min-h-0">
-          <FlashList
+          <ScreenFlashList
             data={rows}
             keyExtractor={keyExtractor}
             getItemType={getItemType}
@@ -1488,7 +1494,7 @@ function SearchIndex() {
             }
           />
         </View>
-      </View>
+      </Screen>
     </>
   );
 }

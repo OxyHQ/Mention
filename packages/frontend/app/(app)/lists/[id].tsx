@@ -5,7 +5,6 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
-  ScrollView,
   RefreshControl,
   Share,
   Platform,
@@ -27,6 +26,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
@@ -159,7 +159,7 @@ function ListDetailScreen() {
   // scroll-owning <Feed> as its `listHeaderComponent` so the single virtualized
   // list owns the document scroll on web (mirrors `feeds/[id].tsx` and native's
   // `ListHeaderComponent`); on the `members` tab the same chrome renders inside
-  // that tab's own <ScrollView>. Declared after the data so it can read `list`.
+  // that tab's own <ScreenScrollView>. Declared after the data so it can read `list`.
   const renderSubheader = useCallback(
     () => (
       <View className="px-4 pt-3 pb-2">
@@ -307,45 +307,55 @@ function ListDetailScreen() {
   // Loading state
   if (loading) {
     return (
-      <View className="flex-1">
-        <PageHeader
-          onBack={() => safeBack()}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
-        <DetailSkeleton />
-      </View>
+      <Screen
+        header={
+          <PageHeader
+            onBack={() => safeBack()}
+            backLabel={t('common.back', { defaultValue: 'Back' })}
+          />
+        }
+      >
+        <ScreenScrollView>
+          <DetailSkeleton />
+        </ScreenScrollView>
+      </Screen>
     );
   }
 
   // Error state
   if (error || !list) {
     return (
-      <View className="flex-1">
-        <PageHeader
-          title={t('lists.detail.title')}
-          onBack={() => safeBack()}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
-        <View className="flex-1 items-center justify-center gap-3">
+      <Screen
+        header={
+          <PageHeader
+            title={t('lists.detail.title')}
+            onBack={() => safeBack()}
+            backLabel={t('common.back', { defaultValue: 'Back' })}
+          />
+        }
+      >
+        <ScreenScrollView contentContainerClassName="flex-1 items-center justify-center gap-3">
           <RiAlertLine size="3xl" fill={theme.colors.textSecondary} />
           <Text className="text-muted-foreground text-base">{error || 'List not found'}</Text>
           <TouchableOpacity onPress={loadList}>
             <Text className="text-primary text-sm font-medium">Try again</Text>
           </TouchableOpacity>
-        </View>
-      </View>
+        </ScreenScrollView>
+      </Screen>
     );
   }
 
   return (
-    <View className="flex-1">
-      <PageHeader
-        title={list.title || t('lists.detail.title')}
-        onBack={() => safeBack()}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-        actions={headerActions}
-      />
-
+    <Screen
+      header={
+        <PageHeader
+          title={list.title || t('lists.detail.title')}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+          actions={headerActions}
+        />
+      }
+    >
       {/* Tab content.
           `posts` is the ONLY feed tab and it is the scroll-owning virtualized
           <Feed> (no `scrollEnabled={false}`): on web it owns the document scroll
@@ -353,12 +363,11 @@ function ListDetailScreen() {
           its `listHeaderComponent` (so they scroll away with the content and the
           shell mask/rails/insets still apply); on native the Feed owns its own
           scroll + pull-to-refresh. The `members` tab renders NON-feed content
-          inside its own <ScrollView>, so no feed is embedded in a nested scroller
+          inside its own <ScreenScrollView>, so no feed is embedded in a nested scroller
           anywhere here. Mirrors `feeds/[id].tsx`. */}
       {activeTab === 'posts' ? (
         memberCount === 0 ? (
-          <ScrollView
-            className="flex-1"
+          <ScreenScrollView
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -381,7 +390,7 @@ function ListDetailScreen() {
               sticker="listPosts"
               containerStyle={{ minHeight: 200 }}
             />
-          </ScrollView>
+          </ScreenScrollView>
         ) : (
           <Feed
             type="mixed"
@@ -409,7 +418,7 @@ function ListDetailScreen() {
           }
         />
       )}
-    </View>
+    </Screen>
   );
 }
 
@@ -458,8 +467,7 @@ function ListMembers({
   const skeletonRowCount = Math.min(memberIds.length, MAX_MEMBER_SKELETON_ROWS);
 
   return (
-    <ScrollView
-      className="flex-1"
+    <ScreenScrollView
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -467,7 +475,6 @@ function ListMembers({
           tintColor={theme.colors.primary}
         />
       }
-      contentContainerStyle={{ paddingBottom: 100 }}
     >
       {header}
       {isOwnList && (
@@ -527,7 +534,7 @@ function ListMembers({
           ))}
         </View>
       )}
-    </ScrollView>
+    </ScreenScrollView>
   );
 }
 

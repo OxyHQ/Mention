@@ -30,7 +30,7 @@ jest.mock('expo-camera', () => ({
 }));
 
 /**
- * Reanimated, following `TabsPager.test.tsx`: importing the real one pulls in
+ * Reanimated is mocked: importing the real one pulls in
  * `react-native-worklets`, whose native module is not there under jest and
  * fails the whole suite at import. None of the branches below animates
  * anything — the progress arc only exists while recording.

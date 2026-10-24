@@ -27,11 +27,12 @@ const mockTranslate = jest.fn((key: string) => {
   return typeof resolved === 'string' ? resolved : `MISSING_I18N_KEY:${key}`;
 });
 
+jest.mock('@oxy.so/bloom/theme', () => ({
+  useTheme: () => ({ colors: { text: '#000', textSecondary: '#666', primary: '#7c3aed' } }),
+}));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => mockTranslate(key) }),
 }));
-
-jest.mock('@/assets/icons/channel-icon', () => ({ ChannelIcon: 'ChannelIcon' }));
 
 /**
  * Both aliases carry a `Mock` prefix because a `jest.mock` factory may not

@@ -103,6 +103,7 @@ export function StarterPacksTab() {
 
   return (
     <VirtualList
+      screen={{}}
       data={packs}
       renderItem={renderItem}
       keyExtractor={(item: StarterPackSummary) => String(item._id || item.id)}

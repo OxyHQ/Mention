@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Linking, Platform, ScrollView, View } from 'react-native';
+import { Linking } from 'react-native';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { SubscriptionPlans, type SubscriptionPlan } from '@oxy.so/bloom/subscription-plans';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
@@ -74,40 +75,35 @@ export default function PlusScreen() {
     },
   ];
 
-  const body = (
-    <SubscriptionPlans
-      productName="Mention"
-      plans={plans}
-      value={selected}
-      onValueChange={setSelected}
-      selectorLabel={t('plus.selectorLabel')}
-      primaryAction={
-        selected === 'plus'
-          ? { label: t('plus.getOxyOne'), onPress: () => showBottomSheet?.('OxyOne') }
-          : undefined
-      }
-      moreBenefits={{
-        label: t('plus.exploreOxyOne'),
-        onPress: () => {
-          void Linking.openURL('https://oxy.so/one');
-        },
-      }}
-    />
-  );
-
   return (
-    <View className="flex-1">
-      <PageHeader
-        onBack={() => safeBack()}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-      />
-      {Platform.OS === 'web' ? (
-        body
-      ) : (
-        <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-          {body}
-        </ScrollView>
-      )}
-    </View>
+    <Screen
+      header={
+        <PageHeader
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+        />
+      }
+    >
+      <ScreenScrollView showsVerticalScrollIndicator={false}>
+        <SubscriptionPlans
+          productName="Mention"
+          plans={plans}
+          value={selected}
+          onValueChange={setSelected}
+          selectorLabel={t('plus.selectorLabel')}
+          primaryAction={
+            selected === 'plus'
+              ? { label: t('plus.getOxyOne'), onPress: () => showBottomSheet?.('OxyOne') }
+              : undefined
+          }
+          moreBenefits={{
+            label: t('plus.exploreOxyOne'),
+            onPress: () => {
+              void Linking.openURL('https://oxy.so/one');
+            },
+          }}
+        />
+      </ScreenScrollView>
+    </Screen>
   );
 }

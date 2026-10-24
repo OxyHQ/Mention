@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { View, StyleSheet, TouchableOpacity, type ColorValue, type StyleProp } from 'react-native';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
 import { IconCircle } from '@oxy.so/bloom/icon-circle';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
@@ -13,7 +13,7 @@ import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
-import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
+import { RiRocket2Line } from '@oxy.so/bloom/icons/RiRocket2Line';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 
 export interface StarterPackCardData {
@@ -39,16 +39,6 @@ interface StarterPackCardProps {
   onPress?: () => void;
   /** Hide description (compact variant for notifications) */
   noDescription?: boolean;
-}
-
-/**
- * The pack mark as an `IconCircle` glyph: the circle hands its glyph a colour
- * through `style.color` (the `primary` half of its tint pair), which this app
- * icon takes as a `color` prop.
- */
-function StarterPackGlyph({ style }: { style?: StyleProp<{ color?: ColorValue }> }) {
-  const color = StyleSheet.flatten(style)?.color;
-  return <StarterPackIcon size={22} color={typeof color === 'string' ? color : undefined} />;
 }
 
 /** Max avatars shown in the compact row cluster before the "+N" overflow chip. */
@@ -127,7 +117,7 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
             ringColor={theme.colors.card}
           />
         ) : (
-          <IconCircle icon={StarterPackGlyph} style={styles.iconBubble} />
+          <IconCircle icon={RiRocket2Line} style={styles.iconBubble} />
         )}
 
         {/* Name and byline */}

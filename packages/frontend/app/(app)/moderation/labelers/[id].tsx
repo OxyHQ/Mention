@@ -1,17 +1,10 @@
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  RefreshControl,
-  Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
 import { Divider } from '@oxy.so/bloom/divider';
 import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
 import { RiUserLine } from '@oxy.so/bloom/icons/RiUserLine';
@@ -256,31 +249,39 @@ const LabelerDetailScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <View className="flex-1">
-        <PageHeader
-          title={t('labelers.detailTitle', { defaultValue: 'Labeler' })}
-          onBack={() => safeBack()}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
-        <DetailSkeleton />
-      </View>
+      <Screen
+        header={
+          <PageHeader
+            title={t('labelers.detailTitle', { defaultValue: 'Labeler' })}
+            onBack={() => safeBack()}
+            backLabel={t('common.back', { defaultValue: 'Back' })}
+          />
+        }
+      >
+        <ScreenScrollView>
+          <DetailSkeleton />
+        </ScreenScrollView>
+      </Screen>
     );
   }
 
   if (!labeler) {
     return (
-      <View className="flex-1">
-        <PageHeader
-          title={t('labelers.detailTitle', { defaultValue: 'Labeler' })}
-          onBack={() => safeBack()}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
-        <View className="flex-1 justify-center items-center">
+      <Screen
+        header={
+          <PageHeader
+            title={t('labelers.detailTitle', { defaultValue: 'Labeler' })}
+            onBack={() => safeBack()}
+            backLabel={t('common.back', { defaultValue: 'Back' })}
+          />
+        }
+      >
+        <ScreenScrollView contentContainerClassName="flex-1 justify-center items-center">
           <Text className="text-[15px] text-muted-foreground">
             {t('labelers.notFound', { defaultValue: 'Labeler not found.' })}
           </Text>
-        </View>
-      </View>
+        </ScreenScrollView>
+      </Screen>
     );
   }
 
@@ -424,34 +425,29 @@ const LabelerDetailScreen: React.FC = () => {
   );
 
   return (
-    <View className="flex-1">
-      <PageHeader
-        title={labeler.name}
-        onBack={() => safeBack()}
-        backLabel={t('common.back', { defaultValue: 'Back' })}
-      />
-
-      {/* WEB hands scroll to the shared panel/document (no nested scroller that
-          would break sticky rails + window scroll restoration); NATIVE keeps a
-          ScrollView (+ pull-to-refresh) as the screen's scroller. */}
-      {Platform.OS === 'web' ? (
-        <View style={styles.scrollContent}>{body}</View>
-      ) : (
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={theme.colors.primary}
-            />
-          }
-        >
-          {body}
-        </ScrollView>
-      )}
-    </View>
+    <Screen
+      header={
+        <PageHeader
+          title={labeler.name}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+        />
+      }
+    >
+      <ScreenScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.primary}
+          />
+        }
+      >
+        {body}
+      </ScreenScrollView>
+    </Screen>
   );
 };
 

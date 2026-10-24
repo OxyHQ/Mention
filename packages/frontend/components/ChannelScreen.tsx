@@ -20,7 +20,7 @@ import { logger } from '@oxy.so/core/logger';
 import type { ProfileData } from '@/hooks/useProfileData';
 
 // Icons
-import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
+import { RiBarChartBoxLine } from '@oxy.so/bloom/icons/RiBarChartBoxLine';
 
 // Components
 import UserName from './UserName';
@@ -277,7 +277,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
   const leadingItems = operatesThisChannel ? (
     <>
       <DropdownMenuItem
-        leading={<AnalyticsIcon size={22} className="text-foreground" />}
+        leading={<RiBarChartBoxLine width={22} height={22} fill={colors.text} />}
         onPress={() => router.push(`/c/${handle}/insights`)}
       >
         {t('insights.title', { defaultValue: 'Insights' })}

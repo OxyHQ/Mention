@@ -2,8 +2,9 @@ import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import ComposeThreadItem, { type ComposeThreadItemStyles } from '../ComposeThreadItem';
-import { ScheduleIcon, ScheduleIconActive } from '@/assets/icons/schedule-icon';
-import { LaneIcon } from '@/assets/icons/lane-icon';
+import { RiTimeFill } from '@oxy.so/bloom/icons/RiTimeFill';
+import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
+import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
 import type { ThreadItem } from '@/hooks/useThreadManager';
 
 /**
@@ -94,12 +95,20 @@ jest.mock('@oxy.so/bloom/icons', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   const glyph = (name: string) =>
     Object.assign((props: object) => <View {...props} />, { displayName: name });
-  return {
-    RiBroadcastLine: glyph('RiBroadcastLine'),
-    RiGroupFill: glyph('RiGroupFill'),
-    RiGroupLine: glyph('RiGroupLine'),
-    RiMic2Line: glyph('RiMic2Line'),
-  };
+  // Every `Ri*` name, one component per name, so a case can assert on the glyph
+  // it imports by subpath (the barrel and the subpaths are one mocked module).
+  const glyphs = new Map<string, ReturnType<typeof glyph>>();
+  return new Proxy(
+    { __esModule: true },
+    {
+      get(target, name) {
+        if (name in target) return target[name as keyof typeof target];
+        if (typeof name !== 'string' || !name.startsWith('Ri')) return undefined;
+        if (!glyphs.has(name)) glyphs.set(name, glyph(name));
+        return glyphs.get(name);
+      },
+    },
+  );
 });
 
 // Cut at the component boundary, like the header and the text input below.
@@ -340,14 +349,14 @@ describe('ComposeThreadItem — the per-entry controls a continuation carries', 
     // to make it land.
     const tree = renderItem('thread');
 
-    expect(tree.root.findAllByType(LaneIcon)).toHaveLength(0);
+    expect(tree.root.findAllByType(RiNodeTree)).toHaveLength(0);
     expect(control(tree, 'Choose a lane')).toBeUndefined();
 
     act(() => tree.unmount());
   });
 
   /**
-   * `LaneIcon` has ONE cut, so the box's own assignment shows in the tint alone.
+   * `RiNodeTree` has ONE cut, so the box's own assignment shows in the tint alone.
    * Both ends are asserted: a control that never changed would pass either half.
    */
   it("tints the lane glyph for the box's own assignment", () => {
@@ -355,11 +364,11 @@ describe('ComposeThreadItem — the per-entry controls a continuation carries', 
       item: { ...baseItem, laneId: 'lane-1' },
       onLanePress: noop,
     });
-    expect(assigned.root.findByType(LaneIcon).props.color).toBe('#7c3aed');
+    expect(assigned.root.findByType(RiNodeTree).props.fill).toBe('#7c3aed');
     act(() => assigned.unmount());
 
     const unassigned = renderItem('beast', { onLanePress: noop });
-    expect(unassigned.root.findByType(LaneIcon).props.color).toBe('#666');
+    expect(unassigned.root.findByType(RiNodeTree).props.fill).toBe('#666');
     act(() => unassigned.unmount());
   });
 
@@ -368,8 +377,8 @@ describe('ComposeThreadItem — the per-entry controls a continuation carries', 
     for (const mode of ['thread', 'beast'] as const) {
       const tree = renderItem(mode, { onLanePress: noop });
 
-      expect(tree.root.findAllByType(ScheduleIcon)).toHaveLength(0);
-      expect(tree.root.findAllByType(ScheduleIconActive)).toHaveLength(0);
+      expect(tree.root.findAllByType(RiTimeLine)).toHaveLength(0);
+      expect(tree.root.findAllByType(RiTimeFill)).toHaveLength(0);
       expect(
         iconNames(tree).filter((name) => /^(language(-outline)?|RiGlobalLine)$/.test(name)),
       ).toEqual([]);
@@ -379,7 +388,7 @@ describe('ComposeThreadItem — the per-entry controls a continuation carries', 
       // — the item draws what it is given, and it is the COMPOSER that withholds
       // the handler in thread mode, which the case above pins.
       expect(iconNames(tree)).toEqual(expect.arrayContaining(['RiMic2Line']));
-      expect(tree.root.findAllByType(LaneIcon)).toHaveLength(1);
+      expect(tree.root.findAllByType(RiNodeTree)).toHaveLength(1);
 
       act(() => tree.unmount());
     }

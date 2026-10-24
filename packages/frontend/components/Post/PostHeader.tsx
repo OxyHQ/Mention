@@ -14,8 +14,8 @@ import { RiChat3Fill } from '@oxy.so/bloom/icons/RiChat3Fill';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { useTranslation } from 'react-i18next';
 import { AccountBadge } from '@/components/AccountBadge';
-import { BoostIcon } from '@/assets/icons/boost-icon';
-import { DrawIcon } from '@/assets/icons/draw-icon';
+import { RiPencilLine } from '@oxy.so/bloom/icons/RiPencilLine';
+import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { useTimeAgo } from '@/hooks/useTimeAgo';
 import { displayNameOrHandle } from '@/utils/displayName';
 import type { HydratedAuthor, PostUser } from '@mention/shared-types';
@@ -456,7 +456,6 @@ const PostHeader: React.FC<PostHeaderProps> = ({
       isFederated={user.isFederated}
       kind={user.kind}
       size={13}
-      className="text-muted-foreground"
       containerClassName="self-center ml-1"
     />
   );
@@ -586,13 +585,21 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               style={{ flexShrink: 0, alignSelf: 'center' }}
               onPress={() => toast(t('post.editedToast', { defaultValue: 'This post was edited' }))}
             >
-              <DrawIcon size={INDICATOR_ICON_SIZE} className="text-muted-foreground" />
+              <RiPencilLine
+                width={INDICATOR_ICON_SIZE}
+                height={INDICATOR_ICON_SIZE}
+                fill={theme.colors.textSecondary}
+              />
             </TouchableOpacity>
           ) : null}
           {laneSlot}
           {showBoost && (
             <View accessibilityRole="image" accessibilityLabel="Reposted">
-              <BoostIcon size={INDICATOR_ICON_SIZE} className="text-muted-foreground" />
+              <RiRepeat2Line
+                width={INDICATOR_ICON_SIZE}
+                height={INDICATOR_ICON_SIZE}
+                fill={theme.colors.textSecondary}
+              />
             </View>
           )}
           {compact ? menuButton : null}

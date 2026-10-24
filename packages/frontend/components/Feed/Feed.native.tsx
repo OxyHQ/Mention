@@ -1,4 +1,4 @@
-import { useScreenViewport } from '@oxy.so/bloom/screen';
+import { useScreenScroll, useScreenViewport } from '@oxy.so/bloom/screen';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState, memo, forwardRef } from 'react';
 import {
@@ -20,8 +20,7 @@ import Animated, {
   useSharedValue,
   type AnimatedProps,
 } from 'react-native-reanimated';
-import { useFocusedScrollable } from '@/hooks/useFocusedScrollable';
-import { useLayoutScroll } from '@/context/LayoutScrollContext';
+import { useReselectScroller } from '@/context/ScreenReselectContext';
 import { useIsFocused } from '@/lib/navigation/router';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
 import { useRevealOwnNewPost } from '@/hooks/useRevealOwnNewPost';
@@ -282,21 +281,13 @@ const Feed = (props: FeedProps) => {
   const headerDockInset = useHeaderDockInset();
   // With the (app) center now a Stack, multiple feed screens can be mounted at
   // once (e.g. the home feed stays mounted behind a pushed profile). Only the
-  // FOCUSED feed may drive the shared scrollY (header/FAB/BottomBar hide) and be
-  // the registered scrollable — otherwise a frozen background feed could move
-  // the shared value.
+  // FOCUSED feed may drive its Screen's chrome (header, bottom bar) and answer a
+  // reselect — otherwise a frozen background feed could move them.
   const isFocused = useIsFocused();
   const screenViewport = useScreenViewport();
-  const screenMetrics = screenViewport?.metrics;
   const screenActive = screenViewport?.active !== false;
   const flatListRef = useRef<FlashListRef<NativeFeedRow> | null>(null);
-  const { scrollPosition, scrollEventThrottle } = useLayoutScroll();
   useScreenScrollOwner(flatListRef, isFocused && screenActive && scrollEnabled !== false);
-
-  // Fixed top inset for a feed that scrolls BEHIND an auto-hiding header + tab
-  // bar overlay. Reserved as constant scrollable top padding so the overlay
-  // chrome only translates and never reflows the list.
-  const topInset = 0;
 
   // Bloom is a no-op on native today, but pass the same identity sub-key used
   // on web so feeds hosted by one route can never share an offset if native
@@ -409,7 +400,7 @@ const Feed = (props: FeedProps) => {
     viewableVideoKeys.publish(keys);
   }, [viewableVideoKeys]);
 
-  // The header spans [topInset, topInset + height) of the scrollable content, so
+  // The header spans [0, height) of the scrollable content, so
   // it is on screen exactly while the scroll offset has not passed its bottom
   // edge. Starts false: until it has been measured, silence is the safe answer.
   //
@@ -426,10 +417,10 @@ const Feed = (props: FeedProps) => {
 
   const handleHeaderLayout = useCallback(
     (event: LayoutChangeEvent) => {
-      headerBottomRef.current = topInset + event.nativeEvent.layout.height;
+      headerBottomRef.current = event.nativeEvent.layout.height;
       syncHeaderOnScreen();
     },
-    [topInset, syncHeaderOnScreen],
+    [syncHeaderOnScreen],
   );
 
   // Impression tracking: reconcile the full viewable set on each change.
@@ -486,21 +477,6 @@ const Feed = (props: FeedProps) => {
     return `${count}-${firstKey}-${midKey}-${lastKey}`;
   }, [listRows]);
 
-  // Only the focused, scroll-owning feed is the registered scrollable; a
-  // background feed never moves the shared scrollY. A list claims the slot at
-  // the top it mounted at.
-  const claimScroll = useFocusedScrollable<FlashListRef<NativeFeedRow>>({
-    enabled: scrollEnabled !== false,
-    initialOffset: 0,
-  });
-  const assignListRef = useCallback(
-    (node: FlashListRef<NativeFeedRow> | null) => {
-      flatListRef.current = node;
-      claimScroll(node);
-    },
-    [claimScroll],
-  );
-
   /**
    * The bookkeeping a scroll owes the JS thread: where to reopen this feed, and
    * whether the header (which is not a row, so no viewability token describes
@@ -523,20 +499,11 @@ const Feed = (props: FeedProps) => {
   const lastReportedOffset = useSharedValue(0);
 
   /**
-   * THE CHROME MOVES ON THE UI THREAD, and this is the whole reason the feed
-   * hands reanimated its scroll instead of a JS callback.
-   *
-   * The auto-hiding header, the home tab strip and the bottom bar all integrate
-   * their position from `scrollPosition` in a `useAnimatedReaction` worklet
-   * (`BottomBarVisibilityContext`). That worklet runs on the UI thread — but the
-   * value it reads used to be WRITTEN from JS, one `onScroll` callback at a
-   * time. So the chrome could only move as often as the JS thread was free, and
-   * during a fling the JS thread is busy building rows: measured at ~40ms of JS
-   * per row on a Pixel 10 Pro. The header froze and then jumped, on exactly the
-   * gesture where the reader is looking at it.
-   *
-   * As a worklet the offset reaches the shared value on the frame the scroll
-   * happened, whatever JS is doing.
+   * THE CHROME MOVES ON THE UI THREAD. The feed hands its scroll to Bloom's
+   * `useScreenScroll` (below) as a worklet, so the header collapse and the
+   * bottom bar follow the frame the scroll happened, whatever JS is doing —
+   * during a fling the JS thread is busy building rows (~40ms of JS per row
+   * measured on a Pixel 10 Pro).
    *
    * The JS side still needs the offset, but not sixty times a second: it is
    * reported every `JS_SCROLL_REPORT_PX` of travel, and exactly once more when
@@ -547,14 +514,6 @@ const Feed = (props: FeedProps) => {
     onScroll: (event) => {
       'worklet';
       const offsetY = event.contentOffset.y;
-      // `.set()`, not `.value =`: the compiler refuses a property write to a
-      // value another hook returned, and would skip this whole component.
-      scrollPosition.set(offsetY);
-      if (screenMetrics && screenActive && isFocused) {
-        screenMetrics.scrollY.set(offsetY);
-        screenMetrics.contentHeight.set(event.contentSize.height);
-        screenMetrics.viewportHeight.set(event.layoutMeasurement.height);
-      }
       if (Math.abs(offsetY - lastReportedOffset.value) < JS_SCROLL_REPORT_PX) return;
       lastReportedOffset.value = offsetY;
       runOnJS(reportScrollOffset)(offsetY);
@@ -571,9 +530,21 @@ const Feed = (props: FeedProps) => {
     },
   });
 
-  // Memoize RefreshControl to prevent recreation on every render. When the feed
-  // scrolls behind the overlay chrome, offset the pull-to-refresh spinner by the
-  // chrome inset so it appears below the chrome instead of behind it.
+  // The feed is its Screen's scroller: Bloom drives the chrome from it, pads it
+  // clear of the header and the bottom bar, and records its metrics.
+  const screenScroll = useScreenScroll({
+    active: isFocused && screenActive && ownsScroll,
+    handler: handleScrollEvent,
+  });
+  useReselectScroller(
+    {
+      offset: () => screenScroll.scrollY.value,
+      scrollToOffset: (offset) => flatListRef.current?.scrollToOffset({ offset, animated: true }),
+    },
+    ownsScroll,
+  );
+
+  // Memoize RefreshControl to prevent recreation on every render.
   const refreshControl = useMemo(() => {
     if (hideRefreshControl) return undefined;
     return (
@@ -582,24 +553,27 @@ const Feed = (props: FeedProps) => {
         onRefresh={handleRefresh}
         colors={[theme.colors.primary]}
         tintColor={theme.colors.primary}
-        progressViewOffset={topInset || undefined}
       />
     );
-  }, [hideRefreshControl, refreshing, handleRefresh, theme.colors.primary, topInset]);
+  }, [hideRefreshControl, refreshing, handleRefresh, theme.colors.primary]);
 
   const containerStyle = feedRowStyles.container;
 
-  // Memoize list content style. `topInset` reserves the overlay-chrome height as
-  // constant scrollable top padding (native home/explore) so hiding the chrome
-  // never reflows the list; caller-supplied `contentContainerStyle` is applied
+  // Memoize list content style. A feed that owns its scroll clears the bottom
+  // bar it scrolls under; caller-supplied `contentContainerStyle` is applied
   // last so an explicit override still wins.
   const listContentStyle = useMemo(
     () => [
       feedRowStyles.listContent,
-      topInset > 0 ? { paddingTop: topInset } : null,
+      ownsScroll
+        ? {
+            paddingTop: screenScroll.contentInsets.top,
+            paddingBottom: screenScroll.contentInsets.bottom,
+          }
+        : null,
       contentContainerStyle,
     ],
-    [contentContainerStyle, topInset],
+    [contentContainerStyle, ownsScroll, screenScroll.contentInsets],
   );
 
   // FlashList accepts style arrays; preserve the caller's style directly.
@@ -638,7 +612,7 @@ const Feed = (props: FeedProps) => {
                     whose row is not viewable is not visible, so it cannot play. */}
         <VideoViewabilityProvider store={viewableVideoKeys}>
           <AnimatedFlashList
-            ref={assignListRef}
+            ref={flatListRef}
             data={listRows}
             renderItem={renderPostItem}
             keyExtractor={keyExtractor}
@@ -673,8 +647,8 @@ const Feed = (props: FeedProps) => {
             viewabilityConfig={IMPRESSION_VIEWABILITY_CONFIG}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            onScroll={scrollEnabled === false ? undefined : handleScrollEvent}
-            scrollEventThrottle={scrollEnabled === false ? undefined : scrollEventThrottle}
+            onScroll={ownsScroll ? screenScroll.onScroll : undefined}
+            scrollEventThrottle={ownsScroll ? 16 : undefined}
             contentContainerStyle={listContentStyle}
             style={listStyle}
             // FlashList v2 perf levers. v2 auto-measures rows (no

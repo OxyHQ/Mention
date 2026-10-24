@@ -1,4 +1,3 @@
-import type React from 'react';
 import { useCallback } from 'react';
 import {
   Pressable,
@@ -10,8 +9,10 @@ import {
 import { useTranslation } from 'react-i18next';
 import type { AccountKind } from '@oxy.so/core';
 import { isMentionChannel } from '@mention/shared-types/profileUrls';
-import { ChannelIcon } from '@/assets/icons/channel-icon';
-import { FediverseIcon } from '@/assets/icons/fediverse-icon';
+import type { BloomIconComponent } from '@oxy.so/bloom';
+import { RiFediverseLine } from '@oxy.so/bloom/icons/RiFediverseLine';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { RiMegaphoneLine } from '@oxy.so/bloom/icons/RiMegaphoneLine';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 /**
@@ -51,9 +52,7 @@ import { HIT_SLOP_MD } from '@/styles/hitSlop';
 interface IdentityBadgeVisualProps {
   /** Icon size in px. Defaults to 15 (inline-with-text size). */
   size?: number;
-  /** Icon color class. Defaults to a muted foreground tone when no `color` is set. */
-  className?: string;
-  /** Explicit fill color; overrides `className`. Used where callers pass a resolved theme color. */
+  /** Icon fill. Defaults to the muted foreground tone. */
   color?: string;
   /** Layout class for the wrapper (e.g. `self-center ml-1` at a call site). */
   containerClassName?: string;
@@ -62,7 +61,7 @@ interface IdentityBadgeVisualProps {
 }
 
 interface IdentityMarkerProps extends IdentityBadgeVisualProps {
-  Icon: React.ComponentType<{ size?: number; color?: string; className?: string }>;
+  Icon: BloomIconComponent;
   a11yLabel: string;
   /**
    * Opt IN to interactivity. Absent → a plain icon that cannot be tapped and
@@ -84,7 +83,6 @@ function IdentityMarker({
   a11yLabel,
   onExplain,
   size = 15,
-  className,
   color,
   containerClassName,
   style,
@@ -100,8 +98,8 @@ function IdentityMarker({
     [onExplain],
   );
 
-  const iconClassName = className ?? (color ? undefined : 'text-muted-foreground');
-  const icon = <Icon size={size} color={color} className={iconClassName} />;
+  const { colors } = useTheme();
+  const icon = <Icon width={size} height={size} fill={color ?? colors.textSecondary} />;
 
   if (!onExplain) {
     // `image` rather than no role: the marker carries meaning a sighted reader
@@ -197,7 +195,7 @@ function AccountBadgeMarker({
     return (
       <IdentityMarker
         {...visual}
-        Icon={ChannelIcon}
+        Icon={RiMegaphoneLine}
         a11yLabel={t('channels.badge.a11yLabel')}
         onExplain={onExplainChannel}
       />
@@ -207,7 +205,7 @@ function AccountBadgeMarker({
   return (
     <IdentityMarker
       {...visual}
-      Icon={FediverseIcon}
+      Icon={RiFediverseLine}
       a11yLabel={t('fediverse.remoteBadge.a11yLabel')}
       onExplain={onExplainNetwork}
     />
@@ -230,7 +228,7 @@ export function FediverseSharingBadge({
   return (
     <IdentityMarker
       {...visual}
-      Icon={FediverseIcon}
+      Icon={RiFediverseLine}
       a11yLabel={t('fediverse.badge.a11yLabel')}
       onExplain={onExplainNetwork}
     />

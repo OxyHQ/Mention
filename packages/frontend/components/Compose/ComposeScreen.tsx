@@ -15,7 +15,6 @@ import { logger } from '@oxy.so/core/logger';
 import { classifyApiError, normalizeApiError, type ApiErrorReason } from '@/utils/apiError';
 import { OxyAuthPrompt, useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle, type AccountNode, type FileMetadata } from '@oxy.so/core';
-import { StatusBar } from 'expo-status-bar';
 import * as ExpoLocation from 'expo-location';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useQueryClient } from '@tanstack/react-query';
@@ -29,7 +28,9 @@ import { PostPodcastAttachment } from '@/components/Podcast/PostPodcastAttachmen
 import RoomCard from '@/components/RoomCard';
 import ComposeToolbar from '@/components/ComposeToolbar';
 import { formatScheduledShort } from '@/utils/dateUtils';
-import { ScheduleIcon, ScheduleIconActive } from '@/assets/icons/schedule-icon';
+import { RiDraftLine } from '@oxy.so/bloom/icons/RiDraftLine';
+import { RiTimeFill } from '@oxy.so/bloom/icons/RiTimeFill';
+import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';
@@ -61,7 +62,6 @@ import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { DraftsIcon } from '@/assets/icons/drafts';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 // Import types separately (not lazy loaded)
@@ -2765,7 +2765,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           composer (`app/(app)/_layout.tsx`), so the footer row sits on the
           screen edge and has to clear the gesture area itself. */}
       <SafeAreaView className="flex-1 bg-card" edges={['top', 'bottom']}>
-        <StatusBar style="light" />
         {supervision.supervised && (
           <Text className="px-4 py-3 text-sm text-muted-foreground">{t('safety.privatePost')}</Text>
         )}
@@ -2841,7 +2840,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   appearance="subtle"
                   tone="neutral"
                   iconOnly
-                  icon={<DraftsIcon size={20} color={theme.colors.text} />}
+                  icon={<RiDraftLine width={20} height={20} fill={theme.colors.text} />}
                   style={styles.iconBtn}
                   onPress={() => {
                     bottomSheet.setBottomSheetContent(
@@ -3705,7 +3704,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                     the same instant, so no box owns it. Never hidden — the batch
                     has a publish time in both posting modes. The FILLED glyph once
                     a time is set, not just a tint, and never the event control's
-                    `CalendarIcon`. */}
+                    `RiCalendarEventLine`. */}
                 <Chip
                   size="xl"
                   variant="subtle"
@@ -3717,9 +3716,9 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   })}
                   startIcon={
                     scheduledAt ? (
-                      <ScheduleIconActive size={16} color={theme.colors.primary} />
+                      <RiTimeFill width={16} height={16} fill={theme.colors.primary} />
                     ) : (
-                      <ScheduleIcon size={16} color={theme.colors.textSecondary} />
+                      <RiTimeLine width={16} height={16} fill={theme.colors.textSecondary} />
                     )
                   }
                   trailingIcon={RiArrowDownSLine}

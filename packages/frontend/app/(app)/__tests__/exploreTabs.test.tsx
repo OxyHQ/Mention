@@ -30,7 +30,6 @@ jest.mock('expo-router', () => ({
   Slot: () => null,
 }));
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
-jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 jest.mock('@oxy.so/bloom/tabs', () => ({
   Tabs: (props: TabsProps) => {
     mockTabsProps = props;
@@ -41,7 +40,6 @@ jest.mock('@oxy.so/bloom/tabs', () => ({
 jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ isDark: false }) }));
 jest.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
 jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
-jest.mock('@/assets/icons/search-icon', () => ({ Search: () => null }));
 jest.mock('@/components/SEO', () => ({ SEO: () => null }));
 jest.mock('@/context/ScreenReselectContext', () => ({
   useTabSelect:

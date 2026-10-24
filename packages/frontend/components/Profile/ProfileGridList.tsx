@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import { Dimensions, FlatList, View } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
+import { ScreenFlashList } from '@/components/common/ScreenFlashList';
 import { useHeaderDockInset } from '@oxy.so/bloom/layout';
 import type { ProfileGridEntry, ProfileGridListProps } from './ProfileGridList.types';
 
@@ -30,7 +30,8 @@ type ProfileGridRow<T extends ProfileGridEntry> =
 /**
  * Shared 3-column square grid used by the profile Media and Videos tabs.
  *
- * Native passes `ownsScroll`: FlashList then owns the one vertical viewport,
+ * Native passes `ownsScroll`: the list is then its Screen's scroller (it pads
+ * itself clear of the header and the bottom bar) and owns the one viewport,
  * with the profile summary as its normal header and tabs as a full-span sticky
  * data row. Web retains the document-scroll fallback, so no nested scroller is
  * introduced there.
@@ -47,8 +48,6 @@ export function ProfileGridList<T extends ProfileGridEntry>({
   listStickyHeaderComponent,
   emptyComponent,
   contentContainerStyle,
-  onScroll,
-  scrollRef,
   onEndReached,
 }: ProfileGridListProps<T>) {
   const headerDockInset = useHeaderDockInset();
@@ -145,8 +144,7 @@ export function ProfileGridList<T extends ProfileGridEntry>({
         style={{ flex: 1, minHeight: 0 }}
         onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
       >
-        <FlashList
-          ref={scrollRef}
+        <ScreenFlashList
           data={rows}
           keyExtractor={virtualizedKeyExtractor}
           renderItem={renderVirtualizedRow}
@@ -154,19 +152,13 @@ export function ProfileGridList<T extends ProfileGridEntry>({
           overrideItemLayout={overrideItemLayout}
           numColumns={NUM_COLUMNS}
           ListHeaderComponentStyle={{ flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' }}
-          contentContainerStyle={[
-            { paddingHorizontal: H_PADDING },
-            contentContainerStyle,
-            { paddingBottom: 100 },
-          ]}
+          contentContainerStyle={[{ paddingHorizontal: H_PADDING }, contentContainerStyle]}
           ListHeaderComponent={listHeaderComponent}
           stickyHeaderIndices={
             listStickyHeaderComponent ? [listContentHeaderComponent ? 1 : 0] : undefined
           }
           stickyHeaderConfig={{ offset: headerDockInset }}
           showsVerticalScrollIndicator={false}
-          onScroll={onScroll}
-          scrollEventThrottle={16}
           onEndReached={onEndReached}
           onEndReachedThreshold={0.7}
           drawDistance={Math.max(itemSize * 2, 300)}

@@ -4,10 +4,11 @@ import { Link } from '@/lib/navigation/router';
 import * as Clipboard from 'expo-clipboard';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { VerifiedIcon } from '@/assets/icons/verified-icon';
+import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
+import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
+import { RiVerifiedBadgeFill } from '@oxy.so/bloom/icons/RiVerifiedBadgeFill';
+import { VERIFIED_BADGE_COLOR } from '@/styles/colors';
 import { AccountBadge } from '@/components/AccountBadge';
-import { AgentIcon } from '@/assets/icons/agent-icon';
-import { AutomatedIcon } from '@/assets/icons/automated-icon';
 import type { UserNameProps } from '@/components/Profile/types';
 
 const UserName: React.FC<UserNameProps> = ({
@@ -179,15 +180,19 @@ const UserName: React.FC<UserNameProps> = ({
     <>
       <View className={nameRowClassName} style={styles.nameRow}>
         {primaryText != null && nameText}
-        {/* No colour passed: the badge owns its blue (VERIFIED_BADGE_COLOR,
-                    the default of `VerifiedIcon`'s `color`). It used to take
+        {/* The badge is always VERIFIED_BADGE_COLOR, never a theme role. It used to take
                     `text-primary`, which a profile scopes to the PROFILE OWNER's
                     colour preset — so the same seal was a different colour on
                     every profile, and the compact scroll header opted out into
                     `text-foreground` on top of that, drawing it black/white a
                     few pixels above the very same badge in the identity line. */}
         {verified && (
-          <VerifiedIcon size={iconSize} style={{ transform: [{ translateY: baselineNudge }] }} />
+          <RiVerifiedBadgeFill
+            width={iconSize}
+            height={iconSize}
+            fill={VERIFIED_BADGE_COLOR}
+            style={{ transform: [{ translateY: baselineNudge }] }}
+          />
         )}
         {/* One marker for the account's whole identity state — remote or
                     channel, never both, and nothing at all for an ordinary local
@@ -204,16 +209,18 @@ const UserName: React.FC<UserNameProps> = ({
         />
 
         {isAgent && (
-          <AgentIcon
-            size={iconSize}
-            className="text-muted-foreground"
+          <RiSparklingLine
+            width={iconSize}
+            height={iconSize}
+            fill={theme.colors.textSecondary}
             style={{ transform: [{ translateY: baselineNudge }] }}
           />
         )}
         {isAutomated && (
-          <AutomatedIcon
-            size={iconSize}
-            className="text-muted-foreground"
+          <RiRobot2Line
+            width={iconSize}
+            height={iconSize}
+            fill={theme.colors.textSecondary}
             style={{ transform: [{ translateY: baselineNudge }] }}
           />
         )}

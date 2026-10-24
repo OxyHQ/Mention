@@ -2,29 +2,29 @@ jest.mock('@/hooks/useFeedVisibility', () => ({ useFeedVisibility: jest.fn() }))
 jest.mock('@/services/socketService', () => ({
   socketService: { subscribeToFeedUpdates: jest.fn(() => jest.fn()) },
 }));
-jest.mock('@oxy.so/bloom/screen', () => ({ useScreenViewport: () => null }));
+jest.mock('@oxy.so/bloom/screen', () => ({
+  useScreenViewport: () => null,
+  // The feed hands Bloom its scroll handler; Bloom's own chrome is not under test.
+  useScreenScroll: ({ handler }: { handler?: unknown }) => ({
+    onScroll: handler,
+    contentInsets: { top: 0, bottom: 0 },
+    scrollY: { value: 0 },
+  }),
+}));
+jest.mock('@/context/ScreenReselectContext', () => ({ useReselectScroller: () => undefined }));
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
 /**
- * WHO MOVES THE CHROME, AND HOW OFTEN THE JS THREAD HEARS ABOUT IT.
+ * HOW OFTEN THE JS THREAD HEARS ABOUT THE SCROLL.
  *
- * The auto-hiding header, the home tab strip and the bottom bar integrate their
- * position from the shared `scrollPosition` inside a `useAnimatedReaction`
- * worklet. That worklet runs on the UI thread, so the chrome tracks the finger
- * exactly as well as the VALUE IT READS is kept up to date — and that value used
- * to be written from a JS `onScroll` callback. During a fling the JS thread is
- * busy building rows (~40ms each, measured on a Pixel 10 Pro), so the offset
- * arrived in bursts and the header froze and then jumped.
+ * The chrome follows the feed on the UI thread: the feed hands its scroll to
+ * Bloom's `useScreenScroll` as a worklet. The JS side only needs the offset for
+ * bookkeeping (where to reopen the feed), and during a fling the JS thread is
+ * busy building rows (~40ms each, measured on a Pixel 10 Pro), so it must not
+ * be told on every event.
  *
- * Two halves, and the test needs both or it means nothing:
- *
- *  1. THE SHARED VALUE MOVES ON EVERY SCROLL EVENT — otherwise the chrome is
- *     still as coarse as before, just from a different thread.
- *  2. THE JS THREAD IS NOT TOLD EVERY TIME — otherwise nothing was actually
- *     taken off the hot path and the fling still pays for the bookkeeping.
- *
- * Plus the part that keeps (2) honest: what gets PERSISTED when the scroll stops
+ * Plus the part that keeps that honest: what gets PERSISTED when the scroll stops
  * is the offset the reader actually stopped at, not the last rationed sample.
  */
 
@@ -57,21 +57,7 @@ jest.mock('react-native-reanimated', () => {
   };
 });
 
-const mockScrollPosition = {
-  value: 0,
-  set(next: number) {
-    this.value = next;
-  },
-};
 const mockSetFeedScrollOffset = jest.fn();
-
-jest.mock('@/context/LayoutScrollContext', () => ({
-  useLayoutScroll: () => ({
-    scrollPosition: mockScrollPosition,
-    scrollEventThrottle: 16,
-    registerScrollable: () => () => undefined,
-  }),
-}));
 
 jest.mock('@/stores/feedScrollStore', () => ({
   getFeedScrollOffset: () => 0,
@@ -177,7 +163,6 @@ describe('the feed’s scroll, as the chrome and the JS thread each see it', () 
   let renderer: TestRenderer.ReactTestRenderer | undefined;
 
   beforeEach(() => {
-    mockScrollPosition.value = 0;
     mockSetFeedScrollOffset.mockClear();
     act(() => {
       renderer = TestRenderer.create(<Feed type="for_you" />);
@@ -189,15 +174,6 @@ describe('the feed’s scroll, as the chrome and the JS thread each see it', () 
       renderer?.unmount();
     });
     renderer = undefined;
-  });
-
-  it('moves the shared scroll position on every single event', () => {
-    for (const offset of [4, 9, 17, 26, 38]) scrollTo(offset);
-
-    // Not "eventually 38" — the chrome integrates a DELTA per frame, so a
-    // value that only lands on some frames is a chrome that only moves on
-    // some frames.
-    expect(mockScrollPosition.value).toBe(38);
   });
 
   it('does not tell the JS thread about every one of them', () => {

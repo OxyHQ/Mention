@@ -31,6 +31,16 @@ state as any broken or missing media. The patch routes every call through
 Still present in 58.0.12 (all five calls); re-made against it. Remove when
 upstream handles the `play()` promise.
 
+On Android, `VideoView` lays out its `PlayerView` only after a `requestLayout`.
+React Native resizes a view by setting its frame, which never measures it, so a
+view moved to a new frame kept the player at its old measured size. Bloom's
+media flight carries one video node from a feed card into the reel, and the
+reel drew the video at the card's size, centered and small. The patch measures
+and lays out the player in `onSizeChanged`. Expo links its modules as
+precompiled AARs, so `packages/frontend/package.json` builds expo-video from
+source (`expo.autolinking.android.buildFromSource`), or the patch would never
+reach the APK. Remove both when upstream re-lays out the player on a frame change.
+
 # react-native-screens 4.30.0
 
 The experimental ("gamma") stack host lays its native `StackContainer` out with
@@ -45,6 +55,16 @@ a Pixel 8a release build: the container moves from (42, 578) to the panel's own
 (21, 289). Still present in 4.30.0 (Expo Router 58's `ExperimentalStack` still
 renders this host); remove when upstream
 fixes `StackHost.onLayout` / `layoutContainerNow`.
+
+The same stack adds every pushed screen over the last one and never removes the
+screen it covers from the view tree, so the RenderThread prepared and drew every
+screen of the stack each frame under the top one. On a Pixel 10 Pro release
+build, scrolling a profile went from 0.9% janky frames (p50 8 ms) to 27% (p50
+21 ms) after 20 pushed screens. The patch is a backport of upstream's fix,
+software-mansion/react-native-screens#4633 (5.0.0-alpha.4): the push transaction
+detaches the covered screen, and the top fragment is resolved from the stack
+model. Popping the record (Back, predictive back, a JS pop) re-attaches it.
+Remove when Mention moves to react-native-screens 5.
 
 # @oxy.so/bloom 6.2.0
 
@@ -114,3 +134,16 @@ shaken. Measured on one `expo export --platform web` of the same commit:
 which every animated component imports, and the Fade and Slide presets Bloom
 and the app use). Still `require()` in 3.3.0; remove the patch when upstream
 imports Reanimated statically.
+
+# react-native-css 3.1.0-rc.0
+
+On native, NativeWind's Metro resolver sends every `import … from 'react-native'`
+outside React Native itself to `react-native-css/components`, a shim that
+re-exports a fixed list of React Native APIs. React Native 0.88 added
+`AssetRegistry` to its public index, and Expo SDK 58's `expo-asset` imports it
+from there. The shim does not list it, so `expo-asset` received `undefined`.
+Every `useFonts` call then failed with `Cannot read property 'getAssetByID' of
+undefined`. Bloom never finished loading its fonts, and Android release builds
+stayed on a blank screen. The patch adds the missing getter to `src`,
+`dist/module` and `dist/commonjs`. It is still missing in 3.0.7, 3.1.0-rc.0 and
+the current nightly. Remove the patch when upstream re-exports `AssetRegistry`.

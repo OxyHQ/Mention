@@ -51,7 +51,15 @@ jest.mock('@/stores/postsStore', () => ({
     selector({ createPost: mockCreatePost }),
 }));
 
-jest.mock('@/context/TabPagerContext', () => ({
+// The page's dark surface; no theme provider here, and nothing to measure.
+jest.mock('@oxy.so/bloom/screen', () => ({
+  Screen: ({ children }: { children: React.ReactNode }) => children,
+}));
+jest.mock('@oxy.so/bloom/theme', () => ({
+  BloomColorScope: ({ children }: { children: React.ReactNode }) => children,
+}));
+
+jest.mock('@oxy.so/bloom/tab-pager', () => ({
   useTabPager: () => ({ selectTab: jest.fn() }),
 }));
 
@@ -77,8 +85,7 @@ jest.mock('@/utils/pendingShareMedia', () => ({
 import CameraPage from '../camera';
 
 /**
- * Every mount is torn down, following `TabsPager.test.tsx`'s own note that this
- * is not tidiness: several cases here deliberately leave `createPost` pending,
+ * Every mount is torn down, and that is not tidiness: several cases here deliberately leave `createPost` pending,
  * and a renderer left standing keeps that unresolved update in React's act queue
  * — where the NEXT test's synchronous `act` flushes it instead of its own first
  * render, and that test then finds no viewfinder to capture with.

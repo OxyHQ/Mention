@@ -14,9 +14,9 @@ import { InputGroup, InputGroupAddon } from '@oxy.so/bloom/input-group';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { useTranslation } from 'react-i18next';
-import { PollIcon } from '@/assets/icons/poll-icon';
-import { CloseIcon } from '@/assets/icons/close-icon';
-import { Plus } from '@/assets/icons/plus-icon';
+import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
+import { RiBarChartHorizontalLine } from '@oxy.so/bloom/icons/RiBarChartHorizontalLine';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface PollCreatorProps {
@@ -58,11 +58,11 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
     <Card border="thin" radius="radius-12" style={[styles.pollCreator, style]}>
       <View className="flex-row justify-between items-center mb-2.5">
         <View className="flex-row items-center gap-1.5">
-          <PollIcon size={18} className="text-primary" />
+          <RiBarChartHorizontalLine width={18} height={18} fill={theme.colors.primary} />
           <Text className="text-[15px] font-bold text-foreground">{t('Create a poll')}</Text>
         </View>
         <TouchableOpacity onPress={onRemove} className="p-1" hitSlop={HIT_SLOP_MD}>
-          <CloseIcon size={18} className="text-muted-foreground" />
+          <RiCloseLine width={18} height={18} fill={theme.colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
@@ -103,7 +103,7 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
                   accessibilityRole="button"
                   accessibilityLabel={t('common.remove', { defaultValue: 'Remove' })}
                 >
-                  <CloseIcon size={16} className="text-muted-foreground" />
+                  <RiCloseLine width={16} height={16} fill={theme.colors.textSecondary} />
                 </TouchableOpacity>
               </InputGroupAddon>
             )}
@@ -118,7 +118,7 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
           activeOpacity={0.7}
         >
           <View className="w-6 h-6 rounded-full items-center justify-center bg-muted">
-            <Plus size={16} className="text-primary" />
+            <RiAddLine width={16} height={16} fill={theme.colors.primary} />
           </View>
           <Text className="text-sm font-semibold text-primary">{t('Add option')}</Text>
         </TouchableOpacity>

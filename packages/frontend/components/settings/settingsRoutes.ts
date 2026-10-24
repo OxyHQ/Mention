@@ -48,6 +48,8 @@ export function isSettingsPage(page: string): boolean {
 export function settingsPageFromRoute(route: string): string | null {
   const pathname = route.split(/[?#]/)[0].replace(/\/$/, '');
   if (pathname === '/settings') return 'account';
+  // The old Edit profile address is the same Settings page.
+  if (pathname === '/edit-profile') return 'edit-profile';
   if (!pathname.startsWith('/settings/')) return null;
   const id = pathname.slice('/settings/'.length);
   return pageIds.has(id) ? id : null;

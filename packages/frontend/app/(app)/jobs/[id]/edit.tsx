@@ -1,11 +1,12 @@
 import { FormSkeleton } from '@/components/loading/ContentSkeleton';
 import { useEffect, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { logger } from '@oxy.so/core/logger';
@@ -119,17 +120,17 @@ export default function EditJobScreen() {
 
   if (jobQuery.isLoading || !hydrated) {
     return (
-      <View className="flex-1">
-        {header}
-        <FormSkeleton />
-      </View>
+      <Screen header={header}>
+        <ScreenScrollView>
+          <FormSkeleton />
+        </ScreenScrollView>
+      </Screen>
     );
   }
 
   if (jobQuery.isError || !jobQuery.data) {
     return (
-      <View className="flex-1">
-        {header}
+      <Screen header={header}>
         <View className="flex-1 items-center justify-center gap-3 px-8">
           <Text className="text-muted-foreground text-base text-center">
             {t('jobs.edit.loadFailed', { defaultValue: 'Could not load this job' })}
@@ -138,14 +139,16 @@ export default function EditJobScreen() {
             {t('common.tryAgain', { defaultValue: 'Try again' })}
           </Button>
         </View>
-      </View>
+      </Screen>
     );
   }
 
   return (
-    <View className="flex-1">
-      {header}
-      <ScrollView contentContainerClassName="px-4 pb-16 pt-2" keyboardShouldPersistTaps="handled">
+    <Screen header={header}>
+      <ScreenScrollView
+        contentContainerClassName="px-4 pb-16 pt-2"
+        keyboardShouldPersistTaps="handled"
+      >
         {metrics ? (
           <View className="flex-row flex-wrap gap-4 mb-4 p-3 bg-muted rounded-[12px]">
             <View>
@@ -192,7 +195,7 @@ export default function EditJobScreen() {
             {t('jobs.edit.save', { defaultValue: 'Save changes' })}
           </Button>
         </View>
-      </ScrollView>
-    </View>
+      </ScreenScrollView>
+    </Screen>
   );
 }

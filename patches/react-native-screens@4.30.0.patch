@@ -1,3 +1,68 @@
+diff --git a/node_modules/react-native-screens/.bun-tag-a0843c69309e8acb b/.bun-tag-a0843c69309e8acb
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/react-native-screens/.bun-tag-b6e06a134b18ef06 b/.bun-tag-b6e06a134b18ef06
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/FragmentOperation.kt b/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/FragmentOperation.kt
+index 818469b43c2348f3f18df71e77102eafb0124faf..ef6197f6cd5af8b8ff60edebc913812a795567ce 100644
+--- a/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/FragmentOperation.kt
++++ b/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/FragmentOperation.kt
+@@ -14,6 +14,7 @@ internal class AddAndSetAsPrimaryOp(
+     val fragment: StackScreenFragment,
+     val containerViewId: Int,
+     val addToBackStack: Boolean,
++    val coveredFragment: StackScreenFragment?,
+     val allowStateLoss: Boolean = true,
+ ) : FragmentOperation() {
+     override fun execute(
+diff --git a/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/FragmentOperationExecutor.kt b/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/FragmentOperationExecutor.kt
+index 929c41ed8b97b98c0bd95004b12572ed99f54bb4..809425cc5681c1e4e0323d1f5d9648ee5756485c 100644
+--- a/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/FragmentOperationExecutor.kt
++++ b/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/FragmentOperationExecutor.kt
+@@ -26,6 +26,7 @@ internal class FragmentOperationExecutor {
+                 tx.addToBackStack(op.fragment.stackScreen.screenKey)
+             }
+             tx.add(op.containerViewId, op.fragment)
++            op.coveredFragment?.let { tx.detach(it) }
+             tx.setPrimaryNavigationFragment(op.fragment)
+             commitTransaction(tx, op.allowStateLoss)
+         }
+diff --git a/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/StackContainer.kt b/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/StackContainer.kt
+index 483ce36125459be81eaa536b153bd2a5803db5af..a36e9674588724f3134f51456e75e4f4fb199c9a 100644
+--- a/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/StackContainer.kt
++++ b/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/StackContainer.kt
+@@ -171,6 +171,7 @@ internal class StackContainer(
+                     newFragment,
+                     containerViewId = this.id,
+                     addToBackStack = stackModel.isNotEmpty(),
++                    coveredFragment = stackModel.lastOrNull(),
+                 ),
+             )
+             stackModel.add(newFragment)
+@@ -210,16 +211,15 @@ internal class StackContainer(
+         }
+ 
+     private fun updateTopFragment() {
+-        // We try to handle situation where other fragments might be present.
+-        val fragmentManager = requireFragmentManager()
+-        val fragments = fragmentManager.fragments.filterIsInstance<StackScreenFragment>()
+-        check(fragments.isNotEmpty()) { "[RNScreens] Empty fragment manager while attempting to update top fragment" }
+-        fragments.forEach { it.onResignTopFragment() }
+-        fragments.last().onBecomeTopFragment()
++        // Covered fragments are detached, so FragmentManager's added list holds only the top
++        // fragment - the model is the only place all of them can be resigned from.
++        check(stackModel.isNotEmpty()) { "[RNScreens] Empty stack model while attempting to update top fragment" }
++        stackModel.forEach { it.onResignTopFragment() }
++        stackModel.last().onBecomeTopFragment()
+ 
+         // This assumes that the updateTopFragment is called already after primary nav frag. is updated.
+         // If this needs to be changed in the future, just remove this assertion.
+-        check(fragmentManager.primaryNavigationFragment === fragments.last()) {
++        check(requireFragmentManager().primaryNavigationFragment === stackModel.last()) {
+             "[RNScreens] Top fragment different from primary navigation fragment"
+         }
+     }
 diff --git a/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/StackHost.kt b/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/StackHost.kt
 index 452a244169c763b51a98fae94fe291f92e2b3d79..e67970a523de1499e043ffd539c53916bedaf934 100644
 --- a/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/StackHost.kt

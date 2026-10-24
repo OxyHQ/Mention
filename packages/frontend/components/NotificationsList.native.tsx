@@ -3,7 +3,7 @@ import type React from 'react';
 import { useCallback } from 'react';
 import { RefreshControl, View } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { FocusedFlashList } from '@/components/common/FocusedFlashList';
+import { ScreenFlashList } from '@/components/common/ScreenFlashList';
 import type { NotificationListItem } from '@/utils/groupNotifications';
 
 export interface NotificationsListProps {
@@ -27,8 +27,8 @@ const EMPTY_CONTENT = { flexGrow: 1 } as const;
 const LIST_STYLE = { flex: 1 } as const;
 
 /**
- * NATIVE notifications list: a `FocusedFlashList`, so it owns the screen's
- * scroll while the notifications tab is in front.
+ * NATIVE notifications list: a `ScreenFlashList`, the notifications Screen's
+ * scroller.
  */
 export function NotificationsList({
   items,
@@ -69,7 +69,7 @@ export function NotificationsList({
 
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
-      <FocusedFlashList
+      <ScreenFlashList
         data={items}
         keyExtractor={getItemKey}
         renderItem={renderItem}

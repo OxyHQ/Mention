@@ -1,9 +1,10 @@
 import { FormSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Button } from '@oxy.so/bloom/button';
@@ -262,35 +263,31 @@ export default function EditStarterPackScreen() {
 
   if (loading) {
     return (
-      <View className="flex-1">
-        {header}
-        <FormSkeleton />
-      </View>
+      <Screen header={header}>
+        <ScreenScrollView>
+          <FormSkeleton />
+        </ScreenScrollView>
+      </Screen>
     );
   }
 
   if (error) {
     return (
-      <View className="flex-1">
-        {header}
-        <View className="flex-1 items-center justify-center gap-3 px-8">
+      <Screen header={header}>
+        <ScreenScrollView contentContainerClassName="flex-1 items-center justify-center gap-3 px-8">
           <RiCloseCircleLine size="3xl" fill={theme.colors.textSecondary} />
           <Text className="text-muted-foreground text-base text-center">{error}</Text>
           <TouchableOpacity onPress={load}>
             <Text className="text-primary text-sm font-semibold">Try again</Text>
           </TouchableOpacity>
-        </View>
-      </View>
+        </ScreenScrollView>
+      </Screen>
     );
   }
 
   return (
-    <View className="flex-1">
-      {header}
-      <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
-        keyboardShouldPersistTaps="handled"
-      >
+    <Screen header={header}>
+      <ScreenScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
         <View className="gap-3 mb-3">
           <Field label="Name">
             <TextFieldInput
@@ -475,7 +472,7 @@ export default function EditStarterPackScreen() {
         >
           <Text className="text-destructive font-semibold font-primary">Delete starter pack</Text>
         </TouchableOpacity>
-      </ScrollView>
-    </View>
+      </ScreenScrollView>
+    </Screen>
   );
 }

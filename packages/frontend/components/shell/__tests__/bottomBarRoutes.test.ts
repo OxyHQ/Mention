@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-
 import { bottomBarContent, hidesBottomBar } from '../bottomBarRoutes';
 
 describe('hidesBottomBar', () => {
@@ -24,17 +21,6 @@ describe('hidesBottomBar', () => {
   ])('keeps the bar on %p', (pathname) => {
     expect(hidesBottomBar(pathname)).toBe(false);
   });
-
-  it('is what the app shell consults before drawing the bar', () => {
-    const layout = readFileSync(
-      join(__dirname, '..', '..', '..', 'app', '(app)', '_layout.tsx'),
-      'utf8',
-    );
-    expect(layout).toMatch(
-      /bottomBarContent\(\{\s*pathname,\s*keyboardVisible,\s*isAuthenticated,\s*isAuthResolved,?\s*\}\)/,
-    );
-    expect(layout).toMatch(/bottomBar=\{bottomBar\}/);
-  });
 });
 
 /**
@@ -44,7 +30,6 @@ describe('hidesBottomBar', () => {
 describe('bottomBarContent', () => {
   const base = {
     pathname: '/@nate',
-    keyboardVisible: false,
     isAuthenticated: false,
     isAuthResolved: true,
   };
@@ -64,10 +49,5 @@ describe('bottomBarContent', () => {
   it('draws nothing on the full-screen composer, signed in or not', () => {
     expect(bottomBarContent({ ...base, pathname: '/compose' })).toBeNull();
     expect(bottomBarContent({ ...base, pathname: '/compose', isAuthenticated: true })).toBeNull();
-  });
-
-  it('draws nothing over the keyboard', () => {
-    expect(bottomBarContent({ ...base, keyboardVisible: true })).toBeNull();
-    expect(bottomBarContent({ ...base, keyboardVisible: true, isAuthenticated: true })).toBeNull();
   });
 });

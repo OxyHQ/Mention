@@ -2,9 +2,7 @@ import type React from 'react';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen } from '@oxy.so/bloom/screen';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { StatusBar } from 'expo-status-bar';
 import { SEO } from '@/components/SEO';
 import LazyInsightsView from '@/components/insights/LazyInsightsView';
 
@@ -18,7 +16,6 @@ import LazyInsightsView from '@/components/insights/LazyInsightsView';
  */
 const InsightsScreen: React.FC = () => {
   const { t } = useTranslation();
-  const theme = useTheme();
   const safeBack = useSafeBack();
 
   return (
@@ -35,7 +32,6 @@ const InsightsScreen: React.FC = () => {
           />
         }
       >
-        <StatusBar style={theme.isDark ? 'light' : 'dark'} />
         <LazyInsightsView />
       </Screen>
     </>

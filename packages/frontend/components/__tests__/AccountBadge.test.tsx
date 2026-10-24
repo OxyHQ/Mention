@@ -4,6 +4,8 @@ import type React from 'react';
 import TestRenderer, { type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 
 import { AccountBadge, FediverseSharingBadge, type AccountBadgeProps } from '../AccountBadge';
+import { RiFediverseLine } from '@oxy.so/bloom/icons/RiFediverseLine';
+import { RiMegaphoneLine } from '@oxy.so/bloom/icons/RiMegaphoneLine';
 import enStrings from '@/locales/en.json';
 
 /**
@@ -27,8 +29,6 @@ import enStrings from '@/locales/en.json';
 // Host-string mocks: the marker each branch chose survives into the tree as a
 // distinguishable element, so "which icon" is read off the render rather than
 // re-derived from the props the test just passed in.
-jest.mock('@/assets/icons/fediverse-icon', () => ({ FediverseIcon: 'FediverseIcon' }));
-jest.mock('@/assets/icons/channel-icon', () => ({ ChannelIcon: 'ChannelIcon' }));
 
 /**
  * `t` resolves against the REAL `en.json`, walking dotted paths through both the
@@ -36,6 +36,9 @@ jest.mock('@/assets/icons/channel-icon', () => ({ ChannelIcon: 'ChannelIcon' }))
  * marker string rather than the key itself, so a label asserted below can never
  * be satisfied by a key that was never added to the catalog.
  */
+jest.mock('@oxy.so/bloom/theme', () => ({
+  useTheme: () => ({ colors: { text: '#000', textSecondary: '#666', primary: '#7c3aed' } }),
+}));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => {
@@ -100,8 +103,8 @@ function pressHandlers(renderer: ReactTestRenderer): ((event?: unknown) => void)
   return [...unique];
 }
 
-function icons(renderer: ReactTestRenderer, hostName: string): ReactTestInstance[] {
-  return renderer.root.findAllByType(hostName as unknown as React.ElementType);
+function icons(renderer: ReactTestRenderer, glyph: React.ElementType): ReactTestInstance[] {
+  return renderer.root.findAllByType(glyph);
 }
 
 /** The accessibility labels the marker exposed, in render order. */
@@ -120,7 +123,7 @@ describe('AccountBadge — a marker is a statement, not a control', () => {
     // NON-VACUITY CONTROL. Without this the two assertions below are also
     // satisfied by a component that rendered nothing at all, which is the one
     // regression they exist to distinguish "inert" from.
-    expect(icons(renderer, 'FediverseIcon')).toHaveLength(1);
+    expect(icons(renderer, RiFediverseLine)).toHaveLength(1);
     expect(labels(renderer)).toContain(REMOTE_LABEL);
 
     expect(buttons(renderer)).toHaveLength(0);
@@ -161,8 +164,8 @@ describe('AccountBadge — which marker the account state chooses', () => {
   it('draws the channel marker for a channel account', () => {
     const renderer = render(<AccountBadge kind="channel" />);
 
-    expect(icons(renderer, 'ChannelIcon')).toHaveLength(1);
-    expect(icons(renderer, 'FediverseIcon')).toHaveLength(0);
+    expect(icons(renderer, RiMegaphoneLine)).toHaveLength(1);
+    expect(icons(renderer, RiFediverseLine)).toHaveLength(0);
     expect(labels(renderer)).toContain(CHANNEL_LABEL);
   });
 
@@ -174,8 +177,8 @@ describe('AccountBadge — which marker the account state chooses', () => {
       const renderer = render(<AccountBadge kind={kind} />);
 
       expect(renderer.toJSON()).toBeNull();
-      expect(icons(renderer, 'ChannelIcon')).toHaveLength(0);
-      expect(icons(renderer, 'FediverseIcon')).toHaveLength(0);
+      expect(icons(renderer, RiMegaphoneLine)).toHaveLength(0);
+      expect(icons(renderer, RiFediverseLine)).toHaveLength(0);
     },
   );
 
@@ -189,7 +192,7 @@ describe('AccountBadge — which marker the account state chooses', () => {
     (kind) => {
       const renderer = render(<AccountBadge kind={kind} isFederated />);
 
-      expect(icons(renderer, 'FediverseIcon')).toHaveLength(1);
+      expect(icons(renderer, RiFediverseLine)).toHaveLength(1);
       expect(labels(renderer)).toEqual([REMOTE_LABEL]);
     },
   );
@@ -199,8 +202,8 @@ describe('AccountBadge — which marker the account state chooses', () => {
 
     // Exactly one marker, and it is the federated one. Asserting the channel
     // icon's ABSENCE is the half that catches a version stacking both.
-    expect(icons(renderer, 'FediverseIcon')).toHaveLength(1);
-    expect(icons(renderer, 'ChannelIcon')).toHaveLength(0);
+    expect(icons(renderer, RiFediverseLine)).toHaveLength(1);
+    expect(icons(renderer, RiMegaphoneLine)).toHaveLength(0);
     expect(labels(renderer)).toEqual([REMOTE_LABEL]);
   });
 
@@ -239,7 +242,7 @@ describe('AccountBadge — which marker the account state chooses', () => {
       <AccountBadge isFederated {...legacy} onExplainNetwork={onExplainNetwork} />,
     );
 
-    expect(icons(renderer, 'FediverseIcon')).toHaveLength(1);
+    expect(icons(renderer, RiFediverseLine)).toHaveLength(1);
     expect(labels(renderer)).toEqual([REMOTE_LABEL]);
     expect(renderer.root.findAllByType('Text' as unknown as React.ElementType)).toHaveLength(0);
     expect(JSON.stringify(renderer.toJSON())).not.toMatch(/Instagram|Bluesky/);
@@ -265,7 +268,7 @@ describe('AccountBadge — the two explainers cannot be crossed', () => {
 
     const channel = render(<AccountBadge kind="channel" onExplainNetwork={onExplainNetwork} />);
     // Positive control: the marker is on screen, it simply is not a control.
-    expect(icons(channel, 'ChannelIcon')).toHaveLength(1);
+    expect(icons(channel, RiMegaphoneLine)).toHaveLength(1);
     expect(buttons(channel)).toHaveLength(0);
     expect(pressHandlers(channel)).toHaveLength(0);
 
@@ -279,7 +282,7 @@ describe('AccountBadge — the two explainers cannot be crossed', () => {
     const onExplainChannel = jest.fn();
 
     const federated = render(<AccountBadge isFederated onExplainChannel={onExplainChannel} />);
-    expect(icons(federated, 'FediverseIcon')).toHaveLength(1);
+    expect(icons(federated, RiFediverseLine)).toHaveLength(1);
     expect(buttons(federated)).toHaveLength(0);
     expect(pressHandlers(federated)).toHaveLength(0);
 
@@ -292,7 +295,7 @@ describe('AccountBadge — the channel marker opts in on its own prop', () => {
   it('stays a plain icon with no handler', () => {
     const renderer = render(<AccountBadge kind="channel" />);
 
-    expect(icons(renderer, 'ChannelIcon')).toHaveLength(1);
+    expect(icons(renderer, RiMegaphoneLine)).toHaveLength(1);
     expect(labels(renderer)).toContain(CHANNEL_LABEL);
     expect(buttons(renderer)).toHaveLength(0);
     expect(pressHandlers(renderer)).toHaveLength(0);
@@ -337,8 +340,8 @@ describe('AccountBadge — the channel marker opts in on its own prop', () => {
       <AccountBadge kind="channel" isFederated onExplainChannel={onExplainChannel} />,
     );
 
-    expect(icons(renderer, 'FediverseIcon')).toHaveLength(1);
-    expect(icons(renderer, 'ChannelIcon')).toHaveLength(0);
+    expect(icons(renderer, RiFediverseLine)).toHaveLength(1);
+    expect(icons(renderer, RiMegaphoneLine)).toHaveLength(0);
     expect(buttons(renderer)).toHaveLength(0);
   });
 });
@@ -346,7 +349,7 @@ describe('AccountBadge — the channel marker opts in on its own prop', () => {
 describe('FediverseSharingBadge — the own-profile marker obeys the same default', () => {
   it('is inert with no handler and armed with one', () => {
     const inert = render(<FediverseSharingBadge />);
-    expect(icons(inert, 'FediverseIcon')).toHaveLength(1);
+    expect(icons(inert, RiFediverseLine)).toHaveLength(1);
     expect(labels(inert)).toContain(SHARING_LABEL);
     expect(buttons(inert)).toHaveLength(0);
 

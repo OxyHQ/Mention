@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { ScrollView, Text, View, Switch } from 'react-native';
+import { Text, View, Switch } from 'react-native';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery, useQueryClient, useMutation, useInfiniteQuery } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { EventEditor } from '@/components/Compose/EventEditor';
 import { eventsService } from '@/services/eventsService';
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -92,9 +93,8 @@ function EventDetail({ id, viewerId, signIn }: { id: string; viewerId?: string; 
     }
   };
   return (
-    <View className="flex-1 bg-background">
-      <PageHeader title={text('title', 'Event')} onBack={back} />
-      <ScrollView contentContainerClassName="p-4 gap-4 max-w-2xl w-full self-center">
+    <Screen header={<PageHeader title={text('title', 'Event')} onBack={back} />}>
+      <ScreenScrollView contentContainerClassName="p-4 gap-4 max-w-2xl w-full self-center">
         {query.isPending && (
           <Text className="text-muted-foreground">{text('loading', 'Loading event…')}</Text>
         )}
@@ -265,7 +265,7 @@ function EventDetail({ id, viewerId, signIn }: { id: string; viewerId?: string; 
             )}
           </>
         )}
-      </ScrollView>
-    </View>
+      </ScreenScrollView>
+    </Screen>
   );
 }

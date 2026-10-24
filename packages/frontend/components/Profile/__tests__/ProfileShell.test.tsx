@@ -16,12 +16,11 @@ jest.mock('@oxy.so/bloom/screen', () => ({
 }));
 
 import type React from 'react';
-import { Animated, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { ProfileShell, type ProfileShellProps } from '../ProfileShell';
 import { ProfileUnavailable } from '../ProfileUnavailable';
 
-const mockScrollPosition = { value: 0 };
 const mockHeader = jest.fn();
 const mockScreen = jest.fn();
 const mockColorScope = jest.fn();
@@ -63,9 +62,6 @@ jest.mock('@oxy.so/bloom/theme', () => ({
     return props.children;
   },
 }));
-jest.mock('@/context/LayoutScrollContext', () => ({
-  useLayoutScroll: () => ({ scrollPosition: mockScrollPosition }),
-}));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (_key: string, options: { defaultValue: string }) => options.defaultValue,
@@ -90,7 +86,7 @@ jest.mock('../ProfileTabs', () => ({
     );
   },
 }));
-jest.mock('@shopify/flash-list', () => {
+jest.mock('@/components/common/ScreenFlashList', () => {
   const React_ = require('react') as typeof React;
   type MockProps = {
     ListHeaderComponent?: React.ReactNode;
@@ -98,7 +94,7 @@ jest.mock('@shopify/flash-list', () => {
     renderItem: (info: { item: string }) => React.ReactNode;
   };
   return {
-    FlashList: React_.forwardRef<unknown, MockProps>((props, _ref) => {
+    ScreenFlashList: (props: MockProps) => {
       mockList(props);
       return (
         <>
@@ -108,7 +104,7 @@ jest.mock('@shopify/flash-list', () => {
           ))}
         </>
       );
-    }),
+    },
   };
 });
 
@@ -116,11 +112,8 @@ type TabsProps = NonNullable<ProfileShellProps['tabs']>;
 function makeProps(tab: TabsProps['tab'] = 'lists'): ProfileShellProps & { tabs: TabsProps } {
   return {
     chrome: {
-      scrollY: new Animated.Value(0),
-      scrollRef: { current: null },
-      onScroll: jest.fn(),
-      assignScrollRef: jest.fn(),
       scrollToContent: jest.fn(),
+      loadMore: jest.fn(),
       contentHeight: 0,
       setContentHeight: jest.fn(),
     },
@@ -157,14 +150,14 @@ test('non-feed tabs have one list owner and measure docking from its header', ()
   const props = makeProps();
   const tree = renderShell(props);
   expect(tree.root.findAllByType(ScrollView)).toHaveLength(0);
-  expect(mockDock.mock.calls.at(-1)?.[0].scrollY).toBe(mockScrollPosition);
+  expect(mockDock.mock.calls.at(-1)?.[0].scrollY).toBeUndefined();
   expect(mockHeader.mock.calls.at(-1)?.[0]).toMatchObject({
     titleReveal: 'onDock',
   });
   expect(mockList.mock.calls.at(-1)?.[0]).toMatchObject({
     stickyHeaderIndices: [0],
     stickyHeaderConfig: { offset: 84 },
-    onScroll: props.chrome.onScroll,
+    onEndReached: props.chrome.loadMore,
   });
   // The strip's dock target is its Y in the list: the measured header block.
   // The header inset is the list's sticky clearance, not the strip's position.
@@ -188,8 +181,6 @@ test.each(['posts', 'media'] as const)('%s retains its own virtualized scroll ow
   expect(tabs.listOwnsScroll).toBe(true);
   expect(tabs.listContentHeaderComponent).toBeTruthy();
   expect(tabs.listStickyHeaderComponent).toBeTruthy();
-  expect(tabs.listOnScroll).toBe(tab === 'media' ? props.chrome.onScroll : undefined);
-  expect(tabs.listScrollRef).toBe(tab === 'media' ? props.chrome.assignScrollRef : undefined);
   act(() => tree.unmount());
 });
 
