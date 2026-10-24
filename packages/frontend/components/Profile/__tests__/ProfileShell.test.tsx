@@ -1,4 +1,5 @@
 jest.mock('@oxy.so/bloom/screen', () => ({
+  useScreenVisible: () => true,
   Screen: (props: {
     header?: React.ReactNode;
     bottomBar?: React.ReactNode;
@@ -31,6 +32,7 @@ const mockSticky = jest.fn();
 const mockCover = jest.fn();
 let mockDockInset = 84;
 
+jest.mock('@/lib/navigation/router', () => ({ useIsFocused: () => true }));
 jest.mock('@oxy.so/bloom/styles', () => ({ useSurfaceFill: () => 'rgb(20, 55, 84)' }));
 jest.mock('@oxy.so/bloom/layout', () => ({
   HeaderDockProvider: (props: { children: React.ReactNode }) => {

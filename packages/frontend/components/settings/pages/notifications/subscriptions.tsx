@@ -27,7 +27,6 @@ import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
 import { EmptyState } from '@/components/common/EmptyState';
-import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
 import { Error as ErrorComponent } from '@/components/Error';
 import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
 import { SEO } from '@/components/SEO';
@@ -199,14 +198,10 @@ export default function ActivitySubscriptionsScreen() {
   );
 
   const listFooter = useMemo(
-    () => (
-      <View>
-        {/* The shared modal owns scrolling; the explicit action also supports native. */}
-        <LoadMoreSentinel onLoadMore={handleLoadMore} enabled={Boolean(hasNextPage)} />
-        {isFetchingNextPage ? <ListSkeleton count={2} /> : <View className="h-8" />}
-      </View>
-    ),
-    [handleLoadMore, hasNextPage, isFetchingNextPage],
+    () =>
+      // The shared modal owns scrolling; the explicit action below loads more.
+      isFetchingNextPage ? <ListSkeleton count={2} /> : <View className="h-8" />,
+    [isFetchingNextPage],
   );
 
   const renderContent = () => {

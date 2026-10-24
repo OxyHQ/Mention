@@ -1,5 +1,5 @@
-import { createContext, useContext, useEffect, type ReactNode } from 'react';
-import { useScreenViewport } from '@oxy.so/bloom/screen';
+import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
+import { useScreenViewport, useScreenVisible } from '@oxy.so/bloom/screen';
 import { socketService } from '@/services/socketService';
 import type { FeedType } from '@mention/shared-types';
 
@@ -26,8 +26,17 @@ export function useFeedLiveUpdates(
 ) {
   const policy = useContext(FeedUpdatePolicyContext);
   const viewport = useScreenViewport();
+  const visible = useScreenVisible();
   const enabled = policy?.enabled && authenticated;
   const pauseWhileReading = policy?.pauseWhileReading ?? true;
+  // Updates arriving while the reader cannot see the screen wait for it to come
+  // back; the subscription stays up so none are missed.
+  const visibleRef = useRef(visible);
+  const wakeRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    visibleRef.current = visible;
+    if (visible) wakeRef.current?.();
+  }, [visible]);
   useEffect(() => {
     if (!enabled || typeof document === 'undefined') return;
     let pending = false;
@@ -36,7 +45,7 @@ export function useFeedLiveUpdates(
     let timer: ReturnType<typeof setTimeout> | undefined;
     const flush = async () => {
       timer = undefined;
-      if (disposed || running || !pending || document.hidden) return;
+      if (disposed || running || !pending || !visibleRef.current) return;
       if (pauseWhileReading && (viewport?.metrics.scrollY.value ?? 0) > 1) return;
       pending = false;
       running = true;
@@ -52,6 +61,7 @@ export function useFeedLiveUpdates(
     const schedule = () => {
       if (timer === undefined) timer = setTimeout(() => void flush(), 200);
     };
+    wakeRef.current = schedule;
     // Production emits post invalidations for for_you and following.
     // Re-read the actual screen's feed through its authorized HTTP query.
     const unsubscribe = socketService.subscribeToFeedUpdates(
@@ -64,13 +74,12 @@ export function useFeedLiveUpdates(
     const owner =
       viewport?.kind === 'element' ? (viewport.scrollRef?.current as HTMLElement | null) : window;
     owner?.addEventListener('scroll', schedule, { passive: true });
-    document.addEventListener('visibilitychange', schedule);
     return () => {
       disposed = true;
+      wakeRef.current = null;
       clearTimeout(timer);
       unsubscribe();
       owner?.removeEventListener('scroll', schedule);
-      document.removeEventListener('visibilitychange', schedule);
     };
   }, [enabled, pauseWhileReading, type, refresh, viewport]);
 }

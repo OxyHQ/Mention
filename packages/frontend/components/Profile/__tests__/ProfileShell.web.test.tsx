@@ -1,6 +1,7 @@
 // The native list owner; the web shell scrolls the document.
 jest.mock('@/components/common/ScreenFlashList', () => ({ ScreenFlashList: () => null }));
 jest.mock('@oxy.so/bloom/screen', () => ({
+  useScreenVisible: () => true,
   Screen: (props: {
     header?: React.ReactNode;
     bottomBar?: React.ReactNode;
@@ -33,6 +34,7 @@ const mockCover = jest.fn();
 let mockDockInset = 84;
 
 // The shell decides its branch from `Platform.OS` at module load.
+jest.mock('@/lib/navigation/router', () => ({ useIsFocused: () => true }));
 jest.mock('@oxy.so/bloom/styles', () => ({ useSurfaceFill: () => 'rgb(20, 55, 84)' }));
 jest.mock('react-native', () => {
   const actual = jest.requireActual('react-native');

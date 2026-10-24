@@ -1,5 +1,6 @@
 jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'));
 jest.mock('@oxy.so/bloom/screen', () => ({
+  useScreenVisible: () => true,
   Screen: ({
     header,
     children,
@@ -79,6 +80,7 @@ jest.mock('expo-router', () => ({
   usePathname: () => '/saved',
   useLocalSearchParams: () => ({}),
   useFocusEffect: jest.fn(),
+  useIsFocused: () => true,
   Link: () => null,
 }));
 

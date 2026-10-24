@@ -2,7 +2,7 @@ import type React from 'react';
 import { useState, useCallback, useMemo } from 'react';
 import { View, TouchableOpacity } from 'react-native';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from '@/lib/navigation/router';
+import { useRouter, useIsFocused } from '@/lib/navigation/router';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
@@ -92,6 +92,7 @@ const TAB_TYPES: Record<FilterableTab, readonly string[]> = {
 type TabUnreadCounts = Record<FilterableTab, number>;
 
 const NotificationsScreen: React.FC = () => {
+  const isFocused = useIsFocused();
   const { user, oxyServices, isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -605,6 +606,7 @@ const NotificationsScreen: React.FC = () => {
     <>
       <SEO title={t('seo.notifications.title')} description={t('seo.notifications.description')} />
       <Screen
+        active={isFocused}
         scroll="auto"
         header={
           <PageHeader

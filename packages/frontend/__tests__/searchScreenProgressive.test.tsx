@@ -32,6 +32,7 @@ jest.mock('expo-router', () => ({
   useRouter: () => jest.requireMock('expo-router').router,
   router: { push: jest.fn() },
   useLocalSearchParams: () => ({ q: 'rust' }),
+  useIsFocused: () => true,
 }));
 
 jest.mock('@oxy.so/services/ui/client', () => ({
@@ -99,6 +100,7 @@ jest.mock('@oxy.so/bloom/page-header', () => ({
   PageHeader: ({ accessory }: { accessory?: import('react').ReactNode }) => accessory ?? null,
 }));
 jest.mock('@oxy.so/bloom/screen', () => ({
+  useScreenVisible: () => true,
   Screen: ({
     header,
     children,

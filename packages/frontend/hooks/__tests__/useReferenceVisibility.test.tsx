@@ -1,10 +1,9 @@
 import TestRenderer, { act } from 'react-test-renderer';
-import { AppState } from 'react-native';
-import { useIsFocused } from 'expo-router';
 import { VideoViewabilityProvider } from '@/context/VideoPlaybackContext';
 import { useReferenceVisibility } from '../useReferenceVisibility';
 
-jest.mock('expo-router', () => ({ useIsFocused: jest.fn(() => true) }));
+let mockScreenVisible = true;
+jest.mock('@oxy.so/bloom/screen', () => ({ useScreenVisible: () => mockScreenVisible }));
 const visible = new Map<string, boolean>();
 function Card({ id }: { id: string }) {
   visible.set(id, useReferenceVisibility(id).visible);
@@ -19,8 +18,7 @@ function Feed({ keys }: { keys: string[] }) {
   );
 }
 
-it('uses measured native feed viewability, gates focus, and never treats render-ahead as visible', () => {
-  AppState.currentState = 'active';
+it('uses measured native feed viewability, gates on the screen being visible, and never treats render-ahead as visible', () => {
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
     renderer = TestRenderer.create(<Feed keys={['one']} />);
@@ -32,7 +30,7 @@ it('uses measured native feed viewability, gates focus, and never treats render-
   });
   expect(visible.get('one')).toBe(false);
   expect(visible.get('two')).toBe(true);
-  jest.mocked(useIsFocused).mockReturnValue(false);
+  mockScreenVisible = false;
   act(() => {
     renderer.update(<Feed keys={['two']} />);
   });

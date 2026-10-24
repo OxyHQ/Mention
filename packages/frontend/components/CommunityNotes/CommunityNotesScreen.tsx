@@ -16,6 +16,7 @@ import PostItem from '@/components/Feed/PostItem';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { CommunityNoteCard } from './CommunityNoteCard';
 import { useCommunityNoteSheets, type CommunityNoteWriteHandlers } from './useCommunityNoteSheets';
+import { useIsFocused } from '@/lib/navigation/router';
 
 /** A note together with the post it is about. */
 export interface CommunityNoteEntry {
@@ -68,6 +69,7 @@ export function CommunityNotesScreen({
   written,
   handlers,
 }: CommunityNotesScreenProps) {
+  const isFocused = useIsFocused();
   const { t } = useTranslation();
   const safeBack = useSafeBack();
   const [tab, setTab] = useState<TabId>('rate');
@@ -111,6 +113,7 @@ export function CommunityNotesScreen({
 
   return (
     <Screen
+      active={isFocused}
       header={
         <PageHeader
           title={t('communityNotes.hub.title', { defaultValue: 'Community notes' })}

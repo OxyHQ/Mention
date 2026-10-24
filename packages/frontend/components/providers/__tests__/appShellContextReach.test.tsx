@@ -40,6 +40,7 @@ import { usePostInteractions, type PostInteractions } from '@/components/Feed/po
 // Only the leaves that need a host environment are mocked. Every provider whose
 // NESTING this test is about — AppShellProviders, BottomSheetProvider,
 // DocumentScrollProvider — is the real one.
+jest.mock('@oxy.so/bloom/screen', () => ({ useScreenVisible: () => true }));
 jest.mock('react-native-safe-area-context', () => ({
   SafeAreaProvider: ({ children }: { children: React.ReactNode }) => children,
   initialWindowMetrics: null,

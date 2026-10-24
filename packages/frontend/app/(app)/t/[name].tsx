@@ -1,7 +1,7 @@
 import { Screen } from '@oxy.so/bloom/screen';
 import { useMemo } from 'react';
 import { View } from 'react-native';
-import { useLocalSearchParams } from '@/lib/navigation/router';
+import { useLocalSearchParams, useIsFocused } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { PageHeader } from '@oxy.so/bloom/page-header';
@@ -15,6 +15,7 @@ import { useTrendsStore } from '@/stores/trendsStore';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 
 export default function TrendScreen() {
+  const isFocused = useIsFocused();
   // The TERM is the whole address. Everything shown about the trend is
   // resolved from it, never carried alongside it.
   const { name } = useLocalSearchParams<{ name: string }>();
@@ -86,6 +87,7 @@ export default function TrendScreen() {
 
   return (
     <Screen
+      active={isFocused}
       scroll="auto"
       header={
         <PageHeader

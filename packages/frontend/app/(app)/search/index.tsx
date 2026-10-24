@@ -10,7 +10,7 @@ import {
   type TextInputInstance,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
+import { useRouter, useLocalSearchParams, useIsFocused } from '@/lib/navigation/router';
 import { skipToken, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
@@ -444,6 +444,7 @@ function toStarterPackCardData(pack: SearchStarterPackResult): StarterPackCardDa
 }
 
 function SearchIndex() {
+  const isFocused = useIsFocused();
   const router = useRouter();
   const { t } = useTranslation();
   const theme = useTheme();
@@ -1427,6 +1428,7 @@ function SearchIndex() {
     <>
       <SEO title={t('seo.search.title')} description={t('seo.search.description')} />
       <Screen
+        active={isFocused}
         header={
           <PageHeader
             title={t('search.title', 'Search')}

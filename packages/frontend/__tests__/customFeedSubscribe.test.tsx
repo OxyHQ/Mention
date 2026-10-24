@@ -79,6 +79,7 @@ jest.mock('expo-router', () => ({
   useRouter: () => jest.requireMock('expo-router').router,
   router: { push: jest.fn() },
   useLocalSearchParams: () => ({ id: 'feed-1' }),
+  useIsFocused: () => true,
 }));
 
 /** The subscription path under test. */
@@ -218,7 +219,7 @@ jest.mock('@oxy.so/bloom/screen', () => {
       {children}
     </RNView>
   );
-  return { Screen: Pass, ScreenScrollView: Pass };
+  return { Screen: Pass, ScreenScrollView: Pass, useScreenVisible: () => true };
 });
 
 jest.mock('@oxy.so/bloom/fab', () => {

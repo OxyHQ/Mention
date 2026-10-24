@@ -5,7 +5,6 @@ import { FlashList, type FlashListProps, type FlashListRef } from '@shopify/flas
 import Animated, { type AnimatedProps } from 'react-native-reanimated';
 import { useScreenScroll } from '@oxy.so/bloom/screen';
 import { useIsFocused } from '@/lib/navigation/router';
-import { useReselectScroller } from '@/context/ScreenReselectContext';
 
 /**
  * Built once at module scope: `createAnimatedComponent` returns a new component
@@ -28,9 +27,8 @@ export function ScreenFlashList<T>({
 }: Omit<FlashListProps<T>, 'onScroll' | 'scrollEventThrottle'>) {
   const isFocused = useIsFocused();
   const ref = useRef<FlashListRef<T>>(null);
-  const scroll = useScreenScroll({ active: isFocused });
-  useReselectScroller({
-    offset: () => scroll.scrollY.value,
+  const scroll = useScreenScroll({
+    active: isFocused,
     scrollToOffset: (offset) => ref.current?.scrollToOffset({ offset, animated: true }),
   });
   const padding = StyleSheet.flatten(contentContainerStyle) ?? {};

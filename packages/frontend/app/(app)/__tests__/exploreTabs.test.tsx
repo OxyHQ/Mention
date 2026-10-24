@@ -1,4 +1,5 @@
 jest.mock('@oxy.so/bloom/screen', () => ({
+  useScreenVisible: () => true,
   Screen: ({
     header,
     children,
@@ -27,6 +28,7 @@ jest.mock('expo-router', () => ({
   useRouter: () => jest.requireMock('expo-router').router,
   router: { push: (href: string) => mockPush(href) },
   usePathname: () => mockPathname,
+  useIsFocused: () => true,
   Slot: () => null,
 }));
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));

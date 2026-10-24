@@ -9,7 +9,11 @@ const mockViewport = {
   metrics: { scrollY: { value: 0 } },
 };
 const mockSubscribe = jest.fn();
-jest.mock('@oxy.so/bloom/screen', () => ({ useScreenViewport: () => mockViewport }));
+let mockVisible = true;
+jest.mock('@oxy.so/bloom/screen', () => ({
+  useScreenViewport: () => mockViewport,
+  useScreenVisible: () => mockVisible,
+}));
 jest.mock('@/services/socketService', () => ({
   socketService: { subscribeToFeedUpdates: (...args: unknown[]) => mockSubscribe(...args) },
 }));
@@ -26,6 +30,7 @@ describe('panel live feed policy', () => {
     jest.useFakeTimers();
     jest.clearAllMocks();
     mockViewport.metrics.scrollY.value = 0;
+    mockVisible = true;
     unsubscribe = jest.fn();
     mockSubscribe.mockImplementation((_type, callback) => {
       notify = callback;
@@ -33,7 +38,7 @@ describe('panel live feed policy', () => {
     });
     Object.defineProperty(globalThis, 'document', {
       configurable: true,
-      value: { hidden: false, addEventListener: jest.fn(), removeEventListener: jest.fn() },
+      value: {},
     });
   });
   afterEach(() => {
@@ -70,6 +75,29 @@ describe('panel live feed policy', () => {
     expect(refresh).toHaveBeenCalledTimes(1);
     act(() => tree.unmount());
     expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+  it('holds updates while the screen is not visible and refreshes when it returns', async () => {
+    const refresh = jest.fn(async () => {});
+    mockVisible = false;
+    const render = () => (
+      <FeedUpdatePolicyProvider enabled pauseWhileReading>
+        <Feed refresh={refresh} />
+      </FeedUpdatePolicyProvider>
+    );
+    act(() => {
+      tree = create(render());
+    });
+    notify();
+    await act(async () => {
+      jest.advanceTimersByTime(200);
+    });
+    expect(refresh).not.toHaveBeenCalled();
+    mockVisible = true;
+    act(() => tree.update(render()));
+    await act(async () => {
+      jest.advanceTimersByTime(200);
+    });
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
   it('does not subscribe when automatic refresh is off', () => {
     act(() => {

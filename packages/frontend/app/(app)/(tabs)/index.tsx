@@ -3,7 +3,7 @@ import { Activity, useState, useEffect, useMemo } from 'react';
 import { Screen } from '@oxy.so/bloom/screen';
 import { MentionHomeHeader } from '@/components/navigation/MentionHomeHeader';
 import { useTranslation } from 'react-i18next';
-import { useRouter } from '@/lib/navigation/router';
+import { useRouter, useIsFocused } from '@/lib/navigation/router';
 import Feed from '@/components/Feed/Feed';
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';
 import { PRESET_FEEDS } from '@mention/shared-types/mtn/presetFeeds';
@@ -51,6 +51,7 @@ const FOR_YOU_TAB: HomeTabModel = {
 };
 
 const HomeScreen: React.FC = () => {
+  const isFocused = useIsFocused();
   const router = useRouter();
   const { t } = useTranslation();
   const { isAuthResolved, canUsePrivateApi, user } = useAuth();
@@ -161,7 +162,7 @@ const HomeScreen: React.FC = () => {
         description={t('seo.home.description')}
         jsonLd={SITE_STRUCTURED_DATA}
       />
-      <Screen scroll="auto" header={<MentionHomeHeader />}>
+      <Screen active={isFocused} scroll="auto" header={<MentionHomeHeader />}>
         <Tabs
           value={activeTab}
           onValueChange={handleTabPress}
