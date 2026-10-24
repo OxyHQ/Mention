@@ -1,6 +1,6 @@
 # Quotes and social discovery audit — 23 October 2026
 
-Status: diagnosis and implementation review in progress. This audit extends the
+Status: implementation reviewed; final CI and deployed acceptance pending. This audit extends the
 [earlier feed-quality work](../feed-quality-2026-10-21/README.md); it does not replace
 its contextual owner labels or conflate recommendation with import eligibility.
 Code findings below were checked against `origin/main` at
@@ -249,3 +249,59 @@ The adapter owner reported 79 focused tests passing across FollowButton, profile
 card identity and feed interstitial suites. Full frontend coverage is a separate
 integration gate; this does not claim a production follow/unfollow action was
 performed to verify the behavior.
+
+
+## Resumed integration and production baseline — 24 October
+
+The work resumed against main `2a604901ec94cbc8ea2421261dc357a9a7c00bb6`.
+The [new authenticated capture](./feed-baseline-20261024.json) is separate from
+23 October's baseline. Backend revision **712** was steady at 2/2, pending zero,
+with the image digest recorded in the artifact. The actual feed-item detail
+still omitted the supplied quote's subject while the author's Posts feed
+included it. This is pre-release evidence, not a failed deployed correction.
+
+| Surface as @nate | Pages | Logical positions | Flattened posts |
+| --- | ---: | ---: | ---: |
+| For You | 3 | 60 | 66 |
+| Following | 3 | 58 | 63 |
+| Popular with Friends | 3 | 60 | 61 |
+| Owner's Posts | 1 | 20 | 22 |
+| Total | 10 | 198 | 212 |
+
+The traversals reported no repeated focal IDs within each feed and all pages
+had continuations. Two quoted subjects were observed on the author page. These
+are positions, not globally unique posts or a matched quality experiment. No
+post, reaction, follow or settings writes were made; reads may advance served
+history. The artifact's capture times and service attribution remain explicit.
+
+An [anonymous production Chromium check](./browser-baseline-20261024.json) at
+05:23:07 UTC rendered the outer commentary but no embedded subject. The actual
+feed-item request returned 200 with a null quote; no JavaScript errors were
+observed. This browser observation is separate from the authenticated MCP reads.
+
+The integrated candidate incorporated current main's playback and Allo changes.
+A renewed independent review found no blocker in quote context propagation,
+exact-target activity labels, viewer isolation and accepted follow/mute
+invalidation. Five real-database backend suites passed 35 tests, including the
+24 quote/detail cases plus hydration/video and For You/Explore statement budgets.
+The cold handler import is now outside the individual request test deadline;
+assertions and the default request deadline were not weakened.
+
+The integration owner reported 406 frontend suites and 3,251 tests passing on
+this updated candidate. Coverage was 48.84% statements, 44.14% branches, 43.24%
+functions and 49.63% lines; 307 per-file pins covered 312 domain files with no
+lowered pins. The new pinned hook is `useFeedRankingStaleness`; FollowButton's
+component tests do not make it a pinned domain module. Frontend types, backend/
+shared/MCP/e2e types, frontend lint, workspace build and all non-security workspace
+guards passed. Final CI, fresh browser evidence and deployed verification are
+separate gates and are not implied by these local results.
+
+The refreshed security audit detected newly reviewed upstream advisories.
+Body-parser was updated compatibly to 2.4.0; Kaana SDK 3.2.1/contracts 8.0.1 remove
+the old nested Zod 4.4.3. Shared builds, backend types and lockfile validation
+passed; 13 actual SDK/JEV tests and 81 inference/classification/trends/translation
+tests passed with those versions. The remaining Zod 3 dependency review and its
+strict, expiring resolution guard are documented [separately](./zod3-review.md).
+This does not claim those dependencies are patched or all trust-boundary risks
+eliminated. No global Zod major override, production exploit probe or unrelated
+first-party authority migration was used.
