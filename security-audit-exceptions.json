@@ -49,7 +49,7 @@
           "@oxy.so/protocol/zod": "zod@3.25.76"
         },
         "owners": {
-          "@expo/cli": "@expo/cli@58.1.13",
+          "@expo/cli": "@expo/cli@58.1.15",
           "@oxy.so/contracts": "@oxy.so/contracts@5.8.0",
           "@oxy.so/core": "@oxy.so/core@6.17.0",
           "@oxy.so/protocol": "@oxy.so/protocol@1.5.0"

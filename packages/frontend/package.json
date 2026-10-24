@@ -47,6 +47,7 @@
       "<rootDir>/jest.setup.ts"
     ],
     "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/$1",
       "^@oxy.so/services/ui/client$": "<rootDir>/../../node_modules/@oxy.so/services/lib/commonjs/ui/client.js",
       "^@oxy.so/core/logger$": "<rootDir>/../../node_modules/@oxy.so/core/dist/cjs/logger/index.js",
       "^@oxy.so/contracts$": "<rootDir>/../../node_modules/@oxy.so/contracts/dist/cjs/index.js",
@@ -101,7 +102,6 @@
   },
   "dependencies": {
     "@alia.onl/sdk": "21.5.2",
-    "@babel/plugin-transform-export-namespace-from": "^8.0.1",
     "@clarity.surf/sdk": "0.9.0",
     "@expo/app-integrity": "~58.0.2",
     "@expo/vector-icons": "^15.1.1",
@@ -128,10 +128,9 @@
     "@tanstack/react-query": "^5.104.5",
     "@tanstack/react-query-persist-client": "^5.104.5",
     "axios": "^1.20.0",
-    "babel-plugin-module-resolver": "^5.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "expo": "~58.0.16",
+    "expo": "~58.0.19",
     "expo-asset": "~58.0.17",
     "expo-audio": "~58.0.9",
     "expo-blur": "~58.0.5",
