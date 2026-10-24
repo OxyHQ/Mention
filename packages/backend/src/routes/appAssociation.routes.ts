@@ -29,7 +29,8 @@ export const MENTION_APP_ID = 'earth.mention.app';
  *   `~/.config/oxy/oxy-ecosystem-release.keystore`). Every Oxy app MUST be
  *   signed with it, since the signature-level so.oxy.permission.* permissions
  *   that reach Commons are granted only to the same certificate
- *   (`plugins/withAndroidReleaseBuild.js`), so it is both the upload key and the
+ *   (`@oxy.so/services/plugins/withOxySharedPermissions` signs every release
+ *   with it and fails the build otherwise), so it is both the upload key and the
  *   key a directly-installed release APK carries.
  *
  * NOT listed, deliberately:

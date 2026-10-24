@@ -382,8 +382,8 @@ module.exports = (_config) => {
                 // deliberately small: react-native, expo-modules-core,
                 // reanimated and @livekit/* already ship their own rules
                 // as consumerProguardFiles inside their AARs, and
-                // over-keeping would cancel the R8 optimization that
-                // withAndroidReleaseBuild turns on.
+                // over-keeping would cancel R8's optimization (SDK 58's
+                // template already uses proguard-android-optimize.txt).
                 extraProguardRules: [
                   '# Readable production stack traces: R8 optimize rewrites line numbers',
                   '# when inlining, so without these the traces reaching the Play',
@@ -404,10 +404,6 @@ module.exports = (_config) => {
             },
           ],
           'expo-web-browser',
-          // Release buildType bits expo-build-properties cannot express:
-          // the R8 -optimize proguard file, and the real release signing
-          // config (credentials come from Gradle properties, never the repo).
-          './plugins/withAndroidReleaseBuild',
           [
             // Points the Android home-screen widgets (`modules/mention-widgets`)
             // at the same backend the app uses. The native module itself is
@@ -426,6 +422,12 @@ module.exports = (_config) => {
           // and DEVICE_SESSION, plus <queries> for the Commons/Accounts
           // providers, so cold boot can ask Commons for a signed identity
           // proof and share the device session (silent "Sign in with Oxy").
+          //
+          // It also owns release signing (services 13.4+): the release
+          // buildType is always signed from the OXY_UPLOAD_* Gradle
+          // properties (never the repo) and the build FAILS unless the
+          // certificate is the Oxy ecosystem one. No signing plugin of
+          // Mention's own may edit build.gradle; prebuild refuses one.
           '@oxy.so/services/plugins/withOxySharedPermissions',
         ];
 
