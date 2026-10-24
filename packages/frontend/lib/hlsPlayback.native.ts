@@ -1,3 +1,5 @@
+import type { VideoPlayer } from 'expo-video';
+import { useCallback } from 'react';
 import type { VideoViewHandle } from '@oxy.so/bloom/video-view';
 
 /**
@@ -16,8 +18,8 @@ import type { VideoViewHandle } from '@oxy.so/bloom/video-view';
 export interface HlsPlayback {
   /** Always false on native — the platform decoder owns HLS. */
   readonly active: boolean;
-  /** The `ref` for the view: on native, the caller's own ref. */
-  readonly ref: React.Ref<VideoViewHandle>;
+  /** The stable attachment callback, filling the caller's view ref. */
+  readonly ref: React.RefCallback<VideoViewHandle>;
 }
 
 /** Never on native: the platform decoder plays HLS itself. */
@@ -28,8 +30,14 @@ export function needsJsHlsDecoder(_src: string | undefined | null): boolean {
 export function useHlsPlayback(
   _src: string,
   viewRef: React.RefObject<VideoViewHandle | null>,
-  _loading?: boolean,
+  _player: VideoPlayer,
   _fallbackSrc?: string,
 ): HlsPlayback {
-  return { active: false, ref: viewRef };
+  const ref = useCallback(
+    (handle: VideoViewHandle | null) => {
+      viewRef.current = handle;
+    },
+    [viewRef],
+  );
+  return { active: false, ref };
 }

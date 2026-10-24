@@ -36,6 +36,16 @@ the installed registry package; a source mirror outside `node_modules` can hide
 a missing transform allowlist entry. This preserves real component execution
 without replacing Bloom with test mocks.
 
+## Lazy HLS decoder in Jest
+
+`lib/hlsPlayback.web.ts` uses the normal Expo/Jest transform plus the existing
+promise-based dynamic-import transform used by the row-cost harness. This narrow
+Jest override lets its real lifecycle and playback-controller code execute while
+[hls.js](https://github.com/video-dev/hls.js) is mocked at the external decoder boundary. Production keeps Metro's
+lazy chunk unchanged. Tests assert loading demand, buffer-preserving resume,
+source/player changes, fatal fallback, cancelled imports and cleanup; Playwright
+separately verifies actual decoded frames.
+
 ## Why not just raise the global number
 
 Measured on `c96c2764`, before this policy existed: `package.json` declared a
@@ -105,9 +115,12 @@ the way back to 28% unnoticed.
 check reads the committed baseline, so without this one a pull request could
 lower the baseline in the same commit that removes the tests and pass all of
 them. A genuine decrease — code that legitimately shrank — needs a dated,
-path-and-metric-named entry in `allowedBaselineDecreases`, and an entry that is
-not currently excusing a real decrease fails, so the list cannot become a
-standing permission slip.
+path-and-metric-named entry in `allowedBaselineDecreases`. Only entries the
+change itself **adds** (absent from the base revision's policy) excuse a drop,
+and an added entry with no matching drop fails, so the list cannot become a
+standing permission slip. An entry that merged earlier is inherited: it excuses
+nothing and is checked for nothing, so the next pull request in the queue does
+not fail on it and nobody has to come back and delete it.
 
 **7. The pre-existing jest thresholds stay.** `lib/viewerQueryKeys.ts` at 100%
 and `components/providers/AccountSwitchReset.tsx` remain enforced by

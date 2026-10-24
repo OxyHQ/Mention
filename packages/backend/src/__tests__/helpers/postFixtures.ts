@@ -26,7 +26,7 @@ import { PostType, PostVisibility } from '@mention/shared-types';
 import { eq, inArray } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { lanes } from '../../db/schema/channels';
-import { deletePostRecord, insertPostRecord } from '../../db/posts/postRepository';
+import { deletePostRecord, insertPostRecords } from '../../db/posts/postRepository';
 import { createCluster } from '../../db/posts/postEquivalenceRepository';
 import type { PostRecord, PostRecordInput } from '../../db/posts/postRecord';
 import { posts } from '../../db/schema/posts';
@@ -72,18 +72,54 @@ export async function seedPost(
   scope: PostScope,
   overrides: Partial<PostRecordInput> = {},
 ): Promise<PostRecord> {
-  const owner = (overrides.oxyUserId ?? scope.user('author')) as string;
-  const record = await insertPostRecord({
-    oxyUserId: owner,
-    authorship: [{ oxyUserId: owner, role: 'owner', status: 'accepted' }],
-    type: PostType.TEXT,
-    visibility: PostVisibility.PUBLIC,
-    status: 'published',
-    content: { variants: [{ source: 'author', text: 'a post', tag: 'en' }] },
-    ...overrides,
-  });
-  track(scope, record.id);
+  const [record] = await seedPosts(scope, [overrides]);
   return record;
+}
+
+/**
+ * {@link seedPost} for many posts at once, index-aligned with `overrides`.
+ *
+ * Seed a volume through this, never `Promise.all(seedPost)`: each post is its
+ * own transaction plus ~10 read-back statements, and dozens of those at once
+ * exhaust the shared pool that every parallel test file draws on.
+ */
+export async function seedPosts(
+  scope: PostScope,
+  overrides: readonly Partial<PostRecordInput>[],
+): Promise<PostRecord[]> {
+  const results = await insertPostRecords(
+    overrides.map((override): PostRecordInput => {
+      const owner = (override.oxyUserId ?? scope.user('author')) as string;
+      return {
+        oxyUserId: owner,
+        authorship: [{ oxyUserId: owner, role: 'owner', status: 'accepted' }],
+        type: PostType.TEXT,
+        visibility: PostVisibility.PUBLIC,
+        status: 'published',
+        content: { variants: [{ source: 'author', text: 'a post', tag: 'en' }] },
+        ...override,
+      };
+    }),
+  );
+  // Before any throw, so a partial batch is still cleaned up.
+  for (const result of results) if (result.status === 'fulfilled') track(scope, result.value.id);
+  return fulfilledOrThrow(results);
+}
+
+/**
+ * Write posts through production's batch writer — bounded write concurrency,
+ * one batched read-back — and return them index-aligned, throwing the first
+ * failure.
+ */
+export async function insertPosts(inputs: readonly PostRecordInput[]): Promise<PostRecord[]> {
+  return fulfilledOrThrow(await insertPostRecords(inputs));
+}
+
+function fulfilledOrThrow(results: PromiseSettledResult<PostRecord>[]): PostRecord[] {
+  return results.map((result) => {
+    if (result.status === 'rejected') throw result.reason;
+    return result.value;
+  });
 }
 
 /** Insert one lane and return its id. Defaults to a `mixed` lane owned by `author`. */

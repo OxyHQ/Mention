@@ -11,9 +11,9 @@ import type { VideoPlayer } from 'expo-video';
 import type { VideoViewHandle } from '@oxy.so/bloom/video-view';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { createLogger } from '@oxy.so/core/logger';
-import { videoSourceFor } from '@/utils/videoSource';
 import type { MediaPixelSize } from '@/utils/mediaTypes';
 import { useVideoPlayback } from '@/context/VideoPlaybackContext';
+import { useVideoPlaybackControl } from '@/stores/video-playback-control';
 import { usePipAspectRatio } from '@/hooks/usePipAspectRatio';
 
 /**
@@ -213,9 +213,6 @@ export function useReelChrome({
   onSessionEnd,
   onRegisterTransportSeek,
 }: ReelChromeParams) {
-  // `hasRendered` latches true on the FIRST `readyToPlay` and never flips back,
-  // so a mid-playback re-buffer (status → loading) does NOT re-show the poster.
-  const [hasRendered, setHasRendered] = useState(false);
   // Live re-buffer flag: distinct from `hasRendered` so a mid-playback stall
   // shows only a small spinner over the already-rendered frame, never the poster.
   const [isBuffering, setIsBuffering] = useState(false);
@@ -271,6 +268,11 @@ export function useReelChrome({
     setUserPaused(false);
   }
 
+  const handleSourceError = useCallback(() => {
+    if (!usedFallback && targetFallbackUrl) setUsedFallback(true);
+    else onError();
+  }, [usedFallback, targetFallbackUrl, onError]);
+
   // Surface readiness + errors + live buffering. `hasRendered` latches on first
   // `readyToPlay`; AFTER that, a transition to `loading` is a mid-playback
   // re-buffer (small spinner), and `readyToPlay` clears it.
@@ -278,7 +280,6 @@ export function useReelChrome({
   // LATEST listener, so these handlers read fresh state without re-subscribing.
   useEventListener(player, 'statusChange', ({ status: next }) => {
     if (next === 'readyToPlay') {
-      setHasRendered(true);
       setIsBuffering(false);
       if (player.duration > 0) {
         setDuration(player.duration);
@@ -288,15 +289,7 @@ export function useReelChrome({
       // rendered; the initial load is covered by the poster instead.
       setIsBuffering(hasRendered);
     } else if (next === 'error') {
-      if (!usedFallback && targetFallbackUrl) {
-        setUsedFallback(true);
-      } else {
-        // The ROW owns the failure: `onError` unmounts this surface and
-        // paints the badge in its place, in this same commit. A second
-        // latch here would never render, and would be the copy somebody
-        // later "fixes" instead of the one that matters.
-        onError();
-      }
+      handleSourceError();
     }
   });
 
@@ -333,21 +326,6 @@ export function useReelChrome({
       player.muted = muted;
     }
   }, [player, muted]);
-
-  // Point the (never rebuilt) player at whatever source it should be holding.
-  // The ref starts at the source the player was CONSTRUCTED with, so the common
-  // case — no session, no fallback — never issues a replace at all.
-  const loadedSourceRef = useRef(videoUrl);
-  useEffect(() => {
-    if (loadedSourceRef.current === desiredSource) return;
-    loadedSourceRef.current = desiredSource;
-    player.replaceAsync(videoSourceFor(desiredSource)).catch((error: unknown) => {
-      // A rejected swap is the call failing, not the asset: a source that
-      // loads and then fails arrives as a `statusChange` error instead, and
-      // is handled there.
-      logger.debug('Video source swap failed', { postId, error });
-    });
-  }, [player, desiredSource, postId]);
 
   // When this surface stops being the active index, drop any viewer pause
   // override so re-activating it (scrolling back) autoplays from the top rather
@@ -456,6 +434,7 @@ export function useReelChrome({
   // `ownsSession` buys here.
   const {
     shouldPlay: playbackAllowed,
+    canLoad,
     claimActive,
     reportVisibility,
   } = useVideoPlayback({
@@ -504,37 +483,10 @@ export function useReelChrome({
   // so toggling play/pause does not jump the video back to the start.
   // Off-screen, blurred, backgrounded (unless in PiP), or viewer-paused → paused.
   //
-  // `desiredSource` is a dependency because a swap RESETS the element's play
-  // state: the web player's `replace` calls `play()` itself, so without
-  // re-asserting the gate here a source change could start a video this surface
-  // is not allowed to play.
   const shouldPlay = isWatched && playbackAllowed && !userPaused;
-  useEffect(() => {
-    if (shouldPlay) {
-      player.play();
-    } else {
-      player.pause();
-    }
-  }, [player, shouldPlay, desiredSource]);
-
-  // …and once more per LOAD, because the effect above cannot see a reload it
-  // did not cause. A swap produces TWO of them on web: `replace` writes the
-  // element's `src` attribute imperatively, then expo-video's own `VideoView`
-  // re-renders and React writes its rendered `src` — the same URL, but a value
-  // React last committed as the old one, so the element loads a second time.
-  // That second load aborts the `play()` the first one issued (`AbortError`,
-  // no `pause` event, so nothing downstream notices) and leaves the surface
-  // frozen on the new video's first frame, with `desiredSource` already
-  // settled and no further reason for the effect to run. `sourceChange` is
-  // emitted from `loadstart`, so it fires once per load and covers both;
-  // `play`/`pause` are idempotent, so the native single-load path is unchanged.
-  useEventListener(player, 'sourceChange', () => {
-    if (shouldPlay) {
-      player.play();
-    } else {
-      player.pause();
-    }
-  });
+  // `hasRendered` latches true on the FIRST `readyToPlay` and never flips back,
+  // so a mid-playback re-buffer (status → loading) does NOT re-show the poster.
+  const hasRendered = useVideoPlaybackControl(player, shouldPlay, canLoad);
 
   // Keep the device awake while this surface is the one actually playing. Same
   // predicate as the player above, so the lock cannot outlive playback.
@@ -737,6 +689,9 @@ export function useReelChrome({
   const showBufferSpinner = isBuffering && isActive && hasRendered;
   return {
     videoViewRef,
+    desiredSource,
+    targetFallbackUrl,
+    handleSourceError,
     isWatched,
     handlePictureInPictureStart,
     handlePictureInPictureStop,

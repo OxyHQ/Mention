@@ -21,20 +21,32 @@
  */
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
 const metadataByIds = vi.fn();
+const { invalidatePostDetailCache } = vi.hoisted(() => ({ invalidatePostDetailCache: vi.fn() }));
+vi.mock('../../services/postDetailCache', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../services/postDetailCache')>()),
+  invalidate: invalidatePostDetailCache,
+}));
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ assets: { metadataByIds } }),
 }));
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
-import { postContentVariants, postMedia } from '../../db/schema/postContent';
+import {
+  postAuthorships,
+  postContentVariants,
+  postMedia,
+  postVariantMedia,
+} from '../../db/schema/postContent';
 import { insertPostRecord } from '../../db/posts/postRepository';
 import { backfillMediaMetadata } from '../../scripts/backfillMediaMetadata';
 import { logger } from '../../utils/logger';
+import { reconcileVideoMetadata } from '../../scripts/lib/reconcileVideoMetadata';
 
 let db: Database;
 const created: string[] = [];
@@ -82,6 +94,8 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
+  invalidatePostDetailCache.mockReset();
+  invalidatePostDetailCache.mockResolvedValue(undefined);
   metadataByIds.mockReset();
   metadataByIds.mockImplementation(async (ids: string[]) =>
     ids.map((id) => ({
@@ -372,5 +386,777 @@ describe('backfillMediaMetadata', () => {
         orientation: null,
       },
     ]);
+  });
+});
+
+describe('backfillMediaMetadata — targeted video refresh', () => {
+  const staleVideo = {
+    id: UUID_FILE_ID,
+    type: 'video' as const,
+    width: 1920,
+    height: 1080,
+    orientation: 'landscape' as const,
+    aspectRatio: 1920 / 1080,
+    durationSec: 12,
+    sizeBytes: 4242,
+    hlsReadyAt: '2026-10-01T00:00:00.000Z',
+    alt: 'Keep this caption',
+  };
+  const readyAt = '2026-10-23T08:00:00.000Z';
+  const metadata = {
+    id: UUID_FILE_ID,
+    width: 720,
+    height: 1280,
+    durationSec: 12,
+    orientation: 'portrait',
+    aspectRatio: 0.5625,
+    size: 4242,
+    hlsReadyAt: readyAt,
+  };
+
+  beforeEach(() => {
+    metadataByIds.mockResolvedValue([metadata]);
+  });
+
+  it('refreshes complete metadata only for the target file and remains idempotent', async () => {
+    const postId = await seedWithMedia([staleVideo, { ...staleVideo, id: HEX_FILE_ID }]);
+    const unrelatedId = await seedWithMedia([{ ...staleVideo, id: `${HEX_FILE_ID}-other` }]);
+    const before = await db
+      .select()
+      .from(postMedia)
+      .where(eq(postMedia.postId, postId))
+      .orderBy(postMedia.position);
+    const unrelated = await mediaOf(unrelatedId);
+    const variantsBefore = await db
+      .select()
+      .from(postContentVariants)
+      .where(eq(postContentVariants.postId, postId));
+    const authorsBefore = await db
+      .select()
+      .from(postAuthorships)
+      .where(eq(postAuthorships.postId, postId));
+
+    const result = await backfillMediaMetadata({ fileId: UUID_FILE_ID });
+
+    expect(result).toEqual({ scanned: 1, updated: 1, skipped: 0, unresolved: 0 });
+    expect(metadataByIds).toHaveBeenCalledWith([UUID_FILE_ID]);
+    const after = await db
+      .select()
+      .from(postMedia)
+      .where(eq(postMedia.postId, postId))
+      .orderBy(postMedia.position);
+    expect(after[0]).toEqual({
+      ...before[0],
+      width: 720,
+      height: 1280,
+      orientation: 'portrait',
+      aspectRatio: 0.5625,
+      hlsReadyAt: new Date(readyAt),
+    });
+    expect(after[1]).toEqual(before[1]);
+    expect(await mediaOf(unrelatedId)).toEqual(unrelated);
+    expect(
+      await db.select().from(postContentVariants).where(eq(postContentVariants.postId, postId)),
+    ).toEqual(variantsBefore);
+    expect(
+      await db.select().from(postAuthorships).where(eq(postAuthorships.postId, postId)),
+    ).toEqual(authorsBefore);
+    expect(await backfillMediaMetadata({ fileId: UUID_FILE_ID })).toEqual({
+      scanned: 1,
+      updated: 0,
+      skipped: 1,
+      unresolved: 0,
+    });
+  });
+
+  it('refreshes language overrides, including posts with no shared target, in bounded pages', async () => {
+    const sharedPostId = await seedWithMedia([staleVideo]);
+    const sharedVariants = await db
+      .select()
+      .from(postContentVariants)
+      .where(eq(postContentVariants.postId, sharedPostId));
+    await db.insert(postVariantMedia).values({
+      variantId: sharedVariants[0].id,
+      position: 0,
+      mediaId: UUID_FILE_ID,
+      type: 'video',
+      width: 1920,
+      height: 1080,
+      alt: 'English override',
+    });
+    const variantOnly = await insertPostRecord({
+      oxyUserId: AUTHOR,
+      authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
+      type: PostType.TEXT,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      content: {
+        variants: [
+          { source: 'author', tag: 'es', text: 'Texto original', media: [staleVideo] },
+          {
+            source: 'author',
+            tag: 'fr',
+            text: 'Texte original',
+            media: [{ ...staleVideo, id: HEX_FILE_ID }],
+          },
+        ],
+      },
+    });
+    created.push(variantOnly.id);
+    const before = await db.select().from(postVariantMedia).orderBy(postVariantMedia.id);
+
+    const result = await backfillMediaMetadata({ fileId: UUID_FILE_ID, batchSize: 1 });
+
+    expect(result).toEqual({ scanned: 2, updated: 2, skipped: 0, unresolved: 0 });
+    const after = await db.select().from(postVariantMedia).orderBy(postVariantMedia.id);
+    for (let index = 0; index < before.length; index++) {
+      const previous = before[index];
+      if (previous.mediaId !== UUID_FILE_ID) {
+        expect(after[index]).toEqual(previous);
+      } else {
+        expect(after[index]).toEqual({
+          ...previous,
+          width: 720,
+          height: 1280,
+          durationSec: 12,
+          sizeBytes: 4242,
+          orientation: 'portrait',
+          aspectRatio: 0.5625,
+          hlsReadyAt: new Date(readyAt),
+        });
+      }
+    }
+    expect(await backfillMediaMetadata({ fileId: UUID_FILE_ID, batchSize: 1 })).toEqual({
+      scanned: 2,
+      updated: 0,
+      skipped: 2,
+      unresolved: 0,
+    });
+  });
+
+  it('reports a dry-run change without replacing existing values', async () => {
+    const postId = await seedWithMedia([staleVideo]);
+    const before = await db.select().from(postMedia).where(eq(postMedia.postId, postId));
+    expect(await backfillMediaMetadata({ fileId: UUID_FILE_ID, dryRun: true })).toEqual({
+      scanned: 1,
+      updated: 1,
+      skipped: 0,
+      unresolved: 0,
+    });
+    expect(await db.select().from(postMedia).where(eq(postMedia.postId, postId))).toEqual(before);
+  });
+
+  it('reports an omitted Oxy file as unresolved rather than already repaired', async () => {
+    const postId = await seedWithMedia([staleVideo]);
+    metadataByIds.mockResolvedValue([]);
+    expect(await backfillMediaMetadata({ fileId: UUID_FILE_ID })).toEqual({
+      scanned: 1,
+      updated: 0,
+      skipped: 0,
+      unresolved: 1,
+    });
+    expect((await mediaOf(postId))[0].width).toBe(1920);
+  });
+
+  it('does not combine incomplete Oxy metadata with the old ready stamp and report success', async () => {
+    const postId = await seedWithMedia([staleVideo]);
+    metadataByIds.mockResolvedValue([{ id: UUID_FILE_ID, width: 720, height: 1280 }]);
+    expect(await backfillMediaMetadata({ fileId: UUID_FILE_ID })).toEqual({
+      scanned: 1,
+      updated: 0,
+      skipped: 0,
+      unresolved: 1,
+    });
+    expect((await mediaOf(postId))[0].width).toBe(1920);
+  });
+
+  it('reports a failed Oxy lookup as unresolved and preserves the stored dimensions', async () => {
+    const postId = await seedWithMedia([staleVideo]);
+    metadataByIds.mockRejectedValue(new Error('Oxy metadata temporarily unavailable'));
+    expect(await backfillMediaMetadata({ fileId: UUID_FILE_ID })).toEqual({
+      scanned: 1,
+      updated: 0,
+      skipped: 0,
+      unresolved: 1,
+    });
+    expect((await mediaOf(postId))[0].width).toBe(1920);
+  }, 30_000);
+
+  it.each(['row', 'file'])(
+    'does not overwrite a %s replaced while the lookup was running',
+    async (change) => {
+      const postId = await seedWithMedia([staleVideo]);
+      metadataByIds.mockImplementationOnce(async () => {
+        await db
+          .update(postMedia)
+          .set(change === 'row' ? { id: randomUUID() } : { mediaId: HEX_FILE_ID })
+          .where(eq(postMedia.postId, postId));
+        return [metadata];
+      });
+      expect(await backfillMediaMetadata({ fileId: UUID_FILE_ID })).toEqual({
+        scanned: 1,
+        updated: 0,
+        skipped: 1,
+        unresolved: 0,
+      });
+      expect((await mediaOf(postId))[0].width).toBe(1920);
+    },
+  );
+
+  it('does not treat a missing or remote file selector as a full backfill', async () => {
+    await seedWithMedia([staleVideo]);
+    for (const fileId of ['', REMOTE_URL, ` ${UUID_FILE_ID}`]) {
+      await expect(backfillMediaMetadata({ fileId })).rejects.toThrow('--file-id');
+    }
+    expect(metadataByIds).not.toHaveBeenCalled();
+  });
+});
+
+describe('bounded video metadata reconciliation', () => {
+  const readyAt = '2026-10-23T18:00:00.000Z';
+  const oldReadyAt = '2026-10-01T00:00:00.000Z';
+  const stale = (id: string) => ({
+    id,
+    type: 'video',
+    width: 1920,
+    height: 1080,
+    orientation: 'landscape',
+    aspectRatio: 1920 / 1080,
+    durationSec: 12,
+    sizeBytes: 4242,
+    hlsReadyAt: oldReadyAt,
+    alt: 'Preserve the caption',
+  });
+  const current = (id: string) => ({
+    id,
+    width: 720,
+    height: 1280,
+    orientation: 'portrait',
+    aspectRatio: 0.5625,
+    durationSec: 12,
+    size: 4242,
+    hlsReadyAt: readyAt,
+  });
+  const read = () => db.select().from(postMedia).orderBy(postMedia.id);
+
+  beforeEach(() => {
+    metadataByIds.mockImplementation(async (ids: string[]) => ids.map(current));
+  });
+
+  it.each(['2026-09-01T00:00:00.000Z', oldReadyAt])(
+    'clears observed generation %s through rejection in both tables, preserving other columns',
+    async (storedAt) => {
+      const postId = await seedWithMedia([{ ...stale(UUID_FILE_ID), hlsReadyAt: storedAt }]);
+      const [variant] = await db
+        .select()
+        .from(postContentVariants)
+        .where(eq(postContentVariants.postId, postId));
+      await db.insert(postVariantMedia).values({
+        variantId: variant.id,
+        position: 0,
+        mediaId: UUID_FILE_ID,
+        type: 'video',
+        width: 1920,
+        height: 1080,
+        hlsReadyAt: new Date(storedAt),
+        alt: 'Variant caption',
+      });
+      metadataByIds.mockResolvedValue([{ id: UUID_FILE_ID, hlsRejectedReadyAt: oldReadyAt }]);
+      const before = await read();
+      const variantsBefore = await db.select().from(postVariantMedia);
+      invalidatePostDetailCache.mockClear();
+      expect((await reconcileVideoMetadata({ dryRun: true })).passes[0]).toMatchObject({
+        updated: 1,
+        rowsUpdated: 2,
+        unresolved: 0,
+      });
+      expect(await read()).toEqual(before);
+      expect(invalidatePostDetailCache).not.toHaveBeenCalled();
+      expect((await reconcileVideoMetadata()).passes[0]).toMatchObject({
+        updated: 1,
+        rowsUpdated: 2,
+        unresolved: 0,
+      });
+      expect(await read()).toEqual(before.map((row) => ({ ...row, hlsReadyAt: null })));
+      expect(await db.select().from(postVariantMedia)).toEqual(
+        variantsBefore.map((row) => ({ ...row, hlsReadyAt: null })),
+      );
+      expect(invalidatePostDetailCache).toHaveBeenCalledExactlyOnceWith(postId);
+      expect((await reconcileVideoMetadata()).passes[0]).toMatchObject({
+        updated: 0,
+        unchanged: 1,
+        unresolved: 0,
+      });
+      metadataByIds.mockResolvedValue([current(UUID_FILE_ID)]);
+      expect((await reconcileVideoMetadata()).passes[0].rowsUpdated).toBe(2);
+      expect((await read())[0].hlsReadyAt?.toISOString()).toBe(readyAt);
+    },
+  );
+
+  it.each(['new-generation', 'replaced-file', 'replaced-row'])(
+    'does not clear a %s installed during rejection lookup',
+    async (change) => {
+      const postId = await seedWithMedia([stale(UUID_FILE_ID)]);
+      const [before] = await read();
+      let expected = before;
+      metadataByIds.mockImplementation(async () => {
+        if (change === 'replaced-row') {
+          await db.delete(postMedia).where(eq(postMedia.id, before.id));
+          [expected] = await db
+            .insert(postMedia)
+            .values({ ...before, id: randomUUID() })
+            .returning();
+        } else {
+          [expected] = await db
+            .update(postMedia)
+            .set(
+              change === 'new-generation'
+                ? { hlsReadyAt: new Date(readyAt) }
+                : { mediaId: HEX_FILE_ID },
+            )
+            .where(eq(postMedia.id, before.id))
+            .returning();
+        }
+        return [{ id: UUID_FILE_ID, hlsRejectedReadyAt: oldReadyAt }];
+      });
+      invalidatePostDetailCache.mockClear();
+      expect((await reconcileVideoMetadata()).passes[0].rowsUpdated).toBe(0);
+      expect(await read()).toEqual([expected]);
+      expect(invalidatePostDetailCache).not.toHaveBeenCalledWith(postId);
+    },
+  );
+
+  it('preserves a different stored generation and treats absent authority as unresolved', async () => {
+    await seedWithMedia([{ ...stale(UUID_FILE_ID), hlsReadyAt: readyAt }]);
+    const before = await read();
+    metadataByIds.mockResolvedValue([{ id: UUID_FILE_ID, hlsRejectedReadyAt: oldReadyAt }]);
+    expect((await reconcileVideoMetadata()).passes[0]).toMatchObject({
+      updated: 0,
+      unchanged: 1,
+      unresolved: 0,
+    });
+    metadataByIds.mockResolvedValue([{ id: UUID_FILE_ID }]);
+    expect((await reconcileVideoMetadata()).passes[0]).toMatchObject({ updated: 0, unresolved: 1 });
+    expect(await read()).toEqual(before);
+  });
+
+  it('does not resurrect a generation cleared concurrently during an ordinary metadata sweep', async () => {
+    const postId = await seedWithMedia([{ ...stale(UUID_FILE_ID), durationSec: undefined }]);
+    const [before] = await read();
+    metadataByIds.mockImplementation(async () => {
+      await db.update(postMedia).set({ hlsReadyAt: null }).where(eq(postMedia.id, before.id));
+      return [{ ...current(UUID_FILE_ID), hlsReadyAt: oldReadyAt }];
+    });
+    invalidatePostDetailCache.mockClear();
+    await backfillMediaMetadata();
+    expect((await read())[0]).toEqual({ ...before, hlsReadyAt: null });
+    expect(invalidatePostDetailCache).not.toHaveBeenCalledWith(postId);
+  });
+
+  it('rolls back a targeted shared clear when its variant write fails, without publishing cache invalidation', async () => {
+    const postId = await seedWithMedia([stale(UUID_FILE_ID)]);
+    const [variant] = await db
+      .select()
+      .from(postContentVariants)
+      .where(eq(postContentVariants.postId, postId));
+    await db.insert(postVariantMedia).values({
+      variantId: variant.id,
+      position: 0,
+      mediaId: UUID_FILE_ID,
+      type: 'video',
+      hlsReadyAt: new Date(oldReadyAt),
+    });
+    const before = await read();
+    metadataByIds.mockResolvedValue([{ id: UUID_FILE_ID, hlsRejectedReadyAt: oldReadyAt }]);
+    invalidatePostDetailCache.mockClear();
+    await db.execute(
+      sql`alter table post_variant_media add constraint test_rejected_hls_write_failure check (hls_ready_at is not null) not valid`,
+    );
+    try {
+      await expect(backfillMediaMetadata({ fileId: UUID_FILE_ID })).rejects.toThrow();
+      expect(await read()).toEqual(before);
+      expect(invalidatePostDetailCache).not.toHaveBeenCalled();
+    } finally {
+      await db.execute(
+        sql`alter table post_variant_media drop constraint test_rejected_hls_write_failure`,
+      );
+    }
+  });
+
+  it('applies explicit rejection through ordinary and targeted metadata enrichment', async () => {
+    await seedWithMedia([{ ...stale(UUID_FILE_ID), durationSec: undefined }]);
+    metadataByIds.mockResolvedValue([
+      { ...current(UUID_FILE_ID), hlsReadyAt: undefined, hlsRejectedReadyAt: oldReadyAt },
+    ]);
+    const [before] = await read();
+    await backfillMediaMetadata();
+    expect((await read())[0]).toEqual({ ...before, hlsReadyAt: null });
+    await db
+      .update(postMedia)
+      .set({ hlsReadyAt: new Date(oldReadyAt) })
+      .where(eq(postMedia.id, before.id));
+    expect(await backfillMediaMetadata({ fileId: UUID_FILE_ID })).toMatchObject({
+      updated: 1,
+      unresolved: 0,
+    });
+    expect((await read())[0]).toEqual({ ...before, hlsReadyAt: null });
+  });
+
+  it('excludes authoritative audio fallbacks without changing rows and retains incomplete video as unresolved', async () => {
+    const ids = Array.from({ length: 4 }, () => randomUUID()).sort();
+    const postId = await seedWithMedia(
+      ids.map((id) => ({ id, type: 'video', alt: 'Keep this attachment' })),
+    );
+    const [variant] = await db
+      .select()
+      .from(postContentVariants)
+      .where(eq(postContentVariants.postId, postId));
+    await db.insert(postVariantMedia).values({
+      variantId: variant.id,
+      position: 0,
+      mediaId: ids[0],
+      type: 'video',
+      alt: 'Audio language override',
+    });
+    metadataByIds.mockResolvedValue([
+      { id: ids[0], mime: 'audio/x-wav', durationSec: 12 },
+      { id: ids[1], mime: ' Audio/MP4; codecs=mp4a.40.2 ', durationSec: 12, hlsReadyAt: readyAt },
+      { id: ids[2], mime: 'audio/mpeg', durationSec: 12 },
+      { id: ids[3], mime: 'video/mp4', durationSec: 12, hlsReadyAt: readyAt },
+    ]);
+    const before = await read();
+    const overrides = await db.select().from(postVariantMedia);
+    invalidatePostDetailCache.mockClear();
+    const {
+      passes: [report],
+    } = await reconcileVideoMetadata();
+    expect(report).toMatchObject({
+      scanned: 4,
+      excludedAudio: 3,
+      updated: 0,
+      unchanged: 0,
+      unresolved: 1,
+      rowsUpdated: 0,
+      postsUpdated: 0,
+      reachedEnd: true,
+      resumeAfterFileId: ids[2],
+    });
+    expect(await read()).toEqual(before);
+    expect(await db.select().from(postVariantMedia)).toEqual(overrides);
+    expect(invalidatePostDetailCache).not.toHaveBeenCalled();
+    // Once the real video becomes ready, the same pass can finish; audio never
+    // requires video geometry or a synthetic HLS stamp to be reported complete.
+    metadataByIds.mockResolvedValue([
+      { id: ids[0], mime: 'audio/x-wav', durationSec: 12 },
+      { id: ids[1], mime: 'audio/mp4', durationSec: 12 },
+      { id: ids[2], mime: 'audio/mpeg', durationSec: 12 },
+      { ...current(ids[3]), mime: 'video/mp4' },
+    ]);
+    expect((await reconcileVideoMetadata()).passes[0]).toMatchObject({
+      scanned: 4,
+      excludedAudio: 3,
+      updated: 1,
+      unchanged: 0,
+      unresolved: 0,
+      reachedEnd: true,
+      resumeAfterFileId: null,
+    });
+    expect(await db.select().from(postVariantMedia)).toEqual(overrides);
+    expect((await read()).filter((row) => row.mediaId !== ids[3])).toEqual(
+      before.filter((row) => row.mediaId !== ids[3]),
+    );
+  });
+
+  it('does not exclude missing assets or incomplete video based on a client MIME hint', async () => {
+    const ids = Array.from({ length: 3 }, () => randomUUID()).sort();
+    await seedWithMedia(ids.map((id) => ({ id, type: 'video', mime: 'audio/mpeg' })));
+    metadataByIds.mockResolvedValue([
+      { id: ids[0], mime: 'video/mp4', width: -1, height: 0 },
+      { id: ids[1], durationSec: 12 },
+    ]);
+    expect((await reconcileVideoMetadata()).passes[0]).toMatchObject({
+      scanned: 3,
+      excludedAudio: 0,
+      unresolved: 3,
+      unchanged: 0,
+      updated: 0,
+      resumeAfterFileId: null,
+    });
+  });
+
+  it('deduplicates both tables, preserves content identity, and invalidates only committed changed posts', async () => {
+    const sharedId = await seedWithMedia([stale(UUID_FILE_ID), { id: HEX_FILE_ID, type: 'image' }]);
+    const variantOnly = await seedWithMedia([]);
+    const variants = await db
+      .select()
+      .from(postContentVariants)
+      .where(inArray(postContentVariants.postId, [sharedId, variantOnly]));
+    for (const variant of variants) {
+      await db.insert(postVariantMedia).values({
+        variantId: variant.id,
+        position: 0,
+        mediaId: variant.postId === variantOnly ? HEX_FILE_ID : UUID_FILE_ID,
+        type: 'video',
+        width: 1920,
+        height: 1080,
+        alt: 'Local override',
+        hlsReadyAt: new Date(oldReadyAt),
+      });
+    }
+    const remoteId = await seedWithMedia([stale(REMOTE_URL)]);
+    const before = await read();
+    const variantBefore = await db.select().from(postVariantMedia).orderBy(postVariantMedia.id);
+    invalidatePostDetailCache.mockClear();
+    invalidatePostDetailCache.mockImplementation(async (postId: string) => {
+      // A separate connection observes committed values when invalidation starts.
+      expect([sharedId, variantOnly]).toContain(postId);
+      expect(
+        (await db.select().from(postVariantMedia)).every(
+          (row) => row.hlsReadyAt?.toISOString() === readyAt,
+        ),
+      ).toBe(true);
+      expect(
+        (await db.select().from(postMedia).where(eq(postMedia.mediaId, UUID_FILE_ID)))[0].width,
+      ).toBe(720);
+    });
+
+    const {
+      passes: [result],
+    } = await reconcileVideoMetadata();
+
+    expect(result).toMatchObject({
+      scanned: 2,
+      updated: 2,
+      unresolved: 0,
+      rowsUpdated: 3,
+      postsUpdated: 2,
+      reachedEnd: true,
+    });
+    expect(metadataByIds).toHaveBeenCalledExactlyOnceWith([UUID_FILE_ID, HEX_FILE_ID]);
+    expect(new Set(invalidatePostDetailCache.mock.calls.map(([id]) => id))).toEqual(
+      new Set([sharedId, variantOnly]),
+    );
+    const after = await read();
+    for (let i = 0; i < before.length; i++) {
+      const row = before[i];
+      expect(after[i]).toEqual(
+        row.mediaId === UUID_FILE_ID
+          ? {
+              ...row,
+              width: 720,
+              height: 1280,
+              orientation: 'portrait',
+              aspectRatio: 0.5625,
+              hlsReadyAt: new Date(readyAt),
+            }
+          : row,
+      );
+    }
+    expect(after.find((row) => row.postId === remoteId)).toEqual(
+      before.find((row) => row.postId === remoteId),
+    );
+    const variantAfter = await db.select().from(postVariantMedia).orderBy(postVariantMedia.id);
+    expect(variantAfter).toEqual(
+      variantBefore.map((row) => ({
+        ...row,
+        width: 720,
+        height: 1280,
+        orientation: 'portrait',
+        aspectRatio: 0.5625,
+        durationSec: 12,
+        sizeBytes: 4242,
+        hlsReadyAt: new Date(readyAt),
+      })),
+    );
+    invalidatePostDetailCache.mockClear();
+    expect((await reconcileVideoMetadata()).passes[0]).toMatchObject({
+      scanned: 2,
+      updated: 0,
+      unchanged: 2,
+      rowsUpdated: 0,
+    });
+    expect(invalidatePostDetailCache).not.toHaveBeenCalled();
+  });
+
+  it('bounds Oxy lookups to 100 deduplicated files and resumes from the exact keyset boundary', async () => {
+    const ids = Array.from({ length: 103 }, () => randomUUID()).sort();
+    await seedWithMedia(ids.map(stale));
+    await seedWithMedia([stale(ids[0])]);
+    invalidatePostDetailCache.mockClear();
+    const first = (await reconcileVideoMetadata({ limitFiles: 101, dryRun: true })).passes[0];
+    expect(first).toMatchObject({
+      scanned: 101,
+      updated: 101,
+      reachedEnd: false,
+      resumeAfterFileId: ids[100],
+    });
+    expect(metadataByIds.mock.calls.map(([batch]) => batch.length)).toEqual([100, 1]);
+    expect(metadataByIds.mock.calls.flatMap(([batch]) => batch)).toEqual(ids.slice(0, 101));
+    metadataByIds.mockClear();
+    const last = (
+      await reconcileVideoMetadata({
+        afterFileId: first.resumeAfterFileId ?? undefined,
+        limitFiles: 101,
+        dryRun: true,
+      })
+    ).passes[0];
+    expect(last).toMatchObject({ scanned: 2, reachedEnd: true, resumeAfterFileId: null });
+    expect(metadataByIds).toHaveBeenCalledExactlyOnceWith(ids.slice(101));
+    expect((await read()).every((row) => row.width === 1920)).toBe(true);
+    expect(invalidatePostDetailCache).not.toHaveBeenCalled();
+  });
+
+  it('keeps a resumable checkpoint before unresolved files and never treats a failed source as current', async () => {
+    const ids = [randomUUID(), randomUUID(), randomUUID()].sort();
+    await seedWithMedia(ids.map(stale));
+    metadataByIds.mockResolvedValue([current(ids[0]), current(ids[2])]);
+    const partial = (await reconcileVideoMetadata()).passes[0];
+    expect(partial).toMatchObject({
+      scanned: 3,
+      updated: 2,
+      unresolved: 1,
+      reachedEnd: true,
+      scannedThroughFileId: ids[2],
+      resumeAfterFileId: ids[0],
+    });
+    metadataByIds.mockRejectedValue(new Error('upstream unavailable'));
+    invalidatePostDetailCache.mockClear();
+    const before = await read();
+    expect((await reconcileVideoMetadata({ afterFileId: ids[0] })).passes[0]).toMatchObject({
+      scanned: 2,
+      updated: 0,
+      unchanged: 0,
+      unresolved: 2,
+      resumeAfterFileId: ids[0],
+    });
+    expect(await read()).toEqual(before);
+    expect(invalidatePostDetailCache).not.toHaveBeenCalled();
+    metadataByIds.mockImplementation(async (batch: string[]) => batch.map(current));
+    expect((await reconcileVideoMetadata({ afterFileId: ids[0] })).passes[0]).toMatchObject({
+      scanned: 2,
+      updated: 1,
+      unchanged: 1,
+      unresolved: 0,
+    });
+  });
+
+  it('does not overwrite a row edited to another file while Oxy responds', async () => {
+    const id = await seedWithMedia([stale(UUID_FILE_ID)]);
+    const [original] = await read();
+    invalidatePostDetailCache.mockClear();
+    metadataByIds.mockImplementation(async () => {
+      await db
+        .update(postMedia)
+        .set({ mediaId: HEX_FILE_ID, width: 400, alt: 'Concurrent edit' })
+        .where(eq(postMedia.id, original.id));
+      return [current(UUID_FILE_ID)];
+    });
+    expect((await reconcileVideoMetadata()).passes[0]).toMatchObject({
+      updated: 0,
+      rowsUpdated: 0,
+    });
+    expect((await read())[0]).toMatchObject({
+      id: original.id,
+      postId: id,
+      mediaId: HEX_FILE_ID,
+      width: 400,
+      alt: 'Concurrent edit',
+    });
+    expect(invalidatePostDetailCache).not.toHaveBeenCalled();
+  });
+
+  it('never rolls a newer readiness stamp back, including an update during lookup', async () => {
+    await seedWithMedia([stale(UUID_FILE_ID)]);
+    const [row] = await read();
+    const later = new Date('2026-10-24T00:00:00.000Z');
+    metadataByIds.mockImplementation(async () => {
+      await db
+        .update(postMedia)
+        .set({ hlsReadyAt: later, width: 1080 })
+        .where(eq(postMedia.id, row.id));
+      return [current(UUID_FILE_ID)];
+    });
+    expect((await reconcileVideoMetadata()).passes[0].rowsUpdated).toBe(0);
+    expect((await read())[0]).toMatchObject({ width: 1080, hlsReadyAt: later });
+    metadataByIds.mockResolvedValue([current(UUID_FILE_ID)]);
+    expect((await reconcileVideoMetadata()).passes[0]).toMatchObject({
+      updated: 0,
+      unresolved: 1,
+      resumeAfterFileId: null,
+    });
+  });
+
+  it('runs later complete passes even when the first is unchanged while Oxy is still encoding', async () => {
+    await seedWithMedia([{ ...stale(UUID_FILE_ID), ...current(UUID_FILE_ID) }]);
+    const later = '2026-10-24T00:00:00.000Z';
+    metadataByIds
+      .mockResolvedValueOnce([current(UUID_FILE_ID)])
+      .mockResolvedValueOnce([{ ...current(UUID_FILE_ID), hlsReadyAt: later }]);
+    const result = await reconcileVideoMetadata({ passes: 2, passDelaySeconds: 0 });
+    expect(result.passes.map((pass) => [pass.updated, pass.unchanged, pass.reachedEnd])).toEqual([
+      [0, 1, true],
+      [1, 0, true],
+    ]);
+    expect((await read())[0].hlsReadyAt?.toISOString()).toBe(later);
+  });
+
+  it('stops at a bounded partial pass rather than repeatedly scanning its prefix', async () => {
+    await seedWithMedia([stale(UUID_FILE_ID), stale(HEX_FILE_ID)]);
+    const result = await reconcileVideoMetadata({ passes: 3, limitFiles: 1, passDelaySeconds: 0 });
+    expect(result.passes).toHaveLength(1);
+    expect(result.passes[0]).toMatchObject({
+      scanned: 1,
+      reachedEnd: false,
+      resumeAfterFileId: UUID_FILE_ID,
+    });
+  });
+
+  it('allows only one manual or scheduled scan and releases the lock on completion', async () => {
+    await seedWithMedia([stale(UUID_FILE_ID)]);
+    let finishLookup: (value: ReturnType<typeof current>[]) => void = () => {};
+    let lookupStarted: () => void = () => {};
+    const started = new Promise<void>((resolve) => {
+      lookupStarted = resolve;
+    });
+    metadataByIds.mockImplementationOnce(() => {
+      lookupStarted();
+      return new Promise<ReturnType<typeof current>[]>((resolve) => {
+        finishLookup = resolve;
+      });
+    });
+    const first = reconcileVideoMetadata();
+    try {
+      await started;
+      expect(await reconcileVideoMetadata()).toEqual({ passes: [], alreadyRunning: true });
+      expect(metadataByIds).toHaveBeenCalledTimes(1);
+    } finally {
+      finishLookup([current(UUID_FILE_ID)]);
+    }
+    expect((await first).alreadyRunning).toBe(false);
+    expect((await reconcileVideoMetadata()).alreadyRunning).toBe(false);
+    expect(metadataByIds).toHaveBeenCalledTimes(2);
+  });
+
+  it('releases the advisory lock even if a post-commit dependency fails', async () => {
+    await seedWithMedia([stale(UUID_FILE_ID)]);
+    invalidatePostDetailCache.mockRejectedValueOnce(new Error('cache unavailable'));
+    await expect(reconcileVideoMetadata()).rejects.toThrow('cache unavailable');
+    const retry = await reconcileVideoMetadata();
+    expect(retry.alreadyRunning).toBe(false);
+    expect(retry.passes[0]).toMatchObject({ scanned: 1, unchanged: 1, updated: 0 });
+  });
+
+  it.each([
+    { limitFiles: 0 },
+    { limitFiles: 1.5 },
+    { limitFiles: 1000001 },
+    { passes: 0 },
+    { passes: 11 },
+    { passDelaySeconds: -1 },
+    { afterFileId: REMOTE_URL },
+    { afterFileId: ` ${UUID_FILE_ID}` },
+  ])('rejects invalid bounds or cursor before reading Oxy: %j', async (options) => {
+    await expect(reconcileVideoMetadata(options)).rejects.toThrow();
+    expect(metadataByIds).not.toHaveBeenCalled();
   });
 });

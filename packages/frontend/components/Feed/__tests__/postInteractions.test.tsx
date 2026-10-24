@@ -87,6 +87,8 @@ const mockNoteSheets = {
 jest.mock('@/components/CommunityNotes/useCommunityNoteSheets', () => ({
   createCommunityNoteSheets: () => mockNoteSheets,
 }));
+const mockOpenInAllo = jest.fn();
+jest.mock('@/hooks/useOpenInAllo', () => ({ useOpenInAllo: () => mockOpenInAllo }));
 
 function post(id: string, viewerState: Partial<HydratedPost['viewerState']> = {}): HydratedPost {
   return {
@@ -301,6 +303,15 @@ describe('bound sheet commands', () => {
     ));
     expect(() => commands.openInsights('p1')).not.toThrow();
     expect(sheet.setBottomSheetContent).not.toHaveBeenCalled();
+  });
+
+  it("hands the post's permalink to Allo's share picker", () => {
+    bound().sendInAllo('p1');
+    const permalink = encodeURIComponent('https://mention.earth/p/p1');
+    expect(mockOpenInAllo).toHaveBeenCalledWith(
+      { app: `allo://share?text=${permalink}`, web: `https://allo.you/share?text=${permalink}` },
+      expect.stringContaining('Allo is not installed'),
+    );
   });
 
   it("routes a note's about sheet to the app's community-note flows", () => {

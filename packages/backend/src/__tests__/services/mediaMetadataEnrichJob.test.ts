@@ -4,27 +4,25 @@ import { PostType, PostVisibility, type MediaItem } from '@mention/shared-types'
 /**
  * The media-metadata retry job, against REAL ROWS.
  *
- * The previous version stubbed `Post.findById(...).select().lean()` and
- * `Post.updateOne`, and asserted the dotted `$set` the job passed. That is the
- * one thing the port could not preserve: `content.media` is a CHILD TABLE with a
- * dense `UNIQUE (post_id, position)`, so the write is a transactional
- * delete-then-insert and there is no `$set` path to assert. What matters is what
- * the row says AFTERWARDS — the gallery's order and each item's intrinsics — so
- * every assertion below reads the stored media back.
+ * Enrichment updates intrinsic columns in place. Assertions read the actual
+ * stored rows, including identity and concurrent edits, rather than mocking
+ * the persistence boundary.
  *
  * Oxy's probe is still stubbed: it is a network call, and the behaviour under
  * test is what the job does with its answer.
  */
 const enrichFromOxy = vi.fn();
 const needsOxyRetry = vi.fn();
+const rejectedHls = new Map<string, string>();
 
 vi.mock('../../services/MediaMetadataService', async (importOriginal) => ({
   // The real comparison: what counts as a change is part of what is under test.
-  mediaMetadataChanged: (
-    await importOriginal<typeof import('../../services/MediaMetadataService')>()
-  ).mediaMetadataChanged,
+  ...(await importOriginal<typeof import('../../services/MediaMetadataService')>()),
   mediaMetadataService: {
-    enrichFromOxy: (...args: unknown[]) => enrichFromOxy(...args),
+    enrichFromOxyWithRejections: async (...args: unknown[]) => ({
+      items: await enrichFromOxy(...args),
+      rejectedHls,
+    }),
     needsOxyRetry: (...args: unknown[]) => needsOxyRetry(...args),
   },
 }));
@@ -37,7 +35,9 @@ vi.mock('../../utils/logger', () => ({
   logger: { warn: vi.fn(), debug: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 
-import { closePostgres, connectPostgres } from '../../db/postgres';
+import { eq } from 'drizzle-orm';
+import { postMedia } from '../../db/schema/postContent';
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { deletePostRecord, insertPostRecord, loadPostRecord } from '../../db/posts/postRepository';
 import {
   processMediaMetadataEnrichJob,
@@ -89,6 +89,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  rejectedHls.clear();
 });
 
 afterEach(async () => {
@@ -147,10 +148,7 @@ describe('processMediaMetadataEnrichJob', () => {
     expect(await storedMedia(postId)).toEqual([stamped]);
   });
 
-  it('keeps the gallery ORDER when it rewrites the media rows', async () => {
-    // The child table carries a dense `position`, and the write is a
-    // delete-then-insert of the whole set — so an enrichment that reordered the
-    // gallery would silently rearrange what the author arranged.
+  it('keeps the gallery order while updating intrinsic columns', async () => {
     const first: MediaItem = { id: 'media-a', type: 'image' };
     const second: MediaItem = { id: 'media-b', type: 'image' };
     const third: MediaItem = { id: 'media-c', type: 'image' };
@@ -170,6 +168,49 @@ describe('processMediaMetadataEnrichJob', () => {
       'media-c',
     ]);
   });
+
+  it('clears only an explicit matching generation without replacing the media row', async () => {
+    const old = '2026-10-01T00:00:00.000Z';
+    const postId = await seedPostWithMedia([
+      { ...probedVideo, hlsReadyAt: old, alt: 'Keep caption' },
+    ]);
+    const [before] = await getDb().select().from(postMedia).where(eq(postMedia.postId, postId));
+    rejectedHls.set(OXY_ID, old);
+    enrichFromOxy.mockResolvedValue([probedVideo]);
+    needsOxyRetry.mockReturnValue(true);
+    await patchPostMediaMetadata(postId);
+    const [after] = await getDb().select().from(postMedia).where(eq(postMedia.postId, postId));
+    expect(after).toEqual({ ...before, hlsReadyAt: null });
+  });
+
+  it.each(['new-generation', 'cleared', 'replaced-file'])(
+    'does not overwrite a %s while enrichment is pending',
+    async (change) => {
+      const old = '2026-10-01T00:00:00.000Z';
+      const newer = new Date('2026-10-23T00:00:00.000Z');
+      const postId = await seedPostWithMedia([{ ...probedVideo, hlsReadyAt: old }]);
+      const [before] = await getDb().select().from(postMedia).where(eq(postMedia.postId, postId));
+      let expected = before;
+      enrichFromOxy.mockImplementation(async () => {
+        [expected] = await getDb()
+          .update(postMedia)
+          .set(
+            change === 'new-generation'
+              ? { hlsReadyAt: newer }
+              : change === 'cleared'
+                ? { hlsReadyAt: null }
+                : { mediaId: 'replacement-file' },
+          )
+          .where(eq(postMedia.id, before.id))
+          .returning();
+        return [{ ...probedVideo, width: 123, hlsReadyAt: old }];
+      });
+      needsOxyRetry.mockReturnValue(false);
+      await patchPostMediaMetadata(postId);
+      const [after] = await getDb().select().from(postMedia).where(eq(postMedia.postId, postId));
+      expect(after).toEqual(expected);
+    },
+  );
 
   it('does not write when nothing changed', async () => {
     const postId = await seedPostWithMedia([probedVideo]);

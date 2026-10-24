@@ -479,6 +479,8 @@ export interface UseVideoPlaybackOptions {
 export interface UseVideoPlaybackResult {
   /** The ONLY playback signal a consumer needs. */
   shouldPlay: boolean;
+  /** Preloading is allowed only on a foregrounded, focused screen or for PiP. */
+  canLoad: boolean;
   /** Manual play wins: claim the audible slot. */
   claimActive: () => void;
   /** Web: report viewport center-Y and intersection from an IntersectionObserver. */
@@ -551,7 +553,8 @@ export function useVideoPlayback({
 
   const shouldPlay = eligible && (foreground || ownsSession) && (silent || isActive);
 
-  return { shouldPlay, claimActive, reportVisibility };
+  const canLoad = ownsSession || (screenFocused && foreground);
+  return { shouldPlay, canLoad, claimActive, reportVisibility };
 }
 
 /** List viewability for non-video cards; shares the native feed's measured row set. */

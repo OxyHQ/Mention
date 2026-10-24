@@ -36,6 +36,7 @@ import { communityService } from '@/services/communityService';
 import { List as ListIcon } from '@/assets/icons/list-icon';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { invalidateProfileCounts } from '@/stores/profileCountsInvalidation';
+import { postPermalink } from '@/utils/postPermalink';
 
 /**
  * The post overflow menu, built when the reader PRESSES "⋯" — never per row.
@@ -160,7 +161,7 @@ export function buildPostMenuActions(
   const { removePostEverywhere, reinsertPost, updatePostEverywhere } = usePostsStore.getState();
   {
     const postId = viewPost?.id;
-    const postUrl = `https://mention.earth/p/${postId}`;
+    const postUrl = postPermalink(postId);
     const isPinned = Boolean(viewPost?.metadata?.isPinned);
 
     const handleDelete = async () => {

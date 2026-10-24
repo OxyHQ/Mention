@@ -16,7 +16,8 @@ import { PostType, PostVisibility } from '@mention/shared-types';
 
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { postContentVariants, posts } from '../../db/schema';
-import { insertPostRecord } from '../../db/posts/postRepository';
+import type { PostRecordInput } from '../../db/posts/postRecord';
+import { insertPosts } from '../helpers/postFixtures';
 import {
   VARIANT_POST_CREATED_AT_INDEX,
   backfillVariantPostCreatedAt,
@@ -25,18 +26,24 @@ import {
 const created: string[] = [];
 const AUTHOR = 'variant-backfill-author';
 
-async function create(createdAt: Date): Promise<string> {
-  const record = await insertPostRecord({
-    oxyUserId: AUTHOR,
-    authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
-    type: PostType.TEXT,
-    visibility: PostVisibility.PUBLIC,
-    status: 'published',
-    content: { variants: [{ source: 'author', text: 'a body', tag: 'en' }] },
-    createdAt,
-  });
-  created.push(record.id);
-  return record.id;
+/** One post per `createdAt`, written as one batch; returns their ids in order. */
+async function create(...createdAts: Date[]): Promise<string[]> {
+  const records = await insertPosts(
+    createdAts.map(
+      (createdAt): PostRecordInput => ({
+        oxyUserId: AUTHOR,
+        authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
+        type: PostType.TEXT,
+        visibility: PostVisibility.PUBLIC,
+        status: 'published',
+        content: { variants: [{ source: 'author', text: 'a body', tag: 'en' }] },
+        createdAt,
+      }),
+    ),
+  );
+  const ids = records.map((record) => record.id);
+  created.push(...ids);
+  return ids;
 }
 
 /** Renditions whose copy disagrees with their post, compared in SQL. */
@@ -67,7 +74,7 @@ afterAll(async () => {
 
 describe('backfillVariantPostCreatedAt', () => {
   it('reports without writing on a dry run', async () => {
-    const id = await create(new Date('2026-01-02T03:04:05.000Z'));
+    const [id] = await create(new Date('2026-01-02T03:04:05.000Z'));
     await getDb().execute(
       sql`update post_content_variants set post_created_at = null where post_id = ${id}`,
     );
@@ -80,11 +87,11 @@ describe('backfillVariantPostCreatedAt', () => {
   });
 
   it('repairs NULL and wrong copies across batches, and builds a valid index', async () => {
-    const ids = await Promise.all([
-      create(new Date('2026-01-02T03:04:05.000Z')),
-      create(new Date('2026-02-03T04:05:06.000Z')),
-      create(new Date('2026-03-04T05:06:07.000Z')),
-    ]);
+    const ids = await create(
+      new Date('2026-01-02T03:04:05.000Z'),
+      new Date('2026-02-03T04:05:06.000Z'),
+      new Date('2026-03-04T05:06:07.000Z'),
+    );
     // The state every pre-migration row is in, and one that disagrees outright.
     await getDb().execute(
       sql`update post_content_variants set post_created_at = null where post_id in (${ids[0]}, ${ids[1]})`,
@@ -108,7 +115,7 @@ describe('backfillVariantPostCreatedAt', () => {
   }, 60_000);
 
   it('is idempotent: a second run writes nothing', async () => {
-    const id = await create(new Date('2026-01-02T03:04:05.000Z'));
+    const [id] = await create(new Date('2026-01-02T03:04:05.000Z'));
     await getDb().execute(
       sql`update post_content_variants set post_created_at = null where post_id = ${id}`,
     );

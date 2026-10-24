@@ -5,6 +5,8 @@ name: Run media-metadata backfill
 # `aspect_ratio`, `size_bytes`. Oxy derives those by probing the asset AFTER the
 # upload call returns, so a post is created before they exist and an enrichment
 # pass fills them in later.
+# Optional file_id refreshes even complete metadata for that Oxy video after
+# a rendition repair, including language-variant media overrides.
 #
 # WHY THE BACKLOG EXISTS, and why it is not small. `MediaMetadataService`
 # decided which media items were worth asking Oxy about with a 24-hex ObjectId
@@ -43,8 +45,8 @@ name: Run media-metadata backfill
 #
 # WHAT IT WRITES. Only the intrinsic-metadata fields, and only from Oxy's own
 # answer for that asset id. It never deletes, never touches text, alt text,
-# authorship or engagement, and it rewrites a post's content graph only when at
-# least one field actually changes.
+# authorship or engagement. Rows are updated in place only when intrinsic
+# metadata changes; targeted writes also match the row and file identity.
 #
 #   dry_run=true (the default) → reads only, and reports how many posts WOULD be
 #     updated. This is the run to read first: it is also the measurement of how
@@ -68,10 +70,37 @@ on:
         description: 'For a real write, enter: BACKFILL MEDIA METADATA'
         required: false
         type: string
+      file_id:
+        description: 'Optional Oxy video file id: refresh existing metadata in shared and language-variant media'
+        required: false
+        type: string
+      refresh_videos:
+        description: 'Reconcile complete video metadata in both shared and language-variant media'
+        required: true
+        type: boolean
+        default: false
+      limit_files:
+        description: 'Maximum distinct video files per reconciliation pass (1–1000000)'
+        required: true
+        type: string
+        default: '1000'
+      after_file_id:
+        description: 'Resume first pass after this file; use resumeAfterFileId from the last checkpoint'
+        required: false
+        type: string
+      passes:
+        description: 'Bounded repeated passes; each completed pass restarts from the beginning (1–10)'
+        required: true
+        type: string
+        default: '1'
+      pass_delay_seconds:
+        description: 'Delay between reconciliation passes (0–600 seconds)'
+        required: true
+        type: string
+        default: '60'
 
 concurrency:
-  # Two sweeps would ask Oxy about the same assets twice and race on the
-  # delete-then-insert that rewrites a post's media rows.
+  # Two repairs would ask Oxy about the same assets twice and race on writes.
   group: backfill-media-metadata
   cancel-in-progress: false
 
@@ -178,6 +207,12 @@ jobs:
           IMAGE: ${{ steps.ecr.outputs.registry }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
           DRY_RUN: ${{ inputs.dry_run }}
           CONFIRM_WRITE: ${{ inputs.confirm_write }}
+          FILE_ID: ${{ inputs.file_id }}
+          REFRESH_VIDEOS: ${{ inputs.refresh_videos }}
+          LIMIT_FILES: ${{ inputs.limit_files }}
+          AFTER_FILE_ID: ${{ inputs.after_file_id }}
+          PASSES: ${{ inputs.passes }}
+          PASS_DELAY_SECONDS: ${{ inputs.pass_delay_seconds }}
         run: |
           set -euo pipefail
           BACKFILL_TASK_DEF=""
@@ -214,7 +249,15 @@ jobs:
             exit 1
           fi
 
-          echo "mode: apply=$APPLY"
+          case "$REFRESH_VIDEOS" in
+            true|false) ;;
+            *) echo "::error::refresh_videos must be exactly true or false."; exit 1 ;;
+          esac
+          if [[ "$REFRESH_VIDEOS" == "true" && -n "$FILE_ID" ]]; then
+            echo "::error::refresh_videos and file_id are mutually exclusive."
+            exit 1
+          fi
+          echo "mode: apply=$APPLY refresh_videos=$REFRESH_VIDEOS"
 
           # Take the task definition and network config from the LIVE service, so
           # the one-shot runs with the same secrets, roles, subnets and security
@@ -268,12 +311,24 @@ jobs:
           OVERRIDES=$(jq -nc \
             --arg name "$CONTAINER" \
             --arg apply "$APPLY" \
+            --arg fileId "$FILE_ID" \
+            --arg refreshVideos "$REFRESH_VIDEOS" \
+            --arg limitFiles "$LIMIT_FILES" \
+            --arg afterFileId "$AFTER_FILE_ID" \
+            --arg passes "$PASSES" \
+            --arg passDelaySeconds "$PASS_DELAY_SECONDS" \
             '{containerOverrides:[{
                name: $name,
                command: (
                  ["busybox","timeout","-s","TERM","-k","30","3300",
                   "bun","packages/backend/dist/src/scripts/backfillMediaMetadata.js"]
                  + (if $apply == "true" then [] else ["--dry-run"] end)
+                 + (if $fileId == "" then [] else ["--file-id", $fileId] end)
+                 + (if $refreshVideos == "true" then
+                      ["--refresh-videos", "--limit-files", $limitFiles,
+                       "--passes", $passes, "--pass-delay-seconds", $passDelaySeconds]
+                      + (if $afterFileId == "" then [] else ["--after-file-id", $afterFileId] end)
+                    else [] end)
                ),
                environment: (
                  if $apply == "true"
@@ -347,6 +402,28 @@ jobs:
           # own `timeout` reports 143 (SIGTERM) — that is a partial sweep whose
           # writes are committed, not a failure, and it is reported as such so a
           # re-run is the obvious next step rather than an investigation.
+          if [[ "$REFRESH_VIDEOS" == "true" ]]; then
+            {
+              echo "### Video metadata reconciliation"
+              echo ""
+              echo "Mode: apply=$APPLY. Exit code: $EXIT_CODE."
+              echo "Read the per-pass checkpoint records for scanned, updated, unchanged, unresolved, excludedAudio,"
+              echo "rowsUpdated, postsUpdated, reachedEnd and resumeAfterFileId."
+              echo "Resume from resumeAfterFileId (blank means the beginning), never from scannedThroughFileId"
+              echo "when unresolved files remain. A checkpoint is emitted only after its writes commit."
+              echo ""
+              echo "A completed metadata scan does not mean Oxy has finished its asynchronous repair."
+              echo "Repeat bounded passes while repair runs, then run a final full pass after Oxy settles."
+            } >> "$GITHUB_STEP_SUMMARY"
+            case "$EXIT_CODE" in
+              0) echo "::notice::Requested video metadata passes finished; confirm upstream repair separately." ;;
+              75) echo "::warning::Video reconciliation is incomplete (file limit or unresolved source). Resume from its checkpoint." ;;
+              124|137|143) echo "::warning::Video reconciliation reached its time bound. Resume from the last committed checkpoint." ;;
+              *) echo "::error::Video reconciliation failed with exit code $EXIT_CODE."; exit 1 ;;
+            esac
+            exit 0
+          fi
+
           case "$EXIT_CODE" in
             0)
               echo "::notice::Backfill COMPLETE — the sweep reached the end of the candidate set."

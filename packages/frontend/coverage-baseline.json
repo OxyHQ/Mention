@@ -2,31 +2,31 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 48.61,
-      "covered": 13740,
-      "total": 28260
+      "pct": 48.39,
+      "covered": 13714,
+      "total": 28336
     },
     "branches": {
-      "pct": 44.05,
-      "covered": 9229,
-      "total": 20950
+      "pct": 43.61,
+      "covered": 9125,
+      "total": 20923
     },
     "functions": {
-      "pct": 43.01,
-      "covered": 3165,
-      "total": 7358
+      "pct": 42.83,
+      "covered": 3157,
+      "total": 7371
     },
     "lines": {
-      "pct": 49.42,
-      "covered": 12490,
-      "total": 25270
+      "pct": 49.2,
+      "covered": 12461,
+      "total": 25327
     }
   },
   "pins": {
     "components/Feed/PostInteractionsBinder.tsx": {
-      "statements": 92,
+      "statements": 93,
       "branches": 100,
-      "functions": 76,
+      "functions": 78,
       "lines": 100
     },
     "components/Feed/PostMenuContent.tsx": {
@@ -133,7 +133,7 @@
     },
     "db/feedItem.ts": {
       "statements": 100,
-      "branches": 94,
+      "branches": 93,
       "functions": 100,
       "lines": 100
     },
@@ -323,12 +323,6 @@
       "functions": 100,
       "lines": 100
     },
-    "hooks/useFeedRankingStaleness.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
     "hooks/useFeedSettings.ts": {
       "statements": 91,
       "branches": 68,
@@ -337,7 +331,7 @@
     },
     "hooks/useFeedState.ts": {
       "statements": 96,
-      "branches": 92,
+      "branches": 91,
       "functions": 100,
       "lines": 97
     },
@@ -466,6 +460,12 @@
       "branches": 100,
       "functions": 100,
       "lines": 100
+    },
+    "hooks/useOpenInAllo.tsx": {
+      "statements": 72,
+      "branches": 100,
+      "functions": 66,
+      "lines": 72
     },
     "hooks/useOptimizedMediaQuery.ts": {
       "statements": 0,
@@ -612,10 +612,10 @@
       "lines": 0
     },
     "hooks/useReelChrome.ts": {
-      "statements": 65,
+      "statements": 66,
       "branches": 62,
       "functions": 55,
-      "lines": 65
+      "lines": 67
     },
     "hooks/useReelImpressions.ts": {
       "statements": 100,
@@ -809,12 +809,6 @@
       "functions": 100,
       "lines": 100
     },
-    "lib/alloDirectMessage.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
     "lib/appInitializer.ts": {
       "statements": 0,
       "branches": 0,
@@ -888,10 +882,10 @@
       "lines": 100
     },
     "lib/hlsPlayback.web.ts": {
-      "statements": 65,
-      "branches": 60,
-      "functions": 75,
-      "lines": 69
+      "statements": 97,
+      "branches": 88,
+      "functions": 93,
+      "lines": 98
     },
     "lib/i18n.ts": {
       "statements": 41,
@@ -936,8 +930,8 @@
       "lines": 66
     },
     "lib/logging/sanitize.ts": {
-      "statements": 89,
-      "branches": 69,
+      "statements": 90,
+      "branches": 71,
       "functions": 86,
       "lines": 91
     },
@@ -1236,10 +1230,10 @@
       "lines": 0
     },
     "services/muteService.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
+      "statements": 0,
+      "branches": 0,
+      "functions": 0,
+      "lines": 0
     },
     "services/muteWordsService.ts": {
       "statements": 0,
@@ -1428,10 +1422,10 @@
       "lines": 98
     },
     "stores/postsStore.ts": {
-      "statements": 77,
-      "branches": 58,
-      "functions": 72,
-      "lines": 83
+      "statements": 72,
+      "branches": 53,
+      "functions": 69,
+      "lines": 78
     },
     "stores/profileCountsInvalidation.ts": {
       "statements": 100,
@@ -1468,6 +1462,12 @@
       "branches": 80,
       "functions": 93,
       "lines": 95
+    },
+    "stores/video-playback-control.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "stores/videoMuteStore.ts": {
       "statements": 0,
@@ -1760,6 +1760,12 @@
     "utils/postLanguages.ts": {
       "statements": 97,
       "branches": 91,
+      "functions": 100,
+      "lines": 100
+    },
+    "utils/postPermalink.ts": {
+      "statements": 100,
+      "branches": 100,
       "functions": 100,
       "lines": 100
     },

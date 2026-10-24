@@ -585,6 +585,98 @@ describe('GET /media/proxy — sized variants', () => {
   });
 });
 
+describe('GET /media/proxy — cached byte ranges', () => {
+  beforeEach(() => {
+    mediaCacheEnabled.value = true;
+    fetchUpstreamFollowingRedirects.mockReset();
+    isNegativelyCached.mockReset().mockResolvedValue(false);
+    markNegativelyCached.mockReset().mockResolvedValue(undefined);
+  });
+
+  it('redirects a cached video range to the original without reading the remote host', async () => {
+    cacheStore.lookupCacheRow.mockResolvedValue({
+      state: 'cached',
+      oxyFileId: 'oxyfile123',
+      contentType: 'video/mp4',
+    });
+
+    const response = await request(app)
+      .get('/media/proxy')
+      .query({ url: REMOTE })
+      .set('Range', 'bytes=100-199');
+
+    expect(response.status).toBe(302);
+    expect(response.headers.location).toBe(OXY_CDN_URL);
+    expect(cacheStore.bumpAccess).toHaveBeenCalledWith(REMOTE);
+    expect(fetchUpstreamFollowingRedirects).not.toHaveBeenCalled();
+    expect(isNegativelyCached).not.toHaveBeenCalled();
+  });
+
+  it('never applies an image variant to offsets in the original file', async () => {
+    cacheStore.lookupCacheRow.mockResolvedValue({
+      state: 'cached',
+      oxyFileId: 'oxyfile123',
+      contentType: 'image/png',
+    });
+
+    const response = await request(app)
+      .get('/media/proxy')
+      .query({ url: REMOTE, variant: 'w320' })
+      .set('Range', 'bytes=0-1');
+
+    expect(response.status).toBe(302);
+    expect(response.headers.location).toBe(OXY_CDN_URL);
+    expect(response.headers.vary.split(',').map((name: string) => name.trim())).toContain('Range');
+    expect(fetchUpstreamFollowingRedirects).not.toHaveBeenCalled();
+  });
+
+  it('streams the requested range from the origin on a cache miss and schedules caching', async () => {
+    cacheStore.lookupCacheRow.mockResolvedValue(undefined);
+    fetchUpstreamFollowingRedirects.mockResolvedValue({
+      response: streamingResponse(
+        206,
+        { 'content-type': 'video/mp4', 'content-range': 'bytes 2-5/10', 'content-length': '4' },
+        Buffer.from('2345'),
+      ),
+      finalUrl: REMOTE,
+    });
+
+    const response = await request(app)
+      .get('/media/proxy')
+      .query({ url: REMOTE })
+      .set('Range', 'bytes=2-5');
+
+    expect(response.status).toBe(206);
+    expect(response.headers['content-range']).toBe('bytes 2-5/10');
+    expect(response.headers['content-length']).toBe('4');
+    expect(response.body).toEqual(Buffer.from('2345'));
+    expect(fetchUpstreamFollowingRedirects).toHaveBeenCalledWith(
+      REMOTE,
+      expect.objectContaining({ range: 'bytes=2-5' }),
+      expect.anything(),
+      ALLOWED_GUARD,
+    );
+    expect(cacheStore.recordAccessAndMaybeEnqueue).toHaveBeenCalledWith(REMOTE);
+  });
+
+  it('falls through to the origin if the cache lookup fails', async () => {
+    cacheStore.lookupCacheRow.mockRejectedValue(new Error('cache unavailable'));
+    fetchUpstreamFollowingRedirects.mockResolvedValue({
+      response: fakeResponse(416, { 'content-range': 'bytes */10' }),
+      finalUrl: REMOTE,
+    });
+
+    const response = await request(app)
+      .get('/media/proxy')
+      .query({ url: REMOTE })
+      .set('Range', 'bytes=20-30');
+
+    expect(response.status).toBe(416);
+    expect(response.headers['content-range']).toBe('bytes */10');
+    expect(markNegativelyCached).not.toHaveBeenCalled();
+  });
+});
+
 describe('supervised direct media boundary', () => {
   it('rejects unrated bytes before touching upstream or the public media cache', async () => {
     contentAccess.mockResolvedValueOnce({

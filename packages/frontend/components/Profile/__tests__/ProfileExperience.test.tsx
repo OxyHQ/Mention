@@ -1,8 +1,17 @@
 jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'));
 import type React from 'react';
 import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
+import { waitUntil } from '@/test-support/waitUntil';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Experience } from '@clarity.surf/sdk/experience';
+
+// The first render of the editor is what first reads react-native's lazy
+// `ScrollView`, `Modal` and `Text`, and on a cold transform cache (a new
+// worktree, a first `--coverage` run) loading them took 3–8 s each, measured
+// 2026-10-23 — past jest's 5 s default, inside whichever test renders first.
+// Jest does not stop a test that times out: its tail ran on into the next tests'
+// `renderer` and failed ten more. Warm, the same reads take under 0.5 s.
+jest.setTimeout(30_000);
 
 const mockSupervision = { ready: true, supervised: false, isError: false, refetch: jest.fn() };
 jest.mock('@/hooks/useSupervisionState', () => ({ useSupervisionState: () => mockSupervision }));
@@ -131,6 +140,7 @@ async function render(element: React.ReactElement) {
   });
   await settle();
 }
+const rendered = () => JSON.stringify(renderer.toJSON());
 function button(label: string) {
   return renderer.root.findAllByType('button').find((node) => node.props.children === label);
 }
@@ -190,8 +200,8 @@ describe('experience visibility and editing', () => {
   it('shows public career history without owner controls to another viewer', async () => {
     mockAuth.user = { id: 'visitor' };
     await render(<ProfileExperience profileId="person" isOwnProfile={false} />);
+    await waitUntil(() => rendered().includes('Designer'), 'the role');
     expect(experienceService.list).toHaveBeenCalledWith('person', true);
-    expect(JSON.stringify(renderer.toJSON())).toContain('Designer');
     expect(button('Add experience')).toBeUndefined();
     expect(button('Edit')).toBeUndefined();
   });
@@ -206,9 +216,9 @@ describe('experience visibility and editing', () => {
   it('distinguishes a read failure from empty history and retries', async () => {
     jest.mocked(experienceService.list).mockRejectedValueOnce(new Error('offline'));
     await render(<ProfileExperience profileId="person" isOwnProfile={false} />);
-    expect(JSON.stringify(renderer.toJSON())).toContain('Experience could not be loaded');
+    await waitUntil(() => rendered().includes('Experience could not be loaded'), 'the read error');
     await press('Try again');
-    expect(JSON.stringify(renderer.toJSON())).toContain('Designer');
+    await waitUntil(() => rendered().includes('Designer'), 'the role after retrying');
   });
 
   it('validates required fields and date order before creating a role', async () => {
@@ -226,17 +236,16 @@ describe('experience visibility and editing', () => {
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 350));
     });
-    await settle();
-    act(() =>
-      renderer.root
-        .findAll((node) => String(node.type) === 'item' && node.props.title === 'Apple')[0]
-        .props.onPress(),
-    );
+    const apple = () =>
+      renderer.root.findAll((node) => String(node.type) === 'item' && node.props.title === 'Apple');
+    await waitUntil(() => apple().length > 0, 'Apple in the employer search');
+    act(() => apple()[0].props.onPress());
     act(() => input('End date *').props.onChangeText('2022-10'));
     await press('Save');
     expect(experienceService.create).not.toHaveBeenCalled();
     act(() => input('End date *').props.onChangeText('2024-10'));
     await press('Save');
+    await waitUntil(() => onSaved.mock.calls.length > 0, 'the saved role');
     expect(experienceService.create).toHaveBeenCalledWith(
       expect.objectContaining({
         title: 'Engineer',
@@ -250,9 +259,15 @@ describe('experience visibility and editing', () => {
 
   it('updates the canonical role and reloads the owner list after saving', async () => {
     await render(<ProfileExperience profileId="person" isOwnProfile />);
+    await waitUntil(() => button('Edit') !== undefined, 'the Edit button');
     await press('Edit');
     act(() => input('Title *').props.onChangeText('Lead Designer'));
     await press('Save');
+    await waitUntil(
+      () => jest.mocked(experienceService.list).mock.calls.length === 2,
+      'the list reloaded after saving',
+    );
+    await waitUntil(() => renderer.root.findAllByType('dialog').length === 0, 'the editor closed');
     expect(experienceService.update).toHaveBeenCalledWith(
       'role',
       expect.objectContaining({ title: 'Lead Designer' }),
@@ -273,16 +288,17 @@ describe('experience visibility and editing', () => {
         onSaved={onSaved}
       />,
     );
-    act(() => input('Title *').props.onChangeText('Lead Designer'));
-    await press('Save');
-    expect(input('Title *').props.value).toBe('Lead Designer');
-    expect(onSaved).not.toHaveBeenCalled();
-    expect(
+    const alerts = () =>
       renderer.root
         .findAll((node) => node.props.accessibilityRole === 'alert')
-        .some((node) => String(node.props.children).includes('Your changes could not be saved')),
-    ).toBe(true);
+        .some((node) => String(node.props.children).includes('Your changes could not be saved'));
+    act(() => input('Title *').props.onChangeText('Lead Designer'));
     await press('Save');
+    await waitUntil(alerts, 'the save error');
+    expect(input('Title *').props.value).toBe('Lead Designer');
+    expect(onSaved).not.toHaveBeenCalled();
+    await press('Save');
+    await waitUntil(() => onSaved.mock.calls.length > 0, 'the retried save');
     expect(onSaved).toHaveBeenCalledTimes(1);
   });
 
@@ -299,8 +315,10 @@ describe('experience visibility and editing', () => {
       />,
     );
     await press('Delete');
+    await waitUntil(() => jest.mocked(confirmDialog).mock.calls.length === 1, 'the confirmation');
     expect(experienceService.remove).not.toHaveBeenCalled();
     await press('Delete');
+    await waitUntil(() => onSaved.mock.calls.length > 0, 'the deletion');
     expect(experienceService.remove).toHaveBeenCalledWith('role');
     expect(onSaved).toHaveBeenCalledTimes(1);
   });
@@ -315,10 +333,9 @@ describe('central employer identity', () => {
         { ...entry, id: 'earlier', startDate: '2010-01', endDate: '2020-01' },
       ]);
     await render(<ProfileExperience profileId="person" isOwnProfile={false} />);
-    await settle();
+    await waitUntil(() => rendered().includes('Apple'), 'the employer name');
     expect(mockAuth.oxyServices.organizations.batch).toHaveBeenCalledTimes(1);
     expect(mockAuth.oxyServices.organizations.batch).toHaveBeenCalledWith({ ids: ['org-apple'] });
-    expect(JSON.stringify(renderer.toJSON())).toContain('Apple');
     expect(
       renderer.root
         .findAll((node) => String(node.type) === 'profile-link')
@@ -346,9 +363,11 @@ describe('central employer identity', () => {
       missingIds: ['org-apple'],
     });
     await render(<ProfileExperience profileId="person" isOwnProfile={false} />);
-    await settle();
-    expect(JSON.stringify(renderer.toJSON())).toContain('Designer');
-    expect(JSON.stringify(renderer.toJSON())).toContain('Organization unavailable');
+    await waitUntil(
+      () => rendered().includes('Organization unavailable'),
+      'the unavailable employer',
+    );
+    expect(rendered()).toContain('Designer');
     expect(JSON.stringify(renderer.toJSON())).not.toContain('Apple');
   });
 
@@ -363,14 +382,18 @@ describe('central employer identity', () => {
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 350));
     });
-    await settle();
+    await waitUntil(() => button('Organization missing? Add it') !== undefined, 'the add offer');
     await press('Organization missing? Add it');
-    expect(JSON.stringify(renderer.toJSON())).toContain('does not grant you ownership');
+    await waitUntil(() => rendered().includes('does not grant you ownership'), 'the add form');
     act(() => {
       input('Website (optional)').props.onChangeText('https://example.com');
       input('Country code (optional, e.g. US)').props.onChangeText('GB');
     });
     await press('Add to directory');
+    await waitUntil(
+      () => mockAuth.oxyServices.organizations.create.mock.calls.length > 0,
+      'the directory create',
+    );
     expect(mockAuth.oxyServices.organizations.create).toHaveBeenCalledWith({
       name: 'Example',
       organizationType: 'business',
@@ -378,6 +401,10 @@ describe('central employer identity', () => {
       countryCode: 'GB',
     });
     await press('Save');
+    await waitUntil(
+      () => jest.mocked(experienceService.create).mock.calls.length > 0,
+      'the role create',
+    );
     expect(experienceService.create).toHaveBeenCalledWith(
       expect.objectContaining({ employerOxyAccountId: 'org-new' }),
     );
@@ -393,9 +420,8 @@ describe('central employer identity', () => {
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 350));
     });
-    await settle();
+    await waitUntil(() => button('Try again') !== undefined, 'the search error');
     expect(button('Organization missing? Add it')).toBeUndefined();
-    expect(button('Try again')).toBeDefined();
   });
 });
 
@@ -413,8 +439,7 @@ it('withholds unrated history until current supervision permits it and hides cac
   await act(async () => {
     renderer.update(<QueryClientProvider client={client}>{element()}</QueryClientProvider>);
   });
-  await settle();
-  expect(JSON.stringify(renderer.toJSON())).toContain('Designer');
+  await waitUntil(() => rendered().includes('Designer'), 'the role once supervision permits it');
   expect(button('Add experience')).toBeDefined();
   mockSupervision.supervised = true;
   await act(async () => {
@@ -440,8 +465,8 @@ it('manages its own roles using minimal employer identities and never loads the 
       <ProfileExperience profileId="person" isOwnProfile />
     </SupervisedFeatureGate>,
   );
-  expect(JSON.stringify(renderer.toJSON())).toContain('Designer');
-  expect(JSON.stringify(renderer.toJSON())).toContain('Apple');
+  await waitUntil(() => rendered().includes('Apple'), 'the minimal employer identity');
+  expect(rendered()).toContain('Designer');
   expect(mockAuth.oxyServices.safety.organizations).toHaveBeenCalledWith({ ids: ['org-apple'] });
   expect(mockAuth.oxyServices.organizations.batch).not.toHaveBeenCalled();
   expect(renderer.root.findAllByType(Avatar).every((avatar) => !avatar.props.source)).toBe(true);
@@ -452,7 +477,11 @@ it('manages its own roles using minimal employer identities and never loads the 
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 330));
   });
-  await settle();
+  const companies = () =>
+    renderer.root
+      .findAllByType(Item)
+      .filter((item) => item.props.onPress && item.props.title === 'Apple');
+  await waitUntil(() => companies().length > 0, 'Apple in the minimal search');
   expect(mockAuth.oxyServices.safety.organizations).toHaveBeenCalledWith({
     query: 'Apple',
     limit: 20,
@@ -460,17 +489,18 @@ it('manages its own roles using minimal employer identities and never loads the 
   expect(mockAuth.oxyServices.organizations.search).not.toHaveBeenCalled();
   expect(button('Organization missing? Add it')).toBeUndefined();
   expect(renderer.root.findAllByType(Item).every((item) => !item.props.subtitle)).toBe(true);
-  const company = renderer.root
-    .findAllByType(Item)
-    .find((item) => item.props.onPress && item.props.title === 'Apple')!;
   await act(async () => {
-    company.props.onPress();
+    companies()[0].props.onPress();
   });
   await act(async () => {
     input('Title *').props.onChangeText('Researcher');
     input('Start date *').props.onChangeText('2024-01');
   });
   await press('Save');
+  await waitUntil(
+    () => jest.mocked(experienceService.create).mock.calls.length > 0,
+    'the role create',
+  );
   expect(experienceService.create).toHaveBeenCalledWith(
     expect.objectContaining({ title: 'Researcher', employerOxyAccountId: 'org-apple' }),
   );

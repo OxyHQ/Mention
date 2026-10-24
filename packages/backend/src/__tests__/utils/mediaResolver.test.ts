@@ -190,6 +190,10 @@ describe('resolveAvatarUrl', () => {
 });
 
 describe('resolveMediaItems', () => {
+  beforeEach(() => {
+    publicUrl.mockClear();
+  });
+
   it('enriches each item while preserving id and type', () => {
     const items = resolveMediaItems([
       { id: 'file1', type: 'image' },
@@ -305,8 +309,26 @@ describe('resolveMediaItems', () => {
     ]);
 
     expect(items).toHaveLength(1);
-    expect(items[0].hlsUrl).toBe(`${CLOUD_BASE}/video-file?variant=hls_master`);
-    expect(publicUrl).toHaveBeenCalledWith('video-file', 'hls_master');
+    expect(items[0].hlsUrl).toBe(
+      `${CLOUD_BASE}/video-file?variant=hls_master&revision=2026-09-08T10%3A00%3A00.000Z`,
+    );
+    expect(publicUrl).toHaveBeenCalledWith('video-file', 'hls_master', undefined, {
+      revision: '2026-09-08T10:00:00.000Z',
+    });
+  });
+
+  it('changes the browser URL when a ladder is repaired and keeps one generation stable', () => {
+    const resolve = (hlsReadyAt: string) =>
+      resolveMediaItems([{ id: 'video-file', type: 'video', hlsReadyAt }])[0];
+    const old = resolve('2026-09-08T10:00:00.000Z');
+    const repaired = resolve('2026-10-23T18:08:00.000Z');
+
+    expect(repaired.hlsUrl).not.toBe(old.hlsUrl);
+    expect(resolve('2026-10-23T21:08:00.000+03:00').hlsUrl).toBe(repaired.hlsUrl);
+    expect(resolve('2026-10-23T18:08:00.000Z').hlsUrl).toBe(repaired.hlsUrl);
+    expect(repaired.url).toBe(old.url);
+    expect(repaired.posterUrl).toBe(old.posterUrl);
+    expect(repaired).not.toHaveProperty('hlsReadyAt');
   });
 
   it('omits hlsUrl entirely for a video with no recorded ladder', () => {
@@ -317,7 +339,9 @@ describe('resolveMediaItems', () => {
     // a client cannot tell the difference between "no ladder" and a field it
     // forgot to check.
     expect(items[0]).not.toHaveProperty('hlsUrl');
-    expect(publicUrl).not.toHaveBeenCalledWith('video-file', 'hls_master');
+    expect(
+      publicUrl.mock.calls.some(([id, variant]) => id === 'video-file' && variant === 'hls_master'),
+    ).toBe(false);
   });
 
   it('still resolves poster and thumb for that video — only the ladder is withheld', () => {

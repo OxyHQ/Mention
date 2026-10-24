@@ -9,14 +9,17 @@ import { useCommunityNoteHandlerContext } from '@/context/CommunityNoteHandlersC
 import { createCommunityNoteSheets } from '@/components/CommunityNotes/useCommunityNoteSheets';
 import { prefetchFeed } from '@/hooks/useFeedQuery';
 import { pinnedPostQueryOptions } from '@/components/Profile/pinnedPostQuery';
+import { useOpenInAllo } from '@/hooks/useOpenInAllo';
+import { postPermalink } from '@/utils/postPermalink';
+import { alloShareLinks } from '@oxy.so/allo-sdk/links';
 import { usePostInteractionsBinding, type BoundPostCommands } from './postInteractions';
 
 const PostSourcesSheet = lazy(() => import('@/components/Post/PostSourcesSheet'));
 const PostInsightsSheet = lazy(() => import('@/components/Post/PostInsightsSheet'));
 
 /**
- * Binds the service-backed post commands — sources, insights and the
- * community-note sheets — into the app's one
+ * Binds the service-backed post commands — send in Allo, sources, insights and
+ * the community-note sheets — into the app's one
  * `PostInteractionsProvider` controller. Mount exactly once, inside the bottom
  * sheet provider: it resolves i18n, the viewer, router, the sheet, the
  * query client and the note handlers ONCE for the app, instead of once per
@@ -30,6 +33,7 @@ export function PostInteractionsBinder() {
   const bottomSheet = useContext(BottomSheetContext);
   const queryClient = useQueryClient();
   const noteHandlers = useCommunityNoteHandlerContext();
+  const openInAllo = useOpenInAllo();
   const viewerId = user?.id;
 
   const commands = useMemo<BoundPostCommands>(() => {
@@ -63,6 +67,14 @@ export function PostInteractionsBinder() {
 
     return {
       requireSession,
+      sendInAllo: (postId) =>
+        openInAllo(
+          alloShareLinks(postPermalink(postId)),
+          t('postActions.allo.notInstalled', {
+            defaultValue:
+              'Allo is not installed. Get Allo to send this post, or continue on the web.',
+          }),
+        ),
       openSources,
       prefetchProfile: (profileId) => {
         // Only for a resolved viewer: a read started while the session is
@@ -94,6 +106,7 @@ export function PostInteractionsBinder() {
     bottomSheet,
     queryClient,
     noteHandlers,
+    openInAllo,
   ]);
 
   useEffect(() => {

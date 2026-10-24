@@ -82,6 +82,27 @@ describe.each([
     await operation;
   });
 
+  it('consumes an unloadable source, which the element reports as status error', async () => {
+    const player = new VideoPlayer('/original.mp4');
+    const video = videoElement();
+    player.mountVideoView(video);
+    const unsupported = new DOMException(
+      'Failed to load because no supported source was found.',
+      'NotSupportedError',
+    );
+    const pending = Promise.reject(unsupported);
+    void pending.catch(() => undefined);
+    const catchSpy = jest.spyOn(pending, 'catch');
+    jest.mocked(video.play).mockReturnValueOnce(pending);
+
+    player.play();
+    Object.defineProperty(video, 'error', { value: { message: unsupported.message } });
+    video.onerror?.call(video, new Event('error'));
+
+    await expect(catchSpy.mock.results[0].value).resolves.toBeUndefined();
+    expect(player.status).toBe('error');
+  });
+
   it.each([
     ['autoplay rejection', () => new DOMException('Autoplay is forbidden', 'NotAllowedError')],
     ['ordinary error', () => new Error('Playback implementation failed')],

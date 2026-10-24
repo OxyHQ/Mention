@@ -21,9 +21,9 @@ bun run lint:fix / format   # Biome; config in biome.jsonc
 
 See the repository [README](./README.md) for setup and local development.
 
-npm releases: only Actions → Release packages (`release-packages.yml`, Oxy's shared
-workflow, OIDC); a package's gates are its `prepublishOnly`. Never publish from a laptop —
-`~/Oxy/docs/npm-releases.md`.
+npm releases: merging a version bump to main publishes it (`release-packages.yml`, Oxy's
+shared workflow, OIDC, once CI passed on that commit); a package's gates are CI. Never publish
+from a laptop — `~/Oxy/docs/npm-releases.md`.
 
 ## Documentation
 

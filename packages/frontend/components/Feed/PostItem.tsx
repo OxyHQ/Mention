@@ -2,14 +2,7 @@ import { MAX_POST_DOCUMENTS } from '@mention/shared-types/post';
 import { extractUrls } from '@/utils/extractUrls';
 import { ownProfileLinkHandle } from '@/utils/ownProfileLinks';
 import React, { useCallback, useMemo, useState, lazy, Suspense, Fragment } from 'react';
-import {
-  StyleSheet,
-  View,
-  Pressable,
-  TouchableOpacity,
-  Text,
-  type GestureResponderEvent,
-} from 'react-native';
+import { StyleSheet, View, Pressable, Text, type GestureResponderEvent } from 'react-native';
 import { Link, useRouter, type Href } from '@/lib/navigation/router';
 import type {
   HydratedPost,
@@ -41,7 +34,6 @@ import PostLocation from '../Post/PostLocation';
 import PostAttachmentsRow from '../Post/PostAttachmentsRow';
 import type { NestedPostRenderer } from '../Post/Attachments/PostAttachmentNested';
 import { RiCornerDownRightLine } from '@oxy.so/bloom/icons/RiCornerDownRightLine';
-import { RiLinkM } from '@oxy.so/bloom/icons/RiLinkM';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Text as BloomText } from '@oxy.so/bloom/typography';
 import { useTranslation } from 'react-i18next';
@@ -289,9 +281,6 @@ const PostItem: React.FC<PostItemProps> = ({
   const isBoosted = viewerState.isBoosted ?? false;
   const isSaved = viewerState.isSaved ?? false;
 
-  const sourcesList = useMemo(() => attachmentsBundle.sources ?? [], [attachmentsBundle.sources]);
-  const hasSources = sourcesList.length > 0;
-
   const articleContent = attachmentsBundle.article ?? null;
   const hasArticle = Boolean(articleContent);
 
@@ -517,6 +506,9 @@ const PostItem: React.FC<PostItemProps> = ({
   const handleShare = useCallback(() => {
     if (viewPost) interactions.share(viewPost);
   }, [interactions, viewPost]);
+  const handleSendInAllo = useCallback(() => {
+    if (viewPostId) interactions.sendInAllo(viewPostId);
+  }, [interactions, viewPostId]);
 
   const handleReply = useCallback(() => {
     if (!interactions.requireSession()) return;
@@ -550,10 +542,6 @@ const PostItem: React.FC<PostItemProps> = ({
     activeLanguageTag,
     selectLanguage,
   );
-
-  const openSourcesSheet = useCallback(() => {
-    interactions.openSources(sourcesList);
-  }, [interactions, sourcesList]);
 
   // A federated link post's title opens the link it is about; the rest of the
   // card still opens the post.
@@ -749,7 +737,6 @@ const PostItem: React.FC<PostItemProps> = ({
   // still use the normal section gap.
   const hasBelowHeaderBlocks = Boolean(
     (hasValidLocation && location) ||
-      hasSources ||
       shouldRenderMediaBlock ||
       boostUnavailable ||
       quoteUnavailable ||
@@ -1201,23 +1188,6 @@ const PostItem: React.FC<PostItemProps> = ({
                 </View>
               )}
 
-              {hasSources && (
-                <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
-                  <TouchableOpacity
-                    className="border-border bg-surface flex-row items-center gap-1.5 self-start rounded-xl border"
-                    style={{ paddingHorizontal: 10, paddingVertical: 4 }}
-                    onPress={openSourcesSheet}
-                    activeOpacity={0.8}
-                  >
-                    <RiLinkM width={14} height={14} fill={theme.colors.primary} />
-                    <Text className="text-primary text-[13px] font-semibold">
-                      {t('post.sourcesChip', { defaultValue: 'Sources' })}
-                      {` (${sourcesList.length})`}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
               {(boostUnavailable || quoteUnavailable) && !isContentGated && (
                 <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
                   <View className="border-border rounded-2xl border px-3 py-3">
@@ -1255,8 +1225,6 @@ const PostItem: React.FC<PostItemProps> = ({
                   podcast={podcastContent}
                   job={jobContent}
                   location={location}
-                  sources={sourcesList}
-                  onSourcesPress={hasSources ? openSourcesSheet : undefined}
                   text={content.text}
                   documents={documents}
                   // Only a quote card hands a width down. The card has no
@@ -1290,6 +1258,7 @@ const PostItem: React.FC<PostItemProps> = ({
                     onDownvote={handleDownvote}
                     onSave={handleSave}
                     onShare={handleShare}
+                    onSendInAllo={handleSendInAllo}
                     postId={viewPostId}
                     onTranslate={canTranslate ? toggleReaderTranslation : undefined}
                     onTranslateLongPress={openLanguagePicker}

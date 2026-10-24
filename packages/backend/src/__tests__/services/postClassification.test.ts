@@ -113,9 +113,9 @@ vi.mock('../../services/TopicService', () => ({
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { postImports } from '../../db/schema/imports';
 import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
+import { insertPosts } from '../helpers/postFixtures';
 import {
   deletePostRecord,
-  insertPostRecord,
   updatePostAndContent,
   updatePostRecord,
 } from '../../db/posts/postRepository';
@@ -126,7 +126,11 @@ import {
   postClassificationService,
 } from '../../services/PostClassificationService';
 import { config } from '../../config';
-import type { PostRecord, PostRecordClassification } from '../../db/posts/postRecord';
+import type {
+  PostRecord,
+  PostRecordClassification,
+  PostRecordInput,
+} from '../../db/posts/postRecord';
 
 const scope = serviceScope('post-classification');
 const AUTHOR = scope.user('author');
@@ -211,9 +215,10 @@ async function seedSubject(
 async function padBatch(subjectCount: number): Promise<void> {
   const fillers = BATCH_SIZE - subjectCount;
   if (fillers <= 0) return;
-  await Promise.all(
-    Array.from({ length: fillers }, (_unused, index) =>
-      insertPostRecord({
+  await insertPosts(
+    Array.from(
+      { length: fillers },
+      (_unused, index): PostRecordInput => ({
         oxyUserId: AUTHOR,
         authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
         type: PostType.TEXT,
