@@ -24,7 +24,6 @@ import {
   MAX_LANES_PER_OWNER,
   MAX_LANE_NAME_LENGTH,
 } from '@mention/shared-types/lane';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { EmptyState } from '@/components/common/EmptyState';
 import type { BloomIcon } from '@/components/settings/RowIcon';
 import { confirmDialog } from '@/utils/alerts';
@@ -65,7 +64,6 @@ function ModeIcon({ mode, size, fill }: { mode: LaneDisplayMode; size: number; f
 export default function LanesScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
-  const safeBack = useSafeBack();
   const { isAuthenticated, user, canUsePrivateApi } = useAuth();
   const queryClient = useQueryClient();
   const [input, setInput] = useState('');
@@ -75,7 +73,6 @@ export default function LanesScreen() {
   const header = (
     <PageHeader
       title={t('lanes.title', { defaultValue: 'Lanes' })}
-      onBack={() => safeBack()}
       backLabel={t('common.back', { defaultValue: 'Back' })}
     />
   );
@@ -367,7 +364,6 @@ export default function LanesScreen() {
               <View className="py-4">
                 <EmptyState
                   title={t('lanes.loadFailed', { defaultValue: 'Failed to load your lanes' })}
-                  icon={{ name: 'alert-circle-outline', size: 48 }}
                   error={{
                     title: t('lanes.loadFailed', { defaultValue: 'Failed to load your lanes' }),
                     message: t('common.tryAgain', { defaultValue: 'Try again' }),

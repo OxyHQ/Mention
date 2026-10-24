@@ -3,7 +3,6 @@ import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { ZoomableAvatar } from '@/components/ZoomableAvatar';
 import { Redirect } from '@/lib/navigation/router';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
@@ -69,7 +68,6 @@ function AccountInfoScreenContent({ routedFamily }: { routedFamily: ProfileRoute
   const account = useProfileAccount(useRoutedProfileUsername());
   const { profileData, loading: profileLoading, notFound, refresh } = account;
   const canonicalHref = useProfileCanonicalHref({ routedFamily, account, subpath: 'about' });
-  const safeBack = useSafeBack();
   const { t } = useTranslation();
 
   if (canonicalHref) {
@@ -91,7 +89,6 @@ function AccountInfoScreenContent({ routedFamily }: { routedFamily: ProfileRoute
         header={
           <PageHeader
             title={t('About', { defaultValue: 'About' })}
-            onBack={() => safeBack()}
             backLabel={t('common.back', { defaultValue: 'Back' })}
           />
         }

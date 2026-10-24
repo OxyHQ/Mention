@@ -1,4 +1,5 @@
 jest.mock('@oxy.so/bloom/screen', () => ({
+  ...jest.requireActual('@oxy.so/bloom/screen'),
   Screen: (props: {
     header?: React.ReactNode;
     bottomBar?: React.ReactNode;
@@ -29,7 +30,6 @@ const mockList = jest.fn();
 const mockDock = jest.fn();
 const mockSticky = jest.fn();
 const mockCover = jest.fn();
-let mockDockInset = 84;
 
 jest.mock('@oxy.so/bloom/styles', () => ({ useSurfaceFill: () => 'rgb(20, 55, 84)' }));
 jest.mock('@oxy.so/bloom/layout', () => ({
@@ -41,7 +41,6 @@ jest.mock('@oxy.so/bloom/layout', () => ({
     mockSticky(props);
     return props.children;
   },
-  useHeaderDockInset: () => mockDockInset,
 }));
 jest.mock('@oxy.so/bloom/page-header', () => ({
   PageHeader: (props: object) => {
@@ -67,7 +66,6 @@ jest.mock('react-i18next', () => ({
     t: (_key: string, options: { defaultValue: string }) => options.defaultValue,
   }),
 }));
-jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
 jest.mock('@/components/UserName', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/components/common/EmptyState', () => ({ EmptyState: () => null }));
 jest.mock('@/assets/illustrations/NoUpdates', () => ({ NoUpdatesIllustration: () => null }));
@@ -86,7 +84,7 @@ jest.mock('../ProfileTabs', () => ({
     );
   },
 }));
-jest.mock('@/components/common/ScreenFlashList', () => {
+jest.mock('@oxy.so/bloom/list', () => {
   const React_ = require('react') as typeof React;
   type MockProps = {
     ListHeaderComponent?: React.ReactNode;
@@ -94,7 +92,7 @@ jest.mock('@/components/common/ScreenFlashList', () => {
     renderItem: (info: { item: string }) => React.ReactNode;
   };
   return {
-    ScreenFlashList: (props: MockProps) => {
+    VirtualList: (props: MockProps) => {
       mockList(props);
       return (
         <>
@@ -143,7 +141,6 @@ function renderShell(props: ProfileShellProps) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockDockInset = 84;
 });
 
 test('non-feed tabs have one list owner and measure docking from its header', () => {
@@ -156,11 +153,9 @@ test('non-feed tabs have one list owner and measure docking from its header', ()
   });
   expect(mockList.mock.calls.at(-1)?.[0]).toMatchObject({
     stickyHeaderIndices: [0],
-    stickyHeaderConfig: { offset: 84 },
     onEndReached: props.chrome.loadMore,
   });
   // The strip's dock target is its Y in the list: the measured header block.
-  // The header inset is the list's sticky clearance, not the strip's position.
   expect(mockSticky.mock.calls.at(-1)?.[0].offset).toBeUndefined();
   const header = tree.root
     .findAllByType(View)
@@ -169,7 +164,6 @@ test('non-feed tabs have one list owner and measure docking from its header', ()
     header!.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 357 } } });
   });
   expect(mockSticky.mock.calls.at(-1)?.[0].offset).toBe(357);
-  expect(mockList.mock.calls.at(-1)?.[0].stickyHeaderConfig).toEqual({ offset: 84 });
   act(() => tree.unmount());
 });
 
@@ -227,12 +221,10 @@ test('banner, summary and tabs are one block painted in the surface fill', () =>
   act(() => tree.unmount());
 });
 
-test('a channel without media keeps its inline header and Bloom zero inset', () => {
-  mockDockInset = 0;
+test('a channel without media keeps its inline header', () => {
   const tree = renderShell({ ...makeProps(), banner: null });
   expect(mockCover).not.toHaveBeenCalled();
   expect(mockScreen.mock.calls.at(-1)?.[0].headerPlacement).toBe('inset');
-  expect(mockList.mock.calls.at(-1)?.[0].stickyHeaderConfig).toEqual({ offset: 0 });
   act(() => tree.unmount());
 });
 
@@ -249,14 +241,16 @@ test('a private feed uses the shell list instead of mounting another viewport', 
 // handed `onBack`, so the shell withholds it there, while a pushed profile
 // (`/@handle`) keeps its Back.
 test('a pushed profile has Back; the root profile tab does not', () => {
+  // A pushed profile leaves `onBack` to its Screen, which offers the app's Back;
+  // the root profile tab declines it outright.
   const pushed = renderShell(makeProps());
-  expect(typeof mockHeader.mock.calls.at(-1)?.[0].onBack).toBe('function');
+  expect(mockHeader.mock.calls.at(-1)?.[0].onBack).toBeUndefined();
   act(() => pushed.unmount());
 
   mockHeader.mockClear();
   const rootTab = renderShell({ ...makeProps(), isRootTab: true });
   expect(mockHeader).toHaveBeenCalled();
-  expect(mockHeader.mock.calls.at(-1)?.[0].onBack).toBeUndefined();
+  expect(mockHeader.mock.calls.at(-1)?.[0].onBack).toBeNull();
   act(() => rootTab.unmount());
 });
 

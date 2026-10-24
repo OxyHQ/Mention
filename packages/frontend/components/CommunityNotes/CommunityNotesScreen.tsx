@@ -13,7 +13,6 @@ import type {
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { EmptyState } from '@/components/common/EmptyState';
 import PostItem from '@/components/Feed/PostItem';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { CommunityNoteCard } from './CommunityNoteCard';
 import { useCommunityNoteSheets, type CommunityNoteWriteHandlers } from './useCommunityNoteSheets';
 
@@ -69,7 +68,6 @@ export function CommunityNotesScreen({
   handlers,
 }: CommunityNotesScreenProps) {
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
   const [tab, setTab] = useState<TabId>('rate');
   // Ratings made on this screen, so a rated note moves out of the queue at once.
   const [localRatings, setLocalRatings] = useState<Record<string, CommunityNoteRating>>({});
@@ -114,7 +112,6 @@ export function CommunityNotesScreen({
       header={
         <PageHeader
           title={t('communityNotes.hub.title', { defaultValue: 'Community notes' })}
-          onBack={() => safeBack()}
           backLabel={t('common.back', { defaultValue: 'Back' })}
           accessory={
             <Tabs value={tab} onValueChange={(id) => setTab(id as TabId)} variant="underline">

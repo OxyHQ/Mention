@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
@@ -15,7 +16,6 @@ import { starterPacksService, type StarterPackCollection } from '@/services/star
 import { createLogger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { RiRocket2Line } from '@oxy.so/bloom/icons/RiRocket2Line';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 const logger = createLogger('AddToStarterPackSheet');
 
@@ -193,7 +193,7 @@ export function AddToStarterPackSheet({
         </Text>
         <TouchableOpacity
           onPress={onClose}
-          hitSlop={HIT_SLOP_MD}
+          hitSlop={tokens.hitSlop.md}
           accessibilityRole="button"
           accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
         >

@@ -1,7 +1,6 @@
 import type React from 'react';
 import { ScrollView, StyleSheet, Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import ComposeToolbar from '@/components/ComposeToolbar';
 import { RiTimeFill } from '@oxy.so/bloom/icons/RiTimeFill';
 import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
@@ -117,9 +116,6 @@ jest.mock('@oxy.so/bloom/icons', () => {
   );
 });
 
-/** Icon-font glyphs live in the Unicode Private Use Area. */
-const GLYPH = /[\uE000-\uF8FF]/g;
-
 const noop = () => {};
 
 /** Every handler the row still accepts, so nothing is absent by omission. */
@@ -153,27 +149,19 @@ function iconNames(tree: TestRenderer.ReactTestRenderer): string[] {
     .map((node) => String(iconName(node)));
 }
 
-/** Ionicons by glyph name, Bloom icons by export name; `undefined` for anything else. */
+/** Bloom icons by export name; `undefined` for anything else. */
 function iconName(node: TestRenderer.ReactTestInstance): string | undefined {
-  if (node.type === Ionicons) return String(node.props.name);
   const name = typeof node.type === 'function' ? (node.type as React.FC).displayName : undefined;
   return name && /^Ri[A-Z]/.test(name) ? name : undefined;
 }
 
-/**
- * The WORDS the row renders. Icon fonts draw their glyph as a Private Use Area
- * character inside a `Text`, and `@expo/vector-icons` only swaps it in after its
- * font resolves — so a raw text scrape returns '' or a glyph depending on
- * whether an earlier case in the file already flushed that load. Stripping the
- * PUA range makes these assertions order-independent, which is the difference
- * between "renders no words" and "happened to run first".
- */
+/** The WORDS the row renders. */
 function textContent(tree: TestRenderer.ReactTestRenderer): string {
   return tree.root
     .findAllByType(Text)
     .flatMap((node) => node.props.children)
     .filter((child): child is string => typeof child === 'string')
-    .map((child) => child.replace(GLYPH, '').trim())
+    .map((child) => child.trim())
     .filter((child) => child.length > 0)
     .join(' | ');
 }

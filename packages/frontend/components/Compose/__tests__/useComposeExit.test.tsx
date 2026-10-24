@@ -11,19 +11,8 @@ import { useComposeExit, type ComposeExit, type ComposePresentation } from '../u
  * draft — so the two exits are pinned side by side.
  */
 
-const mockRouter = {
-  canGoBack: jest.fn(() => true),
-  back: jest.fn(),
-  push: jest.fn(),
-  replace: jest.fn(),
-};
-
-jest.mock('expo-router', () => ({
-  get router() {
-    return mockRouter;
-  },
-  useRouter: () => mockRouter,
-}));
+const mockBack = jest.fn();
+jest.mock('@oxy.so/bloom/screen', () => ({ useScreenBack: () => mockBack }));
 
 const mockSelectTab = jest.fn();
 const mockLeaveTab = jest.fn();
@@ -50,29 +39,13 @@ beforeAll(() => {
   ).IS_REACT_ACT_ENVIRONMENT = true;
 });
 
-beforeEach(() => {
-  jest.clearAllMocks();
-  mockRouter.canGoBack.mockReturnValue(true);
-});
+beforeEach(() => jest.clearAllMocks());
 
 describe('useComposeExit after a publish', () => {
-  it('pops a pushed composer (a reply, a quote, an edit)', () => {
+  it('leaves a pushed composer through the app Back (a reply, a quote, an edit)', () => {
     mountExit('pushed').leaveAfterPublish();
 
-    expect(mockRouter.back).toHaveBeenCalledTimes(1);
-    expect(mockRouter.push).not.toHaveBeenCalled();
-  });
-
-  it('REPLACES a pushed composer with nothing beneath it, never pushes over it', () => {
-    // A cold-start share or deep link: a push would leave the composer — still
-    // holding the published post — one Back away.
-    mockRouter.canGoBack.mockReturnValue(false);
-
-    mountExit('pushed').leaveAfterPublish();
-
-    expect(mockRouter.replace).toHaveBeenCalledWith('/');
-    expect(mockRouter.push).not.toHaveBeenCalled();
-    expect(mockRouter.back).not.toHaveBeenCalled();
+    expect(mockBack).toHaveBeenCalledTimes(1);
   });
 
   it('leaves the composer tab for Home and takes it out of the tabs history', () => {
@@ -94,6 +67,6 @@ describe('useComposeExit without publishing (the ✕ keeps the draft)', () => {
   it('pops a pushed composer', () => {
     mountExit('pushed').dismiss();
 
-    expect(mockRouter.back).toHaveBeenCalledTimes(1);
+    expect(mockBack).toHaveBeenCalledTimes(1);
   });
 });

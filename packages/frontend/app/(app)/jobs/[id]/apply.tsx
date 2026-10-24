@@ -10,14 +10,13 @@ import { Chip } from '@oxy.so/bloom/chip';
 import { Field } from '@oxy.so/bloom/field';
 import { InputGroup, InputGroupAddon } from '@oxy.so/bloom/input-group';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { Screen, ScreenScrollView, useScreenBack } from '@oxy.so/bloom/screen';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { logger } from '@oxy.so/core/logger';
 import type { User } from '@oxy.so/core';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { jobsService, recordJobMetric } from '@/services/jobsService';
@@ -37,7 +36,7 @@ export default function JobApplyScreen() {
   const jobId = String(id);
   const { t } = useTranslation();
   const { user, oxyServices, showBottomSheet } = useAuth();
-  const safeBack = useSafeBack();
+  const back = useScreenBack();
   const queryClient = useQueryClient();
 
   const jobQuery = useQuery({
@@ -141,7 +140,7 @@ export default function JobApplyScreen() {
   const header = (
     <PageHeader
       title={t('jobs.apply.title', { defaultValue: 'Apply' })}
-      onBack={() => (step === 'review' ? setStep('edit') : safeBack())}
+      onBack={() => (step === 'review' ? setStep('edit') : back?.())}
       backLabel={t('common.back', { defaultValue: 'Back' })}
     />
   );

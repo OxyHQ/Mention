@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import type React from 'react';
 import type { ReactNode } from 'react';
 import { View, TouchableOpacity, type ViewStyle, type StyleProp } from 'react-native';
@@ -6,7 +7,6 @@ import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { cn } from '@/lib/utils';
-import { HIT_SLOP_SM } from '@/styles/hitSlop';
 
 interface AttachmentCarouselItemProps {
   attachmentKey: string;
@@ -61,7 +61,7 @@ const AttachmentCarouselItem: React.FC<AttachmentCarouselItemProps> = ({
           onRemove();
         }}
         className="absolute top-2 right-2 rounded-full p-1.5 bg-background"
-        hitSlop={HIT_SLOP_SM}
+        hitSlop={tokens.hitSlop.sm}
       >
         <RiCloseLine width={16} height={16} fill={colors.text} />
       </TouchableOpacity>

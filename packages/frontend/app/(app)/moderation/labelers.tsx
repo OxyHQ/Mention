@@ -11,7 +11,6 @@ import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
 import { Search } from '@oxy.so/bloom/search';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useRouter } from '@/lib/navigation/router';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { labelerService, type LabelDefinition } from '@/services/labelerService';
@@ -131,7 +130,6 @@ LabelerCard.displayName = 'LabelerCard';
 const LabelersScreen: React.FC = () => {
   const theme = useTheme();
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
 
   const queryClient = useQueryClient();
   const { user, canUsePrivateApi } = useAuth();
@@ -240,7 +238,6 @@ const LabelersScreen: React.FC = () => {
       header={
         <PageHeader
           title={t('labelers.title', { defaultValue: 'Content Labels' })}
-          onBack={() => safeBack()}
           backLabel={t('common.back', { defaultValue: 'Back' })}
         />
       }

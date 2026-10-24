@@ -34,7 +34,6 @@ import {
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { NotificationsList } from '@/components/NotificationsList';
 import { NotificationSkeleton } from '@/components/notifications/NotificationSkeleton';
-import { useScreenReselect, useTabSelect } from '@/context/ScreenReselectContext';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { toast } from '@oxy.so/bloom/toast';
 import { confirmDialog } from '@/utils/alerts';
@@ -255,7 +254,6 @@ const NotificationsScreen: React.FC = () => {
     await refetch();
     setRefreshing(false);
   }, [refetch]);
-  useScreenReselect({ refresh: handleRefresh });
 
   const handleMarkAsRead = useCallback(
     (ids: string[]) => {
@@ -293,11 +291,7 @@ const NotificationsScreen: React.FC = () => {
     }
   }, [markAllAsReadMutation, t, unreadCount]);
 
-  const selectTab = useTabSelect(activeTab, setActiveTab);
-  const handleTabPress = useCallback(
-    (tabId: string) => selectTab(tabId as NotificationTab),
-    [selectTab],
-  );
+  const handleTabPress = useCallback((tabId: string) => setActiveTab(tabId as NotificationTab), []);
 
   // Notifications whose actor the backend did NOT populate would each fire their
   // own `getProfileById` from inside NotificationItem — an N+1 across the page.
@@ -605,6 +599,7 @@ const NotificationsScreen: React.FC = () => {
     <>
       <SEO title={t('seo.notifications.title')} description={t('seo.notifications.description')} />
       <Screen
+        reselect={{ refresh: handleRefresh }}
         scroll="auto"
         header={
           <PageHeader
@@ -649,7 +644,12 @@ const NotificationsScreen: React.FC = () => {
         }
       >
         {canUsePrivateApi && (
-          <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
+          <Tabs
+            value={activeTab}
+            onValueChange={handleTabPress}
+            pressOpenTab="reselect"
+            variant="underline"
+          >
             {[
               { id: 'all', label: t('notifications.tabs.all'), count: unreadCount },
               {

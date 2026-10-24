@@ -125,16 +125,17 @@
                   // has no per-glyph subpath and no runtime cost either way, so the two files
                   // that need `BloomIconComponent` take it from the package root.
                   "@oxy.so/bloom/icons": "Import each glyph by subpath — @oxy.so/bloom/icons/RiXxx. Metro does not tree-shake, so the barrel ships all 461. For the BloomIconComponent type, import it from @oxy.so/bloom.",
-                  // A vector-icons glyph is a Text node a screen reader reads aloud as
-                  // its private-use code point. The wrapper hides it once for every
-                  // call site; the barrel also ships every icon font.
                   // Every Oxy app takes Services through its client entry. `ui` is the
                   // wider surface (SSR-shaped, more re-exports) and gave nothing
                   // `ui/client` does not. The package root is left alone: its only
                   // imports here are type-only, which Biome cannot tell apart.
                   "@oxy.so/services/ui": "Import from @oxy.so/services/ui/client — the client entry every Oxy app uses.",
-                  "@expo/vector-icons": "Use @/components/common/Ionicons (or a Bloom icon) — it hides the glyph from screen readers.",
-                  "@expo/vector-icons/Ionicons": "Use @/components/common/Ionicons (or a Bloom icon) — it hides the glyph from screen readers.",
+                  // The icons are Bloom's. `@expo/vector-icons` stays installed only as
+                  // the Oxy Services peer: a font glyph is a Text node a screen reader
+                  // reads aloud as its private-use code point, and the barrel ships
+                  // every icon font.
+                  "@expo/vector-icons": "Use a Bloom icon — @oxy.so/bloom/icons/RiXxx.",
+                  "@expo/vector-icons/Ionicons": "Use a Bloom icon — @oxy.so/bloom/icons/RiXxx.",
                   // iPhone Safari plays a web `<video>` inline only when it carries
                   // `playsinline`, and expo-video writes that only when the prop is
                   // passed — so every video here showed its poster and never started on

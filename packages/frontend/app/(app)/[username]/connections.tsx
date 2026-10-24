@@ -10,7 +10,6 @@ import {
   type ProfileCardData,
 } from '@/components/ProfileCard';
 import { useRouter, useLocalSearchParams, usePathname } from '@/lib/navigation/router';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, TouchableOpacity, Share, Platform } from 'react-native';
@@ -187,7 +186,6 @@ function ConnectionsContent({
   refreshProfile,
 }: ConnectionsContentProps) {
   const router = useRouter();
-  const safeBack = useSafeBack();
   const pathname = usePathname();
   const { oxyServices, user } = useAuth();
   const { t } = useTranslation();
@@ -582,7 +580,6 @@ function ConnectionsContent({
       header={
         <PageHeader
           title={getTitle()}
-          onBack={() => safeBack()}
           backLabel={t('common.back', { defaultValue: 'Back' })}
           accessory={
             <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">

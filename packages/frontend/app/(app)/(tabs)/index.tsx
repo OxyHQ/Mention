@@ -10,7 +10,6 @@ import { PRESET_FEEDS } from '@mention/shared-types/mtn/presetFeeds';
 import { parseFeedDescriptor } from '@mention/shared-types/mtn/feedDescriptor';
 import type { FeedType } from '@mention/shared-types/feed';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
-import { useReselectReloadKeys, useTabSelect } from '@/context/ScreenReselectContext';
 import { SEO } from '@/components/SEO';
 import { siteStructuredData } from '@mention/shared-types/seo';
 import { INSTANCE_LOGO_URL, INSTANCE_NAME, WEB_BASE_URL } from '@/config';
@@ -105,13 +104,17 @@ const HomeScreen: React.FC = () => {
     }
   }, [isAuthResolved, homeTabs, activeTab]);
 
-  const handleTabPress = useTabSelect(activeTab, setActiveTab);
-
   // Resolve the active tab; fall back to the first tab (For You) if the active
   // key is momentarily stale (the reset effect converges it next render), and
   // to For You itself while a signed-in layout is still loading.
   const currentTab = homeTabs.find((x) => x.key === activeTab) ?? homeTabs[0] ?? FOR_YOU_TAB;
-  const reloadKeyFor = useReselectReloadKeys(currentTab.key);
+
+  // Reselecting the screen at its top reloads the tab in front only: a retained
+  // tab does not reload behind the reader, or again when it is shown.
+  const [reloadKeys, setReloadKeys] = useState<Readonly<Record<string, number>>>({});
+  const reloadCurrentTab = () =>
+    setReloadKeys((keys) => ({ ...keys, [currentTab.key]: (keys[currentTab.key] ?? 0) + 1 }));
+  const reloadKeyFor = (key: string) => reloadKeys[key] ?? 0;
 
   // Every tab the reader has opened stays mounted, hidden and frozen behind
   // `<Activity>` (its effects — scroll listeners, live updates, observers —
@@ -161,10 +164,11 @@ const HomeScreen: React.FC = () => {
         description={t('seo.home.description')}
         jsonLd={SITE_STRUCTURED_DATA}
       />
-      <Screen scroll="auto" header={<MentionHomeHeader />}>
+      <Screen reselect={{ refresh: reloadCurrentTab }} scroll="auto" header={<MentionHomeHeader />}>
         <Tabs
           value={activeTab}
-          onValueChange={handleTabPress}
+          onValueChange={setActiveTab}
+          pressOpenTab="reselect"
           variant="underline"
           style={{ height: 38 }}
         >

@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type React from 'react';
@@ -24,7 +25,6 @@ import { reportTrendEvent } from '@/utils/feedTelemetry';
 import type { Trend } from '@/interfaces/Trend';
 
 import { Fab } from '@oxy.so/bloom/fab';
-import { PageAction } from '@/components/shell/PageAction';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
@@ -39,8 +39,6 @@ import { Search } from '@oxy.so/bloom/search';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { logger } from '@oxy.so/core/logger';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
-import { useScreenReselect } from '@/context/ScreenReselectContext';
 
 /**
  * Live trends offered on this screen.
@@ -92,7 +90,7 @@ const PinButton = ({ pinned, onPress }: { pinned: boolean; onPress: () => void }
   return (
     <TouchableOpacity
       onPress={onPress}
-      hitSlop={HIT_SLOP_MD}
+      hitSlop={tokens.hitSlop.md}
       style={[
         styles.pinBtn,
         pinned
@@ -317,7 +315,6 @@ const FeedsScreen: React.FC = () => {
     setRefreshing(true);
     loadFeeds();
   }, [loadFeeds]);
-  useScreenReselect({ refresh: onRefresh });
 
   // Presets available to this viewer: hide viewer-relative (requiresAuth) presets
   // for anonymous viewers.
@@ -520,6 +517,7 @@ const FeedsScreen: React.FC = () => {
     <>
       <SEO title={t('seo.feeds.title')} description={t('seo.feeds.description')} />
       <Screen
+        reselect={{ refresh: onRefresh }}
         header={
           <PageHeader
             title={t('Feeds')}
@@ -535,6 +533,17 @@ const FeedsScreen: React.FC = () => {
             }
           />
         }
+        // The page's own action; the shell's compose FAB steps aside for it.
+        primaryAction={
+          canEdit ? (
+            <Fab
+              size="md"
+              onPress={() => router.push('/feeds/new')}
+              icon={RiAddLine}
+              accessibilityLabel={t('feeds.create.title', { defaultValue: 'Create feed' })}
+            />
+          ) : undefined
+        }
       >
         <ScreenScrollView
           showsVerticalScrollIndicator={false}
@@ -549,18 +558,6 @@ const FeedsScreen: React.FC = () => {
         >
           {content}
         </ScreenScrollView>
-
-        {/* PageAction follows the shell's bottom navigation clearance. */}
-        {canEdit ? (
-          <PageAction>
-            <Fab
-              size="md"
-              onPress={() => router.push('/feeds/new')}
-              icon={RiAddLine}
-              accessibilityLabel={t('feeds.create.title', { defaultValue: 'Create feed' })}
-            />
-          </PageAction>
-        ) : null}
       </Screen>
     </>
   );

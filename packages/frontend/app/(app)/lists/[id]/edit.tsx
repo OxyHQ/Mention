@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { FormSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -23,12 +24,10 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 
 import { listsService } from '@/services/listsService';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { logger } from '@oxy.so/core/logger';
 import { queryClient } from '@/lib/queryClient';
 import type { User } from '@oxy.so/core';
 import { displayNameOrHandle } from '@/utils/displayName';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface MemberProfile {
   id: string;
@@ -55,7 +54,6 @@ function EditListMembersScreen() {
   const { oxyServices } = useAuth();
   const theme = useTheme();
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -219,7 +217,6 @@ function EditListMembersScreen() {
   const header = (
     <PageHeader
       title={t('lists.edit.title', { defaultValue: 'Edit members' })}
-      onBack={() => safeBack()}
       backLabel={t('common.back', { defaultValue: 'Back' })}
     />
   );
@@ -339,7 +336,7 @@ function EditListMembersScreen() {
                     <TouchableOpacity
                       onPress={() => removeMember(m)}
                       disabled={busy}
-                      hitSlop={HIT_SLOP_MD}
+                      hitSlop={tokens.hitSlop.md}
                       accessibilityRole="button"
                       accessibilityLabel={t('lists.create.remove', { defaultValue: 'Remove' })}
                     >

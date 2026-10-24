@@ -15,7 +15,6 @@ jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ user: { id: mockUser }, signIn: jest.fn() }),
 }));
 jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({ id: 'event-one' }) }));
-jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (_key: string, options: { defaultValue: string }) => options.defaultValue,
@@ -29,11 +28,6 @@ jest.mock('@oxy.so/bloom/button', () => {
   };
 });
 jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
-jest.mock('@oxy.so/bloom/screen', () => {
-  const { View: MockView } = jest.requireActual('react-native');
-  const Pass = ({ children }: { children: ReactNode }) => <MockView>{children}</MockView>;
-  return { Screen: Pass, ScreenScrollView: Pass };
-});
 jest.mock('@/components/Compose/EventEditor', () => ({ EventEditor: () => null }));
 jest.mock('@/services/eventsService', () => ({
   eventsService: {

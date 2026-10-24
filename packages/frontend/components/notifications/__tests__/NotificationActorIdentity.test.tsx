@@ -84,7 +84,7 @@ jest.mock('@/components/Compose/CollabAcceptSheet', () => ({
 }));
 jest.mock('../notificationDescriptors', () => ({
   getDescriptor: () => ({
-    icon: 'heart',
+    icon: () => null,
     colorToken: 'primary',
     actionPhrase: () => 'liked your post',
   }),

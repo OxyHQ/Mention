@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import type React from 'react';
 import { useMemo, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
@@ -6,12 +7,12 @@ import { Card } from '@oxy.so/bloom/card';
 import { Field } from '@oxy.so/bloom/field';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
+import { RiLinkM } from '@oxy.so/bloom/icons/RiLinkM';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/common/EmptyState';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 type SourceField = 'title' | 'url';
 
@@ -97,16 +98,13 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
             subtitle={t('compose.sources.emptySubtitle', {
               defaultValue: 'Add credible references to support your post.',
             })}
-            icon={{
-              name: 'link-outline',
-              size: 48,
-            }}
+            icon={RiLinkM}
             action={
               canAddMore
                 ? {
                     label: t('compose.sources.add', { defaultValue: 'Add source' }),
                     onPress: onAdd,
-                    icon: 'add-outline',
+                    icon: RiAddLine,
                   }
                 : undefined
             }
@@ -137,7 +135,7 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
                     <TouchableOpacity
                       onPress={() => onRemove(source.id)}
                       className="p-1"
-                      hitSlop={HIT_SLOP_MD}
+                      hitSlop={tokens.hitSlop.md}
                       accessibilityRole="button"
                       accessibilityLabel={t('common.remove', { defaultValue: 'Remove' })}
                     >

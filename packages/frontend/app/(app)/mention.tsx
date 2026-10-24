@@ -1,3 +1,4 @@
+import { useScreenBack } from '@oxy.so/bloom/screen';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import { View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
@@ -7,7 +8,6 @@ import { useTranslation } from 'react-i18next';
 import { Redirect, useLocalSearchParams } from '@/lib/navigation/router';
 import { ProfileUnavailable } from '@/components/Profile/ProfileUnavailable';
 import { SEO } from '@/components/SEO';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { resolveMention } from '@/utils/resolveMention';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 
@@ -17,7 +17,7 @@ export default function MentionRoute() {
   const source = typeof uri === 'string' ? uri : '';
   const valid = /^https?:\/\//i.test(source);
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
+  const back = useScreenBack();
   const query = useQuery({
     queryKey: publicQueryKeys.mentionResolve(source),
     queryFn: () => resolveMention(source),
@@ -36,7 +36,7 @@ export default function MentionRoute() {
       <SEO title={t('navigation.profile', { defaultValue: 'Profile' })} robots="noindex,follow" />
       <PageHeader
         title={t('navigation.profile', { defaultValue: 'Profile' })}
-        onBack={() => safeBack()}
+        onBack={back}
         backLabel={t('common.back', { defaultValue: 'Back' })}
       />
       {valid && query.isPending ? (

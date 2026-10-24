@@ -3,12 +3,11 @@ import { type ReactNode, useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { Screen, ScreenScrollView, useScreenBack } from '@oxy.so/bloom/screen';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { AccountSettings, type AccountSettingsProps } from '@oxy.so/services/screens';
 import { getNormalizedUserHandle, type AccountNode } from '@oxy.so/core';
 
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { EmptyState } from '@/components/common/EmptyState';
 import { noteIdentityChanged } from '@/lib/actorCache';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -47,7 +46,7 @@ export function OperatedAccountSettingsScreen({
   handle,
 }: OperatedAccountSettingsScreenProps) {
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
+  const back = useScreenBack();
   const {
     user,
     oxyServices,
@@ -109,7 +108,7 @@ export function OperatedAccountSettingsScreen({
   return (
     <Screen
       header={
-        <PageHeader title={copy.title} onBack={() => safeBack()} backLabel={t('common.back')} />
+        <PageHeader title={copy.title} onBack={() => back?.()} backLabel={t('common.back')} />
       }
     >
       <ScreenScrollView showsVerticalScrollIndicator={false}>{body}</ScreenScrollView>

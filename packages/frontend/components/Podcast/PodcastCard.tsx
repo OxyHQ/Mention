@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { memo, useCallback, useMemo, type ReactNode } from 'react';
 import { isHostOf } from '@/utils/isHostOf';
 import {
@@ -10,8 +11,9 @@ import {
   type DimensionValue,
 } from 'react-native';
 import { Image } from 'expo-image';
-import Ionicons from '@/components/common/Ionicons';
-import Svg, { Path } from 'react-native-svg';
+import { RiRadioLine } from '@oxy.so/bloom/icons/RiRadioLine';
+import { RiSpotifyFill } from '@oxy.so/bloom/icons/RiSpotifyFill';
+import { RiYoutubeFill } from '@oxy.so/bloom/icons/RiYoutubeFill';
 import { useTranslation } from 'react-i18next';
 import { Card } from '@oxy.so/bloom/card';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -22,7 +24,6 @@ import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
 import type { PostPodcastEpisode } from '@mention/shared-types/post';
 import { cn } from '@/lib/utils';
 import { openExternalLink } from '@/utils/openExternalLink';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 import { SINGLE_MEDIA_MAX_HEIGHT } from '@/utils/composeUtils';
 import { useArtworkAccent } from './useArtworkAccent';
 
@@ -102,27 +103,16 @@ function providerFor(showUrl?: string): Provider | null {
   return null;
 }
 
-const SpotifyGlyph = ({ size, color }: { size: number; color: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24">
-    <Path
-      fill={color}
-      d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.52 17.34c-.24.36-.66.48-1.02.24-2.82-1.74-6.36-2.1-10.56-1.14-.42.12-.78-.18-.9-.54-.12-.42.18-.78.54-.9 4.56-1.02 8.52-.6 11.64 1.32.42.18.48.66.3 1.02zm1.44-3.3c-.3.42-.84.6-1.26.3-3.24-1.98-8.16-2.58-11.94-1.38-.48.12-1.02-.12-1.14-.6-.12-.48.12-1.02.6-1.14C9.6 9.9 15 10.56 18.72 12.84c.36.18.54.78.24 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.3c-.6.18-1.2-.18-1.38-.72-.18-.6.18-1.2.72-1.38 4.26-1.26 11.28-1.02 15.72 1.62.54.3.72 1.02.42 1.56-.3.42-1.02.6-1.56.3z"
-    />
-  </Svg>
-);
-
 const ProviderRow = ({ provider, className }: { provider: Provider; className?: string }) => (
   <View className={cn('flex-row items-center gap-1', className)}>
     {provider.glyph === 'spotify' ? (
-      <SpotifyGlyph size={13} color={WHITE_MUTED} />
+      <RiSpotifyFill width={13} height={13} fill={WHITE_MUTED} />
     ) : provider.glyph === 'apple' ? (
       <RiAppleFill width={13} height={13} fill={WHITE_MUTED} />
+    ) : provider.glyph === 'youtube' ? (
+      <RiYoutubeFill width={13} height={13} fill={WHITE_MUTED} />
     ) : (
-      <Ionicons
-        name={provider.glyph === 'youtube' ? 'logo-youtube' : 'radio'}
-        size={13}
-        color={WHITE_MUTED}
-      />
+      <RiRadioLine width={13} height={13} fill={WHITE_MUTED} />
     )}
     <Text className="text-white/70 text-[13px] font-semibold" numberOfLines={1}>
       {provider.label}
@@ -250,7 +240,7 @@ export const PodcastCard = memo(function PodcastCard({
               onPress={onEdit}
               accessibilityRole="button"
               accessibilityLabel={t('profile.media.edit')}
-              hitSlop={HIT_SLOP_MD}
+              hitSlop={tokens.hitSlop.md}
               className="p-1"
             >
               <RiEditLine size="sm" fill={colors.textSecondary} />

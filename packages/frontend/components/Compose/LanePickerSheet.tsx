@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
+import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Item } from '@oxy.so/bloom/item';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -162,7 +163,7 @@ const LanePickerSheet = memo(function LanePickerSheet({
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
             <EmptyState
-              icon={{ name: 'git-branch-outline' }}
+              icon={RiNodeTree}
               subtitle={t('lanes.picker.empty', {
                 defaultValue:
                   'Lanes let you keep separate tracks of your posts and decide which ones reach your profile.',

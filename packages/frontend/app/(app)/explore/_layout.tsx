@@ -6,7 +6,6 @@ import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { SEO } from '@/components/SEO';
-import { useTabSelect } from '@/context/ScreenReselectContext';
 
 /**
  * Explore is a routed top-tab cluster: each tab is its own URL under `/explore`
@@ -38,7 +37,6 @@ export default function ExploreLayout() {
   const { t } = useTranslation();
   const pathname = usePathname();
   const activeTab = TABS.find((tab) => tab.href === pathname)?.id ?? 'all';
-  const handleTabPress = useTabSelect<string>(activeTab, pushTab);
 
   return (
     <Screen
@@ -61,7 +59,7 @@ export default function ExploreLayout() {
       }
     >
       <SEO title={t('seo.explore.title')} description={t('seo.explore.description')} />
-      <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
+      <Tabs value={activeTab} onValueChange={pushTab} pressOpenTab="reselect" variant="underline">
         {TABS.map((tab) => (
           <TabsTrigger key={tab.id} value={tab.id} label={t(tab.label)} />
         ))}

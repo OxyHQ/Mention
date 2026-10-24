@@ -64,7 +64,6 @@ jest.mock('expo-router', () => ({
   router: { push: jest.fn() },
   useFocusEffect: () => {},
 }));
-jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key,
@@ -79,17 +78,6 @@ jest.mock('@/components/common/EmptyState', () => {
       action ? <MockText testID="empty-create">{action.label}</MockText> : null,
   };
 });
-jest.mock('@oxy.so/bloom/screen', () => {
-  const { View: MockView } = jest.requireActual('react-native');
-  const Pass = ({ header, children }: { header?: React.ReactNode; children: React.ReactNode }) => (
-    <MockView>
-      {header}
-      {children}
-    </MockView>
-  );
-  return { Screen: Pass, ScreenScrollView: Pass };
-});
-jest.mock('@/context/ScreenReselectContext', () => ({ useScreenReselect: () => {} }));
 
 import ListsScreen from '../lists';
 

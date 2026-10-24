@@ -25,7 +25,6 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { useTranslation } from 'react-i18next';
 import { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR } from '@/styles/colors';
 import { CreateRoomSheet } from '@/components/rooms/CreateRoomSheet';
-import { useScreenReselect } from '@/context/ScreenReselectContext';
 import { SignInRequired } from '@/components/common/SignInRequired';
 
 const SectionHeader = ({
@@ -89,8 +88,6 @@ const LiveRoomsScreen = () => {
     setRefreshing(true);
     loadRooms();
   }, [loadRooms]);
-  useScreenReselect({ refresh: onRefresh });
-
   const openCreateSheet = useCallback(() => {
     bottomSheet.setBottomSheetContent(
       <CreateRoomSheet
@@ -116,7 +113,7 @@ const LiveRoomsScreen = () => {
     <RoomsListSkeleton />
   ) : showError ? (
     <EmptyState
-      icon={{ name: 'cloud-offline-outline' }}
+      sticker="offline"
       error={{
         title: t('agora.loadRoomsFailedTitle', { defaultValue: "Couldn't load rooms" }),
         message: t('agora.loadRoomsFailedMessage', {
@@ -186,6 +183,7 @@ const LiveRoomsScreen = () => {
     <>
       <SEO title="Live Rooms" description="Join live audio conversations" />
       <Screen
+        reselect={{ refresh: onRefresh }}
         header={
           <PageHeader
             title={t('agora.title')}

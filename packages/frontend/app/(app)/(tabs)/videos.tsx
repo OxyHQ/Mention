@@ -23,7 +23,12 @@ import Animated, {
 } from 'react-native-reanimated';
 import { BloomColorScope, useTheme } from '@oxy.so/bloom/theme';
 import { IconButton } from '@oxy.so/bloom/button';
-import { Screen, ScreenPager, type ScreenPagerHandle } from '@oxy.so/bloom/screen';
+import {
+  Screen,
+  ScreenPager,
+  type ScreenPagerHandle,
+  useScreenReselect,
+} from '@oxy.so/bloom/screen';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useOptionalPanelRouter } from '@oxy.so/bloom/panel-routing';
 import {
@@ -41,7 +46,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { FollowButton } from '@/components/FollowButton';
 import { useVideoPlayer, type VideoPlayer } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
-import Ionicons from '@/components/common/Ionicons';
+import { RiMusic2Line } from '@oxy.so/bloom/icons/RiMusic2Line';
 import { RiBookmarkFill } from '@oxy.so/bloom/icons/RiBookmarkFill';
 import { RiBookmarkLine } from '@oxy.so/bloom/icons/RiBookmarkLine';
 import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
@@ -52,7 +57,6 @@ import { RiUpload2Line } from '@oxy.so/bloom/icons/RiUpload2Line';
 import { RiVerifiedBadgeFill } from '@oxy.so/bloom/icons/RiVerifiedBadgeFill';
 import { VERIFIED_BADGE_COLOR } from '@/styles/colors';
 import { useRouter, useLocalSearchParams, useIsFocused } from '@/lib/navigation/router';
-import { useReselectReloadKey, useTabSelect } from '@/context/ScreenReselectContext';
 import { usePostsStore } from '@/stores/postsStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { feedService } from '@/services/feedService';
@@ -994,12 +998,7 @@ const VideoItem = memo<VideoItemProps>(
                 </View>
               ) : null}
               <View style={styles.soundRow} pointerEvents="none">
-                <Ionicons
-                  name="musical-notes-outline"
-                  size={13}
-                  color="#FFFFFF"
-                  style={styles.soundIcon}
-                />
+                <RiMusic2Line width={13} height={13} fill="#FFFFFF" />
                 <Text style={styles.soundText} numberOfLines={1}>
                   {t('videos.original_audio')} · @{userHandle}
                 </Text>
@@ -1504,10 +1503,7 @@ export default function VideosScreen() {
 
   // Reselecting the tab away from the first slide goes back to it; on the
   // first slide it rebuilds the reel (`reloadNonce` re-runs the load below).
-  const reloadNonce = useReselectReloadKey({
-    isAtTop: () => currentVisibleIndex === 0,
-    scrollToTop: scrollReelToTop,
-  });
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   // Initial load + tab switch + reload. Target first (own try/catch), then the ranked
   // chain. `viewerId` rebuilds the reel when the session resolves on cold boot
@@ -1693,7 +1689,10 @@ export default function VideosScreen() {
     };
   }, []);
 
-  const handleSelectFeed = useTabSelect(activeFeed, setActiveFeed);
+  // The feed already selected reselects the screen instead.
+  const reselect = useScreenReselect();
+  const handleSelectFeed = (feed: VideoFeedTab) =>
+    feed === activeFeed ? reselect() : setActiveFeed(feed);
 
   // Web: ↑/↓ arrow keys page the reel. Ignored while typing into an input /
   // textarea / contenteditable so the composer and search are unaffected.
@@ -2115,8 +2114,12 @@ export default function VideosScreen() {
       {/* The reel is a dark surface: its header and controls render dark over it. */}
       <BloomColorScope mode={posts.length > 0 ? 'dark' : undefined} asChild>
         <Screen
+          reselect={{
+            isAtTop: () => currentVisibleIndex === 0,
+            scrollToTop: scrollReelToTop,
+            refresh: () => setReloadNonce((nonce) => nonce + 1),
+          }}
           scroll="auto"
-          active={isFocused}
           headerPlacement="overlay"
           contentClearance={0}
           testID="videos-screen"
@@ -2516,9 +2519,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     marginTop: 2,
-  },
-  soundIcon: {
-    ...TEXT_SHADOW_STRONG,
   },
   soundText: {
     color: '#FFFFFF',

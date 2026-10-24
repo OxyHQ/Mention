@@ -15,11 +15,9 @@ import type { AccountNode } from '@oxy.so/core';
 import { logger } from '@oxy.so/core/logger';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { useRefreshJoinedCommunitiesAfterCreate } from '@/hooks/useCommunities';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { displayNameOrHandle } from '@/utils/displayName';
-import { useScreenReselect } from '@/context/ScreenReselectContext';
 import { SignInRequired } from '@/components/common/SignInRequired';
 import { profileBasePath, profileRouteFamily } from '@/components/Profile/profileRoute';
 import type { OperatedAccountKind } from './OperatedAccountSettingsScreen';
@@ -72,7 +70,6 @@ export function OperatedAccountsScreen({ kind, copy }: OperatedAccountsScreenPro
   const router = useRouter();
   const { t } = useTranslation();
   const { user, oxyServices, canUsePrivateApi } = useAuth();
-  const safeBack = useSafeBack();
   const queryClient = useQueryClient();
   const refreshJoinedCommunities = useRefreshJoinedCommunitiesAfterCreate();
 
@@ -88,8 +85,6 @@ export function OperatedAccountsScreen({ kind, copy }: OperatedAccountsScreenPro
     queryFn: () => oxyServices.accounts.list(),
     enabled: canUsePrivateApi,
   });
-  useScreenReselect({ refresh: refetch });
-
   const ofKind = useMemo(
     () => accounts.filter((account) => account.kind === kind),
     [accounts, kind],
@@ -140,12 +135,9 @@ export function OperatedAccountsScreen({ kind, copy }: OperatedAccountsScreenPro
 
   return (
     <Screen
+      reselect={{ refresh: refetch }}
       header={
-        <PageHeader
-          title={copy.title}
-          onBack={() => safeBack()}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
+        <PageHeader title={copy.title} backLabel={t('common.back', { defaultValue: 'Back' })} />
       }
     >
       <SignInRequired label={copy.signInRequired} description={copy.signInRequiredDesc}>

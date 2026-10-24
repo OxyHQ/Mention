@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import type { Href } from '@/lib/navigation/router';
 import { memo, useCallback, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
@@ -25,7 +26,6 @@ import type {
 } from '@mention/shared-types/job';
 import { logger } from '@oxy.so/core/logger';
 import { WEB_BASE_URL } from '@/config';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { shareLink } from '@/utils/shareLink';
 import { formatTimeAgo } from '@/utils/dateUtils';
@@ -256,7 +256,7 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
         </View>
         <TouchableOpacity
           onPress={() => onToggleSave(job)}
-          hitSlop={HIT_SLOP_MD}
+          hitSlop={tokens.hitSlop.md}
           accessibilityRole="button"
           accessibilityLabel={
             isSaved
@@ -330,7 +330,7 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
         <View className="flex-row items-center gap-3">
           <TouchableOpacity
             onPress={share}
-            hitSlop={HIT_SLOP_MD}
+            hitSlop={tokens.hitSlop.md}
             accessibilityRole="button"
             accessibilityLabel={t('jobs.detail.share', { defaultValue: 'Share' })}
           >
@@ -339,7 +339,7 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
           {!appPath ? (
             <TouchableOpacity
               onPress={() => onReport(job)}
-              hitSlop={HIT_SLOP_MD}
+              hitSlop={tokens.hitSlop.md}
               accessibilityRole="button"
               accessibilityLabel={t('jobs.discovery.report', { defaultValue: 'Report' })}
             >

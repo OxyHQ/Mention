@@ -2,7 +2,7 @@ import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type { BloomIcon } from '@/components/settings/RowIcon';
 import { SettingsSelect } from '@/components/settings/SettingsSelect';
-import { useSettingsBack as useSafeBack } from '@/context/MentionSettingsContext';
+import { useSettingsBack } from '@/context/MentionSettingsContext';
 import {
   createPrivacySettingsCacheLease,
   updatePrivacySettingsCache,
@@ -31,7 +31,7 @@ interface VisibilityOptionConfig {
 
 function ProfileVisibilityScreen() {
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
+  const back = useSettingsBack();
   const { isAuthenticated, isAuthResolved, canUsePrivateApi, isPrivateApiPending, user } =
     useAuth();
 
@@ -64,7 +64,7 @@ function ProfileVisibilityScreen() {
 
   const handleSave = async (newVisibility: VisibilityOption) => {
     if (newVisibility === profileVisibility) {
-      safeBack();
+      back();
       return;
     }
 
@@ -96,7 +96,7 @@ function ProfileVisibilityScreen() {
         message: t('settings.privacy.profileVisibilityUpdated'),
       });
       setTimeout(() => {
-        safeBack();
+        back();
       }, 300);
     } catch (error) {
       const err = error as { response?: { data?: { error?: string } } };

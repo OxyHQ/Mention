@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 48.28,
-      "covered": 13367,
-      "total": 27683
+      "pct": 48.15,
+      "covered": 13145,
+      "total": 27296
     },
     "branches": {
-      "pct": 44.19,
-      "covered": 9038,
-      "total": 20450
+      "pct": 44.02,
+      "covered": 8910,
+      "total": 20240
     },
     "functions": {
-      "pct": 43.04,
-      "covered": 3101,
-      "total": 7204
+      "pct": 43.16,
+      "covered": 3052,
+      "total": 7071
     },
     "lines": {
-      "pct": 49.06,
-      "covered": 12128,
-      "total": 24716
+      "pct": 48.93,
+      "covered": 11918,
+      "total": 24355
     }
   },
   "pins": {
@@ -461,12 +461,6 @@
       "functions": 0,
       "lines": 0
     },
-    "hooks/useOwnerVirtualizer.web.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
     "hooks/usePipAspectRatio.ts": {
       "statements": 100,
       "branches": 100,
@@ -618,12 +612,18 @@
       "lines": 100
     },
     "hooks/useReferenceVisibility.ts": {
-      "statements": 46,
-      "branches": 52,
-      "functions": 45,
-      "lines": 54
+      "statements": 47,
+      "branches": 50,
+      "functions": 40,
+      "lines": 53
     },
     "hooks/useReloadOnFeedRuleChange.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "hooks/useReselectReloadKey.ts": {
       "statements": 100,
       "branches": 100,
       "functions": 100,
@@ -646,12 +646,6 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
-    },
-    "hooks/useSafeBack.ts": {
-      "statements": 80,
-      "branches": 50,
-      "functions": 100,
-      "lines": 80
     },
     "hooks/useScheduleManager.ts": {
       "statements": 100,

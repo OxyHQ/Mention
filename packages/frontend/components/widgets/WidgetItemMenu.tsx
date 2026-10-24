@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import {
@@ -10,7 +11,6 @@ import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
 import { RiUpload2Line } from '@oxy.so/bloom/icons/RiUpload2Line';
-import { HIT_SLOP_LG } from '@/styles/hitSlop';
 
 const ICON_SIZE = 20;
 
@@ -40,7 +40,7 @@ export function WidgetItemMenu({ label, onNotInterested, onShare }: WidgetItemMe
       <DropdownMenuTrigger asChild label={label}>
         <TouchableOpacity
           className="p-1 web:cursor-pointer"
-          hitSlop={HIT_SLOP_LG}
+          hitSlop={tokens.hitSlop.lg}
           accessibilityLabel="More options"
           accessibilityRole="button"
         >

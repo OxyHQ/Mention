@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import type { Href } from '@/lib/navigation/router';
 import type React from 'react';
 import { useCallback } from 'react';
@@ -10,7 +11,6 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { createLogger } from '@oxy.so/core/logger';
 import type { PostJobContent } from '@mention/shared-types';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 import { useJobVocabulary } from '@/utils/jobVocabulary';
 
 const logger = createLogger('JobCard');
@@ -126,7 +126,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, className = 'w-[280px]' }) => {
         {job.title}
       </Text>
 
-      <Pressable onPress={openEmployer} hitSlop={HIT_SLOP_MD} className="self-start mt-0.5">
+      <Pressable onPress={openEmployer} hitSlop={tokens.hitSlop.md} className="self-start mt-0.5">
         <Text className="text-primary text-[13px]" numberOfLines={1}>
           {job.employerName}
         </Text>

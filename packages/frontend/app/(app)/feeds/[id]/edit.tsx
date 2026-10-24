@@ -1,3 +1,4 @@
+import { useScreenBack } from '@oxy.so/bloom/screen';
 import { FormSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import { View, Text } from 'react-native';
@@ -7,7 +8,6 @@ import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { customFeedsService } from '@/services/customFeedsService';
 import { FeedBuilder } from '@/components/feeds/FeedBuilder';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -21,7 +21,7 @@ function EditFeedScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const feedId = String(id);
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
+  const back = useScreenBack();
   const { user, isAuthResolved, canUsePrivateApi } = useAuth();
 
   const { data: feed, isLoading } = useQuery({
@@ -38,7 +38,7 @@ function EditFeedScreen() {
       <View className="flex-1">
         <PageHeader
           title={t('feeds.builder.editTitle')}
-          onBack={() => safeBack()}
+          onBack={back}
           backLabel={t('common.back', { defaultValue: 'Back' })}
         />
         <FormSkeleton />
@@ -51,7 +51,7 @@ function EditFeedScreen() {
       <View className="flex-1">
         <PageHeader
           title={t('feeds.builder.editTitle')}
-          onBack={() => safeBack()}
+          onBack={back}
           backLabel={t('common.back', { defaultValue: 'Back' })}
         />
         <View className="flex-1 items-center justify-center px-8">

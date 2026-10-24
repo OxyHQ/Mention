@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Pressable,
@@ -35,7 +36,6 @@ import {
   type VideoPlayerKey,
 } from '@/stores/videoPlayerRegistry';
 import type { VideoPlayer as ExpoVideoPlayer } from 'expo-video';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 /**
  * Registers (or clears, on unmount) the measurable host node of an image
@@ -539,7 +539,7 @@ const SensitiveMediaCover: React.FC<{ onReveal: () => void }> = ({ onReveal }) =
       style={styles.sensitiveCover}
       accessibilityRole="button"
       accessibilityLabel={t('post.sensitiveContentTap', { defaultValue: 'Tap to reveal' })}
-      hitSlop={HIT_SLOP_MD}
+      hitSlop={tokens.hitSlop.md}
     >
       <BlurView
         intensity={SENSITIVE_BLUR_INTENSITY}

@@ -109,6 +109,7 @@ jest.mock('@oxy.so/bloom/error-boundary', () => ({
   ErrorBoundary: ({ children }: { children?: React.ReactNode }) => children ?? null,
 }));
 jest.mock('@oxy.so/bloom/screen', () => ({
+  ...jest.requireActual('@oxy.so/bloom/screen'),
   useScreenViewport: () => null,
   // The feed hands Bloom its scroll handler; Bloom's own chrome is not under test.
   useScreenScroll: ({ handler }: { handler?: unknown }) => ({
@@ -117,7 +118,6 @@ jest.mock('@oxy.so/bloom/screen', () => ({
     scrollY: { value: 0 },
   }),
 }));
-jest.mock('@/context/ScreenReselectContext', () => ({ useReselectScroller: () => undefined }));
 jest.mock('@oxy.so/bloom/scroll', () => ({ useScrollRestoration: () => undefined }));
 jest.mock('@oxy.so/bloom/layout', () => ({ useHeaderDockInset: () => 0 }));
 

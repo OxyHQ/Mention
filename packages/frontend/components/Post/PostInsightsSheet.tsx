@@ -11,6 +11,7 @@ import {
   ChartHeadline,
   ChartStatTiles,
 } from '@oxy.so/bloom/chart-cards';
+import { RiBarChartHorizontalLine } from '@oxy.so/bloom/icons/RiBarChartHorizontalLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { insightsService } from '@/services/insightsService';
 import { useTranslation } from 'react-i18next';
@@ -70,7 +71,7 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
         {headerEl}
         <EmptyState
           title={t('insights.post.noInsightsAvailable')}
-          icon={{ name: 'bar-chart-outline', size: 48 }}
+          icon={RiBarChartHorizontalLine}
         />
       </View>
     );

@@ -1,10 +1,10 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { memo } from 'react';
 import { Pressable } from 'react-native';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { RiPauseFill } from '@oxy.so/bloom/icons/RiPauseFill';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { HIT_SLOP_SM } from '@/styles/hitSlop';
 
 interface SongPreviewButtonProps {
   isPlaying: boolean;
@@ -36,7 +36,7 @@ export const SongPreviewButton = memo(function SongPreviewButton({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      hitSlop={HIT_SLOP_SM}
+      hitSlop={tokens.hitSlop.sm}
       className="rounded-full bg-primary items-center justify-center"
       style={{ width: dimension, height: dimension }}
     >

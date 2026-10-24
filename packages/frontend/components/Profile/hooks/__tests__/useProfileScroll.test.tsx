@@ -28,7 +28,7 @@ jest.mock('@/stores/postsStore', () => ({
   usePostsStore: { getState: () => ({ fetchUserFeed: mockFetchUserFeed, feedUI: {} }) },
 }));
 jest.mock('@/db/feedQueries', () => ({ getFeedMeta: (key: string) => mockGetFeedMeta(key) }));
-jest.mock('@/context/ScreenReselectContext', () => ({
+jest.mock('@oxy.so/bloom/screen', () => ({
   useFrontScroller: () => () => ({ offset: () => 0, scrollToOffset: mockScrollToOffset }),
 }));
 

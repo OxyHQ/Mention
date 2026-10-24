@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { memo } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Image } from 'expo-image';
@@ -8,7 +9,6 @@ import { RiMusic2Line } from '@oxy.so/bloom/icons/RiMusic2Line';
 import type { ProfileSongMedia } from '@/stores/appearanceStore';
 import { useProfileSongPreview } from '@/hooks/useProfileSongPreview';
 import { SongPreviewButton } from './SongPreviewButton';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface ProfileSongProps {
   song: ProfileSongMedia;
@@ -76,7 +76,7 @@ export const ProfileSong = memo(function ProfileSong({
           onPress={onEdit}
           accessibilityRole="button"
           accessibilityLabel={t('profile.media.edit')}
-          hitSlop={HIT_SLOP_MD}
+          hitSlop={tokens.hitSlop.md}
           className="p-1"
         >
           <RiEditLine size="sm" fill={colors.textSecondary} />

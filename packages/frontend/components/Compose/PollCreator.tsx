@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import React, { useRef } from 'react';
 import {
   View,
@@ -17,7 +18,6 @@ import { useTranslation } from 'react-i18next';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiBarChartHorizontalLine } from '@oxy.so/bloom/icons/RiBarChartHorizontalLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface PollCreatorProps {
   pollTitle: string;
@@ -61,7 +61,7 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
           <RiBarChartHorizontalLine width={18} height={18} fill={theme.colors.primary} />
           <Text className="text-[15px] font-bold text-foreground">{t('Create a poll')}</Text>
         </View>
-        <TouchableOpacity onPress={onRemove} className="p-1" hitSlop={HIT_SLOP_MD}>
+        <TouchableOpacity onPress={onRemove} className="p-1" hitSlop={tokens.hitSlop.md}>
           <RiCloseLine width={18} height={18} fill={theme.colors.textSecondary} />
         </TouchableOpacity>
       </View>
@@ -99,7 +99,7 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
                 <TouchableOpacity
                   onPress={() => onRemoveOption(index)}
                   className="p-1"
-                  hitSlop={HIT_SLOP_MD}
+                  hitSlop={tokens.hitSlop.md}
                   accessibilityRole="button"
                   accessibilityLabel={t('common.remove', { defaultValue: 'Remove' })}
                 >

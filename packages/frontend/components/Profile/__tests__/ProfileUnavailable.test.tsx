@@ -1,7 +1,7 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import { ProfileUnavailable } from '../ProfileUnavailable';
 
-const mockSafeBack = jest.fn();
+const mockBack = jest.fn();
 const mockEmptyState = jest.fn();
 
 jest.mock('react-i18next', () => ({
@@ -9,7 +9,10 @@ jest.mock('react-i18next', () => ({
     t: (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key,
   }),
 }));
-jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => mockSafeBack }));
+jest.mock('@oxy.so/bloom/screen', () => ({
+  ...jest.requireActual('@oxy.so/bloom/screen'),
+  useScreenBack: () => mockBack,
+}));
 jest.mock('@/assets/illustrations/NoUpdates', () => ({ NoUpdatesIllustration: () => null }));
 jest.mock('@/components/common/EmptyState', () => ({
   EmptyState: (props: unknown) => {
@@ -44,7 +47,7 @@ describe('ProfileUnavailable', () => {
     expect(shown.title).toBe('Profile not found');
     expect(shown.error).toBeUndefined();
     act(() => shown.action?.onPress());
-    expect(mockSafeBack).toHaveBeenCalled();
+    expect(mockBack).toHaveBeenCalled();
   });
 
   it('takes the screen’s own words for what a missing account means', () => {

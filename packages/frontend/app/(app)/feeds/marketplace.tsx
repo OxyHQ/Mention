@@ -13,12 +13,12 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { VirtualList } from '@oxy.so/bloom/list';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { customFeedsService, type MarketplaceFeed } from '@/services/customFeedsService';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { formatCompactNumber } from '@/utils/formatNumber';
@@ -28,7 +28,6 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { cn } from '@/lib/utils';
 import { FeedCard, FeedCardSkeleton, type FeedCardData } from '@/components/FeedCard';
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
-import { ScreenFlashList } from '@/components/common/ScreenFlashList';
 import type { CustomFeedListResponse } from '@mention/shared-types';
 import { publicQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
@@ -132,7 +131,6 @@ const MarketplaceFeedCard = React.memo(function MarketplaceFeedCard({
 function FeedMarketplaceScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
@@ -416,7 +414,6 @@ function FeedMarketplaceScreen() {
       header={
         <PageHeader
           title={t('marketplace.title', { defaultValue: 'Feed Marketplace' })}
-          onBack={() => safeBack()}
           backLabel={t('common.back', { defaultValue: 'Back' })}
           actions={
             <Button
@@ -468,7 +465,8 @@ function FeedMarketplaceScreen() {
           {ListFooter}
         </ScreenScrollView>
       ) : (
-        <ScreenFlashList
+        <VirtualList
+          screen={{}}
           data={feeds}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
@@ -480,7 +478,7 @@ function FeedMarketplaceScreen() {
           onEndReachedThreshold={0.4}
           onRefresh={handleRefresh}
           refreshing={refreshing}
-          showsVerticalScrollIndicator={false}
+          scrollbar="never"
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
         />

@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -9,7 +10,6 @@ import { RiThumbDownLine } from '@oxy.so/bloom/icons/RiThumbDownLine';
 import { RiThumbUpLine } from '@oxy.so/bloom/icons/RiThumbUpLine';
 import type { CommunityNoteRating, CommunityNoteSummary } from '@mention/shared-types';
 import { openExternalLink } from '@/utils/openExternalLink';
-import { HIT_SLOP_SM } from '@/styles/hitSlop';
 
 interface CommunityNoteCardProps {
   note: CommunityNoteSummary;
@@ -92,7 +92,7 @@ export function CommunityNoteCard({
 
       {isRate
         ? note.sourceUrls.map((url) => (
-            <Pressable key={url} onPress={() => openExternalLink(url)} hitSlop={HIT_SLOP_SM}>
+            <Pressable key={url} onPress={() => openExternalLink(url)} hitSlop={tokens.hitSlop.sm}>
               <Text className="text-primary text-[14px]" numberOfLines={2}>
                 {displayUrl(url)}
               </Text>

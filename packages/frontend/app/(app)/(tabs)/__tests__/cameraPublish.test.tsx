@@ -53,6 +53,7 @@ jest.mock('@/stores/postsStore', () => ({
 
 // The page's dark surface; no theme provider here, and nothing to measure.
 jest.mock('@oxy.so/bloom/screen', () => ({
+  ...jest.requireActual('@oxy.so/bloom/screen'),
   Screen: ({ children }: { children: React.ReactNode }) => children,
 }));
 jest.mock('@oxy.so/bloom/theme', () => ({

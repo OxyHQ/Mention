@@ -1,7 +1,6 @@
 import type React from 'react';
 import { memo, useEffect, useState } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { AppState } from 'react-native';
 import {
   VideoPlaybackProvider,
   VideoViewabilityProvider,
@@ -12,7 +11,7 @@ import {
 
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
 
-jest.mock('expo-router', () => ({ useIsFocused: jest.fn(() => true) }));
+jest.mock('@oxy.so/bloom/screen', () => ({ useScreenVisible: () => true }));
 
 /**
  * Render fan-out of the playback authority (#1103 §13), measured the way a
@@ -105,7 +104,6 @@ const playing = (): string[] =>
     .sort();
 
 beforeEach(() => {
-  AppState.currentState = 'active';
   renders.clear();
   probes.clear();
 });

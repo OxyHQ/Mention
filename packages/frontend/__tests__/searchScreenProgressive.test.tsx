@@ -32,6 +32,7 @@ jest.mock('expo-router', () => ({
   useRouter: () => jest.requireMock('expo-router').router,
   router: { push: jest.fn() },
   useLocalSearchParams: () => ({ q: 'rust' }),
+  useIsFocused: () => true,
 }));
 
 jest.mock('@oxy.so/services/ui/client', () => ({
@@ -59,7 +60,6 @@ jest.mock('@/utils/storage', () => ({
   },
 }));
 
-jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
 jest.mock('@/hooks/useDismissKeyboardOnBlur', () => ({
   useDismissKeyboardOnBlur: () => undefined,
 }));
@@ -99,6 +99,7 @@ jest.mock('@oxy.so/bloom/page-header', () => ({
   PageHeader: ({ accessory }: { accessory?: import('react').ReactNode }) => accessory ?? null,
 }));
 jest.mock('@oxy.so/bloom/screen', () => ({
+  ...jest.requireActual('@oxy.so/bloom/screen'),
   Screen: ({
     header,
     children,
@@ -165,10 +166,10 @@ interface MockListProps {
   ListHeaderComponent?: import('react').ReactNode;
 }
 
-jest.mock('@/components/common/ScreenFlashList', () => {
+jest.mock('@oxy.so/bloom/list', () => {
   const React_ = jest.requireActual<typeof import('react')>('react');
   return {
-    ScreenFlashList: (props: MockListProps) => (
+    VirtualList: (props: MockListProps) => (
       <>
         {props.ListHeaderComponent}
         {props.data.map((item) => (

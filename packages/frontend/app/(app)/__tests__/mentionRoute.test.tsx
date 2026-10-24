@@ -28,7 +28,6 @@ jest.mock('@oxy.so/bloom/loading', () => ({ Loading: 'Loading' }));
 jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: 'PageHeader' }));
 jest.mock('@/components/Profile/ProfileUnavailable', () => ({ ProfileUnavailable: 'Unavailable' }));
 jest.mock('@/components/SEO', () => ({ SEO: () => null }));
-jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
 jest.mock('@/utils/resolveMention', () => ({ resolveMention: (uri: string) => mockResolve(uri) }));
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 

@@ -5,7 +5,6 @@ import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import type { HydratedPost } from '@mention/shared-types';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { insightsService } from '@/services/insightsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { usePostsStore } from '@/stores/postsStore';
@@ -15,7 +14,6 @@ import { WeeklyRecapContent } from '@/components/insights/WeeklyRecapContent';
 export default function WeeklyRecapScreen() {
   const { t } = useTranslation();
   const { user, canUsePrivateApi, isPrivateApiPending } = useAuth();
-  const safeBack = useSafeBack();
   const getPostById = usePostsStore((state) => state.getPostById);
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: viewerQueryKeys.weeklyRecapPosts(user?.id),
@@ -45,7 +43,6 @@ export default function WeeklyRecapScreen() {
       header={
         <PageHeader
           title={t('insights.weeklyRecap.title')}
-          onBack={() => safeBack()}
           backLabel={t('common.back', { defaultValue: 'Back' })}
         />
       }

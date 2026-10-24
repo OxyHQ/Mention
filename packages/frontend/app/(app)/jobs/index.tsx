@@ -25,7 +25,6 @@ import {
   MENTION_JOB_WORKPLACE_TYPES,
 } from '@mention/shared-types/job';
 import { Error as ErrorState } from '@/components/Error';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { Storage } from '@/utils/storage';
 import { viewerQueryKeys, viewerStorageKey } from '@/lib/viewerQueryKeys';
@@ -125,7 +124,6 @@ type DiscoveryRow =
 export default function JobsDiscoveryScreen() {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const safeBack = useSafeBack();
   const bottomSheet = useContext(BottomSheetContext);
   const viewerId = user?.id;
 
@@ -478,7 +476,6 @@ export default function JobsDiscoveryScreen() {
       header={
         <PageHeader
           title={t('jobs.discovery.title', { defaultValue: 'Jobs' })}
-          onBack={() => safeBack()}
           backLabel={t('common.back', { defaultValue: 'Back' })}
         />
       }

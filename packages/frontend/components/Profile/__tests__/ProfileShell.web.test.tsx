@@ -1,6 +1,5 @@
-// The native list owner; the web shell scrolls the document.
-jest.mock('@/components/common/ScreenFlashList', () => ({ ScreenFlashList: () => null }));
 jest.mock('@oxy.so/bloom/screen', () => ({
+  ...jest.requireActual('@oxy.so/bloom/screen'),
   Screen: (props: {
     header?: React.ReactNode;
     bottomBar?: React.ReactNode;
@@ -30,9 +29,10 @@ const mockList = jest.fn();
 const mockDock = jest.fn();
 const mockSticky = jest.fn();
 const mockCover = jest.fn();
-let mockDockInset = 84;
 
 // The shell decides its branch from `Platform.OS` at module load.
+// The native list owner; the web shell scrolls the document.
+jest.mock('@oxy.so/bloom/list', () => ({ VirtualList: () => null }));
 jest.mock('@oxy.so/bloom/styles', () => ({ useSurfaceFill: () => 'rgb(20, 55, 84)' }));
 jest.mock('react-native', () => {
   const actual = jest.requireActual('react-native');
@@ -53,7 +53,6 @@ jest.mock('@oxy.so/bloom/layout', () => ({
     mockSticky(props);
     return props.children;
   },
-  useHeaderDockInset: () => mockDockInset,
 }));
 jest.mock('@oxy.so/bloom/page-header', () => ({
   PageHeader: (props: object) => {
@@ -79,7 +78,6 @@ jest.mock('react-i18next', () => ({
     t: (_key: string, options: { defaultValue: string }) => options.defaultValue,
   }),
 }));
-jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
 jest.mock('@/components/UserName', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/components/common/EmptyState', () => ({ EmptyState: () => null }));
 jest.mock('@/assets/illustrations/NoUpdates', () => ({ NoUpdatesIllustration: () => null }));
@@ -148,7 +146,6 @@ function makeProps(tab: TabsProps['tab'] = 'lists'): ProfileShellProps & { tabs:
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockDockInset = 84;
 });
 
 const navigator = <Text testID="navigator">Slot</Text>;

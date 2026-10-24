@@ -7,7 +7,7 @@ import type { OxyServices } from '@oxy.so/core';
 import { AppProviders } from '../AppProviders';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { useVideoPlayback } from '@/context/VideoPlaybackContext';
-import { useDrawer } from '@/context/DrawerContext';
+import { useVideosRail } from '@/context/VideosRailContext';
 import { usePostInteractions, type PostInteractions } from '@/components/Feed/postInteractions';
 
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
@@ -38,8 +38,8 @@ import { usePostInteractions, type PostInteractions } from '@/components/Feed/po
  */
 
 // Only the leaves that need a host environment are mocked. Every provider whose
-// NESTING this test is about — AppShellProviders, BottomSheetProvider,
-// DocumentScrollProvider — is the real one.
+// NESTING this test is about — AppShellProviders and BottomSheetProvider — is
+// the real one.
 jest.mock('react-native-safe-area-context', () => ({
   SafeAreaProvider: ({ children }: { children: React.ReactNode }) => children,
   initialWindowMetrics: null,
@@ -212,26 +212,26 @@ describe('app-shell contexts reach hoisted content', () => {
   it('gives sheet content and the app tree the SAME app-shell context instance', () => {
     // Every app-shell context except VideoPlayback has a default value, so a
     // consumer mounted outside the provider reads a silent no-op instead of
-    // throwing. Identity is the only way to catch that: open the drawer from the
-    // app tree and require the sheet to observe it.
+    // throwing. Identity is the only way to catch that: write the videos rail
+    // from the app tree and require the sheet to observe it.
     let sheetSawOpen: boolean | undefined;
 
     const SheetProbe = () => {
-      sheetSawOpen = useDrawer().isOpen;
+      sheetSawOpen = useVideosRail().active;
       return null;
     };
 
-    const DrawerOpener = () => {
-      const { open } = useDrawer();
+    const RailWriter = () => {
+      const { setRailState } = useVideosRail();
       useEffect(() => {
-        open();
-      }, [open]);
+        setRailState({ active: true });
+      }, [setRailState]);
       return null;
     };
 
     renderApp(
       <>
-        <DrawerOpener />
+        <RailWriter />
         <SheetPusher content={<SheetProbe />} />
       </>,
     );

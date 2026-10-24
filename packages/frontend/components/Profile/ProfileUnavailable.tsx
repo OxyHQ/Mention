@@ -1,6 +1,6 @@
+import { useScreenBack } from '@oxy.so/bloom/screen';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/common/EmptyState';
-import { useSafeBack } from '@/hooks/useSafeBack';
 
 export interface ProfileUnavailableProps {
   /**
@@ -26,7 +26,7 @@ export function ProfileUnavailable({
   notFoundMessage,
 }: ProfileUnavailableProps) {
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
+  const back = useScreenBack();
 
   if (!notFound) {
     return (
@@ -38,7 +38,7 @@ export function ProfileUnavailable({
           }),
           onRetry,
         }}
-        icon={{ name: 'cloud-offline-outline' }}
+        sticker="offline"
         containerStyle={{ paddingTop: 60 }}
       />
     );
@@ -54,7 +54,7 @@ export function ProfileUnavailable({
           defaultValue: "This account doesn't exist, or it's no longer available.",
         })
       }
-      action={{ label: t('common.goBack', { defaultValue: 'Go Back' }), onPress: () => safeBack() }}
+      action={{ label: t('common.goBack', { defaultValue: 'Go Back' }), onPress: () => back?.() }}
     />
   );
 }

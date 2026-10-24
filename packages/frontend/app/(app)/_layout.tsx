@@ -17,7 +17,7 @@ import { useDeckAvailable } from '@/components/deck/useDeckAvailable';
 import { registerPanelSurface } from '@/components/shell/panelSurface';
 import { bottomBarContent } from '@/components/shell/bottomBarRoutes';
 
-import { stackSceneLayout } from '@/components/navigation/StackScene';
+import { stackSceneLayout } from '@oxy.so/bloom/panel-routing/expo-router';
 import KeyboardShortcutsModal from '@/components/KeyboardShortcutsModal';
 import RegisterPush from '@/components/RegisterPushToken';
 import { RealtimePostsBridge } from '@/components/RealtimePostsBridge';
@@ -25,7 +25,6 @@ import { RealtimeNotificationsBridge } from '@/components/RealtimeNotificationsB
 import { PublicRealtimeBridge } from '@/components/PublicRealtimeBridge';
 import { RightBar } from '@/components/RightBar';
 import { useMentionSidebar } from '@/components/navigation/useMentionSidebar';
-import { useDrawer } from '@/context/DrawerContext';
 import { SignInBanner } from '@/components/SignInBanner';
 import WelcomeModalGate from '@/components/WelcomeModalGate';
 import { BootMilestone } from '@/components/BootMilestone';
@@ -54,7 +53,6 @@ export default function AppLayout() {
   const updateDeckPanel = useDeckSettings((state) => state.updatePanel);
   const deckEnabled = useDeckSettings((state) => state.deckEnabled);
   const hasDefaultLeadingPanel = useDeckSettings(isDefaultLeadingDeckPanel);
-  const drawer = useDrawer();
   const { isAuthenticated, isAuthResolved } = useAuth();
   const pathname = usePathname();
   const deckAvailable = useDeckAvailable();
@@ -106,8 +104,8 @@ export default function AppLayout() {
   // both under the keyboard.
   const bottomContent = bottomBarContent({ pathname, isAuthenticated, isAuthResolved });
 
-  // The app-shell contexts this subtree reads (screen color, videos rail, video
-  // playback, drawer, bottom-bar visibility) are mounted by <AppShellProviders>
+  // The app-shell contexts this subtree reads (videos rail, video playback,
+  // navigation) are mounted by <AppShellProviders>
   // up in `components/providers/AppProviders.tsx`. They CANNOT live here: bottom
   // sheets and bloom's native portal outlet render their content above this
   // route, so anything mounted at this depth is invisible to them.
@@ -127,8 +125,6 @@ export default function AppLayout() {
           variant="feed"
           scroll={IS_WEB ? 'document' : 'page'}
           drawer="reveal"
-          drawerOpen={drawer.isOpen}
-          onDrawerOpenChange={(open) => (open ? drawer.open() : drawer.close())}
           sidebar={sidebar}
           // The sidebar's compose row and the bar's FAB: the composer page.
           primaryAction={{

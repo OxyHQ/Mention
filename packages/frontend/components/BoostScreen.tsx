@@ -1,5 +1,4 @@
 import { useLocalSearchParams } from '@/lib/navigation/router';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import type React from 'react';
 import { useState, useRef, useEffect } from 'react';
 import {
@@ -15,7 +14,7 @@ import { toast } from '@oxy.so/bloom/toast';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Divider } from '@oxy.so/bloom/divider';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { Screen, ScreenScrollView, useScreenBack } from '@oxy.so/bloom/screen';
 import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import type { CreateBoostRequest } from '@mention/shared-types/feed';
@@ -39,7 +38,7 @@ const BoostScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
+  const back = useScreenBack();
 
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -89,7 +88,7 @@ const BoostScreen: React.FC = () => {
       await createBoost(boostRequest);
 
       // Navigate back
-      safeBack();
+      back?.();
 
       // Show success feedback
       toast('Post boosted successfully!', { type: 'success' });
@@ -105,7 +104,7 @@ const BoostScreen: React.FC = () => {
     if (content.trim().length > 0) {
       discardControl.open();
     } else {
-      safeBack();
+      back?.();
     }
   };
 
@@ -246,7 +245,7 @@ const BoostScreen: React.FC = () => {
           {
             label: 'Discard',
             color: 'destructive',
-            onPress: () => safeBack(),
+            onPress: () => back?.(),
           },
           {
             label: 'Keep Editing',

@@ -2,7 +2,8 @@ import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { Fragment, useCallback, useEffect, useMemo } from 'react';
 import { View, Text, Pressable, Platform } from 'react-native';
 import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
-import { ScreenScrollView } from '@oxy.so/bloom/screen';
+import { ScreenScrollView, useScreenReselectHandler } from '@oxy.so/bloom/screen';
+import { VirtualList } from '@oxy.so/bloom/list';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -10,7 +11,6 @@ import { useRouter } from '@/lib/navigation/router';
 
 import { trendingService, type TrendingTopic, type TrendingDay } from '@/services/trendingService';
 import { EmptyState } from '@/components/common/EmptyState';
-import { ScreenFlashList } from '@/components/common/ScreenFlashList';
 import { TrendItemRow } from '@/components/trending/TrendItemRow';
 import { useTrendNavigation } from '@/hooks/useTrendNavigation';
 import { useTrendItemMenu } from '@/hooks/useTrendItemMenu';
@@ -18,7 +18,6 @@ import { useTrendsStore } from '@/stores/trendsStore';
 import type { Trend } from '@/interfaces/Trend';
 import { FONT_SIZES } from '@/styles/typography';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
-import { useScreenReselect } from '@/context/ScreenReselectContext';
 
 /**
  * Explore › Trending (route `/explore/trending`).
@@ -198,7 +197,7 @@ export default function ExploreTrendingScreen() {
     void fetchTrends();
     void historyQuery.refetch();
   }, [fetchTrends, historyQuery]);
-  useScreenReselect({ refresh: handleRefresh });
+  useScreenReselectHandler({ refresh: handleRefresh });
 
   const handleLoadMore = useCallback(() => {
     if (historyQuery.hasNextPage && !historyQuery.isFetchingNextPage) {
@@ -303,7 +302,8 @@ export default function ExploreTrendingScreen() {
   }
 
   return (
-    <ScreenFlashList
+    <VirtualList
+      screen={{}}
       data={rows}
       renderItem={({ item }) => renderRow(item)}
       getItemType={(row) => row.kind}

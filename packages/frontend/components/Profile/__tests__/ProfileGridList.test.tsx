@@ -2,12 +2,14 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { Text } from 'react-native';
 import { ProfileGridList, type ProfileGridEntry } from '../ProfileGridList';
 
-const mockFlashListRender = jest.fn();
-jest.mock('@oxy.so/bloom/layout', () => ({ useHeaderDockInset: () => 73 }));
+const mockListRender = jest.fn();
+jest.mock('@oxy.so/bloom/hooks', () => ({
+  useContainerWidth: () => ({ width: null, onLayout: () => undefined }),
+}));
 
-jest.mock('@/components/common/ScreenFlashList', () => ({
-  ScreenFlashList: (props: Record<string, unknown>) => {
-    mockFlashListRender(props);
+jest.mock('@oxy.so/bloom/list', () => ({
+  VirtualList: (props: Record<string, unknown>) => {
+    mockListRender(props);
     return null;
   },
 }));
@@ -23,7 +25,7 @@ describe('ProfileGridList scroll ownership', () => {
     jest.clearAllMocks();
   });
 
-  it('uses one scroll-owning FlashList with a full-span sticky tab row', () => {
+  it('uses one scroll-owning list with a full-span sticky tab row', () => {
     const data: ProfileGridEntry[] = Array.from({ length: 500 }, (_, index) => ({
       postId: `post-${index}`,
       mediaIndex: 0,
@@ -42,11 +44,10 @@ describe('ProfileGridList scroll ownership', () => {
       );
     });
 
-    const props = mockFlashListRender.mock.calls.at(-1)?.[0] as {
+    const props = mockListRender.mock.calls.at(-1)?.[0] as {
       data: { kind: string }[];
       numColumns: number;
       stickyHeaderIndices?: number[];
-      stickyHeaderConfig?: { offset: number };
       overrideItemLayout: (layout: { span?: number }, item: { kind: string }) => void;
       drawDistance: number;
     };
@@ -54,7 +55,6 @@ describe('ProfileGridList scroll ownership', () => {
     expect(props.data[0]).toEqual(expect.objectContaining({ kind: 'auxiliary' }));
     expect(props.numColumns).toBe(3);
     expect(props.stickyHeaderIndices).toEqual([1]);
-    expect(props.stickyHeaderConfig?.offset).toBe(73);
     expect(props.drawDistance).toBeGreaterThan(0);
 
     const stickyLayout: { span?: number } = {};

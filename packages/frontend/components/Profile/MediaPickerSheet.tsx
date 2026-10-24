@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { MediaGridSkeleton } from '@/components/loading/ContentSkeleton';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, Text, TextInput, View } from 'react-native';
@@ -22,7 +23,6 @@ import { useInfiniteCatalogSearch, ResultsFooter } from '@/hooks/useInfiniteCata
 import { createLogger } from '@oxy.so/core/logger';
 import { formatDuration } from '@/utils/formatDuration';
 import { SongPreviewButton } from './SongPreviewButton';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 const logger = createLogger('MediaPickerSheet');
 
@@ -414,7 +414,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
             onPress={() => setQuery('')}
             accessibilityRole="button"
             accessibilityLabel={t('profile.media.clearSearch')}
-            hitSlop={HIT_SLOP_MD}
+            hitSlop={tokens.hitSlop.md}
           >
             <RiCloseCircleLine size="sm" fill={colors.textSecondary} />
           </Pressable>
@@ -530,7 +530,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
                   disabled={startSec <= 0}
                   accessibilityRole="button"
                   accessibilityLabel={t('profile.media.song.startEarlier')}
-                  hitSlop={HIT_SLOP_MD}
+                  hitSlop={tokens.hitSlop.md}
                   className="rounded-full bg-background items-center justify-center"
                   style={{ width: 32, height: 32, opacity: startSec <= 0 ? 0.4 : 1 }}
                 >
@@ -544,7 +544,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
                   disabled={startSec >= maxStartSec}
                   accessibilityRole="button"
                   accessibilityLabel={t('profile.media.song.startLater')}
-                  hitSlop={HIT_SLOP_MD}
+                  hitSlop={tokens.hitSlop.md}
                   className="rounded-full bg-background items-center justify-center"
                   style={{ width: 32, height: 32, opacity: startSec >= maxStartSec ? 0.4 : 1 }}
                 >

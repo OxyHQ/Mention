@@ -277,6 +277,60 @@
       "metric": "lines",
       "date": "2026-10-24",
       "reason": "The pager, its scroll plumbing, the navigation chrome, the icon set and the vote animations moved into Bloom (tab-pager destinations, AppShell, Screen/VirtualList, icons, EngagementBar; tested there); Mention's own TabsPager, TabPagerContext, BottomBar, useFocusedScrollable, useNavigateOrReselect, useKeyboardVisibility, the bar-visibility provider, UnreadBadge, assets/icons and lib/animations were deleted, which lowers the overall ratio by about half a point."
+    },
+    {
+      "path": "total",
+      "metric": "branches",
+      "date": "2026-10-24",
+      "reason": "Web list virtualization and screen visibility moved to Bloom (VirtualList / visibility hooks), tested there; Mention's useOwnerVirtualizer, useScrollMarginOrigin, LoadMoreSentinel and its own AppState/visibilitychange foreground subscriptions were deleted with their tests."
+    },
+    {
+      "path": "hooks/useReferenceVisibility.ts",
+      "metric": "branches",
+      "date": "2026-10-24",
+      "reason": "Web list virtualization and screen visibility moved to Bloom (VirtualList / visibility hooks), tested there; Mention's useOwnerVirtualizer, useScrollMarginOrigin, LoadMoreSentinel and its own AppState/visibilitychange foreground subscriptions were deleted with their tests."
+    },
+    {
+      "path": "hooks/useReferenceVisibility.ts",
+      "metric": "functions",
+      "date": "2026-10-24",
+      "reason": "Web list virtualization and screen visibility moved to Bloom (VirtualList / visibility hooks), tested there; Mention's useOwnerVirtualizer, useScrollMarginOrigin, LoadMoreSentinel and its own AppState/visibilitychange foreground subscriptions were deleted with their tests."
+    },
+    {
+      "path": "hooks/useReferenceVisibility.ts",
+      "metric": "lines",
+      "date": "2026-10-24",
+      "reason": "Web list virtualization and screen visibility moved to Bloom (VirtualList / visibility hooks), tested there; Mention's useOwnerVirtualizer, useScrollMarginOrigin, LoadMoreSentinel and its own AppState/visibilitychange foreground subscriptions were deleted with their tests."
+    },
+    {
+      "path": "total",
+      "metric": "statements",
+      "date": "2026-10-24",
+      "reason": "Reselect, web list virtualization, screen visibility, Back, page actions, the drawer state and the icon translation layer moved into Bloom (reselect, VirtualList, useScreenVisible, BloomProvider back, Screen primaryAction, AppShell, icons; tested there); Mention's copies (ScreenReselectContext, DocumentScroll, useOwnerVirtualizer, LoadMoreSentinel, useSafeBack, PageAction, DrawerContext, Ionicons, the EmptyState name table) were deleted, which lowers the overall ratio by about a tenth of a point."
+    },
+    {
+      "path": "total",
+      "metric": "lines",
+      "date": "2026-10-24",
+      "reason": "Reselect, web list virtualization, screen visibility, Back, page actions, the drawer state and the icon translation layer moved into Bloom (reselect, VirtualList, useScreenVisible, BloomProvider back, Screen primaryAction, AppShell, icons; tested there); Mention's copies (ScreenReselectContext, DocumentScroll, useOwnerVirtualizer, LoadMoreSentinel, useSafeBack, PageAction, DrawerContext, Ionicons, the EmptyState name table) were deleted, which lowers the overall ratio by about a tenth of a point."
+    },
+    {
+      "path": "total",
+      "metric": "statements",
+      "date": "2026-10-24",
+      "reason": "ScreenFlashList replaced by Bloom VirtualList, tested there: the native screen-bound FlashList wrapper and its header/bar inset arithmetic were deleted, and the seven call sites now pass VirtualList props."
+    },
+    {
+      "path": "total",
+      "metric": "branches",
+      "date": "2026-10-24",
+      "reason": "ScreenFlashList replaced by Bloom VirtualList, tested there: the native screen-bound FlashList wrapper and its header/bar inset arithmetic were deleted, and the seven call sites now pass VirtualList props."
+    },
+    {
+      "path": "total",
+      "metric": "lines",
+      "date": "2026-10-24",
+      "reason": "ScreenFlashList replaced by Bloom VirtualList, tested there: the native screen-bound FlashList wrapper and its header/bar inset arithmetic were deleted, and the seven call sites now pass VirtualList props."
     }
   ],
   "globalDriftAllowancePoints": 0.75,
@@ -287,8 +341,8 @@
     "one defensible line at a time, and a bound cannot tell growth from shrinkage."
   ],
   "expectedCounts": {
-    "domainFiles": 309,
-    "pins": 304,
+    "domainFiles": 308,
+    "pins": 303,
     "unenforceable": 5,
     "belowBarExemptions": 8,
     "criticalPaths": 36,

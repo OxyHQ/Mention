@@ -4,13 +4,12 @@ import { Image } from 'expo-image';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import Ionicons from '@/components/common/Ionicons';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Button } from '@oxy.so/bloom/button';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
-import { useSurfaceFill } from '@oxy.so/bloom/styles';
+import { useSurfaceFill, tokens } from '@oxy.so/bloom/styles';
 import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
@@ -40,7 +39,6 @@ import { usePostsStore } from '@/stores/postsStore';
 import { cn } from '@/lib/utils';
 import { createLogger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 const logger = createLogger('NotificationItem');
 
@@ -750,15 +748,11 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
               className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full border-2 border-background items-center justify-center"
               style={{ backgroundColor: badgeColor }}
             >
-              {descriptor.iconComponent ? (
-                <descriptor.iconComponent
-                  width={BADGE_ICON_SIZE}
-                  height={BADGE_ICON_SIZE}
-                  fill={BADGE_GLYPH_COLOR}
-                />
-              ) : (
-                <Ionicons name={descriptor.icon} size={BADGE_ICON_SIZE} color={BADGE_GLYPH_COLOR} />
-              )}
+              <descriptor.icon
+                width={BADGE_ICON_SIZE}
+                height={BADGE_ICON_SIZE}
+                fill={BADGE_GLYPH_COLOR}
+              />
             </View>
           </View>
 
@@ -849,7 +843,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                 ) : null}
                 <Pressable
                   onPress={toggleExpanded}
-                  hitSlop={HIT_SLOP_MD}
+                  hitSlop={tokens.hitSlop.md}
                   accessibilityRole="button"
                 >
                   <Text className="text-primary text-sm font-semibold">

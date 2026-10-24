@@ -5,7 +5,6 @@ import Feed from '@/components/Feed/Feed';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen } from '@oxy.so/bloom/screen';
 import { SEO } from '@/components/SEO';
-import { useSafeBack } from '@/hooks/useSafeBack';
 
 /**
  * The posts quoting a given post — where the "N quotes" count on the post-detail
@@ -14,7 +13,6 @@ import { useSafeBack } from '@/hooks/useSafeBack';
  */
 export default function PostQuotesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const safeBack = useSafeBack();
   const { t } = useTranslation();
 
   const filters = useMemo(() => ({ postId: String(id) }), [id]);
@@ -22,13 +20,7 @@ export default function PostQuotesScreen() {
 
   return (
     <Screen
-      header={
-        <PageHeader
-          title={title}
-          onBack={() => safeBack()}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
-      }
+      header={<PageHeader title={title} backLabel={t('common.back', { defaultValue: 'Back' })} />}
     >
       <SEO
         title={title}

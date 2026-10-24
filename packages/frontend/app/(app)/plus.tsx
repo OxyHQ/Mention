@@ -11,7 +11,6 @@ import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
 import { OXY_ONE_APP_SUBSCRIPTIONS, OXY_ONE_PERSONAL_PLANS } from '@oxy.so/contracts/client';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
-import { useSafeBack } from '@/hooks/useSafeBack';
 
 type PlusTier = keyof typeof OXY_ONE_APP_SUBSCRIPTIONS.mention.tiers;
 
@@ -23,7 +22,6 @@ const ENTRY_PLAN = (Object.keys(OXY_ONE_APP_SUBSCRIPTIONS.mention.tiers) as Plus
 /** Mention's plans on Bloom's subscription template. Mention Plus is sold only inside Oxy One. */
 export default function PlusScreen() {
   const { t, i18n } = useTranslation();
-  const safeBack = useSafeBack();
   const { colors } = useTheme();
   const { showBottomSheet } = useAuth();
   const [selected, setSelected] = useState('plus');
@@ -76,14 +74,7 @@ export default function PlusScreen() {
   ];
 
   return (
-    <Screen
-      header={
-        <PageHeader
-          onBack={() => safeBack()}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
-      }
-    >
+    <Screen header={<PageHeader backLabel={t('common.back', { defaultValue: 'Back' })} />}>
       <ScreenScrollView showsVerticalScrollIndicator={false}>
         <SubscriptionPlans
           productName="Mention"

@@ -1,10 +1,10 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import React, { useCallback } from 'react';
 import { type GestureResponderEvent, Pressable, Text, View } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 const NOTICE_ICON_SIZE = 13;
 
@@ -65,7 +65,7 @@ const PostCorrectionNotice: React.FC<Props> = ({ postId, count }) => {
   return (
     <Pressable
       onPress={openHistory}
-      hitSlop={HIT_SLOP_MD}
+      hitSlop={tokens.hitSlop.md}
       accessibilityRole="link"
       accessibilityLabel={`${countLabel}. ${actionLabel}`}
     >

@@ -1,9 +1,8 @@
 import { NotificationSkeleton } from '@/components/notifications/NotificationSkeleton';
 import type React from 'react';
 import { useCallback } from 'react';
-import { RefreshControl, View } from 'react-native';
-import { useTheme } from '@oxy.so/bloom/theme';
-import { ScreenFlashList } from '@/components/common/ScreenFlashList';
+import { View } from 'react-native';
+import { VirtualList } from '@oxy.so/bloom/list';
 import type { NotificationListItem } from '@/utils/groupNotifications';
 
 export interface NotificationsListProps {
@@ -27,7 +26,7 @@ const EMPTY_CONTENT = { flexGrow: 1 } as const;
 const LIST_STYLE = { flex: 1 } as const;
 
 /**
- * NATIVE notifications list: a `ScreenFlashList`, the notifications Screen's
+ * NATIVE notifications list: a `VirtualList`, the notifications Screen's
  * scroller.
  */
 export function NotificationsList({
@@ -42,7 +41,6 @@ export function NotificationsList({
   hasMore,
   isFetchingMore,
 }: NotificationsListProps) {
-  const theme = useTheme();
   const renderItem = useCallback(
     ({ item }: { item: NotificationListItem }) => renderRow(item),
     [renderRow],
@@ -69,7 +67,8 @@ export function NotificationsList({
 
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
-      <ScreenFlashList
+      <VirtualList
+        screen={{}}
         data={items}
         keyExtractor={getItemKey}
         renderItem={renderItem}
@@ -79,18 +78,12 @@ export function NotificationsList({
         ListFooterComponent={listFooter}
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[theme.colors.primary]}
-            tintColor={theme.colors.primary}
-          />
-        }
-        showsVerticalScrollIndicator={false}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        scrollbar="never"
         // No fill of its own. The list used to paint `colors.background`,
         // which is darker than the panel fill every other tab shows
-        // through (`StackScene` / `useSurfaceFill`), so the Notifications
+        // through (Bloom's `StackScene` / `useSurfaceFill`), so the Notifications
         // body read as a different surface from its own header.
         //
         // Empty, the content grows to the viewport: the empty state is

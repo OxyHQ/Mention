@@ -1,15 +1,17 @@
-import type { ComponentProps } from 'react';
-import type Ionicons from '@/components/common/Ionicons';
 import type { Theme } from '@oxy.so/bloom/theme';
 
 import type { BloomIconComponent } from '@oxy.so/bloom';
+import { RiAtLine } from '@oxy.so/bloom/icons/RiAtLine';
+import { RiCalendarLine } from '@oxy.so/bloom/icons/RiCalendarLine';
 import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
+import { RiDoubleQuotesL } from '@oxy.so/bloom/icons/RiDoubleQuotesL';
+import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
 import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
+import { RiHand } from '@oxy.so/bloom/icons/RiHand';
 import { RiHeart3Fill } from '@oxy.so/bloom/icons/RiHeart3Fill';
+import { RiNotification3Fill } from '@oxy.so/bloom/icons/RiNotification3Fill';
 import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { RiUserAddFill } from '@oxy.so/bloom/icons/RiUserAddFill';
-
-export type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 /** A Bloom theme color token — resolved at render time as `theme.colors[token]`. */
 export type ColorToken = keyof Theme['colors'];
@@ -29,17 +31,8 @@ export type TranslateFn = (key: string, options?: Record<string, unknown>) => st
  * repeating the actor already shown in the byline.
  */
 export interface NotificationDescriptor {
-  /**
-   * Ionicon shown inside the small action badge overlaid on the avatar. When
-   * {@link iconComponent} is set it takes precedence, but a sensible Ionicon is
-   * kept here as the semantic fallback.
-   */
-  icon: IoniconName;
-  /**
-   * Optional Bloom glyph. When present it renders instead of the {@link icon}
-   * Ionicon, at the same badge size and colour.
-   */
-  iconComponent?: BloomIconComponent;
+  /** Bloom glyph shown inside the small action badge overlaid on the avatar. */
+  icon: BloomIconComponent;
   /** Semantic color token for the action badge fill. */
   colorToken: ColorToken;
   /** Whether this type has an associated post whose text is previewed inline. */
@@ -57,7 +50,7 @@ export interface NotificationDescriptor {
  * color, no preview. Mirrors the previous `default` switch arm.
  */
 const DEFAULT_DESCRIPTOR: NotificationDescriptor = {
-  icon: 'notifications',
+  icon: RiNotification3Fill,
   colorToken: 'primary',
   hasPreview: false,
   actionPhrase: (t) =>
@@ -71,95 +64,90 @@ const DEFAULT_DESCRIPTOR: NotificationDescriptor = {
  */
 const DESCRIPTORS: Record<string, NotificationDescriptor> = {
   event_updated: {
-    icon: 'calendar',
+    icon: RiCalendarLine,
     colorToken: 'primary',
     hasPreview: true,
     actionPhrase: (t) =>
       t('events.noticeUpdated', { defaultValue: 'updated an event you are attending' }),
   },
   event_cancelled: {
-    icon: 'calendar',
+    icon: RiCalendarLine,
     colorToken: 'warning',
     hasPreview: true,
     actionPhrase: (t) =>
       t('events.noticeCancelled', { defaultValue: 'cancelled an event you are attending' }),
   },
   like: {
-    icon: 'heart',
-    iconComponent: RiHeart3Fill,
+    icon: RiHeart3Fill,
     colorToken: 'success',
     hasPreview: true,
     actionPhrase: (t) => t('notification.action.like', { defaultValue: 'liked your post' }),
   },
   boost: {
-    icon: 'repeat',
-    iconComponent: RiRepeat2Line,
+    icon: RiRepeat2Line,
     colorToken: 'success',
     hasPreview: true,
     actionPhrase: (t) => t('notification.action.boost', { defaultValue: 'boosted your post' }),
   },
   reply: {
-    icon: 'chatbubble',
-    iconComponent: RiChat3Line,
+    icon: RiChat3Line,
     colorToken: 'warning',
     hasPreview: true,
     actionPhrase: (t) => t('notification.action.reply', { defaultValue: 'replied to your post' }),
   },
   mention: {
-    icon: 'chatbubble-ellipses',
+    icon: RiAtLine,
     colorToken: 'primary',
     hasPreview: true,
     actionPhrase: (t) => t('notification.action.mention', { defaultValue: 'mentioned you' }),
   },
   quote: {
-    icon: 'chatbox-ellipses',
+    icon: RiDoubleQuotesL,
     colorToken: 'primary',
     hasPreview: true,
     actionPhrase: (t) => t('notification.action.quote', { defaultValue: 'quoted your post' }),
   },
   follow: {
-    icon: 'person-add',
-    iconComponent: RiUserAddFill,
+    icon: RiUserAddFill,
     colorToken: 'primary',
     hasPreview: false,
     actionPhrase: (t) => t('notification.action.follow', { defaultValue: 'started following you' }),
   },
   post: {
-    icon: 'create',
+    icon: RiEditBoxLine,
     colorToken: 'primary',
     hasPreview: true,
     actionPhrase: (t) => t('notification.action.post', { defaultValue: 'posted a new update' }),
   },
   poke: {
-    icon: 'hand-left',
+    icon: RiHand,
     colorToken: 'warning',
     hasPreview: false,
     actionPhrase: (t) => t('notification.action.poke', { defaultValue: 'poked you' }),
   },
   collab_invite: {
-    icon: 'people',
-    iconComponent: RiGroupFill,
+    icon: RiGroupFill,
     colorToken: 'primary',
     hasPreview: true,
     actionPhrase: (t) =>
       t('collab.actionInvite', { defaultValue: 'invited you to collaborate on a post' }),
   },
   collab_accepted: {
-    icon: 'people',
+    icon: RiGroupFill,
     colorToken: 'primary',
     hasPreview: false,
     actionPhrase: (t) =>
       t('collab.actionAccepted', { defaultValue: 'accepted your collaboration invite' }),
   },
   collab_declined: {
-    icon: 'people',
+    icon: RiGroupFill,
     colorToken: 'primary',
     hasPreview: false,
     actionPhrase: (t) =>
       t('collab.actionDeclined', { defaultValue: 'declined your collaboration invite' }),
   },
   welcome: {
-    icon: 'notifications',
+    icon: RiNotification3Fill,
     colorToken: 'primary',
     hasPreview: false,
     // Welcome has no actor: the byline shows the welcome title and this phrase

@@ -1,8 +1,7 @@
+import { useScreenBack } from '@oxy.so/bloom/screen';
 import { useCallback, useMemo } from 'react';
-import { useRouter } from '@/lib/navigation/router';
 
 import { useTabPager } from '@oxy.so/bloom/tab-pager';
-import { useSafeBack } from '@/hooks/useSafeBack';
 
 /**
  * How this composer was reached, which is the only thing the two routes serving
@@ -34,8 +33,8 @@ export interface ComposeExit {
    * not be anywhere the reader can land on again (OxyHQ/Mention#1140):
    *
    * - pushed: POPPED. When nothing is beneath it (a cold-start share or deep
-   *   link) it is REPLACED by Home — `useSafeBack`'s push would leave the
-   *   composer underneath, one Back away.
+   *   link) it is REPLACED by Home — a push would leave the composer
+   *   underneath, one Back away.
    * - tab: Home, with the composer tab taken out of the tabs' back history, so
    *   neither Back nor the pager can return to it.
    */
@@ -43,29 +42,20 @@ export interface ComposeExit {
 }
 
 export function useComposeExit(presentation: ComposePresentation): ComposeExit {
-  const router = useRouter();
-  const safeBack = useSafeBack();
+  // The app's Back: through the history, or REPLACED by Home when nothing is
+  // beneath (`BloomProvider back`), never a push over the composer.
+  const back = useScreenBack();
   const { selectTab, leaveTab } = useTabPager();
 
   const dismiss = useCallback(() => {
-    if (presentation === 'tab') {
-      selectTab('index');
-      return;
-    }
-    safeBack();
-  }, [presentation, safeBack, selectTab]);
+    if (presentation === 'tab') selectTab('index');
+    else back?.();
+  }, [presentation, back, selectTab]);
 
   const leaveAfterPublish = useCallback(() => {
-    if (presentation === 'tab') {
-      leaveTab('write', 'index');
-      return;
-    }
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace('/');
-    }
-  }, [presentation, leaveTab, router]);
+    if (presentation === 'tab') leaveTab('write', 'index');
+    else back?.();
+  }, [presentation, back, leaveTab]);
 
   return useMemo(() => ({ dismiss, leaveAfterPublish }), [dismiss, leaveAfterPublish]);
 }

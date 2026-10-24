@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { POST_AVATAR_SIZE } from '@/styles/shared';
 import React, { useMemo, useState, type ReactNode } from 'react';
 import { DropdownMenu, DropdownMenuTrigger } from '@oxy.so/bloom/dropdown-menu';
@@ -22,7 +23,6 @@ import type { HydratedAuthor, PostUser } from '@mention/shared-types';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { Link, type Href } from '@/lib/navigation/router';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 // Inline indicator icons (boost/reply) are subtler than the action-bar glyphs.
 const INDICATOR_ICON_SIZE = 14;
@@ -419,7 +419,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
     <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
       <DropdownMenuTrigger asChild label={t('postActions.title', { defaultValue: 'Post options' })}>
         <TouchableOpacity
-          hitSlop={HIT_SLOP_MD}
+          hitSlop={tokens.hitSlop.md}
           className={compact ? 'ml-auto shrink-0 px-2' : 'px-2'}
           style={{ marginTop: compact ? 0 : headerTopOffset }}
         >
@@ -581,7 +581,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
             <TouchableOpacity
               accessibilityRole="button"
               accessibilityLabel={t('post.editedIndicator', { defaultValue: 'Edited' })}
-              hitSlop={HIT_SLOP_MD}
+              hitSlop={tokens.hitSlop.md}
               style={{ flexShrink: 0, alignSelf: 'center' }}
               onPress={() => toast(t('post.editedToast', { defaultValue: 'This post was edited' }))}
             >

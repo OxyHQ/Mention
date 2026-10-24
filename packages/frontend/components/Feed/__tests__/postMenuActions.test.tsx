@@ -73,7 +73,6 @@ const mockClipboard = { setStringAsync: jest.fn(async (_text: string) => true) }
 jest.mock('expo-clipboard', () => ({
   setStringAsync: (text: string) => mockClipboard.setStringAsync(text),
 }));
-jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
 jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user: { username?: string } | null) => user?.username ?? null,
 }));
@@ -108,7 +107,7 @@ function makePost(
 const bottomSheet = { setBottomSheetContent: jest.fn(), openBottomSheet: jest.fn() };
 const router = { push: jest.fn() };
 const queryClient = { invalidateQueries: jest.fn() };
-const safeBack = jest.fn();
+const back = jest.fn();
 
 const deps = {
   theme: { colors: { textSecondary: '#888', error: '#f00' } },
@@ -116,7 +115,7 @@ const deps = {
   viewerId: 'viewer-1',
   canUsePrivateApi: true,
   router,
-  safeBack,
+  back,
   bottomSheet,
   queryClient,
 } as unknown as PostMenuDeps;
@@ -297,7 +296,7 @@ describe('what the actions do', () => {
       'postActions.delete',
     ).onPress();
     expect(mockStore.removePostEverywhere).toHaveBeenCalledWith('p1');
-    expect(safeBack).toHaveBeenCalled();
+    expect(back).toHaveBeenCalled();
     expect(mockFeedService.deletePost).toHaveBeenCalledWith('p1');
     expect(queryClient.invalidateQueries).toHaveBeenCalled();
     // The author's profile counters drop by one (#1140).
@@ -312,7 +311,7 @@ describe('what the actions do', () => {
     expect(mockStore.reinsertPost).toHaveBeenCalledWith(post);
     expect(mockInvalidateCounts).not.toHaveBeenCalled();
     expect(mockToast).toHaveBeenCalledWith('postActions.failedToDeletePost', { type: 'error' });
-    expect(safeBack).not.toHaveBeenCalled();
+    expect(back).not.toHaveBeenCalled();
   });
 
   it('does nothing when the delete is not confirmed', async () => {

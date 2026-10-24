@@ -11,7 +11,6 @@ import { useAuth } from '@oxy.so/services/ui/client';
 
 import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { SEO } from '@/components/SEO';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { feedService } from '@/services/feedService';
 import { publicQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { usePostSelector } from '@/stores/postsStore';
@@ -34,7 +33,6 @@ import { EmptyState } from '@/components/common/EmptyState';
 export default function PostCorrectionsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const postId = String(id);
-  const safeBack = useSafeBack();
   const { t } = useTranslation();
   const { user } = useAuth();
 
@@ -75,13 +73,7 @@ export default function PostCorrectionsScreen() {
         })}
       />
       <Screen
-        header={
-          <PageHeader
-            title={title}
-            onBack={() => safeBack()}
-            backLabel={t('common.back', { defaultValue: 'Back' })}
-          />
-        }
+        header={<PageHeader title={title} backLabel={t('common.back', { defaultValue: 'Back' })} />}
       >
         <ScreenScrollView contentContainerClassName="pb-16">
           <Text className="px-4 pb-3 pt-1 text-[13px] text-muted-foreground">

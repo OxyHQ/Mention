@@ -14,7 +14,6 @@ import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { listsService } from '@/services/listsService';
 import { useRouter } from '@/lib/navigation/router';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { logger } from '@oxy.so/core/logger';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
@@ -27,7 +26,6 @@ function CreateListScreen() {
   const router = useRouter();
   const { oxyServices } = useAuth();
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(true);
@@ -94,7 +92,6 @@ function CreateListScreen() {
       header={
         <PageHeader
           title={t('lists.create.title')}
-          onBack={() => safeBack()}
           backLabel={t('common.back', { defaultValue: 'Back' })}
         />
       }

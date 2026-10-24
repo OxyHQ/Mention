@@ -17,16 +17,12 @@ import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
-import { useSafeBack } from '@/hooks/useSafeBack';
+import { Screen, ScreenScrollView, useScreenBack } from '@oxy.so/bloom/screen';
 import { customFeedsService, type CustomFeedDetail } from '@/services/customFeedsService';
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { FollowButton } from '@/components/FollowButton';
 import Feed from '@/components/Feed/Feed';
-import { RiQuillPenLine } from '@oxy.so/bloom/icons/RiQuillPenLine';
-import { Fab } from '@oxy.so/bloom/fab';
-import { PageAction } from '@/components/shell/PageAction';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
@@ -92,7 +88,7 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
+  const back = useScreenBack();
   const creatorHandle = profileHandle(feed.owner);
   // The bare handle (no `@`) the hover preview resolves; `creatorHandle` is the
   // display form.
@@ -100,7 +96,7 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
 
   return (
     <PageHeader
-      onBack={safeBack}
+      onBack={back}
       backLabel={t('common.back', { defaultValue: 'Back' })}
       title={
         <Pressable
@@ -637,7 +633,7 @@ function CustomFeedTimelineScreen() {
   const router = useRouter();
   const theme = useTheme();
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
+  const back = useScreenBack();
   const { id } = useLocalSearchParams<{ id: string }>();
   const feedId = typeof id === 'string' ? id : '';
   const { user } = useAuth();
@@ -802,7 +798,7 @@ function CustomFeedTimelineScreen() {
         ) : (
           <PageHeader
             title="Feed"
-            onBack={safeBack}
+            onBack={back}
             backLabel={t('common.back', { defaultValue: 'Back' })}
           />
         )
@@ -832,18 +828,6 @@ function CustomFeedTimelineScreen() {
           {activeTab === 'topics' && <TopicsTab keywords={keywords} />}
           {activeTab === 'reviews' && <ReviewsTab feedId={feedId} />}
         </ScreenScrollView>
-      )}
-
-      {/* PageAction follows the shell's bottom navigation clearance. */}
-      {!isLoading && !hasError && (
-        <PageAction>
-          <Fab
-            size="md"
-            onPress={() => router.push('/compose')}
-            icon={RiQuillPenLine}
-            accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
-          />
-        </PageAction>
       )}
 
       {/* Feed info bottom sheet */}

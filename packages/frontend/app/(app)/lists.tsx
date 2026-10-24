@@ -10,13 +10,11 @@ import { listsService, type MentionList } from '@/services/listsService';
 import { entityFollowService } from '@/services/entityFollowService';
 import { subscribeToListChanges } from '@/services/listMutations';
 import { useRouter, useFocusEffect } from '@/lib/navigation/router';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import { SEO } from '@/components/SEO';
 import { ListCard as ListCardComponent, type ListCardData } from '@/components/ListCard';
 import { EmptyState } from '@/components/common/EmptyState';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { useScreenReselect } from '@/context/ScreenReselectContext';
 import { SignInRequired } from '@/components/common/SignInRequired';
 
 const FOLLOWED_LIST_PAGE_SIZE = 50;
@@ -44,7 +42,6 @@ function toListCardData(list: MentionList): ListCardData {
 function ListsScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
   const { canUsePrivateApi, user } = useAuth();
   const viewerId = user?.id;
   const queryClient = useQueryClient();
@@ -92,8 +89,6 @@ function ListsScreen() {
     () => queryClient.invalidateQueries({ queryKey: viewerQueryKeys.listsRoot(viewerId) }),
     [queryClient, viewerId],
   );
-  useScreenReselect({ refresh: refreshLists });
-
   // Refresh both collections when a list is created/renamed/deleted anywhere
   // (membership/metadata changes broadcast through notifyListChanged).
   useEffect(() => subscribeToListChanges(refreshLists), [refreshLists]);
@@ -173,10 +168,10 @@ function ListsScreen() {
     <>
       <SEO title={t('seo.lists.title')} description={t('seo.lists.description')} />
       <Screen
+        reselect={{ refresh: refreshLists }}
         header={
           <PageHeader
             title={t('lists.title')}
-            onBack={() => safeBack()}
             backLabel={t('common.back', { defaultValue: 'Back' })}
             actions={
               canUsePrivateApi ? (

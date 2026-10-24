@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { Platform } from 'react-native';
-import { useFrontScroller } from '@/context/ScreenReselectContext';
+import { useFrontScroller } from '@oxy.so/bloom/screen';
 import { usePostsStore } from '@/stores/postsStore';
 import { getFeedMeta } from '@/db/feedQueries';
 import { isAuthorFeedFilter } from '@mention/shared-types/mtn/feedDescriptor';

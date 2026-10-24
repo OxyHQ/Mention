@@ -6,7 +6,6 @@ import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Text } from '@oxy.so/bloom/typography';
 import { useRouter, useLocalSearchParams, useFocusEffect } from '@/lib/navigation/router';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import { starterPacksService } from '@/services/starterPacksService';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -47,7 +46,6 @@ export default function StarterPackDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
   const { user } = useAuth();
-  const safeBack = useSafeBack();
   const { t } = useTranslation();
   const haptics = useHaptics();
   const [pack, setPack] = useState<StarterPackDetail | null>(null);
@@ -219,7 +217,6 @@ export default function StarterPackDetailScreen() {
         header={
           <PageHeader
             title={pack?.name || 'Starter Pack'}
-            onBack={() => safeBack()}
             backLabel={t('common.back', { defaultValue: 'Back' })}
             actions={
               isOwner ? (

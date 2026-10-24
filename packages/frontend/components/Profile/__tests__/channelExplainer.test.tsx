@@ -27,7 +27,10 @@ import TestRenderer, { type ReactTestInstance, type ReactTestRenderer } from 're
 
 const mockShowChannelInfo = jest.fn();
 
-jest.mock('@oxy.so/bloom/styles', () => ({ useSurfaceFill: () => 'rgb(20, 55, 84)' }));
+jest.mock('@oxy.so/bloom/styles', () => ({
+  useSurfaceFill: () => 'rgb(20, 55, 84)',
+  tokens: { hitSlop: { sm: 6, md: 8, lg: 12 } },
+}));
 jest.mock('@/components/Channels/ChannelInfoDialog', () => ({
   showChannelInfo: () => mockShowChannelInfo(),
 }));
@@ -37,7 +40,6 @@ jest.mock('@/components/Profile/PrivateBadge', () => ({ PrivateBadge: () => null
 jest.mock('@/hooks/useAccountCategoryLabel', () => ({
   useAccountCategoryLabel: () => (id: string) => id,
 }));
-jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
 jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { text: '#000000', primary: '#0000ff' } }),
 }));

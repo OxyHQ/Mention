@@ -6,7 +6,6 @@ import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { starterPacksService, type StarterPackSummary } from '@/services/starterPacksService';
 import { useRouter, useFocusEffect } from '@/lib/navigation/router';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { SEO } from '@/components/SEO';
 import {
   StarterPackCard,
@@ -21,7 +20,6 @@ import { SignInRequired } from '@/components/common/SignInRequired';
 export default function StarterPacksScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
   const { canUsePrivateApi } = useAuth();
   const [myPacks, setMyPacks] = useState<StarterPackSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,7 +102,6 @@ export default function StarterPacksScreen() {
         header={
           <PageHeader
             title={t('starterPacks.title')}
-            onBack={() => safeBack()}
             backLabel={t('common.back', { defaultValue: 'Back' })}
             actions={
               canUsePrivateApi ? (

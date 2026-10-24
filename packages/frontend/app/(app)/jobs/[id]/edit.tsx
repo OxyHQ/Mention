@@ -11,7 +11,6 @@ import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { logger } from '@oxy.so/core/logger';
 import type { UpdateMentionJobRequest } from '@mention/shared-types';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { jobsService, getJobErrorMessage } from '@/services/jobsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { JobFormFields, useJobForm } from '@/components/Jobs/JobFormFields';
@@ -30,7 +29,6 @@ export default function EditJobScreen() {
   const jobId = String(id);
   const { t } = useTranslation();
   const { user, canUsePrivateApi } = useAuth();
-  const safeBack = useSafeBack();
   const queryClient = useQueryClient();
 
   const jobQuery = useQuery({
@@ -113,7 +111,6 @@ export default function EditJobScreen() {
   const header = (
     <PageHeader
       title={t('jobs.edit.title', { defaultValue: 'Edit job' })}
-      onBack={() => safeBack()}
       backLabel={t('common.back', { defaultValue: 'Back' })}
     />
   );

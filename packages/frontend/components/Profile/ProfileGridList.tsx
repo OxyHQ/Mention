@@ -1,8 +1,8 @@
 import type React from 'react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Dimensions, FlatList, View } from 'react-native';
-import { ScreenFlashList } from '@/components/common/ScreenFlashList';
-import { useHeaderDockInset } from '@oxy.so/bloom/layout';
+import { useContainerWidth } from '@oxy.so/bloom/hooks';
+import { VirtualList } from '@oxy.so/bloom/list';
 import type { ProfileGridEntry, ProfileGridListProps } from './ProfileGridList.types';
 
 export type {
@@ -50,8 +50,10 @@ export function ProfileGridList<T extends ProfileGridEntry>({
   contentContainerStyle,
   onEndReached,
 }: ProfileGridListProps<T>) {
-  const headerDockInset = useHeaderDockInset();
-  const [containerWidth, setContainerWidth] = useState<number>(Dimensions.get('window').width);
+  // `renderCell` draws a square of a given side, so the grid needs its width;
+  // the window's stands in until the first layout.
+  const { width, onLayout } = useContainerWidth();
+  const containerWidth = width ?? Dimensions.get('window').width;
   const itemSize = useMemo(() => {
     const totalGap = GAP * (NUM_COLUMNS - 1) + H_PADDING * 2;
     return Math.floor((containerWidth - totalGap) / NUM_COLUMNS);
@@ -139,12 +141,9 @@ export function ProfileGridList<T extends ProfileGridEntry>({
 
   if (ownsScroll) {
     return (
-      <View
-        className={containerClassName}
-        style={{ flex: 1, minHeight: 0 }}
-        onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
-      >
-        <ScreenFlashList
+      <View className={containerClassName} style={{ flex: 1, minHeight: 0 }} onLayout={onLayout}>
+        <VirtualList
+          screen={{}}
           data={rows}
           keyExtractor={virtualizedKeyExtractor}
           renderItem={renderVirtualizedRow}
@@ -157,8 +156,7 @@ export function ProfileGridList<T extends ProfileGridEntry>({
           stickyHeaderIndices={
             listStickyHeaderComponent ? [listContentHeaderComponent ? 1 : 0] : undefined
           }
-          stickyHeaderConfig={{ offset: headerDockInset }}
-          showsVerticalScrollIndicator={false}
+          scrollbar="never"
           onEndReached={onEndReached}
           onEndReachedThreshold={0.7}
           drawDistance={Math.max(itemSize * 2, 300)}
@@ -169,10 +167,7 @@ export function ProfileGridList<T extends ProfileGridEntry>({
   }
 
   return (
-    <View
-      className={containerClassName}
-      onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
-    >
+    <View className={containerClassName} onLayout={onLayout}>
       <FlatList
         data={data}
         keyExtractor={keyExtractor}

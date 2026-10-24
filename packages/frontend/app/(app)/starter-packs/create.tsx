@@ -13,7 +13,6 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { starterPacksService } from '@/services/starterPacksService';
 import { useRouter } from '@/lib/navigation/router';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
@@ -27,7 +26,6 @@ export default function CreateStarterPackScreen() {
   const router = useRouter();
   const { oxyServices, user } = useAuth();
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -101,7 +99,6 @@ export default function CreateStarterPackScreen() {
       header={
         <PageHeader
           title={t('starterPacks.create')}
-          onBack={() => safeBack()}
           backLabel={t('common.back', { defaultValue: 'Back' })}
         />
       }

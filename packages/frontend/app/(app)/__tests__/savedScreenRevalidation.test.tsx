@@ -1,5 +1,6 @@
 jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'));
 jest.mock('@oxy.so/bloom/screen', () => ({
+  ...jest.requireActual('@oxy.so/bloom/screen'),
   Screen: ({
     header,
     children,
@@ -15,6 +16,8 @@ jest.mock('@oxy.so/bloom/screen', () => ({
       {bottomBar}
     </>
   ),
+  // Reselect is Bloom's (covered there); this suite is about the data.
+  useScreenReselectHandler: () => {},
 }));
 import { useEffect, type ReactNode } from 'react';
 import type React from 'react';
@@ -79,13 +82,8 @@ jest.mock('expo-router', () => ({
   usePathname: () => '/saved',
   useLocalSearchParams: () => ({}),
   useFocusEffect: jest.fn(),
+  useIsFocused: () => true,
   Link: () => null,
-}));
-
-// Reselect is the shell's (covered on its own); this suite is about the data.
-jest.mock('@/context/ScreenReselectContext', () => ({
-  useScreenReselect: () => {},
-  useTabSelect: (_active: unknown, select: (tab: unknown) => void) => select,
 }));
 
 // The header dock is layout, not the code under test.
@@ -95,8 +93,6 @@ jest.mock('@oxy.so/bloom/layout', () => ({
   StickySection: ({ children }: { children: React.ReactNode }) => children,
 }));
 jest.mock('expo-router/head', () => ({ __esModule: true, default: () => null }));
-
-jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
 
 const mockAuth = {
   user: { id: 'viewer-1' },

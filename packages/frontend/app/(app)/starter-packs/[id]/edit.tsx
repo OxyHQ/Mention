@@ -4,7 +4,7 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { Screen, ScreenScrollView, useScreenBack } from '@oxy.so/bloom/screen';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Button } from '@oxy.so/bloom/button';
@@ -26,7 +26,6 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 
 import { starterPacksService } from '@/services/starterPacksService';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { confirmDestructive } from '@/utils/alerts';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { cn } from '@/lib/utils';
@@ -61,7 +60,7 @@ export default function EditStarterPackScreen() {
   const packId = String(id);
   const { user, oxyServices } = useAuth();
   const theme = useTheme();
-  const safeBack = useSafeBack();
+  const back = useScreenBack();
   const { t } = useTranslation();
 
   const [loading, setLoading] = useState(true);
@@ -229,14 +228,14 @@ export default function EditStarterPackScreen() {
         memberOxyUserIds: members.map((m) => m.id),
       });
       toast('Starter pack updated', { type: 'success' });
-      safeBack();
+      back?.();
     } catch (e) {
       logger.error('Update starter pack failed', e);
       toast('Failed to update starter pack', { type: 'error' });
     } finally {
       setSavingDetails(false);
     }
-  }, [packId, name, description, members, savingDetails, safeBack]);
+  }, [packId, name, description, members, savingDetails, back]);
 
   const deletePack = useCallback(async () => {
     const confirmed = await confirmDestructive(
@@ -254,11 +253,7 @@ export default function EditStarterPackScreen() {
   }, [packId, router]);
 
   const header = (
-    <PageHeader
-      title="Edit starter pack"
-      onBack={() => safeBack()}
-      backLabel={t('common.back', { defaultValue: 'Back' })}
-    />
+    <PageHeader title="Edit starter pack" backLabel={t('common.back', { defaultValue: 'Back' })} />
   );
 
   if (loading) {

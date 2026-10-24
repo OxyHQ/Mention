@@ -57,6 +57,7 @@
       "^@oxy.so/bloom/icons$": "<rootDir>/test-support/bloomIcons.js",
       "^@oxy.so/bloom/icons/(.*)$": "<rootDir>/test-support/bloomIcons.js",
       "^@oxy.so/bloom/empty-state$": "<rootDir>/test-support/bloomEmptyState.js",
+      "^@oxy.so/bloom/screen$": "<rootDir>/test-support/bloomScreen.js",
       "^@oxy.so/bloom/dropdown-menu$": "<rootDir>/test-support/bloomDropdownMenu.js",
       "^@oxy.so/bloom/typography$": "<rootDir>/test-support/bloomTypography.js",
       "^@oxy.so/bloom/sticker$": "<rootDir>/test-support/bloomSticker.js"
@@ -126,7 +127,6 @@
     "@tanstack/query-async-storage-persister": "^5.104.5",
     "@tanstack/react-query": "^5.104.5",
     "@tanstack/react-query-persist-client": "^5.104.5",
-    "@tanstack/react-virtual": "^3.14.21",
     "axios": "^1.20.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

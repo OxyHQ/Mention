@@ -15,7 +15,7 @@ import TestRenderer, { act } from 'react-test-renderer';
  * the line and the lower 370px, and the LOWER one held the slot four runs out of
  * four — the upper one was being ranked by its entry position.
  */
-jest.mock('expo-router', () => ({ useIsFocused: jest.fn(() => true) }));
+jest.mock('@oxy.so/bloom/screen', () => ({ useScreenVisible: () => true }));
 
 import { Dimensions, Platform } from 'react-native';
 import type { UseVideoPlaybackOptions, UseVideoPlaybackResult } from '../VideoPlaybackContext';

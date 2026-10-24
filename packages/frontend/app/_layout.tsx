@@ -8,6 +8,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { AppState, Platform, type AppStateStatus } from 'react-native';
 import { BloomProvider } from '@oxy.so/bloom/provider';
+import { useBackWithFallback } from '@oxy.so/bloom/panel-routing/expo-router';
 import { APP_DEFAULT_COLOR_PRESET } from '@/lib/colorEntitlement';
 
 // Components
@@ -88,6 +89,9 @@ export default function RootLayout() {
   // Global haptics on/off, persisted via the accessibility settings toggle. Passed
   // to <BloomProvider haptics> so every useHaptics() call honors the preference.
   const hapticsDisabled = useHapticsStore((s) => s.disabled);
+  // Every route screen's header offers Back: through the history, or Home when
+  // a deep link left none.
+  const back = useBackWithFallback('/');
   // Bloom's own strings and dates (pickers, chevrons, …) follow the app's
   // language, not the device's.
   const language = useAppLanguage();
@@ -170,6 +174,7 @@ export default function RootLayout() {
           under it: on web `useScrollRestoration()` throws outside its provider, so
           a scrollable mounted beside it (a right rail, an overlay) crashes. */}
       <BloomProvider
+        back={back}
         imageResolver={resolveImageSource}
         haptics={!hapticsDisabled}
         locale={language}

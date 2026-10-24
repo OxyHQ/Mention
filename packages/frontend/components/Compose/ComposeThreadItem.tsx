@@ -1,3 +1,4 @@
+import { tokens } from '@oxy.so/bloom/styles';
 import { memo, useCallback, useMemo } from 'react';
 import {
   View,
@@ -34,7 +35,6 @@ import type { ReplyPermission } from '@/components/Compose/replyPermission';
 import type { ThreadItem } from '@/hooks/useThreadManager';
 import type { ComposerMediaItem } from '@/utils/composeUtils';
 import type { MentionTextValue } from '@/utils/mentions';
-import { HIT_SLOP_SM } from '@/styles/hitSlop';
 
 import { HPAD, BOTTOM_LEFT_PAD } from './composeLayout';
 
@@ -471,7 +471,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                         onPress={() => onMediaRemove(threadId, mediaItem.id)}
                         className="bg-card"
                         style={styles.mediaRemoveButton}
-                        hitSlop={HIT_SLOP_SM}
+                        hitSlop={tokens.hitSlop.sm}
                       >
                         <RiCloseLine width={16} height={16} fill={theme.colors.text} />
                       </TouchableOpacity>
@@ -504,7 +504,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                       onPress={handleArticleRemove}
                       className="bg-card"
                       style={styles.pollAttachmentRemoveButton}
-                      hitSlop={HIT_SLOP_SM}
+                      hitSlop={tokens.hitSlop.sm}
                     >
                       <RiCloseLine width={16} height={16} fill={theme.colors.text} />
                     </TouchableOpacity>
@@ -537,7 +537,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                       onPress={handleEventRemove}
                       className="bg-card"
                       style={styles.pollAttachmentRemoveButton}
-                      hitSlop={HIT_SLOP_SM}
+                      hitSlop={tokens.hitSlop.sm}
                     >
                       <RiCloseLine width={16} height={16} fill={theme.colors.text} />
                     </TouchableOpacity>
@@ -559,7 +559,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                       onPress={handlePodcastRemove}
                       className="bg-card"
                       style={styles.pollAttachmentRemoveButton}
-                      hitSlop={HIT_SLOP_SM}
+                      hitSlop={tokens.hitSlop.sm}
                     >
                       <RiCloseLine width={16} height={16} fill={theme.colors.text} />
                     </TouchableOpacity>
@@ -594,7 +594,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                       onPress={handleRoomRemove}
                       className="bg-card"
                       style={styles.pollAttachmentRemoveButton}
-                      hitSlop={HIT_SLOP_SM}
+                      hitSlop={tokens.hitSlop.sm}
                     >
                       <RiCloseLine width={16} height={16} fill={theme.colors.text} />
                     </TouchableOpacity>

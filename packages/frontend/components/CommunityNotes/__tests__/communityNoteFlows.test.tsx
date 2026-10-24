@@ -29,6 +29,7 @@ jest.mock('@oxy.so/bloom/page-header', () => ({
   PageHeader: ({ accessory }: { accessory?: React.ReactNode }) => accessory ?? null,
 }));
 jest.mock('@oxy.so/bloom/screen', () => ({
+  ...jest.requireActual('@oxy.so/bloom/screen'),
   Screen: ({ header, children }: { header?: React.ReactNode; children: React.ReactNode }) => [
     header,
     children,
@@ -44,8 +45,10 @@ jest.mock('@oxy.so/bloom/button', () => {
       R.createElement(RN.Pressable, { onPress }, R.createElement(RN.Text, null, children)),
   };
 });
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
-jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: mockPush }),
+  useIsFocused: () => true,
+}));
 jest.mock('@/components/Feed/PostItem', () => ({ __esModule: true, default: () => null }));
 jest.mock('@oxy.so/bloom/tabs', () => {
   const R = jest.requireActual<typeof import('react')>('react');

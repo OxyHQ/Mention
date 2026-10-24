@@ -36,6 +36,7 @@ jest.mock('@/components/Podcast/PostPodcastAttachment', () => ({
   PostPodcastAttachment: () => null,
 }));
 jest.mock('@/components/Post/JobCard', () => ({ __esModule: true, default: () => null }));
+jest.mock('@oxy.so/bloom/screen', () => ({ useScreenVisible: () => true }));
 jest.mock('@/lib/oxyServices', () => ({ oxyServices: {} }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 jest.mock('@oxy.so/bloom/zoomable-image-gallery', () => ({ ZoomableMediaGallery: () => null }));

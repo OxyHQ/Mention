@@ -8,7 +8,6 @@ import { getNormalizedUserHandle, type AccountNode } from '@oxy.so/core';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen } from '@oxy.so/bloom/screen';
 
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { EmptyState } from '@/components/common/EmptyState';
 import LazyInsightsView from '@/components/insights/LazyInsightsView';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -47,7 +46,6 @@ export default function ChannelInsightsScreen() {
   const { username } = useLocalSearchParams<{ username: string }>();
   const routeHandle = String(username ?? '');
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
   const {
     user,
     oxyServices,
@@ -88,7 +86,6 @@ export default function ChannelInsightsScreen() {
       // DTO; a channel with none falls back to the handle the reader navigated
       // by, never to a raw id.
       subtitle={channel?.account.name?.displayName?.trim() || `@${routeHandle}`}
-      onBack={() => safeBack()}
       backLabel={t('common.back', { defaultValue: 'Back' })}
     />
   );

@@ -15,7 +15,6 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 import { logger } from '@oxy.so/core/logger';
 import type { CommunityBan } from '@mention/shared-types';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { communityService } from '@/services/communityService';
 import { displayNameOrHandle } from '@/utils/displayName';
@@ -30,7 +29,6 @@ import { CommunitiesPreviewGate } from '@/hooks/useCommunitiesPreview';
  */
 function CommunityBansScreen() {
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
   const queryClient = useQueryClient();
   const { user, canUsePrivateApi } = useAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -90,7 +88,6 @@ function CommunityBansScreen() {
       header={
         <PageHeader
           title={t('communities.bansTitle', { defaultValue: 'Banned from this community' })}
-          onBack={() => safeBack()}
           backLabel={t('common.back', { defaultValue: 'Back' })}
         />
       }

@@ -19,12 +19,7 @@ jest.mock('@oxy.so/bloom/subscription-plans', () => ({
   },
 }));
 jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
-jest.mock('@oxy.so/bloom/screen', () => {
-  const Pass = ({ children }: { children?: import('react').ReactNode }) => children;
-  return { Screen: Pass, ScreenScrollView: Pass };
-});
 jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: { primary: '#000' } }) }));
-jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
 
 /** /plus sells Mention Plus through the cheapest Oxy One plan that bundles it. */
 it('offers Mention Plus at the entry Oxy One price and opens Oxy One to get it', () => {

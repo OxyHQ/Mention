@@ -10,7 +10,7 @@ import { View, Text, TextInput, TouchableOpacity, Pressable, ScrollView } from '
 // this is a MOVE: the stylesheet left, the several hundred `styles.x` references
 // did not change.
 import { composeStyles as styles } from './ComposeScreen.styles';
-import Ionicons from '@/components/common/Ionicons';
+import { RiBriefcase4Line } from '@oxy.so/bloom/icons/RiBriefcase4Line';
 import { logger } from '@oxy.so/core/logger';
 import { classifyApiError, normalizeApiError, type ApiErrorReason } from '@/utils/apiError';
 import { OxyAuthPrompt, useAuth, useOxy } from '@oxy.so/services/ui/client';
@@ -3203,10 +3203,10 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                           { justifyContent: 'center' },
                                         ]}
                                       >
-                                        <Ionicons
-                                          name="briefcase-outline"
-                                          size={20}
-                                          color={theme.colors.primary}
+                                        <RiBriefcase4Line
+                                          width={20}
+                                          height={20}
+                                          fill={theme.colors.primary}
                                         />
                                         <Text
                                           numberOfLines={2}
@@ -3693,7 +3693,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
               <ChipRow
                 style={styles.bottomBarChips}
                 contentInset={16}
-                fadeColor={theme.colors.card}
                 accessibilityLabel={t('compose.batchSettings.a11y', {
                   defaultValue: 'Post settings',
                 })}

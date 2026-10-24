@@ -1,34 +1,21 @@
 import { useEffect } from 'react';
-import { AppState, Platform } from 'react-native';
-import { useIsFocused } from '@/lib/navigation/router';
-import { useScreenViewport } from '@oxy.so/bloom/screen';
+import { useScreenVisible } from '@oxy.so/bloom/screen';
 import type { FeedImpressionTracker } from '@/utils/feedTelemetry';
 
-/** Viewport intersection alone remains true under another route or background app. */
+/**
+ * Dwell accrues only while the reader can see the feed: its Screen is in front
+ * and the app is in the foreground. Viewport intersection alone stays true under
+ * another route or a backgrounded app. `visibleOutsideApp` is an OS
+ * Picture-in-Picture window, which stays visible either way.
+ */
 export function useFeedVisibility(
   trackerRef: { current: FeedImpressionTracker },
   visibleOutsideApp = false,
 ): void {
-  const focused = useIsFocused();
-  const screenActive = useScreenViewport()?.active !== false;
+  const visible = useScreenVisible() || visibleOutsideApp;
   const tracker = trackerRef.current;
   useEffect(() => {
-    const update = () => {
-      const foreground =
-        Platform.OS === 'web'
-          ? typeof document === 'undefined' || document.visibilityState !== 'hidden'
-          : AppState.currentState === null || AppState.currentState === 'active';
-      tracker.setActive(visibleOutsideApp || (focused && screenActive && foreground));
-    };
-    update();
-    const subscription = AppState.addEventListener('change', update);
-    if (Platform.OS === 'web' && typeof document !== 'undefined')
-      document.addEventListener('visibilitychange', update);
-    return () => {
-      subscription.remove();
-      if (Platform.OS === 'web' && typeof document !== 'undefined')
-        document.removeEventListener('visibilitychange', update);
-      tracker.setActive(false);
-    };
-  }, [tracker, focused, screenActive, visibleOutsideApp]);
+    tracker.setActive(visible);
+    return () => tracker.setActive(false);
+  }, [tracker, visible]);
 }

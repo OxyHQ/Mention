@@ -2,6 +2,7 @@ import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/common/EmptyState';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { useSupervisionState } from '@/hooks/useSupervisionState';
 
 /** Unreviewed product surfaces are unavailable, not a request to weaken protection. */
@@ -31,7 +32,7 @@ export function SupervisedFeatureGate({
   if (state.supervised && !allowSupervised)
     return (
       <EmptyState
-        icon={{ name: 'lock-closed-outline' }}
+        icon={RiLockLine}
         title={t('safety.unavailableTitle')}
         subtitle={t('safety.unavailableDescription')}
       />

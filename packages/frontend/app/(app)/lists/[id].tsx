@@ -19,7 +19,6 @@ import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
 import { RiUserAddFill } from '@oxy.so/bloom/icons/RiUserAddFill';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import * as Clipboard from 'expo-clipboard';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useQuery } from '@tanstack/react-query';
@@ -78,7 +77,6 @@ function ListDetailScreen() {
   const { user } = useAuth();
   const theme = useTheme();
   const { t } = useTranslation();
-  const safeBack = useSafeBack();
 
   const [list, setList] = useState<ListData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -307,14 +305,7 @@ function ListDetailScreen() {
   // Loading state
   if (loading) {
     return (
-      <Screen
-        header={
-          <PageHeader
-            onBack={() => safeBack()}
-            backLabel={t('common.back', { defaultValue: 'Back' })}
-          />
-        }
-      >
+      <Screen header={<PageHeader backLabel={t('common.back', { defaultValue: 'Back' })} />}>
         <ScreenScrollView>
           <DetailSkeleton />
         </ScreenScrollView>
@@ -329,7 +320,6 @@ function ListDetailScreen() {
         header={
           <PageHeader
             title={t('lists.detail.title')}
-            onBack={() => safeBack()}
             backLabel={t('common.back', { defaultValue: 'Back' })}
           />
         }
@@ -350,7 +340,6 @@ function ListDetailScreen() {
       header={
         <PageHeader
           title={list.title || t('lists.detail.title')}
-          onBack={() => safeBack()}
           backLabel={t('common.back', { defaultValue: 'Back' })}
           actions={headerActions}
         />
