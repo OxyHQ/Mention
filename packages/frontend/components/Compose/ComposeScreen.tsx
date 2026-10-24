@@ -3693,7 +3693,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
               <ChipRow
                 style={styles.bottomBarChips}
                 contentInset={16}
-                fadeColor={theme.colors.card}
                 accessibilityLabel={t('compose.batchSettings.a11y', {
                   defaultValue: 'Post settings',
                 })}

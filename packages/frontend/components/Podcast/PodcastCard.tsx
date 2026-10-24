@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { RiRadioLine } from '@oxy.so/bloom/icons/RiRadioLine';
-import { RiVideoLine } from '@oxy.so/bloom/icons/RiVideoLine';
+import { RiYoutubeFill } from '@oxy.so/bloom/icons/RiYoutubeFill';
 import Svg, { Path } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
 import { Card } from '@oxy.so/bloom/card';
@@ -119,7 +119,7 @@ const ProviderRow = ({ provider, className }: { provider: Provider; className?: 
     ) : provider.glyph === 'apple' ? (
       <RiAppleFill width={13} height={13} fill={WHITE_MUTED} />
     ) : provider.glyph === 'youtube' ? (
-      <RiVideoLine width={13} height={13} fill={WHITE_MUTED} />
+      <RiYoutubeFill width={13} height={13} fill={WHITE_MUTED} />
     ) : (
       <RiRadioLine width={13} height={13} fill={WHITE_MUTED} />
     )}
