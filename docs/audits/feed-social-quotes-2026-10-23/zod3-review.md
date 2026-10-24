@@ -37,7 +37,7 @@ forced Zod 4 transitive override.
 
 | Remaining consumer | Mention use and compensating boundary |
 | --- | --- |
-| `@expo/cli` 58.1.13 | Developer/CI Expo tooling; not a backend request or shipped application schema. Its inputs are the repository's build configuration. |
+| `@expo/cli` 58.1.15 | Developer/CI Expo tooling; not a backend request or shipped application schema. Its inputs are the repository's build configuration. Re-reviewed for 58.1.15 (from 58.1.13): the same two Zod consumers (`start/server/DevToolsPlugin.schema.js`, `start/server/createMCPDevToolsExtensionSchema.js`), byte-identical, and the same `zod` range. |
 | `@oxy.so/core` 6.17.0 | Its direct Zod schema is scalar app-assertion claims, with a 4096-byte token cap. Capability tickets verify the trusted signature before parsing claims. The actor chain comes from the session authority and contains scalars. Service scope options are application-owned, not request-body arrays. |
 | `@oxy.so/contracts` 5.8.0 | Actual server collection validators receive configured Oxy-authority responses or application-built inputs. `contentAccessBatcher.sendBatches` and `authorPublicationPolicies` chunk inputs to at most 100 before invoking the SDK. MCP catalogs are built from static tool definitions; actual MCP tool inputs use patched `zod/v4`. External-identity validators consume Oxy responses, not raw federated request bodies. |
 | `@oxy.so/protocol` 1.5.0 | Mention's NodeClient pulls bounded record pages. The envelope schema treats `record` as opaque values; the app record is validated using Mention's patched Zod 4 schemas. Mention uses its own `mentionVerificationResolver` calling configured Oxy `identity.resolveDid`; it does not invoke the protocol's exported arbitrary-host DID resolver. |
