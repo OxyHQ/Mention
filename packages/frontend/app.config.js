@@ -220,16 +220,17 @@ module.exports = (_config) => {
           // Re-encodes the generated bitmap resources into real lossless
           // WebP — Expo emits PNG bytes whatever extension it writes. See
           // the plugin header for the @expo/image-utils bug behind it.
+          // Needs `sharp` (a devDependency of this package).
           //
           // Registered FIRST so that it RUNS LAST. `withMod`'s
           // `interceptingMod` awaits its own action and only then calls
           // `nextMod` (the previously registered mod), so the mod chain
           // executes in reverse registration order. It has to run after
-          // every image generator: `withSplashBranding` rewrites the
+          // every image generator: `@oxy.so/expo-splash` rewrites the
           // splash images, and when this ran before it the tree ended up
           // with both a `.png` and a `.webp` claiming the same
           // `@drawable/splashscreen_logo` resource name.
-          './plugins/withAndroidWebpMipmaps',
+          '@oxy.so/app-preset/plugin/withOxyAndroidWebp',
           [
             // Async routes split each route into its own lazy chunk under
             // `_expo/static/js/web/` so heavy screens (compose, videos,
@@ -259,7 +260,7 @@ module.exports = (_config) => {
               // (bbox diagonal ~136dp) — comfortably inside the ~160dp
               // safe circle. (The prior 320 pushed the M to ~167×182dp,
               // which the circle clipped.) Oxy branding is pinned to the
-              // bottom by the `withSplashBranding` plugin below (the
+              // bottom by the `@oxy.so/expo-splash` plugin below (the
               // "Instagram, from Meta" pattern).
               image: './assets/images/splash-logo.png',
               imageWidth: 176,
@@ -381,8 +382,8 @@ module.exports = (_config) => {
                 // deliberately small: react-native, expo-modules-core,
                 // reanimated and @livekit/* already ship their own rules
                 // as consumerProguardFiles inside their AARs, and
-                // over-keeping would cancel the R8 optimization that
-                // withAndroidReleaseBuild turns on.
+                // over-keeping would cancel R8's optimization (SDK 58's
+                // template already uses proguard-android-optimize.txt).
                 extraProguardRules: [
                   '# Readable production stack traces: R8 optimize rewrites line numbers',
                   '# when inlining, so without these the traces reaching the Play',
@@ -403,10 +404,6 @@ module.exports = (_config) => {
             },
           ],
           'expo-web-browser',
-          // Release buildType bits expo-build-properties cannot express:
-          // the R8 -optimize proguard file, and the real release signing
-          // config (credentials come from Gradle properties, never the repo).
-          './plugins/withAndroidReleaseBuild',
           [
             // Points the Android home-screen widgets (`modules/mention-widgets`)
             // at the same backend the app uses. The native module itself is
@@ -425,6 +422,12 @@ module.exports = (_config) => {
           // and DEVICE_SESSION, plus <queries> for the Commons/Accounts
           // providers, so cold boot can ask Commons for a signed identity
           // proof and share the device session (silent "Sign in with Oxy").
+          //
+          // It also owns release signing (services 13.4+): the release
+          // buildType is always signed from the OXY_UPLOAD_* Gradle
+          // properties (never the repo) and the build FAILS unless the
+          // certificate is the Oxy ecosystem one. No signing plugin of
+          // Mention's own may edit build.gradle; prebuild refuses one.
           '@oxy.so/services/plugins/withOxySharedPermissions',
         ];
 
@@ -456,14 +459,17 @@ module.exports = (_config) => {
           // this plugin augments). Android 12+ uses the official branding
           // slot; iOS adds a bottom-pinned UIImageView to the storyboard.
           base.push([
-            './plugins/withSplashBranding',
+            '@oxy.so/expo-splash',
             {
+              // Mention's own branding images, not the package's bundled
+              // ones (which differ byte for byte).
+              //
               // ANDROID: authored at the OS branding container's 2.5:1
               // aspect (200:80) — a small centered Oxy symbol inside
               // transparent padding — because the OS STRETCHES this
               // drawable to fill that container (it is set as a View
               // background, not FIT_CENTER). See the plugin header.
-              image: './assets/images/splash-branding-oxy.png',
+              androidImage: './assets/images/splash-branding-oxy.png',
               // iOS: the TIGHT square Oxy symbol. iOS uses
               // scaleAspectFit (no container stretch), so it needs the
               // symbol without the Android 2.5:1 padding.
