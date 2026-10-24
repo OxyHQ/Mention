@@ -20,7 +20,6 @@ import Animated, {
   useSharedValue,
   type AnimatedProps,
 } from 'react-native-reanimated';
-import { useReselectScroller } from '@/context/ScreenReselectContext';
 import { useIsFocused } from '@/lib/navigation/router';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
 import { useRevealOwnNewPost } from '@/hooks/useRevealOwnNewPost';
@@ -531,18 +530,13 @@ const Feed = (props: FeedProps) => {
   });
 
   // The feed is its Screen's scroller: Bloom drives the chrome from it, pads it
-  // clear of the header and the bottom bar, and records its metrics.
+  // clear of the header and the bottom bar, records its metrics, and moves it
+  // on a reselect.
   const screenScroll = useScreenScroll({
     active: isFocused && screenActive && ownsScroll,
     handler: handleScrollEvent,
+    scrollToOffset: (offset) => flatListRef.current?.scrollToOffset({ offset, animated: true }),
   });
-  useReselectScroller(
-    {
-      offset: () => screenScroll.scrollY.value,
-      scrollToOffset: (offset) => flatListRef.current?.scrollToOffset({ offset, animated: true }),
-    },
-    ownsScroll,
-  );
 
   // Memoize RefreshControl to prevent recreation on every render.
   const refreshControl = useMemo(() => {

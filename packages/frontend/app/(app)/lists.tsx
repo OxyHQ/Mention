@@ -16,7 +16,7 @@ import { SEO } from '@/components/SEO';
 import { ListCard as ListCardComponent, type ListCardData } from '@/components/ListCard';
 import { EmptyState } from '@/components/common/EmptyState';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { useScreenReselect } from '@/context/ScreenReselectContext';
+import { ScreenReselect } from '@/components/common/ScreenReselect';
 import { SignInRequired } from '@/components/common/SignInRequired';
 
 const FOLLOWED_LIST_PAGE_SIZE = 50;
@@ -92,8 +92,6 @@ function ListsScreen() {
     () => queryClient.invalidateQueries({ queryKey: viewerQueryKeys.listsRoot(viewerId) }),
     [queryClient, viewerId],
   );
-  useScreenReselect({ refresh: refreshLists });
-
   // Refresh both collections when a list is created/renamed/deleted anywhere
   // (membership/metadata changes broadcast through notifyListChanged).
   useEffect(() => subscribeToListChanges(refreshLists), [refreshLists]);
@@ -188,6 +186,7 @@ function ListsScreen() {
           />
         }
       >
+        <ScreenReselect refresh={refreshLists} />
         <SignInRequired
           label={t('lists.signInRequired', { defaultValue: 'Sign in to use lists' })}
           description={t('lists.signInRequiredDesc', {

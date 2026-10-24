@@ -87,9 +87,8 @@ jest.mock('@oxy.so/bloom/screen', () => {
       {children}
     </MockView>
   );
-  return { Screen: Pass, ScreenScrollView: Pass };
+  return { Screen: Pass, ScreenScrollView: Pass, useScreenReselectHandler: () => {} };
 });
-jest.mock('@/context/ScreenReselectContext', () => ({ useScreenReselect: () => {} }));
 
 import ListsScreen from '../lists';
 

@@ -23,7 +23,12 @@ import Animated, {
 } from 'react-native-reanimated';
 import { BloomColorScope, useTheme } from '@oxy.so/bloom/theme';
 import { IconButton } from '@oxy.so/bloom/button';
-import { Screen, ScreenPager, type ScreenPagerHandle } from '@oxy.so/bloom/screen';
+import {
+  Screen,
+  ScreenPager,
+  type ScreenPagerHandle,
+  useScreenReselect,
+} from '@oxy.so/bloom/screen';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useOptionalPanelRouter } from '@oxy.so/bloom/panel-routing';
 import {
@@ -52,7 +57,7 @@ import { RiUpload2Line } from '@oxy.so/bloom/icons/RiUpload2Line';
 import { RiVerifiedBadgeFill } from '@oxy.so/bloom/icons/RiVerifiedBadgeFill';
 import { VERIFIED_BADGE_COLOR } from '@/styles/colors';
 import { useRouter, useLocalSearchParams, useIsFocused } from '@/lib/navigation/router';
-import { useReselectReloadKey, useTabSelect } from '@/context/ScreenReselectContext';
+import { ScreenReselect } from '@/components/common/ScreenReselect';
 import { usePostsStore } from '@/stores/postsStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { feedService } from '@/services/feedService';
@@ -1504,10 +1509,7 @@ export default function VideosScreen() {
 
   // Reselecting the tab away from the first slide goes back to it; on the
   // first slide it rebuilds the reel (`reloadNonce` re-runs the load below).
-  const reloadNonce = useReselectReloadKey({
-    isAtTop: () => currentVisibleIndex === 0,
-    scrollToTop: scrollReelToTop,
-  });
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   // Initial load + tab switch + reload. Target first (own try/catch), then the ranked
   // chain. `viewerId` rebuilds the reel when the session resolves on cold boot
@@ -1693,7 +1695,10 @@ export default function VideosScreen() {
     };
   }, []);
 
-  const handleSelectFeed = useTabSelect(activeFeed, setActiveFeed);
+  // The feed already selected reselects the screen instead.
+  const reselect = useScreenReselect();
+  const handleSelectFeed = (feed: VideoFeedTab) =>
+    feed === activeFeed ? reselect() : setActiveFeed(feed);
 
   // Web: ↑/↓ arrow keys page the reel. Ignored while typing into an input /
   // textarea / contenteditable so the composer and search are unaffected.
@@ -2147,6 +2152,11 @@ export default function VideosScreen() {
             />
           }
         >
+          <ScreenReselect
+            isAtTop={() => currentVisibleIndex === 0}
+            scrollToTop={scrollReelToTop}
+            refresh={() => setReloadNonce((nonce) => nonce + 1)}
+          />
           <View
             className="w-full native:flex-1"
             onLayout={

@@ -10,7 +10,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { useTranslation } from 'react-i18next';
 import type { Experience } from '@clarity.surf/sdk/experience';
 import { organizationDirectoryQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { useScreenReselect } from '@/context/ScreenReselectContext';
+import { useScreenReselectHandler } from '@oxy.so/bloom/screen';
 import type { Organization, SafetyOrganizationIdentity } from '@oxy.so/contracts';
 import { useSupervisionState } from '@/hooks/useSupervisionState';
 import { ExperienceEditor } from './ExperienceEditor';
@@ -121,7 +121,7 @@ export function ProfileExperience({
   }));
   for (const { organization } of employers.data?.items ?? [])
     companies.set(organization.accountId, organization);
-  useScreenReselect({
+  useScreenReselectHandler({
     refresh: async () => {
       await Promise.all([query.refetch(), ...(employerIds.length ? [employers.refetch()] : [])]);
     },

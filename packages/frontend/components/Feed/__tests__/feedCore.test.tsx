@@ -117,7 +117,6 @@ jest.mock('@oxy.so/bloom/screen', () => ({
     scrollY: { value: 0 },
   }),
 }));
-jest.mock('@/context/ScreenReselectContext', () => ({ useReselectScroller: () => undefined }));
 jest.mock('@oxy.so/bloom/scroll', () => ({ useScrollRestoration: () => undefined }));
 jest.mock('@oxy.so/bloom/layout', () => ({ useHeaderDockInset: () => 0 }));
 

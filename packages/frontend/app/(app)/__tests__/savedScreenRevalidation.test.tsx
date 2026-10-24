@@ -15,6 +15,8 @@ jest.mock('@oxy.so/bloom/screen', () => ({
       {bottomBar}
     </>
   ),
+  // Reselect is Bloom's (covered there); this suite is about the data.
+  useScreenReselectHandler: () => {},
 }));
 import { useEffect, type ReactNode } from 'react';
 import type React from 'react';
@@ -80,12 +82,6 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({}),
   useFocusEffect: jest.fn(),
   Link: () => null,
-}));
-
-// Reselect is the shell's (covered on its own); this suite is about the data.
-jest.mock('@/context/ScreenReselectContext', () => ({
-  useScreenReselect: () => {},
-  useTabSelect: (_active: unknown, select: (tab: unknown) => void) => select,
 }));
 
 // The header dock is layout, not the code under test.

@@ -1,7 +1,5 @@
 import { FeedUpdatePolicyProvider } from '@/components/Feed/FeedUpdatePolicy';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { ScreenReselectProvider } from '@/context/ScreenReselectContext';
-import { DocumentScrollProvider } from '@/context/DocumentScroll';
 import { Suspense, useState } from 'react';
 import { PanelRouterProvider, PanelRouteSlot } from '@oxy.so/bloom/panel-routing';
 import { Screen } from '@oxy.so/bloom/screen';
@@ -193,16 +191,12 @@ export function DeckColumnHeaderActions({ panelId }: { panelId: string }) {
 export function DeckColumn({ panelId }: { panelId: string }) {
   const settings = useDeckSettings((state) => state.panels[panelId]);
   return (
-    <DocumentScrollProvider>
-      <FeedUpdatePolicyProvider
-        enabled={settings.liveUpdates ?? false}
-        pauseWhileReading={settings.pauseWhileReading ?? true}
-      >
-        <ScreenReselectProvider>
-          <DeckColumnContent />
-        </ScreenReselectProvider>
-      </FeedUpdatePolicyProvider>
-    </DocumentScrollProvider>
+    <FeedUpdatePolicyProvider
+      enabled={settings.liveUpdates ?? false}
+      pauseWhileReading={settings.pauseWhileReading ?? true}
+    >
+      <DeckColumnContent />
+    </FeedUpdatePolicyProvider>
   );
 }
 

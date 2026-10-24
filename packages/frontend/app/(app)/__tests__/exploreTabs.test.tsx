@@ -18,9 +18,12 @@ jest.mock('@oxy.so/bloom/screen', () => ({
 import TestRenderer, { act } from 'react-test-renderer';
 
 const mockPush = jest.fn();
-const mockReselect = jest.fn();
 let mockPathname = '/explore';
-type TabsProps = { value: string; onValueChange: (value: string) => void };
+type TabsProps = {
+  value: string;
+  onValueChange: (value: string) => void;
+  pressOpenTab?: 'report' | 'reselect';
+};
 let mockTabsProps: TabsProps | undefined;
 
 jest.mock('expo-router', () => ({
@@ -41,12 +44,6 @@ jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ isDark: false }) })
 jest.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
 jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
 jest.mock('@/components/SEO', () => ({ SEO: () => null }));
-jest.mock('@/context/ScreenReselectContext', () => ({
-  useTabSelect:
-    <T,>(active: T, select: (tab: T) => void) =>
-    (tab: T) =>
-      tab === active ? mockReselect() : select(tab),
-}));
 
 // The mocks above must be installed first.
 import ExploreLayout from '../explore/_layout';
@@ -75,12 +72,9 @@ describe('Explore tabs', () => {
   it('pushes the route of any other tab', () => {
     renderAt('/explore').onValueChange('trending');
     expect(mockPush).toHaveBeenCalledWith('/explore/trending');
-    expect(mockReselect).not.toHaveBeenCalled();
   });
 
   it('reselects the tab already open instead of pushing it again', () => {
-    renderAt('/explore/media').onValueChange('media');
-    expect(mockReselect).toHaveBeenCalledTimes(1);
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(renderAt('/explore/media').pressOpenTab).toBe('reselect');
   });
 });
