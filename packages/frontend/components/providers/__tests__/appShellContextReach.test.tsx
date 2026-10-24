@@ -6,7 +6,7 @@ import type { OxyServices } from '@oxy.so/core';
 
 import { AppProviders } from '../AppProviders';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
-import { useVideoPlayback } from '@/context/VideoPlaybackContext';
+import { useVideoPlayback } from '@oxy.so/bloom/video-playback';
 import { useVideosRail } from '@/context/VideosRailContext';
 import { usePostInteractions, type PostInteractions } from '@/components/Feed/postInteractions';
 
