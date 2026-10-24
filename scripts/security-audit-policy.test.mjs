@@ -56,25 +56,25 @@ for (const [name, mutate] of [
   [
     'changed vulnerable version',
     (input) => {
-      input.packages['@oxy.so/core/zod'] = ['zod@3.25.75'];
+      input.packages['@expo/cli/zod'] = ['zod@3.25.75'];
     },
   ],
   [
     'changed owner',
     (input) => {
-      input.packages['@oxy.so/core'] = ['@oxy.so/core@6.17.1'];
+      input.packages['@expo/cli'] = ['@expo/cli@58.1.16'];
     },
   ],
   [
     'missing owner',
     (input) => {
-      delete input.packages['@oxy.so/core'];
+      delete input.packages['@expo/cli'];
     },
   ],
   [
     'removed resolution requires retiring the review',
     (input) => {
-      delete input.packages['@oxy.so/core/zod'];
+      delete input.packages['@expo/cli/zod'];
     },
   ],
   [
@@ -110,7 +110,7 @@ for (const [name, mutate] of [
   [
     'invalid installed version',
     (input) => {
-      input.packages['@oxy.so/core/zod'] = ['zod@unknown'];
+      input.packages['@expo/cli/zod'] = ['zod@unknown'];
     },
   ],
 ])
