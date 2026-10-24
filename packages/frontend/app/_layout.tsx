@@ -30,7 +30,6 @@ import { useAppLanguage } from '@/hooks/useAppLanguage';
 // Services & Utils
 import { oxyServices } from '@/lib/oxyServices';
 import { queryClient } from '@/lib/queryClient';
-import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { AppInitializer } from '@/lib/appInitializer';
 import { logger } from '@oxy.so/core/logger';
@@ -70,7 +69,7 @@ if (Platform.OS !== 'web') {
 // rendition `variant` a caller forwards. This resolver is AVATAR-ONLY in practice
 // — its only consumers are Bloom's <Avatar>/<AvatarGroup> and <ZoomableAvatar>
 // (post media, banners and link previews resolve through their own dedicated
-// getFileDownloadUrl paths). When a caller omits `variant`, default to the 128px
+// SDK paths). When a caller omits `variant`, default to the 128px
 // square `avatar` crop (MEDIA_VARIANT_AVATAR) so bare-id avatars stay light.
 // Larger avatars (profile header, settings) request an explicit heavier variant
 // at their call site rather than relying on this default, so they are never
@@ -78,8 +77,7 @@ if (Platform.OS !== 'web') {
 // small avatars must ALSO pass an explicit variant={MEDIA_VARIANT_AVATAR} — this
 // default only covers direct useImageResolver callers that omit it.
 function resolveImageSource(fileId: string, variant?: string): string | undefined {
-  const url = getCachedFileDownloadUrlSync(oxyServices, fileId, variant ?? MEDIA_VARIANT_AVATAR);
-  return url && url.startsWith('http') ? url : undefined;
+  return fileId ? oxyServices.assets.renderUrl(fileId, variant ?? MEDIA_VARIANT_AVATAR) : undefined;
 }
 
 export default function RootLayout() {

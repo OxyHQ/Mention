@@ -7,11 +7,7 @@ import { syraLinkedClient } from '@/lib/syraApi';
 import { useTheme as useBloomTheme } from '@oxy.so/bloom/theme';
 import { useUserById } from '@/hooks/useCachedUser';
 import { queryClient } from '@/lib/queryClient';
-import {
-  getCachedFileDownloadUrl,
-  getCachedFileDownloadUrlSync,
-  isFileUrlResolver,
-} from '@/utils/imageUrlCache';
+import type { OxyServices } from '@oxy.so/core';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { toast } from '@oxy.so/bloom/toast';
 import i18n from '@/lib/i18n';
@@ -60,35 +56,44 @@ const ensureUserById: LiveConfig['ensureUserById'] = (id, loader) =>
  */
 const translate: NonNullable<LiveConfig['t']> = (key, options) => String(i18n.t(key, options));
 
+type AssetUrls = Pick<OxyServices['assets'], 'url' | 'renderUrl'>;
+
 /**
  * The live-room engine's media seam. `LiveConfig` declares both resolver hooks
  * with an `unknown` first parameter, so this is the ONE place an untyped client
- * enters — narrow it here rather than weakening `imageUrlCache`'s own signatures
- * for every other caller. A value that carries neither resolver method (the
- * engine has no client yet) degrades to the reference itself, exactly as the
- * resolvers already do for a missing client.
+ * enters — narrow it here. A value without the SDK's asset URL methods (the
+ * engine has no client yet) degrades to the reference itself.
  */
+function hasAssetUrls(value: unknown): value is { assets: AssetUrls } {
+  if (typeof value !== 'object' || value === null || !('assets' in value)) return false;
+  const assets: unknown = value.assets;
+  return (
+    typeof assets === 'object' &&
+    assets !== null &&
+    'renderUrl' in assets &&
+    typeof assets.renderUrl === 'function' &&
+    'url' in assets &&
+    typeof assets.url === 'function'
+  );
+}
+
 const resolveLiveFileUrl: LiveConfig['getCachedFileDownloadUrlSync'] = (
   oxyServices,
   fileId,
   variant,
-) =>
-  getCachedFileDownloadUrlSync(
-    isFileUrlResolver(oxyServices) ? oxyServices : undefined,
-    fileId,
-    variant,
-  );
+) => (hasAssetUrls(oxyServices) ? oxyServices.assets.renderUrl(fileId, variant) : fileId);
 
-const resolveLiveFileUrlAsync: LiveConfig['getCachedFileDownloadUrl'] = (
+/** Never rejects: a reference the API cannot resolve renders as `renderUrl` would. */
+const resolveLiveFileUrlAsync: LiveConfig['getCachedFileDownloadUrl'] = async (
   oxyServices,
   fileId,
   variant,
-) =>
-  getCachedFileDownloadUrl(
-    isFileUrlResolver(oxyServices) ? oxyServices : undefined,
-    fileId,
-    variant,
-  );
+) => {
+  if (!hasAssetUrls(oxyServices)) return fileId;
+  const { assets } = oxyServices;
+  if (fileId.startsWith('http://') || fileId.startsWith('https://')) return fileId;
+  return assets.url(fileId, variant).catch(() => assets.renderUrl(fileId, variant));
+};
 
 /**
  * Resolve the viewer's pinned Syra podcast from their profile media so the

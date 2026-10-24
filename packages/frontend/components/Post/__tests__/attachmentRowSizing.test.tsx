@@ -36,7 +36,9 @@ jest.mock('@/components/Podcast/PostPodcastAttachment', () => ({
   PostPodcastAttachment: capture('podcast'),
 }));
 jest.mock('@/components/Post/JobCard', () => ({ __esModule: true, default: capture('job') }));
-jest.mock('@/lib/oxyServices', () => ({ oxyServices: {} }));
+jest.mock('@/lib/oxyServices', () => ({
+  oxyServices: { assets: { renderUrl: (id: string) => `https://cdn/${id}` } },
+}));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 jest.mock('@oxy.so/bloom/zoomable-image-gallery', () => ({ ZoomableMediaGallery: () => null }));
 jest.mock('@oxy.so/bloom/media-flight', () => ({
@@ -47,8 +49,7 @@ jest.mock('@/stores/videoPlayerRegistry', () => ({
   peekVideoPlayer: () => undefined,
   videoPlayerKey: (postId: string, mediaId: string) => `${postId}:${mediaId}`,
 }));
-jest.mock('@/utils/imageUrlCache', () => ({
-  getCachedFileDownloadUrlSync: (_s: unknown, id: string) => `https://cdn/${id}`,
+jest.mock('@/utils/mediaUrls', () => ({
   videoPosterUrl: (id: string) => `https://cdn/${id}?poster`,
 }));
 jest.mock('@/stores/externalEmbedsStore', () => ({

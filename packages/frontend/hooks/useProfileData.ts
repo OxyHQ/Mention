@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useUserByUsername } from '@oxy.so/services/ui/client';
 import { useAuth } from '@oxy.so/services/ui/client';
-import type { AccountCategoryId, AccountKind, User } from '@oxy.so/core';
+import type { AccountCategoryId, AccountKind, OxyServices, User } from '@oxy.so/core';
 import {
   useAppearanceStore,
   type UserAppearance,
@@ -12,7 +12,6 @@ import { MEDIA_VARIANT_BANNER } from '@mention/shared-types/post';
 import type { Community } from '@/components/Profile/types';
 import type { RemoteProfileMove } from '@mention/shared-types/profile';
 import { displayNameOrHandle } from '@/utils/displayName';
-import { getCachedFileDownloadUrlSync, type FileUrlResolver } from '@/utils/imageUrlCache';
 import { isPublicProfileHandle } from '@/utils/publicProfileHandle';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { profileAccountFacts } from '@/utils/profileAccountFacts';
@@ -141,11 +140,11 @@ export interface ProfileData {
 function computeDesign(
   profile: User,
   appearance: UserAppearance | null | undefined,
-  oxyServices: FileUrlResolver,
+  oxyServices: Pick<OxyServices, 'assets'>,
 ): ProfileDesign {
   const bannerRef = appearance?.profileHeaderImage;
   const bannerUrl = bannerRef
-    ? getCachedFileDownloadUrlSync(oxyServices, bannerRef, MEDIA_VARIANT_BANNER)
+    ? oxyServices.assets.renderUrl(bannerRef, MEDIA_VARIANT_BANNER)
     : undefined;
 
   return {

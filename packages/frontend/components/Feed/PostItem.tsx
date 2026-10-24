@@ -353,8 +353,7 @@ const PostItem: React.FC<PostItemProps> = ({
   // Avatar ignores `variant` entirely when `source` turns out to be an
   // already-absolute URL (rendered straight through) and only applies it
   // when resolving a bare Oxy file id, so there's nothing for this
-  // component to detect or branch on. We no longer pre-resolve the file id
-  // with `useImageUrl`.
+  // component to detect or branch on.
   //
   // A CHANNEL post has no separate signature to paint: a channel is an Oxy
   // account, so it IS the author and its avatar arrives in `user.avatar` like

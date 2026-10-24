@@ -32,7 +32,7 @@ import JobCard from '@/components/Post/JobCard';
 import { PostPodcastAttachment } from '@/components/Podcast/PostPodcastAttachment';
 import { MEDIA_CARD_RADIUS } from '@/utils/composeUtils';
 import { LazyZoomableGallery } from '@/components/common/LazyZoomableGallery';
-import { getCachedFileDownloadUrlSync, videoPosterUrl } from '@/utils/imageUrlCache';
+import { videoPosterUrl } from '@/utils/mediaUrls';
 import { readMediaAspectRatio } from '@/utils/mediaTypes';
 import type {
   ZoomableMediaGalleryHandle,
@@ -360,7 +360,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
               ? MEDIA_VARIANT_FULL
               : MEDIA_VARIANT_THUMB;
         try {
-          return getCachedFileDownloadUrlSync(oxyServices, id, fallbackVariant);
+          return oxyServices.assets.renderUrl(id, fallbackVariant);
         } catch {
           return id;
         }

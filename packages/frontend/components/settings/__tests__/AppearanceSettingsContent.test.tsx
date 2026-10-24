@@ -11,8 +11,8 @@ jest.mock('@/stores/appearanceStore', () => ({
   useAppearanceStore: (selector: (state: unknown) => unknown) =>
     selector({ mySettings: { appearance: {} }, updateMySettings: mockSave }),
 }));
-jest.mock('@/hooks/useAccountTheme', () => ({
-  useThemeControls: () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
+  useAccountThemeControls: () => ({
     source: 'app',
     changeThemeSource: jest.fn(),
     changeThemeMode: mockChangeMode,

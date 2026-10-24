@@ -1,24 +1,8 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { logger } from '@oxy.so/core/logger';
-import { useAccountColor, useAuth } from '@oxy.so/services/ui/client';
-import type { User } from '@oxy.so/core';
-import {
-  useBloomTheme,
-  APP_COLOR_PRESETS,
-  type AppColorName,
-  type ThemeMode,
-} from '@oxy.so/bloom/theme';
+import { useEffect, useRef } from 'react';
+import { useAccountTheme, useAuth } from '@oxy.so/services/ui/client';
+import { useBloomTheme, APP_COLOR_PRESETS, type AppColorName } from '@oxy.so/bloom/theme';
 import { useMentionColorViewer } from '@/hooks/useMentionColorViewer';
-import { useThemeSourceStore, type ThemeSource } from '@/stores/themeSourceStore';
 import { APP_DEFAULT_COLOR_PRESET, isColorEntitled } from '@/lib/colorEntitlement';
-
-/**
- * The portable account theme value that rides the Oxy user DTO
- * (`user.themePreference`). Derived from the SDK `User` so the type always
- * tracks the published contract without importing `@oxy.so/contracts` directly.
- */
-type AccountTheme = NonNullable<User['themePreference']>;
-type PortableThemeMode = AccountTheme['mode'];
 
 /**
  * Bumped by every explicit preset choice, so a preset withheld while authority
@@ -36,51 +20,18 @@ function isAppColorName(value: string): value is AppColorName {
 }
 
 /**
- * Collapse Bloom's richer mode set onto the portable subset the account theme
- * stores (`adaptive` has no cross-app meaning, so it maps to `system`).
- */
-function toPortableMode(mode: ThemeMode): PortableThemeMode {
-  return mode === 'light' || mode === 'dark' ? mode : 'system';
-}
-
-/**
- * App-side theme bridge (all Oxy-specific logic lives HERE, never in Bloom).
- *
- * The COLOUR is the Oxy account colour and is always applied: it is the same
- * value every Oxy app wears, so it does not depend on the sync toggle. The
- * shared `useAccountColor` applies it, and `canUse` withholds a preset this
- * viewer is not entitled to. The MODE (`user.themePreference.mode`, which rides
- * the cold-boot session payload — zero extra fetch) is applied only while the
- * local source is `account`. Bloom's own local persistence still paints
- * instantly on cold boot, so the account theme lands without a flash once the
- * session resolves (~5–25s on web).
+ * Mention's theme bridge. The Oxy account theme (colour always, mode while this
+ * device follows the account) is the SDK's `useAccountTheme`; Mention adds only
+ * its paywall: `canUse` withholds a preset this viewer is not entitled to, and
+ * a preset already applied is revoked below.
  *
  * Mount ONCE, near the auth root.
  */
 export function useAccountThemeSync(): void {
-  const { isAuthenticated, user } = useAuth();
-  const source = useThemeSourceStore((state) => state.source);
-  const hydrated = useThemeSourceStore((state) => state.hydrated);
-  const hydrate = useThemeSourceStore((state) => state.hydrate);
-  const { colorPreset, setMode, setColorPreset } = useBloomTheme();
+  const { user } = useAuth();
+  const { colorPreset, setColorPreset } = useBloomTheme();
   const viewer = useMentionColorViewer();
-  useAccountColor({ canUse: (name) => isColorEntitled(name, viewer) });
-
-  // Resolve the persisted source once (async on native; already resolved on web).
-  useEffect(() => {
-    void hydrate();
-  }, [hydrate]);
-
-  const themePreference = user?.themePreference;
-
-  useEffect(() => {
-    // The account mode when the source is `account` and the user has one; the
-    // `app` source or an absent account theme leaves Bloom on its local mode.
-    if (!hydrated || !isAuthenticated || source !== 'account' || !themePreference) {
-      return;
-    }
-    setMode(themePreference.mode);
-  }, [hydrated, isAuthenticated, source, themePreference, setMode]);
+  useAccountTheme({ canUse: (name) => isColorEntitled(name, viewer) });
 
   // REVOKE a preset the viewer is no longer entitled to.
   //
@@ -90,17 +41,17 @@ export function useAccountThemeSync(): void {
   // and Bloom's own local persistence store a preset NAME and validate only that
   // the name exists. So the paywall held on one screen and nowhere else.
   //
-  // Deliberately NOT inside the effect above: that one is scoped to the `account`
-  // theme source, while a stale entitlement can arrive by either route — Bloom's
-  // local storage paints on cold boot before any account theme lands, and under
-  // the `app` source it is the only thing that ever paints.
+  // This runs whatever the theme source: a stale entitlement can arrive by
+  // either route — Bloom's local storage paints on cold boot before any account
+  // theme lands, and under the `app` source it is the only thing that ever paints.
   //
   // Missing authority, sign-out and account switches fall back to a free preset.
   // While the permission read is still pending that fallback is temporary: the
   // account's own choice is withheld, not discarded, and comes back once the
   // read confirms it — for the same account, and only if nothing newer was
   // chosen meanwhile. Without this a paying viewer lost a saved preset on every
-  // cold start, since the account-theme effect does not rerun on authority.
+  // cold start: only the account colour, never a preset kept on this device, is
+  // re-applied once authority arrives.
   const withheld = useRef<{ userId: string; preset: AppColorName; epoch: number } | null>(null);
   useEffect(() => {
     if (!isColorEntitled(colorPreset, viewer)) {
@@ -125,70 +76,5 @@ export function useAccountThemeSync(): void {
       withheld.current = null;
       setColorPreset(held.preset);
     }
-  }, [isAuthenticated, user, colorPreset, setColorPreset, viewer]);
-}
-
-interface ThemeControls {
-  source: ThemeSource;
-  /** Switch the local theme source; seeds the account theme when first enabled. */
-  changeThemeSource: (source: ThemeSource) => void;
-  /** Change the color mode; writes back to the account when source is `account`. */
-  changeThemeMode: (mode: ThemeMode) => Promise<void>;
-}
-
-/**
- * Source-aware theme MODE mutations for settings surfaces. Every change updates
- * Bloom immediately (local, no flash) and, when the source is `account`, persists
- * `{ mode, colorPreset }` to the Oxy account so other Oxy apps pick it up on their
- * next session load. The colour itself is chosen with `useAppColorSave`.
- */
-export function useThemeControls(): ThemeControls {
-  const { oxyServices, user, canUsePrivateApi } = useAuth();
-  const { mode, colorPreset, setMode } = useBloomTheme();
-  const storedSource = useThemeSourceStore((state) => state.source);
-  const setSource = useThemeSourceStore((state) => state.setSource);
-  // Without a usable session there is no account theme to follow or write to, so
-  // the effective source is `app`: changes stay local and the sync toggle reads
-  // off. The stored choice is untouched and applies again once signed in.
-  const source: ThemeSource = canUsePrivateApi ? storedSource : 'app';
-
-  const persistAccountTheme = useCallback(
-    (next: { mode: ThemeMode; colorPreset: AppColorName }) =>
-      oxyServices.users.updateMe({
-        themePreference: {
-          mode: toPortableMode(next.mode),
-          colorPreset: next.colorPreset,
-        },
-      }),
-    [oxyServices],
-  );
-
-  const changeThemeMode = useCallback(
-    async (nextMode: ThemeMode) => {
-      setMode(nextMode);
-      if (source === 'account') {
-        await persistAccountTheme({ mode: nextMode, colorPreset });
-      }
-    },
-    [setMode, source, persistAccountTheme, colorPreset],
-  );
-
-  const changeThemeSource = useCallback(
-    (nextSource: ThemeSource) => {
-      setSource(nextSource);
-      if (nextSource !== 'account' || !canUsePrivateApi) return;
-      // An existing account theme is applied by `useAccountThemeSync` (its effect
-      // re-runs on the source change). Only when none exists yet do we seed it
-      // from the current app theme so enabling sync captures what the user sees.
-      const pref = user?.themePreference;
-      if (!pref || !isAppColorName(pref.colorPreset)) {
-        void persistAccountTheme({ mode, colorPreset }).catch((error) => {
-          logger.error('Failed to seed account theme preference', error);
-        });
-      }
-    },
-    [setSource, canUsePrivateApi, user?.themePreference, persistAccountTheme, mode, colorPreset],
-  );
-
-  return { source, changeThemeSource, changeThemeMode };
+  }, [user, colorPreset, setColorPreset, viewer]);
 }

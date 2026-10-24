@@ -1,9 +1,8 @@
 import { useEffect } from 'react';
-import type { User } from '@oxy.so/core';
+import type { OxyServices, User } from '@oxy.so/core';
 import { queryKeys } from '@oxy.so/services/ui/client';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { queryClient } from '@/lib/queryClient';
-import { getCachedFileDownloadUrlSync, type FileUrlResolver } from '@/utils/imageUrlCache';
 
 type RoomUser = Pick<User, 'id' | 'name' | 'username' | 'avatar'>;
 
@@ -41,8 +40,8 @@ export function getDisplayName(
 
 export function getAvatarUrl(
   userProfile: RoomUser | undefined,
-  oxyServices: FileUrlResolver | null | undefined,
+  oxyServices: Pick<OxyServices, 'assets'> | null | undefined,
 ): string | undefined {
   if (!userProfile?.avatar || !oxyServices) return undefined;
-  return getCachedFileDownloadUrlSync(oxyServices, userProfile.avatar, 'thumb');
+  return oxyServices.assets.renderUrl(userProfile.avatar, 'thumb');
 }

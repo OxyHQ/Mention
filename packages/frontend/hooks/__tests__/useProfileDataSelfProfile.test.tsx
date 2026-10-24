@@ -49,7 +49,11 @@ jest.mock('@oxy.so/services/ui/client', () => {
   return {
     useAuth: () => ({
       user: mockViewer.current,
-      oxyServices: { users: { resolveHandle: mockResolveProfile }, safety: { people: mockPeople } },
+      oxyServices: {
+        users: { resolveHandle: mockResolveProfile },
+        safety: { people: mockPeople },
+        assets: { renderUrl: (ref: string) => `https://cloud.oxy.so/${ref}` },
+      },
     }),
     queryKeys: { users: { byUsername } },
     // The SDK hook's own options, verbatim — a 5-minute `staleTime`, a
@@ -79,10 +83,6 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 }));
 
 jest.mock('@mention/shared-types/post', () => ({ MEDIA_VARIANT_BANNER: 'banner' }));
-
-jest.mock('@/utils/imageUrlCache', () => ({
-  getCachedFileDownloadUrlSync: (_services: unknown, ref: string) => `https://cloud.oxy.so/${ref}`,
-}));
 
 import { useProfileData } from '@/hooks/useProfileData';
 

@@ -60,7 +60,7 @@ import { useRouter, useLocalSearchParams, useIsFocused } from '@/lib/navigation/
 import { usePostsStore } from '@/stores/postsStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { feedService } from '@/services/feedService';
-import { proxyExternalUrl, videoPosterUrl } from '@/utils/imageUrlCache';
+import { proxyExternalUrl, videoPosterUrl } from '@/utils/mediaUrls';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
