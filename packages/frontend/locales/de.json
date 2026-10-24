@@ -1405,6 +1405,7 @@
   "post.contentWarningShow": "Anzeigen",
   "post.contentWarningHide": "Ausblenden",
   "post.boostUnavailable": "Dieser Beitrag ist nicht mehr verfügbar",
+  "post.quoteUnavailable": "Dieser zitierte Beitrag ist nicht verfügbar",
   "compose.languages.pickerTitle": "Sprache des Beitrags",
   "compose.languages.alreadyAdded": "Bereits hinzugefügt",
   "compose.languages.current": "Aktuell",

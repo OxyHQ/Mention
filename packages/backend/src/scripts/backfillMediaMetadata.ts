@@ -22,12 +22,23 @@ import {
   mediaMetadataChanged,
   mediaMetadataService,
   isOxyFileId,
+  isRejectedHlsGeneration,
   mergeMediaItem,
   readPersistedMediaFields,
+  type MediaMetadataEnrichment,
 } from '../services/MediaMetadataService';
+import { invalidate as invalidatePostDetailCache } from '../services/postDetailCache';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
+import {
+  applyFileMediaMetadata,
+  type FileMediaMetadataWrite,
+} from '../services/mediaMetadataPersistence';
+import {
+  reconcileVideoMetadata,
+  readVideoReconciliationOptions,
+} from './lib/reconcileVideoMetadata';
 
 const DEFAULT_PAGE_SIZE = 200;
 
@@ -80,19 +91,20 @@ const OXY_LOOKUP_BACKOFF_MS = 2_000;
  * those posts as `unresolved`, the run reports them, and a re-run picks them up
  * because they never left the candidate set.
  */
-async function enrichWithRetry(media: MediaItem[]): Promise<MediaItem[]> {
+async function enrichWithRetry(media: MediaItem[]): Promise<MediaMetadataEnrichment> {
   // Nothing to ask Oxy about — every item is a remote URL the cache never
   // mirrored. `enrichFromOxy` returns the SAME array in that case, which is
   // also how it reports a failed lookup, so without this check a page of purely
   // federated media would be retried four times and then counted `unresolved`.
   // The two cases are told apart here rather than by the identity test below,
   // because only one of them had a question to fail at.
-  if (!media.some((item) => isOxyFileId(item.id))) return media.map((item) => ({ ...item }));
+  if (!media.some((item) => isOxyFileId(item.id)))
+    return { items: media.map((item) => ({ ...item })), rejectedHls: new Map() };
 
-  let enriched = media;
+  let enriched: MediaMetadataEnrichment = { items: media, rejectedHls: new Map() };
   for (let attempt = 1; attempt <= OXY_LOOKUP_ATTEMPTS; attempt += 1) {
-    enriched = await mediaMetadataService.enrichFromOxy(media);
-    if (enriched !== media) return enriched;
+    enriched = await mediaMetadataService.enrichFromOxyWithRejections(media);
+    if (enriched.items !== media) return enriched;
     if (attempt === OXY_LOOKUP_ATTEMPTS) break;
     const wait = OXY_LOOKUP_BACKOFF_MS * 2 ** (attempt - 1);
     logger.warn('[backfillMediaMetadata] Oxy lookup failed; retrying', {
@@ -104,106 +116,6 @@ async function enrichWithRetry(media: MediaItem[]): Promise<MediaItem[]> {
     await new Promise((resolve) => setTimeout(resolve, wait));
   }
   return enriched;
-}
-
-/** One media row's intrinsic fields, addressed by the post and its dense position. */
-interface MediaMetadataWrite {
-  postId: string;
-  position: number;
-  item: MediaItem;
-}
-
-/**
- * Write the page's intrinsic media fields — and ONLY those.
- *
- * This used to call `replacePostContent`, which is the right write for an EDIT:
- * it deletes and re-inserts the post's whole content graph — variants, media,
- * attachments, sources, mentions — inside one transaction, because a changed
- * body can change any of them. Enrichment changes none of them. It fills in seven
- * columns on rows that already exist, in place, with the same media set in the
- * same order.
- *
- * The cost of using the edit write for a repair was measured on the first live
- * run: the sweep read and enriched at 230 posts/sec in dry-run mode and wrote at
- * 8-25/sec, so ~120 ms per post went into rewriting rows whose contents were not
- * changing. On a 63,705-post backlog that is the difference between one pass and
- * several.
- *
- * The correctness argument for the addressing: `insertChildRows` writes
- * `position` from the array index and the read path orders by it, so
- * `content.media[i]` IS the row at `position = i`. One statement per page, a
- * `VALUES` join rather than a statement per row.
- *
- * Every value is cast explicitly. A `VALUES` list with a NULL in the first row
- * of a column has no type to infer, and Postgres rejects it — which is the
- * common case here, since these columns are null precisely because nothing had
- * filled them in.
- */
-async function applyMediaMetadata(writes: readonly MediaMetadataWrite[]): Promise<void> {
-  if (writes.length === 0) return;
-
-  const values = writes.map(
-    ({ postId, position, item }) => sql`(
-    ${postId}::text,
-    ${position}::integer,
-    ${item.width ?? null}::integer,
-    ${item.height ?? null}::integer,
-    ${item.durationSec ?? null}::double precision,
-    ${item.orientation ?? null}::text,
-    ${item.aspectRatio ?? null}::double precision,
-    ${item.sizeBytes ?? null}::integer,
-    ${item.hlsReadyAt ?? null}::timestamptz
-  )`,
-  );
-
-  await getDb().execute(sql`
-    update ${postMedia} set
-      width = v.width,
-      height = v.height,
-      duration_sec = v.duration_sec,
-      orientation = v.orientation,
-      aspect_ratio = v.aspect_ratio,
-      size_bytes = v.size_bytes,
-      hls_ready_at = v.hls_ready_at
-    from (values ${sql.join(values, sql`, `)})
-      as v(post_id, position, width, height, duration_sec, orientation, aspect_ratio, size_bytes, hls_ready_at)
-    where ${postMedia.postId} = v.post_id
-      and ${postMedia.position} = v.position
-  `);
-}
-
-interface FileMediaMetadataWrite {
-  rowId: string;
-  postId: string;
-  item: MediaItem;
-}
-
-/** A concurrent edit may replace a row or its file while Oxy is being read. */
-async function applyFileMediaMetadata(
-  table: typeof postMedia | typeof postVariantMedia,
-  writes: readonly FileMediaMetadataWrite[],
-): Promise<Set<string>> {
-  if (writes.length === 0) return new Set();
-  const values = writes.map(
-    ({ rowId, item }) => sql`(
-      ${rowId}::text, ${item.id}::text,
-      ${item.width ?? null}::integer, ${item.height ?? null}::integer,
-      ${item.durationSec ?? null}::double precision,
-      ${item.orientation ?? null}::text, ${item.aspectRatio ?? null}::double precision,
-      ${item.sizeBytes ?? null}::integer, ${item.hlsReadyAt ?? null}::timestamptz
-    )`,
-  );
-  const updated = await getDb().execute<{ id: string }>(sql`
-    update ${table} set
-      width = v.width, height = v.height, duration_sec = v.duration_sec,
-      orientation = v.orientation, aspect_ratio = v.aspect_ratio,
-      size_bytes = v.size_bytes, hls_ready_at = v.hls_ready_at
-    from (values ${sql.join(values, sql`, `)})
-      as v(id, media_id, width, height, duration_sec, orientation, aspect_ratio, size_bytes, hls_ready_at)
-    where ${table.id} = v.id and ${table.mediaId} = v.media_id and ${table.type} = 'video'
-    returning ${table.id}
-  `);
-  return new Set(updated.map((row) => row.id));
 }
 
 /** Refresh valid but stale metadata after Oxy replaces a video's encoding profile. */
@@ -264,17 +176,20 @@ async function refreshFileMediaMetadata(
       ...readPersistedMediaFields({ ...media, hlsReadyAt: media.hlsReadyAt?.toISOString() }),
     }));
     const lookup: MediaItem[] = [{ id: fileId, type: 'video' }];
-    const [resolved] = await enrichWithRetry(lookup);
+    const resolution = await enrichWithRetry(lookup);
+    const [resolved] = resolution.items;
+    const rejectedHlsReadyAt = resolution.rejectedHls.get(fileId);
     const metadata = resolved ? readPersistedMediaFields({ ...resolved }) : {};
     // Start the lookup without old values, so a missing or not-yet-repaired
     // asset cannot borrow its old dimensions or ladder stamp and look complete.
     if (
-      !metadata.width ||
-      !metadata.height ||
-      !metadata.durationSec ||
-      !metadata.orientation ||
-      !metadata.aspectRatio ||
-      !metadata.hlsReadyAt
+      !rejectedHlsReadyAt &&
+      (!metadata.width ||
+        !metadata.height ||
+        !metadata.durationSec ||
+        !metadata.orientation ||
+        !metadata.aspectRatio ||
+        !metadata.hlsReadyAt)
     ) {
       result.unresolved += page.length;
     } else {
@@ -284,21 +199,35 @@ async function refreshFileMediaMetadata(
         const previous = current[index];
         if (!previous) return;
         const item = mergeMediaItem(previous, metadata);
+        if (rejectedHlsReadyAt) {
+          if (!isRejectedHlsGeneration(previous.hlsReadyAt, rejectedHlsReadyAt)) return;
+          delete item.hlsReadyAt;
+        }
         if (!mediaMetadataChanged([previous], [item])) return;
         const writes = index < sharedRows.length ? sharedWrites : variantWrites;
-        writes.push({ rowId: row.media.id, postId: row.postId, item });
+        writes.push({
+          rowId: row.media.id,
+          postId: row.postId,
+          item,
+          previousHlsReadyAt: previous.hlsReadyAt ?? null,
+          rejectedHlsReadyAt,
+        });
       });
       const writes = [...sharedWrites, ...variantWrites];
       let changed = writes;
       if (!dryRun) {
-        const sharedUpdated = await applyFileMediaMetadata(postMedia, sharedWrites);
-        const variantUpdated = await applyFileMediaMetadata(postVariantMedia, variantWrites);
-        changed = [
-          ...sharedWrites.filter((write) => sharedUpdated.has(write.rowId)),
-          ...variantWrites.filter((write) => variantUpdated.has(write.rowId)),
-        ];
+        changed = await db.transaction(async (tx) => {
+          const sharedUpdated = await applyFileMediaMetadata(postMedia, sharedWrites, tx);
+          const variantUpdated = await applyFileMediaMetadata(postVariantMedia, variantWrites, tx);
+          return [
+            ...sharedWrites.filter((write) => sharedUpdated.has(write.rowId)),
+            ...variantWrites.filter((write) => variantUpdated.has(write.rowId)),
+          ];
+        });
       }
-      const updated = new Set(changed.map((write) => write.postId)).size;
+      const changedPosts = new Set(changed.map((write) => write.postId));
+      if (!dryRun) for (const postId of changedPosts) await invalidatePostDetailCache(postId);
+      const updated = changedPosts.size;
       result.updated += updated;
       result.skipped += page.length - updated;
     }
@@ -358,8 +287,8 @@ export async function backfillMediaMetadata(
   let skipped = 0;
   let unresolved = 0;
   let lastId: string | null = null;
-  /** The page's writes, applied together — see {@link applyMediaMetadata}. */
-  const pendingWrites: MediaMetadataWrite[] = [];
+  /** The page's identity-guarded intrinsic writes, applied together. */
+  const pendingWrites: FileMediaMetadataWrite[] = [];
 
   for (;;) {
     const rows = await findPostRecords(
@@ -385,15 +314,38 @@ export async function backfillMediaMetadata(
      * That is the contract this relies on, and `mediaMetadataService.test.ts`
      * pins it.
      */
+    const mediaRows = await getDb()
+      .select()
+      .from(postMedia)
+      .where(
+        inArray(
+          postMedia.postId,
+          rows.map((row) => row.id),
+        ),
+      )
+      .orderBy(postMedia.position);
+    const mediaByPost = new Map<string, typeof mediaRows>();
+    for (const media of mediaRows) {
+      const group = mediaByPost.get(media.postId) ?? [];
+      group.push(media);
+      mediaByPost.set(media.postId, group);
+    }
     const pageCandidates = rows.map((row) => {
-      const media = row.content.media;
+      const media = mediaByPost.get(row.id)?.map((entry) => ({
+        id: entry.mediaId,
+        type: entry.type,
+        ...readPersistedMediaFields({ ...entry, hlsReadyAt: entry.hlsReadyAt?.toISOString() }),
+      }));
       return Array.isArray(media) && media.length > 0 && mediaNeedsEnrichment(media) ? media : null;
     });
     const flatMedia = pageCandidates.flatMap((media) => media ?? []);
     let enrichedFlat = flatMedia;
+    let rejectedHls: ReadonlyMap<string, string> = new Map();
     let pageResolved = true;
     if (flatMedia.length > 0) {
-      enrichedFlat = await enrichWithRetry(flatMedia);
+      const resolution = await enrichWithRetry(flatMedia);
+      enrichedFlat = resolution.items;
+      rejectedHls = resolution.rejectedHls;
       // `enrichFromOxy` returns the items UNCHANGED when the lookup failed, and
       // an unchanged item is indistinguishable from "Oxy has nothing to add".
       // Identity is the only signal available, and it is the honest one: it is
@@ -425,14 +377,33 @@ export async function backfillMediaMetadata(
         continue;
       }
 
-      updated += 1;
-      if (dryRun) continue;
+      if (dryRun) {
+        updated += 1;
+        continue;
+      }
 
-      pendingWrites.push(...enriched.map((item, position) => ({ postId: row.id, position, item })));
+      const captured = mediaByPost.get(row.id) ?? [];
+      enriched.forEach((item, index) => {
+        const previous = captured[index];
+        if (!previous || previous.mediaId !== item.id) return;
+        pendingWrites.push({
+          rowId: previous.id,
+          postId: row.id,
+          item,
+          previousHlsReadyAt: previous.hlsReadyAt?.toISOString() ?? null,
+          rejectedHlsReadyAt: rejectedHls.get(item.id),
+        });
+      });
     }
 
     if (pendingWrites.length > 0) {
-      await applyMediaMetadata(pendingWrites);
+      const changed = await applyFileMediaMetadata(postMedia, pendingWrites);
+      const changedPosts = new Set(
+        pendingWrites.filter((write) => changed.has(write.rowId)).map((write) => write.postId),
+      );
+      updated += changedPosts.size;
+      skipped += new Set(pendingWrites.map((write) => write.postId)).size - changedPosts.size;
+      for (const postId of changedPosts) await invalidatePostDetailCache(postId);
       pendingWrites.length = 0;
     }
 
@@ -465,10 +436,27 @@ async function main(): Promise<void> {
     options: {
       'dry-run': { type: 'boolean', default: false },
       'file-id': { type: 'string' },
+      'refresh-videos': { type: 'boolean', default: false },
+      'limit-files': { type: 'string' },
+      'after-file-id': { type: 'string' },
+      passes: { type: 'string' },
+      'pass-delay-seconds': { type: 'string' },
     },
   });
   const dryRun = values['dry-run'];
   const fileId = values['file-id'];
+  const refreshVideos = values['refresh-videos'];
+  if (refreshVideos && fileId !== undefined) {
+    throw new Error('--refresh-videos and --file-id are mutually exclusive');
+  }
+  if (
+    !refreshVideos &&
+    ['limit-files', 'after-file-id', 'passes', 'pass-delay-seconds'].some(
+      (key) => values[key as keyof typeof values] !== undefined,
+    )
+  ) {
+    throw new Error('Reconciliation limits/cursors require --refresh-videos');
+  }
 
   try {
     assertAdminMutationAllowed({
@@ -476,6 +464,17 @@ async function main(): Promise<void> {
       dryRun,
     });
     await connectPostgres();
+    if (refreshVideos) {
+      const result = await reconcileVideoMetadata({
+        dryRun,
+        ...readVideoReconciliationOptions(values),
+      });
+      logger.info('[backfillMediaMetadata] video reconciliation finished', { dryRun, ...result });
+      if (result.alreadyRunning) return;
+      const last = result.passes[result.passes.length - 1];
+      if (!last?.reachedEnd || last.unresolved > 0) process.exitCode = EXIT_INCOMPLETE;
+      return;
+    }
     const result = await backfillMediaMetadata({ dryRun, fileId });
     logger.info('[backfillMediaMetadata] complete', { dryRun, fileId, ...result });
     // A sweep that could not resolve some posts is INCOMPLETE, not failed:

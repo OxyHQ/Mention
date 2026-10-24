@@ -50,6 +50,8 @@ export type CandidatePost = PostRecord & {
    * scoped ranking signals read it even when quality gates are disabled.
    */
   _discovery?: boolean;
+  /** Candidate currently supplied only by public followed-actor activity. */
+  _socialOnly?: boolean;
   /**
    * SHELL marker. Stamped `true` by a source (today, only For You's lanes —
    * see `assembleShellRecords` / `forYouCandidateSources.ts`) whose `posts` row

@@ -123,6 +123,11 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     reason:
       'Every variant of every federated post with a LINKED quote whose body still renders `RE: <url>`.',
   },
+  'lib/reconcileVideoMetadata': {
+    scope: 'whole-table',
+    reason:
+      'Scans deduplicated video files across shared and language-variant media, including complete rows, and refreshes every changed reference.',
+  },
   backfillMediaMetadata: {
     scope: 'whole-table',
     reason:

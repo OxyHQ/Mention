@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
-import { FollowButton, useAuth } from '@oxy.so/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { FollowButton } from '@/components/FollowButton';
 
 import { FollowButton as BloomFollowButton } from '@oxy.so/bloom/media-header';
 import { feedService, type ExternalActorResolution } from '@/services/feedService';

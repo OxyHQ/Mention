@@ -60,7 +60,8 @@ const logger = createLogger('Schema');
  * changes without this number moving, so the rule is enforced rather than
  * remembered.
  */
-export const SCHEMA_VERSION = 15;
+// v16 retains bounded boosted-quote graphs and the generic unavailable quote marker.
+export const SCHEMA_VERSION = 16;
 
 /**
  * Create the full schema from scratch. Idempotent (IF NOT EXISTS).

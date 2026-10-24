@@ -100,6 +100,7 @@ jest.mock('@oxy.so/services/ui/client', () => ({
 
 jest.mock('react-i18next', () => ({
   I18nextProvider: ({ children }: { children: React.ReactNode }) => children,
+  useTranslation: () => ({ t: (key: string) => key }),
 }));
 
 jest.mock('@/lib/i18n', () => ({ __esModule: true, default: {} }));
@@ -145,10 +146,13 @@ jest.mock('@/components/providers/CommunityNoteProvider', () => ({
   CommunityNoteProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-// Pass-through: Bloom's navigation is covered by Bloom's own tests.
-jest.mock('@/components/navigation/MentionNavigation', () => ({
-  MentionNavigation: ({ children }: { children: React.ReactNode }) => children,
+// Mention's destinations run for real — every hook they call must be reachable
+// from where the navigation is mounted — over a pass-through Bloom provider,
+// which Bloom's own tests cover.
+jest.mock('@oxy.so/bloom/tab-pager/expo-router', () => ({
+  TabPagerProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
+jest.mock('@/hooks/useUnreadCount', () => ({ useUnreadCount: () => 0 }));
 
 // Renders its children inline instead of behind present/dismiss. The sheet's
 // React POSITION — the only thing under test — is identical either way: on

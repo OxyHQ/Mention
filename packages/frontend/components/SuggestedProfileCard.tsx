@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { FollowButton } from '@oxy.so/services/ui/client';
+import { FollowButton } from '@/components/FollowButton';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import * as Skeleton from '@oxy.so/bloom/skeleton';

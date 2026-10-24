@@ -151,7 +151,7 @@ Use **Run media-metadata backfill** (`run-media-metadata-backfill.yml`) from
 `main`, with `file_id` set to the repaired Oxy video id and `dry_run=true`.
 Review the post counts, then use `dry_run=false` and the existing exact phrase
 `BACKFILL MEDIA METADATA`. Dispatcher authorization is unchanged. Leaving
-`file_id` empty retains the ordinary missing-metadata sweep.
+`file_id` empty and `refresh_videos=false` retain the ordinary missing-metadata sweep.
 
 The equivalent script preview is:
 
@@ -166,6 +166,64 @@ file during the lookup is not overwritten. Counters count posts, so multiple
 references in one post count once. Repeating the run reports unchanged posts
 as skipped. Missing or failed Oxy lookups count as unresolved and produce exit
 code 75; they are not reported as successfully repaired.
+
+### Reconcile a video repair backlog
+
+Set `refresh_videos=true` in the same workflow to refresh complete references
+across both media tables. `limit_files` bounds distinct video files per pass
+(default 1000); use 100000 for a full scheduled pass over the current backlog.
+The command is included in the normal production runtime image:
+
+```bash
+bun packages/backend/dist/src/scripts/backfillMediaMetadata.js --refresh-videos --dry-run --limit-files 100000
+```
+
+Manual and scheduled bulk runs share a PostgreSQL advisory lock. A concurrent
+invocation logs `alreadyRunning=true` and exits without scanning or writing. The
+lock is released in `finally`, or by PostgreSQL when the task connection closes.
+The workflow and scheduled task must also enforce their runtime deadline.
+
+A confirmed write uses the existing `CONFIRM_ADMIN_MUTATION=backfillMediaMetadata`
+guard and omits `--dry-run`. The scanner deduplicates file IDs, requests at most
+100 files from Oxy at once, and updates only changed intrinsic metadata and
+`hlsReadyAt`. Federated audio intentionally stored with Mention's video fallback
+is excluded only when Oxy's authoritative MIME is audio; `excludedAudio` counts
+these files separately from unchanged videos. Their rows and playback type remain
+untouched. Missing assets and incomplete video metadata still count as unresolved;
+an absent or unrecognized MIME never excludes a reference by itself. Row/file
+identity guards protect concurrent edits; a newer stored readiness stamp is never replaced by an older source response. Changed post
+detail caches are invalidated after the transaction commits.
+
+Oxy can explicitly reject a known malformed legacy HLS generation through
+`hlsRejectedReadyAt`. Reconciliation clears only that file's observed stored
+`hlsReadyAt` at or before the rejected generation, leaving every other column intact; playback then uses the original
+URL. Newer generations are retained. Missing readiness or an unknown source is never
+interpreted as rejection.
+Ingestion applies the same explicit generation rule, and all existing-row
+metadata writers compare the captured row, file and readiness stamp before
+writing, so an older concurrent lookup cannot restore a cleared generation or
+overwrite a repaired one. A later successful generation restores normal HLS
+selection through the next scheduled pass.
+
+Every committed batch logs a durable checkpoint. Resume a bounded or interrupted
+run with `--after-file-id` / workflow `after_file_id` set to `resumeAfterFileId`.
+A null cursor means start at the beginning. Do not use `scannedThroughFileId`
+when a lookup is unresolved: the resume cursor deliberately stays before the
+first unresolved file. Exit 75 means the file limit or unresolved sources left
+work outstanding. Dry-run checkpoints describe the preview, not applied work.
+
+Oxy repairs asynchronously. `--passes` (1–10) repeats completed scans from the
+beginning, with `--pass-delay-seconds` (0–600, default 60) between them, even if
+the preceding scan was unchanged. A pass stopped by its file limit returns its
+cursor instead of repeatedly scanning the same prefix. For a repair lasting
+hours or days, run bounded full passes periodically from the live service's
+runtime revision; the workflow also supports manual recovery without one build
+per file. A 100000-file pass makes at most 1000 Oxy batch requests, plus bounded
+keyset queries and writes. Its duration depends on source and database latency.
+
+A successful scan only means the references match the metadata currently
+published by Oxy. It does not mean Oxy has finished repairing every ladder.
+Run and verify a final complete pass after the upstream repair inventory settles.
 
 ## Configuration
 

@@ -1421,6 +1421,7 @@
   "post.contentWarningShow": "Mostra",
   "post.contentWarningHide": "Nascondi",
   "post.boostUnavailable": "Questo post non è più disponibile",
+  "post.quoteUnavailable": "Questo post citato non è disponibile",
   "compose.languages.pickerTitle": "Lingua del post",
   "compose.languages.alreadyAdded": "Già aggiunta",
   "compose.languages.current": "Attuale",

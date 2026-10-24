@@ -15,6 +15,7 @@ import { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
 import { isFeedReadStale } from '@/stores/feedStaleness';
 import { FED_PENDING_POLL_DELAYS_MS, useFeedQuery } from './useFeedQuery';
 import { useReloadOnFeedRuleChange } from './useReloadOnFeedRuleChange';
+import { useFeedRankingStaleness } from './useFeedRankingStaleness';
 
 // Re-export so callers that already imported from here keep working.
 export { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
@@ -36,6 +37,7 @@ export interface UseFeedStateReturn {
   feedScrollKey: string;
   items: HydratedPost[];
   slices?: FeedPostSlice[];
+  socialContexts?: NonNullable<FeedPostSlice['socialContext']>[];
   /**
    * Recommendation-card placements accumulated across the loaded pages —
    * concatenated on `loadMore`, replaced on `fetchInitial`/`refresh`, exactly
@@ -315,7 +317,7 @@ function useStoredFeed({
           // `fetchUserFeed` already reports `pending` only when items are empty.
           applyPendingResult(isPending, !isPending);
         } else if (forceRefresh) {
-          await refreshFeed(type, filters);
+          await refreshFeed(type, filters, true);
         } else {
           await fetchFeed({ type, limit: 20, filters });
         }
@@ -506,12 +508,19 @@ function useStoredFeed({
     clearUserFeed,
   ]);
 
+  const staleSocialEvidence = useFeedRankingStaleness(
+    { type, userId, viewerId: currentUserId },
+    globalFeed?.lastUpdated ?? 0,
+    enabled,
+  );
   const isViewerCacheTrusted = previousIdentityRef.current === viewerIdentity;
   const error = globalFeed?.error || null;
 
   return {
     items: isViewerCacheTrusted ? globalFeed?.items || [] : [],
     slices: isViewerCacheTrusted ? globalFeed?.slices : undefined,
+    socialContexts:
+      isViewerCacheTrusted && !staleSocialEvidence ? globalFeed?.socialContexts : undefined,
     // Card placements are viewer-specific (the server only emits them for an
     // authenticated viewer), so they follow the same trust gate as the items.
     interstitials: isViewerCacheTrusted ? globalFeed?.interstitials : undefined,

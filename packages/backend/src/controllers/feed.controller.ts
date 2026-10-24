@@ -190,13 +190,13 @@ class FeedController {
         return [];
       }
 
-      // Optimized hydration for feed items: maxDepth 0 (no nested posts) for better performance
-      // Feed items don't need nested context - only detail views need depth 1
+      // Optional context stays shallow; canonical hydration always includes
+      // bounded quote/boost content, including on the single-item detail route.
       const hydrated = await postHydrationService.hydratePosts(posts, {
         viewerId: currentUserId,
         safetyRequester: options.safetyRequester,
         oxyClient,
-        maxDepth: 0, // Reduced from 1 for feed performance - saves ~30-50ms per request
+        maxDepth: 0,
         includeLinkMetadata: true,
         includeFullArticleBody: false, // Don't include article bodies in feed
         includeFullMetadata: false, // Skip some metadata fields for performance

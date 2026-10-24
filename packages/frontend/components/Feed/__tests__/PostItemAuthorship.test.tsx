@@ -24,6 +24,7 @@ import type { NestedPostRenderer } from '../../Post/Attachments/PostAttachmentNe
 
 interface CapturedHeaderProps {
   children?: React.ReactNode;
+  contextTop?: React.ReactNode;
   boostedBy?: PostUser;
   authors?: HydratedAuthor[];
   onPressCollaborators?: () => void;
@@ -33,7 +34,12 @@ jest.mock('../../Post/PostHeader', () => ({
   __esModule: true,
   default: (props: CapturedHeaderProps) => {
     mockHeaderProps.push(props);
-    return props.children;
+    return (
+      <>
+        {props.contextTop}
+        {props.children}
+      </>
+    );
   },
 }));
 
@@ -60,6 +66,7 @@ jest.mock('@/components/common/ContentDialog', () => ({
 }));
 
 jest.mock('expo-router', () => ({
+  Link: 'Link',
   useRouter: () => ({ push: jest.fn() }),
   usePathname: () => '/',
 }));
@@ -81,13 +88,7 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 }));
 jest.mock('@oxy.so/bloom/hooks', () => ({ useImagePreload: () => undefined }));
 jest.mock('@oxy.so/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
-jest.mock('@oxy.so/bloom/icons', () => ({
-  RiCornerDownRightLine: () => null,
-  RiLinkM: () => null,
-}));
-
 jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
-jest.mock('@oxy.so/bloom/icons', () => ({ RiChat3Fill: 'RiChat3Fill', RiMoreFill: 'RiMoreFill' }));
 
 jest.mock('../../Post/PostContentText', () => ({ __esModule: true, default: 'PostContentText' }));
 jest.mock('../../Post/PostLaneChip', () => ({ __esModule: true, default: () => null }));
@@ -151,8 +152,14 @@ jest.mock('@oxy.so/core', () => ({
 // are the assertion, so a deleted key must render its raw name and fail rather
 // than fall back to a default that reads identically.
 jest.mock('react-i18next', () => {
-  const strings: Record<string, string> = require('@/locales/en.json');
-  return { useTranslation: () => ({ t: (key: string) => strings[key] ?? key }) };
+  const i18n = require('i18next').createInstance();
+  i18n.init({
+    lng: 'en',
+    keySeparator: false,
+    initImmediate: false,
+    resources: { en: { translation: require('@/locales/en.json') } },
+  });
+  return { useTranslation: () => ({ t: i18n.t.bind(i18n) }) };
 });
 
 // --- fixtures ---
@@ -309,6 +316,35 @@ it('renders a hydrated quote in the same commit as its parent, without an empty 
   expect(mockHeaderProps.map((header) => header.authors?.[0]?.id)).toEqual([owner.id, writer.id]);
 });
 
+it.each([false, true])(
+  'updates quote availability without editing its parent (detail=%s)',
+  (isPostDetail) => {
+    const parent = postWith([owner]);
+    const quote = {
+      ...postWith([writer]),
+      id: 'quoted-post',
+      content: { text: 'Quoted original' },
+    };
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+    act(() => {
+      renderer = TestRenderer.create(<PostItem post={parent} isPostDetail={isPostDetail} />);
+    });
+    if (!renderer) throw new Error('Post render did not complete');
+    const tree = renderer;
+    const text = () => JSON.stringify(tree.toJSON());
+    expect(text()).not.toContain('Quoted original');
+    act(() =>
+      tree.update(<PostItem post={{ ...parent, quotedPost: quote }} isPostDetail={isPostDetail} />),
+    );
+    expect(text()).toContain('Quoted original');
+    act(() =>
+      tree.update(<PostItem post={{ ...parent, quotedPost: null }} isPostDetail={isPostDetail} />),
+    );
+    expect(text()).not.toContain('Quoted original');
+    act(() => tree.unmount());
+  },
+);
+
 it('aligns focused actions with the full-width text and keeps them before metadata', () => {
   let feed: TestRenderer.ReactTestRenderer | undefined;
   let detail: TestRenderer.ReactTestRenderer | undefined;
@@ -335,4 +371,124 @@ it('aligns focused actions with the full-width text and keeps them before metada
     feed?.unmount();
     detail?.unmount();
   });
+});
+
+it('shows only the supplied social reason, updates recycled rows and opens the liked post', () => {
+  const parent = postWith([owner]);
+  const socialContext = {
+    type: 'likedBy' as const,
+    postId: parent.id,
+    actors: [writer, owner],
+    total: 4,
+  };
+  let renderer: TestRenderer.ReactTestRenderer | undefined;
+  act(() => {
+    renderer = TestRenderer.create(<PostItem post={parent} socialContext={socialContext} />);
+  });
+  if (!renderer) throw new Error('Post render did not complete');
+  const tree = renderer;
+  const label = 'Liked by Nate Isern, Ana Torres and 2 others';
+  const button = tree.root.findAll(
+    (node) => node.props.accessibilityRole === 'button' && node.props.accessibilityLabel === label,
+  )[0];
+  expect(button).toBeDefined();
+  const stopPropagation = jest.fn();
+  act(() => button.props.onPress({ stopPropagation }));
+  expect(stopPropagation).toHaveBeenCalledTimes(1);
+  const dialog = mockDialogs[mockDialogs.length - 1];
+  expect(dialog.label).toBe('Likes');
+  expect(dialog.render(() => undefined).props.children?.props).toMatchObject({
+    postId: parent.id,
+    type: 'likes',
+  });
+  act(() =>
+    tree.update(
+      <PostItem post={parent} socialContext={{ ...socialContext, actors: [writer], total: 1 }} />,
+    ),
+  );
+  expect(JSON.stringify(tree.toJSON())).toContain('Liked by Nate Isern');
+  expect(JSON.stringify(tree.toJSON())).not.toContain('2 others');
+  act(() => tree.update(<PostItem post={parent} />));
+  expect(JSON.stringify(tree.toJSON())).not.toContain('Liked by');
+  act(() => tree.unmount());
+});
+
+it('does not infer likes from counts or apply another post’s social context', () => {
+  const parent = postWith([owner]);
+  for (const context of [
+    undefined,
+    { type: 'likedBy' as const, postId: 'other-post', actors: [writer], total: 1 },
+    { type: 'likedBy' as const, postId: parent.id, actors: [], total: 7 },
+  ]) {
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+    act(() => {
+      renderer = TestRenderer.create(<PostItem post={parent} socialContext={context} />);
+    });
+    if (!renderer) throw new Error('Post render did not complete');
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Liked by');
+    act(() => renderer?.unmount());
+  }
+});
+
+it('keeps quote commentary with a generic unavailable subject, then replaces the placeholder', () => {
+  const parent = {
+    ...postWith([owner]),
+    quotedPostUnavailable: true,
+    content: { text: 'My commentary' },
+  };
+  let renderer: TestRenderer.ReactTestRenderer | undefined;
+  act(() => {
+    renderer = TestRenderer.create(<PostItem post={parent} />);
+  });
+  if (!renderer) throw new Error('Post render did not complete');
+  const tree = renderer;
+  expect(JSON.stringify(tree.toJSON())).toContain('My commentary');
+  expect(JSON.stringify(tree.toJSON())).toContain('This quoted post is unavailable');
+  act(() =>
+    tree.update(
+      <PostItem
+        post={{
+          ...parent,
+          quotedPostUnavailable: undefined,
+          quotedPost: { ...postWith([writer]), id: 'original' },
+        }}
+      />,
+    ),
+  );
+  expect(JSON.stringify(tree.toJSON())).not.toContain('This quoted post is unavailable');
+  act(() => tree.unmount());
+});
+
+it('opens repost evidence as reposts and does not repeat the same structural booster', () => {
+  const parent = postWith([owner]);
+  const context = { type: 'boostedBy' as const, postId: parent.id, actors: [writer], total: 1 };
+  let renderer: TestRenderer.ReactTestRenderer | undefined;
+  act(() => {
+    renderer = TestRenderer.create(<PostItem post={parent} socialContext={context} />);
+  });
+  if (!renderer) throw new Error('Post render did not complete');
+  const tree = renderer;
+  const button = tree.root.findAll(
+    (node) =>
+      node.props.accessibilityRole === 'button' &&
+      node.props.accessibilityLabel === 'Reposted by Nate Isern',
+  )[0];
+  expect(button).toBeDefined();
+  expect(JSON.stringify(tree.toJSON())).not.toContain('Liked by');
+  act(() => button.props.onPress({ stopPropagation: jest.fn() }));
+  const dialog = mockDialogs[mockDialogs.length - 1];
+  expect(dialog.render(() => undefined).props.children?.props).toMatchObject({
+    postId: parent.id,
+    type: 'boosts',
+  });
+  act(() => tree.update(<PostItem post={parent} repostedBy={writer} socialContext={context} />));
+  expect(
+    tree.root.findAll(
+      (node) =>
+        node.props.accessibilityRole === 'button' &&
+        node.props.accessibilityLabel === 'Reposted by Nate Isern',
+    ),
+  ).toHaveLength(0);
+  expect(JSON.stringify(tree.toJSON())).toContain('Reposted by');
+  act(() => tree.unmount());
 });

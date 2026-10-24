@@ -3,7 +3,8 @@ import { View } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { FollowButton, useAuth } from '@oxy.so/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { FollowButton } from '@/components/FollowButton';
 import {
   StarterPackCard,
   StarterPackCardSkeleton,

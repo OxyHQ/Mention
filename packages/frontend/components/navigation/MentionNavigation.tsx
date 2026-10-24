@@ -27,7 +27,7 @@ import type { AppDestination } from '@oxy.so/bloom/tab-pager';
 import { TabPagerProvider } from '@oxy.so/bloom/tab-pager/expo-router';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import { useMentionSettings } from '@/context/MentionSettingsContext';
+import { requestSettings } from '@/components/settings/settingsRoutes';
 import { useReselect } from '@/context/ScreenReselectContext';
 import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
@@ -47,7 +47,6 @@ export function useMentionDestinations(): AppDestination[] {
   const { t } = useTranslation();
   const { user, showBottomSheet } = useAuth();
   const haptic = useHaptics();
-  const settings = useMentionSettings();
   const unreadCount = useUnreadCount();
   const communitiesPreview = useCommunitiesPreview();
   const username = user?.username;
@@ -161,7 +160,9 @@ export function useMentionDestinations(): AppDestination[] {
         label: t('sidebar.settings'),
         icon: RiSettings3Line,
         activeIcon: RiSettings3Fill,
-        onPress: settings.open,
+        // Through the settings channel: the dialog's provider mounts below this
+        // navigation.
+        onPress: () => requestSettings('/settings'),
       },
       { name: 'write', href: '/write', page: true },
     ],
@@ -173,7 +174,6 @@ export function useMentionDestinations(): AppDestination[] {
       user,
       ProfileAvatar,
       openAccounts,
-      settings.open,
     ],
   );
 }

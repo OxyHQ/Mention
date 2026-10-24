@@ -1,26 +1,42 @@
 import { createLogger } from '@oxy.so/core/logger';
 import { authenticatedClient } from '@/utils/api';
+import { useAuthStore } from '@oxy.so/services/ui/client';
+import { notifyFeedRankingChanged } from '@/stores/feedRankingInvalidation';
 
 const logger = createLogger('MuteService');
 
 class MuteService {
-  async muteUser(mutedId: string): Promise<boolean> {
-    try {
-      await authenticatedClient.post('/mute', { mutedId });
-      return true;
-    } catch (error) {
-      logger.warn('Failed to mute user', { error });
-      return false;
-    }
+  muteUser(mutedId: string, viewerId: string | undefined): Promise<boolean> {
+    return this.setMuted(mutedId, viewerId, true);
   }
 
-  async unmuteUser(mutedId: string): Promise<boolean> {
+  unmuteUser(mutedId: string, viewerId: string | undefined): Promise<boolean> {
+    return this.setMuted(mutedId, viewerId, false);
+  }
+
+  private async setMuted(
+    mutedId: string,
+    viewerId: string | undefined,
+    isMuted: boolean,
+  ): Promise<boolean> {
+    const controller = new AbortController();
+    const cancelIfViewerChanged = () => {
+      if (!viewerId || useAuthStore.getState().user?.id !== viewerId) controller.abort();
+    };
+    const stopWatching = useAuthStore.subscribe(cancelIfViewerChanged);
     try {
-      await authenticatedClient.delete(`/mute/${mutedId}`);
-      return true;
+      cancelIfViewerChanged();
+      if (controller.signal.aborted) return false;
+      if (isMuted)
+        await authenticatedClient.post('/mute', { mutedId }, { signal: controller.signal });
+      else await authenticatedClient.delete(`/mute/${mutedId}`, { signal: controller.signal });
+      notifyFeedRankingChanged(viewerId);
+      return !controller.signal.aborted;
     } catch (error) {
-      logger.warn('Failed to unmute user', { error });
+      logger.warn('Failed to update muted user', { error });
       return false;
+    } finally {
+      stopWatching();
     }
   }
 

@@ -532,7 +532,7 @@ export const excludeQuotesFilter: FilterModule = {
   userComposable: true,
   keep: (post) => {
     const quoteOf = field(post, 'quoteOf');
-    return quoteOf === undefined || quoteOf === null;
+    return field(post, 'type') !== PostType.QUOTE && (quoteOf === undefined || quoteOf === null);
   },
 };
 

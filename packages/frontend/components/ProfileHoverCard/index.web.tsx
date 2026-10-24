@@ -8,7 +8,7 @@ import { UserHoverCard } from '@oxy.so/bloom/user-hover-card';
 import { ActivityHeatmap } from '@oxy.so/bloom/activity-heatmap';
 import { BloomColorScope } from '@oxy.so/bloom/theme';
 import { Muted } from '@oxy.so/bloom/typography';
-import { FollowButton } from '@oxy.so/services/ui/client';
+import { FollowButton } from '@/components/FollowButton';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { useFederatedFollowSync } from '@/components/Profile/hooks/useFederatedFollowSync';

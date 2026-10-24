@@ -48,13 +48,14 @@ const PERSISTED_POST_KEYS = [
   'parentPostId',
   'permissions',
   'quotedPost',
+  'quotedPostUnavailable',
   'replyContext',
   'user',
   'viewerState',
 ] as const;
 
 /** The version that must ship with the key set above. */
-const VERSION_FOR_THESE_KEYS = 15;
+const VERSION_FOR_THESE_KEYS = 16;
 
 function makeFullyPopulatedPost(): HydratedPost {
   return {
@@ -128,6 +129,7 @@ function makeFullyPopulatedPost(): HydratedPost {
     },
     originalPost: null,
     quotedPost: null,
+    quotedPostUnavailable: true,
     boost: null,
   };
 }

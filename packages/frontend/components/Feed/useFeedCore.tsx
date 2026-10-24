@@ -148,6 +148,7 @@ export function useFeedCore(props: FeedProps) {
     (): FeedRow[] =>
       buildFeedRows({
         slices: feedState.slices,
+        socialContexts: feedState.socialContexts,
         items: feedState.items,
         interstitials: feedState.interstitials,
         type,
@@ -159,6 +160,7 @@ export function useFeedCore(props: FeedProps) {
       }),
     [
       feedState.slices,
+      feedState.socialContexts,
       feedState.items,
       feedState.interstitials,
       type,

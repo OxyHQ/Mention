@@ -1465,6 +1465,7 @@
   "post.contentWarningShow": "Mostrar",
   "post.contentWarningHide": "Ocultar",
   "post.boostUnavailable": "Esta publicación ya no está disponible",
+  "post.quoteUnavailable": "Esta publicación citada no está disponible",
   "compose.languages.pickerTitle": "Idioma de la publicación",
   "compose.languages.alreadyAdded": "Ya añadido",
   "compose.languages.current": "Actual",

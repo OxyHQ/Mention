@@ -97,6 +97,12 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       'Walks every post by id and copies the hashtags of every listed one, locking each ' +
       "range FOR SHARE while it does, so another file's posts are in its ranges and its locks.",
   },
+  {
+    path: 'src/__tests__/socialFeedEvidence.db.test.ts',
+    jobEntryPoint: 'networkEngagementExistsSql',
+    reason:
+      'Seeds 10000 unrelated posts and ANALYZEs the posts table to verify an activity-driven plan. The fixture must not enter concurrent global feed candidate pools or change their planner statistics.',
+  },
   ...[
     'src/__tests__/exploreNegativeIntent.db.test.ts',
     'src/__tests__/exploreFeed.test.ts',

@@ -2,11 +2,64 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.unmock('../../utils/logger');
 
-import { sanitizeLogValue } from '../../utils/logger';
+const { emitted } = vi.hoisted(() => ({ emitted: [] as string[] }));
+vi.mock('pino', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('pino')>();
+  return {
+    ...actual,
+    default: Object.assign(
+      (options: import('pino').LoggerOptions) => {
+        const { transport: _transport, ...jsonOptions } = options;
+        // Exercise the real JSON serializer, replacing only its output stream
+        // and development transport (the global test setup otherwise stubs it).
+        return actual.default(
+          { ...jsonOptions, level: 'info' },
+          {
+            write: (line: string) => {
+              emitted.push(line);
+            },
+          },
+        );
+      },
+      { stdTimeFunctions: actual.default.stdTimeFunctions },
+    ),
+  };
+});
+
+import { logger, sanitizeLogValue } from '../../utils/logger';
 
 const REDACTED = '[REDACTED]';
 
 describe('sanitizeLogValue', () => {
+  it('emits usable file checkpoints in actual JSON logs while retaining identity redaction', () => {
+    emitted.length = 0;
+    const fileId = '01a0821e-d61a-7a78-b5d1-afb1850bd5a4';
+    const legacyFileId = '65fdc8c8c8c8c8c8c8c8c8c8';
+    logger.info('[reconcileVideoMetadata] checkpoint', {
+      resumeAfterFileId: fileId,
+      scannedThroughFileId: legacyFileId,
+      userId: fileId,
+      postId: fileId,
+      fileId,
+      token: 'private-credential',
+      passes: [{ resumeAfterFileId: fileId, scannedThroughFileId: legacyFileId }],
+    });
+    expect(emitted).toHaveLength(1);
+    const event = JSON.parse(emitted[0]);
+    expect(event).toMatchObject({
+      msg: '[reconcileVideoMetadata] checkpoint',
+      resumeAfterFileId: fileId,
+      scannedThroughFileId: legacyFileId,
+      userId: REDACTED,
+      postId: REDACTED,
+      fileId: REDACTED,
+      token: REDACTED,
+      passes: [{ resumeAfterFileId: fileId, scannedThroughFileId: legacyFileId }],
+    });
+    logger.info('[reconcileVideoMetadata] complete', { resumeAfterFileId: null });
+    expect(JSON.parse(emitted[1]).resumeAfterFileId).toBeNull();
+  });
+
   it('preserves bounded operational fields while recursively redacting private metadata', () => {
     const requestId = '550e8400-e29b-41d4-a716-446655440000';
     const sanitized = sanitizeLogValue({

@@ -96,6 +96,7 @@ const NO_BLOCKS = new Set<string>();
 function build(params: {
   leadingPostId?: string;
   slices?: FeedPostSlice[];
+  socialContexts?: NonNullable<FeedPostSlice['socialContext']>[];
   items?: HydratedPost[];
   interstitials?: FeedInterstitialSlot[];
   blockedSet?: Set<string>;
@@ -103,6 +104,7 @@ function build(params: {
   return buildFeedRows({
     leadingPostId: params.leadingPostId,
     slices: params.slices,
+    socialContexts: params.socialContexts,
     items: params.items ?? [],
     interstitials: params.interstitials,
     type: 'for_you',
@@ -455,6 +457,25 @@ describe('one post, one row', () => {
     expect(layout(rows)).toEqual(['boost-1', 'other']);
   });
 
+  it('keeps distinct quote commentary when its original was already shown', () => {
+    const original = post('original');
+    const quotes = ['quote-1', 'quote-2'].map((id) => ({
+      ...post(id),
+      content: { text: `Commentary ${id}` },
+      quotedPost: original,
+      originalPost: original,
+    }));
+    const items = [original, ...quotes];
+    expect(layout(build({ items }))).toEqual(['original', 'quote-1', 'quote-2']);
+    const slices = items.map((item) => ({
+      ...slice(item.id),
+      items: [
+        { post: item, isThreadParent: false, isThreadChild: false, isThreadLastChild: false },
+      ],
+    }));
+    expect(layout(build({ slices }))).toEqual(['original', 'quote-1', 'quote-2']);
+  });
+
   it('never removes a post from a thread slice', () => {
     const rows = build({ slices: [boostSlice('boost-1', 'root'), threadSlice(['root', 'reply'])] });
     expect(layout(rows)).toEqual(['boost-1', 'root', 'reply']);
@@ -594,5 +615,48 @@ describe('reply branches', () => {
       [0, true],
       [0, true],
     ]);
+  });
+});
+
+describe('social recommendation evidence', () => {
+  const socialContext = {
+    type: 'likedBy' as const,
+    postId: 'reply',
+    actors: [post('liker', 'liker-actor').user],
+    total: 1,
+  };
+
+  it('labels only the target inside a reply slice and keeps the grouping reason', () => {
+    const threaded = {
+      ...threadSlice(['parent', 'reply']),
+      reason: { type: 'replyContext' as const },
+      socialContext,
+    };
+    const rows = build({ slices: [threaded] }).filter((row) => row.kind === 'post');
+    expect(rows[0].socialContext).toBeUndefined();
+    expect(rows[1].socialContext).toEqual(socialContext);
+    expect(rows[1].sliceReason).toEqual({ type: 'replyContext' });
+  });
+
+  it('uses the separate native evidence without attaching it to stored posts', () => {
+    const items = [post('parent'), post('reply')];
+    const rows = build({ items, socialContexts: [socialContext] }).filter(
+      (row) => row.kind === 'post',
+    );
+    expect(rows[0].socialContext).toBeUndefined();
+    expect(rows[1].socialContext).toEqual(socialContext);
+    expect(items[1]).not.toHaveProperty('socialContext');
+  });
+
+  it('withholds a stale social label when its named actor is now blocked', () => {
+    const blockedSet = new Set([socialContext.actors[0].id]);
+    const sliced = { ...slice('reply'), socialContext };
+    for (const rows of [
+      build({ slices: [sliced], blockedSet }),
+      build({ items: [post('reply')], socialContexts: [socialContext], blockedSet }),
+    ]) {
+      expect(rows).toHaveLength(1);
+      expect(rows[0].kind === 'post' && rows[0].socialContext).toBeUndefined();
+    }
   });
 });
