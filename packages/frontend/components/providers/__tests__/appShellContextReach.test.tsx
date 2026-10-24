@@ -71,7 +71,7 @@ jest.mock('@/components/AppSplashScreen', () => ({
 }));
 
 // Reanimated's real entry pulls in the worklets native module, which has no host
-// here. Same minimal stub the BottomBarVisibility suite uses.
+// here; a minimal stub.
 jest.mock('react-native-reanimated', () => ({
   useSharedValue: (initial: number) => ({ value: initial }),
   useAnimatedReaction: () => {},
@@ -145,14 +145,9 @@ jest.mock('@/components/providers/CommunityNoteProvider', () => ({
   CommunityNoteProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-// Pass-through: Bloom's tab pager is covered by Bloom's own tests.
-jest.mock('@/components/navigation/MentionTabPager', () => ({
-  MentionTabPager: ({ children }: { children: React.ReactNode }) => children,
-}));
-
-jest.mock('@oxy.so/bloom/tab-bar', () => ({
-  useMinimizeState: () => ({ minimized: { value: 0 } }),
-  setMinimized: () => {},
+// Pass-through: Bloom's navigation is covered by Bloom's own tests.
+jest.mock('@/components/navigation/MentionNavigation', () => ({
+  MentionNavigation: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 // Renders its children inline instead of behind present/dismiss. The sheet's

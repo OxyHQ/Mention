@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 47.87,
-      "covered": 13264,
-      "total": 27703
+      "pct": 47.79,
+      "covered": 13197,
+      "total": 27610
     },
     "branches": {
-      "pct": 43.7,
-      "covered": 8914,
-      "total": 20396
+      "pct": 43.63,
+      "covered": 8877,
+      "total": 20346
     },
     "functions": {
-      "pct": 42.67,
-      "covered": 3072,
-      "total": 7198
+      "pct": 42.6,
+      "covered": 3058,
+      "total": 7177
     },
     "lines": {
-      "pct": 48.67,
-      "covered": 12043,
-      "total": 24740
+      "pct": 48.58,
+      "covered": 11980,
+      "total": 24656
     }
   },
   "pins": {
@@ -377,12 +377,6 @@
       "functions": 0,
       "lines": 0
     },
-    "hooks/useKeyboardVisibility.ts": {
-      "statements": 0,
-      "branches": 100,
-      "functions": 0,
-      "lines": 0
-    },
     "hooks/useKnownLikers.ts": {
       "statements": 0,
       "branches": 0,
@@ -448,12 +442,6 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
-    },
-    "hooks/useNavigateOrReselect.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
     },
     "hooks/useOpenInAllo.tsx": {
       "statements": 72,

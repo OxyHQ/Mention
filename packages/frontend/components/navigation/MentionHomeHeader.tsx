@@ -13,14 +13,14 @@ import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
 import { LogoIcon } from '@/assets/logo';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { useNavigateOrReselect } from '@/hooks/useNavigateOrReselect';
+import { useTabPager } from '@oxy.so/bloom/tab-pager';
 
 export function MentionHomeHeader() {
   const router = useRouter();
   const shell = useAppShell();
   const { t } = useTranslation();
   const { colors } = useTheme();
-  const navigateOrReselect = useNavigateOrReselect();
+  const { selectDestination } = useTabPager();
   // A sheet, not a page. Signed out, the press opens the Oxy sign-in dialog
   // (`MentionAskProvider`).
   const { ask } = useAskAgent();
@@ -28,7 +28,7 @@ export function MentionHomeHeader() {
     <PageHeader
       title={
         <Pressable
-          onPress={() => navigateOrReselect('/')}
+          onPress={() => selectDestination('index')}
           accessibilityRole="button"
           accessibilityLabel="Mention"
           hitSlop={8}

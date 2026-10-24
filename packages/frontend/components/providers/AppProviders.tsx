@@ -22,7 +22,6 @@ import { BootMilestone } from '@/components/BootMilestone';
 import { AccountSwitchReset } from '@/components/providers/AccountSwitchReset';
 import { AppShellProviders } from '@/components/providers/AppShellProviders';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
-import { ScreenReselectProvider } from '@/context/ScreenReselectContext';
 import { DocumentScrollProvider } from '@/context/DocumentScroll';
 import { OXY_CLIENT_ID, OXY_AUTH_REDIRECT_URI } from '@/config';
 import { ContentDialogHost } from '@/components/common/ContentDialog';
@@ -146,8 +145,8 @@ export const AppProviders = memo(function AppProviders({
                  * sheet and threw.
                  *
                  * `AppShellProviders` needs `DocumentScrollProvider` above it
-                 * (the web `BottomBarVisibilityProvider` reads the document's
-                 * scroll), which is why that one moved up too. The tree below
+                 * (its `ScreenReselectProvider` scrolls the document back to
+                 * the top), which is why that one moved up too. The tree below
                  * is unchanged.
                  */}
                 <DocumentScrollProvider>
@@ -160,27 +159,25 @@ export const AppProviders = memo(function AppProviders({
                       <BottomSheetProvider>
                         <AppErrorBoundary>
                           <LiveRoomControllerProvider>
-                            <ScreenReselectProvider>
-                              {children}
-                              {/*
-                               * No <ToastOutlet /> here on purpose. Bloom's toast
-                               * stack must be mounted exactly once — every mount
-                               * subscribes to the same store and renders the same
-                               * rows, so a second outlet shows every toast twice.
-                               * OxyProvider above already mounts one at the app
-                               * root, and it carries Bloom's defaults.
-                               */}
-                              {/*
-                               * Same for Bloom's imperative surface stack:
-                               * OxyProvider mounts the one <SurfaceProvider>, and
-                               * confirm(), alert() and the action menu
-                               * (showActionMenu) all present into it.
-                               */}
-                              <PostInteractionsBinder />
-                              <ContentDialogHost />
-                              <FediverseInfoDialogProvider />
-                              <ChannelInfoDialogProvider />
-                            </ScreenReselectProvider>
+                            {children}
+                            {/*
+                             * No <ToastOutlet /> here on purpose. Bloom's toast
+                             * stack must be mounted exactly once — every mount
+                             * subscribes to the same store and renders the same
+                             * rows, so a second outlet shows every toast twice.
+                             * OxyProvider above already mounts one at the app
+                             * root, and it carries Bloom's defaults.
+                             */}
+                            {/*
+                             * Same for Bloom's imperative surface stack:
+                             * OxyProvider mounts the one <SurfaceProvider>, and
+                             * confirm(), alert() and the action menu
+                             * (showActionMenu) all present into it.
+                             */}
+                            <PostInteractionsBinder />
+                            <ContentDialogHost />
+                            <FediverseInfoDialogProvider />
+                            <ChannelInfoDialogProvider />
                             <LiveFeatureHost />
                             {/*
                              * The one live-presence poll. Inside

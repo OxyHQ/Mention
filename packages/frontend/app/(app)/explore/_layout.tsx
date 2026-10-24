@@ -7,7 +7,6 @@ import { PageHeader } from '@oxy.so/bloom/page-header';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { SEO } from '@/components/SEO';
 import { useTabSelect } from '@/context/ScreenReselectContext';
-import { isCurrentRoute } from '@/hooks/useNavigateOrReselect';
 
 /**
  * Explore is a routed top-tab cluster: each tab is its own URL under `/explore`
@@ -38,7 +37,7 @@ export default function ExploreLayout() {
   };
   const { t } = useTranslation();
   const pathname = usePathname();
-  const activeTab = TABS.find((tab) => isCurrentRoute(tab.href, pathname))?.id ?? 'all';
+  const activeTab = TABS.find((tab) => tab.href === pathname)?.id ?? 'all';
   const handleTabPress = useTabSelect<string>(activeTab, pushTab);
 
   return (
