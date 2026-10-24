@@ -7,7 +7,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { EmptyState } from '@/components/common/EmptyState';
-import { videoPosterUrl } from '@/utils/imageUrlCache';
+import { videoPosterUrl } from '@/utils/mediaUrls';
 import type { HydratedPostSummary, MediaItem } from '@mention/shared-types';
 import LiveVideoPosterCell from './LiveVideoPosterCell';
 import { isVideoMediaRef, readMediaDurationSec } from '@/utils/mediaTypes';
