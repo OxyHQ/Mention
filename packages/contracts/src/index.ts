@@ -25,3 +25,8 @@ export const MentionEffectRefusal = z.object({
 export type MentionPublishInput = z.infer<typeof MentionPublishInput>;
 
 export * from './events';
+
+export * from './imports';
+
+/** Registered production service identity; distinct from the semantic catalogue app id. */
+export const MENTION_SERVICE_APPLICATION_ID = '6a2f851751b784a86fd0e916';
