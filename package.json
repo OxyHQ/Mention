@@ -91,6 +91,7 @@
     "yaml": "^2.9.1"
   },
   "overrides": {
+    "body-parser": "2.4.0",
     "@modelcontextprotocol/sdk": "1.32.1",
     "proxy-addr": "2.0.8",
     "shell-quote": "1.12.0",

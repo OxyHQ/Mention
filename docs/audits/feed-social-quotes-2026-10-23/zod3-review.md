@@ -24,7 +24,9 @@ authority union; its service transport and credential behavior are unchanged.
 The actual SDK/JEV tests passed 13 cases, inference/classification/trends/translation
 passed 81 cases, and backend types, shared builds and lockfile validation passed.
 
-Body-parser now resolves 2.4.0 within Express's existing compatible range,
+Body-parser now resolves 2.4.0 within Express's existing compatible range. An
+explicit compatible override makes that security floor reproduce from the base
+lockfile, including its required new transitive dependencies,
 addressing [GHSA-27r3-jxmh-p828](https://github.com/expressjs/body-parser/security/advisories/GHSA-27r3-jxmh-p828).
 No global Zod major override, vendor patch or authority migration was introduced.
 The remaining Oxy runtime consumers have published major upgrades coupled to a
