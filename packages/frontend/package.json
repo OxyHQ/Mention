@@ -158,7 +158,7 @@
     "expo-notifications": "~58.1.5",
     "expo-router": "~58.0.24",
     "expo-secure-store": "~58.0.2",
-    "expo-share-intent": "^8.0.1",
+    "expo-share-intent": "^9.0.0",
     "expo-splash-screen": "~58.0.10",
     "expo-sqlite": "~58.0.13",
     "expo-system-ui": "~58.0.6",

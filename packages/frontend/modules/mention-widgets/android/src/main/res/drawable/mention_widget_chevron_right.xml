@@ -1,8 +1,9 @@
 <!--
   Chevron for the title-bar button that opens the full Trending screen.
 
-  The path is the app's own `ChevronRight` glyph (assets/icons/chevron-right-icon.tsx),
-  copied verbatim so the affordance is the same shape here as it is in the app.
+  The path is Remix Icon's `arrow-right-s-line`, the glyph the app draws for the
+  same affordance (Bloom's `RiArrowRightSLine`), copied verbatim so it is the same
+  shape here as it is in the app.
   Drawn in white and tinted at draw time by `CircleIconButton`'s `contentColor`,
   which is what keeps it legible under both dynamic and fallback colours.
 -->
@@ -13,5 +14,5 @@
     android:viewportHeight="24">
   <path
       android:fillColor="#FFFFFFFF"
-      android:pathData="M9.29,6.71c-0.39,0.39 -0.39,1.02 0,1.41L13.17,12l-3.88,3.88c-0.39,0.39 -0.39,1.02 0,1.41 0.39,0.39 1.02,0.39 1.41,0l4.59,-4.59c0.39,-0.39 0.39,-1.02 0,-1.41L10.7,6.7c-0.38,-0.38 -1.02,-0.38 -1.41,0.01z" />
+      android:pathData="M13.1717,12.0007L8.22192,7.05093L9.63614,5.63672L16.0001,12.0007L9.63614,18.3646L8.22192,16.9504L13.1717,12.0007Z" />
 </vector>
