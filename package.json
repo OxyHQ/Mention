@@ -105,7 +105,7 @@
     "expo-font": "58.0.9",
     "expo-linking": "58.0.13",
     "@expo/log-box": "58.0.12",
-    "expo": "58.0.16",
+    "expo": "58.0.19",
     "@expo/config-plugins": "58.0.9",
     "react-native-svg": "15.16.0",
     "react": "19.3.0",
