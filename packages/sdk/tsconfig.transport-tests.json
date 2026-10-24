@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["bun", "node"]
+  },
+  "include": ["src/server.ts", "src/service.test.ts"],
+  "exclude": []
+}
