@@ -11,7 +11,7 @@ import {
 } from '@oxy.so/bloom/accordion';
 import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { RiEqualizerLine } from '@oxy.so/bloom/icons/RiEqualizerLine';
-import { useRouter, useIsFocused } from '@/lib/navigation/router';
+import { useRouter } from '@/lib/navigation/router';
 import { usePostReadAccess } from '@/hooks/usePostReadAccess';
 import { EmptyState } from '@/components/common/EmptyState';
 import PostItem from '@/components/Feed/PostItem';
@@ -101,7 +101,6 @@ function usePrefetchReplies(postId: string) {
 }
 
 export default function PostDetailScreen({ postId: id, onBack }: PostDetailScreenProps) {
-  const isFocused = useIsFocused();
   // Supervision, the post and its replies load at the same time; only what is
   // SHOWN waits for the access gate (see the returns below).
   const access = usePostReadAccess(id ? String(id) : '');
@@ -605,7 +604,7 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
   if (!access.allowed) return <FeedSkeleton />;
   if (!loading && (error || !post)) {
     return (
-      <Screen active={isFocused} scroll="auto" header={header}>
+      <Screen scroll="auto" header={header}>
         <SEO
           title={t('seo.post.notFound')}
           description={t('seo.post.notFoundDescription')}
@@ -626,7 +625,6 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
   }
   return (
     <Screen
-      active={isFocused}
       scroll="auto"
       header={header}
       testID="post-screen"

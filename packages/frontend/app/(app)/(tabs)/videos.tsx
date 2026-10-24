@@ -2120,7 +2120,6 @@ export default function VideosScreen() {
             refresh: () => setReloadNonce((nonce) => nonce + 1),
           }}
           scroll="auto"
-          active={isFocused}
           headerPlacement="overlay"
           contentClearance={0}
           testID="videos-screen"

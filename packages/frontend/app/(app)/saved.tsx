@@ -24,7 +24,6 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { logger } from '@oxy.so/core/logger';
 import SavedPostsList, { type SavedPost } from '@/components/saved/SavedPostsList';
 import { usePostsStore } from '@/stores/postsStore';
-import { useIsFocused } from '@/lib/navigation/router';
 
 const PAGE_SIZE = 30;
 const SEARCH_DEBOUNCE_MS = 400;
@@ -54,7 +53,6 @@ function flattenSavedPages(pages: SavedPostsPage[] | undefined): SavedPost[] {
 }
 
 const SavedPostsScreen: React.FC = () => {
-  const isFocused = useIsFocused();
   const { t } = useTranslation();
   const { canUsePrivateApi, isPrivateApiPending, user } = useAuth();
   const queryClient = useQueryClient();
@@ -316,7 +314,6 @@ const SavedPostsScreen: React.FC = () => {
       <HeaderDockProvider>
         <Screen
           reselect={{ refresh: refetchSavedPosts }}
-          active={isFocused}
           scroll="auto"
           header={<PageHeader title={t('screens.saved.title')} presentation="floating" />}
           // The page's own action; the shell's compose FAB steps aside for it.

@@ -14,7 +14,7 @@ import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { RiPushpinFill } from '@oxy.so/bloom/icons/RiPushpinFill';
 import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
 import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
-import { useRouter, useLocalSearchParams, useIsFocused } from '@/lib/navigation/router';
+import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView, useScreenBack } from '@oxy.so/bloom/screen';
@@ -630,7 +630,6 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
 });
 
 function CustomFeedTimelineScreen() {
-  const isFocused = useIsFocused();
   const router = useRouter();
   const theme = useTheme();
   const { t } = useTranslation();
@@ -782,7 +781,6 @@ function CustomFeedTimelineScreen() {
 
   return (
     <Screen
-      active={isFocused}
       scroll="auto"
       header={
         // Compact Bluesky-style header

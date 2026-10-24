@@ -134,7 +134,7 @@ export default function CameraPage() {
   // page in by position, and an empty page would flash the app background.
   return (
     <BloomColorScope mode="dark" asChild>
-      <Screen active={isFocused} scroll="none" style={{ backgroundColor: '#000' }}>
+      <Screen scroll="none" style={{ backgroundColor: '#000' }}>
         {capture ? (
           <CaptureReview
             capture={capture}

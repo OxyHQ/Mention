@@ -1,4 +1,4 @@
-import { useScreenScroll, useScreenViewport } from '@oxy.so/bloom/screen';
+import { useScreenScroll, useScreenViewport, useScreenVisible } from '@oxy.so/bloom/screen';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState, memo, forwardRef } from 'react';
 import {
@@ -20,7 +20,6 @@ import Animated, {
   useSharedValue,
   type AnimatedProps,
 } from 'react-native-reanimated';
-import { useIsFocused } from '@/lib/navigation/router';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
 import { useRevealOwnNewPost } from '@/hooks/useRevealOwnNewPost';
 import { getItemKey } from '@/utils/feedUtils';
@@ -278,15 +277,13 @@ const Feed = (props: FeedProps) => {
   } = core;
 
   const headerDockInset = useHeaderDockInset();
-  // With the (app) center now a Stack, multiple feed screens can be mounted at
-  // once (e.g. the home feed stays mounted behind a pushed profile). Only the
-  // FOCUSED feed may drive its Screen's chrome (header, bottom bar) and answer a
-  // reselect — otherwise a frozen background feed could move them.
-  const isFocused = useIsFocused();
-  const screenViewport = useScreenViewport();
-  const screenActive = screenViewport?.active !== false;
+  // Several feed screens stay mounted at once (the home feed behind a pushed
+  // profile, the pager's other pages). Only the one the reader sees may drive
+  // its Screen's chrome and answer a reselect; Bloom marks covered stack scenes
+  // and hidden pages inactive, and a backgrounded app is not visible either.
+  const isVisible = useScreenVisible();
   const flatListRef = useRef<FlashListRef<NativeFeedRow> | null>(null);
-  useScreenScrollOwner(flatListRef, isFocused && screenActive && scrollEnabled !== false);
+  useScreenScrollOwner(flatListRef, isVisible && scrollEnabled !== false);
 
   // Bloom is a no-op on native today, but pass the same identity sub-key used
   // on web so feeds hosted by one route can never share an offset if native
@@ -324,7 +321,7 @@ const Feed = (props: FeedProps) => {
   // Zustand publication on every scroll frame.
   const restoredFeedKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    if (scrollEnabled === false || !isFocused) {
+    if (scrollEnabled === false || !isVisible) {
       restoredFeedKeyRef.current = null;
       return;
     }
@@ -342,7 +339,7 @@ const Feed = (props: FeedProps) => {
       });
     });
     return () => cancelAnimationFrame(frame);
-  }, [feedState.feedScrollKey, isFocused, listRows.length, scrollEnabled]);
+  }, [feedState.feedScrollKey, isVisible, listRows.length, scrollEnabled]);
 
   // The viewer's own new post goes in at the head of this list, but FlashList
   // keeps the old first row still, so the post sat above it, cut off under the
@@ -354,7 +351,7 @@ const Feed = (props: FeedProps) => {
   }, [feedState.feedScrollKey]);
   useRevealOwnNewPost({
     feedKey: feedState.feedScrollKey,
-    enabled: scrollEnabled !== false && isFocused && listRows.length > 0 && receivesOwnNewPost,
+    enabled: scrollEnabled !== false && isVisible && listRows.length > 0 && receivesOwnNewPost,
     scrollToTop: revealOwnNewPost,
   });
 
@@ -486,12 +483,12 @@ const Feed = (props: FeedProps) => {
    */
   const reportScrollOffset = useCallback(
     (offsetY: number) => {
-      if (scrollEnabled === false || !isFocused) return;
+      if (scrollEnabled === false || !isVisible) return;
       setFeedScrollOffset(feedState.feedScrollKey, offsetY);
       scrollOffsetRef.current = offsetY;
       syncHeaderOnScreen();
     },
-    [feedState.feedScrollKey, scrollEnabled, isFocused, syncHeaderOnScreen],
+    [feedState.feedScrollKey, scrollEnabled, isVisible, syncHeaderOnScreen],
   );
 
   /** The last offset handed to the JS thread, so the worklet can ration them. */
@@ -533,7 +530,7 @@ const Feed = (props: FeedProps) => {
   // clear of the header and the bottom bar, records its metrics, and moves it
   // on a reselect.
   const screenScroll = useScreenScroll({
-    active: isFocused && screenActive && ownsScroll,
+    active: isVisible && ownsScroll,
     handler: handleScrollEvent,
     scrollToOffset: (offset) => flatListRef.current?.scrollToOffset({ offset, animated: true }),
   });

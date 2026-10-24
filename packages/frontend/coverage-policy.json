@@ -301,6 +301,18 @@
       "metric": "lines",
       "date": "2026-10-24",
       "reason": "Web list virtualization and screen visibility moved to Bloom (VirtualList / visibility hooks), tested there; Mention's useOwnerVirtualizer, useScrollMarginOrigin, LoadMoreSentinel and its own AppState/visibilitychange foreground subscriptions were deleted with their tests."
+    },
+    {
+      "path": "total",
+      "metric": "statements",
+      "date": "2026-10-24",
+      "reason": "Reselect, web list virtualization, screen visibility, Back, page actions, the drawer state and the icon translation layer moved into Bloom (reselect, VirtualList, useScreenVisible, BloomProvider back, Screen primaryAction, AppShell, icons; tested there); Mention's copies (ScreenReselectContext, DocumentScroll, useOwnerVirtualizer, LoadMoreSentinel, useSafeBack, PageAction, DrawerContext, Ionicons, the EmptyState name table) were deleted, which lowers the overall ratio by about a tenth of a point."
+    },
+    {
+      "path": "total",
+      "metric": "lines",
+      "date": "2026-10-24",
+      "reason": "Reselect, web list virtualization, screen visibility, Back, page actions, the drawer state and the icon translation layer moved into Bloom (reselect, VirtualList, useScreenVisible, BloomProvider back, Screen primaryAction, AppShell, icons; tested there); Mention's copies (ScreenReselectContext, DocumentScroll, useOwnerVirtualizer, LoadMoreSentinel, useSafeBack, PageAction, DrawerContext, Ionicons, the EmptyState name table) were deleted, which lowers the overall ratio by about a tenth of a point."
     }
   ],
   "globalDriftAllowancePoints": 0.75,

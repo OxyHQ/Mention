@@ -18,7 +18,7 @@ import { RiLinkM } from '@oxy.so/bloom/icons/RiLinkM';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
 import { RiUserAddFill } from '@oxy.so/bloom/icons/RiUserAddFill';
-import { useRouter, useLocalSearchParams, useIsFocused } from '@/lib/navigation/router';
+import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import * as Clipboard from 'expo-clipboard';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useQuery } from '@tanstack/react-query';
@@ -72,7 +72,6 @@ const TABS_CONFIG = [
 ];
 
 function ListDetailScreen() {
-  const isFocused = useIsFocused();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
@@ -306,10 +305,7 @@ function ListDetailScreen() {
   // Loading state
   if (loading) {
     return (
-      <Screen
-        active={isFocused}
-        header={<PageHeader backLabel={t('common.back', { defaultValue: 'Back' })} />}
-      >
+      <Screen header={<PageHeader backLabel={t('common.back', { defaultValue: 'Back' })} />}>
         <ScreenScrollView>
           <DetailSkeleton />
         </ScreenScrollView>
@@ -321,7 +317,6 @@ function ListDetailScreen() {
   if (error || !list) {
     return (
       <Screen
-        active={isFocused}
         header={
           <PageHeader
             title={t('lists.detail.title')}
@@ -342,7 +337,6 @@ function ListDetailScreen() {
 
   return (
     <Screen
-      active={isFocused}
       header={
         <PageHeader
           title={list.title || t('lists.detail.title')}

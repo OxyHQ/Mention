@@ -1,7 +1,7 @@
 import { Screen } from '@oxy.so/bloom/screen';
 import { useMemo, useState } from 'react';
 import { Platform, View } from 'react-native';
-import { useLocalSearchParams, usePathname, useIsFocused } from '@/lib/navigation/router';
+import { useLocalSearchParams, usePathname } from '@/lib/navigation/router';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Text } from '@oxy.so/bloom/typography';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +12,6 @@ import { matchesServerSEOPath, readServerSEO } from '@/lib/seoHandoff';
 import { EntityFollowButton } from '@/components/EntityFollowButton';
 
 export default function HashtagScreen() {
-  const isFocused = useIsFocused();
   const { tag } = useLocalSearchParams<{ tag: string }>();
   const { t } = useTranslation();
 
@@ -52,7 +51,6 @@ export default function HashtagScreen() {
 
   return (
     <Screen
-      active={isFocused}
       scroll="auto"
       header={
         <PageHeader title={displayTag} backLabel={t('common.back', { defaultValue: 'Back' })} />

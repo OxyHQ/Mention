@@ -20,7 +20,6 @@ import { ProfileTabs } from './ProfileTabs';
 import { shouldFeedOwnProfileScroll, shouldGridOwnProfileScroll } from './types';
 import type { ProfileTabsProps } from './types';
 import type { ProfileChrome } from './hooks/useProfileChrome';
-import { useIsFocused } from '@/lib/navigation/router';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -122,7 +121,6 @@ function ProfileShellBody({
   isRootTab = false,
   colorPreset,
 }: ProfileShellProps & Pick<ViewProps, 'style'> & Pick<ScreenProps, 'colorPreset'>) {
-  const isFocused = useIsFocused();
   const surfaceFill = useSurfaceFill();
   const headerInset = useHeaderDockInset();
   const [summaryHeight, setSummaryHeight] = useState<number>();
@@ -193,7 +191,6 @@ function ProfileShellBody({
   // the page to the content panel, like every other screen.
   return (
     <Screen
-      active={isFocused}
       scroll={active ? 'auto' : 'content'}
       colorPreset={colorPreset}
       headerPlacement={banner ? 'overlay' : 'inset'}
