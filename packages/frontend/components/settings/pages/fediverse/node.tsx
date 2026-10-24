@@ -162,7 +162,7 @@ export default function MentionNodeScreen() {
       <View className="gap-4">
         {isError ? (
           <EmptyState
-            icon={{ name: 'cloud-offline-outline' }}
+            sticker="offline"
             error={{
               title: t('settings.node.loadError', {
                 defaultValue: "Couldn't load your node",

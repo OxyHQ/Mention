@@ -134,7 +134,7 @@ export default function ConnectedAiScreen() {
           <ListSkeleton />
         ) : isError ? (
           <EmptyState
-            icon={{ name: 'cloud-offline-outline' }}
+            sticker="offline"
             error={{
               title: t('mcp.connections.loadError', {
                 defaultValue: "Couldn't load connected apps",

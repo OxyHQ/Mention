@@ -116,7 +116,7 @@ const LiveRoomsScreen = () => {
     <RoomsListSkeleton />
   ) : showError ? (
     <EmptyState
-      icon={{ name: 'cloud-offline-outline' }}
+      sticker="offline"
       error={{
         title: t('agora.loadRoomsFailedTitle', { defaultValue: "Couldn't load rooms" }),
         message: t('agora.loadRoomsFailedMessage', {

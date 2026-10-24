@@ -1,84 +1,25 @@
 import { memo, useCallback, useState, type ReactNode } from 'react';
 import type { ViewStyle } from 'react-native';
-import { EmptyState as BloomEmptyState } from '@oxy.so/bloom/empty-state';
+import { EmptyState as BloomEmptyState, type EmptyStateAction } from '@oxy.so/bloom/empty-state';
 import type { BloomIconComponent } from '@oxy.so/bloom';
-import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
-import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
-import { RiBarChartHorizontalLine } from '@oxy.so/bloom/icons/RiBarChartHorizontalLine';
-import { RiErrorWarningLine } from '@oxy.so/bloom/icons/RiErrorWarningLine';
-import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
-import { RiGalleryLine } from '@oxy.so/bloom/icons/RiGalleryLine';
-import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
-import { RiHeartLine } from '@oxy.so/bloom/icons/RiHeartLine';
-import { RiLinkM } from '@oxy.so/bloom/icons/RiLinkM';
-import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
-import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
-import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
-import { RiQuestionLine } from '@oxy.so/bloom/icons/RiQuestionLine';
 import { RiRefreshLine } from '@oxy.so/bloom/icons/RiRefreshLine';
-import { RiRepeatLine } from '@oxy.so/bloom/icons/RiRepeatLine';
-import { RiVolumeMuteLine } from '@oxy.so/bloom/icons/RiVolumeMuteLine';
 import type { EmptyStateStickerName } from '@/lib/stickers';
 import { EmptyStateSticker } from '@/components/common/EmptyStateSticker';
-
-/**
- * The Ionicons names this component used to draw, and the Bloom glyph each one
- * became. ONE table, deliberately: the call sites keep asking for the name they
- * always asked for, so a substitution that reads wrong is changed in one line
- * here rather than hunted across thirty-four screens — and no test can catch a
- * wrong one, so it has to be reviewable in one place.
- *
- * Three have no like-for-like in Bloom's 461-glyph Remix set and are the ones
- * worth arguing about:
- *
- * - `cloud-offline-outline` -> `RiAlertLine`. There is no cloud-off or wifi-off
- *   glyph. Every call site is a "could not load this" state, so the alert
- *   triangle says the same thing; `RiErrorWarningLine` is kept for the states
- *   that were already spelled `alert-circle-outline`, so the two stay distinct.
- * - `git-branch-outline` -> `RiNodeTree`. Used only by Lanes, whose subject IS a
- *   branching tree of replies.
- * - `bar-chart-outline` -> `RiBarChartHorizontalLine`. Bloom ships no vertical
- *   bar chart glyph.
- */
-const ICONS = {
-  'add-outline': RiAddLine,
-  'alert-circle-outline': RiErrorWarningLine,
-  'bar-chart-outline': RiBarChartHorizontalLine,
-  'cloud-offline-outline': RiAlertLine,
-  'eye-off-outline': RiEyeOffLine,
-  'git-branch-outline': RiNodeTree,
-  'heart-outline': RiHeartLine,
-  'help-circle-outline': RiQuestionLine,
-  'images-outline': RiGalleryLine,
-  'link-outline': RiLinkM,
-  'lock-closed-outline': RiLockLine,
-  'notifications-outline': RiNotification3Line,
-  'people-outline': RiGroupLine,
-  'repeat-outline': RiRepeatLine,
-  'volume-mute-outline': RiVolumeMuteLine,
-} satisfies Record<string, BloomIconComponent>;
-
-/** The glyph names a call site may ask for. */
-export type EmptyStateIconName = keyof typeof ICONS;
 
 export interface EmptyStateProps {
   title?: string;
   subtitle?: string;
-  /**
-   * `size` is accepted and ignored: Bloom sizes the glyph from `variant`, which
-   * is the point of handing the block over. The call sites asked for 44 or 48;
-   * the screen rung draws 32.
-   */
-  icon?: { name: EmptyStateIconName; size?: number };
+  /** The Bloom glyph above the title. Bloom sizes it; an error draws a sticker instead. */
+  icon?: BloomIconComponent;
   /** An error with a retry. The retrying state is this component's to hold. */
   error?: { title: string; message: string; onRetry?: () => Promise<void> };
-  action?: { label: string; onPress: () => void; icon?: EmptyStateIconName };
+  action?: EmptyStateAction;
   /** An arbitrary mark above the title. Wins over `icon`, as Bloom's does. */
   customIcon?: ReactNode;
   /**
    * A sticker from Oxy's catalogue above the title, by its name in
    * `lib/stickers.ts`. Wins over `icon` (Bloom's `illustration` does). With
-   * `error` it defaults to `loadError` (or `offline` for the connection glyph).
+   * `error` it defaults to `loadError`; a connection failure passes `offline`.
    */
   sticker?: EmptyStateStickerName;
   /** Below the action — a second, quieter way out (Bloom's `footer`). */
@@ -94,9 +35,9 @@ export interface EmptyStateProps {
  * spacing, `accessibilityRole="text"` on a container holding three strings —
  * which is the shape `@oxy.so/bloom/empty-state` was added to replace across
  * the twelve Bloom families that had each drawn their own. What survives here
- * is only what is Mention's: the glyph vocabulary above, and the error/retry
- * pair, which Bloom models as an action with a `loading` flag rather than as a
- * mode of its own.
+ * is only what is Mention's: the catalogue stickers, and the error/retry pair,
+ * which Bloom models as an action with a `loading` flag rather than as a mode
+ * of its own.
  */
 export const EmptyState = memo<EmptyStateProps>(function EmptyState({
   title,
@@ -123,18 +64,14 @@ export const EmptyState = memo<EmptyStateProps>(function EmptyState({
     }
   }, [onRetry, isRetrying]);
 
-  const glyph = icon ? ICONS[icon.name] : undefined;
-
   if (error) {
-    // Every failure gets a sticker: the offline one when the call site asks for
-    // the connection glyph, the "could not load" one otherwise, unless it names
-    // its own. The tinted alarm disc stays retired — a sticker is not an alarm,
-    // and a transient backend hiccup must still read as a calm retry.
-    const errorSticker: EmptyStateStickerName =
-      sticker ?? (icon?.name === 'cloud-offline-outline' ? 'offline' : 'loadError');
+    // Every failure gets a sticker: "could not load" unless the call site names
+    // its own (`offline` for a connection failure). The tinted alarm disc stays
+    // retired — a sticker is not an alarm, and a transient backend hiccup must
+    // still read as a calm retry.
     return (
       <BloomEmptyState
-        illustration={customIcon ?? <EmptyStateSticker name={errorSticker} />}
+        illustration={customIcon ?? <EmptyStateSticker name={sticker ?? 'loadError'} />}
         title={error.title}
         description={error.message}
         action={
@@ -155,20 +92,12 @@ export const EmptyState = memo<EmptyStateProps>(function EmptyState({
 
   return (
     <BloomEmptyState
-      icon={glyph}
+      icon={icon}
       illustration={illustration}
       footer={footer}
       title={title}
       description={subtitle}
-      action={
-        action
-          ? {
-              label: action.label,
-              onPress: action.onPress,
-              icon: action.icon ? ICONS[action.icon] : undefined,
-            }
-          : undefined
-      }
+      action={action}
       style={containerStyle}
       testID={testID}
     />

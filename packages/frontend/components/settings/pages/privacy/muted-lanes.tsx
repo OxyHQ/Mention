@@ -109,7 +109,6 @@ export default function MutedLanesScreen() {
                   title={t('lanes.muted.loadFailed', {
                     defaultValue: 'Failed to load muted lanes',
                   })}
-                  icon={{ name: 'alert-circle-outline', size: 48 }}
                   error={{
                     title: t('lanes.muted.loadFailed', {
                       defaultValue: 'Failed to load muted lanes',

@@ -1,4 +1,3 @@
-import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import {
@@ -7,13 +6,17 @@ import {
   useMicrophonePermissions,
   type CameraType,
 } from 'expo-camera';
-import Ionicons from '@/components/common/Ionicons';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedProps, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
 
+import type { BloomIconComponent } from '@oxy.so/bloom';
 import { Button } from '@oxy.so/bloom/button';
+import { RiCameraSwitchLine } from '@oxy.so/bloom/icons/RiCameraSwitchLine';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
+import { RiFlashlightLine } from '@oxy.so/bloom/icons/RiFlashlightLine';
+import { RiTimerLine } from '@oxy.so/bloom/icons/RiTimerLine';
 import { Text } from '@oxy.so/bloom/typography';
 import {
   FLASH_CHOICES,
@@ -428,7 +431,7 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
       <RoundButton
         style={styles.close}
         onPress={onClose}
-        icon="close"
+        icon={RiCloseLine}
         label={t('common.close', { defaultValue: 'Close' })}
       />
 
@@ -437,9 +440,9 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
       <View style={styles.controlColumn}>
         <RoundButton
           onPress={() => setFlash(nextChoice(FLASH_CHOICES, flash))}
-          icon={flash === 'off' ? 'flash-off' : 'flash'}
-          // The "A" is how every camera distinguishes automatic from on, and
-          // Ionicons has no separate glyph for it.
+          // One bolt for every setting: the colour says off or on, and the "A" is
+          // how every camera distinguishes automatic from on.
+          icon={RiFlashlightLine}
           badge={flash === 'auto' ? 'A' : undefined}
           active={flash !== 'off'}
           label={t('camera.flash', { defaultValue: 'Flash' })}
@@ -456,7 +459,7 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
         />
         <RoundButton
           onPress={() => setTimer(nextChoice(TIMER_CHOICES, timer))}
-          icon="timer-outline"
+          icon={RiTimerLine}
           badge={timer === 0 ? undefined : String(timer)}
           active={timer !== 0}
           label={t('camera.timer', { defaultValue: 'Timer' })}
@@ -577,7 +580,7 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
           style={[styles.sideSlot, recording && styles.slotHidden]}
           onPress={() => setFacing((current) => (current === 'back' ? 'front' : 'back'))}
           disabled={recording}
-          icon="camera-reverse-outline"
+          icon={RiCameraSwitchLine}
           label={t('camera.flip', { defaultValue: 'Switch camera' })}
         />
       </View>
@@ -624,7 +627,7 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
  * carrying the value the icon alone cannot say.
  */
 function RoundButton({
-  icon,
+  icon: Icon,
   label,
   value,
   badge,
@@ -633,7 +636,7 @@ function RoundButton({
   style,
   onPress,
 }: {
-  icon: React.ComponentProps<typeof Ionicons>['name'];
+  icon: BloomIconComponent;
   label: string;
   /** The setting's current value, for the announced name. Omit for a plain action. */
   value?: string;
@@ -653,7 +656,7 @@ function RoundButton({
       // the one thing a reader who cannot see the icon needs to know.
       accessibilityLabel={value ? `${label}: ${value}` : label}
     >
-      <Ionicons name={icon} size={20} color={active ? '#facc15' : '#fff'} />
+      <Icon width={20} height={20} fill={active ? '#facc15' : '#fff'} />
       {badge ? (
         <View style={styles.roundBadge}>
           <Text className="text-black text-[9px] font-bold">{badge}</Text>

@@ -364,7 +364,6 @@ export default function LanesScreen() {
               <View className="py-4">
                 <EmptyState
                   title={t('lanes.loadFailed', { defaultValue: 'Failed to load your lanes' })}
-                  icon={{ name: 'alert-circle-outline', size: 48 }}
                   error={{
                     title: t('lanes.loadFailed', { defaultValue: 'Failed to load your lanes' }),
                     message: t('common.tryAgain', { defaultValue: 'Try again' }),

@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { type GestureResponderEvent, Text, View } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
-import Ionicons from '@/components/common/Ionicons';
+import { RiExchangeLine } from '@oxy.so/bloom/icons/RiExchangeLine';
 import type { CrosspostProvenance } from '@mention/shared-types';
 import { POST_CONTEXT_ROW_HEIGHT } from './postContextRowLayout';
 
@@ -63,7 +63,7 @@ const PostCrosspostRow: React.FC<Props> = ({ crosspost, iconColor }) => {
   return (
     <View className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
       <View className="-ml-4 mr-[3px]">
-        <Ionicons name="git-compare-outline" size={13} color={iconColor} />
+        <RiExchangeLine width={13} height={13} fill={iconColor} />
       </View>
       <Text
         className="text-muted-foreground text-[13px] font-semibold"

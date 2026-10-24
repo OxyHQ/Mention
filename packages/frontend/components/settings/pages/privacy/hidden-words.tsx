@@ -222,7 +222,6 @@ export default function HiddenWordsScreen() {
                   title={t('settings.privacy.failedToLoadMutedWords', {
                     defaultValue: 'Failed to load muted words',
                   })}
-                  icon={{ name: 'alert-circle-outline', size: 48 }}
                   error={{
                     title: t('settings.privacy.failedToLoadMutedWords', {
                       defaultValue: 'Failed to load muted words',

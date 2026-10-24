@@ -1,20 +1,13 @@
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { Image } from 'expo-image';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { RiFilmLine } from '@oxy.so/bloom/icons';
+import { RiFilmLine } from '@oxy.so/bloom/icons/RiFilmLine';
 import VideoPosterCell from '../VideoPosterCell';
-
-jest.mock('@oxy.so/bloom/icons', () => ({ RiFilmLine: () => null }));
 
 /**
  * The metadata row is the only place in the app where a play count and a
  * duration are rendered from two sources that disagree about how they spell
  * "zero", so the states are pinned individually rather than sampled.
- *
- * `render` awaits an async act because `Ionicons` resolves its font in a
- * promise and updates after mount; without the flush every assertion here would
- * be made against a half-mounted tree.
  */
 async function render(props: React.ComponentProps<typeof VideoPosterCell>) {
   let renderer!: TestRenderer.ReactTestRenderer;
@@ -38,22 +31,22 @@ function hostNodes(renderer: TestRenderer.ReactTestRenderer, type: 'Text' | 'Vie
   return renderer.root.findAll((node) => String(node.type) === type, { deep: true });
 }
 
-/**
- * The strings the cell paints as LABELS. An icon glyph is also a host `Text`,
- * and it is the only one with no `className`, so that is the discriminator —
- * matching on the glyph character instead would depend on the icon font having
- * loaded.
- */
+/** The strings the cell paints as labels. */
 function labels(renderer: TestRenderer.ReactTestRenderer): string[] {
   return hostNodes(renderer, 'Text')
     .filter((node) => typeof (node.props as { className?: unknown }).className === 'string')
     .flatMap((node) => node.children.filter((child): child is string => typeof child === 'string'));
 }
 
+/** Bloom glyphs by export name — `test-support/bloomIcons.js` sets `displayName`. */
 function iconNames(renderer: TestRenderer.ReactTestRenderer): string[] {
   return renderer.root
-    .findAllByType(Ionicons)
-    .map((node) => String((node.props as { name: unknown }).name));
+    .findAll(
+      (node) =>
+        typeof node.type === 'function' &&
+        /^Ri[A-Z]/.test(String((node.type as React.FC).displayName)),
+    )
+    .map((node) => String((node.type as React.FC).displayName));
 }
 
 const BASE = { posterUri: 'https://cdn.example/poster.jpg', size: 120, placeholderColor: '#888' };
@@ -135,8 +128,8 @@ describe('VideoPosterCell metadata row', () => {
     const scrimmed = await render({ ...BASE, scrim: true, views: 12, durationSec: 5 });
     const plain = await render({ ...BASE, views: 12, durationSec: 5 });
 
-    expect(iconNames(scrimmed)).toEqual(['play']);
-    expect(iconNames(plain)).toEqual(['play']);
+    expect(iconNames(scrimmed)).toEqual(['RiPlayFill']);
+    expect(iconNames(plain)).toEqual(['RiPlayFill']);
 
     unmount(scrimmed, plain);
   });

@@ -149,7 +149,7 @@ jest.mock('@/components/Compose/CollabAcceptSheet', () => ({
 
 jest.mock('../notificationDescriptors', () => ({
   getDescriptor: () => ({
-    icon: 'people',
+    icon: () => null,
     colorToken: 'primary',
     hasPreview: true,
     actionPhrase: () => 'invited you to collaborate on a post',

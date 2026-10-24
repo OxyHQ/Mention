@@ -1,6 +1,5 @@
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import ComposeThreadItem, { type ComposeThreadItemStyles } from '../ComposeThreadItem';
 import { RiTimeFill } from '@oxy.so/bloom/icons/RiTimeFill';
 import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
@@ -282,12 +281,11 @@ function iconNames(tree: TestRenderer.ReactTestRenderer): string[] {
 
 function iconColor(tree: TestRenderer.ReactTestRenderer, name: string): unknown {
   const icon = tree.root.findAll((node) => iconName(node) === name)[0];
-  return icon?.type === Ionicons ? icon.props.color : icon?.props.fill;
+  return icon?.props.fill;
 }
 
-/** Ionicons by glyph name, Bloom icons by export name; `undefined` for anything else. */
+/** Bloom icons by export name; `undefined` for anything else. */
 function iconName(node: TestRenderer.ReactTestInstance): string | undefined {
-  if (node.type === Ionicons) return String(node.props.name);
   const name = typeof node.type === 'function' ? (node.type as React.FC).displayName : undefined;
   return name && /^Ri[A-Z]/.test(name) ? name : undefined;
 }

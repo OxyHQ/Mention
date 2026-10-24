@@ -19,7 +19,7 @@ import { RiGalleryLine } from '@oxy.so/bloom/icons/RiGalleryLine';
 import { RiLinksLine } from '@oxy.so/bloom/icons/RiLinksLine';
 import { RiMapPinLine } from '@oxy.so/bloom/icons/RiMapPinLine';
 import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
-import Ionicons from '@/components/common/Ionicons';
+import { RiBriefcase4Line } from '@oxy.so/bloom/icons/RiBriefcase4Line';
 
 /**
  * The attachment row under ONE compose box.
@@ -270,7 +270,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(
             disabled={disabled}
             active={hasJob}
           >
-            {(color) => <Ionicons name="briefcase-outline" size={20} color={color} />}
+            {(color) => <RiBriefcase4Line size="md" fill={color} />}
           </ToolbarAction>
         )}
 

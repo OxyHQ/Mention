@@ -38,7 +38,7 @@ export function ProfileUnavailable({
           }),
           onRetry,
         }}
-        icon={{ name: 'cloud-offline-outline' }}
+        sticker="offline"
         containerStyle={{ paddingTop: 60 }}
       />
     );

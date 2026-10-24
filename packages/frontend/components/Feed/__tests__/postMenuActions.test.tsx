@@ -73,7 +73,6 @@ const mockClipboard = { setStringAsync: jest.fn(async (_text: string) => true) }
 jest.mock('expo-clipboard', () => ({
   setStringAsync: (text: string) => mockClipboard.setStringAsync(text),
 }));
-jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
 jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user: { username?: string } | null) => user?.username ?? null,
 }));

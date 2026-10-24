@@ -53,7 +53,6 @@ jest.mock('@oxy.so/bloom/icons', () => ({
   RiLinkM: () => null,
 }));
 
-jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
 jest.mock('@oxy.so/bloom/icons', () => ({ RiChat3Fill: 'RiChat3Fill', RiMoreFill: 'RiMoreFill' }));
 
 jest.mock('../../Post/PostContentText', () => ({ __esModule: true, default: () => null }));

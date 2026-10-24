@@ -40,7 +40,6 @@ jest.mock('@/components/Profile/PrivateBadge', () => ({ PrivateBadge: () => null
 jest.mock('@/hooks/useAccountCategoryLabel', () => ({
   useAccountCategoryLabel: () => (id: string) => id,
 }));
-jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
 jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { text: '#000000', primary: '#0000ff' } }),
 }));
